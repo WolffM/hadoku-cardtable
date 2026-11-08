@@ -21,7 +21,7 @@ import type { DraftTransport } from '../draft/socket.ts';
 import type { DeckStoreClient } from '../deck/deckStore.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DeckScreen } from './DeckScreen.tsx';
-import { navigate, parseRoute } from './route.ts';
+import { currentRoute, navigate } from './route.ts';
 import type { PodContext, PodSource } from './pod/client.ts';
 import { POD_SEATS, type PodView } from './pod/wire.ts';
 
@@ -129,7 +129,7 @@ function mountPod(tableId?: string) {
   return { draft, room };
 }
 
-const route = () => parseRoute(globalThis.location.hash);
+const route = () => currentRoute();
 const BUILDER = { kind: 'deck', draftId: ROOM };
 
 describe('a finished draft goes straight to the builder', () => {

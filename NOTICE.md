@@ -109,6 +109,10 @@ Neither font is renamed, per the SIL OFL reserved font name clause. The full
 licence texts are in `apps/ui/src/symbols/LICENSE-keyrune.md` and
 `apps/ui/src/symbols/LICENSE-mana.md`.
 
+A room's link preview sets its "VS" in **Cinzel** (<https://github.com/NDISCOVER/Cinzel>),
+copyright 2020 The Cinzel Project Authors, licensed under the SIL Open Font License 1.1. It is not
+renamed; the licence is `apps/server/assets/fonts/Cinzel-OFL.txt`.
+
 ## Sound effects
 
 Most sound-effect takes used by the sound builder (`#/sounds`, admin-gated) and, later, the game

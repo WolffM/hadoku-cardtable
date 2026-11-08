@@ -12,11 +12,15 @@
  *
  * ## The order a request meets
  *
- *   provenance → capacity → access log → /health, /health/busy, the erase route
+ *   provenance → capacity → access log → /health, /health/busy, the erase route, the sealed routes
  *   → the tier floor → first-seen → /api (JSON body, then the plugins' routes)
  *   → the bundle's static files → the plugins' own app routes, in registration order
  *
- * Everything above the floor is public on purpose; a plugin registers nothing above it.
+ * Everything above the floor is public on purpose; a plugin registers nothing above it except on
+ * `sealed`, which answers only a request carrying the edge's seal and passes every other one on to
+ * the floor. The edge seals each request it proxies whatever the caller's tier, so a route there is
+ * reachable through hadoku.me by anyone the edge itself lets through (a link-preview crawler, say),
+ * and never by a direct hit on the tunnel.
  *
  * ## Boot phases
  *
@@ -94,6 +98,8 @@ export interface GameContext<E extends EventMap, S> {
 	readonly app: Express;
 	/** Mounted at `/api`, below the floor, after the JSON body parser. */
 	readonly api: Router;
+	/** Above the floor, behind the edge's seal and no tier: what the edge itself serves publicly. */
+	readonly sealed: Router;
 	readonly httpServer: Server;
 	readonly io: SocketIOServer;
 	readonly bus: Bus<KernelEvents & E>;
@@ -208,6 +214,8 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 	);
 	// The edge's seal only, never a tier, and above first-seen so an erase does not record the person again.
 	app.post(ERASE_PATH, (req: Request, res: Response) => void accountErase.handle(req, res));
+	const sealed = express.Router();
+	app.use((req, res, next) => (config.edgeAuth.edgeSealed(req) ? sealed(req, res, next) : next()));
 
 	// ── The tier floor: everything below is gated ──
 	app.use(config.gate.requireMinTier);
@@ -231,6 +239,7 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 		id,
 		app,
 		api,
+		sealed,
 		httpServer,
 		io,
 		bus,

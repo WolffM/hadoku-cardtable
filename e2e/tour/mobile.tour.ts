@@ -196,7 +196,7 @@ test('room: constructed room, a live match through the room, spectator, result, 
 
     await go(alice.page, at(stack, ''));
     await submitCreateRoom(alice.page, { name: `Friday Legacy ${Date.now() % 1000}` });
-    await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+    await alice.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     const roomUrl = alice.page.url();
     const roomId = roomUrl.split('/room/')[1]!;
     await alice.page.getByTestId('constructed').waitFor({ timeout: 30_000 });

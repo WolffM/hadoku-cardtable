@@ -1013,15 +1013,15 @@ export async function grindPriority(
 /* ── rooms ────────────────────────────────────────────────────────────── */
 
 /** How long the app has to navigate to a room after it is created or joined. */
-const ROOM_HASH_TIMEOUT = 30_000;
+const ROOM_ADDRESS_TIMEOUT = 30_000;
 
-/** The room id off the hash a person could copy, once the app has navigated there. */
-export async function roomIdFromHash(page: Page): Promise<string> {
-  await page.waitForFunction(() => /^#\/room\/[a-z0-9-]+$/.test(window.location.hash), null, {
-    timeout: ROOM_HASH_TIMEOUT,
+/** The room id off the address a person could copy (the room's own path), once the app has navigated there. */
+export async function roomIdFromAddress(page: Page): Promise<string> {
+  await page.waitForFunction(() => window.location.hash === '' && /\/room\/[a-z0-9-]+$/.test(window.location.pathname), null, {
+    timeout: ROOM_ADDRESS_TIMEOUT,
   });
-  const hash = await page.evaluate(() => window.location.hash);
-  return hash.replace('#/room/', '');
+  const path = await page.evaluate(() => window.location.pathname);
+  return path.slice(path.lastIndexOf('/') + 1);
 }
 
 /**
@@ -1045,10 +1045,10 @@ export async function createRoom(
   if (opts.mode === 'streamed') {
     if (opts.password !== undefined) throw new Error('a streamed room with a password is not a case any spec makes');
     await createStreamedRoomByApi(f.page, name);
-    return roomIdFromHash(f.page);
+    return roomIdFromAddress(f.page);
   }
   await submitCreateRoom(f.page, { name, password: opts.password });
-  return roomIdFromHash(f.page);
+  return roomIdFromAddress(f.page);
 }
 
 /** The hand card named `name`, Forge-offered or not — by its own `.card__name` text. */

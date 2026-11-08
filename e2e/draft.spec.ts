@@ -68,7 +68,7 @@ import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './ide
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { dress, servePictures } from './looks.ts';
-import { makeTitled, resizeWindow, roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromAddress, serverLog as readServerLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { specVideoSlug } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -343,7 +343,7 @@ async function createDraftRoom(p: Player, name: string, origin: string = EDGE_OR
   await expect(p.page.getByRole('radio', { name: 'Draft' })).toBeEnabled();
   await submitCreateRoom(p.page, { name, gameType: 'draft' });
 
-  const id = await roomIdFromHash(p.page);
+  const id = await roomIdFromAddress(p.page);
   expect(id, 'the room id is server-minted').toMatch(ROOM_ID);
   return id;
 }
@@ -370,7 +370,7 @@ async function enterFromList(
   // The list says what game it is before anybody commits to entering.
   await expect(row.getByTestId('room-type')).toHaveText(gameType);
   await row.getByTestId('room-enter').click();
-  expect(await roomIdFromHash(p.page), `${p.name} entered ${roomId}`).toBe(roomId);
+  expect(await roomIdFromAddress(p.page), `${p.name} entered ${roomId}`).toBe(roomId);
 }
 
 /** The room's lobby phase: a Ready control, and no pack anywhere. */
@@ -609,7 +609,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   // §C's "a room's link still works": the pod is the ROOM's url — the same url
   // alice's mid-draft refresh reloads below, which is the end-to-end proof that
   // following it lands you back in your seat.
-  expect(alice.page.url()).toBe(`${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`);
+  expect(alice.page.url()).toBe(`${EDGE_ORIGIN}${PREFIX}/room/${roomId}`);
 
   // Alice's view must have caught bob's arrival before the seat table is read.
   await expect
@@ -975,7 +975,7 @@ test('a player drafts from the seat they sat in: pack 1 passes along the table, 
  */
 async function leavePod(p: Player, podId: string): Promise<void> {
   const status = await p.page.evaluate(async (id) => {
-    const res = await fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}/leave`, {
+    const res = await fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}/leave`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },

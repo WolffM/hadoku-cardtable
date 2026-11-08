@@ -41,7 +41,7 @@ test(forge.ok ? 'an admin starts a board-state testing room vs the AI and lands 
     // Played again from the room: conceded, back to the room, the AI again — a new match on the scripted board, not the old one.
     await concede();
     await admin.page.getByTestId('game-result-room').click();
-    await admin.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 15_000 });
+    await admin.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 15_000 });
     await expect(admin.page.getByTestId('play-vs-bot'), 'the board can be played again').toBeEnabled({ timeout: 15_000 });
     await admin.page.getByTestId('play-vs-bot').click();
     const second = await onScriptedBoard(first);

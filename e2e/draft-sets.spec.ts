@@ -54,7 +54,7 @@ import { expect, test, type Browser, type Page, type WebSocket } from '@playwrig
 import { collationCounts, type WireCard } from './draft-sets.collation.ts';
 import { readyPod, selectCustomRound, sitPodAt } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
-import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -248,7 +248,7 @@ async function enterTwoPlayerDraftRoom(browser: Browser, origin: string, roomNam
 
   await alice.page.goto(`${origin}${PREFIX}/`);
   await submitCreateRoom(alice.page, { name: roomName, gameType: 'draft' });
-  const roomId = await roomIdFromHash(alice.page);
+  const roomId = await roomIdFromAddress(alice.page);
   const roomUrl = `${origin}${PREFIX}/#/room/${roomId}`;
   await bob.page.goto(roomUrl);
   for (const p of players) await expect(p.page.getByTestId('draft-lobby'), `${p.name}: joined the room`).toBeVisible({ timeout: UI_TIMEOUT });
@@ -256,7 +256,7 @@ async function enterTwoPlayerDraftRoom(browser: Browser, origin: string, roomNam
   // "Which seat is mine" (and who the leader is) reads the room's own member
   // ids, not the harness's `e2e-<name>-id` — `draft-pools.spec.ts`'s own note.
   const roomBody = (await alice.page.evaluate(
-    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+    (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
   )) as { members: { id: string; name: string }[] };
   for (const p of players) {

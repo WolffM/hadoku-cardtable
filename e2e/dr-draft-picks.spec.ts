@@ -25,7 +25,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
-import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -105,10 +105,10 @@ test(titled('the picks pile by mana value, a pick dragged to the sideboard stays
     const page = alice.page;
     await page.goto(`${stack.origin}${PREFIX}/`);
     await submitCreateRoom(page, { name: `e2e dr ${Date.now()}`, gameType: 'draft' });
-    const roomId = await roomIdFromHash(page);
+    const roomId = await roomIdFromAddress(page);
     await expect(page.getByTestId('draft-lobby')).toBeVisible({ timeout: UI_TIMEOUT });
     // "Which seat is mine" reads `/session/whoami`, which this edge does not serve (`w72-pod.spec.ts`'s note).
-    const room = (await page.evaluate((id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()), roomId)) as { members: { id: string; name: string }[] };
+    const room = (await page.evaluate((id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()), roomId)) as { members: { id: string; name: string }[] };
     const me = room.members.find((m) => m.name === 'e2e-alice')!;
     await alice.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'member', name: 'e2e-alice' } }));
     await page.reload();

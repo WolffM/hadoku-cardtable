@@ -29,7 +29,7 @@ async function openSeeded(page: Page, name: string): Promise<void> {
   const row = page.getByTestId('room-row').filter({ has: page.getByTestId('room-name').getByText(name, { exact: true }) });
   await expect(row, `${name} is listed for an admin`).toBeVisible({ timeout: UI_TIMEOUT });
   await row.getByTestId('room-enter').click();
-  await page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: UI_TIMEOUT });
+  await page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: UI_TIMEOUT });
 }
 
 interface Geometry {

@@ -15,7 +15,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import { PREFIX, SESSION_COOKIE } from './identities.ts';
-import { makeTitled, roomIdFromHash } from './play/board.ts';
+import { makeTitled, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -33,7 +33,7 @@ interface PodBody {
 
 async function roomBody(f: Friend, roomId: string): Promise<PodBody> {
   return (await f.page.evaluate(
-    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+    (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
   )) as PodBody;
 }
@@ -60,7 +60,7 @@ test(titled('nine drafters: the leader splits the ready room 5 + 4 at random, an
     const bob = await openFriend(browser, 'bob');
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `w84b split ${Date.now()}`, gameType: 'draft' });
-    const roomId = await roomIdFromHash(alice.page);
+    const roomId = await roomIdFromAddress(alice.page);
     await bob.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
     await expect(bob.page.getByTestId('draft-lobby'), 'bob: joined the room').toBeVisible({ timeout: UI_TIMEOUT });
     for (const p of [alice, bob]) await routeRealIdentity(p, roomId);

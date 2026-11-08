@@ -12,7 +12,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type { CubeSummary } from '@hadoku/shared';
 
 import { InventoryScreen } from './InventoryScreen.tsx';
-import { parseRoute } from './route.ts';
+import { currentRoute } from './route.ts';
 import type { PoolsClient } from '../rooms/api.ts';
 
 afterEach(() => {
@@ -74,7 +74,7 @@ describe('InventoryScreen', () => {
     globalThis.location.hash = '#/inventory';
     render(createElement(InventoryScreen, { pools: stubPools(), myId: 'u-me' }));
     fireEvent.click(screen.getByTestId('back-to-lobby'));
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    expect(currentRoute()).toEqual({ kind: 'lobby' });
   });
 
   it('lists imported cubes only — a shortlist cube is build-pool’s own output, never managed here', async () => {

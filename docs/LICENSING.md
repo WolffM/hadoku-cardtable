@@ -197,6 +197,31 @@ account is cheap to make. **Not done by D24:** flipping `CARDTABLE_MIN_TIER`.
 That is a config change on hadoku_site's wrapper, made on PPE first, and it is
 the operator's.
 
+### Room link previews · 2026-11-08 · operator
+
+The one thing an anonymous caller can get. The operator asked for a room link
+pasted into Discord to unfurl as *"my avatar vs ?"*, and chose (2026-11-08) to
+show the host's name and avatar in it. So `hadoku.me/cardtable/room/<id>`
+unfurls as the room's name, a line like "Modern Gauntlet 1v1", and a picture of
+the seated players' faces and names, with a dashed "You?" for an open seat
+(`apps/server/src/http/preview.ts`).
+
+- **What is reachable.** Only `/cardtable/preview/room/<id>.png`, which the edge
+  serves publicly because a crawler fetches `og:image` with no cookies
+  (hadoku_site `public-surface.ts`). The edge reads the `.html` beside it
+  itself and pastes its tags into the sign-in page a crawler gets. Both answer
+  only a request the edge sealed (the kernel's `sealed` router), so the tunnel
+  stays closed to a direct hit.
+- **What it says.** The room's name, its format and mode, and the seated
+  players' names and faces. Nothing of a game, a deck, a draft or a chat. A
+  room with a password and a testing room are the same 404 as no room.
+- **What it does not change.** Every page, API and socket is still members
+  only. A preview is a picture of an invite, and the invite still needs a login.
+
+The card's VS is set in **Cinzel** (SIL OFL 1.1, © The Cinzel Project Authors),
+shipped as `apps/server/assets/fonts/Cinzel.ttf` with its licence beside it in
+`Cinzel-OFL.txt`. It is never renamed (OFL's reserved-font-name clause).
+
 ### Concrete rules for this repo
 
 1. **No money, in any form, ever.**

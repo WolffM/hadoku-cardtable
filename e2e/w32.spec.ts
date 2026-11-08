@@ -280,7 +280,7 @@ test(titled('a player with no saved avatar is given one on joining a room, two s
     const bob = await openFriend(browser, 'bob');
     for (const f of [alice, bob]) await standInFleet(f);
     const { roomUrl } = await enterMatch(alice, bob, stack.origin);
-    const roomId = /#\/room\/(r-[0-9a-f]{12})$/.exec(roomUrl)?.[1];
+    const roomId = /\/room\/(r-[0-9a-f]{12})$/.exec(roomUrl)?.[1];
     if (roomId === undefined) throw new Error(`no room id in ${roomUrl}`);
 
     const res = await alice.context.request.get(`${stack.origin}${PREFIX}/api/rooms/${roomId}`);

@@ -51,6 +51,7 @@ const lobby: GamePlugin<FakeEvents, FakeState> = {
 	setup(ctx) {
 		ctx.bus.emit('scores-ready', { count: 2 });
 		ctx.app.get('/lobby', (_req, res) => void res.type('text').send('lobby'));
+		ctx.sealed.get('/preview', (_req, res) => void res.type('text').send('preview'));
 		return {
 			shutdown: () => {
 				ctx.state.stopped.push('lobby');
@@ -118,6 +119,12 @@ describe('createGameServer: a fake two-plugin game', () => {
 		expect(await scored.json()).toEqual({ scores: [3, 1] });
 		expect(await (await fetch(`${base}/lobby`, { headers: sealed })).text()).toBe('lobby');
 		expect(await (await fetch(`${base}/health/busy`)).json()).toEqual({ busy: true, count: 1, runs: [{ id: 't1', kind: 'table', label: 'live' }] });
+	});
+
+	it("serves a sealed route to the edge at any tier, and nothing of it to a direct hit", async () => {
+		expect(await (await fetch(`${base}/preview`, { headers: { 'x-edge-auth': SEAL, 'x-hadoku-tier': 'public' } })).text()).toBe('preview');
+		expect((await fetch(`${base}/preview`)).status).toBe(404);
+		expect((await fetch(`${base}/preview`, { headers: { 'x-edge-auth': 'wrong', 'x-hadoku-tier': 'admin' } })).status).toBe(404);
 	});
 
 	it("runs every plugin's erase step behind the edge's seal", async () => {

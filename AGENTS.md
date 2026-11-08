@@ -70,6 +70,11 @@ before planning cross-game work.
   drafting". Friend-only features (the music review, admin writes) check their
   own tier rather than lean on the floor; making rooms, events and matches is
   rate limited per caller (`perCallerLimit`). `docs/LICENSING.md` §2 has D24.
+  **One exception, a room's link preview** (operator, 2026-11-08): the edge
+  serves `/cardtable/preview/room/<id>.png` publicly and reads the `.html` beside
+  it, both through the kernel's `sealed` router, so Discord can unfurl a room as
+  its name, its mode line and its seated faces. It opens nothing else;
+  `docs/LICENSING.md` §2 has the reasoning.
 - **The licence is split, not one blanket GPL.** `forge/` and everything that touches Magic stay
   GPL-3.0-or-later; new platform code (no card kit, no Forge content) is MIT by default (D26,
   2026-11-06, amending D16). Don't strip Forge's per-file copyright headers, and don't relicense a
@@ -213,7 +218,7 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
 
 - Does NOT commit image bytes, and does NOT serve images from its own origin
 - Does NOT accept money in any form
-- Does NOT expose a public or anonymous tier (members only, free — D24)
+- Does NOT expose a public or anonymous tier (members only, free — D24); a room's link preview is the one public picture
 - Does NOT use `.env` files
 
 ## Telemetry: where your app's data lives

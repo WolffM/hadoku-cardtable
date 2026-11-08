@@ -1,19 +1,27 @@
 /*
  * Hash routing, and the two pure functions the app's links are built out of.
  *
- * ## Why the hash and not the path
+ * ## Why the hash and not the path, except for a room
  *
- * The app is served under `hadoku.me/cardtable/` behind the friend gate, by a
+ * The app is served under `hadoku.me/cardtable/` behind the member gate, by a
  * server that SPA-falls-back every path (`apps/server/src/index.ts`). Either
  * scheme would therefore *work*. The hash wins because it needs no server
  * change at all, no base-prefix arithmetic in the client, and no router
  * dependency: a `hashchange` listener plus a switch is the whole mechanism, and
- * every route is the same document, so an invite link is just this page.
+ * every route is the same document.
+ *
+ * A room's own page is the exception: its address is the PATH
+ * `/cardtable/room/<roomId>`. A link pasted into Discord unfurls from what the
+ * edge can see, and a browser never sends the hash (the operator, 2026-11-08:
+ * the address bar is the invite link). So the edge reads the room from the path
+ * and shows its preview (`apps/server/src/http/preview.ts`). `#/room/<id>` still
+ * opens it, and is moved to the path (`canonicalAddress`). Its tables, and every
+ * other route, stay in the hash.
  *
  * ## The routes
  *
  *   `#/`                 the lobby — the list of rooms, and the only front door
- *   `#/room/<roomId>`    a room: who is here, readiness, and the game it is for; once rounds start, the hub
+ *   `room/<roomId>`      a room, at that PATH: who is here, readiness, and the game it is for; once rounds start, the hub
  *   `#/room/<roomId>/table/<tableId>`  one match of a room's rounds: its deck pick, Ready, sideboard and game
  *   `#/draft/<draftId>`  LEGACY — redirects to `#/room/<draftId>`. See below.
  *   `#/deck/<draftId>`   the deck built out of that draft's pool
@@ -54,8 +62,8 @@
  *
  * ## Everything here that can be pure, is
  *
- * `parseRoute`, `routeHash` and `routeUrl` take their inputs as arguments and
- * touch no globals, so the interesting behaviour — what a mangled hash means,
+ * `parseRoute`, `routeHash`, `routeAddress`, `routeUrl` and `canonicalAddress`
+ * take their inputs as arguments and touch no globals, so the interesting behaviour — what a mangled hash means,
  * what an invite URL looks like under the `/cardtable/` prefix — is testable
  * without a DOM. Only `navigate`, `subscribeToHash`, `currentHash` and
  * `appLocation` know `window` exists — and `routeInMemory` is how the embed
@@ -199,44 +207,64 @@ export function routeHash(route: Route): string {
   }
 }
 
+/** A room's own page, not one of its tables: the one route whose address is a path. */
+function roomPage(route: Route): string | null {
+  return route.kind === 'room' && route.tableId === undefined ? route.roomId : null;
+}
+
+/** Whether a hash names anything: `#` and `#/` are the same as none. */
+function hasHash(hash: string): boolean {
+  return hash.replace(/^#\/?/, '') !== '';
+}
+
 /**
- * The link you send a friend.
+ * Where a route lives under `base`, as `{ path, hash }`: a room's page at the path `room/<id>`,
+ * everything else at `base` with its hash, the lobby with none.
+ */
+export function routeAddress(route: Route, base: string): { path: string; hash: string } {
+  const room = roomPage(route);
+  if (room !== null) return { path: `${base}room/${encodeURIComponent(room)}`, hash: '' };
+  return { path: base, hash: route.kind === 'lobby' ? '' : routeHash(route) };
+}
+
+/**
+ * The link you send a friend: the route's own address, on the app's base.
  *
- * Built from `origin` + `pathname` rather than from `href`, because `href`
- * carries whatever hash is already on it and the result would compound —
- * `…/cardtable/#/#/room/x`. Takes the location as an argument so the
+ * Built from `origin` + `base` rather than from `href`, because `href` carries
+ * whatever path and hash it is already on. Takes both as arguments so the
  * `/cardtable/` prefix case is a test and not a deployment surprise.
- *
- * Any route: a room's invite link is `routeUrl({ kind: 'room', roomId }, …)`
- * and a match's is the same call with `{ kind: 'match', matchId }`. There is no
- * `inviteUrl` any more — one function, and the caller says what it is linking to.
  */
 export function routeUrl(route: Route, location: { origin: string; pathname: string }): string {
-  return `${location.origin}${location.pathname}${routeHash(route)}`;
+  const { path, hash } = routeAddress(route, location.pathname);
+  return `${location.origin}${path}${hash}`;
+}
+
+/** The route the address bar names under `base`: its hash when it has one, else its path. */
+export function locationRoute(location: { pathname: string; hash: string }, base: string): Route {
+  if (hasHash(location.hash)) return parseRoute(location.hash);
+  return parseRoute(location.pathname.startsWith(base) ? location.pathname.slice(base.length) : '');
 }
 
 /**
  * The address this page should be on, or null when it already is.
  *
- * Every route lives in the hash, but the server answers any path under the
- * prefix with the app, so `/cardtable/sounds/music` loads too, and every hash
- * navigation after it keeps the stray path: `…/sounds/music#/room/x`, and an
- * invite link copied from that tab carries it. The path goes into the hash
- * when there is no hash yet, and is dropped when there is one, since the hash is
- * what the person navigated to since.
+ * The server answers any path under the prefix with the app, so a page can be on a path that
+ * is not its route's (`/cardtable/sounds/music`), and a hash navigation keeps that stray path.
+ * A route named by the hash keeps its hash verbatim (a `#cam=` knob included) on the base, unless
+ * it is a room's page, which moves to its path. A route named only by the path moves to its own
+ * address. The query stays.
  */
 export function canonicalAddress(
   location: { pathname: string; search: string; hash: string },
   base: string,
 ): string | null {
-  if (location.pathname === base) return null;
-  const stray = location.pathname.startsWith(base) ? location.pathname.slice(base.length) : '';
-  if (location.hash.replace(/^#\/?/, '') !== '') return `${base}${location.search}${location.hash}`;
-  const route = parseRoute(stray);
-  return `${base}${location.search}${route.kind === 'lobby' ? '' : routeHash(route)}`;
+  const route = locationRoute(location, base);
+  const want = roomPage(route) !== null || !hasHash(location.hash) ? routeAddress(route, base) : { path: base, hash: location.hash };
+  const next = `${want.path}${location.search}${want.hash}`;
+  return next === `${location.pathname}${location.search}${location.hash}` ? null : next;
 }
 
-/** Moves a stray path into the hash, before anything reads the route. */
+/** Puts this page on its route's own address, before anything reads the route and after each move. */
 export function canonicalizeAddress(): void {
   const next = canonicalAddress(globalThis.location, import.meta.env.BASE_URL);
   if (next !== null) globalThis.history.replaceState(globalThis.history.state, '', next);
@@ -261,15 +289,23 @@ function notify(): void {
   for (const listener of [...listeners]) listener();
 }
 
-/** Whether `hashchange` is subscribed — only ever while the address bar is ours. */
+/** The address bar moved on its own (Back, Forward, a `#` link): put it on its route's address, then re-read it. */
+function moved(): void {
+  canonicalizeAddress();
+  notify();
+}
+
+/** Whether `hashchange` and `popstate` are subscribed — only ever while the address bar is ours. */
 let listening = false;
 
 function syncHashListener(): void {
   const want = inMemory === null && listeners.size > 0;
   if (want === listening) return;
   listening = want;
-  if (want) globalThis.addEventListener('hashchange', notify);
-  else globalThis.removeEventListener('hashchange', notify);
+  for (const event of ['hashchange', 'popstate'] as const) {
+    if (want) globalThis.addEventListener(event, moved);
+    else globalThis.removeEventListener(event, moved);
+  }
 }
 
 function subscribeToHash(listener: () => void): () => void {
@@ -281,9 +317,12 @@ function subscribeToHash(listener: () => void): () => void {
   };
 }
 
+/** The current route as its hash: one string, so the snapshot compares by value. */
 function currentHash(): string {
   if (inMemory !== null) return inMemory.hash;
-  return globalThis.location?.hash ?? '';
+  const location = globalThis.location;
+  if (location === undefined) return '';
+  return routeHash(locationRoute(location, import.meta.env.BASE_URL));
 }
 
 /**
@@ -302,38 +341,41 @@ export function routeInMemory(start: Route): () => void {
   };
 }
 
-/**
- * The page an invite link is built on: this one standalone, and the
- * standalone app's own page when embedded — watchparty's URL plus a cardtable
- * hash would open watchparty, not the room.
- */
+/** The page an invite link is built on: the app's own base, standalone or embedded (`routeUrl`). */
 export function appLocation(): { origin: string; pathname: string } {
-  const origin = globalThis.location?.origin ?? '';
-  if (inMemory !== null) return { origin, pathname: import.meta.env?.BASE_URL ?? '/' };
-  return { origin, pathname: globalThis.location?.pathname ?? '' };
+  return { origin: globalThis.location?.origin ?? '', pathname: import.meta.env?.BASE_URL ?? '/' };
 }
 
 /**
  * Go somewhere.
  *
- * Assigning to `location.hash` is what puts the URL in the address bar and in
- * the back/forward history. The browser's own `hashchange` for it is queued as
- * a task rather than dispatched synchronously, so this tells the subscribers
- * itself; the event that arrives a moment later finds the same hash and is a
- * no-op, because `useSyncExternalStore` compares the snapshot by value.
+ * Writing the route's address with `history.pushState` is what puts it in the address bar and in
+ * the back/forward history; the browser dispatches nothing for that, so this tells the subscribers
+ * itself. Back and Forward arrive as `popstate` (and `hashchange`), which `moved` handles.
  *
  * `replace` swaps the current history entry instead of adding one, for a
  * screen that forwards on its own: Back from where it forwarded to must not
- * land on it again and be forwarded straight back.
+ * land on it again and be forwarded straight back. Arriving at the route this page already
+ * shows only corrects its address, and adds no entry.
  */
 export function navigate(route: Route, { replace = false }: { replace?: boolean } = {}): void {
-  const next = routeHash(route);
-  if (inMemory !== null) inMemory.hash = next;
-  else if (currentHash() !== next) {
-    if (replace) globalThis.location.replace(next);
-    else globalThis.location.hash = next;
+  if (inMemory !== null) inMemory.hash = routeHash(route);
+  else {
+    const location = globalThis.location;
+    const { path, hash } = routeAddress(route, import.meta.env.BASE_URL);
+    const next = `${path}${location.search}${hash}`;
+    if (next !== `${location.pathname}${location.search}${location.hash}`) {
+      const same = currentHash() === routeHash(route);
+      if (replace || same) globalThis.history.replaceState(globalThis.history.state, '', next);
+      else globalThis.history.pushState(null, '', next);
+    }
   }
   notify();
+}
+
+/** The route this page is on now, read once: what `useRoute` renders, for a caller outside React. */
+export function currentRoute(): Route {
+  return parseRoute(currentHash());
 }
 
 /** The current route, re-rendering the caller when it changes. */

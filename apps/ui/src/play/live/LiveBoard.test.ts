@@ -85,6 +85,7 @@ import { HOLD_MAX_MS } from './timed-hold.ts';
 import { parseMatchAck } from './transport.ts';
 import { PHASE_SETTLE_MS } from './phase-sound.ts';
 import type { DeckRules, SeatChoice } from '../../screens/tables.ts';
+import { currentRoute } from '../../screens/route.ts';
 
 /** A constructed seat's rules, as the server sends them with every choice. */
 const CONSTRUCTED_RULES: DeckRules = { kind: 'standard', format: 'free' };
@@ -4221,7 +4222,7 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     fireEvent.click(getByTestId('game-result-menu'));
     expect(roomsClientState.leave, 'no room to leave').not.toHaveBeenCalled();
-    await waitFor(() => expect(globalThis.location.hash).toBe('#/'));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'lobby' }));
   });
 
   /** A finished game in room `r-1`: the opponent lost, so the viewer sees Victory. */
@@ -4402,7 +4403,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     const { getByTestId } = await victoryInRoom();
     fireEvent.click(getByTestId('game-result-menu'));
     await waitFor(() => expect(roomsClientState.leave).toHaveBeenCalledWith('r-1'));
-    await waitFor(() => expect(globalThis.location.hash).toBe('#/'));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'lobby' }));
   });
 
   it('Back to room opens the room and changes nothing at its table: no leave, no ready, no start', async () => {
@@ -4410,7 +4411,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     const labels = Array.from(getByTestId('game-result').querySelectorAll('.confirm__actions button')).map((b) => b.textContent);
     expect(labels).toEqual(['Rematch', 'Back to room', 'Main menu']);
     fireEvent.click(getByTestId('game-result-room'));
-    await waitFor(() => expect(globalThis.location.hash).toBe('#/room/r-1'));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-1' }));
     expect(roomsClientState.leave).not.toHaveBeenCalled();
     expect(tableState.ready).not.toHaveBeenCalled();
     expect(tableState.startRoom).not.toHaveBeenCalled();
@@ -4476,7 +4477,7 @@ describe('R16 — the result screen, drawn over the board', () => {
       await waitFor(() => expect(rematch().disabled).toBe(false));
       globalThis.location.hash = '#/match/m-1';
       fireEvent.click(rematch());
-      await waitFor(() => expect(globalThis.location.hash).toBe('#/room/r-1'));
+      await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-1' }));
       expect(tableState.ready).not.toHaveBeenCalled();
       expect(tableState.startRoom).not.toHaveBeenCalled();
       expect(tableState.startVsBot).not.toHaveBeenCalled();

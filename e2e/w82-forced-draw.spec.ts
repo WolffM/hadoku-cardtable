@@ -21,7 +21,7 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 const PREFIX = '/cardtable';
 const EIGHT_HOURS_ON = 8 * 60 * 60_000 + 60_000;
-const ROOM_URL = /#\/room\/(r-[0-9a-f]{12})$/;
+const ROOM_URL = /\/room\/(r-[0-9a-f]{12})$/;
 
 const result = (f: Friend) => f.page.getByTestId('game-result');
 

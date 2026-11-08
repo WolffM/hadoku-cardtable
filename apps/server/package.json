@@ -7,7 +7,7 @@
   "description": "Loopback tunnel server — serves the built @hadoku/ui SPA and the room/draft socket at hadoku.me/cardtable/, friend tier.",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc --noEmit -p tsconfig.json && esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --external:express --external:socket.io --external:@wolffm/rooms-protocol --external:@wolffm/rooms-server && node ../../scripts/release/print-build-version.ts > dist/version.txt && tsx src/cli/warm-bridges.ts",
+    "build": "tsc --noEmit -p tsconfig.json && esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --external:express --external:socket.io --external:@wolffm/rooms-protocol --external:@wolffm/rooms-server --external:@resvg/resvg-js && node ../../scripts/release/print-build-version.ts > dist/version.txt && tsx src/cli/warm-bridges.ts",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/play/monkey/tsconfig.json"
@@ -20,6 +20,7 @@
     "@hadoku/platform-wire": "workspace:*",
     "@hadoku/service-kernel": "workspace:*",
     "@hadoku/shared": "workspace:*",
+    "@resvg/resvg-js": "^2.6.2",
     "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.23",
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.60",
     "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.60",

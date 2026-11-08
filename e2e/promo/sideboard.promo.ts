@@ -46,7 +46,7 @@ test('sideboard: between games, two cards in, two out', async ({ browser }) => {
     // Made through the form, as a person would: a room made over the API left the page's controls disabled.
     await hero.page.goto(`${origin}${PREFIX}/`);
     await submitCreateRoom(hero.page, { name: 'Friday Night Legacy', gameType: 'constructed-1v1' });
-    await hero.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+    await hero.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     const roomUrl = hero.page.url();
     await rival.page.goto(roomUrl);
     await hero.page.getByTestId('constructed').waitFor({ timeout: 30_000 });

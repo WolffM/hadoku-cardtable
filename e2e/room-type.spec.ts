@@ -18,7 +18,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { EDGE_ORIGIN, PREFIX } from './identities.ts';
-import { resizeWindow, roomIdFromHash } from './play/board.ts';
+import { resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { submitCreateRoom } from './play/rooms.ts';
 
@@ -55,7 +55,7 @@ test('the leader turns a Constructed room into a Draft room and back, from insid
   try {
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e room type ${Date.now()}`, mode: 'classic' });
-    const roomId = await roomIdFromHash(alice.page);
+    const roomId = await roomIdFromAddress(alice.page);
     await bob.page.goto(`${PREFIX}/#/room/${roomId}`);
 
     for (const page of [alice.page, bob.page]) {
@@ -95,7 +95,7 @@ test('the type is fixed when the mode is: once somebody is ready the radio is di
   try {
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e type lock ${Date.now()}`, mode: 'classic' });
-    const roomId = await roomIdFromHash(alice.page);
+    const roomId = await roomIdFromAddress(alice.page);
 
     await expect(alice.page.getByTestId('deck-random')).toBeEnabled();
     await alice.page.getByTestId('deck-random').click();

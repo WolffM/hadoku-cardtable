@@ -67,7 +67,7 @@ test('Room settings sits on Close’s row, not among the chip rows, at both 390 
   try {
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: LONG_TITLE });
-    await alice.page.waitForURL(/#\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
+    await alice.page.waitForURL(/\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
     await expect(alice.page.getByTestId('match-rules'), 'a default Classic room offers Room settings').toBeVisible({ timeout: UI_TIMEOUT });
 
     for (const width of [390, 1440]) {

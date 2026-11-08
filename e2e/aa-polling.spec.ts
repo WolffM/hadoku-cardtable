@@ -90,7 +90,7 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
     const room = await alice.newPage();
     await room.goto(`${EDGE_ORIGIN}${PREFIX}/`);
     await submitCreateRoom(room, { name: `aa poll ${Date.now()}` });
-    await room.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+    await room.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     const roomUrl = room.url();
     await expect(room.getByTestId('play-vs-bot'), 'alice is alone in her room').toBeVisible({ timeout: 30_000 });
     const roomHidden = await carol.newPage();

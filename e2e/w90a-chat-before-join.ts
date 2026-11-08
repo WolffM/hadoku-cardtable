@@ -24,6 +24,7 @@
 import { expect, type Page } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
+import { roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { submitCreateRoom } from './play/rooms.ts';
 
@@ -76,8 +77,8 @@ export async function chatBeforeJoinScenario(browser: import('@playwright/test')
   try {
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e w90a locked ${Date.now()}`, password: 'hunter2' });
-    await alice.page.waitForURL(/#\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
-    const roomId = (await alice.page.evaluate(() => window.location.hash)).replace('#/room/', '');
+    await alice.page.waitForURL(/\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
+    const roomId = await roomIdFromAddress(alice.page);
 
     /* ── bob, a non-member, opens the room directly — no chat, no join log ── */
     // ONE join attempt only, below: the server's own password-guess limiter (`JOIN_RATE_LIMIT`,

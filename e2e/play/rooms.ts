@@ -52,7 +52,7 @@ export async function createRoomByApi(
   // A Constructed room made here is Classic, as the form's helper makes it.
   const body = room.gameType === 'constructed-1v1' ? { ...room, mode: 'classic' } : room;
   await page.evaluate(async (body) => {
-    const res = await fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms`, {
+    const res = await fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
@@ -72,7 +72,7 @@ export async function createStreamedRoomByApi(page: Page, name: string): Promise
 /** My table in the room's current round, from the room itself. */
 async function myTableId(page: Page, roomId: string): Promise<string> {
   const room = (await page.evaluate(
-    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+    (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
   )) as { you: { id: string }; pod: { pairings: { tableId: string; players: string[] }[] } | null };
   const mine = room.pod?.pairings.find((p) => p.players.includes(room.you.id));

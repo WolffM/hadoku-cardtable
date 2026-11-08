@@ -114,6 +114,8 @@ export const CONFIG = {
 	 * the same service key as the stats. Unset key = telemetry is off (logged once).
 	 */
 	monitoringBaseUrl: process.env.CARDTABLE_MONITORING_BASE_URL || 'https://hadoku.me',
+	/** Watchparty's origin, whose sprites draw a member's character on a room's link preview (`http/preview.ts`). */
+	watchpartyBaseUrl: process.env.CARDTABLE_WATCHPARTY_BASE_URL || 'https://hadoku.me/watchparty',
 
 	/** Every user id this server has admitted, so `caller-first-seen` fires once per account. */
 	callersSeenFile: process.env.CARDTABLE_CALLERS_SEEN_FILE ?? join(DATA_DIR, 'callers-seen.json'),

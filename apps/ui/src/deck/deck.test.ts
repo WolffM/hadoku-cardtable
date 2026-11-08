@@ -27,7 +27,7 @@ import { DeckScreen } from '../screens/DeckScreen.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { TopLayer } from '../topLayer.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
-import { parseRoute } from '../screens/route.ts';
+import { currentRoute } from '../screens/route.ts';
 import type { DeckStoreClient, Mine } from './deckStore.ts';
 import type { Fetch } from '../http.ts';
 import { tablesClient, type Verdict } from '../screens/tables.ts';
@@ -791,7 +791,7 @@ describe('DeckScreen', () => {
     render(createElement(DeckScreen, { draftId: DRAFT_ID, store }));
     expect((await screen.findByTestId('deck-no-seat')).textContent).toContain('no seat');
     fireEvent.click(screen.getByTestId('back-to-pod'));
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'draft', draftId: DRAFT_ID });
+    expect(currentRoute()).toEqual({ kind: 'draft', draftId: DRAFT_ID });
   });
 
   it('opens a fresh build when GET …/mine has no save — every pick in the main deck — and saves as cards move', async () => {
@@ -845,7 +845,7 @@ describe('DeckScreen', () => {
     await screen.findByTestId('deck-editor');
     await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('play-deck'));
-    await vi.waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: DRAFT_ID }));
+    await vi.waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: DRAFT_ID }));
     expect(calls).toHaveLength(1);
     expect(mainDeckSizeOf(calls[0]!.dck)).toBe(40);
     expect(posted.filter((u) => u.endsWith(`/rooms/${DRAFT_ID}/pod/play`))).toHaveLength(1);
@@ -864,7 +864,7 @@ describe('DeckScreen', () => {
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(mainDeckSizeOf(calls[0]!.dck)).toBe(41);
     fireEvent.click(screen.getByTestId('back-to-decks'));
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'decks' });
+    expect(currentRoute()).toEqual({ kind: 'decks' });
   });
 
   // The operator, 2026-10-19: "when clicking play we should look to see where the player will end
@@ -896,7 +896,7 @@ describe('DeckScreen', () => {
       await screen.findByTestId('deck-editor');
       await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
       fireEvent.click(screen.getByTestId('play-deck'));
-      await vi.waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: 'm-000000000042' }));
+      await vi.waitFor(() => expect(currentRoute()).toEqual({ kind: 'match', matchId: 'm-000000000042' }));
       expect(seen.filter((h) => h.startsWith('#/room/')), 'no stop at the room on the way').toEqual([]);
     });
 
@@ -908,7 +908,7 @@ describe('DeckScreen', () => {
       await screen.findByTestId('deck-editor');
       await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
       fireEvent.click(screen.getByTestId('play-deck'));
-      await vi.waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: DRAFT_ID }));
+      await vi.waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: DRAFT_ID }));
     });
   });
 
@@ -921,6 +921,6 @@ describe('DeckScreen', () => {
     await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('play-deck'));
     expect((await screen.findByTestId('deck-play-error')).textContent).toBe('your deck is not saved and legal yet');
-    expect(parseRoute(globalThis.location.hash)).not.toEqual({ kind: 'room', roomId: DRAFT_ID });
+    expect(currentRoute()).not.toEqual({ kind: 'room', roomId: DRAFT_ID });
   });
 });

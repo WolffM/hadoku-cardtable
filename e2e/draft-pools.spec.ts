@@ -47,7 +47,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
-import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, PLAY_CUBES_DIR, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -148,7 +148,7 @@ test(
       await alice.page.goto(`${origin}${PREFIX}/`);
       const roomName = `e2e draft-pools ${Date.now()}`;
       await submitCreateRoom(alice.page, { name: roomName, gameType: 'draft' });
-      const roomId = await roomIdFromHash(alice.page);
+      const roomId = await roomIdFromAddress(alice.page);
       const roomUrl = `${origin}${PREFIX}/#/room/${roomId}`;
       await bob.page.goto(roomUrl);
       for (const p of players) await expect(p.page.getByTestId('draft-lobby'), `${p.name}: joined the room`).toBeVisible({ timeout: UI_TIMEOUT });
@@ -156,7 +156,7 @@ test(
       // "Which seat is mine" (and who the leader is) reads the room's own
       // member ids, not the harness's `e2e-<name>-id` — `w72-pod.spec.ts`'s own note.
       const roomBody = (await alice.page.evaluate(
-        (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+        (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
         roomId,
       )) as { members: { id: string; name: string }[] };
       for (const p of players) {

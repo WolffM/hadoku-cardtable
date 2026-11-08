@@ -5,7 +5,7 @@ import { setImmediate } from 'node:timers';
 
 import { configureShell } from '@hadoku/ui-shell/app-id';
 import { configure } from '@testing-library/dom';
-import { afterEach } from 'vitest';
+import { afterEach, beforeEach } from 'vitest';
 
 import { APP_ID } from '../app-name.ts';
 
@@ -26,3 +26,9 @@ configure({ asyncUtilTimeout: process.env.CI ? 5_000 : 1_000 });
 // artist table) and `"onTaskUpdate"` errors after every test passed (0b7196e,
 // 2026-10-12). `node:timers` is the real setImmediate, not a test's fake one.
 afterEach(() => new Promise<void>((resolve) => setImmediate(resolve)));
+
+// Every test starts on the app's own page. A room's page is a PATH (`screens/route.ts`), which a
+// test's `location.hash = ''` would not reset, so one test's room would be the next one's start.
+beforeEach(() => {
+  if (typeof history !== 'undefined') history.replaceState(null, '', '/');
+});

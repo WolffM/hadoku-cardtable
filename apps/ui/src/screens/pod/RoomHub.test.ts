@@ -10,7 +10,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { RoomTable } from '@hadoku/shared';
 
 import { forgetMatchesFollowed } from '../../play/live/matchStart.ts';
-import { navigate, parseRoute } from '../route.ts';
+import { currentRoute, navigate } from '../route.ts';
 import { RoomHub } from './RoomHub.tsx';
 import { forgetOpponentsRevealed, REVEAL_MS } from './FaceOff.tsx';
 import { TablePage, type TableReady } from './TablePage.tsx';
@@ -26,7 +26,7 @@ afterEach(() => {
 const ROOM = 'r-hub';
 const nameOf = (id: string) => ({ 'u-alice': 'Alice', 'u-bob': 'Bob', 'ai:3': 'Rogue' })[id] ?? id;
 const avatarOf = () => ({ id: null });
-const route = () => parseRoute(globalThis.location.hash);
+const route = () => currentRoute();
 
 function pod(over: Partial<PodView> = {}): PodView {
   return {
@@ -275,10 +275,10 @@ describe('TablePage', () => {
     posts();
     vi.useFakeTimers();
     page({ table: table({ matchId: 'm-0000000000aa' }) });
-    expect(parseRoute(location.hash).kind).not.toBe('match');
+    expect(currentRoute().kind).not.toBe('match');
     act(() => {
       vi.advanceTimersByTime(REVEAL_MS);
     });
-    expect(parseRoute(location.hash)).toEqual({ kind: 'match', matchId: 'm-0000000000aa' });
+    expect(currentRoute()).toEqual({ kind: 'match', matchId: 'm-0000000000aa' });
   });
 });

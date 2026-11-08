@@ -30,7 +30,7 @@ import { createElement } from 'react';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 
 import { App } from '../App.tsx';
-import { parseRoute } from './route.ts';
+import { currentRoute } from './route.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 
 /*
@@ -161,7 +161,7 @@ describe('a legacy pod link', () => {
     open('#/draft/amber-lantern-k7q4');
 
     await waitFor(() =>
-      expect(parseRoute(globalThis.location.hash)).toEqual({
+      expect(currentRoute()).toEqual({
         kind: 'room',
         roomId: 'amber-lantern-k7q4',
       }),
@@ -178,7 +178,7 @@ describe('a legacy pod link', () => {
     // that hash from a finished draft, and redirecting it would strand the
     // pool somebody just drafted.
     open('#/deck/amber-lantern-k7q4');
-    expect(parseRoute(globalThis.location.hash)).toEqual({
+    expect(currentRoute()).toEqual({
       kind: 'deck',
       draftId: 'amber-lantern-k7q4',
     });

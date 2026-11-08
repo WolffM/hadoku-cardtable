@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { CloseRoom } from './CloseRoom.tsx';
+import { currentRoute } from '../screens/route.ts';
 
 afterEach(() => {
   cleanup();
@@ -24,7 +25,7 @@ describe('the room owner’s Close', () => {
     fireEvent.click(screen.getByTestId('room-close'));
     fireEvent.click(screen.getByTestId('room-close-yes'));
     expect(close).toHaveBeenCalledWith('r-cube');
-    await waitFor(() => expect(globalThis.location.hash).toBe('#/'));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'lobby' }));
   });
 
   it('shows the server’s refusal and stays', async () => {
@@ -34,6 +35,6 @@ describe('the room owner’s Close', () => {
     fireEvent.click(screen.getByTestId('room-close'));
     fireEvent.click(screen.getByTestId('room-close-yes'));
     await waitFor(() => expect(screen.getByTestId('room-close-error').textContent).toContain('only the room owner'));
-    expect(globalThis.location.hash).toBe('#/room/r-cube');
+    expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-cube' });
   });
 });

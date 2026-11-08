@@ -36,7 +36,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -182,7 +182,7 @@ test(titled('the page and the chat stay the window’s height on the front page 
     await fitsAt(alice.page, 'alice', 'front', '[data-testid="front-banner"] > :not([data-present="false"])', FRONT_MAY_SCROLL, failures);
 
     await submitCreateRoom(alice.page, { name: `lobby fit ${Date.now()}` });
-    await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+    await alice.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     await bob.page.goto(alice.page.url());
     await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });
     // Each takes a deck of the room's own era, then the leader moves the room to
@@ -242,10 +242,10 @@ test(titled('in a draft pod’s room the chat is the window’s height on the pi
     await resizeWindow(page, POD_SIZES[0]);
     await page.goto(`${stack.origin}${PREFIX}/`);
     await submitCreateRoom(page, { name: `pod fit ${Date.now()}`, gameType: 'draft' });
-    const roomId = await roomIdFromHash(page);
+    const roomId = await roomIdFromAddress(page);
     await expect(page.getByTestId('draft-lobby')).toBeVisible({ timeout: 30_000 });
     // The chat aside is drawn for a signed-in viewer, and the pod's own seat is found by the room's id for her.
-    const room = (await page.evaluate((id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()), roomId)) as {
+    const room = (await page.evaluate((id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()), roomId)) as {
       members: { id: string; name: string }[];
     };
     const me = room.members.find((m) => m.name === 'e2e-alice');

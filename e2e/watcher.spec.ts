@@ -110,7 +110,7 @@ const gaps = (page: Page, side: 'you' | 'them') => page.locator(`${side === 'you
 async function createConstructedRoom(alice: Friend, origin: string): Promise<string> {
   await alice.page.goto(`${origin}${PREFIX}/`);
   await submitCreateRoom(alice.page, { name: `e2e seats ${Date.now()}` });
-  await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+  await alice.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
   return alice.page.url();
 }
 

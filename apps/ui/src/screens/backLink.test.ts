@@ -8,7 +8,7 @@ import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { BackLink } from './BackLink.tsx';
-import { parseRoute } from './route.ts';
+import { currentRoute } from './route.ts';
 
 afterEach(cleanup);
 
@@ -19,7 +19,7 @@ describe('BackLink', () => {
     const back = screen.getByRole('link', { name: 'Decks' });
     expect(back.textContent).toBe('←');
     fireEvent.click(back);
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'decks' });
+    expect(currentRoute()).toEqual({ kind: 'decks' });
   });
 
   it('is never underlined', () => {

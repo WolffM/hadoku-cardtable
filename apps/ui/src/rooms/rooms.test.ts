@@ -21,7 +21,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { FeaturedMatch } from '../front/LiveSlot.tsx';
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { clearJoined, isJoined } from './joined.ts';
-import { parseRoute } from '../screens/route.ts';
+import { currentRoute } from '../screens/route.ts';
 import { ROOM_WORDS } from './roomName.ts';
 import { resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
 import { resetMutedForTests, setMuted } from '@hadoku/ui-shell/sound';
@@ -715,7 +715,7 @@ describe('creating a room', () => {
       method: 'POST',
       body: { name: 'Friday night', gameType: 'constructed-1v1', clientMode: 'builtin', password: 'hunter2', mode: 'classic', modeOptions: {} },
     });
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
   it('omits an empty password and an unchosen mode: the type is two radios, Constructed first and chosen, and no mode is', async () => {
@@ -771,7 +771,7 @@ describe('creating a room', () => {
       gameType: 'draft',
       clientMode: 'builtin',
     });
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
   it('sends a mode chosen at create with its options, and none when none was chosen', async () => {
@@ -941,7 +941,7 @@ describe('entering a room', () => {
     });
 
     expect(calls.find((c) => c.method === 'POST')).toEqual({ url: '/cardtable/api/rooms/r-open/join', method: 'POST', body: {} });
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-open' }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-open' }));
   });
 
   it('asks a locked room for its password, refuses a wrong one without saying whether the room exists, and enters with the right one', async () => {
@@ -960,7 +960,7 @@ describe('entering a room', () => {
     });
     const refusal = await screen.findByTestId('room-join-error');
     expect(refusal.textContent).toBe('No room with that name and password.');
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    expect(currentRoute()).toEqual({ kind: 'lobby' });
 
     fireEvent.change(within(rowFor('r-locked')).getByTestId('room-password'), { target: { value: 'hunter2' } });
     await act(async () => {
@@ -968,7 +968,7 @@ describe('entering a room', () => {
     });
     const joins = calls.filter((c) => c.method === 'POST');
     expect(joins.map((c) => c.body)).toEqual([{ password: 'wrong' }, { password: 'hunter2' }]);
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-locked' }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-locked' }));
   });
 
   // The rejoin audit, 2026-10-19: a member coming back from the front page had
@@ -995,7 +995,7 @@ describe('entering a room', () => {
     });
     expect(screen.queryByTestId('room-password')).toBeNull();
     expect(posts).toEqual([{ url: '/cardtable/api/rooms/r-mine/join', body: {} }]);
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-mine' }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-mine' }));
   });
 
   it('resets a testing room from its row, and only a testing room has the button', async () => {
@@ -1018,7 +1018,7 @@ describe('entering a room', () => {
       fireEvent.click(within(rowFor('r-test')).getByTestId('room-reset'));
     });
     expect(posts).toEqual(['/cardtable/api/rooms/r-test/reset']);
-    expect(parseRoute(globalThis.location.hash), 'it does not enter the room').toEqual({ kind: 'lobby' });
+    expect(currentRoute(), 'it does not enter the room').toEqual({ kind: 'lobby' });
     await waitFor(() => expect(within(rowFor('r-test2')).getByTestId('room-reset')).toBeDefined());
   });
 
@@ -1076,7 +1076,7 @@ describe('entering a room', () => {
       fireEvent.click(within(rowFor('r-locked')).getByTestId('room-password-submit'));
     });
     expect((await screen.findByTestId('room-join-error')).textContent).toContain('Too many attempts');
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    expect(currentRoute()).toEqual({ kind: 'lobby' });
   });
 });
 
@@ -1175,7 +1175,7 @@ describe('the front page’s cues', () => {
     });
     expect(requests).toEqual([]);
     // Muting sound mutes sound and nothing else.
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-open' }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-open' }));
   });
 });
 

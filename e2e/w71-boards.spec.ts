@@ -148,7 +148,7 @@ test('a room with two live tables: a watcher is carried in once, stays in the ro
     // ── the room, and its second table ──────────────────────────────────
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e w71 boards ${Date.now()}` });
-    await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+    await alice.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     const roomUrl = alice.page.url();
     const roomId = roomUrl.split('/room/')[1]!;
 
@@ -214,7 +214,7 @@ test('a room with two live tables: a watcher is carried in once, stays in the ro
     await expect(carol.page.getByTestId('room-match-link'), 'the room offers the game it is playing').toBeVisible({ timeout: 15_000 });
     await expect(carol.page.getByTestId('room-match-link')).toHaveText('Watch');
     await carol.page.waitForTimeout(2_000);
-    expect(carol.page.url(), 'not carried back into the game').toMatch(new RegExp(`#/room/${roomId}$`));
+    expect(carol.page.url(), 'not carried back into the game').toMatch(new RegExp(`/room/${roomId}$`));
 
     // Table 2's board, by its own link.
     const toTable2 = Date.now();

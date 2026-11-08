@@ -23,7 +23,7 @@ import { arrangePod, draftUntilDone, readyPod } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
-import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openHub, openMyTable, submitCreateRoom } from './play/rooms.ts';
@@ -66,7 +66,7 @@ test(
       await alice.page.goto(`${origin}${PREFIX}/`);
       const podName = `e2e w72 pod ${Date.now()}`;
       await submitCreateRoom(alice.page, { name: podName, gameType: 'draft' });
-      const roomId = await roomIdFromHash(alice.page);
+      const roomId = await roomIdFromAddress(alice.page);
       const roomUrl = `${origin}${PREFIX}/#/room/${roomId}`;
       await bob.page.goto(roomUrl);
       await carol.page.goto(roomUrl);
@@ -88,7 +88,7 @@ test(
        * own seat.
        */
       const roomBody = (await alice.page.evaluate(
-        (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+        (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
         roomId,
       )) as { members: { id: string; name: string }[] };
       for (const p of players) {

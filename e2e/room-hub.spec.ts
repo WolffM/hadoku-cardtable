@@ -19,7 +19,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { sitPodAt } from './podSeats.ts';
 
 import { PREFIX } from './identities.ts';
-import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -28,7 +28,7 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 const UI_TIMEOUT = 30_000;
 const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
-const tableHash = /^#\/room\/r-[0-9a-f]+\/table\/(t-[0-9a-f]+)$/;
+const tableHash = /#\/room\/r-[0-9a-f]+\/table\/(t-[0-9a-f]+)$/;
 
 /** Every hash this page has been on since the recorder went in. */
 async function hashes(page: Page): Promise<string[]> {
@@ -38,15 +38,27 @@ async function hashes(page: Page): Promise<string[]> {
 async function recordHashes(p: Player): Promise<void> {
   await p.context.addInitScript(() => {
     const w = window as unknown as { __hashes: string[] };
-    w.__hashes = [location.hash];
-    addEventListener('hashchange', () => w.__hashes.push(location.hash));
+    // Every address the page is on: a room's own page is a path, the rest are hashes, and the app
+    // moves with history.pushState, which fires no event.
+    const seen = (): void => void w.__hashes.push(`${location.pathname}${location.hash}`);
+    w.__hashes = [];
+    seen();
+    for (const method of ['pushState', 'replaceState'] as const) {
+      const real = history[method].bind(history);
+      history[method] = (...args: Parameters<History['pushState']>) => {
+        real(...args);
+        seen();
+      };
+    }
+    addEventListener('hashchange', seen);
+    addEventListener('popstate', seen);
   });
 }
 
 /** `/session/whoami` answers with this member's own id (`tournament.spec.ts`'s own fix), then a reload. */
 async function routeRealIdentity(p: Player, roomId: string): Promise<void> {
   const roomBody = (await p.page.evaluate(
-    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+    (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
   )) as { members: { id: string; name: string }[] };
   const me = roomBody.members.find((m) => m.name === `e2e-${p.name}`);
@@ -85,7 +97,7 @@ test(
       for (const p of [alice, bob, carol]) await recordHashes(p);
       await alice.page.goto(`${stack.origin}${PREFIX}/`);
       await submitCreateRoom(alice.page, { name: `e2e room hub ${Date.now()}`, gameType: 'constructed-1v1', mode: 'classic' });
-      const roomId = await roomIdFromHash(alice.page);
+      const roomId = await roomIdFromAddress(alice.page);
       const roomUrl = `${stack.origin}${PREFIX}/#/room/${roomId}`;
       for (const p of [bob, carol]) {
         await p.page.goto(roomUrl);
@@ -135,7 +147,7 @@ test(
       await alice.page.evaluate((hash) => (window.location.hash = hash), `#/room/${roomId}`);
       await expect(alice.page.getByTestId('pod-rounds'), 'alice: the hub').toBeVisible({ timeout: UI_TIMEOUT });
       await alice.page.waitForTimeout(3_000);
-      expect(new URL(alice.page.url()).hash, 'alice stays on the hub').toBe(`#/room/${roomId}`);
+      expect(new URL(alice.page.url()).pathname, 'alice stays on the hub').toBe(`${PREFIX}/room/${roomId}`);
       // Her card is the way back into her running game, in one press on the card (the operator: "make sure we
       // dont lose the functionality of being able to click on the standings boxes to let people return to
       // their games that way").
@@ -171,7 +183,7 @@ test(
       /* ── game 2 to Alice: the round settles; the hub's standings ── */
       await concedeToResult(bob, alice);
       await alice.page.getByTestId('game-result-room').click();
-      await alice.page.waitForURL(new RegExp(`#/room/${roomId}$`), { timeout: UI_TIMEOUT });
+      await alice.page.waitForURL(new RegExp(`/room/${roomId}$`), { timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('pod-standings'), 'standings after round 1').toBeVisible({ timeout: UI_TIMEOUT });
       const rows = alice.page.getByTestId(/^pod-standings-row-\d+$/);
       await expect(rows).toHaveCount(2);

@@ -40,7 +40,7 @@ test('draft: the pod, fan and grid, a card turned over', async () => {
     const page = hero.page;
     await page.goto(`${stack.origin}${PREFIX}/`);
     await submitCreateRoom(page, { name: 'Vintage Cube Night', gameType: 'draft' });
-    await page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+    await page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     await page.getByTestId('pod-seats').waitFor({ timeout: 30_000 });
     await film.beat(1_500);
     await film.roll();

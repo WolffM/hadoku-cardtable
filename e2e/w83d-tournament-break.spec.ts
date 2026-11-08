@@ -51,7 +51,7 @@ async function intoRoundOne(browser: Browser, stack: PlayStack, label: string): 
 async function afterGame(f: Friend, roomUrl: string): Promise<string> {
   const roomId = new URL(roomUrl).hash.replace(/^#\/room\//, '');
   const room = (await f.page.evaluate(
-    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+    (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
   )) as { pod: { phase: string } | null; tables: { series: { phase: string } }[] };
   if (room.pod?.phase === 'done') return 'done';

@@ -15,7 +15,7 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
-import { roomIdFromHash } from './play/board.ts';
+import { roomIdFromAddress } from './play/board.ts';
 import { submitCreateRoom } from './play/rooms.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 
@@ -40,7 +40,7 @@ test('created as Classic, the room opens on the deck picker', async ({ browser }
   try {
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e classic ${Date.now()}`, mode: 'classic' });
-    await roomIdFromHash(alice.page);
+    await roomIdFromAddress(alice.page);
     await expect(alice.page.getByTestId('constructed')).toBeVisible();
     await expect(modeRadio(alice.page, 'classic')).toBeChecked();
     await expect(alice.page.getByTestId('deck-mine')).toBeVisible();
@@ -56,7 +56,7 @@ test('created with no mode, only the mode row shows; the leader picks Classic an
   try {
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e no mode ${Date.now()}`, mode: null });
-    const roomId = await roomIdFromHash(alice.page);
+    const roomId = await roomIdFromAddress(alice.page);
     await bob.page.goto(`${PREFIX}/#/room/${roomId}`);
 
     for (const page of [alice.page, bob.page]) {
@@ -84,7 +84,7 @@ test('the mode is fixed once somebody is ready: the row is disabled and the serv
   try {
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e mode lock ${Date.now()}`, mode: 'classic' });
-    const roomId = await roomIdFromHash(alice.page);
+    const roomId = await roomIdFromAddress(alice.page);
 
     // Before anyone is ready the leader may move it, and back.
     await modeRadio(alice.page, 'random').click();

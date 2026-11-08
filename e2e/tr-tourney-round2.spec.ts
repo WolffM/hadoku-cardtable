@@ -19,7 +19,7 @@ import type { GauntletView } from '../packages/shared/src/gauntlet.ts';
 import type { PodView } from '../packages/shared/src/pod.ts';
 
 import { PREFIX } from './identities.ts';
-import { roomIdFromHash } from './play/board.ts';
+import { roomIdFromAddress } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -46,8 +46,8 @@ test(forge.ok ? 'an admin opens the seeded Gauntlet round-2 room, sees round 1 d
     const row = admin.page.getByTestId('room-row').filter({ has: admin.page.getByTestId('room-name').getByText(ROOM_NAME, { exact: true }) });
     await expect(row, 'the Testing section lists the Gauntlet round-2 room for an admin').toBeVisible({ timeout: 15_000 });
     await row.getByTestId('room-enter').click();
-    await admin.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 15_000 });
-    const roomId = await roomIdFromHash(admin.page);
+    await admin.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 15_000 });
+    const roomId = await roomIdFromAddress(admin.page);
 
     /* ── the hub: round 1 already decided, standings for all three entrants ── */
     await expect(admin.page.getByTestId('pod-rounds'), 'round 2 is the live round; the hub is up').toBeVisible({ timeout: 15_000 });

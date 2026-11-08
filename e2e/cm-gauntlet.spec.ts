@@ -85,7 +85,7 @@ test(titled('a Gauntlet vs the AI to its end: the draw, the snake, both choices 
         const tick = (): void => {
           const has = (sel: string): boolean => document.querySelector(sel) !== null;
           const sig = [
-            location.hash.split('/')[1] ?? '',
+            (location.hash === '' ? location.pathname.split('/').at(-2) : location.hash.split('/')[1]) ?? '',
             has('[data-testid="room-players"]') ? 'seats' : '',
             document.querySelector('section.gauntlet')?.getAttribute('data-testid') ?? '',
             has('[data-testid="gauntlet-game"]') ? 'versus' : '',
@@ -171,7 +171,7 @@ test(titled('a Gauntlet vs the AI to its end: the draw, the snake, both choices 
     await expect(next).toHaveText('Next game', { timeout: 15_000 });
     await expect(next).toBeEnabled();
     await next.click();
-    await expect.poll(() => new URL(alice.page.url()).hash, { message: 'Next game goes back to the room' }).toBe(`#/room/${roomId}`);
+    await expect.poll(() => new URL(alice.page.url()).pathname, { message: 'Next game goes back to the room' }).toBe(`${PREFIX}/room/${roomId}`);
 
     v = await view();
     const theirs = v.games[0]?.decks[1] ?? null;
@@ -209,7 +209,7 @@ test(titled('a Gauntlet vs the AI to its end: the draw, the snake, both choices 
     await expect(alice.page.getByTestId('game-result-room')).toBeEnabled({ timeout: 15_000 });
     await expect(alice.page.getByTestId('game-result-rematch'), 'no Rematch once the Gauntlet is decided').toHaveCount(0);
     await alice.page.getByTestId('game-result-room').click();
-    await expect.poll(() => new URL(alice.page.url()).hash).toBe(`#/room/${roomId}`);
+    await expect.poll(() => new URL(alice.page.url()).pathname).toBe(`${PREFIX}/room/${roomId}`);
 
     // Ruling 13.3: the games stack top to bottom, and three of them fit 1280×800 with the room above
     // them: the third is projected one row below the second. At 125% the room's own options row and

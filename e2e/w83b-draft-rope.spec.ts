@@ -22,7 +22,7 @@ import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { draftEnvelopes } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { roomIdFromHash, serverLog } from './play/board.ts';
+import { roomIdFromAddress, serverLog } from './play/board.ts';
 import { PHONE } from './play/phone.ts';
 import { openCreateRoom, submitCreateRoom } from './play/rooms.ts';
 import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
@@ -185,7 +185,7 @@ async function dealtPod(browser: Browser, bobOnAPhone = false): Promise<{ alice:
   await alice.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
   await openCreateRoom(alice.page);
   await submitCreateRoom(alice.page, { name: `e2e rope ${Date.now()}`, gameType: 'draft' });
-  const roomId = await roomIdFromHash(alice.page);
+  const roomId = await roomIdFromAddress(alice.page);
   await bob.page.goto(`${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`);
 
   // The leader's switch in Room settings, then the fastest speed.

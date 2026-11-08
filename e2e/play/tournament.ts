@@ -6,7 +6,7 @@ import { expect, type Browser } from '@playwright/test';
 import { sitPodAt } from '../podSeats.ts';
 
 import { PREFIX } from '../identities.ts';
-import { resizeWindow, roomIdFromHash } from './board.ts';
+import { resizeWindow, roomIdFromAddress } from './board.ts';
 import { openFriend, type Friend } from './browser.ts';
 import { submitCreateRoom } from './rooms.ts';
 
@@ -15,7 +15,7 @@ const UI_TIMEOUT = 30_000;
 /** Routes `/session/whoami` to this member's own real id, and reloads so `useWhoami()` re-resolves it — `e2e/w72-pod.spec.ts`'s own fix for "which seat is mine" (`PodSeats`). */
 export async function routeRealIdentity(p: Friend, roomId: string): Promise<void> {
   const roomBody = (await p.page.evaluate(
-    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+    (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
   )) as { members: { id: string; name: string }[] };
   const me = roomBody.members.find((m) => m.name === `e2e-${p.name}`);
@@ -31,7 +31,7 @@ export async function openRoomWithLeader(browser: Browser, origin: string, roomN
   const bob = await openFriend(browser, 'bob');
   await alice.page.goto(`${origin}${PREFIX}/`);
   await submitCreateRoom(alice.page, { name: roomName, gameType: 'constructed-1v1', mode: 'classic' });
-  const roomId = await roomIdFromHash(alice.page);
+  const roomId = await roomIdFromAddress(alice.page);
   const roomUrl = `${origin}${PREFIX}/#/room/${roomId}`;
   await bob.page.goto(roomUrl);
   await expect(bob.page.getByTestId('constructed'), 'bob: joined the room').toBeVisible({ timeout: UI_TIMEOUT });

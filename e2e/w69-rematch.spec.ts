@@ -240,7 +240,7 @@ test(titled('against the AI in Classic: a Rematch keeps the bot’s deck, after 
     const choice = await twoLegalDecks(alice.context.request, stack.origin);
     await alice.page.goto(`${stack.origin}/cardtable/`);
     await submitCreateRoom(alice.page, { name: `e2e bot deck ${Date.now()}` });
-    await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+    await alice.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     await choosePool(alice.page, choice.format);
     await expect(alice.page.getByTestId('deck-mine')).toBeEnabled({ timeout: 15_000 });
     await alice.page.getByTestId('deck-mine').locator(`[data-deck-id="${choice.decks[0]}"]`).click();

@@ -55,7 +55,7 @@ async function seat(alice: Friend, bob: Friend, stack: PlayStack): Promise<void>
   const choice = await twoLegalDecks(alice.context.request, stack.origin);
   await alice.page.goto(`${stack.origin}${PREFIX}/`);
   await submitCreateRoom(alice.page, { name: `start race ${Date.now()}` });
-  await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+  await alice.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
   await bob.page.goto(alice.page.url());
   await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });
   await choosePool(alice.page, choice.format);

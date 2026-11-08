@@ -634,7 +634,7 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
   summary.choice = choice;
   await alice.page.goto(`${origin}${PREFIX}/`);
   await submitCreateRoom(alice.page, { name: `e2e table fit ${Date.now()}` });
-  await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+  await alice.page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
   await bob.page.goto(alice.page.url());
   /*
    * The pool is the TABLE's and the leader is the one who moves it (wave 25 §B).

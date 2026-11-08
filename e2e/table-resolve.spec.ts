@@ -16,7 +16,7 @@ import { sitPodAt } from './podSeats.ts';
 import { expect, test, type Page } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
-import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
@@ -38,7 +38,7 @@ function events(stack: PlayStack, evt: string, roomId: string): Record<string, u
 /** `/session/whoami` answers with this member's own id (`room-hub.spec.ts`'s own fix), then a reload. */
 async function routeRealIdentity(p: Friend, roomId: string): Promise<void> {
   const roomBody = (await p.page.evaluate(
-    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+    (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
   )) as { members: { id: string; name: string }[] };
   const me = roomBody.members.find((m) => m.name === `e2e-${p.name}`);
@@ -65,7 +65,7 @@ test(titled('Abandon: a constructed Bo3 between games ends with no result from t
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
     const { roomUrl } = await enterMatch(alice, bob, stack.origin);
-    const roomId = /#\/room\/(r-[0-9a-f]+)/.exec(roomUrl)![1]!;
+    const roomId = /\/room\/(r-[0-9a-f]+)/.exec(roomUrl)![1]!;
 
     await bob.page.getByTestId('live-concede').click();
     await bob.page.getByTestId('live-concede-yes').click();
@@ -104,7 +104,7 @@ test(titled('Drop match: a tournament match dropped from the hub card is the oth
     const bob = await openFriend(browser, 'bob');
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e drop ${Date.now()}`, gameType: 'constructed-1v1', mode: 'classic' });
-    const roomId = await roomIdFromHash(alice.page);
+    const roomId = await roomIdFromAddress(alice.page);
     const roomUrl = `${stack.origin}${PREFIX}/#/room/${roomId}`;
     await bob.page.goto(roomUrl);
     await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: UI_TIMEOUT });

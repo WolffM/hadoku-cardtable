@@ -37,7 +37,7 @@ test('constructed: historical decks with a friend', async ({ browser }) => {
     await page.getByTestId('room-create-constructed-mode-classic').check();
     await film.beat(500);
     await deliberateClick(page, page.getByTestId('room-create-submit'), { hover: 300 });
-    await page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
+    await page.waitForURL(/\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     const roomUrl = page.url();
     await film.beat(1_200);
 

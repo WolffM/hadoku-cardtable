@@ -42,7 +42,7 @@ test('the room’s own deck picker: a long hold opens the peek and never chooses
   try {
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e w90a deck peek touch ${Date.now()}` });
-    await alice.page.waitForURL(/#\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
+    await alice.page.waitForURL(/\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
     await expect(alice.page.getByTestId('deck-mine').getByTestId('deck-option').first()).toBeVisible({ timeout: UI_TIMEOUT });
 
     const at = await centerOf(alice.page, '[data-testid="deck-mine"] [data-testid="deck-option"]');

@@ -9,7 +9,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { roomIdFromHash } from './play/board.ts';
+import { roomIdFromAddress } from './play/board.ts';
 import { openCreateRoom, submitCreateRoom } from './play/rooms.ts';
 
 const UI_TIMEOUT = 30_000;
@@ -28,7 +28,7 @@ test('the leader picks the draft bots, the room keeps it, and everyone else read
     await alice.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
     await openCreateRoom(alice.page);
     await submitCreateRoom(alice.page, { name: `e2e bots ${Date.now()}`, gameType: 'draft' });
-    const roomId = await roomIdFromHash(alice.page);
+    const roomId = await roomIdFromAddress(alice.page);
     await bob.page.goto(`${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`);
 
     const choice = (page: Page, value: string) => page.getByTestId(`draft-bots-${value}`);

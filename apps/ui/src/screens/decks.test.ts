@@ -13,7 +13,7 @@ import type { DraftCard } from '@hadoku/shared';
 
 import { DecksScreen } from './DecksScreen.tsx';
 import { LobbyScreen } from './LobbyScreen.tsx';
-import { parseRoute } from './route.ts';
+import { currentRoute } from './route.ts';
 import { DeckManage } from './DeckManage.tsx';
 import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
 import { draftedDeckOf } from './ConstructedScreen.tsx';
@@ -87,7 +87,7 @@ describe('DecksScreen', () => {
     render(createElement(DecksScreen, { decks: client, deckRecords: records([]) }));
     expect(screen.getByRole('heading', { level: 1, name: 'Decks' })).not.toBeNull();
     fireEvent.click(screen.getByTestId('back-to-lobby'));
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    expect(currentRoute()).toEqual({ kind: 'lobby' });
   });
 
   it('opens a deck in the editor on a click', async () => {
@@ -95,7 +95,7 @@ describe('DecksScreen', () => {
     render(createElement(DecksScreen, { decks: client, deckRecords: records([]) }));
     await waitFor(() => expect(screen.getAllByTestId('deck-option')).toHaveLength(1));
     fireEvent.click(tile('a'));
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'decks', draftId: 'a' });
+    expect(currentRoute()).toEqual({ kind: 'decks', draftId: 'a' });
   });
 
   it('says there are none, once it knows', async () => {

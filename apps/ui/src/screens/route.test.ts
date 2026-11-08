@@ -100,35 +100,22 @@ describe('parseRoute', () => {
 });
 
 describe('routeUrl', () => {
-  it('builds a room invite link under the /cardtable/ prefix', () => {
-    // This is what an invite link IS now: `inviteUrl` and its pod hash are gone,
-    // and the room screen is what a friend opens.
+  it("builds a room invite link as the room's own path under the /cardtable/ prefix", () => {
+    // The path, not the hash: a browser never sends the hash, so only the path lets the edge
+    // unfurl the room in Discord (`apps/server/src/http/preview.ts`).
     expect(
       routeUrl({ kind: 'room', roomId: 'r-1a2b3c4d5e6f' }, {
         origin: 'https://hadoku.me',
         pathname: '/cardtable/',
       }),
-    ).toBe('https://hadoku.me/cardtable/#/room/r-1a2b3c4d5e6f');
+    ).toBe('https://hadoku.me/cardtable/room/r-1a2b3c4d5e6f');
   });
 
-  it('makes a match link the same way', () => {
-    expect(
-      routeUrl({ kind: 'match', matchId: 'm-0123456789ab' }, {
-        origin: 'https://hadoku.me',
-        pathname: '/cardtable/',
-      }),
-    ).toBe('https://hadoku.me/cardtable/#/match/m-0123456789ab');
-  });
-
-  it('does not compound when the page already has a hash', () => {
-    // The bug this exists to prevent: building from `href` yields
-    // `…/cardtable/#/room/a#/room/b`, which parses as nothing.
-    const url = routeUrl({ kind: 'room', roomId: 'b' }, {
-      origin: 'https://hadoku.me',
-      pathname: '/cardtable/',
-    });
-    expect(url.split('#')).toHaveLength(2);
-    expect(parseRoute(`#${url.split('#')[1]}`)).toEqual({ kind: 'room', roomId: 'b' });
+  it("makes a match link, and a room's table, in the hash", () => {
+    const at = { origin: 'https://hadoku.me', pathname: '/cardtable/' };
+    expect(routeUrl({ kind: 'match', matchId: 'm-0123456789ab' }, at)).toBe('https://hadoku.me/cardtable/#/match/m-0123456789ab');
+    expect(routeUrl({ kind: 'room', roomId: 'r-1', tableId: 't-2' }, at)).toBe('https://hadoku.me/cardtable/#/room/r-1/table/t-2');
+    expect(routeUrl({ kind: 'lobby' }, at)).toBe('https://hadoku.me/cardtable/');
   });
 });
 
@@ -190,19 +177,29 @@ describe('room routes', () => {
 describe('canonicalAddress', () => {
   const at = (pathname: string, hash = '', search = '') => canonicalAddress({ pathname, search, hash }, '/cardtable/');
 
-  it('leaves the app page alone', () => {
+  it("leaves the app page, a room's own path and a hash route alone", () => {
     expect(at('/cardtable/')).toBeNull();
-    expect(at('/cardtable/', '#/room/r-2d29801ec7ed')).toBeNull();
+    expect(at('/cardtable/room/r-2d29801ec7ed')).toBeNull();
+    expect(at('/cardtable/', '#/play')).toBeNull();
+    expect(at('/cardtable/', '#/room/r-2d29801ec7ed/table/t-1')).toBeNull();
   });
 
-  it('drops a stray path under a hash, keeping the hash', () => {
-    expect(at('/cardtable/sounds/music', '#/room/r-2d29801ec7ed')).toBe('/cardtable/#/room/r-2d29801ec7ed');
+  it("moves a room's page from the hash to its path, from any path", () => {
+    expect(at('/cardtable/', '#/room/r-2d29801ec7ed')).toBe('/cardtable/room/r-2d29801ec7ed');
+    expect(at('/cardtable/sounds/music', '#/room/r-2d29801ec7ed')).toBe('/cardtable/room/r-2d29801ec7ed');
+    expect(at('/cardtable/room/r-2d29801ec7ed/')).toBe('/cardtable/room/r-2d29801ec7ed');
+    expect(at('/cardtable/', '#/room/r-1', '?x=1')).toBe('/cardtable/room/r-1?x=1');
+  });
+
+  it('drops a stray path under any other hash, keeping the hash as it is', () => {
+    expect(at('/cardtable/sounds/music', '#/match/m-1')).toBe('/cardtable/#/match/m-1');
+    expect(at('/cardtable/room/r-1', '#/room/r-1/table/t-1')).toBe('/cardtable/#/room/r-1/table/t-1');
+    expect(at('/cardtable/', '#cam=after:400')).toBeNull();
   });
 
   it('moves a stray path that is a route into the hash', () => {
     expect(at('/cardtable/sounds/music')).toBe('/cardtable/#/sounds/music');
     expect(at('/cardtable/sounds/music', '#/')).toBe('/cardtable/#/sounds/music');
-    expect(at('/cardtable/room/r-2d29801ec7ed/')).toBe('/cardtable/#/room/r-2d29801ec7ed');
   });
 
   it('drops a stray path that is no route', () => {

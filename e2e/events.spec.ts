@@ -67,7 +67,7 @@ test('a draft tournament opens its room with the pick timer and clock the form c
   await pick(page, 'event-create-pick-timer-fast');
   await pick(page, 'event-create-clock-on');
   await page.getByTestId('event-create-submit').click();
-  await expect(page).toHaveURL(/#\/room\/r-[0-9a-f]{12}/);
+  await expect(page).toHaveURL(/\/room\/r-[0-9a-f]{12}/);
 
   const event = await listed(page, title);
   expect(event).toMatchObject({ kind: 'draft-pod', room: { gameType: 'draft', phase: 'lobby', settings: { clock: 'on', pickTimer: { on: true, speed: 2 } } } });
@@ -89,7 +89,7 @@ test('a constructed tournament opens in tournament mode with its mode and deck r
   await pick(page, 'event-create-decks-per-round');
   await pick(page, 'event-create-smoothing-off');
   await page.getByTestId('event-create-submit').click();
-  await expect(page).toHaveURL(/#\/room\/r-[0-9a-f]{12}/);
+  await expect(page).toHaveURL(/\/room\/r-[0-9a-f]{12}/);
 
   const event = await listed(page, title);
   expect(event).toMatchObject({

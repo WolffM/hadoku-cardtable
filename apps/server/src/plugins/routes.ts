@@ -14,6 +14,7 @@ import { attachDiscord } from '../http/discord.js';
 import { attachEvents } from '../http/events.js';
 import { createMusicReviewStore } from '../http/musicReviewStore.js';
 import { attachPage } from '../http/page.js';
+import { attachPreview, previewFonts } from '../http/preview.js';
 import { attachRooms } from '../http/rooms.js';
 import { attachSounds } from '../http/sounds.js';
 import { attachTournaments } from '../http/tournaments.js';
@@ -49,6 +50,14 @@ export const routesPlugin: CardtablePlugin = {
 		state.people = createPeople({ baseUrl: CONFIG.prefsBaseUrl, serviceKey: CONFIG.serviceKey, keyless: CONFIG.testPeopleStandIn, log: state.roomsLog });
 		const { lobby, people } = state;
 		const looks = attachLooks(lobby, people, UNNAMED);
+		// A room's link preview, which only the edge reads (`http/preview.ts`).
+		attachPreview(ctx.sealed, {
+			rooms: lobby,
+			people,
+			watchpartyBase: CONFIG.watchpartyBaseUrl,
+			fontFiles: previewFonts(state.pkgRoot),
+			...(CONFIG.testNoRateLimits ? { rateLimit: null } : {}),
+		});
 		attachRooms(api, {
 			lobby,
 			checkPlan: state.checkDraftPlan,

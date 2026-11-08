@@ -724,11 +724,11 @@ test(LIVE_TITLE, async ({ browser }) => {
     await lockedRow.getByTestId('room-password').fill('not the password');
     await lockedRow.getByTestId('room-password-submit').click();
     await expect(lockedRow.getByTestId('room-join-error')).toContainText('No room with that name and password');
-    expect(new URL(bob.page.url()).hash, 'a refused password leaves bob on the room list').not.toContain('/room/');
+    expect(bob.page.url(), 'a refused password leaves bob on the room list').not.toContain('/room/');
     // And the right one lets him in, so the refusal above was the password.
     await lockedRow.getByTestId('room-password').fill('hunter2');
     await lockedRow.getByTestId('room-password-submit').click();
-    await bob.page.waitForURL(new RegExp(`#/room/${lockedId}$`), { timeout: 20_000 });
+    await bob.page.waitForURL(new RegExp(`/room/${lockedId}$`), { timeout: 20_000 });
     summary.lockedRoom = { roomId: lockedId, tableWithoutMembership: lockedTable.status() };
 
     /* ── the match room: alice creates it, bob sees it and enters ─────── */
@@ -748,7 +748,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     await expect(row.getByTestId('room-members')).toContainText('e2e-alice');
     expect(await row.getByTestId('room-locked').count(), 'an open room shows no lock').toBe(0);
     await row.getByTestId('room-enter').click();
-    await bob.page.waitForURL(new RegExp(`#/room/${roomId}$`), { timeout: 20_000 });
+    await bob.page.waitForURL(new RegExp(`/room/${roomId}$`), { timeout: 20_000 });
     await expect(bob.page.getByTestId('constructed')).toBeVisible();
 
     /* ── the leader sets the table, once, for both seats ──────────────── */

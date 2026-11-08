@@ -100,7 +100,7 @@ import { artScore, assignDeckArt, rankDeckArt, traitsOfDraftCard } from './deckA
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from './DeckPeek.tsx';
 import type { DeckRecords } from '../stats/deckOrder.ts';
-import { parseRoute } from './route.ts';
+import { currentRoute } from './route.ts';
 import { TITLE_MS } from './gauntlet/reveal.ts';
 import { layOutYearSlider, pressYearSlider, yearSliderX } from '../components/YearSlider.testing.ts';
 import poolJson from '../draft/pool.json';
@@ -901,7 +901,7 @@ describe('the constructed screen without a room', () => {
     expect(screen.queryByTestId('deck-mine')).toBeNull();
     expect(screen.queryByTestId('format')).toBeNull();
     fireEvent.click(screen.getByTestId('to-rooms'));
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    expect(currentRoute()).toEqual({ kind: 'lobby' });
   });
 });
 
@@ -1166,7 +1166,7 @@ describe('a room’s table', () => {
     await waitFor(() => expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready'));
     // And nothing was started.
     expect(lastCall(server.calls, '/play/matches')).toBeUndefined();
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    expect(currentRoute()).toEqual({ kind: 'lobby' });
   });
 
   it('starts the match once both are ready, without either choosing the other’s deck', async () => {
@@ -1176,7 +1176,7 @@ describe('a room’s table', () => {
       fireEvent.click(screen.getByTestId('ready-toggle'));
     });
 
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'match', matchId: MATCH }));
     expect(lastCall(server.calls, '/tables/rooms/' + ROOM + '/ready')?.body).toEqual({ ready: true });
     // The start names the ROOM. The decks are the server's to assemble.
     expect(lastCall(server.calls, '/play/matches')).toEqual({
@@ -1194,7 +1194,7 @@ describe('a room’s table', () => {
     await act(async () => {
       fireEvent.click(bot);
     });
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'match', matchId: MATCH }));
     expect(lastCall(server.calls, '/play/matches')).toEqual({
       url: '/cardtable/api/play/matches',
       method: 'POST',
@@ -1219,7 +1219,7 @@ describe('a room’s table', () => {
     const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null });
     // The other browser started it; this one learns from a re-read.
     server.table.matchId = MATCH;
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'match', matchId: MATCH }));
     expect(lastCall(server.calls, '/play/matches')).toBeUndefined();
   });
 
@@ -1227,14 +1227,14 @@ describe('a room’s table', () => {
   it('carries a player into the match once; back in the room by choice, they stay, with the way back in', async () => {
     const server = await mountRoom({ players: [opponent({ ready: true }), opponent({ you: true, name: 'user-alice', seat: 1 })], matchId: null });
     server.table.matchId = MATCH;
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'match', matchId: MATCH }));
     cleanup();
     globalThis.location.hash = `#/room/${ROOM}`;
     await mountRoom({ players: [opponent({ ready: true }), opponent({ you: true, name: 'user-alice', seat: 1 })], matchId: MATCH });
     const link = await screen.findByTestId('room-match-link');
     expect(link.getAttribute('href')).toBe(`#/match/${MATCH}`);
     expect(link.textContent).toBe('Play');
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: ROOM });
+    expect(currentRoute()).toEqual({ kind: 'room', roomId: ROOM });
   });
 
   /*
@@ -1415,7 +1415,7 @@ describe('a room’s table', () => {
 
     const refused = await screen.findByTestId('start-refused');
     expect(refused.textContent).toContain('user-bob is not ready yet');
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    expect(currentRoute()).toEqual({ kind: 'lobby' });
     // One attempt, not one per re-read.
     const attempts = () => server.calls.filter((c) => c.url.endsWith('/play/matches')).length;
     const once = attempts();
@@ -1430,7 +1430,7 @@ describe('a room’s table', () => {
       fireEvent.click(screen.getByTestId('start-retry'));
     });
     await stepped.reread(1);
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'match', matchId: MATCH }));
   });
 });
 
@@ -1446,7 +1446,7 @@ describe('a start in flight', () => {
     server.table.queuePlace = 1;
     await waitFor(() => expect(screen.getByTestId('start-state').textContent).toBe('Starting Forge… #1 in the queue'), { timeout: 3000 });
     await act(async () => up());
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'match', matchId: MATCH }));
   });
 
   it('takes the table out of everyone’s hands until the match is up: no Stand down, no new deck', async () => {
@@ -1462,7 +1462,7 @@ describe('a start in flight', () => {
     for (const option of screen.getByTestId('deck-mine').querySelectorAll('button')) expect(option.disabled).toBe(true);
 
     await act(async () => up());
-    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'match', matchId: MATCH }));
     expect(screen.queryByTestId('start-refused')).toBeNull();
   });
 });
@@ -2706,7 +2706,7 @@ describe('tournament mode', () => {
     });
     await screen.findByTestId('pod-tables');
     // Never into the stale match: to round 1's table page.
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: ROOM, tableId: 't-round1' });
+    expect(currentRoute()).toEqual({ kind: 'room', roomId: ROOM, tableId: 't-round1' });
   });
 
   it('once the pod is done, heads with Standings rather than a round number', async () => {

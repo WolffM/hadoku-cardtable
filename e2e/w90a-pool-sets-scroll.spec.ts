@@ -22,7 +22,7 @@ interface FormatRow {
 
 async function richestStandardEra(page: Page): Promise<FormatRow> {
   const body = (await page.evaluate(async () => {
-    const res = await fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/tables/formats`);
+    const res = await fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/tables/formats`);
     return res.json();
   })) as { formats: FormatRow[] };
   const standard = body.formats.filter((f) => f.family === 'standard');
@@ -36,7 +36,7 @@ test('a mouse drag scrolls the era’s set symbols sideways too, and never fires
     await resizeWindow(alice.page, { width: 390, height: 844 });
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e w90a pool sets mouse ${Date.now()}` });
-    await alice.page.waitForURL(/#\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
+    await alice.page.waitForURL(/\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
 
     const richest = await richestStandardEra(alice.page);
     await choosePool(alice.page, richest.id);
