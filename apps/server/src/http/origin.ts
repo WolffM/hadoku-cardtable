@@ -1,5 +1,6 @@
 /**
- * Every response this server sends carries `X-Hadoku-Origin: cardtable`.
+ * Every response this server sends carries `X-Hadoku-Origin: cardtable` —
+ * cardtable's binding of the platform kernel (`@hadoku/service-kernel/http`).
  *
  * The edge holds a request through a deploy's restart (hadoku_site's `proxy.ts`,
  * `holdThroughRestart`). While nothing listens on our port, cloudflared answers 502 for us,
@@ -9,12 +10,11 @@
  * every error path alike.
  */
 import type { Server } from 'node:http';
+import { ORIGIN_HEADER, stampOrigin as kernelStampOrigin } from '@hadoku/service-kernel/http';
 
-export const ORIGIN_HEADER = 'X-Hadoku-Origin';
+export { ORIGIN_HEADER };
 export const ORIGIN_VALUE = 'cardtable';
 
 export function stampOrigin(server: Server): void {
-	server.prependListener('request', (_req, res) => {
-		res.setHeader(ORIGIN_HEADER, ORIGIN_VALUE);
-	});
+	kernelStampOrigin(server, ORIGIN_VALUE);
 }

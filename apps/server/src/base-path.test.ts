@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { checkBasePath, checkBundle, probeIndex } from './base-path.js';
+import { checkBasePath, checkBundle, diagnosticPage, isEmbedEntry, probeIndex } from './base-path.js';
 
 const PREFIX = '/cardtable';
 const INDEX = `<!doctype html><html><head><script type="module" src="${PREFIX}/assets/app.js"></script></head><body></body></html>`;
@@ -111,5 +111,22 @@ describe('checkBundle', () => {
 		const verdict = await checkBundle(join(site, 'index.html'), PREFIX);
 		expect(verdict.reason).toBe('unprefixed');
 		expect(verdict.offenders).toEqual(['/favicon.svg.js', '/assets/index.js']);
+	});
+});
+
+describe('diagnosticPage and isEmbedEntry: pinned to cardtable\'s own name and bundle', () => {
+	it('titles and headlines the page "Cardtable", byte-identical, never the kernel\'s generic wording', () => {
+		const verdict = { ok: false, reason: 'missing' as const, offenders: [], detail: 'detail text' };
+		const page = diagnosticPage(verdict, PREFIX);
+		expect(page).toContain('<title>Cardtable — not serving</title>');
+		expect(page).toContain('<h1>Cardtable is running, but its bundle would not load</h1>');
+		expect(page).toContain('Served by the cardtable loopback server');
+	});
+
+	it('isEmbedEntry matches only cardtable-embed.js / cardtable-embed.css under an embed directory', () => {
+		expect(isEmbedEntry(join('dist', 'embed', 'cardtable-embed.js'))).toBe(true);
+		expect(isEmbedEntry(join('dist', 'embed', 'cardtable-embed.css'))).toBe(true);
+		expect(isEmbedEntry(join('dist', 'embed', 'bomberman-embed.js'))).toBe(false);
+		expect(isEmbedEntry(join('dist', 'assets', 'cardtable-embed.js'))).toBe(false);
 	});
 });

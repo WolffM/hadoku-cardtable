@@ -19,6 +19,13 @@ describe('the tier floor', () => {
 		expect(() => assertFloor('visitor')).toThrow(/not a tier floor/);
 		expect(() => assertFloor('public')).toThrow(/not a tier floor/);
 	});
+
+	it('pins the refusal message byte-identical: CARDTABLE_MIN_TIER, never the kernel\'s own generic wording', () => {
+		// hadoku_site's wrapper sets CARDTABLE_MIN_TIER; a kernel refactor that
+		// changes this text or the env name breaks that wrapper silently.
+		expect(() => assertFloor('visitor')).toThrow('CARDTABLE_MIN_TIER=visitor is not a tier floor this build knows');
+		expect(() => assertFloor('public')).toThrow('CARDTABLE_MIN_TIER=public is not a tier floor this build knows');
+	});
 });
 
 describe('X-Hadoku-Verified is believed only behind edge auth', () => {

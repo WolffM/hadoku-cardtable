@@ -1,18 +1,18 @@
 /**
- * The one handshake gate: each of four copies of "sanitize, rank, refuse,
- * report" (HTTP's `requireMinTier`, the room socket, the play socket, the
- * stream's raw upgrade) folded into one verdict (`floor`) and one refusal
- * report. `requireMinTier` keeps its name and export in `edge-auth.ts`, and
- * now calls `floor` too.
+ * The one handshake gate — cardtable's binding of the platform kernel
+ * (`@hadoku/service-kernel/http`): each of three copies of "sanitize, rank,
+ * refuse, report" (the room socket, the play socket, the stream's raw
+ * upgrade) folded into one verdict (`floor`) and one refusal report.
+ * HTTP's own copy is `requireMinTier`, bound in `edge-auth.ts` from the same
+ * kernel function — it keeps its name and export there.
  */
 
-import type { IncomingMessage } from 'node:http';
-import type { Request } from 'express';
-import type { Server as SocketIOServer } from 'socket.io';
-import { edgeProvenance, rankOf, sanitizeHeaders, tierOf } from './edge-auth.js';
+import { createEdgeAuth, rankOf, tierOf } from '@hadoku/service-kernel/auth';
+import { createGate, type SealRefusedReporter } from '@hadoku/service-kernel/http';
+import { CONFIG } from './config.js';
 import { reportSealRefused } from './telemetry.js';
 
-/** HTTP gates itself via `requireMinTier`, which calls {@link floor} directly. */
+/** HTTP gates itself via `requireMinTier` (`edge-auth.ts`), which calls {@link floor} directly. */
 export type GateSurface = 'draft-socket' | 'play-socket' | 'stream';
 
 /** `minTier`: `CONFIG.minTier` in production. `surface`: the `reportSealRefused` label. */
@@ -21,30 +21,29 @@ export interface GateOptions {
 	surface: GateSurface;
 }
 
+const edgeAuth = createEdgeAuth({
+	edgeAuthSecret: () => CONFIG.edgeAuthSecret,
+	allowUnverifiedEdge: () => CONFIG.allowUnverifiedEdge,
+	devTier: () => CONFIG.devTier,
+});
+
+const gate = createGate({
+	sanitizeHeaders: edgeAuth.sanitizeHeaders,
+	edgeProvenance: edgeAuth.edgeProvenance,
+	tierOf,
+	rankOf,
+	// `reportSealRefused`'s own surface type is cardtable's closed set
+	// (`telemetry.ts`); the kernel's is an open `string` so it knows no game's
+	// surface names. Every surface this gate ever reports is in that set.
+	reportSealRefused: reportSealRefused as SealRefusedReporter,
+	minTier: () => CONFIG.minTier,
+});
+
 /** Sanitize `headers` in place against edge provenance, then rank the result against `minTier`. */
-export function floor(headers: Record<string, unknown>, minTier: string): { ok: boolean; tier: string } {
-	sanitizeHeaders(headers);
-	const tier = tierOf({ headers } as unknown as Request);
-	return { ok: rankOf(tier) >= rankOf(minTier), tier };
-}
+export const floor = gate.floor;
 
 /** Provenance + the floor on a socket.io handshake. `next(new Error('not found'))` is the client's `connect_error`. */
-export function gateSocketIo(io: SocketIOServer, opts: GateOptions): void {
-	io.engine.use(edgeProvenance);
-	io.use((socket, next) => {
-		const result = floor(socket.request.headers as Record<string, unknown>, opts.minTier);
-		if (!result.ok) {
-			reportSealRefused(opts.surface, socket.request.headers, null);
-			next(new Error('not found'));
-			return;
-		}
-		next();
-	});
-}
+export const gateSocketIo = gate.gateSocketIo;
 
 /** The floor for a raw upgrade: no middleware chain runs, so the caller answers the refusal itself. */
-export function gateUpgrade(req: IncomingMessage, opts: GateOptions): { ok: boolean; tier: string } {
-	const result = floor(req.headers as Record<string, unknown>, opts.minTier);
-	if (!result.ok) reportSealRefused(opts.surface, req.headers, req.url ?? null);
-	return result;
-}
+export const gateUpgrade = gate.gateUpgrade;

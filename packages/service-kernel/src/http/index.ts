@@ -1,17 +1,114 @@
 /**
- * The base-path contract, checked at boot.
- *
+ * The one handshake gate, the base-path contract, and the origin stamp — the
+ * HTTP-and-sockets half of the platform's edge auth. Knows no game: the
+ * surface label a refusal is reported under, the app's display name and
+ * embed-bundle filenames, and the functions that read its tier ladder and its
+ * secret are all supplied by the app that binds this module.
+ */
+
+import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { sep } from 'node:path';
+import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
+import type { Server as SocketIOServer } from 'socket.io';
+
+/* ── The gate: sanitize, rank, refuse, report ─────────────────────────── */
+
+/** The app's own label for a `seal-refused` report, e.g. `'http' | 'draft-socket'`. */
+export type GateSurface = string;
+
+/** `minTier`: the app's configured floor. `surface`: the `reportSealRefused` label. */
+export interface GateOptions {
+	minTier: string;
+	surface: GateSurface;
+}
+
+/** `reportSealRefused`'s own shape — the app supplies the implementation. */
+export type SealRefusedReporter = (
+	surface: GateSurface,
+	headers: Record<string, unknown>,
+	path: string | null,
+) => void;
+
+export interface GateDeps {
+	/** Sanitize `headers` in place against edge provenance (the app's `createEdgeAuth(...).sanitizeHeaders`). */
+	sanitizeHeaders(headers: Record<string, unknown>): void;
+	/** Express/engine.io middleware that does the same, for a socket's handshake (the app's `createEdgeAuth(...).edgeProvenance`). */
+	edgeProvenance(req: Request, res: Response, next: NextFunction): void;
+	/** The app's own `tierOf` (its auth binding's, so a verified-member promotion if any applies). */
+	tierOf(req: Request): string;
+	rankOf(tier: string): number;
+	reportSealRefused: SealRefusedReporter;
+	/** The app's configured floor for `requireMinTier`, read live (HTTP has one fixed floor; sockets and upgrades take their own per call). */
+	minTier(): string;
+}
+
+export interface Gate {
+	/** Sanitize `headers` in place against edge provenance, then rank the result against `minTier`. */
+	floor(headers: Record<string, unknown>, minTier: string): { ok: boolean; tier: string };
+	/** Provenance + the floor on a socket.io handshake. `next(new Error('not found'))` is the client's `connect_error`. */
+	gateSocketIo(io: SocketIOServer, opts: GateOptions): void;
+	/** The floor for a raw upgrade: no middleware chain runs, so the caller answers the refusal itself. */
+	gateUpgrade(req: IncomingMessage, opts: GateOptions): { ok: boolean; tier: string };
+	/**
+	 * Express middleware: refuse anything below the configured floor. 404, not
+	 * 403 — a private app should not confirm its own existence to a caller who
+	 * was never meant to reach it.
+	 */
+	requireMinTier(req: Request, res: Response, next: NextFunction): void;
+}
+
+/** One gate, bound to an app's auth functions and its `reportSealRefused`. */
+export function createGate(deps: GateDeps): Gate {
+	function floor(headers: Record<string, unknown>, minTier: string): { ok: boolean; tier: string } {
+		deps.sanitizeHeaders(headers);
+		const tier = deps.tierOf({ headers } as unknown as Request);
+		return { ok: deps.rankOf(tier) >= deps.rankOf(minTier), tier };
+	}
+
+	function gateSocketIo(io: SocketIOServer, opts: GateOptions): void {
+		io.engine.use(deps.edgeProvenance);
+		io.use((socket, next) => {
+			const result = floor(socket.request.headers as Record<string, unknown>, opts.minTier);
+			if (!result.ok) {
+				deps.reportSealRefused(opts.surface, socket.request.headers as Record<string, unknown>, null);
+				next(new Error('not found'));
+				return;
+			}
+			next();
+		});
+	}
+
+	function gateUpgrade(req: IncomingMessage, opts: GateOptions): { ok: boolean; tier: string } {
+		const result = floor(req.headers as Record<string, unknown>, opts.minTier);
+		if (!result.ok) deps.reportSealRefused(opts.surface, req.headers as Record<string, unknown>, req.url ?? null);
+		return result;
+	}
+
+	function requireMinTier(req: Request, res: Response, next: NextFunction): void {
+		if (floor(req.headers as Record<string, unknown>, deps.minTier()).ok) return next();
+		deps.reportSealRefused('http', req.headers as Record<string, unknown>, req.path);
+		res.status(404).type('text/plain').send('not found');
+	}
+
+	return { floor, gateSocketIo, gateUpgrade, requireMinTier };
+}
+
+/* ── The base-path contract, checked at boot ──────────────────────────── */
+
+/**
  * This is the one thing about a loopback-UI app that breaks SILENTLY, so it is
- * the one thing this server refuses to guess about.
+ * the one thing a server built this way refuses to guess about.
  *
- * The edge gives us stripPrefix: hadoku.me/cardtable/assets/x.js arrives here
- * as /assets/x.js, which we serve happily. But the BROWSER is at
- * hadoku.me/cardtable/, so a bundle built with the default base emits
+ * The edge gives us stripPrefix: hadoku.me/<app>/assets/x.js arrives here as
+ * /assets/x.js, which we serve happily. But the BROWSER is at
+ * hadoku.me/<app>/, so a bundle built with the default base emits
  * `src="/assets/x.js"` — an absolute URL with no prefix. The browser asks the
  * edge for hadoku.me/assets/x.js, which is not this app's route, and the page
  * renders blank with a 404 in the console and a 200 on every server-side probe.
- * games-host shipped exactly this: its edge stripPrefix and its backend's base
- * path are two independent declarations of one fact, and nothing compared them.
  *
  * So: compare them here, once, at boot, and say precisely what to change.
  *
@@ -21,25 +118,15 @@
  * prove the server can HAND IT OUT, and those came apart in practice: express's
  * `res.sendFile` goes through `send`, whose default `dotfiles: 'ignore'` refuses
  * any absolute path with a segment starting with `.` — so a server started from
- * `/…/.claude/worktrees/…` (every agent worktree) answered every page with a 404
+ * a dot-segment path (every agent worktree) answered every page with a 404
  * while `readFileSync` read the same file happily and `/health` said `healthy`.
- * Production has no dot segment and never saw it; an agent lost an afternoon.
  *
  * So `checkBundle` finishes by asking the serving mechanism itself: it mounts
  * `sendIndex` — the exact function the SPA fallback uses — on a throwaway
  * loopback server and fetches it. If that is not a 200, the verdict is
- * `unservable` and `/health` says `degraded`. It deliberately does not
- * special-case dot segments: any future reason `sendFile` refuses the file
- * (permissions, an option someone adds to `sendIndex`) fails the same way.
+ * `unservable`. It deliberately does not special-case dot segments: any future
+ * reason `sendFile` refuses the file fails the same way.
  */
-
-import { readFileSync } from 'node:fs';
-import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { sep } from 'node:path';
-import express from 'express';
-import type { Response } from 'express';
-
 export interface BasePathVerdict {
 	ok: boolean;
 	/** 'ok' | 'missing' | 'unprefixed' | 'unservable' — machine-readable for /health. */
@@ -111,15 +198,8 @@ export function checkBasePath(indexHtmlPath: string, basePrefix: string): BasePa
 	return { ok: true, reason: 'ok', offenders: [], detail: `base path "${wanted}" verified` };
 }
 
-/**
- * The embed bundle's two fixed-name files (D21): `apps/ui/vite.embed.config.ts`
- * emits them, watchparty imports the `.js`. Every other file in the bundle is
- * content-hashed; these are the only ones whose bytes change under one name.
- */
-const EMBED_ENTRIES = ['cardtable-embed.js', 'cardtable-embed.css'] as const;
-
-export function isEmbedEntry(filePath: string): boolean {
-	return EMBED_ENTRIES.some((name) => filePath.endsWith(`${sep}embed${sep}${name}`));
+export function isEmbedEntry(filePath: string, embedEntries: readonly string[]): boolean {
+	return embedEntries.some((name) => filePath.endsWith(`${sep}embed${sep}${name}`));
 }
 
 /**
@@ -158,7 +238,7 @@ export async function probeIndex(indexHtmlPath: string): Promise<number> {
 
 /**
  * The whole boot verdict: built right (`checkBasePath`) AND servable
- * (`probeIndex`). This, not `checkBasePath` alone, is what `/health` reports.
+ * (`probeIndex`). This, not `checkBasePath` alone, is what `/health` should report.
  */
 export async function checkBundle(indexHtmlPath: string, basePrefix: string): Promise<BasePathVerdict> {
 	const built = checkBasePath(indexHtmlPath, basePrefix);
@@ -176,13 +256,13 @@ export async function checkBundle(indexHtmlPath: string, basePrefix: string): Pr
 			`index.html is at ${indexHtmlPath} and reads fine, but serving it answered ${status}. ` +
 			(dotSegments.length > 0
 				? `The path has a dot-segment (${dotSegments.join(', ')}), and express's sendFile refuses those ` +
-					`(send's dotfiles: 'ignore'). Run the server from a copy outside it — the e2e harness does.`
+					`(send's dotfiles: 'ignore'). Run the server from a copy outside it — an e2e harness usually does.`
 				: `express's sendFile refused a file that exists; check its permissions and sendIndex's options.`),
 	};
 }
 
 /** The page served in place of a bundle that would render blank. */
-export function diagnosticPage(verdict: BasePathVerdict, basePrefix: string): string {
+export function diagnosticPage(verdict: BasePathVerdict, basePrefix: string, appName: string): string {
 	const list =
 		verdict.offenders.length > 0
 			? `<ul>${verdict.offenders
@@ -190,13 +270,13 @@ export function diagnosticPage(verdict: BasePathVerdict, basePrefix: string): st
 					.map((u) => `<li><code>${escapeHtml(u)}</code></li>`)
 					.join('')}</ul>`
 			: '';
-	return `<!doctype html><meta charset=utf-8><title>Cardtable — not serving</title>
+	return `<!doctype html><meta charset=utf-8><title>${escapeHtml(appName)} — not serving</title>
 <style>body{font:15px/1.6 system-ui,Segoe UI,Roboto,sans-serif;background:#15171c;color:#e7e9ee;margin:0;padding:40px;display:flex;justify-content:center}
 main{max-width:720px}h1{font-size:19px;font-weight:600}code{background:#22252c;padding:2px 6px;border-radius:4px}
 p.why{color:#9aa3b2}</style>
-<main><h1>Cardtable is running, but its bundle would not load</h1>
+<main><h1>${escapeHtml(appName)} is running, but its bundle would not load</h1>
 <p>${escapeHtml(verdict.detail)}</p>${list}
-<p class=why>Served by the cardtable loopback server on behalf of <code>${escapeHtml(basePrefix)}/</code>.
+<p class=why>Served by the ${escapeHtml(appName.toLowerCase())} loopback server on behalf of <code>${escapeHtml(basePrefix)}/</code>.
 This page exists so the failure is visible: the alternative is a blank page and a green health check.</p></main>`;
 }
 
@@ -205,4 +285,21 @@ function escapeHtml(s: string): string {
 		/[&<>"]/g,
 		(c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string
 	);
+}
+
+/* ── The origin stamp ──────────────────────────────────────────────────── */
+
+/**
+ * Every response a server built this way sends carries this header, so the
+ * edge can tell "nothing is listening yet" (a 502 worth holding through a
+ * restart) from an answer the app itself produced (a 502 of its own, which
+ * must reach the browser at once). Set at the socket level so it covers
+ * express, socket.io's polling and every error path alike.
+ */
+export const ORIGIN_HEADER = 'X-Hadoku-Origin';
+
+export function stampOrigin(server: Server, originValue: string): void {
+	server.prependListener('request', (_req, res) => {
+		res.setHeader(ORIGIN_HEADER, originValue);
+	});
 }
