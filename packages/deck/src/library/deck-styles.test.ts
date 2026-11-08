@@ -22,12 +22,26 @@ import { LIBRARY_DECK_STYLES } from './deck-styles.generated.ts';
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
 describe('the library style map a browser is handed', () => {
-  it('gives every catalogued deck one of the four styles', () => {
+  it('gives every selection deck one of the four styles', () => {
+    // A style is the SELECTION's verdict (`select_decks.py`'s classify), and a
+    // tournament import has no selection — its decks carry no style and the
+    // picker's tag draws nothing (`DeckStyleTag.tsx`: "a deck with none ...
+    // draws no tag rather than a guess"). The class boundary is the
+    // collection's own id, the same `tournament-` prefix `library.test.ts`
+    // reads.
     const styles = new Set(['aggro', 'midrange', 'control', 'combo']);
-    const unstyled = LIBRARY.flatMap((c) => c.decks)
+    const unstyled = LIBRARY.flatMap((c) =>
+      c.id.startsWith('tournament-') ? [] : c.decks,
+    )
       .map((d) => d.id)
       .filter((id) => !styles.has(LIBRARY_DECK_STYLES[id] ?? ''));
     expect(unstyled).toEqual([]);
+    // And a tournament deck must never sneak one in: its style would be a
+    // classification nobody made.
+    const tournamentStyled = LIBRARY.flatMap((c) =>
+      c.id.startsWith('tournament-') ? c.decks : [],
+    ).filter((d) => LIBRARY_DECK_STYLES[d.id] !== undefined);
+    expect(tournamentStyled).toEqual([]);
   });
 
   it('is exactly what build-deck-styles.ts would write now', () => {
