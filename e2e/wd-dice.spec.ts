@@ -57,7 +57,9 @@ test(titled("Wizard's Spellbook rolls a d20: both screens throw the die from the
       const w = window as unknown as { askedInTheAir?: boolean };
       new MutationObserver((_, observer) => {
         if (document.querySelector('[data-testid="prompt-confirm-yes"]') === null) return;
-        w.askedInTheAir = document.querySelector('[data-board-overlay] .board-die:not([data-die-landed])') !== null;
+        // Down is the tumble over (`data-die-down`): the question is let go there, the pop still playing
+        // (`pace.ts`'s UNLOCK_AT); `data-die-landed` comes after the pop (run 42510686359).
+        w.askedInTheAir = document.querySelector('[data-board-overlay] .board-die:not([data-die-down])') !== null;
         observer.disconnect();
       }).observe(document.body, { childList: true, subtree: true, attributes: true });
     });

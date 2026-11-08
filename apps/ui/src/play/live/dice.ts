@@ -383,6 +383,7 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
       el.style.transform = `translate(${path.ex}px,${path.ey}px)`;
       showFace(el, die.result);
       if (die.ignored) el.dataset.dieIgnored = '';
+      el.dataset.dieDown = '';
       linger(el);
       return;
     }
@@ -397,6 +398,9 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     const tumble = el.animate(kf, { duration: TUMBLE_MS, easing, fill: 'forwards', id: BEAT_ANIMATION_ID });
     shadow.animate(shadowFrames(path, kf), { duration: TUMBLE_MS, easing, fill: 'forwards', id: BEAT_ANIMATION_ID });
     await Promise.all([tumble.finished.catch(() => undefined), flicker(el, facesOf(roll.sides, die.result), die.result, TUMBLE_MS * 0.92)]);
+    // Down: the tumble is over, the pop to come. What the roll decides may show from here (`./pace.ts`
+    // lets go at `UNLOCK_AT` of the roll), so this, not `data-die-landed` after the pop, is "landed".
+    el.dataset.dieDown = '';
     remove(shadow);
     if (!live) return;
     ring(root, path.ex + path.size / 2, path.ey + path.size / 2, path.size * 1.2, own);

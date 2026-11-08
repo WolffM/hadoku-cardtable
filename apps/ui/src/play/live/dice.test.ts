@@ -125,6 +125,7 @@ describe('the die on the board', () => {
     expect(die).not.toBeNull();
     expect(die.dataset).toMatchObject({ die: String(r.id), dieSides: '20', dieResult: '14', dieFace: '14', dieRoller: 'you' });
     expect('dieLanded' in die.dataset).toBe(true);
+    expect('dieDown' in die.dataset, 'down at once: nothing tumbles').toBe(true);
     expect(die.querySelector('.board-die__num')!.textContent).toBe('14');
     // Once: the same roll, seen again with the next view, draws nothing more.
     dice.notify([r], view);
