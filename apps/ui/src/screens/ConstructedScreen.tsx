@@ -203,6 +203,7 @@ import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '../components/StatusPill.tsx';
 import { entrantLookup, heldFor, myCurrentTable, relayedPodSource, useFollowMyTable, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
+import { useRoomSounds } from './roomSounds.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
 import { POD_AI } from './pod/wire.ts';
@@ -1479,6 +1480,18 @@ function RoomTableScreen({
   const [gauntletReads] = useState(latestReads);
   /** Whether a seat is ready: the Gauntlet keeps its own readiness, every other mode the table's. */
   const readyAt = (seat: number): boolean => (mode === 'gauntlet' ? gauntlet?.ready[seat] === true : players[seat]?.ready === true);
+  useRoomSounds(
+    view === null
+      ? null
+      : {
+          others: members.filter((m) => m.id !== view.you.id).map((m) => m.id).sort(),
+          ready: [
+            ...members.filter((m) => m.ready).map((m) => `member:${m.id}`),
+            ...players.flatMap((p, seat) => (readyAt(seat) ? [`seat:${seat}:${p.name}`] : [])),
+          ].sort(),
+          readySource: `${mode}|${view.gameType}|${table !== null}|${gauntlet !== null}`,
+        },
+  );
   /**
    * What the leader may change now, as the server answers it (`RoomView.locks`: the same rule its
    * setters refuse with), so nothing on this screen is offered and then refused (the operator,

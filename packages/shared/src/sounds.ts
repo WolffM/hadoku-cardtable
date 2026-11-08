@@ -230,7 +230,7 @@ export function cheerRole(amount: number): string | null {
  * A role whose cell is empty plays this one's instead, and so on down: an impact tier the tier below it, the
  * smallest Creatures collide (what a blow to a player played before the tiers), and Spell hits Creatures collide
  * too; Hit a planeswalker the smallest player hit; a landing tier the tier below, the smallest Hits the table; an
- * artifact or colourless creature's voice the Creature voice; a coin flipped in the game the toss's coin; a cheer the cheer below it; a Gauntlet moment the nearest sound the app already had for it. So a role
+ * artifact or colourless creature's voice the Creature voice; a coin flipped in the game the toss's coin; a cheer the cheer below it; a Gauntlet moment the nearest sound the app already had for it; a room's comings and goings the operator's picks (2026-11-08): a join Your turn, a ready Attack, a leave Countered. So a role
  * nobody has filled yet still sounds.
  */
 export const FALLBACK_ROLES: Readonly<Record<string, string>> = Object.fromEntries([
@@ -246,6 +246,9 @@ export const FALLBACK_ROLES: Readonly<Record<string, string>> = Object.fromEntri
 	['ui.gauntlet-ban', 'g.exile'],
 	['ui.gauntlet-pick', 'ui.draft-pick'],
 	['ui.gauntlet-choose', 'ui.select'],
+	['ui.room-join', 'g.turn-mine'],
+	['ui.room-ready', 'g.attack'],
+	['ui.room-leave', 'g.counter'],
 ]);
 
 /** Every role, grouped the way the builder lists them. */
@@ -272,6 +275,15 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			ui('ui.gauntlet-ban', 'Gauntlet ban', 'A deck is banned from the Gauntlet\'s pool, by either player.'),
 			ui('ui.gauntlet-pick', 'Gauntlet pick', 'A deck is picked from the Gauntlet\'s pool, by either player.'),
 			ui('ui.gauntlet-choose', 'Gauntlet choice', 'You choose your deck for the next Gauntlet game.'),
+		],
+	},
+	{
+		id: 'room',
+		name: 'In the room',
+		roles: [
+			ui('ui.room-join', 'Someone joins', 'Another player comes into the room. Empty: Your turn plays.'),
+			ui('ui.room-ready', 'Ready up', 'A player in the room readies, you included. Empty: Attack plays.'),
+			ui('ui.room-leave', 'Someone leaves', 'Another player leaves the room. Empty: Countered plays.'),
 		],
 	},
 	{
