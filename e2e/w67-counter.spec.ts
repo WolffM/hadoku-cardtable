@@ -11,7 +11,8 @@
  * stack. Bob's page is watched from BEFORE alice's release, on every change to the presence back and
  * to the placed spell and on every animation frame besides, since a gliding back moves without a
  * mutation. The record is printed; the claims read it: once the face exists, no presence back exists
- * past one frame; the face's first box is where the back stood.
+ * past one frame; the face's first box is where the back stood when bob's screen handed it over (its
+ * own `handover` report).
  *
  * Countered (ledger AE27, the operator, 2026-10-09): *"the mana leak and the creature spell faded out
  * at the same time. it would be nicer if first the mana leak blinked meaning (activate) and then there
@@ -23,7 +24,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, handCardNamed, liftAndParkOutsideHand, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
+import { clickOnce, dragHandCard, handCardNamed, liftAndParkOutsideHand, makeTitled, offered, pressPaymentAuto, resizeWindow, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -128,7 +129,19 @@ test(titled('a countered spell: on the other screen the back at the release turn
     expect(firstFace, 'the face was drawn').toBeDefined();
     const lastBackBefore = [...seen].reverse().find((s) => s.t <= firstFace!.t && s.back !== null)?.back ?? null;
     expect(lastBackBefore, 'a back stood at her release point before the face').not.toBeNull();
-    expect(dist(firstFace!.placed!, lastBackBefore!), 'the face is drawn where the back stood (within 4 px)').toBeLessThanOrEqual(4);
+    // Where the back stood when it handed over is the screen's own read at that moment (its
+    // `handover` report), not this record's last sample: a loaded claw can skip the frames of the
+    // glide's last few px (run 42488563825: no frame for 72 ms, the back last seen 5 px short, while
+    // the screen handed over from the glide's end, dist 0).
+    const handoverRow = () => serverLog(stack).find((r) => r.evt === 'client' && r.kind === 'handover' && r.seat === 1 && r.screen === 'receiver' && r.card === memnite);
+    await expect.poll(handoverRow, { timeout: 10_000, message: 'bob’s screen reported the hand-over of her Memnite' }).toBeDefined();
+    const handover = handoverRow();
+    const stood = { x: Number(handover!.fromX), y: Number(handover!.fromY) };
+    console.log(`[commit] hand-over from ${stood.x},${stood.y} after ${String(handover!.glideMs)} ms of glide (done: ${String(handover!.glideDone)}); first face at ${firstFace!.placed!.x},${firstFace!.placed!.y}`);
+    // Its `from` is where the back stood only once the glide is over: a hand-over mid-glide reads its
+    // own mid-glide centre there, and the face would match it and then hop (w67-shaman, 16 px).
+    expect(handover!.glideDone, 'the back handed over at the end of its glide, not on its way').toBe(true);
+    expect(dist(firstFace!.placed!, stood), 'the face is drawn where the back stood (within 4 px)').toBeLessThanOrEqual(4);
     const lingering = seen.filter((s) => s.t > firstFace!.t + 50 && s.back !== null);
     expect(lingering, 'no presence back exists past one frame after the face — one object, never two').toEqual([]);
 
