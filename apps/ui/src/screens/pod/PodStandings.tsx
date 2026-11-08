@@ -57,13 +57,14 @@ function minutes(ms: number | null): string {
 
 /**
  * The tie-breaker columns, in ranking order after Points: a short head, and the full name on hover and to a
- * screen reader. Short words, never the three-letter acronyms (2026-10-19: *"i hate the 3 letter acroynms"*);
- * the full names made the opened table far wider than its numbers (2026-11-08: *"way too long"*).
+ * screen reader. The full names made the opened table far wider than its numbers (2026-11-08: *"way too
+ * long"*), and the operator chose these heads that day: *"instead of 'game wins' i would show 'wins' and for
+ * the others i would show OMW and OGW"* (superseding 2026-10-19's *"i hate the 3 letter acroynms"* here).
  */
 const TIEBREAK_COLUMNS: readonly { key: Exclude<PodTiebreak, 'matchPoints'>; head: string; full: string; show: (r: PodStandingsRowLike) => string }[] = [
-  { key: 'opponentMatchWinPct', head: 'Opp. matches', full: 'Opponents’ match wins', show: (r) => pct(r.opponentMatchWinPct) },
-  { key: 'gameWinPct', head: 'Games', full: 'Game wins', show: (r) => pct(r.gameWinPct) },
-  { key: 'opponentGameWinPct', head: 'Opp. games', full: 'Opponents’ game wins', show: (r) => pct(r.opponentGameWinPct) },
+  { key: 'opponentMatchWinPct', head: 'OMW', full: 'Opponents’ match wins', show: (r) => pct(r.opponentMatchWinPct) },
+  { key: 'gameWinPct', head: 'Wins', full: 'Game wins', show: (r) => pct(r.gameWinPct) },
+  { key: 'opponentGameWinPct', head: 'OGW', full: 'Opponents’ game wins', show: (r) => pct(r.opponentGameWinPct) },
   { key: 'medianGameMs', head: 'Median', full: 'Median game length', show: (r) => minutes(r.medianGameMs) },
 ];
 
