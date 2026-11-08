@@ -104,7 +104,8 @@ export const roomsPlugin: CardtablePlugin = {
 			if (tournament === undefined || tournament === '') return Promise.resolve();
 			const collection = process.env.CARDTABLE_REPLAY_COLLECTION ?? '';
 			const seat = process.env.CARDTABLE_REPLAY_SEAT ?? '5';
-			return seedReplay(lobby, { tournament, collection, seat: Number(seat) }, state.roomsLog);
+			const full = process.env.CARDTABLE_REPLAY_FULL === '1';
+			return seedReplay(lobby, { tournament, collection, seat: Number(seat), full }, state.roomsLog);
 		};
 		/** A tournament entrant's leave dropped them from a match: its games end as their forfeit, and its seats' decks are restored. */
 		state.roomForfeited = (roomId, tableId, loser, matches) => {
