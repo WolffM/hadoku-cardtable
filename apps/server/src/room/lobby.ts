@@ -399,6 +399,33 @@ interface CreateRoomInput {
 	 * by the events route, never by `CreateRoomBodySchema`. Until then it is neither stale nor idle.
 	 */
 	scheduledFor?: number;
+	/**
+	 * A historical-tournament replay room (`scripts/` driver or `room/testing-rooms.ts`-style
+	 * seeding, never a client body — no field in `CreateRoomBodySchema`, the same rule as
+	 * `testing`). Born locked: every room control (`roomLocks` answers `'historical'` for all
+	 * five) and every setting is the event's own, not a leader's choice. The room's name is
+	 * expected to name the event.
+	 */
+	historical?: boolean;
+	/**
+	 * A historical room's entrant deck assignments: entrant id (a member id or `ai:<seat>`)
+	 * → library deck id. Read by `PodChecks.currentTournamentDeck` at the tournament lock,
+	 * so an assigned entrant replays the deck the real player played instead of a drawn one.
+	 * Set the same way `historical` is — never by a client body.
+	 */
+	aiDeckAssignments?: Record<string, string>;
+	/**
+	 * A historical room's own format (the event's era): because a historical room is
+	 * born locked, `setFormat` would refuse the change the room needs to BE itself,
+	 * so the event's format is an input instead. Ignored unless `historical` is true.
+	 */
+	historicalFormat?: string;
+	/**
+	 * A historical room's own settings, in full (the event's shape — tournament on,
+	 * decks locked). Ignored unless `historical` is true; defaults to the same
+	 * tournament shape the driver always sets, so the two can never half-disagree.
+	 */
+	historicalSettings?: RoomSettings;
 }
 
 type CreateResult =
@@ -415,17 +442,17 @@ type JoinResult =
 
 type SetGameTypeResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' | 'historical' };
 
 /** `setFormat`'s refusals, plus a draft room (which has no mode). */
 type SetModeResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'draft-started' | 'mode-locked' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'draft-started' | 'mode-locked' | 'historical' };
 
 /** Deliberately the same refusals as `SetGameTypeResult`: one leader, one shape. */
 type SetFormatResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' | 'historical' };
 
 /** Every setting has a default, so a room stored before a setting existed reads back on it without a migration. */
 const SETTING_KEYS = Object.keys(DEFAULT_ROOM_SETTINGS) as (keyof RoomSettings)[];
@@ -435,7 +462,7 @@ const RETIRED_SETTING_KEYS = ['matchLength', 'sideboarding'];
 /** `SetFormatResult`'s three refusals (one leader, one shape). */
 type SetSettingsResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' | 'historical' };
 
 type AddTableResult = | { ok: true; room: RoomView; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
 
@@ -1137,7 +1164,16 @@ function podSeatsView(room: RoomRecord): PodView['seats'] {
 		if (id === null) return null;
 		if (id === POD_AI) {
 			const persona = personaOf(room.podAi[i] ?? seatAvatar(room, i));
-			return { memberId: POD_AI, name: persona.name, avatarId: persona.avatarId } as PodMember;
+			// A historical replay's AI seat carries its deck's NAME openly: the
+			// list is the event's own public record. The name — not the deck —
+			// because everything the UI owes a seat here is who it plays as.
+			const assigned = room.historical === true ? room.aiDeckAssignments?.[`ai:${String(i)}`] : undefined;
+			return {
+				memberId: POD_AI,
+				name: persona.name,
+				avatarId: persona.avatarId,
+				...(assigned === undefined ? {} : { deckId: assigned }),
+			} as PodMember;
 		}
 		if (id === POD_CLOSED) return { memberId: POD_CLOSED, name: '' } as PodMember;
 		const member = room.members.find((m) => m.id === id);
@@ -1898,6 +1934,10 @@ interface RoomRecord {
 	scenario?: string;
 	/** When its event starts (`CreateRoomInput.scheduledFor`'s doc). Absent for a room no event made. */
 	scheduledFor?: number;
+	/** A historical-tournament replay room (`CreateRoomInput.historical`'s doc). Born locked. */
+	historical?: boolean;
+	/** Entrant id → library deck id, the decks the real event's players played (`CreateRoomInput.aiDeckAssignments`'s doc). */
+	aiDeckAssignments?: Record<string, string>;
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
@@ -1955,6 +1995,10 @@ interface StoredMagicGame {
 	gauntlets?: Record<string, GauntletState>;
 	/** Absent for a room written before board-state testing rooms existed, or that is not one: every such room has no scenario. */
 	scenario?: string;
+	/** Absent for every room that is not a historical replay (`RoomRecord.historical`'s doc). */
+	historical?: boolean;
+	/** Absent for a room with no entrant deck assignments (`RoomRecord.aiDeckAssignments`'s doc). */
+	aiDeckAssignments?: Record<string, string>;
 }
 
 /** The room-level `app` blob on disk. The secret is here and ONLY here on disk. */
@@ -2165,6 +2209,13 @@ function decodeMagicGame(raw: unknown): StoredMagicGame {
 		throw new Error('app.game.gauntlet is invalid');
 	}
 	if (g.scenario !== undefined && typeof g.scenario !== 'string') throw new Error('app.game.scenario is invalid');
+	if (g.historical !== undefined && typeof g.historical !== 'boolean') throw new Error('app.game.historical is invalid');
+	if (
+		g.aiDeckAssignments !== undefined &&
+		(typeof g.aiDeckAssignments !== 'object' || g.aiDeckAssignments === null || Array.isArray(g.aiDeckAssignments))
+	) {
+		throw new Error('app.game.aiDeckAssignments is invalid');
+	}
 	return {
 		format: g.format === undefined ? null : (g.format as FormatId),
 		...storedMode(g),
@@ -2182,6 +2233,8 @@ function decodeMagicGame(raw: unknown): StoredMagicGame {
 		...(g.gauntlets !== undefined ? { gauntlets: { ...(g.gauntlets as Record<string, GauntletState>) } } : {}),
 		...(g.gauntlets === undefined && g.gauntlet !== undefined && g.gauntlet !== null ? { gauntlet: g.gauntlet as GauntletState } : {}),
 		...(g.scenario === undefined ? {} : { scenario: g.scenario as string }),
+		...(g.historical === true ? { historical: true } : {}),
+		...(g.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...(g.aiDeckAssignments as Record<string, string>) } }),
 	};
 }
 
@@ -2353,6 +2406,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		createdAt: new Date(room.createdAt).toISOString(),
 		testing: room.testing,
 		scheduledFor: room.scheduledFor === undefined ? null : new Date(room.scheduledFor).toISOString(),
+		...(room.historical === true ? { historical: true } : {}),
 	};
 }
 
@@ -2456,6 +2510,15 @@ export function roomLocks(room: RoomRecord): RoomLocks {
 	const started = room.draftStartedAt !== null ? 'draft-started' : null;
 	const plays = started ?? (modeLocked(room) ? 'mode-locked' : null);
 	const playing = started ?? (inPlay(room) ? 'mode-locked' : null);
+	// A historical replay room is born with every answer the event already
+	// gave: its format, its mode (constructed classic), its settings. Nothing
+	// about what it plays was ever this room's leader's choice, so nothing is
+	// offered — the same "never a control the server would refuse" rule the
+	// operator set for stale locks (2026-11-02), applied from creation.
+	if (room.historical === true) {
+		const historical = started ?? 'historical';
+		return { gameType: historical, mode: historical, event: historical, format: historical, rules: historical };
+	}
 	return { gameType: plays, mode: plays, event: plays, format: playing, rules: playing };
 }
 
@@ -2638,6 +2701,7 @@ class FileLobby implements Lobby {
 			matches: [...room.matches],
 			testing: room.testing,
 			...(room.scheduledFor === undefined ? {} : { scheduledFor: room.scheduledFor }),
+
 			secret: this.#secrets.get(room.id) ?? null,
 			game: {
 				format: room.format,
@@ -2655,6 +2719,8 @@ class FileLobby implements Lobby {
 				lockedDecks: { ...room.lockedDecks },
 				gauntlets: Object.fromEntries(Object.entries(room.gauntlets).map(([t, g]) => [t, gauntletWithoutNames(g)])),
 				...(room.scenario === undefined ? {} : { scenario: room.scenario }),
+				...(room.historical === true ? { historical: true } : {}),
+				...(room.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.aiDeckAssignments } }),
 				pod:
 					room.pod === null
 						? null
@@ -3609,6 +3675,24 @@ class FileLobby implements Lobby {
 			testing: input.testing === true,
 			...(input.scenario === undefined ? {} : { scenario: input.scenario }),
 			...(input.scheduledFor === undefined ? {} : { scheduledFor: input.scheduledFor }),
+			...(input.historical === true
+				? {
+						historical: true,
+						// The event's answers, not a leader's: format set at birth because the
+						// room is born locked against changing it, mode always constructed Classic
+						// (a historical replay IS a constructed tournament), settings the event's
+						// shape (tournament on, decks locked) unless the caller named their own.
+						format: (input.historicalFormat ?? this.#newRoomFormat()) as FormatId,
+						mode: 'classic',
+						modeOptions: {},
+						settings: input.historicalSettings ?? {
+							...DEFAULT_ROOM_SETTINGS,
+							tournament: true,
+							tournamentDecks: 'locked',
+						},
+					}
+				: {}),
+			...(input.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...input.aiDeckAssignments } }),
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember([], caller, now)],
@@ -4472,6 +4556,8 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					testing: app.testing === true,
 					...(game.scenario === undefined ? {} : { scenario: game.scenario }),
 					...(app.scheduledFor === undefined ? {} : { scheduledFor: app.scheduledFor }),
+					...(game.historical === true ? { historical: true } : {}),
+					...(game.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...game.aiDeckAssignments } }),
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.

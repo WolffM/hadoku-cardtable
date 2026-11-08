@@ -56,6 +56,7 @@ function renderLobby(over: Partial<Parameters<typeof PodLobby>[0]> = {}) {
       members: MEMBERS,
       leaderId: 'u-alice',
       myMemberId: 'u-alice',
+      deckNameOf: () => undefined,
       iAmReady: true,
       readyDisabled: false,
       onReady: vi.fn(),
@@ -117,7 +118,7 @@ describe('PodLobby', () => {
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByTestId('pod-split-start')).toBeNull();
     rerender(
-      createElement(PodLobby, { testId: 'draft-lobby', roomId: 'r-1', pod: split, members, leaderId: 'u-0', myMemberId: 'u-0', iAmReady: true, readyDisabled: false, onReady: vi.fn() }),
+      createElement(PodLobby, { testId: 'draft-lobby', roomId: 'r-1', pod: split, members, leaderId: 'u-0', myMemberId: 'u-0', deckNameOf: () => undefined, iAmReady: true, readyDisabled: false, onReady: vi.fn() }),
     );
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByTestId('pod-split-start')).not.toBeNull();

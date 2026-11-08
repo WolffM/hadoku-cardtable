@@ -416,6 +416,7 @@ export function DraftLobby({
       members={members}
       leaderId={leaderId}
       myMemberId={myMemberId}
+      deckNameOf={() => undefined}
       iAmReady={iAmReady}
       readyDisabled={dealing || members.length === 0 || (pod !== null && (planBusy || pendingLocalAttempt || !planOk))}
       onReady={onReady}

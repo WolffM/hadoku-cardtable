@@ -63,6 +63,8 @@ export interface Cardtable {
 	lobby: RestoredRooms['lobby'];
 	draftRooms: RestoredRooms['draftRooms'];
 	runTestingRoomSeed: () => Promise<void>;
+	/** Seeds the historical replay room when the env names one (`seed-replay.ts`); resolves immediately when not. */
+	runReplaySeed: () => Promise<void>;
 	roomClosed: (roomId: string, matches: readonly string[]) => void;
 	roomForfeited: (roomId: string, tableId: string, loser: string, matches: readonly string[]) => void;
 
