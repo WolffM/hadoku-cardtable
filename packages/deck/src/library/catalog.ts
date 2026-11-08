@@ -2965,6 +2965,65 @@ export const POWER_SUMMER_2025_LEGACY: LibraryCollection = {
 };
 
 
+/**
+ * One real MTGO tournament, imported whole — the 2026-02-07 Modern Challenge
+ * 32, all 32 decklists, transcribed by `build-tournament-library.ts` from
+ * `fbettega/MTG_decklistcache` (the open JSON cache of MTGO/melee/Topdeck
+ * events). Unlike the power-summer collections, this is a COMPLETE field, not
+ * a curated spread: every decklist the event published, in final-standing
+ * order, with the event's own quarterfinal-onward pairings and full standings
+ * in `tournament.json` beside the decks.
+ *
+ * Every deck validated legal in `Modern (ECL)` (the snapshot in force on the
+ * event date, effective 2026-01-23) against the real corpus —
+ * `validate-library.ts --family=modern --date=2026-02-07 --dir=…`, 32/32
+ * clean. Archetype is `unclassified` throughout: the cache carries no
+ * archetype, and inventing one nobody verified is folklore.
+ */
+export const TOURNAMENT_2026_02_07_MODERN: LibraryCollection = {
+  family: 'modern',
+  id: 'tournament-modern-2026-02-07',
+  directory: `${DECKS_ROOT}/tournament-modern-2026-02-07-modern-challenge-32`,
+  event: 'Modern Challenge 32 — 2026-02-07, MTGO (the whole 32-deck field)',
+  format: 'Modern (ECL)',
+  date: '2026-02-07',
+  source: 'https://github.com/fbettega/MTG_decklistcache (Tournaments/MTGO/2026/02/07/modern-challenge-32-2026-02-0712832522.json)',
+  decks: [
+    { id: "tourney-2026-02-07-1-azax", file: "5-azax.dck" },
+    { id: "tourney-2026-02-07-2-dioferreira", file: "2-dioferreira.dck" },
+    { id: "tourney-2026-02-07-3-lucasg1ggs", file: "3-lucasg1ggs.dck" },
+    { id: "tourney-2026-02-07-4-giltspire", file: "6-giltspire.dck" },
+    { id: "tourney-2026-02-07-5-meninooney", file: "1-meninooney.dck" },
+    { id: "tourney-2026-02-07-6-corkyboyy", file: "7-corkyboyy.dck" },
+    { id: "tourney-2026-02-07-7-nathanofthegiltleaf", file: "8-nathanofthegiltleaf.dck" },
+    { id: "tourney-2026-02-07-8-screenwriterny", file: "4-screenwriterny.dck" },
+    { id: "tourney-2026-02-07-9-gigachadsigmamale", file: "9-gigachadsigmamale.dck" },
+    { id: "tourney-2026-02-07-10-venom1", file: "10-venom1.dck" },
+    { id: "tourney-2026-02-07-11-iceblade908", file: "11-iceblade908.dck" },
+    { id: "tourney-2026-02-07-12-mtgobazaar8", file: "12-mtgobazaar8.dck" },
+    { id: "tourney-2026-02-07-13-eclipse4343", file: "13-eclipse4343.dck" },
+    { id: "tourney-2026-02-07-14-jvidarte", file: "14-jvidarte.dck" },
+    { id: "tourney-2026-02-07-15-demiandesposito10", file: "15-demiandesposito10.dck" },
+    { id: "tourney-2026-02-07-16-hugofreitas1", file: "16-hugofreitas1.dck" },
+    { id: "tourney-2026-02-07-17-aelyck", file: "17-aelyck.dck" },
+    { id: "tourney-2026-02-07-18-c-s-w", file: "18-c-s-w.dck" },
+    { id: "tourney-2026-02-07-19-serakki", file: "19-serakki.dck" },
+    { id: "tourney-2026-02-07-20-reidq7", file: "20-reidq7.dck" },
+    { id: "tourney-2026-02-07-21-ejk", file: "21-ejk.dck" },
+    { id: "tourney-2026-02-07-22-batutinha", file: "22-batutinha.dck" },
+    { id: "tourney-2026-02-07-23-infinitea", file: "23-infinitea.dck" },
+    { id: "tourney-2026-02-07-24-nahuel10", file: "24-nahuel10.dck" },
+    { id: "tourney-2026-02-07-25-mistakenn", file: "25-mistakenn.dck" },
+    { id: "tourney-2026-02-07-26-xerioc", file: "26-xerioc.dck" },
+    { id: "tourney-2026-02-07-27-manamagus", file: "27-manamagus.dck" },
+    { id: "tourney-2026-02-07-28-yes-i-accept-split", file: "28-yes-i-accept-split.dck" },
+    { id: "tourney-2026-02-07-29-kachau", file: "29-kachau.dck" },
+    { id: "tourney-2026-02-07-30-fruufruu", file: "30-fruufruu.dck" },
+    { id: "tourney-2026-02-07-31-n0000000b", file: "31-n0000000b.dck" },
+    { id: "tourney-2026-02-07-32-dragonfodder", file: "32-dragonfodder.dck" },
+  ],
+};
+
 /** Every collection in the library, oldest era first. */
 export const LIBRARY: readonly LibraryCollection[] = [
   POWER_SUMMER_1995_STANDARD,
@@ -3013,6 +3072,7 @@ export const LIBRARY: readonly LibraryCollection[] = [
   POWER_SUMMER_2023_MODERN,
   POWER_SUMMER_2024_MODERN,
   POWER_SUMMER_2025_MODERN,
+  TOURNAMENT_2026_02_07_MODERN,
   POWER_SUMMER_2005_LEGACY,
   POWER_SUMMER_2006_LEGACY,
   POWER_SUMMER_2007_LEGACY,

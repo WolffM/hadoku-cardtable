@@ -90,6 +90,26 @@ function archetypeOf(deck: LibraryDeck): string {
 
 const CITATION = /^https:\/\/www\.mtgtop8\.com\/event\?e=\d+&d=\d+&f=(ST|MO|LE)$/;
 
+/**
+ * Two provenance classes in the library, and the assertions that name a source
+ * follow the source:
+ *
+ *   - selection decks — transcribed by `build-library.ts` from a deck the
+ *     selection chose, cited to mtgtop8's own event/deck ids;
+ *   - tournament decks — transcribed by `build-tournament-library.ts` from a
+ *     whole event's `MTG_decklistcache` JSON, cited to the deck's own anchor
+ *     on the event page (mtgo.com today; the cache's `AnchorUri` is the
+ *     source's own pointer and the event's host is not ours to assume).
+ *
+ * A tournament deck forging the selection's citation shape would be a deck
+ * claiming a source it did not have — exactly what a citation is there to
+ * prevent — so the class is read off the collection's own id prefix instead.
+ */
+const TOURNAMENT_COLLECTION = /^tournament-/;
+const isTournamentCollection = (c: LibraryCollection): boolean => TOURNAMENT_COLLECTION.test(c.id);
+/** mtgo.com (or another event host) deck-anchor URL, the cache's own pointer. */
+const TOURNAMENT_CITATION = /^https?:\/\/\S+#deck_\S+$/;
+
 /* ── a deck to tamper with, picked once and reused by name ──────────────── */
 
 // Looked up by id rather than `LIBRARY[0]` — wave 48 §T put 2003-2007 ahead of
@@ -119,11 +139,16 @@ describe('every collection: catalog, files and citations agree', () => {
       const deck = libraryDeckOf(c, entry);
       expect(deck.format).toBe(c.format);
       expect(deck.date).toBe(c.date);
-      expect(deck.citation).toMatch(CITATION);
-      expect(deck.provenance).toMatch(/Transcribed from mtgtop8 deck \d+\.$/);
-      // The citation and the provenance name the same mtgtop8 deck.
-      const cited = /&d=(\d+)&/.exec(deck.citation)?.[1];
-      expect(deck.provenance).toContain(`mtgtop8 deck ${String(cited)}.`);
+      if (isTournamentCollection(c)) {
+        expect(deck.citation).toMatch(TOURNAMENT_CITATION);
+        expect(deck.provenance).toMatch(/Transcribed from MTG_decklistcache \(/);
+      } else {
+        expect(deck.citation).toMatch(CITATION);
+        expect(deck.provenance).toMatch(/Transcribed from mtgtop8 deck \d+\.$/);
+        // The citation and the provenance name the same mtgtop8 deck.
+        const cited = /&d=(\d+)&/.exec(deck.citation)?.[1];
+        expect(deck.provenance).toContain(`mtgtop8 deck ${String(cited)}.`);
+      }
       // 60 is a minimum, not a target — a handful of these decks registered 61.
       expect(sectionCount(deck, 'main')).toBeGreaterThanOrEqual(60);
       expect(sectionCount(deck, 'sideboard')).toBeLessThanOrEqual(15);
@@ -140,12 +165,20 @@ describe('every deck loads, with a citation, an archetype and a pilot', () => {
       const entry = c.decks.find((d) => d.id === entryId) as LibraryEntry;
       const deck = libraryDeckOf(c, entry);
       expect(deck.name.length).toBeGreaterThan(0);
-      expect(deck.citation).toMatch(CITATION);
-      expect(deck.provenance).toMatch(/Transcribed from mtgtop8 deck \d+\.$/);
-      expect(deck.archetype.trim().length).toBeGreaterThan(0);
-      expect(deck.pilot.trim().length).toBeGreaterThan(0);
-      // The name is the two, as `build-library.ts` writes it: one source, never parsed back.
-      expect(deck.name).toBe(`${deck.archetype} (${deck.pilot})`);
+      if (isTournamentCollection(c)) {
+        expect(deck.citation).toMatch(TOURNAMENT_CITATION);
+        expect(deck.provenance).toMatch(/Transcribed from MTG_decklistcache \(/);
+        // The pilot is the cache's own player string; the name carries it too.
+        expect(deck.pilot.trim().length).toBeGreaterThan(0);
+        expect(deck.name).toContain(deck.pilot);
+      } else {
+        expect(deck.citation).toMatch(CITATION);
+        expect(deck.provenance).toMatch(/Transcribed from mtgtop8 deck \d+\.$/);
+        expect(deck.archetype.trim().length).toBeGreaterThan(0);
+        expect(deck.pilot.trim().length).toBeGreaterThan(0);
+        // The name is the two, as `build-library.ts` writes it: one source, never parsed back.
+        expect(deck.name).toBe(`${deck.archetype} (${deck.pilot})`);
+      }
     },
   );
 });
@@ -386,8 +419,10 @@ describe('the library as a whole', () => {
   // 1997 (12), 1998 (6), 1999 (15), 2000 (16), 2001 (20), 2002 (21); Modern
   // 2011 is 24. 2026-10-16 (the operator: "let's go up to protour 2025") ran
   // all three forward to 2025's summer: 67 eras, 1459 decks, and every one of
-  // the 27 new eras has 24. Every other era is 24.
-  it('is sixty-seven eras across three families and 1459 decks, oldest first within each family', () => {
+  // the 27 new eras has 24. Every other era is 24. 2026-11-08: the first
+  // tournament import (a whole MTGO field, not a selection) is the 68th —
+  // 32 decks, the complete Modern Challenge 32 of 2026-02-07.
+  it('is sixty-eight eras across three families and 1491 decks, oldest first within each family', () => {
     expect(LIBRARY.map((c) => [c.id, c.family, c.format, c.date, c.decks.length])).toEqual([
       ['power-summer-1995', 'standard', 'Type 2 (CHR)', '1995-07-01', 9],
       ['power-summer-1996', 'standard', 'Type 2 (ALL)', '1996-07-10', 12],
@@ -435,6 +470,7 @@ describe('the library as a whole', () => {
       ['power-summer-modern-2023', 'modern', 'Modern (MAT)', '2023-05-29', 24],
       ['power-summer-modern-2024', 'modern', 'Modern (OTJ)', '2024-04-19', 24],
       ['power-summer-modern-2025', 'modern', 'Modern (FIN)', '2025-06-30', 24],
+      ['tournament-modern-2026-02-07', 'modern', 'Modern (ECL)', '2026-02-07', 32],
       ['power-summer-legacy-2005', 'legacy', 'Legacy (9ED)', '2005-08-20', 9],
       ['power-summer-legacy-2006', 'legacy', 'Legacy (CSP)', '2006-08-20', 17],
       ['power-summer-legacy-2007', 'legacy', 'Legacy (10E)', '2007-07-20', 24],
@@ -457,8 +493,8 @@ describe('the library as a whole', () => {
       ['power-summer-legacy-2024', 'legacy', 'Legacy (OTJ)', '2024-04-19', 24],
       ['power-summer-legacy-2025', 'legacy', 'Legacy (FIN)', '2025-06-30', 24],
     ]);
-    expect(ALL_DECKS).toHaveLength(1459);
-    expect(libraryDeckPaths()).toHaveLength(1459);
+    expect(ALL_DECKS).toHaveLength(1491);
+    expect(libraryDeckPaths()).toHaveLength(1491);
   });
 
   it('is oldest-first WITHIN each family, in Standard/Modern/Legacy order', () => {
@@ -477,8 +513,14 @@ describe('the library as a whole', () => {
     }
   });
 
-  it('every archetype appears once within its own era', () => {
+  it('every archetype appears once within its own era (selection collections)', () => {
+    // A selection searched for spread, so a repeated archetype in one of its
+    // eras is a selection bug. A tournament field is the opposite: the whole
+    // point is whatever the real meta brought, duplicates included, and
+    // tournament decks carry no archetype at all (`unclassified`) — the
+    // uniqueness question is not theirs to answer.
     for (const c of LIBRARY) {
+      if (isTournamentCollection(c)) continue;
       const archetypes = c.decks.map((d) => archetypeOf(libraryDeckOf(c, d)));
       expect(new Set(archetypes).size, `${c.id}: ${archetypes.join(', ')}`).toBe(archetypes.length);
     }
