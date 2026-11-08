@@ -1,3 +1,3 @@
 ## Changed
 
-- In combat, All now sits left of Done Attacking, with more room between them.
+- In combat, All now comes before Done Attacking, with more room between them.

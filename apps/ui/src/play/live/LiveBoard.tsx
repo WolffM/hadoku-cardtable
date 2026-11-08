@@ -4580,7 +4580,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
        * requires its negation), so this never contests Forge's own Cancel.
        * The operator, 2026-11-08: *"flip the position of 'All' and 'Done
        * attacking' and add a bit of a gap between the buttons"* — so
-       * `secondFirst` draws All left of Done Attacking, further apart, here
+       * `secondFirst` draws All before Done Attacking, further apart, here
        * and in portrait's bar alike. Only the drawing moves: Done Attacking is
        * still button one, the OK that Enter and every reader press.
        */}
