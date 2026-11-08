@@ -5,21 +5,23 @@
  * alone decides a card's image, and repointing one is a data edit here, never a browser rebuild.
  * The redirect is cached by the browser a day: a repoint reaches a returning player within one.
  *
- * GET /api/cards/art?n=<name>&n=<name>… → `{ art: { [name]: { scryfallId, backs? } } }`
+ * GET /api/cards/art?n=<ref>&n=<ref>… → `{ art: { [ref]: { scryfallId, backs? } } }`
  *
- * The art of a card a browser knows only by its name — a library deck's line, a basic land, a list
- * read back from its `.dck` text — decided where every other card's is (`play/art-ids.ts`), so the
+ * The art of a card a browser knows only by its name and the set its list pins (`cardRef`:
+ * `Name|SET`, or a bare name) — a library deck's line, a basic land, a list read back from its
+ * `.dck` text — decided where every other card's is (`play/art-ids.ts`), so a deck's card here is
+ * the same printing the board draws it as, and the
  * browser holds no table of its own to look a name up in. `backs` names the faces drawn as the
  * card's back image (`<id>#back`). A name with no art is left out. Member-gated like every `/api`
  * route; a lookup in memory, so it needs no per-caller limit beyond the cap on names.
  */
 import type { Request, Response, Router } from 'express';
-import { BACK_FACE, cdnUrlFor, resolveArtUrl, type ArtImageSize } from '@hadoku/carddata/art';
+import { BACK_FACE, cdnUrlFor, parseCardRef, resolveArtUrl, type ArtImageSize } from '@hadoku/carddata/art';
 
 import type { ArtKeys } from '../pools/art-keys.js';
 import type { ArtIds } from '../play/art-ids.js';
 
-/** The most names one request answers: a 75 has fewer distinct ones. */
+/** The most cards one request answers: a 75 has fewer distinct ones. */
 const MAX_NAMES = 200;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -55,14 +57,15 @@ export function attachCardArt(api: Router, deps: { art: ArtIds; keys: ArtKeys })
 	});
 }
 
-/** Each name's art, and the faces drawn as its back image; a name with none is left out. */
-export function namedArt(names: Iterable<string>, art: ArtIds): Record<string, { scryfallId: string; backs?: string[] }> {
+/** Each card ref's art, and the faces drawn as its back image; a ref with none is left out. */
+export function namedArt(refs: Iterable<string>, art: ArtIds): Record<string, { scryfallId: string; backs?: string[] }> {
 	const out: Record<string, { scryfallId: string; backs?: string[] }> = {};
-	for (const name of new Set(names)) {
-		const found = art.card(name);
+	for (const ref of new Set(refs)) {
+		const { name, set } = parseCardRef(ref);
+		const found = art.card(name, set);
 		if (found === undefined) continue;
-		const backs = art.backs(name);
-		out[name] = { ...found, ...(backs.length === 0 ? {} : { backs }) };
+		const backs = art.backs(name, set);
+		out[ref] = { ...found, ...(backs.length === 0 ? {} : { backs }) };
 	}
 	return out;
 }

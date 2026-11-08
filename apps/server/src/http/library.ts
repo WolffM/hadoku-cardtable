@@ -224,8 +224,16 @@ export function loadTablesLibrary(
 	};
 }
 
-/** A deck's main and sideboard as the wire sends them: `{ count, name }` lines, in file order. */
-export function deckLines(d: TableDeck): { main: { count: number; name: string }[]; sideboard: { count: number; name: string }[] } {
-	const list = (section: string) => (d.deck.file.sections.get(section) ?? []).map((e) => ({ count: e.count, name: e.card.name }));
+/** One line of a library deck as the wire sends it: the set rides along so a browser draws the printing the deck plays. */
+export interface WireDeckLine {
+	count: number;
+	name: string;
+	set?: string;
+}
+
+/** A deck's main and sideboard as the wire sends them: `{ count, name, set }` lines, in file order. */
+export function deckLines(d: TableDeck): { main: WireDeckLine[]; sideboard: WireDeckLine[] } {
+	const list = (section: string): WireDeckLine[] =>
+		(d.deck.file.sections.get(section) ?? []).map((e) => ({ count: e.count, name: e.card.name, ...(e.card.set === null ? {} : { set: e.card.set }) }));
 	return { main: list('main'), sideboard: list('sideboard') };
 }

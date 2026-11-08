@@ -86,6 +86,22 @@ export function artIdKey(name: string, setCode: string): string {
 }
 
 /**
+ * A card a list names, as one string: `Name|SET` when the list pins a set, else the bare name. What a
+ * browser asks the server's art lookup for (`GET /api/cards/art?n=…`), so a library deck's line draws
+ * the printing its own `.dck` plays rather than whichever one its name alone finds. A card name never
+ * holds a `|`, so {@link parseCardRef} reads it back unambiguously.
+ */
+export function cardRef(name: string, setCode?: string | null): string {
+  return setCode == null || setCode === '' ? name : artIdKey(name, setCode);
+}
+
+/** {@link cardRef}'s two halves. */
+export function parseCardRef(ref: string): { name: string; set: string | null } {
+  const bar = ref.indexOf('|');
+  return bar < 0 ? { name: ref, set: null } : { name: ref.slice(0, bar), set: ref.slice(bar + 1) || null };
+}
+
+/**
  * Build an index from any list of known printings.
  *
  * The exact printing wins; failing that, the first printing of the same name.

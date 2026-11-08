@@ -2435,7 +2435,7 @@ export function SideboardStep({
   const parsed = useMemo(() => (typeof text === 'string' ? deckFromDeckFile(parseDck(text)) : null), [text]);
   const namedArt = useNamedArt();
   const pool = useMemo(
-    () => draftPool ?? (parsed === null ? [] : namedCardPool([...parsed.main, ...parsed.sideboard].map((e) => e.card.name))),
+    () => draftPool ?? (parsed === null ? [] : namedCardPool([...parsed.main, ...parsed.sideboard].map((e) => e.card))),
     [draftPool, parsed, namedArt],
   );
   const [readyState, setReadyState] = useState<ReadyState>('idle');

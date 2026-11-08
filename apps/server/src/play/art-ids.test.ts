@@ -48,6 +48,23 @@ describe('which Scryfall id a card is', () => {
 		expect(ids.face({ name: 'Emblem — Akrasan Squire', set: 'ALA' })).toEqual({ scryfallId: SQUIRE_ALA_1 });
 	});
 
+	it("a card the decks name is drawn as the deck's own line names it, whatever set Forge reports", () => {
+		// Forge reports a set of its own for a printing it could not find: the deck's line still decides.
+		expect(createArtIds(CATALOG, ['[main]\n17 Plains|ALA|1|[232]\n']).face({ name: 'Plains', set: 'M10' })?.scryfallId).toBe('bcdd1595-d94d-46b1-b87f-b910ae35fa3a');
+		expect(createArtIds(CATALOG, ['[main]\n17 Plains|ALA\n']).face({ name: 'Plains', set: 'M10' })?.scryfallId).toBe('e94e2710-7b95-46d0-8261-0afa6b192e70');
+	});
+
+	it("a library deck's card: what a peek or the sideboard step asks for by name and set is what the board stamps", () => {
+		const deck = '[main]\n17 Plains|ALA\n4 Akrasan Squire|ALA\n[sideboard]\n2 Civilized Scholar|ISD\n';
+		const board = createArtIds(CATALOG, [deck]);
+		const lookup = createArtIds(CATALOG);
+		for (const [name, set] of [['Plains', 'ALA'], ['Akrasan Squire', 'ALA'], ['Civilized Scholar', 'ISD']] as const) {
+			expect(lookup.card(name, set), name).toEqual(board.face({ name, set }));
+		}
+		// The name alone finds another printing: why the browser asks with the set.
+		expect(lookup.card('Plains')).not.toEqual(board.face({ name: 'Plains', set: 'ALA' }));
+	});
+
 	it('a card nobody knows, and a face with no name, have none', () => {
 		expect(createArtIds(CATALOG).face({ name: 'Not A Card Anyone Printed', set: 'XYZ' })).toBeUndefined();
 		expect(createArtIds(CATALOG).face({ name: '', set: 'ALA' })).toBeUndefined();
