@@ -562,3 +562,177 @@ img.discord-chat__avatar {
   flex: 1 1 auto;
 }
 
+
+/*
+ * The tournament page's podium (`FrontPodium.tsx`), the pod's own (`../screens/pod/PodPodium.css`) at the
+ * card's size: second, first and third on blocks banded in their medal (`--medal-*`), the winner crowned.
+ * The blocks rise and the figures drop on, third to first. Held on their first frame while the card is
+ * still its skeleton (`Reveal` mounts the content hidden), so the motion is what the reader sees fade in.
+ */
+.front-podium {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.front-podium__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.front-podium__meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.front-podium__stands {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+  padding-top: 6px;
+  border-bottom: 2px solid var(--line);
+}
+
+.front-podium__stand {
+  --medal: var(--medal-silver);
+  --block: 46px;
+  --face: 48px;
+  --drop-at: 0.35s;
+
+  display: flex;
+  flex: 0 1 96px;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.front-podium__stand[data-place='1'] {
+  --medal: var(--medal-gold);
+  --block: 68px;
+  --face: 60px;
+  --drop-at: 0.6s;
+}
+
+.front-podium__stand[data-place='3'] {
+  --medal: var(--medal-bronze);
+  --block: 30px;
+  --face: 44px;
+  --drop-at: 0.15s;
+}
+
+.front-podium__figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.front-podium__crown {
+  display: block;
+  width: 26px;
+  height: 18px;
+  margin-bottom: 2px;
+  fill: var(--medal-gold);
+  stroke: color-mix(in srgb, var(--medal-gold) 60%, var(--ink));
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.front-podium__frame {
+  display: block;
+  border-radius: 8px;
+}
+
+.front-podium__stand[data-place='1'] .front-podium__frame {
+  box-shadow: 0 0 18px 2px color-mix(in srgb, var(--medal-gold) 35%, transparent);
+}
+
+.front-podium__face {
+  display: grid;
+  box-sizing: border-box;
+  width: var(--face);
+  height: var(--face);
+  place-items: center;
+  border: 3px solid var(--medal);
+  border-radius: 8px;
+  background: var(--bg-card);
+  image-rendering: pixelated;
+}
+
+.front-podium__face--none {
+  color: var(--ink-dim);
+  font-size: calc(var(--face) * 0.4);
+  font-weight: 700;
+}
+
+.front-podium__who {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.front-podium__line {
+  font-size: 11px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.front-podium__block {
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--block);
+  place-items: start center;
+  padding-top: 2px;
+  border-top: 3px solid var(--medal);
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(color-mix(in srgb, var(--medal) 34%, var(--bg-card)), color-mix(in srgb, var(--medal) 12%, var(--bg-card)));
+  transform-origin: bottom;
+}
+
+.front-podium__number {
+  color: color-mix(in srgb, var(--medal) 70%, var(--ink));
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.front-podium__stand[data-place='1'] .front-podium__number {
+  font-size: 26px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .front-podium__block {
+    animation: front-podium-rise 0.45s ease-out both;
+  }
+
+  .front-podium__figure {
+    animation: front-podium-drop 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.25) var(--drop-at) both;
+  }
+
+  [data-phase='waiting'] .front-podium__block,
+  [data-phase='waiting'] .front-podium__figure {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes front-podium-rise {
+  from { transform: scaleY(0.2); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes front-podium-drop {
+  from { opacity: 0; transform: translateY(-34px); }
+  to { opacity: 1; transform: translateY(0); }
+}

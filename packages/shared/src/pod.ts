@@ -155,6 +155,10 @@ export const TournamentSchema = z.object({
 });
 export type Tournament = z.infer<typeof TournamentSchema>;
 
+/** `GET /api/tournaments/featured`: the tournament the front page's wildcard opens on, or `null` when none holds the seat. */
+export const FeaturedTournamentSchema = z.object({ tournament: TournamentSchema.nullable() });
+export type FeaturedTournament = z.infer<typeof FeaturedTournamentSchema>;
+
 /** One of the current round's tables: the two players seated at it. */
 export const PodPairingSchema = z.strictObject({
   tableId: z.string().min(1),

@@ -50,6 +50,7 @@
     "GET /api/tables/rooms/:roomId",
     "GET /api/tables/rooms/:roomId/gauntlet",
     "GET /api/tournaments",
+    "GET /api/tournaments/featured",
     "GET /api/trim/",
     "GET /api/whoami",
     "GET /cover",

@@ -3,10 +3,14 @@
  * opens on one weighted pick (`./wildcardItems.ts`'s `pickWildcard` — each kind's priority plus a
  * random draw) and the reader turns to the rest, highest priority first (`wildcardPages`) — the
  * operator, 2026-10-30: "manual is better, but let's still have the priority system for what is
- * shown by default and the randomness system beyond that". It picks once every source has
+ * shown by default and the randomness system beyond that". A featured tournament skips the draw: it
+ * is always the page it opens on, for its week. It picks once every source has
  * answered, so it never opens on one and jumps to another as they arrive, and picks again only if
  * what it opened on goes away (the room filled). The kinds:
  *
+ *   - **Tournament results** — the finished tournament holding the front page's seat
+ *     (`/api/tournaments/featured`, `apps/server/src/room/featured-tournament.ts`): its top three on a
+ *     small podium (`./FrontPodium.tsx`), ported from the pod's own (`../screens/pod/PodPodium.tsx`).
  *   - **Open seats now** — the room closest to starting that the viewer could sit down in, from
  *     the list the room list below already reads (`../rooms/api.ts`'s `onRoomList`): no read of
  *     its own, so the lobby's read budget (`e2e/aa-polling.spec.ts`) is unchanged.
@@ -34,14 +38,15 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { DiscordRecentSchema, type DiscordMessage } from '@hadoku/shared';
+import { DiscordRecentSchema, FeaturedTournamentSchema, type DiscordMessage, type Tournament } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
 import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
 import { Reveal } from '@hadoku/ui-shell/components';
 import { cardImageUrl, warmArt } from '../draft/cardImage.ts';
-import { useArtLoaded } from '../draft/useArtLoaded.ts';
+import { useArtLoaded, usePicturesLoaded } from '../draft/useArtLoaded.ts';
+import { facePictures } from '../components/Avatar.tsx';
 import { onRoomList, poolsClient, roomsClient } from '../rooms/api.ts';
 import { warmRoom } from '../rooms/warm.ts';
 import { navigate, routeHash } from '../screens/route.ts';
@@ -49,7 +54,8 @@ import { playRole } from '../sound/index.ts';
 import { avatarColour, avatarInitial, discordTime, groupMessages } from './discordChat.ts';
 import { usePartShown } from './gate.ts';
 import { ArrowGlyph, Gallery } from './Gallery.tsx';
-import { openSeats, pickWildcard, spotlightCube, wildcardPages, type WildcardKind } from './wildcardItems.ts';
+import { FrontPodium } from './FrontPodium.tsx';
+import { openSeats, pickWildcard, podiumOf, spotlightCube, wildcardPages, type WildcardKind } from './wildcardItems.ts';
 
 interface WildcardItem {
   key: WildcardKind;
@@ -62,6 +68,10 @@ interface WildcardItem {
   action?: { label: string; href: string; external: boolean } | { label: string; run: () => Promise<string | null> };
   /** Card art ids to draw across the top. */
   arts?: readonly string[];
+  /** A finished tournament, drawn as its podium in place of the title and body. */
+  podium?: Tournament;
+  /** Every other picture it draws (the podium's faces), by URL: waited on like its art. */
+  pictures?: readonly string[];
 }
 
 /** A source still asking, as opposed to one that answered with nothing (`null`). */
@@ -100,6 +110,40 @@ function useOpenSeats(): WildcardItem | null | typeof ASKING {
     [],
   );
   return item;
+}
+
+/** The tournament holding the front page's seat, asked for once per visit; `null` when none holds it, or it cannot be read. */
+function useFeaturedTournament(): WildcardItem | null | typeof ASKING {
+  const [item, setItem] = useState<WildcardItem | null | typeof ASKING>(ASKING);
+  useEffect(() => {
+    let live = true;
+    getJson(apiUrl('tournaments/featured'))
+      .then(async (res) => (res.status === 200 ? (FeaturedTournamentSchema.safeParse(await bodyOf(res)).data?.tournament ?? null) : null))
+      .then((t) => {
+        if (live) setItem(t === null ? null : podiumItem(t));
+      })
+      .catch(() => {
+        // Not reachable: the card shows what else it has.
+        if (live) setItem(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return item;
+}
+
+function podiumItem(t: Tournament): WildcardItem {
+  return {
+    key: 'tournament',
+    kind: 'Tournament results',
+    title: t.name,
+    body: '',
+    podium: t,
+    // The face each place will draw: the first it tries (`facePictures`).
+    pictures: podiumOf(t).flatMap((p) => facePictures(p.face).slice(0, 1)),
+    action: { href: routeHash({ kind: 'stats', tab: 'tournaments' }), label: 'Full standings', external: false },
+  };
 }
 
 /** How often an open front page asks for the chat again: the server refreshes its own copy hourly too. */
@@ -218,7 +262,7 @@ const PRELOAD_MAX = 12;
 function picturesOf(item: WildcardItem): string[] {
   const arts = (item.arts ?? []).map((id) => cardImageUrl(id));
   const avatars = item.messages === undefined ? [] : groupMessages(item.messages).map((g) => g.avatar);
-  return [...new Set([...arts, ...avatars].filter((url): url is string => url !== null))];
+  return [...new Set([...arts, ...avatars, ...(item.pictures ?? [])].filter((url): url is string => url !== null))];
 }
 
 /** The viewer asked to save data, or is on 2G: nothing is fetched before it is needed. */
@@ -232,7 +276,7 @@ const PICK_WAIT_MS = 2_000;
 
 export function WildcardCard() {
   const chat = useDiscordChat();
-  const sources = [useOpenSeats(), useCubeSpotlight(), chat];
+  const sources = [useFeaturedTournament(), useOpenSeats(), useCubeSpotlight(), chat];
   const [waited, setWaited] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setWaited(true), PICK_WAIT_MS);
@@ -253,8 +297,9 @@ export function WildcardCard() {
   const [errors, setErrors] = useState<Partial<Record<WildcardKind, string>>>({});
   const setError = (key: WildcardKind, message: string | null): void => setErrors((e) => ({ ...e, [key]: message ?? undefined }));
 
-  // The page it opens on is drawn with its art, or not yet at all.
-  const openingArt = useArtLoaded(pages.length > 0 ? (pages[0]!.arts ?? []) : null);
+  // The page it opens on is drawn with its art and its faces, or not yet at all.
+  const opening = pages[0];
+  const openingArt = usePicturesLoaded(opening === undefined ? null : [...(opening.arts ?? []).map((id) => cardImageUrl(id)), ...(opening.pictures ?? [])]);
   const shown = usePartShown('wildcard', pages.length > 0 && openingArt);
   const otherPictures = pages.slice(1).flatMap(picturesOf).slice(0, PRELOAD_MAX).join(' ');
   // After the crossfade, as the Reveal itself says: the page has settled before anything it does not show is fetched.
@@ -369,7 +414,9 @@ function WildcardBody({ item, error }: { item: WildcardItem; error: string | nul
           ))}
         </div>
       )}
-      {item.messages === undefined ? (
+      {item.podium !== undefined ? (
+        <FrontPodium tournament={item.podium} />
+      ) : item.messages === undefined ? (
         <>
           <p className="front-card__release-title">{item.title}</p>
           <p className="front-card__wildcard-body">{item.body}</p>

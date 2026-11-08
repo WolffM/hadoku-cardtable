@@ -2,11 +2,11 @@
  * The wildcard gallery's pure choices (`./wildcardItems.ts`).
  */
 import { describe, expect, it } from 'vitest';
-import type { CubeSummary, PodView, RoomTable } from '@hadoku/shared';
+import type { CubeSummary, PodView, RoomTable, Tournament } from '@hadoku/shared';
 import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
-import { openSeats, pickWildcard, spotlightCube, wildcardPages, WILDCARD_PRIORITY } from './wildcardItems.ts';
+import { openSeats, pickWildcard, podiumOf, spotlightCube, wildcardPages, WILDCARD_PRIORITY } from './wildcardItems.ts';
 
 const table = (over: Partial<RoomTable> = {}): RoomTable => ({
   id: 't-1',
@@ -124,9 +124,44 @@ describe('pickWildcard', () => {
     }
   });
 
+  it('always opens on a featured tournament, with no draw', () => {
+    for (const roll of [0, 0.5, 0.99]) expect(pickWildcard(['open-seats', 'cube', 'tournament', 'lfg'], () => roll)).toBe('tournament');
+    expect(wildcardPages(['lfg', 'open-seats', 'tournament'], 'tournament')).toEqual(['tournament', 'open-seats', 'lfg']);
+  });
+
   it('only ever picks what is available, and nothing from nothing', () => {
     expect(pickWildcard(['lfg'], () => 0.99)).toBe('lfg');
     expect(pickWildcard(['cube', 'lfg'], () => 0)).toBe('cube');
     expect(pickWildcard([], () => 0.5)).toBeNull();
+  });
+});
+
+describe('podiumOf', () => {
+  const row = (id: string, rank: number, matchPoints: number) => ({ id, matchPoints, opponentMatchWinPct: 0, gameWinPct: 0, opponentGameWinPct: 0, medianGameMs: null, rank, decidedBy: null });
+  const t: Tournament = {
+    id: 'r-1',
+    name: 'Cube night',
+    startedAt: 0,
+    endedAt: Date.UTC(2026, 10, 7, 20),
+    closed: false,
+    rounds: 2,
+    names: { a: 'Ari', b: 'Bo', c: 'Cy', d: 'Di' },
+    faces: { a: { avatarId: 'mage' } },
+    standings: [row('c', 3, 3), row('a', 1, 6), row('d', 4, 0), row('b', 2, 3)],
+    results: [
+      { round: 1, playerA: 'a', playerB: 'd', gamesA: 2, gamesB: 0 },
+      { round: 1, playerA: 'b', playerB: 'c', gamesA: 2, gamesB: 1 },
+      { round: 2, playerA: 'a', playerB: 'b', gamesA: 2, gamesB: 1 },
+      { round: 2, playerA: 'c', playerB: 'd', gamesA: 2, gamesB: 0 },
+    ],
+  };
+
+  it('is the top three by the ranks the server gave, each with their record', () => {
+    expect(podiumOf(t).map((p) => [p.place, p.name, p.record])).toEqual([
+      [1, 'Ari', '2–0'],
+      [2, 'Bo', '1–1'],
+      [3, 'Cy', '1–1'],
+    ]);
+    expect(podiumOf(t)[0]?.face).toEqual({ id: 'mage' });
   });
 });

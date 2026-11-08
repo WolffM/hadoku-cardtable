@@ -53,13 +53,17 @@ type AvatarProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'id' | 'src' | 'alt
   'data-testid'?: string;
 };
 
+/** The images a face may draw, in the order it tries them: their picture first, then their character. */
+export function facePictures({ id, look }: Face): string[] {
+  return [look?.picture ?? null, avatarSquareUrl(id)].filter((u): u is string => u !== null);
+}
+
 /** `alt=""` always: every face sits beside the name that says who it is. */
 export function Avatar({ id, look, fallback, fallbackClassName, name = '', ...img }: AvatarProps) {
   const avatarId = id ?? undefined;
-  const sprite = avatarSquareUrl(id);
   const [failed, setFailed] = useState<readonly string[]>([]);
   // The picture first; a picture that will not load falls back to the character.
-  const url = [look?.picture ?? null, sprite].find((u): u is string => u !== null && !failed.includes(u)) ?? null;
+  const url = facePictures({ id, look }).find((u) => !failed.includes(u)) ?? null;
   const decor = <FaceDecor avatarId={avatarId} look={look} />;
   if (url !== null) {
     return (

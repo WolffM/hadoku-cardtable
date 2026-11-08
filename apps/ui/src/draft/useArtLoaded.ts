@@ -14,18 +14,23 @@ export const ART_WAIT_MS = 5000;
 
 /** `scryfallIds`: the set's cards (`undefined` for one with no art). `null` is "not known yet", never loaded. */
 export function useArtLoaded(scryfallIds: readonly (string | undefined)[] | null): boolean {
-  const key = scryfallIds === null ? null : scryfallIds.filter((id) => id !== undefined).join(',');
+  return usePicturesLoaded(scryfallIds === null ? null : scryfallIds.map((id) => (id === undefined ? null : cardImageUrl(id))));
+}
+
+/** The same wait for any set of images, by URL (`null` for one with none): a face as well as a card's art. */
+export function usePicturesLoaded(urls: readonly (string | null)[] | null): boolean {
+  const key = urls === null ? null : urls.filter((url) => url !== null).join(' ');
   const [loaded, setLoaded] = useState<string | null>(null);
   useEffect(() => {
     if (key === null) return;
     let live = true;
-    const ids = key === '' ? [] : key.split(',');
+    const each = key === '' ? [] : key.split(' ');
     let left = 0;
     const one = (): void => {
       left -= 1;
       if (left === 0 && live) setLoaded(key);
     };
-    for (const id of ids) if (!artReady(cardImageUrl(id), one)) left += 1;
+    for (const url of each) if (!artReady(url, one)) left += 1;
     if (left === 0) setLoaded(key);
     const cap = setTimeout(() => live && setLoaded(key), ART_WAIT_MS);
     return () => {

@@ -20,7 +20,7 @@ vi.mock('../rooms/api.ts', () => ({
   }),
 }));
 vi.mock('../http.ts', async (real) => ({ ...(await real<object>()), getJson: () => Promise.reject(new Error('offline')) }));
-vi.mock('../draft/useArtLoaded.ts', () => ({ useArtLoaded: () => true }));
+vi.mock('../draft/useArtLoaded.ts', () => ({ useArtLoaded: () => true, usePicturesLoaded: () => true }));
 vi.mock('../draft/cardImage.ts', async (real) => ({
   ...(await real<object>()),
   warmArt: (urls: readonly string[]) => {

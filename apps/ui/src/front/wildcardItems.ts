@@ -1,25 +1,35 @@
 /*
  * The wildcard card's own choices (`./WildcardCard.tsx`), pure so they are tested without mounting
- * it: which room is asking for players, which cube is in the spotlight, which page the gallery opens on (`pickWildcard`) and the order of the rest (`wildcardPages`).
+ * it: which room is asking for players, which cube is in the spotlight, which page the gallery opens on (`pickWildcard`) and the order of the rest (`wildcardPages`),
+ * and the featured tournament's top three (`podiumOf`).
  */
 
-import type { CubeSummary } from '@hadoku/shared';
+import type { CubeSummary, Tournament } from '@hadoku/shared';
 
+import { faceOf, type Face } from '../components/Avatar.tsx';
 import { gameTypeLabel, type RoomView } from '../rooms/api.ts';
+import { records, recordText } from '../screens/pod/swiss.ts';
 import { roomCardView } from './roomCard.ts';
 
 /**
  * Each kind's weight in the draw for the gallery's first page, and the order of the pages after it:
  * how much it is worth showing over the others when both are there (the operator, 2026-10-30:
  * "manual is better, but let's still have the priority system for what is shown by default and the
- * randomness system beyond that"). A room asking for players outranks everything; the Discord
+ * randomness system beyond that"). A room asking for players outranks everything drawn; the Discord
  * invite is the fallback.
  */
-export const WILDCARD_PRIORITY = { 'open-seats': 6, cube: 3, chat: 3, lfg: 1 } as const;
+export const WILDCARD_PRIORITY = { tournament: 10, 'open-seats': 6, cube: 3, chat: 3, lfg: 1 } as const;
 export type WildcardKind = keyof typeof WILDCARD_PRIORITY;
 
-/** One of `available`, drawn with `WILDCARD_PRIORITY`'s weights; `null` for none. */
+/**
+ * A kind the gallery always opens on when it is there, with no draw: a tournament's result, for the
+ * week it holds the seat (`apps/server/src/room/featured-tournament.ts`; the operator, 2026-11-08).
+ */
+const PINNED: WildcardKind = 'tournament';
+
+/** `PINNED` when it is there; otherwise one of `available`, drawn with `WILDCARD_PRIORITY`'s weights; `null` for none. */
 export function pickWildcard(available: readonly WildcardKind[], random: () => number = Math.random): WildcardKind | null {
+  if (available.includes(PINNED)) return PINNED;
   const total = available.reduce((sum, k) => sum + WILDCARD_PRIORITY[k], 0);
   let roll = random() * total;
   for (const kind of available) {
@@ -67,4 +77,28 @@ export function openSeats(rooms: readonly RoomView[], now: number = Date.now()):
 export function spotlightCube(cubes: readonly CubeSummary[], random: () => number = Math.random): CubeSummary | null {
   const playable = cubes.filter((c) => c.size > 0 && c.verdict?.ok !== false);
   return playable.length === 0 ? null : playable[Math.floor(random() * playable.length)]!;
+}
+
+export interface PodiumPlace {
+  id: string;
+  place: 1 | 2 | 3;
+  name: string;
+  face: Face;
+  /** `3–0`. */
+  record: string;
+}
+
+/** A finished tournament's top three, by the places the server ranked (`PodStandingsRow.rank`); fewer when it had fewer. */
+export function podiumOf(t: Tournament): PodiumPlace[] {
+  const rec = records(t);
+  return [...t.standings]
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 3)
+    .map((row, i) => ({
+      id: row.id,
+      place: (i + 1) as 1 | 2 | 3,
+      name: t.names[row.id] ?? row.id,
+      face: faceOf(t.faces?.[row.id]),
+      record: recordText(rec.get(row.id) ?? { w: 0, l: 0, d: 0 }),
+    }));
 }

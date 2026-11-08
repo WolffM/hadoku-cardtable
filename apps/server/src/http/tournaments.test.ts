@@ -27,10 +27,10 @@ const RECORD: Tournament = {
 	results: [],
 };
 
-async function serve(list: Tournament[], found: Record<string, Person>): Promise<string> {
+async function serve(list: Tournament[], found: Record<string, Person>, now = Date.now): Promise<string> {
 	const people: People = { resolve: async (ids) => new Map(ids.flatMap((id) => (found[id] === undefined ? [] : [[id, found[id]!] as const]))), peek: () => undefined };
 	const api = express.Router();
-	attachTournaments(api, { tournaments: { record: () => undefined, list: async () => list }, people });
+	attachTournaments(api, { tournaments: { record: () => undefined, list: async () => list }, people, now });
 	const app = express();
 	app.use('/api', api);
 	const server = createServer(app);
@@ -63,5 +63,23 @@ describe('GET /api/tournaments', () => {
 		const [t] = ((await (await fetch(url)).json()) as { tournaments: Tournament[] }).tournaments;
 		expect(t?.names).toEqual(RECORD.names);
 		expect(t?.faces).toEqual({});
+	});
+});
+
+describe('GET /api/tournaments/featured', () => {
+	const standing = (id: string, rank: number) => ({ id, matchPoints: 0, opponentMatchWinPct: 0, gameWinPct: 0, opponentGameWinPct: 0, medianGameMs: null, rank, decidedBy: null });
+	const POD: Tournament = { ...RECORD, endedAt: 1_000, standings: [standing('fk:a', 1), standing('fk:b', 2), standing('ai', 3)] };
+
+	it('answers the seated tournament, drawn as /api/tournaments draws it', async () => {
+		const url = await serve([POD], { 'uid-ari': { name: 'Ari', sprite: 'mage', look: {} } }, () => 2_000);
+		const body = (await (await fetch(`${url}/featured`)).json()) as { tournament: Tournament | null };
+		expect(body.tournament?.id).toBe(POD.id);
+		expect(body.tournament?.names['fk:a']).toBe('Ari');
+		expect(JSON.stringify(body)).not.toContain('uid-');
+	});
+
+	it('answers null when nothing holds the seat', async () => {
+		const url = await serve([{ ...POD, closed: true }], {}, () => 2_000);
+		expect(await (await fetch(`${url}/featured`)).json()).toEqual({ tournament: null });
 	});
 });
