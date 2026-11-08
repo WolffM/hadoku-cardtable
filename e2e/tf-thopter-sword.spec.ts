@@ -112,6 +112,11 @@ test(titled('Thopter Foundry + Sword of the Meek: the server plays the Sword’s
       }
       await whenLooped(page, foundry!, loop, 20_000);
       const nextAt = Date.now();
+      // The server writes its log through a stream: the row of the window the browser just drew can
+      // still be on its way to the file, most of all after the server itself stalled.
+      await expect
+        .poll(() => serverNextMs(serverLog(stack).slice(fromLoop), sword!), { timeout: 15_000, message: `loop ${loop}: the server logged the pick and the next offer` })
+        .not.toBeNull();
       const rows = serverLog(stack).slice(fromLoop);
       fromLoop += rows.length;
       const forwarded = rows.filter((r) => r.evt === 'ask-answered' && r.seat === 0 && r.method === 'getAbilityToPlay').map((r) => r.ms);
@@ -123,7 +128,6 @@ test(titled('Thopter Foundry + Sword of the Meek: the server plays the Sword’s
         `[tf] loop ${loop}: click→pick ${pickAt - clickAt} ms, pick→next offer ${String(serverMs)} ms on the server (${nextAt - pickedAt} ms in the browser), total ${nextAt - clickAt} ms; ` +
           `getAbilityToPlay answered by the browser after ${JSON.stringify(forwarded)} ms, played by the server ${played}; held: ${held.join('; ') || 'none'}`,
       );
-      expect(serverMs, `loop ${loop}: the server logged the pick and the next offer`).not.toBeNull();
       if (loop > 0) timed.push({ pickMs: pickAt - clickAt, nextMs: serverMs!, held });
     }
     const mean = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
