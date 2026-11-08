@@ -72,13 +72,16 @@ function slugifyForReplay(s: string): string {
  */
 export async function seedReplay(
 	lobby: Pick<Lobby, 'create' | 'list' | 'join' | 'standPod' | 'aiPod' | 'leave'>,
-	opts: { readonly tournament: string; readonly collection: string; readonly seat: number },
+	opts: { readonly tournament: string; readonly collection: string; readonly seat: number; readonly full?: boolean },
 	log: (entry: Record<string, unknown>) => void = () => {},
 ): Promise<void> {
 	const record = JSON.parse(readFileSync(opts.tournament, 'utf8')) as TournamentRecord;
-	const top8 = record.standings.filter((s) => s.Rank <= 8).sort((a, b) => a.Rank - b.Rank);
+	const standings = [...record.standings].sort((a, b) => a.Rank - b.Rank);
+	const top8 = standings.filter((s) => s.Rank <= 8);
+	const field = opts.full === true ? standings : top8;
+	if (field.length < 2) throw new Error(`field holds ${String(field.length)} entrants`);
 	if (top8.length !== 8) throw new Error(`top 8 holds ${String(top8.length)} entrants, not 8`);
-	if (!Number.isInteger(opts.seat) || opts.seat < 0 || opts.seat > 7) throw new Error('seat is 0-7');
+	if (!Number.isInteger(opts.seat) || opts.seat < 0 || opts.seat >= field.length) throw new Error(`seat is 0-${String(field.length - 1)}`);
 
 	// Idempotent by name, the same rule as the testing rooms: a warm hook that
 	// runs twice recreates nothing.
@@ -88,29 +91,40 @@ export async function seedReplay(
 		return;
 	}
 
-	// The event's quarterfinals, in its own order; without any, top-8 halves.
-	const qf = record.pairings.find((r) => r.RoundName.toLowerCase().includes('quarter'));
-	const qfPairs: readonly (readonly [string, string])[] =
-		qf === undefined
-			? top8.slice(0, 4).map((a, i): [string, string] => [a.Player, top8[i + 4]!.Player])
-			: qf.Matches.map((m): [string, string] => [m.Player1, m.Player2]);
-	if (qfPairs.length !== 4) throw new Error(`quarterfinals hold ${String(qfPairs.length)} matches, not 4`);
-
-	const seatPlayers: string[] = new Array<string>(8).fill('');
-	for (const [k, [a, b]] of qfPairs.entries()) {
-		seatPlayers[k] = a;
-		seatPlayers[k + 4] = b;
-	}
+	// Whose deck each seat replays. The top-8 replay lays the event's own
+	// quarterfinals onto round 1's across-the-table pairs; a full field seats
+	// every entrant at their final standing's rank, and the structure — Swiss
+	// then cut — decides who meets whom.
+	const seatPlayers: string[] =
+		opts.full === true
+			? field.map((s) => s.Player)
+			: (() => {
+					const qf = record.pairings.find((r) => r.RoundName.toLowerCase().includes('quarter'));
+					const qfPairs: readonly (readonly [string, string])[] =
+						qf === undefined
+							? top8.slice(0, 4).map((a, i): [string, string] => [a.Player, top8[i + 4]!.Player])
+							: qf.Matches.map((m): [string, string] => [m.Player1, m.Player2]);
+					if (qfPairs.length !== 4) throw new Error(`quarterfinals hold ${String(qfPairs.length)} matches, not 4`);
+					const seats = new Array<string>(8).fill('');
+					for (const [k, [a, b]] of qfPairs.entries()) {
+						seats[k] = a;
+						seats[k + 4] = b;
+					}
+					return seats;
+				})();
 
 	// Each AI seat's deck: the library deck of the player it replays. The join
-	// is the player's OWN SLUG — the last `-`-separated segment of a tournament
-	// entry id — never the id's whole shape, which the importer has already
-	// spelled two ways (`tourney-<date>-…` for the Modern import, `tourney-leg-…`
-	// for the Legacy one). Players are unique within an event, so the slug is
-	// unique within the collection; a collision would be a data fault to name.
+	// is the player's OWN SLUG — never the id's whole shape, which the importer
+	// has already spelled two ways (`tourney-<date>-…` for the Modern import,
+	// `tourney-leg-…` for the Legacy one). An entry id is
+	// `<prefix>-<rank>-<slug>`: the rank a pure integer, the slug everything
+	// after it — and a slug may itself contain hyphens and digits
+	// (Magic_Dads71522 → magic-dads71522), so the regex matches structurally
+	// rather than by counting segments.
 	const collection = LIBRARY.find((c) => c.id === opts.collection);
 	if (collection === undefined) throw new Error(`no library collection ${opts.collection}`);
-	const bySlug = new Map(collection.decks.map((d) => [d.id.split('-').at(-1) ?? '', d]));
+	const ENTRY_ID = /^(?:[a-z0-9]+-)+(\d+)-(.+)$/;
+	const bySlug = new Map(collection.decks.map((d) => [ENTRY_ID.exec(d.id)?.[2] ?? '', d]));
 	if (bySlug.size !== collection.decks.length) throw new Error(`${opts.collection}: entry id slugs collide`);
 	const assignments: Record<string, string> = {};
 	for (const [s, player] of seatPlayers.entries()) {
@@ -127,9 +141,10 @@ export async function seedReplay(
 		historical: true,
 		historicalFormat: `${familyOf(record.event.format)}-${record.event.date}`,
 		aiDeckAssignments: assignments,
-		// The event's own shape: no Swiss inside a top-8 replay — the seats ARE
-		// the bracket, round 1 its quarterfinals, elimination from there.
-		historicalStructure: { swiss: 0, cut: 8 },
+		// The top-8 replay is a pure bracket (no Swiss inside it — the seats ARE
+		// the bracket); a full field plays the event's own Swiss rounds and
+		// cuts to its top 8, the shape a Challenge is actually run in.
+		historicalStructure: opts.full === true ? { swiss: 5, cut: 8 } : { swiss: 0, cut: 8 },
 	});
 	if (!created.ok) throw new Error(`create refused: ${created.reason}`);
 	// Seat every AI entrant now, through the same `aiPod` the AI button drives,
