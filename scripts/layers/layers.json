@@ -3,6 +3,7 @@
     "packages/room-ask/**",
     "packages/ui-shell/**",
     "packages/room-store/**",
+    "packages/service-kernel/**",
     "apps/server/src/stream/**",
     "apps/server/src/erase/**",
     "apps/server/src/*.ts",

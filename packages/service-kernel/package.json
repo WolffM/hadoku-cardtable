@@ -1,0 +1,33 @@
+{
+  "name": "@hadoku/service-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The server parts any game keeps: edge auth and the tier gate, base path and bundle check, health and the busy probe, lifecycle, the JSON logger, the state directory, telemetry and capacity, per-caller limits, the browser relays and the erase registry. Knows no game; the app binds its service id, prefix and env names. MIT; imports only node built-ins, express, socket.io and @wolffm/*.",
+  "exports": {
+    "./auth": "./src/auth/index.ts",
+    "./http": "./src/http/index.ts",
+    "./health": "./src/health/index.ts",
+    "./lifecycle": "./src/lifecycle/index.ts",
+    "./log": "./src/log/index.ts",
+    "./state": "./src/state/index.ts",
+    "./telemetry": "./src/telemetry/index.ts",
+    "./capacity": "./src/capacity/index.ts",
+    "./limits": "./src/limits/index.ts",
+    "./relays": "./src/relays/index.ts",
+    "./erase": "./src/erase/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.57",
+    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.57",
+    "express": "^5.1.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6"
+  }
+}

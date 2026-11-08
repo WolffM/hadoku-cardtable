@@ -23,6 +23,10 @@ dist/
 logs/
 data/
 state/
+# w93-K2: @hadoku/service-kernel's `./state` subpath is source, not a runtime data dir — the
+# bare `state/` above would otherwise swallow it (gitignore matches at any depth).
+!packages/service-kernel/src/state/
+!packages/service-kernel/src/state/**
 
 # editor / OS
 .DS_Store
