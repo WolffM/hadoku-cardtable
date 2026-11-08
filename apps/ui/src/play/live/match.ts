@@ -260,7 +260,7 @@ import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protoco
 import { io } from 'socket.io-client';
 import { watchRestart } from '../../restart-notice.ts';
 
-import { defaultSocketPath, socketOptions } from '../../draft/socket.ts';
+import { defaultSocketPath, socketOptions } from '../../room/socket-options.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
 import { attackLockedIn, drawsFaceUp, keepUnchangedCards, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
@@ -275,7 +275,7 @@ import type { PromptParts } from '../prompts/lookup.ts';
 import { foldPackets, type FoldablePacket, type FoldResult, type WireState } from '../fold.ts';
 import { expectWirePackets } from '../wire.ts';
 import { timed } from './work-meter.ts';
-import { pageTabId } from './tab-id.ts';
+import { pageTabId } from '../../room/tab-id.ts';
 import { serverReleaseIsNewer, unreadableMeansStale } from '../../stale-build.ts';
 import {
   abortFrame,

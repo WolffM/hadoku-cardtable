@@ -158,6 +158,7 @@ export function RoomShell({
   roomId,
   chatId = roomId,
   collapsible = true,
+  inert = false,
   children,
 }: {
   /** The room this viewer is a member of; their avatar is asserted to it. */
@@ -168,6 +169,8 @@ export function RoomShell({
    *  where the chat is the point. A viewer's saved collapse is ignored there,
    *  not cleared, so the match still opens the way they left it. */
   collapsible?: boolean;
+  /** Behind a question the page must answer first (`./SessionPrompt.tsx`): the chat cannot be reached. */
+  inert?: boolean;
   children: ReactNode;
 }) {
   const who = useWhoami();
@@ -200,7 +203,7 @@ export function RoomShell({
      * `route.kind !== 'room'`), never the room lobby (Settled 10: "the room
      * lobby is unchanged").
      */
-    <div className="room-shell" data-testid="room-shell" data-collapsible={collapsible ? '' : undefined}>
+    <div className="room-shell" data-testid="room-shell" data-collapsible={collapsible ? '' : undefined} inert={inert || undefined}>
       <RoomChrome
         roomKey={key}
         serverOrigin={watchpartyOrigin()}

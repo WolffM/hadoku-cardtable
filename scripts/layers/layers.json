@@ -17,6 +17,7 @@
     "apps/server/src/http/usage.ts",
     "apps/server/src/http/events.ts",
     "apps/server/src/room/feed.ts",
+  "apps/server/src/room/session.ts",
     "apps/server/src/room/identity.ts",
     "apps/server/src/room/seats.ts",
     "apps/server/src/room/events.ts",

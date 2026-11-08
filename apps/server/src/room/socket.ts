@@ -161,6 +161,7 @@ import {
 } from './emit.js';
 import { askDraftbot, chooseByRatings, draftbotTally, modelSeatsOf, type Draftbot, type DraftbotAnswer, type DraftbotOutcome } from './draftbot.js';
 import { identityFromHeaders } from './identity.js';
+import type { SessionHandle } from './session.js';
 import type { Lobby } from './lobby.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 
@@ -221,6 +222,8 @@ interface DraftSocketDeps {
 	seatReleaseMs?: number;
 	/** Real `setTimeout` (unref'd) unless a test runs its own clock. */
 	schedule?: (fn: () => void, ms: number) => void;
+	/** One live tab per player per room (`./session.ts`): a join that names its tab joins the tab's claim. Absent: no claim. */
+	sessions?: Pick<SessionHandle, 'attach'>;
 }
 
 interface DraftSocketHandle {
@@ -545,6 +548,11 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					if (refusal !== null) {
 						log({ evt: 'join-refused', participantId, draftId: msg.draftId, reason: refusal });
 						reject(null, 'unknown-draft', REFUSAL_DETAIL[refusal]);
+						return;
+					}
+					// Another live tab of this account holds the room: it is asked there, never taken from here.
+					if (msg.tabId !== undefined && deps.sessions !== undefined && !deps.sessions.attach(msg.draftId, participantId, msg.tabId, socket)) {
+						reject(null, 'session-elsewhere', 'this room is open in another tab');
 						return;
 					}
 					// A room of several pods: the joiner's own pod's draft (`DraftRooms.routeFor`).

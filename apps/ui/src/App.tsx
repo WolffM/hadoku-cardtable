@@ -40,6 +40,7 @@ import { setScreenMusic } from './sound/index.ts';
 import { AppChrome } from '@hadoku/ui-shell/chrome';
 import { HeaderLinks } from './chrome/HeaderLinks.tsx';
 import { RoomShell } from './room/RoomShell.tsx';
+import { SessionPrompt, sessionBlocks, useRoomSession } from './room/SessionPrompt.tsx';
 import { useWhoami } from './room/whoami.ts';
 import { knownRoomOfMatch, roomOfMatch } from './play/live/matchStart.ts';
 import type { RoomView } from './rooms/api.ts';
@@ -292,6 +293,11 @@ export function App({ transport }: AppProps) {
   // (`route.ts`), so gating here covers every one of them in the one place they all pass through.
   const joinedRoom = useJoined(route.kind === 'room' ? route.roomId : null);
   const gatedPlace = route.kind === 'room' && !joinedRoom ? null : place;
+  // One live tab per player per room (`room/session.ts`): claimed as soon as the route names its room,
+  // joined or not (a watcher's claim holds nothing). While it asks, or after another tab took the room,
+  // the screen is not drawn — none of its sockets join — and the page behind the question is inert.
+  const session = useRoomSession(route.kind === 'rally-embed' ? null : (place?.roomId ?? null), route.kind);
+  const blocked = sessionBlocks(session.state);
   // A Rally pick option, in Rally's frame (cardtable#24): the theme root and the page, with no
   // header and no room. `rally/RallyEmbed.tsx` says why.
   if (route.kind === 'rally-embed') {
@@ -307,10 +313,11 @@ export function App({ transport }: AppProps) {
           in the lobby screen"*. A room's lobby keeps it open; the draft, deck
           and match screens still let a viewer hide it. */}
       <HostDrawsSettingsProvider value>
-        <RoomShell roomId={gatedPlace?.roomId ?? null} chatId={gatedPlace?.chatId ?? null} collapsible={route.kind !== 'room'}>
-          {matchPending ? null : <Screen transport={transport} />}
+        <RoomShell roomId={gatedPlace?.roomId ?? null} chatId={gatedPlace?.chatId ?? null} collapsible={route.kind !== 'room'} inert={blocked}>
+          {matchPending || blocked ? null : <Screen transport={transport} />}
         </RoomShell>
       </HostDrawsSettingsProvider>
+      <SessionPrompt state={session.state} take={session.take} />
     </AppChrome>
   );
 }
