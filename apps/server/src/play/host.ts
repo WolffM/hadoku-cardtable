@@ -297,7 +297,7 @@ export type BridgeLine =
 	 * see in a way the bridge could not reword; `cards` are the ones they may.
 	 */
 	| { t: 'log'; type: GameLogLine['type']; players: { player: number; text: string | null; cards: GameLogLine['cards'] }[] }
-	| { t: 'fatal'; message: string }
+	| { t: 'fatal'; message: string; /** The top frames of the failure's stack (`PlayBridge` `fail`), when it had one. */ frames?: string[] }
 	| { t: 'rejected'; message: string; command: string }
 	| { t: 'stale'; seat: number; callId: string }
 	/** The asks a `resend-pending` sent again, after their frames. */

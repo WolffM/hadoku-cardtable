@@ -2958,7 +2958,7 @@ export class Match {
 				this.overTimer.unref();
 				return;
 			case 'fatal':
-				this.fail(line.message);
+				this.fail(line.message, line.frames);
 				return;
 			case 'log':
 				this.onGameLog(line);
@@ -4733,12 +4733,13 @@ export class Match {
 		}
 	}
 
-	private fail(reason: string): void {
+	/** `frames`: where Forge threw, from the bridge's `fatal` line — the log row names the iteration a bare message cannot. */
+	private fail(reason: string, frames?: string[]): void {
 		if (this.status === 'failed' || this.status === 'stopped') return;
 		this.status = 'failed';
 		this.failure = reason;
 		this.stopClock();
-		this.deps.log({ evt: 'match-failed', matchId: this.id, reason });
+		this.deps.log({ evt: 'match-failed', matchId: this.id, reason, ...(frames === undefined ? {} : { frames }) });
 		this.logFrames();
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: reason });
 		this.closeAllAsks();

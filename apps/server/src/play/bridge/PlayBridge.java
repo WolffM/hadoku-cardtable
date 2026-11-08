@@ -717,12 +717,25 @@ public final class PlayBridge {
             }
             final JsonObject o = line("fatal");
             o.addProperty("message", message + (cause == null ? "" : ": " + cause));
+            // Where it threw, on the line itself: stderr is a file of the run, often gone by the time
+            // anyone reads the failure, and a ConcurrentModificationException's message names nothing.
+            if (cause != null) {
+                final JsonArray frames = new JsonArray();
+                final StackTraceElement[] trace = cause.getStackTrace();
+                for (int i = 0; i < Math.min(FATAL_FRAMES, trace.length); i++) {
+                    frames.add(trace[i].toString());
+                }
+                o.add("frames", frames);
+            }
             emit(o);
             if (cause != null) {
                 cause.printStackTrace(System.err);
             }
             stop.countDown();
         }
+
+        /** How many of a failure's stack frames its {@code fatal} line carries. */
+        private static final int FATAL_FRAMES = 12;
 
         /**
          * A seat's loopback client lost its connection to this match's Forge server

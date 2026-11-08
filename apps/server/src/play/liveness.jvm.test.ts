@@ -115,6 +115,12 @@ describe.skipIf(!available.ok)(title, () => {
 		await waitUntil(() => r.match.status === 'failed', 'the match to fail', 60_000, status(r));
 		console.log(`[jvm] H9: ${r.match.failure}`);
 		expect(r.match.failure).toBe("Forge's game thread failed: java.lang.Error: cardtable.fault=game-throw: a test-only failure on the game thread");
+		// Where it threw rides on the server's own row, not only on the bridge's stderr.
+		const failed = r.logs.find((l) => l.evt === 'match-failed') as { frames?: string[] } | undefined;
+		console.log(`[jvm] H9 frames: ${JSON.stringify(failed?.frames)}`);
+		expect(failed?.frames?.length, 'the match-failed row carries the top frames, at most 12').toBeGreaterThan(0);
+		expect(failed!.frames!.length).toBeLessThanOrEqual(12);
+		expect(failed!.frames![0], 'its first frame is the throw site, in the bridge').toMatch(/PlayBridge/);
 		// The JVM hosts any number of matches, so one match's failure does not end it; with no
 		// warm JVM wanted, its last match ending retires it, and it goes cleanly.
 		await waitUntil(() => liveJvmCount() === 0, 'the JVM to be retired', 20_000);
