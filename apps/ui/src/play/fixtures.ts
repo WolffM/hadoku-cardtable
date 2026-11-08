@@ -18,6 +18,10 @@
  *   The hook is `fixtures/capture-hook.patch` (apply it to a scratch copy of
  *   the spike, never to `scripts/spike/`, and pass `-Dlanec.dumpDir=<dir>` —
  *   it has no null-guard and throws without the property).
+ * - **Since the pin moved to upstream Forge of 2026-11-08** the stream has lost
+ *   two flags Forge stopped sending (`NeedsTapAnimation`, `NeedsUntapAnimation`;
+ *   Forge #12500 derives animations in its GUI). They were dropped from every
+ *   packet then; nothing else was changed.
  * - **The match:** `Bob (Capturing)` (player 0, the remote client whose stream
  *   this is — deck "Ral, Caller of Storms") vs `Alice (Host AI)` (player 1 —
  *   deck "Master Blaster"). Decks are the harness's random precons.

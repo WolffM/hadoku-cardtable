@@ -48,8 +48,8 @@ const LETHAL = deltaOf({ g: { ...stackOf([]), GameOver: { t: 'bool', v: true } }
 const CAST_FLAG = deltaOf({ p0: { _type: 1, _id: 0, MindSlaveMaster: { t: 'int', v: 0 } } });
 const HAND_OUT = deltaOf({ p0: { _type: 1, _id: 0, Hand: { t: 'list', v: [] } } });
 const TAPS = deltaOf({
-  c167: { _type: 0, _id: 167, Tapped: { t: 'bool', v: true }, NeedsTapAnimation: { t: 'bool', v: true } },
-  c168: { _type: 0, _id: 168, Tapped: { t: 'bool', v: true }, NeedsTapAnimation: { t: 'bool', v: true } },
+  c167: { _type: 0, _id: 167, Tapped: { t: 'bool', v: true } },
+  c168: { _type: 0, _id: 168, Tapped: { t: 'bool', v: true } },
   p0: { _type: 1, _id: 0, Mana: { t: 'map', v: [] } },
 });
 const ON_STACK = deltaOf({ g: stackOf([3]) }, { c160: zone(160, 'Stack'), s3: { _type: 2, _id: 3, SourceCard: { t: 'int', v: 160 } } });

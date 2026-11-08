@@ -1,0 +1,1273 @@
+n,sha,date,author,area,verdict,ours,why,subject
+1,ef996e4c0e,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update invasion_of_tarkir_defiant_thundermaw.txt
+2,7c1a560d0e,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update invasion_of_ulgrotha_grandmother_ravi_sengir.txt
+3,543a0c4605,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update pain_for_all.txt
+4,2426cc072f,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update phyrexian_vindicator.txt
+5,882ec2b7e1,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update screaming_nemesis.txt
+6,f9e40d736a,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update special_move.txt
+7,a8d930dcfc,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update bond_of_passion.txt
+8,98b86ac17d,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update callous_sell_sword_burn_together.txt
+9,a40d170a0f,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update explosive_welcome.txt
+10,d8e3522c53,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update boulder_dash.txt
+11,2c5c1230e7,2026-06-05,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Update self_destruct.txt
+12,f73576edda,2026-06-06,Renato Filipe Vidal Santos,cards,want,,card scripts / editions / tokens / draft data,Add files via upload
+13,de9961d692,2026-06-19,MostCromulent,gui-only,neutral,,desktop deck importer URL loader; we don't use it,Load decks from URL in the deck importer
+14,f1ff94b1a1,2026-07-16,y12345e,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,update Simplified Chinese (zh-CN) localization
+15,754f28b86d,2026-07-17,y12345e,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+16,b590cb1ae9,2026-07-18,y12345e,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+17,000e101367,2026-08-14,MostCromulent,gui-only,neutral,,follow-up refactor of the URL deck importer,Call DeckUrlLoader directly from the deck import dialog
+18,da6148f71e,2026-09-03,Churrufli,gui-only,neutral,,Adventure Mode Spanish localization; we don't ship Adventure,Adventure Mode: Internationalization groundwork + Spanish Shandalar localization
+19,12d5f8ac15,2026-09-03,Churrufli,gui-only,neutral,,review follow-up to the Adventure i18n commit,Changes requested during review
+20,eff6986925,2026-09-05,y12345e,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+21,a1ad87cbe7,2026-09-05,y12345e,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add files via upload
+22,18ee0933eb,2026-09-07,y12345e,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+23,abbda43ca2,2026-09-07,ldeluigi,build-tests,neutral,,adds a GitHub Actions workflow file only,Add MTG Card Fetch Bot workflow
+24,c1ac2b24aa,2026-09-08,y12345e,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+25,eb9387b108,2026-09-08,y12345e,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+26,09660800ed,2026-09-09,y12345e,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+27,39ac1a499f,2026-09-10,churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into adventure-translations
+28,90a69f6646,2026-09-11,Sakubit,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add Japanese translations for The Hobbit
+29,20e60dfb64,2026-09-11,Zimmermann Gyula,cards,want,,card scripts / editions / tokens / draft data,Add Unknown Event card The Covert Blue Mage and related Covert Sunglasses token.
+30,f9ed35340f,2026-09-12,Zimmermann Gyula,cards,want,,card scripts / editions / tokens / draft data,Use moder Oracle formatting everywhere and fix a copy-paste hiccup.
+31,19b8a76e24,2026-09-12,churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into adventure-translations
+32,0e603ac5eb,2026-09-12,JayBirbGames,cards,want,,card scripts / editions / tokens / draft data,"Add Vraska, Soul of Stone (FRA #277) (#11878)"
+33,cc0ee32df6,2026-09-12,churrufli,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix conflict
+34,39d4d31e62,2026-09-12,churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into adventure-translations
+35,0a4fd8d39e,2026-09-12,liamiak,ai,want,,correct and faster AI mana-color counting (any-color/combo sources),"AI: count ""any color"" and ""combo"" sources as producing colors (#11809)"
+36,b26a537f70,2026-09-12,Fulgur14,cards,want,,new card plus scryThisTurn field; canDrawAmount renamed canDraw,Surveillance Phantasm (FRA) (#11880)
+37,e0fdcaf686,2026-09-12,tool4ever,engine-rules,want,,real bug fix: scryThisTurn counter was never incremented,Fix scry increment (#11881)
+38,5895c279e2,2026-09-12,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: FRA, PLST"
+39,8dbdfecf32,2026-09-12,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11882 from paulsnoops/edition-updates
+40,613bfb4343,2026-09-12,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Banned and Restricted Announcement for September 22, 2026"
+41,e4c90062b7,2026-09-12,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11883 from paulsnoops/bar-22-sep
+42,f5a86bc94c,2026-09-12,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Remove Alchemy current metagame zip
+43,c8199da841,2026-09-12,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11884 from paulsnoops/remove-alchemy-net-decks
+44,3aa9a9fdba,2026-09-12,Blackvipe99,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Adventure: let New Game+ offer the main quest again
+45,4b4299a2e4,2026-09-12,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"FRA cards, 12th September (#11876)"
+46,08881e6138,2026-09-12,liamiak,engine-rules,want,,fixes translated ability text landing on the wrong ability,Fix translated ability text landing on the wrong ability (#11814)
+47,3f98195099,2026-09-13,churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into adventure-translations
+48,4a3d724b7e,2026-09-13,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11621 from churrufli/adventure-translations
+49,8bb92107b6,2026-09-13,Fulgur14,cards,want,,new card Ruric Thar,"Ruric Thar, Magecrusher (FRA) (#11898)"
+50,61bc0b600f,2026-09-13,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"FRA cards, 13th September (#11890)"
+51,38a2269f9f,2026-09-13,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Rename ghallia_the_merrymaker.txt to gallia_the_merrymaker.txt (#11904)
+52,ddb27fd493,2026-09-13,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"FRA cards (13th September, batch 2) (#11903)"
+53,b2f81bcc7d,2026-09-14,Claude,merge,neutral,,merge commit; its content is in the listed commits,Merge remote-tracking branch 'origin/master' into deck-import-from-url
+54,e1137b9fa7,2026-09-14,Claude,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,List all four supported providers in the deck URL ghost text
+55,ff6b6c3d1a,2026-09-13,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Realm of legends 1.076: Opal Cavern rebalance; minor fixes (#11867)
+56,9696ebfc1b,2026-09-14,tool4ever,cards,want,,fixes Mystic Compass animate interaction,Fix Mystic Compass (#11908)
+57,2be4858216,2026-09-14,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"update check on ImageView updateSelection, add delay on layout to prevent excessive refresh, pre-size array cap, prevent npe"
+58,43c2c776d8,2026-09-14,Fulgur14,cards,want,,new card Whiplash Wordsmith,Whiplash Wordsmith (FRA) (#11911)
+59,bb44751b58,2026-09-14,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11871 from GraionDilach/cgb
+60,7382a7e686,2026-09-14,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+61,8a341dc037,2026-09-14,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11872 from Saku3san/localization/ja-hob-batch-6
+62,b7800805c7,2026-09-14,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Uldaros Theorix (FRA) (#11914)
+63,08fffb84bb,2026-09-14,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: FRA
+64,7acba4ff37,2026-09-14,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11915 from paulsnoops/edition-updates
+65,8a31e3c1f7,2026-09-14,Valerio Maggio,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"Name the Home and lobby axes ""Play Mode"" and ""Game Format"", consolidate the deck editor screens (#11885)"
+66,5ca8b4f776,2026-09-15,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,FRA cards (14th September) (#11907)
+67,aeedc51351,2026-09-15,Cagliostro,engine-rules,want,,fixes NPE in ThisTurnEnteredFrom on an LKI copy,Fix NPE in ThisTurnEnteredFrom on an LKI copy (#11917)
+68,58bcd59062,2026-09-15,Cagliostro,ai,want,,perf: cheap checks before expensive scans,Check the cheap conditions before the expensive ones in two hot AI paths (#11916)
+69,9b22475962,2026-09-15,kevlahnota,gui-only,neutral,,desktop/mobile targeting-overlay rendering,Update Targeting Overlay (#11919)
+70,fb4dc80120,2026-09-15,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"Fix timing when restoring state, update arrow head type"
+71,4d976ed37a,2026-09-15,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"restore the old timing, add todo"
+72,e788660975,2026-09-15,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,revert FDeckChooser
+73,746455d755,2026-09-15,tool4ever,ai,want,,AI regenerate-ability and choose-source fixes,Cherry pick AI fixes (#11920)
+74,7cab227714,2026-09-15,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: ANA, ANB, FRA, PLST, SLD"
+75,ff789ae901,2026-09-15,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11923 from paulsnoops/edition-updates
+76,fd03a28159,2026-09-15,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+77,b88dbd3ebd,2026-09-15,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11250 from y12345e/master
+78,d52b0ea531,2026-09-16,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,FRA cards (15th September) (#11921)
+79,894cc9f937,2026-09-16,Agetian,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,- Add puzzles PS_HOB2 and PS_HOB3. (#11928)
+80,24c625f97a,2026-09-16,Cagliostro,ai,want,,perf: check trigger mode before requirements in combat prediction,perf(ai): check the trigger mode before its requirements in combat prediction (#11925)
+81,5e5f037fe3,2026-09-16,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: FRA
+82,97535e047f,2026-09-16,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11930 from paulsnoops/edition-updates
+83,994c5d9eb2,2026-09-16,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,FRA cards (16th September) (#11927)
+84,0fb5389269,2026-09-16,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: FRA, FRC"
+85,bea7bab830,2026-09-16,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11935 from paulsnoops/editions2
+86,0febf48141,2026-09-17,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"FRA cards (16th September, Part 2) (#11934)"
+87,9149acff51,2026-09-17,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: FRA, FRC, LMAR, TLA"
+88,099a7ac520,2026-09-17,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11938 from paulsnoops/edition-updates
+89,cb52c1a35e,2026-09-17,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix OnlineLobbyScreen freeze
+90,5e2676f82e,2026-09-17,David Racine,build-tests,neutral,,fixes desktop test suite on JDK25 only,Fix the desktop test suite on JDK 25 (#11936)
+91,c1dd1aef16,2026-09-17,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,FRA cards (17th September) (#11937)
+92,1575e92761,2026-09-17,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"FRA cards (17th September, batch #2) (#11939)"
+93,d6b50660ea,2026-09-18,Sakubit,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add Japanese translations for Arena rebalanced cards
+94,2ce1bacd6e,2026-09-18,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,reuse vectors
+95,6da58ff132,2026-09-18,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Update Foil Effect using shader (#11929)
+96,8ddd54532c,2026-09-17,Eradev,cards,want,,card scripts / editions / tokens / draft data,Fix MSH
+97,f39eb8a4e3,2026-09-18,MostCromulent,net-protocol,want,,cosmetic avatar/sleeve default fix in ServerGameLobby,Fix missing avatar and sleeve on the online lobby's second seat (#11942)
+98,ab574fb4a7,2026-09-18,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11944 from Eradev/fix-msh
+99,0cde7ff1e3,2026-09-18,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: FRA, FRC, PMEI"
+100,71f9285ba2,2026-09-18,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11950 from paulsnoops/edition-updates
+101,9c298e3ba2,2026-09-18,MostCromulent,engine-rules,want,,perf: skip ability-text work for LKI copies via DummyCardView,Improve resolution speed of wide token cascades like Scute Swarm (#11946)
+102,3934a77ba6,2026-09-18,Alexey,cards,want,,card scripts / editions / tokens / draft data,extrapolate the impossible (#11955)
+103,3146e4b103,2026-09-18,Fulgur14,cards,want,,new card Codie Ravenous Codex,"Codie, Ravenous Codex (FRA) (#11948)"
+104,aa2b5d0410,2026-09-18,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Fix SVar for PWPyromancer in way_of_the_pyromancer.txt
+105,a0b927185e,2026-09-19,MostCromulent,engine-refactor,want,,same-result reorder of hasWon() checks,Check player outcome before the win replacement scan (#11951)
+106,adc6421e10,2026-09-18,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,FRA cards (18th September) (#11947)
+107,19c21f8c85,2026-09-18,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11941 from Saku3san/localization/ja-arena-rebalanced-batch-7
+108,383a4393ea,2026-09-19,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"FRA cards (18th September, batch 2) (#11957)"
+109,c45ce7b3c1,2026-09-19,MostCromulent,engine-refactor,want,,same-result reorder of cast-timing checks; different method than our a6d4830a8f,Check spell timing before scanning for cast-with-flash effects (#11963)
+110,3d422bc9f3,2026-09-19,Cagliostro,ai,want,,mechanical AffectedDefined$ refactor across card scripts plus AI updates,"Use AffectedDefined$ for Self, Enchanted, Equipped and AttachedBy statics (#11932)"
+111,8daae8ef51,2026-09-19,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"Dack Fayden, Helping Hand (FRC) (#11966)"
+112,3da46bbbc0,2026-09-19,Rensen3,gui-only,neutral,,Quest mode Attractions/Contraptions support,Update QuestMode to support Attractions and Contraptions
+113,cccf396269,2026-09-19,MostCromulent,net-protocol,want,,perf early-out in DeltaSyncManager,Skip delta building for objects with no changed properties (#11967)
+114,973a374dbf,2026-09-19,MostCromulent,engine-refactor,want,,removes an ineffective synchronized,Build multi-zone card lists in one pass (#11956)
+115,db4304cc40,2026-09-19,MostCromulent,engine-refactor,want,,perf early-outs,Skip two board scans that cannot change their result (#11961)
+116,939a41487d,2026-09-19,tjtillman,cards,want,,card scripts / editions / tokens / draft data,Update Reality Fracture.txt
+117,b07f337b4d,2026-09-19,tjtillman,cards,want,,card scripts / editions / tokens / draft data,Update blocks.txt
+118,c891be4822,2026-09-19,tjtillman,cards,want,,card scripts / editions / tokens / draft data,Add files via upload
+119,c46cf5842a,2026-09-19,liamiak,cards,want,,new card Providence of Night,YECL: Providence of Night (#11970)
+120,528cb6ac45,2026-09-19,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: FRA, FRC"
+121,59ae265f0a,2026-09-19,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11972 from paulsnoops/edition-updates
+122,68a06833e8,2026-09-19,Alexey,cards,want,,card scripts / editions / tokens / draft data,(FRA) some cards from FRA (#11969)
+123,610016d5e3,2026-09-19,tool4ever,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into master
+124,0b31a7cc0b,2026-09-19,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update Reality Fracture.txt
+125,a7dcad18a1,2026-09-19,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Fix typo in Tomik's title from Sparkmate to Sparkmage
+126,cae07054d2,2026-09-19,galoomba1,cards,want,,card scripts / editions / tokens / draft data,"(FRA) add 2 cards and fix bug in Jace, Reality Sculptor (#11971)"
+127,a854eef550,2026-09-19,Rensen3,cards,want,,Un-set non-legal cards that choose/create a card,Implements Non-Legal Cards that choose and create a card (#11874)
+128,3a74143aa2,2026-09-19,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"FRA cards (19th September, just a few) (#11965)"
+129,129832c85d,2026-09-20,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"Use FBM to enhance shader, and use simple streak pattern (heavy on old phone)"
+130,2910364e08,2026-09-20,Agetian,cards,want,,card scripts / editions / tokens / draft data,Fix Zidane event in Planar Conquest (#11979)
+131,b93d0a333f,2026-09-20,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create omnipresence.txt (#11973)
+132,6dc61bf8c1,2026-09-20,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,move_tokens
+133,1c5b2ca1be,2026-09-20,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Add FRA, FRC, YFRA to formats"
+134,42a051fd19,2026-09-20,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11983 from paulsnoops/fra-format-updates
+135,b424dcb822,2026-09-20,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,FRA cards (20th September) (#11980)
+136,2aa365a7de,2026-09-20,MostCromulent,engine-rules,want,,fixes infinite/extra draw attempts from an empty library,Stop drawing once an empty library has no draw replacement (#11974)
+137,a7fb2e635c,2026-09-20,galoomba1,cards,want,,card scripts / editions / tokens / draft data,Typo in Face Yourself (FRA) (#11987)
+138,ebdd529ce4,2026-09-20,galoomba1,cards,want,,card scripts / editions / tokens / draft data,"Error in Jiang Yanggu, Never Alone (FRA) (#11988)"
+139,f00c1c4218,2026-09-20,galoomba1,cards,want,,card scripts / editions / tokens / draft data,Error in Way of the Wildspeaker (FRA) (#11989)
+140,f387ede550,2026-09-20,galoomba1,cards,want,,card scripts / editions / tokens / draft data,(FRA) add 3 cards (#11984)
+141,f12cd05dbe,2026-09-20,liamiak,ai,want,,AI gives spell copies useful new targets,AI: give spell copies useful new targets (#11977)
+142,485a31a60c,2026-09-20,tool4ever,engine-refactor,want,,"cleanup; getPTBoostTable drops a defensive copy, no conflict with ours",Some cleanup (#11990)
+143,c221f2bc7e,2026-09-20,Simisays,cards,want,,card scripts / editions / tokens / draft data,FRC last 8 cards + decklist (#11982)
+144,c0557e5063,2026-09-20,Rensen3,gui-only,neutral,,Quest mode crash fix,"prevent funny sets from creating drafts in quest mode, since they crash the game"
+145,3767eea3c0,2026-09-21,Churrufli,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Adventure Mode: translate items and shop descriptions through Localizer
+146,06bd2f7fef,2026-09-21,Churrufli,build-tests,neutral,,Adventure translation tooling script and readme only,Adventure Mode: translate items and shop descriptions through Localizer
+147,88ffe0660e,2026-09-20,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11968 from tjtillman/master
+148,8440d466ae,2026-09-21,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update fatehold_chronologist_peer_review.txt
+149,d1d005d613,2026-09-21,galoomba1,cards,want,,card scripts / editions / tokens / draft data,(FRA) add 6 cards (#11978)
+150,6c17b77221,2026-09-21,Fulgur14,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Update Multiverse Reforged [FRC] [2026].dck
+151,eb50a8d89b,2026-09-20,liamiak,cards,want,,new card Way of the Mind Sculptor,Way of the Mind Sculptor (FRA) (#11986)
+152,09ec07abed,2026-09-21,kevlahnota,gui-only,neutral,,desktop/mobile Adventure stage and sprite refactor,"Refactor Adventure Stages, Scenes, Sprites (#11945)"
+153,c50f743448,2026-09-21,tool4ever,net-protocol,want,,CardView/CardStateView equals fix,Fix DummyCardView (#11996)
+154,fd65ed0715,2026-09-21,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11994 from Fulgur14/Fulgur14-patch-637362
+155,5f3c9420cf,2026-09-21,Churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge remote-tracking branch 'upstream/master' into adventure-translations-2
+156,9af9aa0f50,2026-09-21,Churrufli,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Merge remote-tracking branch 'upstream/master' into adventure-translations-2
+157,d8f0fe9241,2026-09-21,churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into adventure-translations-2
+158,1cfedf084d,2026-09-21,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix targeting arrow for blocking cards
+159,7895f27872,2026-09-21,Churrufli,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix fused adjacent mana symbols in DE/ES/FR/IT card translations
+160,913081c68d,2026-09-21,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update clash_of_elements.txt
+161,0f24e4a31d,2026-09-21,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Various draft rank file fixes
+162,2dafeab1b6,2026-09-21,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,restore-firstlines
+163,191554b7a0,2026-09-21,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11999 from paulsnoops/draft-updates
+164,4b6936186d,2026-09-21,Om Rajyaguru,ai,want,,detects attack-punisher enchantments by trigger instead of by name,Detect attack-punisher enchantments by trigger instead of by name (#11456)
+165,e65ace45ff,2026-09-22,Sakubit,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add Japanese translations for SPM and MSH
+166,37a33d1163,2026-09-21,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Add OM1 draft and Alchemy draft updates
+167,68f5bba0c5,2026-09-21,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12001 from paulsnoops/om1-draft
+168,c7b5a17218,2026-09-21,churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into fix-fused-mana-symbols-i18n
+169,f95a4b2f6d,2026-09-21,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11997 from churrufli/fix-fused-mana-symbols-i18n
+170,13299ec433,2026-09-21,Fulgur14,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,FDC Commander decks
+171,18b912e9fe,2026-09-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update dragon_engine.txt
+172,e9b2f7af06,2026-09-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update traxos_scourge_of_kroog.txt
+173,5051022789,2026-09-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update sylvan_primordial.txt
+174,f1ac767c51,2026-09-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update generator_servant.txt
+175,7fbf62459a,2026-09-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update arena_of_glory.txt
+176,6c66c4ba3d,2026-09-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update generator_servant.txt
+177,5ad5eb8f0f,2026-09-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update charmed_pendant.txt
+178,9b76e54dc6,2026-09-22,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Finalize foil shader
+179,5b3ce5c5c7,2026-09-22,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Set RewardActor random foilindex
+180,bde08ce23c,2026-09-22,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,prevent NPE groupby check
+181,eedeed338b,2026-09-21,tjtillman,cards,want,,card scripts / editions / tokens / draft data,Update ferocity_of_the_hunt.txt (#12004)
+182,e1f3f5fe84,2026-09-22,Chris H,cards,want,,new card Sanctum Lurker,Add Sanctum Lurker {FRA} (#12005)
+183,47d6ddcfb1,2026-09-22,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12002 from Fulgur14/Fulgur14-patch-741122
+184,256379b15a,2026-09-22,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: FDC
+185,2d0711c71a,2026-09-22,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12009 from paulsnoops/edition-updates
+186,3e583f8ff8,2026-09-22,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Fix for FDC in archived formats
+187,be186771f9,2026-09-22,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12010 from paulsnoops/redo-fdc-in-formats
+188,d01dc19c0e,2026-09-22,BigCrunch22,engine-rules,want,,converts Shadow to proper static abilities,Convert Shadow to CantBlockBy/CanBlockIfShadow static abilities (#11877)
+189,b3a4392c6b,2026-09-22,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Fix OM1 draft rnk file
+190,6eb449b787,2026-09-22,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12012 from paulsnoops/fix-om1-rnk
+191,f5fe3be8ea,2026-09-22,Sebastian Mansilla,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix Spanish locale consistency and completeness
+192,de70b62699,2026-09-22,Byron,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Adventure: log scene failures instead of silencing them (#11888)
+193,9dbe66c25c,2026-09-23,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Iterate backwards
+194,37fd27933f,2026-09-23,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix DeckEditScene
+195,1d537360df,2026-09-23,Rensen3,gui-only,neutral,,desktop image lookup fix for funny-card variants,fixes not able find image for funny cards that have variants
+196,daf2e41649,2026-09-23,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Use shared SpriteBatch for Adventure and Classic (#12011)
+197,7228162b5a,2026-09-23,MostCromulent,net-protocol,conflicts,,FGameClient reconnect rewrites connect/send/simulateDisconnect; our PlayBridge.java drives a real FGameClient over loopback,Client-side automatic reconnect for in-game disconnects (#10466)
+198,56c6e67fb7,2026-09-23,Darthseid,cards,want,,card scripts / editions / tokens / draft data,Change DBSeek defined player to 'You'
+199,bd163cdf52,2026-09-23,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #10894 from dracontes/rv-fix_incidental-5
+200,98a187a3c3,2026-09-24,MostCromulent,net-protocol,want,,fixes a real ConcurrentModificationException from cross-thread zone reveal,Drive floating hand reveal from the game thread (#12016)
+201,3a1b16089d,2026-09-23,Madwand99,gui-shared,neutral,,desktop macro-replay feature gated behind macros!=null,Fix macro replay after auto-yield input flow changes (#10930)
+202,8cf34a406a,2026-09-23,Paul Hammerton,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix sim directory
+203,56625b319e,2026-09-23,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: PF27
+204,ac48090d4f,2026-09-23,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12022 from paulsnoops/edition-updates
+205,69c050a339,2026-09-24,MostCromulent,build-tests,neutral,,test-only database-singleton fixture change,Give each card test its own database through the singleton too
+206,b16b077ce1,2026-09-24,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"remove unused var, iterate backwards for safety"
+207,cea33b56a7,2026-09-24,MostCromulent,build-tests,neutral,,javadoc trim only,Trim the javadoc on useStaticData
+208,ed0333fecb,2026-09-23,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12024 from MostCromulent/deckrecognizer-test-isolation
+209,7ab36a4208,2026-09-24,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,add getLabelKey for Reward enum
+210,9476f96705,2026-09-24,Rensen3,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into fix_no_image_funny_card_with_variant
+211,6b6f0d7168,2026-09-24,kevlahnota,gui-only,neutral,,mobile/android image-audit and FBufferedImage refactor,"fix fbufferedImage, refactor audit to work on android device (it will take some minutes to finish on android)"
+212,20a3e22eb6,2026-09-24,Alexey,cards,want,,card scripts / editions / tokens / draft data,fix planar genesis (#12028)
+213,af8e7f0d45,2026-09-24,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into fix/spanish-locale-consistency
+214,5562e53025,2026-09-24,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12019 from Rensen3/fix_no_image_funny_card_with_variant
+215,29e4c97c60,2026-09-24,Paul Hammerton,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,edit
+216,a83f15426c,2026-09-24,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12013 from sajmansilla/fix/spanish-locale-consistency
+217,fb3cc67c56,2026-09-24,tool4ever,net-protocol,conflicts,,removes TrackableProperty.HasBackSide; our packages/forge-wire/tier-c.ts encodes it,Code cleanup
+218,a840d60164,2026-09-22,Chris H,cards,want,,new card Loot the Anomaly,Loot the Anomaly
+219,5e81f9e378,2026-09-24,Chris H,cards,want,,card scripts / editions / tokens / draft data,Add FRA rankings for card collection
+220,87abc3a6d6,2026-09-25,kevlahnota,gui-only,neutral,,desktop card-audit percentage display,"Add percentage when auditing cards, check scissor on FBufferedImage"
+221,a96284571b,2026-09-24,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12032 from Card-Forge/tehdiplomat-patch-1
+222,3b2c84ebb0,2026-09-25,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"Add guard when auditing cards, fix dark sprites frambuffer"
+223,8e327b0423,2026-09-25,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,typo
+224,53d65b100b,2026-09-25,Churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge remote-tracking branch 'upstream/master' into adventure-translations-2
+225,705f83a183,2026-09-25,Churrufli,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,resolve conflicts
+226,ccb20c67bc,2026-09-25,Churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge remote-tracking branch 'origin/adventure-translations-2' into adventure-translations-2
+227,ed21505633,2026-09-25,Hans Mackowiak,cards,want,,card scripts / editions / tokens / draft data,Update budding_insurgent.txt
+228,24546a4a12,2026-09-25,Hans Mackowiak,cards,want,,card scripts / editions / tokens / draft data,Update living_library.txt
+229,45baeffbf2,2026-09-25,Hans Mackowiak,cards,want,,card scripts / editions / tokens / draft data,Update venser_fervent_forger.txt
+230,c1af041319,2026-09-25,Hans Mackowiak,cards,want,,card scripts / editions / tokens / draft data,Update elvish_elegy.txt
+231,82250e1bc4,2026-09-25,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,Fix Sanctum Lurker's IgnorePlaneswalkerZeroLoyaltyRule param name (#12035)
+232,caaa8b5f69,2026-09-25,Hans Mackowiak,cards,want,,card scripts / editions / tokens / draft data,Update flatman.txt
+233,c3cf1392b9,2026-09-25,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"Update graphics, utils, fskinfont and apply reusable vars (#12034)"
+234,c7b492746f,2026-09-25,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12031 from Card-Forge/loot_anomaly
+235,005e5e1305,2026-09-25,Fulgur14,cards,want,,new card Command the Stage,Command the Stage (FRA) (#11958)
+236,8cd226407b,2026-09-25,Hans Mackowiak,engine-rules,conflicts,eb396bffd7,identical getMonarchSet null-check fix already landed in our eb396bffd7,Update Player.java
+237,e728991c64,2026-09-25,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Update FRA.rnk
+238,8662a86825,2026-09-25,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12040 from paulsnoops/fix-fra-rnk
+239,c2218c0d79,2026-09-25,Paul Hammerton,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,remove-function
+240,eb6ea83e15,2026-09-25,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12041 from paulsnoops/fix-sim-directory
+241,38b7ca1ae8,2026-09-25,Claude,cards,want,,card scripts / editions / tokens / draft data,Fix two card-script param bugs found porting to Crucible
+242,ca1fbcc637,2026-09-25,"Czastkiewicz, Jacek",cards,want,,card scripts / editions / tokens / draft data,fix(card): address PR review comments on two-param-name-bugs
+243,64991d6326,2026-09-26,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,guard FSkinFont glyph computation and add fallback
+244,fad998e385,2026-09-26,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,update extra check
+245,278ba77491,2026-09-26,kevlahnota,engine-rules,want,,adds a Match Duration line to GameLog,Add Match Duration to GameLog (#12044)
+246,394f56f42a,2026-09-26,kevlahnota,engine-rules,want,,fixes the Match Duration value (stale-field move),fix match duration
+247,95dc682bf9,2026-09-26,MostCromulent,gui-only,neutral,,desktop model change for loading Commander precons read-only,Load Commander precons and genetic AI decks read-only (#12045)
+248,935b2cc8c4,2026-09-26,Simisays,build-tests,neutral,,doc-only update to Missing-Cards-in-Forge.md,Update Missing-Cards-in-Forge.md
+249,de681a82b6,2026-09-26,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12049 from Simisays/WIKI
+250,4a61aa653b,2026-09-26,Chris H,cards,want,,card scripts / editions / tokens / draft data,Remove Trample ability from A.I.M. Scientists
+251,eaf4382c7a,2026-09-26,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12050 from Card-Forge/tehdiplomat-patch-5
+252,459d8436e5,2026-09-27,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"update LibGDXImageFetcher, ImageCache, RewardActor (#12054)"
+253,47840c43fe,2026-09-27,kevlahnota,gui-only,neutral,,"GuiBase.isMobile() gate, false (unchanged) in our headless server",disable load card lazily on mobile
+254,0485ad49fb,2026-09-27,Leandro Doctors,build-tests,want,,adds characterization tests for PlayerControllerHuman.assignCombatDamage,forge-gui: characterize PlayerControllerHuman.assignCombatDamage (#10827)
+255,24a70677c0,2026-09-27,MostCromulent,cards,want,,card scripts / editions / tokens / draft data,Fix card script errors found by the card-script linter (#12048)
+256,78e501880e,2026-09-27,MostCromulent,net-protocol,conflicts,,"removes/renames tempShowZones, hideZones, openZones, restoreOldZones; adds showRevealedCards; our forge-wire/tier-b.ts hardcodes the old signatures",Move zone display decisions from host to client (#12023)
+257,03e9b7e73d,2026-09-27,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: SLD
+258,0b21d6bcea,2026-09-27,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12055 from paulsnoops/edition-updates
+259,3462b50ed3,2026-09-27,tool4ever,net-protocol,neutral,,"converts several IGuiGame methods to no-op defaults, backward compatible, rides on 256",IGuiGame cleanup (#12056)
+260,cd9f05a2ae,2026-09-27,Nerdslayer,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix default Slingshot Bandit deck (#11735)
+261,802be068b2,2026-09-27,Nerdslayer,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Replace weak Master Blue Wizard deck with tempo list (#11732)
+262,bc90d974ca,2026-09-27,Rensen3,cards,want,,fixes Killer Cosplay's ChooseCardNameEffect valid-list rebuild,fixes Killer Cosplay (#12062)
+263,2ccbbb0132,2026-09-28,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"update FrameRate, ScreenUtil capture (#12060)"
+264,b4bd13a474,2026-09-27,Blackvipe99,merge,neutral,,merge commit; its content is in the listed commits,Merge remote-tracking branch 'origin/master' into ngplus-reset-quest-gates
+265,4c4eb79964,2026-09-28,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Update captured frame
+266,44a6d49735,2026-09-28,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update stinging_vitriol.txt
+267,f1bdb600b1,2026-09-28,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12038 from jczastkiewicz/upstream-pr/two-param-name-bugs
+268,ddda332dc4,2026-09-28,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Update match transition screen (#12068)
+269,17c1ba9214,2026-09-29,MostCromulent,net-protocol,conflicts,,continues the reveal-protocol rework: new GuiGameEvent field for the showRevealedCards wave,Fix hand reveal not opening when the revealed card is a copy (#12065)
+270,4ec5f1a2c3,2026-09-28,GitHub Actions,build-tests,neutral,,maven-release-plugin version-prep commit only,[maven-release-plugin] prepare release forge-2.0.15
+271,5a083b3a87,2026-09-28,GitHub Actions,build-tests,neutral,,maven-release-plugin version-prep commit only,[maven-release-plugin] prepare for next development iteration
+272,e03fadc982,2026-09-28,GitHub Actions,build-tests,neutral,,POM restore after release prep,Restore POM files for preparation of next release
+273,f1ecb5d40e,2026-09-28,Chris H,build-tests,neutral,,pom.xml restore only,Restoring pom.xml
+274,2cb4f4c5f5,2026-09-28,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12071 from Card-Forge/fra-release
+275,647b5eac95,2026-09-29,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix preview spam
+276,4dde12c1bb,2026-09-29,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update flare_of_fortitude.txt
+277,fcc58370a2,2026-09-29,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Migrate upcoming card scripts
+278,808df7e49f,2026-09-29,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12074 from paulsnoops/migrate-upcoming
+279,d547ceac4c,2026-09-29,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"fix radius, reduce graphics draw call (#12073)"
+280,789bda3c2a,2026-09-29,tool4ever,engine-rules,conflicts,2358f2c122,"reorganizes MagicStack recordUndoableActions/addAbilityActivatedThisTurn signatures, same undo-stack mechanism as our mana-undo work; looks behavior-preserving",Some cleanup (#12075)
+281,83168c1dc4,2026-09-29,DamirTomic,gui-only,neutral,,desktop/mobile Commander-lobby commander-picking UI,Pick the commander in the Commander lobby (#12052)
+282,562626dbc4,2026-09-30,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"add lastpreview check, update booster reward type"
+283,7a21a55046,2026-09-29,Chris H,ai,want,,helps AI choose better for Memories Returning,Help AI choose better for Memories Returning
+284,5a2d75ecc4,2026-09-15,Chris H,engine-rules,want,,"fixes GameSnapshot zone-order bug for undo-cast-from-library (Forge's own snapshot undo, not ours)",Fix ordering (again) when undo casting from library
+285,731c4baff7,2026-09-29,Chris H,engine-refactor,want,,follow-up cleanup to 284,Small fix for conditional
+286,d64385cba2,2026-09-29,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11926 from Card-Forge/cast-from-top-library
+287,d646c8344e,2026-09-30,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Batch TargetingOverlay Arrows for faster FPS (#12080)
+288,bd73aaeeae,2026-09-30,kevlahnota,engine-rules,conflicts,47dd04f860,GameState token-image pipe-escaping fix for the same bug our 47dd04f860 already fixed differently,"Fix GameState parsing of token images causing malformed keys on ImageFetcher, update ImageCache"
+289,1d0b67722b,2026-09-30,ldeluigi,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'Card-Forge:master' into master
+290,d863380852,2026-09-30,Rensen3,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master-fork' into quest_atttractions
+291,1233219956,2026-09-30,kevlahnota,engine-rules,conflicts,47dd04f860,continuation of 288's token-image fix (comment only) plus unrelated TargetingOverlay/ImageFetcher perf,"Update TargetingOverlay, update comment (#12082)"
+292,0ddc6df672,2026-09-30,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11808 from ldeluigi/master
+293,0089d460b5,2026-09-30,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12079 from Card-Forge/memories-returning-ai
+294,fd5c996b84,2026-09-30,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11886 from Blackvipe99/ngplus-reset-quest-gates
+295,07adf4d548,2026-09-30,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11044 from MostCromulent/deck-import-from-url
+296,7345bf0317,2026-10-01,kevlahnota,gui-only,neutral,,Adventure save-data backup update,Update adventure data backup (#12088)
+297,153b545fa4,2026-10-01,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Update restorebackup file check
+298,901a8f6082,2026-10-01,Agetian,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add puzzle PS_FRA1 - Possibility Storm - Reality Fracture #01 (#12092)
+299,f251a0b875,2026-10-01,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: SLD, UNK"
+300,e192b32dbc,2026-10-01,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12093 from paulsnoops/edition-updates
+301,5e3caa29a7,2026-10-01,liamiak,cards,want,,"Unfinity stickers; adds 2 TrackableProperty entries additively, no removal",Unfinity stickers and sticker sheets (#12047)
+302,90c1bbead6,2026-10-02,MostCromulent,engine-rules,want,,perf: cheap lure check before expensive block-cost scan,Check the lure requirement before the block cost (#11949)
+303,14bf663213,2026-10-01,Nerdslayer,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix adventure quest dialogs repeating after load (#11719)
+304,e53a6debd9,2026-10-01,DamirTomic,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Make background transparent when selecting commander (#12084)
+305,da9e24cb3a,2026-10-01,Cagliostro,net-protocol,conflicts,005e8186c3 886d7812f1,"splits RemoteClientGuiGame into ProtocolGuiGame, changes FServerManager/HostingServer lifecycle; our PlayBridge.java hardcodes RemoteClientGuiGame internals and FServerManager-per-instance",Make the remote GUI protocol usable without the network stack (#12091)
+306,d381b8765b,2026-10-02,BigCrunch22,cards,want,,makes River Song's draw ability a static ability,Make River Song's draw ability to a static ability (#11870)
+307,09eac29911,2026-10-02,Rensen3,cards,want,,new card Goblin Blastronauts,Goblin Blastronauts (UNF) (#12039)
+308,e7cbab9e44,2026-10-02,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Fix syntax in trigger mode for card effect
+309,e58aec7ff2,2026-10-02,Rensen3,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master-fork' into quest_atttractions
+310,fb4d809112,2026-10-02,Agetian,cards,want,,card scripts / editions / tokens / draft data,- Add FRA/FRC achievements by Marek14. (#12100)
+311,e1db01e9bc,2026-10-02,Rensen3,gui-only,neutral,,quest-mode sticker support + unused-import cleanup; we don't ship quest,add sticker support to quest mode and cleanup
+312,348dbb269b,2026-10-02,Rensen3,gui-only,neutral,,reverts a quest-mode-only draft set filter; we don't ship quest,"Revert ""prevent funny sets from creating drafts in quest mode, since they crash the game"""
+313,d3a36fbd17,2026-10-03,Fulgur14,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add files via upload (#12099)
+314,b04414cdf8,2026-10-03,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,Remove card-script params the effect never reads (#12111)
+315,24612072b2,2026-10-03,liamiak,engine-rules,want,,lets a may-play grant reach more than one player; correct generalization,Let a may-play grant cover more than one player (#12107)
+316,68e4572006,2026-10-03,tool4ever,engine-refactor,want,,merged-permanent-card and X-cost cleanups plus AI tweaks; no net-protocol change despite the tag,Some cleanup (#12112)
+317,83d8fc7e8e,2026-10-03,Nikolai Weidt,cards,want,,card scripts / editions / tokens / draft data,"Dack Fayden, Helping Hand: only choose opponents for permanents that entered (#12113)"
+318,d50cedc565,2026-10-03,liamiak,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Don't fire menu shortcuts for keys typed into a text field (#12117)
+319,a9e17299a2,2026-10-03,liamiak,ai,want,,AI Itazura bid: caps the bid and skips bidding with nobody to outbid,"AI: don't bid life on Itazura with nobody to outbid, and cap the bid otherwise (#12115)"
+320,583d7f1496,2026-10-04,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Update WorldBackground (#12098)
+321,3907b216a7,2026-10-04,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"update graphics, reduce draw calls for rectangles specially using art/card image renders"
+322,9f089042c1,2026-10-04,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,use freetypefont generator and move counterfont generation to assetmanager
+323,91c024e324,2026-10-04,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,lazy load counterfonts
+324,ef12bf2e43,2026-10-04,Justin,ai,want,,AI avoids activating abilities into lethal activation triggers,AI: don't activate abilities into lethal activation triggers (#12125)
+325,f9aafc5315,2026-10-05,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"fix inverted close on RewardActor, update endCLip check"
+326,bd83739fbc,2026-10-05,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"update counter font generation, update filter"
+327,6483e747fb,2026-10-05,churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into adventure-translations-2
+328,c1b5588664,2026-10-05,Abishai James,engine-rules,want,,fixes token creation for cards from an edition that isn't installed,Fix token creation for cards from an edition that is not installed (#12109)
+329,2ecc597480,2026-10-05,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: FIN, PRM, SLD"
+330,f5b34f4537,2026-10-05,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12139 from paulsnoops/edition-updates
+331,61bc14708e,2026-10-05,kevlahnota,gui-only,neutral,,desktop card flight/play animation; we ship no desktop UI,Add card flight/play animation (#12138)
+332,5c9511d1d1,2026-10-05,liamiak,engine-rules,want,,draws the game when a mandatory trigger loops without end (CR104.4b),Draw the game when mandatory triggers loop without end (#12127)
+333,69b963e4e5,2026-10-05,David Ayres,gui-only,neutral,,iOS build/runtime crash fixes; we ship no iOS client,iOS: fix build and launch/runtime crashes on iOS 27 (#12132)
+334,d23d07b134,2026-10-05,Justin,ai,want,,AI checks Saddle/Teamwork costs by total power instead of per-creature,AI: check Saddle and Teamwork costs by total power (#12124)
+335,be6b18d58d,2026-10-05,Justin,ai,want,,AI stops paying to keep an empty exile-until-leaves permanent,"AI: don't pay to keep an empty ""exile until leaves"" permanent (#12141)"
+336,0bd2946906,2026-10-05,Justin,ai,want,,AI avoids reanimating creatures that would die right away,AI: don't reanimate creatures that would die right away (#12142)
+337,837195889f,2026-10-05,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #11992 from churrufli/adventure-translations-2
+338,e54d206681,2026-07-14,Chris H,engine-rules,neutral,,adds Forge's own single-player Commander Draft mode; isolated from plain draft/cube flow,Add the capability to due Commander Draft
+339,e20954a211,2026-07-14,Chris H,cards,want,,card scripts / editions / tokens / draft data,Add CMR Rankings file
+340,2679f5f813,2026-08-10,Chris H,engine-rules,neutral,,renames CardEdition draft metadata keys for the Commander Draft feature above,Set free commander in CardEdition
+341,0f202b2212,2026-10-06,kevlahnota,gui-only,neutral,,desktop/mobile card-play and leave animation; no engine or net surface,"Update Card Play Options, Add leave animation (#12148)"
+342,3fc8c7f5f9,2026-10-06,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: NAU, PF26, SLD, UNK, YFRA"
+343,5bd70fd278,2026-10-06,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12154 from paulsnoops/edition-updates
+344,8abe7d05e3,2026-10-06,kevlahnota,gui-only,neutral,,coin-flip animation; IGuiGame hook is a default no-op so nothing breaks,Add Coin Flip Animation (#12155)
+345,3892a0a23a,2026-10-06,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,try to prevent writeMatchPreferences on lifecycleClosing
+346,6711f84e84,2026-10-06,tool4ever,ai,want,,CharmAi fixes evaluating modes with different X values,CharmAi: fix evaluating modes with different X (#12156)
+347,075a037399,2026-10-06,Vanja,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Old Border Shandalar: Add Svyelunite Temple quest (#12145)
+348,a23479ee36,2026-10-06,liamiak,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Adventure: repair two broken map dialogs (#12128)
+349,5198ca74ce,2026-10-06,liamiak,ai,want,,AI prefers a required multi-mana source first when paying a cost,Use a required multi-mana source first (#12119)
+350,a12cd90f44,2026-10-06,Nikolai Weidt,engine-rules,want,,counts additional Panharmonicon-style triggers correctly when waiting triggers are collected,Count additional triggers when the waiting triggers are collected (#12106)
+351,86155ced7b,2026-10-06,liamiak,engine-rules,want,,refreshes entry snapshots once a simultaneous batch is on the battlefield,Refresh entry snapshots once a simultaneous batch is on the battlefield (#12121)
+352,2f90918a90,2026-10-06,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,fix(cards): correct three scripts that disagree with the printed card (#12153)
+353,0d425a6654,2026-10-06,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Demonic Pact: the discard mode targets an opponent (#12160)
+354,20a442ba8f,2026-10-06,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into localization/ja-spm-msh-batch-8
+355,16f2d354c4,2026-10-06,Jetz72,cards,want,,card scripts / editions / tokens / draft data,Update wiccan_rising_magician.txt (#12161)
+356,c29d23dd42,2026-10-07,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Move coin textures to Assets
+357,002df28e9c,2026-10-06,tyrathalis,gui-only,neutral,,quest-mode starting-pool fix; we don't ship quest,Quest: selecting every color no longer generates an empty starting pool
+358,12efb57093,2026-10-07,MostCromulent,build-tests,want,,allocates network test ports instead of hardcoding them,Allocate network test ports instead of hard coding them (#12165)
+359,2f2ea0b8e7,2026-10-07,Churrufli,gui-only,neutral,,Adventure-mode localization; we don't ship Adventure,"Adventure: translate enemies, points of interest and town names through Localizer"
+360,83f311e87e,2026-10-07,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: SLD, SLP"
+361,4018d6b820,2026-10-07,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12168 from paulsnoops/edition-updates
+362,769d63f399,2026-10-07,Hans Mackowiak,cards,want,,card scripts / editions / tokens / draft data,FRA: fix empower jace token image
+363,2f1964816d,2026-10-07,tyrathalis,build-tests,neutral,,drops a quest-mode test class and a long comment (review follow-up),Review: drop the test class and the long comment
+364,a155b28a1b,2026-10-07,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12163 from Tyrathalis/quest-all-colors-starting-pool
+365,688ce8bc79,2026-10-07,Thomas Wise,engine-rules,want,,mana refund no longer reverses payment of a mana ability that itself couldn't be reversed,Mana refund: do not reverse the payment of a mana ability that itself could not be reversed (#12162)
+366,067de7ff11,2026-10-08,MostCromulent,gui-only,neutral,,fixes the hotseat draw-offer dialog on desktop/mobile,Fix hotseat draw offer dialog (#12173)
+367,8c4a3ee453,2026-10-07,Byron,ai,want,,AI now pays for mana abilities that cost mana (Signets/filter lands); extends ComputerUtilMana without touching our colour-choice fix,"AI: pay for mana abilities that cost mana (Signets, filter lands) (#12149)"
+368,e39e4dd7ba,2026-10-08,kevlahnota,gui-only,neutral,,dice-roll 3D animation; new GameEvent fields are additive and desktop/mobile only,Dice Animation (#12167)
+369,64bdd11515,2026-10-08,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,update RewradActor hideTooltip
+370,e7fca28931,2026-10-08,kevlahnota,build-tests,dont-want,,comments out a real ManaRefundService regression test instead of fixing it,"commented out failing test, this halts build process"
+371,0fa862eb1c,2026-10-08,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,update CardFlight animation
+372,df629c82ae,2026-10-08,Douglas Bergentz,engine-rules,want,,booster slots draw from MyRandom so a seeded pack is reproducible,"Booster slots draw from MyRandom, so a seeded pack is reproducible (#12184)"
+373,55496c761e,2026-10-08,dvirbuc,cards,want,,card scripts / editions / tokens / draft data,Fix typos in Reality Fracture edition names (#12185)
+374,e9fa54ac25,2026-10-08,DamirTomic,ai,want,,AI pays for a self-activating mana ability with its own mana cost,AI: pay for a mana ability with a mana cost that is activated on its own (#12179)
+375,2342d00b5b,2026-10-08,tool4ever,engine-refactor,want,,continues a12cd90f44's trigger-limit refactor plus MagicStack/AI cleanup; no semantic change to our undo/offer mechanisms,Some cleanup (#12186)
+376,bf97db8755,2026-10-08,liamiak,engine-rules,want,,simultaneous entry: permanents entering together no longer change how each other enters,Simultaneous entry: don't let permanents entering together change how each other enters (#12171)
+377,46215761e2,2026-10-08,kevlahnota,gui-only,neutral,,FlipOntoBattlefield animation; IGuiGame hooks are default no-ops,Add FlipOntoBattlefieldAnimation (#12183)
+378,9fb0151711,2026-10-08,MostCromulent,net-protocol,want,,netplay host/reconnect bug fixes in FServerManager/HostedMatch; compatible with our instance-per-server change,Fix netplay host bugs (#12181)
+379,d57b0cdff3,2026-10-08,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"update Coin3D, CoinFlipOverlay, Dice3D params"
+380,1aeded0409,2026-10-08,DamirTomic,engine-rules,want,,player-must-attack no longer counts an attack that has a cost,Player must attack: don't count on an attack that has a cost (#12178)
+381,3146cbd919,2026-10-08,Vanja,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Old Border Shandalar: Fix Svyelunite Temple quest offers and rewards (#12177)
+382,7e3b22b44f,2026-10-08,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12105 from Rensen3/quest_atttractions
+383,903933425e,2026-10-09,kevlahnota,net-protocol,want,,CardView.updateLethalDamage refreshed on power/toughness change (view-property correctness fix),Fix lethalDamage update
+384,2fa77950a5,2026-10-09,kevlahnota,net-protocol,want,,comment-only follow-up explaining 903933425e,add comment
+385,3b2abcd00c,2026-10-09,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix soft lock (#12191)
+386,3326f1a07f,2026-10-09,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix clashing of boss dialog and coinflip (#12192)
+387,2ede47596c,2026-10-09,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,TRK/TRC cards from New York Comic Con (#12187)
+388,4d8fbea986,2026-10-09,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,Fix seven card-script param bugs found porting to Crucible (#12193)
+389,29f8daa884,2026-10-09,kevlahnota,gui-only,neutral,,FlipOntoBattlefieldEffect two-hit-cards logic tweak for an animation feature we don't use,fix logic for two hit cards
+390,3607237aa0,2026-10-09,kevlahnota,gui-only,neutral,,FlipOntoBattlefieldEffect/animation hit-chance tuning,increase hit chance for FlipOntoBattlefieldEffect
+391,f08703dfc9,2026-10-09,kevlahnota,gui-only,neutral,,desktop-swing special case for the same unused animation feature,fix logic for desktop swing since its not possible with the corner hit and don't have animation.
+392,bb006150e3,2026-10-09,Vanja,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix stale boss dialogue portraits between Adventure duels (#12176)
+393,84cfd43de7,2026-10-09,Churrufli,cards,want,,card scripts / editions / tokens / draft data,Update net deck archive lists
+394,95492daade,2026-10-09,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12195 from churrufli/master
+395,df1953905b,2026-10-09,Churrufli,cards,want,,card scripts / editions / tokens / draft data,Update net deck archive lists
+396,096d6aeb91,2026-10-09,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: SLD, TRC, TRK"
+397,86c637a593,2026-10-09,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12196 from churrufli/update-deck-archive-lists-min5
+398,c26a2e938f,2026-10-09,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12197 from paulsnoops/edition-updates
+399,8a03f2b13d,2026-10-09,Rensen3,cards,want,,adds Fluros of Myra's Marvels (funny card),add Fluros of Myra's Marvels
+400,a2ba8ce9ad,2026-10-10,MostCromulent,net-protocol,want,,rewrites GameEventForwarder to batch at action boundaries instead of a time/size cutoff; fixes the exact flush-delay bug our PlayBridge CombatSync patches around (its manual flush() stays harmless),Rework GameEventForwarder to batch events at a game loop checkpoint (#12189)
+401,9627a0cb5b,2026-10-10,kevlahnota,gui-only,neutral,,fixes a specialized base-image download path in ImageFetcher; unrelated to our own art mirror,Fix specialized downloading base image
+402,e9407d16ea,2026-10-10,kevlahnota,gui-only,neutral,,makes the mobile CoinFlipOverlay auto-close,make CoinFlipOverlay auto close
+403,55685587d3,2026-10-10,liamiak,engine-rules,want,,simultaneous entry: what a permanent sees is decided only after everything entering with it has,Simultaneous entry: what sees a permanent enter is decided after everything entering with it has (#12188)
+404,82e0deace8,2026-10-10,Fulgur14,cards,want,,The Darkhold and other MDD card spoilers,The Darkhold (MDD) and other MDD spoilers (#12202)
+405,74af3ac49e,2026-10-10,MostCromulent,gui-only,neutral,,shows the waiting prompt after blockers are declared on desktop InputBlock,Show the waiting prompt after blockers are declared (#12203)
+406,f5700f9782,2026-10-10,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: MDC, MDD, PMEI"
+407,c4f997f7e4,2026-10-10,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12208 from paulsnoops/edition-updates
+408,ca64cc928e,2026-10-10,liamiak,ai,want,,Eureka/Hypergenesis AI ends the process when no card was actually put onto the battlefield,"Eureka, Hypergenesis: end the process when no card was actually put onto the battlefield (#12204)"
+409,f653bf2048,2026-10-10,Chris H,gui-only,neutral,,sets the default Commander Draft UI section; desktop-only,Set default section to Commander
+410,c2ba0f0593,2026-10-10,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,fix(cards): AddType$ comma lists and the g_1_1_elf token type (#12212)
+411,a69da2b834,2026-10-10,tool4ever,ai,want,,AI mana/cost cleanup incl. renaming CostDecision's confirmAction to controller.confirmPayment; no conflict with our cost-ordering work,Some cleanup (#12213)
+412,5222f05e56,2026-10-11,kevlahnota,gui-only,neutral,,mobile CardZoom/MatchScreen/CommandZone layout rework,"Update CardZoom layout, MatchScreen layout and CommandZone (#12199)"
+413,9392ce3ab4,2026-10-11,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,minor optimization
+414,1a8eb682ae,2026-10-10,Codex,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix Mantle of Denial Adventure reward references
+415,328d23a7e7,2026-10-11,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add deck statistics (#12221)
+416,d1b6a002c5,2026-10-11,kevlahnota,gui-only,neutral,,moves DeckStatistics.java; pure file relocation,move DeckStatistics
+417,25ee7cffa5,2026-10-11,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,add blocked gate check for castle
+418,d81b4b1f67,2026-10-11,kevlahnota,gui-only,neutral,,updates the mobile deck-stats icon/sprite sheet,update deckstats icon
+419,3c5d9b7158,2026-10-11,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix clipping
+420,c23dc20893,2026-10-11,liamiak,cards,want,,card scripts / editions / tokens / draft data,YSOS: Summitfest Closing Ceremony (#12217)
+421,8848e873cb,2026-10-11,MostCromulent,net-protocol,conflicts,e171d76c83 373191af6f,removes ProtocolMethod.showWaitingTimer and IGuiGame.showWaitingTimer; rewrites AbstractGuiGame/YieldController's waiting-prompt and awaitNextInput path that our own yield tests pin behaviour on,"Compose the ""Waiting for"" prompt client-side (#12205)"
+422,42f2849fb7,2026-10-11,MostCromulent,net-protocol,want,,network logging changes for readability/size only; no wire-format or property change,Network logging changes for readability and size (#12224)
+423,e6f4f67a3f,2026-10-11,kevlahnota,engine-rules,conflicts,a401b5d0bf 7ddd4daa9d 127c0ad3a0 47dd04f860 eb396bffd7 d358d88219 7122854b1e 6889146e0b d360187053 9ebf0e092a 9bc0ae06fc 3eb6c118e4,adds a new reflective GameMemento/UndoManager that duplicates our GameState snapshot and MyRandom-per-game mechanisms and rewrites InputPassPriority's undo button,"Add UndoManager, fix Undo (#12226)"
+424,a9a9280534,2026-10-12,kevlahnota,engine-rules,conflicts,a401b5d0bf 7ddd4daa9d 127c0ad3a0 47dd04f860 eb396bffd7 d358d88219 7122854b1e 6889146e0b d360187053 9ebf0e092a 9bc0ae06fc 3eb6c118e4,a 608-line rewrite of the conflicting GameMemento above,Update GameMemento
+425,78b4334393,2026-10-12,kevlahnota,engine-rules,conflicts,a401b5d0bf 7ddd4daa9d 127c0ad3a0 47dd04f860 eb396bffd7 d358d88219 7122854b1e 6889146e0b d360187053 9ebf0e092a 9bc0ae06fc 3eb6c118e4,continues expanding the conflicting UndoManager above,Update UndoManager
+426,4d2d22caad,2026-10-11,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #10779 from Card-Forge/commander-draft
+427,3a025afacf,2026-10-12,kevlahnota,gui-only,neutral,,animation hook (onSnapshotRestored) for the separately-flagged conflicting UndoManager feature; itself purely additive/default and breaks nothing on its own,Fix animation when using undo
+428,286522c9fe,2026-10-12,Hans Mackowiak,engine-rules,want,,StickerSheet.toList fix,StickerSheet: fix toList (#12232)
+429,04328e5fdc,2026-10-12,kevlahnota,engine-rules,conflicts,a401b5d0bf 7ddd4daa9d 127c0ad3a0,extends the conflicting UndoManager to netplay and per-phase requests; touches ProtocolGuiGame and PlayerControllerHuman,Update undo for netplay and request undo each phase
+430,a80215d682,2026-10-12,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12000 from Saku3san/localization/ja-spm-msh-batch-8
+431,1286708ea3,2026-10-12,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Nashi, Illusion Gadgeteer is rebalanced"
+432,367b7d527a,2026-10-12,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: YFRA
+433,5565eb73f9,2026-10-12,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12235 from paulsnoops/edition-updates
+434,fa09811678,2026-10-12,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: YFRA (reorder)
+435,b8046b6e0f,2026-10-12,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12236 from paulsnoops/reorder-yfra
+436,c0bb5e601f,2026-10-12,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12234 from paulsnoops/rebalance-nashi
+437,b8656fe39e,2026-10-12,liamiak,gui-only,neutral,,Quick Gauntlet names every generated opponent deck; a mode we don't ship,Quick Gauntlet: name every generated opponent deck (#12233)
+438,b38ce2c136,2026-10-12,liamiak,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Adventure: fix Landscape Sketchbooks whose names match no edition (#12227)
+439,f73f382084,2026-10-12,liamiak,ai,want,,AI no longer goads its own creatures,AI: don't goad its own creatures (#12239)
+440,1b77791364,2026-10-12,liamiak,cards,want,,Vengeance keyword plus Hela MDD card; pure additive SpellAbility.isVengeance(),"Vengeance and Hela, Mistress of Darkness (MDD) (#12216)"
+441,d7b211dc9b,2026-10-12,liamiak,ai,want,,AI judges dungeon rooms as triggers when choosing where to venture,AI: judge dungeon rooms as triggers when choosing where to venture (#12237)
+442,6c1810dd0b,2026-10-13,kevlahnota,engine-rules,conflicts,a401b5d0bf 7ddd4daa9d 127c0ad3a0,adds Undo-Mode preference UI for the conflicting UndoManager feature,Undo Mode prefs
+443,4a79d2b639,2026-10-13,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Update Dice texture
+444,7901b6648b,2026-10-13,MostCromulent,net-protocol,want,,lobby/deck-gen/netplay fixes plus a storm-count view-timing fix and a dead ProtocolGuiGame field removal,"Fixes to lobby, deck generation, and netplay (#12230)"
+445,f9135eed44,2026-10-13,liamiak,cards,want,,card scripts / editions / tokens / draft data,"Xanathar, Guild Kingpin; Whispersteel Dagger: match the other player's cards by owner (#12247)"
+446,a2fe312846,2026-10-13,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Reckless Detective: only pump when the cost was paid (UnlessResolveSubs$ WhenPaid) (#12245)
+447,1f87337bea,2026-10-13,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,The Earth Crystal: target only creatures you control (#12256)
+448,0bbfdaa918,2026-10-13,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Clarify target description for PutCounter action
+449,e8ca48ddf4,2026-10-14,kevlahnota,net-protocol,want,,adds TrackableProperty.TargetStackItems (additive view property) plus a marching-selection-box UI; no property removed or renamed,"Add targetableStack, Add marching selection box (#12231)"
+450,4a5eb06c1e,2026-10-13,Simisays,cards,want,,card scripts / editions / tokens / draft data,update
+451,190cff7163,2026-10-14,Douglas Bergentz,cards,want,,card scripts / editions / tokens / draft data,"Let the player order the two cards put back by ""draw three, then put two on top in any order"" (#12262)"
+452,b6f135e649,2026-10-14,kevlahnota,gui-only,neutral,,mobile alternate landscape layout,Restore alternate landscape layout (#12258)
+453,34a8662b79,2026-10-15,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix vprompt
+454,b8f8eaace3,2026-10-15,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Realm of legends 1.077: Huge Reality Fracture Update (#12263)
+455,79dfa222ca,2026-10-15,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"disable drag preview when panning is engage, add TODO for touch"
+456,1c3c27e95c,2026-10-15,Rensen3,gui-only,neutral,,quest-mode sticker/toList fix; we don't ship quest,Quest-Mode: fix toList (#12267)
+457,bd0264af83,2026-10-15,liamiak,cards,want,,card scripts / editions / tokens / draft data,"Bilbo, Thief in the Night and nine more: offer Adventure spells (#12248)"
+458,0b0f7ecc51,2026-10-15,tool4ever,net-protocol,conflicts,a401b5d0bf 7ddd4daa9d 127c0ad3a0,removes IGuiGame.getGamestate() and ProtocolGuiGame.getGamestate() which our PlayBridge overrides with @Override; also touches MagicStack/FServerManager/DeltaSyncManager,Some cleanup (#12268)
+459,5633150f70,2026-10-15,Churrufli,build-tests,neutral,,centralizes the User-Agent header for Forge's own Scryfall downloader; we use our own art/sync pipeline,Centralize the User-Agent for image and data downloads
+460,23b739c4c3,2026-10-15,Churrufli,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add UI identifier to User-Agent
+461,730691a263,2026-10-15,Churrufli,gui-only,neutral,,Adventure-mode translation-key cleanup; we don't ship Adventure,Use letters and digits only in Adventure translation keys
+462,733a221e35,2026-10-16,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,add check for FrameRate render
+463,21f5560873,2026-10-16,MostCromulent,net-protocol,want,,ReplyPool ignores a cancelled-wait reply and sends no deltas to a paused seat; robustness that complements our own click-cancellation work,"Ignore a reply that arrives after its wait was cancelled, and send no deltas to a paused seat (#12274)"
+464,506171ea57,2026-10-16,kevlahnota,net-protocol,neutral,,adds desktop/mobile Local Replay plus an additive LZ4-block-size encoder overload; backward compatible,Add Local Replay (#12266)
+465,89e02b88da,2026-10-16,kevlahnota,ai,conflicts,5eff8436fe,rewrites AiAttackController.declareAttackers around a new AITimeoutTracker and replaces our own budgetSeconds/deadline/outOfTime attack-timeout mechanism in the same method,Add visual timeout tracker for AI (#12265)
+466,42016227e8,2026-10-16,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"Realm of legends 1.078: New build first couple of fixes (fix broken boss, bugged map) (#12273)"
+467,51a0bc8e0c,2026-10-16,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Two MDD cards from Secret Lair Countdown (#12276)
+468,6bd0bc72cd,2026-10-16,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: MBC, PLST, PMEI, SLC, SLD"
+469,64569999b8,2026-10-16,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12277 from paulsnoops/edition-updates
+470,9a536c33f8,2026-10-17,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Realm of legends 1.079: Fix to broken dungeon (#12281)
+471,9a0a6e04cf,2026-10-17,Denis Lebedev,cards,want,,card scripts / editions / tokens / draft data,Fix Agonizing Remorse excluding graveyard lands (#12282)
+472,ea5fe47050,2026-10-17,MostCromulent,net-protocol,conflicts,e171d76c83 373191af6f ccf02d50e6,removes setHighlighted/setSelectables/setSelectableTargets/clearSelectables for a new Selection record; breaks PlayBridge's explicit @Override of exactly those methods,Send each prompt's marks to the GUI as one selection (#12259)
+473,70ab20c8ff,2026-10-17,kevlahnota,cards,neutral,,Forge's own alternate-art/border preference engine; unrelated to our Scryfall-id art-lookup system,Fix card art preference enforcement (#12275)
+474,53b59838c7,2026-10-17,liamiak,ai,want,,AI commander-tax fix for modal back face; unrelated to our mana-offer commits.,AI: count commander tax when casting a modal card's back face from the command zone (#12283)
+475,2e2c1dc4c6,2026-10-17,tool4ever,ai,want,,AI combat/blink fixes + iOS build; TrackableProperty reorder only; no property added/removed.,Fix iOS build (#12286)
+476,2ca9b8cab4,2026-10-18,MostCromulent,net-protocol,conflicts,,ProtocolMethod enum changes: setRememberedActions/nextRememberedAction moved to new MACRO mode; 2 methods added; server must track enum.,Make macros work for a network client (#12288)
+477,eaa1f5fb27,2026-10-18,MostCromulent,gui-shared,neutral,,Client-side auto-pass/yield convenience refactor; we don't use Forge's yield feature.,Interrupt a remote player's yield on an opponent's spell or attack (#12291)
+478,c263787525,2026-10-18,MostCromulent,engine-rules,want,,Fixes scry/surveil bottom-ordering bug; different method than our mulligan bottom-order commit.,Fix bottom-of-library order dialogs on desktop (#12293)
+479,77b6f5ae95,2026-10-18,David Racine,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Sound: mix effects in software instead of one device line each (#11798)
+480,49b8cdb285,2026-10-19,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update magik_illyana_rasputin_darkchild_demon_uncaged.txt
+481,5a38bcced1,2026-10-19,churrufli,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into adventure-translations-3
+482,1d6108ff00,2026-10-19,kevlahnota,gui-only,neutral,,Mobile-only compact layout feature; no engine or protocol files touched.,Mobile: add compact landscape match layout (#12285)
+483,c33f5088a9,2026-10-19,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12166 from churrufli/adventure-translations-3
+484,84f4983c1c,2026-10-20,MostCromulent,engine-rules,conflicts,eb396bffd7 47dd04f860,Rewrites RestartGameEffect's commander/command-zone handling; review against our GameState restart-turn feature.,Keep a commander castable after Karn Liberated restarts the game (#12298)
+485,e80da07fe3,2026-10-20,kevlahnota,gui-only,neutral,,Mobile UI color/progress-bar tweaks; FModel change only affects mobile splash progress bar.,"Update reusable Color vars, update progrees bar step"
+486,7d862c4aae,2026-10-19,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Mapfix (#12302)
+487,1e31bc3946,2026-10-20,Agetian,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add puzzle PS_FRA2 - Possibility Storm - Reality Fractured 02 (#12303)
+488,09b7eda59b,2026-10-20,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix SplashScreen logo
+489,16675c7324,2026-10-20,Agetian,cards,want,,card scripts / editions / tokens / draft data,"Add 2 draft cubes, fix puzzle name (#12309)"
+490,3a2faef756,2026-10-20,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Fix SVar for TrigDigUntil to remember found cards
+491,41da8b298c,2026-10-20,Agetian,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add generated quest worlds for The Hobbit and Reality Fracture (#12310)
+492,0e849baf4c,2026-10-20,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,update theme
+493,b3c81afdf6,2026-10-20,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,StartButton
+494,bd25cd8cff,2026-10-20,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create captain_jean_luc_picard.txt (#12314)
+495,7d8326dd26,2026-10-20,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,Charm scripts: drop Defined$ You that CharmEffect never reads (#12312)
+496,a2a6dd9e91,2026-10-20,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12200 from Rensen3/fluros_of_myras
+497,88911ffd78,2026-10-20,jczastkiewicz,engine-rules,want,,Fixes an endless loop bug when ChooseSourceEffect runs out of sources.,Fix endless loop in ChooseSourceEffect when sources run out; remove TargetControls$ (#12083)
+498,6df5eaa3b9,2026-10-20,tool4ever,engine-rules,want,,Fixes CantPutCounter for simultaneous ETBs; touches ReplacementHandler but different method than our restore-suppress flag.,CantPutCounter: support simultaneous ETB (#12301)
+499,643c56e267,2026-10-20,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): ""up to one target"" abilities allow zero targets (#12325)"
+500,b299d797c0,2026-10-20,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): printed P/T, loyalty, mana cost, types and keywords of 18 cards (#12326)"
+501,b5fb8d3004,2026-10-20,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): Roadside Blowout, Venom Blast and Enroot are sorceries (#12327)"
+502,96c2cec522,2026-10-20,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,fix(cards): Kutzil's Flanker gains 2 life; Sarkhan's Dragonfire deals 3 (#12328)
+503,2b2bf3ded0,2026-10-20,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): Twigwalker, Resounding Wave and Storm the Citadel require their targets (#12329)"
+504,ccea536a9f,2026-10-20,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): Needle Drop, Toralf and Blast from the Past can target planeswalkers and battles (#12330)"
+505,a19eb42123,2026-10-20,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,fix(cards): Dream Beavers drains each opponent; Tresserhorn's Lord targets (#12331)
+506,85888fdfa0,2026-10-20,liamiak,cards,want,,New card implementation (Assimilate and Borg Queen); additive only.,"Implement assimilate and Borg Queen, Perfection Manifest (#11716)"
+507,5ce64d906a,2026-10-21,kevlahnota,engine-rules,want,,Lets targeting include stack items for Chaoslace-like cards; no touch to our mana/undo methods.,"Update TargetSelection, InputSelectTargets, Fixes Chaoslace and other similar cards (#12333)"
+508,778becb156,2026-10-21,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update magik_illyana_rasputin_darkchild_demon_uncaged.txt
+509,2153dffc54,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): wire unreachable SVars; Your Mistake Is My Triumph, Disciple of Perdition, Last Rites match the printed card (#12336)"
+510,5abeda04f9,2026-10-21,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix Startbutton text
+511,33aecdd6ad,2026-10-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Borg Cube (TRK) (#12338)
+512,0a0bf66a97,2026-10-21,MostCromulent,gui-only,neutral,,Adds players to selection-highlight list; display-only; no protocol method change.,Mark selectable players in entity list prompts (#12289)
+513,cb1a3dfc58,2026-10-21,Agetian,cards,want,,card scripts / editions / tokens / draft data,- LDA update for Reality Fracture (Standard/Modern). (#12315)
+514,df1da0c7db,2026-10-21,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,update SplashScreen
+515,65517870c3,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): Mole Module, Overclocked Electromancer and Raphael trigger on combat damage only (#12343)"
+516,9a4f2ef008,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,fix(cards): Oglor's upkeep look does not target and Quandrix Command's bounce mode requires a target (#12349)
+517,3a5b73dad4,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): drop keywords the printed card does not grant from Bleeding Effect, Mondo Gecko and Party Dude (#12345)"
+518,5245e2a91a,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): Fear of Change, My Champion Stands Supreme, Death or Glory, Become Anonymous and Wake to Slaughter use the wrong zone or destination (#12347)"
+519,8b0a50dd42,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,fix(cards): Experimental Frenzy and The Belligerent let only you look at the top card (#12353)
+520,be34d4b98b,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,fix(cards): Righteous Indignation pumps the blocking creature (#12351)
+521,d96a07c8a4,2026-10-21,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,prevent NPE
+522,053ee45cfb,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): mark Bell Borca, Sutured Ghoul and Unlicensed Hearse P/T statics characteristic-defining (#12341)"
+523,7ba2ebbc29,2026-10-21,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Realm of legends 1.081: Various small fixes (#12355)
+524,4dff3ac646,2026-10-21,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: SDS, TRC, TRK"
+525,dcf2b71e8f,2026-10-21,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,lands
+526,bc67f70ffb,2026-10-21,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12356 from paulsnoops/edition-updates
+527,6ccd1739ac,2026-10-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"TRK cards, 20th October (#12332)"
+528,ddb4b95510,2026-10-21,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12270 from churrufli/user-agent-centralize
+529,9c1cc04262,2026-10-22,Rensen3,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"Adventure: fix attraction shop being all wastes when ""use all card variants"" is enabled"
+530,8432838a54,2026-10-22,MostCromulent,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Treat Adventure sideboss maps as dungeons (#12358)
+531,f59aabe38f,2026-10-22,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Change Exile behavior to ForgetOnMoved
+532,6ec751a4bf,2026-10-22,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Fix formatting in vault_112_sadistic_simulation.txt
+533,b5855e4392,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create locutus_of_borg.txt
+534,416eb2f104,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create live_long_and_prosper.txt
+535,56511f8ac5,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create death_is_irrelevant.txt
+536,e231322a32,2026-10-22,Ellios77,cards,want,,card scripts / editions / tokens / draft data,Fix card scripts incorrect creature target (#12360)
+537,49e05f6a5a,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create test_of_conviction.txt
+538,90c1d005e6,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create replicator.txt
+539,2e1920688d,2026-10-22,Emiliano Cenizo,engine-rules,want,,Fixes a null/Sideboard bug in draft's Deal Broker trade logic; rest is desktop-only UI.,Allow organizing Main Deck and Sideboard during Desktop drafts (#12046)
+540,9f70c45f0c,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update battle_of_hoover_dam.txt
+541,dafa33ea51,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_reliant_from_hells_heart.txt
+542,2971df201c,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create pure_energy.txt
+543,abb91813a7,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create vexing_drone.txt
+544,77618b8d26,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create deep_space_scan.txt
+545,8e16ce405a,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_holodeck.txt
+546,010faf8994,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create lrell_fierce_visionary.txt
+547,5b31223d81,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create deep_space_9.txt
+548,8a55ea7a87,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create cardassia_prime.txt
+549,ab5c3c3447,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create risa.txt
+550,0aa0a82979,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create hit_it.txt
+551,ad36ca2efe,2026-10-22,MostCromulent,net-protocol,want,886d7812f1,Fixes reconnect-after-refusal bug; helps our own login-credential gate behave correctly.,Stop a refused netplay client from reconnecting (#12361)
+552,211f34f537,2026-10-22,Rensen3,build-tests,neutral,,Docs-only wiki update.,Docs: Update Un-Card list
+553,acc14d03bc,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update deep_space_scan.txt
+554,2d46a61d0d,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update hit_it.txt
+555,c54fbd112f,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update cavalier_of_thorns.txt
+556,2329337525,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create bajor.txt
+557,2e11b18b8f,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create mr_spock_science_officer.txt
+558,c6236f1a94,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create worf_honor_bound_warrior.txt
+559,0eff890e53,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+560,bc25748d7e,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create quark_humble_proprietor.txt
+561,2b10e5ac42,2026-10-22,kevlahnota,gui-only,neutral,,Mobile-only compact-layout label feature.,add unifiedphase label for compact layout
+562,c18bcf50a3,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create earth_sector_001.txt
+563,60afa8b604,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_sword_of_kahless.txt
+564,052c1faaed,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create jean_luc_picard_luminary.txt
+565,303e8059a0,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create orion.txt
+566,19996e2b12,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+567,c9f4d4835e,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create phlox_unorthodox_doctor.txt
+568,0bdf6d019e,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update phlox_unorthodox_doctor.txt
+569,c2600d6b3d,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create miles_obrien_transporter_ops.txt
+570,3b48d2f6c3,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create d_7_battle_cruiser.txt
+571,d195644ebb,2026-10-22,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: PRM, PSPL, TRK"
+572,6f8c885766,2026-10-22,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12372 from paulsnoops/edition-updates
+573,348087bebd,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_unicomplex.txt
+574,596980d94a,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create georgiou_terran_emperor.txt
+575,bd49b9d6ac,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update defend_the_celestus.txt
+576,13c98eece2,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update rally_the_monastery.txt
+577,2fd86b988b,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update windborne_charge.txt
+578,fb8bcb2346,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+579,267b9906b9,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+580,af2928144b,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update jean_luc_picard_luminary.txt
+581,9e0553c675,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update miles_obrien_transporter_ops.txt
+582,2c168524b1,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update the_unicomplex.txt
+583,be857082b7,2026-10-22,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,fix(cards): The Wrath of Khan's delayed trigger chained to a DBCleanup that does not exist (#12369)
+584,2b7f296efc,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create c_3_3_a_illusion.txt
+585,2465a8d0ab,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create hologram_stalker.txt
+586,47408de20f,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create guinan_ancient_advisor.txt
+587,f07aa21ae8,2026-10-22,jczastkiewicz,engine-rules,want,,Fixes three SwitchBlockEffect rules bugs; pure engine fix.,"Fix three SwitchBlockEffect defects (Sorrow's Path triggers and history, General Jarkeld) (#12375)"
+588,88e7289e69,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+589,def55ec703,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create temporal_conqueror.txt
+590,9b9a069c0c,2026-10-22,jczastkiewicz,engine-rules,want,,Fixes three targeting/redirect rules bugs; pure engine fix.,"Fix three slips when checking and redirecting a spell's targets (ConditionTargetValidTargeting loop, ConditionTargetsSingleTarget, random retarget of a divided ability) (#12378)"
+591,3ac6d5ce01,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_traveler.txt
+592,bee44c4eb1,2026-10-22,jczastkiewicz,engine-rules,want,,Three small rules fixes: initiative on lost player; RestartGame clears combat triggers too; VotePlayer$ Other fix.,"Fix three small rules slips: VotePlayer$ Other, takeInitiative on a lost player, RestartGame beginning-of-combat commands (#12380)"
+593,1c2cb03294,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update temporal_conqueror.txt
+594,27d1e083b5,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create dghor_bloodletter.txt
+595,e05e4a426a,2026-10-23,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"update FMenuBar, FMenuTab for Compact layout"
+596,ccff857b4f,2026-10-22,tool4ever,engine-rules,want,,"bug fixes: ControlGainEffect lose-control check order, AbilityKey.ETB->Destination rename, GoadAi target reset",Some fixes (#12382)
+597,50106bcf09,2026-10-22,Rensen3,build-tests,neutral,,"docs-only wiki clarification, no code change",clarify which version of the plane is implemented
+598,7eb02e964f,2026-10-22,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create dr_mccoy_surly_surgeon.txt
+599,9a6f776b84,2026-10-23,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"Fix unified phase clashing with stack when both are open, update stack icon"
+600,224af9d03e,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create qonos.txt
+601,bf58407bc5,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create starship_enterprise.txt
+602,1ed975c423,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create energize.txt
+603,9719c5b06c,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+604,c1b439c42d,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create zero_incorporeal_sensate.txt
+605,acb8f0458e,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+606,e42024c1eb,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create obsidian_order_operative.txt
+607,6553546223,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create nyota_uhura_communications.txt
+608,7aa98b7d9b,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update obsidian_order_operative.txt
+609,86bee8023b,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create elim_garak_simple_tailor.txt
+610,5be9e3e92f,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update dr_mccoy_surly_surgeon.txt
+611,eae53b42f7,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create daniels_temporal_agent.txt
+612,1f286a11ee,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create porthos.txt
+613,dc6855460a,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create captain_jonathan_archer.txt
+614,d71494330c,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update captain_jonathan_archer.txt
+615,78f76cfd2f,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update zero_incorporeal_sensate.txt
+616,74eb2745df,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_inner_light.txt
+617,e92d622489,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create worf_intelligence_contractor.txt
+618,a3750372f5,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create lieutenant_commander_data.txt
+619,62b091f85c,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update the_inner_light.txt
+620,f86f94f85a,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update lieutenant_commander_data.txt
+621,b13b6c822a,2026-10-23,Eradev,gui-only,neutral,,"desktop/mobile fullscreen mouse-confine preference, UI only",Confine mouse in fullscreen (#12383)
+622,7844d3863a,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update elite_spellbinder.txt
+623,dc94faf26f,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create blastoneuron.txt
+624,c4cb811fe3,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update blastoneuron.txt
+625,b50a111c93,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create test_of_courage.txt
+626,4cd7343646,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update blastoneuron.txt
+627,2a9bdcd00d,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_discovery_at_black_alert.txt
+628,f11d5493b2,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create antagonist_incorporator.txt
+629,152d38d99a,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+630,74c5a67b5e,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create una_chin_riley_number_one.txt
+631,169dfe68f7,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update una_chin_riley_number_one.txt
+632,00dc28f6bb,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update tactical_officer.txt
+633,0a77ea0c00,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create conquest_mission.txt
+634,77adbcfba4,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+635,4b2174f740,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create rg_2_2_worm_noblock.txt
+636,e13af1a4af,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create cleveland_booker_empath.txt
+637,97cf763da2,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create interstellar_effigy.txt
+638,6d50d80950,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create data_new_life.txt
+639,4e041e59a1,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create mirror_universe_intrusion.txt
+640,056ce45857,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update barrels_of_blasting_jelly.txt
+641,5b1498f76b,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create tea_earl_grey_hot.txt
+642,13eff62659,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+643,1be7a9fd0a,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create excalbian_gamemaster.txt
+644,5c26281cc0,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create suurok_class_science_vessel.txt
+645,a8b64895be,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create cetacean_ops.txt
+646,60be3cf17b,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_doctor_emh.txt
+647,bcac72bd59,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create type_2_phaser.txt
+648,9731170ac3,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create those_old_scientists.txt
+649,35c36dd6b2,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create dr_joseph_mbenga.txt
+650,3578f332f9,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create dahar_master.txt
+651,e80570fd7b,2026-10-23,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12368 from Rensen3/uncard_doc_10_26
+652,5971497130,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create command_subadjunct.txt
+653,4d89fa12c8,2026-10-23,jczastkiewicz,engine-rules,want,,fixes AbilityUtils double-applied Highest/Lowest operator and Mod-by-zero crash,Fix Highest/Lowest double operator and Mod by zero in AbilityUtils (#12371)
+654,bbc67cf29f,2026-10-23,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: TRK
+655,129947f8bd,2026-10-23,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12391 from paulsnoops/edition-updates
+656,5e90174573,2026-10-23,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update command_subadjunct.txt
+657,75b52d5123,2026-10-23,Fulgur14,cards,want,,"TRK card scripts plus new PEACE counter type, no engine risk",TRK cards (21st October) (#12339)
+658,81628c048c,2026-10-24,kevlahnota,ai,conflicts,a401b5d0bf 005e8186c3,FlatMonteCarloPicker swaps global MyRandom.setRandom/getRandom not our bind() scope; races across concurrent per-game matches,Add Flat MonteCarlo (#12308)
+659,cd7134fbf3,2026-10-23,Vanja,gui-only,neutral,,"Adventure mode battle-background rotation, mobile GUI only",Add rotating Adventure battle backgrounds (#11392)
+660,6183555b27,2026-10-23,ActionPackedJack,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,New shops selling Faerie and Ninja cards (#12386)
+661,9ee327826e,2026-10-24,kevlahnota,engine-rules,want,,fixes generated-deck manabase/color-balance bug (new DeckManaBase),Fix generatedDecks manabase (#12396)
+662,520f49715c,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create spock_always_your_friend.txt
+663,1e83baa12a,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+664,dd2a124ad5,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create kai_winn_faithless_leader.txt
+665,ae97030e90,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create zefram_cochrane_warp_pioneer.txt
+666,8a36e80109,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create armus_skin_of_evil.txt
+667,60bed57f2a,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create spatial_anomaly.txt
+668,f4ca928482,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create year_of_hell.txt
+669,fab327d98b,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update kai_winn_faithless_leader.txt
+670,3bd14af4b1,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create gowron_eager_for_battle.txt
+671,86ad907ce3,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update kai_winn_faithless_leader.txt
+672,26e59e2ef1,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create warp_core.txt
+673,628d6aca25,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create tell_me_what_you_see.txt
+674,889cb124c8,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update tell_me_what_you_see.txt
+675,a7d277d779,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create unexplored_territory.txt
+676,317ecd470c,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create storied_veteran.txt
+677,5808816cba,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create rutherford_upgraded_ensign.txt
+678,b1c19cfbad,2026-10-24,g56bzz7wz9-cmd,cards,want,,card scripts / editions / tokens / draft data,Face Yourself: attach end-step sacrifice trigger to the copies (#12401)
+679,55b1ec9cb9,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create jake_sisko_war_correspondent.txt
+680,cf21e5d453,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create kira_nerys_firebrand.txt
+681,aa2cbbe22b,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create theres_coffee_in_that_nebula.txt
+682,242ef8986f,2026-10-24,kevlahnota,gui-only,neutral,,"mobile magnify/undo UI fix; adds backward-compatible updateButtons overload, no protocol removal","Fix magnified card with stack/unifiedphase displayed, fix undo/cancel for non english language"
+683,c4503b42b7,2026-10-24,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update trigger and database change zone for card
+684,6ae75ff2ef,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create primary_unimatrix_adjunct.txt
+685,0880b059e9,2026-10-24,Fulgur14,cards,want,,TRK card fixes plus AbilityUtils SharesCardTypes cleanup and dead FileLock field removed,All Good Things . . . (TRK) (#12399)
+686,df4feaf359,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create exploratory_mission.txt
+687,799ba88cc4,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create impossible_choice.txt
+688,c4b12e205b,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create ravenous_cosmozoan.txt
+689,112e9c30aa,2026-10-24,tool4ever,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into Fulgur14-patch-14254
+690,3f5359678c,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create adversary_by_algorithm.txt
+691,36da670d7d,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create test_of_loyalty.txt
+692,2768a5a580,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update gravedig.txt
+693,2c7c34eed7,2026-10-24,kevlahnota,ai,want,,"fixes GameCopier/Combat simulation-copy fidelity (left-this-turn, combat stand-ins); dev-only audit flag; FlatMC follow-up",FlatMC Fidelity Audit (#12398)
+694,4dadecbadf,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create pet_sehlat.txt
+695,3a8bd0af48,2026-10-24,tool4ever,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into Fulgur14-patch-14254
+696,2b87f3fa51,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create subcommander_tpol.txt
+697,2dbceffcb9,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create ensign_pavel_chekov.txt
+698,caf13fdbdc,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update ensign_pavel_chekov.txt
+699,1b30d02567,2026-10-24,liamiak,engine-rules,want,,one-line StaticEffect$ cleanup fix when a move to battlefield is replaced,Clean up StaticEffect$ when a move to the battlefield is replaced (#12406)
+700,dc72214fe7,2026-10-25,kevlahnota,engine-refactor,want,,"large FCollection/FSnapshotTable perf refactor; checked vs our GameState/ReplacementHandler/Combat work, no overlap found","Optimize Android, add FSnapshotTable, Update FCollection (#12297)"
+701,033b37cd6c,2026-10-24,tool4ever,engine-rules,want,,fixes cards stuck in sideboard plus AssimilateEffect zone-table fix,Find cards still sitting in sideboard (#12405)
+702,8934092120,2026-10-24,liamiak,cards,want,,card scripts / editions / tokens / draft data,"The Borg Queen's AI target, Borg Cube's choice (#12404)"
+703,88c27d5035,2026-10-24,jczastkiewicz,engine-rules,want,,fixes concurrent-modification crashes in Camouflage/CountersPut/ChooseColor effects,"Fix collection-mutation crashes in Camouflage, CountersPut and ChooseColor effects (#12370)"
+704,a09332b32c,2026-10-25,MostCromulent,net-protocol,want,,fixes DeltaSyncManager infinite delta-walk loop/bad dedup by key; no protocol method change,Stop the delta walk looping between two copies of a card (#12393)
+705,51302b25c4,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,"TRK cards (21th October, batch #2) (#12354)"
+706,237d762693,2026-10-24,Dave,ai,want,,fixes AI leaving the stack frozen when a cast fails to pay,AI: unfreeze the stack when a cast fails to pay (#12394)
+707,bf52485778,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create erica_ortegas_plucky_pilot.txt
+708,1fdcc7d0f8,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create infinite_diversity.txt
+709,4ddcfe3063,2026-10-25,MostCromulent,ai,want,,AI Shadowmoor filter-land and mana-estimate fix; confirmed our code never calls the renamed ComputerUtilMana method,"AI: use Shadowmoor filter lands, and correct the AI's mana estimate (#12357)"
+710,8903646240,2026-10-24,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update infinite_diversity.txt
+711,742b467214,2026-10-25,kevlahnota,gui-only,neutral,,"desktop/mobile ""games per match"" preference-binder reset bug, UI only",Fix Matches per game reset (#12422)
+712,6fccf8c712,2026-10-25,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+713,30835c46a6,2026-10-25,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create lwaxana_troi_charming_guest.txt
+714,338096200f,2026-10-25,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create test_of_priorities.txt
+715,fcbdfde40a,2026-10-25,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create branching_timeline.txt
+716,82f0013540,2026-10-25,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create jadzia_dax_living_legacy.txt
+717,02977f7dd1,2026-10-25,MostCromulent,net-protocol,conflicts,9e5f5b756a 8964ade2fa ccf02d50e6 608dbc4efe 7ddd4daa9d 127c0ad3a0,removes ProtocolMethod.setWeaklySelectable/clearWeaklySelectable and IGuiGame methods our untap/payment-highlight code calls; our server bridge and jvm tests decode these wire method names literally,Fold setWeaklySelectable into the Selection protocol method (#12414)
+718,1679040e45,2026-10-25,kevlahnota,ai,want,6e71db525e,New source-ordering heuristic keeps colors available; compatible with our expressChoice fix.,Spread Auto Mana Payment (#12415)
+719,ee2f2c21db,2026-10-25,g56bzz7wz9-cmd,cards,want,,card scripts / editions / tokens / draft data,"Seasoned Cryomancer, Campus Crier: add SpellDescription to graveyard abilities (#12413)"
+720,7af1d23e6a,2026-10-25,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update branching_timeline.txt
+721,3989f6b454,2026-10-25,Eradev,gui-only,neutral,,Deck-editor advanced search filter fix; GUI-only card browsing not used by our server.,[Advanced Search] Fix in: parser (#12421)
+722,0cdde0f6a9,2026-10-25,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: MDD, SLD, TRK"
+723,18edc96813,2026-10-25,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12430 from paulsnoops/edition-updates
+724,8e34b17711,2026-10-25,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: TRK
+725,4aebe87585,2026-10-25,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12431 from paulsnoops/allgoodthingsinedition
+726,fffe4a855b,2026-10-25,Eradev,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix POI reset on quest (#12429)
+727,3ca381cc6b,2026-10-25,Eradev,engine-rules,want,,ETB counters route through moveToPlay; causes a token-drop bug fixed by e25ba0e528; take together.,Fix startBattleWithCard ETB counters check (#12419)
+728,bf268d8375,2026-10-25,MostCromulent,gui-only,neutral,,Planar Conquest reward feature; mobile UI plus data only; excluded game mode for us.,Award a region commander for conquering a whole region in Planar Conquest (#12428)
+729,2c496bab99,2026-10-25,kevlahnota,gui-only,neutral,,Mobile UI layout tweak (doublestack controls); desktop/mobile-only; no engine or protocol touch.,"doublestack controls for compact layout, Zone box (#12433)"
+730,ed1dc70b1c,2026-10-25,kevlahnota,ai,want,,FlatMC dev features (attack search deck plan mulligan); default-off flags; respects MyRandom and AITimeoutTracker.,add extra params to FLAT_MC for development (#12407)
+731,aa77ec917b,2026-10-25,MostCromulent,engine-rules,want,,Removes needless EDT hop in InputBlock fixing a CME; no overlap with our Input rewiring.,Fix CME when the block prompt picks its first attacker (#12411)
+732,11c53f41ba,2026-10-25,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update ensign_pavel_chekov.txt
+733,434b1efef2,2026-10-25,liamiak,cards,want,,New card Scotty Miracle Worker; keyword cost plus static ability plumbing; no mechanism overlap.,"Add Scotty, Miracle Worker (#12416)"
+734,32ca22f7a5,2026-10-25,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create geordi_la_forge_innovator.txt
+735,811ea082fa,2026-10-25,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Bullseye, Death Dealer; Ghostly Dancers: ETB trigger needs Destination$ Battlefield (#12244)"
+736,5c99e43916,2026-10-25,liamiak,cards,want,,New cards Sisko and Caretaker; adds dilemma-count tracking to Player/snapshot copiers; no real overlap.,Add Captain Benjamin Sisko and The Caretaker (#12424)
+737,2901e6aaaf,2026-10-25,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create sylvia_tilly_joy_of_discovery.txt
+738,88d0c49d38,2026-10-25,mwahagga,cards,want,,Fixes several cards' AI/targeting vs Oracle wording; separate ChooseCard constrained-pick feature; no file conflict.,Fix targeting modelled differently from Oracle (Fixes #12324) (#12437)
+739,e5a0f8156d,2026-10-26,kevlahnota,ai,want,,Perf: one blocking prediction instead of two (test-verified same result); enables AI smart mulligan by default.,"Enable flatMC mulligan by default, one blocking prediction for both danger checks"
+740,a198319ac4,2026-10-26,kevlahnota,gui-shared,conflicts,8964ade2fa ccf02d50e6 9e5f5b756a,Patches cardHasPlayableManaAbility in PlayerControllerHuman which our highlight rewrite deleted; won't apply cleanly; bug likely already moot.,Fix CME and off-thread layer rewrite in payment highlights
+741,896a4a14b0,2026-10-26,kevlahnota,engine-rules,dont-want,,Weakens rule 111.8 (tokens from None zone) to patch a token bug; reverted same day.,Fix PaperToken on StartBattleCards not appearing on starting match.
+742,43327867d9,2026-10-26,kevlahnota,engine-rules,neutral,,Plain revert of 896a4a14b0; restores prior GameAction.java behavior; net no-op if taken together.,"Revert ""Fix PaperToken on StartBattleCards not appearing on starting match."""
+743,e25ba0e528,2026-10-26,MostCromulent,engine-rules,want,,Proper fix for the token-drop regression 3ca381cc6b caused; skips the None-zone detour for tokens.,Fix Adventure starting tokens not entering the battlefield (#12448)
+744,4a8da7936b,2026-10-26,chuckln,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): Emptiness puts its -1/-1 counters on an opponent's creature, not on itself (#12447)"
+745,3b247698cd,2026-10-26,kevlahnota,engine-refactor,want,,Perf fixes (combat defender lookup player-order scan) plus mobile CME/OOM fixes; no protocol change.,"Fix CME in VCardDisplayArea.refreshCardPanels, try to Fix OOM"
+746,bd16604fd3,2026-10-26,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update wand_of_orcus.txt
+747,4ffb062954,2026-10-26,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create overflow_submatrix.txt
+748,44a74f15df,2026-10-26,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create assembly_specialist.txt
+749,9748136a53,2026-10-26,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Lazy Load event/rewards on Towns for fast entry (#12455)
+750,09478a19c0,2026-10-26,jczastkiewicz,engine-rules,want,,CostMill off-by-one: a library of exactly N cards can now pay Mill<N> correctly.,CostMill: a library of exactly N cards can pay Mill<N> (#12456)
+751,e2f2d3109a,2026-10-26,BigCrunch22,cards,want,,card scripts / editions / tokens / draft data,Some Card Updates/Fixes (#12417)
+752,1b6123f6cf,2026-10-26,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,faster WorldSave for AsyncSave
+753,78fc5526d0,2026-10-26,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create anthropological_mission.txt
+754,2f027c55e6,2026-10-26,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Edition updates: TRK
+755,0dc8c66996,2026-10-26,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12458 from paulsnoops/edition-updates
+756,af2b83a824,2026-10-26,Rensen3,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,compare rules directly instead of the name
+757,88bca8ab42,2026-10-26,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create shore_leave_planet.txt
+758,d98305c384,2026-10-26,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create extraction_integrant.txt
+759,c205f57091,2026-10-26,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create commander_raffi_musiker.txt
+760,902434d6d7,2026-10-26,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create transwarp_hub.txt
+761,6a2dcdc918,2026-10-27,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix Adventure: quests disappear (#12463)
+762,6856889b23,2026-10-26,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Removed phyrexian tower from all AI decks/starters (#12464)
+763,a5a101e42d,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create planetary_bombardment.txt
+764,d627d4e9b0,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create final_frontier.txt
+765,c55ef4f1b1,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update transwarp_hub.txt
+766,56230bea87,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create co_option_adjutant.txt
+767,031523ec40,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create reclamation_specialist.txt
+768,6724a8e3c3,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create borg_incursion.txt
+769,e8e6b64f24,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create khan_despot_by_design.txt
+770,d62598729f,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create assimilation_assessor.txt
+771,5a7c2e3f99,2026-10-27,g56bzz7wz9-cmd,engine-rules,want,,Null-check fix for assignCompanion when no companion is chosen; isolated bugfix no overlap.,Fix NPE in Player.assignCompanion when no companion is chosen (#12465)
+772,f5210d8fe7,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create supplementation_node.txt
+773,b1eeb4741c,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update the_seriema.txt
+774,02169bffbb,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create class_4_tactical_cube.txt
+775,a0449584c0,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create deanna_troi_psychic_counsel.txt
+776,654516e5a2,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create assimilate_the_wounded.txt
+777,a083293849,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_excelsior_cutting_edge.txt
+778,584414c061,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create queens_diamond.txt
+779,5ec8643d45,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_best_of_both_worlds.txt
+780,39f1392fa7,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update the_best_of_both_worlds.txt
+781,6b781d374f,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create battle_of_wolf_359.txt
+782,b75e84720c,2026-10-27,MostCromulent,net-protocol,want,,Fixes host crash resolving a networked target's zone for a copy token; no protocol change.,Read a chosen target's zone from the host's card (#12468)
+783,635d206a55,2026-10-27,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix Mobile TargetingOverlay (#12469)
+784,278eb22be9,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create will_riker_first_in_the_field.txt
+785,ea793cf43a,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update housemeld.txt
+786,dc52664b77,2026-10-27,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: PW27, SLD, TRC, TRK"
+787,8c665ca94a,2026-10-27,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12473 from paulsnoops/edition-updates
+788,86196ccc0f,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update will_riker_first_in_the_field.txt
+789,835763809d,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update will_riker_first_in_the_field.txt
+790,37299ffaf7,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create hugh_first_of_many.txt
+791,063140dbf8,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create gabriel_lorca_mirror_menace.txt
+792,9d38dc61c5,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create emergency_regeneration.txt
+793,466c1b90ab,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create enterprise_nx_01.txt
+794,3fd634f69c,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create borg_scout_sphere.txt
+795,e86a62321b,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create make_it_so.txt
+796,025c9df532,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update the_best_of_both_worlds.txt
+797,44167ca32c,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create reconnaissance_partition.txt
+798,6c02dda625,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create one_borg_evolved.txt
+799,a7772ec08e,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create vox_child_of_the_collective.txt
+800,acabaf7d49,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create maturation_chamber.txt
+801,736ed2cf97,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update vox_child_of_the_collective.txt
+802,30f0ab8e63,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create pah_wraith.txt
+803,cc042d47a3,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create hologram_janeway.txt
+804,234fdcb8a5,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update tenured_inkcaster.txt
+805,395a7f1e23,2026-10-27,Eradev,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Make landscape sketchbooks unique (#12460)
+806,0f7d9e2d15,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create deliver_from_chaos.txt
+807,19f7a12fc4,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create jurati_cordial_queen.txt
+808,06a07eabb0,2026-10-27,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12359 from Rensen3/adventure_attraction_shop_fix
+809,c48ea57f9e,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update commander_raffi_musiker.txt
+810,d2eb9ed8c3,2026-10-27,Eradev,gui-only,neutral,,Adventure/Planar Conquest restricted-card booster filtering; additive and back-compat; irrelevant to our cube drafting.,Generate restricted-aware boosters (#12459)
+811,2103a98656,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create targ_wrangler.txt
+812,7f2d7ae76b,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create optimization_annex.txt
+813,be9b88d84d,2026-10-27,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,Supper for Spiders: grant the Food ability with AddAbility$ (#12474)
+814,398b7fec10,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_needs_of_the_many.txt
+815,71bb0d164f,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create chief_miles_obrien.txt
+816,936c2faf27,2026-10-27,jczastkiewicz,cards,want,,Adds SameNameAsEach search mechanism and drops QuasiLibrarySearch$; legitimate cards/rules fix,"Search for same-named cards in one ChangeZone (SameNameAsEach$), drop QuasiLibrarySearch$ (#12381)"
+817,d880105225,2026-10-27,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,RoL: Updated card dealer's cave map to work close to as expected after 'no… (#12476)
+818,c176445a91,2026-10-27,tool4ever,engine-rules,conflicts,,Drops 936c2faf27's nothingToName SameNameAsEach guard (regression); mana/DeltaSyncManager/PlayerControllerHuman parts are safe cleanup,Some fixes (#12477)
+819,64554c358d,2026-10-27,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update chief_miles_obrien.txt
+820,0602707ecd,2026-10-28,kevlahnota,ai,want,,DeckPlan/SideboardAdvisor expansion; KNOWN cache holds only names/numbers not live cards; uses MyRandom,"Expand DeckPlan, AI Sideboard Advisor (#12467)"
+821,3e6c036e71,2026-10-27,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12222 from Nerdslayer/pr/adventure-mantle-of-denial
+822,953f6f3113,2026-10-27,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Changed some boss fights that are thematically planeswalkers to have a planeswalker starter now that its possible to do so. (#12479)
+823,b89b667d78,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create de_evolve.txt
+824,4a43d0b1be,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update hit_it.txt
+825,77a12bd46d,2026-10-28,Agetian,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,- Add puzzle PS_FRA3. (#12485)
+826,f8efbe438e,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create on_the_shoulders_of_giants.txt
+827,2b3642a7d2,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update seven_of_nine.txt
+828,ed86f4f0ad,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create jett_reno_problem_solver.txt
+829,a92130e480,2026-10-28,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,"Fix card scripts: Elektra Femme Fatale, Tezzeret's Reckoning, Volcano Hellion (#12483)"
+830,7202e90edb,2026-10-28,jczastkiewicz,engine-rules,want,,One-line fix: attackingBattle now tests the creature's defender not the source's,Fix attackingBattle testing the source's defender instead of the creature's (#12484)
+831,56d84aad99,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update de_evolve.txt
+832,13d4bc445d,2026-10-28,MostCromulent,cards,want,,card scripts / editions / tokens / draft data,Fix The Ring's token number so its picture downloads
+833,9458115170,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create subspace_anomaly.txt
+834,7df867c16c,2026-10-28,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): ChooseCard ""choose"" effects are mandatory (44 cards, 48 lines) (#12482)"
+835,fcb46db334,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create ambulatory_reactor.txt
+836,bd253e0d66,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create seven_of_nine_tertiary_adjunct.txt
+837,e704d11b94,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create gift_of_perfection.txt
+838,75d8483305,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create julian_bashir_frontier_doctor.txt
+839,c5079a3e64,2026-10-28,Agetian,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,- Fix a mistype in Merfolk Warrior's name (Old Border) (#12480)
+840,3fb00d79a3,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create scotty_chief_engineer.txt
+841,c326f5b246,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create ensign_harry_kim_operations.txt
+842,4af7e6025f,2026-10-28,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix zonebox clipping
+843,1bee27561a,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update julian_bashir_frontier_doctor.txt
+844,7983cdfd45,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+845,31e6957e5d,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create dathon_his_heart_open.txt
+846,eaefe8d007,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update dathon_his_heart_open.txt
+847,3afa33e8e4,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create collective_override.txt
+848,35f44e2b04,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_enterprise_c_time_tossed.txt
+849,2e1ab322fe,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create data_professor_of_humanities.txt
+850,9813a7ca3b,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create saru_unthreatened.txt
+851,73fd0a5649,2026-10-28,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12486 from MostCromulent/fix-the-ring-image
+852,cedf4d8406,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create captain_janeway_endgame.txt
+853,7ac6550134,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create unification.txt
+854,c665e94de1,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+855,cb226fd62c,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create grand_nagus_zek.txt
+856,9a0268eadf,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create holo_engineer.txt
+857,f4381f4bf6,2026-10-28,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,"Fix card scripts: Teyo, Aegis Adept; Turtle Tracks; Library of Leng; Nephalia Academy (#12491)"
+858,26074175e8,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+859,e7c18dc9f0,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create neuroflux_heirloom.txt
+860,5c53b651f1,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create gwyndala_the_progeny.txt
+861,570c1df527,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create exri_dax_newly_joined.txt
+862,18d374fd9a,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create beverly_crusher_ships_doctor.txt
+863,56331f20ea,2026-10-28,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: SDS, TRC, TRK"
+864,875333b7b7,2026-10-28,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12492 from paulsnoops/edition-updates
+865,325654425b,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create tuvok_chief_tactical_officer.txt
+866,2ebfa1eb71,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create stratagem_emulator.txt
+867,44f2cf2eb8,2026-10-28,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create genesis_effect.txt
+868,45a7fa4ee4,2026-10-29,MostCromulent,net-protocol,want,,DeltaSyncManager fix for stale stack-item source card; our PlayBridge uses DeltaSyncManager directly and benefits,"Send a spell's card from the stack, not from an old copy (#12493)"
+869,6cc34762b0,2026-10-29,MostCromulent,net-protocol,neutral,,Excludes animation-hint properties from Forge's own NetworkChecksumUtil; cardtable never calls this class,Exclude animation hints from network checksum (#12495)
+870,3c3ef55e1c,2026-10-28,Fulgur14,cards,want,,New card (Sulu) plus a tap-power static-ability fix using AbilityUtils.calculateAmount,"Sulu, Heroic Helmsman (TRC) (#12489)"
+871,4fcb766736,2026-10-29,g56bzz7wz9-cmd,ai,want,,Flat Monte Carlo bugfix: clears inherited targets before copying them to a simulated ability,Flat Monte Carlo: clear inherited targets before copying them to a simulated ability (#12498)
+872,a7ba8244f5,2026-10-29,kevlahnota,ai,want,,CommanderPlan AI expansion plus a real CR 601.2c stack illegal-target fix; no conflict with our undo/mana commits,Flat MC - CommanderPlan (#12490)
+873,a9f362f4ef,2026-10-29,MostCromulent,net-protocol,conflicts,,"Removes TrackableProperty NeedsTap/UntapAnimation, NeedsTransformAnimation, WasDestroyed, AvatarLifeDifference; our tier-c.ts and visibility.ts reference all five",Derive mobile animations in the GUI instead of synced view properties (#12500)
+874,c802c6da7b,2026-10-29,kevlahnota,ai,want,,Fixes AI spell-sort comparator violating Java's Comparator transitivity contract (a real crash); clean rewrite,Fix Transitivity (#12502)
+875,7b9f05426e,2026-10-28,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Deckfix (#12504)
+876,ba256a23c2,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create david_and_carol_marcus_creators.txt
+877,e1e6f61cef,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create worf_son_of_mogh.txt
+878,ae05afd398,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create vengeance_mission.txt
+879,3b62927daf,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create imperial_hullbreachers.txt
+880,5bb62dc9e9,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create suus_mahna_practicioner.txt
+881,62d6896f72,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create tasha_yar_out_of_time.txt
+882,c02e96cfa8,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create rom_and_leeta_unlikely_pair.txt
+883,d44babe4d3,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create q_your_illustrious_host.txt
+884,70d0af8985,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_defiant_tough_little_ship.txt
+885,4687fecafb,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create kirk_man_of_action.txt
+886,78261bad57,2026-10-29,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,"Fix three card scripts: Stroke of Luck, Captain's Maneuver, _____ _____ _____ Trespasser (#12457)"
+887,7b413a3e08,2026-10-29,MostCromulent,engine-rules,conflicts,9e5f5b756a 127c0ad3a0 933e527904,Rewrites InputBase.showMessageInitial (isBusy early-return) the same method our untap-on-click offersCards/pushUntappable commits modify,Fix CME when paying with a mana ability that has its own cost (#12501)
+888,c9f0ab8205,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create brazen_bluff.txt
+889,87cb532e9f,2026-10-30,MostCromulent,net-protocol,conflicts,,Removes TrackableProperty.RevealedCardsCollection plus GameView/IGuiGame.updateRevealedCards; our tier-c.ts wire schema declares it,Keep each player's reveal history in their own GUI (#12503)
+890,e5d54db089,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create uhura_xenolinguist.txt
+891,c4ef56f4df,2026-10-29,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: PF26, PW26, TRC, TRK"
+892,9b4f87c88a,2026-10-29,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12509 from paulsnoops/edition-updates
+893,387a0b834f,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+894,d248964b79,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create rok_tahk_budding_scientist.txt
+895,a74ba49c83,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create murf.txt
+896,efc34e734d,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create test_of_identity.txt
+897,fe250aad21,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create indelicate_healer.txt
+898,b21cac45bc,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create rite_of_ascension.txt
+899,3ead7e68d5,2026-10-30,MostCromulent,net-protocol,conflicts,373191af6f 7ddd4daa9d ad902a1e74 886d7812f1,Rewrites GuiGameEvent wire shape and GameProtocolHandler/GameClientHandler dispatch; our ActGate threading commits touch the same methods,Resolve a host prompt's cards after the deltas sent before it (#12472)
+900,a3051024a6,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create cloak_and_phaser.txt
+901,88989f19c1,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update indelicate_healer.txt
+902,18f1c0a04d,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create curzon_dax_bound_by_blood.txt
+903,4ccc3afc66,2026-10-29,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update curzon_dax_bound_by_blood.txt
+904,a3da60d7d1,2026-10-29,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Realm of legends 1.087: Fix to try and stop alchemy shop crash (#12512)
+905,4454c42e47,2026-10-30,MostCromulent,gui-only,neutral,,Planar Conquest card-pool filtering; Planar Conquest is GUI-only,Keep Alchemy rebalanced cards out of Planar Conquest pools (#12514)
+906,046b5f65cd,2026-10-30,kevlahnota,ai,want,,LandPlanner/ManaSacrifice worth-it checks; touches ComputerUtilMana at different lines than our 6e71db525e,FlatMC Enhancements (#12508)
+907,d3356ebdec,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_voyager_lone_wanderer.txt
+908,cad1c8a59e,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create lieutenant_nyota_uhura.txt
+909,9e66be8c3c,2026-10-30,kevlahnota,ai,want,,GuardedAbilities plus an AI-discovery fix; no process-wide cache or random misuse found,Fix FlatMC AILogic Never Discovery (#12515)
+910,f719c5bda5,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update u_s_s_voyager_lone_wanderer.txt
+911,60625aac56,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create temporal_tribulation.txt
+912,ece6587e3f,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create ferocious_colonist.txt
+913,8357070603,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create korok_liberated_rage.txt
+914,5c0825d3d8,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create ambassador_kehleyr.txt
+915,4d312ae03f,2026-10-30,MostCromulent,ai,want,,AI now convokes before combat only with creatures it will not fight with; no conflict found,Let the AI convoke before combat with creatures it will not fight with (#12362)
+916,44c1a43ec2,2026-10-30,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,"Urza, Academy Headmaster: remember what Destroy11U destroys with RememberDestroyed$ (#12471)"
+917,291eb2ea1a,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update ambassador_kehleyr.txt
+918,668ffdc4d5,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create commander_william_riker.txt
+919,9a48ee3d6f,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create janice_rand_essential_aide.txt
+920,7bfbcdc87e,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update reyav_master_smith.txt
+921,bad51eada9,2026-10-30,MostCromulent,ai,want,,Sacrifice-mana reuse counting fix; same payManaCost method as 6e71db525e but an unrelated branch,AI: fix counting of repeatable sacrifice mana (#12516)
+922,e8f0ebccf1,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create ktinga_class_battle_cruiser.txt
+923,8469784f32,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create andromedan_automatons.txt
+924,137a2dd0f5,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create mress_crew_coordinator.txt
+925,ebe1d8da11,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create gaseous_anomaly.txt
+926,91b522d1a2,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create gnarling_targ.txt
+927,8a2b193873,2026-10-30,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix to broken map (#12524)
+928,52abea04b0,2026-10-30,Eradev,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,RoL typo fixes (#12518)
+929,5184dace01,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_enterprise_e_sovereign.txt
+930,ed20838fd0,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update gnarling_targ.txt
+931,d9c348f51c,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update u_s_s_enterprise_e_sovereign.txt
+932,9ea1fd1262,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create tribble_cluster.txt
+933,e96fe16376,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create nivar_science_academy.txt
+934,a095dcd78b,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update nivar_science_academy.txt
+935,21efc46767,2026-10-31,MostCromulent,engine-rules,want,,Brawl deck format now 100 cards like Arena; a legitimate format/rules change,Migrate Brawl to Arena's 100-card format (#12523)
+936,e83879080d,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create dominion_infiltration.txt
+937,fed7371154,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create emergency_holographic_crew.txt
+938,70898efb5f,2026-10-30,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: PLST, SLD, TRC, TRK"
+939,b0b563a179,2026-10-30,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,remove tags
+940,9478282781,2026-10-30,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12526 from paulsnoops/edition-updates
+941,c2f179520d,2026-10-30,Simisays,cards,want,,card scripts / editions / tokens / draft data,update
+942,8dcfa89886,2026-10-30,Simisays,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'Card-Forge:master' into mtgalchemy1
+943,56032aa834,2026-10-30,Simisays,merge,neutral,,merge commit; its content is in the listed commits,Merge remote-tracking branch 'upstream/master' into mtgalchemy1
+944,462c916668,2026-10-30,Simisays,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'mtgalchemy1' of https://github.com/Simisays/forge into mtgalchemy1
+945,160fcbb5cf,2026-10-31,MostCromulent,ai,want,,Rollout gives a human's copy the full AI so FlatMC respects its deadline,Play a human opponent's copy with the heuristic AI in Flat MC rollouts (#12527)
+946,ac08bfbda2,2026-10-30,Simisays,cards,want,,card scripts / editions / tokens / draft data,update
+947,93322a3aa4,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_defiant_mirror_migrant.txt
+948,0203272166,2026-10-30,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create federation_resupply.txt
+949,ed78e168ea,2026-10-31,kevlahnota,ai,want,,"Builds rollout copies with heuristic players; reviewed, uses per-game AITimeoutTracker correctly",Flat MC: build rollout copies with heuristic players (#12528)
+950,048a2bf61f,2026-10-31,kevlahnota,ai,want,,"Turns off memory-heavy AI rollback snapshot by default; reviewed vs our undo/GameState, no clash",AI playWithRollback off by default (#12529)
+951,9c77436427,2026-10-31,kevlahnota,ai,want,,GameCopier: one unmappable static effect no longer fails the whole simulation copy,GameCopier: an unmappable static effect source no longer fails the whole copy
+952,49dd5e4285,2026-10-31,MostCromulent,gui-only,neutral,,Desktop/mobile lobby+deck-editor Format dropdown only; UI we don't ship,Unify Constructed format selection in the lobby and deck editor (#12521)
+953,a1d934cd12,2026-10-31,kevlahnota,ai,want,,"FlatMC: Replenish combo support, new AI planning code only",Flat MC: Replenish (#12533)
+954,cdb4574966,2026-10-31,tjtillman,cards,want,,card scripts / editions / tokens / draft data,Add files via upload
+955,3d68e41c1a,2026-10-31,tjtillman,cards,want,,card scripts / editions / tokens / draft data,Add files via upload
+956,275965a9a0,2026-10-31,jczastkiewicz,cards,want,,card scripts / editions / tokens / draft data,"Worf, Defiant Commander: count attacked opponents without a triggering Card (#12535)"
+957,9ad88c61f2,2026-10-31,Hans Mackowiak,cards,want,,card scripts / editions / tokens / draft data,~ countertype stun fix
+958,3f6b6aa281,2026-10-31,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12534 from tjtillman/master
+959,147157c456,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update korok_liberated_rage.txt
+960,a453560550,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update rite_of_ascension.txt
+961,ed76f45f67,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create kvort_class_raider.txt
+962,ff0820ce9b,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create qonos_quartermaster.txt
+963,0b42d7399c,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update brazen_collector.txt
+964,a7c9c99813,2026-10-31,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: SLD, TRC, TRK"
+965,f3bb634f35,2026-10-31,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12539 from paulsnoops/edition-updates
+966,ae47a586d8,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create warp_speed.txt
+967,b287363451,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create stable_wormhole.txt
+968,e4cb35f0b7,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update and rename suus_mahna_practicioner.txt to suus_mahna_practitioner.txt
+969,db3e23c785,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Rename moonshae_pixie.txt to moonshae_pixie_pixie_dust.txt
+970,cd7ea5e861,2026-10-31,Fulgur14,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'Card-Forge:master' into master
+971,c5981cfe4d,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create genesis_device.txt
+972,c0dc07d46d,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create sins_of_the_father.txt
+973,0b744e2acc,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update stable_wormhole.txt
+974,110cbbdacd,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update warp_speed.txt
+975,ce34e1ccde,2026-10-31,kevlahnota,ai,want,,Prevents FlatMC Discovery from proposing illegal candidate plays,prevent Illegal Candidates for FlatMC Discovery
+976,25e4441f7c,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create culber_and_stamers_star_crossed.txt
+977,8d25b4ecb7,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_destruction_of_praxis.txt
+978,85d9117b5f,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create amanda_grayson_logics_link.txt
+979,3774033952,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create chekov_and_mccoy.txt
+980,16fb10b283,2026-11-01,MostCromulent,engine-rules,neutral,,New Canadian Highlander format; additive deck-legality rules we don't use for cube draft,"Add Canadian Highlander format with singleton, points and deck size rules (#12522)"
+981,f19adcb282,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update chekov_and_mccoy.txt
+982,93de4d72c3,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create species_8472.txt
+983,abac913253,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create the_promise_of_kahless.txt
+984,0b2ad07a00,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create giant_space_amoeba.txt
+985,d458768950,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+986,e284d5f194,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Create kes_evolving_telepath.txt
+987,021447acf8,2026-10-31,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Realm of legends 1.089: Fix for missing mirror gallery enemies (#12543)
+988,9bbbd039ab,2026-10-31,Rensen3,cards,want,,"Adds Prismatic keyword (mana of any color); reviewed, purely additive",adds the Prismatic Keyword from alchemy
+989,d4577b33d8,2026-10-31,magictools,cards,want,,card scripts / editions / tokens / draft data,TRK cards (MagicTools 1/5): Academy Instructor to Dominion Assault Force
+990,1aaa2c44d1,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update the_promise_of_kahless.txt
+991,1c82a8e5a4,2026-10-31,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update and rename culber_and_stamers_star_crossed.txt to culber_and_stamets_star_crossed.txt
+992,6d1a60bdc2,2026-10-31,Jace (MagicTools),cards,want,,card scripts / editions / tokens / draft data,"Review fixes: ValidTgtsDesc instead of TgtPrompt, new_planet token, drop Defense Force Aggressor (already in master)"
+993,7376a30ba7,2026-10-31,Jace (MagicTools),cards,want,,card scripts / editions / tokens / draft data,"Review fixes: Chief Montgomery Scott handles a creature Spacecraft (both counters), ""another"" in ValidTgtsDesc"
+994,0720f20833,2026-11-01,MostCromulent,gui-only,neutral,,Mobile lobby crash fix on old Android; UI we don't ship,Fix mobile Constructed lobby crash on Android 13 and older
+995,9b31ac1a87,2026-10-31,Jetz72,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12547 from MostCromulent/fix-android-stream-tolist
+996,3a5dbc44aa,2026-10-31,Vanja,ai,want,,AI logic fixes for Orcish Spy / Booby Trap timing,AI: let Orcish Spy wait for the end step and let Booby Trap be cast (#12540)
+997,5a60e68751,2026-10-31,Vanja,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Adventure: always end the batch after drawing a reward tooltip (#12550)
+998,36430685f4,2026-11-01,Rensen3,cards,want,,"Prismatic errata on alchemy cards; reviewed Card.java/Keyword.java touch, no real clash",updates alchemy cards with their Prismatic errata.
+999,d47749db72,2026-10-31,Eradev,engine-rules,want,,"Clears a stale ChosenCard choice; reviewed, unrelated to our ChosenSet multipick feature",Clear chosen before another choice (#12553)
+1000,509fa20b68,2026-10-31,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Another mirror gallery mapfix (#12549)
+1001,229257642f,2026-11-01,MostCromulent,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix crashes in the draft editors and the mobile variant list (#12552)
+1002,cec1aaea3c,2026-11-01,kevlahnota,ai,want,,"FlatMC: Tutor Storm combo planning, new AI code",FlatMC: Tutor Storm (#12542)
+1003,d647e75e58,2026-11-01,Jace (MagicTools),cards,want,,card scripts / editions / tokens / draft data,Chief Montgomery Scott: no Origin on the both-types put (review)
+1004,71e55760f8,2026-11-01,Jace (MagicTools),cards,want,,card scripts / editions / tokens / draft data,"TRK cards (MagicTools 2/5): Dr. Leonard ""Bones"" McCoy to La Forge"
+1005,29b05cdf31,2026-11-01,Simisays,cards,want,,card scripts / editions / tokens / draft data,cleanup
+1006,2e1670decf,2026-11-01,Jace (MagicTools),cards,want,,card scripts / editions / tokens / draft data,"Align with upcoming/ conventions: NICKNAME, Oracle wording in descriptions, TokenOwner, ValidTgtsDesc only when needed, PlayMain1"
+1007,90afc73a7b,2026-11-01,Jace (MagicTools),cards,want,,card scripts / editions / tokens / draft data,"Align with upcoming/ conventions: NICKNAME, Oracle wording in descriptions, TokenOwner, ValidTgtsDesc only when needed, PlayMain1"
+1008,c8dbcc3ff1,2026-11-01,Simisays,cards,want,,card scripts / editions / tokens / draft data,Update bend_mortal_limits.txt
+1009,aa15dac4c1,2026-11-01,g56bzz7wz9-cmd,engine-rules,want,,Fixes blocker-limit and can't-block-alone requirement bugs,Block requirements: respect blocker limits and can't-block-alone partners (#12555)
+1010,8f8333e017,2026-11-01,g56bzz7wz9-cmd,ai,want,,"Fixes Damping Sphere mana-combination prediction; reviewed, different function than our payment fix",Damping Sphere: count combination mana by its amount when predicting payments (#12557)
+1011,a45c57908b,2026-11-01,BigCrunch22,engine-rules,want,,"Tracks played lands as a list so later-arriving cards count them; additive, doesn't touch GameState",Log lands played this turn so cards that arrive later still count them (#12530)
+1012,b2a603deb2,2026-11-01,tool4ever,engine-refactor,want,,"Combat/choose-card readability cleanup, equivalent logic; reviewed",Some Cleanup (#12563)
+1013,ae48a1be3e,2026-11-01,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Add placeholder additional cards to Brawl format
+1014,4e18339de5,2026-11-01,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12566 from paulsnoops/temp-brawl-additional
+1015,eb6fa7f28c,2026-11-01,Rensen3,cards,want,,card scripts / editions / tokens / draft data,adds Limitless Rekindling
+1016,5a09fa8cc5,2026-11-01,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12546 from Rensen3/prismatic
+1017,8accaa1d31,2026-11-01,Eradev,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,[Adventure] Respect edition restriction in rewards (#12568)
+1018,d8e7df618b,2026-11-01,Eradev,cards,want,,card scripts / editions / tokens / draft data,Update Commander Spock (#12567)
+1019,6f23abae31,2026-11-02,g56bzz7wz9-cmd,engine-rules,want,,Foretell moved to a StaticAbility instead of a player keyword; clean fix,Foretell on any player's turn: use a StaticAbility instead of a player keyword (#12556)
+1020,9cdf52a5ed,2026-11-01,jczastkiewicz,engine-rules,want,,"Defensive null guard for targetingPlayer; reviewed, no clash with our mana/undo code","Guard four unchecked effect params (Chooser$, NoRepetition$, TargetingPlayer$, SetState Mode$) (#12377)"
+1021,0c899c23a9,2026-11-01,Rensen3,cards,want,,Adds Opulent Clomper and its ChooseColorEffect support,adds Opulent Clomper
+1022,8f3467eb5f,2026-11-01,Eradev,cards,want,,card scripts / editions / tokens / draft data,Update FRA
+1023,c8fee80bff,2026-11-01,Eradev,cards,want,,card scripts / editions / tokens / draft data,Update HOB
+1024,681eab511f,2026-11-01,Eradev,cards,want,,card scripts / editions / tokens / draft data,Update SLZ
+1025,770678c3f6,2026-11-01,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12572 from Eradev/boosters-20261101
+1026,19af1bda0b,2026-11-02,kevlahnota,ai,want,,"FlatMC: Dredge & Lands planning, new AI code",FlatMC: Dredge & Lands (#12554)
+1027,1406f4e1c1,2026-11-02,kevlahnota,ai,want,,Fixes AI animating already-tapped man-lands,Patch Animating tapped ManLands
+1028,6ec1242165,2026-11-02,kevlahnota,ai,want,,"FlatMC: StifleCombo support, new AI code",FlatMC: StifleCombo (#12574)
+1029,1d02b70490,2026-11-02,kevlahnota,ai,want,,NPE fixes incl. AiController; GUI parts ride along harmlessly,NPE Fixes
+1030,00f850175d,2026-11-02,Jace (MagicTools),cards,want,,card scripts / editions / tokens / draft data,"Ability words in PrecostDesc$ on activated abilities, drop redundant ValidTgtsDesc$ (same remarks as on #12561)"
+1031,bdc61f062c,2026-11-02,Jace (MagicTools),cards,want,,card scripts / editions / tokens / draft data,"Review fixes: ability words in PrecostDesc$ on activated abilities only, drop redundant ValidTgtsDesc$"
+1032,dcf3ef1118,2026-11-02,tool4ever,engine,conflicts,f6f65d7fab,Rewrites PlayerControllerHuman.concede()'s queue-release flow our ActGate concede feature calls into,Fix main loop stuck (#12570)
+1033,2db1971949,2026-11-02,Eradev,build-tests,neutral,,Adventure console rename command; mode we don't ship,[Adventure] Rename command (#12573)
+1034,07d4f918da,2026-11-02,kevlahnota,ai,want,,"FlatMC: Artifact & Freecast engine, new AI code","FlatMC: Artifact & Freecast Engine, update ai-card-roles (#12576)"
+1035,668115ef33,2026-11-02,Vanja,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Old Border Shandalar: Give allies more room around the Temple Deep Spawn (#12580)
+1036,08729fba73,2026-11-03,MostCromulent,engine,conflicts,f6f65d7fab,Changes priority/skip handling for a departed player; same area as our concede/ActGate handling,Give priority to the next player when a player who left would receive it (#12578)
+1037,0a8c52d00c,2026-11-02,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,fix(cards): Romulan Bird-of-Prey has hexproof while it isn't a creature (#12582)
+1038,7c34365c74,2026-11-03,kevlahnota,ai,want,,"FlatMC combo guard additions (Cabal Therapy, Breakthrough, Pact), new AI code","FlatMC additions: Sacrifice KeyCard Guard, Cabal Therapy, Breakthrough, Pact cards (#12579)"
+1039,74cdd24db0,2026-11-03,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update enterprise_nx_01.txt
+1040,9de201d288,2026-11-03,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update erica_ortegas_plucky_pilot.txt
+1041,ad2f31723e,2026-11-03,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update infinite_diversity.txt
+1042,caef0d34ea,2026-11-03,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update seven_of_nine_tertiary_adjunct.txt
+1043,b5d1e0fa46,2026-11-03,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update u_s_s_enterprise_c_time_tossed.txt
+1044,ed0c12f6c5,2026-11-03,Eradev,cards,want,,card scripts / editions / tokens / draft data,Update boosters list
+1045,bf1870af52,2026-11-03,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Add TRK, TRC, SDS to formats"
+1046,430db5f1a4,2026-11-03,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12594 from Eradev/boosters-update-20261103
+1047,cf7663d79e,2026-11-03,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12597 from paulsnoops/trk-formats
+1048,a6fe7c40c5,2026-11-03,kevlahnota,ai,want,,"FlatMC: Standard Meta ComboPlan, new AI code",FlatMC: Standard Meta ComboPlan (#12596)
+1049,409689c346,2026-11-03,"Czastkiewicz, Jacek",engine-rules,want,,Fixes Cost.add dropping a waterbend cap; isolated Cost.java bug fix,Fix Cost.add dropping a waterbend cap when a cost increase merges in
+1050,08b825d1e9,2026-11-03,kevlahnota,ai,want,,NPE fix for Extrapolate the Impossible cast by AI,NPE Fix (Extrapolate the Impossible when cast by AI)
+1051,f9ba9b860f,2026-11-03,tool4ever,ai,want,,Dedup/cleanup of AI spell-ability sort comparator; equivalent logic,Some cleanup (#12601)
+1052,21473e7bb1,2026-11-03,tool4ever,engine-rules,want,,"Small bug fixes (split limit, shuffle flag, EndTurn stack-resolve skip); reviewed, no clash",Some fixes (#12602)
+1053,6264f0292f,2026-11-03,Eradev,engine-rules,want,,Skips missing scripts in printsheets instead of failing,Skip missing scripts in printsheets (#12595)
+1054,e7020aa13c,2026-11-04,kevlahnota,engine-refactor,neutral,,Internal delta-based rewrite of the AI rollback snapshot format we don't use,Delta Memento (#12603)
+1055,1a05af7e23,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create oberth_class_starship.txt
+1056,2c4f409ce5,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create type_03_borg_vessel.txt
+1057,4e854348fa,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create sarcophagus_ship_of_the_dead.txt
+1058,4416238f33,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create shuttlecraft_galileo.txt
+1059,517a8c552c,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create s_s_botany_bay.txt
+1060,4e7a9bd0dc,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_cerritos_following_up.txt
+1061,0c59a40cec,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_farragut_bold_explorer.txt
+1062,6619559266,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_prometheus_prototype.txt
+1063,b5f66c6045,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create u_s_s_stargazer_here_and_there.txt
+1064,270f71e410,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create c_4_3_a_spacecraft_illusion_flying.txt
+1065,f3d9df8c33,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create tenacious_drone.txt
+1066,a97914b222,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create planet_killer.txt
+1067,bf35d688bf,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create sickbay.txt
+1068,a48411ae56,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create the_guardian_of_forever.txt
+1069,82a3e77b02,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create vic_fontaine_one_night_only.txt
+1070,927c0922ae,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create the_beacon_of_kahless.txt
+1071,1002cde683,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create q_continuum.txt
+1072,eafebaf267,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create temporal_anomaly.txt
+1073,28b40f007f,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create savvy_profiteer.txt
+1074,718f68197d,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create starfleet_spanner_jockey.txt
+1075,e0a6df5cf2,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create starfleet_security.txt
+1076,988299a3a3,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create maco_strike_team.txt
+1077,8ce37ddb66,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create melkotian_adjudicator.txt
+1078,ddc8cce5db,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create photosynthetic_physician.txt
+1079,d616ab2a99,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create tal_shiar_operative.txt
+1080,3ec1fb5b7b,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create tal_shiar_analyst.txt
+1081,a089ce74b7,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create nog_ambitious_cadet.txt
+1082,d6d3ab1634,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create wesley_crusher_starfleet_cadet.txt
+1083,41463c718b,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create sulu_space_swashbuckler.txt
+1084,73c19ede1b,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create sela_tal_shiar_paradox.txt
+1085,bc90a2e1d1,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create neelix_moral_support.txt
+1086,9d46036088,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create sarek_federation_ambassador.txt
+1087,f993c19048,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create lieutenant_hikaru_sulu.txt
+1088,62ebe292dc,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create pavel_chekov_first_posting.txt
+1089,cedfeabe00,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create tom_paris_risk_taker.txt
+1090,ac6ba191d8,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create voq_torchbearer.txt
+1091,03735fa429,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create martok_hero_of_the_empire.txt
+1092,cc55a8720f,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create worf_still_not_merry.txt
+1093,f032d655e5,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create ro_laren_double_agent.txt
+1094,2324a87148,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create troi_winging_it.txt
+1095,946b5707a3,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create lt_arex_ever_adapting.txt
+1096,a0a09d6a1d,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create reg_barclay_fidgety_fantasist.txt
+1097,29f0288905,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create mccoy_not_a_bricklayer.txt
+1098,f7e3d41220,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create sam_kirk_xenoanthropologist.txt
+1099,a2871ed9de,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create tpring_never_parted.txt
+1100,e693d4de9f,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create spock_voice_of_reason.txt
+1101,dc547c9de9,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create merciful_mandate.txt
+1102,ae5c22c294,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create red_alert.txt
+1103,b6e2ba51b8,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create right_of_vengeance.txt
+1104,c219e11146,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create pattern_buffer_preservation.txt
+1105,68fd7d2b11,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create transporter_malfunction.txt
+1106,d135882947,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create own_the_day.txt
+1107,6b60739b20,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create rules_of_acquisition.txt
+1108,a283717ba4,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create stray_from_history.txt
+1109,c8b2aaf3d9,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create vulcan_mind_meld.txt
+1110,40ce8b5346,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create the_measure_of_a_man.txt
+1111,f5a25b44d5,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create the_naked_time.txt
+1112,44c1f3d8c4,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Create h_m_s_bounty_unlikely_timeship.txt
+1113,8fe7033a68,2026-11-03,Shaun Adams,cards,want,,Adds an extra-turns-played counter for card text; purely additive,Add support
+1114,7b928603d4,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update lrell_fierce_visionary.txt
+1115,fb65b5236f,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update sylvia_tilly_joy_of_discovery.txt
+1116,ea37530b79,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update anthropological_mission.txt
+1117,8726cc15c9,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update excalbian_gamemaster.txt
+1118,421a0ea491,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"S.S. Botany Bay, U.S.S. Farragut, U.S.S. Prometheus, Sarcophagus, U.S.S. Stargazer: review fixes"
+1119,b58dedf905,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Temporal Anomaly, The Guardian of Forever: review fixes"
+1120,3f03e31a65,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,MACO Strike Team: review fix
+1121,9956f8d0ae,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Sarek, Federation Ambassador, Wesley Crusher: review fixes"
+1122,45354f75af,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"T'Pring, Spock, Lt. Arex: review fixes"
+1123,baf062e80d,2026-11-03,Shaun Adams,cards,want,,Rules-accuracy fixes for five upcoming cards,"Merciful Mandate, The Naked Time, Vulcan Mind-Meld, The Measure of a Man, Rules of Acquisition: review fixes"
+1124,a86de05ed7,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,U.S.S. Farragut: second review pass
+1125,9ed94bc8a3,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Q Continuum, Temporal Anomaly: second review pass"
+1126,382d1b1542,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,Wesley Crusher: second review pass
+1127,c8e337eb41,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Lieutenant Hikaru Sulu, Pavel Chekov: second review pass"
+1128,661bcb25d6,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,T'Pring: second review pass
+1129,672f2ac484,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Rules of Acquisition, Vulcan Mind-Meld, Merciful Mandate, The Naked Time: second review pass"
+1130,5bd65adcd5,2026-11-03,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,H.M.S. Bounty: NICKNAME in descriptions
+1131,44a033fc07,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update deep_space_9.txt
+1132,98ec2cf51a,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update jean_luc_picard_luminary.txt
+1133,03f6069622,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update locutus_of_borg.txt
+1134,fe5f9c737b,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update miles_obrien_transporter_ops.txt
+1135,8b2d910cd4,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update brazen_bluff.txt
+1136,8dc28854a8,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update replicator.txt
+1137,ef11f909eb,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update q_your_illustrious_host.txt
+1138,3641fba177,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update test_of_conviction.txt
+1139,b8051fc0f6,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update rok_tahk_budding_scientist.txt
+1140,6340f07088,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update the_traveler.txt
+1141,c549a2497b,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update cleveland_booker_empath.txt
+1142,20dfee544d,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update daniels_temporal_agent.txt
+1143,4013aa7185,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update those_old_scientists.txt
+1144,06e581c4c4,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update spock_always_your_friend.txt
+1145,712cdb32b0,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update commander_raffi_musiker.txt
+1146,38e239d7d7,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update overflow_submatrix.txt
+1147,024d0a7128,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update shore_leave_planet.txt
+1148,a6581f852c,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update planetary_bombardment.txt
+1149,31f3e9d1f7,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update jett_reno_problem_solver.txt
+1150,e7905ac1d7,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update brazen_bluff.txt
+1151,b08820f014,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update collective_override.txt
+1152,d28b5c52ef,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Rename exri_dax_newly_joined.txt to ezri_dax_newly_joined.txt
+1153,a85601d050,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update gwyndala_the_progeny.txt
+1154,03758af60e,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update julian_bashir_frontier_doctor.txt
+1155,ca29685919,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update ambassador_kehleyr.txt
+1156,73acbb6777,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update seven_of_nine_tertiary_adjunct.txt
+1157,3fb88298f4,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update janice_rand_essential_aide.txt
+1158,47f35fd01f,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update unification.txt
+1159,dfb5de2326,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update korok_liberated_rage.txt
+1160,a3bec90dad,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update lieutenant_nyota_uhura.txt
+1161,0aaf406e61,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update species_8472.txt
+1162,8736aa72fe,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update TypeLists.txt
+1163,309187ea6a,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update rok_tahk_budding_scientist.txt
+1164,46b07ea71e,2026-11-04,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Update brazen_bluff.txt
+1165,81e3bb8dac,2026-11-03,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Realm of legends 1.090: A few small fixes (#12674)
+1166,cb095cb05b,2026-11-04,MostCromulent,gui-only,neutral,,Desktop/mobile lobby remembers format/variants via a preference; UI only,Remember the lobby's format and variants (#12605)
+1167,94a7faaee3,2026-11-04,MostCromulent,gui-only,neutral,,Archived-format picker in the Format dropdown; UI only,Offer archived formats and Historic in the Format dropdowns (#12586)
+1168,f0419fb769,2026-11-03,Hans Mackowiak,engine-refactor,want,,"Adds isPlayerNextTurn helper, routes call sites through it; equivalent logic plus a null guard",Add isPlayerNextTurn
+1169,da66fb1ac4,2026-11-04,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update the_duras_sisters.txt
+1170,8406f627c3,2026-11-04,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"S.S. Botany Bay, U.S.S. Farragut, Shuttlecraft Galileo: maintainer review Botany Bay names its players as Opponent. Farragut's two chains share one cleanup SVar. Shuttlecraft Galileo describes its targets with ValidTgtsDesc."
+1171,c74d9f7cfb,2026-11-04,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Sickbay, Q Continuum: maintainer review Sickbay describes its target with ValidTgtsDesc, and the AI casts it before combat so its beginning-of-combat trigger can fire that turn. Q Continuum's bare creature target needs no prompt."
+1172,abbd9dd2c1,2026-11-04,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Tal Shiar Operative, Tal Shiar Analyst: maintainer review Tal Shiar Operative describes its target with ValidTgtsDesc; Tal Shiar Analyst names its players as Opponent."
+1173,c29675591d,2026-11-04,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Wesley Crusher, Sela, Sarek: maintainer review Targets are described with ValidTgtsDesc, and bare creature and player targets need no prompt. The AI casts Sarek before combat so his beginning-of-combat trigger can fire that turn."
+1174,6834f6cb34,2026-11-04,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Martok, Lieutenant Hikaru Sulu, Ro Laren: maintainer review The AI casts Martok before combat so his attack trigger can fire that turn, and his targets are described with ValidTgtsDesc. Sulu's bare creature target needs no prompt; Ro Laren names its players as Opponent."
+1175,7e6e25c945,2026-11-04,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"T'Pring, Reg Barclay, Sam Kirk: maintainer review Targets are described with ValidTgtsDesc; Sam Kirk names its players as Opponent."
+1176,1f166b3882,2026-11-04,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Stray from History, Rules of Acquisition, The Measure of a Man, Vulcan Mind-Meld: maintainer review Targets are described with ValidTgtsDesc, and bare opponent targets need no prompt."
+1177,27671370f4,2026-11-04,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"H.M.S. Bounty: maintainer review The search names its type as Whale, which also gives the description."
+1178,a4281f7e58,2026-11-04,Agetian,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,- Tweak silver coin description in Old Border Shandalar. (#12680)
+1179,6e226b123a,2026-11-04,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"70,000 Light-Years from Home puts the basic land into its controller's hand; Captain Michael Burnham is a Human Officer (#12681)"
+1180,61e9442c43,2026-11-05,MostCromulent,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix mobile New Game screen failing to open with a saved Commander setup (#12688)
+1181,c95c0d276f,2026-11-05,Jace (MagicTools),cards,want,,card scripts / editions / tokens / draft data,"Cmdr. Troi: copy the spell on the stack (Defined$ ValidStack Spell.IsRemembered), as Finale of Promise does"
+1182,2d63456de4,2026-11-05,ferdibaum,cards,want,,card scripts / editions / tokens / draft data,Fix card script: Stick Together lets players choose other players' creatures (#12685)
+1183,1f8a571cab,2026-11-05,Eradev,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Prevent description panel overflow + hint for scroll (#12687)
+1184,083f0e2497,2026-11-05,MostCromulent,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Give an online lobby client the start button's space (#12683)
+1185,5d892f0559,2026-11-05,BramTeurlings,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,"[Upstream] Reorder UI, notifications draw overtop of minimap (#12678)"
+1186,6ccb3eec4a,2026-11-05,MostCromulent,engine,conflicts,2358f2c122 575c48cb92 5d882b5f42 702b207eda 7ddd4daa9d b782c375d8 d360187053 eb396bffd7,Rebuilds Trigger.setTriggeringObjects; touches static mana trigger (High Tide/painland) code our undo patches changed,Build triggering objects once per event and let conditions read them (#12604)
+1187,8ac4649ab0,2026-11-05,Hans Mackowiak,engine,conflicts,47dd04f860 eb396bffd7 e824799255 cc8301a2d0 d358d88219 7122854b1e 6889146e0b d360187053 0f7769b219 9ebf0e092a 9bc0ae06fc 3eb6c118e4,Renames/drops Player.landsPlayedLastTurn; our GameState.java snapshot/restore feature loses its explicit field,Player: rename to LandsPlayedMyLastTurn
+1188,626aa9f073,2026-11-05,MostCromulent,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Fix mobile lobby crash and lost deck choice when changing format (#12691)
+1189,4028fd1b46,2026-11-05,tool4ever,engine,conflicts,47dd04f860 eb396bffd7 0f7769b219 3eb6c118e4 575c48cb92 5feb9cf1cd 6889146e0b 7122854b1e 9bc0ae06fc 9ebf0e092a cc8301a2d0 d358d88219 d360187053 e824799255,Touches our GameState.restore() counters fix + PhaseHandler combat-skip semantics; drops InputLondonMulligan's cardSelectLocked guard,Some cleanup (#12692)
+1190,506cf19ab8,2026-11-05,Agetian,ai,want,,Fixes AI detecting a Paralyzed creature's state,Fix the AI unable to detect the state of a Paralyzed creature (#12694)
+1191,1e8c35fca3,2026-11-05,BramTeurlings,ai,want,,AI can now pay optional copy costs (Rings of Brighthearth); additive MagicStack getter,[Upstream] The AI can now pay for optional copy costs (#12676)
+1192,f62f804806,2026-11-05,tool4ever,engine-refactor,want,,Consolidates MagicStack's resolving-card/ability fields into one; equivalent logic,Skip API check when SA copy needs no retargeting (#12695)
+1193,af7df3488e,2026-11-06,kevlahnota,ai,want,,"FlatMC: Vintage Meta ComboPlan, new AI code",FlatMC: Vintage Meta ComboPlan (#12606)
+1194,45572700ec,2026-11-06,kevlahnota,ai,want,,Refactors ComboCatalog data loading; internal to FlatMC,Refactor ComboCatalog
+1195,eb40bd24de,2026-11-06,kevlahnota,ai,want,,"FlatMC: TimedAbilities Discovery, new AI code",FlatMC TimedAbilities Discovery (#12700)
+1196,a04b54df78,2026-11-06,kevlahnota,ai,want,,"Updates Pact ComboGuard, new AI code",update Pact ComboGuard
+1197,791c8ad48b,2026-11-06,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,update TargetingOverlay
+1198,79f6fc2ec9,2026-11-07,kevlahnota,ai,want,,"FlatMC doomsday/Trix/Channel combo support, new AI code","FlatMC update doomsday combo, add support for Trix, Channel (#12701)"
+1199,e5bce71244,2026-11-07,kevlahnota,ai,want,,Lets a human sideboard against the FlatMC AI,Allow Human Sideboard for FlatMC AI (#12705)
+1200,1747b2c747,2026-11-07,kevlahnota,ai,want,,Improves FlatMC's hold valuation for flash ETB interactions,Improve FlatMC hold valuation for flash ETB stack interaction (#12707)
+1201,fcfdc73aef,2026-11-07,kevlahnota,ai,want,,Channel mana reserved for its WIN-combo payoff instead of general ramp,"Channel mana is dedicated to the payoff listed in a WIN combo, not general-purpose ramp."
+1202,68a85cabe3,2026-11-06,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Werewolf Pack Leader - Oracle update (#12706)
+1203,d39d51328c,2026-11-06,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: PWCS, SLD, TRK"
+1204,f15afdcc95,2026-11-06,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12708 from paulsnoops/edition-updates
+1205,c3d29388be,2026-11-07,MostCromulent,net-protocol,conflicts,f6f65d7fab,Rewrites concede()/AbstractGuiGame flow and input-queue release that our ActGate concede feature depends on,End the game when a concede leaves only AI players (#12696)
+1206,966104fa31,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12365 from Fulgur14/Fulgur14-patch-440603
+1207,1ef35a037d,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12374 from Fulgur14/Fulgur14-patch-29550
+1208,c0be1215e9,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12387 from Fulgur14/Fulgur14-patch-14254
+1209,3694095a5b,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12389 from Fulgur14/Fulgur14-patch-246880
+1210,85d6328d6f,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12409 from Fulgur14/Fulgur14-patch-676478
+1211,78f79180cf,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12439 from Fulgur14/Fulgur14-patch-314231
+1212,27d66a025a,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12454 from Fulgur14/Fulgur14-patch-220060
+1213,ba92902d00,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12466 from Fulgur14/Fulgur14-patch-819315
+1214,8b1c854624,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12475 from Fulgur14/Fulgur14-patch-966733
+1215,c962b885e8,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12487 from Fulgur14/Fulgur14-patch-279184
+1216,0751933850,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12517 from Fulgur14/Fulgur14-patch-517692
+1217,157a38d1df,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12506 from Fulgur14/Fulgur14-patch-948304
+1218,75fef9a1ca,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12541 from Fulgur14/Fulgur14-patch-882680
+1219,9794bcf64d,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge branch 'master' into trk-magictools-1
+1220,6dd3b70244,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12470 from Fulgur14/Fulgur14-patch-481982
+1221,70f1e93289,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12545 from Jace-magictools/trk-magictools-1
+1222,f282fe1fcc,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12561 from Jace-magictools/trk-magictools-2
+1223,3136cc9d45,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12666 from adams-shaun/trk-gorge-cards
+1224,348209d38d,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12667 from adams-shaun/trk-gorge-cards-2
+1225,06f72c2e4d,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12670 from adams-shaun/trk-gorge-cards-5
+1226,12f14925d8,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12671 from adams-shaun/trk-gorge-cards-6
+1227,7d72a5fc5d,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12673 from adams-shaun/trk-gorge-bounty
+1228,6e4b0d53e9,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12672 from adams-shaun/trk-gorge-cards-7
+1229,9910b367c6,2026-11-06,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Wesley Crusher: the charm trigger describes itself with ABILITY, like the other charms"
+1230,49f4f7b413,2026-11-06,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Tal Shiar Operative: the charm trigger describes itself with ABILITY, like the other charms"
+1231,b67cea0918,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12669 from adams-shaun/trk-gorge-cards-4
+1232,bf8a17b848,2026-11-06,Chris H,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12668 from adams-shaun/trk-gorge-cards-3
+1233,d3f975437b,2026-11-07,kevlahnota,ai,want,,FlatMC Discovery checks hidden-origin ChangeZone abilities,FlatMC Discovery checks hidden-origin ChangeZone abilities (#12717)
+1234,cfc0752f7a,2026-11-07,kevlahnota,ai,want,,FlatMC DigAI uses DeckPlan/ScryAI/SurveilAi selection,"FlatMC DigAI with DeckPlan, ScryAI, SurveilAi selection (#12718)"
+1235,6d4a175d9e,2026-11-07,kevlahnota,ai,want,,"FlatMC Trix/Channel update, new AI code",FlatMC Trix and Channel update (#12716)
+1236,7bcb1a7c5e,2026-11-07,kevlahnota,engine-rules,want,,Fixes CharmEffect's faceDilemma bug,Fix CharmEffect faceDilemma
+1237,311dd77881,2026-11-07,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Fix ""target creature you control"" targeting on five scripts (#12720)"
+1238,77e54cf6a6,2026-11-07,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update dr_mccoy_surly_surgeon.txt
+1239,1c9b258b93,2026-11-07,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"Homesickness, Mind Spiral, Sygg's Command: stun counter on the tapped creature only (#12725)"
+1240,ad101acc28,2026-11-07,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: ANA, PLST"
+1241,3a04914022,2026-11-07,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12729 from paulsnoops/edition-updates
+1242,8360afa305,2026-11-07,kevlahnota,ai,neutral,,Mostly Adventure-mode fights; the AiCardLists change is an isolated FlatMC lookup optimization,Fix Adventure fights (#12730)
+1243,62ffaaedeb,2026-11-07,Eradev,ai,want,,AI prefers hand/board colors for generic Any mana,Prefer hand and board colors for generic Any mana. (#12727)
+1244,45cd35c4af,2026-11-08,MostCromulent,engine-rules,want,,Fixes Dig hiding looked-at cards and missing graveyard/exile cast eligibility,Fix Dig hiding looked-at cards and missing graveyard/exile casts (#12726)
+1245,d47f567004,2026-11-07,kevlahnota,ai,want,,"FlatMC: ActivationGuard, new AI code",FlatMC: ActivationGuard
+1246,54353f6fb8,2026-11-08,MostCromulent,net-protocol,conflicts,005e8186c3 127c0ad3a0 2ea11debdc 373191af6f 3eb6c118e4 47dd04f860 575c48cb92 5eff8436fe 5feb9cf1cd 608dbc4efe 66ff9c1d5d 6889146e0b 7878fe7546 7ddd4daa9d 865ffee13d 8964ade2fa 933e527904 9bc0ae06fc 9e5f5b756a 9ebf0e092a a401b5d0bf b6b2deffe2 ccf02d50e6 d6901eb6a1 e171d76c83 e27f6eb400 eb396bffd7 ed4d9f6082,Two-Headed Giant rewrites PhaseHandler turn/priority (379 lines); touches nearly every mechanism we patched; adds 1 additive TrackableProperty,Add Two-Headed Giant (#12587)
+1247,a1a55160ae,2026-11-07,Hamid Zare,build-tests,neutral,,Doc typo fixes only,Fix typos in documentation
+1248,1e22096f97,2026-11-07,Fulgur14,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Add files via upload (#12723)
+1249,9da0afe779,2026-11-07,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12733 from hamidzr/fixtypos
+1250,24b4bc1ed9,2026-11-07,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12562 from Simisays/mtgalchemy1
+1251,0d6b593d5c,2026-11-07,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12571 from Rensen3/opulent_clomper
+1252,74621c04c9,2026-11-07,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Migrate TRK/TRC card scripts
+1253,3a4e5d43a2,2026-11-07,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12735 from paulsnoops/migrate-trk-scripts
+1254,6d7cfda207,2026-11-07,Serafina,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Realm of legends 1.091: a few minor cleanups (#12736)
+1255,c3bd0226f9,2026-11-07,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,Add TRK draft rankings
+1256,70d5620b03,2026-11-07,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12738 from paulsnoops/trk-draft-rankings
+1257,98d79231cc,2026-11-08,kevlahnota,ai,want,,"FlatMC: PW Loyalty handling, new AI code",FlatMC: PW Loyalty (#12742)
+1258,7acb3dbb61,2026-11-08,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Update Adventure requestPreview (#12745)
+1259,5899bd9109,2026-11-08,MostCromulent,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,RoL: update inventory doll to show every equipment slot (#12743)
+1260,bced4b0ba7,2026-11-08,MostCromulent,engine-rules,neutral,,Adventure-only: lets effects start cards suspended; additive Player/RegisteredPlayer fields,Let adventure effects start cards suspended (#12744)
+1261,d72a9fa201,2026-11-08,kevlahnota,ai,want,,"FlatMC ComboAssembly, new AI code",FlatMC ComboAssembly (#12721)
+1262,8357cb7662,2026-11-08,MostCromulent,engine-rules,neutral,,Adventure-only: items can start cards in hand / raise max hand size; additive,Adventure: items can start cards in hand and raise maximum hand size (#12741)
+1263,9dd364af83,2026-11-08,MostCromulent,gui-only,neutral,,2HG lobby cleanup/consolidated variants list; GUI follow-up to 54353f6fb8,2HG cleanup / consolidate variants list (#12740)
+1264,fa98fd76ce,2026-11-08,MostCromulent,gui-only,neutral,,Deck editor commander-legality relaxation when deck legality is off; UI feature we don't use,Allow any creature or planeswalker as commander when deck legality is off (#12715)
+1265,804e392360,2026-11-08,Agetian,cards,want,,card scripts / editions / tokens / draft data,- Add TRK/TRC achievements by Marek14. (#12750)
+1266,5417bd4322,2026-11-08,BigCrunch22,cards,want,,card scripts / editions / tokens / draft data,Some Card Updates/Fixes (#12754)
+1267,4b4a8bd874,2026-11-08,tool4ever,engine-refactor,want,,"AiController/TapEffect cleanup; reviewed TapEffect change, unrelated to our untap-on-click feature",Clean up (#12764)
+1268,891fae5240,2026-11-08,Agetian,ai,want,,Enables AI for Incubate,- Enable AI for Incubate. (#12748)
+1269,f2d88b247c,2026-11-08,Agetian,ai,want,,Fixes AI pumping creatures with keywords they already have,Fix the AI pumping creatures with keywords they already have (#12749)
+1270,46d8217f8f,2026-11-09,MostCromulent,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Stack the mobile lobby header when landscape has no room for its dropdowns (#12746)
+1271,34adf4f895,2026-11-09,MostCromulent,engine-rules,neutral,,Adventure-only: effects run card-script lines at battle start,Adventure effects run card-script lines at battle start (#12755)
+1272,960c343030,2026-11-08,Rensen3,engine-rules,want,,Fixes stickers in subgames,fix stickers in subgames (#12478)

@@ -9,7 +9,7 @@
  *
  * The census and coverage tables are held against `tier-c.ts` in both
  * directions: every property the spike saw, at the tag it saw, is accepted, and
- * the 214-property table is the spike's table, constant for constant.
+ * the 211-property table is the spike's table, constant for constant.
  */
 
 import { readFileSync } from 'node:fs';
@@ -246,9 +246,9 @@ function tagOf(property: StateProperty): string {
 }
 
 describe('Tier C — the property table is the spike’s table', () => {
-  it('is the 214 TrackableProperty constants, in coverage.tsv’s declaration order', () => {
-    expect(STATE_PROPERTY_COUNT).toBe(214);
-    expect(COVERAGE).toHaveLength(214);
+  it('is the 211 TrackableProperty constants, in coverage.tsv’s declaration order', () => {
+    expect(STATE_PROPERTY_COUNT).toBe(211);
+    expect(COVERAGE).toHaveLength(211);
     expect(Object.keys(STATE_PROPERTIES)).toEqual(COVERAGE.map((r) => r.property));
   });
 
@@ -272,8 +272,8 @@ describe('Tier C — the property table is the spike’s table', () => {
     }
   });
 
-  it('the census is clean: 133 pairs, every one round-tripped, none a reference', () => {
-    expect(CENSUS).toHaveLength(133);
+  it('the census is clean: 131 pairs, every one round-tripped, none a reference', () => {
+    expect(CENSUS).toHaveLength(131);
     for (const row of CENSUS) {
       expect([row.property, row.outcome, row.failEncode, row.failDecode, row.failCompare]).toEqual([
         row.property,
@@ -334,7 +334,7 @@ describe('Tier C — a mutated capture fails, naming the path', () => {
     expect(issue.path).toEqual(['objectDeltas', GAME, 'Phase', 'v']);
   });
 
-  it('a property outside the 214 fails on its object, and names itself', () => {
+  it('a property outside the 211 fails on its object, and names itself', () => {
     const packet = clone(DELTA.packet);
     (packet.objectDeltas as Record<string, Json>)[PLAYER_0]!.Lifee = { t: 'int', v: 20 };
     const issue = onlyIssue(DeltaPacketSchema, packet);
@@ -378,9 +378,9 @@ describe('Tier C — a mutated capture fails, naming the path', () => {
     expect(onlyIssue(DeltaPacketSchema, packet).path).toEqual(['seq']);
   });
 
-  it('a checksum ordinal past the 214th property fails at its index', () => {
+  it('a checksum ordinal past the 211th property fails at its index', () => {
     const packet = clone(DELTA.packet);
-    packet.checksumProperties = [0, 214];
+    packet.checksumProperties = [0, 211];
     expect(onlyIssue(DeltaPacketSchema, packet).path).toEqual(['checksumProperties', 1]);
   });
 

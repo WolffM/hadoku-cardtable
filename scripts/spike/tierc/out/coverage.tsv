@@ -25,7 +25,6 @@ FlipCard	BooleanType	no
 SplitCard	BooleanType	no	
 MergedCards	StringType	no	
 MergedCardsCollection	CardViewCollectionType	yes	java.util.ArrayList(list x2314)
-RevealedCardsCollection	CardViewCollectionType	no	
 PaperCardBackup	IPaperCardType	yes	forge.item.PaperCard(papercard x1)
 Attacking	BooleanType	yes	java.lang.Boolean(bool x120) null(null x91)
 Blocking	BooleanType	yes	java.lang.Boolean(bool x24) null(null x5)
@@ -73,10 +72,6 @@ GainControlTargets	CardViewCollectionType	yes	java.util.ArrayList(list x1)
 CloneOrigin	CardViewType	no	
 ExiledWith	CardViewType	yes	java.lang.Integer(int x2)
 PreparedSpell	CardViewType	no	
-WasDestroyed	BooleanType	no	
-NeedsTransformAnimation	BooleanType	no	
-NeedsUntapAnimation	BooleanType	yes	java.lang.Boolean(bool x179)
-NeedsTapAnimation	BooleanType	yes	java.lang.Boolean(bool x213)
 MarkedColors	ColorSetType	no	
 ImprintedCards	CardViewCollectionType	yes	null(null x1)
 ExiledCards	CardViewCollectionType	yes	java.util.ArrayList(list x1) null(null x1)
@@ -93,26 +88,26 @@ HiddenId	IntegerType	no
 ExertedThisTurn	BooleanType	no	
 Detained	BooleanType	no	
 Name	StringType	yes	java.lang.String(str x4654)
+OracleName	StringType	yes	java.lang.String(str x4630)
+ImageKey	StringType	yes	java.lang.String(str x2315)
 Colors	ColorSetType	yes	forge.card.ColorSet(enum x1345)
 OriginalColors	ColorSetType	yes	forge.card.ColorSet(enum x1343)
-ImageKey	StringType	yes	java.lang.String(str x2315)
 Type	CardTypeViewType	yes	forge.card.CardType(cardtype x3043)
 ManaCost	ManaCostType	yes	forge.card.mana.ManaCost(manacost x1451)
 OriginalManaCost	ManaCostType	yes	forge.card.mana.ManaCost(manacost x1451)
 SetCode	StringType	yes	java.lang.String(str x2315)
 Rarity	EnumType	yes	forge.card.CardRarity(enum x2315)
-FunctionalVariant	StringType	no	
 OracleText	StringType	yes	java.lang.String(str x2249)
 RulesText	StringType	no	
-OracleName	StringType	yes	java.lang.String(str x4630)
+HasPrintedPT	BooleanType	no	
 Power	IntegerType	yes	java.lang.Integer(int x1004) null(null x1)
 Toughness	IntegerType	yes	java.lang.Integer(int x1012) null(null x1)
 Loyalty	StringType	yes	java.lang.String(str x294)
 Defense	StringType	yes	java.lang.String(str x293)
+FunctionalVariant	StringType	no	
 AttractionLights	IntegerSetType	yes	java.util.Collections$UnmodifiableSet(set x2308)
 ChangedColorWords	StringMapType	yes	com.google.common.collect.RegularImmutableMap(map x2314)
 HasChangedColors	BooleanType	yes	java.lang.Boolean(bool x1) null(null x1)
-HasPrintedPT	BooleanType	no	
 ChangedTypes	StringMapType	yes	com.google.common.collect.RegularImmutableMap(map x2314)
 OrigProduceMana	ColorSetType	yes	forge.card.ColorSet(enum x864) null(null x33)
 OrigProduceAnyMana	BooleanType	yes	java.lang.Boolean(bool x91)
@@ -134,13 +129,13 @@ SleeveIndex	IntegerType	yes	java.lang.Integer(int x12)
 SleeveArtKey	StringType	no	
 SleeveArtOffset	IntegerType	yes	java.lang.Integer(int x24)
 Opponents	PlayerViewCollectionType	yes	java.util.ArrayList(list x24)
+SharedTeam	PlayerViewCollectionType	no	
 Life	IntegerType	yes	java.lang.Integer(int x115) null(null x3)
 MaxHandSize	IntegerType	yes	java.lang.Integer(int x24)
 HasUnlimitedHandSize	BooleanType	no	
 MaxLandPlay	IntegerType	yes	java.lang.Integer(int x34)
 HasUnlimitedLandPlay	BooleanType	no	
 NumLandThisTurn	IntegerType	yes	java.lang.Integer(int x144) null(null x152)
-NumManaShards	IntegerType	no	
 DraftNotes	StringMapType	yes	java.util.HashMap(map x24)
 NumDrawnThisTurn	IntegerType	yes	java.lang.Integer(int x206) null(null x188)
 AdditionalVote	IntegerType	no	
@@ -165,51 +160,53 @@ SchemeDeck	CardViewCollectionType	no
 AttractionDeck	CardViewCollectionType	no	
 ContraptionDeck	CardViewCollectionType	no	
 Junkyard	CardViewCollectionType	no	
+StickerSheets	CardViewCollectionType	no	
+Stickers	StringType	no	
 Mana	ManaMapType	yes	java.util.HashMap(map x226)
 IsExtraTurn	BooleanType	no	
 ExtraTurnCount	IntegerType	no	
 HasPriority	BooleanType	yes	java.lang.Boolean(bool x633) null(null x633)
-AvatarLifeDifference	IntegerType	no	
 HasLost	BooleanType	yes	java.lang.Boolean(bool x12)
 HasAvailableActions	BooleanType	no	
+NumManaShards	IntegerType	no	
 HostCard	CardViewType	no	
 Description	StringType	yes	java.lang.String(str x142)
 CanPlay	BooleanType	no	
 PromptIfOnlyPossibleAbility	BooleanType	no	
 SA_IsSpell	BooleanType	no	
-HasBackSide	BooleanType	no	
 Key	StringType	yes	java.lang.String(str x142)
 SourceTrigger	IntegerType	yes	java.lang.Integer(int x142)
 SourceCard	CardViewType	yes	java.lang.Integer(int x142)
 ActivatingPlayer	PlayerViewType	yes	java.lang.Integer(int x142)
 TargetCards	CardViewCollectionType	yes	java.util.ArrayList(list x142)
 TargetPlayers	PlayerViewCollectionType	yes	java.util.ArrayList(list x142)
+TargetStackItems	StackItemViewListType	no	
 SubInstance	StackItemViewType	yes	java.lang.Integer(int x20)
 Ability	BooleanType	yes	java.lang.Boolean(bool x63)
 OptionalTrigger	BooleanType	yes	java.lang.Boolean(bool x8)
 OptionalCosts	StringType	no	
+CombatView	CombatViewType	yes	forge.gamemodes.net.DeltaPacket$CombatData(combat x150) null(null x198)
 AttackersWithDefenders	GenericMapType	no	
 AttackersWithBlockers	GenericMapType	no	
+AttackersWithPlannedBlockers	GenericMapType	no	
 BandsWithDefenders	GenericMapType	no	
 BandsWithBlockers	GenericMapType	no	
-AttackersWithPlannedBlockers	GenericMapType	no	
 BandsWithPlannedBlockers	GenericMapType	no	
-CombatView	CombatViewType	yes	forge.gamemodes.net.DeltaPacket$CombatData(combat x150) null(null x198)
 Players	PlayerViewCollectionType	yes	java.util.ArrayList(list x12)
 GameType	EnumType	yes	forge.game.GameType(enum x12)
 Title	StringType	yes	java.lang.String(str x12)
 Turn	IntegerType	yes	java.lang.Integer(int x209)
+PlayerTurn	PlayerViewType	yes	java.lang.Integer(int x209)
+Phase	EnumType	yes	forge.game.phase.PhaseType(enum x532)
 WinningPlayerName	StringType	yes	java.lang.String(str x12)
 WinningTeam	IntegerType	yes	java.lang.Integer(int x12)
-MatchOver	BooleanType	no	
 Mulligan	BooleanType	no	
+GameOver	BooleanType	yes	java.lang.Boolean(bool x12)
+MatchOver	BooleanType	no	
 NumGamesInMatch	IntegerType	yes	java.lang.Integer(int x12)
 NumPlayedGamesInMatch	IntegerType	no	
 Stack	StackItemViewListType	yes	java.util.ArrayList(list x306)
 StormCount	IntegerType	yes	java.lang.Integer(int x100) null(null x117)
-GameOver	BooleanType	yes	java.lang.Boolean(bool x12)
 PoisonCountersToLose	IntegerType	yes	java.lang.Integer(int x12)
-PlayerTurn	PlayerViewType	yes	java.lang.Integer(int x209)
-Phase	EnumType	yes	forge.game.phase.PhaseType(enum x532)
 Object	ObjectType	no	
 Dependencies	StringType	yes	java.lang.String(str x30)
