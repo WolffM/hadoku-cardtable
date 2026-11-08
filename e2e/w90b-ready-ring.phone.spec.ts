@@ -32,6 +32,7 @@ import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { openFriend } from './play/browser.ts';
 import { PHONE } from './play/phone.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { roomIdFromAddress } from './play/board.ts';
 
 test.use(PHONE);
 
@@ -152,8 +153,7 @@ test('a nine-seat draft pod, eight humans ready: the ring never spills past the 
   try {
     await alice.page.goto(`${PREFIX}/`);
     await submitCreateRoom(alice.page, { name: `e2e w90b ready ring ${Date.now()}`, gameType: 'draft' });
-    await alice.page.waitForFunction(() => /^#\/room\/[a-z0-9-]+$/.test(window.location.hash), null, { timeout: UI_TIMEOUT });
-    const roomId = (await alice.page.evaluate(() => window.location.hash)).replace('#/room/', '');
+    const roomId = await roomIdFromAddress(alice.page);
 
     await postJson(alice.context, `/rooms/${roomId}/pod/sit`, { seat: 0 });
     await postJson(alice.context, `/rooms/${roomId}/ready`, { ready: true });

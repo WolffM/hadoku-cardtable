@@ -23,7 +23,7 @@ test('recon: lobby stills', async ({ browser }) => {
     await hero.page.waitForTimeout(2_500);
     await shot('01-front');
     await submitCreateRoom(hero.page, { name: 'Friday Legacy' });
-    await hero.page.waitForURL(/#\/room\//);
+    await hero.page.waitForURL(/\/room\//);
     const roomUrl = hero.page.url();
     await hero.page.waitForTimeout(2_000);
     await shot('02-room');

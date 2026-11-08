@@ -38,6 +38,7 @@ import { keepPrefsLocal } from './prefsLocal.ts';
 import { STREAM_NAME_PREFIX } from './streamNamespace.ts';
 import { createStreamedRoomByApi, submitCreateRoom } from './play/rooms.ts';
 import { isArtRequest } from './art.ts';
+import { roomIdFromAddress } from './play/board.ts';
 
 const run = promisify(execFile);
 
@@ -145,8 +146,7 @@ async function createStreamedRoom(f: Friend, name: string): Promise<string> {
   await expect(f.page.getByTestId('room-create-open')).toBeVisible();
   // The form offers no client any more (2026-10-10); the API still makes a streamed room.
   await createStreamedRoomByApi(f.page, name);
-  await f.page.waitForFunction(() => /^#\/room\/[a-z0-9-]+$/.test(window.location.hash), null, { timeout: 20_000 });
-  return (await f.page.evaluate(() => window.location.hash)).replace('#/room/', '');
+  return roomIdFromAddress(f.page);
 }
 
 test.afterAll(async () => {
@@ -306,7 +306,7 @@ test('a builtin room costs no container at all', async ({ browser }) => {
   await alice.page.goto(`${PREFIX}/`);
   await submitCreateRoom(alice.page, { name: `e2e builtin ${Date.now()}` });
   await expect(alice.page.getByTestId('deck-mine')).toBeVisible();
-  const roomId = (await alice.page.evaluate(() => window.location.hash)).replace('#/room/', '');
+  const roomId = await roomIdFromAddress(alice.page);
 
   // The whole economic argument for the toggle: our table starts nothing. Held
   // long enough that a fire-and-forget provision would have landed. Scoped to

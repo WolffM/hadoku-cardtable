@@ -1015,6 +1015,13 @@ export async function grindPriority(
 /** How long the app has to navigate to a room after it is created or joined. */
 const ROOM_ADDRESS_TIMEOUT = 30_000;
 
+/** A room's id from either form of its address: `…/room/<id>` (its page) or `…#/room/<id>`. */
+export function roomIdOfUrl(url: string): string {
+  const m = /\/room\/([a-z0-9-]+)/.exec(url);
+  if (m === null) throw new Error(`no room in ${url}`);
+  return m[1]!;
+}
+
 /** The room id off the address a person could copy (the room's own path), once the app has navigated there. */
 export async function roomIdFromAddress(page: Page): Promise<string> {
   await page.waitForFunction(() => window.location.hash === '' && /\/room\/[a-z0-9-]+$/.test(window.location.pathname), null, {

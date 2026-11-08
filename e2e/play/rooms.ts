@@ -9,6 +9,7 @@
  */
 
 import { expect, type Page } from '@playwright/test';
+import { roomIdOfUrl } from './board.ts';
 
 /** Open the create dialog, if it is not open already, and wait for it. */
 export async function openCreateRoom(page: Page): Promise<void> {
@@ -82,7 +83,7 @@ async function myTableId(page: Page, roomId: string): Promise<string> {
 
 /** Back to my table's page by its own link, as from the hub's card: what a player who left it does. */
 export async function openMyTable(page: Page, roomUrl: string): Promise<void> {
-  const roomId = new URL(roomUrl).hash.replace(/^#\/room\//, '');
+  const roomId = roomIdOfUrl(roomUrl);
   await page.goto(`${roomUrl}/table/${await myTableId(page, roomId)}`);
   await expect(page.getByTestId('table-page')).toBeVisible();
 }

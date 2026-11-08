@@ -14,7 +14,7 @@
  */
 import { expect, test, type Browser } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, roomIdOfUrl } from './play/board.ts';
 import { type Friend } from './play/browser.ts';
 import { forgeAvailability, matchPid, startPlayStack, type PlayStack } from './play/harness.ts';
 import { openMyTable } from './play/rooms.ts';
@@ -49,7 +49,7 @@ async function intoRoundOne(browser: Browser, stack: PlayStack, label: string): 
 
 /** Where the game just ended left the round, from the room itself: `done`, `sideboarding`, or still `playing`. */
 async function afterGame(f: Friend, roomUrl: string): Promise<string> {
-  const roomId = new URL(roomUrl).hash.replace(/^#\/room\//, '');
+  const roomId = roomIdOfUrl(roomUrl);
   const room = (await f.page.evaluate(
     (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,

@@ -33,7 +33,7 @@ export async function withAlice(browser: Browser, fn: (page: Page) => Promise<vo
 export async function soloDraftPack(page: Page): Promise<void> {
   await page.goto(`${PREFIX}/`);
   await submitCreateRoom(page, { name: `w90c pack ${Date.now()}`, gameType: 'draft' });
-  await page.waitForURL(/#\/room\//, { timeout: 30_000 });
+  await page.waitForURL(/\/room\//, { timeout: 30_000 });
   await page.getByTestId('draft-lobby').waitFor({ timeout: 30_000 });
   // Making the room seated alice already (`room/lobby.ts`'s `#autoSeat`).
   await sitPodAt(page, 0);

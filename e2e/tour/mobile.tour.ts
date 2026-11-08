@@ -807,7 +807,7 @@ test('draft: nine-seat lobby, split, the draft, deck building, decks', async ({ 
     const D = (route: string, state: string) => ({ area: 'draft', route, state });
     await go(alice.page, at(stack, ''));
     await submitCreateRoom(alice.page, { name: `Cube night ${Date.now() % 1000}`, gameType: 'draft' });
-    await alice.page.waitForURL(/#\/room\//, { timeout: 30_000 });
+    await alice.page.waitForURL(/\/room\//, { timeout: 30_000 });
     const roomId = alice.page.url().split('/room/')[1]!;
     await alice.page.getByTestId('draft-lobby').waitFor({ timeout: 30_000 });
     await alice.page.waitForTimeout(1_500);
