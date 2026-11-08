@@ -68,9 +68,14 @@ export function makeTitled(forge: ForgeAvailability): (t: string) => string {
  * page's next frame — so a read straight after `setViewportSize` lays the board out at the new window
  * with the old window's card size (bob's empty hand read 73.5 px, its 1280×720 size, while his screen
  * drew 84.8 at 900×800). Returns once every measured box's written size is its content box again.
+ *
+ * Boxes a `ResizeObserver` sizes (the draft screen's `--draft-h`, from `window.innerHeight`) are
+ * written in the frame after the resize's layout, so it first waits two frames: the pick screen read
+ * straight after a 1440×900 → 1280×800 shrink still had the old 819 px of content (run 42467467573).
  */
 export async function resizeWindow(page: Page, size: { width: number; height: number }): Promise<void> {
   await page.setViewportSize(size);
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
   await expect
     .poll(
       () =>
