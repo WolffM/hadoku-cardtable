@@ -8,6 +8,8 @@
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { mintTabId } from '@wolffm/rooms-protocol';
+
 import { socketPath } from '../../../../ui/src/room/socket-options.ts';
 import { CONCEDE_ANSWER_MS } from '../match.ts';
 import { concede, startMatch, type LiveMatch, type MatchTrouble } from '../../../../ui/src/play/live/match.ts';
@@ -239,6 +241,9 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const match: LiveMatch = startMatch({
     matchId,
     transport,
+    // A seat is its own tab. Left to default, the join waits on the page's tab id, whose probe opens a
+    // BroadcastChannel, and in Node an open channel keeps the process alive after the report is written.
+    tabId: mintTabId(),
     report: (what, detail) => {
       crashed ??= { what, detail };
     },
