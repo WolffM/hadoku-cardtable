@@ -12,6 +12,10 @@ import { writeFileSync } from 'node:fs';
 import express from 'express';
 import { identityFromHeaders } from '../room/identity.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { DELTA_TYPE, deltaKeyType } from '@hadoku/forge-wire';
+import type { ArtIds } from '../play/art-ids.ts';
+import { fixtureFrames } from '../play/fixtures/transcript.ts';
+import { createProjector, EVERY_PLAYER, type StateFrame } from '../play/visibility.ts';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 
@@ -64,9 +68,9 @@ function writeGz(path: string, lines: unknown[]): void {
 	writeFileSync(path, gzipSync(Buffer.from(lines.map((l) => JSON.stringify(l)).join('\n') + '\n', 'utf8')));
 }
 
-function writePublic(dir: string, matchId: string, opts: { roomId?: string | null; winner?: 0 | 1 | null; startedAt?: string; envs?: unknown[]; v?: number; seats?: unknown[]; ai?: [boolean, boolean] } = {}): void {
+function writePublic(dir: string, matchId: string, opts: { roomId?: string | null; winner?: 0 | 1 | null; startedAt?: string; envs?: unknown[]; v?: number; seats?: unknown[]; ai?: [boolean, boolean]; art?: unknown[] } = {}): void {
 	writeGz(join(dir, `${matchId}.public.jsonl.gz`), [
-		{ t: 'header', v: opts.v ?? 2, matchId, roomId: opts.roomId ?? null, players: ['A', 'B'], ai: opts.ai ?? [false, false], decks: [null, null], startedAt: opts.startedAt ?? '2026-01-01T00:00:00.000Z' },
+		{ t: 'header', v: opts.v ?? 2, matchId, roomId: opts.roomId ?? null, players: ['A', 'B'], ai: opts.ai ?? [false, false], decks: [null, null], ...(opts.art === undefined ? {} : { art: opts.art }), startedAt: opts.startedAt ?? '2026-01-01T00:00:00.000Z' },
 		...(opts.envs ?? [{ t: 'env', at: 0, env: { matchId, cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } } }]),
 		{ t: 'end', endedAt: '2026-01-01T00:10:00.000Z', winner: opts.winner ?? null, ...(opts.seats === undefined ? {} : { seats: opts.seats }) },
 	]);
@@ -264,6 +268,68 @@ describe('GET /api/replays/:matchId', () => {
 		const { status, json } = await call(wired, '/api/replays/m-reb');
 		expect(status).toBe(200);
 		expect(json).toEqual(rebuilt);
+	});
+});
+
+describe("a replay recorded before faces carried their art", () => {
+	/** Every face's id is its name's, and the decks it was made for are kept, so a test sees both. */
+	function namedArt(): { artIds: (decks: readonly (string | null)[]) => ArtIds; decksSeen: (readonly (string | null)[])[] } {
+		const decksSeen: (readonly (string | null)[])[] = [];
+		const art: ArtIds = { face: ({ name }) => ({ scryfallId: `id:${name}` }), card: () => undefined, images: (name) => [`id:${name}`], backs: () => [] };
+		return { artIds: (decks) => (decksSeen.push(decks), art), decksSeen };
+	}
+	/** The watcher stream the live recorder writes today: the real fixture through `createProjector(EVERY_PLAYER, art)`. */
+	function liveEnvs(matchId: string): unknown[] {
+		const projector = createProjector(EVERY_PLAYER, namedArt().artIds([]));
+		return fixtureFrames().map((frame, i) => ({ t: 'env', at: i * 100, env: { matchId, cursor: { epoch: 'e', seq: i + 1 }, frame: projector.project(frame) } }));
+	}
+	/** The same stream as a recording from before v0.57.0 wrote it: no face carries `ScryfallId`. */
+	function unstamped(envs: unknown[]): { envs: unknown[]; stripped: number } {
+		let stripped = 0;
+		const text = JSON.stringify(envs, (key, value: unknown) => {
+			if (key !== 'ScryfallId') return value;
+			stripped += 1;
+			return undefined;
+		});
+		return { envs: JSON.parse(text) as unknown[], stripped };
+	}
+	const facesOf = (envs: unknown[]): Record<string, unknown>[] =>
+		envs.flatMap((e) => {
+			const frame = (e as { env: { frame: StateFrame } }).env.frame;
+			if (frame.method !== 'applyDelta') return [];
+			const { newObjects, objectDeltas } = frame.payload.packet;
+			return [...Object.entries(newObjects), ...Object.entries(objectDeltas)].filter(([key]) => deltaKeyType(Number(key)) === DELTA_TYPE.cardState).map(([, face]) => face);
+		});
+
+	it('serves each face the art the live watcher is sent, with the match decks from its action log, and its header art as ids', async () => {
+		const dir = await recordingsDir();
+		const live = liveEnvs('m-old');
+		const { envs, stripped } = unstamped(live);
+		expect(stripped, 'the fixture is stamped live, so stripping it is no no-op').toBeGreaterThan(20);
+		writePublic(dir, 'm-old', { envs, art: [{ name: 'Mountain', set: 'M11' }, { name: 'Shock', set: null }] });
+		writeActionsOnly(dir, 'm-old', { seats: [{ name: 'A', ai: false, deck: 'deck-a' }, { name: 'B', ai: false, deck: 'deck-b' }] });
+		const { artIds, decksSeen } = namedArt();
+		const base = await openApp(dir, { artIds });
+		const { status, json } = await call(base, '/api/replays/m-old');
+		expect(status).toBe(200);
+		const served = (json.envs as { at: number; env: unknown }[]).map(({ at, env }) => ({ t: 'env', at, env }));
+		expect(served, 'every face as the live watcher was sent it').toEqual(live);
+		expect(facesOf(served).filter((face) => face.ScryfallId !== undefined).length).toBe(stripped);
+		expect((json.header as { art: unknown }).art).toEqual(['id:Mountain', 'id:Shock']);
+		expect(decksSeen).toEqual([['deck-a', 'deck-b']]);
+	});
+
+	it('serves a stream recorded with its art exactly as it was written, and an unwired server serves an old one as written', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-new', { envs: liveEnvs('m-new'), art: ['id:Mountain'] });
+		const { envs } = unstamped(liveEnvs('m-old'));
+		writePublic(dir, 'm-old', { envs, art: [{ name: 'Mountain', set: 'M11' }] });
+		const { artIds, decksSeen } = namedArt();
+		const asWritten = async (matchId: string): Promise<unknown> => (await call(await openApp(dir), `/api/replays/${matchId}`)).json;
+		const stamped = await call(await openApp(dir, { artIds }), '/api/replays/m-new');
+		expect(JSON.stringify(stamped.json)).toBe(JSON.stringify(await asWritten('m-new')));
+		expect(decksSeen, 'a stamped stream asks for no art at all').toEqual([]);
+		expect(((await asWritten('m-old')) as { header: { art: unknown } }).header.art).toEqual([{ name: 'Mountain', set: 'M11' }]);
 	});
 });
 

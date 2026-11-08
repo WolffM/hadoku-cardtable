@@ -35,6 +35,8 @@ import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
 import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine, type PublicRelayLine } from '../play/recording/writer.js';
 import type { PersonFace } from '@hadoku/shared';
 import { faceOfPerson, type People, type Person } from '../people.js';
+import type { ArtIds } from '../play/art-ids.js';
+import { restampWatcherFrame, type StateFrame, type WireObj } from '../play/visibility.js';
 
 interface PublicHeaderLine {
 	t: 'header';
@@ -72,6 +74,12 @@ export interface ReplaysDeps {
 	canRebuild?(header: ActionsHeaderLine): boolean;
 	/** Lane D's own rebuild, injected. */
 	rebuild?(matchId: string): Promise<RebuildResult>;
+	/**
+	 * The art resolver a match whose seats played these `.dck` texts was recorded with
+	 * (`createArtIds(catalog, decks)`, as the recorder makes it). Absent: a recording from before
+	 * faces carried their art is served as it was written.
+	 */
+	artIds?(decks: readonly (string | null)[]): ArtIds;
 	/** Who played, looked up when a replay is watched (`GET /:matchId/people`). Absent: nobody is. */
 	people?: People;
 	log?: JsonLog;
@@ -174,6 +182,38 @@ async function allLines(path: string): Promise<string[]> {
 	});
 }
 
+/** The two state frames a watcher stream's faces ride in. */
+const STATE_METHODS: ReadonlySet<string> = new Set(['setGameView', 'applyDelta']);
+/** How many envelopes {@link withRecordedArt} folds between turns of the event loop: a few milliseconds' work. */
+const STAMP_SLICE = 100;
+
+/**
+ * A recording from before the server stamped each face's art (v0.57.0) drew its art by name in the
+ * browser, which no longer looks anything up: its faces get the art the live watcher is sent now,
+ * folded in order the way the watcher's own projector folds them, and its header's `{ name, set }`
+ * list becomes the ids the preload asks for. A stream that already carries art is served as it was.
+ */
+async function withRecordedArt(header: PublicHeaderLine, envs: { at: number; env: unknown }[], art: ArtIds): Promise<{ header: PublicHeaderLine; envs: { at: number; env: unknown }[] }> {
+	const named = (header.art ?? []).filter((entry): entry is { name: string; set?: string | null } => typeof entry === 'object' && entry !== null && typeof (entry as { name?: unknown }).name === 'string');
+	const ids = named.length === 0 ? header.art : [...new Set([...(header.art ?? []).filter((entry) => typeof entry === 'string'), ...named.flatMap((c) => art.images(c.name, c.set ?? null))])];
+	const state = new Map<string, WireObj>();
+	const stamped: { at: number; env: unknown }[] = [];
+	for (const { at, env } of envs) {
+		// A long game's fold is tens of milliseconds: given back to the event loop a slice at a time.
+		if (stamped.length % STAMP_SLICE === STAMP_SLICE - 1) await new Promise((resolve) => setImmediate(resolve));
+		const frame = (env as { frame?: { kind?: string; method?: string } } | null)?.frame;
+		const out = frame?.kind !== 'notify' || !STATE_METHODS.has(frame.method ?? '') ? frame : restampWatcherFrame(state, frame as StateFrame, art);
+		stamped.push(out === frame ? { at, env } : { at, env: { ...(env as object), frame: out } });
+	}
+	return { header: ids === header.art ? header : { ...header, art: ids }, envs: stamped };
+}
+
+/** The `.dck` texts an action log's spec says each seat played; none when there is no log to say. */
+function specDecks(actionsHeader: ActionsHeaderLine | null): (string | null)[] {
+	const seats = (actionsHeader?.spec as { seats?: { deck?: unknown }[] } | undefined)?.seats;
+	return Array.isArray(seats) ? seats.map((seat) => (typeof seat.deck === 'string' ? seat.deck : null)) : [];
+}
+
 function parseJson<T>(text: string): T | null {
 	try {
 		return JSON.parse(text) as T;
@@ -207,6 +247,18 @@ function rowsOf(dir: string): Row[] {
 		byMatch.set(matchId, row);
 	}
 	return [...byMatch.values()];
+}
+
+/** {@link withRecordedArt} with the art ids the match's own decks resolve, read from its action log while that is kept. */
+async function recordedArt(
+	row: Row,
+	header: PublicHeaderLine,
+	envs: { at: number; env: unknown }[],
+	artIds: NonNullable<ReplaysDeps['artIds']>,
+	dir: string,
+): Promise<{ header: PublicHeaderLine; envs: { at: number; env: unknown }[] }> {
+	const read = row.hasActions ? await firstAndLastLine(join(dir, `${row.matchId}${ACTIONS_SUFFIX}`)) : null;
+	return withRecordedArt(header, envs, artIds(specDecks(read === null ? null : parseJson<ActionsHeaderLine>(read.first))));
 }
 
 export function attachReplays(api: Router, deps: ReplaysDeps): void {
@@ -367,8 +419,9 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					.filter((l): l is PublicPresenceLine => l !== null && l.t === 'presence')
 					.map((l) => ({ at: l.at, seat: l.seat, playerId: l.playerId, presence: l.presence }));
 				const relays = body.filter((l): l is PublicRelayLine => l !== null && l.t === 'relay').map((l) => ({ at: l.at, event: l.event, echo: l.echo }));
+				const stamped = deps.artIds === undefined || lines.some((l) => l.includes('"ScryfallId"')) ? null : await recordedArt(row, header, envs, deps.artIds, deps.dir);
 				res.set('Cache-Control', REPLAY_CACHE);
-				res.json({ header, envs, presence, relays, end: withoutUsers(end) });
+				res.json({ header: stamped?.header ?? header, envs: stamped?.envs ?? envs, presence, relays, end: withoutUsers(end) });
 				return;
 			}
 			if (!row.hasActions) {

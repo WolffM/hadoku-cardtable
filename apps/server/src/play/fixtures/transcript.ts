@@ -30,11 +30,34 @@ import { fileURLToPath } from 'node:url';
 import { DELTA_TYPE, cardIdOfState, deltaKey } from '@hadoku/forge-wire';
 
 import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
-import { type WireObj } from '../visibility.js';
+import { type DeltaPacketJson, type StateFrame, type WireObj } from '../visibility.js';
 
 const TRANSCRIPT_FILE = resolve(dirname(fileURLToPath(import.meta.url)), 'bridge-two-seats.ndjson');
 
 const TRANSCRIPT_MATCH = 'm-transcript01';
+
+/**
+ * `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`: the first 27 `DeltaPacket`s a real Forge
+ * client received in a real two-player match (provenance in `apps/ui/src/play/fixtures.ts`),
+ * Forge's unfiltered stream with both hands named.
+ */
+const TIERC_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../ui/src/play/fixtures/tierc-game1-seq1-27.json');
+
+/** {@link TIERC_FILE}'s packets as `applyDelta` frames, annotations stripped. */
+export function fixtureFrames(): StateFrame[] {
+	const raw = JSON.parse(readFileSync(TIERC_FILE, 'utf8')) as Record<string, unknown>[];
+	return raw.map((p) => {
+		const packet: DeltaPacketJson = {
+			seq: p.seq as number,
+			checksum: p.checksum as number,
+			checksumProperties: p.checksumProperties as number[],
+			newObjects: p.newObjects as DeltaPacketJson['newObjects'],
+			objectDeltas: p.objectDeltas as DeltaPacketJson['objectDeltas'],
+			events: p.events as unknown[],
+		};
+		return { kind: 'notify', method: 'applyDelta', payload: { packet } } as StateFrame;
+	});
+}
 
 /**
  * `bridge-flying-seat1.ndjson` — the red `match.jvm.test.ts` run the manager hit, captured

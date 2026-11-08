@@ -491,6 +491,40 @@ export function withArt(state: ReadonlyMap<string, WireObj>, face: WireObj, art:
 }
 
 /**
+ * One frame of a recorded watcher stream, folded into `state` (that stream's own fold so far), with
+ * each face the watcher saw whole given the art {@link createProjector}`(EVERY_PLAYER, art)` stamps
+ * on it live: the same {@link withArt}, on a card the player who sees most of it sees `full`. A face
+ * that already carries its art is left as it is, so a stream recorded with art comes out unchanged.
+ * For a recording made before faces carried their art (`GET /api/replays/:matchId`).
+ */
+export function restampWatcherFrame(state: Map<string, WireObj>, frame: StateFrame, art: ArtIds): StateFrame {
+	foldFrame(state, frame);
+	if (frame.method === 'openView') return frame;
+	const zones = indexZones(state);
+	const players = [...state.values()].filter((obj) => obj._type === DELTA_TYPE.player).map((obj) => obj._id);
+	const full = (cardId: number): boolean => players.some((p) => cardVisibility(state, zones, cardId, p) === 'full');
+	const stamp = (table: ObjTable, whole: boolean): ObjTable => {
+		let out: ObjTable | null = null;
+		for (const [key, obj] of Object.entries(table)) {
+			if (deltaKeyType(Number(key)) !== DELTA_TYPE.cardState || ART_PROPS.scryfallId in obj || !full(cardIdOfState(obj._id))) continue;
+			const stamped = withArt(state, obj, art, whole);
+			if (!(ART_PROPS.scryfallId in stamped)) continue;
+			out ??= { ...table };
+			out[key] = stamped;
+		}
+		return out ?? table;
+	};
+	if (frame.method === 'setGameView') {
+		const gameView = stamp(frame.payload.gameView, true);
+		return gameView === frame.payload.gameView ? frame : { ...frame, payload: { ...frame.payload, gameView } };
+	}
+	const { packet } = frame.payload;
+	const newObjects = stamp(packet.newObjects, true);
+	const objectDeltas = stamp(packet.objectDeltas, false);
+	return newObjects === packet.newObjects && objectDeltas === packet.objectDeltas ? frame : { ...frame, payload: { ...frame.payload, packet: { ...packet, newObjects, objectDeltas } } };
+}
+
+/**
  * Whether the cards `before` and `now` share, leaving out `looked`, stand in a different order in
  * `now` — a shuffle. Cards drawn, milled or put on top are not shared and say nothing; nor do the
  * cards a look let the player see, which the look itself moves (a scry's bottom card, a fate seal's).

@@ -36,15 +36,15 @@ import {
 	faceUpOnBattlefield,
 	EVERY_PLAYER,
 	foldFrames,
+	restampWatcherFrame,
 	type DeltaPacketJson,
 	type StateFrame,
 	type WireObj,
 } from './visibility.js';
-import { leaked } from './fixtures/transcript.js';
+import { fixtureFrames, leaked } from './fixtures/transcript.js';
 import type { ArtIds } from './art-ids.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const FIXTURE = resolve(HERE, '../../../ui/src/play/fixtures/tierc-game1-seq1-27.json');
 const EVENTS_FIXTURE = resolve(
 	HERE,
 	'../../../../packages/forge-wire/src/events/fixtures/GameEventCardChangeZone.json',
@@ -52,22 +52,6 @@ const EVENTS_FIXTURE = resolve(
 
 /** Seat 0 is "Bob" (player id 0), seat 1 is "Alice" (player id 1) — `fixtures.ts`. */
 const PLAYERS = [0, 1] as const;
-
-/** The fixture's packets as `applyDelta` frames, annotations stripped. */
-export function fixtureFrames(): StateFrame[] {
-	const raw = JSON.parse(readFileSync(FIXTURE, 'utf8')) as Record<string, unknown>[];
-	return raw.map((p) => {
-		const packet: DeltaPacketJson = {
-			seq: p.seq as number,
-			checksum: p.checksum as number,
-			checksumProperties: p.checksumProperties as number[],
-			newObjects: p.newObjects as DeltaPacketJson['newObjects'],
-			objectDeltas: p.objectDeltas as DeltaPacketJson['objectDeltas'],
-			events: p.events as unknown[],
-		};
-		return { kind: 'notify', method: 'applyDelta', payload: { packet } } as StateFrame;
-	});
-}
 
 /** Forge's apply rules, for reading states back in the test. */
 function fold(frames: readonly StateFrame[]): Map<string, WireObj> {
@@ -1549,6 +1533,50 @@ describe("a face's art id", () => {
 		const sent = out.newObjects[faceKey];
 		expect(sent, 'the face is sent again, as a replace').toBeDefined();
 		expect(sent!.ScryfallId, 'and the replace carries no art id, so the fold drops the one it held').toBeUndefined();
+	});
+
+	it('is laid on a recorded watcher stream that lacks it exactly as the live watcher stamps it, and a stream that has it is left alone', () => {
+		const raw = fold(fixtureFrames());
+		const battlefield = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Battlefield as { v: { v: number }[] }).v.map((c) => c.v);
+		const graveyard = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Graveyard as { v: { v: number }[] } | undefined)?.v.map((c) => c.v) ?? [];
+		const [hidden, renamed] = battlefield as [number, number];
+		const faceIdOf = (cardId: number): number => cardId * 16 + ((raw.get(deltaKey(DELTA_TYPE.card, cardId))?.CurrentState as { v: number } | undefined)?.v ?? 0);
+		const faceKeyOf = (cardId: number): string => deltaKey(DELTA_TYPE.cardState, faceIdOf(cardId));
+		const ids = (list: number[]): { t: 'list'; v: { t: 'int'; v: number }[] } => ({ t: 'list', v: list.map((v) => ({ t: 'int', v })) });
+		const packet = (seq: number, newObjects: DeltaPacketJson['newObjects'], objectDeltas: DeltaPacketJson['objectDeltas']): StateFrame => ({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects, objectDeltas, events: [] } },
+		});
+		const later: StateFrame[] = [
+			// Face down in a public zone no controller may peek in: the watchers see the card, never which.
+			packet(100, { [deltaKey(DELTA_TYPE.card, hidden)]: { ...raw.get(deltaKey(DELTA_TYPE.card, hidden))!, Facedown: { t: 'bool', v: true }, Zone: { t: 'enum', v: 'Graveyard' } } }, {
+				[deltaKey(DELTA_TYPE.player, 1)]: { _type: DELTA_TYPE.player, _id: 1, Battlefield: ids(battlefield.filter((id) => id !== hidden)), Graveyard: ids([...graveyard, hidden]) },
+			}),
+			// A card becomes one this resolver has no art for: the delta clears the id it held.
+			packet(101, {}, { [faceKeyOf(renamed)]: { _type: DELTA_TYPE.cardState, _id: faceIdOf(renamed), Name: { t: 'str', v: 'Nameless' } } }),
+			// A resync: the whole table again.
+			{ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(raw), sequenceNumber: 102 } },
+		];
+		const { idOf } = namedArt();
+		// One name the resolver has no art for: a face of it sent whole carries none.
+		const hiddenName = faceName(raw.get(faceKeyOf(hidden)));
+		const artless = [...raw.values()].map((obj) => (obj._type === DELTA_TYPE.cardState ? faceName(obj) : null)).find((name) => name !== null && name !== hiddenName);
+		const art: ArtIds = { face: ({ name }) => (name === 'Nameless' || name === artless ? undefined : { scryfallId: idOf(name) }), card: () => undefined, images: () => [], backs: () => [] };
+		const watcher = createProjector(EVERY_PLAYER, art);
+		const live = [...fixtureFrames(), ...later].map((frame) => watcher.project(frame));
+		const text = JSON.stringify(live);
+		const stripped = JSON.parse(text, (key, value: unknown) => (key === 'ScryfallId' ? undefined : value)) as StateFrame[];
+		expect(text, 'the live stream holds both kinds of id: a stamp and a cleared one').toContain('"ScryfallId":{');
+		expect(text).toContain('"ScryfallId":null');
+		expect(JSON.stringify(stripped)).not.toContain('ScryfallId');
+		const downFace = (live.at(-3) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet.newObjects[faceKeyOf(hidden)];
+		expect(faceName(downFace), 'the face-down card\'s face is sent to the watchers, art and all left off').not.toBeNull();
+
+		const state = new Map<string, WireObj>();
+		expect(stripped.map((frame) => restampWatcherFrame(state, frame, art))).toEqual(live);
+		const again = new Map<string, WireObj>();
+		live.forEach((frame) => expect(restampWatcherFrame(again, frame, art), 'a stamped frame comes back as the same object').toBe(frame));
 	});
 
 	it("follows a face's name: a delta that renames it carries the new id, one that does not carries none", () => {

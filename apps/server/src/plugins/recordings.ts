@@ -8,6 +8,7 @@ import { FREE_PICK } from '@hadoku/shared';
 import { CONFIG } from '../config.js';
 import { attachParked } from '../http/parked.js';
 import { attachReplays } from '../http/replays.js';
+import { createArtIds } from '../play/art-ids.js';
 import { coldStartsFrom, jvmHostFactory, roomDeckCosts } from '../play/index.js';
 import { openParkedStore } from '../play/parked.js';
 import { bridgeDigest, createRecorder, forgePin, serverVersion } from '../play/recording/recorder.js';
@@ -72,6 +73,7 @@ export const recordingsPlugin: CardtablePlugin = {
 			isTesting: (roomId) => (roomId === null ? false : lobby.get(roomId)?.testing === true),
 			stillPlaying: (matchId, caller) => lobby.stillPlaying(matchId, caller),
 			people: state.people,
+			artIds: (decks) => createArtIds(catalog ?? null, decks),
 			log: recordingsLog,
 			canRebuild: canRebuildBoolean,
 			...(rebuildHost === null ? {} : { rebuild: (matchId: string) => rebuildForReplays(matchId, { recordingsDir: dir, host: rebuildHost, log: recordingsLog, deckCosts, catalog }) }),
