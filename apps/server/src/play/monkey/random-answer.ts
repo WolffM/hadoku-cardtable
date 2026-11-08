@@ -1,12 +1,12 @@
 /*
- * A random LEGAL answer to one open ask, for every one of Forge's 15 blocking
+ * A random LEGAL answer to one open ask, for every one of Forge's 13 blocking
  * methods.
  *
  * "Legal" is never reinvented here. Every method's legality rule already
  * exists as a pure function the real prompt components call to disable their
  * own submit button — `apps/ui/src/play/prompts/rules.ts` (per-method
  * `*Problems` checkers plus the few builders: `combatDamageRules`,
- * `settleCombatAssignment`, `manaCombos`, `zonesShown`, `zonesOpened`) and
+ * `settleCombatAssignment`, `manaCombos`) and
  * `packages/shared/src/combat-damage.ts` (`combatDamageRules`,
  * `combatDamageReply`). This file is the RANDOM CHOICE among what those
  * functions say is legal, not a second legality model — the one place that
@@ -23,8 +23,6 @@ import {
   confirmButtons,
   manaCombos,
   settleCombatAssignment,
-  zonesOpened,
-  zonesShown,
 } from '../../../../ui/src/play/prompts/rules.ts';
 import { combatDamageReply, combatDamageRules, type CombatAssignment } from '@hadoku/shared';
 import { tickPick, type BlockingMethod, type ChoiceOption, type ServerFrame } from '@hadoku/forge-wire';
@@ -183,16 +181,8 @@ export function randomAnswer(rng: Rng, ask: LiveAsk): RandomAnswer {
       // construction that needs no model of `toTop`/`toBottom`/`toAnywhere`.
       return { method: ask.method, result: ask.cards, declined: false };
     }
-    case 'tempShowZones': {
-      const shown = zonesShown(ask.controller.id, ask.zonesToUpdate);
-      return { method: ask.method, result: shown, declined: shown.length === 0 };
-    }
-    case 'openZones': {
-      const opened = zonesOpened(ask);
-      return { method: ask.method, result: opened, declined: opened.length === 0 };
-    }
     default: {
-      // Exhaustiveness: every `BlockingMethod` is one of the 15 cases above.
+      // Exhaustiveness: every `BlockingMethod` is one of the 13 cases above.
       const never: never = ask;
       throw new Error(`randomAnswer: unhandled ask method ${JSON.stringify(never)}`);
     }

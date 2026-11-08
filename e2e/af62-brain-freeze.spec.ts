@@ -3,7 +3,7 @@
  *
  * The operator, 2026-10-14: *"brain freeze choose the sae"*. Production, m-98e9ea85d1bf: thyeggman's
  * Brain Freeze went off with seventeen copies, and Forge asked a target for every copy — seventeen
- * clicks on the same player, ~0.55 s apart (`openZones` asks s1-118…s1-134). Each copy is asked through
+ * clicks on the same player, ~0.55 s apart (asks s1-118…s1-134). Each copy is asked through
  * `CopySpellAbilityEffect` → `orderAndPlaySimultaneousSa` → `setupNewTargets`, the same per-instance
  * question a batch of identical triggers asks, and the "Same target for all" box (`w70-valakut.spec.ts`)
  * was offered for triggers only.

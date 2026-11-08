@@ -82,12 +82,10 @@ describe('onlyAnswer, over every committed prompt fixture', () => {
 			'getChoices-reveal.json',
 			'getChoices.json',
 			'manipulateCardList.json',
-			'openZones.json',
 			'order.json',
 			'showInputDialog.json',
 			'showOptionDialog.json',
 			'sideboard.json',
-			'tempShowZones.json',
 		]);
 	});
 

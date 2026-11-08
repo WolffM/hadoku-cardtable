@@ -85,18 +85,13 @@ function askFingerprint(ask: LiveAsk): string {
 
 export type DeclinedStreaks = Map<string, { count: number; turn: number; phase: string }>;
 
-/** Asks that legitimately repeat with the same shape every turn by design — see the module header. */
-export const LOOP_EXEMPT_METHODS: ReadonlySet<string> = new Set(['tempShowZones', 'openZones']);
-
 /**
  * Track one more decline of `fp` (an ask's method + offered shape) at `(turn, phase)`, mutating
  * `streaks` in place, and say whether this is the THIRD time in a row at the SAME turn and phase —
  * the loop flag. A turn or phase change resets the count to 1: the same question shape recurring
- * turn after turn (a `tempShowZones` at every cleanup) is normal, never a loop; `method` in
- * {@link LOOP_EXEMPT_METHODS} is never counted at all.
+ * turn after turn is normal, never a loop.
  */
-export function declineStreak(streaks: DeclinedStreaks, method: string, fp: string, turn: number, phase: string): { looping: boolean; count: number } {
-  if (LOOP_EXEMPT_METHODS.has(method)) return { looping: false, count: 0 };
+export function declineStreak(streaks: DeclinedStreaks, fp: string, turn: number, phase: string): { looping: boolean; count: number } {
   const before = streaks.get(fp);
   const count = before !== undefined && before.turn === turn && before.phase === phase ? before.count + 1 : 1;
   streaks.set(fp, { count, turn, phase });
@@ -211,7 +206,7 @@ export async function driveSeat(
       const turn = match.view?.turn ?? -1;
       const phase = match.view?.phase ?? '';
       if (answer.declined) {
-        const { looping, count } = declineStreak(declined, ask.method, fp, turn, phase);
+        const { looping, count } = declineStreak(declined, fp, turn, phase);
         // With the server's rows and the wire, as a stuck flag carries: the client's acts alone cannot say why Forge asks again.
         if (looping) flag('loop', `declined ${ask.method} came back unchanged ${count} times in a row at the same turn/phase`, { method: ask.method }, [stateOf(match), ...(opts.serverRows?.() ?? [])]);
       } else {

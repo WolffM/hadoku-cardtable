@@ -21,14 +21,14 @@
  *   ask getAbilityToPlay  "World Breaker - Creature 5/7"          (cast it)
  *   notify updateButtons  Auto/Cancel, then Auto enabled           (pay {6}{G})
  *   ask getAbilityToPlay  "When you cast this spell, exile target…" (World Breaker's own trigger — play it)
- *   ask openZones         Battlefield (no-op notice)
+ *   ask (a no-op zone notice upstream Forge has since stopped sending)
  *   notify setSelectables { 7 land ids, min:1, max:1 }              ← the "arrow"
  *   notify showPromptMessage "World Breaker (81) - When you cast this
  *     spell, exile target artifact, enchantment, or land. […]\n\nSelect
  *     target artifact, enchantment or land"                        ← World Breaker's OWN text
  *   (player picks a target — NOT logged as an ask; this is the exact
  *    window the production log's 40-SECOND GAP between s0-27 and s0-28
- *    falls in: openZones answered at 01:00:10.865, the next ask not until
+ *    falls in: the zone notice answered at 01:00:10.865, the next ask not until
  *    01:00:50.963 — no ask to wait on, just an unexplained on-board
  *    selection, exactly W16's own diagnosis)
  *   ask getAbilityToPlay  "Whenever you cast a colorless spell…"    (Sanctum's trigger — play it, queued AFTER World Breaker's own trigger resolves, not simultaneously ordered in anything the player sees)
@@ -89,7 +89,7 @@ async function castWorldBreakerWithSanctum(seed: number): Promise<{ s: Scenario;
   let selection: OpenSelection | null = null;
   await waitUntil(
     () => {
-      s.answerAsks(); // the cast confirm, World Breaker's own trigger confirm, openZones
+      s.answerAsks(); // the cast confirm, World Breaker's own trigger confirm
       const bar = s.buttons(0);
       if (bar?.label1 === 'Auto' && bar.enable1) s.ok(0); // pay {6}{G}
       const last = [...s.sent].reverse().find((x) => x.seat === 0 && x.envelope.frame.method === 'setSelectables');

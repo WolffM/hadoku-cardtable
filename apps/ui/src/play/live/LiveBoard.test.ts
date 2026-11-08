@@ -510,17 +510,12 @@ describe('hidden information, on the live path', () => {
   });
 });
 
-describe('the other fourteen prompts, on the live board', () => {
-  // The two zone asks answer on mount and are gone before a wait could see
-  // them — they have their own case below.
-  const drawn = PROMPT_METHODS.filter((m) => m !== 'tempShowZones' && m !== 'openZones');
-
-  it('draws twelve and answers two by itself: the fourteen, all accounted for', () => {
-    expect(drawn).toHaveLength(12);
-    expect(PROMPT_METHODS).toHaveLength(14);
+describe('the other twelve prompts, on the live board', () => {
+  it('draws all twelve', () => {
+    expect(PROMPT_METHODS).toHaveLength(12);
   });
 
-  it.each(drawn)('%s: an ask from the stream draws its own component', async (method) => {
+  it.each(PROMPT_METHODS)('%s: an ask from the stream draws its own component', async (method) => {
     const { s, container, getByTestId } = await liveBoard();
     const fixture = PROMPT_FIXTURES.find((f) => f.method === method)!;
     s.send(parseServerFrame(fixture.raw));
@@ -529,18 +524,6 @@ describe('the other fourteen prompts, on the live board', () => {
     expect(container.querySelector(`[data-prompt="${method}"]`)).not.toBeNull();
     expect(container.querySelector('[data-testid="live-error"]')).toBeNull();
   });
-
-  it.each(['tempShowZones', 'openZones'] as const)(
-    '%s answers itself on mount, once, through the seam',
-    async (method) => {
-      const { s, m, queryByTestId } = await liveBoard();
-      s.send(askFor(method));
-      await s.untilClientFrames(1);
-      expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'reply', callId: `fx-${method}`, method } });
-      await waitFor(() => expect(queryByTestId('live-prompt')).toBeNull());
-      expect(m.stats.replies).toBe(1);
-    },
-  );
 
   it('a choice half-made survives the board moving under it, and the answer is the one Forge asked for', async () => {
     const s = (server = await startReplayServer());

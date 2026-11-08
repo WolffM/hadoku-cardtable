@@ -84,11 +84,6 @@ socket.on('forge:s2c', (envelope: { cursor: { seq: number }; frame: Record<strin
 		send({ kind: 'reply', callId: frame.callId, method: 'showConfirmDialog', result: answer === 'yes' });
 		console.log(`  answered ${String(frame.callId)}: ${answer}`);
 	}
-	if (answer !== undefined && frame.kind === 'ask' && frame.method === 'tempShowZones') {
-		// "I showed you those zones" — what Forge's own clients answer.
-		send({ kind: 'reply', callId: frame.callId, method: 'tempShowZones', result: frame.zonesToUpdate });
-		console.log(`  acknowledged ${String(frame.callId)}: zones shown`);
-	}
 });
 
 socket.on('connect_error', (err) => {

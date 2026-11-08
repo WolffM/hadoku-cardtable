@@ -147,9 +147,6 @@ function answerAsks(peer: Peer, matchId: string): void {
 			case 'showConfirmDialog':
 				result = true;
 				break;
-			case 'openZones':
-				result = [];
-				break;
 			case 'getAbilityToPlay':
 				result = (frame.abilities as unknown[])[0] ?? null;
 				break;

@@ -23,7 +23,7 @@
  */
 
 import { deckIssues, newDeck, type Deck } from '@hadoku/deck';
-import { oneEachFit, searchRuleProblems, type BlockingMethod, type CardRef, type ZoneType } from '@hadoku/forge-wire';
+import { oneEachFit, searchRuleProblems, type BlockingMethod, type CardRef } from '@hadoku/forge-wire';
 import type { CombatAssignment, CombatDamageRules } from '@hadoku/shared';
 
 import type { AskOf, ReplyOf } from './types.ts';
@@ -309,70 +309,6 @@ export function revealCaption(reveal: { zones: readonly string[]; messagePrefix:
   const zones = reveal.zones.map((z) => z.toLowerCase()).join(' and ');
   const act = `${reveal.zones.includes('Library') ? 'searching' : 'looking at'} ${ownerName}’s ${zones}`;
   return source === '' ? act.charAt(0).toUpperCase() + act.slice(1) : `${source}: ${act}`;
-}
-
-/* ── Zones ───────────────────────────────────────────────────────────── */
-
-/** `CMatchUI.FLOATING_ZONE_TYPES` (CMatchUI.java:150-152). */
-const FLOATING_ZONES: ReadonlySet<ZoneType> = new Set<ZoneType>([
-  'Library', 'Graveyard', 'Exile', 'Flashback', 'Command', 'Ante', 'Sideboard',
-  'PlanarDeck', 'SchemeDeck', 'AttractionDeck', 'ContraptionDeck', 'Junkyard',
-]);
-
-type ZoneUpdates = ReplyOf<'tempShowZones'>;
-
-/**
- * Which of the requested zones this client actually opens
- * (`CMatchUI.tempShowZones`, CMatchUI.java:584-609): never the battlefield
- * (always shown), a hand only when it is someone else's, otherwise the
- * floating zones. The reply is what was opened, so `hideZones` can close it.
- *
- * One deliberate difference: Forge adds the WHOLE `PlayerZoneUpdate` once per
- * zone it showed, so an update naming two floating zones is returned twice
- * with both. This returns each player once, with exactly the zones shown —
- * the same set, without the duplicates (two updates for one player merge).
- */
-export function zonesShown(controllerId: number, requested: ZoneUpdates): ZoneUpdates {
-  const out: ZoneUpdates = [];
-  for (const update of requested) {
-    const zones = update.zones.filter((z) =>
-      z === 'Hand' ? update.player.id !== controllerId : FLOATING_ZONES.has(z),
-    );
-    if (zones.length === 0) continue;
-    const existing = out.find((u) => u.player.id === update.player.id);
-    if (existing === undefined) out.push({ player: update.player, zones });
-    else for (const z of zones) if (!existing.zones.includes(z)) existing.zones.push(z);
-  }
-  return out;
-}
-
-/**
- * `CMatchUI.openZones` (CMatchUI.java:1362-1381): every requested zone for
- * every player, except the battlefield, the hand and the stack.
- */
-export function zonesOpened(ask: AskOf<'openZones'>): ReplyOf<'openZones'> {
-  const zones = ask.zones.filter((z) => z !== 'Battlefield' && z !== 'Hand' && z !== 'Stack');
-  if (zones.length === 0) return [];
-  return ask.players.map((player) => ({ player, zones: [...zones] }));
-}
-
-/** An answer may only name players and zones the ask named. */
-export function zoneReplyProblems(requested: ZoneUpdates, reply: ZoneUpdates): Problems {
-  const allowed = new Map<number, Set<string>>();
-  for (const u of requested) {
-    const set = allowed.get(u.player.id) ?? new Set<string>();
-    for (const z of u.zones) set.add(z);
-    allowed.set(u.player.id, set);
-  }
-  const problems: Problems = [];
-  for (const u of reply) {
-    const set = allowed.get(u.player.id);
-    for (const z of u.zones) {
-      if (set === undefined || !set.has(z)) problems.push(`player #${u.player.id} ${z} was not requested`);
-      if (z === 'Battlefield') problems.push('the battlefield is never opened as a zone');
-    }
-  }
-  return problems;
 }
 
 /* ── Dividing an amount ──────────────────────────────────────────────── */

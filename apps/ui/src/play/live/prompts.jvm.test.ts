@@ -8,15 +8,16 @@
  * (`apps/server/src/play/scenarios/<name>.state`) puts alice at her own main
  * phase holding the card that makes Forge ask, and the driver plays it.
  *
- * - Arc Lightning divides damage: target selection opens the battlefield
- *   (`openZones`) and the division is `assignGenericAmount`. Forge's server
- *   side also asks seat 0 a real `showConfirmDialog` there, answered AGAINST
- *   its default.
+ * - Arc Lightning divides damage: the division is `assignGenericAmount`.
+ *   Forge's server side also asks seat 0 a real `showConfirmDialog` there,
+ *   answered AGAINST its default. Target selection no longer asks the
+ *   browser anything (upstream Forge #12023 moved the zone it opens from
+ *   host to client).
  * - A double block makes the attacker assign damage (`assignCombatDamage`).
  * - Serum Powder is usable at the mulligan (`confirm`) — the one ask that
  *   comes BEFORE a scenario applies, so that row's deck is Serum Powder.
- * - Brainstorm picks two of three cards (`tempShowZones`) and orders them
- *   (`order`).
+ * - Brainstorm picks two of three cards and orders them (`order`); the pick
+ *   itself no longer asks the browser anything either, for the same reason.
  * - Fireball announces X (`getAbilityToPlay`, then `getChoices`, drawn as a
  *   slider). The bridge lists on past Forge's "Other..." entry and answers
  *   the `showInputDialog` behind it itself, so no row here asks it.
@@ -381,10 +382,10 @@ interface AskRow {
 
 const ROWS: readonly AskRow[] = [
   {
-    title: 'targets: openZones, assignGenericAmount, showConfirmDialog',
+    title: 'targets: assignGenericAmount, showConfirmDialog',
     scenario: 'prompts-arc-lightning',
     plan: { land: /Volcanic Island/, casts: [{ name: 'Arc Lightning', mana: 3 }], targetCard: 'Memnite', prompts: { confirmAgainstDefault: true } },
-    methods: ['openZones', 'assignGenericAmount', 'showConfirmDialog'],
+    methods: ['assignGenericAmount', 'showConfirmDialog'],
     probe: true,
     secrets: true,
   },
@@ -403,10 +404,10 @@ const ROWS: readonly AskRow[] = [
     methods: ['confirm'],
   },
   {
-    title: 'Brainstorm: tempShowZones, order',
+    title: 'Brainstorm: order',
     scenario: 'prompts-brainstorm',
     plan: { land: /Island/, casts: [{ name: 'Brainstorm', mana: 1 }] },
-    methods: ['tempShowZones', 'order'],
+    methods: ['order'],
   },
   {
     title: "Fireball's X: getAbilityToPlay, getChoices",

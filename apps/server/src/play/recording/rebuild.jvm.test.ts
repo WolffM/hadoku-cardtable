@@ -270,7 +270,6 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 				switch (f.method) {
 					case 'confirm':
 					case 'showConfirmDialog':
-					case 'openZones':
 						result = true;
 						break;
 					case 'showOptionDialog':

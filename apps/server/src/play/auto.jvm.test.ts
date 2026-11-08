@@ -336,7 +336,6 @@ describe.skipIf(!available.ok)(title, () => {
 					switch (f.method) {
 						case 'confirm':
 						case 'showConfirmDialog':
-						case 'openZones':
 							result = true;
 							break;
 						case 'showOptionDialog':
@@ -643,7 +642,6 @@ describe.skipIf(!available.ok)(title, () => {
 					switch (f.method) {
 						case 'confirm':
 						case 'showConfirmDialog':
-						case 'openZones':
 							result = true;
 							break;
 						case 'showOptionDialog':
@@ -1015,7 +1013,6 @@ describe.skipIf(!available.ok)(title, () => {
 					switch (f.method) {
 						case 'confirm':
 						case 'showConfirmDialog':
-						case 'openZones':
 							result = true;
 							break;
 						case 'showOptionDialog':

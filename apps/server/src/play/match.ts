@@ -2023,24 +2023,22 @@ export class Match {
 	 * card's name. `null` whenever this seat has nothing open.
 	 *
 	 * **Payment first, asks second, never both**: `InputPayMana` is not one of
-	 * the 15 blocking methods (`payingMana`'s own note, `apps/ui/src/play/live/match.ts`) —
+	 * the 13 blocking methods (`payingMana`'s own note, `apps/ui/src/play/live/match.ts`) —
 	 * it runs on the ordinary prompt/buttons channel, so `s.payment` and
 	 * `s.asks` never hold at once for the same seat.
 	 *
 	 * **A selection counts too, and comes before a plain ask.** `setSelectables`
 	 * is never an {@link OpenAsk} (it carries no `callId`; `InputSelectManyBase`
-	 * is not one of the 15 blocking methods) but it is this seat's own live
+	 * is not one of the 13 blocking methods) but it is this seat's own live
 	 * decision exactly as much as one is — the client's own rule, before this
 	 * wave's fix replaced it (`apps/ui/src/play/live/LiveBoard.tsx`'s deleted
 	 * `myMoveNow`). Measured against the real jar for Thirst for Knowledge's
 	 * discard (`docs/planning/wave60-evidence/B/waiting.md`): the two-of-five
 	 * choice reaches the wire as `setSelectables(min:2, max:2, …)`, not a
-	 * `getChoices` ask — a bridge `tempShowZones` ask opens ALONGSIDE it, but
-	 * that one is pacing machinery with nothing for a seat to decide, so a
-	 * selection is checked FIRST and wins. `min === max === 1` reuses
-	 * `chooseSingleEntityForEffect`'s own verb ("choose"); anything else reuses
-	 * `getChoices`'s ("choose cards") — both real wire methods already in the
-	 * client's table, not a label invented for this.
+	 * `getChoices` ask, so a selection is checked FIRST and wins. `min === max
+	 * === 1` reuses `chooseSingleEntityForEffect`'s own verb ("choose");
+	 * anything else reuses `getChoices`'s ("choose cards") — both real wire
+	 * methods already in the client's table, not a label invented for this.
 	 *
 	 * **Last, {@link SeatState.wireButtonsLive} — ordinary priority included.**
 	 * The coin toss's Play/Draw and the opening Keep/Mulligan answer through
@@ -4374,9 +4372,7 @@ export class Match {
 	 */
 	private maybeOnlySacrifice(s: SeatState, prompt: PromptFrame): boolean {
 		const gate = this.answerGateFacts(s);
-		// Forge asks to show the selection's zones (`tempShowZones`) alongside it, and the seat's
-		// screen answers that whenever it gets to it: it is part of this pick, not another question.
-		const others = [...s.asks.values()].filter((a) => a.method !== 'tempShowZones').length;
+		const others = s.asks.size;
 		const act = gate === null ? null : onlySacrifice({ ...gate.notes, openAsks: others }, s.heldSelection[0] ?? null);
 		if (act === null || act.method !== 'selectCard') return false;
 		this.dropHeldSelection(s);
@@ -4671,12 +4667,6 @@ export class Match {
 	 * it here is complete, not a partial duplicate.
 	 */
 	private openAsk(s: SeatState, offered: Extract<ServerFrame, { kind: 'ask' }>): void {
-		// The zones Forge opens for a pick of a "same target for all" chain: the server makes that pick
-		// and the seat is shown none of it, so no zone is opened for it (Forge then closes none).
-		if (s.sameTarget !== null && (offered.method === 'openZones' || offered.method === 'tempShowZones')) {
-			this.autoReply(s, offered.callId, offered.method, 'same-target', []);
-			return;
-		}
 		const owed = s.owed;
 		s.owed = null;
 		const paid = owed?.answer(offered) ?? null;

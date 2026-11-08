@@ -39,7 +39,7 @@
  * search or scry it (Stoneforge Mystic, Preordain), and those names are
  * legitimately theirs to see too. Before the exemption existed, runs to turn 5
  * failed three times out of three on exactly these: bob shown alice's Sylvok
- * Lifestaff, searched up and revealed (`PlayerMayLook: [1]`, a `tempShowZones`
+ * Lifestaff, searched up and revealed (`PlayerMayLook: [1]`,
  * "Looking at cards in Seat 1's hand", wiped one frame later); the same for a
  * Sword of Feast and Famine; and a "Day of Judgment" string that matched bob's
  * hidden card 112 while alice's stream carried it — only rule 2 fired, and

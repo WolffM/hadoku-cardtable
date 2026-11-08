@@ -1,5 +1,5 @@
 /*
- * Tier B — 23 methods that carry entity references.
+ * Tier B — 19 methods that carry entity references.
  *
  * The generated battery again, then the claims that make this tier more
  * than a transcription:
@@ -8,11 +8,10 @@
  *      a parse error, because that is the whole reason the kind travels with
  *      the id instead of a bare int crossing the wire.
  *   2. `YieldUpdate` has exactly twelve arms and they are closed.
- *   3. `openZones` carries a player SET, not Forge's `Map<PlayerView, Object>`.
- *   4. `sideboard` uses `@hadoku/deck`'s pool model — asserted at RUNTIME by
+ *   3. `sideboard` uses `@hadoku/deck`'s pool model — asserted at RUNTIME by
  *      pushing parsed wire entries through that package and writing a `.dck`,
  *      not just by a type alias that a refactor could quietly widen.
- *   5. `setHighlighted` carries a GameEntityView and a boolean — not a card
+ *   4. `setHighlighted` carries a GameEntityView and a boolean — not a card
  *      list, and not a replacement set.
  */
 
@@ -24,7 +23,6 @@ import { malformedTable } from './malformed.ts';
 import { safeParseClientFrame, safeParseServerFrame } from './envelope.ts';
 import {
   ApplyYieldUpdateSchema,
-  OpenZonesSchema,
   SelectPlayerSchema,
   SendYieldUpdateSchema,
   SetHighlightedSchema,
@@ -48,10 +46,10 @@ const clientExamples = Object.fromEntries(
   Object.entries(CLIENT_FRAME_EXAMPLES).filter(([method]) => TIER_B.has(method)),
 );
 
-describe('Tier B — the 23 reference-carrying methods', () => {
-  it('models exactly 23 methods, 20 server and 3 client', () => {
-    expect(TIER_B_METHODS).toHaveLength(23);
-    expect(Object.keys(serverExamples)).toHaveLength(20);
+describe('Tier B — the 19 reference-carrying methods', () => {
+  it('models exactly 19 methods, 16 server and 3 client', () => {
+    expect(TIER_B_METHODS).toHaveLength(19);
+    expect(Object.keys(serverExamples)).toHaveLength(16);
     expect(Object.keys(clientExamples)).toHaveLength(3);
   });
 
@@ -232,11 +230,11 @@ describe('sendYieldUpdate — the same twelve arms, the other way', () => {
   });
 
   it('is deliberately outside the census — and this is the boundary, recorded', () => {
-    // `envelope.test.ts` pins TIER_B_METHODS at 23 and REQUIRED_METHODS at 41,
+    // `envelope.test.ts` pins TIER_B_METHODS at 19 and REQUIRED_METHODS at 38,
     // and `examples.ts` would need an entry. Wave 24 lane E owns neither file.
     expect(TIER_B_METHODS as readonly string[]).not.toContain('sendYieldUpdate');
     expect(TIER_B_CLIENT_FRAMES).toHaveLength(3);
-    expect(TIER_B_METHODS).toHaveLength(23);
+    expect(TIER_B_METHODS).toHaveLength(19);
   });
 });
 
@@ -281,27 +279,6 @@ describe('setHighlighted — an entity and a direction', () => {
       SetHighlightedSchema.safeParse({ ...base, entities: [{ kind: 'spellAbility', id: 9 }] })
         .success,
     ).toBe(false);
-  });
-});
-
-describe('Tier B — openZones carries a player set, not a map', () => {
-  const base = SERVER_FRAME_EXAMPLES.openZones as Record<string, unknown>;
-
-  it('takes an array of player refs', () => {
-    expect(OpenZonesSchema.safeParse(base).success).toBe(true);
-  });
-
-  it('refuses Forge’s Map<PlayerView, Object> shape', () => {
-    expect(
-      OpenZonesSchema.safeParse({
-        ...base,
-        players: [{ player: { kind: 'player', id: 1 }, value: null }],
-      }).success,
-    ).toBe(false);
-  });
-
-  it('refuses a zone Forge does not have', () => {
-    expect(OpenZonesSchema.safeParse({ ...base, zones: ['Pocket'] }).success).toBe(false);
   });
 });
 

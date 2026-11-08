@@ -54,31 +54,24 @@ describe('hasNoLegalAnswer — flag (a)', () => {
 describe('declineStreak — flag (d), a loop', () => {
   it('flags the third decline of the SAME ask shape at the SAME turn and phase', () => {
     const streaks: DeclinedStreaks = new Map();
-    expect(declineStreak(streaks, 'getAbilityToPlay', 'fp-1', 4, 'MAIN1').looping).toBe(false);
-    expect(declineStreak(streaks, 'getAbilityToPlay', 'fp-1', 4, 'MAIN1').looping).toBe(false);
-    expect(declineStreak(streaks, 'getAbilityToPlay', 'fp-1', 4, 'MAIN1').looping).toBe(true);
+    expect(declineStreak(streaks, 'fp-1', 4, 'MAIN1').looping).toBe(false);
+    expect(declineStreak(streaks, 'fp-1', 4, 'MAIN1').looping).toBe(false);
+    expect(declineStreak(streaks, 'fp-1', 4, 'MAIN1').looping).toBe(true);
   });
 
   it('does NOT flag the same shape recurring across DIFFERENT turns (ordinary play, not a loop)', () => {
     const streaks: DeclinedStreaks = new Map();
-    expect(declineStreak(streaks, 'getAbilityToPlay', 'fp-1', 4, 'MAIN1').looping).toBe(false);
-    expect(declineStreak(streaks, 'getAbilityToPlay', 'fp-1', 5, 'MAIN1').looping).toBe(false);
-    expect(declineStreak(streaks, 'getAbilityToPlay', 'fp-1', 6, 'MAIN1').looping).toBe(false);
-  });
-
-  it('does NOT flag tempShowZones/openZones, however often they recur — exempt by design', () => {
-    const streaks: DeclinedStreaks = new Map();
-    for (let i = 0; i < 6; i += 1) {
-      expect(declineStreak(streaks, 'tempShowZones', 'fp-zones', 4, 'CLEANUP').looping).toBe(false);
-    }
+    expect(declineStreak(streaks, 'fp-1', 4, 'MAIN1').looping).toBe(false);
+    expect(declineStreak(streaks, 'fp-1', 5, 'MAIN1').looping).toBe(false);
+    expect(declineStreak(streaks, 'fp-1', 6, 'MAIN1').looping).toBe(false);
   });
 
   it('answering (not declining) the ask resets its streak', () => {
     const streaks: DeclinedStreaks = new Map();
-    declineStreak(streaks, 'getAbilityToPlay', 'fp-1', 4, 'MAIN1');
-    declineStreak(streaks, 'getAbilityToPlay', 'fp-1', 4, 'MAIN1');
+    declineStreak(streaks, 'fp-1', 4, 'MAIN1');
+    declineStreak(streaks, 'fp-1', 4, 'MAIN1');
     clearDeclineStreak(streaks, 'fp-1');
-    expect(declineStreak(streaks, 'getAbilityToPlay', 'fp-1', 4, 'MAIN1').looping).toBe(false);
+    expect(declineStreak(streaks, 'fp-1', 4, 'MAIN1').looping).toBe(false);
   });
 });
 

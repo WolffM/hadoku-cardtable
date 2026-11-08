@@ -7,7 +7,7 @@
  * sacrifice first (a cost's sacrifice is chosen before the targets and the mana), then takes the {2}{U} —
  * the server presses Auto for it. In the live game, when the mana still came first, the server sent that
  * question (the run dir's stream has it: `setSelectables`
- * [Mishra's Bauble], `tempShowZones`, "Select artifact to sacrifice (1 left)", OK off) and the board drew
+ * [Mishra's Bauble], "Select artifact to sacrifice (1 left)", OK off) and the board drew
  * nothing until a reload.
  *
  * And on the same question: *"it's a bad question because there is only one target"* — the ruling: *"yes,
@@ -114,8 +114,8 @@ test(titled('Tinker with two artifacts: the sacrifice is on screen the moment Fo
     const paidForHer = () => serverLog(stack).some((r) => r.evt === 'auto-paid' && r.seat === 0 && r.cost === '{2}{U}');
     expect(paidForHer(), 'the sacrifice is asked before the mana is taken').toBe(false);
     expect(await isOffered(page, bauble), 'the Bauble is offered too').toBe(true);
-    // Forge sends the question's words after the offer (`setSelectables`, then `tempShowZones` answered by
-    // this screen, then the prompt): wait for the words, not one read taken between the two.
+    // Forge sends the question's words after the offer (`setSelectables`, then the prompt): wait
+    // for the words, not one read taken between the two.
     await expect.poll(() => says(page), { timeout: 5_000, message: `the board words the sacrifice — ${await drawn(page)}` }).toMatch(/sacrifice/i);
     console.log(`[tk] sacrifice asked: ${await drawn(page)}`);
     // The question pops up as every decision does — the operator: "that question never popped up on my screen".

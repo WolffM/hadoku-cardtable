@@ -1,5 +1,5 @@
 /*
- * Tier B — the 23 methods that carry entity references.
+ * Tier B — the 19 methods that carry entity references.
  *
  * Wave 6 lane F (`docs/spikes/itoclient.md`, "Tier B — carry entity
  * references. Needs an id scheme, which Forge already has. 21 methods."), plus
@@ -9,8 +9,8 @@
  * from `ProtocolMethod.java` and parameter names from `IGuiGame` /
  * `IGameController`.
  *
- * Twenty are server→client (twelve of them blocking) and three are
- * client→server. Together with Tier A's three, the blocking set is the 15 lane
+ * Sixteen are server→client (ten of them blocking) and three are
+ * client→server. Together with Tier A's three, the blocking set is the 13 lane
  * F re-derived independently from `RemoteClientGuiGame`'s `sendAndWait` call
  * sites.
  *
@@ -53,22 +53,14 @@
  * and `InputSelectTargets.java:409` both pass a player through it — so the
  * wire uses `GameEntityRefSchema`, which is exactly CardView-or-PlayerView.
  *
- * ## Three places where the transcription is a decision, not a copy
+ * ## Two places where the transcription is a decision, not a copy
  *
  * 1. **`sideboard` is not a reference.** It passes two `CardPool`s — cards the
  *    client has never seen, because sideboarding happens between games. It is
  *    the only non-mechanical method in the tier and it gets its own file,
  *    `sideboard.ts`, built on `@hadoku/deck`.
  *
- * 2. **`openZones`'s `Map<PlayerView, Object>` is a player SET.** Forge's
- *    signature is `Map<PlayerView, Object> players` (IGuiGame.java:261) and the
- *    `Object` is untyped, which reads like a hole. It is not: every call site
- *    puts `null` — `TargetSelection.java:178-180` and
- *    `FControlGameEventHandler.java:443,451`, which are all four `.put(` sites
- *    in the tree. So the wire carries `PlayerRef[]` and no value. If a fifth
- *    call site ever puts something, this is the line that was wrong.
- *
- * 3. **`getChoices` and `order` are generic and carry a render function.**
+ * 2. **`getChoices` and `order` are generic and carry a render function.**
  *    `<T>` has no wire type and `FSerializableFunction<T, String> display`
  *    cannot cross a socket. Both are projected onto `ChoiceOption`
  *    (`refs.ts`): a key, a pre-rendered label, and the entity the option stands
@@ -92,15 +84,15 @@
  *
  * `SendYieldUpdateSchema` is below, beside `ApplyYieldUpdateSchema`, over the
  * same `YieldUpdateSchema`. It is **not** in `TIER_B_METHODS` and **not** in
- * `TIER_B_CLIENT_FRAMES`, because `envelope.test.ts` pins the census — 23 Tier B
- * methods, 41 required, 38 examples — and wave 24 lane E owns neither that file
- * nor `examples.ts`, `index.ts` or `envelope.ts`. Adding it to the union is four
- * edits in three files this lane may not make, so the schema lands here and the
- * wiring is named as the next wave's: `TIER_B_METHODS` 23→24,
- * `TIER_B_CLIENT_FRAMES` 3→4, `CLIENT_FRAME_EXAMPLES.sendYieldUpdate`, the
- * `index.ts` re-export, and `envelope.test.ts`'s three counts. It is not lane
- * F's exclusion any more — it is a file boundary, and the exclusion is recorded
- * rather than quietly widened.
+ * `TIER_B_CLIENT_FRAMES`, because `envelope.test.ts` pins the census, and
+ * wave 24 lane E owns neither that file nor `examples.ts`, `index.ts` or
+ * `envelope.ts`. Adding it to the union is four edits in three files this
+ * lane may not make, so the schema lands here and the wiring is named as the
+ * next wave's: `TIER_B_METHODS` 19→20, `TIER_B_CLIENT_FRAMES` 3→4,
+ * `CLIENT_FRAME_EXAMPLES.sendYieldUpdate`, the `index.ts` re-export, and
+ * `envelope.test.ts`'s three counts. It is not lane F's exclusion any more —
+ * it is a file boundary, and the exclusion is recorded rather than quietly
+ * widened.
  *
  * It is not a BROWSER frame either way: the server builds one, `triggerDecision`
  * arm only, for the bridge (`Match.setTriggerDecision`, the `forge:trigger-decision`
@@ -119,7 +111,6 @@ import {
   JavaByteSchema,
   PhaseTypeSchema,
   PlayerRefSchema,
-  PlayerZoneUpdatesSchema,
   PrefKeySchema,
   SpellAbilityRefSchema,
   TriggerDecisionSchema,
@@ -131,13 +122,11 @@ import { CardPoolSchema, DeckEntrySchema } from './sideboard.ts';
 /** A mana pool's colours on the wire, WUBRG then colourless (`@hadoku/deck`'s `POOL_COLORS`). */
 export const PoolColorSchema = z.enum(POOL_COLORS);
 
-/** The 23 Tier B method names, in `ProtocolMethod` declaration order per direction. */
+/** The 19 Tier B method names, in `ProtocolMethod` declaration order per direction. */
 export const TIER_B_METHODS = [
   // Mode.SERVER
   'showPromptMessage',
   'updateButtons',
-  'tempShowZones',
-  'hideZones',
   'getAbilityToPlay',
   'assignCombatDamage',
   'assignGenericAmount',
@@ -151,8 +140,6 @@ export const TIER_B_METHODS = [
   'setSelectables',
   'setHighlighted',
   'setWeaklySelectable',
-  'openZones',
-  'restoreOldZones',
   'applyYieldUpdate',
   // Mode.CLIENT
   'selectPlayer',
@@ -399,14 +386,6 @@ export const UpdateButtonsSchema = z.strictObject({
   refusal1: z.string().min(1).optional(),
 });
 
-/** `void hideZones(PlayerView controller, Iterable<PlayerZoneUpdate> zonesToUpdate)` — IGuiGame.java:121. */
-export const HideZonesSchema = z.strictObject({
-  kind: z.literal('notify'),
-  method: z.literal('hideZones'),
-  controller: PlayerRefSchema,
-  zonesToUpdate: PlayerZoneUpdatesSchema,
-});
-
 /**
  * `void setSelectables(Iterable<CardView> cards, int min, int max)` — IGuiGame.java:272.
  *
@@ -539,14 +518,6 @@ export const SetWeaklySelectableSchema = z.strictObject({
     .optional(),
 });
 
-/** `void restoreOldZones(PlayerView playerView, PlayerZoneUpdates playerZoneUpdates)` — IGuiGame.java:263. */
-export const RestoreOldZonesSchema = z.strictObject({
-  kind: z.literal('notify'),
-  method: z.literal('restoreOldZones'),
-  player: PlayerRefSchema,
-  playerZoneUpdates: PlayerZoneUpdatesSchema,
-});
-
 /** `void applyYieldUpdate(YieldUpdate update)` — IGuiGame.java:310. */
 export const ApplyYieldUpdateSchema = z.strictObject({
   kind: z.literal('notify'),
@@ -582,22 +553,7 @@ export const SendYieldUpdateSchema = z.strictObject({
 
 export type SendYieldUpdate = z.infer<typeof SendYieldUpdateSchema>;
 
-/* ── Server → client, blocking (12) ──────────────────────────────────── */
-
-/**
- * `Iterable<PlayerZoneUpdate> tempShowZones(PlayerView controller,
- * Iterable<PlayerZoneUpdate> zonesToUpdate)` — IGuiGame.java:119.
- */
-export const TempShowZonesSchema = z.strictObject({
-  kind: z.literal('ask'),
-  callId: z.string().min(1),
-  source: AskSourceSchema.optional(),
-  method: z.literal('tempShowZones'),
-  controller: PlayerRefSchema,
-  zonesToUpdate: PlayerZoneUpdatesSchema,
-});
-
-export const TempShowZonesReplySchema = PlayerZoneUpdatesSchema;
+/* ── Server → client, blocking (10) ──────────────────────────────────── */
 
 /** Mana letters as the bridge writes them: `WUBRG` and `C`, each colour once or repeated (`"CC"`). */
 const ManaLettersSchema = z.string().regex(/^[WUBRGC]*$/);
@@ -1085,25 +1041,6 @@ export const ManipulateCardListSchema = z.strictObject({
 
 export const ManipulateCardListReplySchema = z.array(CardRefSchema);
 
-/**
- * `PlayerZoneUpdates openZones(PlayerView controller, Collection<ZoneType> zones,
- * Map<PlayerView, Object> players, boolean backupLastZones)` —
- * IGuiGame.java:261. `players` is a set; see the module header for the four
- * call sites that prove the map's value is always null.
- */
-export const OpenZonesSchema = z.strictObject({
-  kind: z.literal('ask'),
-  callId: z.string().min(1),
-  source: AskSourceSchema.optional(),
-  method: z.literal('openZones'),
-  controller: PlayerRefSchema,
-  zones: z.array(ZoneTypeSchema),
-  players: z.array(PlayerRefSchema),
-  backupLastZones: z.boolean(),
-});
-
-export const OpenZonesReplySchema = PlayerZoneUpdatesSchema;
-
 /* ── Client → server (3) ─────────────────────────────────────────────── */
 
 /** `void selectPlayer(PlayerView playerView, ITriggerEvent triggerEvent)` — IGameController.java:34. */
@@ -1150,12 +1087,10 @@ export const SelectAbilitySchema = z.strictObject({
 
 /* ── The tier, assembled ─────────────────────────────────────────────── */
 
-/** The 20 server→client Tier B frames. */
+/** The 16 server→client Tier B frames. */
 export const TIER_B_SERVER_FRAMES = [
   ShowPromptMessageSchema,
   UpdateButtonsSchema,
-  TempShowZonesSchema,
-  HideZonesSchema,
   GetAbilityToPlaySchema,
   AssignCombatDamageSchema,
   AssignGenericAmountSchema,
@@ -1169,8 +1104,6 @@ export const TIER_B_SERVER_FRAMES = [
   SetSelectablesSchema,
   SetHighlightedSchema,
   SetWeaklySelectableSchema,
-  OpenZonesSchema,
-  RestoreOldZonesSchema,
   ApplyYieldUpdateSchema,
 ] as const;
 
@@ -1181,9 +1114,8 @@ export const TIER_B_CLIENT_FRAMES = [
   SelectAbilitySchema,
 ] as const;
 
-/** Reply payloads for the twelve blocking Tier B methods, keyed by method. */
+/** Reply payloads for the ten blocking Tier B methods, keyed by method. */
 export const TIER_B_REPLIES = {
-  tempShowZones: TempShowZonesReplySchema,
   getAbilityToPlay: GetAbilityToPlayReplySchema,
   assignCombatDamage: AssignCombatDamageReplySchema,
   assignGenericAmount: AssignGenericAmountReplySchema,
@@ -1194,5 +1126,4 @@ export const TIER_B_REPLIES = {
   chooseSingleEntityForEffect: ChooseSingleEntityForEffectReplySchema,
   chooseEntitiesForEffect: ChooseEntitiesForEffectReplySchema,
   manipulateCardList: ManipulateCardListReplySchema,
-  openZones: OpenZonesReplySchema,
 } as const;

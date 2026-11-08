@@ -221,7 +221,7 @@ export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {
   input: 0,
   /** A spell going on the stack and what pays for it: the card leaving a hand, a land tapping, the stack growing — one moment (module header). */
   cast: 0,
-  /** A delta that changes only what the board never draws ({@link UNDRAWN_PROPERTIES}), or a notify it never reads ({@link UNDRAWN_NOTIFIES}): there is nothing to show, so nothing to wait for. */
+  /** A delta that changes only what the board never draws ({@link UNDRAWN_PROPERTIES}): there is nothing to show, so nothing to wait for. */
   unseen: 0,
   /**
    * A `message` notify — a line of Forge's game log. It draws nothing on the board, and Forge writes one for
@@ -381,13 +381,6 @@ const INPUT_NOTIFY_METHODS: ReadonlySet<string> = new Set([
  */
 const UNDRAWN_PROPERTIES: ReadonlySet<string> = new Set(['MindSlaveMaster']);
 
-/**
- * Notifies nothing in this client reads: Forge closing the zones a `tempShowZones` opened. Each one cost the
- * next question a `default` gap — measured in `e2e/tf-thopter-sword.spec.ts`, two `hideZones` ahead of the
- * priority after every Thopter Foundry sacrifice.
- */
-const UNDRAWN_NOTIFIES: ReadonlySet<string> = new Set(['hideZones', 'restoreOldZones']);
-
 /** Whose act the frames now arriving belong to: the seat's, another player's, or nobody's yet (a step just began). */
 export type Actor = 'own' | 'other' | null;
 
@@ -493,7 +486,6 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
   const method = f.method;
   if (typeof method === 'string' && INPUT_NOTIFY_METHODS.has(method)) return 'input';
   if (method === 'message') return 'log';
-  if (typeof method === 'string' && UNDRAWN_NOTIFIES.has(method)) return 'unseen';
   if (method !== 'applyDelta') return 'default';
   const packetPayload = f.payload;
   const packet =

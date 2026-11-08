@@ -9,7 +9,7 @@
  * through neither (the London mulligan is the one that reached the operator):
  *
  *   Tier A — 16 methods, scalars only. Transcription. `tier-a.ts`
- *   Tier B — 23 methods, entity references. `refs.ts` is the id scheme,
+ *   Tier B — 19 methods, entity references. `refs.ts` is the id scheme,
  *            `sideboard.ts` is the one method that is not a reference.
  *   Tier C —  3 methods, the state channel. `tier-c.ts`, modelled from and
  *            tested against Wave 7's captured packets. Its events arm is
@@ -54,8 +54,6 @@ export {
   SkinPropSchema,
   PrefKeySchema,
   TriggerEventSchema,
-  PlayerZoneUpdateSchema,
-  PlayerZoneUpdatesSchema,
   DelayedRevealSchema,
   ChoiceOptionSchema,
   AskSourceSchema,
@@ -72,7 +70,6 @@ export {
   type NextGameDecision,
   type TriggerDecision,
   type TriggerEvent,
-  type PlayerZoneUpdate,
   type DelayedReveal,
   type ChoiceOption,
 } from './refs.ts';
@@ -137,16 +134,12 @@ export {
   ShowPromptMessageSchema,
   YIELDING,
   UpdateButtonsSchema,
-  HideZonesSchema,
   SetSelectablesSchema,
   SetHighlightedSchema,
   SetWeaklySelectableSchema,
-  RestoreOldZonesSchema,
   ApplyYieldUpdateSchema,
   SendYieldUpdateSchema,
   type SendYieldUpdate,
-  TempShowZonesSchema,
-  TempShowZonesReplySchema,
   GetAbilityToPlaySchema,
   GetAbilityToPlayReplySchema,
   OfferedAbilitySchema,
@@ -174,8 +167,6 @@ export {
   type SearchRule,
   ManipulateCardListSchema,
   ManipulateCardListReplySchema,
-  OpenZonesSchema,
-  OpenZonesReplySchema,
   SelectPlayerSchema,
   SelectCardSchema,
   SelectAbilitySchema,
