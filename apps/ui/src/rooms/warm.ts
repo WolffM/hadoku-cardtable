@@ -7,7 +7,7 @@
  * screen's first render had nothing: its title fell back to the room id, its
  * body waited on the room record, the deck picker on the table and the
  * catalogue, and the dropdown narrowed again when the pool's legality sweep
- * landed.
+ * landed, and each tile's art when the server said which printing its cards are.
  *
  * So the list reads all of that BEFORE it navigates (`warmRoom`), and the room
  * screen takes it as its initial state (`takeWarmRoom`). The screen still runs
@@ -28,6 +28,7 @@ import {
   type TableFormat,
   type TablesClient,
 } from '../screens/tables.ts';
+import { primeNamedArt } from '../screens/libraryPeek.ts';
 import type { RoomView } from './api.ts';
 
 export interface WarmRoom {
@@ -57,6 +58,8 @@ async function readRoom(view: RoomView, tables: TablesClient): Promise<WarmRoom 
   const poolId = view.format !== '' ? view.format : newestFormat(catalogue.formats);
   if (poolId === '') return { view, table: table.table, catalogue };
   const sweep = await legalDecksIn(tables, poolId, catalogue.decks);
+  // The tiles' art is named by the server, card by card: asked now, the grid draws with it.
+  await primeNamedArt(catalogue.decks.filter((d) => sweep.ids.has(d.id)).flatMap((d) => d.main));
   // A refused sweep is not handed on: the screen asks again and reports it.
   return sweep.error === null ? { view, table: table.table, catalogue, sweep } : { view, table: table.table, catalogue };
 }

@@ -10,7 +10,8 @@
  *
  * 1. The tiles on screen stay, as the same elements and at full strength, while the new list's first
  *    screen of faces ({@link ART_FIRST}) loads and decodes through `artReady`, the face rule the
- *    board's own cards keep. They carry no deck id once leaving, so nothing can choose one.
+ *    board's own cards keep. A face is known only once the server has said which art its deck's cards
+ *    have (`unansweredArt`, by name and pinned set), so the wait covers that answer too. They carry no deck id once leaving, so nothing can choose one.
  *    {@link ART_WAIT_MS} caps the wait for a CDN that never answers.
  * 2. Then the new tiles draw in the grid's flow, whole, and the old ones are lifted over the boxes
  *    they stood in (`crossing`) and fade out over them ({@link FADE_MS}): every frame shows a deck's
@@ -24,6 +25,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { artistsReady } from '../draft/artists.ts';
 import { artReady, cardImageUrl } from '../draft/cardImage.ts';
+import type { PeekList } from './DeckPeek.tsx';
+import { namedArtAnswered, unansweredArt, useNamedArt } from './libraryPeek.ts';
 
 /** How long the old tiles take to fade out over the new (`.deckpick__ghost` in `screens.css`). */
 export const FADE_MS = 180;
@@ -38,6 +41,13 @@ export function firstFaces(options: readonly { artId?: string | undefined }[]): 
     const url = o.artId === undefined ? null : cardImageUrl(o.artId);
     return url === null ? [] : [url];
   });
+}
+
+/** The cards of a list's first screen of tiles whose art the server has not said yet: a tile drawn now would gain its art later. */
+export function firstUnanswered(options: readonly { list?: PeekList | undefined }[]): string[] {
+  return unansweredArt(
+    options.slice(0, ART_FIRST).flatMap((o) => (o.list?.main ?? []).filter((l) => l.face.scryfallId === undefined).map((l) => ({ name: l.name, set: l.face.setCode }))),
+  );
 }
 
 interface Swap<T> {
@@ -73,7 +83,7 @@ export interface DeckSwap<T> {
  * yet (the pool has not answered), which keeps the wait open whatever `options` holds;
  * `pendingTiles` is how many outlines stand in for a list with no grid before it.
  */
-export function useDeckSwap<T extends { value: string; artId?: string | undefined }>(
+export function useDeckSwap<T extends { value: string; artId?: string | undefined; list?: PeekList | undefined }>(
   options: readonly T[],
   swapKey: string,
   pending: boolean,
@@ -123,8 +133,28 @@ export function useDeckSwap<T extends { value: string; artId?: string | undefine
   // The faces that must decode first, as one string: a list that reorders under the same key (win
   // rates landing) does not restart the wait.
   const faces = firstFaces(options).join('\n');
+  // A list whose cards' art is still being asked for has faces it cannot name yet: it draws again on
+  // the answer, or once the ask has failed, as it would with no answer to wait for.
+  useNamedArt();
+  const asking = firstUnanswered(options).join('\n');
+  const [settled, setSettled] = useState('');
+  const unanswered = asking !== '' && asking !== settled;
+  useEffect(() => {
+    if (!unanswered || pending || !current) return;
+    let live = true;
+    void namedArtAnswered(asking.split('\n')).then(() => {
+      if (live) setSettled(asking);
+    });
+    return () => {
+      live = false;
+    };
+  }, [unanswered, asking, pending, current]);
   useEffect(() => {
     if (pending || readyFor === swapKey || !current) return;
+    if (unanswered) {
+      const cap = setTimeout(() => setReadyFor(swapKey), ART_WAIT_MS);
+      return () => clearTimeout(cap);
+    }
     const urls = faces === '' ? [] : faces.split('\n');
     if (urls.length === 0) {
       setReadyFor(swapKey);
@@ -146,7 +176,7 @@ export function useDeckSwap<T extends { value: string; artId?: string | undefine
       live = false;
       clearTimeout(cap);
     };
-  }, [pending, faces, swapKey, current, readyFor]);
+  }, [pending, faces, unanswered, swapKey, current, readyFor]);
 
   return { shown, leaving, leavingKey: swap.oldKey, crossing, cascade: swap.old.length === 0, outlines, boxes };
 }

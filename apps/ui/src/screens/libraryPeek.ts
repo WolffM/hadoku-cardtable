@@ -112,9 +112,19 @@ function artOf(ref: string): NamedArt | null | undefined {
   return told.get(ref);
 }
 
+/** Resolves once the server has answered for every one of `refs` (`cardRef`), or the asking failed. */
+export function namedArtAnswered(refs: Iterable<string>): Promise<void> {
+  return Promise.all([...new Set(refs)].map(want)).then(() => undefined);
+}
+
 /** Resolves once the server has answered for every one of `cards` — for a list built once, off a screen. */
 export function primeNamedArt(cards: Iterable<NamedCard>): Promise<void> {
-  return Promise.all([...new Set([...cards].map((c) => cardRef(c.name, c.set)))].map(want)).then(() => undefined);
+  return namedArtAnswered([...cards].map((c) => cardRef(c.name, c.set)));
+}
+
+/** Of these cards, the ones the server has not said the art of yet, as refs: a face drawn from one now has no art, and gains it when the answer lands. */
+export function unansweredArt(cards: Iterable<NamedCard>): string[] {
+  return [...new Set([...cards].map((c) => cardRef(c.name, c.set)))].filter((ref) => !told.has(ref));
 }
 
 /** Draw again when the server has told this page more cards' art: the count of answers, for a memo's deps. */
