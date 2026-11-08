@@ -81,10 +81,11 @@ import {
   type PhaseType,
   type ServerFrame,
 } from '@hadoku/forge-wire';
+import { serverEnvelopeSchema, type ServerEnvelope as PlatformServerEnvelope } from '@hadoku/platform-wire/envelope';
+import { LookSchema } from '@hadoku/platform-wire/look';
 
 import { SeqCursorSchema, type WireCursor } from './wire.ts';
 import { PlacementSchema, type Placement } from './placement.ts';
-import { LookSchema } from './look.ts';
 import { formatPath } from './semantics.ts';
 
 /* ── Event names ─────────────────────────────────────────────────────── */
@@ -422,11 +423,8 @@ export type TriggerDecisions = z.infer<typeof TriggerDecisionsSchema>;
  * as-is: see this file's own header ("`ServerEnvelopeSchema` stays eager;
  * `parseServerEnvelope` does not").
  */
-export const ServerEnvelopeSchema = z
-  .object({
-    matchId: z.string().min(1),
-    cursor: WireCursorSchema,
-    frame: ServerFrameSchema,
+export const ServerEnvelopeSchema = serverEnvelopeSchema(ServerFrameSchema)
+  .extend({
     displayOnly: z.literal(true).optional(),
     pairsWithNext: z.literal(true).optional(),
     forceNotice: z.literal(true).optional(),
@@ -438,10 +436,7 @@ export const ServerEnvelopeSchema = z
 /** `ServerEnvelopeSchema`, with `frame` loosened to `unknown` — `parseServerEnvelope`'s own first stage. */
 const ServerEnvelopeShapeSchema = ServerEnvelopeSchema.extend({ frame: z.unknown() });
 
-export interface ServerEnvelope {
-  matchId: string;
-  cursor: WireCursor;
-  frame: ServerFrame;
+export interface ServerEnvelope extends PlatformServerEnvelope<ServerFrame> {
   /**
    * The frame is a reveal Forge has ALREADY been answered for (`apps/server/src/play/match.ts`'s
    * `showReveal`): something to show, never a question. Nothing replies to it. On the envelope, not

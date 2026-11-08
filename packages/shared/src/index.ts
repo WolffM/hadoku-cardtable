@@ -206,10 +206,9 @@ export {
   type ServerMessage,
 } from './wire.ts';
 
+export { PRESENCE_MAX_PER_SECOND, PRESENCE_SEND_MS } from '@hadoku/platform-wire/presence';
 export {
   PRESENCE_EVENT,
-  PRESENCE_MAX_PER_SECOND,
-  PRESENCE_SEND_MS,
   PresenceEchoSchema,
   PresenceAnchorSchema,
   PresenceSchema,
@@ -221,13 +220,14 @@ export {
   type PresenceSpot,
 } from './presence.ts';
 
-export { CLIENT_EVENT, CLIENT_EVENT_MAX_PER_SECOND, ClientEventSchema, PAGE_EVENT_PATH, PageEventSchema, USAGE_BATCH_MAX, USAGE_PATH, UsageBatchSchema, type ClientEvent, type PageEvent, type UsageBatch } from './telemetry.ts';
+export { CLIENT_EVENT_MAX_PER_SECOND, PAGE_EVENT_PATH, PageEventSchema, USAGE_BATCH_MAX, USAGE_PATH, UsageBatchSchema, type PageEvent, type UsageBatch } from '@hadoku/platform-wire/telemetry';
+export { CLIENT_EVENT, ClientEventSchema, type ClientEvent } from './telemetry.ts';
 export { PLACEMENT_EVENT, PlacementEchoSchema, PlacementSchema, PlacementTargetSchema, type Placement, type PlacementEcho } from './placement.ts';
 export { PLACED_EVENT, PlacedEchoSchema, PlacedSchema, type PlacedEcho, type PlacedMessage } from './placed.ts';
 export { OFFERED_EVENT, OFFERED_MAX_PER_SECOND, OfferedEchoSchema, OfferedSchema, type OfferedEcho, type OfferedMessage } from './offered.ts';
 export { ART_EVENT, ArtIdSchema, ArtPreloadSchema, type ArtPreload } from './art.ts';
 export { DECK_COLORS_EVENT, DeckColorsSchema, type DeckColors } from './deck-colors.ts';
-export { pickRandom, secureRandom } from './random.ts';
+export { pickRandom, secureRandom } from '@hadoku/platform-wire/random';
 export {
   ARRANGEMENT_EVENT,
   ARRANGEMENT_MAX_PER_SECOND,
@@ -318,7 +318,7 @@ export {
   RoomChangedSchema,
   type RoomWatch,
   type RoomChanged,
-} from './room-feed.ts';
+} from '@hadoku/platform-wire/room-feed';
 export {
   ReplaySourceSchema,
   ReplaySummarySchema,
@@ -378,12 +378,10 @@ export {
   type CombatDamageAsk,
   type CombatDamageRules,
 } from './combat-damage.ts';
+export { SeriesLengthSchema, RoomTablePlayerSchema, RoomTableGameSchema, type SeriesLength, type RoomTablePlayer, type RoomTableGame } from '@hadoku/platform-wire/tables';
 export {
-  SeriesLengthSchema,
   SERIES_PHASES,
   SeriesPhaseSchema,
-  RoomTablePlayerSchema,
-  RoomTableGameSchema,
   RoomTableSeriesSchema,
   RoomTableSchema,
   RoomTablesSchema,
@@ -391,10 +389,7 @@ export {
   TableGameLiveSchema,
   TableGameSchema,
   TableGamesSchema,
-  type SeriesLength,
   type SeriesPhase,
-  type RoomTablePlayer,
-  type RoomTableGame,
   type RoomTableSeries,
   type RoomTable,
   type TableSeatDeck,
@@ -417,7 +412,7 @@ export {
   type RoomView,
   type RoomBody,
 } from './room-view.ts';
-export { LOOK_PICTURE_MAX, LookSchema, PersonFaceSchema, WornSchema, lookOrNone, sameLook, type Look, type PersonFace, type Worn } from './look.ts';
+export { LOOK_PICTURE_MAX, LookSchema, PersonFaceSchema, WornSchema, lookOrNone, sameLook, type Look, type PersonFace, type Worn } from '@hadoku/platform-wire/look';
 export {
   AI_ENTRANT_PREFIX,
   isPodAi,
@@ -543,6 +538,14 @@ export {
   EventViewSchema,
   EventListSchema,
   EventRoomSchema,
+  rallyCreateUrl,
+  type EventKind,
+  type CreateEventBody,
+  type UpdateEventBody,
+  type EventView,
+  type EventRoom,
+} from './events.ts';
+export {
   RALLY_EVENT_SCHEMA,
   RallyFormIdSchema,
   RallyFormSummarySchema,
@@ -551,18 +554,12 @@ export {
   FormListSchema,
   isEventSignupForm,
   rallyFormIdOf,
-  rallyCreateUrl,
   rallyReturnOf,
-  type EventKind,
-  type CreateEventBody,
-  type UpdateEventBody,
-  type EventView,
-  type EventRoom,
   type RallyFormSummary,
   type AttachFormBody,
   type AttachedForm,
-} from './events.ts';
-export { DiscordMessageSchema, DiscordRecentSchema, type DiscordMessage, type DiscordRecent } from './discord.ts';
+} from '@hadoku/platform-wire/events';
+export { DiscordMessageSchema, DiscordRecentSchema, type DiscordMessage, type DiscordRecent } from '@hadoku/platform-wire/discord';
 export {
   RALLY_CATALOGUES,
   RALLY_VIEWS,
@@ -585,4 +582,4 @@ export {
   type RallyCardsView,
   type RallyPackView,
 } from './rally.ts';
-export { SERVER_RESTARTING_EVENT } from './restarting.ts';
+export { SERVER_RESTARTING_EVENT } from '@hadoku/platform-wire/restarting';

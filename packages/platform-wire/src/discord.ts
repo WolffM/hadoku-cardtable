@@ -1,6 +1,6 @@
 /*
- * The cardtable Discord's general chat, as the front page's wildcard shows it: ArchiveBot's signed
- * `GET /api/messages/recent` (WolffM/ArchiveBot#37), relayed and cached by `apps/server/src/http/discord.ts`.
+ * A Discord channel's recent chat: ArchiveBot's signed `GET /api/messages/recent`
+ * (WolffM/ArchiveBot#37), relayed and cached by the app's server.
  * Plain text by ArchiveBot's own contract — no ids or links ever arrive. The avatar comes as the
  * image itself, a `data:` URI (hadoku.me's CSP admits those, not Discord's CDN).
  */

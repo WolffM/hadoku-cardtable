@@ -11,8 +11,8 @@
  * ## A ping, not the room
  *
  * The message names WHICH room changed and nothing else. Every room read is
- * caller-scoped — `you.leader`, `you.ready`, your own deck's verdict, the
- * other player's choice withheld — so a payload pushed to a room would either
+ * caller-scoped — `you.leader`, `you.ready`, the other player's choices
+ * withheld — so a payload pushed to a room would either
  * be built per member (a second copy of every read route's rules) or leak.
  * The screen reads the route it already reads, through the same gate.
  *
@@ -29,7 +29,7 @@ import { z } from 'zod';
 
 /**
  * A room id: every id the lobby mints, and the only shape a route, a stream key
- * or a watchparty room key (`cardtable-<id>`) accepts.
+ * or a watchparty room key (`<app>-<id>`) accepts.
  */
 export const ROOM_ID_RE = /^[a-z0-9-]{1,40}$/;
 

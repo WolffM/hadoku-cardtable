@@ -28,7 +28,7 @@
  */
 
 import { z } from 'zod';
-import { PersonFaceSchema } from './look.ts';
+import { PersonFaceSchema } from '@hadoku/platform-wire/look';
 import { DraftPlanSchema, PoolVerdictSchema } from './pool.ts';
 
 /** A draft room's phases, lobby to done — `draft-pods-plan.md`'s "Pods". */

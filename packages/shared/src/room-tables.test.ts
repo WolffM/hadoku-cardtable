@@ -5,12 +5,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { RoomTableGameSchema, SeriesLengthSchema } from '@hadoku/platform-wire/tables';
 import {
-  RoomTableGameSchema,
   RoomTableSchema,
   RoomTableSeriesSchema,
   RoomTablesSchema,
-  SeriesLengthSchema,
   SeriesPhaseSchema,
   SERIES_PHASES,
   TableGameSchema,

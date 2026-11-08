@@ -47,6 +47,7 @@
  */
 
 import { z } from 'zod';
+import { SeqCursorSchema, type WireCursor } from '@hadoku/platform-wire/envelope';
 import type { SeqCursor } from '@wolffm/rooms-protocol';
 
 import { DraftIdSchema, DraftViewSchema, SeatIdSchema, type DraftView } from './draft.ts';
@@ -54,19 +55,7 @@ import { formatPath, semanticIssues, type ValidationFailure } from './semantics.
 
 /* ── The cursor ──────────────────────────────────────────────────────── */
 
-/**
- * `{ epoch, seq }` — structurally `@wolffm/rooms-protocol`'s `SeqCursor`.
- *
- * Declared here as a Zod schema rather than imported, because that package is
- * deliberately zod-free; `asSeqCursor` below is the compile-time proof the two
- * have not drifted.
- */
-export const SeqCursorSchema = z.object({
-  epoch: z.string().min(1),
-  seq: z.number().int().positive(),
-});
-
-export type WireCursor = z.infer<typeof SeqCursorSchema>;
+export { SeqCursorSchema, type WireCursor };
 
 /**
  * Hand a wire cursor to anything expecting a `SeqCursor` — `classifySeq`,

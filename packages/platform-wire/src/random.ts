@@ -1,7 +1,6 @@
 /**
  * A uniform [0,1) from `crypto`, never `Math.random`: one rule, one place, for
- * every draw the UI or the server makes (a Random deck, an All Random room's
- * era and decks). `globalThis.crypto` is the Web Crypto API in a browser and
+ * every draw the UI or the server makes. `globalThis.crypto` is the Web Crypto API in a browser and
  * in Node alike.
  */
 export function secureRandom(): number {

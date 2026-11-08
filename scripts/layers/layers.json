@@ -70,11 +70,8 @@
     "apps/ui/src/sound/GainSlider.tsx",
     "apps/ui/src/sound/index.ts",
     "packages/shared/src/look.ts",
-    "packages/shared/src/random.ts",
     "packages/shared/src/room-view.ts",
-    "packages/shared/src/room-feed.ts",
-    "packages/shared/src/telemetry.ts",
-    "packages/shared/src/events.ts"
+    "packages/shared/src/room-feed.ts"
   ],
   "magic": [
     "packages/forge-wire/**",
