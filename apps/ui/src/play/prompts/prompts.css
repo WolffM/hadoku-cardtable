@@ -1059,9 +1059,12 @@
   justify-content: flex-start;
 }
 
-/* `secondFirst` (declare-attackers' All before Done Attacking): the two stand further apart. */
+/*
+ * `secondFirst` (declare-attackers' All before Done Attacking): the two stand further apart, side by side
+ * or, in a column too narrow for both, one above the other.
+ */
 .answers[data-second-first] {
-  column-gap: var(--hdk-space-xl);
+  gap: var(--hdk-space-xl);
 }
 
 .answers[data-pair] > :first-child {

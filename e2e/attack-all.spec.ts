@@ -81,12 +81,14 @@ test(titled('"All" declares every legal attacker, stays editable, and Done commi
     expect(await attackingCards(alice.page).count(), 'nobody attacks yet').toBe(0);
     await expect(allButton(alice.page), 'the "All" button is offered').toBeVisible();
 
-    // The operator, 2026-11-08: All stands left of Done Attacking, on its row, with room between them —
-    // more than the 8 px every other answer row keeps.
+    // The operator, 2026-11-08: All comes before Done Attacking, with room between them — more than
+    // the 8 px every other answer row keeps. Side by side where the column is wide enough, else All on
+    // the line above (the column is 26.5% of the board, too narrow for both at 1280×720).
     const allBox = (await allButton(alice.page).boundingBox())!;
     const doneBox = (await decisionOk(alice.page).boundingBox())!;
-    expect(doneBox.y, 'one row').toBeCloseTo(allBox.y, 0);
-    expect(doneBox.x - (allBox.x + allBox.width), 'All left of Done Attacking, set apart').toBeGreaterThan(8);
+    const oneRow = Math.abs(doneBox.y - allBox.y) < 1;
+    const apart = oneRow ? doneBox.x - (allBox.x + allBox.width) : doneBox.y - (allBox.y + allBox.height);
+    expect(apart, `All before Done Attacking (${oneRow ? 'left of it' : 'above it'}), set apart`).toBeGreaterThan(8);
 
     // 1. One press. Every legal attacker's arrow, on alice's own screen.
     await allButton(alice.page).click();
