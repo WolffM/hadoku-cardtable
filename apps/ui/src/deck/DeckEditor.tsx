@@ -133,7 +133,7 @@ const BASIC_NAMES = new Set(BASIC_LAND_NAMES);
  * library card is (`namedCardPool`). Never picked from. A basic is a land, with no colour of its own.
  */
 function fallbackFace(card: CardRequest): DraftCard {
-  const face = namedCardPool([card.name])[0]!;
+  const face = namedCardPool([card])[0]!;
   return BASIC_NAMES.has(card.name) ? { ...face, typeLine: `Basic Land — ${face.name}`, colors: [], manaValue: 0 } : face;
 }
 

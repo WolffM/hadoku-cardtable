@@ -107,6 +107,8 @@ export function erasOf(formats: readonly TableFormat[], tab: FormatFamily): Tabl
 export interface DeckLine {
   count: number;
   name: string;
+  /** The set the deck's `.dck` pins: the printing it plays, and so the art it is drawn with. */
+  set?: string | undefined;
 }
 
 export interface TableDeck {

@@ -2593,15 +2593,15 @@ describe('a room table', () => {
 		 * Lane Q's report, 2026-10-17: a library-deck seat's sideboard step
 		 * 409'd EVERY resubmission, even an untouched deck. The baseline
 		 * (`seriesDeck`) is the library `.dck` text WITH a set code per card
-		 * ("4 Mana Leak|8E"); `GET /tables/decks` sends the browser only
+		 * ("4 Mana Leak|8E"); `GET /tables/decks` then sent the browser only
 		 * `{count, name}` (never a set code), so the browser's own
-		 * resubmission is bare names. `multisetOf` keyed by `cardKey`
+		 * resubmission was bare names. `multisetOf` keyed by `cardKey`
 		 * (set/collector/art included), so every one of its cards read as a
 		 * DIFFERENT card from the baseline's. The rule is "the same cards,
 		 * only re-split" and printing never mattered to it — the fix
 		 * keys by name alone.
 		 */
-		it('sideboarding: a library-deck resubmission in BARE NAMES (no set code — exactly what GET /tables/decks gives the browser) is accepted untouched and re-split, but adding a card is still refused', async () => {
+		it('sideboarding: a library-deck resubmission in BARE NAMES (no set code) is accepted untouched and re-split, but adding a card is still refused', async () => {
 			const h = await boot();
 			openRoom(h);
 			await bothLoaded(h); // alice: UG_POLYMORPH, bob: SECOND_DECK
@@ -2612,9 +2612,8 @@ describe('a room table', () => {
 			const aliceState = h.lobby.playerState(ROOM, ALICE) as Record<string, unknown>;
 			h.lobby.setPlayerState(ROOM, ALICE, { ...aliceState, seriesDeck: canonicalText });
 
-			// The browser's own reconstruction: strip every "|SET" segment, the
-			// same information loss `GET /tables/decks`'s `{count, name}` rows
-			// already have.
+			// A reconstruction that lost every "|SET" segment, as the browser's
+			// did before its lines carried their sets.
 			const bareText = canonicalText.replace(/\|\S+/g, '');
 			expect(bareText).not.toContain('|');
 			expect(bareText).toContain('1 Scalding Tarn\n');

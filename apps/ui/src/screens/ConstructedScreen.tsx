@@ -679,10 +679,10 @@ export function draftedDeckOption(value: string, label: string, deck: Deck, pool
   // needs no lookup table here — the pool IS the table.
   const byName = new Map(pool.map((card) => [card.name, card]));
   // A drafted card is its own face; a basic is not in the pool and is looked up by name.
-  const draftedLine = (entry: { card: { name: string }; count: number }): PeekLine => {
+  const draftedLine = (entry: { card: { name: string; set: string | null }; count: number }): PeekLine => {
     const card = byName.get(entry.card.name);
     return card === undefined
-      ? namedPeekLine({ name: entry.card.name, count: entry.count })
+      ? namedPeekLine({ name: entry.card.name, count: entry.count, set: entry.card.set ?? undefined })
       : { name: card.name, count: entry.count, cost: card.manaCost, manaValue: card.manaValue, face: card };
   };
   return {

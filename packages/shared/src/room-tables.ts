@@ -92,7 +92,7 @@ export const RoomTablesSchema = z.array(RoomTableSchema).min(1);
  * latest match (`apps/server/src/play/table-game.ts`). A table that has never started a match has none.
  */
 
-/** One seat's deck: its name, its colours, and the card whose art stands for it — a name, looked up for its art. */
+/** One seat's deck: its name, its colours, and the card whose art stands for it — a card ref (`Name|SET`), looked up for its art. */
 export const TableSeatDeckSchema = z.strictObject({
   name: z.string(),
   colors: z.array(ManaColorSchema).max(5),

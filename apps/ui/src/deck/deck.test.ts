@@ -18,7 +18,7 @@ import { createElement, useEffect, useRef, type ReactNode } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { DraftCard } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
-import { basicLand, type Deck, deckFromDeckFile, moveToMain, moveToSideboard, setBasicLand, cardRequestOf } from '@hadoku/deck';
+import { basicLand, type Deck, deckFromDeckFile, moveToMain, moveToSideboard, setBasicLand, cardRequestOf, cardKey } from '@hadoku/deck';
 
 import poolData from '../draft/pool.json';
 import { deckFromPool, dckTextOf, draftBuild } from '../draft/deckFromPool.ts';
@@ -301,6 +301,16 @@ describe('build.ts', () => {
       expect(back.main.find((e) => e.card.name === 'Forest')?.count).toBe(17);
       expect(back.sideboard.find((e) => e.card.name === 'Abrade')?.count).toBe(2);
       expect(back.sideboard.find((e) => e.card.name === 'Lightning Bolt')?.count).toBe(1);
+    });
+
+    it('keeps the printing each line pins, so the sideboard step and the next game draw the art the first game did', () => {
+      const main = [{ name: 'Lightning Bolt', count: 4, set: 'M10' }, { name: 'Forest', count: 17 }];
+      const back = deckFromDeckFile(parseDck(libraryDeckText('Burn', main, [])));
+      expect(back.main.find((e) => e.card.name === 'Lightning Bolt')?.card.set).toBe('M10');
+      expect(back.main.find((e) => e.card.name === 'Forest')?.card.set).toBeNull();
+      // The editor finds each entry's face by its key: the pool's card carries the same set.
+      const index = cardIndex(libraryDeckPool(main, []));
+      for (const entry of back.main) expect(index.get(cardKey(entry.card))?.name, entry.card.name).toBe(entry.card.name);
     });
   });
 });

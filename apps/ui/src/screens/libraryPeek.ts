@@ -6,12 +6,18 @@
  * its own so the board reads it without the room screen, whose chunk carries the deck library's
  * picker and the stats.
  *
- * The browser holds no name → id table. A name it has not been told about is asked for, a batch at
+ * The browser holds no name → id table. A card it has not been told about is asked for, a batch at
  * a time, and drawn as the text tile until the answer arrives; a screen that draws these faces
  * calls {@link useNamedArt} so it draws again then.
+ *
+ * A card is asked for by its name AND the set its list pins (`cardRef`: `Name|SET`): a library
+ * deck's `.dck` plays one printing, and the board draws that printing, so a peek, a chooser or the
+ * sideboard step asking by the name alone drew another one (1,449 of 1,459 library decks had a card
+ * whose art differed between the two).
  */
 
 import { useSyncExternalStore } from 'react';
+import { cardRef } from '@hadoku/carddata/art';
 import type { DraftCard } from '@hadoku/shared';
 import { manaTokensOf, manaValueOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
@@ -94,18 +100,24 @@ function want(name: string): Promise<void> {
   return flushing;
 }
 
-/** The server's answer for `name`: undefined until it has given one, and asked for then. */
-function artOf(name: string): NamedArt | null | undefined {
-  if (!told.has(name)) void want(name);
-  return told.get(name);
+/** A card as a list names it: its name, and the set the list pins (none: any printing). */
+export interface NamedCard {
+  name: string;
+  set?: string | null | undefined;
 }
 
-/** Resolves once the server has answered for every one of `names` — for a list built once, off a screen. */
-export function primeNamedArt(names: Iterable<string>): Promise<void> {
-  return Promise.all([...new Set(names)].map(want)).then(() => undefined);
+/** The server's answer for `ref`: undefined until it has given one, and asked for then. */
+function artOf(ref: string): NamedArt | null | undefined {
+  if (!told.has(ref)) void want(ref);
+  return told.get(ref);
 }
 
-/** Draw again when the server has told this page more names' art: the count of answers, for a memo's deps. */
+/** Resolves once the server has answered for every one of `cards` — for a list built once, off a screen. */
+export function primeNamedArt(cards: Iterable<NamedCard>): Promise<void> {
+  return Promise.all([...new Set([...cards].map((c) => cardRef(c.name, c.set)))].map(want)).then(() => undefined);
+}
+
+/** Draw again when the server has told this page more cards' art: the count of answers, for a memo's deps. */
 export function useNamedArt(): number {
   return useSyncExternalStore(
     (listener) => {
@@ -124,25 +136,25 @@ export function resetNamedArtForTests(fetchImpl: Fetch): void {
   fetchArt = fetchImpl;
 }
 
-/** A library card's face by its name: no type line and no rules text, which the wire does not send. */
-export function libraryFace(name: string): DraftCard {
+/** A library card's face by its name and pinned set: no type line and no rules text, which the wire does not send. */
+export function libraryFace({ name, set }: NamedCard): DraftCard {
   const printed = LIBRARY_CARD_COSTS[name] ?? '';
-  const art = artOf(name);
-  return namedFace(name, manaTokensOf(printed), manaValueOf(printed), art?.scryfallId, art?.backs);
+  const art = artOf(cardRef(name, set));
+  return namedFace(name, manaTokensOf(printed), manaValueOf(printed), art?.scryfallId, art?.backs, set ?? '');
 }
 
-/** A deck line known by its name (`libraryFace`). */
-export function namedPeekLine({ name, count }: DeckLine): PeekLine {
-  const face = libraryFace(name);
-  return { name, count, cost: face.manaCost, manaValue: face.manaValue, face };
+/** A deck line known by its name and set (`libraryFace`). */
+export function namedPeekLine(line: DeckLine): PeekLine {
+  const face = libraryFace(line);
+  return { name: line.name, count: line.count, cost: face.manaCost, manaValue: face.manaValue, face };
 }
 
-/** A library deck's lines: the wire sends names. */
+/** A library deck's lines: the wire sends names and sets. */
 export function libraryPeekList(main: readonly DeckLine[], sideboard: readonly DeckLine[]): PeekList {
   return { main: main.map(namedPeekLine), sideboard: sideboard.map(namedPeekLine) };
 }
 
-/** A card's art id, by name — what a table card's deck art is (`TableCard.tsx`). */
-export function deckCardArtId(name: string): string | undefined {
-  return artOf(name)?.scryfallId;
+/** A card's art id by its ref (`Name|SET`) — what a table card's deck art is (`TableCard.tsx`). */
+export function deckCardArtId(ref: string): string | undefined {
+  return artOf(ref)?.scryfallId;
 }

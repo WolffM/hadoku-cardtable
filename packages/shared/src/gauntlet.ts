@@ -64,6 +64,8 @@ export const GAUNTLET_SNAKE: readonly { readonly player: 'p1' | 'p2'; readonly a
 export const GauntletDeckLineSchema = z.strictObject({
   count: z.number().int().min(1),
   name: z.string().min(1),
+  /** The set the deck's `.dck` pins: what its art is looked up by, so it is the printing the deck plays. */
+  set: z.string().min(1).max(16).optional(),
 });
 export type GauntletDeckLine = z.infer<typeof GauntletDeckLineSchema>;
 
