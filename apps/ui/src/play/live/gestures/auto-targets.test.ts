@@ -22,9 +22,27 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-/** A `LiveMatch` stub carrying only what `combatArrows` reads. */
-function matchWithCombat(combat: CombatBand[]): LiveMatch {
-  const view = { combat } as unknown as BoardView;
+/** One seat at the stub table: its id, whether it is the viewer, and its battlefield as `[id, typeLine]`. */
+type Seat = { id: number; isViewer: boolean; hasLost?: boolean; battlefield: [number, string][] };
+
+/**
+ * The viewer (2) attacks with creatures 10 and 11 into an opponent (1) who has a planeswalker out (55),
+ * so the attack has a choice of two defenders and its arrow is drawn.
+ */
+const WITH_PLANESWALKER: Seat[] = [
+  { id: 1, isViewer: false, battlefield: [[55, 'Legendary Planeswalker — Jace']] },
+  { id: 2, isViewer: true, battlefield: [[10, 'Creature — Bear'], [11, 'Creature — Bear']] },
+];
+
+/** A `LiveMatch` stub carrying only what `combatArrows` reads: the combat and who is at the table. */
+function matchWithCombat(combat: CombatBand[], seats: Seat[] = WITH_PLANESWALKER): LiveMatch {
+  const players = seats.map((s) => ({
+    id: s.id,
+    isViewer: s.isViewer,
+    hasLost: s.hasLost ?? false,
+    battlefield: s.battlefield.map(([id, typeLine]) => ({ id, card: { typeLine } })),
+  }));
+  const view = { combat, players } as unknown as BoardView;
   return { view } as unknown as LiveMatch;
 }
 
@@ -176,10 +194,11 @@ describe('combatArrows', () => {
       el({ 'data-player-face': '', 'data-player-id': '1' });
       el({ 'data-player-face': '', 'data-player-id': '2' });
       const pw = el({ 'data-board-card': '55' });
+      // Each side has a planeswalker out, so both seats' attacks have a choice and draw their arrows.
       const view = {
         players: [
-          { id: 1, isViewer: false },
-          { id: 2, isViewer: true },
+          { id: 1, isViewer: false, hasLost: false, battlefield: [{ id: 20, card: { typeLine: 'Creature' } }, { id: 55, card: { typeLine: 'Planeswalker' } }] },
+          { id: 2, isViewer: true, hasLost: false, battlefield: [{ id: 10, card: { typeLine: 'Creature' } }, { id: 30, card: { typeLine: 'Creature' } }, { id: 56, card: { typeLine: 'Planeswalker' } }] },
         ],
         combat: [
           { attackers: [10], defender: { kind: 'player', id: 1 } },
@@ -197,6 +216,39 @@ describe('combatArrows', () => {
     } finally {
       delete document.documentElement.dataset.layout;
     }
+  });
+
+  /*
+   * The operator, 2026-11-07: "that should only happen when there's a planeswalker or other attack target.
+   * if there's only one attack target then the attack can be landed right away". With the opponent the
+   * only thing an attacker could attack, the arrow says nothing the attacker's own mark does not.
+   */
+  it('draws no arrow when the attacker had only one defender to choose: the opponent, with no planeswalker or battle out', () => {
+    el({ 'data-board-card': '10' });
+    el({ 'data-player-face': '', 'data-player-id': '1' });
+    const oneDefender: Seat[] = [
+      { id: 1, isViewer: false, battlefield: [[40, 'Creature — Wall']] },
+      { id: 2, isViewer: true, battlefield: [[10, 'Creature — Bear'], [12, 'Planeswalker — Ours']] },
+    ];
+    // Our own planeswalker is no defender for our attack, and a creature is none at all.
+    expect(combatArrows(document.body, matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 } }], oneDefender), new Set())).toEqual([]);
+  });
+
+  it('counts a battle anywhere, and a player who has lost not at all', () => {
+    el({ 'data-board-card': '10' });
+    el({ 'data-player-face': '', 'data-player-id': '1' });
+    const attack = [{ attackers: [10], defender: { kind: 'player' as const, id: 1 } }];
+    const battle: Seat[] = [
+      { id: 1, isViewer: false, battlefield: [] },
+      { id: 2, isViewer: true, battlefield: [[10, 'Creature — Bear'], [13, 'Battle — Siege']] },
+    ];
+    expect(combatArrows(document.body, matchWithCombat(attack, battle), new Set()).map((a) => a.key)).toEqual(['combat:10']);
+    const lost: Seat[] = [
+      { id: 1, isViewer: false, battlefield: [] },
+      { id: 2, isViewer: true, battlefield: [[10, 'Creature — Bear']] },
+      { id: 3, isViewer: false, hasLost: true, battlefield: [] },
+    ];
+    expect(combatArrows(document.body, matchWithCombat(attack, lost), new Set())).toEqual([]);
   });
 
   it('draws nothing outside combat — an absent or empty `view.combat`', () => {

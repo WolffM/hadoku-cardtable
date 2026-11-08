@@ -2898,14 +2898,32 @@ function declaredAttackers(match: LiveMatch, view: BoardView): ReadonlySet<numbe
  */
 function attackDefenders(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
   if (!attackInputLive(match)) return null;
+  const me = viewerOf(view);
+  return me === undefined ? new Set() : attackableCards(view, me.id);
+}
+
+/**
+ * The cards a creature controlled by `attacking` could attack: every planeswalker of another player and
+ * every battle (see `attackDefenders` for why a battle is offered wherever it sits).
+ */
+export function attackableCards(view: BoardView, attacking: number): Set<number> {
   const out = new Set<number>();
   for (const p of view.players) {
     for (const c of p.battlefield) {
       const type = c.card.typeLine;
-      if (type.includes('Battle') || (!p.isViewer && type.includes('Planeswalker'))) out.add(c.id);
+      if (type.includes('Battle') || (p.id !== attacking && type.includes('Planeswalker'))) out.add(c.id);
     }
   }
   return out;
+}
+
+/**
+ * How many defenders a creature controlled by `attacking` had to choose from: each player still in the
+ * game but them, and each card `attackableCards` names. One means the attack could only go one way.
+ */
+export function defenderChoices(view: BoardView, attacking: number): number {
+  const players = view.players.filter((p) => p.id !== attacking && !p.hasLost).length;
+  return players + attackableCards(view, attacking).size;
 }
 
 /** What a drop of `attacker` on `target` sends while attacks are declared. */
