@@ -5,7 +5,7 @@
  * answer draws to that target arrives, the gesture is cancelled, or nothing came.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CLOSE_MS, COMMITTED_MAX_MS, clearArrow, clearCommitted, commitArrowAt, drawArrow, newArrow, retireCommitted } from './arrow.ts';
+import { CLOSE_MS, COMMITTED_MAX_MS, clearArrow, clearCommitted, commitArrowAt, drawArrow, followStack, newArrow, retireCommitted } from './arrow.ts';
 
 let overlay: HTMLElement;
 let target: HTMLElement;
@@ -151,6 +151,45 @@ describe('committing the aim', () => {
     expect(svg.isConnected).toBe(true);
     vi.advanceTimersByTime(1);
     expect(svg.isConnected).toBe(false);
+  });
+});
+
+/*
+ * The operator, 2026-11-07, on Guul Draz Assassin: "killed the target very quickly, but then the targeting
+ * arrow still lingered there for a few seconds afterwards." The ability resolved before the stack drew its
+ * own arrow, so nothing ever retired the committed one but `COMMITTED_MAX_MS`.
+ */
+describe('a committed arrow follows the stack', () => {
+  it('goes once its target has left the board', () => {
+    const svg = aim();
+    commitArrowAt(overlay, inner);
+    followStack(overlay, new Set());
+    expect(svg.isConnected, 'still on the board, still waiting').toBe(true);
+    target.remove();
+    followStack(overlay, new Set());
+    expect(svg.isConnected).toBe(false);
+  });
+
+  it('stays while React draws its target anew under the same board id', () => {
+    target.setAttribute('data-board-card', '2');
+    const svg = aim();
+    commitArrowAt(overlay, inner);
+    const redrawn = document.createElement('div');
+    redrawn.setAttribute('data-board-card', '2');
+    target.replaceWith(redrawn);
+    followStack(overlay, new Set());
+    expect(svg.isConnected).toBe(true);
+  });
+
+  it('goes once the stack item aimed at its target has come and gone, and not before it came', () => {
+    const svg = aim();
+    commitArrowAt(overlay, inner);
+    followStack(overlay, new Set(['card:7']));
+    expect(svg.isConnected, 'the answer is not on the stack yet').toBe(true);
+    followStack(overlay, new Set(['card:2']));
+    expect(svg.isConnected, 'on the stack, its own arrow not drawn yet').toBe(true);
+    followStack(overlay, new Set());
+    expect(svg.isConnected, 'resolved').toBe(false);
   });
 });
 

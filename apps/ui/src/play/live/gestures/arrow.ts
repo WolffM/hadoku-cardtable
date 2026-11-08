@@ -402,7 +402,7 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
 const snapped = new WeakMap<SVGSVGElement, Element | null>();
 
 /** The committed arrows still standing, each with the element it settled on. */
-const committed = new Map<SVGSVGElement, { target: Element; expiry: ReturnType<typeof setTimeout> }>();
+const committed = new Map<SVGSVGElement, { target: Element; aim: string | null; staged: boolean; expiry: ReturnType<typeof setTimeout> }>();
 
 /** How long the gaps take to close, and how long a committed arrow waits for the arrow that replaces it. */
 export const CLOSE_MS = 280;
@@ -413,6 +413,7 @@ export const COMMITTED_MAX_MS = 4000;
  * that is the aim committed — whichever sender then answers Forge (a drag's `commitDrag`, a
  * card's own click, a held group's attack). The ghost closes into a solid arrow where it stands,
  * and stays until the arrow Forge's answer draws to the same target arrives (`retireCommitted`),
+ * its target leaves the board or the stack item aimed at it has come and gone (`followStack`),
  * the gesture is cancelled (`clearCommitted`), or `COMMITTED_MAX_MS` passes.
  *
  * It leaves the `targeter` testid behind, so it is never the live arrow to anything that reads one.
@@ -422,7 +423,7 @@ export function commitArrowAt(overlay: HTMLElement | null, node: EventTarget | n
   const target = svg === null ? null : (snapped.get(svg) ?? null);
   if (svg === null || target === null || !(node instanceof Node) || !target.contains(node)) return;
   svg.setAttribute('data-testid', 'targeter-committed');
-  committed.set(svg, { target, expiry: setTimeout(() => retire(svg), COMMITTED_MAX_MS) });
+  committed.set(svg, { target, aim: svg.getAttribute('data-target'), staged: false, expiry: setTimeout(() => retire(svg), COMMITTED_MAX_MS) });
   settle(svg);
 }
 
@@ -503,6 +504,16 @@ function same(a: Element, b: Element): boolean {
   return ra !== null && ra === refOf(b);
 }
 
+/** The target is still drawn: its own node, or one React drew anew with the same board id (`same`). */
+function onBoard(el: Element): boolean {
+  if (el.isConnected) return true;
+  const ref = refOf(el);
+  if (ref === null) return false;
+  const [kind, id] = ref.split(':') as [string, string];
+  const attrs = kind === 'player' ? ['data-player-id'] : kind === 'card' ? ['data-board-card'] : ['data-stack-id', 'data-placed-spell'];
+  return attrs.some((a) => el.ownerDocument.querySelector(`[${a}="${id}"]`) !== null);
+}
+
 function refOf(el: Element): string | null {
   const player = el.getAttribute('data-player-id');
   if (player !== null) return `player:${player}`;
@@ -510,6 +521,22 @@ function refOf(el: Element): string | null {
   if (card !== null) return `card:${card}`;
   const item = el.getAttribute('data-stack-id') ?? el.getAttribute('data-placed-spell');
   return item === null ? null : `stack:${item}`;
+}
+
+/**
+ * Forge's stack, on every frame: `aimed` holds each `kind:id` a stack item targets now. A committed arrow
+ * whose target has left the board goes at once, and so does one whose stack item has been and gone —
+ * the ability resolved before the stack drew its own arrow, which is the one `retireCommitted` waits
+ * for. The operator, 2026-11-07, on Guul Draz Assassin: "killed the target very quickly, but then the
+ * targeting arrow still lingered there for a few seconds afterwards."
+ */
+export function followStack(overlay: HTMLElement | null, aimed: ReadonlySet<string>): void {
+  for (const [svg, c] of [...committed]) {
+    if (overlay !== null && !overlay.contains(svg)) continue;
+    if (!onBoard(c.target)) retire(svg);
+    else if (c.aim !== null && aimed.has(c.aim)) c.staged = true;
+    else if (c.staged) retire(svg);
+  }
 }
 
 /** The gesture was let go or the board is going: every committed arrow goes with it. */

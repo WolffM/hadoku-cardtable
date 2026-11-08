@@ -257,7 +257,7 @@ import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-r
 import type { GameEntityRef } from '@hadoku/forge-wire';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { RAMMING_ATTR } from '../ram.ts';
-import { clearArrow, clearAutoTargetArrows, clearCommitted, commitArrowAt, drawArrow, drawAutoTargetArrows } from './arrow.ts';
+import { clearArrow, clearAutoTargetArrows, clearCommitted, commitArrowAt, drawArrow, drawAutoTargetArrows, followStack } from './arrow.ts';
 import { CAST_LANDING_ATTR, expectedGapBox,
   CAST_LIFT_ATTR,
   castCardTypeLine,
@@ -925,6 +925,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
     });
     if (centres.length === 0) return fallback;
     return { x: centres.reduce((n, c) => n + c.x, 0) / centres.length, y: centres.reduce((n, c) => n + c.y, 0) / centres.length };
+  }
+
+  /** Every `kind:id` a stack item targets now, in the targeter's own `data-target` form. */
+  function stackAims(): Set<string> {
+    const aims = new Set<string>();
+    for (const item of match.view?.stack ?? []) {
+      for (const id of item.targetCardIds ?? []) aims.add(`card:${id}`);
+      for (const id of item.targetPlayerIds ?? []) aims.add(`player:${id}`);
+    }
+    return aims;
   }
 
   /**
@@ -2249,6 +2259,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     settleParkedIfResolved();
     syncStackStandIn();
     syncParkedGhost();
+    followStack(overlayOf(canvas), stackAims());
     paintSoon();
   });
   /**
