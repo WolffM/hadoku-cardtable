@@ -20,6 +20,9 @@ const BRACKET8: PodStructure = { swiss: 0, cut: 8 };
 /** A Challenge shape: Swiss narrows, top 8 cut. */
 const CHALLENGE: PodStructure = { swiss: 5, cut: 8 };
 
+/** A 16-player Challenge: three Swiss rounds, top 8 cut. */
+const CHALLENGE16: PodStructure = { swiss: 3, cut: 8 };
+
 describe('structureOk', () => {
   it('accepts the product default and every power-of-two cut up to the field', () => {
     expect(structureOk({ swiss: 3, cut: 0 }, 8)).toBe(true);
@@ -131,6 +134,45 @@ describe('a cut after Swiss seeds the bracket by standings', () => {
     expect(paired.has('p1|p2')).toBe(true);
     expect(paired.has('p3|p4')).toBe(true);
     expect(paired.has('p1|p5')).toBe(false);
+  });
+});
+
+describe('the cut takes the standings top, not the whole field', () => {
+  it('round swiss+1 pairs only the top cut — 16 players, top 8, exactly p1..p8', () => {
+    // Three Swiss rounds where p1..p8 win every match: they are the 9-point
+    // tier, everyone else 0-3. The cut is the top EIGHT, four tables.
+    const P16: PodPlayer[] = Array.from({ length: 16 }, (_, i) => ({ id: `p${i + 1}`, podSeat: i + 1 }));
+    const results: MatchResult[] = [];
+    for (let r = 1; r <= 3; r++) {
+      for (let i = 0; i < 8; i++) {
+        results.push({ round: r, playerA: `p${i + 1}`, playerB: `p${i + 9}`, gamesA: 2, gamesB: 0 });
+      }
+    }
+    const cut = pairRound({ players: P16, results, round: 4, structure: CHALLENGE16, seed: 's' });
+    expect(cut.tables).toHaveLength(4);
+    const ids = cut.tables.flat().sort();
+    expect(ids).toEqual(Array.from({ length: 8 }, (_, i) => `p${i + 1}`));
+  });
+
+  it('a second cut round pairs only first-round survivors', () => {
+    const P16: PodPlayer[] = Array.from({ length: 16 }, (_, i) => ({ id: `p${i + 1}`, podSeat: i + 1 }));
+    const results: MatchResult[] = [];
+    for (let r = 1; r <= 3; r++) {
+      for (let i = 0; i < 8; i++) {
+        results.push({ round: r, playerA: `p${i + 1}`, playerB: `p${i + 9}`, gamesA: 2, gamesB: 0 });
+      }
+    }
+    // Cut round 1: p2, p3, p1, p6 win.
+    results.push(
+      { round: 4, playerA: 'p2', playerB: 'p7', gamesA: 2, gamesB: 0 },
+      { round: 4, playerA: 'p3', playerB: 'p4', gamesA: 2, gamesB: 0 },
+      { round: 4, playerA: 'p1', playerB: 'p5', gamesA: 2, gamesB: 0 },
+      { round: 4, playerA: 'p6', playerB: 'p8', gamesA: 2, gamesB: 0 },
+    );
+    const sf = pairRound({ players: P16, results, round: 5, structure: CHALLENGE16, seed: 's' });
+    expect(sf.tables).toHaveLength(2);
+    const ids = sf.tables.flat().sort();
+    expect(ids).toEqual(['p1', 'p2', 'p3', 'p6']);
   });
 });
 
