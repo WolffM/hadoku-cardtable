@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { healthResponse, readCommit, serviceIdOf } from './health.ts';
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 describe('hadoku health v1', () => {
 	it('names each instance by its child-apps id, falling back to the app id when the prefix is empty', () => {
