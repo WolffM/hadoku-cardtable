@@ -32,7 +32,7 @@
  * a re-run is red rather than quiet.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -71,11 +71,26 @@ function mtgtop8DeckId(collection: LibraryCollection, file: string, sourceUrl: s
   return Number(id);
 }
 
-/** Catalogue entry id → the style its era's selection gave it, in catalogue order. */
+/**
+ * Catalogue entry id → the style its era's selection gave it, in catalogue order.
+ *
+ * A collection with no selection file (`existsSync` — a tournament import
+ * transcribed from a whole event's cache, not chosen by `select_decks.py`)
+ * contributes NO styles rather than an error: the UI's own rule is that a deck
+ * with no style "draws no tag rather than a guess" (`DeckStyleTag.tsx`), and a
+ * forced classification of 32 real tournament decks nobody verified would be
+ * exactly the guess that rule refuses.
+ */
 export function libraryDeckStyles(): Record<string, DeckStyle> {
   const styles: Record<string, DeckStyle> = {};
   for (const collection of LIBRARY) {
     const path = selectionPath(collection.family, collection.date.slice(0, 4));
+    if (!existsSync(join(REPO_ROOT, path))) {
+      for (const entry of collection.decks) {
+        if (styles[entry.id] !== undefined) throw new Error(`${entry.id}: catalogued twice`);
+      }
+      continue;
+    }
     const chosen = (JSON.parse(read(path)) as { chosen: readonly ChosenStyle[] }).chosen;
     const byDeck = new Map(chosen.map((c) => [c.deck, c.style]));
     for (const entry of collection.decks) {
