@@ -35,10 +35,24 @@ const titled = makeTitled(forge);
 
 const LOOPS = 5;
 /**
- * The most a timed loop's pick may take to the next offer. Measured on the claws before the ruling: 2.86 s
- * (1.41 s of the board's beats, 1.3 s of resolve gaps, 150 ms of an objectless delta's gap).
+ * The most a timed loop's pick may take to the next offer, on the server's clock: from the pick's arrival
+ * (`forge-command` selectCard on the Sword) to the next priority window shown the seat (`prompt-forwarded`),
+ * where the Foundry is offered again. Measured on the claws
+ * before the ruling: 2.86 s (1.41 s of the board's beats, 1.3 s of resolve gaps, 150 ms of an objectless
+ * delta's gap). The browser's own wall time is printed, never judged: on a claw shared by six Forge jobs
+ * it read 1571 ms for a loop the server offered in 764 (run 42493341901).
  */
 const NEXT_OFFER_BUDGET_MS = 1_200;
+
+const at = (r: Record<string, unknown>): number => Date.parse(String(r.t));
+
+/** The server's pick→next offer for one loop's rows: the Sword pick's arrival to the next priority window it shows the seat. */
+function serverNextMs(rows: Record<string, unknown>[], sword: number): number | null {
+  const pick = rows.findIndex((r) => r.evt === 'forge-command' && r.cmd === 'act' && r.seat === 0 && r.method === 'selectCard' && r.card === sword);
+  if (pick < 0) return null;
+  const offer = rows.slice(pick).find((r) => r.evt === 'prompt-forwarded' && r.seat === 0 && r.kind === 'priority');
+  return offer === undefined ? null : at(offer) - at(rows[pick]!);
+}
 const life = (page: Page) => page.locator('.seat[data-viewer] [data-testid="life"]');
 
 /** Resolves once card `id` is offered on alice's board, checked every frame. */
@@ -104,18 +118,20 @@ test(titled('Thopter Foundry + Sword of the Meek: the server plays the Sword’s
       const played = rows.filter((r) => r.evt === 'ask-auto-answered' && r.seat === 0 && r.method === 'getAbilityToPlay' && r.why === 'one ability').length;
       // The pacer's own word on each question it held behind the board (`apps/ui/src/play/live/pace.ts`, `input-held`).
       const held = rows.filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'input-held').map((r) => `${String(r.method)} ${String(r.ms)}ms (board ${String(r.boardMs)}, gaps ${String(r.gapMs)}, ahead ${String(r.classes)} [${String(r.defaults)}])`);
+      const serverMs = serverNextMs(rows, sword!);
       console.log(
-        `[tf] loop ${loop}: click→pick ${pickAt - clickAt} ms, pick→next offer ${nextAt - pickedAt} ms, total ${nextAt - clickAt} ms; ` +
+        `[tf] loop ${loop}: click→pick ${pickAt - clickAt} ms, pick→next offer ${String(serverMs)} ms on the server (${nextAt - pickedAt} ms in the browser), total ${nextAt - clickAt} ms; ` +
           `getAbilityToPlay answered by the browser after ${JSON.stringify(forwarded)} ms, played by the server ${played}; held: ${held.join('; ') || 'none'}`,
       );
-      if (loop > 0) timed.push({ pickMs: pickAt - clickAt, nextMs: nextAt - pickedAt, held });
+      expect(serverMs, `loop ${loop}: the server logged the pick and the next offer`).not.toBeNull();
+      if (loop > 0) timed.push({ pickMs: pickAt - clickAt, nextMs: serverMs!, held });
     }
     const mean = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
-    console.log(`[tf] mean of loops 1–${LOOPS - 1}: click→pick ${mean(timed.map((t) => t.pickMs))} ms, pick→next offer ${mean(timed.map((t) => t.nextMs))} ms`);
+    console.log(`[tf] mean of loops 1–${LOOPS - 1}: click→pick ${mean(timed.map((t) => t.pickMs))} ms, pick→next offer ${mean(timed.map((t) => t.nextMs))} ms on the server`);
 
     // The loop's own frames wait on no beat and no gap: the next question is never held behind them.
     expect(timed.flatMap((t) => t.held), 'no timed loop’s question waited on the board or a gap').toEqual([]);
-    for (const [i, t] of timed.entries()) expect(t.nextMs, `loop ${i + 1}: pick→next offer within ${NEXT_OFFER_BUDGET_MS} ms`).toBeLessThan(NEXT_OFFER_BUDGET_MS);
+    for (const [i, t] of timed.entries()) expect(t.nextMs, `loop ${i + 1}: pick→next offer within ${NEXT_OFFER_BUDGET_MS} ms on the server's clock`).toBeLessThan(NEXT_OFFER_BUDGET_MS);
     // However the loops overlapped, every life gained is drawn.
     await expect(life(page), 'every loop’s life is drawn once the beats are over').toHaveText(String(20 + LOOPS), { timeout: 10_000 });
 
