@@ -20,6 +20,7 @@ import { resolve } from 'node:path';
 import { PREFIX, SESSION_COOKIE } from '../../../../../e2e/identities.ts';
 import { forgeAvailability, startPlayStack } from '../../../../../e2e/play/harness.ts';
 
+import { watchExit } from './exit-watch.ts';
 import { fetchDeckLibrary } from './deck-pool.ts';
 import { runPool } from './pool.ts';
 import { makeRng, seedArg, seedFrom } from './rng.ts';
@@ -47,6 +48,8 @@ interface Args {
  * Magpie vs Urza at 52 turns, 3.5 s a turn with nothing stalled, timed out (forge.yml run 42396799060).
  */
 const TURN_MS = 6_000;
+/** How long a finished run may take to exit before `watchExit` names what holds it. */
+const EXIT_WATCH_MS = 30_000;
 
 function parseArgs(argv: readonly string[]): Args {
   const get = (name: string): string | undefined => {
@@ -145,6 +148,8 @@ async function main(): Promise<void> {
     }
   } finally {
     await stack.stop();
+    // Nothing should be left open now; if something is, the CI log names it and the run fails.
+    watchExit(EXIT_WATCH_MS);
   }
 }
 
