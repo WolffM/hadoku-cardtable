@@ -328,6 +328,32 @@ export function costTokens(cost: string): string[] {
 
 type AnyAsk = AskOf<'getAbilityToPlay'> | AskOf<'getChoices'> | AskOf<'assignGenericAmount'> | { readonly method: string };
 
+/**
+ * Each disc's key in the DOM: the mana it shows, and which of the discs showing that mana it is. A
+ * press's ring and the ring Forge's question takes it over as key a disc of the same mana alike, so the
+ * disc stays the same element and does not bloom again.
+ */
+export function discKeys(options: readonly RingOption[]): string[] {
+  const seen = new Map<string, number>();
+  return options.map((o) => {
+    const mana = o.split === undefined ? o.syms.join('') : `split:${o.syms.join('')}`;
+    const n = seen.get(mana) ?? 0;
+    seen.set(mana, n + 1);
+    return `${mana}#${n}`;
+  });
+}
+
+/** `ring` with its discs in the order `order` (earlier {@link discKeys}) drew them; discs it never drew go last. */
+export function inOrderOf(ring: Ring, order: readonly string[]): Ring {
+  const keys = discKeys(ring.options);
+  const rank = (i: number): number => {
+    const at = order.indexOf(keys[i]!);
+    return at < 0 ? order.length + i : at;
+  };
+  const options = ring.options.map((o, i) => ({ o, r: rank(i) })).sort((a, b) => a.r - b.r).map((x) => x.o);
+  return { ...ring, options };
+}
+
 /** The ring for an open ask, or null when the ring does not answer it (the generic prompt does). */
 export function ringFor(ask: AnyAsk): { readonly ring: Ring; readonly kind: 'abilities' | 'colors' | 'tally' } | null {
   const shape = (ring: Ring | null, kind: 'abilities' | 'colors' | 'tally') => (ring === null ? null : { ring, kind });

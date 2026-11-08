@@ -13,6 +13,8 @@ import {
   answerFromIntent,
   chipLayout,
   colorRing,
+  discKeys,
+  inOrderOf,
   intentOf,
   intentReply,
   optionForKeys,
@@ -255,5 +257,19 @@ describe('the ring on a press, before Forge asks', () => {
     const r = intentOf(pressRing(brass.abilities)!.options[3]!.answer, 87)!;
     expect(r).toEqual({ colors: ['R'], source: 87, ability: 21 });
     expect(intentReply(colorList(['W', 'U', 'B', 'R', 'G']), r)).toEqual({ method: 'getChoices', reply: ['c3'] });
+  });
+});
+
+describe('a press’s ring taken over by Forge’s question', () => {
+  it('keys each disc by its mana, so the same colour stays the same disc', () => {
+    const press = pressRing(offer([{ id: 21, label: '{T}: Add one mana of any color.', mana: { choose: 'WUBRG', amount: 1, damage: 1 } }]).abilities)!;
+    const asked = colorRing(colorList(['W', 'U', 'B', 'R', 'G']))!;
+    expect(discKeys(asked.options)).toEqual(discKeys(press.options));
+    expect(discKeys(abilityRing(offer([{ id: 1, label: 'a', mana: { makes: 'C', amount: 1 } }, { id: 2, label: 'b', mana: { makes: 'C', amount: 1 } }]))!.options)).toEqual(['C#0', 'C#1']);
+  });
+
+  it('keeps the order the press drew its discs in; a disc it never drew goes last', () => {
+    const asked = colorRing(colorList(['G', 'R', 'W', 'U', 'B']))!;
+    expect(shown(inOrderOf(asked, ['W#0', 'U#0', 'B#0', 'R#0']))).toEqual(['W', 'U', 'B', 'R', 'G']);
   });
 });

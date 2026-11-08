@@ -1642,7 +1642,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         claim(event);
         manaPress = { source, pointerId: event.pointerId, press: { x: event.clientX, y: event.clientY }, moved: false };
         hover = null;
-        openManaPress(match, { source, ring });
+        openManaPress(match, { source, ring, at: { x: event.clientX, y: event.clientY, finger: event.pointerType === 'touch' || event.pointerType === 'pen' } });
         paint();
         return;
       }

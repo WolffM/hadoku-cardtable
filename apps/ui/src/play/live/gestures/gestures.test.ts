@@ -70,7 +70,7 @@ import { TIP_INSET } from './arrow.ts';
 import { installGestures } from './index.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
 import { RAMMING_ATTR } from '../ram.ts';
-import { manaPressOf } from '../mana-press.ts';
+import { heldManaPress, manaPressOf, releaseHeldPress } from '../mana-press.ts';
 import type { GestureHandle } from './types.ts';
 import { LONG_PRESS_MS, mountInspector } from '../../inspect/index.ts';
 
@@ -4663,6 +4663,18 @@ describe('a mana source’s press ring in a sideways-scrolling lane — a sidewa
     expect(touchMoveCancelled(li), 'up: the ring holds the finger').toBe(true);
     fireEvent.pointerUp(li, { pointerType: 'touch', clientX: 306, clientY: 340 });
     expect(manaPressOf(m)).toBeNull();
+  });
+
+  it('a tap sends the click and holds its ring, the same one, for the question Forge asks next', async () => {
+    const { s, m, li } = await ringBoard();
+    fireEvent.pointerDown(li, { button: 0, pointerType: 'mouse', clientX: 300, clientY: 400 });
+    const press = manaPressOf(m);
+    fireEvent.pointerUp(li, { pointerType: 'mouse', clientX: 300, clientY: 400 });
+    expect(manaPressOf(m), 'the press is over').toBeNull();
+    expect(heldManaPress(m), 'its ring is held, where the press was').toBe(press);
+    expect(heldManaPress(m)?.at).toEqual({ x: 300, y: 400, finger: false });
+    expect(await s.framesFrom(m), 'the click went out').toHaveLength(1);
+    releaseHeldPress(m);
   });
 });
 

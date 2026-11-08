@@ -379,7 +379,7 @@ import { WatcherStatus } from './WatcherStatus.tsx';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
 import { installDialogMover, OffersHandContext, offsetToPoint, pointerAt, QuestionHost, restingTop } from './movable.tsx';
 import { answerFromIntent, intentReply, ringFor } from './mana-ring.ts';
-import { ManaAsk, ManaPressRing, ManaPrompt } from './ManaRing.tsx';
+import { ManaRings } from './ManaRing.tsx';
 import { phaseSegmentsOf, PHASE_ORDER } from './phase-segments.ts';
 
 /* ── Where the match is: seven states, one line ───────────────────────── */
@@ -4085,7 +4085,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
         }
       : null;
   const decisionInBar = portrait && decisionAnswer !== null;
-  // A colour choice is the mana ring's (`ManaPrompt`), never the bar's.
+  // A colour choice is the mana ring's (`ManaRings`), never the bar's.
   const confirmInBar = portrait && confirmAnswer !== null && match.promptTrigger === null && confirmCard === undefined && match.promptManaColors === null;
   const barAnswer = decisionInBar ? decisionAnswer : confirmInBar ? confirmAnswer : null;
   /** The other seat's turn, said once: the waiting pop on desktop, the bar's status line in portrait. */
@@ -4489,8 +4489,14 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           </div>
         </div>
       )}
-      {!spectator && <ManaPressRing match={match} />}
-      {ask !== null && ringFor(ask) !== null && <ManaAsk match={match} ask={ask} />}
+      {!spectator && (
+        <ManaRings
+          match={match}
+          ask={ask}
+          promptColors={confirmPrompt && bar !== null && match.manaIntent === null ? match.promptManaColors : null}
+          report={(data) => reportClient(match.transport, match.matchId, 'info', data)}
+        />
+      )}
       {ask !== null && ringFor(ask) === null && (
         <QuestionHost data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>
           <PromptBoundary
@@ -4536,9 +4542,6 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
        * precedent). `barRoute` routes this bar nowhere else, so the control
        * box's two game buttons stay greyed while it is up.
        */}
-      {confirmPrompt && bar !== null && match.promptManaColors !== null && match.manaIntent === null && (
-        <ManaPrompt key={match.prompt ?? ''} match={match} colors={match.promptManaColors} />
-      )}
       {confirmPrompt && bar !== null && match.promptManaColors === null && !confirmInBar && (
         <QuestionHost data-testid="live-confirm-host">
           <ConfirmPrompt
