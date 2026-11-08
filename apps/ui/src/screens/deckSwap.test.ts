@@ -16,8 +16,9 @@ vi.mock('../draft/cardImage.ts', () => ({
 vi.mock('../draft/artists.ts', () => ({ artistsReady: () => true }));
 
 const { ART_WAIT_MS, FADE_MS, useDeckSwap } = await import('./deckSwap.ts');
+const { libraryPeekList, resetNamedArtForTests } = await import('./libraryPeek.ts');
 
-type Tile = { value: string; artId?: string };
+type Tile = { value: string; artId?: string; list?: ReturnType<typeof libraryPeekList> };
 type Props = { options: Tile[]; swapKey: string; pending: boolean };
 const tiles = (...ids: string[]): Tile[] => ids.map((value) => ({ value, artId: value }));
 const values = (list: readonly Tile[]): string[] => list.map((t) => t.value);
@@ -124,6 +125,31 @@ describe('the deck grid’s change of list', () => {
     act(() => vi.advanceTimersByTime(FADE_MS));
     expect(values(result.current.shown)).toEqual(['slow-q']);
     expect(result.current.leaving).toEqual([]);
+  });
+
+  it('a list whose cards the server has not said the art of yet waits for that answer, not drawing them bare', async () => {
+    let answer: (art: Record<string, { scryfallId: string }>) => void = () => undefined;
+    const asked: string[] = [];
+    resetNamedArtForTests((input) => {
+      asked.push(new URL(String(input), 'http://x').searchParams.getAll('n').join(','));
+      return new Promise((resolve) => {
+        answer = (art) => resolve(new Response(JSON.stringify({ art })));
+      });
+    });
+    const { result, rerender } = grid({ options: tiles('a'), swapKey: '2014', pending: false });
+    const pinned: Tile = { value: 'justice', list: libraryPeekList([{ count: 4, name: 'Kird Ape', set: 'ARN' }], []) };
+    rerender({ options: [pinned], swapKey: '1995', pending: false });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FADE_MS);
+    });
+    expect(asked, 'asked by name and pinned set').toEqual(['Kird Ape|ARN']);
+    expect(result.current.shown, 'its art not known yet').toEqual([]);
+    expect(values(result.current.leaving)).toEqual(['a']);
+    await act(async () => {
+      answer({ 'Kird Ape|ARN': { scryfallId: '00000000-0000-4000-8000-000000000001' } });
+      await vi.runOnlyPendingTimersAsync();
+    });
+    expect(values(result.current.shown)).toEqual(['justice']);
   });
 
   it('back to a list seen before, its art is ready: it crosses at once', () => {
