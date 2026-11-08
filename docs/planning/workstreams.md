@@ -3645,3 +3645,49 @@ not restructured. Three lanes plus a sweep; nothing visible changes:
 
 It runs beside the single session w92-D-Z (`apps/ui/**`, `e2e/**`). Next after it is **w94**: `createGameServer`, with
 boot phases and an event bus.
+
+## Platform phases 2–3 and the 2026-11-08 deploy stall, verified by the tracker
+
+All of the following are on PPE, verified from artifacts. Prod moves on the next `/cutrelease`.
+- **w93 (phase 2, server): DONE.** `packages/service-kernel` (MIT): K1 `0d01c363e`, K2 `9348a21b4`, K3 `17bc74019`,
+  sweep Z `431fa9c7d`. PPE `/health` keys are identical to the baseline; `scripts/telemetry/watch.ts` exits 0 with every
+  section. K3's `perCallerLimit` mutation fails 5 tests and passes 131 restored.
+- **w92 carry (D, Z): DONE.** D `7cebb3f74` (avatars from the account and the fleet's event) with the spec that presses the
+  real AvatarPicker mid-match (`a0440aaed`), Z `02c0ddf5d`. **w92 closes at +40 non-test lines**, every line
+  a named injection seam. It is recorded as an exception to the net-negative rule, not a pass.
+- **w94 (phase 2, last step): DONE.** `createGameServer`, fixed boot phases and an event bus (`011c66c17`); cardtable
+  boots through it (`3a2df3e61`; `index.ts` 1,213 → 106 lines, 14 plugins), with a route-table fixture (`2abb49bf7`).
+  On PPE: `/health` keys identical, the same 13 boot phases in order, and the shutdown events unchanged. **Process
+  miss:** step 2 landed before its full Forge run. That run's one red was attributed elsewhere (below).
+- **w95a (phase 3, wire): DONE.** `packages/platform-wire` (MIT): `d76ac4546`, `4ca3dcf50`, `060379e9a`. `@hadoku/shared`
+  re-exports everything, so no importer changed.
+- **w95b (phase 3, room game blob and codec v2): DONE.** It landed by the tracker as `5fb0799a2` after a green full Forge
+  run (42450654886). room-store is retired to `@wolffm/rooms-server/store` (watchparty 0.45.58). PPE restart:
+  `lobby-open rooms:17` (baseline 17) and zero quarantine lines; 6 rooms already rewritten at appVersion 2, and 11 v1
+  rooms read through the v1 decoder.
+- **Watchparty room steps 1–3: DONE.** rooms-protocol 0.45.55 (the pool), rooms-server 0.45.56 (`PresenceTracker`) and
+  0.45.58 (the store at `./store`, byte-compatible with files cardtable wrote).
+
+**Two regressions reverted by the tracker, each proven failing with the commit and passing without it:**
+- art-unify `c000e7371`: deck tiles painted before their art (w88f). Reverted `6bd29776c`; re-land is #45.
+- `fe9beb23b`: the next cast's press died after a reveal shown at once (two-arrows). Reverted `86762c584`; re-land is #47.
+
+**The deploy stall, about 2026-11-08 02:56–05:24Z** (no green main CI, so PPE stuck at `24132c69`):
+- the art red above;
+- main CI starved of runners: GitHub hands a runner minted for main's CI to any queued cardtable job, which was
+  usually a `verify/*` proof. The fix is fleet-manager's CI/Forge lane labels, awaiting the operator; cardtable's
+  half follows;
+- CI shards on a loaded hokon passed their 15-minute timeout.
+
+Mitigated by pausing new proof dispatches and cancelling push-triggered Forge runs on main (which gate nothing).
+
+**Also from the night:** the jdk21 workload proofs lapsed and were re-proven (fleet-manager fixed the scheduled
+re-prove); `forge.yml` keys an aimed proof by its node (`dd2da62b3`); a `--dry-run` flag dropped by
+`land-worktree.sh` pushed a draft `land.sh` (reverted `0cd200769`; #46); load-sensitive unit tests are #44.
+
+**Next:**
+- phase 3's remainder: publish the kernel; bomberman and `templates/game` swap their edge-auth copies;
+- the reader sweep from the top-level room fields to `game.*`;
+- the Forge upstream sync, before phase 5 (the operator's call);
+- cardtable's lane labels, after fleet-manager's;
+- re-lands #45 and #47.
