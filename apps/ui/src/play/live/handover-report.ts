@@ -29,6 +29,11 @@ export interface HandoverFacts {
   readonly to: Point | Element | null;
   /** `Date.now()` when the stand-in began its glide into the gap; null when it never glided. */
   readonly glideStartedAt: number | null;
+  /**
+   * `Date.now()` when that glide's own transition finished (`afterGlide`); null while it still runs.
+   * Absent where nothing watches the glide's end, and then `glideDone` falls back to its length.
+   */
+  readonly glideEndedAt?: number | null;
   /** `Date.now()` of the release — on the receiver, when the release reached this screen. */
   readonly releasedAt: number | null;
   /** `Date.now()` when Forge's frame put the spell on the stack, as this screen saw it. */
@@ -114,7 +119,9 @@ export function handoverData(f: HandoverFacts & { readonly to: Point | null }, c
   if (f.shrink !== undefined) data.shrink = Math.round(f.shrink);
   if (f.glideStartedAt !== null) {
     data.glideMs = now - f.glideStartedAt;
-    data.glideDone = now - f.glideStartedAt >= GLIDE_MS;
+    // The transition's own end, when it is known: its clock starts at the frame's time, a few ms
+    // before the `Date.now()` that set it, so a finished glide can read 299 ms (run 42510686359).
+    data.glideDone = f.glideEndedAt === undefined ? now - f.glideStartedAt >= GLIDE_MS : f.glideEndedAt !== null;
   }
   if (f.releasedAt !== null) data.msSinceRelease = now - f.releasedAt;
   if (f.stackFrameAt !== null) data.msSinceStackFrame = now - f.stackFrameAt;

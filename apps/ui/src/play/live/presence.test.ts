@@ -1363,6 +1363,7 @@ describe('receiving', () => {
     expect(handover[0]![1]).toMatchObject({ screen: 'receiver', how: 'stack', card: 121, fromX: 430, fromY: 242, motion: true });
     expect(handover[0]![1]).toHaveProperty('msSinceRelease');
     expect(handover[0]![1]).toHaveProperty('glideMs');
+    expect(handover[0]![1], 'handed over once its glide’s own transition finished').toMatchObject({ glideDone: true });
     // It resolves into its column, drawn where the stack card stood: a swap in place.
     gap.remove();
     const li = document.createElement('li');

@@ -50,6 +50,10 @@ describe('handoverData', () => {
       msSinceStackFrame: 50,
     });
     expect(handoverData(facts, ['placed'], 1_000 + GLIDE_MS).glideDone, 'a glide of GLIDE_MS is done').toBe(true);
+    // When the glide's own end is known it decides, whatever the clock reads: its transition's clock
+    // starts at the frame's time, before the Date.now() that set it (run 42510686359: done at 299 ms).
+    expect(handoverData({ ...facts, glideEndedAt: 1_299 }, ['placed'], 1_299).glideDone, 'the transition finished: done, at 299 ms').toBe(true);
+    expect(handoverData({ ...facts, glideEndedAt: null }, ['placed'], 1_000 + GLIDE_MS + 50).glideDone, 'the transition still runs: not done, past GLIDE_MS').toBe(false);
     expect(handoverData({ ...facts, how: 'flight', shrink: 17.4 }, ['ghost'], 1_200).shrink, 'a landing’s shrink into its slot, rounded').toBe(17);
   });
 

@@ -724,9 +724,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /** Where the back stands, or — on its glide into a placement's gap — where it is heading. */
   let backAt: Point | null = null;
   /** Telemetry for the play in hand (`./handover-report.ts`): when its release reached this screen, its glide began, its spell was seen on the stack. */
-  let play: { releasedAt: number; glideStartedAt: number | null; stackFrameAt: number | null } = { releasedAt: 0, glideStartedAt: null, stackFrameAt: null };
+  let play: { releasedAt: number; glideStartedAt: number | null; glideEndedAt: number | null; stackFrameAt: number | null } = {
+    releasedAt: 0,
+    glideStartedAt: null,
+    glideEndedAt: null,
+    stackFrameAt: null,
+  };
   function receiverFacts(card: number, how: string, from: Point | null, to: Point | null): HandoverFacts {
-    return { screen: 'receiver', card, how, from, to, glideStartedAt: play.glideStartedAt, releasedAt: play.releasedAt === 0 ? null : play.releasedAt, stackFrameAt: play.stackFrameAt, motion: !reduced() };
+    return { screen: 'receiver', card, how, from, to, glideStartedAt: play.glideStartedAt, glideEndedAt: play.glideEndedAt, releasedAt: play.releasedAt === 0 ? null : play.releasedAt, stackFrameAt: play.stackFrameAt, motion: !reduced() };
   }
   /**
    * The stand-in's glide into its gap (`onPlacement`): `'seeking'` while the board has yet to draw
@@ -1059,7 +1064,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         // shows up on the stack (`handoff`, below), or a permanent's own placement supersedes this.
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
-        play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
+        play = { releasedAt: Date.now(), glideStartedAt: null, glideEndedAt: null, stackFrameAt: null };
         waiting = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: false, card: null, owner: null, hand: theirHandBacks().length, inHand: handCardIds(), cleared: false, since: Date.now(), diag: newDiag() };
         // AE26: their card beat this message here (Forge's frame won the race against presence):
         // a spell already drawn pending at nobody's point, or a permanent already in its column.
@@ -1397,7 +1402,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // from the TOP hand into the top battlefield — is not drawn for it.
     if (owner === (host.viewerPlayerId?.() ?? null)) return;
     followSide('them');
-    play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
+    play = { releasedAt: Date.now(), glideStartedAt: null, glideEndedAt: null, stackFrameAt: null };
     const already = battlefieldCard(canvas, card, 'them');
     if (already !== null) {
       // The frame came first: the reservation moves the card on the next commit; its tile flies
@@ -1456,8 +1461,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       standIn.style.left = `${backAt.x - box2.left}px`;
       standIn.style.top = `${backAt.y - box2.top}px`;
       play.glideStartedAt = Date.now();
+      play.glideEndedAt = null;
       glide = 'gliding';
       stopGlide = afterGlide(standIn, () => {
+        play.glideEndedAt = Date.now();
         stopGlide = null;
         glide = null;
         afterGlideEnds?.();
