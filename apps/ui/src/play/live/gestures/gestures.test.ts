@@ -52,6 +52,7 @@ import {
   boardInteraction,
   clickCard,
   closeMatch,
+  combatAimer,
   declaringBlockers,
   MARK_WAIT_MS,
   selectCard,
@@ -4938,5 +4939,62 @@ describe('a click takes an attacker or a blocker up, and the next click is where
     click(cardEl(canvas, blocker));
     expect(canvas.hasAttribute('data-aiming')).toBe(false);
     expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+  /** Declaring attackers against the opponent alone: no planeswalker, no battle. */
+  async function loneDefenderBoard() {
+    const ctx = await declaringAttackersBoard();
+    const { s, m } = ctx;
+    const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
+    for (const f of notify([prompt('Declare attackers'), attackBar(), actionable([attacker])])) s.send(f);
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
+    return { ...ctx, attacker };
+  }
+
+  /** Declaring blockers against one attacker, Forge's current one. */
+  async function oneAttackerBoard() {
+    const ctx = await gestureBoard();
+    const { s, m } = ctx;
+    const attacker = theirsOf(m).battlefield[0]!.id;
+    const blocker = mineOf(m).battlefield[0]!.id;
+    s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
+    s.send(attackingDelta([attacker]));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    for (const f of notify([prompt('Select a blocker'), actionable([blocker]), highlight([attacker], true)])) s.send(f);
+    await untilMatch(m, () => expect(m.highlighted!.size).toBe(1));
+    return { ...ctx, blocker };
+  }
+
+  it('combatAimer: an attacker aims only when there is a choice of defender — the opponent alone is none, a planeswalker out is one', async () => {
+    const lone = await loneDefenderBoard();
+    expect(combatAimer(lone.m, lone.attacker), 'the opponent alone').toBe(false);
+    lone.s.send(retypeDelta(theirsOf(lone.m).battlefield[0]!.id, ['Planeswalker'], ['Jace']));
+    await untilMatch(lone.m, () => expect(combatAimer(lone.m, lone.attacker), 'a planeswalker out').toBe(true));
+  });
+
+  it('combatAimer: a blocker facing one attacker does not aim', async () => {
+    const { m, blocker } = await oneAttackerBoard();
+    expect(combatAimer(m, blocker)).toBe(false);
+  });
+
+  it('combatAimer: a blocker facing two attackers aims', async () => {
+    const { m, blocker } = await blockingBoard();
+    expect(combatAimer(m, blocker)).toBe(true);
+  });
+
+  it('against the opponent alone one click declares the attacker: its own selectCard, nothing aimed', async () => {
+    const { s, m, canvas, attacker } = await loneDefenderBoard();
+    click(cardEl(canvas, attacker));
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+    expect(arrowOf(canvas)).toBeNull();
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', attacker]]);
+  });
+
+  it('against one attacker one click blocks it: the blocker’s own selectCard, nothing aimed', async () => {
+    const { s, m, canvas, blocker } = await oneAttackerBoard();
+    click(cardEl(canvas, blocker));
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', blocker]]);
   });
 });

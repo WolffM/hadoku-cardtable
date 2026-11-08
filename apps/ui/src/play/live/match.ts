@@ -2384,13 +2384,19 @@ export function reportSwallowedClick(match: LiveMatch, cardId: number, by: strin
 
 /**
  * A click on a board card's own face. `selectCard`, except on the seat's own
- * creature while it blocks: a block is aimed (a drag, or a click and a click on
- * the attacker), so that click never assigns one — it takes the creature out of
- * any block it is in (`removeBlock`).
+ * creature while it blocks: against one attacker, a creature blocking nothing
+ * blocks it (`assignBlock`); otherwise a block is aimed (a drag, or a click and a
+ * click on the attacker), and this click takes the creature out of any block it
+ * is in (`removeBlock`).
  */
 export function clickCard(match: LiveMatch, cardId: number): void {
-  if (ownBlocker(match, cardId)) removeBlock(match, cardId);
-  else selectCard(match, cardId);
+  if (!ownBlocker(match, cardId)) {
+    selectCard(match, cardId);
+    return;
+  }
+  const only = soleAttacker(match);
+  if (only !== null && attackersBlockedBy(match, cardId).length === 0) assignBlock(match, cardId, only);
+  else removeBlock(match, cardId);
 }
 
 /** Click a player: Forge's `selectPlayer`. Same rule as `selectCard`. */
@@ -2498,13 +2504,22 @@ export function combatCandidates(match: LiveMatch): ReadonlySet<number> {
 
 /**
  * `card` is a creature of this seat's that `InputAttack` or `InputBlock` would take a click on
- * right now: a candidate ({@link combatCandidates}), or one already declared that a click calls
- * back or unblocks. A click on it AIMS rather than sends (`gestures/install.ts`'s `aim`).
+ * right now — a candidate ({@link combatCandidates}), or one already declared that a click calls
+ * back or unblocks — and the click would have more than one place to send it. A click on it AIMS
+ * rather than sends (`gestures/install.ts`'s `aim`).
+ *
+ * With one place, the card's own click is the whole act, as Forge takes it: `InputAttack` declares
+ * against its current defender, which is the only one (`defenderChoices`), and `InputBlock` blocks
+ * its current attacker, which it set to the only attacker itself (`InputBlock.java:59-67`). A second
+ * click takes either back.
  */
 export function combatAimer(match: LiveMatch, card: number): boolean {
   const view = match.view;
   if (view === null || !boardInteraction(match).selectable.has(card)) return false;
-  return combatCandidates(match).has(card) || declaredAttackers(match, view)?.has(card) === true || declaredBlockers(match, view)?.has(card) === true;
+  if (!combatCandidates(match).has(card) && declaredAttackers(match, view)?.has(card) !== true && declaredBlockers(match, view)?.has(card) !== true) return false;
+  if (blockInputLive(match)) return soleAttacker(match) === null;
+  const me = viewerOf(view);
+  return me !== undefined && defenderChoices(view, me.id) > 1;
 }
 
 /** Forge's highlighted cards drawn as PICKED: every one, except the block step's current attacker (`blockFocusOf`). */
@@ -2863,6 +2878,18 @@ function blockTargets(match: LiveMatch, view: BoardView): ReadonlySet<number> | 
 }
 
 /**
+ * The one creature attacking while `InputBlock` runs, when there is exactly one — so a blocker has
+ * nothing to choose and its click blocks it — or null.
+ */
+function soleAttacker(match: LiveMatch): number | null {
+  const view = match.view;
+  const targets = view === null ? null : blockTargets(match, view);
+  if (targets === null || targets.size !== 1) return null;
+  const [only] = targets;
+  return only ?? null;
+}
+
+/**
  * This seat's own creatures already assigned to block, offered while
  * `InputBlock` is running — or null when it is not.
  *
@@ -3110,9 +3137,10 @@ export function isBlockAssignment(match: LiveMatch, blocker: number, attacker: n
 
 /**
  * `card` is on this seat's own battlefield while `InputBlock` runs for it (a
- * current attacker is marked). Such a card blocks only by being dragged onto
- * an attacker (`assignBlock`): a click on it never assigns a block, it takes
- * the card out of whatever it blocks (`removeBlock`).
+ * current attacker is marked). Such a card blocks by being dragged or aimed onto
+ * an attacker (`assignBlock`); its own click takes it out of whatever it blocks
+ * (`removeBlock`), or, facing one attacker and blocking nothing, blocks that one
+ * (`clickCard`).
  */
 export function ownBlocker(match: LiveMatch, card: number): boolean {
   if (blockFocusOf(match) === null) return false;

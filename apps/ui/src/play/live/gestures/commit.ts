@@ -11,6 +11,7 @@ import {
   assignBlock,
   attackAssignment,
   boardInteraction,
+  combatAimer,
   clickCard,
   isBlockAssignment,
   isMarked,
@@ -148,18 +149,6 @@ export function attackWith(match: LiveMatch, attackers: readonly number[], targe
   if (picked) afterMarked(match, target, declare);
 }
 
-/**
- * Every defender `InputAttack` would take for `attacker` right now: the
- * opponents it offers and the planeswalkers and battles (`attackAssignment`).
- */
-function defendersOf(match: LiveMatch, attacker: number): DropTarget[] {
-  const offer = boardInteraction(match);
-  const out: DropTarget[] = [];
-  for (const id of offer.selectablePlayers) if (attackAssignment(match, attacker, { kind: 'player', id }) !== null) out.push({ kind: 'player', id });
-  for (const id of offer.selectable) if (attackAssignment(match, attacker, { kind: 'card', id }) !== null) out.push({ kind: 'card', id });
-  return out;
-}
-
 /** A rectangle in client coordinates. */
 export interface Rect {
   left: number;
@@ -214,7 +203,8 @@ export type MarqueeCommit = { kind: 'sent'; ids: number[] } | { kind: 'aim'; ids
  * defender `InputAttack` has current, a planeswalker included. So a box that
  * DECLARES while Forge offers more than one defender sends nothing: it returns
  * the group (`aim`), and `./install.ts` holds it until the defender's click
- * (`attackWith`). One defender, the opponent alone, and it declares at once.
+ * (`attackWith`). One defender, the opponent alone, and it declares at once —
+ * the same rule as one creature's click (`combatAimer`).
  */
 export function commitMarquee(match: LiveMatch, rect: Rect, root: ParentNode): MarqueeCommit {
   const offered = boardInteraction(match).selectable;
@@ -228,7 +218,7 @@ export function commitMarquee(match: LiveMatch, rect: Rect, root: ParentNode): M
   }
   const attacking = new Set(viewerBattlefield(match).filter((c) => c.attacking).map((c) => c.id));
   const { ids, on } = boxToggle(hits, attacking);
-  if (on && defendersOf(match, ids[0]!).length > 1) return { kind: 'aim', ids };
+  if (on && combatAimer(match, ids[0]!)) return { kind: 'aim', ids };
   const sent: number[] = [];
   for (const id of ids) if (selectCard(match, id)) sent.push(id);
   return { kind: 'sent', ids: sent };

@@ -2067,8 +2067,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
     /*
      * A mouse's or a pen's plain click on this seat's own attacker or blocker takes it up instead of
-     * sending (`aim`): its own click is swallowed, and the next press lets go of it. A finger's tap is
-     * still the card's click — a phone has no pointer for the arrow to follow.
+     * sending (`aim`) when it has a choice — of defender, or of attacker to block (`combatAimer`): its
+     * own click is swallowed, and the next press lets go of it. With one choice the click is the
+     * card's own, and Forge declares or blocks with it. A finger's tap is always the card's click — a
+     * phone has no pointer for the arrow to follow.
      */
     if (drag !== null && drag.lifted === null && !drag.moved && drag.source !== null && event.pointerType !== 'touch' && combatAimer(match, drag.source)) {
       clicks.arm('combat-aim');

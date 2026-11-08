@@ -112,10 +112,12 @@ export function ownBattlefieldCards(page: Page): Locator {
 }
 
 /**
- * Click this seat's own attacker or blocker `source` (its board card), then click `at`. The first click takes the
- * creature up and sends nothing; the second is where a drag would have let go (`gestures/install.ts`'s
- * `aim`): a defender it attacks, an attacker it blocks — or, by default, the creature itself, which is
- * what one click on it means: declared against the current defender, called back, out of combat.
+ * Click this seat's own attacker or blocker `source` (its board card), then click `at`. When the creature
+ * has a choice (`match.ts`'s `combatAimer`) the first click takes it up and sends nothing, and the second
+ * is where a drag would have let go (`gestures/install.ts`'s `aim`): a defender it attacks, an attacker it
+ * blocks — or, by default, the creature itself, which is what one click on it means: declared against the
+ * current defender, called back, out of combat. With no choice — one defender, one attacker — the first
+ * click is that act and the board never aims, so there is no second press.
  * Both presses go through `pressOffered`; `false`, nothing pressed, when `source` is not offered.
  *
  * Under the `phone` project a tap is still the creature's own click (declaring is a decision, and
@@ -125,6 +127,7 @@ export async function clickCombat(source: Locator, at?: Locator): Promise<boolea
   if (isPhone() && at !== undefined) throw new Error('clickCombat: a finger aims by dragging (assignBlock), not by a second tap');
   if (!(await pressOffered(source))) return false;
   if (isPhone()) return true;
+  if ((await source.page().locator('[data-gesture-canvas][data-aiming]').count()) === 0) return true;
   return pressOffered(at ?? source);
 }
 

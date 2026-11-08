@@ -1,0 +1,18 @@
+# e2e/one-defender-click.spec.ts — the operator, 2026-11-08, prod match m-e494cfef600d: "i'm still
+# having to drag arrows even with only one target". Alice (seat 0) has one untapped, non-sick Grizzly
+# Bears at her own Main Phase 1, and bob (seat 1) has no planeswalker and no battle, so bob himself is
+# the only defender Forge offers: one click on the Bears declares it. Bob's Wall of Stone (0/8) then
+# faces one attacker, so one click on it blocks.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Wall of Stone
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
