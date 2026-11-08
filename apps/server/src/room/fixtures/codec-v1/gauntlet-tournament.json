@@ -1,0 +1,342 @@
+{
+ "storeVersion": 2,
+ "roomId": "r-8c2100f37a5a",
+ "roomKey": "r-8c2100f37a5a",
+ "lastEventSeq": 0,
+ "createdAt": 1793746649402,
+ "updatedAt": 1794097354632,
+ "members": [
+  {
+   "participantId": "dev:testing-seed",
+   "joinedAt": 1793746649402,
+   "lastSeen": 1793746649402,
+   "app": null
+  }
+ ],
+ "usedAvatars": [],
+ "seats": {
+  "capacity": null,
+  "seats": [],
+  "remembered": {},
+  "reservations": {},
+  "reservationTtlMs": 0
+ },
+ "app": {
+  "name": "Room 6",
+  "creator": "dev:testing-seed",
+  "leader": "dev:testing-seed",
+  "gameType": "constructed-1v1",
+  "format": "modern-2014-07-18",
+  "settings": {
+   "handSmoothing": true,
+   "tournament": true,
+   "tournamentDecks": "locked",
+   "clock": "auto",
+   "pickTimer": {
+    "on": false,
+    "speed": 1
+   },
+   "draftBots": "model"
+  },
+  "mode": "gauntlet",
+  "modeOptions": {},
+  "clientMode": "builtin",
+  "tables": [
+   {
+    "id": "t-3be8d3d2",
+    "seats": [
+     null,
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "seating",
+     "played": [
+      null,
+      null
+     ],
+     "mode": "gauntlet",
+     "settled": false,
+     "gameStartedAt": null
+    }
+   },
+   {
+    "id": "t-5ea633c6",
+    "seats": [
+     "dev:testing-seed",
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      2,
+      1
+     ],
+     "games": [
+      {
+       "matchId": "r-8c2100f37a5a-r1-g1",
+       "winner": 0
+      },
+      {
+       "matchId": "r-8c2100f37a5a-r1-g2",
+       "winner": 1
+      },
+      {
+       "matchId": "r-8c2100f37a5a-r1-g3",
+       "winner": 0
+      }
+     ],
+     "phase": "done",
+     "played": [
+      "dev:testing-seed",
+      null
+     ],
+     "mode": "gauntlet",
+     "settled": true,
+     "gameStartedAt": null
+    }
+   },
+   {
+    "id": "t-25da750a",
+    "seats": [
+     "dev:testing-seed",
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      1,
+      2
+     ],
+     "games": [
+      {
+       "matchId": "r-8c2100f37a5a-r2-g1",
+       "winner": 1
+      },
+      {
+       "matchId": "r-8c2100f37a5a-r2-g2",
+       "winner": 0
+      },
+      {
+       "matchId": "r-8c2100f37a5a-r2-g3",
+       "winner": 1
+      }
+     ],
+     "phase": "done",
+     "played": [
+      "dev:testing-seed",
+      null
+     ],
+     "mode": "gauntlet",
+     "settled": true,
+     "gameStartedAt": null
+    }
+   },
+   {
+    "id": "t-77df93a1",
+    "seats": [
+     "dev:testing-seed",
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      2,
+      0
+     ],
+     "games": [
+      {
+       "matchId": "r-8c2100f37a5a-r3-g1",
+       "winner": 0
+      },
+      {
+       "matchId": "r-8c2100f37a5a-r3-g2",
+       "winner": 0
+      }
+     ],
+     "phase": "done",
+     "played": [
+      "dev:testing-seed",
+      null
+     ],
+     "mode": "gauntlet",
+     "settled": true,
+     "gameStartedAt": null
+    }
+   }
+  ],
+  "matchId": null,
+  "matches": [],
+  "draftStartedAt": 1793746649420,
+  "plan": {
+   "rounds": [
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    },
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    },
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    }
+   ]
+  },
+  "planVerdict": null,
+  "podSeats": [
+   "dev:testing-seed",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai"
+  ],
+  "podAi": [
+   null,
+   "brawler",
+   "knight",
+   "mage",
+   "cleric",
+   "imp",
+   "doll",
+   "sunny"
+  ],
+  "podPlaying": [],
+  "lockedDecks": {},
+  "gauntlets": {},
+  "testing": true,
+  "pod": {
+   "humans": [
+    "dev:testing-seed",
+    "ai:1",
+    "ai:2",
+    "ai:3",
+    "ai:4",
+    "ai:5",
+    "ai:6",
+    "ai:7"
+   ],
+   "round": 4,
+   "rounds": 3,
+   "results": [
+    {
+     "round": 1,
+     "playerA": "ai:1",
+     "playerB": "ai:5",
+     "gamesA": 2,
+     "gamesB": 0
+    },
+    {
+     "round": 1,
+     "playerA": "ai:2",
+     "playerB": "ai:6",
+     "gamesA": 2,
+     "gamesB": 0
+    },
+    {
+     "round": 1,
+     "playerA": "ai:3",
+     "playerB": "ai:7",
+     "gamesA": 2,
+     "gamesB": 0
+    },
+    {
+     "round": 1,
+     "playerA": "dev:testing-seed",
+     "playerB": "ai:4",
+     "gamesA": 2,
+     "gamesB": 1
+    },
+    {
+     "round": 2,
+     "playerA": "ai:2",
+     "playerB": "ai:3",
+     "gamesA": 2,
+     "gamesB": 0
+    },
+    {
+     "round": 2,
+     "playerA": "ai:4",
+     "playerB": "ai:5",
+     "gamesA": 2,
+     "gamesB": 0
+    },
+    {
+     "round": 2,
+     "playerA": "ai:6",
+     "playerB": "ai:7",
+     "gamesA": 2,
+     "gamesB": 0
+    },
+    {
+     "round": 2,
+     "playerA": "dev:testing-seed",
+     "playerB": "ai:1",
+     "gamesA": 1,
+     "gamesB": 2
+    },
+    {
+     "round": 3,
+     "playerA": "ai:1",
+     "playerB": "ai:2",
+     "gamesA": 2,
+     "gamesB": 0
+    },
+    {
+     "round": 3,
+     "playerA": "ai:4",
+     "playerB": "ai:6",
+     "gamesA": 2,
+     "gamesB": 0
+    },
+    {
+     "round": 3,
+     "playerA": "ai:5",
+     "playerB": "ai:7",
+     "gamesA": 2,
+     "gamesB": 0
+    },
+    {
+     "round": 3,
+     "playerA": "dev:testing-seed",
+     "playerB": "ai:3",
+     "gamesA": 2,
+     "gamesB": 0
+    }
+   ],
+   "pairings": [],
+   "bye": null
+  },
+  "secret": null
+ },
+ "appVersion": 1
+}

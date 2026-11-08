@@ -1,0 +1,138 @@
+{
+ "storeVersion": 2,
+ "roomId": "r-5bce3a43a0a9",
+ "roomKey": "r-5bce3a43a0a9",
+ "lastEventSeq": 0,
+ "createdAt": 1794083666811,
+ "updatedAt": 1794097365677,
+ "members": [
+  {
+   "participantId": "fk:0000000000000003",
+   "accountId": "00000000-0000-4000-8000-000000000004",
+   "joinedAt": 1794083666811,
+   "lastSeen": 1794083666811,
+   "app": {
+    "ready": true
+   }
+  },
+  {
+   "participantId": "fk:0000000000000001",
+   "accountId": "00000000-0000-4000-8000-000000000002",
+   "joinedAt": 1794093858878,
+   "lastSeen": 1794093858878,
+   "app": null
+  }
+ ],
+ "usedAvatars": [],
+ "seats": {
+  "capacity": null,
+  "seats": [],
+  "remembered": {},
+  "reservations": {},
+  "reservationTtlMs": 0
+ },
+ "app": {
+  "name": "Room 3",
+  "creator": "fk:0000000000000003",
+  "leader": "fk:0000000000000003",
+  "gameType": "draft",
+  "format": "modern-2015-07-17",
+  "settings": {
+   "handSmoothing": true,
+   "tournament": false,
+   "tournamentDecks": "locked",
+   "clock": "auto",
+   "pickTimer": {
+    "on": false,
+    "speed": 1
+   },
+   "draftBots": "model"
+  },
+  "mode": null,
+  "modeOptions": null,
+  "clientMode": "builtin",
+  "tables": [
+   {
+    "id": "t-718ba638",
+    "seats": [
+     null,
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "seating",
+     "played": [
+      null,
+      null
+     ],
+     "mode": "draft",
+     "settled": false,
+     "gameStartedAt": null
+    }
+   }
+  ],
+  "matchId": null,
+  "matches": [],
+  "draftStartedAt": 1794086277180,
+  "plan": {
+   "rounds": [
+    {
+     "kind": "set",
+     "code": "RAV",
+     "style": "realistic"
+    },
+    {
+     "kind": "set",
+     "code": "GPT",
+     "style": "realistic"
+    },
+    {
+     "kind": "set",
+     "code": "DIS",
+     "style": "realistic"
+    }
+   ]
+  },
+  "planVerdict": {
+   "ok": true,
+   "cards": 631
+  },
+  "podSeats": [
+   "fk:0000000000000003",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai"
+  ],
+  "podAi": [
+   null,
+   "sunny",
+   "gunner",
+   "knight",
+   "brawler",
+   "mage",
+   "rogue",
+   "dreamer"
+  ],
+  "podPlaying": [],
+  "lockedDecks": {},
+  "gauntlets": {},
+  "testing": false,
+  "pod": null,
+  "secret": null
+ },
+ "appVersion": 1
+}

@@ -1,0 +1,180 @@
+{
+ "storeVersion": 2,
+ "roomId": "r-7bec9cf4b388",
+ "roomKey": "r-7bec9cf4b388",
+ "lastEventSeq": 0,
+ "createdAt": 1794024421002,
+ "updatedAt": 1794097365566,
+ "members": [
+  {
+   "participantId": "fk:0000000000000001",
+   "accountId": "00000000-0000-4000-8000-000000000002",
+   "joinedAt": 1794024421002,
+   "lastSeen": 1794024421002,
+   "app": {
+    "ready": true
+   }
+  }
+ ],
+ "usedAvatars": [],
+ "seats": {
+  "capacity": null,
+  "seats": [],
+  "remembered": {},
+  "reservations": {},
+  "reservationTtlMs": 0
+ },
+ "app": {
+  "name": "Room 1",
+  "creator": "fk:0000000000000001",
+  "leader": "fk:0000000000000001",
+  "gameType": "draft",
+  "format": "modern-2024-04-19",
+  "settings": {
+   "handSmoothing": true,
+   "tournament": false,
+   "tournamentDecks": "locked",
+   "clock": "auto",
+   "pickTimer": {
+    "on": false,
+    "speed": 1
+   },
+   "draftBots": "model"
+  },
+  "mode": null,
+  "modeOptions": null,
+  "clientMode": "builtin",
+  "tables": [
+   {
+    "id": "t-2af458cf",
+    "seats": [
+     null,
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "seating",
+     "played": [
+      null,
+      null
+     ],
+     "mode": "draft",
+     "settled": false,
+     "gameStartedAt": null
+    }
+   },
+   {
+    "id": "t-c20fd45b",
+    "seats": [
+     null,
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "playing",
+     "played": [
+      "fk:0000000000000001",
+      null
+     ],
+     "mode": "draft",
+     "settled": false,
+     "gameStartedAt": 1794026060381
+    }
+   }
+  ],
+  "matchId": null,
+  "matches": [
+   "m-b2aa34057501"
+  ],
+  "draftStartedAt": 1794024442515,
+  "plan": {
+   "rounds": [
+    {
+     "kind": "set",
+     "code": "ICE",
+     "style": "set-cube"
+    },
+    {
+     "kind": "set",
+     "code": "ICE",
+     "style": "set-cube"
+    },
+    {
+     "kind": "set",
+     "code": "ICE",
+     "style": "set-cube"
+    }
+   ]
+  },
+  "planVerdict": {
+   "ok": true,
+   "cards": 363
+  },
+  "podSeats": [
+   "fk:0000000000000001",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai"
+  ],
+  "podAi": [
+   null,
+   "knight",
+   "brawler",
+   "imp",
+   "rogue",
+   "phantom",
+   "wanderer",
+   "doll"
+  ],
+  "podPlaying": [
+   "fk:0000000000000001"
+  ],
+  "lockedDecks": {},
+  "gauntlets": {},
+  "testing": false,
+  "pod": {
+   "humans": [
+    "fk:0000000000000001"
+   ],
+   "round": 1,
+   "rounds": 1,
+   "results": [],
+   "pairings": [
+    {
+     "tableId": "t-c20fd45b",
+     "players": [
+      "fk:0000000000000001",
+      "ai"
+     ]
+    }
+   ],
+   "bye": null
+  },
+  "secret": null
+ },
+ "appVersion": 1
+}

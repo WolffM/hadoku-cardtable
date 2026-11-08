@@ -1,0 +1,113 @@
+{
+ "storeVersion": 2,
+ "roomId": "r-7a1e76b893cd",
+ "roomKey": "r-7a1e76b893cd",
+ "lastEventSeq": 0,
+ "createdAt": 1793563072971,
+ "updatedAt": 1793563072975,
+ "members": [],
+ "usedAvatars": [],
+ "seats": {
+  "capacity": null,
+  "seats": [],
+  "remembered": {},
+  "reservations": {},
+  "reservationTtlMs": 0
+ },
+ "app": {
+  "name": "Room 7",
+  "creator": "dev:testing-seed",
+  "leader": "dev:testing-seed",
+  "gameType": "constructed-1v1",
+  "format": "2002-07-01",
+  "settings": {
+   "handSmoothing": true,
+   "tournament": true,
+   "tournamentDecks": "locked",
+   "clock": "auto",
+   "pickTimer": {
+    "on": false,
+    "speed": 1
+   }
+  },
+  "mode": "gauntlet",
+  "modeOptions": {},
+  "clientMode": "builtin",
+  "tables": [
+   {
+    "id": "t-e4b83e39",
+    "seats": [
+     null,
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "seating",
+     "played": [
+      null,
+      null
+     ],
+     "mode": "gauntlet",
+     "settled": false
+    }
+   }
+  ],
+  "matchId": null,
+  "matches": [],
+  "draftStartedAt": null,
+  "plan": {
+   "rounds": [
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    },
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    },
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    }
+   ]
+  },
+  "planVerdict": null,
+  "podSeats": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "podAi": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "podPlaying": [],
+  "lockedDecks": {},
+  "gauntlets": {},
+  "testing": true,
+  "pod": null,
+  "secret": null
+ },
+ "appVersion": 1
+}

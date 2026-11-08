@@ -3540,7 +3540,7 @@ describe('a constructed room’s mode', () => {
 		expect(lobby.get('r-mmmmmmmmmmm5')).toBeUndefined();
 		const quarantined = logged.filter((e) => e.event === 'room-quarantined');
 		expect(quarantined.map((e) => e.roomId).sort()).toEqual(['r-mmmmmmmmmmm4', 'r-mmmmmmmmmmm5']);
-		expect(quarantined.every((e) => String(e.reason).includes('app.mode'))).toBe(true);
+		expect(quarantined.every((e) => String(e.reason).includes('app.game.mode'))).toBe(true);
 	});
 });
 

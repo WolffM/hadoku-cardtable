@@ -1,0 +1,222 @@
+{
+ "storeVersion": 2,
+ "roomId": "r-f954a6bf5df2",
+ "roomKey": "r-f954a6bf5df2",
+ "lastEventSeq": 0,
+ "createdAt": 1794096575988,
+ "updatedAt": 1794101541719,
+ "members": [
+  {
+   "participantId": "fk:0000000000000001",
+   "accountId": "00000000-0000-4000-8000-000000000002",
+   "joinedAt": 1794096575988,
+   "lastSeen": 1794096575988,
+   "app": {
+    "state": {
+     "v": 1,
+     "deck": {
+      "choice": {
+       "deck": {
+        "dck": "[metadata]\nName=Cube draft r-f954a6bf5df2\n[Main]\n1 Lighthouse Chronologist|ROE|1|[75]\n1 Thought Gorger|ROE|1|[129]\n1 Echo Mage|ROE|1|[64]\n1 Sphinx of Magosi|ROE|1|[89]\n1 Guul Draz Assassin|ROE|1|[112]\n1 Fleeting Distraction|ROE|1|[67]\n1 Crab Umbra|ROE|1|[58]\n1 Unified Will|ROE|1|[92]\n1 Runed Servitor|ROE|1|[224]\n1 Recurring Insight|ROE|1|[82]\n1 Consume the Meek|ROE|1|[100]\n1 Gravitational Shift|ROE|1|[69]\n1 Phantasmal Abomination|ROE|1|[80]\n1 Guard Gomazoa|ROE|1|[70]\n1 Skittering Invasion|ROE|1|[10]\n1 Hedron Matrix|ROE|1|[218]\n1 Inquisition of Kozilek|ROE|1|[115]\n1 Lay Bare|ROE|1|[74]\n1 Arrogant Bloodlord|ROE|1|[94]\n1 Drake Umbra|ROE|1|[63]\n1 Narcolepsy|ROE|1|[79]\n1 Coralhelm Commander|ROE|1|[57]\n1 Merfolk Skyscout|ROE|1|[77]\n13 Island\n4 Swamp\n[Sideboard]\n1 Pennon Blade|ROE|1|[221]\n1 Suffer the Past|ROE|1|[128]\n1 Aura Finesse|ROE|1|[54]\n1 Demystify|ROE|1|[18]\n2 Eland Umbra|ROE|1|[19]\n1 Glory Seeker|ROE|1|[22]\n1 Kor Spiritdancer|ROE|1|[31]\n1 Gigantomancer|ROE|1|[184]\n1 Baneful Omen|ROE|1|[96]\n1 Lord of Shatterskull Pass|ROE|1|[156]\n2 Rage Nimbus|ROE|1|[160]\n1 Goblin Tunneler|ROE|1|[148]\n1 Surreal Memoir|ROE|1|[167]\n1 Traitorous Instinct|ROE|1|[168]\n1 Sarkhan the Mad|ROE|1|[214]\n2 Magmaw|ROE|1|[158]\n1 Conquering Manticore|ROE|1|[139]\n1 Nirkana Cutthroat|ROE|1|[119]\n1 Not of This World|ROE|1|[8]\n"
+       },
+       "rules": {
+        "kind": "draft",
+        "draftId": "r-f954a6bf5df2"
+       }
+      },
+      "verdict": {
+       "deckName": "Cube draft r-f954a6bf5df2",
+       "rulesName": "your pool from r-f954a6bf5df2",
+       "legal": true,
+       "issues": [],
+       "note": null
+      },
+      "text": "[metadata]\nName=Cube draft r-f954a6bf5df2\n[Main]\n1 Lighthouse Chronologist|ROE|1|[75]\n1 Thought Gorger|ROE|1|[129]\n1 Echo Mage|ROE|1|[64]\n1 Sphinx of Magosi|ROE|1|[89]\n1 Guul Draz Assassin|ROE|1|[112]\n1 Fleeting Distraction|ROE|1|[67]\n1 Crab Umbra|ROE|1|[58]\n1 Unified Will|ROE|1|[92]\n1 Runed Servitor|ROE|1|[224]\n1 Recurring Insight|ROE|1|[82]\n1 Consume the Meek|ROE|1|[100]\n1 Gravitational Shift|ROE|1|[69]\n1 Phantasmal Abomination|ROE|1|[80]\n1 Guard Gomazoa|ROE|1|[70]\n1 Skittering Invasion|ROE|1|[10]\n1 Hedron Matrix|ROE|1|[218]\n1 Inquisition of Kozilek|ROE|1|[115]\n1 Lay Bare|ROE|1|[74]\n1 Arrogant Bloodlord|ROE|1|[94]\n1 Drake Umbra|ROE|1|[63]\n1 Narcolepsy|ROE|1|[79]\n1 Coralhelm Commander|ROE|1|[57]\n1 Merfolk Skyscout|ROE|1|[77]\n13 Island\n4 Swamp\n[Sideboard]\n1 Pennon Blade|ROE|1|[221]\n1 Suffer the Past|ROE|1|[128]\n1 Aura Finesse|ROE|1|[54]\n1 Demystify|ROE|1|[18]\n2 Eland Umbra|ROE|1|[19]\n1 Glory Seeker|ROE|1|[22]\n1 Kor Spiritdancer|ROE|1|[31]\n1 Gigantomancer|ROE|1|[184]\n1 Baneful Omen|ROE|1|[96]\n1 Lord of Shatterskull Pass|ROE|1|[156]\n2 Rage Nimbus|ROE|1|[160]\n1 Goblin Tunneler|ROE|1|[148]\n1 Surreal Memoir|ROE|1|[167]\n1 Traitorous Instinct|ROE|1|[168]\n1 Sarkhan the Mad|ROE|1|[214]\n2 Magmaw|ROE|1|[158]\n1 Conquering Manticore|ROE|1|[139]\n1 Nirkana Cutthroat|ROE|1|[119]\n1 Not of This World|ROE|1|[8]\n"
+     },
+     "seriesDeck": {
+      "choice": {
+       "deck": {
+        "dck": "[metadata]\nName=Cube draft r-f954a6bf5df2\n[Main]\n1 Lighthouse Chronologist|ROE|1|[75]\n1 Thought Gorger|ROE|1|[129]\n1 Echo Mage|ROE|1|[64]\n1 Sphinx of Magosi|ROE|1|[89]\n1 Guul Draz Assassin|ROE|1|[112]\n1 Fleeting Distraction|ROE|1|[67]\n1 Crab Umbra|ROE|1|[58]\n1 Unified Will|ROE|1|[92]\n1 Runed Servitor|ROE|1|[224]\n1 Recurring Insight|ROE|1|[82]\n1 Consume the Meek|ROE|1|[100]\n1 Gravitational Shift|ROE|1|[69]\n1 Phantasmal Abomination|ROE|1|[80]\n1 Guard Gomazoa|ROE|1|[70]\n1 Skittering Invasion|ROE|1|[10]\n1 Hedron Matrix|ROE|1|[218]\n1 Inquisition of Kozilek|ROE|1|[115]\n1 Lay Bare|ROE|1|[74]\n1 Arrogant Bloodlord|ROE|1|[94]\n1 Drake Umbra|ROE|1|[63]\n1 Narcolepsy|ROE|1|[79]\n1 Coralhelm Commander|ROE|1|[57]\n1 Merfolk Skyscout|ROE|1|[77]\n13 Island\n4 Swamp\n[Sideboard]\n1 Pennon Blade|ROE|1|[221]\n1 Suffer the Past|ROE|1|[128]\n1 Aura Finesse|ROE|1|[54]\n1 Demystify|ROE|1|[18]\n2 Eland Umbra|ROE|1|[19]\n1 Glory Seeker|ROE|1|[22]\n1 Kor Spiritdancer|ROE|1|[31]\n1 Gigantomancer|ROE|1|[184]\n1 Baneful Omen|ROE|1|[96]\n1 Lord of Shatterskull Pass|ROE|1|[156]\n2 Rage Nimbus|ROE|1|[160]\n1 Goblin Tunneler|ROE|1|[148]\n1 Surreal Memoir|ROE|1|[167]\n1 Traitorous Instinct|ROE|1|[168]\n1 Sarkhan the Mad|ROE|1|[214]\n2 Magmaw|ROE|1|[158]\n1 Conquering Manticore|ROE|1|[139]\n1 Nirkana Cutthroat|ROE|1|[119]\n1 Not of This World|ROE|1|[8]\n"
+       },
+       "rules": {
+        "kind": "draft",
+        "draftId": "r-f954a6bf5df2"
+       }
+      },
+      "verdict": {
+       "deckName": "Cube draft r-f954a6bf5df2",
+       "rulesName": "your pool from r-f954a6bf5df2",
+       "legal": true,
+       "issues": [],
+       "note": null
+      },
+      "text": "[metadata]\nName=Cube draft r-f954a6bf5df2\n[Main]\n1 Lighthouse Chronologist|ROE|1|[75]\n1 Thought Gorger|ROE|1|[129]\n1 Echo Mage|ROE|1|[64]\n1 Sphinx of Magosi|ROE|1|[89]\n1 Guul Draz Assassin|ROE|1|[112]\n1 Fleeting Distraction|ROE|1|[67]\n1 Crab Umbra|ROE|1|[58]\n1 Unified Will|ROE|1|[92]\n1 Runed Servitor|ROE|1|[224]\n1 Recurring Insight|ROE|1|[82]\n1 Consume the Meek|ROE|1|[100]\n1 Gravitational Shift|ROE|1|[69]\n1 Phantasmal Abomination|ROE|1|[80]\n1 Guard Gomazoa|ROE|1|[70]\n1 Skittering Invasion|ROE|1|[10]\n1 Hedron Matrix|ROE|1|[218]\n1 Inquisition of Kozilek|ROE|1|[115]\n1 Lay Bare|ROE|1|[74]\n1 Arrogant Bloodlord|ROE|1|[94]\n1 Drake Umbra|ROE|1|[63]\n1 Narcolepsy|ROE|1|[79]\n1 Coralhelm Commander|ROE|1|[57]\n1 Merfolk Skyscout|ROE|1|[77]\n13 Island\n4 Swamp\n[Sideboard]\n1 Pennon Blade|ROE|1|[221]\n1 Suffer the Past|ROE|1|[128]\n1 Aura Finesse|ROE|1|[54]\n1 Demystify|ROE|1|[18]\n2 Eland Umbra|ROE|1|[19]\n1 Glory Seeker|ROE|1|[22]\n1 Kor Spiritdancer|ROE|1|[31]\n1 Gigantomancer|ROE|1|[184]\n1 Baneful Omen|ROE|1|[96]\n1 Lord of Shatterskull Pass|ROE|1|[156]\n2 Rage Nimbus|ROE|1|[160]\n1 Goblin Tunneler|ROE|1|[148]\n1 Surreal Memoir|ROE|1|[167]\n1 Traitorous Instinct|ROE|1|[168]\n1 Sarkhan the Mad|ROE|1|[214]\n2 Magmaw|ROE|1|[158]\n1 Conquering Manticore|ROE|1|[139]\n1 Nirkana Cutthroat|ROE|1|[119]\n1 Not of This World|ROE|1|[8]\n"
+     },
+     "aiDeck": "[metadata]\nName=Bot draft\n[Main]\n1 Vendetta|ROE|1|[130]\n1 Inquisition of Kozilek|ROE|1|[115]\n1 Devastating Summons|ROE|1|[140]\n1 Mortician Beetle|ROE|1|[117]\n2 Nirkana Revenant|ROE|1|[120]\n1 Consuming Vapors|ROE|1|[101]\n2 Drana, Kalastria Bloodchief|ROE|1|[107]\n1 Disaster Radius|ROE|1|[141]\n1 Pestilence Demon|ROE|1|[124]\n1 Virulent Swipe|ROE|1|[131]\n1 Brimstone Mage|ROE|1|[137]\n1 Lust for War|ROE|1|[157]\n1 Pawn of Ulamog|ROE|1|[122]\n2 Corpsehatch|ROE|1|[103]\n2 Death Cultist|ROE|1|[105]\n1 Nighthaze|ROE|1|[118]\n1 Zulaport Enforcer|ROE|1|[133]\n1 Bloodthrone Vampire|ROE|1|[98]\n1 Null Champion|ROE|1|[121]\n15 Swamp\n2 Mountain\n[Sideboard]\n1 Enclave Cryptologist|ROE|1|[66]\n1 Renegade Doppelganger|ROE|1|[84]\n1 Regress|ROE|1|[83]\n2 Induce Despair|ROE|1|[114]\n1 Reinforced Bulwark|ROE|1|[223]\n2 Dread Drone|ROE|1|[108]\n1 Null Champion|ROE|1|[121]\n1 Living Destiny|ROE|1|[195]\n1 Caravan Escort|ROE|1|[15]\n1 Cadaver Imp|ROE|1|[99]\n1 Pathrazer of Ulamog|ROE|1|[9]\n1 Jwari Scuttler|ROE|1|[73]\n1 It That Betrays|ROE|1|[7]\n1 Vengevine|ROE|1|[212]\n1 Skeletal Wurm|ROE|1|[127]\n1 Guul Draz Assassin|ROE|1|[112]\n1 Lagac Lizard|ROE|1|[154]\n1 Bloodrite Invoker|ROE|1|[97]\n1 Last Kiss|ROE|1|[116]\n1 Puncturing Light|ROE|1|[41]\n"
+    },
+    "ready": true
+   }
+  }
+ ],
+ "usedAvatars": [],
+ "seats": {
+  "capacity": null,
+  "seats": [],
+  "remembered": {},
+  "reservations": {},
+  "reservationTtlMs": 0
+ },
+ "app": {
+  "name": "Room 2",
+  "creator": "fk:0000000000000001",
+  "leader": "fk:0000000000000001",
+  "gameType": "draft",
+  "format": "2017-07-14",
+  "settings": {
+   "handSmoothing": true,
+   "tournament": false,
+   "tournamentDecks": "locked",
+   "clock": "auto",
+   "pickTimer": {
+    "on": false,
+    "speed": 1
+   },
+   "draftBots": "model"
+  },
+  "mode": null,
+  "modeOptions": null,
+  "clientMode": "builtin",
+  "tables": [
+   {
+    "id": "t-2879f6e4",
+    "seats": [
+     null,
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "seating",
+     "played": [
+      null,
+      null
+     ],
+     "mode": "draft",
+     "settled": false,
+     "gameStartedAt": null
+    }
+   },
+   {
+    "id": "t-91bf7c69",
+    "seats": [
+     "fk:0000000000000001",
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": "m-620d099199bb",
+    "series": {
+     "length": 3,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "playing",
+     "played": [
+      "fk:0000000000000001",
+      null
+     ],
+     "mode": "draft",
+     "settled": false,
+     "gameStartedAt": 1794101541713
+    }
+   }
+  ],
+  "matchId": null,
+  "matches": [
+   "m-620d099199bb"
+  ],
+  "draftStartedAt": 1794096646177,
+  "plan": {
+   "rounds": [
+    {
+     "kind": "set",
+     "code": "ROE",
+     "style": "set-cube"
+    },
+    {
+     "kind": "set",
+     "code": "ROE",
+     "style": "set-cube"
+    },
+    {
+     "kind": "set",
+     "code": "ROE",
+     "style": "set-cube"
+    }
+   ]
+  },
+  "planVerdict": {
+   "ok": true,
+   "cards": 228
+  },
+  "podSeats": [
+   "fk:0000000000000001",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai"
+  ],
+  "podAi": [
+   null,
+   "imp",
+   "harlequin",
+   "recluse",
+   "apprentice",
+   "chief",
+   "mage",
+   "wanderer"
+  ],
+  "podPlaying": [
+   "fk:0000000000000001"
+  ],
+  "lockedDecks": {},
+  "gauntlets": {},
+  "testing": false,
+  "pod": {
+   "humans": [
+    "fk:0000000000000001"
+   ],
+   "round": 1,
+   "rounds": 1,
+   "results": [],
+   "pairings": [
+    {
+     "tableId": "t-91bf7c69",
+     "players": [
+      "fk:0000000000000001",
+      "ai"
+     ]
+    }
+   ],
+   "bye": null
+  },
+  "secret": null
+ },
+ "appVersion": 1
+}

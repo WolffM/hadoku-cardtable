@@ -366,6 +366,7 @@ describe('POST /api/rooms', () => {
 			'creator',
 			'draftStartedAt',
 			'format',
+			'game',
 			'gameType',
 			'id',
 			'leader',
@@ -384,6 +385,9 @@ describe('POST /api/rooms', () => {
 			'you',
 		]);
 		expect(Object.keys(room.members[0]).sort()).toEqual(['avatarId', 'id', 'joinedAt', 'name', 'ready']);
+		// Magic's blob, which the top level restates for the readers that have not moved to `game.*`.
+		const { format, mode, modeOptions, clientMode, draftStartedAt, pod } = room;
+		expect(room.game).toEqual({ format, mode, modeOptions, clientMode, draftStartedAt, pod });
 
 		// The verbatim body, for the lanes coding against it.
 		if (process.env.CARDTABLE_ROOMVIEW_OUT) {

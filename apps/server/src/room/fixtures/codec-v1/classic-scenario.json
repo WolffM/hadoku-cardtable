@@ -1,0 +1,114 @@
+{
+ "storeVersion": 2,
+ "roomId": "r-48752a71a6e7",
+ "roomKey": "r-48752a71a6e7",
+ "lastEventSeq": 0,
+ "createdAt": 1793563072999,
+ "updatedAt": 1793563073001,
+ "members": [],
+ "usedAvatars": [],
+ "seats": {
+  "capacity": null,
+  "seats": [],
+  "remembered": {},
+  "reservations": {},
+  "reservationTtlMs": 0
+ },
+ "app": {
+  "name": "Room 9",
+  "creator": "dev:testing-seed",
+  "leader": "dev:testing-seed",
+  "gameType": "constructed-1v1",
+  "format": "2019-08-30",
+  "settings": {
+   "handSmoothing": true,
+   "tournament": false,
+   "tournamentDecks": "locked",
+   "clock": "auto",
+   "pickTimer": {
+    "on": false,
+    "speed": 1
+   }
+  },
+  "mode": "classic",
+  "modeOptions": {},
+  "clientMode": "builtin",
+  "tables": [
+   {
+    "id": "t-783114b0",
+    "seats": [
+     null,
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 1,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "seating",
+     "played": [
+      null,
+      null
+     ],
+     "mode": "classic",
+     "settled": false
+    }
+   }
+  ],
+  "matchId": null,
+  "matches": [],
+  "draftStartedAt": null,
+  "plan": {
+   "rounds": [
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    },
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    },
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    }
+   ]
+  },
+  "planVerdict": null,
+  "podSeats": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "podAi": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "podPlaying": [],
+  "lockedDecks": {},
+  "gauntlets": {},
+  "testing": true,
+  "scenario": "# \"Testing: Board — Gifts Ungiven\" (room/testing-rooms.ts): seat 0 (human) at\n# its own Main Phase 1 on turn 1 with four untapped Islands and two Gifts\n# Ungiven in hand, so the whole spell can be cast and seen twice. The library\n# holds 18 different names (plus a second Counterspell and Brainstorm, which\n# the search's \"different names\" rule greys once one copy is chosen), so the\n# one search has real choices (search-rules.jvm.test.ts). MAIN1 rather than a later step for the same\n# reason `tr-combat.state` gives. Seat 1 holds its own Gifts Ungiven and four\n# Islands, and nothing that could counter seat 0's.\nturn=1\nactiveplayer=human\nactivephase=MAIN1\nhumanlife=20\nailife=20\nhumanhand=Gifts Ungiven;Gifts Ungiven;Island\nhumanbattlefield=Island;Island;Island;Island\nhumanlibrary=Unburial Rites;Mulldrifter;Griselbrand;Reanimate;Animate Dead;Sun Titan;Deep Analysis;Think Twice;Counterspell;Counterspell;Brainstorm;Brainstorm;Ponder;Mana Leak;Fact or Fiction;Frantic Search;Accumulated Knowledge;Careful Study;Entomb;Exhume;Snapcaster Mage;Island;Island;Swamp\nhumangraveyard=\naihand=Gifts Ungiven\naibattlefield=Island;Island;Island;Island;Grizzly Bears;Hill Giant\nailibrary=Mulldrifter;Deep Analysis;Think Twice;Fact or Fiction;Accumulated Knowledge;Ponder;Island;Island;Island;Island;Island;Island\naigraveyard=\n",
+  "pod": null,
+  "secret": null
+ },
+ "appVersion": 1
+}

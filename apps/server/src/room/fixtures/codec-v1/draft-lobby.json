@@ -1,0 +1,128 @@
+{
+ "storeVersion": 2,
+ "roomId": "r-25bebe1203c9",
+ "roomKey": "r-25bebe1203c9",
+ "lastEventSeq": 0,
+ "createdAt": 1794007118949,
+ "updatedAt": 1794102018268,
+ "members": [
+  {
+   "participantId": "fk:0000000000000005",
+   "accountId": "00000000-0000-4000-8000-000000000006",
+   "joinedAt": 1794007118949,
+   "lastSeen": 1794007118949,
+   "app": {
+    "ready": true
+   }
+  }
+ ],
+ "usedAvatars": [],
+ "seats": {
+  "capacity": null,
+  "seats": [],
+  "remembered": {},
+  "reservations": {},
+  "reservationTtlMs": 0
+ },
+ "app": {
+  "name": "Room 4",
+  "creator": "fk:0000000000000005",
+  "leader": "fk:0000000000000005",
+  "gameType": "draft",
+  "format": "modern-2025-06-30",
+  "settings": {
+   "handSmoothing": true,
+   "tournament": false,
+   "tournamentDecks": "locked",
+   "clock": "auto",
+   "pickTimer": {
+    "on": true,
+    "speed": 4
+   },
+   "draftBots": "split"
+  },
+  "mode": null,
+  "modeOptions": null,
+  "clientMode": "builtin",
+  "tables": [
+   {
+    "id": "t-ef31008b",
+    "seats": [
+     null,
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "seating",
+     "played": [
+      null,
+      null
+     ],
+     "mode": "draft",
+     "settled": false,
+     "gameStartedAt": null
+    }
+   }
+  ],
+  "matchId": null,
+  "matches": [],
+  "draftStartedAt": 1794007119685,
+  "plan": {
+   "rounds": [
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    },
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    },
+    {
+     "kind": "cube",
+     "cubeId": "mtgo-vintage-cube-2025-04"
+    }
+   ]
+  },
+  "planVerdict": {
+   "ok": true,
+   "cards": 540
+  },
+  "podSeats": [
+   "fk:0000000000000005",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai",
+   "ai"
+  ],
+  "podAi": [
+   null,
+   "imp",
+   "idol",
+   "prodigy",
+   "mage",
+   "apprentice",
+   "chief",
+   "operative"
+  ],
+  "podPlaying": [],
+  "lockedDecks": {},
+  "gauntlets": {},
+  "testing": false,
+  "pod": null,
+  "secret": null
+ },
+ "appVersion": 1
+}

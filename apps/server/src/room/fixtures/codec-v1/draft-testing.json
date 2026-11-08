@@ -1,0 +1,121 @@
+{
+ "storeVersion": 2,
+ "roomId": "r-350025ea4191",
+ "roomKey": "r-350025ea4191",
+ "lastEventSeq": 0,
+ "createdAt": 1793563080877,
+ "updatedAt": 1794097365554,
+ "members": [],
+ "usedAvatars": [],
+ "seats": {
+  "capacity": null,
+  "seats": [],
+  "remembered": {},
+  "reservations": {},
+  "reservationTtlMs": 0
+ },
+ "app": {
+  "name": "Room 5",
+  "creator": "dev:testing-seed",
+  "leader": "dev:testing-seed",
+  "gameType": "draft",
+  "format": "2023-05-29",
+  "settings": {
+   "handSmoothing": true,
+   "tournament": false,
+   "tournamentDecks": "locked",
+   "clock": "auto",
+   "pickTimer": {
+    "on": false,
+    "speed": 1
+   },
+   "draftBots": "model"
+  },
+  "mode": null,
+  "modeOptions": null,
+  "clientMode": "builtin",
+  "tables": [
+   {
+    "id": "t-f05594f4",
+    "seats": [
+     null,
+     null
+    ],
+    "ready": [
+     false,
+     false
+    ],
+    "matchId": null,
+    "series": {
+     "length": 3,
+     "wins": [
+      0,
+      0
+     ],
+     "games": [],
+     "phase": "seating",
+     "played": [
+      null,
+      null
+     ],
+     "mode": "draft",
+     "settled": false,
+     "gameStartedAt": null
+    }
+   }
+  ],
+  "matchId": null,
+  "matches": [],
+  "draftStartedAt": null,
+  "plan": {
+   "rounds": [
+    {
+     "kind": "set",
+     "code": "HOB",
+     "style": "set-cube"
+    },
+    {
+     "kind": "set",
+     "code": "HOB",
+     "style": "set-cube"
+    },
+    {
+     "kind": "set",
+     "code": "HOB",
+     "style": "set-cube"
+    }
+   ]
+  },
+  "planVerdict": {
+   "ok": true,
+   "cards": 183
+  },
+  "podSeats": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "podAi": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "podPlaying": [],
+  "lockedDecks": {},
+  "gauntlets": {},
+  "testing": true,
+  "pod": null,
+  "secret": null
+ },
+ "appVersion": 1
+}

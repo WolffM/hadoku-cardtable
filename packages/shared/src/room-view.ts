@@ -19,10 +19,9 @@
 import { z } from 'zod';
 
 import { LookSchema } from './look.ts';
-import { RoomPodSchema } from './pod.ts';
+import { magicRoomFields, withMode } from './magic-room.ts';
 import { ROOM_ID_RE } from './room-feed.ts';
-import { GameTypeSchema, RoomModeSchema, type ConstructedMode, type ModeOptions } from './room-modes.ts';
-import { AVATAR_ID_MAX, ClientModeSchema, DEFAULT_CLIENT_MODE, DEFAULT_ROOM_SETTINGS, RoomSettingsSchema, type RoomSettings } from './room-requests.ts';
+import { AVATAR_ID_MAX, DEFAULT_ROOM_SETTINGS, RoomSettingsSchema, type RoomSettings } from './room-requests.ts';
 import { RoomTablesSchema, TableGamesSchema } from './room-tables.ts';
 
 const memberFields = z.object({
@@ -101,21 +100,22 @@ const roomFields = {
   name: z.string(),
   creator: z.string().catch(''),
   leader: z.string().catch(''),
-  gameType: GameTypeSchema,
   /**
-   * The table's pool, and the rules both seats' decks are checked against: a
-   * frozen era's `TableFormat.id`, the leader's to change. The server always
-   * sends one; `''` is a body that lost it.
+   * What the room plays: Magic's `GAME_TYPES`, or a game this build does not
+   * know, kept as the string it is rather than refused.
    */
-  format: z.string().catch(''),
+  gameType: z.string(),
+  /**
+   * The game's own part of the room, which the game validates: Magic's is
+   * `MagicRoomGameSchema` (`magic-room.ts`). Its fields are also restated at the
+   * top level below, for readers that have not moved to `game.*`. Absent from
+   * a server that predates it.
+   */
+  game: z.unknown().optional(),
+  ...magicRoomFields,
   settings: RoomSettingsViewSchema,
   /** What cannot change now, and why (`RoomLocks`). A server that sends none: everything open, and its refusals still answer. */
   locks: RoomLocksSchema,
-  /** Read as a pair with `modeOptions`, below. */
-  mode: z.unknown().optional(),
-  modeOptions: z.unknown().optional(),
-  /** Fixed at create, for the room's whole life. */
-  clientMode: ClientModeSchema.catch(DEFAULT_CLIENT_MODE),
   /** Whether a password is set: never the password, never any hash of it. */
   locked: z.boolean(),
   members: membersSchema,
@@ -123,14 +123,6 @@ const roomFields = {
   tables: RoomTablesSchema.catch(() => []),
   /** The first table's live match, restated for readers that only know one table. */
   matchId: z.string().nullable().catch(null),
-  /**
-   * When the draft was dealt, or null for the lobby phase. Never restored from
-   * disk, because the draft lives in one process's memory: a restart puts the
-   * room back in its lobby with its ready flags intact.
-   */
-  draftStartedAt: z.string().nullable().catch(null),
-  /** The pod, present when `gameType` is `draft`, or `constructed-1v1` with `settings.tournament` on. */
-  pod: RoomPodSchema.catch(null),
   createdAt: z.string().catch(''),
   /**
    * A seeded testing room (admin-only, never swept, never stale — `room/lobby.ts`'s
@@ -141,26 +133,9 @@ const roomFields = {
    * carries with `testing: true`", never a client-side tier check.
    */
   testing: z.boolean().catch(false),
-  /**
-   * A board-state testing room's own Forge puzzle board (`room/lobby.ts`'s
-   * `RoomRecord.scenario`, set only by `room/testing-rooms.ts`). Absent for
-   * every other room, and for a non-admin — `GET /api/rooms` omits a testing
-   * room entirely for one, same as `testing` above, so this never reaches a
-   * client that could not already see the room it belongs to.
-   */
-  scenario: z.string().optional(),
   /** When the event this room was made for starts (`apps/server/src/room/events.ts`); null for a room no event made. */
   scheduledFor: z.string().nullable().catch(null),
 };
-
-/**
- * A constructed room's mode and that mode's options, or both null: until the
- * leader chooses one, for a draft room, and for a pair this build does not know.
- */
-function withMode<T extends { mode?: unknown; modeOptions?: unknown }>({ mode, modeOptions, ...rest }: T): Omit<T, 'mode' | 'modeOptions'> & { mode: ConstructedMode | null; modeOptions: ModeOptions | null } {
-  const parsed = RoomModeSchema.safeParse({ mode, modeOptions });
-  return { ...rest, ...(parsed.success ? parsed.data : { mode: null, modeOptions: null }) };
-}
 
 export const RoomViewSchema = z.object(roomFields).transform(withMode);
 export type RoomView = z.infer<typeof RoomViewSchema>;

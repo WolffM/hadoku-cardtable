@@ -412,6 +412,7 @@ export {
   type RoomView,
   type RoomBody,
 } from './room-view.ts';
+export * from './magic-room.ts';
 export { LOOK_PICTURE_MAX, LookSchema, PersonFaceSchema, WornSchema, lookOrNone, sameLook, type Look, type PersonFace, type Worn } from '@hadoku/platform-wire/look';
 export {
   AI_ENTRANT_PREFIX,
