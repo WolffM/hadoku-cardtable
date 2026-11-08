@@ -99,7 +99,17 @@
 /* The header is a fixed row; whatever the route renders takes the rest. The
    direct-child rule is what lets both possible children grow — `.shell` on a
    roomless route, and watchparty's `.wp-room-chrome-frame` on a room one, which
-   asks for `height: 100%` and would otherwise sit at content height. */
+   asks for `height: 100%` and would otherwise sit at content height.
+
+   A screen drawn into a room is one level further in: RoomShell keeps it mounted
+   while the chat comes and goes by drawing it into a node it moves between the
+   two (`apps/ui/src/room/RoomShell.tsx`). That node and the slot holding it are
+   `.chrome-slot`s, which take no box, and every rule here that addresses a
+   content's own child reaches through exactly those two. */
+.chrome-slot {
+  display: contents;
+}
+
 .cardtable-chrome__content {
   display: flex;
   flex-direction: column;
@@ -107,7 +117,8 @@
   min-height: 0;
 }
 
-.cardtable-chrome__content > * {
+.cardtable-chrome__content > *,
+.cardtable-chrome__content > .chrome-slot > .chrome-slot > * {
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -205,7 +216,8 @@
    from it: `__content`'s inset above is the page's edge now, and `.shell`'s own
    padding would put a second one inside it. The right side keeps its padding
    as the gutter against the chat's separator. */
-.wp-room-chrome-frame__content > .shell.shell--fit {
+.wp-room-chrome-frame__content > .shell.shell--fit,
+.wp-room-chrome-frame__content > .chrome-slot > .chrome-slot > .shell.shell--fit {
   padding-left: 0;
 }
 
@@ -225,7 +237,8 @@
     padding-right: 16px;
   }
 
-  .wp-room-chrome-frame__content > .shell.shell--fit {
+  .wp-room-chrome-frame__content > .shell.shell--fit,
+  .wp-room-chrome-frame__content > .chrome-slot > .chrome-slot > .shell.shell--fit {
     padding-right: 0;
   }
 }

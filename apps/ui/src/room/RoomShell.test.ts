@@ -19,6 +19,10 @@
  * which explain the same constraint). jsdom, because the second theme arm
  * renders.
  */
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
@@ -60,7 +64,8 @@ vi.mock('@wolffm/watchparty-ui/room-chrome', () => ({
    * theme the real chrome would reject.
    */
   RoomChrome: ({ theme, userType, children }: { theme?: string; userType?: string; children: ReactNode }) =>
-    createElement('div', { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark', 'data-user-type': userType }, children),
+    // The real chrome's own content column, so the host's rules for its child are tested against it.
+    createElement('div', { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark', 'data-user-type': userType }, createElement('div', { className: 'wp-room-chrome-frame__content' }, children)),
 }));
 
 /*
@@ -176,6 +181,59 @@ describe('the content of a room', () => {
     await waitFor(() => screen.getByTestId('room-chrome'));
 
     expect(mounts).toEqual([true]);
+  });
+
+  // CI 42455075250 (w83b): a joiner's room screen is drawn before its join, with no chat
+  // (`App.tsx` gates the room id on `useJoined`), and the chrome wraps it once the join lands.
+  // Remounted there, it dropped bob's open Room settings and connected its draft socket twice.
+  it('stays mounted when the chrome wraps it after the join, and when it goes again', async () => {
+    let mounts = 0;
+    let unmounts = 0;
+    function Content() {
+      useLayoutEffect(() => {
+        mounts += 1;
+        return () => {
+          unmounts += 1;
+        };
+      }, []);
+      return createElement('div', { 'data-testid': 'content' });
+    }
+    const content = createElement(Content);
+
+    const view = render(createElement(RoomShell, { roomId: null, children: content }));
+    expect(screen.getByTestId('content')).toBeTruthy();
+    view.rerender(createElement(RoomShell, { roomId: 'r-cube', children: content }));
+    await waitFor(() => expect(screen.getByTestId('room-chrome').contains(screen.getByTestId('content'))).toBe(true));
+    view.rerender(createElement(RoomShell, { roomId: null, children: content }));
+    expect(screen.queryByTestId('room-chrome')).toBeNull();
+    expect(screen.getByTestId('content')).toBeTruthy();
+
+    expect({ mounts, unmounts }).toEqual({ mounts: 1, unmounts: 0 });
+  });
+
+  // Main check 42457465625: the portal's two nodes sat between the chrome and the screen, so
+  // `chrome.css`'s rules for a content's own child stopped reaching it — a phone's Gauntlet board
+  // kept the shell's padding and clipped its pool names. Every such rule is read from the sheet.
+  it('is still what the chrome styles as its content’s own child, bare and inside the chrome', async () => {
+    const sheet = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../packages/ui-shell/src/chrome/chrome.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const childRules = [...sheet.matchAll(/([^{}]+)\{/g)]
+      .map((m) => m[1]!.trim())
+      .filter((list) => /(?:cardtable-chrome|wp-room-chrome-frame)__content > (?:\*|\.shell)/.test(list) && !list.startsWith('@'));
+    expect(childRules.length, 'the sheet still has its content-child rules').toBeGreaterThanOrEqual(3);
+    const screenEl = createElement('div', { className: 'shell shell--fit', 'data-testid': 'fit-screen' });
+
+    const outer = document.createElement('div');
+    outer.className = 'cardtable-chrome__content';
+    document.body.append(outer);
+    const view = render(createElement(RoomShell, { roomId: null, children: screenEl }), { container: outer });
+    const bare = screen.getByTestId('fit-screen');
+    for (const list of childRules.filter((l) => l.includes('cardtable-chrome__content'))) expect(bare.matches(list), `bare: ${list}`).toBe(true);
+
+    view.rerender(createElement(RoomShell, { roomId: 'r-cube', children: screenEl }));
+    await waitFor(() => expect(screen.getByTestId('room-chrome').contains(bare)).toBe(true));
+    expect(screen.getByTestId('fit-screen'), 'the same element').toBe(bare);
+    for (const list of childRules.filter((l) => l.includes('wp-room-chrome-frame__content'))) expect(bare.matches(list), `in the chrome: ${list}`).toBe(true);
+    outer.remove();
   });
 });
 
