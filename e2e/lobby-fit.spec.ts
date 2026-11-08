@@ -36,10 +36,12 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, resizeWindow } from './play/board.ts';
+import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { trimMainDeck } from './deckBuilder.ts';
+import { draftUntilDone, fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -48,7 +50,7 @@ const PREFIX = '/cardtable';
 const ROOMS_OPEN = 16;
 /** A deck tile's own size (`screens.css` `.deckpick`). */
 const TILE_PX = 190;
-/** The only box that may scroll on each screen: the screen itself. */
+/** The only box that may scroll on each screen: the screen itself (by test id, or by class where the room's frame scrolls it). */
 const FRONT_MAY_SCROLL = ['lobby'];
 const ROOM_MAY_SCROLL = ['constructed'];
 const SIZES = [
@@ -70,9 +72,9 @@ async function signIn(f: Friend): Promise<void> {
   );
 }
 
-async function measure(page: Page, mustShow: string, mayScroll: string[], tilePx: number): Promise<Fit> {
+async function measure(page: Page, mustShow: string, mayScroll: string[], tilePx: number, sideways: string[]): Promise<Fit> {
   return page.evaluate(
-    ({ sel, allowed, tile }) => {
+    ({ sel, allowed, tile, across }) => {
       const SCROLLS = new Set(['auto', 'scroll']);
       const name = (e: Element): string => {
         const id = e.getAttribute('data-testid');
@@ -103,7 +105,9 @@ async function measure(page: Page, mustShow: string, mayScroll: string[], tilePx
         const wide = e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1 && SCROLLS.has(cs.overflowX);
         if (!tall && !wide) continue;
         const line = `${name(e)}: scroll ${e.scrollWidth}x${e.scrollHeight} > client ${e.clientWidth}x${e.clientHeight}`;
-        if (allowed.includes(e.getAttribute('data-testid') ?? '') && !wide) evidence.push(`scrolls inside itself ${line}`);
+        const id = e.getAttribute('data-testid') ?? '';
+        const named = (list: string[]): boolean => list.includes(id) || list.some((c) => e.classList.contains(c));
+        if ((named(allowed) && !wide) || (named(across) && !tall)) evidence.push(`scrolls inside itself ${line}`);
         else failures.push(`scrolls: ${line}`);
       }
       const tiles = Array.from(document.querySelectorAll('[data-testid="deck-mine"] [data-deck-id]'));
@@ -128,14 +132,23 @@ async function measure(page: Page, mustShow: string, mayScroll: string[], tilePx
       if (document.querySelector('[data-testid="verdict-mine"]') !== null) failures.push('a deck verdict is drawn');
       return { size: `${innerWidth}x${innerHeight}`, failures, evidence };
     },
-    { sel: mustShow, allowed: mayScroll, tile: tilePx },
+    { sel: mustShow, allowed: mayScroll, tile: tilePx, across: sideways },
   );
 }
 
-async function fitsAt(page: Page, who: string, where: string, mustShow: string, mayScroll: string[], failures: string[]): Promise<void> {
-  for (const size of SIZES) {
+/** `sideways`: boxes that scroll across in their own field by design (the pod's Swiss bracket), never down. */
+async function fitsAt(
+  page: Page,
+  who: string,
+  where: string,
+  mustShow: string,
+  mayScroll: string[],
+  failures: string[],
+  { sizes = SIZES, sideways = [] }: { sizes?: readonly { width: number; height: number }[]; sideways?: string[] } = {},
+): Promise<void> {
+  for (const size of sizes) {
     await resizeWindow(page, size);
-    const fit = await measure(page, mustShow, mayScroll, TILE_PX);
+    const fit = await measure(page, mustShow, mayScroll, TILE_PX, sideways);
     console.log(`[lobby-fit] ${where} ${who} ${fit.size}: ${fit.evidence.join(' | ')}`);
     for (const f of fit.failures) console.log(`[lobby-fit] ${where} ${who} ${fit.size} FAIL ${f}`);
     failures.push(...fit.failures.map((f) => `${where} ${who} ${fit.size}: ${f}`));
@@ -203,6 +216,59 @@ test(titled('the page and the chat stay the window’s height on the front page 
     await fitsAt(bob.page, 'bob', 'room', mustShow, ROOM_MAY_SCROLL, failures);
 
     expect(failures, 'the page is the window’s height, only each screen scrolls and never the deck grid, every tile is full size, and no verdict').toEqual([]);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/*
+ * The operator, 2026-11-07, of a draft pod's room: the chat "stops halfway down the page … it
+ * shouldn't matter what room we're in. right side-bar must be consistent." A pod's hub is no fitted
+ * screen of its own, so the chat column followed the hub's height: short of the window's bottom on a
+ * short hub, past it (the page scrolling the chat away) on a long one. In every room the chat is the
+ * window's height and only the room's screen scrolls, inside the frame; and the pick screen still
+ * fits the window exactly, with nothing left over to scroll.
+ */
+const POD_SIZES = [{ width: 1440, height: 900 }, ...SIZES] as const;
+
+test(titled('in a draft pod’s room the chat is the window’s height on the pick screen and on the rounds hub; the pick screen never scrolls, the hub scrolls only inside the frame'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(6 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const alice = await openFriend(browser, 'alice');
+    const page = alice.page;
+    await resizeWindow(page, POD_SIZES[0]);
+    await page.goto(`${stack.origin}${PREFIX}/`);
+    await submitCreateRoom(page, { name: `pod fit ${Date.now()}`, gameType: 'draft' });
+    const roomId = await roomIdFromHash(page);
+    await expect(page.getByTestId('draft-lobby')).toBeVisible({ timeout: 30_000 });
+    // The chat aside is drawn for a signed-in viewer, and the pod's own seat is found by the room's id for her.
+    const room = (await page.evaluate((id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()), roomId)) as {
+      members: { id: string; name: string }[];
+    };
+    const me = room.members.find((m) => m.name === 'e2e-alice');
+    if (me === undefined) throw new Error('alice is not among the room’s members');
+    await page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'member', name: 'e2e-alice' } }));
+    await page.reload();
+    await sitPodAt(page, 0);
+    await readyPod(page);
+    await fillWithAi(page, 30_000);
+    await expect(page.locator('[data-testid="pack"] button[data-testid="card"]:not([disabled])').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.wp-room-chrome'), 'the chat is drawn').toBeVisible();
+    const failures: string[] = [];
+    await fitsAt(page, 'alice', 'pod pick', '[data-testid="pack"]', [], failures, { sizes: POD_SIZES });
+
+    await draftUntilDone(page);
+    await trimMainDeck(page, 40, 'alice');
+    await page.getByTestId('play-deck').click();
+    await page.waitForURL(/#\/match\//, { timeout: 30_000 });
+    await page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
+    await expect(page.getByTestId('pod-tables'), 'the rounds hub').toBeVisible({ timeout: 30_000 });
+    await fitsAt(page, 'alice', 'pod hub', '[data-testid="pod-name"]', ['wp-room-chrome-frame__content'], failures, { sizes: POD_SIZES, sideways: ['pod-tables'] });
+
+    expect(failures, 'in a pod the page is the window’s height, the chat reaches its bottom, and only the hub scrolls, inside the frame').toEqual([]);
   } finally {
     await stack.stop();
   }

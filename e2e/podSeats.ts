@@ -96,3 +96,27 @@ export async function fillWithAi(page: Page, timeout = 15_000): Promise<void> {
       .toBeLessThan(n);
   }
 }
+
+/** Clicks the lowest-indexed enabled card over and over, until the finished draft lands in the deck builder. */
+export async function draftUntilDone(page: Page): Promise<void> {
+  // The grid, not the fan: the fan overlaps its cards on purpose (`draft.spec.ts`'s
+  // own note), so a click at a card's centre can land outside the viewport
+  // or on a neighbour.
+  const grid = page.getByRole('group', { name: 'Pack layout' }).getByRole('button', { name: 'grid' });
+  if ((await grid.getAttribute('aria-pressed')) !== 'true') await grid.click();
+  for (;;) {
+    const next = await page.waitForFunction(
+      () => {
+        if (window.location.hash.startsWith('#/deck/')) return 'done';
+        return document.querySelector('[data-testid="pack"] button[data-testid="card"]:not([disabled])') !== null ? 'pick' : null;
+      },
+      null,
+      { timeout: 90_000, polling: 50 },
+    );
+    if ((await next.jsonValue()) === 'done') return;
+    await page.locator('[data-testid="pack"] button[data-testid="card"]:not([disabled])').first().click();
+    // Paced under the server's own pick rate limit (15 burst, then one per
+    // 250 ms — `PICK_RATE_LIMIT`).
+    await page.waitForTimeout(400);
+  }
+}

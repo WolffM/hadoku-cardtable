@@ -19,7 +19,7 @@
  * acceptance text only needs a round to RESOLVE, not a full game.
  */
 import { trimMainDeck } from './deckBuilder.ts';
-import { arrangePod, readyPod } from './podSeats.ts';
+import { arrangePod, draftUntilDone, readyPod } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
@@ -31,30 +31,6 @@ import { openHub, openMyTable, submitCreateRoom } from './play/rooms.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 const UI_TIMEOUT = 30_000;
-
-/** Clicks the lowest-indexed enabled card over and over, until the finished draft lands in the deck builder. */
-async function draftUntilDone(p: Player): Promise<void> {
-  // The grid, not the fan: the fan overlaps its cards on purpose (`draft.spec.ts`'s
-  // own note), so a click at a card's centre can land outside the viewport
-  // or on a neighbour.
-  const grid = p.page.getByRole('group', { name: 'Pack layout' }).getByRole('button', { name: 'grid' });
-  if ((await grid.getAttribute('aria-pressed')) !== 'true') await grid.click();
-  for (;;) {
-    const next = await p.page.waitForFunction(
-      () => {
-        if (window.location.hash.startsWith('#/deck/')) return 'done';
-        return document.querySelector('[data-testid="pack"] button[data-testid="card"]:not([disabled])') !== null ? 'pick' : null;
-      },
-      null,
-      { timeout: 90_000, polling: 50 },
-    );
-    if ((await next.jsonValue()) === 'done') return;
-    await p.page.locator('[data-testid="pack"] button[data-testid="card"]:not([disabled])').first().click();
-    // Paced under the server's own pick rate limit (15 burst, then one per
-    // 250 ms — `PICK_RATE_LIMIT`).
-    await p.page.waitForTimeout(400);
-  }
-}
 
 test(
   titled('a pod of three humans drafts, builds, plays round 1 with a bye, a watcher switches boards, and round 2 pairs by score'),
@@ -143,7 +119,7 @@ test(
       await expect(alice.page.locator('[data-testid^="pod-seat-"][data-closed]')).toHaveCount(5);
       for (const p of players) await readyPod(p.page);
       for (const p of players) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
-      await Promise.all(players.map((p) => draftUntilDone(p)));
+      await Promise.all(players.map((p) => draftUntilDone(p.page)));
       for (const p of players) {
         await expect(p.page.getByTestId('deck-editor'), `${p.name}: the finished draft opens the editor`).toBeVisible({ timeout: UI_TIMEOUT });
         await trimMainDeck(p.page, 40, p.name);
