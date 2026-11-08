@@ -2075,6 +2075,11 @@
   gap: 6px;
 }
 
+/* `secondFirst` (All before Done Attacking): the last answer stands further from the one before it. */
+:root[data-layout='portrait'] .action-bar__slot[data-second-first] > :last-child {
+  margin-inline-start: var(--hdk-space-md);
+}
+
 :root[data-layout='portrait'] .action-bar__prompt {
   flex: 1 1 auto;
   min-width: 0;

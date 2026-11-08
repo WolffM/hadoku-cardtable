@@ -2793,6 +2793,32 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     expect(unoffered, 'the fixture gives a third creature to leave out').not.toBeUndefined();
     expect(s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectCard' && f.value.card.id === unoffered)).toBe(false);
   });
+
+  /**
+   * The operator, 2026-11-08: *"flip the position of 'All' and 'Done attacking' and add a bit of a gap
+   * between the buttons"*. All is drawn first, its row marked for the wider gap (`prompts.css`); Done
+   * Attacking keeps button one's meaning. `e2e/attack-all.spec.ts` measures the gap in a real browser.
+   */
+  it('"All" is drawn before "Done Attacking", in a row set apart; no other row is reordered', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const offered = me.battlefield.slice(0, 2).map((c) => c.id);
+    s.send(phase(m, 'COMBAT_DECLARE_ATTACKERS', me.id));
+    s.send(bar('Alpha Strike'));
+    s.send(notify({ kind: 'notify', method: 'setWeaklySelectable', cards: offered.map((id) => ({ kind: 'card', id })) }));
+    const all = await waitFor(() => getByTestId('live-attack-all'));
+    const done = getByTestId('live-decision-ok');
+    expect(done.textContent).toBe('Done Attacking');
+    expect(all.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING, 'All comes first').toBeTruthy();
+    const row = getByTestId('live-decision').querySelector<HTMLElement>('.answers')!;
+    expect(row.hasAttribute('data-second-first'), 'the attack row is set apart').toBe(true);
+
+    // A priority stop's two answers keep Forge's order, unmarked.
+    s.send(phase(m, 'MAIN1', me.id));
+    s.send(bar('End Turn'));
+    await waitFor(() => expect(document.querySelector('[data-testid="live-attack-all"]')).toBeNull());
+    expect(getByTestId('live-decision').querySelector('.answers')!.hasAttribute('data-second-first')).toBe(false);
+  });
 });
 
 /* ── §A.11 — the log, as something you can read ──────────────────────── */

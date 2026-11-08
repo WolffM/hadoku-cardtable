@@ -621,6 +621,8 @@ interface BarAnswerProps {
   context: string | null;
   button1: ConfirmPromptButton | undefined;
   button2: ConfirmPromptButton | undefined;
+  /** Button two is a step on the way to button one ("All" before "Done Attacking"): drawn first, further apart. */
+  secondFirst?: boolean;
 }
 
 /**
@@ -628,9 +630,9 @@ interface BarAnswerProps {
  * prompt as one line"): Forge's question, and its ability text after it where it has one, clamped to
  * the bar's height, then its buttons, the second before the first so the first stands where OK stood.
  */
-function BarAnswer({ testId, message, context, button1, button2 }: BarAnswerProps) {
+function BarAnswer({ testId, message, context, button1, button2, secondFirst }: BarAnswerProps) {
   return (
-    <div className="action-bar__slot" data-testid={testId}>
+    <div className="action-bar__slot" data-testid={testId} data-second-first={secondFirst || undefined}>
       <p className="action-bar__prompt">
         <span className="confirm__message">{message}</span>
         {context !== null && context !== '' && <span className="action-bar__context"> {context}</span>}
@@ -4072,6 +4074,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
             : allTarget !== null
             ? { label: 'All', enabled: true, testId: 'live-attack-all', onClick: () => attackAll(match, allTarget) }
             : undefined,
+          secondFirst: !decisionCancel && allTarget !== null,
         }
       : null;
   const confirmAnswer: BarAnswerProps | null =
@@ -4575,6 +4578,11 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
        * a button beside "Done Attacking". `decisionCancel` and `allTarget` can
        * never both hold (the first requires `offersSecondButton`, the second
        * requires its negation), so this never contests Forge's own Cancel.
+       * The operator, 2026-11-08: *"flip the position of 'All' and 'Done
+       * attacking' and add a bit of a gap between the buttons"* — so
+       * `secondFirst` draws All left of Done Attacking, further apart, here
+       * and in portrait's bar alike. Only the drawing moves: Done Attacking is
+       * still button one, the OK that Enter and every reader press.
        */}
       {decisionAnswer !== null && !decisionInBar && (
         <QuestionHost
@@ -4590,6 +4598,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
             start={combatDone !== null}
             button1={decisionAnswer.button1}
             button2={decisionAnswer.button2}
+            secondFirst={decisionAnswer.secondFirst}
             check={sameTargetCheck}
           />
         </QuestionHost>

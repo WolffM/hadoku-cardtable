@@ -383,6 +383,7 @@ export function AnswerRow({
   aside,
   yesNo,
   start,
+  secondFirst,
   children,
 }: {
   className?: string;
@@ -394,13 +395,26 @@ export function AnswerRow({
    * choosing rather than agreeing to a step (Done Attacking, Done Blocking).
    */
   start?: boolean;
+  /**
+   * The second answer is drawn first, and the two stand further apart (`prompts.css`): the caller's word
+   * that its second answer is a step on the way to its first (declare-attackers' "All" before "Done
+   * Attacking"). Only the drawing moves: the first answer is still the affirmative its caller handed in.
+   */
+  secondFirst?: boolean;
   children: ReactNode;
 }) {
-  const answers = Children.toArray(children);
-  const pair = yesNo === true && answers.length === 2;
+  const given = Children.toArray(children);
+  const pair = yesNo === true && given.length === 2;
+  const reorder = !pair && secondFirst === true && given.length === 2;
+  const answers = reorder ? [given[1], given[0]] : given;
   const side = aside === undefined || aside === null || aside === false ? null : <span className="answers__aside">{aside}</span>;
   return (
-    <div className={className === undefined ? 'answers' : `${className} answers`} data-pair={pair || undefined} data-start={(!pair && start === true) || undefined}>
+    <div
+      className={className === undefined ? 'answers' : `${className} answers`}
+      data-pair={pair || undefined}
+      data-start={(!pair && start === true) || undefined}
+      data-second-first={reorder || undefined}
+    >
       {pair ? (
         <>
           {answers[1]}

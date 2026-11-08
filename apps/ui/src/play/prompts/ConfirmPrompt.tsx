@@ -280,6 +280,8 @@ export interface ConfirmPromptProps {
   card?: { id: number; tile: DraftCard };
   /** The answers sit bottom-left, where a No goes (`AnswerRow`'s `start`). */
   start?: boolean;
+  /** Button two is drawn before button one, further apart (`AnswerRow`'s `secondFirst`); button one keeps its meaning. */
+  secondFirst?: boolean;
 }
 
 /** A box beside a question's answers (`ConfirmPromptProps.check`, `SelectionPromptProps.check`). */
@@ -354,7 +356,7 @@ function useWrappedFit(card: RefObject<HTMLElement | null>, text: string): void 
  * `onClick` it is handed is one of `LiveBoard.tsx`'s own handlers — this
  * component sends nothing itself.
  */
-export function ConfirmPrompt({ testId, role = 'dialog', title, message, context, coin, callId, button1, button2, check, card, start }: ConfirmPromptProps) {
+export function ConfirmPrompt({ testId, role = 'dialog', title, message, context, coin, callId, button1, button2, check, card, start, secondFirst }: ConfirmPromptProps) {
   const titleId = useId();
   const sheet = useRef<HTMLElement>(null);
   useWrappedFit(sheet, `${message}\n${context ?? ''}`);
@@ -391,6 +393,7 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, context
       <AnswerRow
         yesNo={isYesNoPair(button1, button2)}
         start={start}
+        secondFirst={secondFirst}
         aside={check !== undefined && <PromptCheckBox check={check} />}
       >
         {[button1, button2].map((b, i) => {

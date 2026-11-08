@@ -1059,6 +1059,11 @@
   justify-content: flex-start;
 }
 
+/* `secondFirst` (declare-attackers' All before Done Attacking): the two stand further apart. */
+.answers[data-second-first] {
+  column-gap: var(--hdk-space-xl);
+}
+
 .answers[data-pair] > :first-child {
   margin-right: auto;
 }
