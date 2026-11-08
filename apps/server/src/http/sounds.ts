@@ -79,7 +79,7 @@ import {
 	type SoundTake,
 } from '@hadoku/shared';
 import { isAdmin, rankOf, tierOf, userIdOf, userKeyOf } from '../edge-auth.js';
-import { jsonLogger, type JsonLog } from '../log.js';
+import { jsonLogger, type JsonLog } from '@hadoku/service-kernel/log';
 import type { MusicReviewStore } from './musicReviewStore.js';
 import { bodyErrors } from './request.js';
 

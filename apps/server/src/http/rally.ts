@@ -66,7 +66,7 @@ import { DEFAULT_PARAMS } from '../room/draftRooms.js';
 import { artLocation } from './card-art.js';
 import { perCallerLimit } from './request.js';
 import { resolveBoosterCard, type RealisticBoosterSource, type RealisticCatalog } from './rooms.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { RallySymbols } from './rally-symbols.js';
 
 export interface RallyDeps {

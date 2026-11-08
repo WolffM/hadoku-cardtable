@@ -29,7 +29,7 @@ import {
 } from '@hadoku/service-kernel/erase';
 
 import { edgeSealed } from '../edge-auth.js';
-import type { JsonLog } from '../log.js';
+import type { JsonLog } from '@hadoku/service-kernel/log';
 import { deriveParticipantId } from '../room/identity.js';
 
 export { ERASE_PATH };

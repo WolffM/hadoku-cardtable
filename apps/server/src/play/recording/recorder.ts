@@ -37,7 +37,7 @@ import { readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import type { PresenceMessage, RelayedEvent, SeatIdentity, ServerEnvelope } from '@hadoku/shared';
 
-import type { JsonLog } from '../../log.js';
+import type { JsonLog } from '@hadoku/service-kernel/log';
 import { artOf } from '../art.js';
 import { createArtIds, type ArtCatalog } from '../art-ids.js';
 import type { DeckCosts } from '../deck-colors.js';

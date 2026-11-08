@@ -54,7 +54,7 @@ import { ROOM_FEED_CHANNEL, RoomWatchSchema, type RoomChanged } from '@hadoku/sh
 import { userNameFromHeaders } from '../edge-auth.js';
 import { identityFromHeaders } from './identity.js';
 import { ROOM_STALE_MS, type Lobby } from './lobby.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 
 /** Well inside `ROOM_STALE_MS`, so an open room never stops being offered. */
 const FEED_TOUCH_MS = ROOM_STALE_MS / 6;

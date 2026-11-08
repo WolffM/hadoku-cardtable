@@ -30,7 +30,7 @@ import { Router as makeRouter } from 'express';
 
 import { isAdmin } from '../edge-auth.js';
 import { httpCaller } from './request.js';
-import type { JsonLog } from '../log.js';
+import type { JsonLog } from '@hadoku/service-kernel/log';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
 import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine, type PublicRelayLine } from '../play/recording/writer.js';
 import type { PersonFace } from '@hadoku/shared';

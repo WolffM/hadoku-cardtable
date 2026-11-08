@@ -21,7 +21,7 @@ import { CLIENT_EVENT_MAX_PER_SECOND, PAGE_EVENT_PATH, PageEventSchema } from '@
 import { attachClientEvents as kernelAttachClientEvents } from '@hadoku/service-kernel/relays';
 
 import { userIdOf } from '../edge-auth.js';
-import { jsonLogger, type JsonLog } from '../log.js';
+import { jsonLogger, type JsonLog } from '@hadoku/service-kernel/log';
 
 export { malformedFacts } from '@hadoku/service-kernel/relays';
 

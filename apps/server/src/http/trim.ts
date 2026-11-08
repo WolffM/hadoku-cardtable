@@ -15,7 +15,7 @@ import type { Request, Response } from 'express';
 import { Router } from 'express';
 
 import { rankOf, tierOf } from '../edge-auth.js';
-import { jsonLogger, type JsonLog } from '../log.js';
+import { jsonLogger, type JsonLog } from '@hadoku/service-kernel/log';
 import { bodyErrors } from './request.js';
 import { atomicWriteJson } from './sounds.js';
 

@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { isCdnKey, type ArtManifest } from '@hadoku/carddata/art';
 import { parseMirrorLog } from '@hadoku/carddata/art/mirror';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 
 const log = jsonLogger('cardtable-art');
 

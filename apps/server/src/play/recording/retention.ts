@@ -16,7 +16,7 @@
 import { readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { JsonLog } from '../../log.js';
+import type { JsonLog } from '@hadoku/service-kernel/log';
 
 export const PUBLIC_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const ACTIONS_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;

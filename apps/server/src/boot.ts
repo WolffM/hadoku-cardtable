@@ -15,13 +15,6 @@ import { createDraftRooms, type DraftRooms } from './room/draftRooms.js';
 import { GAME_DRAWN_AFTER_MS, openLobby, type Lobby } from './room/lobby.js';
 import type { Match } from './play/match.js';
 
-/**
- * Adapter: `bootClock` moved into `@hadoku/service-kernel/lifecycle` (w93-K2) — it is fully
- * generic (just a log function) and carries no cardtable value. `restoreRooms`/`sweepRooms`
- * below stay here: they are cardtable's own rooms, lobby and matches.
- */
-export { bootClock } from '@hadoku/service-kernel/lifecycle';
-
 export interface RestoreRoomsOptions {
 	lobby: Parameters<typeof openLobby>[0];
 	/** The draft registry's options, or null when no cube is loaded (draft rooms are disabled). */

@@ -11,7 +11,7 @@
  */
 import type { Request } from 'express';
 
-import type { JsonLog } from './log.js';
+import type { JsonLog } from '@hadoku/service-kernel/log';
 import {
 	callerContext,
 	firstSeen as kernelFirstSeen,

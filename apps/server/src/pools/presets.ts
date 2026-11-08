@@ -33,7 +33,7 @@ import express, { type Request, type Response, type Router } from 'express';
 import { isAlchemySet } from '@hadoku/carddata';
 import { DraftPresetSchema, SavePresetBodySchema, type DraftPlan, type DraftPreset } from '@hadoku/shared';
 import { bodyErrors, httpCaller } from '../http/request.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 
 export interface PresetStore {
 	list(): DraftPreset[];

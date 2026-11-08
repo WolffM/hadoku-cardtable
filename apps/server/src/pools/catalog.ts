@@ -47,7 +47,7 @@
 import { readFileSync } from 'node:fs';
 import { foldName, isAlchemySet, normaliseName } from '@hadoku/carddata';
 import { DraftCardSchema, RaritySchema, type DraftCard, type Rarity } from '@hadoku/shared';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 
 export interface CardCatalog {
 	byName(name: string): DraftCard | null;

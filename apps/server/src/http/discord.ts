@@ -25,7 +25,7 @@ import { createHmac } from 'node:crypto';
 import type { Request, Response, Router } from 'express';
 import { DiscordRecentSchema, type DiscordRecent } from '@hadoku/shared';
 
-import type { JsonLog } from '../log.js';
+import type { JsonLog } from '@hadoku/service-kernel/log';
 
 /** How old a kept answer gets before the next caller starts a fresh read behind it. */
 export const CACHE_MS = 60_000;

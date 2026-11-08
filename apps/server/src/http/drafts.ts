@@ -48,7 +48,7 @@ import { checkSeat, type GateContext, type WireIssue } from './gate.js';
 import type { TablesLibrary } from './library.js';
 import { bodyErrors, httpCaller } from './request.js';
 import { draftPoolForMember } from './routes.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 
 export interface DraftsDeps {
 	/** Null when the server has no draft rooms (no cube pool loaded). */

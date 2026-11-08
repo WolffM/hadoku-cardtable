@@ -162,7 +162,7 @@ import {
 import { askDraftbot, chooseByRatings, draftbotTally, modelSeatsOf, type Draftbot, type DraftbotAnswer, type DraftbotOutcome } from './draftbot.js';
 import { identityFromHeaders } from './identity.js';
 import type { Lobby } from './lobby.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 
 /**
  * Picks per participant, not per socket.

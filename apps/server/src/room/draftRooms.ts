@@ -155,7 +155,7 @@ import {
 } from '@hadoku/room-store';
 
 import { participantHandle } from './identity.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 import { replaceIds } from '../erase/anonymise.js';
 
 /** The hosting app's room state: one draft. */

@@ -26,7 +26,7 @@ import express, { type Request, type Response, type Router } from 'express';
 import { RenameDeckBodySchema, type MyDeck, type PodView } from '@hadoku/shared';
 import { builtDeckOf, setDeckMeta, stateOf, viewForParticipant, type DraftRoom, type DraftRooms } from '../room/draftRooms.js';
 import { bodyErrors, httpCaller } from './request.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 
 export interface DecksDeps {
 	/** Null when the server has no draft rooms (no cube pool loaded). */

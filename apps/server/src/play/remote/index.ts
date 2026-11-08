@@ -13,7 +13,7 @@
 
 import { join } from 'node:path';
 
-import { jsonLogger } from '../../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { JvmHostConfig } from '../host.js';
 import { packDraftbot, packRuntime, pushDraftbot, pushRuntime } from './artifacts.js';
 import { AgentClient } from './client.js';

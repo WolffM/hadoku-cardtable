@@ -26,7 +26,7 @@ import type { ParticipantId } from '@wolffm/rooms-protocol';
 
 import type { Lobby } from '../room/lobby.js';
 import type { Match } from '../play/match.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 import { httpCaller } from './request.js';
 
 export interface TableActionsDeps {

@@ -124,7 +124,7 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import type { AbortReasonSchema, ClientAction, GameLogLine, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
 
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 export { bridgeDiagnostics } from './diagnostics.js';
 import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
 import { JVM_HEAP_MB, MATCHES_PER_JVM, localJvmLauncher, writeFileAtomic, type JvmHostConfig } from './local-jvm.js';

@@ -51,7 +51,7 @@ import { prepareJson, sendPrepared, type PreparedJson } from '../http/prepared.j
 import { bodyErrors, httpCaller } from '../http/request.js';
 import type { CardCatalog } from './catalog.ts';
 import { fetchCubeCobraCube, parseCubeCobraLink, type CubeCobraCard, type CubeCobraCube, type FetchJson } from './cubecobra.ts';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 
 export interface CubeStore {
 	list(): CubeSummary[];

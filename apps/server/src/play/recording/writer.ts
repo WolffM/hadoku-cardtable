@@ -26,7 +26,7 @@ import { gzip as gzipCb } from 'node:zlib';
 import { promisify } from 'node:util';
 
 
-import type { JsonLog } from '../../log.js';
+import type { JsonLog } from '@hadoku/service-kernel/log';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
 
 const gzip = promisify(gzipCb);

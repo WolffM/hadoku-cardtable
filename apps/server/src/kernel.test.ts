@@ -1,11 +1,28 @@
+/*
+ * Tests for cardtable's own bindings in `kernel.ts`, plus the real-integration and
+ * cardtable-pin coverage carried over from the pure re-export stubs this wave deleted
+ * (`flush-sockets.ts`, `state-dir.ts` — w93-Z). The generic behaviour each stub re-exported
+ * is proved in `@hadoku/service-kernel`'s own suite now; what stays here is coverage this
+ * app's own dependencies or env names made specific.
+ */
 import { Agent, createServer, request } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Server } from 'socket.io';
 import { io as ioClient } from 'socket.io-client';
-import { describe, expect, it, vi } from 'vitest';
-import { closeConnections, sendThenFlush } from './flush-sockets.ts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { closeConnections, sendThenFlush } from '@hadoku/service-kernel/lifecycle';
+import { moveLegacyState } from '@hadoku/service-kernel/state';
 
-/** A real socket.io server and websocket client; an emit queued behind a large one, then `io.close`. */
+/**
+ * Real socket.io/socket.io-client integration (the regression this guards — `io.close()`
+ * discarding a queued emit): this app already carries `socket.io-client` as a devDependency;
+ * the kernel does not (`packages/service-kernel` depends only on node built-ins, express,
+ * socket.io and `@wolffm/*`), so this integration-depth proof stays here, at the app layer,
+ * against the kernel's own exported functions.
+ */
 async function closeBehindABigSend(flushFirst: boolean): Promise<string[]> {
 	const http = createServer();
 	const io = new Server(http);
@@ -26,7 +43,7 @@ async function closeBehindABigSend(flushFirst: boolean): Promise<string[]> {
 	return seen;
 }
 
-describe('sendThenFlush', () => {
+describe('sendThenFlush (real socket.io)', () => {
 	it('lets an emit queued behind a send in flight reach the client before io.close', async () => {
 		expect(await closeBehindABigSend(true)).toEqual(['big', 'restarting']);
 	});
@@ -66,7 +83,7 @@ describe('sendThenFlush', () => {
 // Prod 2026-11-06 16:00Z: the old server was still answering a second after `shutdown-begin`, and pm2
 // SIGKILLed it at its 1.6 s kill_timeout before `shutdown-done`. `server.close` waits for every open
 // connection; a response that never ends (a stream, a held request) holds it forever.
-describe('closeConnections', () => {
+describe('closeConnections (real http.Server)', () => {
 	it('a connection whose response never ends does not hold the close: the server closes after the grace', async () => {
 		const server = createServer((_req, res) => res.write('streaming'));
 		await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -92,5 +109,70 @@ describe('closeConnections', () => {
 		// libuv's loop clock is whole milliseconds, so a 100 ms timer can fire up to 1 ms early by Date.now.
 		expect(ms).toBeGreaterThanOrEqual(99);
 		expect(ms).toBeLessThan(600);
+	});
+});
+
+describe('moveLegacyState (adapter smoke test)', () => {
+	let root: string;
+	beforeEach(() => {
+		root = mkdtempSync(join(tmpdir(), 'cardtable-state-'));
+	});
+	afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+	it('moves the in-clone data/ into a state dir through cardtable\'s own import path', () => {
+		const legacy = { dataDir: join(root, 'clone/data'), logDir: join(root, 'clone/logs') };
+		mkdirSync(legacy.dataDir, { recursive: true });
+		writeFileSync(join(legacy.dataDir, 'tournaments.json'), '[]');
+		mkdirSync(legacy.logDir, { recursive: true });
+		const state = join(root, 'state');
+		const log = vi.fn();
+		const moves = moveLegacyState({ stateDir: state, dataDir: state, logDir: join(state, 'logs') }, legacy, log);
+		expect(moves.map((m) => m.moved)).toEqual([['tournaments.json'], []]);
+	});
+});
+
+describe('CONFIG with CARDTABLE_STATE_DIR', () => {
+	const KEYS = ['CARDTABLE_STATE_DIR', 'CARDTABLE_LOG_DIR', 'CARDTABLE_ROOMS_DIR', 'CARDTABLE_RECORDINGS_DIR'] as const;
+	const saved: Partial<Record<(typeof KEYS)[number], string>> = {};
+	beforeEach(() => {
+		for (const k of KEYS) {
+			saved[k] = process.env[k];
+			delete process.env[k];
+		}
+		vi.resetModules();
+	});
+	afterEach(() => {
+		for (const k of KEYS) {
+			if (saved[k] === undefined) delete process.env[k];
+			else process.env[k] = saved[k];
+		}
+	});
+
+	it('puts data directly in the state dir and logs in its logs/', async () => {
+		process.env.CARDTABLE_STATE_DIR = '/srv-data/cardtable';
+		const { CONFIG } = await import('./config.ts');
+		expect(CONFIG.stateDir).toBe('/srv-data/cardtable');
+		expect(CONFIG.dataDir).toBe('/srv-data/cardtable');
+		expect(CONFIG.logDir).toBe('/srv-data/cardtable/logs');
+		expect(CONFIG.roomsDir).toBe('/srv-data/cardtable/rooms');
+		expect(CONFIG.recordingsDir).toBe('/srv-data/cardtable/recordings');
+		expect(CONFIG.callersSeenFile).toBe('/srv-data/cardtable/callers-seen.json');
+	});
+
+	it('keeps the in-clone layout when unset, and a per-path env still wins', async () => {
+		process.env.CARDTABLE_ROOMS_DIR = '/elsewhere/rooms';
+		const { CONFIG, LEGACY_STATE } = await import('./config.ts');
+		expect(CONFIG.stateDir).toBe('');
+		expect(CONFIG.dataDir).toBe(LEGACY_STATE.dataDir);
+		expect(CONFIG.logDir).toBe(LEGACY_STATE.logDir);
+		expect(CONFIG.roomsDir).toBe('/elsewhere/rooms');
+	});
+
+	it('an explicit CARDTABLE_LOG_DIR still wins over the state dir', async () => {
+		process.env.CARDTABLE_STATE_DIR = '/srv-data/cardtable';
+		process.env.CARDTABLE_LOG_DIR = '/var/log/cardtable';
+		const { CONFIG } = await import('./config.ts');
+		expect(CONFIG.logDir).toBe('/var/log/cardtable');
+		expect(CONFIG.dataDir).toBe('/srv-data/cardtable');
 	});
 });

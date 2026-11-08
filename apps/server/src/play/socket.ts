@@ -133,7 +133,7 @@ import { WATCHER_SEAT, createMatchRegistry, type EndedMatch, type Match, type Ma
 import type { SpellCopy } from './spell-copiers.js';
 import { malformedFacts } from '../http/client-events.js';
 import { costlyActLimit, httpCaller, perCallerLimit, readBody } from '../http/request.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 import { callerContext, report } from '../telemetry.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;

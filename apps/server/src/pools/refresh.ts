@@ -51,7 +51,7 @@ import { mkdir, rename, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { runBuildCatalog, sync, type RunBuildCatalogOptions, type RunBuildCatalogResult, type SyncOptions, type SyncResult } from '@hadoku/carddata';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { CardCatalog } from './catalog.ts';
 
 const log = jsonLogger('cardtable-pools');

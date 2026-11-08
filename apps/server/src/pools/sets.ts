@@ -52,7 +52,7 @@ import { isAlchemySet } from '@hadoku/carddata';
 import type { DraftCard, PoolVerdict, SetSummary } from '@hadoku/shared';
 import express, { type Request, type Response, type Router } from 'express';
 import type { BoosterCard, SetSummary as ForgeSetSummary } from './forge.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 
 /** The slice of D's `ForgePools` this module consumes — structural, like `room/plan.ts`'s own `ForgeChecker`. */
 export interface SetsForge {
