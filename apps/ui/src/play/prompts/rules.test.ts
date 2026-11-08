@@ -29,9 +29,6 @@ import {
   revealCaption,
   searchRows,
   sideboardProblems,
-  zoneReplyProblems,
-  zonesOpened,
-  zonesShown,
 } from './rules.ts';
 import type { AskOf } from './types.ts';
 
@@ -322,8 +319,6 @@ describe('selfAnswer', () => {
       askFor('assignCombatDamage'),
       askFor('sideboard'),
       askFor('manipulateCardList'),
-      askFor('tempShowZones'),
-      askFor('openZones'),
       askFor('showInputDialog'),
       askFor('assignGenericAmount'),
     ]) {
@@ -484,33 +479,6 @@ describe('revealCaption', () => {
   });
   it('says the act alone when Forge’s prefix names no source', () => {
     expect(revealCaption({ zones: ['Library'], messagePrefix: 'Revealed: ' }, 'Bella')).toBe('Searching Bella’s library');
-  });
-});
-
-describe('tempShowZones / openZones', () => {
-  it('opens only what Forge’s desktop would: no battlefield, no own hand', () => {
-    const ask = askFor('tempShowZones');
-    const shown = zonesShown(ask.controller.id, ask.zonesToUpdate);
-    expect(shown).toEqual([
-      { player: player(1), zones: ['Graveyard', 'Hand'] },
-      { player: player(0), zones: ['Exile'] },
-    ]);
-    expect(zoneReplyProblems(ask.zonesToUpdate, shown)).toEqual([]);
-  });
-  it('refuses a reply naming a zone that was not requested, or the battlefield', () => {
-    const ask = askFor('tempShowZones');
-    expect(zoneReplyProblems(ask.zonesToUpdate, [{ player: player(0), zones: ['Library'] }])).toHaveLength(1);
-    expect(zoneReplyProblems(ask.zonesToUpdate, [{ player: player(1), zones: ['Battlefield'] }])).toEqual([
-      'the battlefield is never opened as a zone',
-    ]);
-  });
-  it('openZones opens every requested zone per player except battlefield, hand and stack', () => {
-    const ask = askFor('openZones');
-    expect(zonesOpened(ask)).toEqual([
-      { player: player(0), zones: ['Graveyard'] },
-      { player: player(1), zones: ['Graveyard'] },
-    ]);
-    expect(zonesOpened({ ...ask, zones: ['Battlefield', 'Stack'] })).toEqual([]);
   });
 });
 

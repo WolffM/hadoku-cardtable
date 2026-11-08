@@ -2,7 +2,7 @@
  * One row per Forge ask method: what KIND of answer it takes, and the
  * testids that answer reads. `apps/ui/src/play/live/prompt-driver.ts` (jsdom,
  * synchronous `fireEvent`) and `e2e/play/prompts.ts` (Playwright, async
- * locators) drive the SAME fourteen prompt components from two environments
+ * locators) drive the SAME twelve prompt components from two environments
  * whose APIs are not shape-compatible, so the DOM-walking code stays
  * separate in each — but both used to carry their OWN copy of which method
  * takes which shape, and their own two `SELF_ANSWERING` sets (T7). This is
@@ -29,13 +29,11 @@ export type AnswerKind =
   | 'self-answering';
 
 /**
- * Method → kind, for every method either driver answers. `tempShowZones` and
- * `openZones` (`ZonePrompts.tsx`) answer themselves on mount — nobody
- * clicks them — which `e2e/play/prompts.ts` used to be the only one to say
- * out loud as its own `SELF_ANSWERING` set; `prompt-driver.ts` got the same
- * result for free from its switch's `default`, which is also where every
- * OTHER unlisted method still lands (so an ask this table has not caught up
- * with yet is left alone, not mis-answered).
+ * Method → kind, for every method either driver answers. A method with no
+ * entry (and no `'self-answering'` row today) still lands on
+ * `prompt-driver.ts`'s switch `default` and `e2e/play/prompts.ts`'s own
+ * fallback, so an ask this table has not caught up with yet is left alone,
+ * not mis-answered.
  */
 export const ANSWER_KIND: Readonly<Record<string, AnswerKind>> = {
   showConfirmDialog: 'bar-default',
@@ -51,8 +49,6 @@ export const ANSWER_KIND: Readonly<Record<string, AnswerKind>> = {
   order: 'order-until-submittable',
   manipulateCardList: 'submit-only',
   sideboard: 'submit-only',
-  tempShowZones: 'self-answering',
-  openZones: 'self-answering',
 };
 
 /** Every method this table answers on its own, with no click (`ANSWER_KIND`'s own note). */

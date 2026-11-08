@@ -1497,7 +1497,6 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
  * | `confirm`, `showConfirmDialog` | always: both answers are live | — |
  * | `order` | some count of unplaced items is within its bounds; a negative bound is Forge's "no limit" (`AbstractGuiGame.many`, measured live: Watchers of the Dead over a one-card graveyard arrives as -1/-1, and our picker takes it unbounded) | not classified |
  * | `assignCombatDamage`, `assignGenericAmount`, `showInputDialog`, `sideboard`, `manipulateCardList` | always: their prompt accepts any answer within Forge's own bounds | — |
- * | `openZones`, `tempShowZones` | always: a display the browser answers itself | — |
  * | any other method | not classified: forwarded as today, logged `ask-unclassified` | |
  *
  * A payment nothing highlighted can pay, with Cancel dead, is not classified either: Forge
@@ -1570,8 +1569,6 @@ export function answerability(q: Question): Answerability {
 		case 'showInputDialog':
 		case 'sideboard':
 		case 'manipulateCardList':
-		case 'openZones':
-		case 'tempShowZones':
 			return ANSWERABLE;
 		case 'order': {
 			const n = frame.sourceChoices.length + frame.destChoices.length;

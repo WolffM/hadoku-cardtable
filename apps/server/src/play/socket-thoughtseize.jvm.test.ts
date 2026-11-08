@@ -157,15 +157,6 @@ function answerAsks(peer: Peer, matchId: string, skip: (frame: Record<string, un
 			case 'showConfirmDialog':
 				result = true;
 				break;
-			case 'openZones':
-				// `OpenZonesReplySchema` is `PlayerZoneUpdatesSchema`, an ARRAY — unlike
-				// the raw `Match.fromClient` harness in `scenario.ts` (which skips
-				// `safeParseClientFrame` entirely and replies `true`, accepted there
-				// only because nothing checks the shape on that path), the real socket
-				// route validates a reply against its method and silently drops one
-				// that fails (`c2s-malformed`), so `true` here hangs the match forever.
-				result = [];
-				break;
 			case 'showOptionDialog':
 				result = 0;
 				break;
@@ -384,8 +375,8 @@ describe.skipIf(!available.ok)(title, () => {
 			console.log('[s2-socket] discarder frames:\n' + dump(discarder).slice(-15).join('\n'));
 
 			// The finding: over the REAL socket + a real jar, correctly driven
-			// (targeting answered, `openZones` answered with its real shape, payment
-			// via Auto), the fold holds exactly as the raw-Match test proved —
+			// (targeting answered, payment via Auto), the fold holds exactly as the
+			// raw-Match test proved —
 			// `chooseSingleEntityForEffect`, never a raw `getChoices` and never
 			// `setSelectables` naming the discarder's hand.
 			expect(discardShape).toBe('ask');

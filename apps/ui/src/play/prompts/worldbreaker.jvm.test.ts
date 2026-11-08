@@ -9,7 +9,7 @@
  * world_breaker.txt`): "When you cast this spell, exile target artifact,
  * enchantment, or land." Measured against the real jar, casting it opens:
  *
- *   ask openZones (Battlefield — a no-op notice, auto-answered)
+ *   ask (a no-op zone notice upstream Forge has since stopped sending)
  *   notify setSelectables { cards: [8 land ids, both battlefields], min: 1, max: 1 }
  *   notify showPromptMessage "World Breaker (81) - When you cast this
  *     spell, exile target artifact, enchantment, or land. […]\n\nSelect
@@ -74,7 +74,7 @@ async function castWorldBreakerAndWaitForTarget(seed: number): Promise<{ s: Scen
   let selection: OpenSelection | null = null;
   await waitUntil(
     () => {
-      s.answerAsks(); // the "play this trigger?" ask and the no-op openZones notice
+      s.answerAsks(); // the "play this trigger?" ask
       const bar = s.buttons(0);
       if (bar?.label1 === 'Auto' && bar.enable1) s.ok(0); // pay {6}{G}
       const last = [...s.sent].reverse().find((x) => x.seat === 0 && x.envelope.frame.method === 'setSelectables');

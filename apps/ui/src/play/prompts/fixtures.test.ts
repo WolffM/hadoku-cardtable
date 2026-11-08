@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The fixtures and the index, held to the brief: every one of the fourteen
+ * The fixtures and the index, held to the brief: every one of the twelve
  * methods has a committed fixture that parses as a real `ServerFrame`, every
- * one has a component, and none of them is the fifteenth (lane B's).
+ * one has a component, and none of them is the thirteenth (lane B's).
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -18,8 +18,8 @@ import type { AskOf, PromptMethod } from './types.ts';
 afterEach(cleanup);
 
 describe('the method census', () => {
-  it('covers the 15 blocking methods as 14 here plus the one LiveBoard.tsx answers directly', () => {
-    expect(PROMPT_METHODS).toHaveLength(14);
+  it('covers the 13 blocking methods as 12 here plus the one LiveBoard.tsx answers directly', () => {
+    expect(PROMPT_METHODS).toHaveLength(12);
     expect([...PROMPT_METHODS, DIRECT_CONFIRM_METHOD].sort()).toEqual([...BLOCKING_METHODS].sort());
     expect(Object.keys(PROMPT_COMPONENTS).sort()).toEqual([...PROMPT_METHODS].sort());
     expect(isPromptMethod('showConfirmDialog')).toBe(false);

@@ -586,9 +586,8 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 	/**
 	 * `setSelectables` is never an `OpenAsk` — Thirst for Knowledge's own
 	 * discard reaches the wire as exactly this, confirmed against the real jar
-	 * (`docs/planning/wave60-evidence/B/waiting.md`), with a bridge
-	 * `tempShowZones` ASK open at the same moment and no card on the priority
-	 * prompt that preceded it — the shape every case below reproduces.
+	 * (`docs/planning/wave60-evidence/B/waiting.md`), with no card on the
+	 * priority prompt that preceded it — the shape every case below reproduces.
 	 */
 	describe('a selection (setSelectables) counts as waitingOn too — Thirst for Knowledge’s own shape', () => {
 		const list = (...ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
@@ -631,18 +630,6 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		it('any other min/max reuses getChoices’ own verb slot, and the host card falls back to the stack’s top when the prompt carries none', () => {
 			const h = waitingHarness();
 			openGame(h, gameViewWithStack(81, 'Thirst for Knowledge'));
-			openSelection(h, 2, 2, [82, 83, 84, 85, 86]);
-			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'getChoices', hostCard: 'Thirst for Knowledge' } });
-		});
-
-		it('a selection wins over a concurrently open ask (the bridge’s own tempShowZones, measured alongside it)', () => {
-			const h = waitingHarness();
-			openGame(h, gameViewWithStack(81, 'Thirst for Knowledge'));
-			h.host.push({
-				t: 'frame',
-				seat: 0,
-				frame: { kind: 'ask', callId: 'w60-tsz', method: 'tempShowZones', controller: { kind: 'player', id: 0 }, zonesToUpdate: [{ player: { kind: 'player', id: 0 }, zones: ['Hand'] }] },
-			});
 			openSelection(h, 2, 2, [82, 83, 84, 85, 86]);
 			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'getChoices', hostCard: 'Thirst for Knowledge' } });
 		});
@@ -2388,7 +2375,7 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-2', [910]) });
 		// An ask that cannot possibly be this reveal's discard choice (not even
 		// `getChoices`) arrives right behind it — no need to wait out the timer.
-		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-other', method: 'openZones', controller: { kind: 'player', id: 0 }, zones: [], players: [], backupLastZones: false } });
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-other', method: 'confirm', card: null, question: 'Pay 2 life?', defaultIsYes: true, options: ['Yes', 'No'] } });
 
 		const shown = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-2');
 		expect(shown?.envelope.displayOnly).toBe(true);
@@ -3872,22 +3859,6 @@ describe('hold-decide-forward', () => {
 			expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'auto-picked', seat: SEAT1_ID, why: 'the only legal sacrifice', cards: [{ id: 77, name: null }] }));
 		});
 
-		it('taken while Forge\'s ask to show the zones is still open, as a browser answers it a moment later', () => {
-			const h = openedHarness();
-			closeDanglingBar(h, SEAT1_ID);
-			h.host.push(
-				{ t: 'frame', seat: SEAT1_ID, frame: { ...set([77], 1), players: [] } },
-				{
-					t: 'frame',
-					seat: SEAT1_ID,
-					frame: { kind: 'ask', callId: 'zones-1', method: 'tempShowZones', controller: { kind: 'player', id: 1 }, zonesToUpdate: [{ player: { kind: 'player', id: 1 }, zones: ['Battlefield'] }] },
-				},
-				{ t: 'frame', seat: SEAT1_ID, frame: prompt([77], 1) },
-				{ t: 'frame', seat: SEAT1_ID, frame: bar },
-			);
-			expect(selects(h)).toHaveLength(1);
-		});
-
 		it('two to sacrifice of exactly two: both are taken in one pick', () => {
 			const h = openedHarness();
 			closeDanglingBar(h, SEAT1_ID);
@@ -4004,46 +3975,6 @@ describe('hold-decide-forward', () => {
 			ask(h, 103, 0);
 			expect(picks(h)).toEqual([0, 1, 2].map(() => ({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null })));
 			expect(methodsSent(h, SEAT1_ID, shown).filter((m) => m === 'showPromptMessage'), 'the two answered questions never reached the seat').toEqual([]);
-		});
-
-		// Forge's order for each trigger of the chain (cut 3's Valakut log, play-server-stack-jh6w37):
-		// the zones ask, the selection and its highlight, then the target window.
-		const chainAsk = (h: Harness, abilityId: number, more: number) =>
-			h.host.push(
-				{
-					t: 'frame',
-					seat: SEAT1_ID,
-					frame: { kind: 'ask', callId: `zones-${abilityId}`, method: 'openZones', controller: { kind: 'player', id: 1 }, zones: ['Battlefield'], players: [{ kind: 'player', id: 1 }], backupLastZones: true },
-				},
-				// A set with a choice in it, as cut 3's was (three creatures besides the player).
-				{ t: 'frame', seat: SEAT1_ID, frame: { ...selectables, cards: [77, 78, 79].map((id) => ({ kind: 'card' as const, id })) } },
-				{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'setHighlighted', entities: [{ kind: 'card', id: VALAKUT }], on: true } },
-				{ t: 'frame', seat: SEAT1_ID, frame: targetPrompt(abilityId, more) },
-				{ t: 'frame', seat: SEAT1_ID, frame: targetBar },
-				// After the server's pick: the highlight goes off and the selection closes.
-				{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'setHighlighted', entities: [{ kind: 'card', id: VALAKUT }], on: false } },
-				{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'clearSelectables' } },
-			);
-
-		it('no frame of a trigger the server answers reaches the seat: not its zones ask, its selection, its highlight or its prompt', () => {
-			const h = openedHarness();
-			closeDanglingBar(h, SEAT1_ID);
-			ask(h, 101, 2);
-			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null, sameTarget: true }));
-			const shown = envelopesFor(h, SEAT1_ID).length;
-			chainAsk(h, 102, 1);
-			chainAsk(h, 103, 0);
-			expect(picks(h)).toHaveLength(3);
-			const sent = envelopesFor(h, SEAT1_ID).slice(shown);
-			expect(sent.filter((e) => e.frame.kind === 'ask').map((e) => e.frame.method), 'no ask of the chain is forwarded').toEqual([]);
-			expect(
-				sent.map((e) => e.frame.method).filter((m) => m === 'setSelectables' || m === 'setHighlighted' || m === 'clearSelectables' || m === 'showPromptMessage'),
-				'the answered selections never open on the seat’s screen',
-			).toEqual([]);
-			expect(h.host.commands.filter((c) => c.t === 'reply' && c.callId.startsWith('zones-')), 'the server answers the zones it never shows').toEqual([
-				{ t: 'reply', seat: SEAT1_ID, callId: 'zones-102', result: [] },
-				{ t: 'reply', seat: SEAT1_ID, callId: 'zones-103', result: [] },
-			]);
 		});
 
 		it('the confirm of a trigger the server already answered is never put to the seat when its own window arrives late (w70-valakut, run 41176951792)', () => {

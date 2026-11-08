@@ -110,14 +110,13 @@ export const REQUIRED_METHODS = [
 export type RequiredMethod = (typeof REQUIRED_METHODS)[number];
 
 /**
- * The 15 that block, in `ProtocolMethod` declaration order.
+ * The 13 that block, in `ProtocolMethod` declaration order.
  *
  * Lane F derived these twice, independently, and both derivations agree with
- * Wave 3's: 15 blocking, 28 fire-and-forget, 2 dead = 45 `Mode.SERVER`. Every
+ * Wave 3's: 13 blocking, 26 fire-and-forget, 2 dead = 41 `Mode.SERVER`. Every
  * one of them needs a timeout armed — see the module header on `ReplyPool`.
  */
 export const BLOCKING_METHODS = [
-  'tempShowZones',
   'getAbilityToPlay',
   'assignCombatDamage',
   'assignGenericAmount',
@@ -131,7 +130,6 @@ export const BLOCKING_METHODS = [
   'chooseSingleEntityForEffect',
   'chooseEntitiesForEffect',
   'manipulateCardList',
-  'openZones',
 ] as const;
 
 export type BlockingMethod = (typeof BLOCKING_METHODS)[number];
@@ -145,8 +143,8 @@ export const REPLY_SCHEMAS = {
 /* ── Server → client ─────────────────────────────────────────────────── */
 
 /**
- * Every frame the bridge may send a browser: 33 arms, discriminated on
- * `method` — 10 Tier A, 20 Tier B, 3 Tier C. The last three are the state
+ * Every frame the bridge may send a browser: 29 arms, discriminated on
+ * `method` — 10 Tier A, 16 Tier B, 3 Tier C. The last three are the state
  * channel, modelled from the Wave 7 captures in `tier-c.ts`.
  *
  * This number had said 29 since before Wave 19, which added two server frames

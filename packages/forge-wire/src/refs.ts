@@ -185,20 +185,6 @@ export const TriggerEventSchema = z.strictObject({
 export type TriggerEvent = z.infer<typeof TriggerEventSchema>;
 
 /**
- * `PlayerZoneUpdate` (PlayerZoneUpdate.java:11-22) — one player and a set of
- * their zones. `PlayerZoneUpdates` is `Iterable<PlayerZoneUpdate>` keyed by
- * player (`PlayerZoneUpdates.java:11-14`), so it is an array here.
- */
-export const PlayerZoneUpdateSchema = z.strictObject({
-  player: PlayerRefSchema,
-  zones: z.array(ZoneTypeSchema),
-});
-
-export const PlayerZoneUpdatesSchema = z.array(PlayerZoneUpdateSchema);
-
-export type PlayerZoneUpdate = z.infer<typeof PlayerZoneUpdateSchema>;
-
-/**
  * `DelayedReveal` (DelayedReveal.java:16-21) — cards to show the chooser after
  * the fact, the zone(s) they came from, whose they are, and a message prefix.
  */

@@ -108,7 +108,7 @@ describe.skipIf(!available.ok)(title, () => {
 					const callId = f.callId as string;
 					answered.add(callId);
 					let result: unknown = null;
-					if (f.method === 'confirm' || f.method === 'showConfirmDialog' || f.method === 'openZones') result = true;
+					if (f.method === 'confirm' || f.method === 'showConfirmDialog') result = true;
 					else if (f.method === 'showOptionDialog') result = 0;
 					else if (f.method === 'getAbilityToPlay') result = (f.abilities as unknown[])[0] ?? null;
 					else if (f.method === 'manipulateCardList') result = f.cards;

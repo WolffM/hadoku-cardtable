@@ -1466,8 +1466,9 @@ describe('the offer through a click’s turnaround', () => {
   /** `getAbilityToPlay` with one ability: the browser answers it itself (`selfAnswer`). */
   const oneAbility = (callId: string, host: number) =>
     parseServerFrame({ kind: 'ask', callId, method: 'getAbilityToPlay', hostCard: { kind: 'card', id: host }, abilities: [{ kind: 'spellAbility', id: 9001 }], triggerEvent: null });
-  const openZones = (callId: string) =>
-    parseServerFrame({ kind: 'ask', callId, method: 'openZones', controller: { kind: 'player', id: 0 }, zones: ['Battlefield'], players: [{ kind: 'player', id: 0 }], backupLastZones: true });
+  /** A second self-answering ask this harness never actually answers (`abortAsk` closes it instead). */
+  const anotherAsk = (callId: string, host: number) =>
+    parseServerFrame({ kind: 'ask', callId, method: 'getAbilityToPlay', hostCard: { kind: 'card', id: host }, abilities: [{ kind: 'spellAbility', id: 9002 }], triggerEvent: null });
 
   it('activate → its own asks → the target selection: the rest of the offer is drawn throughout, and only Forge’s offer takes a click', async () => {
     const { s, m } = await fullGame();
@@ -1490,9 +1491,9 @@ describe('the offer through a click’s turnaround', () => {
     const selects = async () => (await s.framesFrom(m)).filter((f) => f.ok && 'method' in f.value && f.value.method === 'selectCard').length;
     expect(await selects(), 'only the Nomads went out').toBe(1);
     expect(answerAsk(m, 's0-1', 'getAbilityToPlay', { kind: 'spellAbility', id: 9001 })).toBe(true);
-    await sendAndApply(s, m, [openZones('s0-2')]);
-    drawnThrough('openZones');
-    expect(abortAsk(m, 's0-2', 'unsupported', 'answered on mount in the board')).toBe(true);
+    await sendAndApply(s, m, [anotherAsk('s0-2', land)]);
+    drawnThrough('a second ask');
+    expect(abortAsk(m, 's0-2', 'unsupported', 'not drawn as a question on this board')).toBe(true);
     drawnThrough('the asks closing');
     await sendAndApply(s, m, [selectables([nomads, bears], 1, 1)]);
     expect(drawnOffer(m).selectable).toEqual(new Set([nomads, bears]));
@@ -1573,9 +1574,9 @@ describe('the offer through a click’s turnaround', () => {
     const bob = m.view!.players.find((p) => !p.isViewer)!.id;
     await sendAndApply(s, m, [prompt('Target'), bar(false), selectables([], 1, 1)]);
     expect(selectPlayer(m, bob)).toBe(true);
-    await sendAndApply(s, m, [highlight([{ kind: 'player', id: bob }], true), clear(), openZones('s0-5')]);
+    await sendAndApply(s, m, [highlight([{ kind: 'player', id: bob }], true), clear(), anotherAsk('s0-5', theirs[0]!)]);
     expect(drawnOffer(m).selectablePlayers.has(bob), 'the chosen player through the turnaround').toBe(false);
-    expect(abortAsk(m, 's0-5', 'unsupported', 'answered on mount in the board')).toBe(true);
+    expect(abortAsk(m, 's0-5', 'unsupported', 'not drawn as a question on this board')).toBe(true);
     expect(drawnOffer(m).selectablePlayers.has(bob), 'the chosen player once the asks close').toBe(false);
     await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1)]);
     expect(drawnOffer(m).selectable).toEqual(new Set([theirs[0]]));

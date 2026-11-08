@@ -8,9 +8,9 @@
  * green again … can we remove the intermittent flashing to black?"* Between a click and Forge's
  * next input, Forge first withdraws the input the click answered (`clearWeaklySelectable`,
  * `clearSelectables`), then asks the questions the browser answers by itself (`getAbilityToPlay`
- * with one ability, `openZones`), then the server passes the caster's own priority and the stack
- * resolves under the pacer's beat — and only then names the next set. Drawn frame by frame, every
- * one of those steps is "nothing offered", and every outline went dark for it.
+ * with one ability), then the server passes the caster's own priority and the stack resolves
+ * under the pacer's beat — and only then names the next set. Drawn frame by frame, every one of
+ * those steps is "nothing offered", and every outline went dark for it.
  *
  * The operator again, 2026-10-28, on normal play: *"i notice there is a lot of flashing going on
  * when proceeding through phases. this happens whenever cards are clickable and briefly become

@@ -10,7 +10,7 @@
  *     }
  *
  * `PromptFor` does that dispatch for a frame whose method is only known at
- * runtime. Fourteen methods: the fifteenth blocking one, `showConfirmDialog`,
+ * runtime. Twelve methods: the thirteenth blocking one, `showConfirmDialog`,
  * is lane B's (`../live/`), and `PROMPT_METHODS` holds this directory to the
  * rest. Nothing here opens a socket — see `types.ts`.
  */
@@ -28,12 +28,10 @@ import { ConfirmAskPrompt, ShowInputDialogPrompt, ShowOptionDialogPrompt } from 
 import { ManipulateCardListPrompt, OrderPrompt } from './MovePrompt.tsx';
 import { AskSourceContext } from './PromptShell.tsx';
 import { SideboardPrompt } from './SideboardPrompt.tsx';
-import { OpenZonesPrompt, TempShowZonesPrompt } from './ZonePrompts.tsx';
 import type { PromptLookup } from './lookup.ts';
 import { PROMPT_METHODS, type AskOf, type PromptMethod, type PromptProps, type ReplyOf } from './types.ts';
 
 export const PROMPT_COMPONENTS: { readonly [M in PromptMethod]: ComponentType<PromptProps<M>> } = {
-  tempShowZones: TempShowZonesPrompt,
   getAbilityToPlay: GetAbilityToPlayPrompt,
   assignCombatDamage: AssignCombatDamagePrompt,
   assignGenericAmount: AssignGenericAmountPrompt,
@@ -46,7 +44,6 @@ export const PROMPT_COMPONENTS: { readonly [M in PromptMethod]: ComponentType<Pr
   chooseSingleEntityForEffect: ChooseSingleEntityPrompt,
   chooseEntitiesForEffect: ChooseEntitiesPrompt,
   manipulateCardList: ManipulateCardListPrompt,
-  openZones: OpenZonesPrompt,
 };
 
 const PROMPT_SET: ReadonlySet<string> = new Set(PROMPT_METHODS);
@@ -55,7 +52,7 @@ export function isPromptMethod(method: string): method is PromptMethod {
   return PROMPT_SET.has(method);
 }
 
-/** Props for `PromptFor`: any of the fourteen asks, and an answer for it. */
+/** Props for `PromptFor`: any of the twelve asks, and an answer for it. */
 export interface AnyPromptProps {
   ask: AskOf<PromptMethod>;
   onAnswer: (reply: ReplyOf<PromptMethod>) => void;

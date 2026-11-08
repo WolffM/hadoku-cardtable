@@ -86,10 +86,7 @@ async function clickGlenAndWaitForReveal(seed: number): Promise<{ s: Scenario; m
 	const t0 = performance.now();
 	s.select(0, glen.id);
 	// `getAbilityToPlay` (one ability, "Play land") must be answered for Forge's
-	// game thread to proceed into the land-play replacement effect at all, and
-	// `tempShowZones` (a SEPARATE ask the input's constructor fires on the EDT
-	// while it sets up) must be drained too, or `InputSelectEntitiesFromList`'s
-	// own `onStop` — which reads back what that ask revealed — never finishes.
+	// game thread to proceed into the land-play replacement effect at all.
 	// Wait for the PROMPT this specific input shows, not merely `setSelectables`:
 	// the two frames are not atomic (same race `match.ts`'s own `payingMana`
 	// documents), and a check against `setSelectables` alone can pass one tick

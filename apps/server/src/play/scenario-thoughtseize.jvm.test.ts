@@ -156,9 +156,8 @@ describe.skipIf(!available.ok)(title, () => {
 
 				// No raw `getChoices` ever reached seat 0 for this effect — no
 				// separate "look at hand" step in front of the real choice (other
-				// asks, like `getAbilityToPlay` for casting the spell itself and
-				// `openZones` for the targeting input, are unrelated to the fold and
-				// still arrive normally).
+				// asks, like `getAbilityToPlay` for casting the spell itself, are
+				// unrelated to the fold and still arrive normally).
 				const seat0Asks = s.sent.slice(mark).filter((x) => x.seat === 0 && x.envelope.frame.kind === 'ask');
 				expect(seat0Asks.map((x) => (x.envelope.frame as { method: string }).method)).not.toContain('getChoices');
 				expect(seat0Asks.filter((x) => (x.envelope.frame as { method: string }).method === 'chooseSingleEntityForEffect')).toHaveLength(1);

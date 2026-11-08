@@ -540,16 +540,6 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 						case 'showConfirmDialog':
 							result = true;
 							break;
-						case 'openZones':
-							// `OpenZonesReplySchema` is `PlayerZoneUpdatesSchema`, an ARRAY, not a
-							// boolean — this harness calls `match.fromClient` directly, which
-							// skips the real socket route's `safeParseClientFrame` reply-shape
-							// check, so `true` was silently tolerated here. Wave 35 §S found the
-							// real socket path rejects it outright (`c2s-malformed`), hanging the
-							// match forever on an ask nothing ever answers again — see
-							// `socket-thoughtseize.jvm.test.ts`.
-							result = [];
-							break;
 						case 'showOptionDialog':
 							result = 0;
 							break;

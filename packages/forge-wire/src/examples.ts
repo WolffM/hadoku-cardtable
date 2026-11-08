@@ -31,8 +31,6 @@ const PLAYER = { kind: 'player', id: 1 } as const;
 const ABILITY = { kind: 'spellAbility', id: 55 } as const;
 const CLICK = { button: 1, x: 40, y: 80 } as const;
 
-const ZONE_UPDATE = { player: PLAYER, zones: ['Hand', 'Graveyard'] } as const;
-
 const OPTION = { key: 'opt-1', label: 'Lightning Bolt', ref: CARD } as const;
 const OPTION_2 = { key: 'opt-2', label: 'Counterspell', ref: OTHER_CARD } as const;
 
@@ -116,12 +114,6 @@ export const SERVER_FRAME_EXAMPLES: Readonly<Record<string, unknown>> = {
     enable2: false,
     focus1: true,
   },
-  hideZones: {
-    kind: 'notify',
-    method: 'hideZones',
-    controller: PLAYER,
-    zonesToUpdate: [ZONE_UPDATE],
-  },
   setSelectables: {
     kind: 'notify',
     method: 'setSelectables',
@@ -144,27 +136,14 @@ export const SERVER_FRAME_EXAMPLES: Readonly<Record<string, unknown>> = {
     method: 'setWeaklySelectable',
     cards: [CARD, OTHER_CARD, OTHER_CARD],
   },
-  restoreOldZones: {
-    kind: 'notify',
-    method: 'restoreOldZones',
-    player: PLAYER,
-    playerZoneUpdates: [ZONE_UPDATE],
-  },
   applyYieldUpdate: {
     kind: 'notify',
     method: 'applyYieldUpdate',
     update: { update: 'stackYield', player: PLAYER, active: true, respectsInterrupts: false },
   },
-  tempShowZones: {
-    kind: 'ask',
-    callId: 'c-4',
-    method: 'tempShowZones',
-    controller: PLAYER,
-    zonesToUpdate: [ZONE_UPDATE],
-  },
   getAbilityToPlay: {
     kind: 'ask',
-    callId: 'c-5',
+    callId: 'c-4',
     method: 'getAbilityToPlay',
     hostCard: CARD,
     // Labelled, as the bridge sends it (`tier-b.ts` `OfferedAbilitySchema`).
@@ -272,15 +251,6 @@ export const SERVER_FRAME_EXAMPLES: Readonly<Record<string, unknown>> = {
     toBottom: true,
     toAnywhere: false,
   },
-  openZones: {
-    kind: 'ask',
-    callId: 'c-15',
-    method: 'openZones',
-    controller: PLAYER,
-    zones: ['Exile'],
-    players: [PLAYER],
-    backupLastZones: true,
-  },
 };
 
 /* ── Client → server ─────────────────────────────────────────────────── */
@@ -314,7 +284,6 @@ export const REPLY_EXAMPLES: Readonly<Record<string, unknown>> = {
   showConfirmDialog: true,
   showOptionDialog: 1,
   showInputDialog: 'Lightning Bolt',
-  tempShowZones: [ZONE_UPDATE],
   getAbilityToPlay: ABILITY,
   assignCombatDamage: [{ target: CARD, amount: 3 }],
   assignGenericAmount: [{ key: { target: 'manaColor', color: 4 }, amount: 1 }],
@@ -325,5 +294,4 @@ export const REPLY_EXAMPLES: Readonly<Record<string, unknown>> = {
   chooseSingleEntityForEffect: null,
   chooseEntitiesForEffect: [CARD, PLAYER],
   manipulateCardList: [OTHER_CARD, CARD],
-  openZones: [ZONE_UPDATE],
 };

@@ -32,8 +32,8 @@
  *   (60 main, 15 sideboard).
  *
  * **Since Wave 10 these shapes are also met live.** `../live/prompts.jvm.test.ts`
- * drives two real Forge matches until the engine has asked eleven of the
- * fourteen methods here, each answered by these components; that suite's
+ * drives two real Forge matches until the engine has asked nine of the
+ * twelve methods here, each answered by these components; that suite's
  * header says which cards make Forge ask what. Not met live: `showOptionDialog`
  * (no production caller), `chooseEntitiesForEffect` (Forge uses a card Input
  * instead unless an option sits outside the pointable zones) and `sideboard`
@@ -41,7 +41,7 @@
  * ones — the live asks are not committed as fixtures.
  *
  * Every frame must parse under `@hadoku/forge-wire`'s `ServerFrameSchema`;
- * `fixtures.test.ts` holds that, and holds that all fourteen methods have one.
+ * `fixtures.test.ts` holds that, and holds that all twelve methods have one.
  */
 
 import { parseServerFrame } from '@hadoku/forge-wire';
@@ -62,12 +62,10 @@ import getAbilityToPlay from './fixtures/getAbilityToPlay.json';
 import getChoices from './fixtures/getChoices.json';
 import getChoicesReveal from './fixtures/getChoices-reveal.json';
 import manipulateCardList from './fixtures/manipulateCardList.json';
-import openZones from './fixtures/openZones.json';
 import order from './fixtures/order.json';
 import showInputDialog from './fixtures/showInputDialog.json';
 import showOptionDialog from './fixtures/showOptionDialog.json';
 import sideboard from './fixtures/sideboard.json';
-import tempShowZones from './fixtures/tempShowZones.json';
 
 export interface PromptFixture {
   /** Path under `fixtures/`, so a failure names a real file. */
@@ -81,15 +79,6 @@ export interface PromptFixture {
 }
 
 export const PROMPT_FIXTURES: readonly PromptFixture[] = [
-  {
-    file: 'tempShowZones.json',
-    method: 'tempShowZones',
-    origin: 'synthetic',
-    source:
-      'PlayerControllerHuman.java:953-958 (reveal of a zone: tempShowZones(getLocalPlayerView(), updates)); ' +
-      'answered per CMatchUI.java:584-609',
-    raw: tempShowZones,
-  },
   {
     file: 'getAbilityToPlay.json',
     method: 'getAbilityToPlay',
@@ -218,13 +207,6 @@ export const PROMPT_FIXTURES: readonly PromptFixture[] = [
       'PlayerControllerHuman.java:1011 (arrangeForMove, lblMoveCardstoToporBbottomofLibrary, top and bottom OK, ' +
       'not anywhere). The five "library" cards are Bob’s real hand ids, standing in for a library the fixture trimmed',
     raw: manipulateCardList,
-  },
-  {
-    file: 'openZones.json',
-    method: 'openZones',
-    origin: 'synthetic',
-    source: 'TargetSelection.java:178-182 (players with valid targets, zones of the targets, backupLastZones true)',
-    raw: openZones,
   },
 ];
 
