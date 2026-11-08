@@ -14,10 +14,8 @@
  *   4. the card a `c:` image key names: an effect ("Teferi's Effect") draws its source's art;
  *   5. an emblem draws the card that made it.
  *
- * And a card by its name and set. A card this match's decks name is drawn as the deck's own line
- * names it — its set, and a drafted line's collector number — whatever set Forge reports for it, so
- * the board shows the printing the deck builder, the sideboard step and the deck peek showed. Then
- * the exact printing, the committed tables' `Name|SET` row (the bundled cube's
+ * And a card by its name and set: the exact printing this match's decks name (a drafted deck's line
+ * carries its collector number), the committed tables' `Name|SET` row (the bundled cube's
  * `pool.json`, then `art-ids.json`, which `scripts/art/build-art-ids.ts` writes: every basic under
  * every Forge set code, the constructed lists, the scenarios' cards, the token rows), the catalog's
  * printing in that set, the tables' bare-name row, then any printing the catalog knows.
@@ -70,33 +68,18 @@ const TABLE = mergeArtIdIndexes(artIdIndex((pool as { cards: ArtIdSource[] }).ca
 const EMBLEM_NAME = /^Emblem\s*[—–-]\s*/;
 const CARD_KEY = /^c:([^|]+)\|([A-Za-z0-9]+)/;
 
-/** A printing a deck's line names: its set, and its collector number when the line has one. */
-interface DeckPrinting {
-	set: string;
-	collector: string | null;
-}
-
-/** Each card name these `.dck` texts pin a set for → the printings their lines name, in file order. */
-function deckPrintings(decks: readonly (string | null)[]): Map<string, DeckPrinting[]> {
-	const out = new Map<string, DeckPrinting[]>();
+/** `Name|SET` → collector number, for every line of these `.dck` texts that names both. */
+function deckPrintings(decks: readonly (string | null)[]): Map<string, string> {
+	const out = new Map<string, string>();
 	for (const deck of decks) {
 		if (deck === null) continue;
 		for (const entries of parseDck(deck).sections.values()) {
 			for (const { card } of entries) {
-				if (card.set === null) continue;
-				const lines = out.get(card.name) ?? [];
-				if (!lines.some((l) => sameSet(l.set, card.set!) && l.collector === card.collectorNumber)) lines.push({ set: card.set, collector: card.collectorNumber });
-				out.set(card.name, lines);
+				if (card.set !== null && card.collectorNumber !== null) out.set(artIdKey(card.name, card.set), card.collectorNumber);
 			}
 		}
 	}
 	return out;
-}
-
-/** One edition, whichever vocabulary names it: a drafted line writes Scryfall's code, Forge's wire its own. */
-function sameSet(a: string, b: string): boolean {
-	const scryfall = (code: string): string => (toScryfallSetCode(code) ?? code).trim().toUpperCase();
-	return a.trim().toUpperCase() === b.trim().toUpperCase() || scryfall(a) === scryfall(b);
 }
 
 const art = (scryfallId: string | undefined): CardArt | undefined => (scryfallId === undefined ? undefined : { scryfallId });
@@ -105,40 +88,25 @@ const art = (scryfallId: string | undefined): CardArt | undefined => (scryfallId
 export function createArtIds(catalog: ArtCatalog | null, decks: readonly (string | null)[] = []): ArtIds {
 	const printings = deckPrintings(decks);
 
-	/**
-	 * The printing to draw `name` as, asked by `set`: the deck line naming it in that set, else the
-	 * first line any deck names it by (Forge reports a set of its own for a printing it could not
-	 * find), else `set` itself with no collector number.
-	 */
-	function printingOf(name: string, set: string | null | undefined): { set: string | null | undefined; collector: string | null } {
-		const lines = printings.get(name);
-		const line = lines?.find((l) => set != null && sameSet(l.set, set)) ?? lines?.[0];
-		return line ?? { set, collector: null };
-	}
-
-	/** A collector number names a drafted printing, whose set is Scryfall's own code; a Forge code is mapped first. */
-	function byPrinting(c: ArtCatalog, set: string, collector: string): DraftCard | null {
-		const scryfallSet = toScryfallSetCode(set);
-		return (scryfallSet === null ? null : c.byPrinting(scryfallSet, collector)) ?? c.byPrinting(set, collector);
-	}
-
 	/** The catalog's card for this name: the deck's printing, the set's own, else the one it chose. */
-	function catalogCard(name: string, asked: string | null | undefined): DraftCard | null {
+	function catalogCard(name: string, set: string | null | undefined): DraftCard | null {
 		if (catalog === null) return null;
-		const { set, collector } = printingOf(name, asked);
 		const scryfallSet = toScryfallSetCode(set);
-		const printed = collector === null || set == null ? null : byPrinting(catalog, set, collector);
-		return printed ?? (scryfallSet === null ? null : catalog.byNameInSet(name, scryfallSet)) ?? catalog.byName(name);
+		if (scryfallSet === null) return catalog.byName(name);
+		const collector = printings.get(artIdKey(name, set!));
+		return (collector === undefined ? null : catalog.byPrinting(scryfallSet, collector)) ?? catalog.byNameInSet(name, scryfallSet) ?? catalog.byName(name);
 	}
 
-	function cardId(name: string, asked: string | null | undefined): string | undefined {
+	function cardId(name: string, set: string | null | undefined): string | undefined {
 		if (name.trim() === '') return undefined;
-		const { set, collector } = printingOf(name, asked);
 		const scryfallSet = toScryfallSetCode(set);
+		const collector = set == null ? undefined : printings.get(artIdKey(name, set));
+		const inCatalog = (find: (c: ArtCatalog, scryfallSet: string) => DraftCard | null): string | undefined =>
+			catalog === null || scryfallSet === null ? undefined : (find(catalog, scryfallSet)?.scryfallId ?? undefined);
 		return (
-			(catalog === null || collector === null || set == null ? undefined : byPrinting(catalog, set, collector)?.scryfallId) ??
+			(collector === undefined ? undefined : inCatalog((c, s) => c.byPrinting(s, collector))) ??
 			(set == null || set === '' ? undefined : TABLE.get(artIdKey(name, set))) ??
-			(catalog === null || scryfallSet === null ? undefined : catalog.byNameInSet(name, scryfallSet)?.scryfallId) ??
+			inCatalog((c, s) => c.byNameInSet(name, s)) ??
 			TABLE.get(name) ??
 			catalog?.byName(name)?.scryfallId
 		);

@@ -267,10 +267,9 @@ export function namedFace(
   manaValue: number,
   scryfallId: string | undefined,
   backFaces: readonly string[] = [],
-  setCode = '',
 ): DraftCard {
   const symbols = new Set(cost.flatMap((token) => token.split('/')));
-  const printed = { manaCost: [], manaValue: 0, colors: [], typeLine: '', oracleText: '', setCode, collectorNumber: '', rarity: 'special' } as const;
+  const printed = { manaCost: [], manaValue: 0, colors: [], typeLine: '', oracleText: '', setCode: '', collectorNumber: '', rarity: 'special' } as const;
   return {
     ...printed,
     cardId: name,

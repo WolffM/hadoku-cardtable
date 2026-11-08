@@ -1529,10 +1529,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * `entries`' cards, by NAME — never `cardKey` (set/collector/art), because
 	 * the sideboard rule is "the same cards, only re-split" and printing does
 	 * not matter to it. A library-deck seat's baseline is the `.dck` text,
-	 * which carries a set code ("4 Mana Leak|8E"); a resubmission that names a
-	 * card another way (a bare name, a basic added in the editor) is still the
-	 * same card — keying by `cardKey` once 409'd an UNTOUCHED deck every time.
-	 * Basics folded in UNLESS `excludeBasics`.
+	 * which carries a set code ("4 Mana Leak|8E"); the browser never sees one
+	 * back (`GET /tables/decks` sends only `{count, name}`), so its own
+	 * resubmission is bare names — keying by `cardKey` made every one of its
+	 * cards a different key from the baseline's and 409'd an UNTOUCHED deck
+	 * every time. Basics folded in UNLESS `excludeBasics`.
 	 */
 	function multisetOf(entries: readonly DeckEntry[], excludeBasics: boolean): Map<string, number> {
 		const m = new Map<string, number>();

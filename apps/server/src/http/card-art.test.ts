@@ -19,14 +19,6 @@ describe('the art of a card known only by its name', () => {
 			'Civilized Scholar': { scryfallId: '7bf864db-4754-433d-9d77-6695f78f6c09', backs: ['Homicidal Brute'] },
 		});
 	});
-
-	it('a card asked for by name and set is the printing that set names, keyed by what was asked', () => {
-		const art = namedArt(['Plains|ALA', 'Plains', 'Akrasan Squire|ALA'], ART);
-		expect(art['Plains|ALA']).toEqual(ART.card('Plains', 'ALA'));
-		expect(art['Plains|ALA']).not.toEqual(art.Plains);
-		// A card only the catalog knows, found by its set there.
-		expect(art['Akrasan Squire|ALA']).toEqual({ scryfallId: '59fdc045-b938-4321-aec3-51685cbbaa52' });
-	});
 });
 
 describe('GET /api/art/<id>: where every card image comes from', () => {

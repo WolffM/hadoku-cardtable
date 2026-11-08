@@ -288,8 +288,6 @@ export {
   artIdIndex,
   artIdIndexFromTable,
   artIdKey,
-  cardRef,
-  parseCardRef,
   backFaceNames,
   mergeArtIdIndexes,
   scryfallIdFor,

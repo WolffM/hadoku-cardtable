@@ -7,7 +7,6 @@
  * A match's seats are its table's seats, in order: the series records Forge's
  * winning seat as the table seat (`room/series.ts`), and so does this.
  */
-import { cardRef } from '@hadoku/carddata/art';
 import { parseDck } from '@hadoku/carddata/dck';
 import { manaValueOf } from '@hadoku/deck';
 import type { TableGame, TableGameLive, TableSeatDeck } from '@hadoku/shared';
@@ -19,16 +18,15 @@ import type { MatchSpec } from './host.js';
  * The card whose art stands for a deck: its most-played spell, the dearer one
  * on a tie, then by name, so a re-read never flickers. A card with no cost in
  * the format's map is not a candidate, which is how lands are left out
- * (`deck-colors.ts`'s cost maps hold no land). A card ref (`cardRef`: the name and
- * the set the deck pins), looked up for its art on the screen that draws it, so it
- * is the printing the deck plays — never a URL.
+ * (`deck-colors.ts`'s cost maps hold no land). A name, looked up for its art on
+ * the screen that draws it — never a URL.
  */
-export function deckArtCard(main: readonly { card: { name: string; set?: string | null }; count: number }[], costs: Readonly<Record<string, string>>): string | null {
-	let best: { name: string; ref: string; count: number; value: number } | null = null;
+export function deckArtCard(main: readonly { card: { name: string }; count: number }[], costs: Readonly<Record<string, string>>): string | null {
+	let best: { name: string; count: number; value: number } | null = null;
 	for (const entry of main) {
 		const cost = costs[entry.card.name];
 		if (cost === undefined) continue;
-		const candidate = { name: entry.card.name, ref: cardRef(entry.card.name, entry.card.set), count: entry.count, value: manaValueOf(cost) };
+		const candidate = { name: entry.card.name, count: entry.count, value: manaValueOf(cost) };
 		if (
 			best === null ||
 			candidate.count > best.count ||
@@ -37,7 +35,7 @@ export function deckArtCard(main: readonly { card: { name: string; set?: string 
 			best = candidate;
 		}
 	}
-	return best?.ref ?? null;
+	return best?.name ?? null;
 }
 
 /** `seat`'s deck as the card draws it, or null when the server never saw it (a random Forge precon). */

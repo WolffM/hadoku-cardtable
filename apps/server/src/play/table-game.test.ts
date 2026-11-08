@@ -17,10 +17,6 @@ describe('deckArtCard', () => {
 		expect(deckArtCard([line('Goblin Matron', 2), line('Goblin Lackey', 2)], COSTS)).toBe('Goblin Matron');
 		expect(deckArtCard([line('Mountain', 20)], COSTS)).toBeNull();
 	});
-
-	it('names the printing the deck pins, so its art is the one the board draws', () => {
-		expect(deckArtCard([{ card: { name: 'Goblin Matron', set: 'ulg' }, count: 4 }], COSTS)).toBe('Goblin Matron|ULG');
-	});
 });
 
 describe('seatDeck', () => {

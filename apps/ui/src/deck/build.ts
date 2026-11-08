@@ -16,13 +16,12 @@
  */
 
 import { basicLand, BASIC_LAND_OF, cardKey, cardRequestOf, DECK_COLORS, isBasicLand, setBasicLand, type Deck, type DeckColor } from '@hadoku/deck';
-import { cardRef } from '@hadoku/carddata/art';
 import { parseCardRequest, type DeckEntry } from '@hadoku/carddata/dck';
 
 import { dckTextOf } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
 import type { SeatChoice, DeckLine } from '../screens/tables.ts';
-import { libraryFace, type NamedCard } from '../screens/libraryPeek.ts';
+import { libraryFace } from '../screens/libraryPeek.ts';
 
 /** The drafted seat, in the gate's shape: this deck's text, checked against your own pool. */
 export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
@@ -36,19 +35,16 @@ export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
  * measures what card data the browser has": the wire sends names, and the
  * browser holds a cost per name and the art the server names for it, nothing
  * else — no type line, no oracle text. Each card is drawn the way the room's own
- * deck peek draws it (`libraryFace`), as the printing its list pins. One
- * `DraftCard` per distinct name and set, from anywhere (a drafted sideboard's
- * parsed text, not only a `TableDeck`'s own lines); `DeckEditor`'s own
- * tile-building multiplies it by each entry's count.
+ * deck peek draws it (`libraryFace`). One `DraftCard` per distinct name, from
+ * anywhere (a drafted sideboard's parsed text, not only a `TableDeck`'s own
+ * lines); `DeckEditor`'s own tile-building multiplies it by each entry's count.
  */
-export function namedCardPool(cards: Iterable<NamedCard>): DraftCard[] {
-  const byRef = new Map<string, NamedCard>();
-  for (const card of cards) byRef.set(cardRef(card.name, card.set), card);
-  return [...byRef.values()].map(libraryFace);
+export function namedCardPool(names: Iterable<string>): DraftCard[] {
+  return [...new Set(names)].map(libraryFace);
 }
 
 export function libraryDeckPool(main: readonly DeckLine[], sideboard: readonly DeckLine[]): DraftCard[] {
-  return namedCardPool([...main, ...sideboard]);
+  return namedCardPool([...main, ...sideboard].map((l) => l.name));
 }
 
 /**
@@ -56,13 +52,13 @@ export function libraryDeckPool(main: readonly DeckLine[], sideboard: readonly D
  * already knows how to open (`deckFromDeckFile(parseDck(text))`) — the one
  * load path for both a drafted save and a library one, rather than a second
  * loader that could read the format differently. `parseCardRequest` is the
- * exact function `parseDck` itself calls per line. Each line keeps the set the
- * library's `.dck` pins, so a sideboarded game plays — and draws — the same
- * printings the first game did. The deck's own name rides along: a sideboarded 75 is the same deck, and the server names a
+ * exact function `parseDck` itself calls per line, so a bare name round-trips
+ * through this the same way a line with no set or collector number already
+ * does. The deck's own name rides along: a sideboarded 75 is the same deck, and the server names a
  * held deck from its text (an unnamed one read "Unnamed deck").
  */
 export function libraryDeckText(name: string, main: readonly DeckLine[], sideboard: readonly DeckLine[]): string {
-  const entryOf = (line: DeckLine): DeckEntry => ({ count: line.count, card: parseCardRequest(cardRef(line.name, line.set)) });
+  const entryOf = (line: DeckLine): DeckEntry => ({ count: line.count, card: parseCardRequest(line.name) });
   const deck: Deck = { name, main: main.map(entryOf), sideboard: sideboard.map(entryOf), basics: [] };
   return dckTextOf(deck);
 }

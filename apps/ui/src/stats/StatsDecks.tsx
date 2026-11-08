@@ -133,14 +133,14 @@ export function deckLookup(tables: Pick<TablesClient, 'decks'> = tablesClient(),
       const d = (await drafted).find((deck) => deck.id === podId);
       if (d === undefined || d.deck === null) return null;
       const deck = room.openDraftedDeck(d.deck, d.id, d.pool);
-      await primeNamedArt([...deck.main, ...deck.sideboard, ...deck.basics].map((e) => e.card));
+      await primeNamedArt([...deck.main, ...deck.sideboard, ...deck.basics].map((e) => e.card.name));
       const option = room.draftedDeckOption(deckId, d.name, deck, d.pool);
       return option.list === undefined ? null : { label: option.label, colors: option.colors, list: option.list };
     }
     library ??= tables.decks();
     const d = (await library).find((deck) => deck.id === deckId);
     if (d === undefined) return null;
-    await primeNamedArt([...d.main, ...d.sideboard]);
+    await primeNamedArt([...d.main, ...d.sideboard].map((l) => l.name));
     return room.libraryDeckPeek(d);
   };
 }
