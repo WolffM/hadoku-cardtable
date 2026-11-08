@@ -4030,11 +4030,11 @@ describe('hold-decide-forward', () => {
 			const before = envelopesFor(h, SEAT1_ID).length;
 			const okBefore = oks(h);
 			// Forge's "Waiting for Bob..." goes out with the confirm already open (the bridge reads the
-			// live input), and the confirm's own Yes/No window follows it.
+			// live input, and tags the frame with it), and the confirm's own Yes/No window follows it.
 			h.host.push(
-				{ t: 'frame', seat: SEAT1_ID, frame: { ...promptFrame(1, 'Waiting for Bob...', VALAKUT), confirmAbility: { hostCard: { kind: 'card' as const, id: VALAKUT }, abilityId: 101 } } },
-				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { enable1: false, enable2: false }) },
-				...dealConfirm(101),
+				{ t: 'frame', seat: SEAT1_ID, frame: { ...promptFrame(1, 'Waiting for Bob...', VALAKUT), confirmAbility: { hostCard: { kind: 'card' as const, id: VALAKUT }, abilityId: 101 } }, input: 9 },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { enable1: false, enable2: false }), input: 9 },
+				...dealConfirm(101).map((line) => ({ ...line, input: 9 })),
 			);
 			expect(oks(h) - okBefore, 'answered Yes once').toBe(1);
 			const prompts = envelopesFor(h, SEAT1_ID)

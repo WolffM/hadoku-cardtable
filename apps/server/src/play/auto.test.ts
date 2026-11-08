@@ -14,7 +14,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientFrameSchema, PHASE_TYPES, REPLY_SCHEMAS, parseServerFrame, type PhaseType, type ServerFrame } from '@hadoku/forge-wire';
 
 import {
@@ -692,8 +692,9 @@ function playerOf(h: Harness, seat: number): number {
 	return id;
 }
 
-function push(h: Harness, seat: number, frame: ServerFrame | Record<string, unknown>): void {
-	h.host.push({ t: 'frame', seat, frame } as never);
+/** One bridge frame line; `input` is the id of the Forge input it was shown for, as `PlayBridge.java`'s `frame` tags it. */
+function push(h: Harness, seat: number, frame: ServerFrame | Record<string, unknown>, input?: number): void {
+	h.host.push({ t: 'frame', seat, frame, ...(input === undefined ? {} : { input }) } as never);
 }
 
 function oneAbilityAsk(callId: string): Record<string, unknown> {
@@ -1295,20 +1296,20 @@ describe('a Match with the shortcuts on (the default)', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
 		castOwn(h, 0);
-		const payment = (): void => {
-			push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
-			push(h, 0, autoBar(true, me));
-			push(h, 0, prompt('Lightning Bolt - deals 3 damage to B.\n\nPay Mana Cost: {R}', me, OWN_CARD));
+		const payment = (input: number): void => {
+			push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] }, input);
+			push(h, 0, autoBar(true, me), input);
+			push(h, 0, prompt('Lightning Bolt - deals 3 damage to B.\n\nPay Mana Cost: {R}', me, OWN_CARD), input);
 		};
-		payment();
-		payment();
+		payment(1);
+		payment(1);
 		const shownPayments = () => frames(h, 0).filter((f) => f.kind === 'notify' && f.method === 'showPromptMessage' && f.message.includes('Pay Mana Cost'));
 		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
 		expect(h.logs.filter((l) => l.evt === 'prompt-withheld').map((l) => l.why)).toEqual(['auto-pay', 'repeat']);
 		expect(shownPayments()).toEqual([]);
 		// Once the board has moved, the same payment shown again is Forge's to ask: the seat sees it.
 		putCreature(h, 0, 90);
-		payment();
+		payment(2);
 		expect(shownPayments()).toHaveLength(1);
 	});
 
@@ -2714,9 +2715,9 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 	/** Forge's payment input with its own Auto dead and nothing to click. */
 	function unpayable(h: Harness, seat: number): void {
 		const me = playerOf(h, seat);
-		push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
-		push(h, seat, autoBar(false, me));
-		push(h, seat, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', me));
+		push(h, seat, { kind: 'notify', method: 'setWeaklySelectable', cards: [] }, 1);
+		push(h, seat, autoBar(false, me), 1);
+		push(h, seat, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', me), 1);
 	}
 
 	it('presses Forge’s own Cancel on the payment, exactly once for that cost, and says nothing — the seat sees the refusal', () => {
@@ -2730,8 +2731,8 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		]);
 		// Forge re-shows the payment prompt after every refresh; a second press
 		// would answer whatever it asks next.
-		push(h, 0, autoBar(false, playerOf(h, 0)));
-		push(h, 0, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', playerOf(h, 0)));
+		push(h, 0, autoBar(false, playerOf(h, 0)), 1);
+		push(h, 0, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', playerOf(h, 0)), 1);
 		expect(h.host.commands.filter(pressed)).toHaveLength(1);
 		// The cast never happened, so there is nothing to account for: no line.
 		expect(says(h, 0)).toEqual([]);
@@ -2972,9 +2973,9 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		const reply = ClientFrameSchema.parse({ kind: 'reply', callId: ask.callId, method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: chosen } });
 		expect(h.match.fromClient(0, reply)).toEqual({ ok: true });
 	}
-	function confirm(h: Harness, hostCard: number, abilityId: number, message = 'Do you want to sacrifice Augur of Skulls?'): void {
+	function confirm(h: Harness, hostCard: number, abilityId: number, message = 'Do you want to sacrifice Augur of Skulls?', input?: number): void {
 		const me = playerOf(h, 0);
-		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
+		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true }, input);
 		push(h, 0, {
 			kind: 'notify',
 			method: 'showPromptMessage',
@@ -2982,7 +2983,7 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 			message,
 			card: null,
 			confirmAbility: { hostCard: card(hostCard), abilityId },
-		});
+		}, input);
 	}
 	const confirmed = (h: Harness) => h.logs.filter((l) => l.evt === 'auto-confirmed').length;
 
@@ -2990,7 +2991,7 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		const h = harness();
 		choose(h, 9002);
 		const before = frames(h, 0).length;
-		confirm(h, 70, 9002);
+		confirm(h, 70, 9002, undefined, 1);
 		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } }]);
 		expect(confirmed(h)).toBe(1);
 		// Nothing is sent for a window the server answers: not the question, and
@@ -2998,13 +2999,17 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		expect(frames(h, 0)).toHaveLength(before);
 		// Forge showing the same input again before the Yes reaches it is that
 		// same window: withheld, and not pressed twice.
-		confirm(h, 70, 9002);
+		confirm(h, 70, 9002, undefined, 1);
 		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
 		expect(frames(h, 0)).toHaveLength(before);
+		expect(h.logs.filter((l) => l.evt === 'prompt-withheld').map((l) => [l.why, l.input])).toEqual([
+			['auto-confirm', 1],
+			['repeat', 1],
+		]);
 		// Once Forge has moved on, the choice is spent: the same confirm again is the player's.
 		push(h, 0, { kind: 'notify', method: 'clearWeaklySelectable' });
 		const moved = frames(h, 0).length;
-		confirm(h, 70, 9002);
+		confirm(h, 70, 9002, undefined, 2);
 		expect(confirmed(h)).toBe(1);
 		expect(frames(h, 0).slice(moved).map((f) => f.method)).toEqual(['updateButtons', 'showPromptMessage']);
 	});
@@ -3017,6 +3022,74 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		confirm(h, 70, 9002, "Sacrifice Lion's Eye Diamond?");
 		expect(confirmed(h)).toBe(2);
 		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(2);
+	});
+
+	it('(B) a second Lion’s Eye Diamond, with no hand left to discard: its two confirms follow with nothing between, and each is answered (m-474ce1ddd243)', () => {
+		// Prod, 2026-11-08: the second LED's "sacrifice it?" was taken for a repeat of its "discard your
+		// hand?" (one ability, one card) and withheld unanswered; Forge waited on it and the seat saw nothing.
+		const h = harness();
+		choose(h, 9002);
+		const before = frames(h, 0).length;
+		confirm(h, 70, 9002, 'Do you want to discard your hand?', 11);
+		confirm(h, 70, 9002, "Sacrifice Lion's Eye Diamond?", 12);
+		expect(confirmed(h)).toBe(2);
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(2);
+		expect(h.logs.filter((l) => l.evt === 'prompt-withheld').map((l) => [l.why, l.input])).toEqual([
+			['auto-confirm', 11],
+			['auto-confirm', 12],
+		]);
+		expect(h.logs.filter((l) => l.evt === 'repeat-unproven')).toEqual([{ evt: 'repeat-unproven', matchId: h.match.id, seat: 0, input: 12, answered: 11 }]);
+		expect(frames(h, 0)).toHaveLength(before);
+	});
+
+	it('a window with no input from the bridge is never a repeat: its copy is decided again', () => {
+		const h = harness();
+		choose(h, 9002);
+		confirm(h, 70, 9002);
+		confirm(h, 70, 9002);
+		expect(h.logs.filter((l) => l.evt === 'prompt-withheld').map((l) => l.why)).not.toContain('repeat');
+	});
+
+	describe('a withheld window Forge stays on', () => {
+		afterEach(() => vi.useRealTimers());
+		const shownConfirms = (h: Harness) => frames(h, 0).filter((f) => f.method === 'showPromptMessage' && f.confirmAbility !== undefined);
+
+		it('is shown to the seat, its bar live, once Forge’s input queue has not moved for STUCK_WINDOW_MS', () => {
+			vi.useFakeTimers();
+			const h = harness();
+			choose(h, 9002);
+			confirm(h, 70, 9002, undefined, 1);
+			confirm(h, 70, 9002, undefined, 1);
+			vi.advanceTimersByTime(4999);
+			expect(shownConfirms(h)).toEqual([]);
+			vi.advanceTimersByTime(1);
+			expect(shownConfirms(h)).toHaveLength(1);
+			expect(frames(h, 0).filter((f) => f.method === 'updateButtons').at(-1)).toMatchObject({ label1: 'Yes', enable1: true });
+			expect(h.logs.filter((l) => l.evt === 'stuck-window')).toEqual([{ evt: 'stuck-window', matchId: h.match.id, seat: 0, kind: 'other', withheld: 'repeat', input: 1, ms: 5000 }]);
+			expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+		});
+
+		it('is never shown once Forge’s queue moves past it', () => {
+			vi.useFakeTimers();
+			const h = harness();
+			choose(h, 9002);
+			confirm(h, 70, 9002, undefined, 1);
+			h.host.push({ t: 'input', seat: 0, open: false } as never);
+			vi.advanceTimersByTime(60_000);
+			expect(shownConfirms(h)).toEqual([]);
+			expect(h.logs.filter((l) => l.evt === 'stuck-window')).toEqual([]);
+		});
+
+		it('is never shown once Forge asks something', () => {
+			vi.useFakeTimers();
+			const h = harness();
+			choose(h, 9002);
+			confirm(h, 70, 9002, undefined, 1);
+			push(h, 0, oneAbilityAsk('s0-77'));
+			vi.advanceTimersByTime(60_000);
+			expect(shownConfirms(h)).toEqual([]);
+			expect(h.logs.filter((l) => l.evt === 'stuck-window')).toEqual([]);
+		});
 	});
 
 	it('(B) an optional trigger’s confirm still asks — it names the trigger, not the chosen ability', () => {

@@ -686,13 +686,22 @@ export interface SeatState {
 	wireButtonsLive: boolean;
 	/**
 	 * The window the server last answered for this seat, until Forge sends
-	 * anything but a window's prompt, bar or offered set. Forge can show
-	 * the same input twice in a row before the answer reaches it (measured:
+	 * anything but a window's prompt, bar or offered set: the Forge input it
+	 * answered (the id the bridge tags its frames with, {@link Match.inputOfFrame};
+	 * null when they carried none) and what it asked ({@link windowKey}). Forge can
+	 * show the same input twice in a row before the answer reaches it (measured:
 	 * "Sacrifice Augur of Skulls?" and its Yes/No bar, twice, 1 ms apart; a
 	 * payment's set, Auto bar and prompt 14 ms after its Auto); the second copy
-	 * is that same window, withheld without a second press.
+	 * is that same input, withheld without a second press. Only the input proves
+	 * it: a second Lion's Eye Diamond asks "discard your hand?" and "sacrifice it?"
+	 * as two confirms of one ability with nothing between them, and the second,
+	 * taken for a copy of the first, was never answered (m-474ce1ddd243).
 	 */
-	answeredWindow: string | null;
+	answeredWindow: { input: number | null; key: string } | null;
+	/** How many times this seat's Forge input queue has opened or closed one (the bridge's `input` lines). */
+	inputMoves: number;
+	/** A window the server withheld, until Forge moves past it; see {@link Match.armStuckWindow}. */
+	stuckWindow: StuckWindow | null;
 	/** Unparsed asks shown as a pick of their whole answers, by callId (`unparsed.ts`). */
 	unparsed: Map<string, Fallback>;
 	/** Every ask callId Forge has sent this seat, so a re-sent ask ({@link Match.armActWatch}) is handled once. */
@@ -1098,12 +1107,42 @@ type PromptFrame = Extract<ServerFrame, { method: 'showPromptMessage' }>;
 type ButtonsFrame = Extract<ServerFrame, { method: 'updateButtons' }>;
 
 /**
+ * What a window asks, read off its frames (a confirm by the ability it confirms): the identity a
+ * repeat was once judged by. Kept only to log a window it would have withheld that is a different
+ * Forge input (`repeat-unproven`).
+ */
+function windowKey(prompt: PromptFrame, buttons: ButtonsFrame | null): string {
+	return prompt.confirmAbility != null
+		? JSON.stringify(['confirm', prompt.confirmAbility.hostCard.id, prompt.confirmAbility.abilityId])
+		: JSON.stringify([prompt.message, prompt.targetAbility ?? null, buttons?.label1 ?? null, buttons?.label2 ?? null]);
+}
+
+/**
  * How long a held half waits for the other before it is forwarded undecided.
  * Forge sends the two within a few milliseconds; a payment's bar and its
  * prompt were measured up to 251 ms apart on a loaded jar, so this is
  * headroom, not a target.
  */
 const PROMPT_HOLD_FLUSH_MS = 2000;
+
+/**
+ * How long a window the server withheld may stay Forge's open input, with its queue not moving,
+ * before it is shown to the seat ({@link Match.armStuckWindow}). An answer Forge takes moves its
+ * queue in milliseconds; this is headroom for a loaded jar, not a target.
+ */
+const STUCK_WINDOW_MS = 5000;
+
+/** A withheld window kept for the seat in case Forge never takes the answer it was withheld for. */
+interface StuckWindow {
+	timer: NodeJS.Timeout;
+	prompt: PromptFrame;
+	buttons: ButtonsFrame | null;
+	offer: ServerFrame | null;
+	order: 'prompt-first' | 'buttons-first';
+	why: string;
+	input: number | null;
+	inputMoves: number;
+}
 
 /**
  * How long a seat's {@link SeatState.lookHold} waits for the decision behind it before its frames go
@@ -1476,6 +1515,8 @@ export class Match {
 			lookHold: null,
 			wireButtonsLive: false,
 			answeredWindow: null,
+			inputMoves: 0,
+			stuckWindow: null,
 			unparsed: new Map(),
 			seenAsks: new Set(),
 			actWatch: null,
@@ -2922,6 +2963,15 @@ export class Match {
 			case 'resent':
 				this.deps.log({ evt: 'asks-resent', matchId: this.id, seat: line.seat, callIds: line.callIds });
 				return;
+			case 'input': {
+				// Forge's input queue moved: whatever window was withheld is no longer what it waits on.
+				const moved = this.seats[line.seat];
+				if (moved !== undefined) {
+					moved.inputMoves++;
+					this.disarmStuckWindow(moved);
+				}
+				return;
+			}
 			case 'probe': {
 				const done = this.probes.get(line.probeId);
 				this.probes.delete(line.probeId);
@@ -3062,6 +3112,8 @@ export class Match {
 		// The offered set is part of the window: Forge re-shows a payment as its set, bar and prompt.
 		// Its clear is the input stopping, and ends the window.
 		if (!['showPromptMessage', 'updateButtons', 'setWeaklySelectable'].includes(frame.method)) s.answeredWindow = null;
+		// An ask is Forge past whatever window was withheld: it asks only once that input is done.
+		if (frame.kind === 'ask') this.disarmStuckWindow(s);
 
 		if (isTierC(frame.method)) {
 			const state = frame as unknown as StateFrame;
@@ -3299,6 +3351,7 @@ export class Match {
 			s.pendingButtons = null;
 			this.clearPendingTimer(s);
 			if (held === null) {
+				this.disarmStuckWindow(s);
 				this.releaseOffer(s);
 				this.send(s, frame);
 				this.releaseHeldClick(s, 'other', frame);
@@ -3354,18 +3407,21 @@ export class Match {
 	 * A window left to the seat goes out in the order Forge sent it.
 	 */
 	private decideWindow(s: SeatState, prompt: PromptFrame, buttons: ButtonsFrame | null, order: 'prompt-first' | 'buttons-first'): void {
-		// A confirm is its input, whatever the frame carrying it says: the bridge names the confirm Forge
-		// has open (`confirmAbility`) on a prompt sent while it opens ("Waiting for Bob..."), and an
-		// answer to that one has answered the Yes/No window Forge sends for the same input after it.
-		const identity =
-			prompt.confirmAbility != null
-				? JSON.stringify(['confirm', prompt.confirmAbility.hostCard.id, prompt.confirmAbility.abilityId])
-				: JSON.stringify([prompt.message, prompt.targetAbility ?? null, buttons?.label1 ?? null, buttons?.label2 ?? null]);
+		this.disarmStuckWindow(s);
+		// A window is a repeat of the one just answered only when the bridge says both are the same Forge
+		// input. What they ask is no proof: one ability's two cost confirms ask the same of the same card.
+		const input = this.inputOfFrame.get(prompt) ?? (buttons === null ? undefined : this.inputOfFrame.get(buttons)) ?? null;
+		const key = windowKey(prompt, buttons);
+		const last = s.answeredWindow;
+		const repeat = input !== null && last !== null && last.input === input;
+		if (!repeat && last !== null && last.key === key) {
+			this.deps.log({ evt: 'repeat-unproven', matchId: this.id, seat: s.seat, input, answered: last.input });
+		}
+		const offer = s.heldOffer;
 		// At most one decider answers a window: each one that acts sends Forge a press.
-		const why =
-			s.answeredWindow === identity
-				? 'repeat'
-				: this.maybeSameTarget(s)
+		const why = repeat
+			? 'repeat'
+			: this.maybeSameTarget(s)
 					? 'same-target'
 					: this.maybeAutoPass(s)
 						? 'auto-pass'
@@ -3379,7 +3435,7 @@ export class Match {
 										? 'auto-cancel'
 										: 'kept';
 		const answered = why !== 'kept';
-		s.answeredWindow = answered ? identity : null;
+		s.answeredWindow = answered ? { input, key } : null;
 		const kind = readPromptFacts(this.notesOf(s)).window;
 		if (answered) {
 			// The seat is never offered cards for a window it is not shown: a click on them would be
@@ -3405,8 +3461,9 @@ export class Match {
 			answered || s.lastStop === null
 				? {}
 				: { rule: s.lastStop.rule, ...(plays === undefined ? {} : { plays: plays.map((id) => ({ id, name: cardName(s.history.board, id) })) }) };
-		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why, ...kept });
-		if (!answered) {
+		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why, ...(input === null ? {} : { input }), ...kept });
+		if (answered) this.armStuckWindow(s, { prompt, buttons, offer, order, why, input });
+		else {
 			this.logOffered(s, kind);
 			this.releaseHeldClick(s, kind, prompt);
 		}
@@ -3415,6 +3472,43 @@ export class Match {
 		// sent (or disabled) — `wireButtonsLive` only reaches its real, final
 		// value once this runs, so this is where the other seat's own fact
 		// has to be re-checked too.
+		this.checkWaitingOn();
+	}
+
+	/**
+	 * The safety net under every withheld window: the seat is never left with nothing to answer while
+	 * Forge waits on it. A window is withheld because the server's answer is on its way to Forge (or
+	 * already took it); either way Forge's input queue moves (the bridge's `input` line) within
+	 * milliseconds. If it has not moved in {@link STUCK_WINDOW_MS} and no other window or ask came,
+	 * Forge is still blocked on this one, and it is shown to the seat as Forge sent it (`stuck-window`).
+	 */
+	private armStuckWindow(s: SeatState, w: Omit<StuckWindow, 'timer' | 'inputMoves'>): void {
+		const timer = setTimeout(() => this.showStuckWindow(s), STUCK_WINDOW_MS);
+		timer.unref();
+		s.stuckWindow = { ...w, timer, inputMoves: s.inputMoves };
+	}
+
+	private disarmStuckWindow(s: SeatState): void {
+		if (s.stuckWindow === null) return;
+		clearTimeout(s.stuckWindow.timer);
+		s.stuckWindow = null;
+	}
+
+	private showStuckWindow(s: SeatState): void {
+		const w = s.stuckWindow;
+		s.stuckWindow = null;
+		if (w === null || this.status !== 'running' || s.inputMoves !== w.inputMoves || s.endNotices.length > 0) return;
+		s.answeredWindow = null;
+		const kind = readPromptFacts(this.notesOf(s)).window;
+		this.deps.log({ evt: 'stuck-window', matchId: this.id, seat: s.seat, kind, withheld: w.why, ...(w.input === null ? {} : { input: w.input }), ms: STUCK_WINDOW_MS });
+		if (w.offer !== null) s.heldOffer = w.offer;
+		this.releaseOffer(s);
+		if (w.buttons === null) this.send(s, w.prompt);
+		else if (w.order === 'buttons-first') this.sendWindow(s, w.buttons, w.prompt);
+		else this.sendWindow(s, w.prompt, w.buttons);
+		this.logOffered(s, kind);
+		this.releaseHeldClick(s, kind, w.prompt);
+		this.recordWindow(s, 'forwarded', kind, 'stuck-window', w.prompt, w.buttons);
 		this.checkWaitingOn();
 	}
 
@@ -3530,6 +3624,7 @@ export class Match {
 	}
 
 	private forwardUnpaired(s: SeatState, prompt: PromptFrame | null, buttons: ButtonsFrame | null, order: 'prompt-first' | 'buttons-first' = 'prompt-first'): void {
+		this.disarmStuckWindow(s);
 		this.releaseOffer(s);
 		if (prompt !== null && buttons !== null) {
 			if (order === 'buttons-first') this.sendWindow(s, buttons, prompt);
