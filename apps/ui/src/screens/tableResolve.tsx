@@ -6,9 +6,13 @@
  * watching (the operator, 2026-10-30: *"the room leader is the admin"*): Reset game (the game in play
  * starts again, the score stands) and DQ a player (their match is forfeited and they are out of the
  * rounds). Each is confirmed with the score it leaves.
+ *
+ * Behind the ⋯ they open in a modal over the page (the operator, 2026-11-07: *"a popout modal, not
+ * awkwardly expand the bracket view inline"*), the confirm and a refusal in the same one.
  */
 import { useState, type ReactNode } from 'react';
 
+import { Modal } from '../components/Modal.tsx';
 import type { TableCardSeries, TablePhase } from './TableCard.tsx';
 
 export interface TableResolveHandlers {
@@ -35,7 +39,7 @@ export interface TableResolveInput extends TableResolveHandlers {
   series: TableCardSeries;
   matchId: string | null;
   phase: TablePhase;
-  /** Behind one ⋯ (`more`, opening `panel`'s menu), or laid out as `offers`. */
+  /** Behind one ⋯ (`more`, opening `panel`'s modal), or laid out as `offers`. */
   menu: boolean;
 }
 
@@ -44,7 +48,7 @@ export interface TableResolve {
   offers: ReactNode[];
   /** The ⋯ that opens them (`menu: true`), or `null` when there is nothing to offer. */
   more: ReactNode;
-  /** The open menu, the confirm and a refusal: drawn under whatever holds the offers. */
+  /** The confirm and a refusal, drawn under whatever holds the offers; with `menu`, the modal holding them all. */
   panel: ReactNode;
 }
 
@@ -112,15 +116,16 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
       {label[r].offer}
     </button>
   ));
+  const shown = open || confirming !== null || error !== null;
   const more =
-    menu && confirming === null && offered.length > 0 ? (
-      <button type="button" className="table-card__more" data-testid={`${testId}-more`} aria-label="Table options" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+    menu && offered.length > 0 ? (
+      <button type="button" className="table-card__more" data-testid={`${testId}-more`} aria-label="Table options" aria-haspopup="dialog" aria-expanded={shown} onClick={() => setOpen(true)}>
         ⋯
       </button>
     ) : null;
-  const panel = (
+  const body = (
     <>
-      {menu && open && confirming === null && (
+      {menu && confirming === null && (
         <div className="table-card__menu" role="menu">
           {offers}
         </div>
@@ -157,5 +162,17 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
       )}
     </>
   );
+  const close = (): void => {
+    setOpen(false);
+    setConfirming(null);
+    setError(null);
+  };
+  const panel = !menu ? (
+    body
+  ) : shown ? (
+    <Modal title={`${nameOf(players[0])} vs ${nameOf(players[1])}`} testId={`${testId}-tools`} onClose={close}>
+      <div className="table-card__tools">{body}</div>
+    </Modal>
+  ) : null;
   return { offers: menu || confirming !== null ? [] : offers, more, panel };
 }

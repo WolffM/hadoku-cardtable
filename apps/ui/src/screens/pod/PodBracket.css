@@ -1,5 +1,5 @@
 /*
- * The Swiss bracket (`PodBracket.tsx`), placed by `swiss.ts`: every card, chip and line absolutely
+ * The Swiss bracket (`PodBracket.tsx`), placed by `swiss.ts`: every card and line absolutely
  * positioned inside one field that scrolls sideways in its own box, never the page. Colour from
  * `@wolffm/themes` only, one discipline across the pod screens.
  */
@@ -71,18 +71,6 @@
   opacity: 1;
 }
 
-.swiss__chip {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  height: 24px;
-  color: var(--color-text-secondary);
-  font-size: 0.75rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.08em;
-}
-
 /* ── a match ── */
 
 .swiss__card {
@@ -112,6 +100,29 @@
   box-shadow: 0 0 0 1px var(--color-primary-bg);
 }
 
+/* My own match to play: an outline that breathes, so the card reads as the way back in. Only its
+   opacity moves, so the pulse costs no paint per frame. */
+.swiss__card[data-live][data-mine]::before {
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--color-primary);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 0 10px var(--color-primary);
+  pointer-events: none;
+  content: '';
+  animation: swiss-mine 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes swiss-mine {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.2;
+  }
+}
+
 .swiss__row {
   display: flex;
   gap: 8px;
@@ -135,7 +146,7 @@ button.swiss__row {
   border-top: 1px solid var(--color-border-light);
 }
 
-.swiss__card:not(.swiss__card--bye) > .swiss__row:first-child {
+.swiss__card:not(.swiss__card--bye) > :first-child {
   border-radius: var(--radius) var(--radius) 0 0;
 }
 
@@ -208,28 +219,39 @@ button.swiss__row {
   background: transparent;
 }
 
-/* A live match's foot: the way in (its hit area the whole card), the game, the ⋯. */
-.swiss__foot {
+/* A live match's title bar: the game in play and the ⋯. */
+.swiss__bar {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
+  box-sizing: border-box;
   height: 28px;
-  padding: 0 4px 0 10px;
-  border-top: 1px solid var(--color-border-light);
+  padding: 0 2px 0 10px;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
-.swiss__go {
-  color: var(--accent-ink);
-  font-size: 0.8rem;
+.swiss__game {
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
   font-weight: 700;
-  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.swiss__go::after {
+/* The way in has no look of its own: it is the whole card, its words only its name to a screen reader. */
+.swiss__go {
   position: absolute;
   inset: 0;
+  border-radius: var(--radius);
+  color: transparent;
+  font-size: 0;
   cursor: pointer;
-  content: '';
+}
+
+.swiss__bar .table-card__more {
+  margin-left: auto;
 }
 
 /* Lit only while pressed or keyboard-focused, never on hover (the operator, 2026-10-23: "can we have that only happen on click?"). */
@@ -242,38 +264,11 @@ button.swiss__row {
   outline: none;
 }
 
-.swiss__game {
-  margin-left: auto;
-  color: var(--color-text-secondary);
-  font-size: 0.75rem;
-}
-
-.swiss__foot .table-card__more {
-  min-width: 28px;
-  min-height: 24px;
-  margin-left: 0;
-}
-
-/* A card whose menu or confirm is open sits over its neighbours: the next card down is drawn later at
-   the same level, and its way in would take the press meant for the menu. */
-.swiss__card:has(.swiss__pop:not(:empty)) {
-  z-index: 4;
-}
-
-/* The menu and the confirm open over what is under the card, not inside its fixed place. */
-.swiss__pop {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: 0;
-  z-index: 3;
-}
-
-.swiss__pop:not(:empty) {
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius);
-  background: var(--color-bg-card);
-  box-shadow: var(--shadow);
+.swiss__bar .table-card__more {
+  min-width: 26px;
+  min-height: 22px;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 /* ── the final column ── */
@@ -335,5 +330,9 @@ button.swiss__row {
   .swiss__final,
   .swiss__edge {
     transition: none;
+  }
+
+  .swiss__card[data-live][data-mine]::before {
+    animation: none;
   }
 }

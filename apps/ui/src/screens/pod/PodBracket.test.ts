@@ -92,6 +92,9 @@ describe('PodBracket', () => {
     expect(screen.queryByTestId('pod-tables-watch')).toBeNull();
     const mine = screen.getAllByTestId('pod-tables-row').find((r) => r.dataset.tableId === 't-3')!;
     expect(mine.dataset.mine).toBe('');
+    expect(mine.firstElementChild?.className, 'the way in heads the card, beside the game in play').toBe('swiss__bar');
+    expect(mine.querySelector('.swiss__bar .swiss__game')?.textContent).toMatch(/^Game \d$/);
+    expect(document.querySelector('.swiss__chip'), 'no record over a group: the rows carry the score').toBeNull();
     rerender(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-bob', nameOf, avatarOf }));
     expect(screen.getByTestId('pod-tables-watch').getAttribute('href')).toBe('#/room/r-1/table/t-3');
     expect(screen.queryByTestId('pod-tables-play')).toBeNull();
@@ -141,6 +144,8 @@ describe('PodBracket', () => {
     const more = screen.getByTestId('pod-tables-row-more');
     expect(more.closest('a'), 'never inside the way in').toBeNull();
     fireEvent.click(more);
+    expect(screen.getByRole('dialog').getAttribute('data-testid'), 'in a modal, not inside the card').toBe('pod-tables-row-tools');
+    expect(more.closest('[data-testid="pod-tables-row"]')!.contains(screen.getByRole('dialog'))).toBe(false);
     expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Concede game', 'Drop match', 'Reset game', 'DQ Alice', 'DQ Carol']);
     fireEvent.click(screen.getByTestId('pod-tables-row-drop'));
     expect(screen.queryByRole('menu'), 'choosing one closes the menu').toBeNull();

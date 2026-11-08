@@ -71,9 +71,9 @@ describe('swissLayout', () => {
     const l = swissLayout(done, []);
     for (const col of [0, 1, 2, 3]) {
       const gs = l.groups.filter((g) => g.column === col).sort((a, b) => a.top - b.top);
-      for (let i = 1; i < gs.length; i++) expect(gs[i]!.top - SWISS.chipH, `column ${col}`).toBeGreaterThanOrEqual(gs[i - 1]!.top + gs[i - 1]!.h);
+      for (let i = 1; i < gs.length; i++) expect(gs[i]!.top - SWISS.lead, `column ${col}`).toBeGreaterThanOrEqual(gs[i - 1]!.top + gs[i - 1]!.h);
     }
-    expect(Math.min(...l.groups.map((g) => g.top - SWISS.chipH))).toBeGreaterThanOrEqual(SWISS.headH);
+    expect(Math.min(...l.groups.map((g) => g.top - SWISS.lead))).toBeGreaterThanOrEqual(SWISS.headH);
   });
 
   it('steps each group’s winners up a row and its losers down one, and a player’s path follows their own steps', () => {

@@ -328,3 +328,20 @@
   margin-left: 0;
   text-align: left;
 }
+
+/* In the modal (`tableResolve.tsx`, behind the ⋯): the panel is the frame, no rule or inset of their own. */
+.table-card__tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.table-card__tools .table-card__menu,
+.table-card__tools .table-card__confirm {
+  padding: 0;
+  border-top: 0;
+}
+
+.table-card__tools .table-card__error {
+  padding: 0;
+}

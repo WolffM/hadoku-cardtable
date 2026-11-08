@@ -24,14 +24,14 @@ export const SWISS = {
   cardW: 200,
   /** One player's row on a card. */
   rowH: 34,
-  /** A live card's foot: its way in. */
-  footH: 28,
+  /** A live card's title bar, over its players: the game in play, the way in, the ⋯. */
+  barH: 28,
   /** Between two cards of one group. */
   gap: 10,
   /** Between two columns, where the step lines run. */
   gutter: 64,
-  /** The record over each group. */
-  chipH: 24,
+  /** Clear space over each group, under the heads or the group above. */
+  lead: 12,
   /** The round heads across the top. */
   headH: 30,
   /** The final column's width and its rows. */
@@ -193,7 +193,7 @@ function roundEntries(pod: PodView, tables: readonly RoomTable[], round: number,
   return { matches, bye };
 }
 
-const cardH = (m: SwissMatch): number => SWISS.rowH * 2 + 2 + (m.live && m.table !== null ? SWISS.footH : 0);
+const cardH = (m: SwissMatch): number => SWISS.rowH * 2 + 2 + (m.live && m.table !== null ? SWISS.barH : 0);
 const BYE_H = SWISS.rowH + 2;
 
 interface Pending {
@@ -287,15 +287,15 @@ export function swissLayout(pod: PodView, tables: readonly RoomTable[]): SwissLa
     const col = pending.filter((g) => g.column === c).sort((a, b) => b.net - a.net);
     for (let i = 1; i < col.length; i++) {
       const [hi, lo] = [col[i - 1]!, col[i]!];
-      unit = Math.max(unit, (hi.h / 2 + lo.h / 2 + SWISS.chipH + SWISS.clear) / (hi.net - lo.net));
+      unit = Math.max(unit, (hi.h / 2 + lo.h / 2 + SWISS.lead + SWISS.clear) / (hi.net - lo.net));
     }
   }
   unit = Math.ceil(unit);
   const topNet = Math.max(0, ...pending.map((g) => g.net));
-  // The top-most group's top, its record chip over it, sits just under the heads.
+  // The top-most group's top sits just under the heads.
   const y0 = Math.max(
-    SWISS.headH + SWISS.chipH,
-    ...pending.map((g) => SWISS.headH + SWISS.chipH + g.h / 2 - (topNet - g.net) * unit),
+    SWISS.headH + SWISS.lead,
+    ...pending.map((g) => SWISS.headH + SWISS.lead + g.h / 2 - (topNet - g.net) * unit),
   );
   const yOf = (n: number): number => y0 + (topNet - n) * unit;
 

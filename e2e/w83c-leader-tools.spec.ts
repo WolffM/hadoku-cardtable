@@ -88,19 +88,17 @@ async function intoGame(p: Friend, origin: string, roomId: string, tableId: stri
 /** The hub's card for the table `tableId`. */
 const card = (page: Page, tableId: string) => page.locator(`[data-testid="pod-tables-row"][data-table-id="${tableId}"]`);
 
-/** A table card's tools, behind its ⋯: opened, or left open. */
+/** A table card's tools, behind its ⋯, in a modal: opened, or left open. */
 async function tools(page: Page, tableId: string) {
-  const row = card(page, tableId);
-  const more = row.getByTestId('pod-tables-row-more');
+  const more = card(page, tableId).getByTestId('pod-tables-row-more');
   if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
-  return row.getByRole('menu');
+  return page.getByTestId('pod-tables-row-tools').getByRole('menu');
 }
 
 /** Offers, confirms and answers a leader tool on a table card. */
 async function confirmOnCard(page: Page, tableId: string, offer: RegExp): Promise<void> {
-  const row = card(page, tableId);
   await (await tools(page, tableId)).getByRole('menuitem', { name: offer }).click();
-  const confirm = row.locator('.table-card__confirm');
+  const confirm = page.getByTestId('pod-tables-row-tools').locator('.table-card__confirm');
   await expect(confirm, 'a destructive tool asks first').toBeVisible();
   await confirm.locator('[data-testid$="-yes"]').click();
   await expect(confirm).toHaveCount(0, { timeout: UI_TIMEOUT });

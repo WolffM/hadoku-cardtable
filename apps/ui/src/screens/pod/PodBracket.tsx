@@ -12,7 +12,11 @@
  * A live match is the way into its table, the whole card (the operator, 2026-10-23: *"make sure we dont
  * lose the functionality of being able to click on the standings boxes to let people return to their
  * games"*): my own running game straight back into it, otherwise my table page (`TablePage.tsx`);
- * anybody else's, Watch, through its table page. Its ways to resolve (`tableResolve.tsx`) sit behind ⋯.
+ * anybody else's, Watch, through its table page. The card says so by itself, not with a button (the
+ * operator, 2026-11-07: *"we dont need the return to game button at all"*): mine pulses an outline,
+ * and the way in is the card's own name to a screen reader. Its title bar says the game in play (the
+ * group's record over it said nothing its rows did not), and its ways to resolve (`tableResolve.tsx`)
+ * open from the ⋯ there, in a modal.
  */
 
 import { useState, type CSSProperties, type FocusEvent } from 'react';
@@ -24,7 +28,7 @@ import { routeHash } from '../route.ts';
 import { dqPlayer, resolveTable } from '../tableActions.ts';
 import { tablePhase } from '../TableCard.tsx';
 import { useTableResolve } from '../tableResolve.tsx';
-import { onPath, recordText, SWISS, swissLayout, type SwissMatch } from './swiss.ts';
+import { onPath, SWISS, swissLayout, type SwissMatch } from './swiss.ts';
 import { isPodAi, type PodView } from './wire.ts';
 import './PodBracket.css';
 
@@ -91,11 +95,6 @@ export function PodBracket({ roomId, pod, tables, myMemberId, leader = false, na
             <path key={i} d={e.d} className="swiss__edge" data-step={e.step} data-on={focus !== null && onPath(layout, e, focus) ? '' : undefined} />
           ))}
         </svg>
-        {layout.groups.map((g) => (
-          <div key={`${g.column}:${g.net}`} className="swiss__chip" style={at(g.x, g.top - SWISS.chipH, { width: g.column === pod.rounds ? SWISS.finalW : SWISS.cardW })}>
-            {recordText(g.record)}
-          </div>
-        ))}
         {layout.cards.map((c, i) =>
           c.kind === 'bye' ? (
             <div key={`bye:${i}`} className="swiss__card swiss__card--bye" data-testid="pod-tables-bye" data-focus={c.player === focus ? '' : undefined} style={at(c.x, c.y, { width: SWISS.cardW, height: c.h })}>
@@ -206,6 +205,15 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
       data-dim={dim ? '' : undefined}
       style={at(x, y, { width: SWISS.cardW, minHeight: h })}
     >
+      {go !== null && (
+        <div className="swiss__bar">
+          <span className="swiss__game">Game {gameNo}</span>
+          <a className="swiss__go" data-testid={go.testId} href={go.href}>
+            {go.label}
+          </a>
+          {resolve.more}
+        </div>
+      )}
       {([0, 1] as const).map((k) => {
         const id = players[k];
         const won = decided && wins[k] > wins[1 - k]!;
@@ -228,16 +236,7 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
           </button>
         );
       })}
-      {go !== null && (
-        <div className="swiss__foot">
-          <a className="swiss__go" data-testid={go.testId} href={go.href}>
-            {go.label}
-          </a>
-          <span className="swiss__game">Game {gameNo}</span>
-          {resolve.more}
-        </div>
-      )}
-      <div className="swiss__pop">{resolve.panel}</div>
+      {resolve.panel}
     </div>
   );
 }

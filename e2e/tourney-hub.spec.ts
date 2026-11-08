@@ -166,12 +166,12 @@ test('a leader’s tournament in its rounds offers no control the server would r
     expect(rules.every(Boolean), 'every match rule read-only').toBe(true);
     await alice.page.keyboard.press('Escape');
 
-    // My live match's ⋯: its menu opens over the card drawn under mine, and takes the press.
+    // My live match's ⋯: its tools open in a modal over the bracket, and take the press.
     if (await alice.page.getByTestId('table-hub').isVisible()) await alice.page.getByTestId('table-hub').click();
     const live = alice.page.locator('[data-testid="pod-tables-row"][data-live]');
     await expect(alice.page.locator('[data-testid="pod-tables-row"]'), 'my live match and the settled one under it').toHaveCount(2, { timeout: UI_TIMEOUT });
     await live.getByTestId('pod-tables-row-more').click();
-    const items = live.getByRole('menuitem');
+    const items = alice.page.getByTestId('pod-tables-row-tools').getByRole('menuitem');
     await expect(items.first()).toBeVisible();
     for (const item of await items.all()) {
       const topmost = await item.evaluate((el) => {
