@@ -10,6 +10,12 @@
  * the client AND as received by the server.
  */
 
+import { createServer, type Server as HttpServer } from 'node:http';
+import { createRequire } from 'node:module';
+import type { AddressInfo } from 'node:net';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import { ClientEventSchema } from '@hadoku/shared';
@@ -69,6 +75,7 @@ import {
   sameTargetOffered,
   setSameTarget,
   SAYS_KEPT,
+  SLOW_CONNECT_REPORT_MS,
   socketIoMatchTransport,
   startMatch,
   subscribe,
@@ -314,6 +321,155 @@ describe('a first join that times out before the socket connects', () => {
     acks.shift()!(null, { matchId: 'm', seat: 0, playerId: 0, cursor: { epoch: 'e', seq: 1 }, frames: [FRAMES[0]] });
     expect(m.stats.snapshots).toBe(1);
     closeMatch(m);
+  });
+
+  // Match m-e449418e2aee, 2026-11-08: the first join was still waiting when the socket connected, so
+  // the connect sent none, and it timed out 30 ms before the server's answer. The page read
+  // "Connected, not seated." while the server held its seat and sent it the mulligan.
+  it('still waiting when the socket connects, and then unanswered, is sent again', () => {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const acks: ((err: Error | null, response: unknown) => void)[] = [];
+    const transport: MatchTransport = {
+      on: (event, handler) => void handlers.set(event, handler),
+      emit: () => {},
+      request: (_event, _payload, onAck) => acks.push(onAck),
+      disconnect: () => {},
+    };
+    const m = startMatch({ matchId: 'm', transport });
+    handlers.get('connect')!(undefined);
+    expect(m.stats.joins, 'the connect leaves the waiting join alone').toBe(1);
+    acks.shift()!(new Error('operation has timed out'), undefined);
+    expect(m.stats.joins, 'the unanswered join is sent again').toBe(2);
+    expect(m.awaitingSnapshot).toBe(true);
+    acks.shift()!(null, { matchId: 'm', seat: 0, playerId: 0, cursor: { epoch: 'e', seq: 1 }, frames: [FRAMES[0]] });
+    expect(m.seat).toBe(0);
+    closeMatch(m);
+  });
+
+  it('is sent again only so many times on a live socket, and not at all on a dropped one', () => {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const acks: ((err: Error | null, response: unknown) => void)[] = [];
+    const transport: MatchTransport = {
+      on: (event, handler) => void handlers.set(event, handler),
+      emit: () => {},
+      request: (_event, _payload, onAck) => acks.push(onAck),
+      disconnect: () => {},
+    };
+    const m = startMatch({ matchId: 'm', transport });
+    handlers.get('connect')!(undefined);
+    while (acks.length > 0) acks.shift()!(new Error('operation has timed out'), undefined);
+    expect(m.stats.joins, 'the first join and five more').toBe(6);
+    expect(m.lastError).toMatch(/not answered/);
+
+    const dropped = startMatch({ matchId: 'm', transport });
+    acks.shift()!(new Error('operation has timed out'), undefined);
+    expect(dropped.stats.joins, 'a socket that is not up waits for its connect').toBe(1);
+    expect(acks).toHaveLength(0);
+    closeMatch(m);
+    closeMatch(dropped);
+  });
+
+  it('a resync refused because this socket never joined joins instead', () => {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const requests: { event: string; onAck: (err: Error | null, response: unknown) => void }[] = [];
+    const transport: MatchTransport = {
+      on: (event, handler) => void handlers.set(event, handler),
+      emit: () => {},
+      request: (event, _payload, onAck) => requests.push({ event, onAck }),
+      disconnect: () => {},
+    };
+    const m = startMatch({ matchId: 'm', transport });
+    handlers.get('connect')!(undefined);
+    requests.shift()!.onAck(null, { matchId: 'm', seat: 0, playerId: 0, cursor: { epoch: 'e', seq: 1 }, frames: [FRAMES[0]] });
+    // A gap asks for a resync, which a reconnect's new socket carries before it has joined.
+    handlers.get(MATCH_EVENTS.serverToClient)!({ matchId: 'm', cursor: { epoch: 'e', seq: 5 }, frame: FRAMES[1] });
+    expect(requests.map((r) => r.event)).toEqual([MATCH_EVENTS.resync]);
+    requests.shift()!.onAck(null, { error: 'not-joined' });
+    expect(requests.map((r) => r.event)).toEqual([MATCH_EVENTS.join]);
+    closeMatch(m);
+  });
+});
+
+describe('a slow first connect', () => {
+  it('is reported with how long it took and whether the page was hidden meanwhile; a quick one is not', () => {
+    vi.useFakeTimers();
+    const listeners = new Set<() => void>();
+    const page = {
+      visibilityState: 'visible' as DocumentVisibilityState,
+      addEventListener: (_event: string, fn: () => void) => void listeners.add(fn),
+      removeEventListener: (_event: string, fn: () => void) => void listeners.delete(fn),
+    };
+    vi.stubGlobal('document', page);
+    try {
+      const open = (): { connect: () => void; reports: { what: string; detail: Record<string, unknown> }[]; m: LiveMatch } => {
+        const handlers = new Map<string, ((payload: unknown) => void)[]>();
+        const transport: MatchTransport = {
+          on: (event, handler) => void handlers.set(event, [...(handlers.get(event) ?? []), handler]),
+          emit: () => {},
+          request: () => {},
+          disconnect: () => {},
+        };
+        const reports: { what: string; detail: Record<string, unknown> }[] = [];
+        const m = startMatch({ matchId: 'm', transport, report: (what, detail) => reports.push({ what, detail }) });
+        return { connect: () => handlers.get('connect')!.forEach((h) => h(undefined)), reports, m };
+      };
+
+      const slow = open();
+      page.visibilityState = 'hidden';
+      listeners.forEach((l) => l());
+      page.visibilityState = 'visible';
+      listeners.forEach((l) => l());
+      vi.advanceTimersByTime(SLOW_CONNECT_REPORT_MS + 1);
+      slow.connect();
+      expect(slow.reports.map((r) => r.what)).toEqual(['slow-connect']);
+      expect(slow.reports[0]!.detail).toMatchObject({ ms: SLOW_CONNECT_REPORT_MS + 1, wasHidden: true, visibility: 'visible', connected: true });
+      expect(listeners.size, 'the page is watched only until the connect').toBe(0);
+      closeMatch(slow.m);
+
+      const quick = open();
+      vi.advanceTimersByTime(SLOW_CONNECT_REPORT_MS);
+      quick.connect();
+      expect(quick.reports).toEqual([]);
+      closeMatch(quick.m);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('the socket transport', () => {
+  // A join's ack timeout measures the server, not the connection: on prod the socket took ~10 s to
+  // connect, and the join sent before it was timed from the moment it was queued.
+  it('times a request from when it is sent on a connected socket, not from when it was queued', async () => {
+    const serverRequire = createRequire(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../server/package.json'));
+    const { Server } = serverRequire('socket.io') as {
+      Server: new (http: HttpServer) => {
+        use(fn: (socket: unknown, next: () => void) => void): void;
+        on(event: 'connection', handler: (socket: { on(event: string, fn: (payload: unknown, ack: (r: unknown) => void) => void): void }) => void): void;
+        close(): void;
+      };
+    };
+    const http = createServer();
+    const io = new Server(http);
+    const CONNECT_MS = 1000;
+    io.use((_socket, next) => void setTimeout(next, CONNECT_MS));
+    io.on('connection', (socket) => socket.on('ping-me', (_payload, ack) => ack('pong')));
+    await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
+    const transport = socketIoMatchTransport({
+      url: `http://127.0.0.1:${(http.address() as AddressInfo).port}`,
+      path: '/socket.io/',
+      transports: ['websocket'],
+      ackTimeoutMs: CONNECT_MS / 2,
+    });
+    try {
+      const answer = await new Promise<{ err: Error | null; response: unknown }>((done) => transport.request('ping-me', {}, (err, response) => done({ err, response })));
+      expect(answer.err).toBeNull();
+      expect(answer.response).toBe('pong');
+    } finally {
+      transport.disconnect();
+      io.close();
+    }
   });
 });
 

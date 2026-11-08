@@ -341,8 +341,10 @@ export interface SocketIoMatchOptions {
 }
 
 const DEFAULT_ACK_TIMEOUT_MS = 10_000;
-/** Joins sent again after a reconnect whose join was not answered: a minute, at the default ack timeout. */
-const MAX_REJOIN_RETRIES = 5;
+/** Joins sent again on a live socket after one went unanswered: a minute, at the default ack timeout. */
+const MAX_JOIN_RETRIES = 5;
+/** What the server answers a resync from a socket that has not joined (`apps/server/src/play/socket.ts` `snapshotFor`). */
+const NOT_JOINED = 'not-joined';
 
 /**
  * How long a hang-up waits so the frames emitted just before it arrive.
@@ -413,10 +415,16 @@ export function socketIoMatchTransport(options: SocketIoMatchOptions = {}): Matc
     emit: (event, payload) => {
       raw.emit(event, payload);
     },
+    // Timed from when it leaves on a connected socket: the ack timeout measures the server, and a
+    // request queued behind a slow connect was otherwise dropped just as its answer arrived.
     request: (event, payload, onAck) => {
-      raw.timeout(timeoutMs).emit(event, payload, (err, response) => {
-        onAck(err, response);
-      });
+      const send = (): void => {
+        raw.timeout(timeoutMs).emit(event, payload, (err, response) => {
+          onAck(err, response);
+        });
+      };
+      if (socket.connected) send();
+      else socket.once('connect', send);
     },
     disconnect: () => {
       setTimeout(() => raw.disconnect(), DISCONNECT_GRACE_MS);
@@ -1076,7 +1084,9 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * Back on a socket after a drop, and its join not answered yet: a restarted server answers once it
    * has adopted the match, which can be seconds after it listens. `updating` is what the drop was.
    */
-  rejoin: { updating: boolean; retries: number } | null;
+  rejoin: { updating: boolean } | null;
+  /** Joins sent again since one was last answered ({@link MAX_JOIN_RETRIES}). */
+  joinRetries: number;
   /** The socket just came back from a planned restart's drop, and its rejoin has not been made yet. */
   backFromRestart: boolean;
   /** This browser tab's id (`tab-id.ts`), sent with every join so a reconnect is known for the same tab. */
@@ -1128,6 +1138,26 @@ export type MatchTrouble = MatchReportKind;
 
 /** How long a board may go without its first snapshot before it says so. */
 export const NO_SNAPSHOT_REPORT_MS = 10_000;
+
+/** A first connect slower than this is reported: every other board connects in under three seconds. */
+export const SLOW_CONNECT_REPORT_MS = 3_000;
+
+/**
+ * Whether the page was hidden at any point since this was called. A hidden tab's timers are
+ * throttled and a frozen one's sockets wait, so a slow connect in a tab the player left is not one
+ * the network or the server made.
+ */
+function watchHidden(): { ever(): boolean; stop(): void } {
+  if (typeof document === 'undefined') return { ever: () => false, stop: () => {} };
+  let hidden = document.visibilityState === 'hidden';
+  const onChange = (): void => {
+    if (document.visibilityState === 'hidden') hidden = true;
+  };
+  document.addEventListener('visibilitychange', onChange);
+  return { ever: () => hidden, stop: () => document.removeEventListener('visibilitychange', onChange) };
+}
+
+const hiddenWatches = new WeakMap<LiveMatch, { stop(): void }>();
 /** A socket that cannot connect retries for good: its first few errors are the story. */
 const CONNECT_ERRORS_REPORTED = 3;
 
@@ -1149,6 +1179,7 @@ function connectionFacts(match: LiveMatch): Record<string, unknown> {
     connected: match.connected,
     everConnected: match.everConnected,
     awaitingSnapshot: match.awaitingSnapshot,
+    visibility: typeof document === 'undefined' ? null : document.visibilityState,
     seat: match.seat,
     joins: match.stats.joins,
     snapshots: match.stats.snapshots,
@@ -1313,6 +1344,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     everConnected: false,
     serverUpdating: false,
     rejoin: null,
+    joinRetries: 0,
     backFromRestart: false,
     tabId: options.tabId ?? pageTabId(),
     awaitingSnapshot: false,
@@ -1407,7 +1439,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
   match.transport.on('connect', () => {
     // A reconnect re-joins, and so does a first connect whose first join timed out before it.
     const rejoin = match.everConnected || match.stats.snapshots === 0;
-    if (match.everConnected && !match.awaitingSnapshot) match.rejoin = { updating: match.serverUpdating || match.backFromRestart, retries: 0 };
+    if (match.everConnected && !match.awaitingSnapshot) match.rejoin = { updating: match.serverUpdating || match.backFromRestart };
     match.backFromRestart = false;
     match.connected = true;
     match.everConnected = true;
@@ -1433,6 +1465,17 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
       connectErrors += 1;
       if (connectErrors > CONNECT_ERRORS_REPORTED) return;
       report('connect-error', { message: error instanceof Error ? error.message : String(error), attempt: connectErrors, ...connectionFacts(match) });
+    });
+    const opened = Date.now();
+    const hidden = watchHidden();
+    hiddenWatches.set(match, hidden);
+    let firstConnect = true;
+    match.transport.on('connect', () => {
+      if (!firstConnect) return;
+      firstConnect = false;
+      hidden.stop();
+      const ms = Date.now() - opened;
+      if (ms > SLOW_CONNECT_REPORT_MS) report('slow-connect', { ms, wasHidden: hidden.ever(), connectErrors, ...connectionFacts(match) });
     });
     watchdogs.set(
       match,
@@ -3219,6 +3262,7 @@ export function abortAsk(match: LiveMatch, callId: string, reason: ClientAbort['
  */
 export function closeMatch(match: LiveMatch): void {
   clearTimeout(watchdogs.get(match));
+  hiddenWatches.get(match)?.stop();
   for (const ask of match.asks) sendAbort(match, ask.callId, 'cancelled', 'the player closed the board');
   match.asks = [];
   match.transport.disconnect();
@@ -3278,15 +3322,19 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
     const rejoin = kind === 'join' ? match.rejoin : null;
     if (kind === 'join') match.rejoin = null;
     if (err !== null) {
-      // A restarted server holds a join until the match is adopted, which can outlast one ack.
-      if (rejoin !== null && match.connected && rejoin.retries < MAX_REJOIN_RETRIES) {
-        match.rejoin = { ...rejoin, retries: rejoin.retries + 1 };
+      // Unanswered on a live socket: a restarted server holds a join until it has adopted the match,
+      // and a request sent on a socket since dropped is lost. Nothing else asks again — a connect
+      // that found this one waiting sent none — so this does. A socket that is down asks on connect.
+      if (match.connected && match.joinRetries < MAX_JOIN_RETRIES) {
+        match.joinRetries += 1;
+        match.rejoin = rejoin;
         fetchSnapshot(match, 'join');
         return;
       }
       snapshotFailed(match, `${event} was not answered: ${err.message}`);
       return;
     }
+    match.joinRetries = 0;
     const ack = parseMatchAck(response);
     if (!ack.ok) {
       match.stats.invalid += 1;
@@ -3296,6 +3344,11 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
       return;
     }
     if ('error' in ack.value) {
+      // A resync carried by a reconnect's new socket, which has not joined yet: it joins.
+      if (kind === 'resync' && ack.value.error === NOT_JOINED && match.connected) {
+        fetchSnapshot(match, 'join');
+        return;
+      }
       snapshotFailed(match, `${event} was refused: ${ack.value.error}`);
       return;
     }

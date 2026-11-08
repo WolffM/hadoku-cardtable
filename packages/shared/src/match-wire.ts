@@ -173,7 +173,7 @@ export type ServerBuild = z.infer<typeof ServerBuildSchema>;
  * thing in trouble or is about to go: the server logs each as a `client-report` line and refuses
  * any other `what`.
  */
-export const MATCH_REPORT_KINDS = ['connect-error', 'disconnected', 'snapshot-failed', 'no-snapshot', 'stale-build-reload'] as const;
+export const MATCH_REPORT_KINDS = ['connect-error', 'disconnected', 'snapshot-failed', 'no-snapshot', 'stale-build-reload', 'slow-connect'] as const;
 export type MatchReportKind = (typeof MATCH_REPORT_KINDS)[number];
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */
