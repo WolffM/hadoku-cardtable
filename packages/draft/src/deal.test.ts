@@ -216,6 +216,34 @@ describe('deal — set-cube: the plan\'s set-cube style is dealt exactly like a 
     expect([...counts.values()].filter((n) => n === 2)).toHaveLength(75);
   });
 
+  // The operator, 2026-11-07 (ROE set-cube, 8 seats): round 2's last pack ran past the end of the
+  // set's 228 cards, and the second pass replayed the first pass's order, so that pack was nearly a
+  // copy of seat 1's first pack, mythic Vengevine and all. "oh that's a huge problem. we should not be doing that."
+  it('a pass past the end of the list is a fresh shuffle: no pack is a near-copy of another', () => {
+    const roe = makeSet('ROE', 228);
+    const roeSources = (src: PoolSource): readonly DraftCard[] => (src.kind === 'set' && src.code === 'ROE' ? roe : sources(src));
+    const plan: DraftPlan = { rounds: [0, 1, 2].map(() => ({ kind: 'set' as const, code: 'ROE', style: 'set-cube' as const })) as DraftPlan['rounds'] };
+    for (const seed of ['r-f954a6bf5df2', 'a', 'b', 'c']) {
+      const packs = deal(plan, roeSources, seed, 8, 15).flat();
+      const names = packs.map((pack) => new Set(pack.map((c) => c.name)));
+      let worst = 0;
+      for (let i = 0; i < names.length; i++) {
+        for (let j = i + 1; j < names.length; j++) worst = Math.max(worst, [...names[i]!].filter((n) => names[j]!.has(n)).length);
+      }
+      // Two random 15-card packs from 228 share about one card; a replayed pass shares a dozen.
+      expect(worst, seed).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('no pack ever holds the same card twice, even one dealt across the end of a pass', () => {
+    const plan: DraftPlan = { rounds: [0, 1, 2].map(() => ({ kind: 'cube' as const, cubeId: 'tiny' })) as DraftPlan['rounds'] };
+    for (let seed = 0; seed < 40; seed++) {
+      for (const pack of deal(plan, sources, `wrap-${seed}`, 8, 15).flat()) {
+        expect(new Set(pack.map((c) => c.name)).size, `seed ${seed}`).toBe(15);
+      }
+    }
+  });
+
   it('two DIFFERENT sets in a custom plan each deal from their own non-basic list (ALA + ALA Reborn composes the same way two cubes do)', () => {
     const alaSources = (src: PoolSource): readonly DraftCard[] => {
       if (src.kind === 'set' && src.code === 'ALA') return makeSet('ALA', 180);

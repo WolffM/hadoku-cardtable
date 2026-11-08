@@ -27,13 +27,14 @@
  *
  * ## Never throws on a short pool
  *
- * A cube (or set-cube) too small for the pod wraps (`cursor.pos % size`)
- * rather than dealing short packs or throwing — the same behaviour
- * `engine.ts`'s old private `deal()` had, now exercised here. This is also
- * ruling 3's "a second copy of the set is added only when short": the FIRST
- * pass through the shuffled singleton list never repeats a name, and only a
- * round that would run past the end of that single pass starts seeing a name
- * again. `poolShortfall` answers "how short" as a value, for a caller that
+ * A cube (or set-cube) too small for the pod starts another pass through it
+ * rather than dealing short packs or throwing. This is also ruling 3's "a
+ * second copy of the set is added only when short": the FIRST pass through
+ * the shuffled singleton list never repeats a name, and only a round that
+ * would run past the end of that pass starts seeing a name again. Each later
+ * pass is a FRESH shuffle of its own (the operator, 2026-11-07: a replayed
+ * pass made ROE's round-2 last pack a near-copy of seat 1's first pack, "we
+ * should not be doing that"), and no pack takes a name it already holds. `poolShortfall` answers "how short" as a value, for a caller that
  * wants to say so before dealing at all.
  *
  * ## Realistic rounds are not sliced from a pool at all
@@ -84,8 +85,30 @@ function sourceKey(src: PoolSource): string {
 }
 
 interface Cursor {
-  shuffled: readonly DraftCard[];
+  pool: readonly DraftCard[];
+  key: string;
+  /** This pass's order; a pack's pick may swap within what is left of it. */
+  shuffled: DraftCard[];
   pos: number;
+  pass: number;
+}
+
+/**
+ * The next card for a pack holding `held`: the next of this pass not already in the pack, swapped
+ * forward so the pass stays a whole permutation of the pool. Past the end of a pass, a new pass in
+ * a fresh order (its own seed; the first pass's seed is unchanged, so a first pass deals as it did).
+ */
+function nextCard(cursor: Cursor, seed: string, held: ReadonlySet<string>): DraftCard {
+  if (cursor.pos >= cursor.shuffled.length) {
+    cursor.pass += 1;
+    cursor.shuffled = shuffle(cursor.pool, derive(seed, 'deal', cursor.key, 'pass', cursor.pass));
+    cursor.pos = 0;
+  }
+  const order = cursor.shuffled;
+  let at = cursor.pos;
+  while (at < order.length && held.has(order[at]!.name)) at++;
+  if (at < order.length && at !== cursor.pos) [order[cursor.pos], order[at]] = [order[at]!, order[cursor.pos]!];
+  return order[cursor.pos++]!;
 }
 
 /**
@@ -160,16 +183,17 @@ export function deal(
     if (cursor === undefined) {
       const pool = planPool(plan, sources, src);
       if (pool.length === 0) throw new Error(`deal: source ${key} has no cards`);
-      cursor = { shuffled: shuffle(pool, derive(seed, 'deal', key)), pos: 0 };
+      cursor = { pool, key, shuffled: shuffle(pool, derive(seed, 'deal', key)), pos: 0, pass: 0 };
       cursors.set(key, cursor);
     }
-    const size = cursor.shuffled.length;
     const round: DraftCard[][] = [];
     for (let s = 0; s < seatCount; s++) {
       const pack: DraftCard[] = [];
+      const held = new Set<string>();
       for (let i = 0; i < packSize; i++) {
-        pack.push(cursor.shuffled[cursor.pos % size] as DraftCard);
-        cursor.pos++;
+        const card = nextCard(cursor, seed, held);
+        pack.push(card);
+        held.add(card.name);
       }
       round.push(opened(src, pack).map((card, i) => withDealtId(card, r, s, i)));
     }
