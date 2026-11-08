@@ -35,7 +35,7 @@ import type { Request, Response, Router } from "express";
 import { ROOM_ID_RE, type RoomMember } from "@hadoku/shared";
 
 import type { People, Person } from "../people.js";
-import { POD_AI } from "../room/lobby.js";
+import { POD_AI, UNNAMED } from "../room/lobby.js";
 import { perCallerLimit } from "./request.js";
 
 export const PREVIEW_WIDTH = 1200;
@@ -216,11 +216,15 @@ export function seatsOf(room: PreviewRoom): {
   return { host, other };
 }
 
-async function facesOf(
+export async function facesOf(
   roomId: string,
   room: PreviewRoom,
   deps: PreviewDeps,
-): Promise<{ left: CardFace; right: CardFace | null } | null> {
+): Promise<{
+  left: CardFace;
+  right: CardFace | null;
+  complete: boolean;
+} | null> {
   const { host, other } = seatsOf(room);
   const users = deps.rooms.usersOf(roomId);
   const wanted = users
@@ -233,6 +237,8 @@ async function facesOf(
   } catch {
     people = new Map();
   }
+  // Whether every seated person was found: a card drawn without them is not kept (see the route).
+  let complete = true;
   const face = (memberId: string): CardFace | null => {
     const member = room.members.find((m) => m.id === memberId);
     if (member === undefined) {
@@ -247,8 +253,11 @@ async function facesOf(
     }
     const userId = users.find((u) => u.memberId === memberId)?.userId;
     const person = userId === undefined ? undefined : people.get(userId);
+    if (person === undefined) complete = false;
+    // The room's own word for a member it has no name for is never printed: no name is better.
+    const name = person?.name ?? (member.name === UNNAMED ? "" : member.name);
     return faceOf(
-      person?.name ?? member.name,
+      name,
       member.look?.picture ?? person?.look?.picture,
       member.avatarId ?? person?.sprite,
       deps.watchpartyBase,
@@ -256,7 +265,8 @@ async function facesOf(
   };
   const left = face(host);
   if (left === null) return null;
-  return { left, right: other === null ? null : face(other) };
+  const right = other === null ? null : face(other);
+  return { left, right, complete };
 }
 
 /* ── the picture ───────────────────────────────────────────────────── */
@@ -416,15 +426,21 @@ export function attachPreview(router: Router, deps: PreviewDeps): void {
     if (png === undefined) {
       if (!limit(req, res)) return;
       const images = new Map<string, string>();
+      let drawn = faces.complete;
       for (const f of [faces.left, faces.right]) {
         if (f?.picture == null || images.has(f.picture)) continue;
         const uri = await fetchImage(f.picture, doFetch);
-        if (uri !== undefined) images.set(f.picture, uri);
+        if (uri === undefined) drawn = false;
+        else images.set(f.picture, uri);
       }
       png = renderCard(cardSvg(faces.left, faces.right, images), fontFiles);
-      kept.set(key, png);
-      if (kept.size > KEPT_RENDERS)
-        kept.delete(kept.keys().next().value as string);
+      // A card missing a person or a picture (prefs or a CDN slow or down) is sent, but not kept by
+      // us or the edge: the next crawler gets the real one.
+      if (drawn) {
+        kept.set(key, png);
+        if (kept.size > KEPT_RENDERS)
+          kept.delete(kept.keys().next().value as string);
+      } else res.setHeader("Cache-Control", "no-store");
     }
     res.type("png").send(png);
   });

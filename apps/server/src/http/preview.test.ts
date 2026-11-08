@@ -7,10 +7,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Person } from "../people.js";
 import {
   attachPreview,
+  facesOf,
   cardSvg,
   describeRoom,
   previewFonts,
   seatsOf,
+  type PreviewDeps,
   type PreviewRoom,
 } from "./preview.js";
 
@@ -128,6 +130,7 @@ describe("GET /preview/room/:id.{html,png}", () => {
   const fetched: string[] = [];
   let base: string;
   let close: () => void;
+  let deps: PreviewDeps;
   const people: Person = {
     name: "Hadoku",
     sprite: "mentor",
@@ -138,6 +141,20 @@ describe("GET /preview/room/:id.{html,png}", () => {
     rooms.set("r-open", room());
     rooms.set("r-locked", room({ locked: true }));
     rooms.set("r-testing", room({ testing: true }));
+    rooms.set(
+      "r-unnamed",
+      room({
+        members: [
+          {
+            id: "fk:host",
+            name: "friend",
+            joinedAt: "",
+            ready: false,
+            avatarId: "mentor",
+          },
+        ],
+      }),
+    );
     rooms.set(
       "r-evil",
       room({
@@ -154,7 +171,7 @@ describe("GET /preview/room/:id.{html,png}", () => {
     );
     const app = express();
     const router = express.Router();
-    attachPreview(router, {
+    deps = {
       rooms: {
         get: (id) => rooms.get(id),
         usersOf: (id) =>
@@ -162,7 +179,8 @@ describe("GET /preview/room/:id.{html,png}", () => {
             ? [
                 {
                   memberId: "fk:host",
-                  userId: id === "r-evil" ? "u-evil" : "u-host",
+                  userId:
+                    id === "r-evil" || id === "r-unnamed" ? "u-gone" : "u-host",
                 },
               ]
             : [],
@@ -178,7 +196,8 @@ describe("GET /preview/room/:id.{html,png}", () => {
         fetched.push(String(url));
         return new Response(DOT, { headers: { "content-type": "image/png" } });
       }) as typeof fetch,
-    });
+    };
+    attachPreview(router, deps);
     app.use(router);
     const server = app.listen(0, "127.0.0.1");
     await new Promise((r) => server.once("listening", r));
@@ -217,6 +236,26 @@ describe("GET /preview/room/:id.{html,png}", () => {
     const res = await fetch(`${base}/preview/room/r-evil.png`);
     expect(res.status).toBe(200);
     expect(fetched).toEqual([]);
+  });
+
+  it("never prints the room's placeholder name, and keeps no card drawn without the person", async () => {
+    const faces = await facesOf("r-unnamed", rooms.get("r-unnamed")!, deps);
+    expect(faces).toEqual({
+      left: {
+        name: "",
+        picture: "https://hadoku.me/watchparty/media/sprites/square_mentor.png",
+        pixel: true,
+      },
+      right: null,
+      complete: false,
+    });
+    for (let i = 0; i < 2; i++) {
+      const res = await fetch(`${base}/preview/room/r-unnamed.png`);
+      expect(res.status).toBe(200);
+      // Not kept by us (the second is drawn again) nor by the edge.
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      await res.arrayBuffer();
+    }
   });
 
   it("is the same 404 for a room behind a password, a testing room, an unknown room and a bad path", async () => {
