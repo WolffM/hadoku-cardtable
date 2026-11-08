@@ -103,7 +103,7 @@ function page(playerId: number): { match: LiveMatch; answer(frames: readonly Ser
     request: (_event, _payload, onAck) => void acks.push(onAck),
     disconnect: () => {},
   };
-  const match = startMatch({ matchId: 'm', transport });
+  const match = startMatch({ matchId: 'm', transport, tabId: 'compacted-snapshot-tab' });
   return {
     match,
     answer(frames) {

@@ -12,8 +12,10 @@
  * tab, a new tab and a link navigate as something other than `reload`, so they mint their own. And
  * because a duplicated tab starts with a COPY of the original's sessionStorage, the stored id is
  * also probed (`@wolffm/rooms-protocol`'s `settleTabId`): if another live tab answers that it uses
- * it, this one mints a fresh one. `settledTabId` waits for that; `pageTabId` answers at once with
- * the id the page goes by meanwhile, for a socket that is not a player's.
+ * it, this one mints a fresh one. Every id the page sends is the settled one: an id handed out
+ * before the probe answered could be the duplicate's, and a join carrying it would hold the room
+ * for the other tab while this one's claim was asked about itself. `settledTabId` waits for it, and
+ * `withSettledTabId` hands it over at once when it is known (every page but a reload's first 150 ms).
  */
 
 import { answerTabProbes, browserTabChannel, isTabId, mintTabId, settleTabId, type TabIdChannel } from '@wolffm/rooms-protocol';
@@ -81,8 +83,9 @@ export function settledTabId(): Promise<string> {
   return begin();
 }
 
-/** This tab's id now: the settled one, or the one it goes by while the probe is out. */
-export function pageTabId(): string {
-  void begin();
-  return settled ?? (provisional as string);
+/** Run `use` with this tab's settled id: now when it is known, else once the probe has answered. */
+export function withSettledTabId(use: (id: string) => void): void {
+  const pending = begin();
+  if (settled !== null) use(settled);
+  else void pending.then(use);
 }

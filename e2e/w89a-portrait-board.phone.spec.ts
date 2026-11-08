@@ -22,7 +22,7 @@
  * `openFriend`, which creates `{}` — `scenario.ts` and `browser.ts` are both unowned this wave), so
  * the pinch section opens a SECOND context in `PHONE`'s own shape and reconnects it to the SAME match
  * `alice`'s desktop page already started, by the same session cookie — a second tab on the same
- * identity, not a second player.
+ * identity, not a second player, so it answers the one-live-tab question with yes and takes the game.
  *
  * Chip-position acceptance is read relative to `.board`'s own top edge, not the viewport's: this
  * worktree has only lane A landed, so the room's own header chrome above the match (unowned here —
@@ -212,6 +212,9 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
       await setPlayFastModeDefault(phoneContext, true);
       const phonePage = await phoneContext.newPage();
       await phonePage.goto(matchUrl(stack.origin, matchId));
+      // A second tab on alice's own identity while her desktop page still plays: one live tab per
+      // player per room (`apps/ui/src/room/session.ts`) asks first, and yes takes the game here.
+      await phonePage.getByTestId('session-ask-yes').click({ timeout: 30_000 });
       await expect(phonePage.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
       await expect(phonePage.locator('html')).toHaveAttribute('data-layout', 'portrait', { timeout: 10_000 });
       const phoneMyLands = phonePage.getByTestId('lane-my-lands');

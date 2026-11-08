@@ -409,8 +409,11 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       markers.get(id as number)?.();
       markers.delete(id as number);
     });
-    // Client telemetry: the real handler writes it to the log; this double records what was sent.
+    // Client telemetry: the real handler writes it to the log, and only a joined socket's
+    // (`apps/server/src/play/socket.ts`): a report sent before its join is dropped there unlogged,
+    // so this double drops it too, and records what the log would have kept.
     socket.on(CLIENT_EVENT, (payload) => {
+      if (!joined.has(socket)) return;
       server.received.push({ event: CLIENT_EVENT, payload });
     });
   });

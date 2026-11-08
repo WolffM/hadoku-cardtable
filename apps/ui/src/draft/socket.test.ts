@@ -17,7 +17,7 @@
  * per duplicate does not throw either, it just takes the server down.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DRAFT_CHANNEL,
   safeParseClientMessage,
@@ -28,7 +28,7 @@ import {
   type DraftView,
 } from '@hadoku/shared';
 
-import { pageTabId } from '../room/tab-id.ts';
+import { settledTabId } from '../room/tab-id.ts';
 import { socketPath } from '../room/socket-options.ts';
 import { loadFixtures } from './fixtures.ts';
 import {
@@ -139,18 +139,25 @@ describe('the socket.io path carries the base prefix', () => {
 
 /* ── Joining ─────────────────────────────────────────────────────────── */
 
+// A page's tab id settles once, at its first use, long before a draft starts: every join below goes out
+// at once with it. A join made before it settles waits for it (`room/tab-id.test.ts`).
+beforeAll(async () => {
+  await settledTabId();
+});
+
 describe('joining', () => {
   let stub: Stub;
   beforeEach(() => {
     stub = makeStub();
   });
 
-  it('joins with a draft id and this tab, and NOTHING that says who we are', () => {
+  it('joins with a draft id and this tab, and NOTHING that says who we are', async () => {
+    const tabId = await settledTabId();
     connect(stub);
     const messages = outbound(stub);
     expect(messages).toHaveLength(1);
     // The tab is a hint between one person's own sockets (one live tab per player per room), not an identity.
-    expect(messages[0]).toEqual({ type: 'join', draftId: 'draft:test', tabId: pageTabId() });
+    expect(messages[0]).toEqual({ type: 'join', draftId: 'draft:test', tabId });
     // The server derives identity from the edge headers. If this ever grows a
     // field, `safeParseClientMessage` above fails before this line does.
     expect(JSON.stringify(messages[0])).not.toMatch(/participant|seat|token|name/i);

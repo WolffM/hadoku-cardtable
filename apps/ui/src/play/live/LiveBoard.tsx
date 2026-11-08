@@ -3781,13 +3781,15 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
     if (isPacedTransport(match.transport)) match.transport.setSeatPlayer(() => (match.spectator ? null : match.playerId));
   }, [match]);
   usePublishLiveMatchSettings(match, !spectator);
-  // The seat's settings, in the match's log: once they have been read, and on every change — with the
-  // window they are laid out in, so a layout report is read from the log rather than guessed.
+  // The seat's settings, in the match's log: once they have been read and the seat has joined, and on
+  // every change — with the window they are laid out in, so a layout report is read from the log rather
+  // than guessed. The server keeps a joined socket's reports only, so one sent before the join's
+  // snapshot is lost: prefs that read before the join wait for it.
+  const seated = match.stats.snapshots > 0;
   useEffect(() => {
-    // The first report is of the persisted values, once they have been read. After it, every change.
-    if (spectator || !prefsRead) return;
+    if (spectator || !prefsRead || !seated) return;
     reportClient(match.transport, match.matchId, 'info', { ui: __HADOKU_UI_VERSION__, fastMode, boardLayout, reducedMotion: prefersReducedMotion(), window: `${window.innerWidth}x${window.innerHeight}` });
-  }, [match, spectator, prefsRead, fastMode, boardLayout]);
+  }, [match, spectator, prefsRead, seated, fastMode, boardLayout]);
   /*
    * The End step stop is the one preference the server hears of, and it remembers nothing: sent on
    * every change, and on join and resync (manager, 2026-09-30: *"send it on join/rejoin with the

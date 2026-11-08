@@ -275,7 +275,7 @@ import type { PromptParts } from '../prompts/lookup.ts';
 import { foldPackets, type FoldablePacket, type FoldResult, type WireState } from '../fold.ts';
 import { expectWirePackets } from '../wire.ts';
 import { timed } from './work-meter.ts';
-import { pageTabId } from '../../room/tab-id.ts';
+import { withSettledTabId } from '../../room/tab-id.ts';
 import { serverReleaseIsNewer, unreadableMeansStale } from '../../stale-build.ts';
 import {
   abortFrame,
@@ -1089,8 +1089,12 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   joinRetries: number;
   /** The socket just came back from a planned restart's drop, and its rejoin has not been made yet. */
   backFromRestart: boolean;
-  /** This browser tab's id (`tab-id.ts`), sent with every join so a reconnect is known for the same tab. */
-  tabId: string;
+  /**
+   * This browser tab's id (`tab-id.ts`), sent with every join so a reconnect is known for the same tab.
+   * Null until the page's id has settled: the first join waits for it, so it never carries an id the
+   * tab's room claim does not.
+   */
+  tabId: string | null;
   /** A join or resync is in flight; inbound frames are being buffered. */
   awaitingSnapshot: boolean;
   /** Resyncs since a frame last applied. See `MAX_RESYNCS_WITHOUT_PROGRESS`. */
@@ -1108,7 +1112,7 @@ export interface LiveMatchOptions {
   matchId: string;
   /** Defaults to a same-origin socket.io connection. */
   transport?: MatchTransport;
-  /** Defaults to this page's ({@link pageTabId}); a test that plays two tabs in one process passes its own. */
+  /** Defaults to this page's settled id ({@link withSettledTabId}); a test that plays two tabs in one process passes its own. */
   tabId?: string;
   /**
    * Trouble before the board has a snapshot, told somewhere other than the socket — which is the
@@ -1346,7 +1350,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     rejoin: null,
     joinRetries: 0,
     backFromRestart: false,
-    tabId: options.tabId ?? pageTabId(),
+    tabId: options.tabId ?? null,
     awaitingSnapshot: false,
     resyncsWithoutProgress: 0,
     stats: emptyStats(),
@@ -3297,6 +3301,13 @@ export const MAX_RESYNCS_WITHOUT_PROGRESS = 3;
  */
 function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
   if (match.awaitingSnapshot || match.reloading) return;
+  if (kind === 'join' && match.tabId === null) {
+    withSettledTabId((tabId) => {
+      match.tabId = tabId;
+      fetchSnapshot(match, 'join');
+    });
+    return;
+  }
   if (kind === 'resync') {
     if (match.resyncsWithoutProgress >= MAX_RESYNCS_WITHOUT_PROGRESS) {
       // Every resync since the last snapshot was refused unread, or each one landed and the stream gapped from it again.
@@ -3316,7 +3327,7 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
   match.awaitingSnapshot = true;
 
   const event = kind === 'join' ? MATCH_EVENTS.join : MATCH_EVENTS.resync;
-  const request: MatchRequest = kind === 'join' ? { matchId: match.matchId, tabId: match.tabId } : { matchId: match.matchId };
+  const request: MatchRequest = kind === 'join' && match.tabId !== null ? { matchId: match.matchId, tabId: match.tabId } : { matchId: match.matchId };
   match.transport.request(event, request, (err, response) => {
     match.awaitingSnapshot = false;
     const rejoin = kind === 'join' ? match.rejoin : null;

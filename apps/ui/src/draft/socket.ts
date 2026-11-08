@@ -74,7 +74,7 @@ import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protoco
 import { io } from 'socket.io-client';
 
 import { defaultSocketPath, socketOptions } from '../room/socket-options.ts';
-import { pageTabId } from '../room/tab-id.ts';
+import { withSettledTabId } from '../room/tab-id.ts';
 import type { ConnectionFacts } from './connection.ts';
 
 /**
@@ -273,10 +273,12 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
       // Sampled BEFORE the join goes out, so the snapshot that answers it is
       // counted as "arrived since we came back".
       draft.appliedAtLastJoin = draft.stats.applied;
-      send(draft, joinDraft(draft.draftId, pageTabId()));
-      if (draft.watching !== null) send(draft, watchDraft(draft.draftId, draft.watching));
-      // A restarted server kept no lean: say it again.
-      if (draft.lean.sent !== null) send(draft, leanDraft(draft.draftId, draft.lean.sent));
+      withSettledTabId((tabId) => {
+        send(draft, joinDraft(draft.draftId, tabId));
+        if (draft.watching !== null) send(draft, watchDraft(draft.draftId, draft.watching));
+        // A restarted server kept no lean: say it again.
+        if (draft.lean.sent !== null) send(draft, leanDraft(draft.draftId, draft.lean.sent));
+      });
     }
     notify(draft);
   });
@@ -287,7 +289,7 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
   });
 
   draft.stats.joins += 1;
-  send(draft, joinDraft(draft.draftId, pageTabId()));
+  withSettledTabId((tabId) => send(draft, joinDraft(draft.draftId, tabId)));
   return draft;
 }
 
