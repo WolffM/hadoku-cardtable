@@ -1012,3 +1012,40 @@ Read at the pin `f216faf58e4` and run on hokon against that pin's jar.
   per game with the winning seat, and runs inside the shared `--host` JVM like any match. Through the
   real pool (`botgames.jvm.test.ts`): Bears 2-0, games of 5379 ms and 2610 ms, 19.6 s including the
   JVM's boot. **[verified, run]**
+
+## The pin moves to upstream of 2026-11-08 — what changed under the bridge (forge sync)
+
+The pin moved from fork `f216faf58e` (upstream `2cd497cfbe`, 2026-09-11) to WolffM/forge
+`cardtable/upstream-2026-11-08` (upstream `960c343030` plus our commits). The ledger of every upstream
+commit is `docs/planning/forge-upstream-sync-2026-11-08.md`. Facts the bridge now rests on, each read
+in that tree (paths under `forge/`):
+
+- **VERIFIED — one selection call.** `setSelectables`, `clearSelectables`, `setHighlighted`,
+  `setWeaklySelectable` and `clearWeaklySelectable` are gone from `IGuiGame` and `ProtocolMethod`;
+  every input sends `setSelection(Selection)` instead
+  (`forge-gui/src/main/java/forge/gamemodes/match/Selection.java`: `cards`, `min`, `max`, `targets`,
+  `chosen`, `actionable`). It goes out from `InputBase.showMessageInitial` → `showSelection()`,
+  **after** `showMessage()`, so with the input open, and `InputSyncronizedBase.stop()` sends
+  `Selection.ofChosen(keptMarks)`. The "Wave 22" facts above about `setSelectables`' two call sites in
+  input constructors describe the old pin. The bridge diffs each selection against the last
+  (`SeatGui.setSelection`) and sends the old five frames.
+- **VERIFIED — zones are the client's.** `tempShowZones`, `hideZones` and `restoreOldZones` are gone,
+  and `openZones` is no longer a protocol method (Forge #12023, `ProtocolMethod.java`); a reveal is
+  `showRevealedCards` / `hideRevealedCards`. The "fifteen asks" above are now thirteen.
+- **VERIFIED — view properties.** `TrackableProperty.java` has 211 constants: `WasDestroyed`,
+  `Needs{Tap,Untap,Transform}Animation`, `AvatarLifeDifference`, `HasBackSide` and
+  `RevealedCardsCollection` are gone; `SharedTeam`, `Stickers`, `StickerSheets`, `TargetStackItems`
+  are new.
+- **VERIFIED — the asks are `ProtocolGuiGame`'s.** `RemoteClientGuiGame` now extends
+  `forge-gui/src/main/java/forge/gamemodes/net/ProtocolGuiGame.java`, where `getChoices`, `order` and
+  `chooseEntitiesForEffect` park; a stack-frame match on `RemoteClientGuiGame` finds nothing.
+- **VERIFIED — undo.** `forge-game/src/main/java/forge/game/undo/UndoManager.java` rewinds whole-game
+  mementos, checkpointed at every priority (`PlayerControllerHuman.chooseSpellAbilityToPlay`), in the
+  mode `FPref.UI_UNDO_MODE` names (default `Free`). The fork keeps the stack's mana undo
+  (`MagicStack.undo`) behind the Undo button; the bridge sets the mode to `Off`.
+- **VERIFIED — AI.** `forge-core/src/main/java/forge/util/AITimeoutTracker.java` gives every AI decision
+  one deadline (`Game.getAITimeout`); `FPref.MATCH_AI_FLAT_MONTE_CARLO` (default `true`, Max on
+  desktop, `HostedMatch.java:165`) turns on Flat Monte Carlo rollouts. The bridge sets it `false`.
+- **VERIFIED — one hosting server per process became several.** `HostingServer.java` is upstream's
+  hook for "the server this process hosts"; the fork makes it a set and finds a game's server by
+  `Server.hosts(game)`.
