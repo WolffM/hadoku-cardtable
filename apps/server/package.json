@@ -21,8 +21,8 @@
     "@hadoku/service-kernel": "workspace:*",
     "@hadoku/shared": "workspace:*",
     "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.23",
-    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.57",
-    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.57",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.58",
+    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.58",
     "express": "^5.1.0",
     "socket.io": "^4.8.3",
     "zod": "4.5.4"
