@@ -7,7 +7,7 @@
  * chrome gives chat and roster INSIDE a room, and this file says which rooms
  * there are.
  *
- * ## Persistence: write-through, through `@hadoku/room-store`
+ * ## Persistence: write-through, through `@wolffm/rooms-server/store`
  *
  * This repo redeploys on every push to `main`, so an in-memory room list would
  * evaporate several times a day — taking passwords and deck choices with it.
@@ -16,7 +16,7 @@
  * window for a deploy to fall into and no flush-on-SIGTERM to get right. The
  * write rate is a handful of clicks per game; a debounce would buy nothing.
  *
- * Rooms are stored in room-store's own snapshot format (`STORE_VERSION`), and
+ * Rooms are stored in the rooms-server store's own snapshot format (`STORE_VERSION`), and
  * read back through its `decodeSnapshot`, so an unreadable or future-format
  * record is QUARANTINED (moved aside intact) rather than half-applied or
  * silently dropped. `RoomPersistence` is not used: it exists to restore live
@@ -50,7 +50,7 @@
  *
  * A member is identified by `identityFromHeaders` (`fk:`/`dev:`/`eph:`). An
  * ephemeral id is a per-request random value here — it could never be matched
- * on a second request, and room-store drops non-durable members from every
+ * on a second request, and the store drops non-durable members from every
  * snapshot anyway. So `create`/`join` refuse an ephemeral caller (the HTTP layer
  * answers 403). Behind the edge every friend-tier caller carries a friend key,
  * so in production this never bites; it exists so the answer is a clear refusal
@@ -67,7 +67,7 @@ import {
 	type RoomCodec,
 	type RoomSnapshot,
 	type SerializedMember,
-} from '@hadoku/room-store';
+} from '@wolffm/rooms-server/store';
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
 import {
 	AVATAR_ID_MAX,
@@ -4334,7 +4334,7 @@ class FileLobby implements Lobby {
 /**
  * Open the lobby over `dir`, restoring every room a previous process wrote.
  *
- * Async because room-store's read path is (`list`/`load`/`quarantine`); every
+ * Async because the store's read path is (`list`/`load`/`quarantine`); every
  * operation on the returned lobby is synchronous. A record this build cannot
  * read is quarantined and logged by room id and reason — the reason names what
  * was wrong, never the bytes, since the bytes could include a password hash.

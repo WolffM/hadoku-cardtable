@@ -226,7 +226,7 @@ async function readAssignments(dir: string, log: JsonLog): Promise<StoredAssignm
 }
 
 /**
- * Temp file, then rename over the target — the same shape `@hadoku/room-store`
+ * Temp file, then rename over the target — the same shape `@wolffm/rooms-server/store`
  * uses for its own snapshots. A process that dies between the two steps
  * leaves the `.tmp` file as evidence and the previous `assignments.json`
  * untouched; nothing ever reads a half-written file because nothing is ever

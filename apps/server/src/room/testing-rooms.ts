@@ -446,7 +446,7 @@ const nextTurn = (): Promise<void> => new Promise((resolve) => setImmediate(reso
  * catalog is a pool-JVM round trip that can time out) is logged and skipped.
  *
  * It gives way for a turn before each room: a room is several writes to the
- * store, each one fsynced (`room-store`'s `saveSync`), dozens on a first boot,
+ * store, each one fsynced (the store's `saveSync`), dozens on a first boot,
  * so on a slow disk a request waits behind one room at most, never the whole
  * set. Whether a room is missing is read again after each turn, so a reseed
  * that interleaves with this one never makes it twice.

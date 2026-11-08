@@ -11,14 +11,14 @@
  * A room created before `clientMode` existed has no such key in its stored
  * `app` blob, and must read back `builtin`. Proving that needs a snapshot from
  * before the field — so the test WRITES one, into a temp dir it made, through
- * room-store's own `saveSync`. That is byte-for-byte how the old build wrote a
+ * the store's own `saveSync`. That is byte-for-byte how the old build wrote a
  * room, minus the one key it did not know about. Nothing here reads
  * `data/rooms`, a deployed tree, or any file this process did not create.
  */
 
 import { newGauntlet } from './gauntlet.ts';
 import { standAll } from './testing-seats.ts';
-import { FileRoomStore, STORE_VERSION, type RoomSnapshot } from '@hadoku/room-store';
+import { FileRoomStore, STORE_VERSION, type RoomSnapshot } from '@wolffm/rooms-server/store';
 import { createSeatTable, humanSeats, seatOf } from '@wolffm/rooms-protocol';
 import { packOf, pick, pickNumberOf, type DraftState } from '@hadoku/draft';
 import { mkdirSync, writeFileSync } from 'node:fs';

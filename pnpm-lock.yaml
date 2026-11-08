@@ -58,9 +58,6 @@ importers:
       '@hadoku/platform-wire':
         specifier: workspace:*
         version: link:../../packages/platform-wire
-      '@hadoku/room-store':
-        specifier: workspace:*
-        version: link:../../packages/room-store
       '@hadoku/service-kernel':
         specifier: workspace:*
         version: link:../../packages/service-kernel
@@ -228,15 +225,6 @@ importers:
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.60
         version: '@hadoku/rooms-protocol@0.45.60'
-
-  packages/room-store:
-    dependencies:
-      '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.60
-        version: '@hadoku/rooms-protocol@0.45.60'
-      '@wolffm/rooms-server':
-        specifier: npm:@hadoku/rooms-server@0.45.60
-        version: '@hadoku/rooms-server@0.45.60(socket.io@4.8.3)'
 
   packages/service-kernel:
     dependencies:

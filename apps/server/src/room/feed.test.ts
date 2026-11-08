@@ -21,7 +21,7 @@ import { ROOM_FEED_CHANNEL, type RoomChanged } from '@hadoku/shared';
 import { attachRoomFeed } from './feed.ts';
 import { deriveParticipantId } from './identity.ts';
 import { openLobby, ROOM_STALE_MS, UNNAMED, type Lobby } from './lobby.ts';
-import { FileRoomStore } from '@hadoku/room-store';
+import { FileRoomStore } from '@wolffm/rooms-server/store';
 
 interface Person {
 	key: string;

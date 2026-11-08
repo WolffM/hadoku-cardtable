@@ -9,7 +9,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { decodeSnapshot, FileRoomStore, type RoomSnapshot } from '@hadoku/room-store';
+import { decodeSnapshot, FileRoomStore, type RoomSnapshot } from '@wolffm/rooms-server/store';
 import { MAGIC_ROOM_STORED_KEYS } from '@hadoku/shared';
 
 import { openLobby, roomCodec } from './lobby.ts';

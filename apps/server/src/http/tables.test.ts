@@ -1553,7 +1553,7 @@ describe('a room table', () => {
 	 * the watchparty selected avatars. why not?"*
 	 *
 	 * `avatarId` has been on `@wolffm/rooms-protocol`'s `RosterIdentity` and on
-	 * `packages/room-store`'s `SerializedMember` all along; what was missing was
+	 * `@wolffm/rooms-server/store`'s `SerializedMember` all along; what was missing was
 	 * this hop — the room member's field reaching the TABLE's players, beside the
 	 * name the room already carried. `playersOf` hands the member row through
 	 * verbatim and `tableView` spreads it, so both assertions below are about the

@@ -161,7 +161,7 @@ describe('a table carrying more seats than its capacity', () => {
    *
    * `setSeatCapacity` truncates, so the live API will not build this state;
    * it is built here by writing `capacity` directly, which is what a decoded
-   * snapshot amounts to (`room-store` validates the table's SHAPE, not that
+   * snapshot amounts to (`@wolffm/rooms-server/store` validates the table's SHAPE, not that
    * `seats.length <= capacity`). The point of delegating the loop is that the
    * render side survives it without every consumer having read
    * `setSeatCapacity`.

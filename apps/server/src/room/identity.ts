@@ -22,7 +22,7 @@
  * stranger to every room, pod and recording that named them (cardtable#2,
  * hadoku_site IDENTITY_MODEL R7/R12, cardtable#25). The key is not an input at
  * all now. Stores written under the key-derived ids are refused rather than
- * remapped (`@hadoku/room-store`'s `STORE_VERSION` 2).
+ * remapped (`@wolffm/rooms-server/store`'s `STORE_VERSION` 2).
  *
  * ## Derived, never accepted
  *

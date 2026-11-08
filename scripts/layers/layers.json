@@ -2,7 +2,6 @@
   "platform": [
     "packages/room-ask/**",
     "packages/ui-shell/**",
-    "packages/room-store/**",
     "packages/service-kernel/**",
     "packages/platform-wire/**",
     "apps/server/src/stream/**",

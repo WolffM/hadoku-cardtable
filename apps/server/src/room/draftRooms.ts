@@ -88,7 +88,7 @@
  * on the last connected player — the reservation exists precisely because an
  * empty client map is not an empty pod. So rooms live for the life of the
  * process, which is a slow leak and a much smaller one than destroying a game
- * in progress. Persistence (P6, `packages/room-store`) is where this gets a
+ * in progress. Persistence (P6, `@wolffm/rooms-server/store`) is where this gets a
  * real answer. Turning it on is the operator's decision, not this file's.
  *
  * `RoomRegistry.onRoomDelete` IS wired, though, and deliberately before there
@@ -152,7 +152,7 @@ import {
 	type RestoreContext,
 	type RoomCodec,
 	type RoomSnapshot,
-} from '@hadoku/room-store';
+} from '@wolffm/rooms-server/store';
 
 import { participantHandle } from './identity.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
@@ -332,7 +332,7 @@ interface DraftRoomsOptions {
 	 */
 	onDeferredChange?: (room: DraftRoom) => void;
 	/**
-	 * Where pods are persisted (P6, `@hadoku/room-store`'s snapshot format).
+	 * Where pods are persisted (P6, `@wolffm/rooms-server/store`'s snapshot format).
 	 * `undefined` or `null` — the default — disables persistence outright: pure
 	 * in-memory, today's behaviour. `index.ts` opts in explicitly with
 	 * `CONFIG.draftsDir`, as it does with `CONFIG.roomsDir`. Defaulting to a real directory instead would make
@@ -449,7 +449,7 @@ export interface PodDeal {
 }
 
 /*
- * ## Persistence, hand-rolled rather than `@hadoku/room-store`'s own classes
+ * ## Persistence, hand-rolled rather than `@wolffm/rooms-server/store`'s own classes
  *
  * `FileRoomStore`/`RoomPersistence` are both ASYNC (`fs/promises`), because
  * they are built for a host whose room creation can afford to await a load.
@@ -457,7 +457,7 @@ export interface PodDeal {
  * on every `join`, and making them `async` would ripple into a file this
  * module does not own. So the snapshot FORMAT and the pure codec functions
  * (`snapshotRoom`/`decodeSnapshot`/`applySnapshot`) come from
- * `@hadoku/room-store`, but the bytes move over `node:fs`'s synchronous calls,
+ * `@wolffm/rooms-server/store`, but the bytes move over `node:fs`'s synchronous calls,
  * mirroring `FileRoomStore`'s own safety properties (base64url filenames so a
  * `draftId` cannot escape the directory; a temp-file-and-rename write so a
  * reader never sees a half-written snapshot) without being able to reuse that
@@ -948,7 +948,7 @@ export function botPoolAt(room: DraftRoom, seat: number): DraftCard[] | null {
  * seat this participant last held" (`seats.ts`'s header: "Outlives their
  * departure so a returning participant reclaims their old place"). Nothing in
  * this file ever clears it, so it already survives a leave, the hold expiring,
- * AND a restart (it travels inside `room.seats`, which `@hadoku/room-store`'s
+ * AND a restart (it travels inside `room.seats`, which `@wolffm/rooms-server/store`'s
  * generic snapshot already carries verbatim) — this function is the one place
  * that reads it for a participant who is NOT currently seated. A seat nobody
  * ever sat in — a bot's — has no participant pointing at it here, so it stays

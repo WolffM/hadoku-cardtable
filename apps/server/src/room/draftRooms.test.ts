@@ -992,7 +992,7 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 	/*
 	 * Acceptance 2: "a restore of the persisted pod gives the identical packs
 	 * with no Forge call." The packs a realistic round deals are written into
-	 * the pod's own snapshot (`@hadoku/room-store`, wave 73's persistence —
+	 * the pod's own snapshot (`@wolffm/rooms-server/store`, wave 73's persistence —
 	 * no new code here), and `createDraftRooms`'s eager restore loop reads
 	 * them back through `decodeSnapshot`/`applySnapshot`, never through
 	 * `build()`/`deal()`. The resolver whose `cards()` throws and the absence
