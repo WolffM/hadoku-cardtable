@@ -7,11 +7,11 @@
          tab and the header stay one name. See app-name.ts. -->
     <title>__HADOKU_APP_NAME__</title>
     <!--
-      The site's own mark, served by hadoku.me at the ROOT — deliberately not
-      under /cardtable/, which only this server answers. Every hadoku app links
-      the same one. Without it the browser asks for /favicon.ico, which 404s.
+      Cardtable's own mark (operator, 2026-11-07): the sly fox from the Discord
+      icon, drawn on a 16 px grid. Vite hashes it into assets/ like any other
+      asset, so the server's year-long immutable cache stays correct.
     -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./src/favicon.svg" />
   </head>
   <body>
     <div id="root"></div>
