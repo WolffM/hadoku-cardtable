@@ -22,7 +22,11 @@
  * Rounds drawing from one pool are one group on either page: a cube's three identical rounds are
  * one card list and one pack, while a preset mixing Alara and Alara Reborn shows each pool, and a
  * pack from each round. A set's realistic and set-cube styles draw on the same card list, so the
- * cards page joins them; the pack page does not, since their packs are collated differently.
+ * cards page joins them into one group; the pack page, and the line that opens it, do not, since
+ * a line names one line view id and the two styles deal from different pools (a realistic pack is
+ * Forge's own booster collation; a set-cube pack is a `deal()` round like a cube's). A set's line
+ * view id carries its style when it is not realistic, `set/BLB:set-cube/cards` — realistic stays
+ * the bare `set/BLB/cards`, so every line already in a stored Rally snapshot still means realistic.
  *
  * ## Options are snapshots
  *
@@ -156,8 +160,28 @@ function best<T>(items: readonly T[], rank: (item: T) => number | null): T[] {
 /** A cube or a set drafted all three rounds: what a room drafting it runs. */
 const thrice = (src: PoolSource): DraftPlan => ({ rounds: [src, src, src] });
 
-/** One card list per key: a set's two styles draw on the same cards, so they share a cards page and a line. */
+/** One card list per key: a set's two styles draw on the same cards, so they share a cards page. */
 const poolKey = (src: PoolSource): string => (src.kind === 'cube' ? `cube:${src.cubeId}` : `set:${src.code}`);
+
+/** One line, and one pack, per key: unlike `poolKey`, a set's two styles are different lines and different
+ * packs (a realistic pack is Forge's booster, a set-cube pack a plain `deal()` round), so they key apart. */
+const lineKey = (src: PoolSource): string => (src.kind === 'cube' ? `cube:${src.cubeId}` : `set:${src.code}:${src.style}`);
+
+/** A set source's id in a line/view, e.g. `BLB` for realistic — what every snapshot already stored — or
+ * `BLB:set-cube` for any other style. */
+const setViewId = (src: Extract<PoolSource, { kind: 'set' }>): string => (src.style === 'realistic' ? src.code : `${src.code}:${src.style}`);
+
+/** The set style enum, copied from `PoolSourceSchema` (`packages/shared/src/pool.ts`) to check a view id's suffix. */
+const SET_STYLES: readonly Extract<PoolSource, { kind: 'set' }>['style'][] = ['realistic', 'set-cube'];
+
+/** A set's code and style from a line/view id: bare `BLB` defaults to realistic; `BLB:style` names any
+ * other style. Null for an unknown style suffix (refused the same way as an unknown set). */
+function parseSetId(id: string): { code: string; style: Extract<PoolSource, { kind: 'set' }>['style'] } | null {
+	const i = id.indexOf(':');
+	if (i < 0) return { code: id, style: 'realistic' };
+	const style = id.slice(i + 1);
+	return (SET_STYLES as readonly string[]).includes(style) ? { code: id.slice(0, i), style: style as Extract<PoolSource, { kind: 'set' }>['style'] } : null;
+}
 
 const KIND_LABEL = (src: PoolSource): string => (src.kind === 'cube' ? 'Cube' : src.style === 'realistic' ? 'Realistic' : 'Set cube');
 
@@ -196,12 +220,15 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 		return { id, label, detail: kindOf(plan), image, lines: linesOf(plan) };
 	}
 
-	/** `3x Bloomburrow packs`, or `1x Final Fantasy`, linked to that source's own cards page. */
+	/** `3x Bloomburrow packs`, or `1x Final Fantasy`, linked to that source's own cards page. A set's two
+	 * styles are two lines (`lineKey`), even though they open the same cards page (`poolKey` joins them
+	 * there): the line's view id is what Rally later swaps to the pack view, and the two styles must
+	 * open their own packs. */
 	function linesOf(plan: DraftPlan): RallyLine[] {
-		return grouped(plan, poolKey).map(({ src, rounds }) => {
+		return grouped(plan, lineKey).map(({ src, rounds }) => {
 			const n = rounds.length;
 			const text = n === 1 ? `1x ${clip(nameOf(src), LINE_MAX - 3)}` : `${n}x ${clip(nameOf(src), LINE_MAX - 9)} packs`;
-			return { text, view: src.kind === 'cube' ? `cube/${src.cubeId}/cards` : `set/${src.code}/cards` };
+			return { text, view: src.kind === 'cube' ? `cube/${src.cubeId}/cards` : `set/${setViewId(src)}/cards` };
 		});
 	}
 
@@ -247,9 +274,11 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 				return { plan: thrice({ kind: 'cube', cubeId: id }), name: cube.name };
 			}
 			case 'set': {
-				const set = (await deps.sets.list()).find((s) => s.code === id);
+				const parsed = parseSetId(id);
+				if (parsed === null) throw new RallyRefusal(404, 'Cardtable cannot draft this set.');
+				const set = (await deps.sets.list()).find((s) => s.code === parsed.code);
 				if (set === undefined) throw new RallyRefusal(404, 'Cardtable cannot draft this set.');
-				return { plan: thrice({ kind: 'set', code: id, style: 'realistic' }), name: set.name };
+				return { plan: thrice({ kind: 'set', code: parsed.code, style: parsed.style }), name: set.name };
 			}
 			case 'draft-preset': {
 				const preset = deps.presets.list().find((p) => p.id === id);
@@ -309,8 +338,7 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 	async function packView(kind: RallyCatalogue, id: string): Promise<RallyPackView> {
 		const { plan, name } = await planOf(kind, id);
 		const seed = randomUUID();
-		const exact = (src: PoolSource): string => (src.kind === 'cube' ? `cube:${src.cubeId}` : `set:${src.code}:${src.style}`);
-		const groups = grouped(plan, exact);
+		const groups = grouped(plan, lineKey);
 
 		const pools = new Map<string, readonly DraftCard[]>();
 		const realistic = new Map<number, DraftCard[][]>();
@@ -325,10 +353,10 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 						boosters.map((pack) => pack.map((card) => resolveBoosterCard(deps.catalog, card))),
 					);
 				}
-			} else pools.set(exact(src), await sourceCards(src));
+			} else pools.set(lineKey(src), await sourceCards(src));
 		}
 
-		const dealt = deal(plan, (src) => pools.get(exact(src)) ?? [], seed, 1, DEFAULT_PARAMS.packSize, (r) => realistic.get(r));
+		const dealt = deal(plan, (src) => pools.get(lineKey(src)) ?? [], seed, 1, DEFAULT_PARAMS.packSize, (r) => realistic.get(r));
 		return {
 			name,
 			packs: groups.map(({ src, rounds }) => ({
