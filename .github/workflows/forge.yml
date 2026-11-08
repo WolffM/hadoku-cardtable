@@ -175,7 +175,7 @@ jobs:
     # Never on a fork's pull request: this job runs on the operator's self-hosted
     # runners, so a fork PR would run arbitrary code on the production host.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-forge"]') || fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 5
     outputs:
       e2e: ${{ steps.pick.outputs.e2e }}
@@ -361,7 +361,7 @@ jobs:
     # Fork PRs never reach here (`changes` is skipped for them); the guard is
     # repeated so this job stays safe if its `needs` ever changes.
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.e2e == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'e2e')
-    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
+    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21","lane-forge"]') }}
     # The suite is serial by design (`e2e/playwright.config.ts`: one worker, one
     # stack at a time), so a full run is ~30 min on one claw however idle the
     # claw is (measured 2026-10-08 by the fleet tracker: load 6 of 12 cores).
@@ -677,7 +677,7 @@ jobs:
     name: e2e-nightly
     needs: changes
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.nightly == 'true'
-    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-forge"]') || fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -747,7 +747,7 @@ jobs:
     # Fork PRs never reach here (`changes` is skipped for them); the guard is
     # repeated so this job stays safe if its `needs` ever changes.
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.jvm == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'jvm')
-    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
+    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21","lane-forge"]') }}
     strategy:
       fail-fast: false
       matrix:
@@ -874,7 +874,7 @@ jobs:
     name: judge forge-jvm
     needs: [changes, forge-jvm]
     if: ${{ !cancelled() && needs.forge-jvm.result != 'skipped' }}
-    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-forge"]') || fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
@@ -929,7 +929,7 @@ jobs:
   forge-monkey:
     name: forge-monkey
     if: github.event_name == 'schedule' && github.event.schedule == '0 10 * * *' || (github.event_name == 'workflow_dispatch' && inputs.monkey == true)
-    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
+    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21","lane-forge"]') }}
     # A sampled dispatch run is a handful of matches; the nightly covers every
     # library deck (1459 at this writing) at one match each — budgeted like a
     # `forge-e2e` full shard, since each match is a whole game played to a turn
@@ -1015,7 +1015,7 @@ jobs:
       ${{ always() && github.ref == 'refs/heads/main'
       && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full && inputs.specs == '' && inputs.jvm == ''))
       && (needs.changes.result != 'success' || needs.changes.outputs.e2e == 'true' || needs.changes.outputs.jvm == 'true') }}
-    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-forge"]') || fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 3
     steps:
       - name: The full run's outcome

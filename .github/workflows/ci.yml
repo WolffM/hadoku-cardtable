@@ -68,7 +68,7 @@ jobs:
     # the label set that nothing keeps in step with the first, and it only ever
     # takes effect in the one case where the fleet has deliberately said
     # otherwise.
-    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-ci"]') || fromJSON(vars.CI_RUNNER) }}
     # No TMPDIR override any more (dropped wave forge-claws, 2026-10-07). This
     # job used to pin `/tmp/cardtable-ci-tmp` because the fleet's warm claws ran
     # jobs under `/home/hadoku/.hadoku/warm/…`, a dot-segment path, and three
@@ -149,7 +149,7 @@ jobs:
   unit:
     name: unit (${{ matrix.shard }}/2)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-ci"]') || fromJSON(vars.CI_RUNNER) }}
     # 25, not 15: a shard placed on hokon when every claw is full takes 12-14 min
     # quiet (p50 709 s vs 308 s on a claw), and under load both shards of run
     # 42164074468 crossed 15 and were cancelled mid-run. 25 still fails a hang.
@@ -187,7 +187,7 @@ jobs:
   e2e:
     name: e2e
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-ci"]') || fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -312,7 +312,7 @@ jobs:
     name: check
     needs: [static, unit, e2e]
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-ci"]') || fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 2
     steps:
       - name: Every job is green
