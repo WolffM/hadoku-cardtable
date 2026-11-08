@@ -607,22 +607,20 @@ export interface SeatState {
 	 */
 	clicked: number | null;
 	/**
-	 * Wave 35 §S, R4 — a REVEAL ({@link asReveal}) the bridge flagged
-	 * (`choiceFollows`) held back for the real discard choice it belongs to
-	 * (Thoughtseize's "look at hand" step). See {@link Match.onFrame}'s own
-	 * header on the fold. An unflagged reveal never sets this — it is shown
-	 * at once, with no hold (#39). Shown as a notice ({@link Match.showReveal})
-	 * if nothing claims a flagged one within {@link PENDING_REVEAL_CHOICE_MS}.
+	 * Wave 35 §S, R4 — a REVEAL ({@link asReveal}) held back to
+	 * see whether the very next ask to this seat is the real discard choice it
+	 * belongs to (Thoughtseize's "look at hand" step). See
+	 * {@link Match.onFrame}'s own header on the fold. Shown as a notice
+	 * ({@link Match.showReveal}) if nothing claims it within
+	 * {@link PENDING_REVEAL_FOLD_MS}.
 	 */
 	pendingReveal: { frame: RevealFrame; timer: NodeJS.Timeout } | null;
 	/**
 	 * Every frame but an ask Forge sent while {@link pendingReveal} was held, raw and in order: what
 	 * the reveal's resolution did — its state, its log lines, the next bar — comes AFTER the reveal on
 	 * the seat's screen, as it did in Forge. Handled the moment the reveal is shown or folded
-	 * ({@link Match.releaseReveal}) — at most {@link PENDING_REVEAL_CHOICE_MS} late, for a flagged
-	 * reveal. An unflagged reveal is shown the instant it arrives, so nothing is ever held behind it;
-	 * this mechanism is why holding one safely cannot reorder Sorin, Grim Nemesis's +1 drawing bob's
-	 * life loss before the card that caused it.
+	 * ({@link Match.releaseReveal}) — at most `PENDING_REVEAL_FOLD_MS` late. Without it, Sorin, Grim
+	 * Nemesis's +1 drew bob's life loss before the card that caused it.
 	 */
 	behindReveal: unknown[];
 	/**
@@ -1084,15 +1082,25 @@ export function newMatchId(): string {
  */
 
 /**
- * How long a held reveal Forge said a choice follows (`choiceFollows`, read off Forge's live,
- * resolving ability by `PlayBridge.java`'s `revealChoiceFollows` — never a guess at Forge's
- * speed) waits for that choice. On a loaded host the choice came 295 ms after its reveal, and
- * the seat was shown the reveal and a bare choice apart (closing run 42354601891) under the
- * fixed 250 ms window this replaced (#39: `PENDING_REVEAL_FOLD_MS`, which held EVERY reveal —
- * folding or not — is gone; an unflagged reveal now shows at once, with no wait at all). This
- * only bounds a reveal whose flagged choice never comes, which is logged.
+ * How long a held reveal waits for its matching choice before it is shown on
+ * its own, for the case nothing else disqualifies it first (an ask that
+ * arrives and does not match releases it at once, regardless of this timer).
+ * Short on purpose: every ordinary, non-folding reveal in the game — an
+ * opponent's hand shown by a tutor, a library search's "nothing found", any
+ * `RevealYouChoose`-shaped card this fold does not recognise — waits this
+ * long before it reaches the seat, and a measured real fold answers within
+ * 10-30ms of the reveal arriving, so this is generous headroom, not a target.
  */
-export const PENDING_REVEAL_CHOICE_MS = 10_000;
+const PENDING_REVEAL_FOLD_MS = 250;
+
+/**
+ * How long a held reveal Forge said a choice follows (`choiceFollows`, a `Reveal…YouChoose` discard) waits
+ * for that choice. Forge has already said it is coming, so this is no guess at Forge's speed: on a loaded
+ * host the choice came 295 ms after its reveal and missed {@link PENDING_REVEAL_FOLD_MS}, and the seat was
+ * shown the reveal and a bare choice apart (closing run 42354601891). It only bounds a reveal whose choice
+ * never comes, which is logged.
+ */
+const PENDING_REVEAL_CHOICE_MS = 10_000;
 
 type PromptFrame = Extract<ServerFrame, { method: 'showPromptMessage' }>;
 type ButtonsFrame = Extract<ServerFrame, { method: 'updateButtons' }>;
@@ -3086,13 +3094,8 @@ export class Match {
 			// single game thread right here, and it will not even construct
 			// whatever comes next until this is answered, so "hold it and see
 			// what follows" is not an option the way it is for an ordinary ask.
-			// Only a reveal the bridge FLAGS (`choiceFollows`, read off Forge's
-			// live, resolving ability — `PlayBridge.java`'s `revealChoiceFollows`,
-			// never a guess at Forge's speed) is held, for that choice. Every
-			// other reveal has nothing coming and is shown at once (#39: a fixed
-			// 250 ms wait on every one of those, `PENDING_REVEAL_FOLD_MS`, is gone —
-			// a measured fold answers in 10-30 ms, so the wait was never a target,
-			// only delay on cards that never fold).
+			// Its `choices` are kept a moment longer, in case the very next ask
+			// is the real discard choice they belong to.
 			const reveal = asReveal(frame, (ref) => (ref.kind === 'card' ? cardName(s.history.board, ref.id) : null) ?? `${ref.kind} #${ref.id}`);
 			// What Forge shows this seat it keeps knowing (`visibility.ts`, "What a seat was shown").
 			const shown = reveal !== null ? choiceCardIds(reveal.choices) : 'delayedReveal' in frame ? (frame.delayedReveal?.cards ?? []).map((c) => c.id) : [];
@@ -3116,25 +3119,16 @@ export class Match {
 					this.releaseReveal(s);
 				}
 				const choiceFollows = frame.method === 'getChoices' && frame.choiceFollows === true;
-				if (!choiceFollows) {
-					// Nothing flags a choice coming: Forge's one legal answer goes
-					// back at once, and the seat sees the reveal the same instant —
-					// no timer, no hold.
-					this.autoReply(s, frame.callId, frame.method, 'a reveal — its one legal answer, shown at once (no choice flagged to follow)', []);
-					this.showReveal(s, reveal);
-					this.releaseReveal(s);
-					return;
-				}
 				const timer = setTimeout(() => {
 					if (s.pendingReveal?.frame !== reveal) return;
 					s.pendingReveal = null;
-					this.deps.log({ evt: 'reveal-choice-missing', matchId: this.id, seat: s.seat, callId: reveal.callId, ms: PENDING_REVEAL_CHOICE_MS });
+					if (choiceFollows) this.deps.log({ evt: 'reveal-choice-missing', matchId: this.id, seat: s.seat, callId: reveal.callId, ms: PENDING_REVEAL_CHOICE_MS });
 					this.showReveal(s, reveal);
 					this.releaseReveal(s);
-				}, PENDING_REVEAL_CHOICE_MS);
+				}, choiceFollows ? PENDING_REVEAL_CHOICE_MS : PENDING_REVEAL_FOLD_MS);
 				timer.unref();
 				s.pendingReveal = { frame: reveal, timer };
-				this.autoReply(s, frame.callId, frame.method, 'a reveal — its one legal answer, held for its flagged choice', []);
+				this.autoReply(s, frame.callId, frame.method, 'a reveal — its one legal answer, held a moment for a possible R4 fold', []);
 				return;
 			}
 			const pending = s.pendingReveal;

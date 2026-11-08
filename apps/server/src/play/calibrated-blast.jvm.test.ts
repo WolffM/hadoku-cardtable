@@ -58,10 +58,9 @@ describe.skipIf(!available.ok)(title, () => {
 					s,
 				);
 
-				// This reveal is unflagged (DigUntil, not a discard `choiceFollows`
-				// shape), so `Match` shows it at once with no hold (#39) — this wait is
-				// just headroom for the frame to actually reach `s.sent` and settle,
-				// never a fold window this test could outrun.
+				// `Match`'s own reveal-fold timer is 250ms (`PENDING_REVEAL_FOLD_MS`); give
+				// it a full second past resolution before reading `s.sent`, so a drop found
+				// below is the product, never this test outrunning the fold.
 				await new Promise((resolve) => setTimeout(resolve, 1_000));
 				s.answerAsks();
 
