@@ -5,8 +5,8 @@
  * DISCARDS its write buffer. A packet stays in that buffer when the
  * connection's transport is not writable at the moment of the emit: a
  * websocket still waiting on its previous send's callback, or a polling client
- * between two GETs. The restart notice emitted just before the close was then
- * thrown away and the screen read "Reconnecting…" after all.
+ * between two GETs. A restart notice emitted just before the close would then
+ * be thrown away and the screen read "Reconnecting…" after all.
  *
  * engine.io hands a buffer to the transport synchronously when it can
  * (`Socket.sendPacket` → `flush`, which emits `flush`), so a connection that
@@ -67,8 +67,8 @@ export interface Closable {
  * Let a closing server's connections go: the idle ones at once, and every one after `graceMs`, so
  * a request already in flight is answered. `server.close` (which `io.close` calls) only stops new
  * connections and waits for the open ones, and a keep-alive connection through cloudflared that a
- * page keeps busy never goes idle: prod's 16:00Z shutdown on 2026-11-06 was still answering
- * requests a second in, and pm2 SIGKILLed it at its 1.6 s `kill_timeout` before `shutdown-done`.
+ * page keeps busy never goes idle: one restart was still answering requests a second in, and pm2
+ * SIGKILLed it at its `kill_timeout` before `shutdown-done`.
  */
 export function closeConnections(server: Closable, graceMs: number): void {
 	server.closeIdleConnections();

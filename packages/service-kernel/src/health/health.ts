@@ -13,7 +13,7 @@ export type Commit = { commit: string; commit_error?: undefined } | { commit: nu
 /**
  * `git rev-parse HEAD` in `repoRoot`, read once at boot by the caller: a deploy
  * restarts the process, so the checkout cannot move under a running server.
- * Each instance reads its OWN checkout (cardtable and cardtable-ppe are two).
+ * Each instance reads its OWN checkout (an app's prod and its PPE are two).
  */
 export function readCommit(repoRoot: string): Commit {
 	try {
@@ -35,16 +35,17 @@ export function readCommit(repoRoot: string): Commit {
  * The instance's child-apps id, from the prefix the edge serves it under:
  * `/cardtable` is `cardtable`, `/cardtable-ppe` is `cardtable-ppe`. Both
  * instances run this same code, and the prefix is the one setting that
- * child-apps.json gives each of them differently.
+ * child-apps.json gives each of them differently. `fallback` is the app's own
+ * id, used only when the prefix is empty (dev, or a misconfigured deploy).
  */
-export function serviceIdOf(basePrefix: string): string {
-	return basePrefix.replace(/^\/+|\/+$/g, '') || 'cardtable';
+export function serviceIdOf(basePrefix: string, fallback: string): string {
+	return basePrefix.replace(/^\/+|\/+$/g, '') || fallback;
 }
 
 export interface HealthInput {
 	service: string;
 	commit: Commit;
-	/** The base-path verdict (`base-path.ts`); `ok: false` is the one not-ready state. */
+	/** The base-path verdict (the app's own bundle/base-path check); `ok: false` is the one not-ready state. */
 	bundle: { ok: boolean; reason: string };
 }
 

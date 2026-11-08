@@ -1,8 +1,13 @@
+/*
+ * The generic local-probe gating and fail-safe-on-throw plumbing is proved in
+ * `@hadoku/service-kernel`'s own suite now (w93-K2). This is cardtable's own: what counts as
+ * "destroyable work" (a live match, a drafting pod) and the HTTP route over it.
+ */
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
-import { busyHandler, busyReport, isLocalProbe, type BusyReport, type BusySources } from './busy.js';
+import { busyHandler, busyReport, isLocalProbe, type BusyReport, type BusySources } from './busy.ts';
 
 const src = (over: Partial<BusySources> = {}): BusySources => ({ matches: () => [], drafts: () => [], ...over });
 const match = (status: string) => ({ id: 'm1', status, seats: [{}, {}] });

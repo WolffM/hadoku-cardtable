@@ -1,6 +1,10 @@
 /*
- * The boot announcement against the repo's real release notes and a loopback server that checks
- * the request the way ArchiveBot does (HMAC-SHA256 of the raw body, `sha256=<hex>`).
+ * The frozen pin: cardtable's idempotency key (`cardtable-release-<version>`), its `source` field
+ * (`cardtable`) and the secret-skip reason naming `ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET` — plus a
+ * few checks against this repo's REAL `docs/releases` content (length caps, no mid-sentence
+ * breaks, the pending-notes style rule), which a synthetic fixture cannot stand in for. The
+ * generic logic (parseNotes, splitBody, forDiscord, mentionsIn, the full announceRelease flow)
+ * is proved in `@hadoku/service-kernel`'s own suite now (w93-K2).
  */
 import { createHmac } from 'node:crypto';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -11,7 +15,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { announceRelease, latestRelease, mentionsIn, parseNotes, releaseEmbeds, splitBody, forDiscord } from './announce.ts';
+import { announceRelease, latestRelease, parseNotes, releaseEmbeds, forDiscord } from './announce.ts';
 
 const RELEASES = resolve(dirname(fileURLToPath(import.meta.url)), '../../../docs/releases');
 const SECRET = 'test-secret';
@@ -29,8 +33,8 @@ afterEach(async () => {
 	server = null;
 });
 
-/** A stand-in ArchiveBot: verifies the signature, answers like `/api/messages/send`, and `/api/messages/edit` with `editReply` (default: no post on record). */
-async function archivebot(reply: () => [number, unknown], editReply: (version: string) => [number, unknown] = () => [404, { error: 'message_not_found' }]): Promise<{ url: string; received: Received[] }> {
+/** A stand-in ArchiveBot: verifies the signature, answers like `/api/messages/send`. */
+async function archivebot(reply: () => [number, unknown]): Promise<{ url: string; received: Received[] }> {
 	const received: Received[] = [];
 	server = createServer((req, res) => {
 		let raw = '';
@@ -39,14 +43,7 @@ async function archivebot(reply: () => [number, unknown], editReply: (version: s
 			const signature = req.headers['x-hadoku-signature'] as string | undefined;
 			received.push({ url: req.url, signature, raw });
 			const expected = `sha256=${createHmac('sha256', SECRET).update(raw).digest('hex')}`;
-			const [status, body] =
-				signature !== expected
-					? [401, { error: 'invalid_signature' }]
-					: req.url === '/api/messages/send'
-						? reply()
-						: req.url === '/api/messages/edit'
-							? editReply(String(JSON.parse(raw).idempotencyKey).replace('cardtable-release-', ''))
-							: [404, { error: 'not_found' }];
+			const [status, body] = signature !== expected ? [401, { error: 'invalid_signature' }] : req.url === '/api/messages/send' ? reply() : [404, { error: 'not_found' }];
 			res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
 		});
 	});
@@ -59,7 +56,7 @@ function logs(): { entries: Record<string, unknown>[]; log: (e: Record<string, u
 	return { entries, log: (e) => entries.push(e) };
 }
 
-describe('release notes', () => {
+describe('release notes against this repo\'s real docs/releases', () => {
 	it('reads the newest notes in the repo, titled by their heading', async () => {
 		const notes = await latestRelease(RELEASES);
 		expect(notes?.version).toMatch(/^v\d+\.\d+\.\d+$/);
@@ -67,7 +64,7 @@ describe('release notes', () => {
 		expect(notes?.body).not.toContain(`# ${notes?.title}`);
 	});
 
-	it('orders by semver, not by name', async () => {
+	it('orders by semver through the real build-version ordering, not by name', async () => {
 		const dir = await mkdtemp(resolve(tmpdir(), 'cardtable-releases-'));
 		try {
 			await writeFile(resolve(dir, 'v0.9.0.md'), '# v0.9.0 — older\n\nold');
@@ -79,14 +76,6 @@ describe('release notes', () => {
 		}
 	});
 
-	it('keeps a body under the cap in one embed', () => {
-		const notes = parseNotes('v1.0.0', '# v1.0.0 — short\n\nOne line.\n\n## Fixed\n\n- A fix.');
-		const embeds = releaseEmbeds(notes, 'https://hadoku.me/cardtable/');
-		expect(embeds).toHaveLength(1);
-		// The title already names the version and Discord dates the message: no footer, no timestamp.
-		expect(embeds[0]).toEqual({ title: notes.title, description: forDiscord(notes.body), url: 'https://hadoku.me/cardtable/', color: 0x2f855a });
-	});
-
 	it('fits every release in one Discord message — 6000 characters across its embeds', async () => {
 		for (const name of (await readdir(RELEASES)).filter((n) => /^v\d+\.\d+\.\d+\.md$/.test(n))) {
 			const notes = parseNotes(name.slice(0, -3), await readFile(resolve(RELEASES, name), 'utf8'));
@@ -94,37 +83,6 @@ describe('release notes', () => {
 			const length = embeds.reduce((sum, e) => sum + (e.title?.length ?? 0) + e.description.length, 0);
 			expect(length, name).toBeLessThanOrEqual(6000);
 		}
-	});
-
-	it('joins a wrapped sentence back into one line and drops the blank lines beside a heading, keeping list items and fences apart', () => {
-		const body = [
-			'Card Table now has its own Discord server. Big turns',
-			'also got a lot smoother.',
-			'',
-			'## New',
-			'',
-			'- **A Discord button in the top bar**, next to the theme picker. It opens',
-			'  the invite.',
-			'- **Patch notes post themselves.**',
-			'',
-			'```',
-			'kept',
-			'as is',
-			'```',
-		].join('\n');
-		expect(forDiscord(body)).toBe(
-			[
-				'Card Table now has its own Discord server. Big turns also got a lot smoother.',
-				'## New',
-				'- **A Discord button in the top bar**, next to the theme picker. It opens the invite.',
-				'- **Patch notes post themselves.**',
-				'',
-				'```',
-				'kept',
-				'as is',
-				'```',
-			].join('\n'),
-		);
 	});
 
 	it('has no pending note with a bullet bold from end to end — only a big feature bolds its lead (docs/RELEASE.md)', async () => {
@@ -145,73 +103,10 @@ describe('release notes', () => {
 			});
 		}
 	});
-
-	it('splits a long body at ## headings, never truncating', () => {
-		const section = (n: number): string => `## Part ${n}\n\n${'- a line of notes\n'.repeat(150)}`;
-		const body = `Intro.\n\n${section(1)}\n${section(2)}\n${section(3)}`;
-		const pieces = splitBody(body);
-		expect(pieces.length).toBeGreaterThan(1);
-		for (const piece of pieces) expect(piece.length).toBeLessThanOrEqual(4096);
-		expect(pieces.slice(1).every((p) => p.startsWith('## Part'))).toBe(true);
-		expect(pieces.join('\n').replace(/\s+/g, '')).toBe(body.replace(/\s+/g, ''));
-	});
-
-	it('cuts a single oversized section at line breaks', () => {
-		const body = `## Huge\n\n${'- x'.repeat(10).concat('\n').repeat(300)}`;
-		const pieces = splitBody(body, 1000);
-		for (const piece of pieces) expect(piece.length).toBeLessThanOrEqual(1000);
-		expect(pieces.join('\n').replace(/\s+/g, '')).toBe(body.replace(/\s+/g, ''));
-	});
-
-	it('treats a file with no heading as all body', () => {
-		expect(parseNotes('v1.0.0', 'just text')).toEqual({ version: 'v1.0.0', title: 'v1.0.0', body: 'just text' });
-	});
 });
 
-describe('who a release thanks', () => {
-	it('is every @name in the notes, once each, in order, without a sentence’s full stop', () => {
-		const body = '## Fixed\n- The grid holds still in Rally. (@ohmusama)\n- A wheel scrolls one thing. Thanks @OhMuSama and @bob.\n- Mail me at a@b.c, see hadoku.me/@x';
-		expect(mentionsIn(body)).toEqual(['ohmusama', 'bob']);
-	});
-
-	it('is nobody when nobody is named', () => {
-		expect(mentionsIn('## Fixed\n- Something.')).toEqual([]);
-	});
-});
-
-describe('announceRelease', () => {
-	it('sends the reporters a release names as mentions, with no thank-you line, and logs any no account carries', async () => {
-		const dir = await mkdtemp(resolve(tmpdir(), 'announce-'));
-		try {
-			await writeFile(resolve(dir, 'v9.9.0.md'), '# v9.9.0 — thanks\n\n## Fixed\n- The grid holds still in Rally. (@ohmusama)\n- The wheel scrolls one thing. (@ohmusama, @ghost)\n');
-			const bot = await archivebot(() => [200, { success: true, messageId: '1', mentioned: ['ohmusama'], unresolved: ['ghost'] }]);
-			const { entries, log } = logs();
-			await announceRelease({ releasesDir: dir, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
-			const sent = JSON.parse(bot.received[0]!.raw);
-			expect(sent.mentions).toEqual(['ohmusama', 'ghost']);
-			expect(sent).not.toHaveProperty('content');
-			expect(sent.embeds[0].description).toContain('(@ohmusama)');
-			expect(entries).toEqual([{ event: 'release-announce', outcome: 'posted', version: 'v9.9.0', unresolved: ['ghost'] }]);
-		} finally {
-			await rm(dir, { recursive: true, force: true });
-		}
-	});
-
-	it('sends no content and no mentions when the notes name nobody', async () => {
-		const dir = await mkdtemp(resolve(tmpdir(), 'announce-'));
-		try {
-			await writeFile(resolve(dir, 'v9.9.0.md'), '# v9.9.0 — quiet\n\n## Fixed\n- Something.\n');
-			const bot = await archivebot(() => [200, { success: true, messageId: '1' }]);
-			await announceRelease({ releasesDir: dir, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log: logs().log });
-			const sent = JSON.parse(bot.received[0]!.raw);
-			expect(sent).not.toHaveProperty('content');
-			expect(sent).not.toHaveProperty('mentions');
-		} finally {
-			await rm(dir, { recursive: true, force: true });
-		}
-	});
-
-	it('posts the release once per key, signed, to #announcements by default', async () => {
+describe('announceRelease: cardtable\'s own frozen literals', () => {
+	it('posts the release once per key, signed, with idempotencyKey "cardtable-release-<version>" and source "cardtable"', async () => {
 		const bot = await archivebot(() => [200, { success: true, messageId: '1' }]);
 		const { entries, log } = logs();
 		await announceRelease({ releasesDir: RELEASES, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
@@ -219,70 +114,15 @@ describe('announceRelease', () => {
 		expect(bot.received.filter((r) => r.url === '/api/messages/send')).toHaveLength(1);
 		const sent = JSON.parse(bot.received[0].raw);
 		expect(sent).toMatchObject({ idempotencyKey: `cardtable-release-${notes.version}`, source: 'cardtable' });
-		expect(sent).not.toHaveProperty('channel_id');
-		expect(Math.abs(sent.timestamp - Date.now())).toBeLessThan(60_000);
 		expect(entries).toEqual([{ event: 'release-announce', outcome: 'posted', version: notes.version }]);
 	});
 
-	it('then re-sends the newest releases as edits, and logs only the posts it changed', async () => {
-		const dir = await mkdtemp(resolve(tmpdir(), 'announce-'));
-		try {
-			for (const v of ['v1.0.0', 'v1.1.0', 'v1.2.0', 'v1.3.0']) await writeFile(resolve(dir, `${v}.md`), `# ${v} — t\n\n## Fixed\n- A fix.\n`);
-			await writeFile(resolve(dir, 'v1.2.0.md'), '# v1.2.0 — t\n\n## New\n- Mana floating asks first. (@the.scrubdaddy)\n');
-			const bot = await archivebot(
-				() => [200, { success: true, messageId: '1' }],
-				(version) => (version === 'v1.2.0' ? [200, { success: true, messageId: '2', edited: true }] : [200, { success: true, messageId: '3', unchanged: true }]),
-			);
-			const { entries, log } = logs();
-			await announceRelease({ releasesDir: dir, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
-			const edits = bot.received.filter((r) => r.url === '/api/messages/edit').map((r) => JSON.parse(r.raw));
-			expect(edits.map((e) => e.idempotencyKey)).toEqual(['cardtable-release-v1.3.0', 'cardtable-release-v1.2.0', 'cardtable-release-v1.1.0']);
-			expect(edits[1].mentions).toEqual(['the.scrubdaddy']);
-			expect(edits[1].embeds[0].description).toContain('(@the.scrubdaddy)');
-			expect(entries).toEqual([
-				{ event: 'release-announce', outcome: 'posted', version: 'v1.3.0' },
-				{ event: 'release-edit', outcome: 'edited', version: 'v1.2.0' },
-			]);
-		} finally {
-			await rm(dir, { recursive: true, force: true });
-		}
-	});
-
-	it('a failed send makes no edits', async () => {
-		const bot = await archivebot(() => [500, { error: 'boom' }], () => [200, { edited: true }]);
-		const { log } = logs();
-		await announceRelease({ releasesDir: RELEASES, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
-		expect(bot.received.map((r) => r.url)).toEqual(['/api/messages/send']);
-	});
-
-	it('logs a deduped reply as already posted', async () => {
-		const bot = await archivebot(() => [200, { success: true, messageId: '1', deduped: true }]);
-		const { entries, log } = logs();
-		await announceRelease({ releasesDir: RELEASES, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
-		expect(entries[0]).toMatchObject({ outcome: 'already-posted' });
-	});
-
-	it('skips without a secret and sends nothing', async () => {
+	it('skips, naming ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET, without a secret and sends nothing', async () => {
 		const bot = await archivebot(() => [200, { success: true }]);
 		const { entries, log } = logs();
 		await announceRelease({ releasesDir: RELEASES, secret: '', archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
 		expect(bot.received).toHaveLength(0);
-		expect(entries[0]).toMatchObject({ outcome: 'skipped' });
-	});
-
-	it('logs a refusal with its status and resolves', async () => {
-		const bot = await archivebot(() => [400, { error: 'invalid_embeds', detail: 'embeds[0].image is not accepted' }]);
-		const { entries, log } = logs();
-		await announceRelease({ releasesDir: RELEASES, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
-		expect(entries[0]).toMatchObject({ outcome: 'failed', status: 400 });
-		expect(String(entries[0].reply)).toContain('invalid_embeds');
-	});
-
-	it('logs a wrong secret as the 401 it is', async () => {
-		const bot = await archivebot(() => [200, { success: true }]);
-		const { entries, log } = logs();
-		await announceRelease({ releasesDir: RELEASES, secret: 'wrong', archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
-		expect(entries[0]).toMatchObject({ outcome: 'failed', status: 401 });
+		expect(entries).toEqual([{ event: 'release-announce', outcome: 'skipped', reason: 'no ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET' }]);
 	});
 
 	it('resolves when ArchiveBot is down', async () => {

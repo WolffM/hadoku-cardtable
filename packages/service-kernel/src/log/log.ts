@@ -1,5 +1,5 @@
 /**
- * The server's log line: one JSON object on stdout with a timestamp, the
+ * A service's log line: one JSON object on stdout with a timestamp, the
  * service that wrote it, then the entry's own fields. pm2 keeps stdout, and
  * every reader of these logs greps for `svc`.
  */

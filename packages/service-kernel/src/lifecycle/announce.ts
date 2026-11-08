@@ -1,26 +1,29 @@
 /*
- * Prod posts its release's patch notes to the Discord server's #announcements at boot, through
+ * Prod posts its release's patch notes to a Discord server's #announcements at boot, through
  * ArchiveBot's signed `/api/messages/send` (contract: docs/requests/ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md).
  *
- * The release is the newest `docs/releases/vX.Y.Z.md` in the tree: `release.yml` refuses a sha
- * without that file, and prod only ever runs a released sha. Every boot sends; the idempotency key
- * `cardtable-release-<version>` is deduped by ArchiveBot for 7 days, so a restart posts nothing new.
+ * The release is the newest `vX.Y.Z.md` release notes file in the tree. Every boot sends; the
+ * idempotency key `<service>-release-<version>` is deduped by ArchiveBot for 7 days, so a restart
+ * posts nothing new.
  *
  * A bug's reporter is named in its bullet as `@name` (their hadoku name; docs/RELEASE.md § "Attribution").
  * Those names ride as `mentions`, and ArchiveBot turns each `@name` in the notes into the person's
- * Discord mention, inline where the bullet credits them. No separate thank-you line: the operator,
- * 2026-11-05, "just the inline mentions are good enough".
+ * Discord mention, inline where the bullet credits them. No separate thank-you line.
  *
- * Prod only, by the secret: PPE's wrapper deliberately does not hold it, and an unset secret is a
- * skip, not an error. A failed post never blocks boot; the next boot retries it.
+ * `secret` is the app's webhook secret (empty = skip, never an error); a failed post never blocks
+ * boot, and the next boot retries it.
  *
- * Imports only; nothing runs at import (the server is one bundle — see `index.ts`).
+ * `ordering` decides which release files are newest: the kernel does not read a release-notes
+ * directory layout itself. The app supplies it (cardtable's adapter injects
+ * `scripts/release/build-version.ts`'s `newestReleaseFile`/`releaseFilesNewestFirst`, since the
+ * kernel cannot import `scripts/`).
+ *
+ * Imports only; nothing runs at import.
  */
 import { createHmac } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { newestReleaseFile, releaseFilesNewestFirst } from '../../../scripts/release/build-version.js';
-import type { JsonLog } from './log.js';
+import type { JsonLog } from '../log/log.ts';
 
 /** ArchiveBot's per-embed description cap. */
 const DESCRIPTION_MAX = 4096;
@@ -38,9 +41,20 @@ export interface Embed {
 	color: number;
 }
 
-/** The newest release notes in `dir`, by semver, or null when there are none. */
-export async function latestRelease(dir: string): Promise<ReleaseNotes | null> {
-	const newest = newestReleaseFile(await readdir(dir));
+/**
+ * How release-notes file names are ordered: the kernel knows no directory layout of its own, so
+ * the app supplies this (cardtable's adapter binds `scripts/release/build-version.ts`).
+ */
+export interface ReleaseOrdering {
+	/** The newest release file name among `names`, or null when there is none. */
+	newest(names: readonly string[]): string | null;
+	/** Every release file name among `names`, newest first. */
+	newestFirst(names: readonly string[]): string[];
+}
+
+/** The newest release notes in `dir`, by `ordering`, or null when there are none. */
+export async function latestRelease(dir: string, ordering: ReleaseOrdering): Promise<ReleaseNotes | null> {
+	const newest = ordering.newest(await readdir(dir));
 	if (newest === null) return null;
 	return parseNotes(newest.slice(0, -'.md'.length), await readFile(join(dir, newest), 'utf8'));
 }
@@ -51,9 +65,9 @@ export async function latestRelease(dir: string): Promise<ReleaseNotes | null> {
  */
 export const EDITABLE_RELEASES = 3;
 
-/** The newest `count` release notes in `dir`, newest first. */
-export async function recentReleases(dir: string, count = EDITABLE_RELEASES): Promise<ReleaseNotes[]> {
-	const names = releaseFilesNewestFirst(await readdir(dir)).slice(0, count);
+/** The newest `count` release notes in `dir`, newest first, by `ordering`. */
+export async function recentReleases(dir: string, ordering: ReleaseOrdering, count = EDITABLE_RELEASES): Promise<ReleaseNotes[]> {
+	const names = ordering.newestFirst(await readdir(dir)).slice(0, count);
 	return Promise.all(names.map(async (name) => parseNotes(name.slice(0, -'.md'.length), await readFile(join(dir, name), 'utf8'))));
 }
 
@@ -151,9 +165,14 @@ export function releaseEmbeds(notes: ReleaseNotes, appUrl: string): Embed[] {
 }
 
 export interface AnnounceOptions {
+	/** This app's id: the idempotency key and `source` field are `<service>-release-<version>` / `service`. */
+	service: string;
+	ordering: ReleaseOrdering;
 	releasesDir: string;
-	/** `ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET`; empty = skip. */
+	/** The app's webhook secret; empty = skip. */
 	secret: string;
+	/** The secret's env var name, used only in the "no secret" skip log line. */
+	secretEnvName: string;
 	archivebotUrl: string;
 	appUrl: string;
 	log: JsonLog;
@@ -162,12 +181,12 @@ export interface AnnounceOptions {
 }
 
 /** The signed ArchiveBot request for one release's notes: its idempotency key is the release's own. */
-function notesPayload(notes: ReleaseNotes, appUrl: string, now: Date): string {
+function notesPayload(service: string, notes: ReleaseNotes, appUrl: string, now: Date): string {
 	const mentions = mentionsIn(notes.body);
 	return JSON.stringify({
-		idempotencyKey: `cardtable-release-${notes.version}`,
+		idempotencyKey: `${service}-release-${notes.version}`,
 		timestamp: now.getTime(),
-		source: 'cardtable',
+		source: service,
 		...(mentions.length === 0 ? {} : { mentions }),
 		embeds: releaseEmbeds(notes, appUrl),
 	});
@@ -190,19 +209,19 @@ async function postSigned(options: AnnounceOptions, path: string, body: string):
  * logged, never thrown.
  */
 export async function announceRelease(options: AnnounceOptions): Promise<void> {
-	const { log } = options;
+	const { log, service, ordering } = options;
 	if (options.secret === '') {
-		log({ event: 'release-announce', outcome: 'skipped', reason: 'no ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET' });
+		log({ event: 'release-announce', outcome: 'skipped', reason: `no ${options.secretEnvName}` });
 		return;
 	}
 	const now = () => (options.now ?? (() => new Date()))();
 	try {
-		const notes = await latestRelease(options.releasesDir);
+		const notes = await latestRelease(options.releasesDir, ordering);
 		if (notes === null) {
 			log({ event: 'release-announce', outcome: 'skipped', reason: `no release notes in ${options.releasesDir}` });
 			return;
 		}
-		const res = await postSigned(options, '/api/messages/send', notesPayload(notes, options.appUrl, now()));
+		const res = await postSigned(options, '/api/messages/send', notesPayload(service, notes, options.appUrl, now()));
 		const reply = await res.text();
 		if (!res.ok) {
 			log({ event: 'release-announce', outcome: 'failed', version: notes.version, status: res.status, reply: reply.slice(0, 500) });
@@ -222,14 +241,14 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 	}
 	let recent: ReleaseNotes[];
 	try {
-		recent = await recentReleases(options.releasesDir);
+		recent = await recentReleases(options.releasesDir, ordering);
 	} catch (err) {
 		log({ event: 'release-edit', outcome: 'failed', error: err instanceof Error ? err.message : String(err) });
 		return;
 	}
 	for (const notes of recent) {
 		try {
-			const res = await postSigned(options, '/api/messages/edit', notesPayload(notes, options.appUrl, now()));
+			const res = await postSigned(options, '/api/messages/edit', notesPayload(service, notes, options.appUrl, now()));
 			const reply = await res.text();
 			// 404: ArchiveBot holds no post for it (older than its 7-day record): nothing to change.
 			if (res.status === 404) continue;

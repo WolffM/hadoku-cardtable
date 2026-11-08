@@ -1,10 +1,10 @@
 /**
- * The boot move from the in-clone layout to a state dir (`CARDTABLE_STATE_DIR`,
- * `config.ts`).
+ * The boot move from an in-clone layout to a state directory the app sets up
+ * outside its deploy clone.
  *
- * Until a deploy builds its new clone aside and swaps it in, everything the
- * server writes lived in the clone (`apps/server/data`, `apps/server/logs`). A
- * swapped clone has none of it, so the state has to live outside before that
+ * Until a deploy builds its new clone aside and swaps it in, everything a
+ * server writes lives in the clone (e.g. `apps/server/data`, `apps/server/logs`).
+ * A swapped clone has none of it, so the state has to live outside before that
  * deploy is turned on. The first boot that has a state dir moves each entry of
  * the old directory into the new one; an entry already there is never
  * overwritten, and is left where it was and reported. Runs before anything opens
@@ -58,7 +58,7 @@ export function moveLegacyDir(from: string, to: string): StateMove | null {
 }
 
 /**
- * The boot move for this server: the in-clone `data/` and `logs/` into the state
+ * The boot move for a server: its in-clone `data/` and `logs/` into the state
  * dir, when one is set. Logs one `state-moved` line per directory that held
  * anything, so the cutover is visible in pm2's log.
  */
