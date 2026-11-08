@@ -40,8 +40,7 @@
  * worse than no room.
  */
 
-import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import type { ReactNode } from 'react';
 import { RoomChrome } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
 import { useHadokuTheme, type Theme } from '@wolffm/themes';
@@ -148,17 +147,12 @@ const rooms = roomsClient();
  * table without chat is a degraded room; a table that will not draw because
  * chat is down is an outage.
  *
- * The children mount ONCE, whatever the chrome does around them. Remounted, they
- * lose everything they hold and open their sockets again: a match opened from a
- * link joined on two sockets and hung up the first, and when the hang-up beat the
- * second join the server saw the seat leave (`e2e/w69-name-card.spec.ts`, "nobody
- * disconnected"); a joiner's room screen, drawn before its join and wrapped once
- * the join let the chat in (`App.tsx`'s `useJoined`), dropped an open Room
- * settings and connected its draft socket twice (`e2e/w83b-draft-rope.spec.ts`).
- * So they are rendered through a portal from one place in this component's tree,
- * into a `display: contents` node that moves into the chrome when it draws and out
- * when it goes. While whoami is in flight on a room's route, before they have
- * first mounted, they wait for it: their first frame is already inside.
+ * While whoami is in flight on a room's route it renders NOTHING, so the
+ * children mount once, already inside the chrome. Drawn alone first, they were
+ * unmounted and mounted again when the chrome wrapped them: a match opened from
+ * a link joined on two sockets and hung up the first, and when the hang-up beat
+ * the second join the server saw the seat leave (`e2e/w69-name-card.spec.ts`,
+ * "nobody disconnected").
  */
 export function RoomShell({
   roomId,
@@ -192,22 +186,9 @@ export function RoomShell({
   // to it is refused.
   useAvatarAssert(key === null ? null : roomId, who === 'pending' || who === null ? null : who.userId, rooms);
   const roomFrameRef = useRoomFrame();
-  const [host] = useState(createHost);
-  const mounted = useRef(false);
-  const waiting = key !== null && who === 'pending';
-  if (!waiting) mounted.current = true;
-  // One keyed element in every branch below, so React keeps the children; last, so the slot has
-  // taken the host in before their layout effects run.
-  const content = mounted.current ? createPortal(children, host, 'content') : null;
 
-  if (waiting) return <>{content}</>;
-  if (key === null || who === null || who === 'pending')
-    return (
-      <>
-        <Slot key="bare" host={host} />
-        {content}
-      </>
-    );
+  if (key !== null && who === 'pending') return null;
+  if (key === null || who === 'pending' || who === null) return <>{children}</>;
 
   return (
     /*
@@ -222,41 +203,19 @@ export function RoomShell({
      * `route.kind !== 'room'`), never the room lobby (Settled 10: "the room
      * lobby is unchanged").
      */
-    <>
-      <div key="chrome" className="room-shell" data-testid="room-shell" data-collapsible={collapsible ? '' : undefined} inert={inert || undefined}>
-        <RoomChrome
-          roomKey={key}
-          serverOrigin={watchpartyOrigin()}
-          userType={who.tier}
-          userId={who.userId}
-          theme={watchpartyTheme(theme)}
-          collapsible={collapsible}
-        >
-          <Slot host={host} />
-          {/* The frame says it is drawn, to the page around it (`chrome/shell.ts`): RoomChrome takes no ref of ours. */}
-          <span hidden ref={roomFrameRef} />
-        </RoomChrome>
-      </div>
-      {content}
-    </>
+    <div className="room-shell" data-testid="room-shell" data-collapsible={collapsible ? '' : undefined} inert={inert || undefined}>
+      <RoomChrome
+        roomKey={key}
+        serverOrigin={watchpartyOrigin()}
+        userType={who.tier}
+        userId={who.userId}
+        theme={watchpartyTheme(theme)}
+        collapsible={collapsible}
+      >
+        {children}
+        {/* The frame says it is drawn, to the page around it (`chrome/shell.ts`): RoomChrome takes no ref of ours. */}
+        <span hidden ref={roomFrameRef} />
+      </RoomChrome>
+    </div>
   );
-}
-
-/** The node {@link RoomShell}'s children are drawn into: it takes no box of its own, so they lay out as its parent's. */
-function createHost(): HTMLDivElement {
-  const host = document.createElement('div');
-  host.className = 'room-shell__content';
-  host.style.display = 'contents';
-  return host;
-}
-
-/** Where the children stand now: the host is moved in when this mounts. */
-function Slot({ host }: { host: HTMLDivElement }) {
-  const place = useCallback(
-    (slot: HTMLDivElement | null) => {
-      slot?.appendChild(host);
-    },
-    [host],
-  );
-  return <div ref={place} className="room-shell__slot" style={{ display: 'contents' }} />;
 }
