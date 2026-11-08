@@ -3211,6 +3211,10 @@ public final class PlayBridge {
         }
 
         @Override public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {
+            // Forge composes "Waiting for …" on this side, 250 ms after the host's awaitNextInput
+            // (AbstractGuiGame.awaitNextInput); a prompt that arrives first cancels it, as Forge's own
+            // client does (CMatchUI.showPromptMessage), or it lands on top of the seat's next window.
+            cancelAwaitNextInput();
             // See `syncMulliganFlag`: this is one of the two calls
             // `InputLondonMulligan.showMessage()` makes that Forge's OWN
             // `RemoteClientGuiGame` never syncs the trackable graph for.
