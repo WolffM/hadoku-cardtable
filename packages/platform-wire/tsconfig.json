@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Imported by the server (Node strips TypeScript natively) and by the UI (Vite), never built
+    // on its own: the `.ts` files in src/ are what consumers import. DOM for `crypto` and `URL`,
+    // which Node has as globals too.
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*.ts"]
+}

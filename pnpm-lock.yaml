@@ -55,6 +55,9 @@ importers:
       '@hadoku/forge-wire':
         specifier: workspace:*
         version: link:../../packages/forge-wire
+      '@hadoku/platform-wire':
+        specifier: workspace:*
+        version: link:../../packages/platform-wire
       '@hadoku/room-store':
         specifier: workspace:*
         version: link:../../packages/room-store
@@ -107,6 +110,9 @@ importers:
       '@hadoku/forge-wire':
         specifier: workspace:*
         version: link:../../packages/forge-wire
+      '@hadoku/platform-wire':
+        specifier: workspace:*
+        version: link:../../packages/platform-wire
       '@hadoku/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -211,6 +217,12 @@ importers:
         specifier: 4.5.4
         version: 4.5.4
 
+  packages/platform-wire:
+    dependencies:
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
+
   packages/room-ask:
     dependencies:
       '@wolffm/rooms-protocol':
@@ -253,6 +265,9 @@ importers:
       '@hadoku/forge-wire':
         specifier: workspace:*
         version: link:../forge-wire
+      '@hadoku/platform-wire':
+        specifier: workspace:*
+        version: link:../platform-wire
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.59
         version: '@hadoku/rooms-protocol@0.45.59'

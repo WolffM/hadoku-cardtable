@@ -1,0 +1,26 @@
+{
+  "name": "@hadoku/platform-wire",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The wire any game speaks: the room feed, telemetry, presence, events and tables, the Discord relay, looks, the restart notice, secure random and a generic server envelope. Knows no game; a game's own part rides as a type parameter. MIT; imports only zod.",
+  "exports": {
+    "./room-feed": "./src/room-feed.ts",
+    "./telemetry": "./src/telemetry.ts",
+    "./presence": "./src/presence.ts",
+    "./discord": "./src/discord.ts",
+    "./restarting": "./src/restarting.ts",
+    "./look": "./src/look.ts",
+    "./random": "./src/random.ts",
+    "./events": "./src/events.ts",
+    "./tables": "./src/tables.ts",
+    "./envelope": "./src/envelope.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.5.4"
+  }
+}

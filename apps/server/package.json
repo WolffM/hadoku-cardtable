@@ -17,6 +17,7 @@
     "@hadoku/deck": "workspace:*",
     "@hadoku/draft": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
+    "@hadoku/platform-wire": "workspace:*",
     "@hadoku/room-store": "workspace:*",
     "@hadoku/service-kernel": "workspace:*",
     "@hadoku/shared": "workspace:*",
