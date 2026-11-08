@@ -114,7 +114,7 @@ import {
 // `@hadoku/draft` depends on `@hadoku/shared`, never the reverse, so `pod.ts`
 // (which `@hadoku/shared` holds) cannot import these — this file is the one
 // place both sides meet (wave 72 §P).
-import { botSeatAcross, pairRound, rankedStandings, rngFromSeed, roundsFor, shuffle, type MatchResult, type PodPlayer, type RankedStandingsRow } from '@hadoku/draft';
+import { botSeatAcross, pairRound, rankedStandings, rngFromSeed, roundsFor, roundsOf, shuffle, structureOk, type MatchResult, type PodPlayer, type PodStructure, type RankedStandingsRow } from '@hadoku/draft';
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { gauntletHoldsTable, isGauntletState, type GauntletState } from './gauntlet.ts';
 import { roundNamesOf } from './plan.ts';
@@ -426,6 +426,8 @@ interface CreateRoomInput {
 	 * tournament shape the driver always sets, so the two can never half-disagree.
 	 */
 	historicalSettings?: RoomSettings;
+	/** A historical room's tournament structure: `{ swiss, cut }` (`PodStructure`). Validated by `structureOk` at the lock. */
+	historicalStructure?: PodStructure;
 }
 
 type CreateResult =
@@ -1937,6 +1939,8 @@ interface RoomRecord {
 	historical?: boolean;
 	/** Entrant id → library deck id, the decks the real event's players played (`CreateRoomInput.aiDeckAssignments`'s doc). */
 	aiDeckAssignments?: Record<string, string>;
+	/** A historical room's tournament structure (`PodStructure`): Swiss rounds then a single-elimination cut. Absent: Swiss only, no cut. */
+	historicalStructure?: PodStructure;
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
@@ -1996,6 +2000,8 @@ interface StoredMagicGame {
 	scenario?: string;
 	/** Absent for every room that is not a historical replay (`RoomRecord.historical`'s doc). */
 	historical?: boolean;
+	/** A historical room's tournament structure (`RoomRecord.historicalStructure`'s doc). */
+	historicalStructure?: { swiss: number; cut: number };
 	/** Absent for a room with no entrant deck assignments (`RoomRecord.aiDeckAssignments`'s doc). */
 	aiDeckAssignments?: Record<string, string>;
 }
@@ -2210,6 +2216,15 @@ function decodeMagicGame(raw: unknown): StoredMagicGame {
 	if (g.scenario !== undefined && typeof g.scenario !== 'string') throw new Error('app.game.scenario is invalid');
 	if (g.historical !== undefined && typeof g.historical !== 'boolean') throw new Error('app.game.historical is invalid');
 	if (
+		g.historicalStructure !== undefined &&
+		(typeof g.historicalStructure !== 'object' ||
+			g.historicalStructure === null ||
+			typeof (g.historicalStructure as Record<string, unknown>).swiss !== 'number' ||
+			typeof (g.historicalStructure as Record<string, unknown>).cut !== 'number')
+	) {
+		throw new Error('app.game.historicalStructure is invalid');
+	}
+	if (
 		g.aiDeckAssignments !== undefined &&
 		(typeof g.aiDeckAssignments !== 'object' || g.aiDeckAssignments === null || Array.isArray(g.aiDeckAssignments))
 	) {
@@ -2233,6 +2248,7 @@ function decodeMagicGame(raw: unknown): StoredMagicGame {
 		...(g.gauntlets === undefined && g.gauntlet !== undefined && g.gauntlet !== null ? { gauntlet: g.gauntlet as GauntletState } : {}),
 		...(g.scenario === undefined ? {} : { scenario: g.scenario as string }),
 		...(g.historical === true ? { historical: true } : {}),
+		...(g.historicalStructure === undefined ? {} : { historicalStructure: { swiss: (g.historicalStructure as { swiss: number }).swiss, cut: (g.historicalStructure as { cut: number }).cut } }),
 		...(g.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...(g.aiDeckAssignments as Record<string, string>) } }),
 	};
 }
@@ -2719,6 +2735,7 @@ class FileLobby implements Lobby {
 				gauntlets: Object.fromEntries(Object.entries(room.gauntlets).map(([t, g]) => [t, gauntletWithoutNames(g)])),
 				...(room.scenario === undefined ? {} : { scenario: room.scenario }),
 				...(room.historical === true ? { historical: true } : {}),
+				...(room.historicalStructure === undefined ? {} : { historicalStructure: { ...room.historicalStructure } }),
 				...(room.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.aiDeckAssignments } }),
 				pod:
 					room.pod === null
@@ -3348,7 +3365,12 @@ class FileLobby implements Lobby {
 		results: MatchResult[],
 		round: number,
 	): { pairings: { tableId: string; players: [string, string] }[]; settled: MatchResult[]; bots: [string, string][]; bye: string | null } {
-		const paired = pairRound({ players, results, round });
+		const paired = pairRound({
+			players,
+			results,
+			round,
+			...(room.historicalStructure === undefined ? {} : { structure: room.historicalStructure, seed: room.id }),
+		});
 		const pairings: { tableId: string; players: [string, string] }[] = [];
 		const settled: MatchResult[] = [];
 		const bots: [string, string][] = [];
@@ -3686,6 +3708,7 @@ class FileLobby implements Lobby {
 							tournament: true,
 							tournamentDecks: 'locked',
 						},
+						...(input.historicalStructure === undefined ? {} : { historicalStructure: { ...input.historicalStructure } }),
 					}
 				: {}),
 			...(input.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...input.aiDeckAssignments } }),
@@ -3926,6 +3949,13 @@ class FileLobby implements Lobby {
 	#lockTournament(room: RoomRecord): StartDraftResult {
 		const entrants = podEntrants(room);
 		if (entrants.length < POD_MIN_OPEN || entrants.every(isAiEntrant)) return { ok: false, reason: 'not-ready' };
+		// A historical structure names a bracket the seated field must be able to
+		// play; a cut larger than the field, or not a power of two, is a seed
+		// fault, and the lock is the last moment it can be refused cleanly.
+		if (room.historicalStructure !== undefined && !structureOk(room.historicalStructure, entrants.length)) {
+			this.#log({ event: 'historical-structure-refused', roomId: room.id, structure: room.historicalStructure, field: entrants.length });
+			return { ok: false, reason: 'not-ready' };
+		}
 		const humanReady = (id: string): boolean =>
 			room.mode === 'classic' ? this.#podChecks.hasLegalSeatDeck(room.id, id) : room.members.find((m) => m.id === id)?.ready === true;
 		if (entrants.some((id) => !isAiEntrant(id) && !humanReady(id))) return { ok: false, reason: 'not-ready' };
@@ -3961,7 +3991,14 @@ class FileLobby implements Lobby {
 		// skeleton this sets is overwritten with the real pairings before this
 		// function returns.
 		room.draftStartedAt = this.#now();
-		room.pod = { humans: entrants, round: 1, rounds: roundsFor(entrants.length), results: [], pairings: [], bye: null };
+		room.pod = {
+			humans: entrants,
+			round: 1,
+			rounds: room.historicalStructure !== undefined ? roundsOf(room.historicalStructure, entrants.length) : roundsFor(entrants.length),
+			results: [],
+			pairings: [],
+			bye: null,
+		};
 		this.#dealPodRounds(room, entrants);
 		this.#persist(room);
 		this.#log({ event: 'tournament-locked', roomId: room.id, entrants: entrants.length, humans: entrants.filter((id) => !isAiEntrant(id)).length });
@@ -4553,6 +4590,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					...(game.scenario === undefined ? {} : { scenario: game.scenario }),
 					...(app.scheduledFor === undefined ? {} : { scheduledFor: app.scheduledFor }),
 					...(game.historical === true ? { historical: true } : {}),
+					...(game.historicalStructure === undefined ? {} : { historicalStructure: { ...game.historicalStructure } }),
 					...(game.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...game.aiDeckAssignments } }),
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched

@@ -52,12 +52,6 @@ export interface MatchResult {
   gameMs?: number[];
 }
 
-export interface PairRoundInput {
-  players: PodPlayer[];
-  results: MatchResult[];
-  round: number;
-}
-
 export interface PairRoundResult {
   tables: [string, string][];
   bye: string | null;
@@ -190,11 +184,25 @@ function laterRound(players: PodPlayer[], results: MatchResult[]): PairRoundResu
   return { tables: pairDown(pool, played), bye };
 }
 
-/** Pair one round of the whole field. See `round1` and `laterRound` for the per-round rules. */
+/** One more question a round's pairing may be asked: the tournament's structure, if it has one. */
+export interface PairRoundInput {
+  players: PodPlayer[];
+  results: MatchResult[];
+  round: number;
+  /** The tournament's structure; absent is the product's own — Swiss only, `roundsFor` rounds, no cut. */
+  structure?: PodStructure;
+  /** The tournament's own seed (`rankedStandings`'s), for a cut's seeding when Swiss was played. */
+  seed?: string;
+}
+
+/** Pair one round of the whole field. See `round1` and `laterRound` for the Swiss rules; a cut round is bracketed by rank. */
 export function pairRound(input: PairRoundInput): PairRoundResult {
-  const { players, results, round } = input;
+  const { players, results, round, structure, seed = '' } = input;
   if (players.length === 0) return { tables: [], bye: null };
   if (players.length === 1) return { tables: [], bye: (players[0] as PodPlayer).id };
+  if (structure !== undefined && structure.cut > 1 && round > structure.swiss) {
+    return cutRound(players, results, seed, structure);
+  }
   return round === 1 ? round1(players) : laterRound(players, results);
 }
 
@@ -205,6 +213,89 @@ export const MAX_ROUNDS = 3;
 export function roundsFor(n: number): number {
   if (n <= 1) return 0;
   return Math.min(MAX_ROUNDS, Math.ceil(Math.log2(n)));
+}
+
+/**
+ * A tournament's structure: how many Swiss rounds it plays, and whether a
+ * single-elimination cut follows them.
+ *
+ * The product's own default — every room until structures existed — is
+ * `cut: 0`: Swiss only, the whole field every round, standings deciding the
+ * winner (the operator, 2026-10-31: "no cut"). A cut is how a Magic
+ * Challenge is actually run: Swiss narrows the field, then the top
+ * `cut` — a power of two, single elimination — plays bracket rounds to a
+ * final. `swiss: 0` with a cut is a pure bracket: the whole field, seeded
+ * by pod seat, one elimination per round. That shape is also what a
+ * historical replay seeds, where round 1 IS the event's own quarterfinals.
+ */
+export interface PodStructure {
+  /** Swiss rounds before any cut. 0 for a pure bracket. */
+  readonly swiss: number;
+  /** Single-elimination entrants after the Swiss (a power of two), or 0 for no cut. */
+  readonly cut: number;
+}
+
+/** Whether `n` is a power of two (1, 2, 4, 8, …); a cut must be one. */
+export function isPowerOfTwo(n: number): boolean {
+  return Number.isInteger(n) && n > 0 && (n & (n - 1)) === 0;
+}
+
+/** Whether a structure is one a pod can play: a non-negative power-of-two cut, at most the field. */
+export function structureOk(structure: PodStructure, field: number): boolean {
+  if (!Number.isInteger(structure.swiss) || structure.swiss < 0) return false;
+  if (!Number.isInteger(structure.cut) || structure.cut < 0) return false;
+  if (structure.cut === 0) return true;
+  return isPowerOfTwo(structure.cut) && structure.cut <= field && structure.cut >= 2;
+}
+
+/** The total rounds a structure plays over `field` entrants: Swiss rounds plus every elimination round. */
+export function roundsOf(structure: PodStructure, field: number): number {
+  return structure.swiss + (structure.cut > 1 ? Math.ceil(Math.log2(structure.cut)) : 0);
+}
+
+/** The survivors of `round` (1-based) under `structure`: players with no loss in an elimination round. */
+export function cutSurvivors(structure: PodStructure, results: readonly MatchResult[], round: number): string[] {
+  if (structure.cut <= 1 || round <= structure.swiss) return [];
+  const losers = new Set<string>();
+  for (const r of results) {
+    if (r.round <= structure.swiss) continue;
+    if (r.playerB === null) continue;
+    if (r.gamesA > r.gamesB) losers.add(r.playerB);
+    else if (r.gamesB > r.gamesA) losers.add(r.playerA);
+  }
+  const seen = new Set<string>(results.map((r) => r.playerA));
+  for (const r of results) if (r.playerB !== null) seen.add(r.playerB);
+  return [...seen].filter((id) => !losers.has(id));
+}
+
+/**
+ * Pair one elimination round: the survivors, in rank order, across the
+ * table — rank 1 vs rank `half+1`, rank 2 vs rank `half+2`, … — the bracket
+ * seeding Magic itself uses. Rank comes from `standings` once any Swiss has
+ * been played; a pure bracket (no Swiss) ranks by `podSeat`, so a seeded
+ * field's seat order IS its bracket.
+ */
+function cutRound(players: PodPlayer[], results: readonly MatchResult[], seed: string, structure: PodStructure): PairRoundResult {
+  // Every prior elimination round's losers are out; `round` here only gates
+  // "are we past the Swiss", and a cut round always is.
+  const survivors = cutSurvivors(structure, results, structure.swiss + 1);
+  const pool = survivors.length > 0 ? players.filter((p) => survivors.includes(p.id)) : players;
+  const ranked =
+    structure.swiss > 0
+      ? rankedStandings(pool.map((p) => ({ id: p.id })), results, seed).map((row) => {
+          const player = pool.find((p) => p.id === row.id);
+          return { ...player!, podSeat: row.rank };
+        })
+      : [...pool].sort((a, b) => a.podSeat - b.podSeat);
+  const half = Math.ceil(ranked.length / 2);
+  const tables: [string, string][] = [];
+  for (let i = 0; i < ranked.length - half; i++) {
+    tables.push([(ranked[i] as PodPlayer).id, (ranked[i + half] as PodPlayer).id]);
+  }
+  // An odd field cannot happen in a power-of-two cut, but a bye keeps the
+  // function total rather than throwing on a hand-fed structure.
+  const bye = ranked.length % 2 === 1 ? (ranked[ranked.length - 1] as PodPlayer).id : null;
+  return { tables, bye };
 }
 
 export interface StandingsRow {

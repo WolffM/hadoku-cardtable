@@ -127,6 +127,9 @@ export async function seedReplay(
 		historical: true,
 		historicalFormat: `${familyOf(record.event.format)}-${record.event.date}`,
 		aiDeckAssignments: assignments,
+		// The event's own shape: no Swiss inside a top-8 replay — the seats ARE
+		// the bracket, round 1 its quarterfinals, elimination from there.
+		historicalStructure: { swiss: 0, cut: 8 },
 	});
 	if (!created.ok) throw new Error(`create refused: ${created.reason}`);
 	// Seat every AI entrant now, through the same `aiPod` the AI button drives,
