@@ -1,2 +1,19 @@
-// Placeholder until w93's lane fills this subpath.
-export {};
+export {
+	callerContext,
+	firstSeen,
+	installTelemetry,
+	monitoringSink,
+	report,
+	reportingAlerts,
+	reportSealRefused,
+	siteOf,
+	userAgentOf,
+	type FirstSeen,
+	type FirstSeenOptions,
+	type JsonLog,
+	type Level,
+	type Report,
+	type SinkOptions,
+	type TelemetryContext,
+	type TelemetryValue,
+} from './telemetry.ts';

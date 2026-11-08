@@ -1,2 +1,8 @@
-// Placeholder until w93's lane fills this subpath.
-export {};
+export {
+	CAPACITY_WINDOW_MS,
+	SAMPLE_MS,
+	capacitySampler,
+	type CapacityDeps,
+	type CapacitySampler,
+	type Gauges,
+} from './capacity.ts';

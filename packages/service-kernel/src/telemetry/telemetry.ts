@@ -1,27 +1,24 @@
 /**
- * Security telemetry: who got in, who was turned away, and who is spending the
- * costly acts, posted to monitoring-api's `service_events` so a reader holding
- * this repo's service key can see it (`AGENTS.md` § Telemetry). The edge's
- * `request_logs` already hold every finished request; what they cannot hold is
- * what only this server knows — that a caller is new, that the second seal
- * refused one the edge let through, that a socket handshake was below the
- * floor, that a member is making rooms as fast as the limiter allows.
+ * Security telemetry: who got in, who was turned away, and who is spending the costly acts — the
+ * platform half. Knows no game: the service id, the deployment site and the refusal surface are
+ * all parameters, so an app that posts under `service: 'cardtable'` and one that posts under a
+ * second game's id read apart in the same monitoring store. See the app's own adapter (this
+ * wave's `apps/server/src/telemetry.ts`) for the one place those values get bound.
  *
- * Everything here is fire-and-forget. A post that fails is logged on stdout
- * (pm2 keeps it), never retried, and never delays the request that caused it.
- * One event per (name, caller, incident key) per window goes out; the rest are
- * counted and ride on the next one as `suppressed`, so a scanner hammering the
- * seal costs monitoring one row a minute, not one per request.
- *
- * Every event carries `site` (prod, ppe), because both deployments post as
- * `service: cardtable` and the daily report (`scripts/telemetry/watch.ts`)
- * reads them apart.
+ * Everything here is fire-and-forget. A post that fails is logged on stdout (pm2 keeps it), never
+ * retried, and never delays the request that caused it. One event per (name, caller, incident
+ * key) per window goes out; the rest are counted and ride on the next one as `suppressed`, so a
+ * scanner hammering the seal costs monitoring one row a minute, not one per request.
  */
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import type { NextFunction, Request, Response } from 'express';
 
-import type { JsonLog } from './log.js';
+/**
+ * A log line: one object a reader can grep by its own fields. This module never imports a
+ * concrete logger (another lane owns that), so it takes whatever shape fits.
+ */
+export type JsonLog = (entry: Record<string, unknown>) => void;
 
 export type TelemetryValue = string | number | boolean | null | TelemetryValue[] | { [key: string]: TelemetryValue };
 export type TelemetryContext = Record<string, TelemetryValue>;
@@ -38,7 +35,7 @@ export type Report = (event: string, context: TelemetryContext, level?: Level) =
 const NOOP: Report = () => {};
 let installed: Report = NOOP;
 
-/** The process's reporter. `index.ts` installs the monitoring sink once at boot. */
+/** The process's reporter. The app's boot installs the monitoring sink once. */
 export function installTelemetry(sink: Report): void {
 	installed = sink;
 }
@@ -54,12 +51,11 @@ function levelOf(event: string): Level {
 }
 
 /**
- * Which deployment a base path is: `/cardtable` is prod, `/cardtable-<site>` that site
- * (`/cardtable-ppe` is ppe, as the PPE wrapper sets `CARDTABLE_BASE_PREFIX`). Any other
- * prefix names itself.
+ * Which deployment a base path is: `/<service>` is prod, `/<service>-<site>` that site (a PPE
+ * wrapper's prefix, e.g. `/<service>-ppe`). Any other prefix names itself.
  */
-export function siteOf(basePrefix: string): string {
-	const m = /^\/cardtable(?:-([^/]+))?\/?$/.exec(basePrefix);
+export function siteOf(basePrefix: string, service: string): string {
+	const m = new RegExp(`^/${service}(?:-([^/]+))?/?$`).exec(basePrefix);
 	return m === null ? basePrefix : (m[1] ?? 'prod');
 }
 
@@ -93,7 +89,11 @@ export interface SinkOptions {
 	/** `https://hadoku.me` — the telemetry route is `/health/api/telemetry` under it. */
 	baseUrl: string;
 	serviceKey: string;
+	/** The env var named in the disabled-reason log line, when `serviceKey` is empty (e.g. `CARDTABLE_SERVICE_KEY`). */
+	serviceKeyEnvVar: string;
 	log: JsonLog;
+	/** Stamped on every event's `context.service`, and in the posting User-Agent. */
+	service: string;
 	/** This deployment (`siteOf`), on every event. */
 	site: string;
 	/** One post per (event, caller, incident key) per this many ms. */
@@ -114,7 +114,7 @@ export function monitoringSink(opts: SinkOptions): Report {
 	if (opts.serviceKey === '') {
 		log({
 			evt: 'telemetry-disabled',
-			reason: 'CARDTABLE_SERVICE_KEY is not set',
+			reason: `${opts.serviceKeyEnvVar} is not set`,
 		});
 		return NOOP;
 	}
@@ -144,7 +144,7 @@ export function monitoringSink(opts: SinkOptions): Report {
 			type: 'log',
 			message: `event=${event}`,
 			context: {
-				service: 'cardtable',
+				service: opts.service,
 				site: opts.site,
 				...context,
 				...(level === 'critical' ? { severity: level } : {}),
@@ -155,7 +155,7 @@ export function monitoringSink(opts: SinkOptions): Report {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				'User-Agent': 'Mozilla/5.0 hadoku-cardtable',
+				'User-Agent': `Mozilla/5.0 hadoku-${opts.service}`,
 				'X-User-Key': opts.serviceKey,
 			},
 			body: JSON.stringify(body),
@@ -201,13 +201,11 @@ export function callerContext(headers: Headers): TelemetryContext {
 /**
  * A seal below the edge refused a caller. With the edge in front this should
  * never fire: one means a direct hit on the tunnel host, or an edge rule wider
- * than this server's floor — both worth a look.
+ * than this server's floor — both worth a look. `Surface` is an open string:
+ * this module knows no game's surface names, so the app's own adapter narrows
+ * it to a closed set.
  */
-export function reportSealRefused(
-	surface: 'http' | 'draft-socket' | 'play-socket' | 'browser' | 'stream',
-	headers: Headers,
-	path: string | null,
-): void {
+export function reportSealRefused<Surface extends string>(surface: Surface, headers: Headers, path: string | null): void {
 	report('seal-refused', { surface, path, ...callerContext(headers) });
 }
 

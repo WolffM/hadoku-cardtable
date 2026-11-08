@@ -1,51 +1,37 @@
 /**
- * `POST /api/_account/erase` — account deletion's erase hook (hadoku_site
- * IDENTITY_MODEL R12, "Erase hooks"; the caller is edge-router's
- * `eraseMemberData`, which runs it on account delete and on the merged-away
- * side of an account merge).
+ * Account deletion's erase hook (hadoku_site IDENTITY_MODEL R12, "Erase hooks"; the caller is
+ * edge-router's `eraseMemberData`, which runs it on account delete and on the merged-away side of
+ * an account merge).
  *
- * The edge calls it on the tunnel origin with `X-Edge-Auth` (its seal),
- * `X-Hadoku-Tier: member` and `X-User-Id`, and wants 200
- * `{ erased: { <what>: <count> } }` back, zeros on a second call. Anything
- * else fails the whole delete, which the edge retries, so a step that throws
- * answers 500 rather than a partial count.
+ * The edge calls it with its own seal and `X-User-Id`, and wants 200 `{ erased: { <what>: <count> } }`
+ * back, zeros on a second call. Anything else fails the whole delete, which the edge retries, so a
+ * step that throws answers 500 rather than a partial count.
  *
- * Only the seal admits it. The bare-local escape hatch (`allowUnverifiedEdge`)
- * believes any header and so does NOT open this route, and no tier does
- * either: `edgeSealed` is checked, not `tierOf`. The edge 404s every inbound
- * path with an `_account` segment, so no page reaches it through hadoku.me;
- * the seal keeps a direct hit on the tunnel hostname out.
+ * Only the seal admits it — `edgeSealed` is an injected check, never a tier: this module knows no
+ * app's edge-auth binding. `deriveParticipantId` is likewise injected: the id a person is also
+ * known by (the `fk:`/`dev:`/`eph:` scheme, whichever app provides it) is platform but app-bound,
+ * not this kernel's to import.
  *
- * Mounted above the tier floor and `firstSeen`: the edge sends `member`, and
- * a wrapper that lost `CARDTABLE_MIN_TIER` floors at friend, which would 404
- * every delete; and `firstSeen` below it would record the person again on the
- * very call that erases them.
- *
- * What is erased is a list of steps each store registers where it is built
- * (`register`), so a store and its erase live side by side in `index.ts`. A
- * person is named here two ways, both handed to every step: the registry
- * userId, and the `fk:` participant id derived from it (`room/identity.ts`),
- * which is what rooms, pods and recordings carry. Steps run one at a time, in
- * registration order, so two never rewrite one file at once.
+ * What is erased is a list of steps each store registers where it is built (`register`), so a
+ * store and its erase live side by side in the app. Steps run one at a time, in registration
+ * order, so two never rewrite one file at once.
  */
 
 import type { Request, Response } from 'express';
-import type { ParticipantId } from '@wolffm/rooms-protocol';
-import { edgeSealed } from '../edge-auth.js';
-import type { JsonLog } from '../log.js';
-import { deriveParticipantId } from '../room/identity.js';
-import { reportSealRefused } from '../telemetry.js';
-import { placeholderId } from './anonymise.js';
 
+import { placeholderId } from './anonymise.ts';
+import { reportSealRefused } from '../telemetry/telemetry.ts';
+
+/** `/api/_account/erase` — the one path every app answers this hook on. */
 export const ERASE_PATH = '/api/_account/erase';
 
 /** Whom one erase is for. */
 export interface ErasedPerson {
 	/** The registry userId, as the edge sent it. */
 	userId: string;
-	/** The `fk:` id this server knows them by, derived from the userId. */
-	participantId: ParticipantId;
-	/** Both of the above: what a shared record names them by (`anonymise.ts`'s `replaceIds`). */
+	/** The app's own id for this person (its identity scheme's derived id). */
+	participantId: string;
+	/** Both of the above: what a shared record names them by (`replaceIds`). */
 	ids: ReadonlySet<string>;
 	/** What they become in a shared record, one per erase (`placeholderId`). */
 	placeholder: string;
@@ -71,16 +57,24 @@ export interface AccountErase {
 	handle(req: Request, res: Response): Promise<void>;
 }
 
-export function personOf(userId: string): ErasedPerson {
-	const participantId = deriveParticipantId({ accountId: userId, socketId: '' });
+export interface AccountEraseOptions {
+	log: (entry: Record<string, unknown>) => void;
+	/** Did this request carry the edge's own seal? Never a tier check. */
+	edgeSealed: (req: Request) => boolean;
+	/** This app's own identity scheme's derived id for a registry userId. */
+	deriveParticipantId: (userId: string) => string;
+}
+
+export function personOf(userId: string, deriveParticipantId: (userId: string) => string): ErasedPerson {
+	const participantId = deriveParticipantId(userId);
 	return { userId, participantId, ids: new Set([userId, participantId]), placeholder: placeholderId() };
 }
 
-export function createAccountErase(opts: { log: JsonLog }): AccountErase {
+export function createAccountErase(opts: AccountEraseOptions): AccountErase {
 	const steps: EraseStep[] = [];
 
 	const erase = async (userId: string): Promise<Record<string, number>> => {
-		const person = personOf(userId);
+		const person = personOf(userId, opts.deriveParticipantId);
 		const erased: Record<string, number> = {};
 		for (const step of steps) {
 			const counts = await step.erase(person);
@@ -97,7 +91,7 @@ export function createAccountErase(opts: { log: JsonLog }): AccountErase {
 		},
 		erase,
 		async handle(req, res) {
-			if (!edgeSealed(req)) {
+			if (!opts.edgeSealed(req)) {
 				reportSealRefused('http', req.headers, req.path);
 				res.status(401).json({ error: "erase needs the edge's seal" });
 				return;

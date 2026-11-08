@@ -4,14 +4,20 @@
  * rate and latency. Read beside the edge's request log, it says how much traffic a given amount
  * of headroom absorbed — the evidence for "how many players can this take".
  *
- * Gauges are callbacks so this file knows nothing of sockets, rooms or Forge: `index.ts` hands
- * them in, and nothing is read before `start()`. The event loop's delay is measured here (`monitorEventLoopDelay`), because a server
- * whose loop stalls is out of capacity whatever its gauges say.
+ * Gauges are callbacks so this file knows nothing of sockets, rooms or Forge: the app hands them
+ * in, and nothing is read before `start()`. The event loop's delay is measured here
+ * (`monitorEventLoopDelay`), because a server whose loop stalls is out of capacity whatever its
+ * gauges say.
+ *
+ * One request path is counted on its own, never timed: `uncountedPath`, under
+ * `uncountedField` in the posted event. A page that asks for ~120 images at once would otherwise
+ * swamp the request rate and pull p95 down to nothing; which path that is (cardtable's card art)
+ * and what the field is called are the app's own choice, not this module's.
  */
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import type { NextFunction, Request, Response } from 'express';
 
-import { report as defaultReport, type Report } from './telemetry.js';
+import { report as defaultReport, type Report } from '../telemetry/telemetry.ts';
 
 export const CAPACITY_WINDOW_MS = 5 * 60_000;
 export const SAMPLE_MS = 15_000;
@@ -28,10 +34,11 @@ export interface CapacityDeps {
 	counts?: () => Record<string, unknown>;
 	/** Process memory; `process.memoryUsage` in production. */
 	memory?: () => { rss: number; heapUsed: number };
+	/** A request path counted on its own, under `uncountedField`, never timed. Default: none. */
+	uncountedPath?: (path: string) => boolean;
+	/** The capacity event's field for `uncountedPath`'s count. Default: `'uncounted'`. */
+	uncountedField?: string;
 }
-
-/** A card image request (`http/card-art.ts`): a redirect to the art host, one per card a page draws. */
-export const isArtRedirect = (path: string): boolean => path.startsWith('/api/art/');
 
 export interface CapacitySampler {
 	/** Express middleware: counts each finished request and its duration. */
@@ -49,6 +56,8 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 	const report = deps.report ?? defaultReport;
 	const now = deps.now ?? Date.now;
 	const memory = deps.memory ?? (() => process.memoryUsage());
+	const uncountedPath = deps.uncountedPath ?? (() => false);
+	const uncountedField = deps.uncountedField ?? 'uncounted';
 	const loop = monitorEventLoopDelay({ resolution: 20 });
 	loop.enable();
 
@@ -58,8 +67,8 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 	let samples = 0;
 	let durations: number[] = [];
 	let errors = 0;
-	/** `/api/art` redirects: counted, never timed. */
-	let artRedirects = 0;
+	/** Requests matching `uncountedPath`: counted, never timed. */
+	let uncounted = 0;
 
 	const sample = (): void => {
 		samples += 1;
@@ -80,7 +89,7 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 		const sorted = [...durations].sort((a, b) => a - b);
 		const pct = (p: number): number | null =>
 			sorted.length === 0 ? null : sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
-		report('capacity', {
+		const context: Record<string, number | string | null | Record<string, number>> = {
 			from: new Date(start).toISOString(),
 			minutes: Math.round(seconds / 60),
 			samples,
@@ -92,16 +101,17 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 			p95Ms: pct(0.95),
 			maxMs: sorted.at(-1) ?? null,
 			errors5xx: errors,
-			artRedirects,
 			loopP99Ms: Math.round(loop.percentile(99) / 1e6),
 			loopMaxMs: Math.round(loop.max / 1e6),
-			...deps.counts?.(),
-		});
+		};
+		context[uncountedField] = uncounted;
+		Object.assign(context, deps.counts?.());
+		report('capacity', context as unknown as Parameters<Report>[1]);
 		peaks = {};
 		samples = 0;
 		durations = [];
 		errors = 0;
-		artRedirects = 0;
+		uncounted = 0;
 		loop.reset();
 	};
 
@@ -109,10 +119,8 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 
 	return {
 		requests: (req, res, next) => {
-			// A board asks for ~120 images at once: sub-millisecond redirects that would
-			// swamp the request rate and pull p95 down to nothing. Counted on their own.
-			if (isArtRedirect(req.path)) {
-				artRedirects += 1;
+			if (uncountedPath(req.path)) {
+				uncounted += 1;
 				next();
 				return;
 			}

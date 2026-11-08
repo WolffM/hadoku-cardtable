@@ -1,39 +1,34 @@
-/** What every HTTP route reads off a request before its own work: who is asking, and what the body says. */
+/**
+ * What every HTTP route reads off a request before its own work: who is asking, and what the
+ * body says. Knows no game's identity scheme — a caller's id comes from an injected deriver
+ * (`makeCallerId`), never a direct import, so a second game can bring its own.
+ */
 
 import { randomUUID } from 'node:crypto';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import type { ErrorRequestHandler, Request, Response } from 'express';
 
-import { accountIdOf, userNameOf, verifiedOf } from '../edge-auth.js';
-import { identityFromHeaders } from '../room/identity.js';
-import { callerContext, report } from '../telemetry.js';
-import { UNNAMED, type Caller } from '../room/lobby.js';
+import { callerContext, report } from '../telemetry/telemetry.ts';
 
 /**
- * The caller, by the edge's headers. A request the edge named nobody on gets a
- * fresh ephemeral id, which matches no seat and no member — the right answer
- * for someone the edge could not name.
+ * A request's caller id, from an injected deriver over the request's headers (the app's own
+ * identity scheme — platform, but a parameter here rather than an import). A request the
+ * deriver can't place gets a fresh ephemeral fallback, which matches no seat and no member —
+ * the right answer for someone the edge could not name.
  */
-export function httpCaller(req: Request): ParticipantId {
-	return identityFromHeaders(req.headers, `http-${randomUUID()}`);
-}
-
-/**
- * Who is asking, for a lobby call: the id, the DISPLAY NAME (`X-User-Name`, never the opaque
- * userId — a roster is for humans; a key the edge sent no name for gets `UNNAMED`), and the userId
- * a saved room keeps instead of the name (R12), and whether the operator verifies them.
- */
-export function callerOf(req: Request): Caller {
-	return { id: httpCaller(req), name: userNameOf(req) ?? UNNAMED, userId: accountIdOf(req), verified: verifiedOf(req) };
+export function makeCallerId(
+	deriveId: (headers: Request['headers'], fallback: string) => ParticipantId,
+): (req: Request) => ParticipantId {
+	return (req) => deriveId(req.headers, `http-${randomUUID()}`);
 }
 
 /**
  * A per-caller token bucket for a costly step: each pass reports `costly-act` and each refusal
  * `rate-limited`, both named by `act`, so telemetry shows who is spending the expensive steps and
- * who hit the ceiling (`telemetry.ts` throttles the posts). `headers` are the caller's own, for
- * the report. `null` is no limit — the e2e stacks' `CARDTABLE_E2E_NO_RATE_LIMITS`, where one test
- * identity makes every room and starts every match of a run.
+ * who hit the ceiling (the telemetry sink throttles the posts). `headers` are the caller's own,
+ * for the report. `null` is no limit — an e2e stack that disables rate limits for one test identity
+ * so it can make every room and start every match of a run.
  */
 export function costlyActLimit(
 	cfg: RateLimitConfig | null,
@@ -56,32 +51,33 @@ export function costlyActLimit(
 /**
  * {@link costlyActLimit} for a route: false once the 429 (with `Retry-After`) is sent. A route
  * asks AFTER reading its body, so only a request that would do the work spends a token.
+ * `callerId` is the request's caller id — see {@link makeCallerId}.
  */
 export function perCallerLimit(
 	cfg: RateLimitConfig | null,
 	refusal: string,
-	opts: { act: string; now?: () => number; onRefused?: () => void },
+	opts: { act: string; callerId: (req: Request) => ParticipantId; now?: () => number; onRefused?: () => void },
 ): (req: Request, res: Response) => boolean {
 	if (cfg === null) return () => true;
 	const allow = costlyActLimit(cfg, opts);
 	const retryAfter = String(Math.ceil(cfg.refillIntervalMs / 1000));
 	return (req, res) => {
-		if (allow(httpCaller(req), req.headers)) return true;
+		if (allow(opts.callerId(req), req.headers)) return true;
 		res.setHeader('Retry-After', retryAfter);
 		res.status(429).json({ error: refusal });
 		return false;
 	};
 }
 
-/** A `@hadoku/shared` request schema, as this file reads one. */
-interface BodySchema<T> {
+/** A request-body schema, as this module reads one — a minimal structural shape, never `@hadoku/shared` itself. */
+export interface BodySchema<T> {
 	safeParse(body: unknown):
 		| { success: true; data: T }
 		| { success: false; error: { issues: readonly { code: string; path: readonly PropertyKey[]; message: string }[] } };
 }
 
 /**
- * A request body by its shared schema, or null once the 400 is sent. The
+ * A request body by its schema, or null once the 400 is sent. The
  * answer is the schema's first refusal, a field nobody named before anything
  * else, in the `{ error }` body every route answers with.
  */
@@ -92,7 +88,7 @@ export function parseBody<T>(schema: BodySchema<T>, req: Request, res: Response)
 	return null;
 }
 
-/** A body by its shared schema, or the refusal `parseBody` would answer with. */
+/** A body by its schema, or the refusal `parseBody` would answer with. */
 export function readBody<T>(schema: BodySchema<T>, body: unknown): { ok: true; value: T } | { ok: false; error: string } {
 	const parsed = schema.safeParse(body);
 	if (parsed.success) return { ok: true, value: parsed.data };

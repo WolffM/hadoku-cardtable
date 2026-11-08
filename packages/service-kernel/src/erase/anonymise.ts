@@ -1,7 +1,7 @@
 /**
- * Anonymising a shared record (account erase, `erase/index.ts`): a room, a pod, a
- * tournament or an event that other players own too keeps its shape, and the
- * erased person in it becomes a placeholder id nobody can be traced back to.
+ * Anonymising a shared record (account erase, `index.ts`): a room, a pod, a tournament or an
+ * event that other players own too keeps its shape, and the erased person in it becomes a
+ * placeholder id nobody can be traced back to.
  *
  * One mechanism for every store, so a store's erase is "which object to walk"
  * and never a list of the fields that happen to hold an id today: a field added
