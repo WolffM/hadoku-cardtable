@@ -158,7 +158,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * name if both were imported bare into this file.
  */
 import { DEFAULT_ROOM_SETTINGS, OPEN_ROOM_LOCKS } from '@hadoku/shared';
-import { clockOn, FREE_PICK, type ConstructedMode, type GauntletOptions as GauntletModeOptions, type GauntletView, type PodView, type RandomOptions, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
+import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodView, type RoomMode, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
@@ -1250,7 +1250,14 @@ function RoomTableScreen({
   const freePick = poolId === FREE_PICK;
   const handSmoothing = view?.settings.handSmoothing ?? true;
   /** All Random's options once its pool is chosen (`parseRoomView` parses mode and options together). */
-  const randomOptions = view?.mode === 'random' ? ((view.modeOptions as RandomOptions | null) ?? null) : null;
+  /**
+   * The mode and options the leader last asked for, from the ask until the room answers: the mode's
+   * controls hold it rather than spring back to the room's for the round trip and then jump forward
+   * (as `ClassicOptions` holds its year). A refusal clears it, and the controls are back on the room's.
+   */
+  const [askedMode, setAskedMode] = useState<RoomMode | null>(null);
+  const shown: RoomMode | null = askedMode ?? (view?.mode == null ? null : ({ mode: view.mode, modeOptions: view.modeOptions } as RoomMode));
+  const randomOptions = shown?.mode === 'random' ? shown.modeOptions : null;
   /**
    * Tournament mode (`docs/planning/tournament-mode-plan.md`): a Constructed
    * room plays a Swiss pod of its own mode, the same `RoomView.pod` a draft
@@ -1464,6 +1471,8 @@ function RoomTableScreen({
    * starts nothing until the record lands (`startAs`, below).
    */
   const mode = view === null ? 'classic' : view.mode;
+  /** The mode the controls draw: the leader's ask while it is in flight, else the room's. */
+  const shownMode = askedMode?.mode ?? mode;
   /** A Gauntlet room's state as I may see it; null in any other mode. */
   const [gauntlet, setGauntlet] = useState<GauntletView | null>(null);
   /** The Gauntlet's reads and this screen's own moves, latest-wins (`../rooms/latest.ts`). */
@@ -2036,6 +2045,15 @@ function RoomTableScreen({
       });
   };
 
+  /** The LEADER moved the room's mode or its options; the controls hold the ask until the room answers. */
+  const writeMode = (next: RoomMode): void => {
+    setAskedMode(next);
+    writeRoom(
+      () => rooms.setRoomMode(roomId, next),
+      () => setAskedMode((now) => (now === next ? null : now)),
+    );
+  };
+
   const choosePool = (value: string, settled?: () => void): void => {
     if (value !== poolId) writeRoom(() => rooms.setFormat(roomId, value), settled);
     else settled?.();
@@ -2054,7 +2072,7 @@ function RoomTableScreen({
 
   /** The LEADER flipped All Random's Lock decks; the pool rides along, the room's mode options being one write. */
   const toggleRandomLock = (): void => {
-    if (randomOptions !== null) writeRoom(() => rooms.setRoomMode(roomId, { mode: 'random', modeOptions: { ...randomOptions, lock: !randomOptions.lock } }));
+    if (randomOptions !== null) writeMode({ mode: 'random', modeOptions: { ...randomOptions, lock: !randomOptions.lock } });
   };
 
   /**
@@ -2138,7 +2156,7 @@ function RoomTableScreen({
 
   /** The LEADER picked a mode: the room moves to it with that mode's first options. */
   const chooseMode = (next: ConstructedMode): void => {
-    if (next !== mode) writeRoom(() => rooms.setRoomMode(roomId, freshRoomMode(next)));
+    if (next !== shownMode) writeMode(freshRoomMode(next));
   };
 
   /*
@@ -2385,7 +2403,7 @@ function RoomTableScreen({
               disabled={rulesLocked}
               handSmoothing={mode === 'classic' ? { on: handSmoothing, onToggle: toggleHandSmoothing } : undefined}
               freePick={mode === 'classic' && loaded !== null ? { on: freePick, onToggle: () => toggleFreePick(loaded.formats) } : undefined}
-              lockDecks={mode === 'random' && randomOptions !== null ? { on: randomOptions.lock === true, locked: modeLocked, onToggle: toggleRandomLock } : undefined}
+              lockDecks={shownMode === 'random' && randomOptions !== null ? { on: randomOptions.lock === true, locked: modeLocked, onToggle: toggleRandomLock } : undefined}
               // A Gauntlet's decks are each table's own draw: it has none to lock (the server reads it per-round).
               tournamentDecks={tournament && mode !== 'gauntlet' ? { value: tournamentDecks, locked: eventLocked, onChange: chooseTournamentDecks } : undefined}
               clock={{ on: clock, onToggle: toggleClock }}
@@ -2505,8 +2523,8 @@ function RoomTableScreen({
                 event={mode === null ? undefined : { tournament, disabled: !iAmLeader || eventLocked, onChange: toggleTournament }}
               />
               <div className="lobby__modeline">
-                <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
-                {mode === 'classic' && loaded !== null && (
+                <ModeRow mode={shownMode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
+                {shownMode === 'classic' && loaded !== null && (
                   <ClassicOptions
                     formats={loaded.formats}
                     poolId={poolId}
@@ -2517,22 +2535,21 @@ function RoomTableScreen({
                     onBrowse={setBrowse}
                   />
                 )}
-                {mode === 'gauntlet' && gauntletEras !== null && (
+                {shown?.mode === 'gauntlet' && gauntletEras !== null && (
                   <GauntletOptions
                     eras={gauntletEras}
-                    // The pair parsed together (`parseRoomView`), so a Gauntlet's options are Gauntlet's.
-                    options={(view?.modeOptions ?? {}) as GauntletModeOptions}
+                    options={shown.modeOptions}
                     leader={iAmLeader}
                     disabled={modeLocked}
-                    onChange={(options) => writeRoom(() => rooms.setRoomMode(roomId, { mode: 'gauntlet', modeOptions: options }))}
+                    onChange={(options) => writeMode({ mode: 'gauntlet', modeOptions: options })}
                   />
                 )}
-                {mode === 'random' && (
+                {shownMode === 'random' && (
                   <AllRandomOptions
                     // The pair parsed together (`parseRoomView`), so an All Random room's options carry its pool.
                     value={randomOptions?.pool ?? null}
                     disabled={!iAmLeader || modeLocked}
-                    onChange={(pool) => writeRoom(() => rooms.setRoomMode(roomId, { mode: 'random', modeOptions: { ...randomOptions, pool } }))}
+                    onChange={(pool) => writeMode({ mode: 'random', modeOptions: { ...randomOptions, pool } })}
                   />
                 )}
               </div>

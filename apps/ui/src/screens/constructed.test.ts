@@ -297,6 +297,8 @@ interface Table {
   series?: { length: 1 | 3; wins: [number, number]; games: { matchId: string; winner: 0 | 1 | null }[]; phase: 'seating' | 'playing' | 'sideboarding' | 'between' | 'done' };
   /** `PATCH /api/rooms/:id` refuses with this, as it does for a non-leader. */
   refusePatch?: { status: number; error: string };
+  /** A `PATCH /api/rooms/:id` that answers only once this settles — the room's round trip, held open. */
+  holdPatch?: Promise<void>;
   /** The room's mode with its options; null until the leader picks one. Absent ⇒ Classic, which is every test above. */
   mode?: RoomMode | null;
   /** A Gauntlet room's view, as `GET …/gauntlet` answers it. Absent ⇒ undrawn, nobody ready. */
@@ -490,6 +492,7 @@ function stubServer(table: Table) {
        * they readied with is not what the table is now.
        */
       if ((init?.method ?? 'GET') === 'PATCH') {
+        await table.holdPatch;
         if (table.refusePatch !== undefined) return json(table.refusePatch.status, { error: table.refusePatch.error });
         const asked = body as { format?: unknown; mode?: unknown; gameType?: string; settings?: { handSmoothing?: boolean; tournament?: boolean; tournamentDecks?: 'locked' | 'per-round' } };
         // The type, as `lobby.ts` sets it: under the mode's lock, and a change leaves the mode unchosen and nobody ready.
@@ -2910,6 +2913,24 @@ describe('the room’s mode', () => {
       { mode: 'gauntlet', modeOptions: { family: 'modern' } },
       { mode: 'gauntlet', modeOptions: { family: 'modern', era: 'modern-2012-07-13' } },
     ]);
+  });
+
+  it('the leader’s Gauntlet year holds while the room answers, and a refusal puts the room’s back', async () => {
+    let answer: () => void = () => undefined;
+    const table: Table = { players: [], matchId: null, mode: { mode: 'gauntlet', modeOptions: { family: 'modern' } } };
+    table.holdPatch = new Promise<void>((r) => {
+      answer = r;
+    });
+    await mountModeRoom(table);
+    const era = () => screen.getByTestId('gauntlet-era') as HTMLSelectElement;
+    await waitFor(() => expect(era().value).toBe(''));
+    fireEvent.change(era(), { target: { value: 'modern-2012-07-13' } });
+    // The write is still on the wire: the select shows the pick, not the room's Random.
+    expect(era().value).toBe('modern-2012-07-13');
+    table.refusePatch = { status: 409, error: 'mode-locked' };
+    answer();
+    await screen.findByTestId('table-error');
+    expect(era().value).toBe('');
   });
 
   it('a Gauntlet seat readies with the Gauntlet, not the table, and once it is ready the mode is fixed', async () => {
