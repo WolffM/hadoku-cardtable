@@ -191,9 +191,10 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, press = fa
       const point = press ?? { x: (board.left + board.right) / 2, y: (board.top + board.bottom) / 2, finger: false };
       el.style.translate = '0px 0px';
       const drawn = el.getBoundingClientRect();
-      const parts = [...el.querySelectorAll('.mana-ring__disc, .mana-ring__chip')].map((d) => d.getBoundingClientRect());
-      const box = parts.reduce(
-        (b, r) => ({ left: Math.min(b.left, r.left), top: Math.min(b.top, r.top), right: Math.max(b.right, r.right), bottom: Math.max(b.bottom, r.bottom) }),
+      // From the layout, not the discs' drawn boxes: a disc still blooming out of the hub is drawn small and in the middle.
+      const half = size / 2;
+      const box = [...at, ...chips].reduce(
+        (b, p) => ({ left: Math.min(b.left, drawn.left + p.dx - half), top: Math.min(b.top, drawn.top + p.dy - half), right: Math.max(b.right, drawn.left + p.dx + half), bottom: Math.max(b.bottom, drawn.top + p.dy + half) }),
         { left: drawn.left, top: drawn.top, right: drawn.left, bottom: drawn.top },
       );
       // The ring's centre on the press. A finger's press under its lowest disc; where the board leaves
