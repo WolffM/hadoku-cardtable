@@ -177,6 +177,34 @@ describe('the content of a room', () => {
 
     expect(mounts).toEqual([true]);
   });
+
+  // CI 42455075250 (w83b): a joiner's room screen is drawn before its join, with no chat
+  // (`App.tsx` gates the room id on `useJoined`), and the chrome wraps it once the join lands.
+  // Remounted there, it dropped bob's open Room settings and connected its draft socket twice.
+  it('stays mounted when the chrome wraps it after the join, and when it goes again', async () => {
+    let mounts = 0;
+    let unmounts = 0;
+    function Content() {
+      useLayoutEffect(() => {
+        mounts += 1;
+        return () => {
+          unmounts += 1;
+        };
+      }, []);
+      return createElement('div', { 'data-testid': 'content' });
+    }
+    const content = createElement(Content);
+
+    const view = render(createElement(RoomShell, { roomId: null, children: content }));
+    expect(screen.getByTestId('content')).toBeTruthy();
+    view.rerender(createElement(RoomShell, { roomId: 'r-cube', children: content }));
+    await waitFor(() => expect(screen.getByTestId('room-chrome').contains(screen.getByTestId('content'))).toBe(true));
+    view.rerender(createElement(RoomShell, { roomId: null, children: content }));
+    expect(screen.queryByTestId('room-chrome')).toBeNull();
+    expect(screen.getByTestId('content')).toBeTruthy();
+
+    expect({ mounts, unmounts }).toEqual({ mounts: 1, unmounts: 0 });
+  });
 });
 
 /*
