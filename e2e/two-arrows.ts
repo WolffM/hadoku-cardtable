@@ -144,16 +144,31 @@ const stackCount = async (page: Page): Promise<number> => {
 };
 
 /**
- * Wait until Forge either offers bob as a target, or has taken the only legal one itself (Duress's "target
- * opponent" with one opponent): true when there is a target to choose.
+ * How many cards alice's graveyard holds: the desktop zone's `data-count`, or the portrait seat chip's pile,
+ * which draws no card of it.
  */
-async function asksForBob(page: Page): Promise<boolean> {
+const ownGraveyard = (page: Page): Promise<number> =>
+  page.evaluate(() => {
+    const zone = document.querySelector('[data-zone="graveyard"][data-owner="you"]');
+    if (zone !== null) return Number(zone.getAttribute('data-count'));
+    const pile = document.querySelector('[data-count="graveyard"][data-owner="you"]');
+    return Number(pile?.getAttribute('aria-label')?.split(' ').pop());
+  });
+
+/**
+ * Wait until Forge either offers bob as a target, or has taken the only legal one itself (Duress's "target
+ * opponent" with one opponent): true when there is a target to choose. A self-targeted spell with nothing
+ * to wait on (Duress at a hand with no noncreature, nonland card: its reveal is shown at once) can be on
+ * the stack for less than one poll, so a graveyard grown past `graveyard` (its size before the press)
+ * counts as cast too.
+ */
+async function asksForBob(page: Page, graveyard: number): Promise<boolean> {
   let asked = false;
   await expect
     .poll(
       async () => {
         asked = (await bobFace(page).getAttribute('data-selectable')) !== null;
-        return asked || (await stackCount(page)) > 0;
+        return asked || (await stackCount(page)) > 0 || (await ownGraveyard(page)) > graveyard;
       },
       { timeout: 20_000, message: 'Forge asks for the target player, or chose the only one' },
     )
@@ -168,9 +183,11 @@ const line = (a: { x: number; y: number }, b: { x: number; y: number }, n: numbe
 /** Cast `id` and aim it at bob: by a click (a tap) on his face, or by a drag onto it. */
 async function castAtBob(page: Page, id: number, how: 'click' | 'drag'): Promise<void> {
   const phone = isPhone();
+  const graveyard = await ownGraveyard(page);
+  expect(graveyard, "alice's graveyard is drawn with its count").not.toBeNaN();
   if (how === 'click') {
     expect(await clickHandCard(page, id), 'the cast started').toBe(true);
-    if (!(await asksForBob(page))) return;
+    if (!(await asksForBob(page, graveyard))) return;
     const face = await centreOf(page, '[data-player-face]:not([data-viewer])');
     if (phone) {
       await fingerTap(page, await centreOf(page, '[data-player-face]:not([data-viewer]) .face__hit'));
@@ -188,7 +205,7 @@ async function castAtBob(page: Page, id: number, how: 'click' | 'drag'): Promise
     // A finger parks the spell on the table, then carries the arrow from it onto the target.
     await raiseHand(page, id);
     expect(await dragHandCard(page, id, await centreOf(page, '[data-testid="lane-my-permanents"]')), 'the finger lifted the card').toBe(true);
-    if (!(await asksForBob(page))) return;
+    if (!(await asksForBob(page, graveyard))) return;
     const parked = await centreOf(page, `[data-cast-ghost="${id}"], [data-board-card="${id}"]`);
     await touchDrag(page, parked, line(parked, await centreOf(page, '[data-player-face]:not([data-viewer])'), 14));
     return;
@@ -197,7 +214,7 @@ async function castAtBob(page: Page, id: number, how: 'click' | 'drag'): Promise
   // already over answers it.
   const face = await centreOf(page, '[data-player-face]:not([data-viewer])');
   expect(await dragHandCard(page, id, face), 'the drag armed the cast').toBe(true);
-  if (!(await asksForBob(page))) return;
+  if (!(await asksForBob(page, graveyard))) return;
   await page.mouse.move(face.x + 2, face.y + 2, { steps: 2 });
   await page.mouse.click(face.x, face.y);
   await page.mouse.move(face.x + 4, face.y + 3);
