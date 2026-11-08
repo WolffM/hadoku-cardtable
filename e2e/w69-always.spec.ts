@@ -9,7 +9,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, makeTitled, offeredNamed, serverLog, stackCount } from './play/board.ts';
+import { clickHandCard, makeTitled, offeredNamed, serverLog } from './play/board.ts';
 import type { Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -30,6 +30,20 @@ const asked = (stack: { serverLogFile: string }, from: number) =>
     .filter((r) => r.evt === 'forge-frame' && r.seat === 0 && r.method === 'showPromptMessage' && String(r.message ?? '').startsWith(`Use triggered ability of ${ATTENDANT}`));
 
 /**
+ * Press `page`'s live OK, unless it is alice's own priority with the stack empty. Forge's message
+ * (`live-says`) and the press are read and made in one turn of the page, so the press is on the
+ * window the message names: the board's stack count lags Forge's, and a check of it before a
+ * separate click pressed alice's empty-stack Main 1 and passed it (run 42423405738).
+ */
+const passOver = (page: Page, guardEmpty: boolean): Promise<void> =>
+  page.evaluate((guard) => {
+    const ok = document.querySelector<HTMLButtonElement>('[data-testid="live-decision-ok"]');
+    const says = document.querySelector('[data-testid="live-says"]')?.textContent ?? '';
+    if (ok === null || ok.disabled || (guard && /Stack: Empty/.test(says))) return;
+    ok.click();
+  }, guardEmpty);
+
+/**
  * Cast the next Memnite and pass every window either seat is given over it until `done` holds — never
  * answering alice's confirm, and never her own priority with the stack empty: that OK is her main phase
  * passed, and the next Memnite would wait for a turn of hers that never comes (run 40348885894).
@@ -42,11 +56,8 @@ async function castMemnite(alice: Friend, bob: Friend, done: () => Promise<boole
     .poll(
       async () => {
         if (await done()) return true;
-        for (const page of [alice.page, bob.page]) {
-          if (page === alice.page && (await stackCount(alice.page)) === 0) continue;
-          const ok = page.locator('[data-testid="live-decision-ok"]:enabled');
-          if ((await ok.count()) > 0) await ok.click({ timeout: 1_000 }).catch(() => undefined);
-        }
+        await passOver(alice.page, true);
+        await passOver(bob.page, false);
         return done();
       },
       { timeout: 60_000, message: what },
