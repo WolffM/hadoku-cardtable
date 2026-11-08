@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "The server parts any game keeps: edge auth and the tier gate, base path and bundle check, health and the busy probe, lifecycle, the JSON logger, the state directory, telemetry and capacity, per-caller limits, the browser relays and the erase registry. Knows no game; the app binds its service id, prefix and env names. MIT; imports only node built-ins, express, socket.io and @wolffm/*.",
+  "description": "The server parts any game keeps: edge auth and the tier gate, base path and bundle check, health and the busy probe, lifecycle, the JSON logger, the state directory, telemetry and capacity, per-caller limits, the browser relays, the erase registry, and createGameServer, which boots a game from its config and plugins. Knows no game; the app binds its service id, prefix and env names. MIT; imports only node built-ins, express, socket.io and @wolffm/*.",
   "exports": {
     "./auth": "./src/auth/index.ts",
     "./http": "./src/http/index.ts",
@@ -16,7 +16,8 @@
     "./capacity": "./src/capacity/index.ts",
     "./limits": "./src/limits/index.ts",
     "./relays": "./src/relays/index.ts",
-    "./erase": "./src/erase/index.ts"
+    "./erase": "./src/erase/index.ts",
+    "./server": "./src/server/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
