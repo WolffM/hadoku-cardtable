@@ -30,19 +30,15 @@ test(titled('the coin toss lands on the winner’s face on BOTH screens, the sam
     const bob: Friend = await openFriend(browser, 'bob');
     await enterMatch(alice, bob, stack.origin);
 
-    // Both screens show the coin — record when each first saw it.
-    const seen: Record<string, number> = {};
-    await expect
-      .poll(
-        async () => {
-          for (const f of [alice, bob]) {
-            if (seen[f.name] === undefined && (await coin(f.page).count()) > 0) seen[f.name] = Date.now();
-          }
-          return Object.keys(seen).length;
-        },
-        { timeout: 45_000, message: 'both screens draw the coin toss' },
-      )
-      .toBe(2);
+    // Both screens show the coin — each page stamps its own first frame with it. One poll over both
+    // pages stamped whichever it looked at first, and its interval backs off to 1 s, so a coin drawn on
+    // both screens in the same millisecond read 1016 ms apart (run 42500185882).
+    const firstCoin = (page: Page): Promise<number> =>
+      page
+        .waitForFunction(() => (document.querySelector('[data-testid="coin-toss"]') === null ? false : Date.now()), undefined, { polling: 'raf', timeout: 45_000 })
+        .then((h) => h.jsonValue() as Promise<number>);
+    const [aliceAt, bobAt] = await Promise.all([firstCoin(alice.page), firstCoin(bob.page)]);
+    const seen: Record<string, number> = { alice: aliceAt, bob: bobAt };
     const winnerA = await coin(alice.page).getAttribute('data-winner');
     const winnerB = await coin(bob.page).getAttribute('data-winner');
     expect(winnerA, 'both screens name the same winner').toBe(winnerB);
