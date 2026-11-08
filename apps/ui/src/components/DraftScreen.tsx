@@ -112,6 +112,14 @@ export interface DraftScreenProps {
   arrivedWhole?: boolean;
 }
 
+/** The nearest ancestor of `el` that scrolls vertically, if any. */
+function scrollBoxOf(el: HTMLElement): HTMLElement | null {
+  for (let a = el.parentElement; a !== null && a !== document.body; a = a.parentElement) {
+    if (/^(auto|scroll)$/.test(getComputedStyle(a).overflowY)) return a;
+  }
+  return null;
+}
+
 /**
  * The draft body's ref: exactly as tall as the window below it, so the two
  * rows fill the screen and the page itself never scrolls (`draft.css`,
@@ -123,17 +131,19 @@ export interface DraftScreenProps {
 export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined {
   if (el === null || typeof window === 'undefined') return undefined;
   const aside = el.querySelector<HTMLElement>(':scope > .draft__aside');
+  // The box the screen scrolls in when it is not the page: a room's, pinned to the window beside its chat (`chrome.css`).
+  const box = scrollBoxOf(el);
   const fit = (): void => {
     // Everything from the body's top to the window's bottom, less whatever
-    // that pushes off the page (the shell's padding, anything after the
-    // body): set, measure the overflow, take it back. Always from the full
-    // height, so a window that grows gets the room back.
-    const full = Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY));
+    // that pushes off the page or out of its box (the shell's padding,
+    // anything after the body): set, measure the overflow, take it back.
+    // Always from the full height, so a window that grows gets the room back.
+    const full = Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY + (box?.scrollTop ?? 0)));
     el.style.setProperty('--draft-h', `${Math.max(300, full)}px`);
     const style = getComputedStyle(el);
     // A phone's column (`draft.css`) scrolls with the page on purpose: there the row is the window's, not what is left of it.
     const rows = style.display === 'grid';
-    const over = rows ? document.documentElement.scrollHeight - window.innerHeight : 0;
+    const over = rows ? Math.max(document.documentElement.scrollHeight - window.innerHeight, box === null ? 0 : box.scrollHeight - box.clientHeight) : 0;
     const height = over > 0 ? Math.max(300, full - over) : Math.max(300, full);
     if (over > 0) el.style.setProperty('--draft-h', `${height}px`);
     const inner = height - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0) - (parseFloat(style.rowGap) || 0);
@@ -148,6 +158,8 @@ export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined
   window.addEventListener('resize', fit);
   const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
   observer?.observe(document.body);
+  // In a pinned box the page never grows: a line drawn above the body (the room's error) is seen by the screen's own size.
+  if (el.parentElement !== null) observer?.observe(el.parentElement);
   // The column's own parts (a watcher joins the room's bar): measured again on the next frame, not inside
   // this delivery, where a row that changed would resize the column already reported this frame.
   let frame = 0;

@@ -81,6 +81,21 @@
   min-height: 0;
 }
 
+/*
+ * The room's chat is a column beside the screen, the window's height, in every room, whatever screen
+ * the room is on (the operator, 2026-11-07: "it shouldn't matter what room we're in. right side-bar
+ * must be consistent"): a draft pod's hub is no fitted screen, and its chat stopped where the hub did.
+ * Keyed on the frame, so the room's screen scrolls inside it, never the page. Only where the chat IS
+ * a column (watchparty's own breakpoint, 768px): narrower, it sits under the screen and the page
+ * scrolls the two together, as a phone's draft is built to (`draft.css`).
+ */
+@media (min-width: 768px) {
+  .cardtable-chrome[data-room-frame] {
+    height: 100dvh;
+    min-height: 0;
+  }
+}
+
 /* The header is a fixed row; whatever the route renders takes the rest. The
    direct-child rule is what lets both possible children grow — `.shell` on a
    roomless route, and watchparty's `.wp-room-chrome-frame` on a room one, which
