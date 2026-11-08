@@ -112,17 +112,17 @@ Paths under `forge/`, all verified:
 
 | What | Where |
 | --- | --- |
-| The whole net protocol (60-method enum: 45 server→client, 15 client→server) | `forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java` |
+| The whole net protocol (57-method enum: 38 server→client, 16 client→server, 3 client macro calls) | `forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java` |
 | The transport seam (3 methods) | `forge-gui/src/main/java/forge/gamemodes/net/IRemote.java` |
 | Server→client seam (empty interface) | `.../net/server/IToClient.java` |
 | Server-side GUI proxy | `.../net/server/RemoteClientGuiGame.java` |
 | Per-client visibility / hidden info | `.../net/server/DeltaSyncManager.java`, `.../net/TrackableSerializer.java` |
-| View layer (214-property enum) | `forge-game/src/main/java/forge/trackable/TrackableProperty.java` |
+| View layer (211-property enum) | `forge-game/src/main/java/forge/trackable/TrackableProperty.java` |
 | Draft / cube engine | `forge-gui/src/main/java/forge/gamemodes/limited/` |
-| Bundled cubes (95 `.dck`) and draft recipes (94 `.draft`) | `forge-gui/res/cube/`, `forge-gui/res/draft/` |
+| Bundled cubes (97 `.dck`) and draft recipes (96 `.draft`) | `forge-gui/res/cube/`, `forge-gui/res/draft/` |
 | Headless entry points | `forge-gui-desktop/src/main/java/forge/view/Main.java` |
 | Scryfall ingest | `forge-gui/src/main/java/forge/gui/download/Scryfall*.java` |
-| Ability dispatch (202 constants naming 199 effect classes) | `forge-game/src/main/java/forge/game/ability/ApiType.java` |
+| Ability dispatch (204 constants naming 201 effect classes) | `forge-game/src/main/java/forge/game/ability/ApiType.java` |
 | The whole product UI (libGDX, 103k lines) | `forge-gui-mobile/src/forge/screens/`, `FDeckEditor.java` |
 
 `forge/` is a submodule, so these commands only run in a checkout that has
@@ -130,28 +130,29 @@ it initialised. Every count in the table above comes from one of them —
 run from the repo root:
 
 ```sh
-# 60 protocol methods = 45 SERVER + 15 CLIENT
+# 57 protocol methods = 38 SERVER + 16 CLIENT + 3 MACRO
 P=forge/forge-gui/src/main/java/forge/gamemodes/net/ProtocolMethod.java
-grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.SERVER' $P   # 45
-grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.CLIENT' $P   # 15
+grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.SERVER' $P   # 38
+grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.CLIENT' $P   # 16
+grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\(Mode\.MACRO' $P    # 3
 
-# 95 cubes, 94 draft recipes
-find forge/forge-gui/res/cube  -maxdepth 1 -type f -name '*.dck'   -printf '.' | wc -c  # 95
-find forge/forge-gui/res/draft -maxdepth 1 -type f -name '*.draft' -printf '.' | wc -c  # 94
+# 97 cubes, 96 draft recipes
+find forge/forge-gui/res/cube  -maxdepth 1 -type f -name '*.dck'   -printf '.' | wc -c  # 97
+find forge/forge-gui/res/draft -maxdepth 1 -type f -name '*.draft' -printf '.' | wc -c  # 96
 
-# 202 ApiType constants naming 199 distinct effect classes
+# 204 ApiType constants naming 201 distinct effect classes
 A=forge/forge-game/src/main/java/forge/game/ability/ApiType.java
-grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\([A-Za-z][A-Za-z0-9_]*\.class' $A  # 202
+grep -cE '^ *[A-Za-z][A-Za-z0-9_]* *\([A-Za-z][A-Za-z0-9_]*\.class' $A  # 204
 grep -oE '^ *[A-Za-z][A-Za-z0-9_]* *\(([A-Za-z][A-Za-z0-9_]*)\.class' $A \
-  | sed -E 's/.*\(([A-Za-z0-9_]*)\.class/\1/' | sort -u | wc -l          # 199
+  | sed -E 's/.*\(([A-Za-z0-9_]*)\.class/\1/' | sort -u | wc -l          # 201
 ```
 
 **Count enum constants, not matching lines.** A bare `grep -c 'Mode\.'` on
-`ProtocolMethod.java` returns **61**, because one `Mode.SERVER` is inside a
-method body (`ProtocolMethod.java:136`) — that off-by-one is where the wrong
+`ProtocolMethod.java` returns **59**, because a `Mode.SERVER` and a `Mode.MACRO` are inside
+method bodies (`ProtocolMethod.java:136,156`) — that off-by-one is where the wrong
 count this table carried for two waves came from. Likewise a `.class` grep that
 does not anchor on the line start counts the commented-out constant at
-`ApiType.java:137`.
+`ApiType.java:138`.
 `docs/WASM_AND_PORTING.md` §0 has the full derivation of the ApiType numbers.
 
 ## Build prerequisites
