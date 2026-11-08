@@ -2966,6 +2966,65 @@ export const POWER_SUMMER_2025_LEGACY: LibraryCollection = {
 
 
 /**
+ * One real MTGO tournament, imported whole — the 2026-02-07 Legacy Challenge
+ * 32, all 32 decklists, transcribed by `build-tournament-library.ts` from
+ * `fbettega/MTG_decklistcache`. A COMPLETE field in final-standing order,
+ * with the event's own quarterfinal-onward pairings and full standings in
+ * `tournament.json` beside the decks. Validated 32/32 legal in `Legacy
+ * (2026-01-26)` — the snapshot in force on the event date — against the real
+ * corpus (`validate-library.ts --family=legacy --date=2026-02-07 --dir=…`).
+ *
+ * Legacy's pool reaches every paper set ever, so this event has no om1 hole:
+ * every name the cache carried resolves (see the Modern tournament's note for
+ * the `Through the Omenpaths` printed-name class that keeps two Standard and
+ * Modern February events from validating clean).
+ */
+export const TOURNAMENT_2026_02_07_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'tournament-legacy-2026-02-07',
+  directory: `${DECKS_ROOT}/tournament-legacy-2026-02-07-legacy-challenge-32`,
+  event: 'Legacy Challenge 32 — 2026-02-07, MTGO (the whole 32-deck field)',
+  format: 'Legacy (2026-01-26)',
+  date: '2026-02-07',
+  source: 'https://github.com/fbettega/MTG_decklistcache (Tournaments/MTGO/2026/02/07/legacy-challenge-32-2026-02-0712832521.json)',
+  decks: [
+    { id: "tourney-leg-2026-02-07-1-ozymandias17", file: "5-ozymandias17.dck" },
+    { id: "tourney-leg-2026-02-07-2-stanshine", file: "3-stanshine.dck" },
+    { id: "tourney-leg-2026-02-07-3-romariovidal", file: "2-romariovidal.dck" },
+    { id: "tourney-leg-2026-02-07-4-matiuzzzo", file: "1-matiuzzzo.dck" },
+    { id: "tourney-leg-2026-02-07-5-wonderpreaux", file: "6-wonderpreaux.dck" },
+    { id: "tourney-leg-2026-02-07-6-thegrimlavamancer", file: "7-thegrimlavamancer.dck" },
+    { id: "tourney-leg-2026-02-07-7-sil3ntgoat", file: "8-sil3ntgoat.dck" },
+    { id: "tourney-leg-2026-02-07-8-teaw1thrum", file: "4-teaw1thrum.dck" },
+    { id: "tourney-leg-2026-02-07-9-harry1232", file: "9-harry1232.dck" },
+    { id: "tourney-leg-2026-02-07-10-jankyb", file: "10-jankyb.dck" },
+    { id: "tourney-leg-2026-02-07-11-magic-dads71522", file: "11-magic-dads71522.dck" },
+    { id: "tourney-leg-2026-02-07-12-riddle0423", file: "12-riddle0423.dck" },
+    { id: "tourney-leg-2026-02-07-13-4funnowin", file: "13-4funnowin.dck" },
+    { id: "tourney-leg-2026-02-07-14-spym4n", file: "14-spym4n.dck" },
+    { id: "tourney-leg-2026-02-07-15-dominiquetutor", file: "15-dominiquetutor.dck" },
+    { id: "tourney-leg-2026-02-07-16-kanican", file: "16-kanican.dck" },
+    { id: "tourney-leg-2026-02-07-17-giabella", file: "17-giabella.dck" },
+    { id: "tourney-leg-2026-02-07-18-xdinguskhan", file: "18-xdinguskhan.dck" },
+    { id: "tourney-leg-2026-02-07-19-srogers90", file: "19-srogers90.dck" },
+    { id: "tourney-leg-2026-02-07-20-milkshake", file: "20-milkshake.dck" },
+    { id: "tourney-leg-2026-02-07-21-swarmofbees", file: "21-swarmofbees.dck" },
+    { id: "tourney-leg-2026-02-07-22-deskbot000", file: "22-deskbot000.dck" },
+    { id: "tourney-leg-2026-02-07-23-pedropolukranos", file: "23-pedropolukranos.dck" },
+    { id: "tourney-leg-2026-02-07-24-joe-l", file: "24-joe-l.dck" },
+    { id: "tourney-leg-2026-02-07-25-minyafriend", file: "25-minyafriend.dck" },
+    { id: "tourney-leg-2026-02-07-26-geodude-jared", file: "26-geodude-jared.dck" },
+    { id: "tourney-leg-2026-02-07-27-kentaro-hokori", file: "27-kentaro-hokori.dck" },
+    { id: "tourney-leg-2026-02-07-28-silencsong", file: "28-silencsong.dck" },
+    { id: "tourney-leg-2026-02-07-29-duke12", file: "29-duke12.dck" },
+    { id: "tourney-leg-2026-02-07-30-dsitt7", file: "30-dsitt7.dck" },
+    { id: "tourney-leg-2026-02-07-31-yes-i-accept-split", file: "31-yes-i-accept-split.dck" },
+    { id: "tourney-leg-2026-02-07-32-habsburger", file: "32-habsburger.dck" },
+  ],
+};
+
+
+/**
  * One real MTGO tournament, imported whole — the 2026-02-07 Modern Challenge
  * 32, all 32 decklists, transcribed by `build-tournament-library.ts` from
  * `fbettega/MTG_decklistcache` (the open JSON cache of MTGO/melee/Topdeck
@@ -2979,6 +3038,20 @@ export const POWER_SUMMER_2025_LEGACY: LibraryCollection = {
  * `validate-library.ts --family=modern --date=2026-02-07 --dir=…`, 32/32
  * clean. Archetype is `unclassified` throughout: the cache carries no
  * archetype, and inventing one nobody verified is folklore.
+ *
+ * **Known gap (why the Feb Standard/Modern events do not all import clean).**
+ * `Through the Omenpaths` (`om1`, MTGO-digital, games: mtgo) cards appear in
+ * this era's MTGO fields under MTGO's `printed_name` spellings, and the two
+ * spellings are DIFFERENT cards' names to anything that keys on Scryfall's
+ * `name`: `Kavaero, Mind-Bitten` = `Superior Spider-Man`, `Detect Intrusion`
+ * = `Spider-Sense`, `Belion, the Parched` = `Hydro-Man, Fluid Felon`, `The
+ * Scouring Stormsoul` = `Sandman, Shifting Scoundrel`, `Leyline Weaver` =
+ * `Spider Manifestation`, `Giantcraft Helm` = `Doc Ock's Tentacles` —
+ * resolved via Scryfall's printed_name, verified 2026-11-08. The projection
+ * keeps no `printed_name`, and `om1` is in no transcribed format table, so
+ * those names cannot resolve in a pool today. This event happened not to
+ * play any; the two Feb Standard events do, which is why the second
+ * tournament import is the Legacy event of the same date.
  */
 export const TOURNAMENT_2026_02_07_MODERN: LibraryCollection = {
   family: 'modern',
@@ -3094,6 +3167,7 @@ export const LIBRARY: readonly LibraryCollection[] = [
   POWER_SUMMER_2023_LEGACY,
   POWER_SUMMER_2024_LEGACY,
   POWER_SUMMER_2025_LEGACY,
+  TOURNAMENT_2026_02_07_LEGACY,
 ];
 
 /**
