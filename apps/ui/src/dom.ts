@@ -30,6 +30,11 @@ export function setDocumentScope(root: ShadowRoot): () => void {
   };
 }
 
+/** Mounted inside another page (the watchparty embed), whose bundle this app's is part of. */
+export function isEmbedded(): boolean {
+  return registered !== null;
+}
+
 /** Where the app's own elements live: the embed's shadow root, or the document. */
 export function documentScope(): Document | ShadowRoot {
   return registered ?? document;

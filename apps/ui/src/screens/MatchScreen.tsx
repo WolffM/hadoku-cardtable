@@ -61,7 +61,10 @@ import {
   type LiveMatch,
   type MatchTransport,
   type MatchTrouble,
+  type StaleBuildReload,
 } from '../play/live/match.ts';
+import { claimReload } from '../stale-build.ts';
+import { isEmbedded } from '../dom.ts';
 import { apiUrl, sendJson } from '../http.ts';
 import { useChromeShell } from '../chrome/shell.ts';
 import { useFollowReplacedGame } from './matchFollow.ts';
@@ -72,12 +75,16 @@ function reportTrouble(matchId: string, what: MatchTrouble, detail: Record<strin
   void sendJson(url, 'POST', { what, ui: __HADOKU_UI_VERSION__, detail }, undefined, { keepalive: true }).catch((err: unknown) => console.warn('[match] could not report', what, err));
 }
 
+/** The standalone page reloads to meet a newer server; an embed's bundle is its host page's, which a reload would not change. */
+const staleBuildReload: StaleBuildReload = { page: __HADOKU_UI_VERSION__, claim: (target) => claimReload(target), reload: () => location.reload() };
+
 /** The page's one way to open a match: a paced socket, its trouble reported over HTTP. */
 function openMatch(matchId: string, transport?: MatchTransport): LiveMatch {
   return startMatch({
     matchId,
     transport: transport ?? pacedMatchTransport(socketIoMatchTransport(), { initialFast: PLAY_PREFS_DEFAULTS.fastMode }),
     report: (what, detail) => reportTrouble(matchId, what, detail),
+    ...(isEmbedded() ? {} : { staleBuild: staleBuildReload }),
   });
 }
 

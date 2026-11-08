@@ -847,12 +847,13 @@ const deckCosts = roomDeckCosts(tables.library, defaultCubeCards);
 // from values this server already has — never a `git` shell-out at runtime.
 const recordingsLog = jsonLogger('cardtable-recording');
 const RECORDINGS_DIR = CONFIG.recordingsDir;
+const SERVER_BUILD = serverVersion(PKG_ROOT);
 const recorder = createRecorder({
 	dir: RECORDINGS_DIR,
 	identity: {
 		pin: forge.ok ? forgePin(forge.config.jar) : null,
 		bridge: forge.ok ? bridgeDigest(forge.config.bridgeSource) : 'no-forge',
-		server: serverVersion(PKG_ROOT),
+		server: SERVER_BUILD,
 	},
 	roomOf: (matchId) => lobby.roomOfMatch(matchId)?.id ?? null,
 	deckCosts,
@@ -917,6 +918,7 @@ placementLog({ evt: 'play-hosts', mode: forge.ok ? CONFIG.playHosts : 'none', al
 
 play = attachPlay(io, api, {
 	minTier: CONFIG.minTier,
+	build: SERVER_BUILD,
 	host: clawHosts !== null ? recorder.host(clawHosts) : localHost !== null ? recorder.host(localHost) : null,
 	hosts: () => clawHosts?.hosts() ?? { mode: localHost === null ? 'none' : 'local', jvms: localHost?.jvms() ?? [] },
 	// Match JVMs booting at once (`play/start-queue.ts`); `CARDTABLE_PLAY_COLD_STARTS`.

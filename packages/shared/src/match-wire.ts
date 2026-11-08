@@ -151,7 +151,29 @@ export const MATCH_EVENTS = {
    * every change and every join and resync. See {@link RestartStateSchema}.
    */
   restartState: 'forge:restart-state',
+  /**
+   * The server's build (`scripts/release/build-version.ts`), server → client, once per socket, on
+   * connect. Its own event rather than a field on the join ack: `MatchSnapshotSchema` is
+   * `.strict()`, so a page still running an older bundle would refuse every ack that carried a new
+   * key, where socket.io drops an event nobody listens to. See {@link ServerBuildSchema}.
+   */
+  build: 'forge:build',
 } as const;
+
+/**
+ * `forge:build`'s payload. Not strict, unlike the frames: a page reads the build it needs and
+ * tolerates whatever a later server adds beside it.
+ */
+export const ServerBuildSchema = z.object({ build: z.string().min(1) });
+export type ServerBuild = z.infer<typeof ServerBuildSchema>;
+
+/**
+ * What a board reports over HTTP (`POST /api/play/matches/:id/report`), when the socket is the
+ * thing in trouble or is about to go: the server logs each as a `client-report` line and refuses
+ * any other `what`.
+ */
+export const MATCH_REPORT_KINDS = ['connect-error', 'disconnected', 'snapshot-failed', 'no-snapshot', 'stale-build-reload'] as const;
+export type MatchReportKind = (typeof MATCH_REPORT_KINDS)[number];
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */
 

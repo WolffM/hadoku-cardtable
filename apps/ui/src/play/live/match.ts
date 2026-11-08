@@ -236,8 +236,8 @@
  */
 
 import { POOL_COLORS } from '@hadoku/deck';
-import type { ClientEvent, Look, ManaColor, Placement, RememberedTrigger, RestartAct, RestartState } from '@hadoku/shared';
-import { ART_EVENT, asSeqCursor, CLIENT_EVENT, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, lookOrNone, RestartStateSchema, restartTurnFrame, selfAnswer } from '@hadoku/shared';
+import type { ClientEvent, Look, ManaColor, MatchReportKind, Placement, RememberedTrigger, RestartAct, RestartState } from '@hadoku/shared';
+import { ART_EVENT, asSeqCursor, CLIENT_EVENT, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, lookOrNone, RestartStateSchema, restartTurnFrame, selfAnswer, ServerBuildSchema } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
   safeParseServerFrame,
@@ -276,6 +276,7 @@ import { foldPackets, type FoldablePacket, type FoldResult, type WireState } fro
 import { expectWirePackets } from '../wire.ts';
 import { timed } from './work-meter.ts';
 import { pageTabId } from './tab-id.ts';
+import { serverReleaseIsNewer, unreadableMeansStale } from '../../stale-build.ts';
 import {
   abortFrame,
   autoYieldFrame,
@@ -1060,6 +1061,10 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
   lastInvalid: TransportIssue[] | null;
+  /** The server's build, from `forge:build`. Null until it says; a server older than the event never does. */
+  serverBuild: string | null;
+  /** Reloading the page for the server's newer build: nothing more is read or asked for. */
+  reloading: boolean;
   lastVerdict: SeqVerdict | null;
   connected: boolean;
   everConnected: boolean;
@@ -1101,9 +1106,23 @@ export interface LiveMatchOptions {
   report?: (what: MatchTrouble, detail: Record<string, unknown>) => void;
   /** The front page's card: the bottom follows the turn ({@link LiveMatch.followsTurn}). */
   followTurn?: boolean;
+  /**
+   * How this page reloads to meet a newer server (`../../stale-build.ts`). Only the standalone match
+   * page passes it: an embed's bundle is its host page's, and a reload would fetch the same one.
+   * Without it a board that cannot read the server resyncs, as it always has.
+   */
+  staleBuild?: StaleBuildReload;
 }
 
-export type MatchTrouble = 'connect-error' | 'disconnected' | 'snapshot-failed' | 'no-snapshot';
+export interface StaleBuildReload {
+  /** This page's own build: `__HADOKU_UI_VERSION__`. */
+  page: string;
+  /** Claims the tab's one reload for a server build; false when it already reloaded for it. */
+  claim(target: string): boolean;
+  reload(): void;
+}
+
+export type MatchTrouble = MatchReportKind;
 
 /** How long a board may go without its first snapshot before it says so. */
 export const NO_SNAPSHOT_REPORT_MS = 10_000;
@@ -1114,6 +1133,8 @@ const CONNECT_ERRORS_REPORTED = 3;
 const watchdogs = new WeakMap<LiveMatch, ReturnType<typeof setTimeout>>();
 /** Each board's reporter: `snapshotFailed` reports through it. */
 const reporters = new WeakMap<LiveMatch, NonNullable<LiveMatchOptions['report']>>();
+/** Each standalone board's way to reload for a newer server. */
+const staleBuilds = new WeakMap<LiveMatch, StaleBuildReload>();
 /**
  * A board's last lost connection — socket.io's reason, when it was lost and, once the socket is
  * back, when — until its rejoin is answered and the board says so in the match log (`connection`).
@@ -1274,6 +1295,8 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     restart: null,
     lastError: null,
     lastInvalid: null,
+    serverBuild: null,
+    reloading: false,
     lastVerdict: null,
     connected: false,
     everConnected: false,
@@ -1348,6 +1371,15 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
 
   match.transport.on(ART_EVENT, (payload) => {
     preloadMatchArt(match.matchId, payload);
+  });
+
+  if (options.staleBuild !== undefined) staleBuilds.set(match, options.staleBuild);
+  match.transport.on(MATCH_EVENTS.build, (payload) => {
+    const parsed = ServerBuildSchema.safeParse(payload);
+    if (!parsed.success) return;
+    match.serverBuild = parsed.data.build;
+    const stale = staleBuilds.get(match);
+    if (stale !== undefined && serverReleaseIsNewer(stale.page, parsed.data.build)) reloadForServer(match, 'newer-release');
   });
 
   watchRestart(match.transport, (updating, back) => {
@@ -3189,10 +3221,14 @@ export const MAX_RESYNCS_WITHOUT_PROGRESS = 3;
  * answers all of them.
  */
 function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
-  if (match.awaitingSnapshot) return;
+  if (match.awaitingSnapshot || match.reloading) return;
   if (kind === 'resync') {
     if (match.resyncsWithoutProgress >= MAX_RESYNCS_WITHOUT_PROGRESS) {
-      match.lastError = `stopped after ${MAX_RESYNCS_WITHOUT_PROGRESS} resyncs in a row that did not catch up — the server's snapshot cursor is behind its own stream`;
+      // Every resync since the last snapshot was refused unread, or each one landed and the stream gapped from it again.
+      match.lastError =
+        match.lastInvalid !== null
+          ? `stopped after ${MAX_RESYNCS_WITHOUT_PROGRESS} resyncs in a row: this page could not read what the server (${match.serverBuild ?? 'build unknown'}) sent`
+          : `stopped after ${MAX_RESYNCS_WITHOUT_PROGRESS} resyncs in a row that did not catch up — the server's snapshot cursor is behind its own stream`;
       return;
     }
     match.resyncsWithoutProgress += 1;
@@ -3224,6 +3260,7 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
     if (!ack.ok) {
       match.stats.invalid += 1;
       match.lastInvalid = ack.errors;
+      if (reloadIfUnreadable(match)) return;
       snapshotFailed(match, `${event} was answered with something that is not a snapshot`);
       return;
     }
@@ -3261,10 +3298,44 @@ function reportRejoin(match: LiveMatch): void {
  * errors. The next live frame is what tries again.
  */
 function snapshotFailed(match: LiveMatch, why: string): void {
-  reporters.get(match)?.('snapshot-failed', { why, ...connectionFacts(match) });
+  reporters.get(match)?.('snapshot-failed', { why, ...connectionFacts(match), ...invalidFacts(match) });
   match.lastError = why;
   match.buffer = [];
   notify(match);
+}
+
+/** How many of `lastInvalid`'s issues a report carries, and how long each may be: a report is bounded. */
+const ISSUES_REPORTED = 4;
+const ISSUE_CHARS = 160;
+
+/** Why the last frame or ack was refused, short enough for a report and the server's log line. */
+function invalidFacts(match: LiveMatch): { lastInvalid?: string[] } {
+  if (match.lastInvalid === null) return {};
+  return { lastInvalid: match.lastInvalid.slice(0, ISSUES_REPORTED).map((i) => `${i.path} ${i.message}`.slice(0, ISSUE_CHARS)) };
+}
+
+/**
+ * The page reloads for the server's build: once per build per tab (`StaleBuildReload.claim`), told
+ * to the server first over HTTP, which outlives the page. False when this board has no way to reload
+ * or the tab already reloaded for that build, and the caller goes on as it would have.
+ */
+function reloadForServer(match: LiveMatch, cause: 'newer-release' | 'unreadable'): boolean {
+  if (match.reloading) return true;
+  const stale = staleBuilds.get(match);
+  const target = match.serverBuild ?? 'unknown';
+  if (stale === undefined || !stale.claim(target)) return false;
+  match.reloading = true;
+  match.buffer = [];
+  reporters.get(match)?.('stale-build-reload', { page: stale.page, server: target, cause, ...connectionFacts(match), ...invalidFacts(match) });
+  stale.reload();
+  notify(match);
+  return true;
+}
+
+/** A frame or ack this page could not read: a reload, when the server's build may be one this page predates. */
+function reloadIfUnreadable(match: LiveMatch): boolean {
+  const stale = staleBuilds.get(match);
+  return stale !== undefined && unreadableMeansStale(stale.page, match.serverBuild) && reloadForServer(match, 'unreadable');
 }
 
 function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
@@ -3504,6 +3575,7 @@ export function ingest(match: LiveMatch, raw: unknown): void {
 }
 
 function ingestNow(match: LiveMatch, raw: unknown): void {
+  if (match.reloading) return;
   if (match.awaitingSnapshot) {
     match.buffer.push(raw);
     match.stats.buffered += 1;
@@ -3556,6 +3628,8 @@ function ingestNow(match: LiveMatch, raw: unknown): void {
     // cannot be read is still answered, or Forge waits on it forever.
     match.stats.invalid += 1;
     match.lastInvalid = parsed.errors;
+    // A newer server's: the ask is re-sent to the reloaded page, so it is not refused here.
+    if (reloadIfUnreadable(match)) return;
     const callId = callIdOf(rawFrame);
     if (callId !== null) sendAbort(match, callId, 'unsupported', 'the ask did not parse on this client');
     fetchSnapshot(match, 'resync');

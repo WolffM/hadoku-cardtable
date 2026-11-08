@@ -96,6 +96,7 @@ import {
 	type RelayedEvent,
 	fullControlFrame,
 	MATCH_EVENTS,
+	MATCH_REPORT_KINDS,
 	StartMatchBodySchema,
 	parseAutoYield,
 	parseClientEnvelope,
@@ -110,6 +111,7 @@ import {
 	type MatchRole,
 	type MatchSeats,
 	type MatchSnapshot,
+	type ServerBuild,
 	type ServerEnvelope,
 	type Look,
 } from '@hadoku/shared';
@@ -163,6 +165,12 @@ export interface PlayDeps {
 	/** Where a match's Forge runs. Null when Forge is not configured: starting a match answers 503. */
 	host: MatchHostFactory | null;
 	log?: PlayLog;
+	/**
+	 * This server's build (`recorder.ts`'s `serverVersion`), told to every socket on connect
+	 * (`forge:build`): a page whose bundle is older than the server reloads rather than misread
+	 * what a newer server sends. Omitted, nothing is told, and pages behave as before.
+	 */
+	build?: string;
 	/** How long a diagnostic probe waits for its answer. Default 10 minutes. */
 	probeTimeoutMs?: number;
 	/** How long a finished match keeps its JVM. Default 10 minutes. */
@@ -793,7 +801,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	 * trouble (the operator, 2026-10-20, after a watcher sat on "Connecting…" with no line here: *"we
 	 * absolutely need logging"*). Logged and nothing else; bounded so a stuck page cannot flood the log.
 	 */
-	const REPORT_KINDS = new Set(['connect-error', 'disconnected', 'snapshot-failed', 'no-snapshot']);
+	const REPORT_KINDS = new Set<string>(MATCH_REPORT_KINDS);
 	const REPORT_MAX_CHARS = 2000;
 	const REPORTS_PER_MINUTE = 20;
 	const reported = new Map<string, { minute: number; count: number }>();
@@ -923,6 +931,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const refusedInput = (seat: number): 'c2s-watcher' | 'c2s-elsewhere' => (seat === WATCHER_SEAT ? 'c2s-watcher' : 'c2s-elsewhere');
 
 	io.on('connection', (socket) => {
+		if (deps.build !== undefined) socket.emit(MATCH_EVENTS.build, { build: deps.build } satisfies ServerBuild);
 		const participantId = identityOf(socket);
 		deps.keys?.learn(socket.request.headers);
 		online.set(participantId, (online.get(participantId) ?? 0) + 1);
