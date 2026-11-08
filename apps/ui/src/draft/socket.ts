@@ -73,6 +73,8 @@ import {
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 import { io } from 'socket.io-client';
 
+import { defaultSocketPath, socketOptions } from '../room/socket-options.ts';
+import { pageTabId } from '../room/tab-id.ts';
 import type { ConnectionFacts } from './connection.ts';
 
 /**
@@ -162,53 +164,6 @@ export interface SocketDraftOptions {
   transport?: DraftTransport;
   /** Called after every observable change. */
   onChange?: (draft: SocketDraft) => void;
-}
-
-/* ── The socket.io path ──────────────────────────────────────────────── */
-
-/**
- * `/cardtable/` → `/cardtable/socket.io/`.
- *
- * Pure, and tested as such, because the value it produces is only observable
- * in a browser against a live edge — which is the definition of a thing that
- * gets shipped wrong.
- */
-export function socketPath(base: string): string {
-  const prefix = base === '' ? '/' : base;
-  return `${prefix.endsWith('/') ? prefix : `${prefix}/`}socket.io/`;
-}
-
-/** The path for THIS bundle, from the base Vite was built with. */
-export function defaultSocketPath(): string {
-  const base = import.meta.env?.BASE_URL;
-  return socketPath(typeof base === 'string' ? base : '/');
-}
-
-/**
- * A dropped socket tries again after a quarter second, and never waits more than a second between
- * tries. socket.io's default (1 s doubling to 5 s) let a socket sit out up to five seconds after a
- * deploy's restart had already finished. The edge holds each try's handshake through the restart
- * (hadoku_site's `proxy.ts`, `holdThroughRestart`), so a short delay costs a few held requests, not
- * a storm of failed ones, and the socket lands the moment the new server listens.
- */
-export const RECONNECT_DELAY_MS = 250;
-export const RECONNECT_DELAY_MAX_MS = 1000;
-
-/**
- * How every socket on the page connects: a websocket first, and long-polling only if the websocket
- * fails to open (`tryAllTransports`), so a network that refuses websockets still connects. socket.io's
- * default starts on long-polling and upgrades, which cost each connection three or four extra round
- * trips through the edge before its first frame, each a run of the edge worker. Watchparty connects
- * websocket-first through the same edge.
- */
-export function socketOptions(path: string = defaultSocketPath()): {
-  path: string;
-  transports: ('websocket' | 'polling')[];
-  tryAllTransports: true;
-  reconnectionDelay: number;
-  reconnectionDelayMax: number;
-} {
-  return { path, transports: ['websocket', 'polling'], tryAllTransports: true, reconnectionDelay: RECONNECT_DELAY_MS, reconnectionDelayMax: RECONNECT_DELAY_MAX_MS };
 }
 
 /**
@@ -318,7 +273,7 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
       // Sampled BEFORE the join goes out, so the snapshot that answers it is
       // counted as "arrived since we came back".
       draft.appliedAtLastJoin = draft.stats.applied;
-      send(draft, joinDraft(draft.draftId));
+      send(draft, joinDraft(draft.draftId, pageTabId()));
       if (draft.watching !== null) send(draft, watchDraft(draft.draftId, draft.watching));
       // A restarted server kept no lean: say it again.
       if (draft.lean.sent !== null) send(draft, leanDraft(draft.draftId, draft.lean.sent));
@@ -332,7 +287,7 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
   });
 
   draft.stats.joins += 1;
-  send(draft, joinDraft(draft.draftId));
+  send(draft, joinDraft(draft.draftId, pageTabId()));
   return draft;
 }
 

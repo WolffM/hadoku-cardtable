@@ -84,7 +84,7 @@ import {
 import { serverEnvelopeSchema, type ServerEnvelope as PlatformServerEnvelope } from '@hadoku/platform-wire/envelope';
 import { LookSchema } from '@hadoku/platform-wire/look';
 
-import { SeqCursorSchema, type WireCursor } from './wire.ts';
+import { SeqCursorSchema, TabIdSchema, type WireCursor } from './wire.ts';
 import { PlacementSchema, type Placement } from './placement.ts';
 import { formatPath } from './semantics.ts';
 
@@ -196,7 +196,7 @@ export type { WireCursor };
  * running an older bundle across a deploy keeps the old behaviour.
  */
 export const MatchRequestSchema = z
-  .object({ matchId: z.string().min(1), tabId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional() })
+  .object({ matchId: z.string().min(1), tabId: TabIdSchema.optional() })
   .strict();
 export type MatchRequest = z.infer<typeof MatchRequestSchema>;
 

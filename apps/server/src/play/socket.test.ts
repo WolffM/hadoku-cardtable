@@ -24,6 +24,7 @@ import { leaked, loadTranscript, rawStatesOf, replayFactory, ReplayHost, secrets
 import { foldFrames, type StateFrame } from './visibility.js';
 import { WATCHER_SEAT } from './match.js';
 import { identityFromHeaders } from '../room/identity.js';
+import { attachSessions, IDLE_MS } from '../room/session.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 
@@ -86,6 +87,8 @@ async function boot(
 		onAbandoned?: (match: import('./match.ts').Match) => void;
 		/** The server's build, told to every socket on connect. */
 		build?: string;
+		/** One live tab per player per room (`../room/session.ts`), on a clock the test turns. A match is its own room here. */
+		sessions?: { now: () => number };
 	} = {},
 ): Promise<Harness> {
 	const { factory, hosts } = options.host ?? replayFactory();
@@ -99,7 +102,13 @@ async function boot(
 	app.use('/api', api);
 	const http: HttpServer = createServer(app);
 	const io = new SocketIOServer(http, { serveClient: false });
+	let played: import('./socket.ts').PlayHandle | null = null;
+	const sessions =
+		options.sessions === undefined
+			? undefined
+			: attachSessions(io, { isPlayer: (room, participantId) => (played?.matches.get(room)?.seatOf(participantId) ?? null) !== null, now: options.sessions.now, log: (e) => logs.push(e) });
 	const handle = socketMod.attachPlay(io, api, {
+		...(sessions === undefined ? {} : { sessions: { handle: sessions, room: (matchId: string) => matchId } }),
 		minTier: 'friend',
 		host: factory,
 		log: (e) => logs.push(e),
@@ -117,6 +126,7 @@ async function boot(
 		...(options.build === undefined ? {} : { build: options.build }),
 		seatAvatar: (_matchId, owner) => [...(options.faces ?? [])].find(([user]) => identityFromHeaders(edgeHeaders(user), 'test') === owner)?.[1],
 	});
+	played = handle;
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
 	harness = {
@@ -127,6 +137,7 @@ async function boot(
 		logs,
 		relays,
 		close: async () => {
+			sessions?.close();
 			handle.close();
 			io.close();
 			await new Promise<void>((done) => http.close(() => done()));
@@ -1965,6 +1976,90 @@ describe('a newer connection for a seat takes it', () => {
 			expect(stale.socket.connected).toBe(true);
 			expect(h.logs.filter((l) => l.evt === 'tab-rejoined')).toEqual([]);
 		});
+	});
+});
+
+/*
+ * One live tab per player per room (`../room/session.ts`): a seat's join from a tab that does not hold
+ * the room is refused instead of silently taking the seat, and a take — the screen's claim with `take`,
+ * after its player said yes — retires the old tab's match socket with it.
+ */
+describe('the match socket under one live tab per player', () => {
+	const TAB_A = 'tab-aaaaaaaa';
+	const TAB_B = 'tab-bbbbbbbb';
+
+	async function aliceHolds(): Promise<{ h: Harness; matchId: string; first: Peer; clock: { now: number } }> {
+		const clock = { now: 1_000_000 };
+		const h = await boot({ disconnectGraceMs: 1000, sessions: { now: () => clock.now } });
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const first = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await first.request('forge:join', { matchId, tabId: TAB_A });
+		await bob.request('forge:join', { matchId });
+		await waitUntil(() => first.roles.length > 0, 'the first socket’s role');
+		expect(first.roles).toEqual([{ matchId, role: 'player' }]);
+		return { h, matchId, first, clock };
+	}
+
+	it('a second tab’s join is refused while the first is live: the seat stays where it was, and nobody is told elsewhere', async () => {
+		const { h, matchId, first } = await aliceHolds();
+		const second = await connect(h.port, edgeHeaders('alice'));
+		expect(await second.request('forge:join', { matchId, tabId: TAB_B })).toEqual({ error: 'session-elsewhere' });
+		// A round trip on the first socket: anything the server sent it before now has arrived.
+		await first.request('forge:resync', { matchId });
+		expect(first.socket.connected).toBe(true);
+		expect(first.roles).toEqual([{ matchId, role: 'player' }]);
+		expect(h.logs.filter((l) => l.evt === 'seat-taken-over')).toEqual([]);
+		expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'session-elsewhere', room: matchId }));
+	});
+
+	it('a take retires the old tab’s match socket, and the new tab’s join then plays the seat', async () => {
+		const { h, matchId, first } = await aliceHolds();
+		const taken: unknown[] = [];
+		first.socket.on('session:taken', (m: unknown) => taken.push(m));
+		const screen = await connect(h.port, edgeHeaders('alice'));
+		expect(await screen.socket.emitWithAck('session:claim', { room: matchId, tabId: TAB_B })).toEqual({ room: matchId, status: 'held' });
+		expect(await screen.socket.emitWithAck('session:claim', { room: matchId, tabId: TAB_B, take: true })).toEqual({ room: matchId, status: 'granted' });
+		await waitUntil(() => !first.socket.connected, 'the old tab’s match socket to be retired');
+		expect(taken).toEqual([{ room: matchId }]);
+
+		const second = await connect(h.port, edgeHeaders('alice'));
+		const joined = (await second.request('forge:join', { matchId, tabId: TAB_B })) as { seat: number };
+		expect(joined.seat).toBe(0);
+		await waitUntil(() => second.roles.length > 0, 'the new tab’s role');
+		expect(second.roles).toEqual([{ matchId, role: 'player' }]);
+		expect(h.logs.filter((l) => l.evt === 'session-taken')).toEqual([expect.objectContaining({ room: matchId, holder: 'live', retired: 1 })]);
+	});
+
+	it('the same tab reloading is the same holder: its join plays at once, no question asked', async () => {
+		const { h, matchId } = await aliceHolds();
+		const reloaded = await connect(h.port, edgeHeaders('alice'));
+		const joined = (await reloaded.request('forge:join', { matchId, tabId: TAB_A })) as { seat: number };
+		expect(joined.seat).toBe(0);
+		await waitUntil(() => reloaded.roles.length > 0, 'the reload’s role');
+		expect(reloaded.roles).toEqual([{ matchId, role: 'player' }]);
+		expect(h.logs.filter((l) => l.evt === 'session-elsewhere')).toEqual([]);
+	});
+
+	it('a holder silent past the window is taken from without asking', async () => {
+		const { h, matchId, first, clock } = await aliceHolds();
+		clock.now += IDLE_MS + 1;
+		const second = await connect(h.port, edgeHeaders('alice'));
+		const joined = (await second.request('forge:join', { matchId, tabId: TAB_B })) as { seat: number };
+		expect(joined.seat).toBe(0);
+		await waitUntil(() => !first.socket.connected, 'the stale socket to be retired');
+		expect(h.logs.filter((l) => l.evt === 'session-taken')).toEqual([expect.objectContaining({ room: matchId, holder: 'stale' })]);
+	});
+
+	it('a watcher is never asked: another account joins as many times as it likes', async () => {
+		const { h, matchId } = await aliceHolds();
+		for (const tabId of [TAB_A, TAB_B]) {
+			const carol = await connect(h.port, edgeHeaders('carol'));
+			await carol.request('forge:join', { matchId, tabId });
+			await waitUntil(() => carol.roles.length > 0, 'carol’s role');
+			expect(carol.roles).toEqual([{ matchId, role: 'watcher' }]);
+		}
 	});
 });
 

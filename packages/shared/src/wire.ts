@@ -48,7 +48,7 @@
 
 import { z } from 'zod';
 import { SeqCursorSchema, type WireCursor } from '@hadoku/platform-wire/envelope';
-import type { SeqCursor } from '@wolffm/rooms-protocol';
+import { TAB_ID_PATTERN, type SeqCursor } from '@wolffm/rooms-protocol';
 
 import { DraftIdSchema, DraftViewSchema, SeatIdSchema, type DraftView } from './draft.ts';
 import { formatPath, semanticIssues, type ValidationFailure } from './semantics.ts';
@@ -97,16 +97,22 @@ export const DRAFT_CHANNEL = {
 
 /* ── Client → server ─────────────────────────────────────────────────── */
 
+/** A browser tab's id (`@wolffm/rooms-protocol`'s `session.ts`): a hint between one person's own sockets, never a credential. */
+export const TabIdSchema = z.string().regex(TAB_ID_PATTERN);
+
 /**
  * Join a draft.
  *
- * A room id and nothing else. Which seat the joiner gets, and whether they get
- * one at all, is the server's answer — derived from the edge-authenticated
- * participant — not the client's request.
+ * A room id, and the tab joining. Which seat the joiner gets, and whether they
+ * get one at all, is the server's answer — derived from the edge-authenticated
+ * participant — not the client's request. `tabId` joins the socket to its tab's
+ * claim on the room (`apps/server/src/room/session.ts`); optional, so a tab still
+ * running an older bundle across a deploy keeps joining.
  */
 export const JoinDraftSchema = z.strictObject({
   type: z.literal('join'),
   draftId: DraftIdSchema,
+  tabId: TabIdSchema.optional(),
 });
 
 /** Leave a draft. Seat reservation TTL, not the client, decides what happens next. */
@@ -213,7 +219,9 @@ export const PICK_REJECTION_CODES = [
  *
  * `malformed-message` is what the server answers junk with — the parse helpers
  * exist so it can reject without a cast, and a rejection needs a code to be a
- * value rather than a string.
+ * value rather than a string. `session-elsewhere` refuses a seat's join from a
+ * tab that does not hold the room: another live tab of the same account does,
+ * and the player is asked there (`apps/server/src/room/session.ts`).
  */
 export const TRANSPORT_ERROR_CODES = [
   'not-seated',
@@ -221,6 +229,7 @@ export const TRANSPORT_ERROR_CODES = [
   'unknown-draft',
   'not-your-turn',
   'malformed-message',
+  'session-elsewhere',
 ] as const;
 
 export const WireErrorCodeSchema = z.enum([...PICK_REJECTION_CODES, ...TRANSPORT_ERROR_CODES]);
@@ -362,8 +371,8 @@ export function carriesView(msg: ServerMessage): msg is DraftStateMessage | Draf
  * from the thing that already has it.
  */
 
-export function joinDraft(draftId: string): JoinDraft {
-  return { type: 'join', draftId };
+export function joinDraft(draftId: string, tabId?: string): JoinDraft {
+  return tabId === undefined ? { type: 'join', draftId } : { type: 'join', draftId, tabId };
 }
 
 export function leaveDraft(draftId: string): LeaveDraft {

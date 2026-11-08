@@ -10,12 +10,8 @@
  *     else, and the client nulled `selectables` on the premise that it would not
  *     be re-sent), so the page came back with a prompt it could not answer and
  *     Forge waiting. The spec opens one, reloads the page, and then ANSWERS it.
- *  2. **A second browser on a held seat takes it.** Operator, 2026-09-30:
- *     *"it would be really messy if two clients were capable of performing game
- *     actions"*, and 2026-11-05: players never reach spectator mode of their own
- *     game. The new window plays; the old one draws no table, says where the game
- *     is, and its Play here takes the seat back. A REFRESH is the same tab and is
- *     never moved out of its own seat.
+ *  2. (A second browser on a held seat: `session-takeover.spec.ts` since 2026-11-07, which asks
+ *     before it takes.)
  *  3. **A match that is gone** shows the server's sentence and a way back, with no
  *     board chrome and nothing shaped like a Join.
  *  4. **The rail and the log (P1, P12).** Combat is one step outside combat and
@@ -48,17 +44,6 @@ const titled = makeTitled(forge);
 
 /* ── what a page shows ───────────────────────────────────────────────── */
 
-/**
- * The coin toss / play-draw question's own control (R2, wave 35) — NOT
- * `enabledOk`: Forge's button one is drawn nowhere else while this question
- * is open (`playFirst`'s own comment), so a check built on it can never see
- * count 1 here. `LiveBoard.tsx`'s `playOrDraw` gate is `!spectator &&
- * !askOpen && isPlayOrDrawPrompt(bar)` — a SPECTATOR never gets this
- * component mounted at all, so "no enabled play-or-draw in the spectator
- * window" is a plain `toHaveCount(0)` on this same locator, same as it
- * always was on `enabledOk`.
- */
-const playOrDrawPlay = (page: Page) => page.getByTestId('live-play-or-draw-play');
 const handCards = (page: Page) => page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]');
 
 /**
@@ -217,55 +202,6 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
     }
     expect(askedAgain, 'no second keep-or-mulligan after the bottom pick').toBe(false);
     await expect(bottom, 'the game began for alice').toContainText(/^Priority: /);
-  } finally {
-    await stack.stop();
-  }
-});
-
-/* ── 2. a second browser spectates ───────────────────────────────────── */
-
-test(titled('a second browser on a held seat takes it: the first says where the game is, and Play here takes it back'), async ({ browser }) => {
-  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-  if (!forge.ok) return;
-  test.setTimeout(5 * 60_000);
-  const stack = await startPlayStack(forge);
-  try {
-    const alice = await openFriend(browser, 'alice');
-    const bob = await openFriend(browser, 'bob');
-    const { matchId } = await enterMatch(alice, bob, stack.origin);
-    await expect(alice.page.getByTestId('live-says')).toContainText(/play or draw/i, { timeout: 30_000 });
-    await expect(playOrDrawPlay(alice.page), 'the first window holds the question').toBeEnabled();
-
-    // The second window: same account, same seat. It is the one played in now, never a spectator of it.
-    const second = await openFriend(browser, 'alice');
-    await second.page.goto(matchUrl(stack.origin, matchId));
-    await boardUp(second.page);
-    await expect(playOrDrawPlay(second.page), 'the new window is handed the question').toBeEnabled({ timeout: 30_000 });
-    const elsewhere = (f: Friend) => f.page.getByTestId('live-elsewhere');
-    await expect(elsewhere(alice), 'the first window says the game is open elsewhere').toBeVisible({ timeout: 30_000 });
-    await expect(alice.page.getByTestId('live-status')).toHaveText('Open in another window.');
-    await expect(alice.page.locator('.board'), 'and draws no table').toHaveCount(0);
-    await expect(elsewhere(second)).toHaveCount(0);
-    await expect
-      .poll(() => serverLog(stack).filter((l) => l.evt === 'seat-taken-over' && l.matchId === matchId).length, { timeout: 10_000, message: 'the takeover is logged' })
-      .toBe(1);
-
-    // Play here, in the first window: it takes the seat back, and the second window is the one told.
-    await alice.page.getByTestId('live-play-here').click();
-    await boardUp(alice.page);
-    await expect(playOrDrawPlay(alice.page), 'Play here hands the question back').toBeEnabled({ timeout: 30_000 });
-    await expect(elsewhere(second), 'the window it took the seat from is told').toBeVisible({ timeout: 30_000 });
-    await playOrDrawPlay(alice.page).click();
-    await expect(alice.page.getByTestId('live-says')).toContainText(/keep your hand/i, { timeout: 30_000 });
-
-    // A REFRESH keeps the tab's id (`tab-id.ts`): the same window, still the seat's, never told elsewhere.
-    await alice.page.reload();
-    await boardUp(alice.page);
-    // Wave 36 T4: "keep your hand?" is a `ConfirmPrompt` pop-up now, not the bar.
-    await expect(confirmYes(alice.page)).toHaveCount(1, { timeout: 30_000 });
-    await expect(elsewhere(alice), 'a refresh never moves the player out of their own seat').toHaveCount(0);
-    await answerConfirm(alice.page, 'yes');
-    await expect(alice.page.getByTestId('live-says'), 'and the keep went through').not.toContainText(/keep your hand/i, { timeout: 30_000 });
   } finally {
     await stack.stop();
   }

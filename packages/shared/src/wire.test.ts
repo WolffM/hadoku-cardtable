@@ -305,6 +305,7 @@ describe('errors are values', () => {
       'unknown-draft',
       'not-your-turn',
       'malformed-message',
+      'session-elsewhere',
     ]);
     for (const code of TRANSPORT_ERROR_CODES) {
       expect(parseServerMessage(errorMessage({ epoch: 'e1', seq: 7 }, code))).toBeTruthy();

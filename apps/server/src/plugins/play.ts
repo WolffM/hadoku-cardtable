@@ -10,6 +10,7 @@ import { clawPlacement, registryRestorer } from '../play/placement/index.js';
 import { reportingAlerts } from '../telemetry.js';
 import { httpDraftbot, type Draftbot } from '../room/draftbot.js';
 import { attachRoomFeed } from '../room/feed.js';
+import { attachSessions, playsIn } from '../room/session.js';
 import { attachDraftSocket } from '../room/socket.js';
 import type { CardtablePlugin } from './state.js';
 
@@ -34,7 +35,20 @@ export const playPlugin: CardtablePlugin = {
 			CONFIG.playHosts === 'claws'
 				? { batchDraft: (inputs, signal) => (state.clawHosts === null ? Promise.reject(new Error('no Forge hosts, so no claw runs the draft bot')) : state.clawHosts.draftbot.batchDraft(inputs, signal)) }
 				: undefined;
+		// One live tab per player per room (`room/session.ts`), over every socket of a room: the screen's
+		// own claim, the pod's draft socket and the match socket. `play` is read lazily: it is attached below.
+		let played: PlayHandle | null = null;
+		const sessions = attachSessions(io, {
+			isPlayer: (room, participantId) => {
+				const view = lobby.get(room);
+				if (view !== undefined) return playsIn(view, participantId);
+				// A match no room holds is its own room (`App.tsx`'s `roomIdFor`).
+				const match = played?.matches.get(room);
+				return match !== undefined && match.seatOf(participantId) !== null;
+			},
+		});
 		state.draftSocket = attachDraftSocket(io, {
+			sessions,
 			rooms: state.draftRooms,
 			lobby,
 			minTier: CONFIG.minTier,
@@ -56,6 +70,7 @@ export const playPlugin: CardtablePlugin = {
 
 		const play = attachPlay(io, api, {
 			minTier: CONFIG.minTier,
+			sessions: { handle: sessions, room: (matchId) => lobby.roomOfMatch(matchId)?.id ?? matchId },
 			build: state.serverBuild,
 			host: clawHosts !== null ? recorder.host(clawHosts) : localHost !== null ? recorder.host(localHost) : null,
 			hosts: () => clawHosts?.hosts() ?? { mode: localHost === null ? 'none' : 'local', jvms: localHost?.jvms() ?? [] },
@@ -103,6 +118,7 @@ export const playPlugin: CardtablePlugin = {
 			},
 		});
 		state.play = play;
+		played = play;
 		// Failover restores through the registry, which exists only now.
 		if (clawHosts !== null) clawHosts.restoreWith(registryRestorer(play.matches));
 		ctx.bootPhase('play');

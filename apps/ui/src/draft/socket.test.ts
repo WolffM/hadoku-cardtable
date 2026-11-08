@@ -28,6 +28,8 @@ import {
   type DraftView,
 } from '@hadoku/shared';
 
+import { pageTabId } from '../room/tab-id.ts';
+import { socketPath } from '../room/socket-options.ts';
 import { loadFixtures } from './fixtures.ts';
 import {
   applyPick,
@@ -38,7 +40,6 @@ import {
   LEAN_DEBOUNCE_MS,
   leanOn,
   mySeat,
-  socketPath,
   startDraft,
   type DraftTransport,
   type SocketDraft,
@@ -144,11 +145,12 @@ describe('joining', () => {
     stub = makeStub();
   });
 
-  it('joins with a draft id and NOTHING that says who we are', () => {
+  it('joins with a draft id and this tab, and NOTHING that says who we are', () => {
     connect(stub);
     const messages = outbound(stub);
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toEqual({ type: 'join', draftId: 'draft:test' });
+    // The tab is a hint between one person's own sockets (one live tab per player per room), not an identity.
+    expect(messages[0]).toEqual({ type: 'join', draftId: 'draft:test', tabId: pageTabId() });
     // The server derives identity from the edge headers. If this ever grows a
     // field, `safeParseClientMessage` above fails before this line does.
     expect(JSON.stringify(messages[0])).not.toMatch(/participant|seat|token|name/i);

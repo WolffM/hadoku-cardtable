@@ -32,7 +32,7 @@
 import { io } from 'socket.io-client';
 import { ROOM_FEED_CHANNEL, ROOM_WATCH_MAX, RoomChangedSchema, type RoomWatch } from '@hadoku/shared';
 
-import { socketOptions } from '../draft/socket.ts';
+import { socketOptions } from '../room/socket-options.ts';
 import { documentVisibility, rereadWhileVisible, type PageVisibility } from '../visible.ts';
 
 /** How often a visible screen reads anyway. A lost ping costs at most this much staleness. */

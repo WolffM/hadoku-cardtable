@@ -82,17 +82,21 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
   test.setTimeout(4 * 60_000);
   const alice = await friendContext(browser, 'alice');
   const bob = await friendContext(browser, 'bob');
+  const carol = await friendContext(browser, 'carol');
   try {
-    // Alice's room, open in two tabs; one of them goes to the background.
+    // Alice's room, open in two tabs (hers, and carol's, who takes the other seat); one goes to the
+    // background. Not two of alice's: a player's second tab is asked whether to take over, and
+    // draws no room until it does (`apps/ui/src/room/session.ts`).
     const room = await alice.newPage();
     await room.goto(`${EDGE_ORIGIN}${PREFIX}/`);
     await submitCreateRoom(room, { name: `aa poll ${Date.now()}` });
     await room.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     const roomUrl = room.url();
     await expect(room.getByTestId('play-vs-bot'), 'alice is alone in her room').toBeVisible({ timeout: 30_000 });
-    const roomHidden = await alice.newPage();
+    const roomHidden = await carol.newPage();
     await roomHidden.goto(roomUrl);
-    await expect(roomHidden.getByTestId('play-vs-bot')).toBeVisible({ timeout: 30_000 });
+    await expect(room.getByTestId('constructed'), 'alice sees carol arrive').toHaveAttribute('data-members', '2', { timeout: 30_000 });
+    await expect(roomHidden.getByTestId('constructed')).toHaveAttribute('data-members', '2', { timeout: 30_000 });
 
     // Bob's lobby, open in two tabs; one of them goes to the background.
     const lobby = await bob.newPage();
@@ -127,8 +131,8 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
     await joined;
     const joinedAt = Date.now();
     // The member count, not the bot button: since 2026-10-12 that button is
-    // gated on the seat, and a second member in the room does not take it away.
-    const joinMs = await arrival(joinedAt, () => expect(room.getByTestId('constructed'), 'alice sees bob arrive').toHaveAttribute('data-members', '2', { timeout: 10_000 }));
+    // gated on the seat, and a third member in the room does not take it away.
+    const joinMs = await arrival(joinedAt, () => expect(room.getByTestId('constructed'), 'alice sees bob arrive').toHaveAttribute('data-members', '3', { timeout: 10_000 }));
     console.log(`[aa-poll] bob joined: alice's screen showed it after ${joinMs}ms, reads since=${since(roomLog, roomBefore)}`);
     expect.soft(joinMs, 'the join reaches alice within about a second').toBeLessThanOrEqual(PUSH_MS);
 
@@ -157,7 +161,7 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
     expect.soft(lobbyHiddenLog.length, 'the hidden lobby tab read nothing through two changes').toBe(0);
     await setHidden(roomHidden, false);
     await setHidden(lobbyHidden, false);
-    await expect(roomHidden.getByTestId('constructed'), 'shown again, the room tab catches up').toHaveAttribute('data-members', '2', { timeout: 5_000 });
+    await expect(roomHidden.getByTestId('constructed'), 'shown again, the room tab catches up').toHaveAttribute('data-members', '3', { timeout: 5_000 });
     await roomHidden.waitForTimeout(3_000);
     console.log(`[aa-poll] shown again: room=${since(roomHiddenLog, 0)} lobby=${since(lobbyHiddenLog, 0)}`);
     expect.soft(roomHiddenLog.length, 'shown again: one refresh (two reads)').toBeLessThanOrEqual(2);
@@ -165,6 +169,7 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
   } finally {
     await alice.close();
     await bob.close();
+    await carol.close();
   }
 });
 

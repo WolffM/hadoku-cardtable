@@ -2,7 +2,7 @@
  * Turning what a browser received into draft envelopes.
  *
  * socket.io connects websocket-first and falls back to HTTP long-polling when
- * the websocket will not open (`socketOptions` in `apps/ui/src/draft/socket.ts`),
+ * the websocket will not open (`socketOptions` in `apps/ui/src/room/socket-options.ts`),
  * so on such a network every envelope — its `state` snapshot first — arrives
  * in a polling RESPONSE body rather than a websocket frame. A capture that only
  * listened to the websocket would miss exactly the payload that matters most.

@@ -65,6 +65,7 @@ import { pickTimeMs, timeoutPick } from '@hadoku/draft';
 import type { Draftbot, DraftbotInput } from './draftbot.js';
 import type { DraftRoom, DraftRooms } from './draftRooms.js';
 import { identityFromHeaders } from './identity.js';
+import { attachSessions, playsIn } from './session.js';
 import type { Lobby } from './lobby.js';
 import type { CubePool } from './pool.js';
 
@@ -177,6 +178,8 @@ async function boot(
 		/** The started room's settings, set before its draft is dealt. */
 		settings?: Partial<RoomSettings>;
 		draftbot?: Draftbot;
+		/** One live tab per player per room (`./session.ts`), with the lobby's own idea of who plays. */
+		sessions?: boolean;
 	} = {},
 ): Promise<Harness> {
 	const rooms = roomsMod.createDraftRooms({ ...roomsMod.singlePoolResolver(pool) });
@@ -186,7 +189,9 @@ async function boot(
 	// Collected, not printed: nothing reaches the test output, and the one line
 	// that is a product observable stays assertable. See `Harness.lines`.
 	const lines: Array<Record<string, unknown>> = [];
+	const sessions = deps.sessions === true ? attachSessions(io, { isPlayer: (room, participantId) => { const view = lobby.get(room); return view !== undefined && playsIn(view, participantId); }, log: (line) => lines.push(line) }) : undefined;
 	const handle = socketMod.attachDraftSocket(io, {
+		...(sessions === undefined ? {} : { sessions }),
 		rooms,
 		lobby,
 		minTier: 'friend',
@@ -210,6 +215,7 @@ async function boot(
 		lines,
 		draftbotPicks: () => handle.draftbotPicks(),
 		close: async () => {
+			sessions?.close();
 			handle.close();
 			io.close();
 			await new Promise<void>((done) => http.close(() => done()));
@@ -1389,5 +1395,74 @@ describe('a room of several pods', () => {
 		await waitUntil(() => (lastView(last)?.seq ?? 0) > view.seq, 'the pod-2 pick to land');
 		expect(errors(last)).toEqual([]);
 		expect(roomsMod.stateOf(rooms.find(`${id}~1`)!).pools[seatOf(rooms.find(`${id}~1`)!.seats, people[two]!.id)!]!.map((c) => c.cardId)).toContain(taken.cardId);
+	});
+});
+
+/*
+ * One live tab per player per room (`./session.ts`) on the pod's own socket: a drafter's join from a
+ * tab that does not hold the room is refused (`session-elsewhere`) and deals that tab nothing, and a
+ * take retires the old tab's pod socket with the rest of it.
+ */
+describe('the pod socket under one live tab per player', () => {
+	const TAB_A = 'tab-aaaaaaaa';
+	const TAB_B = 'tab-bbbbbbbb';
+	const aliceId = () => identityFromHeaders(edgeHeaders('alice') as unknown as Parameters<typeof identityFromHeaders>[0], 'unused');
+
+	/** A started draft whose one human drafter is alice, the account the sockets connect as. */
+	async function alicesDraft(): Promise<string> {
+		await harness?.close();
+		harness = await boot({ sessions: true });
+		const lobby = live().lobby;
+		const alice = { id: aliceId(), name: 'user-alice', userId: 'uid-alice' };
+		const made = lobby.create(alice, { name: 'pod-session', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		const id = made.room.id;
+		for (let seat = 1; seat < 8; seat++) expect(lobby.aiPod(id, alice.id, seat, true).ok).toBe(true);
+		expect(lobby.setPodPlan(id, alice.id, lobby.get(id)!.pod!.plan!, { ok: true, cards: 1 }).ok).toBe(true);
+		expect(lobby.setReady(id, alice.id, true)).toBe(true);
+		expect(lobby.startDraft(id, alice.id).ok).toBe(true);
+		return id;
+	}
+
+	async function joinFrom(peer: Peer, draftId: string, tabId: string): Promise<void> {
+		const before = peer.received.length;
+		peer.send(joinDraft(draftId, tabId));
+		await waitUntil(() => peer.received.length > before, `${peer.id}'s answer`);
+	}
+
+	it('a second tab’s join is refused while the first plays, and is dealt nothing', async () => {
+		const id = await alicesDraft();
+		const first = await connect(live().port, edgeHeaders('alice'));
+		await joinFrom(first, id, TAB_A);
+		expect(lastView(first)?.viewer.kind).toBe('seat');
+		const second = await connect(live().port, edgeHeaders('alice'));
+		await joinFrom(second, id, TAB_B);
+		expect(errors(second)).toEqual([expect.objectContaining({ code: 'session-elsewhere' })]);
+		expect(lastView(second)).toBeNull();
+		expect(first.socket.connected).toBe(true);
+	});
+
+	it('a take retires the old tab’s pod socket, and the new tab drafts', async () => {
+		const id = await alicesDraft();
+		const first = await connect(live().port, edgeHeaders('alice'));
+		await joinFrom(first, id, TAB_A);
+		const screen = await connect(live().port, edgeHeaders('alice'));
+		expect(await screen.socket.emitWithAck('session:claim', { room: id, tabId: TAB_B })).toEqual({ room: id, status: 'held' });
+		expect(await screen.socket.emitWithAck('session:claim', { room: id, tabId: TAB_B, take: true })).toEqual({ room: id, status: 'granted' });
+		await waitUntil(() => !first.socket.connected, 'the old tab’s pod socket to be retired');
+		const second = await connect(live().port, edgeHeaders('alice'));
+		await joinFrom(second, id, TAB_B);
+		expect(errors(second)).toEqual([]);
+		expect(lastView(second)?.viewer.kind).toBe('seat');
+	});
+
+	it('the same tab rejoining drafts at once', async () => {
+		const id = await alicesDraft();
+		const first = await connect(live().port, edgeHeaders('alice'));
+		await joinFrom(first, id, TAB_A);
+		const again = await connect(live().port, edgeHeaders('alice'));
+		await joinFrom(again, id, TAB_A);
+		expect(errors(again)).toEqual([]);
+		expect(lastView(again)?.viewer.kind).toBe('seat');
 	});
 });

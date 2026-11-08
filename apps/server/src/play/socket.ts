@@ -135,6 +135,7 @@ import { malformedFacts } from '../http/client-events.js';
 import { costlyActLimit, httpCaller, perCallerLimit, readBody } from '../http/request.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { callerContext, report } from '../telemetry.js';
+import type { SessionHandle } from '../room/session.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
 
@@ -260,6 +261,11 @@ export interface PlayDeps {
 	onRelay?(matchId: string, event: RelayedEvent, echo: unknown): void;
 	/** `GET /play/hosts`: where matches run, each host's eligibility and health (`placement/`). Absent: this machine only. */
 	hosts?(): unknown;
+	/**
+	 * One live tab per player per room (`../room/session.ts`): a seat's join names its tab, and joins
+	 * the tab's claim on the match's room (`room`). Absent: no claim, as before.
+	 */
+	sessions?: { handle: Pick<SessionHandle, 'attach'>; room(matchId: string): string };
 }
 
 /** {@link PlayHandle.start}'s answer: the match Forge opened, or why there is none, as an HTTP status and words. */
@@ -971,6 +977,11 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				// its own channel is the watcher one (`Match.watcherSnapshot`).
 				if (!claim.ok && claim.error !== 'match-full') return { error: claim.error };
 				seat = claim.ok ? claim.seat : WATCHER_SEAT;
+				// Another live tab of this account holds the room: it is asked there, never taken from here.
+				const tabId = request.value.tabId;
+				if (seat !== WATCHER_SEAT && tabId !== undefined && deps.sessions !== undefined && !deps.sessions.handle.attach(deps.sessions.room(match.id), participantId, tabId, socket)) {
+					return { error: 'session-elsewhere' };
+				}
 				// The seat is this socket's before the first await: socket.io hands every packet of one
 				// read to its handler in that same tick, so an act the browser sent right behind its join
 				// is read before this function resumes, and would be dropped as `c2s-not-joined`.
