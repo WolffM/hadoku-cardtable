@@ -35,6 +35,13 @@ export interface PodLobbyProps {
   members: RoomMember[];
   leaderId: string;
   myMemberId: string | null;
+  /**
+   * A historical replay seat's deck name, by the `deckId` its seat carries —
+   * the parent owns the library decks (`GET /api/tables/decks`) and joins the
+   * id to the name here, so the seat strip needs no fetch of its own.
+   * `undefined` for every seat that is not a replay's public list.
+   */
+  deckNameOf: (deckId: string) => string | undefined;
   iAmReady: boolean;
   readyDisabled: boolean;
   onReady: (ready: boolean) => void;
@@ -43,7 +50,7 @@ export interface PodLobbyProps {
   children?: ReactNode;
 }
 
-export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, iAmReady, readyDisabled, onReady, note, children }: PodLobbyProps) {
+export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, deckNameOf, iAmReady, readyDisabled, onReady, note, children }: PodLobbyProps) {
   const [seatError, setSeatError] = useState<string | null>(null);
   const inFlight = useRef(false);
   const later = useRef<(() => Promise<PodActionOutcome>)[]>([]);
@@ -108,6 +115,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, i
                   leaderId={leaderId}
                   readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
                   faceOf={(id) => faceOf(members.find((m) => m.id === id))}
+                  deckNameOf={deckNameOf}
                   onSit={(seat) => act(() => sitPod(roomId, seat))}
                   onAi={(seat, on) => act(() => aiPod(roomId, seat, on))}
                   onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}

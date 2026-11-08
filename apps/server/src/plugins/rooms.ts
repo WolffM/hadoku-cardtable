@@ -15,6 +15,7 @@ import { DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRoo
 import { emitDraftUpdate, draftEmitPolicy } from '../room/emit.js';
 import { newestFormat } from '../room/lobby.js';
 import { seedTestingRooms } from '../room/testing-rooms.js';
+import { seedReplay } from '../room/seed-replay.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { CardtablePlugin } from './state.js';
 
@@ -91,6 +92,20 @@ export const roomsPlugin: CardtablePlugin = {
 				checkPlan: state.checkDraftPlan,
 				library: state.library,
 			});
+		// A historical replay room, seeded the same off-boot way the testing
+		// rooms are (`seed-replay.ts`'s own doc): idempotent by name, so a warm
+		// hook that runs twice recreates nothing. Set only when the operator
+		// names a tournament to replay — absent, nothing seeds and no cost is
+		// paid. `CARDTABLE_REPLAY_TOURNAMENT` is the repo-root-relative
+		// `tournament.json`; `CARDTABLE_REPLAY_COLLECTION` its library
+		// collection id; `CARDTABLE_REPLAY_SEAT` (0-7) whose player YOU replay.
+		state.runReplaySeed = (): Promise<void> => {
+			const tournament = process.env.CARDTABLE_REPLAY_TOURNAMENT;
+			if (tournament === undefined || tournament === '') return Promise.resolve();
+			const collection = process.env.CARDTABLE_REPLAY_COLLECTION ?? '';
+			const seat = process.env.CARDTABLE_REPLAY_SEAT ?? '5';
+			return seedReplay(lobby, { tournament, collection, seat: Number(seat) }, state.roomsLog);
+		};
 		/** A tournament entrant's leave dropped them from a match: its games end as their forfeit, and its seats' decks are restored. */
 		state.roomForfeited = (roomId, tableId, loser, matches) => {
 			for (const id of matches) endForfeitedGame(state.play?.matches.get(id), loser);

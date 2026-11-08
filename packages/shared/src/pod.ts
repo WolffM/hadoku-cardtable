@@ -73,6 +73,17 @@ export const PodMemberSchema = z.strictObject({
   name: z.string(),
   /** An AI seat's own character, the watchparty avatar id it drafts as. A member's comes from the room's members. */
   avatarId: z.string().min(1).optional(),
+  /**
+   * A HISTORICAL replay room's LIBRARY DECK ID for this seat — the real
+   * event's public decklist, carried openly exactly because it is public
+   * record (the event's own page publishes every list). The UI joins the id
+   * to the deck it already holds from `GET /api/tables/decks`. Absent
+   * everywhere else: a live tournament's deck is its chooser's secret until
+   * its match ends (ruling 9, `viewOfGauntlet`'s own doc), and that rule is
+   * not relaxed here — it simply never applied to a list the world has
+   * already seen.
+   */
+  deckId: z.string().min(1).optional(),
 });
 export type PodMember = z.infer<typeof PodMemberSchema>;
 

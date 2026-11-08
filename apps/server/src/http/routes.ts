@@ -232,6 +232,8 @@ export interface RoomViewLike {
 	modeOptions?: RoomModeState['modeOptions'];
 	/** How the room's matches are dealt (`room/lobby.ts`'s `RoomSettings`). */
 	settings: { handSmoothing: boolean; tournament?: boolean; tournamentDecks?: string; clock?: ClockSetting };
+	/** A historical replay room's entrant deck assignments (`RoomRecord.aiDeckAssignments`). Absent for every other room. */
+	aiDeckAssignments?: Record<string, string>;
 	/** The one member who may change the room's settings. `you.leader` is this, per caller. */
 	leader: string;
 	/**
@@ -900,7 +902,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			const drawn = drawRandomDeck(random, pool, library);
 			return drawn === null ? null : tableDeckOfLibrary(drawn.deckId, { kind: 'standard', format: drawn.era }, entrant);
 		}
-		// Classic. An AI entrant is dealt the same way `startFromRoom`'s vs-bot
+		// Classic. A historical replay room's entrant replays the deck the
+		// real event's player played: the driver's assignment wins over every
+		// draw, checked in its owner's context by `tableDeckOfLibrary` exactly
+		// as a drawn one is, so an assignment naming a deck illegal in the
+		// room's era is refused by the same gate rather than slipping through.
+		const assigned = room.aiDeckAssignments?.[entrant];
+		if (assigned !== undefined) {
+			return tableDeckOfLibrary(assigned, rulesOf(room.format), entrant);
+		}
+		// An AI entrant is dealt the same way `startFromRoom`'s vs-bot
 		// fallback deals one; a human's is whatever they already loaded (the
 		// lock's own `hasLegalSeatDeck` gate already required it to be legal).
 		if (isAiEntrant(entrant)) {
