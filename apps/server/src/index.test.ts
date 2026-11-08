@@ -22,13 +22,13 @@
  */
 
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LIBRARY, formatIdOf } from '@hadoku/deck/library';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ORIGIN_HEADER, ORIGIN_VALUE } from './http/origin.ts';
+import { ORIGIN_HEADER } from '@hadoku/service-kernel/http';
 import { io as ioClient, type Socket } from 'socket.io-client';
 import { SERVER_RESTARTING_EVENT } from '@hadoku/shared';
 import { testPort } from './testPort.ts';
@@ -125,6 +125,59 @@ fs.readFileSync = function (path, ...rest) {
 		while (Date.now() < until);
 	}
 	return read.call(this, path, ...rest);
+};
+syncBuiltinESMExports();
+`,
+	);
+	return { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(file).href}`.trim() };
+}
+
+/**
+ * A preload that writes, once the server listens, every method and path its express app answers
+ * (each `use` mount annotated with the path it was given, since express keeps none) and every
+ * socket.io namespace. Nothing in the server knows about it, so it reads any revision's boot alike.
+ */
+function routeTable(out: string): NodeJS.ProcessEnv {
+	const file = join(root, 'route-table.mjs');
+	writeFileSync(
+		file,
+		`import http from 'node:http';
+import { writeFileSync } from 'node:fs';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
+const require = createRequire(${JSON.stringify(join(PKG_ROOT, 'package.json'))});
+const Router = createRequire(require.resolve('express'))('router');
+const use = Router.prototype.use;
+Router.prototype.use = function (first, ...rest) {
+	const from = this.stack.length;
+	const out = use.call(this, first, ...rest);
+	const mount = typeof first === 'function' ? '' : String(first);
+	for (const layer of this.stack.slice(from)) layer.mount = mount === '/' ? '' : mount;
+	return out;
+};
+const namespaces = [];
+const { Server } = require('socket.io');
+const of = Server.prototype.of;
+Server.prototype.of = function (name, fn) {
+	if (!namespaces.includes(String(name))) namespaces.push(String(name));
+	return of.call(this, name, fn);
+};
+const list = (stack, prefix, into) => {
+	for (const layer of stack) {
+		if (layer.route) for (const m of Object.keys(layer.route.methods)) into.push(m.toUpperCase() + ' ' + prefix + String(layer.route.path));
+		else if (layer.handle && Array.isArray(layer.handle.stack)) list(layer.handle.stack, prefix + (layer.mount ?? ''), into);
+		else if (layer.mount) into.push('USE ' + prefix + layer.mount);
+	}
+	return into;
+};
+const create = http.createServer;
+http.createServer = function (...args) {
+	const server = create.apply(this, args);
+	const app = args.find((a) => typeof a === 'function');
+	server.once('listening', () => {
+		if (server.address().port !== Number(process.env.CARDTABLE_PORT) || app?.router === undefined) return;
+		writeFileSync(${JSON.stringify(out)}, JSON.stringify({ routes: list(app.router.stack, '', []), namespaces }, null, 2) + '\\n');
+	});
+	return server;
 };
 syncBuiltinESMExports();
 `,
@@ -287,7 +340,7 @@ describe('a server started from a path', () => {
 		expect(page.status).toBe(200);
 		expect(page.body).toContain('fixture');
 		// The edge holds a 502 without it through a restart; every answer of ours carries it.
-		expect(origin).toEqual({ health: ORIGIN_VALUE, page: ORIGIN_VALUE, socket: ORIGIN_VALUE, missing: ORIGIN_VALUE });
+		expect(origin).toEqual({ health: 'cardtable', page: 'cardtable', socket: 'cardtable', missing: 'cardtable' });
 		const lines = bootLines(output);
 		// Every step between process start and listen is timed, in order, ending at listen.
 		const phases = lines.filter((l) => l.evt === 'boot-phase').map((l) => l.phase);
@@ -337,6 +390,19 @@ describe('a server started from a path', () => {
 				expect(f.cardCount).toBeGreaterThan(0);
 			}
 		});
+	}, 60_000);
+
+	it('answers exactly the methods, paths and socket namespaces in route-table.json', async () => {
+		const out = join(root, 'route-table.json');
+		// No stream containers: the host's own STREAMS file would add a mount per container.
+		await boot(join(root, 'routes', 'apps', 'ui', 'dist'), { ...routeTable(out), CARDTABLE_STREAM_DIR: join(root, 'no-streams') });
+		const table = JSON.parse(readFileSync(out, 'utf8')) as { routes: string[]; namespaces: string[] };
+		const expected = join(PKG_ROOT, 'src', 'route-table.json');
+		// Regenerate from a revision's own boot: CARDTABLE_ROUTE_TABLE_WRITE=1, this test alone.
+		if (process.env.CARDTABLE_ROUTE_TABLE_WRITE === '1') writeFileSync(expected, `${JSON.stringify({ routes: [...table.routes].sort(), namespaces: table.namespaces }, null, 2)}\n`);
+		expect({ routes: [...table.routes].sort(), namespaces: table.namespaces }).toEqual(JSON.parse(readFileSync(expected, 'utf8')));
+		// Order matters in one place: the SPA fallback answers every GET, so it is the last route.
+		expect(table.routes.at(-1)).toBe('GET /.*/');
 	}, 60_000);
 
 	it('tells every socket it is restarting before a SIGTERM closes them', async () => {
