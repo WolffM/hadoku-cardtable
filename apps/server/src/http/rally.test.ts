@@ -131,6 +131,24 @@ const THREE: DraftPlan = {
 	],
 };
 
+/** A set-cube preset of one set, all three rounds — the shape cardtable#'s "Bloomburrow set-cube" bug report was. */
+const SET_CUBE_ALA: DraftPlan = {
+	rounds: [
+		{ kind: 'set', code: 'ALA', style: 'set-cube' },
+		{ kind: 'set', code: 'ALA', style: 'set-cube' },
+		{ kind: 'set', code: 'ALA', style: 'set-cube' },
+	],
+};
+
+/** One set, both styles: the cards page joins them (one pool); the pack page, and each line, must not. */
+const ALA_BOTH_STYLES: DraftPlan = {
+	rounds: [
+		{ kind: 'set', code: 'ALA', style: 'realistic' },
+		{ kind: 'set', code: 'ALA', style: 'realistic' },
+		{ kind: 'set', code: 'ALA', style: 'set-cube' },
+	],
+};
+
 describe('the set symbols Rally draws beside each line', () => {
 	it('reads every set glyph out of Keyrune\'s stylesheet', () => {
 		expect(setGlyphs('.ss-tmt:before {\n  content: "\\ea06";\n}\n.ss-duo.ss-tmt::after {\n  content: "\\ea07";\n}\n.ss-blb:before {\n  content: "\\e9f4";\n}')).toEqual([
@@ -232,7 +250,7 @@ describe('GET /api/rally/options/:kind', () => {
 			detail: 'Realistic + Set cube',
 			lines: [
 				{ text: '2x Shards of Alara packs', view: 'set/ALA/cards' },
-				{ text: '1x Alara Reborn', view: 'set/ARB/cards' },
+				{ text: '1x Alara Reborn', view: 'set/ARB:set-cube/cards' },
 			],
 		});
 	});
@@ -261,6 +279,26 @@ describe('GET /api/rally/options/:kind', () => {
 		const res = await get('/api/rally/options/decks?q=ab');
 		expect(res.status).toBe(404);
 		expect(res.json).toMatchObject({ success: false });
+	});
+
+	it("a set-cube preset's line view carries the style; realistic's line view stays the bare code", async () => {
+		const { get, presets } = await setup();
+		await presets.create('Bloomburrow set-cube', SET_CUBE_ALA, 'fk:alice');
+		const { suggestions } = data(OptionsBody, (await get('/api/rally/options/draft-preset?q=bloomburrow')).json);
+		expect(suggestions[0]!.lines).toEqual([{ text: '3x Shards of Alara packs', view: 'set/ALA:set-cube/cards' }]);
+	});
+
+	it('a preset mixing both styles of one set is two lines, one per style, though the cards page still joins them', async () => {
+		const { get, presets } = await setup();
+		const saved = await presets.create('Alara both styles', ALA_BOTH_STYLES, 'fk:alice');
+		const { suggestions } = data(OptionsBody, (await get('/api/rally/options/draft-preset?q=both styles')).json);
+		expect(suggestions[0]!.lines).toEqual([
+			{ text: '2x Shards of Alara packs', view: 'set/ALA/cards' },
+			{ text: '1x Shards of Alara', view: 'set/ALA:set-cube/cards' },
+		]);
+		// The cards page is unaffected by this fix: a set's two styles still share one pool, one group.
+		const view = data(CardsBody, (await get(`/api/rally/views/draft-preset/${saved.id}/cards`)).json);
+		expect(view.groups).toHaveLength(1);
 	});
 });
 
@@ -337,5 +375,27 @@ describe('GET /api/rally/views/:kind/:id/pack', () => {
 		expect((await get(`/api/rally/views/cube/${PAUPER}/pack`)).status).toBe(200);
 		expect((await get(`/api/rally/views/cube/${PAUPER}/pack`)).status).toBe(429);
 		expect((await get(`/api/rally/views/cube/${PAUPER}/pack`, 'bob')).status).toBe(200);
+	});
+
+	it("deals a set-cube plan for a set's set-cube view id; the bare id still deals Forge's realistic booster", async () => {
+		const { get, boosters } = await setup();
+		const setCube = data(PackBody, (await get('/api/rally/views/set/ALA:set-cube/pack')).json);
+		expect(setCube.name).toBe('Shards of Alara');
+		expect(setCube.packs).toHaveLength(1);
+		expect(setCube.packs[0]!.cards).toHaveLength(15);
+		// The sets store's own playability check also calls `boosters` (seeded `verdict:…`, warmed on the
+		// first `list()`); only a `rally:…` seed is this route dealing a realistic pack.
+		expect(boosters.mock.calls.some(([, , seed]) => (seed as string).startsWith('rally:'))).toBe(false);
+
+		const realistic = data(PackBody, (await get('/api/rally/views/set/ALA/pack')).json);
+		expect(realistic.packs[0]!.cards.some((c) => c.foil === true)).toBe(true);
+		expect(boosters).toHaveBeenLastCalledWith('ALA', 1, expect.stringMatching(/^rally:/));
+	});
+
+	it('refuses an unknown style suffix the same way as an unknown set', async () => {
+		const { get } = await setup();
+		const res = await get('/api/rally/views/set/ALA:doubles/pack');
+		expect(res.status).toBe(404);
+		expect(res.json).toEqual({ success: false, error: 'Cardtable cannot draft this set.' });
 	});
 });
