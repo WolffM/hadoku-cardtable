@@ -84,6 +84,8 @@ async function boot(
 		/** The JVM pool, when the test needs the re-attach seam; its hosts are listed in `hosts`. */
 		host?: { factory: MatchHostFactory; hosts: ReplayHost[] };
 		onAbandoned?: (match: import('./match.ts').Match) => void;
+		/** The server's build, told to every socket on connect. */
+		build?: string;
 	} = {},
 ): Promise<Harness> {
 	const { factory, hosts } = options.host ?? replayFactory();
@@ -112,6 +114,7 @@ async function boot(
 		startRateLimit: options.startRateLimit,
 		rejoinGraceMs: options.rejoinGraceMs,
 		...(options.onAbandoned === undefined ? {} : { onAbandoned: options.onAbandoned }),
+		...(options.build === undefined ? {} : { build: options.build }),
 		seatAvatar: (_matchId, owner) => [...(options.faces ?? [])].find(([user]) => identityFromHeaders(edgeHeaders(user), 'test') === owner)?.[1],
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
@@ -161,6 +164,8 @@ interface Peer {
 	arrangements: unknown[];
 	placeds: unknown[];
 	offereds: unknown[];
+	/** Every `forge:build` payload the server sent this socket. */
+	builds: unknown[];
 	request(event: 'forge:join' | 'forge:resync', payload: unknown): Promise<unknown>;
 	send(payload: unknown): void;
 	/** Ask for full control, or give it back — the client → server direction. */
@@ -197,6 +202,7 @@ function connect(
 			arrangements: [],
 			placeds: [],
 			offereds: [],
+			builds: [],
 			request: async (event, payload) => {
 				const ack: unknown = await socket.timeout(3000).emitWithAck(event, payload);
 				peer.acks.push(ack);
@@ -215,6 +221,7 @@ function connect(
 		socket.on('forge:placed', (payload: unknown) => peer.placeds.push(payload));
 		socket.on('forge:offered', (payload: unknown) => peer.offereds.push(payload));
 		socket.on('forge:role', (payload: unknown) => peer.roles.push(payload));
+		socket.on('forge:build', (payload: unknown) => peer.builds.push(payload));
 		socket.on('connect', () => done(peer));
 		socket.on('connect_error', (err) => fail(err));
 	});
@@ -344,6 +351,29 @@ describe('POST /api/play/matches', () => {
 			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
 			body: JSON.stringify({ opponent: 'human' }),
 		});
+
+	// Match m-13e598202544 (2026-11-07): a page older than the server could not tell it was.
+	it('tells every socket the server build on connect, on its own event, and logs a page reloading for it', async () => {
+		const h = await boot({ build: 'v0.57.0+915f1d2f7' });
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		await waitUntil(() => alice.builds.length > 0, 'the build');
+		expect(alice.builds).toEqual([{ build: 'v0.57.0+915f1d2f7' }]);
+
+		const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches/m-stale/report`, {
+			method: 'POST',
+			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
+			body: JSON.stringify({ what: 'stale-build-reload', ui: 'v0.56.0+91a313c62', detail: { page: 'v0.56.0+91a313c62', server: 'v0.57.0+915f1d2f7', cause: 'newer-release' } }),
+		});
+		expect(res.status).toBe(204);
+		expect(h.logs.find((l) => l.evt === 'client-report')).toMatchObject({ matchId: 'm-stale', what: 'stale-build-reload', ui: 'v0.56.0+91a313c62', detail: { cause: 'newer-release' } });
+	});
+
+	it('a server with no build to tell sends no build event', async () => {
+		const h = await boot();
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		await alice.request('forge:join', { matchId: 'm-none' });
+		expect(alice.builds).toEqual([]);
+	});
 
 	// 2026-10-11: both seats left a frozen match ("seat-departing", then nothing) and it held a slot for ~2 h.
 	it('a match every seat has left stops once the rejoin grace runs out, and its slot frees', async () => {
