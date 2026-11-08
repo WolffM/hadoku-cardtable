@@ -81,6 +81,7 @@
     "apps/server/src/http/**",
     "apps/server/src/play/**",
     "apps/server/src/cli/warm-bridges.ts",
+    "apps/server/src/cli/tournaments.ts",
     "apps/agent/src/draftbot.ts",
     "apps/ui/src/symbols/**",
     "apps/ui/src/play/**",

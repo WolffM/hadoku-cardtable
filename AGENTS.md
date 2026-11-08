@@ -198,6 +198,12 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
   a `docs/releases/vX.Y.Z.md` directly and never run `release.yml` yourself: the
   operator cuts a release with `/cutrelease`, which combines the pending files into
   that release's notes and runs it (`docs/RELEASE.md`).
+- **Correcting a past tournament** (a playoff, a mis-scored match, a rename) goes through
+  `npx tsx apps/server/src/cli/tournaments.ts <list|show|add|set|rm|rename|regenerate> --site prod`,
+  never a hand edit of `~/srv-data/cardtable/tournaments.json`. It re-ranks the standings from the
+  results with the live pods' own ranking, dry-runs unless `--write`, and backs the file up beside
+  it first; the running server re-reads the file when it changes, so the tab shows it on the next
+  load with no restart. Show the operator the dry run before writing.
 - **No commit edits a version.** A build's version is derived from the tree
   (`scripts/release/build-version.ts`: the newest `docs/releases/vX.Y.Z.md` plus the
   commit, or `CARDTABLE_VERSION`), and `release.yml` defaults to that notes file's

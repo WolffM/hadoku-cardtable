@@ -30,7 +30,7 @@ const RECORD: Tournament = {
 async function serve(list: Tournament[], found: Record<string, Person>): Promise<string> {
 	const people: People = { resolve: async (ids) => new Map(ids.flatMap((id) => (found[id] === undefined ? [] : [[id, found[id]!] as const]))), peek: () => undefined };
 	const api = express.Router();
-	attachTournaments(api, { tournaments: { record: () => undefined, list: () => list }, people });
+	attachTournaments(api, { tournaments: { record: () => undefined, list: async () => list }, people });
 	const app = express();
 	app.use('/api', api);
 	const server = createServer(app);

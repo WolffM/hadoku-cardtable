@@ -17,7 +17,7 @@ import { UNNAMED } from '../room/lobby.js';
 
 export function attachTournaments(api: Router, deps: { tournaments: Tournaments; people: People }): void {
 	api.get('/tournaments', async (_req: Request, res: Response) => {
-		const list = deps.tournaments.list();
+		const list = await deps.tournaments.list();
 		const found = await deps.people.resolve(list.flatMap((t) => Object.values(t.users ?? {})));
 		res.json({
 			tournaments: list.map(({ users = {}, ...t }): Tournament => {
