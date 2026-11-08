@@ -45,7 +45,7 @@ const noop = (): void => undefined;
 
 /** A pool picker that never touches the network: every test supplies its own answers. */
 let pools: PoolsClient;
-let rooms: Pick<RoomsClient, 'setPlan' | 'setSettings'>;
+let rooms: Pick<RoomsClient, 'setPlan'>;
 beforeEach(() => {
   pools = {
     listCubes: vi.fn().mockResolvedValue([]),
@@ -64,7 +64,6 @@ beforeEach(() => {
   // not crash on an unresolved mock; a test that DOES care overrides it.
   rooms = {
     setPlan: vi.fn().mockResolvedValue({ ok: true, room: {} as unknown as never }),
-    setSettings: vi.fn().mockResolvedValue({ ok: true, room: {} as unknown as never }),
   };
 });
 
@@ -78,9 +77,6 @@ const baseProps = {
   error: null,
   onReady: noop,
   onRetry: noop,
-  pickTimer: { on: false, speed: 1 },
-  clock: true,
-  draftBots: 'model' as const,
   get pools() {
     return pools;
   },
@@ -173,65 +169,6 @@ const presetFixture = (over: Partial<DraftPreset> = {}): DraftPreset => ({
 });
 
 describe('the draft lobby', () => {
-  // Wave 83 D3: the rope is the room's setting, the leader's to move.
-  it("the leader switches the pick timer on and picks its speed; the room's setting is what is drawn", () => {
-    const { rerender } = render(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice')] }));
-    expect(screen.getByTestId('pick-timer').getAttribute('aria-pressed')).toBe('false');
-    expect(screen.queryByTestId('pick-timer-speed')).toBeNull();
-    screen.getByTestId('pick-timer').click();
-    expect(rooms.setSettings).toHaveBeenLastCalledWith('r-cube', { pickTimer: { on: true, speed: 1 } });
-
-    rerender(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice')], pickTimer: { on: true, speed: 1 } }));
-    expect((screen.getByTestId('pick-timer-speed-1') as HTMLInputElement).checked).toBe(true);
-    screen.getByTestId('pick-timer-speed-4').click();
-    expect(rooms.setSettings).toHaveBeenLastCalledWith('r-cube', { pickTimer: { on: true, speed: 4 } });
-  });
-
-  it('a member who is not the leader reads the pick timer, disabled', () => {
-    render(createElement(DraftLobby, { ...baseProps, myId: 'u-bob', pod: podFixture(), members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')], pickTimer: { on: true, speed: 2 } }));
-    expect((screen.getByTestId('pick-timer') as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByTestId('pick-timer-speed-2') as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByTestId('pick-timer-speed-2') as HTMLInputElement).disabled).toBe(true);
-  });
-
-  // The operator, 2026-11-07: "make sure i am able to selectively had pick timer and play timer seperately."
-  it('the leader switches the chess clock apart from the pick timer, either way round', () => {
-    for (const clock of [true, false]) {
-      for (const on of [true, false]) {
-        cleanup();
-        vi.mocked(rooms.setSettings).mockClear();
-        render(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice')], clock, pickTimer: { on, speed: 1 } }));
-        expect(screen.getByTestId('chess-clock').getAttribute('aria-pressed')).toBe(String(clock));
-        expect(screen.getByTestId('pick-timer').getAttribute('aria-pressed')).toBe(String(on));
-        screen.getByTestId('chess-clock').click();
-        expect(rooms.setSettings).toHaveBeenCalledTimes(1);
-        expect(rooms.setSettings).toHaveBeenLastCalledWith('r-cube', { clock: clock ? 'off' : 'on' });
-      }
-    }
-  });
-
-  it('a member who is not the leader reads the chess clock, disabled', () => {
-    render(createElement(DraftLobby, { ...baseProps, myId: 'u-bob', pod: podFixture(), members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')], clock: false }));
-    expect((screen.getByTestId('chess-clock') as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByTestId('chess-clock').getAttribute('aria-pressed')).toBe('false');
-  });
-
-  it("the leader picks what the bots draft with; the room's setting is what is drawn", () => {
-    const { rerender } = render(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice')] }));
-    expect((screen.getByTestId('draft-bots-model') as HTMLInputElement).checked).toBe(true);
-    screen.getByTestId('draft-bots-pick-order').click();
-    expect(rooms.setSettings).toHaveBeenLastCalledWith('r-cube', { draftBots: 'pick-order' });
-
-    rerender(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice')], draftBots: 'split' }));
-    expect((screen.getByTestId('draft-bots-split') as HTMLInputElement).checked).toBe(true);
-  });
-
-  it('a member who is not the leader reads the bots, disabled', () => {
-    render(createElement(DraftLobby, { ...baseProps, myId: 'u-bob', pod: podFixture(), members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')], draftBots: 'pick-order' }));
-    expect((screen.getByTestId('draft-bots-pick-order') as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByTestId('draft-bots-model') as HTMLInputElement).disabled).toBe(true);
-  });
-
   // The operator, 2026-10-21: "i like showing that there are spectators in the draft process"; 2026-11-02: every room
   // draws its players and its spectators alike, and the spectators' open slot is how a player gives their seat back.
   it('draws the seat grid in its first frame, every member who holds no seat as a spectator, and my way to join them', () => {

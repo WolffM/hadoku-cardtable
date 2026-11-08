@@ -4,10 +4,12 @@
  * 2026-11-02: "create a room settings button and put it on the same row as the 'Close' button").
  * It is Close's own button family, never a chip, and names no rule: the popover does.
  *
- * The popover holds the switches, drawn as they were on the bar
- * (`ActionButton` + `.ct-toggle`, the same test ids), and a tournament's deck policy (`RadioCards`,
- * `tournament-decks`). A rule that does not apply to the room's mode is not drawn. The leader edits;
- * everybody else opens the same popover and reads it, disabled.
+ * Every room type opens this one popover — a constructed room's mode rules and a draft room's pick
+ * timer and bots alike (the operator, 2026-11-07: "unify room settings to properly use the same UI
+ * modal regardless of room type"). It holds the switches (`ActionButton` + `.ct-toggle`) and the
+ * choices (`RadioCards`: a tournament's deck policy, the pick timer's speed, the bots). A rule that
+ * does not apply to the room is not drawn. The leader edits; everybody else opens the same popover
+ * and reads it, disabled.
  *
  * ## The popover's own rows, label | switch (item 2, `screens.css`'s `.lobby__rules-list`)
  *
@@ -19,7 +21,7 @@
  * same x — the widest label decides where that is, not each row for itself.
  */
 
-import type { TournamentDecks } from '@hadoku/shared';
+import type { DraftBots, PickTimer, TournamentDecks } from '@hadoku/shared';
 import { TOURNAMENT_DECK_POLICIES } from '@hadoku/shared';
 
 import type { ReactNode } from 'react';
@@ -42,6 +44,28 @@ export interface RuleSwitch {
 const DECKS_LABEL: Readonly<Record<TournamentDecks, string>> = { locked: 'Locked for the event', 'per-round': 'Re-pick each round' };
 const DECKS_CARDS: readonly RadioCard<TournamentDecks>[] = TOURNAMENT_DECK_POLICIES.map((value) => ({ value, label: DECKS_LABEL[value] }));
 
+/** The draft rope's speed over MTR Appendix B's times. */
+type Speed = '0.5' | '1' | '2' | '4';
+const SPEEDS: readonly RadioCard<Speed>[] = [
+  { value: '0.5', label: '½×' },
+  { value: '1', label: '1×' },
+  { value: '2', label: '2×' },
+  { value: '4', label: '4×' },
+];
+
+/** What a draft's bots pick with: CubeCobra's model, the cube's pick order, or a split pod (model on the odd seats). */
+const BOTS: readonly RadioCard<DraftBots>[] = [
+  { value: 'model', label: 'Model' },
+  { value: 'pick-order', label: 'Pick order' },
+  { value: 'split', label: 'Split' },
+];
+
+/** A rule with a value of its own rather than on/off. */
+export interface RuleChoice<T> {
+  value: T;
+  onChange: (next: T) => void;
+}
+
 /** One row's two grid cells: the rule's name, then its switch (or its own group of cards). */
 function RuleRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -60,6 +84,8 @@ export function MatchRules({
   lockDecks,
   tournamentDecks,
   clock,
+  pickTimer,
+  draftBots,
 }: {
   /** Only the leader moves a rule; everybody else reads them. */
   leader: boolean;
@@ -74,10 +100,15 @@ export function MatchRules({
   tournamentDecks?: { value: TournamentDecks; locked: boolean; onChange: (decks: TournamentDecks) => void };
   /** The chess clock: 20 minutes a player for a series, on by itself in a tournament. */
   clock?: RuleSwitch;
+  /** A draft room's rope (`settings.pickTimer`): on or off, and its speed while on. */
+  pickTimer?: RuleChoice<PickTimer>;
+  /** What a draft room's bots pick with (`settings.draftBots`). */
+  draftBots?: RuleChoice<DraftBots>;
 }) {
   const { trigger, toggle, close } = usePopover();
   const off = !leader || disabled;
-  if (handSmoothing === undefined && freePick === undefined && lockDecks === undefined && tournamentDecks === undefined && clock === undefined) return null;
+  if ([handSmoothing, freePick, lockDecks, tournamentDecks, clock, pickTimer, draftBots].every((rule) => rule === undefined)) return null;
+  const speed = pickTimer === undefined ? null : (SPEEDS.find((s) => Number(s.value) === pickTimer.value.speed)?.value ?? null);
   return (
     <>
       <button type="button" className="room-close" aria-expanded={trigger !== null} data-testid="match-rules" onClick={(event) => toggle(event.currentTarget)}>
@@ -85,7 +116,7 @@ export function MatchRules({
         Room settings
       </button>
       {trigger !== null && (
-        <Popover trigger={trigger} onClose={close} title="Match rules" testId="match-rules-popover">
+        <Popover trigger={trigger} onClose={close} title="Room settings" testId="match-rules-popover" wide>
           <div className="lobby__rules-list">
             {handSmoothing !== undefined && (
               // The opening hand nearer the deck's land ratio, each mulligan weighted toward it.
@@ -143,6 +174,47 @@ export function MatchRules({
                 >
                   {clock.on ? 'On' : 'Off'}
                 </ActionButton>
+              </RuleRow>
+            )}
+            {pickTimer !== undefined && (
+              <RuleRow label="Pick timer">
+                <div className="lobby__rules-switch lobby__rules-pair">
+                  <ActionButton
+                    action={pickTimer.value.on ? 'pick-timer-off' : 'pick-timer-on'}
+                    className="lobby__free-pick lobby__rules-switch ct-toggle"
+                    aria-pressed={pickTimer.value.on}
+                    data-testid="pick-timer"
+                    disabled={off}
+                    onPress={() => pickTimer.onChange({ ...pickTimer.value, on: !pickTimer.value.on })}
+                  >
+                    {pickTimer.value.on ? 'On' : 'Off'}
+                  </ActionButton>
+                  {pickTimer.value.on && (
+                    <RadioCards
+                      name="pick-timer-speed"
+                      label="Pick timer speed"
+                      options={SPEEDS}
+                      value={speed}
+                      disabled={off}
+                      onChange={(value) => pickTimer.onChange({ ...pickTimer.value, speed: Number(value) })}
+                      testId="pick-timer-speed"
+                    />
+                  )}
+                </div>
+              </RuleRow>
+            )}
+            {draftBots !== undefined && (
+              <RuleRow label="Bots">
+                <RadioCards
+                  name="draft-bots"
+                  label="Bots"
+                  options={BOTS}
+                  value={draftBots.value}
+                  disabled={off}
+                  onChange={draftBots.onChange}
+                  testId="draft-bots"
+                  className="lobby__rules-switch"
+                />
               </RuleRow>
             )}
             {tournamentDecks !== undefined && (

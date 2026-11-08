@@ -1,6 +1,6 @@
 /*
  * A small titled panel opened from a button and placed beside it: the settings gear's
- * (`../settings/Settings.tsx`) and a room's Match rules (`../rooms/MatchRules.tsx`).
+ * (`../settings/Settings.tsx`) and a room's settings (`../rooms/MatchRules.tsx`).
  * Escape, its close button and a press anywhere outside it close it; a press on the button that
  * opened it is that button's to handle (`usePopover`'s toggle).
  */
@@ -43,6 +43,19 @@ function place(anchor: DOMRect): Placement {
   return { top, ...horizontal, maxHeight: Math.max(0, vh - top - GAP) };
 }
 
+/**
+ * The placement moved sideways, once the panel's own width is known, so the whole panel is on screen:
+ * aligned to an anchor that sits in from the viewport's edge, a panel wider than the room on that
+ * side ran off the other edge (Room settings' wide panel at 390px, its left 39px off screen).
+ */
+function onScreen(at: Placement, width: number): Placement {
+  const vw = globalThis.innerWidth;
+  const room = vw - GAP - width;
+  if (at.right !== undefined && at.right > room) return { ...at, right: Math.max(GAP, room) };
+  if (at.left !== undefined && at.left > room) return { ...at, left: Math.max(GAP, room) };
+  return at;
+}
+
 export interface PopoverProps {
   /** What opened it: the popover is placed beside it, and a press on it is the trigger's to handle. */
   trigger: Element;
@@ -50,14 +63,16 @@ export interface PopoverProps {
   title: string;
   /** The panel's test id; its close button's is `<testId>-close`. */
   testId: string;
+  /** Room for a row of choices beside each label (a room's settings); the settings gear's switches need none. */
+  wide?: boolean;
   children?: ReactNode;
 }
 
-export function Popover({ trigger, onClose, title, testId, children }: PopoverProps) {
+export function Popover({ trigger, onClose, title, testId, wide = false, children }: PopoverProps) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<Placement>(() => place(trigger.getBoundingClientRect()));
-  useLayoutEffect(() => setPlacement(place(trigger.getBoundingClientRect())), [trigger]);
+  useLayoutEffect(() => setPlacement(onScreen(place(trigger.getBoundingClientRect()), ref.current?.offsetWidth ?? 0)), [trigger]);
 
   useDismiss(onClose, useCallback((target: Node) => ref.current?.contains(target) !== false || trigger.contains(target), [trigger]));
   useEffect(() => ref.current?.focus(), []);
@@ -65,7 +80,7 @@ export function Popover({ trigger, onClose, title, testId, children }: PopoverPr
   // Placed in the window's coordinates, so drawn over the page, not inside the screen with its trigger.
   return (
     <OverPage>
-      <div ref={ref} className="ct-popover ct-surface ct-panel" role="dialog" aria-labelledby={titleId} data-testid={testId} tabIndex={-1} style={placement}>
+      <div ref={ref} className={`ct-popover ct-surface ct-panel${wide ? ' ct-popover--wide' : ''}`} role="dialog" aria-labelledby={titleId} data-testid={testId} tabIndex={-1} style={placement}>
         <div className="ct-popover__head">
           <h2 id={titleId} className="ct-popover__title ct-panel__title">
             {title}

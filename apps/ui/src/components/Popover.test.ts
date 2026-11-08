@@ -38,4 +38,36 @@ describe('Popover', () => {
     expect(pop.style.top).toBe('128px');
     expect(pop.style.maxHeight).toBe('584px');
   });
+
+  // Room settings' wide panel on a 390px phone, right-aligned to a button 55px in from the edge, ran 39px off the left.
+  it('a panel wider than the room beside its anchor moves in, so all of it is on screen', () => {
+    globalThis.innerWidth = 390;
+    globalThis.innerHeight = 844;
+    const trigger = document.createElement('button');
+    trigger.getBoundingClientRect = () => ({ top: 190, bottom: 212, left: 212, right: 335, width: 123, height: 22, x: 212, y: 190, toJSON: () => ({}) }) as DOMRect;
+    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => 374 });
+    try {
+      render(createElement(Popover, { trigger, onClose: () => undefined, title: 'Room settings', testId: 'pop', wide: true }));
+    } finally {
+      if (width !== undefined) Object.defineProperty(HTMLElement.prototype, 'offsetWidth', width);
+    }
+    // 390 - 8 - 374: the panel's left edge lands on the 8px gutter, not past it.
+    expect(screen.getByTestId('pop').style.right).toBe('8px');
+  });
+
+  it('a panel that fits beside its anchor stays aligned to it', () => {
+    globalThis.innerWidth = 390;
+    globalThis.innerHeight = 844;
+    const trigger = document.createElement('button');
+    trigger.getBoundingClientRect = () => ({ top: 190, bottom: 212, left: 212, right: 335, width: 123, height: 22, x: 212, y: 190, toJSON: () => ({}) }) as DOMRect;
+    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => 288 });
+    try {
+      render(createElement(Popover, { trigger, onClose: () => undefined, title: 'Settings', testId: 'pop' }));
+    } finally {
+      if (width !== undefined) Object.defineProperty(HTMLElement.prototype, 'offsetWidth', width);
+    }
+    expect(screen.getByTestId('pop').style.right).toBe('55px');
+  });
 });

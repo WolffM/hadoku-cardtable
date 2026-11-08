@@ -813,11 +813,13 @@ test('draft: nine-seat lobby, split, the draft, deck building, decks', async ({ 
     await alice.page.waitForTimeout(1_500);
     await shotSizes(alice.page, 'draft-lobby', D('#/room/<id>', 'draft pod lobby, leader, empty seats'), { small: true, landscape: true, full: true });
     await attempt('pick timer', async () => {
+      await tapOn(alice.page.getByTestId('match-rules'));
       const rule = alice.page.getByTestId('pick-timer');
       await tapOn(rule);
       await alice.page.getByTestId('pick-timer-speed').locator('input[value="4"]').evaluate((el) => (el as HTMLElement).click());
       await alice.page.waitForTimeout(800);
-      await shot(alice.page, 'draft-timer-on', D('#/room/<id>', 'pick timer on, fastest speed'), { full: true });
+      await shot(alice.page, 'draft-timer-on', D('#/room/<id>', 'Room settings: pick timer on, fastest speed'), { full: true });
+      await tapOn(alice.page.getByTestId('match-rules-popover-close'));
     }, alice.page);
     await go(bob.page, at(stack, `#/room/${roomId}`), 2_000);
     await sitPodAt(alice.page, 0);
@@ -913,6 +915,7 @@ test('rope: the draft pick timer on a phone', async ({ browser }) => {
     await go(p, at(stack, ''));
     await submitCreateRoom(p, { name: `Timed cube ${Date.now() % 1000}`, gameType: 'draft' });
     await p.getByTestId('draft-lobby').waitFor({ timeout: 30_000 });
+    await p.getByTestId('match-rules').click({ timeout: 30_000 });
     const rule = p.getByTestId('pick-timer');
     await rule.waitFor({ timeout: 30_000 });
     await rule.click();
@@ -920,7 +923,8 @@ test('rope: the draft pick timer on a phone', async ({ browser }) => {
     const speed = p.getByTestId('pick-timer-speed').locator('input[value="4"]');
     await speed.click({ force: true });
     await expect(speed).toBeChecked({ timeout: 15_000 });
-    await shot(p, 'draft-timer-on', D('pick timer on, fastest speed'), { full: true });
+    await shot(p, 'draft-timer-on', D('Room settings: pick timer on, fastest speed'), { full: true });
+    await p.getByTestId('match-rules-popover-close').click();
     await sitPodAt(p, 0);
     await readyPod(p);
     await fillWithAi(p, 30_000);

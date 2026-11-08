@@ -32,6 +32,10 @@ test('the leader picks the draft bots, the room keeps it, and everyone else read
     await bob.page.goto(`${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`);
 
     const choice = (page: Page, value: string) => page.getByTestId(`draft-bots-${value}`);
+    // Bots is a room setting: each player opens Room settings to read or move it.
+    const openSettings = (page: Page) => page.getByTestId('match-rules').click({ timeout: UI_TIMEOUT });
+    await openSettings(alice.page);
+    await openSettings(bob.page);
     await expect(choice(alice.page, 'model')).toBeChecked({ timeout: UI_TIMEOUT });
     await choice(alice.page, 'pick-order').click({ force: true });
     await expect(choice(alice.page, 'pick-order')).toBeChecked({ timeout: UI_TIMEOUT });
@@ -40,6 +44,7 @@ test('the leader picks the draft bots, the room keeps it, and everyone else read
     for (const value of ['model', 'pick-order', 'split']) await expect(choice(bob.page, value)).toBeDisabled();
 
     await alice.page.reload();
+    await openSettings(alice.page);
     await expect(choice(alice.page, 'pick-order')).toBeChecked({ timeout: UI_TIMEOUT });
     await choice(alice.page, 'split').click({ force: true });
     await expect(choice(bob.page, 'split')).toBeChecked({ timeout: UI_TIMEOUT });

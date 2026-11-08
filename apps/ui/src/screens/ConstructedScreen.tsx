@@ -2368,7 +2368,17 @@ function RoomTableScreen({
           <span className="skeleton skeleton--title" />
         )}
         <div className="shell__tools">
-          {/* Room settings (the room's Match rules), beside Close, once a mode is chosen. */}
+          {/* Room settings, beside Close: a draft room's before its deal, a constructed room's once a mode is chosen. */}
+          {!streamed && resolved && draftRoom && (
+            <MatchRules
+              leader={iAmLeader}
+              disabled={dealing}
+              handSmoothing={{ on: handSmoothing, onToggle: toggleHandSmoothing }}
+              clock={{ on: clock, onToggle: toggleClock }}
+              pickTimer={{ value: view?.settings.pickTimer ?? DEFAULT_ROOM_SETTINGS.pickTimer, onChange: (pickTimer) => writeRoom(() => rooms.setSettings(roomId, { pickTimer })) }}
+              draftBots={{ value: view?.settings.draftBots ?? DEFAULT_ROOM_SETTINGS.draftBots, onChange: (draftBots) => writeRoom(() => rooms.setSettings(roomId, { draftBots })) }}
+            />
+          )}
           {!streamed && resolved && !draftRoom && table !== null && mode !== null && (
             <MatchRules
               leader={iAmLeader}
@@ -2465,9 +2475,6 @@ function RoomTableScreen({
             dealing={dealing}
             error={draftError}
             onReady={setDraftReady}
-            pickTimer={view?.settings.pickTimer ?? DEFAULT_ROOM_SETTINGS.pickTimer}
-            clock={clock}
-            draftBots={view?.settings.draftBots ?? DEFAULT_ROOM_SETTINGS.draftBots}
             onRetry={() => {
               askedDeal.current = false;
               setDraftError(null);

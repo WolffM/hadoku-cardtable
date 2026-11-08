@@ -80,13 +80,10 @@
 
 import { useEffect, useState } from 'react';
 
-import type { CubeSummary, DraftBots, DraftPlan, DraftPreset, PickTimer, PoolSource, SetSummary } from '@hadoku/shared';
+import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, SetSummary } from '@hadoku/shared';
 
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
-import { ActionButton } from '../components/ActionButton.tsx';
-import { DraftBotsRule } from '../draft/DraftBotsRule.tsx';
-import { PickTimerRule } from '../draft/PickTimerRule.tsx';
 import { PoolPicker, refusalOf, type PoolTab, type Refusal, type SourceStyle } from '../draft/PoolPicker.tsx';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
@@ -145,9 +142,6 @@ export function DraftLobby({
   error,
   onReady,
   onRetry,
-  pickTimer,
-  clock,
-  draftBots,
   pools = defaultPools,
   rooms = defaultRooms,
 }: {
@@ -164,19 +158,9 @@ export function DraftLobby({
   error: string | null;
   onReady: (ready: boolean) => void;
   onRetry: () => void;
-  /** The room's draft rope (`settings.pickTimer`). */
-  pickTimer: PickTimer;
-  /**
-   * The chess clock for the pod's games (`settings.clock`, read through `clockOn`), switched apart
-   * from the pick timer: a draft or a tournament runs either, both or neither (the operator,
-   * 2026-11-07: "make sure i am able to selectively had pick timer and play timer seperately").
-   */
-  clock: boolean;
-  /** What the room's bots pick with (`settings.draftBots`). */
-  draftBots: DraftBots;
   /** Tests inject a stub. Production leaves it undefined. */
   pools?: PoolsClient;
-  rooms?: Pick<RoomsClient, 'setPlan' | 'setSettings'>;
+  rooms?: Pick<RoomsClient, 'setPlan'>;
 }) {
   const myMemberId = myId === '' ? null : myId;
   const amLeader = myId !== '' && myId === leaderId;
@@ -443,25 +427,6 @@ export function DraftLobby({
         )
       }
     >
-      <PickTimerRule
-        timer={pickTimer}
-        leader={amLeader}
-        disabled={dealing}
-        onChange={(next) => void rooms.setSettings(roomId, { pickTimer: next })}
-      />
-      <div className="lobby__rules-list">
-        <ActionButton
-          action={clock ? 'clock-off' : 'clock-on'}
-          className="lobby__free-pick ct-toggle"
-          aria-pressed={clock}
-          data-testid="chess-clock"
-          disabled={!amLeader || dealing}
-          onPress={() => void rooms.setSettings(roomId, { clock: clock ? 'off' : 'on' })}
-        >
-          Chess clock
-        </ActionButton>
-      </div>
-      <DraftBotsRule bots={draftBots} leader={amLeader} disabled={dealing} onChange={(next) => void rooms.setSettings(roomId, { draftBots: next })} />
       {pod !== null && (
         <>
           <h2>Pool</h2>

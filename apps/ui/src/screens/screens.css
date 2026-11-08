@@ -410,6 +410,14 @@
   justify-self: start;
 }
 
+/* A switch with its own choices beside it (the pick timer's speed while it runs), in one cell. */
+.lobby__rules-pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 /* The on/off switches (never the tournament deck policy's own `radio-cards` pair, which is
    already two pills wide): one width, so "on" and "off" are not two different sized buttons. */
 .lobby__rules-switch.ct-toggle {

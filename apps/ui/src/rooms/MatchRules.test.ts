@@ -96,6 +96,79 @@ describe('MatchRules', () => {
     expect((screen.getByTestId('tournament-decks-locked') as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByTestId('hand-smoothing') as HTMLButtonElement).disabled).toBe(false);
   });
+
+  // Every room type opens the same popover: a draft room's rope, clock and bots sit beside its hand smoothing.
+  describe('a draft room', () => {
+    const draft = (over: Partial<Parameters<typeof MatchRules>[0]> = {}) => ({
+      leader: true,
+      disabled: false,
+      handSmoothing: { on: true, onToggle: vi.fn() },
+      clock: { on: true, onToggle: vi.fn() },
+      pickTimer: { value: { on: false, speed: 1 }, onChange: vi.fn() },
+      draftBots: { value: 'model' as const, onChange: vi.fn() },
+      ...over,
+    });
+
+    it('draws its rules as rows of the one list, in the Room settings popover', () => {
+      render(createElement(MatchRules, draft()));
+      open();
+      const labels = [...screen.getByTestId('match-rules-popover').querySelectorAll('.lobby__rules-label')].map((el) => el.textContent);
+      expect(labels).toEqual(['Hand smoothing', 'Chess clock', 'Pick timer', 'Bots']);
+    });
+
+    it("the leader switches the pick timer on and picks its speed; the room's setting is what is drawn", () => {
+      const p = draft();
+      const { rerender } = render(createElement(MatchRules, p));
+      open();
+      expect(screen.getByTestId('pick-timer').getAttribute('aria-pressed')).toBe('false');
+      expect(screen.queryByTestId('pick-timer-speed')).toBeNull();
+      fireEvent.click(screen.getByTestId('pick-timer'));
+      expect(p.pickTimer.onChange).toHaveBeenLastCalledWith({ on: true, speed: 1 });
+
+      rerender(createElement(MatchRules, { ...p, pickTimer: { ...p.pickTimer, value: { on: true, speed: 1 } } }));
+      expect((screen.getByTestId('pick-timer-speed-1') as HTMLInputElement).checked).toBe(true);
+      fireEvent.click(screen.getByTestId('pick-timer-speed-4'));
+      expect(p.pickTimer.onChange).toHaveBeenLastCalledWith({ on: true, speed: 4 });
+    });
+
+    // The operator, 2026-11-07: "make sure i am able to selectively had pick timer and play timer seperately."
+    it('the chess clock switches apart from the pick timer, either way round', () => {
+      for (const clockOn of [true, false]) {
+        for (const on of [true, false]) {
+          cleanup();
+          const p = draft({ clock: { on: clockOn, onToggle: vi.fn() }, pickTimer: { value: { on, speed: 1 }, onChange: vi.fn() } });
+          render(createElement(MatchRules, p));
+          open();
+          expect(screen.getByTestId('chess-clock').getAttribute('aria-pressed')).toBe(String(clockOn));
+          expect(screen.getByTestId('pick-timer').getAttribute('aria-pressed')).toBe(String(on));
+          fireEvent.click(screen.getByTestId('chess-clock'));
+          expect(p.clock!.onToggle).toHaveBeenCalledOnce();
+          expect(p.pickTimer!.onChange).not.toHaveBeenCalled();
+        }
+      }
+    });
+
+    it("the leader picks what the bots draft with; the room's setting is what is drawn", () => {
+      const p = draft();
+      const { rerender } = render(createElement(MatchRules, p));
+      open();
+      expect((screen.getByTestId('draft-bots-model') as HTMLInputElement).checked).toBe(true);
+      fireEvent.click(screen.getByTestId('draft-bots-pick-order'));
+      expect(p.draftBots.onChange).toHaveBeenLastCalledWith('pick-order');
+      rerender(createElement(MatchRules, { ...p, draftBots: { ...p.draftBots, value: 'split' } }));
+      expect((screen.getByTestId('draft-bots-split') as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('a member who is not the leader reads every draft rule, disabled', () => {
+      render(createElement(MatchRules, draft({ leader: false, pickTimer: { value: { on: true, speed: 2 }, onChange: vi.fn() } })));
+      open();
+      expect((screen.getByTestId('pick-timer') as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByTestId('pick-timer-speed-2') as HTMLInputElement).checked).toBe(true);
+      expect((screen.getByTestId('pick-timer-speed-2') as HTMLInputElement).disabled).toBe(true);
+      expect((screen.getByTestId('chess-clock') as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByTestId('draft-bots-model') as HTMLInputElement).disabled).toBe(true);
+    });
+  });
 });
 
 describe('toggledFreePick', () => {

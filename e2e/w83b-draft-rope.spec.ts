@@ -188,7 +188,8 @@ async function dealtPod(browser: Browser, bobOnAPhone = false): Promise<{ alice:
   const roomId = await roomIdFromHash(alice.page);
   await bob.page.goto(`${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`);
 
-  // The leader's switch, then the fastest speed.
+  // The leader's switch in Room settings, then the fastest speed.
+  for (const p of [alice, bob]) await p.page.getByTestId('match-rules').click({ timeout: UI_TIMEOUT });
   const rule = alice.page.getByTestId('pick-timer');
   await expect(rule).toBeVisible({ timeout: UI_TIMEOUT });
   await rule.click();
@@ -198,6 +199,7 @@ async function dealtPod(browser: Browser, bobOnAPhone = false): Promise<{ alice:
   // Bob reads the same rule, and cannot move it.
   await expect(bob.page.getByTestId('pick-timer')).toHaveAttribute('aria-pressed', 'true', { timeout: UI_TIMEOUT });
   await expect(bob.page.getByTestId('pick-timer')).toBeDisabled();
+  for (const p of [alice, bob]) await p.page.getByTestId('match-rules-popover-close').click();
 
   for (const [p, seat] of [[alice, 0], [bob, 1]] as const) {
     await expect(p.page.getByTestId('pod-seats')).toBeVisible({ timeout: UI_TIMEOUT });

@@ -19,6 +19,10 @@
   text-align: left;
 }
 
+.ct-popover--wide {
+  width: min(24rem, calc(100vw - 16px));
+}
+
 .ct-popover:focus {
   outline: none;
 }

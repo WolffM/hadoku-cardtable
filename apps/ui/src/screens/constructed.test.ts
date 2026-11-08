@@ -2360,6 +2360,23 @@ describe('a draft room', () => {
     expect(screen.getByTestId('draft-lobby').textContent).not.toMatch(/never before|played for|whatever is left/);
   });
 
+  // The operator, 2026-11-07: one Room settings popover, whatever the room plays.
+  it('keeps its rules in Room settings, as a constructed room does, and a rule moved there is written to the room', async () => {
+    const server = await mountDraft();
+    const lobby = await screen.findByTestId('draft-lobby');
+    for (const id of ['pick-timer', 'chess-clock', 'draft-bots', 'hand-smoothing']) expect(within(lobby).queryByTestId(id), `${id} is not drawn in the lobby`).toBeNull();
+
+    openRules();
+    const popover = screen.getByTestId('match-rules-popover');
+    const labels = [...popover.querySelectorAll('.lobby__rules-label')].map((el) => el.textContent);
+    expect(labels).toEqual(['Hand smoothing', 'Chess clock', 'Pick timer', 'Bots']);
+
+    fireEvent.click(within(popover).getByTestId('draft-bots-split'));
+    await waitFor(() => expect((within(popover).getByTestId('draft-bots-split') as HTMLInputElement).checked).toBe(true));
+    const writes = server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body);
+    expect(writes).toContainEqual({ settings: { draftBots: 'split' } });
+  });
+
   it('readies YOU through the room’s route, and says so in the list', async () => {
     const server = await mountDraft({ members: members(false, false) });
     const toggle = (await screen.findByTestId('ready-toggle')) as HTMLButtonElement;
