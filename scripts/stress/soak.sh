@@ -40,7 +40,7 @@ systemd-run --user --unit="$unit" --quiet --working-directory="$run" \
 	-p MemoryMax="$mem" -p MemorySwapMax=0 -p CPUQuota=$(( cpus * 100 ))% -p AllowedCPUs=$(( nproc - cpus ))-$(( nproc - 1 )) \
 	-p RuntimeMaxSec=$(( hours * 3600 + 900 )) \
 	-p StandardOutput=file:"$run/result.txt" -p StandardError=file:"$run/stderr.txt" \
-	"$HOME/.local/opt/jdk-21.0.12.1+1/bin/java" -Djava.awt.headless=true -Djava.io.tmpdir="$run/tmp" -Xmx"$xmx" -XX:+UseG1GC \
+	java -Djava.awt.headless=true -Djava.io.tmpdir="$run/tmp" -Xmx"$xmx" -XX:+UseG1GC \
 	-Dstress.series="$run/series.tsv" -Dstress.mode=paced -Dstress.decks=cube -Dstress.matchCapSec=3600 \
 	-Dstress.matches="$n" -Dstress.hvh="$hvh" -Dstress.durationSec=$(( hours * 3600 )) -Dstress.liveGcSec=300 \
 	-cp "$base/classes:$base/forge.jar" ForgeScale

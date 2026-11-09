@@ -21,6 +21,7 @@ import { join } from 'node:path';
 
 import { packBase, packDir, pushRuntime } from '../../../apps/server/src/play/remote/artifacts.js';
 import { AgentClient } from '../../../apps/server/src/play/remote/client.js';
+import { defaultJava } from '../../../apps/server/src/play/local-jvm.js';
 import { AGENT_PORT, HOST_ID, privateKeyFrom } from '../../../apps/server/src/play/remote/wire.js';
 
 const [node, label, xmx, ...props] = process.argv.slice(2);
@@ -29,13 +30,12 @@ if (!node || !label || !xmx || !HOST_ID.test(label)) {
 	process.exit(2);
 }
 const env = process.env;
-const jdk = env.JDK ?? join(homedir(), '.local/opt/jdk-21.0.12.1+1');
 const stage = join(env.STAGE ?? join(homedir(), '.cache/lane-stress/stage'), 'scale');
 if (!existsSync(join(stage, 'ForgeScale.class'))) throw new Error(`no ForgeScale in ${stage}: run scripts/stress/run.sh build-stage`);
 const cache = join(homedir(), '.cache', 'cardtable', 'agent-artifacts');
 const client = new AgentClient({ url: `http://${node}:${env.AGENT_PORT ?? AGENT_PORT}`, key: privateKeyFrom(readFileSync(env.AGENT_KEY_FILE ?? '', 'utf8')) });
 
-const base = await packBase({ java: join(jdk, 'bin', 'java'), jar: env.JAR ?? '', res: env.RES ?? '' }, cache);
+const base = await packBase({ java: env.JDK ? join(env.JDK, 'bin', 'java') : defaultJava(env), jar: env.JAR ?? '', res: env.RES ?? '' }, cache);
 const scale = await packDir(cache, 'scale', `${stage}\n${statSync(join(stage, 'ForgeScale.class')).mtimeMs}`, stage, []);
 const runtime = await pushRuntime(client, { files: { ...base, bridge: scale }, main: 'ForgeScale' }, (e) => console.error(JSON.stringify(e)));
 await client.connect();

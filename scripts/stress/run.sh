@@ -27,7 +27,7 @@
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-JDK=${JDK:-$HOME/.local/opt/jdk-21.0.12.1+1}
+JDK=${JDK:-$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")}
 JAR=${JAR:-$HOME/.local/share/cardtable/jars/c83701093637dda4bdd420c9457cdee821a54fd0.jar}
 RES=${RES:-/home/hadoku/srv/hadoku-cardtable/forge/forge-gui/res}
 STAGE=${STAGE:-$HOME/.cache/lane-stress/stage}
@@ -106,7 +106,7 @@ cd "$run"
 set +e
 systemd-run --user --scope --quiet -p MemoryMax="$mem" -p MemorySwapMax=0 -p CPUQuota=$(( cpus * 100 ))% -p AllowedCPUs=$first-$last \
 	timeout --kill-after=30 $(( dur + 240 )) \
-	"$HOME/.local/opt/jdk-21.0.12.1+1/bin/java" -Djava.awt.headless=true -Djava.io.tmpdir="$run/tmp" -Xmx"$xmx" \
+	java -Djava.awt.headless=true -Djava.io.tmpdir="$run/tmp" -Xmx"$xmx" \
 	-Dstress.series="$run/series.tsv" "$@" -cp "$base/classes:$base/forge.jar" ForgeScale > "$run/result.txt" 2> "$run/stderr.txt"
 rc=$?
 set -e
@@ -151,7 +151,7 @@ ln -s "$base/res" "$run/res"
 cp -r "$base/decks" "$run/decks"
 printf 'userDir=%s/user/\ncacheDir=%s/cache/\ndecksDir=%s/user/decks/\ndecksConstructedDir=%s/user/decks/constructed/\n' "$run" "$run" "$run" "$run" > "$run/forge.profile.properties"
 cd "$run"
-nice -n 5 "$HOME/.local/opt/jdk-21.0.12.1+1/bin/java" -Djava.awt.headless=true -Djava.io.tmpdir="$run/tmp" -Xmx6g "$@" \
+nice -n 5 java -Djava.awt.headless=true -Djava.io.tmpdir="$run/tmp" -Xmx6g "$@" \
 	-cp "$base/classes:$base/forge.jar" ForgeReplay 2> "$run/stderr.txt"
 echo "rundir=$run"
 REMOTE

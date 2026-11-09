@@ -5,7 +5,7 @@
 # Usage: t0-sample.sh <out.tsv> [interval_s=30] [duration_s=14400]
 set -u
 out=$1; iv=${2:-30}; dur=${3:-14400}
-JSTAT=${JSTAT:-$HOME/.local/opt/jdk-21.0.12.1+1/bin/jstat}
+JSTAT=${JSTAT:-jstat}
 tck=$(getconf CLK_TCK)
 [ -s "$out" ] || printf 'ts\tpid\tkind\tmatch\tage_s\tcpu_s\trss_kb\tpss_kb\tthreads\theap_used_kb\told_used_kb\tygc\tygct\tfgc\tfgct\tgct\tloadavg1\n' > "$out"
 end=$(( $(date +%s) + dur ))

@@ -118,11 +118,30 @@ public final class ForgeScale {
     static final long FAULT_RESCUE_S = Long.getLong("stress.faultRescueSec", 30L);
     /** Overrides {@code Game.AI_TIMEOUT} (seconds) for every game: 0 makes every canPlay scan a cutoff (B5). */
     static final int AI_TIMEOUT_S = Integer.getInteger("stress.aiTimeoutSec", -1);
+    /**
+     * Forge's Flat Monte Carlo AI for every AI seat: {@code off}, {@code base} (the AI profile's own
+     * search), {@code lite} (Forge's phone setting) or {@code max} (its desktop setting). A paced
+     * seat stands in for a human, so it never runs it.
+     */
+    static final String FLAT_MC = System.getProperty("stress.flatMc", "off");
+    /**
+     * A/B (full mode): in each game one AI seat, alternating by slot and game, plays {@link #FLAT_MC}
+     * and the other plays without it, over the same deck pairs; the RESULT line counts their wins.
+     */
+    static final boolean FLAT_MC_AB = Boolean.getBoolean("stress.flatMcAb");
 
     // --- metrics --------------------------------------------------------------
     static final ConcurrentLinkedQueue<Long> AI_PRIORITY_US = new ConcurrentLinkedQueue<>();
     static final ConcurrentLinkedQueue<Long> AI_COMBAT_US = new ConcurrentLinkedQueue<>();
     static final ConcurrentLinkedQueue<Long> ACT_US = new ConcurrentLinkedQueue<>();
+    /** The A/B split of AI_PRIORITY_US / AI_COMBAT_US: seats with Flat Monte Carlo, and seats without. */
+    static final ConcurrentLinkedQueue<Long> MC_PRIORITY_US = new ConcurrentLinkedQueue<>();
+    static final ConcurrentLinkedQueue<Long> MC_COMBAT_US = new ConcurrentLinkedQueue<>();
+    static final ConcurrentLinkedQueue<Long> NOMC_PRIORITY_US = new ConcurrentLinkedQueue<>();
+    static final ConcurrentLinkedQueue<Long> NOMC_COMBAT_US = new ConcurrentLinkedQueue<>();
+    static final AtomicInteger MC_WINS = new AtomicInteger();
+    static final AtomicInteger NOMC_WINS = new AtomicInteger();
+    static final AtomicInteger AB_DRAWS = new AtomicInteger();
     static final LongAdder AI_COMPUTE_US = new LongAdder();
     static final LongAdder PACED_COMPUTE_US = new LongAdder();
     static final LongAdder PAUSES = new LongAdder();
@@ -167,6 +186,7 @@ public final class ForgeScale {
         r.put("hvh", HVH);
         r.put("decks", DECKS);
         r.put("seed", SEED);
+        r.put("flat_mc", FLAT_MC + (FLAT_MC_AB ? "-ab" : ""));
         r.put("duration_s", DURATION_S);
         r.put("pause_ms", PAUSE_MIN + "-" + PAUSE_MAX);
         r.put("cpus_jvm", Runtime.getRuntime().availableProcessors());
@@ -211,12 +231,16 @@ public final class ForgeScale {
             final Thread t = new Thread(() -> {
                 int k = 0;
                 while (!stopping && System.nanoTime() < deadline) {
-                    final int pair = (slot * 7 + k++) % (decks.size() / 2);
+                    final int index = slot * 7 + k++;
+                    final int pair = index % (decks.size() / 2);
                     final List<RegisteredPlayer> players = new ArrayList<>();
+                    // Swapped once per lap of the deck pairs, so every deck plays both with and without it.
+                    final int mcSeat = index / (decks.size() / 2) % 2;
                     for (int p = 0; p < 2; p++) {
                         final boolean paced = MODE.equals("paced") && !heavy && (p == 0 || hvh);
                         final RegisteredPlayer rp = new RegisteredPlayer(decks.get(pair * 2 + p));
-                        final StressPlayer lp = new StressPlayer((paced ? "Paced" : "Ai") + (p + 1) + "-s" + slot, paced, heavy, fault && p == 1);
+                        final boolean mc = !paced && !FLAT_MC.equals("off") && (!FLAT_MC_AB || p == mcSeat);
+                        final StressPlayer lp = new StressPlayer((paced ? "Paced" : mc ? "Mc" : "Ai") + (p + 1) + "-s" + slot, paced, heavy, fault && p == 1, mc);
                         lp.setAiProfile("Default");
                         rp.setPlayer(lp);
                         players.add(rp);
@@ -224,6 +248,9 @@ public final class ForgeScale {
                     final Match match = new Match(new GameRules(GameType.Constructed), players, "stress-" + slot + "-" + k);
                     final Game game = match.createGame();
                     game.setNoGUIUser();
+                    game.AI_FLAT_MONTE_CARLO = !FLAT_MC.equals("off");
+                    game.AI_FLAT_MONTE_CARLO_MAX = FLAT_MC.equals("max");
+                    game.AI_FLAT_MONTE_CARLO_LITE = FLAT_MC.equals("lite");
                     if (AI_TIMEOUT_S >= 0) {
                         game.AI_TIMEOUT = AI_TIMEOUT_S;
                     }
@@ -251,6 +278,16 @@ public final class ForgeScale {
                             failed.incrementAndGet();
                         } else {
                             completed.incrementAndGet();
+                            if (FLAT_MC_AB) {
+                                final forge.LobbyPlayer winner = o.getWinningLobbyPlayer();
+                                if (winner == null) {
+                                    AB_DRAWS.incrementAndGet();
+                                } else if (((StressPlayer) winner).mc) {
+                                    MC_WINS.incrementAndGet();
+                                } else {
+                                    NOMC_WINS.incrementAndGet();
+                                }
+                            }
                             matchMs.add(ms);
                             turns.add(o.getLastTurnNumber());
                         }
@@ -332,6 +369,23 @@ public final class ForgeScale {
         r.put("ai_max_ms", pct(AI_PRIORITY_US, 100));
         r.put("combat_p95_ms", pct(AI_COMBAT_US, 95));
         r.put("combat_max_ms", pct(AI_COMBAT_US, 100));
+        r.put("mc_decisions", MC_PRIORITY_US.size());
+        r.put("mc_p50_ms", pct(MC_PRIORITY_US, 50));
+        r.put("mc_p95_ms", pct(MC_PRIORITY_US, 95));
+        r.put("mc_max_ms", pct(MC_PRIORITY_US, 100));
+        r.put("mc_combat_p95_ms", pct(MC_COMBAT_US, 95));
+        r.put("mc_combat_max_ms", pct(MC_COMBAT_US, 100));
+        r.put("nomc_decisions", NOMC_PRIORITY_US.size());
+        r.put("nomc_p50_ms", pct(NOMC_PRIORITY_US, 50));
+        r.put("nomc_p95_ms", pct(NOMC_PRIORITY_US, 95));
+        r.put("nomc_max_ms", pct(NOMC_PRIORITY_US, 100));
+        r.put("nomc_combat_p95_ms", pct(NOMC_COMBAT_US, 95));
+        r.put("mc_wins", MC_WINS.get());
+        r.put("nomc_wins", NOMC_WINS.get());
+        r.put("ab_draws", AB_DRAWS.get());
+        r.put("mc_rollouts", forge.ai.simulation.FlatMonteCarloStats.getRollouts());
+        r.put("mc_stats_decisions", forge.ai.simulation.FlatMonteCarloStats.getDecisions());
+        System.out.println("FLATMC " + forge.ai.simulation.FlatMonteCarloStats.summary());
         r.put("ai_timeouts", TIMEOUTS.get());
         r.put("timeouts_per_100_dec", fmt(AI_PRIORITY_US.isEmpty() ? 0 : 100.0 * TIMEOUTS.get() / AI_PRIORITY_US.size()));
         r.put("act_n", ACT_US.size());
@@ -382,7 +436,7 @@ public final class ForgeScale {
                 if (n.startsWith(SLOT_PREFIX) && Integer.parseInt(n.substring(SLOT_PREFIX.length())) >= HEAVY
                         && Integer.parseInt(n.substring(SLOT_PREFIX.length())) < HEAVY + FAULT_SLOTS) {
                     faultAlive++;
-                    faultCpuNs += Math.max(0, tm.getThreadCpuTime(t.getId()));
+                    faultCpuNs += Math.max(0, tm.getThreadCpuTime(t.threadId()));
                 }
             }
             r.put("fault_threads_alive", faultAlive);
@@ -560,18 +614,22 @@ public final class ForgeScale {
 
         final boolean fault;
 
-        StressPlayer(final String name, final boolean paced, final boolean heavy, final boolean fault) {
+        final boolean mc;
+
+        StressPlayer(final String name, final boolean paced, final boolean heavy, final boolean fault, final boolean mc) {
             super(name, null);
             this.paced = paced;
             this.heavy = heavy;
             this.fault = fault;
+            this.mc = mc;
         }
 
         @Override
         public Player createIngamePlayer(final Game game, final int id) {
             final Player p = new Player(getName(), game, id);
-            final Seat c = new Seat(game, p, this, paced, heavy, fault);
+            final Seat c = new Seat(game, p, this, paced, heavy, fault, mc);
             c.getAi().setUseSimulation(null);
+            c.getAi().setFlatMonteCarloOverride(mc);
             p.setFirstController(c);
             return p;
         }
@@ -585,14 +643,17 @@ public final class ForgeScale {
         final boolean paced;
         final boolean heavy;
         final boolean fault;
+        final boolean mc;
         int faultCountdown = FAULT_AFTER;
         volatile boolean rescueTried;
 
-        Seat(final Game game, final Player p, final LobbyPlayerAi lp, final boolean paced, final boolean heavy, final boolean fault) {
+        Seat(final Game game, final Player p, final LobbyPlayerAi lp, final boolean paced, final boolean heavy, final boolean fault,
+                final boolean mc) {
             super(game, p, lp);
             this.paced = paced;
             this.heavy = heavy;
             this.fault = fault;
+            this.mc = mc;
         }
 
         /** The injected fault, on the game thread, inside a priority decision (so the watchdog sees a hang). */
@@ -714,6 +775,8 @@ public final class ForgeScale {
             } else {
                 AI_COMPUTE_US.add(us);
                 into.add(us);
+                final boolean priority = into == AI_PRIORITY_US;
+                (mc ? (priority ? MC_PRIORITY_US : MC_COMBAT_US) : (priority ? NOMC_PRIORITY_US : NOMC_COMBAT_US)).add(us);
             }
             return us;
         }
