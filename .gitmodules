@@ -2,3 +2,9 @@
 	path = forge
 	url = https://github.com/WolffM/forge.git
 	branch = master
+	# A plain `git fetch` of this repo never fetches forge. Its default
+	# (on-demand) fetched forge's history whenever the pin moved, inside
+	# mgmt-api's 60 s fetch cap, and a deploy timed out (#52). Whoever needs
+	# the pinned forge runs `git submodule update`, which fetches what it lacks;
+	# the deploy does so in syncSubmodules (--depth 1, its own 10 min budget).
+	fetchRecurseSubmodules = false
