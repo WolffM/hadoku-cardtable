@@ -73,18 +73,28 @@ names already: the operator knows who asked, and the files often don't.
    ```sh
    node scripts/release/credits.ts
    ```
-2. Show the operator every New, Changed and Fixed bullet, numbered, each with the `(@name)` it
-   already carries. Then ask, in chat (not a multiple-choice question, since names are free text):
-   *who is attributed to which?* They answer like `2 ohmusama, 5 bob ohmusama, rest none`.
+2. Show the operator one **numbered list** in chat, a row per New, Changed and Fixed bullet,
+   numbered 1, 2, 3… straight through all three sections (never restarting per section), so every
+   row has a number of its own to answer by. Each row: the bullet's text, the `(@name)` it already
+   carries if any, and the commits it covers (`1469d9531`). For example:
+   ```
+   1. Each copy of a trigger on the stack points at the card it is for. — 1469d9531
+   2. A trigger from a lasting effect is shown as the card that made it. — d9aca933f
+   3. A game's chat opens again after its table moved on. (@ohmusama) — d48084632
+   ```
+   The numbers exist only in this chat list. The notes file and the notes text shown in step 4
+   never carry them.
+   Then ask, in chat (not a multiple-choice question, since names are free text): *who is
+   attributed to which?* They answer like `2 ohmusama, 5 bob ohmusama, rest none`, or `none`.
 3. Write each answer onto its bullet as `(@name)` at the end, `(@a, @b)` for two, keeping the
-   names already there. A hadoku name, as the operator spells it. Ask again if a name is new and
-   looks like a typo of a known one.
+   names already there. A Discord username, as the operator spells it (2026-11-09: usernames,
+   not display names). Ask again if a name is new and looks like a typo of a known one.
 
 ## 4. The operator edits
 
-Show the operator the full notes text in chat, then the **coverage**: every commit from "Commits
-to cover", each with the bullet it went into, so a missing one shows. Mark the bullets you wrote
-for a gap. Then the **credits post** as it will read under these notes:
+Show the operator the full notes text in chat (no numbers), then the **coverage**: every commit
+from "Commits to cover", each with the bullet it went into, so a missing one shows. Mark the
+bullets you wrote for a gap. Then the **credits post** as it will read under these notes:
 
 ```sh
 node scripts/release/credits.ts docs/releases/vX.Y.Z.md

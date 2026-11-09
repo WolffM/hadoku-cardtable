@@ -206,13 +206,14 @@ describe('credits', () => {
 		]);
 	});
 
-	it('the credits post lists the counts, then the people from before the notes, and is null when there is nobody', () => {
+	it('the credits post is a plain numbered list, then a sentence thanking the people from before the notes, and null when there is nobody', () => {
 		const releases = [parseNotes('v1.0.0', '# v1.0.0\n\n## Fixed\n- One. (@bob)\n- Two. (@bob, @amy)')];
-		expect(creditsBody(releases, ['early', 'bird'])).toBe(
-			['## In the release notes', '1. ***__bob__*** — 2', '2. ***__amy__*** — 1', '## Before the release notes', '***__early__***, ***__bird__***'].join('\n'),
+		expect(creditsBody(releases, ['early', 'bird', 'owl'])).toBe(
+			['1. bob — 2', '2. amy — 1', '', 'Extra thanks to early, bird, and owl, who contributed many things before the release notes started crediting anyone.'].join('\n'),
 		);
 		expect(creditsBody([parseNotes('v1.0.0', '# v1.0.0\n\n- Nobody.')], [])).toBeNull();
-		expect(creditsBody([], ['early'])).toBe('## Before the release notes\n***__early__***');
+		expect(creditsBody([], ['early'])).toBe('Extra thanks to early, who contributed many things before the release notes started crediting anyone.');
+		expect(creditsBody([], ['early', 'bird'])).toBe('Extra thanks to early and bird, who contributed many things before the release notes started crediting anyone.');
 	});
 });
 

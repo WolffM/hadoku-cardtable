@@ -10,9 +10,9 @@
  * shows each as ***__name__*** (bold, italic, underlined) and pings nobody: the operator, 2026-11-09,
  * "we should not do discord @ mentions anymore".
  *
- * Under the newest notes stands one credits post, "Credits & attribution": everyone the notes have
- * ever credited, most credits first, and the people the app's earlier-credits file names, who helped
- * before there were release notes. Each release deletes the previous release's credits post and
+ * Under the newest notes stands one credits post, "Credits & attribution": a plain numbered list of
+ * everyone the notes have ever credited, most credits first, then a line thanking the people the
+ * app's earlier-credits file names, who helped before there were release notes. Each release deletes the previous release's credits post and
  * posts its own after its notes, so the credits are always the newest post.
  *
  * `secret` is the app's webhook secret (empty = skip, never an error); a failed post never blocks
@@ -198,19 +198,25 @@ export function creditCounts(releases: readonly ReleaseNotes[]): CreditCount[] {
 
 export const CREDITS_TITLE = 'Credits & attribution';
 
+/** Names joined the way the operator writes them: `a`, `a and b`, `a, b, and c`. */
+function listed(names: readonly string[]): string {
+	if (names.length <= 2) return names.join(' and ');
+	return `${names.slice(0, -1).join(', ')}, and ${names.at(-1)}`;
+}
+
 /**
- * The credits post's text: everyone the notes credit, most first, with their count, then the people
- * `earlier` names (credited before there were release notes). Null when it would name nobody.
+ * The credits post's text: a plain numbered list of everyone the notes credit, most first, with
+ * their count, then one line thanking the people `earlier` names, who helped before the release
+ * notes credited anyone. Plain text throughout (the operator, 2026-11-09: "doesn't need extra
+ * heading or making everything bold"). Null when it would name nobody.
  */
 export function creditsBody(releases: readonly ReleaseNotes[], earlier: readonly string[]): string | null {
 	const counts = creditCounts(releases);
 	if (counts.length === 0 && earlier.length === 0) return null;
-	const sections: string[] = [];
-	if (counts.length > 0) {
-		sections.push(['## In the release notes', ...counts.map((c, i) => `${i + 1}. ${creditMark(c.name)} — ${c.count}`)].join('\n'));
-	}
-	if (earlier.length > 0) sections.push(['## Before the release notes', earlier.map(creditMark).join(', ')].join('\n'));
-	return sections.join('\n');
+	const parts: string[] = [];
+	if (counts.length > 0) parts.push(counts.map((c, i) => `${i + 1}. ${c.name} — ${c.count}`).join('\n'));
+	if (earlier.length > 0) parts.push(`Extra thanks to ${listed(earlier)}, who contributed many things before the release notes started crediting anyone.`);
+	return parts.join('\n\n');
 }
 
 export interface AnnounceOptions {
