@@ -66,6 +66,12 @@ test(titled('a picture, an overlay and a name effect show on the room seat, on t
     const theirs: Locator = bob.page.locator('[data-player-face]:not([data-viewer])');
     await expect(theirs.getByTestId('seat-avatar'), 'bob’s board draws alice’s picture').toHaveAttribute('src', PICTURE, { timeout: 30_000 });
     await expectDecorOver(bob.page, theirs.getByTestId('seat-avatar'), 'bob, alice’s board face');
+    // A picture is cropped to the priority ring's circle, not drawn as a square inside it.
+    const crop = await theirs.getByTestId('seat-avatar').evaluate((img) => {
+      const style = getComputedStyle(img);
+      return { radius: style.borderTopLeftRadius, fit: style.objectFit };
+    });
+    expect(crop, 'alice’s picture on the board is cropped round').toEqual({ radius: '50%', fit: 'cover' });
     await expect(theirs.locator('.face__name[data-dressed] .hc-name'), 'alice’s name on the board wears its effect').toHaveCount(1);
     // And the name the seat rail shows beside her face, the one a player reads.
     const rail = bob.page.locator('.seat:not([data-viewer]) .seat__name');

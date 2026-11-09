@@ -1631,6 +1631,12 @@
   height: 100%;
 }
 
+/* A picture (Discord, Steam, an upload) fills the priority ring's circle; a character sprite keeps its whole outline. */
+.face__art[data-picture] {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 /* Your own mark reads as yours: the ink is brighter on your side. */
 .face[data-viewer] .player-mark__brow,
 .face[data-viewer] .player-mark__bust {

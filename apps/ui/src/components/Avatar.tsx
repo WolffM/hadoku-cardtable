@@ -68,7 +68,7 @@ export function Avatar({ id, look, fallback, fallbackClassName, name = '', ...im
   if (url !== null) {
     return (
       <>
-        <img {...img} src={url} alt="" onError={() => setFailed((f) => [...f, url])} />
+        <img {...img} src={url} alt="" data-picture={url === look?.picture || undefined} onError={() => setFailed((f) => [...f, url])} />
         {decor}
       </>
     );
