@@ -1,7 +1,7 @@
 # e2e/ei-end-turn-interrupt.spec.ts — an opponent's spell interrupts End Turn.
 # Alice (seat 0) is in her own Main 1 holding Counterspell over two untapped Islands, and presses
 # End Turn. Bob (seat 1) holds Lightning Bolt over an untapped Mountain, so alice's End step is a
-# play for him (his End step stop holds it) and he bolts her there. Alice must get priority over
+# play for him (his End step stop holds it) and he bolts her on her turn. Alice must get priority over
 # the Bolt, with her Counterspell offered.
 turn=1
 activeplayer=human

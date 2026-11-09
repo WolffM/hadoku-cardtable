@@ -10,7 +10,7 @@
  *
  * Two real browsers, `ei-end-turn-interrupt`: alice's own Main 1, Counterspell over two Islands;
  * bob holds Lightning Bolt over a Mountain. Alice presses End Turn and nothing else; bob bolts her
- * in her End step. Alice must hold priority over the Bolt with her Counterspell offered.
+ * on her turn. Alice must hold priority over the Bolt with her Counterspell offered.
  *
  * Needs a Forge build; without one the test SKIPS and its title says why.
  */
@@ -40,7 +40,7 @@ test(titled("after End Turn, the opponent's spell still gives the seat a window 
     await expect(endTurn, 'and is pressable in her Main 1').toBeEnabled({ timeout: 30_000 });
     await endTurn.click();
 
-    // Bob's End step stop holds him over alice's End step (he has a play): he bolts her there.
+    // Bob bolts her while her turn yields (his End step stop holds him there; he has a play).
     let bolt: number | undefined;
     await expect.poll(async () => (bolt = await offeredNamed(bob.page, 'Lightning Bolt')), { timeout: 60_000, message: 'bob is offered Lightning Bolt' }).not.toBeUndefined();
     const bobAt = await railAt(bob.page);
