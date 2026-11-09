@@ -2395,7 +2395,7 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		expect(watcherReveal?.envelope.revealOver).toBeUndefined();
 		const before = h.sent.length;
 
-		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-next', method: 'openZones', controller: { kind: 'player', id: 0 }, zones: [], players: [], backupLastZones: false } });
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-next', method: 'showConfirmDialog', message: 'Keep going?', title: '', yesButtonText: 'Yes', noButtonText: 'No', defaultYes: true } });
 		const after = h.sent.slice(before);
 		const next = after.find((s) => s.seat === 0 && s.envelope.frame.kind === 'ask');
 		expect(next?.envelope, "on the seat's wire, the decision's own envelope carries it").toMatchObject({ revealOver: 'x-reveal-over' });
@@ -2408,7 +2408,7 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 
 		// Said once: the decision after it carries nothing.
 		const once = h.sent.length;
-		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-later', method: 'openZones', controller: { kind: 'player', id: 0 }, zones: [], players: [], backupLastZones: false } });
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-later', method: 'showConfirmDialog', message: 'Keep going?', title: '', yesButtonText: 'Yes', noButtonText: 'No', defaultYes: true } });
 		expect(h.sent.slice(once).filter((s) => s.envelope.revealOver !== undefined)).toEqual([]);
 	});
 
