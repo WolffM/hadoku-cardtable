@@ -847,7 +847,12 @@ export async function startPlayStack(forge: { jar: string; res: string }, opts: 
       port: PLAY_EDGE_PORT,
       upstreamPort: PLAY_SERVER_PORT,
       secret,
-      prefs: createPrefsRowsStandIn({ app: 'cardtable', serviceKey: '', userOfKey: (key) => Object.values(FRIENDS).find((f) => f.key === key)?.userId ?? null }),
+      prefs: createPrefsRowsStandIn({
+        app: 'cardtable',
+        serviceKey: '',
+        userOfKey: (key) => Object.values(FRIENDS).find((f) => f.key === key)?.userId ?? null,
+        nameOf: (userId) => Object.values(FRIENDS).find((f) => f.userId === userId)?.name ?? null,
+      }),
     });
     await warm;
     // What a test pays before its match exists, split where it goes: the evidence for (or

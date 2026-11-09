@@ -21,11 +21,8 @@
  *   cardtable's server on every request (same origin, so the edge cookie rides
  *   along); no screen takes identity from the client. Using `ctx.identity` for
  *   anything would be a second identity path beside the one that is enforced.
- *   The one thing the client says about itself is the same thing it says
- *   standalone: which watchparty character it wears (`useAvatarAssert`, the
- *   viewer's own `userId` from the edge's whoami, never `ctx.identity`).
- *   Without it every member of a watchparty room kept the character the pool
- *   handed them (2026-10-12: "it assigned default ones").
+ *   Their name, picture and character come from their account, server-side
+ *   (`apps/server/src/people.ts`'s `applyPerson`), embedded or not.
  * - **NOT `isLeader`.** Cardtable's room has its own leader — whoever bound it
  *   first, then whoever has been in it longest — and the server enforces it.
  *   A client-side gate on watchparty's leader would be a second authority that
@@ -46,9 +43,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HadokuThemeProvider, THEME_FAMILIES, type HadokuThemeValue } from '@wolffm/themes';
 
-import { useAvatarAssert } from '../room/avatarAssert.ts';
-import { useWhoami } from '../room/whoami.ts';
-import { roomsClient, type RoomBindClient, type RoomIdentityClient } from '../rooms/api.ts';
+import { roomsClient, type RoomBindClient } from '../rooms/api.ts';
 import { Screen } from '../screens/Screen.tsx';
 import { navigate, useRoute, type Route } from '../screens/route.ts';
 import { useUiScale } from '../settings/Settings.tsx';
@@ -63,7 +58,7 @@ const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'deck
 export interface EmbedAppProps {
   ctx: GameBundleContext;
   /** Tests pass a stub. Production passes nothing. */
-  rooms?: RoomBindClient & RoomIdentityClient;
+  rooms?: RoomBindClient;
 }
 
 type Binding = { state: 'binding' } | { state: 'bound'; roomId: string } | { state: 'failed'; message: string };
@@ -110,8 +105,6 @@ export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
   const binding = useBoundRoom(ctx.roomKey, rooms);
   const route = useRoute();
   const theme = useMemo(() => themeValue(ctx.theme), [ctx.theme]);
-  const who = useWhoami();
-  useAvatarAssert(binding.state === 'bound' ? binding.roomId : null, who === 'pending' || who === null ? null : who.userId, rooms);
   // Embedded, the tokens resolve on the shadow host (`:root` is rewritten as `:host`).
   const main = useRef<HTMLElement>(null);
   useUiScale(useCallback(() => (main.current === null ? null : scaleRootOf(main.current)), []));

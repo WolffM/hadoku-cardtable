@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Look } from '@hadoku/shared';
 
-import { attachLooks, createPeople, personOf, type LookRooms } from './people.js';
+import { attachPeople, createPeople, personOf, type PeopleRooms } from './people.js';
 
 const DISCORD = 'https://cdn.discordapp.com/avatars/1/abc.png';
 
@@ -93,8 +93,9 @@ describe('createPeople', () => {
 function oneRoom(members: { id: string; userId: string | null; name: string }[]) {
 	const listeners: ((roomId: string) => void)[] = [];
 	const looks = new Map<string, Look | undefined>();
+	const avatars = new Map<string, string | null>();
 	const renamed: { id: string; name: string }[] = [];
-	const rooms: LookRooms = {
+	const rooms: PeopleRooms = {
 		onChange: (l) => {
 			listeners.push(l);
 			return () => undefined;
@@ -106,64 +107,65 @@ function oneRoom(members: { id: string; userId: string | null; name: string }[])
 			looks.set(memberId, look);
 			return true;
 		},
+		setAvatar: (_roomId, memberId, avatarId) => {
+			avatars.set(memberId, avatarId);
+			return true;
+		},
 		rename: (caller) => renamed.push(caller),
 	};
-	return { rooms, looks, renamed, change: () => listeners.forEach((l) => l('r-1')) };
+	return { rooms, looks, avatars, renamed, change: () => listeners.forEach((l) => l('r-1')) };
 }
 
-describe('attachLooks', () => {
-	it('sets each member’s look when their room changes, and names a member a restart left unnamed', async () => {
+describe('attachPeople', () => {
+	it('writes each member’s account onto the room when it changes: name, character and look', async () => {
 		const api = prefsApi({
-			u1: { source: 'discord', url: DISCORD, name: 'Ari', cosmetics: { overlay: 'overlay.halo' } },
+			u1: { source: 'discord', url: DISCORD, name: 'Ari', sprite: 'wanderer', cosmetics: { overlay: 'overlay.halo' } },
 			u2: { source: 'sprite', name: 'Bo' },
 		});
 		const people = createPeople({ baseUrl: 'https://prefs.test', serviceKey: 'k', log: () => undefined, fetch: api.fetch });
 		const room = oneRoom([
 			{ id: 'fk:1', userId: 'u1', name: 'friend' },
-			{ id: 'fk:2', userId: 'u2', name: 'Bo' },
+			{ id: 'fk:2', userId: 'u2', name: 'friend' },
 			{ id: 'eph:3', userId: null, name: 'friend' },
 		]);
-		const looks = attachLooks(room.rooms, people, 'friend');
+		const stop = attachPeople(room.rooms, people).stop;
 		room.change();
 		await vi.waitFor(() => expect(room.looks.has('fk:2')).toBe(true));
-		looks.stop();
+		stop();
 		expect(room.looks.get('fk:1')).toEqual({ picture: DISCORD, cosmetics: { overlay: 'overlay.halo' } });
 		expect(room.looks.get('fk:2')).toBeUndefined();
 		expect(room.looks.has('eph:3')).toBe(false);
-		expect(room.renamed).toEqual([{ id: 'fk:1', name: 'Ari' }]);
+		expect(room.renamed).toEqual([
+			{ id: 'fk:1', name: 'Ari' },
+			{ id: 'fk:2', name: 'Bo' },
+		]);
+		expect([...room.avatars]).toEqual([['fk:1', 'wanderer']]);
 	});
 
-	it('a refresh reads the one member again, past the cache', async () => {
+	it('a person coming into a room is read fresh, past an answer the cache still holds', async () => {
+		const table: Record<string, unknown> = { u1: { source: 'sprite', name: 'Ari' } };
+		const api = prefsApi(table);
+		const people = createPeople({ baseUrl: 'https://prefs.test', serviceKey: 'k', log: () => undefined, fetch: api.fetch });
+		const room = oneRoom([{ id: 'fk:1', userId: 'u1', name: 'friend' }]);
+		const { arrived, stop } = attachPeople(room.rooms, people);
+		await people.resolve(['u1']);
+		table.u1 = { source: 'sprite', name: 'Ari', sprite: 'rogue' };
+		await arrived('r-1', 'fk:1', 'u1');
+		stop();
+		expect([...room.avatars]).toEqual([['fk:1', 'rogue']]);
+	});
+
+	it('the boot’s sweep names every open room’s members in one batch, and an account the lookup cannot name keeps its name', async () => {
 		const api = prefsApi({ u1: { source: 'sprite', name: 'Ari' } });
 		const people = createPeople({ baseUrl: 'https://prefs.test', serviceKey: 'k', log: () => undefined, fetch: api.fetch });
 		const room = oneRoom([
-			{ id: 'fk:1', userId: 'u1', name: 'Ari' },
+			{ id: 'fk:1', userId: 'u1', name: 'friend' },
 			{ id: 'fk:2', userId: 'u2', name: 'Bo' },
 		]);
-		const looks = attachLooks(room.rooms, people, 'friend');
-		await people.resolve(['u1', 'u2']);
-		await looks.refresh('r-1', 'fk:1');
-		expect(api.asked).toEqual([['u1', 'u2'], ['u1']]);
-		looks.stop();
-	});
-
-	it('every minute, reads every open room again in one batch, so a change made away from the room reaches it', async () => {
-		let now = 0;
-		const table: Record<string, unknown> = { u1: { source: 'sprite', name: 'Ari' } };
-		const api = prefsApi(table);
-		const people = createPeople({ baseUrl: 'https://prefs.test', serviceKey: 'k', log: () => undefined, fetch: api.fetch, now: () => now });
-		const room = oneRoom([
-			{ id: 'fk:1', userId: 'u1', name: 'Ari' },
-			{ id: 'fk:2', userId: 'u2', name: 'Bo' },
-		]);
-		const looks = attachLooks(room.rooms, people, 'friend');
-		await looks.sweep();
-		expect(room.looks.get('fk:1')).toBeUndefined();
-		table.u1 = { source: 'upload', url: DISCORD, name: 'Ari', cosmetics: { effect: 'effect.aura' } };
-		now = 61_000;
-		await looks.sweep();
-		expect(room.looks.get('fk:1')).toEqual({ picture: DISCORD, cosmetics: { effect: 'effect.aura' } });
-		expect(api.asked).toEqual([['u1', 'u2'], ['u1', 'u2']]);
-		looks.stop();
+		const { sweep, stop } = attachPeople(room.rooms, people);
+		await sweep();
+		stop();
+		expect(api.asked).toEqual([['u1', 'u2']]);
+		expect(room.renamed).toEqual([{ id: 'fk:1', name: 'Ari' }]);
 	});
 });

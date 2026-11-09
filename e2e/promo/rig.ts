@@ -233,11 +233,11 @@ export async function openPromoFriend(browser: Browser, name: string, options: B
     }
   });
   // And the friend's avatar, dressed in prefs-api's stand-in the way their own account
-  // answers `room/avatar.ts`'s `accountAvatarId` GET (wave 92 D).
+  // answers the room chrome's own GET.
   const identity = FRIENDS[name];
   const userId = identity?.userId ?? null;
   const sprite = AVATARS[name];
-  if (sprite !== undefined && identity !== undefined) await dress(context.request, PLAY_EDGE_ORIGIN, identity.key, { source: 'sprite', sprite, name });
+  if (sprite !== undefined && identity !== undefined) await dress(context.request, PLAY_EDGE_ORIGIN, identity.key, { source: 'sprite', sprite, name: identity.name });
   // Every long animation frame (50 ms or more), with the scripts behind it: where a clip's dropped frames
   // come from when it is the game, not the capture (`<clip>.loaf.json`, written by the film's `stop`).
   await context.addInitScript(() => {

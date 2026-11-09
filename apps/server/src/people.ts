@@ -11,7 +11,7 @@
  * Resolved with this server's own service key. A failure answers nobody and
  * is logged, never thrown: a missing look costs a face its dressing, not a
  * join. Cached a minute, so a room's joins share one lookup; a person who has
- * just changed theirs asks for a `fresh` read (`POST /api/rooms/:id/identity`).
+ * just changed theirs is read `fresh` (the served room's `account`, `room/serve.ts`).
  * The picture URL is relayed, never fetched: the browser loads it from
  * Discord, Steam or cdn.hadoku.me, all inside hadoku.me's img-src.
  */
@@ -124,71 +124,63 @@ export function createPeople(opts: PeopleOptions): ForgetfulPeople {
 	};
 }
 
-/** What `attachLooks` needs of the room registry (`room/lobby.ts`'s `Lobby`). */
-export interface LookRooms {
-	onChange(listener: (roomId: string) => void): () => void;
-	/** The rooms people have open now (`Lobby.offered`): the ones whose looks are kept current. */
-	offered(): readonly { id: string }[];
-	get(roomId: string): { members: readonly { id: string; name: string }[] } | undefined;
-	usersOf(roomId: string): { memberId: string; userId: string }[];
-	setLook(roomId: string, memberId: string, look: Look | undefined): boolean;
+/** What a person is written into: the room registry (`room/lobby.ts`'s `Lobby`). */
+interface PersonRooms {
+	get(roomId: string): { members: readonly { id: string }[] } | undefined;
 	rename(caller: { id: string; name: string }): void;
+	setAvatar(roomId: string, memberId: string, avatarId: string | null): boolean;
+	setLook(roomId: string, memberId: string, look: Look | undefined): boolean;
 }
-
-export interface Looks {
-	/** Read `memberId`'s look again now, skipping the cache: they have just changed it. */
-	refresh(roomId: string, memberId: string): Promise<void>;
-	/** Read every open room's members again, in one batch: a look changed in the fleet's popout reaches the table. */
-	sweep(): Promise<void>;
-	stop(): void;
-}
-
-/** How often every open room's looks are read again: the cache's own minute. */
-export const LOOK_SWEEP_MS = 60_000;
 
 /**
- * Keep every member's look current: whenever a room changes, its members are
- * resolved (from the cache, mostly) and what moved is set on the room; and the
- * name of a member a restart left `unnamed`, since a saved room keeps no names
- * (R12). The character is not set here: the browser asserts it the moment it
- * changes (`apps/ui/src/room/avatarAssert.ts`), and a minute-old cached answer
- * set from here would put the old one back.
- * Setting a look fires the room's change again, which then finds nothing to do.
- * Every minute (`sweep`) the open rooms are read again, all in one batch, so a
- * change made away from any room still reaches the table.
+ * Write `person` onto member `memberId` of `roomId`: their name in every room they are in, their
+ * character and their look in this one. The account is the one source of all three (the operator,
+ * 2026-11-05: *"all over the entire site it's the same avatar"*); a field the lookup has no answer
+ * for leaves what the room already holds.
  */
-export function attachLooks(rooms: LookRooms, people: People, unnamed: string, opts: { sweepMs?: number } = {}): Looks {
-	const set = (roomId: string, users: readonly { memberId: string; userId: string }[], found: Map<string, Person>): void => {
-		for (const { memberId, userId } of users) {
-			const person = found.get(userId);
-			if (person === undefined) continue;
-			const member = rooms.get(roomId)?.members.find((m) => m.id === memberId);
-			if (member === undefined) continue;
-			if (person.name !== null && member.name === unnamed) rooms.rename({ id: memberId, name: person.name });
-			rooms.setLook(roomId, memberId, person.look);
+export function applyPerson(rooms: PersonRooms, roomId: string, memberId: string, person: Person): void {
+	if (rooms.get(roomId)?.members.some((m) => m.id === memberId) !== true) return;
+	if (person.name !== null) rooms.rename({ id: memberId, name: person.name });
+	if (person.sprite !== null) rooms.setAvatar(roomId, memberId, person.sprite);
+	rooms.setLook(roomId, memberId, person.look);
+}
+
+/** What `attachPeople` needs of the room registry. */
+export interface PeopleRooms extends PersonRooms {
+	onChange(listener: (roomId: string) => void): () => void;
+	/** The rooms people have open now (`Lobby.offered`). */
+	offered(): readonly { id: string }[];
+	usersOf(roomId: string): { memberId: string; userId: string }[];
+}
+
+/**
+ * Every member of a room that changes is written from their account (`applyPerson`, from the
+ * cache mostly), so a joiner and a member a restart left unnamed (R12) are named and dressed
+ * whether or not they have the room open. A change made while the room IS open reaches it live
+ * through the served room (`room/serve.ts`); `sweep` is the boot's one read of the restored rooms,
+ * and `arrived` reads one person fresh as they come into a room, so a change made since the
+ * cache's last answer is what the room gets (as the served room re-reads an account on its join).
+ */
+export function attachPeople(
+	rooms: PeopleRooms,
+	people: People,
+): { sweep(): Promise<void>; arrived(roomId: string, memberId: string, userId: string): Promise<void>; stop(): void } {
+	const write = async (open: readonly string[]): Promise<void> => {
+		const users = open.map((roomId) => ({ roomId, users: rooms.usersOf(roomId) }));
+		const found = await people.resolve(users.flatMap((r) => r.users.map((u) => u.userId)));
+		for (const r of users) {
+			for (const { memberId, userId } of r.users) {
+				const person = found.get(userId);
+				if (person !== undefined) applyPerson(rooms, r.roomId, memberId, person);
+			}
 		}
 	};
-	const apply = async (roomId: string, only: string | null, fresh: boolean): Promise<void> => {
-		const users = rooms.usersOf(roomId).filter((u) => only === null || u.memberId === only);
-		if (users.length === 0) return;
-		set(roomId, users, await people.resolve(users.map((u) => u.userId), { fresh }));
+	const stop = rooms.onChange((roomId) => void write([roomId]));
+	const arrived = async (roomId: string, memberId: string, userId: string): Promise<void> => {
+		const person = (await people.resolve([userId], { fresh: true })).get(userId);
+		if (person !== undefined) applyPerson(rooms, roomId, memberId, person);
 	};
-	const sweep = async (): Promise<void> => {
-		const open = rooms.offered().map((r) => ({ roomId: r.id, users: rooms.usersOf(r.id) }));
-		const found = await people.resolve(open.flatMap((r) => r.users.map((u) => u.userId)));
-		for (const r of open) set(r.roomId, r.users, found);
-	};
-	const stopChanges = rooms.onChange((roomId) => void apply(roomId, null, false));
-	const timer = setInterval(() => void sweep(), opts.sweepMs ?? LOOK_SWEEP_MS);
-	timer.unref();
-	return {
-		refresh: (roomId, memberId) => apply(roomId, memberId, true),
-		sweep,
-		stop: () => {
-			clearInterval(timer);
-			stopChanges();
-		},
-	};
+	return { sweep: () => write(rooms.offered().map((r) => r.id)), arrived, stop };
 }
 
 /** How a person is drawn in a record of the past: their character and their look, as they are now. */

@@ -301,7 +301,7 @@ function refusalVerdict(body: unknown): PoolVerdict | null {
 }
 
 /**
- * The embed's one room call (D21), and like `RoomIdentityClient` below not a
+ * The embed's one room call (D21), not a
  * screen's: the table a watchparty room's game slot is bound to, made on first
  * use and joined after. `watchpartyRoom` names the watchparty room; the server
  * derives the cardtable room id from it, so every member arrives at one table.
@@ -319,30 +319,6 @@ export interface RoomBindClient {
  */
 export interface RoomOfMatchClient {
   roomOfMatch(matchId: string): Promise<RoomView | null>;
-}
-
-/**
- * The room's identity write, deliberately NOT on `RoomsClient`.
- *
- * `RoomsClient` is what a SCREEN does to a room: list it, enter it, ready up,
- * choose the pool, start the draft. Asserting which avatar you are wearing is
- * none of those — it is the watchparty seam's own write, made once per room by
- * `room/RoomShell.tsx`, and no screen calls it or should have to stub it. Two
- * interfaces keep each one exactly as wide as its consumers; `roomsClient()`
- * returns both.
- */
-export interface RoomIdentityClient {
-  /**
-   * Tell the room which avatar you are wearing — YOUR row and nobody else's.
-   *
-   * The server resolves who you are from the edge's headers, exactly as `ready`
-   * does, so the body names a value and never a member. `null` clears it.
-   *
-   * A room you are not in, and an id that is not a room at all, are the server's
-   * usual single 404; a caller that asserts against a MATCH id therefore gets a
-   * refusal and should ignore it rather than surface it (see `RoomShell`).
-   */
-  setAvatar(roomId: string, avatarId: string | null): Promise<RoomOutcome>;
 }
 
 type RoomListListener = (rooms: readonly RoomView[]) => void;
@@ -365,7 +341,7 @@ export function onRoomList(listener: RoomListListener): () => void {
 export function roomsClient(
   fetchImpl: Fetch = (i, init) => fetch(i, init),
   base: string = apiBase(),
-): RoomsClient & RoomIdentityClient & RoomBindClient & RoomOfMatchClient {
+): RoomsClient & RoomBindClient & RoomOfMatchClient {
   const url = (path: string): string => `${base}rooms${path}`;
 
   /**
@@ -546,9 +522,6 @@ export function roomsClient(
 
     bindWatchparty(watchpartyRoom) {
       return write('/watchparty', { room: watchpartyRoom }, 'Could not open this room’s table');
-    },
-    setAvatar(roomId, avatarId) {
-      return write(`/${encodeURIComponent(roomId)}/identity`, { avatarId }, 'Could not set your avatar');
     },
   };
 }

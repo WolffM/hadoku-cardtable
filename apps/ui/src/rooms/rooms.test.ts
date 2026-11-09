@@ -1263,29 +1263,6 @@ describe('a member’s avatar', () => {
     expect(memberOf(OPEN)).not.toHaveProperty('avatarId');
   });
 
-  it('asserts the caller’s own avatar to the room’s identity route, and clears with null', async () => {
-    const answered = room({
-      id: 'r-cube',
-      name: 'Cube night',
-      members: [{ id: 'http-a', name: 'alice', joinedAt: '', ready: false, avatarId: 'wanderer' }],
-    });
-    const calls: Call[] = [];
-    const fetchImpl: Fetch = async (url, init) => {
-      calls.push({ url, method: init?.method ?? 'GET', body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
-      return json(200, answered);
-    };
-    const client = roomsClient(fetchImpl, '/cardtable/api/');
-
-    expect(await client.setAvatar('r-cube', 'wanderer')).toEqual({ ok: true, room: answered });
-    // The body names a VALUE and never a member: the server resolves who is
-    // asking from the edge's headers, exactly as `ready` does.
-    expect(calls).toEqual([
-      { url: '/cardtable/api/rooms/r-cube/identity', method: 'POST', body: { avatarId: 'wanderer' } },
-    ]);
-    await client.setAvatar('r-cube', null);
-    expect(calls[1].body).toEqual({ avatarId: null });
-  });
-
   it('draws a face for each member who has one, and nothing for a member who has not', async () => {
     const roster = room({
       id: 'r-open',
@@ -1312,16 +1289,6 @@ describe('a member’s avatar', () => {
     // would read the roster twice.
     expect(faces.every((f) => f.getAttribute('alt') === '')).toBe(true);
     expect(faces.map((f) => f.getAttribute('title'))).toEqual(['alice', 'carol']);
-  });
-
-  it('reads the server’s 404 for a match id as a plain refusal, with its own words', async () => {
-    // What `RoomShell` gets on `#/match/<id>`: the id is not a room, so the
-    // server answers its single 404 and the shell ignores it.
-    const client = roomsClient(async () => json(404, { error: 'no room with that id and password' }), '/cardtable/api/');
-    expect(await client.setAvatar('m-090bf01ba811', 'wanderer')).toEqual({
-      ok: false,
-      message: 'Could not set your avatar: no room with that id and password.',
-    });
   });
 });
 

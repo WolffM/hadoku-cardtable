@@ -106,7 +106,7 @@ export function startEdge(opts: EdgeOptions): Promise<Server> {
         }
         // A server-to-server caller (`resolveAvatars`'s service key, `dress()`'s `_stand-in` PUT) sets
         // `X-User-Key` itself; a BROWSER never does (`credentials: 'include'` sends only its cookie), so
-        // its own GET /api/v1/_avatar (`room/avatar.ts`'s `accountAvatarId`, wave 92 D) is resolved the
+        // its own GET /api/v1/_avatar (the room chrome's own read of the viewer's character) is resolved the
         // same way `edgeHeaders` resolves `/cardtable/*`'s caller — from the session cookie, never trusted
         // off an inbound header a page could set, since this mount (unlike `/cardtable/*`) never strips one.
         const inboundKey = typeof req.headers['x-user-key'] === 'string' ? req.headers['x-user-key'] : null;

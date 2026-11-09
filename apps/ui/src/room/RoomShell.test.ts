@@ -39,12 +39,10 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
  * `vi.hoisted`, because `vi.mock` factories are hoisted above every import and
  * a plain `const` would be out of scope inside one.
  */
-const { UNKNOWN_THEME, feedPings, viewer } = vi.hoisted(() => ({
+const { UNKNOWN_THEME, viewer } = vi.hoisted(() => ({
   UNKNOWN_THEME: 'aurora-dusk',
   /** The tier whoami answers with; a spec sets it before rendering. */
   viewer: { tier: 'friend' as 'friend' | 'member' },
-  /** The page feed's followers, by room, so a spec can play the server's ack after a reconnect. */
-  feedPings: new Map<string, (why: 'changed' | 'heard') => void>(),
 }));
 
 vi.mock('@wolffm/prefs-client', () => ({
@@ -67,19 +65,19 @@ vi.mock('@wolffm/watchparty-ui/room-chrome', () => ({
     theme,
     userType,
     serverOrigin,
-    chatOrigin,
+    roomOrigin,
     children,
   }: {
     theme?: string;
     userType?: string;
     serverOrigin?: string;
-    chatOrigin?: string;
+    roomOrigin?: string;
     children: ReactNode;
   }) =>
     // The real chrome's own content column, so the host's rules for its child are tested against it.
     createElement(
       'div',
-      { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark', 'data-user-type': userType, 'data-server-origin': serverOrigin, 'data-chat-origin': chatOrigin },
+      { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark', 'data-user-type': userType, 'data-server-origin': serverOrigin, 'data-room-origin': roomOrigin },
       createElement('div', { className: 'wp-room-chrome-frame__content' }, children),
     ),
 }));
@@ -93,21 +91,6 @@ vi.mock('@wolffm/watchparty-ui/room-chrome', () => ({
 vi.mock('@wolffm/themes', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wolffm/themes')>()),
   useHadokuTheme: () => ({ theme: UNKNOWN_THEME }),
-}));
-
-/*
- * The page's room-feed socket, played by the spec: a real socket.io client would retry its connect
- * forever under the fake timers below, and the server's ack after a reconnect is a call here.
- */
-vi.mock('../rooms/follow.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../rooms/follow.ts')>()),
-  roomPings: () => ({
-    subscribe: (target: { room: string } | 'list', onPing: (why: 'changed' | 'heard') => void) => {
-      const room = target === 'list' ? 'list' : target.room;
-      feedPings.set(room, onPing);
-      return () => feedPings.delete(room);
-    },
-  }),
 }));
 
 // The vi.mock calls above are hoisted above these imports by vitest's
@@ -125,20 +108,17 @@ afterEach(() => {
 });
 
 /*
- * Chat is moved off watchparty's `serverOrigin` onto cardtable's own
- * `chatOrigin`. Presence, roster and identity are unchanged — `serverOrigin`
- * still points at watchparty, so this is additive, not a replacement.
+ * The room is cardtable's: the chrome's whole room socket goes to `roomOrigin`, this app's own
+ * origin, and only the characters' art still comes from watchparty's `serverOrigin`.
  */
-describe('chatOrigin (chat served by cardtable)', () => {
-  it('passes a chatOrigin distinct from serverOrigin — chat and presence go to different servers', async () => {
+describe('roomOrigin (the room served by cardtable)', () => {
+  it('passes this app’s own origin as the room’s, never watchparty’s', async () => {
     render(createElement(RoomShell, { roomId: 'm-test', children: createElement('div', null, 'content') }));
     const chrome = await waitFor(() => screen.getByTestId('room-chrome'));
-    const { serverOrigin, chatOrigin } = chrome.dataset;
-    expect(chatOrigin).toBeTruthy();
-    expect(chatOrigin).not.toBe(serverOrigin);
-    // Never watchparty's own origin under another name.
-    expect(chatOrigin).not.toMatch(/\/watchparty$/);
-    expect(chatOrigin).toBe(cardtableOrigin());
+    const { serverOrigin, roomOrigin } = chrome.dataset;
+    expect(roomOrigin).toBe(cardtableOrigin());
+    expect(roomOrigin).not.toBe(serverOrigin);
+    expect(roomOrigin).not.toMatch(/\/watchparty$/);
   });
 });
 
@@ -317,132 +297,6 @@ describe('a host theme outside the chrome union still reaches the chrome', () =>
     // chrome produces for a falsy prop, and the split-theme bug the operator
     // saw was exactly a `dark` chrome beside a light page.
     expect(roomChrome.getAttribute('data-theme')).not.toBe('dark');
-  });
-});
-
-/*
- * Item 4 of the 2026-09-28 play test: *"i noticed you're still not pulling in the
- * watchparty selected avatars. why not?"*
- *
- * Because the last hop was never wired. This is the client end of it: the shell
- * reads the character the viewer picked, from their account
- * (`avatar.ts`'s `accountAvatarId`, `@wolffm/prefs-client/avatar`), and asserts
- * it to OUR room, which carries it to the table view.
- *
- * `createAvatarClient`'s GET goes through the same mocked `fetch` as the
- * room's own calls (wave 92, D: no more localStorage cache to seed instead),
- * so `avatarResponds` below answers that one URL and leaves every other
- * response to the test's own room-specific mock.
- */
-describe('the avatar the viewer picked in watchparty', () => {
-  /** `createAvatarClient().get()`'s URL contains `/_avatar`; every other call is the room's own. */
-  function avatarResponds(sprite: string | null, roomFetch: (input: string) => Response): (input: RequestInfo | URL) => Promise<Response> {
-    return (input) => {
-      const url = String(input);
-      if (url.includes('/_avatar')) return Promise.resolve(new Response(JSON.stringify({ sprite }), { status: 200, headers: { 'content-type': 'application/json' } }));
-      return Promise.resolve(roomFetch(url));
-    };
-  }
-
-  it('is asserted to the room once, on the room’s own identity route', async () => {
-    const posts: { url: string; body: unknown }[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) =>
-      avatarResponds('wanderer', (url) => {
-        posts.push({ url, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
-        return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
-      })(input),
-    );
-
-    render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
-    await waitFor(() => expect(posts).toHaveLength(1));
-
-    expect(posts[0].url).toContain('/rooms/r-cube/identity');
-    expect(posts[0].body).toEqual({ avatarId: 'wanderer' });
-  });
-
-  // A deploy restarts the server mid-match and a saved room keeps no faces (R12): the room comes back
-  // wearing a handed-out character on this seat until the screen says its pick again.
-  it('asserts again when the room feed is heard after a reconnect, and not on an ordinary change', async () => {
-    const posts: string[] = [];
-    // Accepted, so no refusal's back-off can be what sends the second.
-    const room = { id: 'r-cube', name: 'Cube night', gameType: 'draft', locked: false, members: [] };
-    vi.spyOn(globalThis, 'fetch').mockImplementation(
-      avatarResponds('wanderer', (url) => {
-        posts.push(url);
-        return new Response(JSON.stringify(room), { status: 200, headers: { 'content-type': 'application/json' } });
-      }),
-    );
-    const identity = (): string[] => posts.filter((u) => u.includes('/rooms/r-cube/identity'));
-
-    const view = render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
-    await waitFor(() => expect(identity()).toHaveLength(1));
-    // The assert's fetch goes out synchronously with the ping, so the count is read straight after.
-    feedPings.get('r-cube')!('changed');
-    expect(identity(), 'a change in the room is not a reconnect').toHaveLength(1);
-    feedPings.get('r-cube')!('heard');
-    expect(identity()).toHaveLength(2);
-    view.unmount();
-    expect(feedPings.has('r-cube'), 'unmounted: no longer following').toBe(false);
-  });
-
-  it('asserts again when the first try is refused, because a joiner’s first screen beats their own join', async () => {
-    const posts: string[] = [];
-    // The room as the server answers an accepted assert: a parseable view, or the client counts it refused.
-    const room = { id: 'r-cube', name: 'Cube night', gameType: 'draft', locked: false, members: [] };
-    vi.spyOn(globalThis, 'fetch').mockImplementation(
-      avatarResponds('wanderer', (url) => {
-        posts.push(url);
-        // Refused the first time (not a member yet), accepted the second.
-        const accepted = posts.filter((u) => u.includes('/identity')).length > 1;
-        return new Response(JSON.stringify(accepted ? room : {}), { status: accepted ? 200 : 404, headers: { 'content-type': 'application/json' } });
-      }),
-    );
-
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    const identity = (): string[] => posts.filter((u) => u.includes('/identity'));
-    render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
-    await vi.waitFor(() => expect(identity()).toHaveLength(1));
-    // Past the first back-off: the refused assert is sent again.
-    await vi.advanceTimersByTimeAsync(1500);
-    await vi.waitFor(() => expect(identity()).toHaveLength(2));
-    // Accepted on the second, so no back-off is left to send a third.
-    await vi.runAllTimersAsync();
-    expect(identity()).toHaveLength(2);
-  });
-
-  it('sends nothing at all when the viewer has no avatar to send', async () => {
-    // Nothing picked on the account: the server's "clear it" case is for
-    // somebody who HAD one and dropped it, which only the chrome can tell us
-    // about — so a null read is silence, not a value that would wipe the
-    // avatar they picked on their other machine.
-    const posts: string[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation(
-      avatarResponds(null, (url) => {
-        posts.push(url);
-        return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
-      }),
-    );
-
-    render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
-    // The chrome appearing is what says whoami has resolved, so the effect has
-    // had its chance to fire; nothing here waits on a timer.
-    await waitFor(() => screen.getByTestId('room-chrome'));
-    expect(posts.filter((u) => u.includes('/identity'))).toEqual([]);
-  });
-
-  // Q6: a game's table chat is not a room. Asserted to it, every avatar pick made mid-match was refused.
-  it('in a game, is asserted to the room while the chrome joins the table’s chat', async () => {
-    const posts: string[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation(
-      avatarResponds('wanderer', (url) => {
-        posts.push(url);
-        return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
-      }),
-    );
-
-    render(createElement(RoomShell, { roomId: 'r-cube-night', chatId: 'r-cube-night-t-11111111', children: createElement('div', null, 'content') }));
-    await waitFor(() => expect(posts.filter((u) => u.includes('/identity'))).toHaveLength(1));
-    expect(posts.find((u) => u.includes('/identity'))).toContain('/rooms/r-cube-night/identity');
   });
 });
 

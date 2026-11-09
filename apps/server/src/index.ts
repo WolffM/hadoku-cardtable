@@ -42,21 +42,8 @@ import { CONFIG, INDEX_HTML } from './config.js';
 import { fkOf } from './erase/index.js';
 import { edgeAuth, gate } from './kernel.js';
 import { monitoringSink, siteOf } from './telemetry.js';
-import { fleetPlugin, stateDirPlugin } from './plugins/boot.js';
-import { chatPlugin } from './plugins/chat.js';
-import { erasePlugin } from './plugins/erase.js';
-import { libraryPlugin } from './plugins/library.js';
-import { listenPlugin, warmPlugin } from './plugins/listen.js';
-import { playPlugin } from './plugins/play.js';
-import { poolsPlugin } from './plugins/pools.js';
-import { recordingsPlugin } from './plugins/recordings.js';
-import { roomsPlugin } from './plugins/rooms.js';
-import { routesPlugin } from './plugins/routes.js';
+import { PLUGINS } from './plugins/index.js';
 import type { Cardtable, CardtableEvents } from './plugins/state.js';
-import { statsPlugin } from './plugins/stats.js';
-import { streamRoutesPlugin, streamSocketPlugin } from './plugins/stream.js';
-import { tablesPlugin } from './plugins/tables.js';
-import { tournamentsEventsPlugin } from './plugins/tournaments-events.js';
 
 // `dist/index.js` and `src/index.ts` are both exactly one directory below the package root, which
 // makes one expression right for the bundle and for `tsx`; a plugin a level deeper could not do
@@ -86,23 +73,5 @@ await createGameServer<CardtableEvents, Cardtable>({
 		stampPhases: false,
 	},
 	state: { pkgRoot: PKG_ROOT, repoRoot: REPO_ROOT } as Cardtable,
-	plugins: [
-		stateDirPlugin,
-		fleetPlugin,
-		libraryPlugin,
-		tournamentsEventsPlugin,
-		statsPlugin,
-		poolsPlugin,
-		roomsPlugin,
-		streamRoutesPlugin,
-		routesPlugin,
-		tablesPlugin,
-		recordingsPlugin,
-		playPlugin,
-		chatPlugin,
-		streamSocketPlugin,
-		erasePlugin,
-		listenPlugin,
-		warmPlugin,
-	],
+	plugins: PLUGINS,
 });

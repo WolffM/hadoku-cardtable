@@ -11,19 +11,16 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { createElement } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
-import { AVATAR_EVENT } from '@wolffm/task-ui-components';
-
 import { toShadowSelector, withHostTheme } from '../../vite.embed.config.ts';
 import { eventTarget, hitAt, scopeOf } from '../dom.ts';
-import type { RoomBindClient, RoomIdentityClient, RoomOutcome, RoomView } from '../rooms/api.ts';
+import type { RoomBindClient, RoomOutcome, RoomView } from '../rooms/api.ts';
 import { appLocation, navigate, routeInMemory } from '../screens/route.ts';
 import type { GameBundleContext } from './contract.ts';
 import { EmbedApp } from './EmbedApp.tsx';
 
 globalThis.Element.prototype.scrollTo ??= function scrollTo() {};
 
-// The fleet's identity, as the edge answers it: NOT the `u` the host context
-// carries, so an avatar asserted under `u-test` proves which path it came by.
+// The fleet's identity, as the edge answers it, for whatever below asks.
 vi.mock('@wolffm/prefs-client', () => ({
   whoami: () => Promise.resolve({ userId: 'u-test', userType: 'friend' as const, name: 'Test Friend' }),
   // A client with nothing saved: the embed reads the UI scale from it on mount.
@@ -65,19 +62,13 @@ function ctx(over: Partial<GameBundleContext> = {}): GameBundleContext {
   };
 }
 
-function binder(outcome: RoomOutcome = { ok: true, room: ROOM }): RoomBindClient & RoomIdentityClient & { asked: string[]; worn: [string, string | null][] } {
+function binder(outcome: RoomOutcome = { ok: true, room: ROOM }): RoomBindClient & { asked: string[] } {
   const asked: string[] = [];
-  const worn: [string, string | null][] = [];
   return {
     asked,
-    worn,
     bindWatchparty: (room) => {
       asked.push(room);
       return Promise.resolve(outcome);
-    },
-    setAvatar: (roomId, avatarId) => {
-      worn.push([roomId, avatarId]);
-      return Promise.resolve({ ok: true, room: ROOM });
     },
   };
 }
@@ -134,41 +125,6 @@ describe('EmbedApp', () => {
     expect(screen.queryByTestId('lobby')).toBeNull();
     expect(screen.queryByTestId('rooms')).toBeNull();
     expect(screen.queryByTestId('stats')).toBeNull();
-  });
-
-  /*
-   * The hop a watchparty member's character takes onto their row in OUR room
-   * (`room/avatarAssert.ts`). The standalone app mounts it in `RoomShell`; the
-   * embed renders no shell, and until 2026-10-12 asserted nothing — so every
-   * member of a watchparty room wore the pool's pick ("it assigned default ones").
-   */
-  it('tells the bound room which watchparty character the viewer wears, under the edge’s identity', async () => {
-    // `createAvatarClient().get()` goes through this same mocked `fetch` (wave 92, D: no more
-    // localStorage cache row to seed instead); every other URL keeps the suite's own 404 default.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) =>
-        String(input).includes('/_avatar')
-          ? Promise.resolve(new Response(JSON.stringify({ sprite: 'wanderer' }), { status: 200, headers: { 'content-type': 'application/json' } }))
-          : Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } })),
-      ),
-    );
-    const rooms = binder();
-    render(createElement(EmbedApp, { ctx: ctx(), rooms }));
-    await waitFor(() => expect(rooms.worn).toEqual([[ROOM.id, 'wanderer']]));
-  });
-
-  it('says nothing about an avatar while the viewer has none saved, and the pick made later in the fleet’s avatar settings', async () => {
-    // The account read at mount hits the suite's own 404 default (no `/_avatar` stub here),
-    // so nothing is sent for the viewer's unset account avatar.
-    const rooms = binder();
-    render(createElement(EmbedApp, { ctx: ctx(), rooms }));
-    await waitFor(() => expect(screen.getByTestId('constructed')).toBeTruthy());
-    expect(rooms.worn).toEqual([]);
-    // `AVATAR_EVENT` (wave 92, D), as `@wolffm/task-ui-components`' settings popout
-    // (AvatarPicker) fires it on `window` with the new `AvatarSettings` as `detail`.
-    window.dispatchEvent(new CustomEvent(AVATAR_EVENT, { detail: { avatar: { source: 'sprite', sprite: 'rogue' }, choice: 'sprite', sprite: 'rogue' } }));
-    await waitFor(() => expect(rooms.worn).toEqual([[ROOM.id, 'rogue']]));
   });
 
   it('says why when the table cannot be opened', async () => {

@@ -59,8 +59,8 @@ export function createRoomFeed(pings: PingSource, deps: RereadDeps & { fallbackM
 let sharedPings: PingSource | undefined;
 let shared: RoomFeed | undefined;
 
-/** The page's one feed socket's pings, for a follower that acts on a reconnect rather than reading the room. */
-export function roomPings(): PingSource {
+/** The page's one feed socket's pings. */
+function roomPings(): PingSource {
   sharedPings ??= createFeedPings({
     wire: { channel: ROOM_FEED_CHANNEL, parseChanged: parseRoomChanged },
     connect: () => io(socketOptions()) as unknown as FeedSocket,

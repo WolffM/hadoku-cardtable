@@ -142,7 +142,7 @@ async function residue(page: Page): Promise<{ shadowChildren: number; shadowShee
   });
 }
 
-/** The character alice picked, as her account answers `room/avatar.ts`'s `accountAvatarId` GET (wave 92 D). */
+/** The character alice picked, as her account answers it (the stand-in prefs-api's `_avatar/resolve`). */
 const ALICE_SPRITE = 'e2e-sprite-embed';
 
 test('the embed binds one watchparty room to one table and leaves the host page as it found it', async ({ browser }) => {

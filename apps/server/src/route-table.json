@@ -74,7 +74,6 @@
     "POST /api/replays/report",
     "POST /api/rooms/",
     "POST /api/rooms/:id/close",
-    "POST /api/rooms/:id/identity",
     "POST /api/rooms/:id/join",
     "POST /api/rooms/:id/leave",
     "POST /api/rooms/:id/pod/ai",
@@ -125,6 +124,6 @@
   ],
   "namespaces": [
     "/",
-    "/chat"
+    "/room"
   ]
 }

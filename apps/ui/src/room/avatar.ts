@@ -9,17 +9,13 @@
  * `apps/ui/src` had ever read it, so it reached our room store and was dropped
  * before it reached a seat.
  *
- * This file is the client half: it answers "which character did this viewer
- * pick" and "what URL draws it", and it is the ONLY place either answer is
- * spelled. `room/RoomShell.tsx` asserts the id to our own room API; the server
- * carries it to the table view (`apps/server/src/http/routes.ts`).
- *
- * The viewer's own id comes from their account (`accountAvatarId`, below), and
- * nowhere else: a viewer whose account has nothing picked wears whatever the room
- * handed them on joining (`room/lobby.ts`'s `AVATAR_POOL`).
+ * This file is the client half: "what URL draws it", the ONLY place that is
+ * spelled. Which character a member wears is their account's, resolved by the
+ * server (`apps/server/src/people.ts`'s `applyPerson`); a member whose account
+ * has nothing picked wears whatever the room handed them on joining
+ * (`room/lobby.ts`'s `AVATAR_POOL`).
  */
 
-import { createAvatarClient } from '@wolffm/prefs-client/avatar';
 import { AVATAR_ID_MAX } from '@hadoku/shared';
 
 /**
@@ -64,30 +60,4 @@ export function normalizeAvatarId(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   const id = v.trim();
   return id === '' || id.length > AVATAR_ID_MAX ? null : id;
-}
-
-/**
- * This viewer's chosen avatar from their account (`@wolffm/prefs-client/avatar`,
- * which resolves it server-side the same way `apps/server/src/people.ts` does
- * for everybody else's). Null when the read fails (offline, signed out, a host
- * without the prefs route) or the viewer has never picked one: either way, the
- * room keeps the character it handed them on joining (`room/lobby.ts`'s
- * `AVATAR_POOL`).
- *
- * A fresh client every call, not a cached singleton: `watchAvatar` (`avatarWatch.ts`)
- * calls this once per room, and `createAvatarClient` is a cheap object with no
- * connection to hold open, so there is nothing a cache would save.
- *
- * `baseUrl` is this page's origin for the reason `watchpartyOrigin` gives: the
- * SDK's default is a hardcoded `https://hadoku.me/prefs`, which a local e2e
- * would reach off-host.
- */
-export async function accountAvatarId(): Promise<string | null> {
-  try {
-    const client = createAvatarClient({ baseUrl: `${globalThis.location.origin}/prefs` });
-    return normalizeAvatarId((await client.get()).sprite);
-  } catch {
-    // Unreadable account is not an error to show anybody.
-    return null;
-  }
 }

@@ -20,10 +20,9 @@ import { attachSounds } from '../http/sounds.js';
 import { attachTournaments } from '../http/tournaments.js';
 import { attachTrim } from '../http/trim.js';
 import { attachUsage } from '../http/usage.js';
-import { attachLooks, createPeople } from '../people.js';
+import { attachPeople, createPeople } from '../people.js';
 import { createArtIds } from '../play/art-ids.js';
 import { tableGame } from '../play/index.js';
-import { UNNAMED } from '../room/lobby.js';
 import type { CardtablePlugin } from './state.js';
 
 export const routesPlugin: CardtablePlugin = {
@@ -49,7 +48,9 @@ export const routesPlugin: CardtablePlugin = {
 		// Every member's avatar picture and cosmetics, from prefs-api (`people.ts`).
 		state.people = createPeople({ baseUrl: CONFIG.prefsBaseUrl, serviceKey: CONFIG.serviceKey, keyless: CONFIG.testPeopleStandIn, log: state.roomsLog });
 		const { lobby, people } = state;
-		const looks = attachLooks(lobby, people, UNNAMED);
+		// Every member is named and dressed from their account, and the rooms a restart brought back once now.
+		const accounts = attachPeople(lobby, people);
+		void accounts.sweep();
 		// A room's link preview, which only the edge reads (`http/preview.ts`).
 		attachPreview(ctx.sealed, {
 			rooms: lobby,
@@ -62,7 +63,6 @@ export const routesPlugin: CardtablePlugin = {
 			lobby,
 			challenges: state.challenges,
 			checkPlan: state.checkDraftPlan,
-			lookChanged: (roomId, memberId) => void looks.refresh(roomId, memberId),
 			...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}),
 			// Never the caller's own game: the front page joins the match it features, and a seat
 			// holder's join takes their seat from the board they play on.
@@ -74,6 +74,9 @@ export const routesPlugin: CardtablePlugin = {
 			forfeited: state.roomForfeited,
 			// "Reset = Close": the testing room `/:id/close` just forgot is recreated fresh under the same name.
 			reseedTesting: () => void state.runTestingRoomSeed(),
+			arrived: (roomId, caller) => {
+				if (caller.userId !== null) void accounts.arrived(roomId, caller.id, caller.userId);
+			},
 			// Each table's game for the table card: the decks its latest match was started with and, while
 			// it runs, where it stands (`play/table-game.ts`). A finished match still answers for its decks.
 			tableGames: (room) => {

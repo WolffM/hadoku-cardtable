@@ -13,9 +13,6 @@
  * - **Presence.** A hidden screen reads nothing, so the watch itself keeps a room offered on the
  *   front page: every watched room is touched for its member when the watch arrives and every
  *   `FEED_TOUCH_MS` after, for as long as the socket stays.
- * - **Who is back.** A watch is a member's screen back after a page load or a reconnect. A room
- *   restored from disk names nobody (R12), so the watch names its member again from the edge's
- *   `X-User-Name`, before its ack tells the screen to assert its avatar.
  *
  * No gate of its own: `attachDraftSocket` and `attachPlay` already put the edge's provenance and the
  * tier floor in front of every handshake on the default namespace (`room/socket.ts`'s header).
@@ -26,7 +23,6 @@ import { ROOM_FEED_CHANNEL, parseRoomWatch } from '@wolffm/rooms-protocol';
 import { attachRoomBookFeed, type RoomFeedHandle } from '@wolffm/rooms-server';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 
-import { userNameFromHeaders } from '../edge-auth.js';
 import { identityFromHeaders } from './identity.js';
 import { ROOM_STALE_MS, type Lobby } from './lobby.js';
 
@@ -54,10 +50,8 @@ export function attachRoomFeed(io: SocketIOServer, deps: RoomFeedDeps): RoomFeed
 	}, deps.touchEveryMs ?? FEED_TOUCH_MS);
 	touching.unref();
 
-	// Registered before the feed, so a member is named again before the feed's ack goes out.
 	io.on('connection', (socket) => {
 		const participantId = participantOf(socket);
-		const name = userNameFromHeaders(socket.request.headers);
 		socket.on(ROOM_FEED_CHANNEL.watch, (raw: unknown) => {
 			const watch = parseRoomWatch(raw);
 			if (watch === null) return;
@@ -68,7 +62,6 @@ export function attachRoomFeed(io: SocketIOServer, deps: RoomFeedDeps): RoomFeed
 			const watcher = { participantId, rooms: watch.rooms };
 			watching.set(socket.id, watcher);
 			touch(watcher);
-			if (name !== null) lobby.rename({ id: participantId, name });
 		});
 		socket.on('disconnect', () => watching.delete(socket.id));
 	});

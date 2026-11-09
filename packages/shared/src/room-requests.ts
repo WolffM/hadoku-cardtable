@@ -203,23 +203,6 @@ export const WatchpartyBindBodySchema = body({
     .refine((room) => !CONTROL.test(room), { error: 'room must not contain control characters' }),
 });
 
-/**
- * `POST /api/rooms/:id/identity`: `{ avatarId }`, where the field is REQUIRED
- * and may be null. A string is "this is my character", `null` is "I have none
- * any more", and ABSENT is neither, so it is a 400 rather than a write that
- * changed nothing. `''` is refused rather than folded into `null`: on this
- * route it is a client bug, and telling it so is cheaper than it finding out
- * from a face that will not draw.
- */
-export const SetAvatarBodySchema = body({
-  avatarId: z
-    .string({ error: 'avatarId must be a string or null' })
-    .trim()
-    .min(1, { error: `avatarId must be 1–${AVATAR_ID_MAX} characters, or null to clear it` })
-    .max(AVATAR_ID_MAX, { error: `avatarId must be 1–${AVATAR_ID_MAX} characters, or null to clear it` })
-    .nullable(),
-});
-
 /** `POST /api/rooms/:id/ready`: the caller's own readiness in the room. */
 export const ReadyBodySchema = body({ ready: z.boolean({ error: 'ready must be a boolean' }) });
 

@@ -12,12 +12,12 @@
  *
  * And people, as `workers/prefs-api/src/routes/avatar.ts` resolves them for a server:
  *   POST /api/v1/_avatar/resolve  { userIds } → { avatars: { [userId]: ResolvedPerson } }
- * every id answered, an unknown one `{ source: 'sprite', name: null }`. What a person looks like is
+ * every id answered, an unknown one `{ source: 'sprite', name }` with the name `nameOf` gives (null without it). What a person looks like is
  * set by a spec through a route the real one does not have, by their key, as their own popout would:
  *   PUT  /api/v1/_stand-in/avatar { userKey, avatar } → { ok: true }
  *
  * And the caller's OWN avatar, as `@wolffm/prefs-client/avatar`'s `createAvatarClient().get()`
- * reads it directly from the BROWSER (`apps/ui/src/room/avatar.ts`'s `accountAvatarId`, wave 92 D):
+ * reads it directly from the BROWSER (the room chrome's own read of the viewer's character):
  *   GET /api/v1/_avatar → AvatarSettings, keyed by `headers.key` the same way `_stand-in/avatar`'s
  *   PUT is keyed by `userKey` — both resolve through `userOfKey`. No session (`key` null or unknown):
  *   403. Nothing picked: the same `{ source: 'sprite', name: null }` fallback as resolve, `sprite: null`.
@@ -52,6 +52,8 @@ export function createPrefsRowsStandIn(opts: {
 	serviceKey: string;
 	/** A person's live key → their userId. */
 	userOfKey: (key: string) => string | null;
+	/** A person's display name by userId, as the real one answers it from the registry. */
+	nameOf?: (userId: string) => string | null;
 }): PrefsRowsStandIn {
 	const store = new Map<string, Map<string, { blob: Record<string, unknown>; version: number; updatedAt: number }>>();
 	const rowsOf = (appId: string) => {
@@ -68,7 +70,7 @@ export function createPrefsRowsStandIn(opts: {
 			if (path === AVATAR_RESOLVE && method === 'POST') {
 				if (headers.key !== opts.serviceKey) return { status: 403, json: { error: 'forbidden', required: 'service' } };
 				const ids = Array.isArray(b0.userIds) ? b0.userIds.filter((id): id is string => typeof id === 'string') : [];
-				return { status: 200, json: { avatars: Object.fromEntries(ids.map((id) => [id, people.get(id) ?? { source: 'sprite', name: null }])) } };
+				return { status: 200, json: { avatars: Object.fromEntries(ids.map((id) => [id, people.get(id) ?? { source: 'sprite', name: opts.nameOf?.(id) ?? null }])) } };
 			}
 			if (path === AVATAR_OWN && (method === 'GET' || method === 'PUT')) {
 				const userId = headers.key !== null ? opts.userOfKey(headers.key) : null;

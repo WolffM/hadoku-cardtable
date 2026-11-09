@@ -234,6 +234,7 @@ const prefs = createPrefsRowsStandIn({
   app: 'cardtable',
   serviceKey: '',
   userOfKey: (key) => Object.values(FRIENDS).find((f) => f.key === key)?.userId ?? null,
+  nameOf: (userId) => Object.values(FRIENDS).find((f) => f.userId === userId)?.name ?? null,
 });
 const edge = await startEdge({ port: EDGE_PORT, upstreamPort: SERVER_PORT, secret, prefs });
 console.log(`[e2e-harness] server :${SERVER_PORT}, edge :${EDGE_PORT} — ready`);

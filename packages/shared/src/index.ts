@@ -522,7 +522,6 @@ export {
   ROOM_PASSWORD_MAX,
   ReadyBodySchema,
   RoomSettingsSchema,
-  SetAvatarBodySchema,
   SitBodySchema,
   TOURNAMENT_DECK_POLICIES,
   TournamentDecksSchema,

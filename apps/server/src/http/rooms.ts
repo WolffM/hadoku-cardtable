@@ -13,7 +13,6 @@
  *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
  *   POST  /api/rooms/:id/ready  { ready }                       → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/leave  {} or no body                   → 200 RoomView | 403 | 404
- *   POST  /api/rooms/:id/identity { avatarId }                 → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
  *   PATCH /api/rooms/:id        { gameType } | { format } | { settings } | { mode, modeOptions? } → 200 RoomView | 403 | 404 | 409
  *   POST  /api/rooms/:id/pod/sit    {} or { seat }               → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
@@ -95,8 +94,8 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
-import { isAdmin, userNameOf } from '../edge-auth.js';
-import { bodyErrors, callerOf, httpCaller, parseBody, perCallerLimit } from './request.js';
+import { isAdmin } from '../edge-auth.js';
+import { bodyErrors, callerOf, parseBody, perCallerLimit } from './request.js';
 import {
 	CreateRoomBodySchema,
 	ChallengeCreateBodySchema,
@@ -108,7 +107,6 @@ import {
 	POD_SEATS,
 	ROOM_ID_RE,
 	ReadyBodySchema,
-	SetAvatarBodySchema,
 	SetDraftPlanBodySchema,
 	SitBodySchema,
 	WatchpartyBindBodySchema,
@@ -177,8 +175,8 @@ export interface RoomsDeps {
 	 * missing and nothing else. No separate reset path.
 	 */
 	reseedTesting?: () => void;
-	/** Read the caller's look again, skipping the cache (`people.ts`'s `attachLooks`): they assert their identity when they change it. */
-	lookChanged?: (roomId: string, memberId: string) => void;
+	/** The caller came into a room (made, joined, bound): their account is read again, fresh (`people.ts`'s `attachPeople`). */
+	arrived?: (roomId: string, caller: { id: string; userId: string | null }) => void;
 	/**
 	 * Each table's game as the table card draws it (`play/table-game.ts`), by table id: the room body
 	 * carries it as `tableGames`. Absent (a unit suite) is none.
@@ -318,15 +316,6 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 * (and the specific handler still runs its own `ROOM_ID_RE` test for the
 	 * sentence it gives a caller who IS allowed to see this room).
 	 */
-	// Every request carries the caller's current name, so every request brings
-	// their rooms up to it. Only a name the edge sent: an unnamed key's
-	// fallback word must not overwrite the name it had.
-	rooms.use((req: Request, _res: Response, next: NextFunction) => {
-		const name = userNameOf(req);
-		if (name !== null) lobby.rename({ id: httpCaller(req), name });
-		next();
-	});
-
 	rooms.param('id', (req: Request, res: Response, next: NextFunction, id: string) => {
 		const room = lobby.get(id);
 		if (room !== undefined && room.testing && !isAdmin(req)) return noMatch(res);
@@ -360,6 +349,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const caller = callerOf(req);
 		const result = lobby.create(caller, body);
 		if (!result.ok) return notDurable(res);
+		deps.arrived?.(result.room.id, caller);
 		res.status(201).json(roomBody(result.room, caller.id));
 	});
 
@@ -375,7 +365,10 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!createLimit(req, res)) return;
 		const caller = callerOf(req);
 		const made = deps.challenges.create(caller, body);
-		if (made.ok) return res.status(201).json(roomBody(made.room, caller.id));
+		if (made.ok) {
+			deps.arrived?.(made.room.id, caller);
+			return res.status(201).json(roomBody(made.room, caller.id));
+		}
 		if (made.reason === 'not-durable') return notDurable(res);
 		res.status(400).json({ error: made.reason === 'no-challenge' ? `no Challenge ${body.collection}` : `${body.player} did not play in that field` });
 	});
@@ -396,6 +389,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		}
 		const result = lobby.bindWatchparty(caller, body.room);
 		if (!result.ok) return notDurable(res);
+		deps.arrived?.(result.room.id, caller);
 		res.json(roomBody(result.room, caller.id));
 	});
 
@@ -429,7 +423,10 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// A member re-entering needs no password and spends no token.
 		if (ROOM_ID_RE.test(id) && lobby.isMember(id, caller.id)) {
 			const again = lobby.join(id, caller);
-			if (again.ok) return res.json(roomBody(again.room, caller.id));
+			if (again.ok) {
+				deps.arrived?.(id, caller);
+				return res.json(roomBody(again.room, caller.id));
+			}
 		}
 		// Spent BEFORE the room is looked up, so a 429 says nothing about whether
 		// the room exists either.
@@ -445,6 +442,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 			log({ event: 'room-join-refused', reason: 'no-match' });
 			return noMatch(res);
 		}
+		deps.arrived?.(id, caller);
 		res.json(roomBody(result.room, caller.id));
 	});
 
@@ -528,55 +526,6 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		deps.closed?.(id, result.matches);
 		deps.reseedTesting?.();
 		res.json({ ok: true });
-	});
-
-	/**
-	 * The caller's own avatar in this room — the last hop of the operator's
-	 * *"you're still not pulling in the watchparty selected avatars"*.
-	 *
-	 * ## Why this one identity field is ACCEPTED and not derived
-	 *
-	 * `name` arrives edge-injected (`X-User-Name`) and the participant id is
-	 * hashed from the edge's headers, so neither is ever read off a body — see
-	 * `room/identity.ts`, "Derived, never accepted". There is no `X-User-Avatar`
-	 * and there is no reason for the edge to invent one: the avatar is a choice
-	 * the viewer makes inside WATCHPARTY's chrome, saved in watchparty's own prefs
-	 * row, and the edge has never seen it.
-	 *
-	 * So it comes from the browser, and the thing that makes that safe is that
-	 * the ROW it lands on is not negotiable: `callerOf(req)` is the derived
-	 * ParticipantId, and `setAvatar` will only touch that member. A body cannot
-	 * name somebody else, and the worst a caller can do is draw the wrong face on
-	 * their own seat. That is a cosmetic property of a person, not a credential.
-	 *
-	 * ## One door, not three
-	 *
-	 * Create and join do NOT take the field. A room a friend has been in all
-	 * evening needs its avatar updated without re-creating or re-joining, so the
-	 * update path has to exist anyway — and two doors onto one value is how the
-	 * two come to disagree. `Caller` therefore stays exactly what it was, which
-	 * keeps `callerOf`'s header-only reading intact.
-	 *
-	 * A non-member, and a room that does not exist, are the same 404 as
-	 * everywhere else in this file. A browser asserting its avatar against a
-	 * MATCH id gets that 404 and is right to ignore it — see the client.
-	 */
-	rooms.post('/:id/identity', (req: Request, res: Response) => {
-		const body = parseBody(SetAvatarBodySchema, req, res);
-		if (body === null) return;
-		const caller = callerOf(req);
-		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
-		// The match route has no room id of its own: the client names the MATCH it is
-		// on. Match ids are not `r-` ids but do fit `ROOM_ID_RE`'s alphabet, so a match
-		// lookup goes FIRST and the name is used as a room id only when it is no
-		// match. This was a 404 for both players at every match start.
-		const named = String(req.params.id);
-		const id = lobby.roomOfMatch(named)?.id ?? named;
-		if (!ROOM_ID_RE.test(id) || !lobby.setAvatar(id, caller.id, body.avatarId)) return noMatch(res);
-		deps.lookChanged?.(id, caller.id);
-		const room = lobby.get(id);
-		if (room === undefined) return noMatch(res);
-		res.json(roomBody(room, caller.id));
 	});
 
 	rooms.post('/:id/start', async (req: Request, res: Response) => {
