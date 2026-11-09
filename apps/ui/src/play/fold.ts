@@ -63,6 +63,8 @@ export interface FoldResult {
   waitingEffects: WaitingEffects;
   /** The latest `tokenSources` snapshot folded, as a `tokenId → sourceId` map — replaced when present. */
   tokenSources: ReadonlyMap<number, number>;
+  /** The latest `effectSources` snapshot folded, as an `effectId → sourceId` map — replaced when present. */
+  effectSources: ReadonlyMap<number, number>;
   /** The latest `cantBlock` snapshot folded, as a set of card ids — replaced when present. */
   cantBlock: ReadonlySet<number>;
   /** The latest `printedTypes` snapshot folded, as a `cardId → printed card` map — replaced when present. */
@@ -84,6 +86,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   let pendingTriggers: PendingTriggers = [];
   let waitingEffects: WaitingEffects = [];
   let tokenSources = new Map<number, number>();
+  let effectSources = new Map<number, number>();
   let cantBlock = new Set<number>();
   let printedTypes = new Map<number, PrintedCard>();
   let printedPT = new Map<number, { power: number; toughness: number }>();
@@ -102,6 +105,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     if (packet.pendingTriggers !== undefined) pendingTriggers = packet.pendingTriggers;
     if (packet.waitingEffects !== undefined) waitingEffects = packet.waitingEffects;
     if (packet.tokenSources !== undefined) tokenSources = new Map(packet.tokenSources);
+    if (packet.effectSources !== undefined) effectSources = new Map(packet.effectSources);
     if (packet.cantBlock !== undefined) cantBlock = new Set(packet.cantBlock);
     if (packet.printedTypes !== undefined) printedTypes = new Map(packet.printedTypes.map(([id, type, token]) => [id, { type, token }]));
     if (packet.printedPT !== undefined) printedPT = new Map(packet.printedPT.map(([id, power, toughness]) => [id, { power, toughness }]));
@@ -129,7 +133,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     seq = packet.seq;
   }
 
-  return { state, seq, skippedDeltas, stackTargetSpells, stackTriggeredBy, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet };
+  return { state, seq, skippedDeltas, stackTargetSpells, stackTriggeredBy, pendingTriggers, waitingEffects, tokenSources, effectSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet };
 }
 
 function withoutNulls(obj: WireObject): WireObject {

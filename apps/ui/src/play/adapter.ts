@@ -911,6 +911,8 @@ export interface AdaptOptions {
   waitingEffects?: WaitingEffects;
   /** `PlayBridge.java`'s `tokenSources` (`../fold.ts`), read onto each battlefield token's `BoardCard.createdBy`. */
   tokenSources?: ReadonlyMap<number, number>;
+  /** `PlayBridge.java`'s `effectSources` (`../fold.ts`): a chip whose source is an effect card is shown as the card that made it. */
+  effectSources?: ReadonlyMap<number, number>;
   /** `PlayBridge.java`'s `cantBlock` (`../fold.ts`), read onto each battlefield creature's `BoardCard.cantBlock`. */
   cantBlock?: ReadonlySet<number>;
   /** `PlayBridge.java`'s `printedTypes` (`../fold.ts`): each changed permanent's printed card, read onto its `BoardCard.changedFrom`. */
@@ -1926,6 +1928,7 @@ export function toBoardView(
     pendingTriggers,
     waitingEffects,
     tokenSources,
+    effectSources,
     cantBlock,
     printedTypes,
     printedPTs,
@@ -2048,12 +2051,37 @@ export function toBoardView(
   );
   // A trigger that targets nothing is named for the cards that set it off: which attacker it is for.
   const triggeredLabel = (ids: readonly number[]): string | null => (ids.length > 0 ? ids.map((id) => nameOfCard(state, id)).join(', ') : null);
+  /**
+   * The card a stack chip is drawn as, and its words: an effect card (Forge's stand-in for "until your next
+   * turn, whenever …", named `<source> (<id>)'s Effect` and drawn nowhere) is shown as the card that made
+   * it, where this seat may see that card (`effectSources`; the operator, 2026-11-09). Its text is read
+   * against the effect's own name, which is what Forge's key and description are prefixed with.
+   */
+  const chipSource = (
+    id: number,
+    key: string | null,
+    description: string,
+  ): Pick<StackEntry, 'sourceCardId' | 'sourceName' | 'sourceCard' | 'sourceHidden' | 'abilityText'> => {
+    const own = toBoardCard(state, id, printedPT);
+    const ownName = own?.card.name ?? null;
+    const madeBy = effectSources?.get(id);
+    const maker = madeBy === undefined ? null : toBoardCard(state, madeBy, printedPT);
+    const shown = maker !== null && maker.hidden !== true ? maker : own;
+    const shownName = shown?.card.name ?? null;
+    const text = abilityTextOf(key, description, ownName);
+    return {
+      sourceCardId: shown === maker && madeBy !== undefined ? madeBy : id,
+      sourceName: shownName,
+      sourceCard: shown?.card ?? null,
+      sourceHidden: shown?.hidden === true,
+      abilityText: ownName !== null && shownName !== null && shownName !== ownName ? text.split(ownName).join(shownName) : text,
+    };
+  };
   const stack: StackEntry[] = idsOf(game, 'Stack').flatMap((sid) => {
     const item = state.get(deltaKey(DELTA_TYPE.stackItem, sid));
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
     const isAbility = boolOf(item, 'Ability');
     if (!isAbility && sourceCardId !== null && inAZone.has(sourceCardId)) return [];
-    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, printedPT) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
     const chain = subInstanceChain(state, item);
     const targetCardIds = [...new Set(chain.flatMap((o) => idsOf(o, 'TargetCards')))];
@@ -2069,11 +2097,9 @@ export function toBoardView(
     return [{
       id: sid,
       description,
-      sourceCardId,
-      sourceName: source?.card.name ?? null,
-      sourceCard: source?.card ?? null,
-      sourceHidden: source?.hidden === true,
-      abilityText: abilityTextOf(strOf(item, 'Key'), description, source?.card.name ?? null),
+      ...(sourceCardId === null
+        ? { sourceCardId, sourceName: null, sourceCard: null, sourceHidden: false, abilityText: abilityTextOf(strOf(item, 'Key'), description, null) }
+        : chipSource(sourceCardId, strOf(item, 'Key'), description)),
       controllerName: activator === null ? null : nameOfPlayer(activator),
       isAbility,
       targetCardIds,
@@ -2085,16 +2111,10 @@ export function toBoardView(
   });
 
   const waiting: StackEntry[] = (pendingTriggers ?? []).map((t) => {
-    const source = toBoardCard(state, t.hostCard, printedPT);
-    const sourceName = source?.card.name ?? null;
     return {
       id: -t.id,
       description: t.key,
-      sourceCardId: t.hostCard,
-      sourceName,
-      sourceCard: source?.card ?? null,
-      sourceHidden: source?.hidden === true,
-      abilityText: abilityTextOf(t.key, t.key, sourceName),
+      ...chipSource(t.hostCard, t.key, t.key),
       controllerName: nameOfPlayer(t.controller),
       isAbility: true,
       targetCardIds: [],

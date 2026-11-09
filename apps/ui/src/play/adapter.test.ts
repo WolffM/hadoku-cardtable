@@ -292,6 +292,19 @@ describe('triggeredByCardIds', () => {
     for (const other of view.stack.filter((i) => i.id !== first!.id)) expect(other.triggeredByCardIds).toEqual([]);
   });
 
+  it('a chip whose source is an effect card is shown as the card that made it', () => {
+    const state = baseState();
+    const [first] = adapt(state).stack;
+    const maker = adapt(state).players.flatMap((p) => p.battlefield)[0]!;
+    const view = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, effectSources: new Map([[first!.sourceCardId!, maker.id]]) });
+    const item = view.stack.find((i) => i.id === first!.id)!;
+    expect(item.sourceCardId).toBe(maker.id);
+    expect(item.sourceName).toBe(maker.card.name);
+    expect(item.sourceCard?.name).toBe(maker.card.name);
+    const untouched = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId }).stack.find((i) => i.id === first!.id)!;
+    expect(untouched.sourceCardId, 'with no pairing the chip keeps its own source').toBe(first!.sourceCardId);
+  });
+
   it('a waiting trigger carries its own', () => {
     const state = baseState();
     const attacker = adapt(state).players.flatMap((p) => p.battlefield)[0]!;

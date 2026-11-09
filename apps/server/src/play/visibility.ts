@@ -196,6 +196,7 @@ import {
 	type FaceDamage,
 	type PendingTriggers,
 	type StackTriggeredBy,
+	type EffectSources,
 	type PrintedPT,
 	type PrintedTypes,
 	type StateSiblings,
@@ -1048,6 +1049,13 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 		};
 	}
 
+	/** Which card made each effect, for the sources this seat may see: the source's id says where that card is. */
+	function effectSourcesSeen(pairs: EffectSources | undefined): { effectSources?: EffectSources } {
+		if (pairs === undefined) return {};
+		const zones = indexZones(raw);
+		return { effectSources: pairs.filter(([, source]) => seen(zones, source) === 'full') };
+	}
+
 	/** Which card set each stack trigger off, for the cards this seat may see: an id it may not would say where that card is. */
 	function triggeredBySeen(pairs: StackTriggeredBy | undefined): { stackTriggeredBy?: StackTriggeredBy } {
 		if (pairs === undefined) return {};
@@ -1181,6 +1189,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 							...pendingSeen(frame.payload.pendingTriggers),
 							...effectsSeen(frame.payload.waitingEffects),
 							...tokensSeen(frame.payload.tokenSources),
+							...effectSourcesSeen(frame.payload.effectSources),
 							...cantBlockSeen(frame.payload.cantBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
 							...printedPTSeen(frame.payload.printedPT),
@@ -1202,6 +1211,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 							...pendingSeen(frame.payload.pendingTriggers),
 							...effectsSeen(frame.payload.waitingEffects),
 							...tokensSeen(frame.payload.tokenSources),
+							...effectSourcesSeen(frame.payload.effectSources),
 							...cantBlockSeen(frame.payload.cantBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
 							...printedPTSeen(frame.payload.printedPT),

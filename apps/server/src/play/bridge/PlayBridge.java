@@ -1428,6 +1428,8 @@ public final class PlayBridge {
         if (pending != null) { payload.add("pendingTriggers", pending); }
         final JsonArray effects = waitingEffectsJson(game);
         if (effects != null) { payload.add("waitingEffects", effects); }
+        final JsonArray effectSources = orNull("effectSources", () -> effectSourcesJson(game));
+        if (effectSources != null) { payload.add("effectSources", effectSources); }
         final JsonArray tokens = tokenSourcesJson(game);
         if (tokens != null) { payload.add("tokenSources", tokens); }
         final JsonArray cantBlock = cantBlockJson(game);
@@ -2330,6 +2332,38 @@ public final class PlayBridge {
             }
             return mapParams;
         }
+    }
+
+    /**
+     * Which card made each effect card a stack item or a waiting trigger comes from: {@code
+     * [effectId, sourceId]}, off {@code Card.getEffectSource}. An effect card is Forge's stand-in for
+     * "until your next turn, whenever …" (Jace, Architect of Thought's +1): its trigger's source is the
+     * effect, named {@code "<source> (<id>)'s Effect"} with Forge's own card id in it, and drawn
+     * nowhere. The operator, 2026-11-09: name the chip for the card that made it. Read off every
+     * command zone and every trigger's host, so a trigger still on the stack after its effect ended
+     * keeps its source. A full snapshot each time.
+     */
+    static JsonArray effectSourcesJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        final List<forge.game.card.Card> hosts = new ArrayList<>();
+        for (final forge.game.player.Player p : game.getPlayers()) { hosts.addAll(p.getCardsIn(ZoneType.Command)); }
+        for (final SpellAbilityStackInstance si : game.getStack()) { hosts.add(si.getSourceCard()); }
+        try {
+            for (final WrappedAbility w : pendingTriggers(game)) { hosts.add(w.getHostCard()); }
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException("the waiting triggers could not be read", e);
+        }
+        final Set<Integer> seen = new java.util.HashSet<>();
+        for (final forge.game.card.Card c : hosts) {
+            final forge.game.card.Card source = c == null || !c.isImmutable() ? null : c.getEffectSource();
+            if (source == null || source.getId() == c.getId() || !seen.add(c.getId())) { continue; }
+            final JsonArray pair = new JsonArray();
+            pair.add(c.getId());
+            pair.add(source.getId());
+            out.add(pair);
+        }
+        return out;
     }
 
     /**

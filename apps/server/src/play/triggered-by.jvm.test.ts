@@ -16,6 +16,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { DELTA_TYPE } from "@hadoku/forge-wire";
+
 import {
   available,
   deck,
@@ -158,6 +160,57 @@ describe.skipIf(!available.ok)(title, () => {
             [bears.id, giant.id],
             `seat ${seat}: a waiting trigger names an attacker`,
           ).toContain(card);
+      }
+    } finally {
+      await s.stop();
+    }
+  }, 120_000);
+
+  it("Ondu Rising's effect with two attackers: each trigger's chip is named for Ondu Rising, its effect's source, on both seats", async () => {
+    if (!available.ok) return;
+    // Ondu Rising sits in the graveyard and its effect is precast from there, so its source is a card both
+    // seats see. Its trigger ("whenever a creature attacks this turn") lives on an effect card, named
+    // "Ondu Rising (<id>)'s Effect" and drawn nowhere.
+    const state = STATE.replace('humanbattlefield=Hellrider|SummonSick;', 'humanbattlefield=')
+      .replace('humangraveyard=', 'humangraveyard=Ondu Rising|Id:501\nhumanprecast=501');
+    const s = await startScenario(available.config, { seed: 92, decks: DECKS, scenario: state });
+    try {
+      await finishMulligan(s);
+      await waitUntil(() => {
+        s.answerAsks();
+        return ['Grizzly Bears', 'Hill Giant'].every((name) => s.zone(0, 'Battlefield').some((c) => c.name === name && !c.sick)) && s.zone(0, 'Graveyard').some((c) => c.name === 'Ondu Rising');
+      }, 'the scenario’s attackers and Ondu Rising', 30_000, s);
+      const bears = s.zone(0, 'Battlefield').find((c) => c.name === 'Grizzly Bears')!;
+      const giant = s.zone(0, 'Battlefield').find((c) => c.name === 'Hill Giant')!;
+      const ondu = s.zone(0, 'Graveyard').find((c) => c.name === 'Ondu Rising')!;
+
+      await toDeclareAttackers(s, 0);
+      s.select(0, bears.id);
+      s.select(0, giant.id);
+      await waitUntil(() => {
+        s.answerAsks();
+        return s.buttons(0)?.label2 === 'Call Back';
+      }, 'both attackers to be declared', 10_000, s);
+      s.ok(0);
+
+      const sources = (seat: number): [number, number][] =>
+        s.sent
+          .filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify')
+          .flatMap((x) => (x.envelope.frame as unknown as { payload?: { effectSources?: [number, number][] } }).payload?.effectSources ?? []);
+      await waitUntil(() => {
+        s.answerAsks();
+        return [0, 1].every((seat) => new Set(triggeredBy(s, seat).pairs.map(([, card]) => card)).size === 2 && sources(seat).length > 0);
+      }, 'both seats to be told each trigger’s attacker and its effect’s source', 30_000, s);
+
+      for (const seat of [0, 1]) {
+        const items = [...s.state(seat).values()].filter((o) => o._type === DELTA_TYPE.stackItem);
+        const hosts = new Set(items.map((o) => (o['SourceCard'] as { v?: number } | undefined)?.v).filter((v): v is number => v !== undefined));
+        const made = new Map(sources(seat));
+        console.log(`[triggered-by.jvm] seat ${seat}: stack hosts ${JSON.stringify([...hosts])}; effectSources ${JSON.stringify([...made])}; ondu #${ondu.id}`);
+        expect(hosts.size, `seat ${seat}: the triggers come from one effect card`).toBe(1);
+        const effect = [...hosts][0]!;
+        expect(effect, `seat ${seat}: that card is not Ondu Rising itself`).not.toBe(ondu.id);
+        expect(made.get(effect), `seat ${seat}: the effect is named for Ondu Rising`).toBe(ondu.id);
       }
     } finally {
       await s.stop();

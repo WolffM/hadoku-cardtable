@@ -365,6 +365,24 @@ describe('pendingTriggers', () => {
 	});
 });
 
+describe('effectSources', () => {
+	it("keeps an effect's source this seat sees, drops one it may not see", () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const effectSources: [number, number][] = [
+			[900, onField],
+			[901, inTheirHand],
+		];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, effectSources } }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(out.payload.effectSources).toEqual([[900, onField]]);
+		const owner = createProjector(1).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, effectSources } }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(owner.payload.effectSources).toEqual(effectSources);
+	});
+});
+
 describe('stackTriggeredBy', () => {
 	it('keeps the cards this seat sees that set a trigger off, on a stack pair and a waiting trigger alike', () => {
 		const raw = fold(fixtureFrames());

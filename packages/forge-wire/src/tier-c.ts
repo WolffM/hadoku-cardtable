@@ -765,6 +765,15 @@ export const TokenSourcesSchema = z.array(z.tuple([JavaInt, JavaInt]));
 export type TokenSources = z.infer<typeof TokenSourcesSchema>;
 
 /**
+ * Which card made each effect card a trigger comes from (`PlayBridge.java`'s `effectSourcesJson`, off
+ * `Card.getEffectSource`), as `[effectId, sourceId]` pairs: an effect card is named with Forge's own
+ * card id in it and drawn nowhere, so a chip is named for its source instead. A full snapshot each time.
+ */
+export const EffectSourcesSchema = z.array(z.tuple([JavaInt, JavaInt]));
+
+export type EffectSources = z.infer<typeof EffectSourcesSchema>;
+
+/**
  * The bridge's fifth addition beside the packet: the ids of the creatures on a battlefield that
  * can't block (`PlayBridge.java`'s `cantBlockJson`, Forge's own `CombatUtil.canBlock(card, true)`:
  * the creature's restriction, not whether it is tapped) — the view itself never says. A full
@@ -877,6 +886,7 @@ export const StateSiblingsSchema = z.strictObject({
   pendingTriggers: PendingTriggersSchema.optional(),
   waitingEffects: WaitingEffectsSchema.optional(),
   tokenSources: TokenSourcesSchema.optional(),
+  effectSources: EffectSourcesSchema.optional(),
   cantBlock: CantBlockSchema.optional(),
   printedTypes: PrintedTypesSchema.optional(),
   printedPT: PrintedPTSchema.optional(),
