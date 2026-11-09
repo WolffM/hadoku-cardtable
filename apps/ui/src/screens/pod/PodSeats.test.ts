@@ -27,7 +27,6 @@ describe('the pod seat grid', () => {
       leaderId: 'u-alice',
       readyOf: () => false,
       faceOf: () => ({ id: null }),
-      deckNameOf: () => undefined,
       onSit: () => undefined,
       onAi: () => undefined,
       onClose,
@@ -46,6 +45,33 @@ describe('the pod seat grid', () => {
     expect(onClose).toHaveBeenCalledWith(7, false);
   });
 
+  it('a Challenge: each AI seat names its real player, nothing changes the field, and only the open seat offers Sit', () => {
+    const seats = emptySeats();
+    for (let i = 0; i < POD_SEATS; i++) if (i !== 4) seats[i] = { memberId: POD_AI, name: 'Sunny', avatarId: 'sunny', deckId: `deck-${String(i)}` };
+    render(
+      createElement(PodSeats, {
+        seats,
+        myMemberId: 'u-alice',
+        leaderId: 'u-alice',
+        readyOf: () => false,
+        faceOf: () => ({ id: null }),
+        playerOf: (deckId) => (deckId === 'deck-0' ? 'TeaW1thRum' : undefined),
+        fieldFixed: true,
+        onSit: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    expect(screen.getByTestId('pod-seat-0').textContent).toContain('TeaW1thRum');
+    expect(screen.getByTestId('pod-seat-0').dataset.player).toBe('TeaW1thRum');
+    expect(screen.getByTestId('pod-seat-1').textContent, 'a list the page does not hold keeps the seat’s own name').toContain('Sunny');
+    expect(screen.queryByTestId('pod-seat-ai-remove')).toBeNull();
+    expect(screen.queryByTestId('pod-seat-ai')).toBeNull();
+    expect(screen.queryByTestId('pod-seat-close')).toBeNull();
+    expect(screen.getAllByTestId('pod-seat-sit')).toHaveLength(1);
+    expect(screen.queryByTestId(`pod-seat-${String(POD_SEATS)}`), 'a full fixed field grows no seat').toBeNull();
+  });
+
   it('draws all 8 seats, empty ones offering Sit', () => {
     render(
       createElement(PodSeats, {
@@ -54,7 +80,6 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: () => false,
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -74,7 +99,6 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: (id) => id === 'u-alice',
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -99,7 +123,6 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: () => false,
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -123,7 +146,6 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: () => false,
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -147,7 +169,6 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: () => false,
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit: () => undefined,
         onAi,
         onClose: () => undefined,
@@ -170,7 +191,6 @@ describe('the pod seat grid', () => {
         leaderId: 'u-lead',
         readyOf: () => false,
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -190,7 +210,6 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: () => false,
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -210,7 +229,6 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: () => false,
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -237,7 +255,6 @@ describe('the pod seat grid', () => {
         leaderId: 'u-me',
         readyOf: () => true,
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -265,7 +282,6 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: () => true,
         faceOf: () => ({ id: null }),
-        deckNameOf: () => undefined,
         onSit: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -292,7 +308,6 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: () => false,
         faceOf: (id: string) => ({ id: id === 'u-has-avatar' ? 'some-avatar-id' : null }),
-        deckNameOf: () => undefined,
         onSit: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
@@ -323,7 +338,6 @@ describe('the pod seat grid', () => {
       leaderId: 'u-alice',
       readyOf: () => false,
       faceOf: () => ({ id: null }),
-      deckNameOf: () => undefined,
       onSit: () => undefined,
       onAi,
       onClose: () => undefined,
@@ -363,7 +377,6 @@ describe('a room past 8: one list of seats, pods decided only at the split', () 
     leaderId: 'u-alice',
     readyOf: () => false,
     faceOf: () => ({ id: null }),
-    deckNameOf: () => undefined,
     onAi: () => undefined,
     onClose: () => undefined,
   };

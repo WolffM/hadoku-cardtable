@@ -41,6 +41,8 @@ import {
   DraftPresetSchema,
   PoolVerdictSchema,
   SetSummarySchema,
+  type ChallengeCreateBody,
+  type ChallengeEvent,
   type ClientMode,
   type CubeSummary,
   type DraftCard,
@@ -224,6 +226,10 @@ export interface RoomsClient {
    */
   get(roomId: string): Promise<RoomView | null>;
   create(req: CreateRequest): Promise<CreateOutcome>;
+  /** The catalogued Challenges (`GET /api/rooms/challenges`). Throws a sentence when they cannot be read. */
+  challenges(): Promise<ChallengeEvent[]>;
+  /** A new Challenge room, the caller in `player`'s seat. */
+  createChallenge(req: ChallengeCreateBody): Promise<CreateOutcome>;
   join(roomId: string, password?: string): Promise<JoinOutcome>;
   /** Your own readiness in this room. The server resolves who you are. */
   ready(roomId: string, ready: boolean): Promise<RoomOutcome>;
@@ -444,6 +450,25 @@ export function roomsClient(
     // first render, and the chat (App.tsx's gate) never wraps the lobby late and remounts it.
     async create(req) {
       const outcome = await write('', { name: req.name, ...createRoomFields(req) }, 'Could not create the room');
+      if (outcome.ok) markJoined(outcome.room.id);
+      return outcome;
+    },
+
+    async challenges() {
+      let res: Response;
+      try {
+        res = await getJson(url('/challenges'), fetchImpl);
+      } catch {
+        throw new Error('Could not reach the server.');
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) throw new Error(`Could not load the Challenges: ${serverMessage(body, res.status)}.`);
+      if (!isRecord(body) || !Array.isArray(body.challenges)) throw new Error('Could not load the Challenges: the server sent something that is not a list.');
+      return body.challenges as ChallengeEvent[];
+    },
+
+    async createChallenge(req) {
+      const outcome = await write('/challenge', req, 'Could not create the room');
       if (outcome.ok) markJoined(outcome.room.id);
       return outcome;
     },

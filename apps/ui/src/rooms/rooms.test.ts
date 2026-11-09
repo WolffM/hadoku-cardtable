@@ -93,6 +93,24 @@ const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 /** A tiny rooms server. `password` is the one the locked room takes. */
+/** Two events, as `GET /api/rooms/challenges` lists them: a top 8 and the 9th, who is in the full field only. */
+const CHALLENGES = [
+  {
+    collection: 'tournament-legacy-2026-02-07',
+    name: 'Legacy Challenge 32',
+    date: '2026-02-07',
+    format: 'Legacy (2026-01-26)',
+    standings: Array.from({ length: 9 }, (_, i) => ({ rank: i + 1, player: `legacy-${String(i + 1)}`, deckId: `leg-${String(i + 1)}` })),
+  },
+  {
+    collection: 'tournament-modern-2026-02-07',
+    name: 'Modern Challenge 32',
+    date: '2026-02-07',
+    format: 'Modern (ECL)',
+    standings: Array.from({ length: 9 }, (_, i) => ({ rank: i + 1, player: `modern-${String(i + 1)}`, deckId: `mod-${String(i + 1)}` })),
+  },
+];
+
 function server(rooms: RoomView[], opts: { password?: string; listStatus?: number } = {}) {
   const calls: Call[] = [];
   const fetchImpl: Fetch = async (url, init) => {
@@ -103,6 +121,8 @@ function server(rooms: RoomView[], opts: { password?: string; listStatus?: numbe
     if (method === 'GET' && path === 'rooms') {
       return opts.listStatus !== undefined ? json(opts.listStatus, { error: 'boom' }) : json(200, { rooms });
     }
+    if (method === 'GET' && path === 'rooms/challenges') return json(200, { challenges: CHALLENGES });
+    if (method === 'POST' && path === 'rooms/challenge') return json(201, room({ id: 'r-challenge', name: 'Legacy Challenge 32 Top 8, 2026-02-07', gameType: 'constructed-1v1' }));
     if (method === 'POST' && path === 'rooms') {
       const b = body ?? {};
       return json(
@@ -718,7 +738,7 @@ describe('creating a room', () => {
     await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
-  it('omits an empty password and an unchosen mode: the type is two radios, Constructed first and chosen, and no mode is', async () => {
+  it('omits an empty password and an unchosen mode: the type is three radios, Constructed first and chosen, and no mode is', async () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
@@ -728,8 +748,9 @@ describe('creating a room', () => {
     expect(types.map((r) => [r.value, r.checked, r.disabled])).toEqual([
       ['constructed-1v1', true, false],
       ['draft', false, false],
+      ['challenge', false, false],
     ]);
-    expect(screen.getByRole('radiogroup', { name: 'Game type' }).textContent).toBe('ConstructedDraft');
+    expect(screen.getByRole('radiogroup', { name: 'Game type' }).textContent).toBe('ConstructedDraftChallenge');
     const modes = within(screen.getByTestId('room-create-constructed-mode')).getAllByRole('radio') as HTMLInputElement[];
     expect(modes.map((r) => [r.value, r.checked])).toEqual([
       ['classic', false],
@@ -748,6 +769,39 @@ describe('creating a room', () => {
       gameType: 'constructed-1v1',
       clientMode: 'builtin',
     });
+  });
+
+  it('creates a Challenge: an event, its field, whose seat to take, and no name to type', async () => {
+    const { client, calls } = server([]);
+    mount(client);
+    await screen.findByTestId('rooms-empty');
+    openCreate();
+
+    fireEvent.click(screen.getByTestId('room-create-type-challenge'));
+    const event = (await screen.findByTestId('room-create-challenge')) as HTMLSelectElement;
+    expect(screen.queryByTestId('room-create-name')).toBeNull();
+    expect(screen.queryByTestId('room-create-password')).toBeNull();
+    expect([...event.options].map((o) => o.textContent)).toEqual(['Legacy Challenge 32, 2026-02-07', 'Modern Challenge 32, 2026-02-07']);
+    const player = screen.getByTestId('room-create-player') as HTMLSelectElement;
+    expect(player.options).toHaveLength(8);
+    expect(player.value).toBe('legacy-1');
+
+    // The full field seats the 9th; narrowing back to the top 8 takes the champion's seat again.
+    fireEvent.click(screen.getByTestId('room-create-field-full'));
+    expect((screen.getByTestId('room-create-player') as HTMLSelectElement).options).toHaveLength(9);
+    fireEvent.change(screen.getByTestId('room-create-player'), { target: { value: 'legacy-9' } });
+    fireEvent.click(screen.getByTestId('room-create-field-top8'));
+    expect((screen.getByTestId('room-create-player') as HTMLSelectElement).value).toBe('legacy-1');
+    fireEvent.click(screen.getByTestId('room-create-field-full'));
+    fireEvent.change(screen.getByTestId('room-create-player'), { target: { value: 'legacy-9' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+    });
+    expect(calls.filter((c) => c.method === 'POST')).toEqual([
+      { url: '/cardtable/api/rooms/challenge', method: 'POST', body: { collection: 'tournament-legacy-2026-02-07', player: 'legacy-9', field: 'full' } },
+    ]);
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-challenge' }));
   });
 
   it('creates a draft room through the form — Draft is pickable, not just the API', async () => {
