@@ -68,7 +68,8 @@ import {
 	type RoomSnapshot,
 	type SerializedMember,
 } from '@wolffm/rooms-server/store';
-import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
+import { AVATAR_POOL, createSeatTable, isDurableParticipantId, pickAvatar } from '@wolffm/rooms-protocol';
+import { addMember, clearReady, createMembershipLedger, isReady, memberLeft, readyParticipants, setReady as ledgerSetReady, type MembershipLedger } from '@wolffm/rooms-server';
 import {
 	AVATAR_ID_MAX,
 	ClientModeSchema,
@@ -263,20 +264,13 @@ function avatarIdOf(v: unknown): string | undefined {
 
 /**
  * The characters a room hands out to a member who has not picked one, and its
- * AI seats wear, in the order it hands them out: watchparty's whole
- * `CHARACTER_ORDER` (`hadoku-watchparty` `packages/shared/src/characters.ts`,
- * its four sets in order, as of watchparty a8f99f94), which its server draws
- * from on join. Copied because that package is private to their repo;
- * `docs/requests/ROOMS_AVATAR_POOL.md` asks for it to be published. Every id
- * here has a `square_<id>.png` on watchparty's media (checked 2026-11-01). A
- * picked avatar is never checked against this list.
+ * AI seats wear, in the order it hands them out: `@wolffm/rooms-protocol`'s
+ * `AVATAR_POOL` (`docs/requests/ROOMS_AVATAR_POOL.md`, resolved — fleet
+ * protocol now, not a copy of watchparty's `CHARACTER_ORDER`). A picked
+ * avatar is never checked against this list. Re-exported so `lobby.test.ts`
+ * still reads it off this module.
  */
-export const AVATAR_POOL = [
-	'sage', 'herald', 'cleric', 'knight', 'mage', 'brawler', 'wanderer', 'rogue',
-	'gunner', 'chief', 'walker', 'operative',
-	'idol', 'recluse', 'phantom', 'harlequin', 'doll', 'imp',
-	'apprentice', 'prodigy', 'dreamer', 'sunny', 'mentor',
-] as const;
+export { AVATAR_POOL };
 
 type Face = string | null | undefined;
 
@@ -310,14 +304,12 @@ function drawAvatar(seed: string, ...tiers: readonly (readonly Face[])[]): strin
 }
 
 /**
- * The first character in the pool no current member wears — watchparty's
- * `getAvailableSprites(room)[0]` (`@wolffm/rooms-server`'s `availableAvatars`,
- * which reads a socket room's claim set; ours is the members themselves).
- * Undefined when all are taken: that member goes without, as in watchparty.
+ * The first character in the pool no current member wears — `rooms-protocol`'s
+ * `pickAvatar`, asked with no `preferred` (so it is exactly "the first free
+ * one"). Undefined when all are taken: that member goes without.
  */
 function freeAvatar(members: readonly MemberRecord[]): string | undefined {
-	const worn = new Set(members.map((m) => m.avatarId));
-	return AVATAR_POOL.find((a) => !worn.has(a));
+	return pickAvatar(members.map((m) => m.avatarId));
 }
 
 /**
@@ -336,7 +328,6 @@ function newMember(room: readonly MemberRecord[], caller: Caller, joinedAt: numb
 		name: caller.name,
 		joinedAt,
 		state: undefined,
-		ready: false,
 		...(avatarId === undefined ? {} : { avatarId, avatarGiven: true }),
 	};
 }
@@ -757,7 +748,8 @@ export function splitIntoPods(drafters: readonly string[], seed: string): string
 function dealGate(room: RoomRecord): 'not-ready' | 'plan-not-ready' | null {
 	const seated = seatedHumans(room);
 	if (seated.length === 0 || room.podSeats.includes(null)) return 'not-ready';
-	if (seated.some((id) => room.members.find((m) => m.id === id)?.ready !== true)) return 'not-ready';
+	const ready = readyParticipants(room.ledger);
+	if (seated.some((id) => !ready.includes(id))) return 'not-ready';
 	if (room.planVerdict === null || !room.planVerdict.ok) return 'plan-not-ready';
 	return null;
 }
@@ -1920,7 +1912,6 @@ interface MemberRecord {
 	name: string;
 	joinedAt: number;
 	state: unknown;
-	ready: boolean;
 	/** Normalised by `avatarIdOf` on the way in, so this is never `''` and never `null`. */
 	avatarId?: string;
 	/**
@@ -1938,6 +1929,7 @@ interface RoomRecord {
 	id: string;
 	name: string;
 	creator: string;
+	/** Mirrors `ledger.leaderId`, kept non-null (`join`/`leave` sync the two); stale on the last member out, for `sweep`/the next `join`. */
 	leader: string;
 	gameType: GameType;
 	format: FormatId;
@@ -2020,6 +2012,8 @@ interface RoomRecord {
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
 	members: MemberRecord[];
+	/** Membership/ready/leader engine (`@wolffm/rooms-server`'s `seats.ts`). In memory only — rebuilt from `members`/`leader` on restore. */
+	ledger: MembershipLedger;
 }
 
 /**
@@ -2485,7 +2479,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView 
 			id: m.id,
 			name: m.name,
 			joinedAt: new Date(m.joinedAt).toISOString(),
-			ready: m.ready,
+			ready: isReady(room.ledger, m.id),
 			// Spread, not `avatarId: m.avatarId`. The key is ABSENT for a member
 			// who has no avatar rather than present-and-undefined, so an
 			// in-process reader and a JSON reader see the same two states —
@@ -2564,10 +2558,8 @@ const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: D
  * `unseat`: a game type change or a tournament's lock retires the tables.
  */
 function dropHolds(room: RoomRecord, unseat: boolean): void {
-	for (const member of room.members) {
-		member.ready = false;
-		member.state = undefined;
-	}
+	clearReady(room.ledger);
+	for (const member of room.members) member.state = undefined;
 	for (const table of room.tables) {
 		if (unseat) table.seats = [null, null];
 		table.ready = [false, false];
@@ -2779,6 +2771,7 @@ class FileLobby implements Lobby {
 		const members: SerializedMember[] = room.members.map((m) => {
 			// No name and no avatar id (R12): a member is saved as who they are, not as what they
 			// were called. Both come back from their next request (`rename`, the avatar assert).
+			const ready = isReady(room.ledger, m.id);
 			const member: SerializedMember = {
 				participantId: m.id,
 				...(m.userId === null ? {} : { accountId: m.userId }),
@@ -2788,10 +2781,7 @@ class FileLobby implements Lobby {
 				// `ready` rides the same blob — it is per-member state like the
 				// deck choice. A member with neither still writes `null`, which
 				// is byte-for-byte what a pre-wave-23 room wrote.
-				app:
-					m.state === undefined && !m.ready
-						? null
-						: { state: structuredClone(m.state), ready: m.ready },
+				app: m.state === undefined && !ready ? null : { state: structuredClone(m.state), ready },
 			};
 			return member;
 		});
@@ -3706,7 +3696,6 @@ class FileLobby implements Lobby {
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		const index = room.members.findIndex((m) => m.id === memberId);
 		if (index === -1) return { ok: false, reason: 'not-member' };
-		const wasLeader = room.leader === memberId;
 		// An entrant who leaves mid-tournament has dropped out. Not a testing room's seed, which stands in
 		// for an entrant through round 1 and leaves so a real admin can take its seat (`testing-rooms.ts`).
 		const pod = room.pod;
@@ -3723,12 +3712,9 @@ class FileLobby implements Lobby {
 		room.members.splice(index, 1);
 		// A split drafter leaving takes their Ready with them: the split no longer stands, and the seats it fixed are free again.
 		if (room.podSplit?.pods.some((p) => p.includes(memberId)) === true) room.podSplit = null;
-		// The operator's ruling: leadership passes to whoever remaining joined
-		// EARLIEST, not to array order (today the same thing, since `join`
-		// appends — restated explicitly so that stops being an assumption).
-		if (wasLeader && room.members.length > 0) {
-			room.leader = room.members.reduce((earliest, m) => (m.joinedAt < earliest.joinedAt ? m : earliest)).id;
-		}
+		// R16: `memberLeft` passes leadership to whoever remains joined earliest; `null` means empty.
+		const newLeader = memberLeft(room.ledger, memberId);
+		if (newLeader !== null) room.leader = newLeader;
 		this.#persist(room);
 		this.#log({ event: 'room-left', roomId, members: room.members.length, newLeader: room.leader });
 		return { ok: true, room: this.#view(room), ...(forfeited === undefined ? {} : { forfeited }) };
@@ -3751,6 +3737,8 @@ class FileLobby implements Lobby {
 	#insert(id: string, caller: Caller, input: CreateRoomInput): RoomView {
 		const now = Math.max(this.#now(), this.#lastCreatedAt + 1);
 		this.#lastCreatedAt = now;
+		const ledger = createMembershipLedger();
+		addMember(ledger, caller.id, now);
 		const room: RoomRecord = {
 			id,
 			name: input.name,
@@ -3813,6 +3801,7 @@ class FileLobby implements Lobby {
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember([], caller, now)],
+			ledger,
 		};
 		if (room.historical === true && input.historicalField !== undefined) seatHistoricalField(room, input.historicalField);
 		this.#rooms.set(id, room);
@@ -3845,10 +3834,11 @@ class FileLobby implements Lobby {
 		if (secret !== undefined && !passwordMatches(secret, password ?? '')) {
 			return { ok: false, reason: 'no-match' };
 		}
-		// An emptied room's leader left with everyone else: whoever comes in
-		// first leads it (a seeded testing room is empty from the start).
-		if (room.members.length === 0) room.leader = caller.id;
-		room.members.push(newMember(room.members, caller, this.#now()));
+		const now = this.#now();
+		// An empty ledger's first member becomes its leader (an emptied room's new arrival leads it).
+		addMember(room.ledger, caller.id, now);
+		room.leader = room.ledger.leaderId ?? room.leader;
+		room.members.push(newMember(room.members, caller, now));
 		this.#autoSeat(room, caller.id);
 		this.#persist(room);
 		this.#log({ event: 'room-joined', roomId, members: room.members.length });
@@ -3871,7 +3861,7 @@ class FileLobby implements Lobby {
 		// Once the leader has split the room, every position is locked (the operator, 2026-10-31: *"once
 		// everyone is ready and the pods are created, noone can unready anymore"*): Ready stays on.
 		if (!ready && room.gameType === 'draft' && heldSplit(room) !== null) return true;
-		member.ready = ready;
+		ledgerSetReady(room.ledger, memberId, ready);
 		// In a pod's lobby, Ready is "I am playing": a member who has not sat takes
 		// the first open seat. A full pod leaves them watching, ready or not — the
 		// deal never waits on a member who holds no seat.
@@ -4056,7 +4046,7 @@ class FileLobby implements Lobby {
 			return { ok: false, reason: 'not-ready' };
 		}
 		// A Challenge's seat comes with its real player's list, so its human is ready by their Ready alone.
-		const pressedReady = (id: string): boolean => room.members.find((m) => m.id === id)?.ready === true;
+		const pressedReady = (id: string): boolean => isReady(room.ledger, id);
 		const humanReady = (id: string): boolean => (room.mode === 'classic' && room.seatDecks === undefined ? this.#hooksFor(room.gameType).hasLegalSeatDeck(room.id, id) : pressedReady(id));
 		if (entrants.some((id) => !isAiEntrant(id) && !humanReady(id))) return { ok: false, reason: 'not-ready' };
 		if (room.seatDecks !== undefined) {
@@ -4134,7 +4124,7 @@ class FileLobby implements Lobby {
 		// Readiness is readiness for a particular game: a member who readied for
 		// a draft has not agreed to a constructed match. Cleared for everyone,
 		// including the leader making the change.
-		for (const member of room.members) member.ready = false;
+		clearReady(room.ledger);
 		this.#persist(room);
 		this.#log({ event: 'room-game-type', roomId, gameType });
 		return { ok: true, room: this.#view(room) };
@@ -4620,24 +4610,29 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 			const restoredAsClassic = game.mode === undefined && app.gameType === 'constructed-1v1';
 			if (restoredAsClassic) log({ event: 'room-mode-restored', roomId, mode: 'classic' });
 			const members: MemberRecord[] = [];
+			// Rebuilt, not persisted; `leaderId` is set explicitly below, from disk.
+			const ledger = createMembershipLedger();
 			for (const m of decoded.members) {
 				// Nothing names a member on disk (R12): they are `UNNAMED` until their next
 				// request renames them, and wear the room's next free character until their
 				// screen asserts their own, exactly as on a first join.
 				const avatarId = freeAvatar(members);
+				// Kept across the restart, unlike the draft itself: the room comes
+				// back in its lobby phase with everybody still ready, which is one
+				// click from starting again rather than four.
+				const ready = !offPod && unboxReady(m.app);
+				addMember(ledger, m.participantId, m.joinedAt);
+				if (ready) ledgerSetReady(ledger, m.participantId, true);
 				members.push({
 					id: m.participantId,
 					userId: m.accountId ?? null,
 					name: UNNAMED,
 					joinedAt: m.joinedAt,
 					state: offPod ? undefined : unboxState(m.app),
-					// Kept across the restart, unlike the draft itself: the room comes
-					// back in its lobby phase with everybody still ready, which is one
-					// click from starting again rather than four.
-					ready: !offPod && unboxReady(m.app),
 					...(avatarId === undefined ? {} : { avatarId, avatarGiven: true as const }),
 				});
 			}
+			ledger.leaderId = app.leader;
 			lobby.restore(
 				{
 					id: roomId,
@@ -4704,6 +4699,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// by the process that wrote it. `decoded` does not carry it.
 					updatedAt: snapshot.updatedAt,
 					members,
+					ledger,
 				},
 				app.secret,
 			);
