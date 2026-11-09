@@ -1371,7 +1371,7 @@ export const GAME_DRAWN_AFTER_MS = 8 * 60 * 60_000;
  * restore on boot and live twelve hours, and the list prints a room's STORED
  * members, not who is connected, so a dead table looked alive with an Enter
  * button. A room someone has open is touched by its screen's reads and, for as
- * long as the screen stays open, by the room feed (`room/feed.ts`), so "nobody
+ * long as the screen stays open, by the room feed (`room/watching.ts`), so "nobody
  * touched it for thirty minutes" means nobody is there. A room with a match or
  * a draft under way is exempt: its players are on another screen.
  */
@@ -1468,7 +1468,7 @@ export interface Lobby {
 	 * Be told every time a room is written, created or forgotten. Every mutation
 	 * goes through one persist, so this is every change a read could see and
 	 * nothing else: a read (`touch`, `get`, `list`) never fires it. The room feed
-	 * pushes from here (`room/feed.ts`). Returns the unsubscribe.
+	 * pushes from here (`room/watching.ts`). Returns the unsubscribe.
 	 */
 	onChange(listener: RoomChangeListener): () => void;
 	/**
