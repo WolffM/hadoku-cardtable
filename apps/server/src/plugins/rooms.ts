@@ -15,7 +15,7 @@ import { DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRoo
 import { emitDraftUpdate, draftEmitPolicy } from '../room/emit.js';
 import { newestFormat } from '../room/lobby.js';
 import { seedTestingRooms } from '../room/testing-rooms.js';
-import { seedReplay } from '../room/seed-replay.js';
+import { challenges, seedStandingChallenge } from '../room/challenge.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { CardtablePlugin } from './state.js';
 
@@ -92,20 +92,20 @@ export const roomsPlugin: CardtablePlugin = {
 				checkPlan: state.checkDraftPlan,
 				library: state.library,
 			});
-		// A historical replay room, seeded the same off-boot way the testing
-		// rooms are (`seed-replay.ts`'s own doc): idempotent by name, so a warm
-		// hook that runs twice recreates nothing. Set only when the operator
-		// names a tournament to replay — absent, nothing seeds and no cost is
-		// paid. `CARDTABLE_REPLAY_TOURNAMENT` is the repo-root-relative
-		// `tournament.json`; `CARDTABLE_REPLAY_COLLECTION` its library
-		// collection id; `CARDTABLE_REPLAY_SEAT` (0-7) whose player YOU replay.
-		state.runReplaySeed = (): Promise<void> => {
-			const tournament = process.env.CARDTABLE_REPLAY_TOURNAMENT;
-			if (tournament === undefined || tournament === '') return Promise.resolve();
-			const collection = process.env.CARDTABLE_REPLAY_COLLECTION ?? '';
-			const seat = process.env.CARDTABLE_REPLAY_SEAT ?? '5';
-			const full = process.env.CARDTABLE_REPLAY_FULL === '1';
-			return seedReplay(lobby, { tournament, collection, seat: Number(seat), full }, state.roomsLog);
+		// Challenge rooms (`room/challenge.ts`), and the one the operator may keep standing:
+		// `CARDTABLE_CHALLENGE_COLLECTION` names the event, `CARDTABLE_CHALLENGE_PLAYER` whose seat
+		// stays open, `CARDTABLE_CHALLENGE_FIELD` `top8` (the default) or `full`. Off the boot path,
+		// like the testing rooms, and idempotent by name.
+		state.challenges = challenges(lobby, state.repoRoot);
+		state.runChallengeSeed = (): void => {
+			const collection = process.env.CARDTABLE_CHALLENGE_COLLECTION ?? '';
+			if (collection === '') return;
+			const field = process.env.CARDTABLE_CHALLENGE_FIELD === 'full' ? 'full' : 'top8';
+			try {
+				seedStandingChallenge(lobby, state.challenges, { collection, player: process.env.CARDTABLE_CHALLENGE_PLAYER ?? '', field }, state.roomsLog);
+			} catch (err) {
+				state.roomsLog({ event: 'challenge-seed-failed', collection, error: (err as Error).message });
+			}
 		};
 		/** A tournament entrant's leave dropped them from a match: its games end as their forfeit, and its seats' decks are restored. */
 		state.roomForfeited = (roomId, tableId, loser, matches) => {

@@ -32,6 +32,7 @@ import { loadTablesLibrary } from './library.ts';
 import { createDraftRooms, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRooms.ts';
 import { checkPlan as realCheckPlan, type CubeLookup, type ForgeChecker, type SetLookup } from '../room/plan.ts';
 import { openLobby } from '../room/lobby.ts';
+import { challenges } from '../room/challenge.ts';
 import { seedTestingRooms, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME, TESTING_TOURNAMENT_DONE_NAME, TESTING_TOURNAMENT_MID_NAME, TESTING_SEED_CALLER } from '../room/testing-rooms.ts';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -104,6 +105,8 @@ async function openApp(
 		realistic?: import('./rooms.ts').RoomsDeps['realistic'];
 		tableGames?: import('./rooms.ts').RoomsDeps['tableGames'];
 		featured?: import('./rooms.ts').RoomsDeps['featured'];
+		/** The real catalogued Challenges (`room/challenge.ts`), read from this checkout. */
+		challenges?: boolean;
 	} = {},
 ): Promise<Harness> {
 	const log = (entry: Record<string, unknown>): void => {
@@ -130,6 +133,7 @@ async function openApp(
 		...(opts.realistic === undefined ? {} : { realistic: opts.realistic }),
 		...(opts.tableGames === undefined ? {} : { tableGames: opts.tableGames }),
 		...(opts.featured === undefined ? {} : { featured: opts.featured }),
+		...(opts.challenges === true ? { challenges: challenges(lobby, REPO_ROOT) } : {}),
 	});
 	app.use('/api', api);
 
@@ -715,6 +719,54 @@ describe('POST /api/rooms rate limit', () => {
 		expect(h.lobby.list()).toHaveLength(capacity);
 		expect((await call(h, 'POST', '/api/rooms', { as: 'bob', body: { name: 'Mine' } })).status).toBe(201);
 		expect(logged).toContainEqual({ event: 'room-create-refused', reason: 'rate-limited' });
+	});
+});
+
+describe('Challenge rooms', () => {
+	const LEGACY = 'tournament-legacy-2026-02-07';
+
+	it('lists the catalogued Challenges with their standings', async () => {
+		const h = await openApp(await tempDir(), { challenges: true });
+		const res = await call(h, 'GET', '/api/rooms/challenges');
+		expect(res.status).toBe(200);
+		const { challenges: list } = res.json() as { challenges: { collection: string; standings: { player: string }[] }[] };
+		expect(list.map((c) => c.collection)).toContain(LEGACY);
+		expect(list.find((c) => c.collection === LEGACY)!.standings[0]!.player).toBe('Ozymandias17');
+	});
+
+	it('makes the caller a Challenge room of their own, seated as the player they chose and leading it', async () => {
+		const h = await openApp(await tempDir(), { challenges: true });
+		const res = await call(h, 'POST', '/api/rooms/challenge', { body: { collection: LEGACY, player: 'Stanshine', field: 'top8' } });
+		expect(res.status, res.text).toBe(201);
+		const body = RoomBodySchema.parse(res.json());
+		expect(body.you).toMatchObject({ leader: true });
+		expect(body.pod!.seats.filter((s) => s !== null && isPodAi(s.memberId))).toHaveLength(7);
+		expect(body.pod!.seats.some((s) => s?.memberId === body.you!.id)).toBe(true);
+		// Another member's is another room: a Challenge is not shared by its name.
+		const bobs = await call(h, 'POST', '/api/rooms/challenge', { as: 'bob', body: { collection: LEGACY, player: 'Stanshine', field: 'top8' } });
+		expect(bobs.status).toBe(201);
+		expect(RoomBodySchema.parse(bobs.json()).id).not.toBe(body.id);
+	});
+
+	it('refuses an unknown event, a player outside the field, and a malformed body, making nothing', async () => {
+		const h = await openApp(await tempDir(), { challenges: true });
+		expect((await call(h, 'POST', '/api/rooms/challenge', { body: { collection: 'tournament-nope', player: 'Stanshine', field: 'top8' } })).status).toBe(400);
+		expect((await call(h, 'POST', '/api/rooms/challenge', { body: { collection: LEGACY, player: 'Habsburger', field: 'top8' } })).status).toBe(400);
+		expect((await call(h, 'POST', '/api/rooms/challenge', { body: { collection: LEGACY, player: 'Stanshine', field: 'top16' } })).status).toBe(400);
+		expect(h.lobby.list()).toHaveLength(0);
+	});
+
+	it('counts against the same room-making limit as any room', async () => {
+		const h = await openApp(await tempDir(), { challenges: true });
+		const { capacity } = roomsMod.ROOM_CREATE_RATE_LIMIT;
+		for (let i = 0; i < capacity; i++) expect((await call(h, 'POST', '/api/rooms', { as: 'mallory', body: { name: `Room ${i}` } })).status).toBe(201);
+		expect((await call(h, 'POST', '/api/rooms/challenge', { as: 'mallory', body: { collection: LEGACY, player: 'Stanshine', field: 'top8' } })).status).toBe(429);
+	});
+
+	it('offers none on a server without a catalogue', async () => {
+		const h = await openApp(await tempDir());
+		expect((await call(h, 'GET', '/api/rooms/challenges')).json()).toEqual({ challenges: [] });
+		expect((await call(h, 'POST', '/api/rooms/challenge', { body: { collection: LEGACY, player: 'Stanshine', field: 'top8' } })).status).toBe(404);
 	});
 });
 

@@ -60,6 +60,7 @@ export const routesPlugin: CardtablePlugin = {
 		});
 		attachRooms(api, {
 			lobby,
+			challenges: state.challenges,
 			checkPlan: state.checkDraftPlan,
 			lookChanged: (roomId, memberId) => void looks.refresh(roomId, memberId),
 			...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}),

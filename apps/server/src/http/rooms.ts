@@ -99,7 +99,7 @@ import { isAdmin, userNameOf } from '../edge-auth.js';
 import { bodyErrors, callerOf, httpCaller, parseBody, perCallerLimit } from './request.js';
 import {
 	CreateRoomBodySchema,
-	ReplayCreateBodySchema,
+	ChallengeCreateBodySchema,
 	EmptyBodySchema,
 	JoinRoomBodySchema,
 	PatchRoomBodySchema,
@@ -124,7 +124,7 @@ import {
 	type Lobby,
 	type RoomView,
 } from '../room/lobby.js';
-import { replayEvents, seedReplayRoom } from '../room/seed-replay.js';
+import type { Challenges } from '../room/challenge.js';
 import type { DraftRooms } from '../room/draftRooms.js';
 import { jsonLogger } from '../log.js';
 
@@ -158,6 +158,8 @@ export const ROOM_CREATE_RATE_LIMIT: RateLimitConfig = {
 
 export interface RoomsDeps {
 	lobby: Lobby;
+	/** The catalogued Challenges (`room/challenge.ts`). Absent (a unit suite) offers none. */
+	challenges?: Challenges;
 	/** Structured log lines. Never carries a password, hash or salt. */
 	log?: (entry: Record<string, unknown>) => void;
 	/** A room its owner closed: stop the matches it was playing and drop its draft if unfinished. */
@@ -331,46 +333,6 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		next();
 	});
 
-	/**
-	 * The catalogued historical replay events, and making a replay room of one.
-	 *
-	 *   GET  /api/rooms/replay/events  → 200 { events: ReplayEvent[] }
-	 *   POST /api/rooms/replay         { collection, seat, full? } → 201 RoomBody | 400 | 409
-	 *
-	 * The events are the library's tournament imports (`seed-replay.ts`'s own
-	 * `replayEvents`); creating one seats the event's whole field of AIs on
-	 * their real decks, the caller in `seat`, born locked (`historical`). The
-	 * caller needs no special tier: the room is theirs like any room they make,
-	 * and the event's own public record is what it plays.
-	 */
-	rooms.get('/replay/events', (_req: Request, res: Response) => {
-		res.json({ events: replayEvents() });
-	});
-
-	rooms.post('/replay', (req: Request, res: Response) => {
-		const body = parseBody(ReplayCreateBodySchema, req, res);
-		if (body === null) return;
-		const caller = callerOf(req);
-		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'create a replay room');
-		void (async () => {
-			try {
-				const roomId = await seedReplayRoom(
-					lobby,
-					{ id: caller.id, name: caller.name, userId: null },
-					{ collection: body.collection, seat: body.seat, full: body.full === true },
-					log,
-				);
-				const room = lobby.get(roomId);
-				if (room === undefined) return res.status(500).json({ error: 'the replay room vanished as it was made' });
-				res.status(201).json(roomBody(room, caller.id));
-			} catch (err) {
-				const message = (err as Error).message;
-				const status = message.includes('no library collection') || message.includes('seat is 0-') || message.includes('no library deck') ? 400 : 500;
-				res.status(status).json({ error: message });
-			}
-		})();
-	});
-
 	rooms.get('/', (req: Request, res: Response) => {
 		// One `you` per room: the front page says which rooms you lead and which
 		// you have already readied in, without a second request per room.
@@ -399,6 +361,23 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const result = lobby.create(caller, body);
 		if (!result.ok) return notDurable(res);
 		res.status(201).json(roomBody(result.room, caller.id));
+	});
+
+	// Challenge rooms (`room/challenge.ts`): the catalogued real events, and a room replaying one with
+	// the caller in the seat of the player they chose. A new room each time, counted as any room made is.
+	rooms.get('/challenges', (_req: Request, res: Response) => {
+		res.json({ challenges: deps.challenges?.list() ?? [] });
+	});
+	rooms.post('/challenge', (req: Request, res: Response) => {
+		const body = parseBody(ChallengeCreateBodySchema, req, res);
+		if (body === null) return;
+		if (deps.challenges === undefined) return res.status(404).json({ error: 'this server has no Challenges' });
+		if (!createLimit(req, res)) return;
+		const caller = callerOf(req);
+		const made = deps.challenges.create(caller, body);
+		if (made.ok) return res.status(201).json(roomBody(made.room, caller.id));
+		if (made.reason === 'not-durable') return notDurable(res);
+		res.status(400).json({ error: made.reason === 'no-challenge' ? `no Challenge ${body.collection}` : `${body.player} did not play in that field` });
 	});
 
 	// The embed's front door (D21): the cardtable room bound to the watchparty

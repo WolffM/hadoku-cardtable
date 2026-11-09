@@ -31,6 +31,7 @@ import type { MatchStats } from '../stats/index.js';
 import type { TablesHandle } from '../http/routes.js';
 import type { loadTablesLibrary } from '../http/index.js';
 import type { fleetCli } from '../play/placement/index.js';
+import type { Challenges } from '../room/challenge.js';
 
 /** Cardtable's plugins declare no bus events of their own yet. */
 export type CardtableEvents = Record<never, never>;
@@ -63,8 +64,10 @@ export interface Cardtable {
 	lobby: RestoredRooms['lobby'];
 	draftRooms: RestoredRooms['draftRooms'];
 	runTestingRoomSeed: () => Promise<void>;
-	/** Seeds the historical replay room when the env names one (`seed-replay.ts`); resolves immediately when not. */
-	runReplaySeed: () => Promise<void>;
+	/** The catalogued Challenges (`room/challenge.ts`). */
+	challenges: Challenges;
+	/** Keeps the operator's standing Challenge room when the env names one (`plugins/rooms.ts`). */
+	runChallengeSeed: () => void;
 	roomClosed: (roomId: string, matches: readonly string[]) => void;
 	roomForfeited: (roomId: string, tableId: string, loser: string, matches: readonly string[]) => void;
 

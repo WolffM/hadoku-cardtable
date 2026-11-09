@@ -428,6 +428,12 @@ interface CreateRoomInput {
 	historicalSettings?: RoomSettings;
 	/** A historical room's tournament structure: `{ swiss, cut }` (`PodStructure`). Validated by `structureOk` at the lock. */
 	historicalStructure?: PodStructure;
+	/**
+	 * A historical room's field size: the room is born with this many pod seats, an AI in
+	 * every seat `aiDeckAssignments` names (`ai:<seat>`) and the rest open for people. The
+	 * field is the event's, so no seat is ever filled, emptied or closed afterwards.
+	 */
+	historicalField?: number;
 }
 
 type CreateResult =
@@ -518,11 +524,11 @@ type LeaveResult =
 
 type SitPodResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'pod-full' };
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'pod-full' | 'historical' };
 
 type ClosePodResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'too-few' };
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'too-few' | 'historical' };
 
 type StandPodResult =
 	| { ok: true; room: RoomView }
@@ -663,6 +669,17 @@ function grownSeats(room: RoomRecord, seat: number): void {
 	while (room.podSeats.length <= seat) {
 		room.podSeats = [...room.podSeats, null];
 		room.podAi = [...room.podAi, null];
+	}
+}
+
+/** A historical room's field at birth (`CreateRoomInput.historicalField`): `size` seats, an AI wherever an assignment names one. */
+function seatHistoricalField(room: RoomRecord, size: number): void {
+	grownSeats(room, size - 1);
+	for (const entrant of Object.keys(room.aiDeckAssignments ?? {})) {
+		const seat = isAiEntrant(entrant) ? aiEntrantSeat(entrant) : -1;
+		if (seat < 0 || seat >= size) continue;
+		room.podSeats = room.podSeats.map((s, i) => (i === seat ? POD_AI : s));
+		room.podAi = room.podAi.map((a, i) => (i === seat ? freeAiAvatar(room, seat) : a));
 	}
 }
 
@@ -3716,6 +3733,7 @@ class FileLobby implements Lobby {
 			updatedAt: now,
 			members: [newMember([], caller, now)],
 		};
+		if (room.historical === true && input.historicalField !== undefined) seatHistoricalField(room, input.historicalField);
 		this.#rooms.set(id, room);
 		this.#autoSeat(room, caller.id);
 		if (input.password !== undefined && input.password !== '') {
@@ -3994,7 +4012,7 @@ class FileLobby implements Lobby {
 		room.pod = {
 			humans: entrants,
 			round: 1,
-			rounds: room.historicalStructure !== undefined ? roundsOf(room.historicalStructure, entrants.length) : roundsFor(entrants.length),
+			rounds: room.historicalStructure !== undefined ? roundsOf(room.historicalStructure) : roundsFor(entrants.length),
 			results: [],
 			pairings: [],
 			bye: null,
@@ -4383,6 +4401,7 @@ class FileLobby implements Lobby {
 		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
 		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (seatsFixed(room)) return { ok: false, reason: 'not-lobby' };
+		if (room.historical === true) return { ok: false, reason: 'historical' };
 		if (!seatInReach(room, seat) || (!on && seat >= room.podSeats.length)) return { ok: false, reason: 'bad-seat' };
 		const now = room.podSeats[seat] ?? null;
 		if (on ? now === POD_AI : now === null) return { ok: true, room: this.#view(room) };
@@ -4409,6 +4428,7 @@ class FileLobby implements Lobby {
 		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
 		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (seatsFixed(room)) return { ok: false, reason: 'not-lobby' };
+		if (room.historical === true) return { ok: false, reason: 'historical' };
 		if (!seatInReach(room, seat) || seat >= room.podSeats.length) return { ok: false, reason: 'bad-seat' };
 		const now = room.podSeats[seat] ?? null;
 		if (closed ? now === POD_CLOSED : now === null) return { ok: true, room: this.#view(room) };

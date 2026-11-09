@@ -533,7 +533,11 @@ export {
   type PickTimer,
   type RoomSettings,
   type TournamentDecks,
-  ReplayCreateBodySchema,
+  ChallengeCreateBodySchema,
+  CHALLENGE_FIELDS,
+  type ChallengeCreateBody,
+  type ChallengeEvent,
+  type ChallengeField,
 } from './room-requests.ts';
 export {
   EVENT_KINDS,

@@ -27,7 +27,7 @@ export const warmPlugin: CardtablePlugin = {
 			jsonLogger('cardtable')({ evt: 'library-warmed', formats: state.library.formats.length, ms: Math.round(performance.now() - warmedFrom), faults });
 		});
 		void state.runTestingRoomSeed();
-		void state.runReplaySeed();
+		state.runChallengeSeed();
 		console.log(`[cardtable] tier floor: ${CONFIG.minTier}`);
 		const cubes = state.cubeStore.list().length;
 		if (cubes > 0) {

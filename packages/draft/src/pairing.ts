@@ -248,8 +248,8 @@ export function structureOk(structure: PodStructure, field: number): boolean {
   return isPowerOfTwo(structure.cut) && structure.cut <= field && structure.cut >= 2;
 }
 
-/** The total rounds a structure plays over `field` entrants: Swiss rounds plus every elimination round. */
-export function roundsOf(structure: PodStructure, field: number): number {
+/** The total rounds a structure plays: Swiss rounds plus every elimination round. */
+export function roundsOf(structure: PodStructure): number {
   return structure.swiss + (structure.cut > 1 ? Math.ceil(Math.log2(structure.cut)) : 0);
 }
 
