@@ -20,6 +20,10 @@ import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import { loadPool, type CubePool } from '../room/pool.ts';
 import { createDraftRooms, joinDraftRoom, singlePoolResolver, stateOf, type DraftRooms } from '../room/draftRooms.ts';
 import { identityFromHeaders } from '../room/identity.ts';
+import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
+
+/** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
+const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
@@ -99,7 +103,7 @@ describe('/api/decks', () => {
 	it('lists only the caller’s finished drafts, named after the room, with the build the pod saved', async () => {
 		const storeDir = await mkdtemp(join(tmpdir(), 'cardtable-decks-test-'));
 		dirs.push(storeDir);
-		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir });
+		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir });
 		const lobby: Lobby = new Map([
 			['pod-done', { name: 'Friday cube', pod: pod('rounds') }],
 			['pod-drafting', { name: 'Still picking', pod: null }],
@@ -125,7 +129,7 @@ describe('/api/decks', () => {
 	it('refuses a rename or a delete while the tournament is on, and allows both once it is done — and they survive a restart', async () => {
 		const storeDir = await mkdtemp(join(tmpdir(), 'cardtable-decks-test-'));
 		dirs.push(storeDir);
-		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir });
+		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir });
 		const lobby: Lobby = new Map([['pod-a', { name: 'Pod A', pod: pod('rounds') }]]);
 		seatIn(draftRooms, 'pod-a', 'alice', true);
 		seatIn(draftRooms, 'pod-gone', 'alice', true);
@@ -145,7 +149,7 @@ describe('/api/decks', () => {
 		// A pod whose room is gone has concluded too.
 		expect((await call(base, 'DELETE', '/api/decks/pod-gone')).status).toBe(204);
 
-		const restarted = createDraftRooms({ ...singlePoolResolver(cube), storeDir });
+		const restarted = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir });
 		const again = await openApp(restarted, lobby);
 		expect(decksOf((await call(again, 'GET', '/api/decks')).json).map((d) => [d.id, d.name, d.concluded])).toEqual([['pod-a', 'Blue tempo', true]]);
 	});
@@ -153,7 +157,7 @@ describe('/api/decks', () => {
 	it('answers a malformed JSON body without echoing it', async () => {
 		const storeDir = await mkdtemp(join(tmpdir(), 'cardtable-decks-test-'));
 		dirs.push(storeDir);
-		const base = await openApp(createDraftRooms({ ...singlePoolResolver(cube), storeDir }), new Map());
+		const base = await openApp(createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir }), new Map());
 		const res = await fetch(`${base}/api/decks/pod-a`, {
 			method: 'PATCH',
 			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },

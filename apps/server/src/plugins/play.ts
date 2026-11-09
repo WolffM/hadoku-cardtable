@@ -54,6 +54,9 @@ export const playPlugin: CardtablePlugin = {
 			minTier: CONFIG.minTier,
 			botPickMs: CONFIG.draftBotPickMs,
 			draftbot: clawsDraftbot ?? (CONFIG.draftbotUrl ? httpDraftbot(CONFIG.draftbotUrl, CONFIG.draftbotToken || undefined) : undefined),
+			// The ONE tracker, built by `plugins/rooms.ts` before `draftRooms`
+			// itself — the same instance that pod's own seat-hold runs on.
+			presence: state.seatPresence,
 		});
 		ctx.counts(() => ({ draftbotPicks: state.draftSocket.draftbotPicks() }));
 		// Every room write, pushed to the screens that have the room (or the list) open, so none of

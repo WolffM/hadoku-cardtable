@@ -63,9 +63,25 @@ vi.mock('@wolffm/watchparty-ui/room-chrome', () => ({
    * `theme ?? 'dark'` would not be, because it would let `''` through as a
    * theme the real chrome would reject.
    */
-  RoomChrome: ({ theme, userType, children }: { theme?: string; userType?: string; children: ReactNode }) =>
+  RoomChrome: ({
+    theme,
+    userType,
+    serverOrigin,
+    chatOrigin,
+    children,
+  }: {
+    theme?: string;
+    userType?: string;
+    serverOrigin?: string;
+    chatOrigin?: string;
+    children: ReactNode;
+  }) =>
     // The real chrome's own content column, so the host's rules for its child are tested against it.
-    createElement('div', { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark', 'data-user-type': userType }, createElement('div', { className: 'wp-room-chrome-frame__content' }, children)),
+    createElement(
+      'div',
+      { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark', 'data-user-type': userType, 'data-server-origin': serverOrigin, 'data-chat-origin': chatOrigin },
+      createElement('div', { className: 'wp-room-chrome-frame__content' }, children),
+    ),
 }));
 
 /*
@@ -98,7 +114,7 @@ vi.mock('../rooms/follow.ts', async (importOriginal) => ({
 // transform, so the mocked modules are in place before RoomShell loads them.
 import { THEMES } from '@wolffm/themes';
 
-import { RoomShell, roomKeyFor, watchpartyTheme } from './RoomShell.tsx';
+import { RoomShell, cardtableOrigin, roomKeyFor, watchpartyTheme } from './RoomShell.tsx';
 import { roomIdFor, tableChatId } from '../App.tsx';
 import { parseRoute } from '../screens/route.ts';
 
@@ -106,6 +122,24 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   viewer.tier = 'friend';
+});
+
+/*
+ * Chat is moved off watchparty's `serverOrigin` onto cardtable's own
+ * `chatOrigin`. Presence, roster and identity are unchanged — `serverOrigin`
+ * still points at watchparty, so this is additive, not a replacement.
+ */
+describe('chatOrigin (chat served by cardtable)', () => {
+  it('passes a chatOrigin distinct from serverOrigin — chat and presence go to different servers', async () => {
+    render(createElement(RoomShell, { roomId: 'm-test', children: createElement('div', null, 'content') }));
+    const chrome = await waitFor(() => screen.getByTestId('room-chrome'));
+    const { serverOrigin, chatOrigin } = chrome.dataset;
+    expect(chatOrigin).toBeTruthy();
+    expect(chatOrigin).not.toBe(serverOrigin);
+    // Never watchparty's own origin under another name.
+    expect(chatOrigin).not.toMatch(/\/watchparty$/);
+    expect(chatOrigin).toBe(cardtableOrigin());
+  });
 });
 
 describe('the viewer\'s tier', () => {

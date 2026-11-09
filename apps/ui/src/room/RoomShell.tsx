@@ -15,11 +15,17 @@
  * the same page would share — and then tear down — the first one's connection.
  * That is why this mounts once, in `App`, and never per screen.
  *
- * ## Their server, not ours
+ * ## Their server, not ours — except the chat, which is ours
  *
- * `serverOrigin` points at watchparty. The chrome's socket is watchparty's;
- * our draft and match sockets stay ours and are untouched. Two connections on
- * purpose: the room is their product, the table is ours.
+ * `serverOrigin` points at watchparty: presence, roster and identity are
+ * still its socket, and our draft and match sockets stay ours and are
+ * untouched. `chatOrigin` (`@wolffm/watchparty-ui` 0.45.62) points `RoomChrome`'s
+ * CHAT at `cardtableOrigin()` instead — a third connection, to this app's own
+ * `/chat` namespace (`apps/server/src/room/chat.ts`), behind cardtable's own
+ * member gate rather than watchparty's account-tier-only one
+ * (`docs/requests/watchparty-chat-membership.md`). Presence/roster/identity
+ * staying on watchparty is why this alone does not end watchparty's deploy
+ * hold on a cardtable room (w96-B); only a cardtable room's CHAT moved.
  *
  * ## Identity comes from the fleet, not from us
  *
@@ -138,6 +144,22 @@ export function roomKeyFor(id: string): string | null {
   return ROOM_ID_RE.test(id) ? `${appId()}-${id}` : null;
 }
 
+/**
+ * This app's own origin, on whatever host serves this page — never
+ * hardcoded, so PPE (built with `CARDTABLE_BASE_PREFIX=/cardtable-ppe`) gets
+ * PPE's own origin rather than prod's. The same derivation
+ * `room/socket-options.ts`'s `defaultSocketPath` uses for the draft socket's
+ * path, here producing an ORIGIN string: `RoomChrome`'s `chatTransport`
+ * takes only `.origin` from it and derives `/cardtable[-ppe]/socket.io/`
+ * itself from its pathname, so passing the bare base is enough — no
+ * `chatSocketPath` override needed.
+ */
+export function cardtableOrigin(): string {
+  const base = import.meta.env?.BASE_URL;
+  const prefix = typeof base === 'string' && base !== '' ? base : '/';
+  return `${globalThis.location.origin}${prefix}`.replace(/\/$/, '');
+}
+
 /** One client per mount; the assert effect must not re-fire on every render. */
 const rooms = roomsClient();
 
@@ -229,6 +251,7 @@ export function RoomShell({
         <RoomChrome
           roomKey={key}
           serverOrigin={watchpartyOrigin()}
+          chatOrigin={cardtableOrigin()}
           userType={who.tier}
           userId={who.userId}
           theme={watchpartyTheme(theme)}

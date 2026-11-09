@@ -70,7 +70,37 @@
  * participant is plausibly still here.
  *
  * `disconnectGraceMs` defaults to 0, which is the old behaviour to the letter
- * (vacate on the close, hook never called); production sets it in `index.ts`.
+ * (vacate on the close, hook never called); production sets it via
+ * `plugins/rooms.ts`'s `DISCONNECT_GRACE_MS`.
+ *
+ * The grace itself runs on ONE server-wide `@wolffm/rooms-server`
+ * `PresenceTracker<string>` — `socket.ts`'s `createSeatPresence`, the same
+ * instance the lobby's own 30 s seat-release grace runs on. `createDraftRooms`
+ * takes it as `options.presence`
+ * (injected, never imported as a module global, so a test can hand this file
+ * its own instance) and stores it on every `DraftApp.presence` it builds —
+ * one shared reference, not one owned instance per room.
+ *
+ * Draft seats and lobby seats cannot share the bare participant id as a key
+ * (one tracker, two different grace windows for the same person), so a draft
+ * seat's key is `draftPresenceKey(room.roomId, participantId)` —
+ * `` `${roomId}\0${participantId}` `` — and `parseDraftPresenceKey` is its
+ * inverse. The tracker's single `graceMs` is now a function of the key
+ * (`socket.ts` builds it): a draft key resolves to THAT POD's
+ * `disconnectGraceMs` by parsing the key and reading the room back
+ * (`deps.rooms.find`); anything else is a lobby key and gets the 30 s
+ * `seatReleaseMs`. `leaveDraftRoom`'s held branch calls `presence.disconnect`
+ * (starting the grace); `joinDraftRoom`'s `cancelVacate` calls
+ * `presence.connect` for a return inside the window, which the package
+ * reports as `online: { returned: true }` and cancels the timer for; the
+ * tracker's own `left` event — nobody back when the grace ran out — is where
+ * the actual unseat, broadcast and persist now happen, from ONE listener
+ * registered once per `DraftRooms` factory (not once per room), which parses
+ * the key and ignores anything that is not a draft key — the lobby's own
+ * `left` events included, so the two listeners never step on each other's
+ * seats. `disconnectGraceMs === 0` never touches `presence` at all: the gate
+ * at the call site is unchanged, so a 0-grace room carries no armed key,
+ * exactly as it never populated `vacating` before.
  *
  * ## Why a seat change bumps `seq`
  *
@@ -92,12 +122,13 @@
  * real answer. Turning it on is the operator's decision, not this file's.
  *
  * `RoomRegistry.onRoomDelete` IS wired, though, and deliberately before there
- * is anything to delete: a room owns pending `vacating` timers, and the only
- * reason draining them at a GC sweep would have been correct is that GC was
- * the one delete path. Registering the drain on the registry means a future
- * admin close, a game-over reap or GC being switched on is covered by
- * construction rather than by somebody remembering. Callbacks run BEFORE the
- * room leaves the map, so the room is still resolvable inside one.
+ * is anything to delete: a room may own a pending grace key on the SHARED
+ * tracker — which cannot be `dispose()`d wholesale (that would drop the
+ * lobby's presence too) — so the drain forgets only this room's own seated
+ * participants' keys. Registering it on the registry means a future admin
+ * close, a game-over reap or GC being switched on is covered by construction
+ * rather than by somebody remembering. Callbacks run BEFORE the room leaves
+ * the map, so the room is still resolvable inside one.
  *
  * **No bot backfill on a drop.** `unseatParticipant` empties the seat rather
  * than handing it to a bot, so its packs keep queueing in front of it and the
@@ -114,6 +145,7 @@ import {
 	clientByParticipant,
 	joinRoom,
 	leaveRoom,
+	PresenceTracker,
 	RoomRegistry,
 	type ClientMeta,
 	type CoreRoomState,
@@ -171,8 +203,12 @@ export interface DraftApp {
 	disconnectGraceMs: number;
 	/** Called after a deferred vacate changed the table, so it can be broadcast. */
 	onDeferredChange: (room: DraftRoom) => void;
-	/** Pending deferred vacates, by participant. */
-	vacating: Map<ParticipantId, ReturnType<typeof setTimeout>>;
+	/**
+	 * The ONE shared tracker (`options.presence`) this room's seat grace runs
+	 * on — a reference, never an instance this room owns. See the module
+	 * header.
+	 */
+	presence: PresenceTracker<string>;
 	/**
 	 * Each drafter's last saved build, `.dck` text. A participant absent from
 	 * this map has never saved one — `GET …/mine` then answers `deck: null` and
@@ -342,6 +378,16 @@ interface DraftRoomsOptions {
 	 * tests use.
 	 */
 	storeDir?: string | null;
+	/**
+	 * The one server-wide presence tracker (`socket.ts`'s
+	 * `createSeatPresence`), built by `plugins/rooms.ts` BEFORE this factory
+	 * and REQUIRED here, never optional: a draft pod's own seat
+	 * grace runs on it. Injected rather than imported, so a test hands this
+	 * file its own instance (`createSeatPresence` is exported for exactly
+	 * that) instead of reaching for the real one — see `draftPresenceKey`'s
+	 * own doc for the key shape and the shared grace.
+	 */
+	presence: PresenceTracker<string>;
 }
 
 export interface DraftRooms {
@@ -534,7 +580,30 @@ function quarantineSnapshotSync(dir: string, draftId: string, reason: string): v
 
 const logDraft = jsonLogger('cardtable-draft');
 
-/** What persists for one pod. Everything else on `DraftApp` is config echoed back in (`disconnectGraceMs`) or reconstructed fresh (`onDeferredChange`, `vacating`, `persist`) — never read off disk. */
+/**
+ * One server-wide `PresenceTracker<string>` (`socket.ts`'s
+ * `createSeatPresence`) carries every participant this server tracks —
+ * draft seats included — room-scoped by this composite key, so two
+ * different pods' same participant never collide, the same shape bomberman
+ * used for its own rooms. The LOBBY side keeps the bare participant id
+ * (`releaseAbandonedSeats(pid)` is person-wide, not per-room), which is
+ * exactly what makes a key need the NUL: a draft key can never collide with
+ * a bare one, since a `ParticipantId` never contains one.
+ */
+export function draftPresenceKey(draftRoomId: string, participantId: ParticipantId): string {
+	return `${draftRoomId}\0${participantId}`;
+}
+
+/** The inverse of {@link draftPresenceKey}. Null for anything that is not a draft key — a bare lobby
+ *  participant id, most often — which is how both the pod listener here and the lobby's own (`socket.ts`)
+ *  tell which half of the one shared tracker's traffic is theirs. */
+export function parseDraftPresenceKey(key: string): { draftRoomId: string; participantId: ParticipantId } | null {
+	const at = key.indexOf('\0');
+	if (at < 0) return null;
+	return { draftRoomId: key.slice(0, at), participantId: key.slice(at + 1) };
+}
+
+/** What persists for one pod. Everything else on `DraftApp` is config echoed back in (`disconnectGraceMs`) or reconstructed fresh (`onDeferredChange`, `presence`, `persist`) — never read off disk. */
 /** The human seats of a draft, by the participant in each. */
 function humanSeatsOf(state: DraftState): Array<{ seat: number; participantId: string }> {
 	return state.table.seats.flatMap((s) => (s.occupant?.kind === 'human' ? [{ seat: s.id, participantId: s.occupant.participantId }] : []));
@@ -616,7 +685,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		const app: DraftApp = {
 			disconnectGraceMs: params.disconnectGraceMs,
 			onDeferredChange,
-			vacating: new Map(),
+			presence: options.presence,
 			builtDecks: initial.builtDecks,
 			deckMeta: initial.deckMeta,
 			persist: persistRoom,
@@ -665,15 +734,36 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 
 	const registry = new RoomRegistry<DraftApp, DraftClient>(() => makeDraftApp({ state: null, builtDecks: {}, deckMeta: {} }));
 
-	// Anything a room owns that outlives the map entry. Today that is the
-	// deferred vacates; GC is OFF (see the header), so nothing calls this yet
-	// — which is the point of registering it here rather than at the one
-	// delete path that happens to exist.
+	// The grace ran out with nobody back: exactly what the old per-pod
+	// timer's callback did, now the SHARED tracker's own `left` event — one
+	// listener for every pod this factory ever opens, not one per room, so
+	// it must parse the key and find its own room first. A key that is not
+	// ours (the lobby's own bare participant ids, most often) parses to
+	// null and is ignored — the module header's "never step on each other's
+	// seats".
+	options.presence.on((event) => {
+		if (event.type !== 'left') return;
+		const parsed = parseDraftPresenceKey(event.key);
+		if (parsed === null) return;
+		const room = registry.get(parsed.draftRoomId);
+		if (room === undefined) return;
+		if (unseatParticipant(room.seats, parsed.participantId, { hold: true }) === null) return;
+		bumpSeq(stateOf(room));
+		room.app.persist(room);
+		room.app.onDeferredChange(room);
+	});
+
+	// Anything a room owns that outlives the map entry. Today that is a
+	// pending grace key on the SHARED tracker; GC is OFF (see the header),
+	// so nothing calls this yet — which is the point of registering it here
+	// rather than at the one delete path that happens to exist.
 	registry.onRoomDelete((roomId) => {
 		const room = registry.get(roomId);
-		if (room === undefined) return;
-		for (const timer of room.app.vacating.values()) clearTimeout(timer);
-		room.app.vacating.clear();
+		if (room === undefined || room.app.state === null) return;
+		// No events: the room is gone, so nobody is left to tell. Can't
+		// `dispose()` the shared tracker (that would drop the lobby's
+		// presence too) — forget only THIS room's own seated participants.
+		for (const { participantId } of humanSeatsOf(room.app.state)) options.presence.forget(draftPresenceKey(roomId, participantId));
 	});
 
 	// The eager restore. Synchronous and run to completion before this function
@@ -819,9 +909,8 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 				const hadDeck = participantId in app.builtDecks || participantId in app.deckMeta;
 				delete app.builtDecks[participantId];
 				delete app.deckMeta[participantId];
-				const vacate = app.vacating.get(participantId);
-				if (vacate !== undefined) clearTimeout(vacate);
-				app.vacating.delete(participantId);
+				// No events: this is us removing the person, not a timeout deciding it.
+				app.presence.forget(draftPresenceKey(room.roomId, participantId));
 				const named = room.clientNames.delete(participantId);
 				const seats = app.state === null ? [] : humanSeatsOf(app.state).filter((s) => ids.has(s.participantId));
 				const replaced = replaceIds(room.seats, ids, to) + (app.state === null ? 0 : replaceIds(app.state, ids, to));
@@ -1007,6 +1096,15 @@ export function joinDraftRoom(
 		tier,
 		watching: null,
 	}));
+	// Arms `presence` for THIS seat, so a later disconnect is tracked (the
+	// module header). Gated the same way the grace branch in `leaveDraftRoom`
+	// is: a 0-grace room never calls this. One synthetic connection id per
+	// participant (not per socket) — a second tab's own presence is
+	// `clientByParticipant`'s job in `leaveDraftRoom`, not this tracker's.
+	if (room.app.disconnectGraceMs > 0) {
+		const key = draftPresenceKey(room.roomId, participantId);
+		room.app.presence.connect(key, key);
+	}
 	const seat = seatOf(room.seats, participantId);
 	const drafter = drafters.find((h) => h.participantId === participantId);
 	const name = drafter?.displayName ?? null;
@@ -1119,29 +1217,21 @@ export function leaveDraftRoom(room: DraftRoom, clientId: string): LeaveOutcome 
 	return { participantId, guarded, held, changed };
 }
 
-/** Schedule the vacate a disconnect deferred. At most one per participant. */
+/**
+ * Start the grace a disconnect defers. `presence.disconnect` is what actually
+ * arms the timer — the tracker's `left` listener (wired once, in
+ * `makeDraftApp`) does the unseat, exactly what this function's own timer
+ * callback used to do inline. No "are they back?" check here: that is the
+ * package's own `leave()` guard, synchronous with `cancelVacate`'s `connect`.
+ */
 function vacateAfterGrace(room: DraftRoom, participantId: ParticipantId): void {
-	cancelVacate(room, participantId);
-	const timer = setTimeout(() => {
-		room.app.vacating.delete(participantId);
-		// No "are they back?" check: a rejoin cancels this timer synchronously
-		// (`joinDraftRoom`), so reaching here means they did not come back.
-		// Exactly what `leaveRoom` would have done on the close, only later.
-		if (unseatParticipant(room.seats, participantId, { hold: true }) === null) return;
-		bumpSeq(stateOf(room));
-		room.app.persist(room);
-		room.app.onDeferredChange(room);
-	}, room.app.disconnectGraceMs);
-	// A pending vacate is not a reason for the process to stay alive.
-	timer.unref();
-	room.app.vacating.set(participantId, timer);
+	room.app.presence.disconnect(draftPresenceKey(room.roomId, participantId));
 }
 
 function cancelVacate(room: DraftRoom, participantId: ParticipantId): void {
-	const timer = room.app.vacating.get(participantId);
-	if (timer === undefined) return;
-	clearTimeout(timer);
-	room.app.vacating.delete(participantId);
+	const key = draftPresenceKey(room.roomId, participantId);
+	if (!room.app.presence.isInGrace(key)) return;
+	room.app.presence.connect(key, key);
 }
 
 /**

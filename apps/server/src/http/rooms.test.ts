@@ -34,6 +34,10 @@ import { checkPlan as realCheckPlan, type CubeLookup, type ForgeChecker, type Se
 import { openLobby } from '../room/lobby.ts';
 import { challenges } from '../room/challenge.ts';
 import { seedTestingRooms, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME, TESTING_TOURNAMENT_DONE_NAME, TESTING_TOURNAMENT_MID_NAME, TESTING_SEED_CALLER } from '../room/testing-rooms.ts';
+import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
+
+/** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
+const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /**
@@ -1992,7 +1996,7 @@ describe('POST /api/rooms/:id/start', () => {
 						Array.from({ length: 15 }, (_, i) => ({ name: `${code}-${seed}-seat${seat}-card${i}`, set: code, collectorNumber: String(i + 1) })),
 					),
 				);
-				const draftRooms = createDraftRooms({ resolver: mixedResolver(), defaultPlan: DEFAULT_PLAN, storeDir: draftDir, now: () => 1_700_000_000_000 });
+				const draftRooms = createDraftRooms({ presence: testPresence, resolver: mixedResolver(), defaultPlan: DEFAULT_PLAN, storeDir: draftDir, now: () => 1_700_000_000_000 });
 
 				const h = await openApp(await tempDir(), {
 					realistic: { forge: { boosters }, catalog: { byName: () => null, byPrinting: () => null }, draftRooms },
@@ -2020,7 +2024,7 @@ describe('POST /api/rooms/:id/start', () => {
 				expect(dealt[2]!.every((pack) => pack.every((c) => c.name.startsWith('ISD-')))).toBe(true);
 
 				// The restore: a SECOND DraftRooms on the SAME storeDir, same spy.
-				const restored = createDraftRooms({ resolver: mixedResolver(), defaultPlan: DEFAULT_PLAN, storeDir: draftDir, now: () => 1_700_000_000_001 });
+				const restored = createDraftRooms({ presence: testPresence, resolver: mixedResolver(), defaultPlan: DEFAULT_PLAN, storeDir: draftDir, now: () => 1_700_000_000_001 });
 				const restoredRoom = restored.open(room.id);
 				expect(JSON.stringify(stateOf(restoredRoom).rounds)).toBe(JSON.stringify(dealt));
 				expect(boosters).toHaveBeenCalledTimes(1); // unchanged — the restore made no new Forge calls

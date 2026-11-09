@@ -45,6 +45,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { roleOf, seatOf } from '@wolffm/rooms-protocol';
+import type { PresenceTracker } from '@wolffm/rooms-server';
 import { MultiRateLimiter } from '@wolffm/rooms-server';
 import {
 	DRAFT_CHANNEL,
@@ -127,6 +128,8 @@ interface Harness {
 	 * real server's stdout; this makes the claim checkable without a browser.
 	 */
 	lines: Array<Record<string, unknown>>;
+	/** The one tracker this boot's `rooms` and `attachDraftSocket` share. */
+	presence: PresenceTracker<string>;
 	draftbotPicks: () => Record<string, number>;
 	close: () => Promise<void>;
 }
@@ -182,7 +185,17 @@ async function boot(
 		sessions?: boolean;
 	} = {},
 ): Promise<Harness> {
-	const rooms = roomsMod.createDraftRooms({ ...roomsMod.singlePoolResolver(pool) });
+	// `draftGraceOf` reads `rooms` through a closure, only CALLED once a key
+	// goes offline — well after the assignment two lines down — so the
+	// `let`-before-assignment here is safe, the same pattern
+	// `plugins/rooms.ts` uses in production.
+	let rooms: ReturnType<typeof roomsMod.createDraftRooms>;
+	const presence = socketMod.createSeatPresence({
+		seatReleaseMs: deps.seatReleaseMs ?? socketMod.SEAT_RELEASE_MS,
+		draftGraceOf: (id) => rooms.find(id)?.app.disconnectGraceMs ?? 0,
+		schedule: deps.schedule,
+	});
+	rooms = roomsMod.createDraftRooms({ ...roomsMod.singlePoolResolver(pool), presence });
 	const lobby = await bootLobby(deps.settings);
 	const http = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
@@ -200,9 +213,8 @@ async function boot(
 		},
 		rateLimit: deps.rateLimit,
 		botPickMs: deps.botPickMs,
-		seatReleaseMs: deps.seatReleaseMs,
-		schedule: deps.schedule,
 		draftbot: deps.draftbot,
+		presence,
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -213,10 +225,12 @@ async function boot(
 		io,
 		http,
 		lines,
+		presence,
 		draftbotPicks: () => handle.draftbotPicks(),
 		close: async () => {
 			sessions?.close();
 			handle.close();
+			presence.dispose();
 			io.close();
 			await new Promise<void>((done) => http.close(() => done()));
 		},
@@ -1464,5 +1478,38 @@ describe('the pod socket under one live tab per player', () => {
 		await joinFrom(again, id, TAB_A);
 		expect(errors(again)).toEqual([]);
 		expect(lastView(again)?.viewer.kind).toBe('seat');
+	});
+});
+
+/*
+ * `presence` is shared with `draftRooms.ts` (a draft pod's seat-hold runs on
+ * the SAME instance, keyed by `draftPresenceKey`), so this module's OWN
+ * `offline`/`online`/`left` listener — the lobby's
+ * seat-release — must ignore a draft key outright. Without that guard, a
+ * pod's own disconnect would reach `lobby.releaseAbandonedSeats` with a
+ * composite `roomId\0participantId` string standing in for a participant
+ * id, which is nonsense on its face and exactly the kind of cross-talk one
+ * shared tracker risks.
+ */
+describe('the shared tracker: the lobby listener ignores a draft key', () => {
+	it('never calls releaseAbandonedSeats for a draft-shaped key’s own offline/left cycle', async () => {
+		const tracker = live().presence;
+		const released = vi.spyOn(live().lobby, 'releaseAbandonedSeats');
+		// A room id this lobby never made — `deps.rooms.find` answers
+		// undefined, so this key's grace is 0 and its `left` fires almost at
+		// once, real-timer side (0 !== seatReleaseMs).
+		const draftKey = 'no-such-pod\u0000fk:ghostparticipant000';
+		let leftFired = false;
+		const unsubscribe = tracker.on((event) => {
+			if (event.type === 'left' && event.key === draftKey) leftFired = true;
+		});
+		try {
+			tracker.connect(draftKey, 'synthetic-conn');
+			tracker.disconnect('synthetic-conn');
+			await vi.waitFor(() => expect(leftFired).toBe(true));
+			expect(released).not.toHaveBeenCalled();
+		} finally {
+			unsubscribe();
+		}
 	});
 });

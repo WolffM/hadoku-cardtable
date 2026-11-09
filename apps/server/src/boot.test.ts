@@ -13,19 +13,27 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { standAll } from './room/testing-seats.ts';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it, vi } from 'vitest';
+import { Server as SocketIOServer } from 'socket.io';
+import { seatOf } from '@wolffm/rooms-protocol';
 import { packOf, pick, runBots } from '@hadoku/draft';
 import { GAUNTLET_SNAKE, type DraftCard, type GauntletSeatIndex } from '@hadoku/shared';
 
 import { restoreRooms, sweepRooms, type RestoredRooms, type SweptMatch } from './boot.ts';
-import { DEFAULT_PLAN, joinDraftRoom, singlePoolResolver, stateOf } from './room/draftRooms.ts';
+import { DEFAULT_PLAN, joinDraftRoom, leaveDraftRoom, singlePoolResolver, stateOf } from './room/draftRooms.ts';
 import { act, drawGauntlet, newGauntlet, startBanpick, type GauntletEraPool, type GauntletState } from './room/gauntlet.ts';
 import { GAME_DRAWN_AFTER_MS, UNNAMED, openLobby, type GameHooks, type Lobby } from './room/lobby.ts';
 import { participantHandle } from './room/identity.ts';
 import { loadPool, type CubePool } from './room/pool.ts';
+import { attachDraftSocket, createSeatPresence, SEAT_RELEASE_MS } from './room/socket.js';
+
+/** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
+const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
 const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../ui/src/draft/pool.json');
 
@@ -63,7 +71,7 @@ const VERDICT = { ok: true, cards: 1 } as const;
 async function boot(roomsDir: string, draftsDir: string, cube: CubePool): Promise<RestoredRooms> {
 	const restored = await restoreRooms({
 		lobby: { dir: roomsDir, checkPlan: async () => VERDICT },
-		drafts: { ...singlePoolResolver(cube), storeDir: draftsDir },
+		drafts: { ...singlePoolResolver(cube), storeDir: draftsDir, presence: testPresence },
 		log: () => undefined,
 	});
 	restored.lobby.useGameType('constructed-1v1', CHECKS);
@@ -365,5 +373,70 @@ describe('the sweep calls a game a draw once it has run eight hours', () => {
 		});
 		expect(asked).toEqual(['m-old:time-limit']);
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'games-drawn', matches: ['m-old'] }));
+	});
+});
+
+/*
+ * The ONE presence tracker is built in `plugins/rooms.ts` BEFORE
+ * `createDraftRooms`, then handed to `plugins/play.ts`'s `attachDraftSocket`
+ * too — this is the smallest real slice of that exact sequence (`restoreRooms`
+ * then `attachDraftSocket`, the two real functions those plugins call),
+ * proving the wiring in production order rather than trusting that passing
+ * the same variable twice is enough: a pod's own seat must actually vacate
+ * through the shared instance once its grace runs out.
+ */
+describe('one presence tracker, wired production-order (rooms, then play)', () => {
+	afterAll(() => {
+		vi.useRealTimers();
+	});
+
+	it('draftRooms and attachDraftSocket hold the SAME tracker, and a pod’s own grace vacates its seat through it', async () => {
+		vi.useFakeTimers();
+		const roomsDir = await mkdtemp(join(tmpdir(), 'cardtable-boot-presence-rooms-'));
+		const draftsDir = await mkdtemp(join(tmpdir(), 'cardtable-boot-presence-drafts-'));
+		dirs.push(roomsDir, draftsDir);
+		const cube = cubePool();
+
+		// `plugins/rooms.ts`'s own sequence: the tracker built BEFORE createDraftRooms,
+		// `draftGraceOf` reading `draftRooms` through a closure assigned a few lines down
+		// — safe, because the closure is only CALLED once a key goes offline, well after
+		// this assignment runs.
+		let draftRooms: RestoredRooms['draftRooms'] = null;
+		const seatPresence = createSeatPresence({
+			seatReleaseMs: SEAT_RELEASE_MS,
+			draftGraceOf: (id) => draftRooms?.find(id)?.app.disconnectGraceMs ?? 0,
+		});
+		const restored = await restoreRooms({
+			lobby: { dir: roomsDir },
+			drafts: { ...singlePoolResolver(cube), params: { disconnectGraceMs: 50 }, storeDir: draftsDir, presence: seatPresence },
+			log: () => undefined,
+		});
+		draftRooms = restored.draftRooms;
+		if (draftRooms === null) throw new Error('drafts did not build — the fixture cube is empty');
+
+		// `plugins/play.ts`'s own sequence: attachDraftSocket takes the SAME instance.
+		const http = createServer();
+		const io = new SocketIOServer(http, { serveClient: false });
+		const handle = attachDraftSocket(io, { rooms: draftRooms, lobby: restored.lobby, minTier: 'friend', presence: seatPresence });
+		try {
+			await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
+
+			const room = draftRooms.open('pod-presence-round4');
+			joinDraftRoom(room, 'sock-a', ALICE.id, 'friend');
+			// Both halves hold the exact same object — not two trackers that happen to agree.
+			expect(room.app.presence).toBe(seatPresence);
+
+			const closed = leaveDraftRoom(room, 'sock-a');
+			expect(closed.held).toBe(true);
+			expect(seatOf(room.seats, ALICE.id)).toBe(0); // still seated, mid-grace
+
+			vi.advanceTimersByTime(60);
+			expect(seatOf(room.seats, ALICE.id)).toBeNull(); // the shared tracker's own `left` vacated it
+		} finally {
+			handle.close();
+			io.close();
+			const port = (http.address() as AddressInfo | null)?.port;
+			if (port !== undefined) await new Promise<void>((done) => http.close(() => done()));
+		}
 	});
 });

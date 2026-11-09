@@ -134,12 +134,15 @@ async function bootDraftSocket(): Promise<Reachable> {
 	const http = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
 	// No cube pool: this gate test never joins a draft, only the handshake.
-	const handle = roomSocketMod.attachDraftSocket(io, { rooms: null, lobby, minTier: 'friend', log: () => {} });
+	// No disconnect grace exercised here either — a throwaway tracker, never the real `state.seatPresence`.
+	const presence = roomSocketMod.createSeatPresence({ seatReleaseMs: roomSocketMod.SEAT_RELEASE_MS, draftGraceOf: () => 0 });
+	const handle = roomSocketMod.attachDraftSocket(io, { rooms: null, lobby, minTier: 'friend', log: () => {}, presence });
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
 	return {
 		close: async () => {
 			handle.close();
+			presence.dispose();
 			io.close();
 			await new Promise<void>((done) => http.close(() => done()));
 		},

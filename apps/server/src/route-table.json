@@ -124,6 +124,7 @@
     "USE /embed"
   ],
   "namespaces": [
-    "/"
+    "/",
+    "/chat"
   ]
 }

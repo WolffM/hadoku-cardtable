@@ -11,9 +11,10 @@ import { CONFIG } from '../config.js';
 import { restoreRooms } from '../boot.js';
 import { busyReport } from '../busy.js';
 import { endForfeitedGame } from '../http/table-actions.js';
-import { DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRooms.js';
+import { DEFAULT_PLAN, stateOf, type PoolSourceResolver, type DraftRooms } from '../room/draftRooms.js';
 import { emitDraftUpdate, draftEmitPolicy } from '../room/emit.js';
 import { newestFormat } from '../room/lobby.js';
+import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
 import { seedTestingRooms } from '../room/testing-rooms.js';
 import { challenges, seedStandingChallenge } from '../room/challenge.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
@@ -48,7 +49,21 @@ export const roomsPlugin: CardtablePlugin = {
 		// A deploy mid-pod resumes it, a draft room whose draft did not come back goes back to its
 		// lobby, and the idle rooms are swept. A new room opens on a random era unless
 		// `CONFIG.newRoomFormat` pins it.
-		const { lobby, draftRooms } = await restoreRooms({
+		// The ONE presence tracker for the whole server, built HERE —
+		// before `restoreRooms`'s `createDraftRooms` call below, which takes
+		// this same instance as its REQUIRED `presence` dep, and before
+		// `attachDraftSocket` (`plugins/play.ts`, a later, `sockets`-phase
+		// plugin) ever runs. `draftGraceOf` reads `draftRooms` — assigned a few
+		// lines down, by the SAME `restoreRooms` call — through a closure, not
+		// a direct read: the closure is only ever CALLED once a key goes
+		// offline, well after `draftRooms` is assigned, so the `let`-before-
+		// assignment here is safe (TDZ bites a read, not a deferred one).
+		let draftRooms: DraftRooms | null = null;
+		const seatPresence = createSeatPresence({
+			seatReleaseMs: SEAT_RELEASE_MS,
+			draftGraceOf: (id) => draftRooms?.find(id)?.app.disconnectGraceMs ?? 0,
+		});
+		const { lobby, draftRooms: restoredDraftRooms } = await restoreRooms({
 			lobby: {
 				dir: CONFIG.roomsDir,
 				formats: state.library.formats,
@@ -69,12 +84,15 @@ export const roomsPlugin: CardtablePlugin = {
 							onDeferredChange: (room) => emitDraftUpdate(ctx.io, room, draftPolicy),
 							// A 45-minute draft must survive this process restarting on every push to main.
 							storeDir: CONFIG.draftsDir,
+							presence: seatPresence,
 						}
 					: null,
 			log: state.roomsLog,
 		});
+		draftRooms = restoredDraftRooms;
 		state.lobby = lobby;
 		state.draftRooms = draftRooms;
+		state.seatPresence = seatPresence;
 		// A plan name read before the set names warmed showed the bare code; every draft room is read
 		// again once they arrive. Wired before `listen`, so no view is served without it.
 		state.setsStore.onNamed(() => lobby.poolNamesChanged());

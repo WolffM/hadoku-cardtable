@@ -53,6 +53,10 @@ import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
 import { LIBRARY, formatIdOf, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from './library.js';
+import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
+
+/** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
+const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -521,7 +525,7 @@ afterEach(async () => {
 async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): Promise<Harness> {
 	const cube = loadPool(CUBE_FILE);
 	if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
-	const rooms = createDraftRooms({ ...singlePoolResolver(cube.pool), now: () => 1_700_000_000_000 });
+	const rooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube.pool), now: () => 1_700_000_000_000 });
 
 	const { factory, hosts } = replayFactory();
 	const specs: MatchSpec[] = [];

@@ -43,6 +43,7 @@ import { fkOf } from './erase/index.js';
 import { edgeAuth, gate } from './kernel.js';
 import { monitoringSink, siteOf } from './telemetry.js';
 import { fleetPlugin, stateDirPlugin } from './plugins/boot.js';
+import { chatPlugin } from './plugins/chat.js';
 import { erasePlugin } from './plugins/erase.js';
 import { libraryPlugin } from './plugins/library.js';
 import { listenPlugin, warmPlugin } from './plugins/listen.js';
@@ -98,6 +99,7 @@ await createGameServer<CardtableEvents, Cardtable>({
 		tablesPlugin,
 		recordingsPlugin,
 		playPlugin,
+		chatPlugin,
 		streamSocketPlugin,
 		erasePlugin,
 		listenPlugin,

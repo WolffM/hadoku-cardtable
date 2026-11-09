@@ -100,28 +100,54 @@
  * the deadlines: a seat whose pick moved on gets a new one, a seat with
  * nothing in front of it has none. One timer per room, for the earliest.
  *
- * ## A seat with nobody connected to it, 30 s
+ * ## A seat with nobody connected to it, 30 s — and ONE tracker for the whole server
  *
  * `io.on('connection')` fires for every socket this server holds, not only a
- * draft's — the room feed (`room/feed.ts`) shares the same handshake, so a
+ * draft's — the room feed (`room/watching.ts`) shares the same handshake, so a
  * browser's one socket per tab is counted here whatever screen opened it.
- * `liveConnections` tracks that count by participant; when it drops to zero
- * — their last tab closed, or the connection simply dropped — a timer of
- * `seatReleaseMs` (ruled 2026-10-26: 30 s) is set, and if the count is STILL
- * zero when it fires, `lobby.releaseAbandonedSeats` gives back every seat
- * they hold whose table has no live match and no Gauntlet holding it
- * (ruling 13). A reload inside the window reconnects under the SAME
- * participant id (the edge headers mint it, never the socket), so the count
- * is already back above zero when the timer checks — the seat is never
- * touched. Nothing is cancelled on reconnect; the check at fire time is
- * enough, the same way a stale Gauntlet AI timer is a no-op (`http/
- * gauntlet.ts`'s own `wake`).
+ * `seatPresence`, a `@wolffm/rooms-server` `PresenceTracker<string>`, is the
+ * SAME instance `draftRooms.ts` arms a pod's seat-hold on: one tracker for
+ * the whole server, not two. `connect`/`disconnect` per socket,
+ * and the package decides "is this participant still here" — a second tab is
+ * routine (online while ANY connection is live), and going offline starts the
+ * grace.
+ *
+ * A single tracker has one `graceMs`, so it is a FUNCTION of the key:
+ * `parseDraftPresenceKey` tells a draft pod's composite key
+ * (`draftPresenceKey`, `` `${roomId}\0${participantId}` ``) from a bare lobby
+ * participant id, and a draft key's grace is read off THAT POD's own
+ * `disconnectGraceMs` (`deps.rooms.find`, a dependency, never a module
+ * global) — a lobby key gets `seatReleaseMs` (ruled 2026-10-26: 30 s). The two
+ * key spaces can never collide: a `ParticipantId` never contains a NUL.
+ *
+ * This module's own `offline`/`online`/`left` listener is the LOBBY half —
+ * it ignores a draft key outright (parses to non-null), because that one is
+ * `draftRooms.ts`'s to answer, registered once per `DraftRooms` factory. If
+ * nobody from this participant reconnects before a LOBBY key's grace runs
+ * out, the tracker's `left` event fires and `lobby.releaseAbandonedSeats`
+ * gives back every seat they hold whose table has no live match and no
+ * Gauntlet holding it (ruling 13), against the `lobby.seatMark()` captured
+ * the instant they went offline — so a seat taken AFTER that instant
+ * (someone else sitting down before the grace expires) is never released out
+ * from under them (the e2e of 2026-11-05). A reload inside the window
+ * reconnects under the SAME participant id (the edge headers mint it, never
+ * the socket), which the tracker reports as `online: { returned: true }` and
+ * the pending mark is dropped — the seat is never touched. The grace timer
+ * itself is not cancelled (the package does not expose that to a caller
+ * using its own `setTimer`); it is a no-op once it fires, the same way a
+ * stale Gauntlet AI timer is a no-op (`http/gauntlet.ts`'s own `wake`).
+ *
+ * No heartbeat is wired up (socket.io's own ping/pong already decides when a
+ * transport is dead and fires `disconnect`, which is all this module ever
+ * listens for), so `seatPresence`'s `idleMs` only needs to outlast anything
+ * that behaves — `NO_HEARTBEAT_IDLE_MS` (24 h) is far longer than any draft
+ * runs, so nothing live is ever dropped as idle.
  */
 
 import type { Request } from 'express';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { Server as SocketIOServer } from 'socket.io';
-import { MultiRateLimiter, emitPerRecipient, type EmitPolicy, type RateLimitConfig } from '@wolffm/rooms-server';
+import { MultiRateLimiter, PresenceTracker, emitPerRecipient, type EmitPolicy, type RateLimitConfig } from '@wolffm/rooms-server';
 import { seatOf, type ParticipantId } from '@wolffm/rooms-protocol';
 import { botTurn, botsOwe, isBotSeat, packOf, pick as enginePick, pickTimeMs, runBots, timeoutPick } from '@hadoku/draft';
 import {
@@ -143,6 +169,7 @@ import {
 	cursorFor,
 	joinDraftRoom,
 	leaveDraftRoom,
+	parseDraftPresenceKey,
 	releaseSeat,
 	stateOf,
 	viewForClient,
@@ -218,10 +245,15 @@ interface DraftSocketDeps {
 	botPickMs?: number;
 	/** Picks for the bots on the clock (`draftbot.ts`). Absent: every bot pick is the heuristic's. */
 	draftbot?: Draftbot;
-	/** The seat-release window, ruled 2026-10-26: 30 s. See the module header. */
-	seatReleaseMs?: number;
-	/** Real `setTimeout` (unref'd) unless a test runs its own clock. */
-	schedule?: (fn: () => void, ms: number) => void;
+	/**
+	 * The ONE server-wide presence tracker — `createSeatPresence`'s own
+	 * instance, built by `plugins/rooms.ts` BEFORE `createDraftRooms` and
+	 * handed to both that and this. This file no longer constructs its own:
+	 * no `seatReleaseMs`, no `schedule`, no
+	 * `new PresenceTracker` here at all — see `createSeatPresence`'s doc for
+	 * where those moved.
+	 */
+	presence: PresenceTracker<string>;
 	/** One live tab per player per room (`./session.ts`): a join that names its tab joins the tab's claim. Absent: no claim. */
 	sessions?: Pick<SessionHandle, 'attach'>;
 }
@@ -235,11 +267,33 @@ interface DraftSocketHandle {
 
 const defaultLog = jsonLogger('cardtable-draft');
 
-/** Ruled 2026-10-26. See the module header. */
-const SEAT_RELEASE_MS = 30_000;
+/** Ruled 2026-10-26. See the module header. Exported so `createSeatPresence`'s callers — `plugins/rooms.ts`
+ *  in production, a test harness otherwise — have the real default rather than a second copy of `30_000`. */
+export const SEAT_RELEASE_MS = 30_000;
 
-/** `tierOf` over the sanitized handshake headers. */
-function handshakeTier(headers: IncomingHttpHeaders): string {
+/**
+ * There is no heartbeat wiring here — socket.io's own ping/pong already
+ * decides when a transport is dead and fires `disconnect`. `PresenceTracker`
+ * requires an `idleMs` regardless, so this just needs to outlast anything
+ * that behaves: far longer than a draft runs, well under Node's ~24.8-day
+ * `setTimeout` ceiling (past which a delay is clamped rather than honoured).
+ */
+const NO_HEARTBEAT_IDLE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A grace timer's handle, tagged so `clearSeatTimer` below knows whether it
+ * owns a real `setTimeout` to cancel or merely called the test's own
+ * `schedule` (which, like the old `liveConnections` timer it replaces, offers
+ * no way to cancel — see the module header's "no-op once it fires").
+ */
+type SeatTimerHandle = { kind: 'real'; handle: ReturnType<typeof setTimeout> } | { kind: 'scheduled' };
+
+/**
+ * `tierOf` over the sanitized handshake headers. Exported so `chat.ts`'s
+ * `admit` reads the same tier floor from the same handshake, rather than a
+ * second copy of this cast — the thing this comment is already written about.
+ */
+export function handshakeTier(headers: IncomingHttpHeaders): string {
 	// `tierOf` reads exactly one header off `req.headers`, but it is typed for an
 	// express `Request` and a handshake carries a bare `IncomingMessage`. The
 	// cast is here rather than a second copy of the header read: a duplicated
@@ -282,6 +336,68 @@ const REFUSAL_DETAIL: Record<JoinRefusal, string> = {
 	'not-started': 'that draft has not started yet',
 };
 
+export interface SeatPresenceOptions {
+	/** The LOBBY grace (ruled 2026-10-26: 30 s) — `SEAT_RELEASE_MS` in production. */
+	seatReleaseMs: number;
+	/** A draft key's grace: that pod's own `disconnectGraceMs`, or 0 for a pod the caller cannot resolve
+	 *  (already deleted, or — in `plugins/rooms.ts` — read before `draftRooms` exists; see that file's
+	 *  own comment on why the lazy read is safe). Never a module global: the caller's own dependency. */
+	draftGraceOf: (draftRoomId: string) => number;
+	/** Real `setTimeout` (unref'd) unless a test runs its own clock — only a LOBBY grace timer
+	 *  (`ms === seatReleaseMs`) is routed through it; a draft key's grace is some other number in the
+	 *  overwhelming majority of cases and always takes the real-timer path. */
+	schedule?: (fn: () => void, ms: number) => void;
+}
+
+/**
+ * The ONE `PresenceTracker` for the whole server — the single source of
+ * truth for "is this key present right now" that `attachDraftSocket`,
+ * `draftRooms.ts` and (in w98) watchparty's `serveRoom` all read rather than
+ * building their own. THE ONLY `new PresenceTracker` in `apps/server` —
+ * everything else, this file's own `attachDraftSocket` included, takes the
+ * instance this returns as a dependency.
+ *
+ * Built once, by `plugins/rooms.ts`, BEFORE `createDraftRooms` — the one
+ * place both halves of the key space (`draftGraceOf`'s `deps.rooms`-shaped
+ * lookup, and the `presence` that `createDraftRooms` itself takes) can be
+ * wired without either waiting on the other across a boot phase. There is
+ * no module-level accessor: `state.seatPresence` is the one place to reach
+ * it.
+ */
+export function createSeatPresence(opts: SeatPresenceOptions): PresenceTracker<string> {
+	const schedule =
+		opts.schedule ??
+		((fn: () => void, ms: number): void => {
+			const timer = setTimeout(fn, ms);
+			timer.unref?.();
+		});
+	return new PresenceTracker<string>({
+		idleMs: NO_HEARTBEAT_IDLE_MS,
+		graceMs: (key) => {
+			const draft = parseDraftPresenceKey(key);
+			return draft !== null ? opts.draftGraceOf(draft.draftRoomId) : opts.seatReleaseMs;
+		},
+		setTimer: (fn, ms): SeatTimerHandle => {
+			if (ms === opts.seatReleaseMs) {
+				schedule(fn, ms);
+				return { kind: 'scheduled' };
+			}
+			const handle = setTimeout(fn, ms);
+			handle.unref?.();
+			return { kind: 'real', handle };
+		},
+		clearTimer: (handle) => {
+			// `undefined` while nobody is mid-grace (e.g. `dispose()`'s own
+			// `forget` calls this unconditionally) — the default `clearTimer`
+			// tolerates that (`clearTimeout(undefined)` is a no-op); this one
+			// must check first since it reads a tagged handle, not a timer id.
+			if (handle === undefined) return;
+			const h = handle as SeatTimerHandle;
+			if (h.kind === 'real') clearTimeout(h.handle);
+		},
+	});
+}
+
 export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): DraftSocketHandle {
 	const log = deps.log ?? defaultLog;
 	const policy = draftEmitPolicy(log);
@@ -293,15 +409,39 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const botAsks = new Map<string, AbortController>();
 	const tally = draftbotTally(log);
 	const ropeTimers = new Map<string, ReturnType<typeof setTimeout>>();
-	const seatReleaseMs = deps.seatReleaseMs ?? SEAT_RELEASE_MS;
-	const schedule =
-		deps.schedule ??
-		((fn: () => void, ms: number): void => {
-			const timer = setTimeout(fn, ms);
-			timer.unref?.();
-		});
-	/** Live socket count by participant, across every connection this server holds. See the module header. */
-	const liveConnections = new Map<string, number>();
+	/**
+	 * Who is here, across every connection this server holds (the room feed
+	 * shares the handshake too — see the module header) — the SAME instance
+	 * a draft pod's seat-hold runs on too. Built by the caller
+	 * (`createSeatPresence`) — this function only listens.
+	 */
+	const seatPresence = deps.presence;
+	/** `lobby.seatMark()`, captured the instant a participant went offline — see the module header. */
+	const seatMarkOnOffline = new Map<string, number>();
+	seatPresence.on((event) => {
+		// A draft pod's own key, offline, online or left: `draftRooms.ts`'s
+		// listener on this same tracker answers it, never this one — the two
+		// must not step on each other's seats.
+		if (parseDraftPresenceKey(event.key) !== null) return;
+		switch (event.type) {
+			case 'offline':
+				seatMarkOnOffline.set(event.key, deps.lobby.seatMark());
+				break;
+			case 'online':
+				// A reconnect inside the grace cancels it (returned: true) — drop the
+				// stale mark so a LATER disconnect never reuses it.
+				seatMarkOnOffline.delete(event.key);
+				break;
+			case 'left': {
+				const mark = seatMarkOnOffline.get(event.key);
+				seatMarkOnOffline.delete(event.key);
+				if (mark === undefined) break;
+				const released = deps.lobby.releaseAbandonedSeats(event.key, mark);
+				for (const r of released) log({ evt: 'seat-released-disconnected', participantId: event.key, ...r });
+				break;
+			}
+		}
+	});
 
 	/**
 	 * Every bot holding a pack picks. At `botPickMs: 0`, at once and in place —
@@ -469,7 +609,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		// browser will go on to send.
 		const participantId = identityFromHeaders(socket.request.headers, socket.id);
 		log({ evt: 'connected', participantId, tier, socketId: socket.id });
-		liveConnections.set(participantId, (liveConnections.get(participantId) ?? 0) + 1);
+		seatPresence.connect(participantId, socket.id);
 
 		socket.on(DRAFT_CHANNEL.clientToServer, (raw: unknown) => {
 			const parsed = safeParseClientMessage(raw);
@@ -491,23 +631,15 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		});
 
 		socket.on('disconnect', (reason: string) => {
-			// The LAST connection for this participant gone starts the
-			// seat-release window. A reconnect (even a bare reload — the edge
-			// headers mint the same `participantId`, never the socket) is simply
-			// a count above zero again by the time the timer below checks, so
-			// nothing here needs to find or cancel it.
-			const left = (liveConnections.get(participantId) ?? 1) - 1;
-			if (left <= 0) liveConnections.delete(participantId);
-			else liveConnections.set(participantId, left);
-			if (left <= 0) {
-				// Only what was held as the last connection went: a seat taken inside the window is someone acting now.
-				const mark = deps.lobby.seatMark();
-				schedule(() => {
-					if ((liveConnections.get(participantId) ?? 0) > 0) return;
-					const released = deps.lobby.releaseAbandonedSeats(participantId, mark);
-					for (const r of released) log({ evt: 'seat-released-disconnected', participantId, ...r });
-				}, seatReleaseMs);
-			}
+			// `seatPresence.disconnect` is a no-op while another connection of
+			// this participant's is still live (a second tab, or a stale socket
+			// reaped after its replacement joined) — it only starts the grace
+			// (and captures `seatMarkOnOffline`, in the listener set up above)
+			// once the LAST one goes. A reconnect (even a bare reload — the edge
+			// headers mint the same `participantId`, never the socket) reports
+			// back to the SAME listener as `online`, which drops the mark —
+			// nothing here needs to find or cancel anything.
+			seatPresence.disconnect(socket.id);
 			if (deps.rooms === null) return;
 			for (const room of deps.rooms.all()) {
 				if (!room.clients.has(socket.id)) continue;
@@ -713,6 +845,10 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			botTimers.clear();
 			botAsks.clear();
 			ropeTimers.clear();
+			// `deps.presence` is not this function's to dispose — it is shared
+			// with `draftRooms.ts`'s own listener and, via `state.seatPresence`,
+			// whoever else holds the one accessor. The caller that BUILT it
+			// (`createSeatPresence`) owns its shutdown.
 		},
 		draftbotPicks: () => tally.drain(),
 	};

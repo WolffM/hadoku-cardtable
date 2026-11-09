@@ -6,6 +6,7 @@
  */
 import type { GamePlugin } from '@hadoku/service-kernel/server';
 import type { JsonLog } from '@hadoku/service-kernel/log';
+import type { PresenceTracker } from '@wolffm/rooms-server';
 import type { DraftPlan, PoolVerdict } from '@hadoku/shared';
 import type { RestoredRooms } from '../boot.js';
 import type { ForgetfulPeople } from '../people.js';
@@ -63,6 +64,14 @@ export interface Cardtable {
 	checkDraftPlan: (plan: DraftPlan) => Promise<PoolVerdict>;
 	lobby: RestoredRooms['lobby'];
 	draftRooms: RestoredRooms['draftRooms'];
+	/**
+	 * The ONE server-wide presence tracker (`room/socket.ts`'s
+	 * `createSeatPresence`) — built in `plugins/rooms.ts` before
+	 * `draftRooms`, which takes this same instance. The one accessor: nothing
+	 * else constructs a `PresenceTracker`. Watchparty's `serveRoom` is handed
+	 * this in w98.
+	 */
+	seatPresence: PresenceTracker<string>;
 	runTestingRoomSeed: () => Promise<void>;
 	/** The catalogued Challenges (`room/challenge.ts`). */
 	challenges: Challenges;

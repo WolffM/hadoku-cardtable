@@ -55,6 +55,10 @@ import {
 	type RoomView,
 	type SeriesEnd,
 } from './lobby.ts';
+import { createSeatPresence, SEAT_RELEASE_MS } from './socket.js';
+
+/** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
+const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /**
@@ -3117,7 +3121,7 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		// deals to.
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
-		const draftRooms = createDraftRooms({ ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
+		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
 		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const room = draftRooms.open(id);
 		expect(
@@ -3359,7 +3363,7 @@ describe('closed pod seats', () => {
 
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
-		const draftRooms = createDraftRooms({ ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
+		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
 		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const room = draftRooms.open(id);
 		expect(room.seats.capacity ?? room.seats.seats.length).toBe(4);
@@ -3396,7 +3400,7 @@ describe('the pod seat is the draft table', () => {
 
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
-		const draftRooms = createDraftRooms({ ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
+		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
 		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const room = draftRooms.open(id);
 		const dealt = stateOf(room);

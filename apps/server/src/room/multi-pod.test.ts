@@ -18,6 +18,10 @@ import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './d
 import { openLobby, splitIntoPods, type GameHooks, type Lobby } from './lobby.ts';
 import { loadPool } from './pool.ts';
 import { roundNamesOf } from './plan.ts';
+import { createSeatPresence, SEAT_RELEASE_MS } from './socket.js';
+
+/** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
+const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
 const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
 
@@ -200,7 +204,7 @@ describe('a room of 13 drafts as 7 + 6 and plays one Swiss of 3 rounds into one 
 		const [one, two] = [pods[0]![0]!, pods[1]![0]!];
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
-		const draftRooms = createDraftRooms({ ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
+		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
 		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const podOne = stateOf(draftRooms.open(id));
 		const podTwo = stateOf(draftRooms.open(`${id}~1`));

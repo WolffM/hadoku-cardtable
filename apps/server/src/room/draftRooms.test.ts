@@ -34,6 +34,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { PresenceTracker } from '@wolffm/rooms-server';
+import { createSeatPresence, SEAT_RELEASE_MS } from './socket.js';
 import {
 	humanSeats,
 	occupantOf,
@@ -52,6 +54,7 @@ import {
 	createDraftRooms,
 	DEFAULT_PARAMS,
 	DEFAULT_PLAN,
+	draftPresenceKey,
 	joinDraftRoom,
 	leaveDraftRoom,
 	releaseSeat,
@@ -92,6 +95,20 @@ function podDeal(humans: PodDeal['humans']): PodDeal {
 	return { seats: 8, humans, bots: [], plan: DEFAULT_PLAN };
 }
 
+/**
+ * A tracker of this file's own, never the real production instance —
+ * `createDraftRooms` takes it as an injected dependency rather than
+ * importing it, exactly so a test can hand this file an instance it
+ * controls. Real `setTimeout`/`clearTimeout` (the default), so
+ * `vi.useFakeTimers()` still intercepts it transparently.
+ */
+function sharedPresenceFixture(disconnectGraceMs: number): PresenceTracker<string> {
+	return createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => disconnectGraceMs });
+}
+
+/** For the handful of tests below that call `createDraftRooms` directly rather than through `rooms()`/`bare()` — none of them exercise a disconnect grace at all. */
+const noGracePresence = sharedPresenceFixture(0);
+
 function rooms(
 	overrides: {
 		reservationTtlMs?: number;
@@ -99,11 +116,12 @@ function rooms(
 		onDeferredChange?: (room: DraftRoom) => void;
 	} = {},
 ): DraftRooms {
+	const disconnectGraceMs = overrides.disconnectGraceMs ?? 0;
 	return createDraftRooms({
 		...singlePoolResolver(pool),
 		params: {
 			reservationTtlMs: overrides.reservationTtlMs ?? 120_000,
-			disconnectGraceMs: overrides.disconnectGraceMs ?? 0,
+			disconnectGraceMs,
 		},
 		now: () => 1_700_000_000_000,
 		onDeferredChange: overrides.onDeferredChange,
@@ -113,6 +131,7 @@ function rooms(
 		// production, and letting it apply here would make an ordinary unit
 		// test touch real disk under this repo's own `logs/` directory.
 		storeDir: null,
+		presence: sharedPresenceFixture(disconnectGraceMs),
 	});
 }
 
@@ -136,6 +155,22 @@ describe('loadPool', () => {
 		const load = loadPool(resolve(BUNDLED_POOL_FIXTURE, '..', 'no-such-pool.json'));
 		expect(load.ok).toBe(false);
 		if (!load.ok) expect(load.reason).toBe('missing');
+	});
+});
+
+/*
+ * The key a server-wide `PresenceTracker` uses for a draft seat, since it
+ * carries lobby and pod presence both. Pure.
+ */
+describe('draftPresenceKey', () => {
+	it('joins the draft room id and the participant id with a NUL — never collides across two pods', () => {
+		expect(draftPresenceKey('pod-1', ALICE)).toBe(`pod-1\u0000${ALICE}`);
+		expect(draftPresenceKey('pod-1', ALICE)).not.toBe(draftPresenceKey('pod-2', ALICE));
+	});
+
+	it('keys the same participant differently in two different pods, and two participants differently in one', () => {
+		expect(draftPresenceKey('pod-1', ALICE)).not.toBe(draftPresenceKey('pod-1', BOB));
+		expect(new Set([draftPresenceKey('pod-1', ALICE), draftPresenceKey('pod-1', BOB), draftPresenceKey('pod-2', ALICE), draftPresenceKey('pod-2', BOB)]).size).toBe(4);
 	});
 });
 
@@ -461,7 +496,7 @@ describe('the refresh hazard in leaveRoom, with nothing else covering it', () =>
 		// Neither safety net is doing the work. Assert that, or this test
 		// silently becomes a test of the reservation again.
 		expect(reservationFor(room.seats, 0)).toBeNull();
-		expect(room.app.vacating.size).toBe(0);
+		expect(room.app.presence?.isInGrace(draftPresenceKey(room.roomId, ALICE)) ?? false).toBe(false);
 
 		// The state the pod actually sees.
 		expect(seated.afterStaleClose).toBe(0);
@@ -641,11 +676,61 @@ describe('a browser refresh, in the order it actually arrives', () => {
 		broadcast(closed.changed);
 		expect(closed.guarded).toBe(true);
 		expect(closed.held).toBe(false);
-		expect(room.app.vacating.size).toBe(0);
+		expect(room.app.presence?.isInGrace(draftPresenceKey(room.roomId, ALICE)) ?? false).toBe(false);
 
 		vi.advanceTimersByTime(GRACE_MS * 2);
 		expect(seatOf(room.seats, ALICE)).toBe(0);
 		expect(seen).toEqual([]);
+	});
+
+	/*
+	 * `releaseSeat` (an explicit "I'm leaving" the draft — a different entry
+	 * point from a socket's `leaveDraftRoom`) calls `cancelVacate` too. A
+	 * drafter whose SOCKET just dropped (mid-grace, seat held) can still reach
+	 * it over HTTP, authenticated independently of the socket, and without
+	 * this the pending grace would fire later and try to unseat whoever is in
+	 * that seat by then — not necessarily still nobody.
+	 */
+	it('an explicit release mid-grace cancels the pending vacate — the later timer is not a redundant unseat', () => {
+		vi.useFakeTimers();
+		const { room, seen, broadcast } = pod(GRACE_MS);
+
+		broadcast(leaveDraftRoom(room, 'sock-a').changed);
+		expect(room.app.presence?.isInGrace(draftPresenceKey(room.roomId, ALICE)) ?? false).toBe(true);
+
+		expect(releaseSeat(room, ALICE)).toBe(true);
+		expect(room.app.presence?.isInGrace(draftPresenceKey(room.roomId, ALICE)) ?? false).toBe(false);
+		expect(seatOf(room.seats, ALICE)).toBeNull();
+		const seenAfterRelease = seen.length;
+
+		// The old pending grace does not fire a second, redundant unseat —
+		// nothing changes, and nobody is told anything, when it would have.
+		vi.advanceTimersByTime(GRACE_MS * 2);
+		expect(seatOf(room.seats, ALICE)).toBeNull();
+		expect(seen.length).toBe(seenAfterRelease);
+	});
+
+	/*
+	 * ONE shared tracker carries every pod a factory opens, keyed by
+	 * `draftPresenceKey(roomId, participantId)` — so a grace that fires for
+	 * one pod must look its OWN room up by the id it parsed out of the key,
+	 * never a neighbour's.
+	 */
+	it('a pod’s grace vacates only that pod’s seat — the same participant stays seated in a different pod sharing the tracker', () => {
+		vi.useFakeTimers();
+		const r = rooms({ disconnectGraceMs: GRACE_MS });
+		const podA = r.open('pod-a');
+		const podB = r.open('pod-b');
+		joinDraftRoom(podA, 'sock-a1', ALICE, 'friend');
+		joinDraftRoom(podB, 'sock-a2', ALICE, 'friend');
+
+		// Alice disconnects from pod-a only; pod-b never hears from her.
+		const closed = leaveDraftRoom(podA, 'sock-a1');
+		expect(closed.held).toBe(true);
+
+		vi.advanceTimersByTime(GRACE_MS);
+		expect(seatOf(podA.seats, ALICE)).toBeNull();
+		expect(seatOf(podB.seats, ALICE)).toBe(0);
 	});
 });
 
@@ -698,7 +783,7 @@ describe('one seat table, not two', () => {
 
 describe('onRoomDelete', () => {
 	/*
-	 * A room owns pending `vacating` timers. They used to be drained at the GC
+	 * A room owns a pending grace timer in its `PresenceTracker`. It used to be drained at the GC
 	 * sweep, which was correct only while that was the one delete path; they
 	 * are drained on the REGISTRY now, so a future admin close or game-over
 	 * reap is covered by construction. GC itself is still off — `collectGC` is
@@ -716,10 +801,10 @@ describe('onRoomDelete', () => {
 
 		const closed = leaveDraftRoom(room, 'sock-a');
 		expect(closed.held).toBe(true);
-		expect(room.app.vacating.size).toBe(1);
+		expect(room.app.presence?.isInGrace(draftPresenceKey(room.roomId, ALICE)) ?? false).toBe(true);
 
 		r.delete('pod-1');
-		expect(room.app.vacating.size).toBe(0);
+		expect(room.app.presence?.isInGrace(draftPresenceKey(room.roomId, ALICE)) ?? false).toBe(false);
 		expect(r.find('pod-1')).toBeUndefined();
 
 		// The timer is really gone: the deferred vacate does not fire, and in
@@ -737,7 +822,7 @@ describe('onRoomDelete', () => {
 		// If the drain ran after the delete it would find nothing and the
 		// timer above would survive. It does not.
 		r.delete('pod-1');
-		expect(room.app.vacating.size).toBe(0);
+		expect(room.app.presence?.isInGrace(draftPresenceKey(room.roomId, ALICE)) ?? false).toBe(false);
 	});
 });
 
@@ -868,7 +953,7 @@ describe('a room is dealt from its OWN plan, not a server-global cube', () => {
 	}
 
 	it("setting a room's plan to a non-default cube deals its first pack from that cube", () => {
-		const r = createDraftRooms({
+		const r = createDraftRooms({ presence: noGracePresence,
 			resolver: twoCubeResolver(),
 			defaultPlan: DEFAULT_PLAN, // names a cube this resolver does not even know — proves the room never falls back to it once a plan is set.
 			now: () => 1_700_000_000_000,
@@ -887,7 +972,7 @@ describe('a room is dealt from its OWN plan, not a server-global cube', () => {
 	});
 
 	it('a room with no pod lookup wired deals the DEFAULT plan, not the other cube', () => {
-		const r = createDraftRooms({ resolver: twoCubeResolver(), defaultPlan: legacyPlan(), now: () => 1_700_000_000_000, storeDir: null });
+		const r = createDraftRooms({ presence: noGracePresence, resolver: twoCubeResolver(), defaultPlan: legacyPlan(), now: () => 1_700_000_000_000, storeDir: null });
 		const room = r.open('pod-default');
 		const state = stateOf(room);
 		for (const pack of state.queues.flat()) {
@@ -909,7 +994,7 @@ describe('a room is dealt from its OWN plan, not a server-global cube', () => {
 			name: (src) => (src.kind === 'set' ? `${src.code} (${src.style})` : src.cubeId),
 		};
 		const src: PoolSource = { kind: 'set', code: 'ARB', style: 'set-cube' };
-		const r = createDraftRooms({ resolver, defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const r = createDraftRooms({ presence: noGracePresence, resolver, defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
 		r.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: { rounds: [src, src, src] } }));
 		const room = r.open('pod-set-cube');
 		const state = stateOf(room);
@@ -963,7 +1048,7 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 	}
 
 	it("a realistic round is dealt exactly from the packs cacheRealisticRound was given, never from the resolver", () => {
-		const r = createDraftRooms({ resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const r = createDraftRooms({ presence: noGracePresence, resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
 		r.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: { rounds: [REALISTIC, REALISTIC, REALISTIC] } }));
 		const packs = forgePacks(8, 'isd');
 		r.cacheRealisticRound('pod-realistic', 0, packs);
@@ -978,7 +1063,7 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 	});
 
 	it('the cached round is consumed once — a SECOND open() for a different draft id never sees a stale entry', () => {
-		const r = createDraftRooms({ resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const r = createDraftRooms({ presence: noGracePresence, resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
 		r.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: { rounds: [REALISTIC, REALISTIC, REALISTIC] } }));
 		r.cacheRealisticRound('pod-a', 0, forgePacks(8, 'a'));
 		r.cacheRealisticRound('pod-a', 1, forgePacks(8, 'a'));
@@ -1003,7 +1088,7 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 	it('a restore reads a realistic round\'s packs back from disk — never re-shuffles, never needs cacheRealisticRound again', async () => {
 		const dir = await mkdtemp(join(tmpdir(), 'cardtable-draftrooms-restore-test-'));
 		try {
-			const first = createDraftRooms({ resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: dir });
+			const first = createDraftRooms({ presence: noGracePresence, resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: dir });
 			first.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: { rounds: [REALISTIC, REALISTIC, REALISTIC] } }));
 			const originalPacks = forgePacks(8, 'persisted');
 			first.cacheRealisticRound('pod-restore', 0, originalPacks);
@@ -1015,7 +1100,7 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 			// `createDraftRooms` runs before this function even returns, so the
 			// pod is already live — `open` below is idempotent-into-the-restore,
 			// not a fresh deal.
-			const restored = createDraftRooms({ resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_001, storeDir: dir });
+			const restored = createDraftRooms({ presence: noGracePresence, resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_001, storeDir: dir });
 			const room = restored.open('pod-restore');
 			expect(JSON.stringify(stateOf(room).rounds)).toBe(JSON.stringify(dealt));
 			expect(JSON.stringify(withoutId(stateOf(room).rounds[0]!))).toBe(JSON.stringify(withoutId(originalPacks)));
@@ -1090,19 +1175,19 @@ describe('the wire: cubeMetaOf never emits a CubeMeta the real ServerMessage sch
 	}
 
 	it('a cube round\'s state message round-trips the real schema', () => {
-		const r = createDraftRooms({ resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const r = createDraftRooms({ presence: noGracePresence, resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
 		const plan: DraftPlan = { rounds: [{ kind: 'cube', cubeId: 'vintage' }, { kind: 'cube', cubeId: 'vintage' }, { kind: 'cube', cubeId: 'vintage' }] };
 		expectValidWireMessage(stateMessageFor(r, 'pod-wire-cube', plan));
 	});
 
 	it('a set-cube round\'s state message round-trips the real schema', () => {
-		const r = createDraftRooms({ resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const r = createDraftRooms({ presence: noGracePresence, resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
 		const plan: DraftPlan = { rounds: [{ kind: 'set', code: 'ARB', style: 'set-cube' }, { kind: 'set', code: 'ARB', style: 'set-cube' }, { kind: 'set', code: 'ARB', style: 'set-cube' }] };
 		expectValidWireMessage(stateMessageFor(r, 'pod-wire-set-cube', plan));
 	});
 
 	it('a REALISTIC round\'s state message round-trips the real schema — this is the production bug (fails on main)', () => {
-		const r = createDraftRooms({ resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const r = createDraftRooms({ presence: noGracePresence, resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
 		const plan: DraftPlan = { rounds: [{ kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ISD', style: 'realistic' }] };
 		const packs = Array.from({ length: 8 }, (_, seat) => makeCards(`isd-seat${seat}`, 15));
 		expectValidWireMessage(stateMessageFor(r, 'pod-wire-realistic', plan, [{ round: 0, packs }, { round: 1, packs }, { round: 2, packs }]));
@@ -1113,7 +1198,7 @@ describe('the wire: cubeMetaOf never emits a CubeMeta the real ServerMessage sch
 		// so the realistic round has to be FIRST for this plan to exercise the
 		// bug at all — a mixed plan with it in round 2 or 3 would pass on main
 		// too, for the wrong reason (cubeMetaOf never looking at it).
-		const r = createDraftRooms({ resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const r = createDraftRooms({ presence: noGracePresence, resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
 		const plan: DraftPlan = { rounds: [{ kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ARB', style: 'set-cube' }, { kind: 'cube', cubeId: 'vintage' }] };
 		const packs = Array.from({ length: 8 }, (_, seat) => makeCards(`isd-seat${seat}`, 15));
 		expectValidWireMessage(stateMessageFor(r, 'pod-wire-mixed', plan, [{ round: 0, packs }]));
@@ -1124,7 +1209,7 @@ describe('account erase in the draft pods', () => {
 	it("erases the drafter's own build and deck page edits, anonymises their seat, and saves the pod", async () => {
 		const dir = await mkdtemp(join(tmpdir(), 'cardtable-draftrooms-erase-'));
 		try {
-			const r = createDraftRooms({ ...singlePoolResolver(pool), now: () => 1_700_000_000_000, storeDir: dir });
+			const r = createDraftRooms({ presence: noGracePresence, ...singlePoolResolver(pool), now: () => 1_700_000_000_000, storeDir: dir });
 			r.setPodLookup(() => podDeal([{ participantId: ALICE, displayName: 'Alice', seat: 5 }, { participantId: BOB, displayName: 'Bob', seat: 2 }]));
 			const room = r.open('pod-erase');
 			saveBuiltDeck(room, ALICE, '[Main]\n1 Island');
