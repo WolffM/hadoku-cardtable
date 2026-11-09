@@ -165,7 +165,7 @@ async function openFullApp(
 	app.use(edgeMod.requireMinTier);
 	const api = express.Router();
 	api.use(express.json({ limit: '1mb' }));
-	roomsMod.attachRooms(api, { lobby, log, checkPlan: async (plan) => ({ ok: true, cards: plan.rounds.length * 10 }) });
+	roomsMod.attachRooms(api, { lobby, log, challenges: challenges(lobby, REPO_ROOT), checkPlan: async (plan) => ({ ok: true, cards: plan.rounds.length * 10 }) });
 	routesMod.attachTables(api, {
 		library: TABLES_LIBRARY,
 		draftRooms: null,
@@ -2538,6 +2538,30 @@ describe('a tournament locks over HTTP, with the real PodChecks (regression: the
 			players: { you: boolean; deck?: { choice: { deck: { library: string } } } }[];
 		};
 		expect(bobTable.players.find((p) => p.you)?.deck?.choice.deck).toEqual({ library: bobDeck });
+	});
+
+	/**
+	 * A Challenge's lock deals each AI the list its real player played, and the human's table holds the
+	 * list of the AI it meets. Ozymandias17's seat (4) meets TeaW1thRum's (0): the AI is seated FIRST,
+	 * and seating the human after must not wipe the AI's deck it was just handed.
+	 */
+	it('a Challenge: the human’s round-1 table holds the list its AI opponent’s real player played', async () => {
+		const h = await openFullApp(await tempDir());
+		const made = await call(h, 'POST', '/api/rooms/challenge', { as: 'alice', body: { collection: 'tournament-legacy-2026-02-07', player: 'Ozymandias17', field: 'top8' } });
+		expect(made.status, made.text).toBe(201);
+		const room = made.json() as import('../room/lobby.ts').RoomView & { you: { id: string } };
+		expect(room.pod!.seats.findIndex((s) => s?.memberId === room.you.id)).toBe(4);
+		const deck = await call(h, 'PUT', `/api/tables/rooms/${room.id}/deck`, { as: 'alice', body: { deck: { library: 'tourney-leg-2026-02-07-1-ozymandias17' } } });
+		expect(deck.status, deck.text).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } })).status).toBe(200);
+
+		const locked = h.lobby.get(room.id)!;
+		expect(locked.pod?.phase).toBe('rounds');
+		const pairing = locked.pod!.pairings.find((p) => p.players.includes(room.you.id))!;
+		expect(pairing.players).toEqual(['ai:0', room.you.id]);
+		const held = h.lobby.playerState(room.id, room.you.id) as { aiDeck?: string; deck?: { choice: { deck: { library: string } } } };
+		expect(held.deck?.choice.deck).toEqual({ library: 'tourney-leg-2026-02-07-1-ozymandias17' });
+		expect(held.aiDeck).toBe(TABLES_LIBRARY.deck('tourney-leg-2026-02-07-8-teaw1thrum')!.text);
 	});
 
 	// hadoku-cardtable-01, 2026-10-22: All Random deals every game fresh unless the room locks its decks, but a
