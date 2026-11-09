@@ -365,6 +365,30 @@ describe('pendingTriggers', () => {
 	});
 });
 
+describe('stackTriggeredBy', () => {
+	it('keeps the cards this seat sees that set a trigger off, on a stack pair and a waiting trigger alike', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const payload = {
+			gameView,
+			sequenceNumber: 1,
+			stackTriggeredBy: [
+				[50, onField],
+				[51, inTheirHand],
+			] as [number, number][],
+			pendingTriggers: [{ id: 900, hostCard: onField, controller: 1, key: 'seen', triggeredBy: [onField, inTheirHand] }],
+		};
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(out.payload.stackTriggeredBy).toEqual([[50, onField]]);
+		expect(out.payload.pendingTriggers?.[0]?.triggeredBy).toEqual([onField]);
+		const owner = createProjector(1).project({ kind: 'notify', method: 'setGameView', payload }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(owner.payload.stackTriggeredBy).toEqual(payload.stackTriggeredBy);
+	});
+});
+
 describe('waitingEffects', () => {
 	it('keeps an effect whose source this seat sees, drops one whose source it may not see, on both state frames', () => {
 		const raw = fold(fixtureFrames());

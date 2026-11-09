@@ -1553,11 +1553,11 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   function drawArrows(items: readonly StackEntry[], overlayBox: () => DOMRect): void {
     const root = overlay();
     if (root === null) return;
-    const aims: { key: string; item: number; source: number | null; to: Element; at: Rect; aimed: { from: Point; tip: Point } }[] = [];
+    const aims: { key: string; item: number; source: number | null; to: Element; at: Rect; aimed: { from: Point; tip: Point }; cause: boolean }[] = [];
     for (const item of items) {
       const d = drawn.get(item.id);
       if (d === undefined || d.leaving) continue;
-      const targets: { key: string; to: Element; box?: Rect | undefined }[] = [];
+      const targets: { key: string; to: Element; box?: Rect | undefined; cause?: true }[] = [];
       for (const id of item.targetCardIds ?? []) {
         const to = cardBox(canvas, id);
         if (to !== null) targets.push({ key: `${item.id}:card:${id}`, to });
@@ -1570,26 +1570,33 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         const target = drawn.get(item.targetStackItemId);
         if (target !== undefined && !target.leaving) targets.push({ key: `${item.id}:stack:${item.targetStackItemId}`, to: target.el, box: settledBoxes.get(item.targetStackItemId) });
       }
+      // The card that set a trigger off, when the trigger acts on it without targeting it: two of one
+      // trigger, for two attackers, each point at their own (`StackEntry.triggeredByCardIds`).
+      for (const id of item.triggeredByCardIds ?? []) {
+        const to = cardBox(canvas, id);
+        if (to !== null) targets.push({ key: `${item.id}:cause:${id}`, to, cause: true });
+      }
       if (targets.length === 0) continue;
       // From the card's top centre to just inside its target, drawn over the stack (`placed.css`): a near
       // target is landed on at its middle (`aimBetween`), never pointed at with a stub.
       const own = settledBoxes.get(item.id) ?? rectOf(d.el);
-      for (const { key, to, box } of targets) {
+      for (const { key, to, box, cause } of targets) {
         const at = clampToLane(box ?? rectOf(to), to);
-        aims.push({ key, item: item.id, source: item.sourceCardId, to, at, aimed: aimBetween(own, at) });
+        aims.push({ key, item: item.id, source: item.sourceCardId, to, at, aimed: aimBetween(own, at), cause: cause === true });
       }
     }
     const box = aims.length === 0 ? null : overlayBox();
     // The top of the stack resolves next: its arrows breathe.
     const next = items[0]?.id;
     const seen = new Set<string>();
-    for (const { key, item, source, to, at, aimed } of aims) {
+    for (const { key, item, source, to, at, aimed, cause } of aims) {
       seen.add(key);
       let svg = root.querySelector<SVGSVGElement>(`.placed__arrow[data-key="${key}"]`);
       if (svg === null) {
         svg = newArrow({ className: 'placed__arrow', testid: 'placed-arrow' });
         svg.setAttribute('data-for', String(item));
         svg.setAttribute('data-key', key);
+        svg.toggleAttribute('data-cause', cause);
         root.append(svg);
       }
       breathe(svg, item === next);

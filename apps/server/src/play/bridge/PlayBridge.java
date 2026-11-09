@@ -1300,6 +1300,49 @@ public final class PlayBridge {
     }
 
     /**
+     * The card that set each triggered stack item off, when it is not the item's own card: the
+     * attacker a "whenever a creature attacks" trigger acts on, the creature an "enters" or "dies"
+     * trigger was for. Forge acts on it through the trigger's own triggering objects ({@code
+     * Defined$ TriggeredAttackerLKICopy}), never a target, so {@code StackItemView} carries
+     * nothing that links two identical triggers to their two creatures (the operator, 2026-11-09:
+     * Jace, Architect of Thought's +1 met two attackers and drew two chips that looked one). As
+     * {@code [stackItemId, cardId]} pairs, one per such card ({@link #triggeredByIds}).
+     */
+    static JsonArray stackTriggeredByJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        for (final SpellAbilityStackInstance si : game.getStack()) {
+            for (final JsonElement id : triggeredByIds(game, si.getSpellAbility())) {
+                final JsonArray pair = new JsonArray();
+                pair.add(si.getId());
+                pair.add(id.getAsInt());
+                out.add(pair);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The cards among {@code sa}'s triggering objects that a player can point at: each one Forge
+     * names on its own (a {@code Card} value, never a batch, whose one trigger already says it is
+     * for all of them), not the trigger's own card, and on a battlefield or in a graveyard now.
+     * Empty for anything that is not a trigger.
+     */
+    static JsonArray triggeredByIds(final Game game, final SpellAbility sa) {
+        final JsonArray out = new JsonArray();
+        if (sa == null || !sa.isTrigger() || sa.getHostCard() == null) { return out; }
+        final Set<Integer> seen = new java.util.LinkedHashSet<>();
+        for (final Object value : sa.getTriggeringObjects().values()) {
+            if (!(value instanceof forge.game.card.Card card) || card.getId() == sa.getHostCard().getId()) { continue; }
+            final forge.game.card.Card now = game.getCardState(card, null);
+            if (now == null || now.getZone() == null) { continue; }
+            final ZoneType zone = now.getZone().getZoneType();
+            if ((zone == ZoneType.Battlefield || zone == ZoneType.Graveyard) && seen.add(now.getId())) { out.add(now.getId()); }
+        }
+        return out;
+    }
+
+    /**
      * The first other stack item {@code si} targets, read down its whole
      * sub-instance chain: a charm's or a Command's chosen mode is a
      * sub-ability ({@code CharmEffect.chainAbilities}), so its targets sit on
@@ -1379,6 +1422,8 @@ public final class PlayBridge {
         // ability reads (`stackTargetOf`): a state frame never waits on them.
         final JsonArray stackTargets = orNull("stackTargetSpells", () -> stackTargetSpellsJson(game));
         if (stackTargets != null) { payload.add("stackTargetSpells", stackTargets); }
+        final JsonArray triggeredBy = orNull("stackTriggeredBy", () -> stackTriggeredByJson(game));
+        if (triggeredBy != null) { payload.add("stackTriggeredBy", triggeredBy); }
         final JsonArray pending = pendingTriggersJson(game);
         if (pending != null) { payload.add("pendingTriggers", pending); }
         final JsonArray effects = waitingEffectsJson(game);
@@ -2427,6 +2472,8 @@ public final class PlayBridge {
                 o.addProperty("hostCard", w.getHostCard().getId());
                 o.addProperty("controller", w.getActivatingPlayer() == null ? w.getHostCard().getController().getId() : w.getActivatingPlayer().getId());
                 o.addProperty("key", w.yieldKey());
+                final JsonArray by = triggeredByIds(game, w);
+                if (!by.isEmpty()) { o.add("triggeredBy", by); }
                 if (isTargeting(w)) { o.addProperty("current", true); }
                 out.add(o);
             }

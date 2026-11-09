@@ -58,6 +58,11 @@
   z-index: calc(var(--z-overlay, 20) + 1);
 }
 
+/* To the card that set a trigger off, not a target: the same arrow, quieter. */
+.arrow.placed__arrow[data-cause] {
+  opacity: 0.55;
+}
+
 /*
  * On the stack, a card is OFF the table: it hovers, where every permanent lies flat (the operator,
  * 2026-10-13: "needs to be more clear when a card is still on the stack or whether it has

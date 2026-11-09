@@ -75,6 +75,7 @@ function stackItem(id: number, opts: Partial<StackEntry> = {}): StackEntry {
     targetCardIds: opts.targetCardIds ?? [],
     targetPlayerIds: opts.targetPlayerIds ?? [],
     targetStackItemId: opts.targetStackItemId ?? null,
+    ...(opts.triggeredByCardIds === undefined ? {} : { triggeredByCardIds: opts.triggeredByCardIds }),
     ...(opts.abilityText === undefined ? {} : { abilityText: opts.abilityText }),
     ...(opts.sourceHidden === undefined ? {} : { sourceHidden: opts.sourceHidden }),
   };
@@ -977,6 +978,30 @@ describe('installPlaced: arrows (item 2, item 8’s other mutation point)', () =
     handle.notify(view([stackItem(9, { targetCardIds: [201], targetPlayerIds: [1] })])); // 8 resolved
     expect(overlay.querySelectorAll('.placed__arrow[data-for="8"]')).toHaveLength(0);
     handle.dispose();
+  });
+
+  it('two of one trigger, set off by two cards, each point at their own, marked apart from a target', () => {
+    // The operator, 2026-11-09: Jace, Architect of Thought's +1 met two attackers and drew two chips
+    // that looked one. Each chip now points at the attacker it is for.
+    const { canvas } = board();
+    const second = document.createElement('li');
+    second.className = 'board-card';
+    second.dataset.boardCard = '202';
+    second.dataset.cardId = '202';
+    second.getBoundingClientRect = () => rect({ left: 300, top: 500, width: 80, height: 110 });
+    canvas.querySelector('[data-zone="battlefield"]')!.append(second);
+    const handle = installPlaced(canvas);
+    try {
+      handle.notify(view([stackItem(9, { triggeredByCardIds: [201] }), stackItem(8, { triggeredByCardIds: [202] })], [{ id: 201 }, { id: 202 }]));
+      const overlay = canvas.querySelector('[data-board-overlay]')!;
+      const nine = overlay.querySelectorAll('.placed__arrow[data-for="9"]');
+      const eight = overlay.querySelectorAll('.placed__arrow[data-for="8"]');
+      expect([...nine].map((a) => a.getAttribute('data-key'))).toEqual(['9:cause:201']);
+      expect([...eight].map((a) => a.getAttribute('data-key'))).toEqual(['8:cause:202']);
+      expect(nine[0]!.hasAttribute('data-cause'), 'drawn as what set it off, not a target').toBe(true);
+    } finally {
+      handle.dispose();
+    }
   });
 
   it('a moved spell redraws its arrow at once — drop that call and this fails', () => {

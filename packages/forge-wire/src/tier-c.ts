@@ -715,6 +715,16 @@ export const StackTargetSpellsSchema = z.array(z.tuple([JavaInt, JavaInt]));
 export type StackTargetSpells = z.infer<typeof StackTargetSpellsSchema>;
 
 /**
+ * The card that set each triggered stack item off, when it is not the item's own card
+ * (`PlayBridge.java`'s `stackTriggeredByJson`): the attacker a "whenever a creature attacks" trigger
+ * acts on, never as a target, so the view itself never links two identical triggers to their two
+ * creatures. `[stackItemId, cardId]` pairs, on a battlefield or in a graveyard. A full snapshot each time.
+ */
+export const StackTriggeredBySchema = z.array(z.tuple([JavaInt, JavaInt]));
+
+export type StackTriggeredBy = z.infer<typeof StackTriggeredBySchema>;
+
+/**
  * The bridge's own addition beside `stackTargetSpells`: the triggers Forge has collected and not
  * yet put on the stack (`PlayBridge.java`'s `pendingTriggersJson`, read off `MagicStack`'s
  * `activePlayerSAs` and `simultaneousStackEntryList`). `id` is the trigger's own ability id (not a
@@ -722,7 +732,15 @@ export type StackTargetSpells = z.infer<typeof StackTargetSpellsSchema>;
  * the chip reads), `current` the one whose target question is open. A full snapshot each time.
  */
 export const PendingTriggersSchema = z.array(
-  z.strictObject({ id: JavaInt, hostCard: JavaInt, controller: JavaInt, key: z.string(), current: z.literal(true).optional() }),
+  z.strictObject({
+    id: JavaInt,
+    hostCard: JavaInt,
+    controller: JavaInt,
+    key: z.string(),
+    /** The cards that set it off, as `StackTriggeredBySchema`'s pairs name them for an item already on the stack. */
+    triggeredBy: z.array(JavaInt).optional(),
+    current: z.literal(true).optional(),
+  }),
 );
 
 export type PendingTriggers = z.infer<typeof PendingTriggersSchema>;
@@ -855,6 +873,7 @@ export type CounteredStackItems = z.infer<typeof CounteredStackItemsSchema>;
  */
 export const StateSiblingsSchema = z.strictObject({
   stackTargetSpells: StackTargetSpellsSchema.optional(),
+  stackTriggeredBy: StackTriggeredBySchema.optional(),
   pendingTriggers: PendingTriggersSchema.optional(),
   waitingEffects: WaitingEffectsSchema.optional(),
   tokenSources: TokenSourcesSchema.optional(),

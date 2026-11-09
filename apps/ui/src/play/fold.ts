@@ -55,6 +55,8 @@ export interface FoldResult {
    * carries it.
    */
   stackTargetSpells: ReadonlyMap<number, number>;
+  /** The latest `stackTriggeredBy` snapshot folded, as a `stackItemId → card ids` map — replaced when present. */
+  stackTriggeredBy: ReadonlyMap<number, readonly number[]>;
   /** The latest `pendingTriggers` snapshot folded — replaced when present, as `stackTargetSpells` is. */
   pendingTriggers: PendingTriggers;
   /** The latest `waitingEffects` snapshot folded — replaced when present, as `stackTargetSpells` is. */
@@ -78,6 +80,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   let seq = 0;
   let skippedDeltas = 0;
   let stackTargetSpells = new Map<number, number>();
+  let stackTriggeredBy = new Map<number, readonly number[]>();
   let pendingTriggers: PendingTriggers = [];
   let waitingEffects: WaitingEffects = [];
   let tokenSources = new Map<number, number>();
@@ -90,6 +93,11 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   for (const packet of packets) {
     if (packet.stackTargetSpells !== undefined) {
       stackTargetSpells = new Map(packet.stackTargetSpells);
+    }
+    if (packet.stackTriggeredBy !== undefined) {
+      const by = new Map<number, number[]>();
+      for (const [item, card] of packet.stackTriggeredBy) by.set(item, [...(by.get(item) ?? []), card]);
+      stackTriggeredBy = by;
     }
     if (packet.pendingTriggers !== undefined) pendingTriggers = packet.pendingTriggers;
     if (packet.waitingEffects !== undefined) waitingEffects = packet.waitingEffects;
@@ -121,7 +129,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     seq = packet.seq;
   }
 
-  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet };
+  return { state, seq, skippedDeltas, stackTargetSpells, stackTriggeredBy, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet };
 }
 
 function withoutNulls(obj: WireObject): WireObject {

@@ -279,6 +279,30 @@ describe('targetStackItemId (wave 49 §A)', () => {
   });
 });
 
+describe('triggeredByCardIds', () => {
+  it('reads the cards that set a trigger off onto its item, named where it has no target of its own', () => {
+    const state = baseState();
+    const [first] = adapt(state).stack;
+    const battlefield = adapt(state).players.flatMap((p) => p.battlefield);
+    const attacker = battlefield[0]!;
+    const view = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, stackTriggeredBy: new Map([[first!.id, [attacker.id]]]) });
+    const item = view.stack.find((i) => i.id === first!.id)!;
+    expect(item.triggeredByCardIds).toEqual(item.targetCardIds?.includes(attacker.id) === true ? [] : [attacker.id]);
+    if ((item.targetCardIds?.length ?? 0) + (item.targetPlayerIds?.length ?? 0) === 0) expect(item.targetLabel).toBe(attacker.card.name);
+    for (const other of view.stack.filter((i) => i.id !== first!.id)) expect(other.triggeredByCardIds).toEqual([]);
+  });
+
+  it('a waiting trigger carries its own', () => {
+    const state = baseState();
+    const attacker = adapt(state).players.flatMap((p) => p.battlefield)[0]!;
+    const view = toBoardView(state, 27, {
+      viewerPlayerId: fixture.viewerPlayerId,
+      pendingTriggers: [{ id: 900, hostCard: attacker.id, controller: fixture.viewerPlayerId, key: 'k', triggeredBy: [attacker.id + 1] }],
+    });
+    expect(view.pendingTriggers?.[0]?.triggeredByCardIds).toEqual([attacker.id + 1]);
+  });
+});
+
 describe('a modal spell’s targets', () => {
   /*
    * A charm's or a Command's chosen modes are sub-abilities: the stack item Forge publishes targets

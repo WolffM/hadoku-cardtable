@@ -739,6 +739,14 @@ export interface StackEntry {
    */
   targetStackItemId?: number | null;
   /**
+   * The cards that set this trigger off, when they are not its own card (`AdaptOptions.stackTriggeredBy`,
+   * a pending trigger's own `triggeredBy`): the attacker a "whenever a creature attacks" trigger acts on
+   * without targeting it. Two such triggers are otherwise the same chip twice (the operator, 2026-11-09,
+   * on Jace, Architect of Thought's +1 meeting two attackers); `live/placed.ts` points each at its own.
+   * Empty for anything else. OPTIONAL like `targetCardIds`.
+   */
+  triggeredByCardIds?: readonly number[];
+  /**
    * A trigger Forge has collected and not yet put on the stack (`BoardView.pendingTriggers`):
    * drawn as its chip already, waiting. Its `id` is the trigger's ability id negated, so it never
    * meets a stack id.
@@ -895,6 +903,8 @@ export interface AdaptOptions {
    * as before this wave.
    */
   stackTargetSpells?: ReadonlyMap<number, number>;
+  /** `PlayBridge.java`'s `stackTriggeredBy` (`../fold.ts`), read onto each `StackEntry.triggeredByCardIds`. */
+  stackTriggeredBy?: ReadonlyMap<number, readonly number[]>;
   /** `PlayBridge.java`'s `pendingTriggers` (`../fold.ts`), read onto `BoardView.pendingTriggers`. */
   pendingTriggers?: PendingTriggers;
   /** `PlayBridge.java`'s `waitingEffects` (`../fold.ts`), read onto each battlefield source's `BoardCard.waiting`. */
@@ -1912,6 +1922,7 @@ export function toBoardView(
     nameByPlayerId,
     clockByPlayerId,
     stackTargetSpells,
+    stackTriggeredBy,
     pendingTriggers,
     waitingEffects,
     tokenSources,
@@ -2035,6 +2046,8 @@ export function toBoardView(
       return ZONE_LISTS.flatMap((zone) => idsOf(p, zone));
     }),
   );
+  // A trigger that targets nothing is named for the cards that set it off: which attacker it is for.
+  const triggeredLabel = (ids: readonly number[]): string | null => (ids.length > 0 ? ids.map((id) => nameOfCard(state, id)).join(', ') : null);
   const stack: StackEntry[] = idsOf(game, 'Stack').flatMap((sid) => {
     const item = state.get(deltaKey(DELTA_TYPE.stackItem, sid));
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
@@ -2051,6 +2064,7 @@ export function toBoardView(
       ...targetCardIds.map((tid) => nameOfCard(state, tid)),
       ...targetPlayerIds.map((pid) => playerNameById.get(pid) ?? `player ${pid}`),
     ];
+    const triggeredByCardIds = (stackTriggeredBy?.get(sid) ?? []).filter((id) => !targetCardIds.includes(id));
     const description = strOf(item, 'Description') ?? strOf(item, 'Key') ?? `stack item ${sid}`;
     return [{
       id: sid,
@@ -2064,8 +2078,9 @@ export function toBoardView(
       isAbility,
       targetCardIds,
       targetPlayerIds,
-      targetLabel: targetNames.length > 0 ? targetNames.join(', ') : null,
+      targetLabel: targetNames.length > 0 ? targetNames.join(', ') : triggeredLabel(triggeredByCardIds),
       targetStackItemId: stackTargetSpells?.get(sid) ?? null,
+      triggeredByCardIds,
     }];
   });
 
@@ -2084,8 +2099,9 @@ export function toBoardView(
       isAbility: true,
       targetCardIds: [],
       targetPlayerIds: [],
-      targetLabel: null,
+      targetLabel: triggeredLabel(t.triggeredBy ?? []),
       targetStackItemId: null,
+      triggeredByCardIds: t.triggeredBy ?? [],
       pending: true,
       ...(t.current === true ? { current: true as const } : {}),
     };

@@ -195,6 +195,7 @@ import {
 	type Deaths,
 	type FaceDamage,
 	type PendingTriggers,
+	type StackTriggeredBy,
 	type PrintedPT,
 	type PrintedTypes,
 	type StateSiblings,
@@ -1037,7 +1038,21 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 	function pendingSeen(pending: PendingTriggers | undefined): { pendingTriggers?: PendingTriggers } {
 		if (pending === undefined) return {};
 		const zones = indexZones(raw);
-		return { pendingTriggers: pending.filter((t) => seen(zones, t.hostCard) === 'full') };
+		return {
+			pendingTriggers: pending
+				.filter((t) => seen(zones, t.hostCard) === 'full')
+				.map(({ triggeredBy, ...t }) => {
+					const shown = triggeredBy?.filter((id) => seen(zones, id) === 'full');
+					return shown === undefined || shown.length === 0 ? t : { ...t, triggeredBy: shown };
+				}),
+		};
+	}
+
+	/** Which card set each stack trigger off, for the cards this seat may see: an id it may not would say where that card is. */
+	function triggeredBySeen(pairs: StackTriggeredBy | undefined): { stackTriggeredBy?: StackTriggeredBy } {
+		if (pairs === undefined) return {};
+		const zones = indexZones(raw);
+		return { stackTriggeredBy: pairs.filter(([, card]) => seen(zones, card) === 'full') };
 	}
 
 	/** The waiting effects this seat may see: the same rule, by the card that made each one (its words name it). */
@@ -1162,6 +1177,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 							...(frame.payload.stackTargetSpells === undefined
 								? {}
 								: { stackTargetSpells: frame.payload.stackTargetSpells }),
+							...triggeredBySeen(frame.payload.stackTriggeredBy),
 							...pendingSeen(frame.payload.pendingTriggers),
 							...effectsSeen(frame.payload.waitingEffects),
 							...tokensSeen(frame.payload.tokenSources),
@@ -1182,6 +1198,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 							...(frame.payload.stackTargetSpells === undefined
 								? {}
 								: { stackTargetSpells: frame.payload.stackTargetSpells }),
+							...triggeredBySeen(frame.payload.stackTriggeredBy),
 							...pendingSeen(frame.payload.pendingTriggers),
 							...effectsSeen(frame.payload.waitingEffects),
 							...tokensSeen(frame.payload.tokenSources),

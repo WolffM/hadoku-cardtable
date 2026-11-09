@@ -3575,6 +3575,7 @@ function statePacket(match: LiveMatch): FoldablePacket {
     // (there are none today — every live `applyDelta`/`setGameView` carries
     // it — but a historical replay might) would wipe what was already known.
     stackTargetSpells: [...match.stackTargetSpells],
+    stackTriggeredBy: [...match.stackTriggeredBy].flatMap(([item, cards]) => cards.map((card): [number, number] => [item, card])),
     pendingTriggers: match.pendingTriggers,
     waitingEffects: match.waitingEffects,
     tokenSources: [...match.tokenSources],
@@ -3681,6 +3682,7 @@ function redraw(match: LiveMatch): void {
           nameByPlayerId: match.nameByPlayerId ?? undefined,
           clockByPlayerId: match.clockByPlayerId ?? undefined,
           stackTargetSpells: match.stackTargetSpells,
+          stackTriggeredBy: match.stackTriggeredBy,
           pendingTriggers: match.pendingTriggers,
           waitingEffects: match.waitingEffects,
           tokenSources: match.tokenSources,

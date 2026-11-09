@@ -143,6 +143,19 @@ describe('stackTargetSpells (wave 49 §A)', () => {
   });
 });
 
+describe('stackTriggeredBy', () => {
+  it('folds pairs into each stack item\'s cards, replaced by each packet that carries it, kept by one that does not', () => {
+    expect(foldPackets([opening!]).stackTriggeredBy.size).toBe(0);
+    const first = { ...opening!, stackTriggeredBy: [[124, 130], [125, 112], [125, 113]] } satisfies FoldablePacket;
+    expect([...foldPackets([first]).stackTriggeredBy]).toEqual([
+      [124, [130]],
+      [125, [112, 113]],
+    ]);
+    expect([...foldPackets([first, delta!]).stackTriggeredBy]).toEqual([...foldPackets([first]).stackTriggeredBy]);
+    expect(foldPackets([first, { ...delta!, stackTriggeredBy: [] }]).stackTriggeredBy.size).toBe(0);
+  });
+});
+
 describe('cantBlock', () => {
   it('is empty before any packet carries it, replaced by each that does, kept by one that does not', () => {
     expect(foldPackets([opening!]).cantBlock.size).toBe(0);
