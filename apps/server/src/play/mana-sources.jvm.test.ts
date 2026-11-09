@@ -156,7 +156,62 @@ const HOLD: readonly HoldRow[] = [
 	{ kind: 'man-land it cannot pay to animate', source: 'Celestial Colonnade', stops: false },
 ];
 
+interface AffordRow {
+	kind: string;
+	/** Seat 0's battlefield, untapped. */
+	field: string;
+	/** Hand cards Forge must offer at seat 0's main phase: what the board can really pay for. */
+	playable: readonly string[];
+	/** Hand cards it must not: more mana than the board makes, however its Signets are chained. */
+	unplayable: readonly string[];
+}
+
+// A Signet ({1},{T}: add {U}{R}) turns one mana into two, so it adds one: Island + Signet makes two
+// mana, a {U} and an {R}. Forge's payer counts one Signet itself, and AvailableActions adds the
+// chains it cannot see; neither may spend a Signet twice.
+const AFFORD: readonly AffordRow[] = [
+	{
+		kind: 'one Island and a Signet',
+		field: 'Island;Izzet Signet',
+		playable: ['Lightning Stormkin', 'Coral Eel'],
+		unplayable: ['Coral Commando', 'Protean Raider', 'Plated Seastrider'],
+	},
+	{
+		kind: 'two Islands and a Signet',
+		field: 'Island;Island;Izzet Signet',
+		playable: ['Protean Raider', 'Coral Commando'],
+		unplayable: ['Effortless Master', 'Giant Octopus'],
+	},
+	{
+		kind: 'one Island and two Signets, the second paid by the first',
+		field: 'Island;Izzet Signet;Izzet Signet',
+		playable: ['Coral Commando', 'Protean Raider'],
+		unplayable: ['Giant Octopus', 'Effortless Master'],
+	},
+];
+
 describe.skipIf(!available.ok)(title, () => {
+	for (const row of AFFORD) {
+		it(`afford: with ${row.kind}, Forge offers what it pays for and nothing more`, async () => {
+			if (!available.ok) return;
+			const hand = [...row.playable, ...row.unplayable].join(';');
+			const s = await startScenario(available.config, { seed: 6501, decks: DECKS, scenario: state({ hand0: hand, field0: row.field, field1: 'Island' }) });
+			try {
+				await finishMulligan(s);
+				const signet = (): number | undefined => s.zone(0, 'Battlefield').find((c) => c.name === 'Izzet Signet')?.id;
+				// The offer is whole once it names the Signet, which every row can activate.
+				await waitUntil(() => { s.answerAsks(); const id = signet(); return inOwnMain(s, 0, 1) && id !== undefined && offeredTo(s, 0).includes(id); }, "seat 0's main phase, the board offered", 60_000, s);
+				const offered = new Set(offeredTo(s, 0));
+				const lit = (name: string): boolean => s.zone(0, 'Hand').some((c) => c.name === name && offered.has(c.id));
+				console.log(`[mana-sources] afford ${row.field}: ${[...row.playable, ...row.unplayable].map((n) => `${n}=${lit(n)}`).join(', ')}`);
+				for (const name of row.playable) expect(lit(name), `${name} is offered`).toBe(true);
+				for (const name of row.unplayable) expect(lit(name), `${name} is not offered`).toBe(false);
+			} finally {
+				await s.stop();
+			}
+		}, 120_000);
+	}
+
 	for (const row of UNTAP) {
 		it(`untap: a ${row.kind} (${row.source}) tapped at priority untaps on a click, before a Forest tapped after it`, async () => {
 			if (!available.ok) return;
