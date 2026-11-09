@@ -35,11 +35,18 @@ hand.
 | engine refactor | 14 | 1 | | | 15 |
 | AI | 74 | 1 | 2 | | 77 |
 | net protocol | 16 | 3 | 15 | | 34 |
-| gui-shared | | 2 | 1 | | 3 |
+| gui-shared | 3 | 1 | 1 | | 5 |
 | build / tests | 2 | 16 | | 1 | 19 |
-| gui-only (not shipped) | | 203 | | | 203 |
+| gui-only (not shipped) | | 201 | | | 201 |
 | merges | | 155 | | | 155 |
-| **total** | **846** | **389** | **35** | **2** | **1,272** |
+| **total** | **849** | **386** | **35** | **2** | **1,272** |
+
+Corrected 2026-11-09 (the tracker's re-read): three rows filed neutral are player-visible and wanted, since
+cardtable's seats run Forge's shared input and yield code. `eaa1f5fb27` (#12291) interrupts End Turn's
+yield on an opponent's spell or attack. `74af3ac49e` (#12203) shows "Waiting for …" once blockers are declared.
+`0a0bf66a97` (#12289) offers players in a choose-from-list. The last two had been filed as GUI-only. The other neutral rows
+touching yield, `InputPassPriority` or remote input were re-read: `3a1b16089d` only acts while a macro
+records or replays, and `242ef8986f` only adds a desktop button argument.
 
 The two "don't want"s cost nothing: `896a4a14b0` (a rule 111.8 workaround) was reverted upstream the
 same day (`43327867d9`), and `e7fca28931` only comments out an upstream test we don't run.

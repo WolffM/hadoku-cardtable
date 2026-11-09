@@ -403,7 +403,7 @@ n,sha,date,author,area,verdict,ours,why,subject
 402,e9407d16ea,2026-10-10,kevlahnota,gui-only,neutral,,makes the mobile CoinFlipOverlay auto-close,make CoinFlipOverlay auto close
 403,55685587d3,2026-10-10,liamiak,engine-rules,want,,simultaneous entry: what a permanent sees is decided only after everything entering with it has,Simultaneous entry: what sees a permanent enter is decided after everything entering with it has (#12188)
 404,82e0deace8,2026-10-10,Fulgur14,cards,want,,The Darkhold and other MDD card spoilers,The Darkhold (MDD) and other MDD spoilers (#12202)
-405,74af3ac49e,2026-10-10,MostCromulent,gui-only,neutral,,shows the waiting prompt after blockers are declared on desktop InputBlock,Show the waiting prompt after blockers are declared (#12203)
+405,74af3ac49e,2026-10-10,MostCromulent,gui-shared,want,,"Player-visible: InputBlock now sends awaitNextInput once blockers are declared, so the defender's seat shows 'Waiting for ...' instead of the spent block prompt (the bridge's SeatGui composes it). Corrected 2026-11-09: was neutral.",Show the waiting prompt after blockers are declared (#12203)
 406,f5700f9782,2026-10-10,Paul Hammerton,cards,want,,card scripts / editions / tokens / draft data,"Edition updates: MDC, MDD, PMEI"
 407,c4f997f7e4,2026-10-10,Paul Hammerton,merge,neutral,,merge commit; its content is in the listed commits,Merge pull request #12208 from paulsnoops/edition-updates
 408,ca64cc928e,2026-10-10,liamiak,ai,want,,Eureka/Hypergenesis AI ends the process when no card was actually put onto the battlefield,"Eureka, Hypergenesis: end the process when no card was actually put onto the battlefield (#12204)"
@@ -475,7 +475,7 @@ n,sha,date,author,area,verdict,ours,why,subject
 474,53b59838c7,2026-10-17,liamiak,ai,want,,AI commander-tax fix for modal back face; unrelated to our mana-offer commits.,AI: count commander tax when casting a modal card's back face from the command zone (#12283)
 475,2e2c1dc4c6,2026-10-17,tool4ever,ai,want,,AI combat/blink fixes + iOS build; TrackableProperty reorder only; no property added/removed.,Fix iOS build (#12286)
 476,2ca9b8cab4,2026-10-18,MostCromulent,net-protocol,conflicts,,ProtocolMethod enum changes: setRememberedActions/nextRememberedAction moved to new MACRO mode; 2 methods added; server must track enum.,Make macros work for a network client (#12288)
-477,eaa1f5fb27,2026-10-18,MostCromulent,gui-shared,neutral,,Client-side auto-pass/yield convenience refactor; we don't use Forge's yield feature.,Interrupt a remote player's yield on an opponent's spell or attack (#12291)
+477,eaa1f5fb27,2026-10-18,MostCromulent,gui-shared,want,,"Player-visible: End Turn goes through Forge's yield, and this interrupts it when the opponent casts a spell or attacks (the prod Hero's Downfall fix; e2e ei-end-turn-interrupt red on f216faf58e, green on c0275250da). Corrected 2026-11-09: was neutral.",Interrupt a remote player's yield on an opponent's spell or attack (#12291)
 478,c263787525,2026-10-18,MostCromulent,engine-rules,want,,Fixes scry/surveil bottom-ordering bug; different method than our mulligan bottom-order commit.,Fix bottom-of-library order dialogs on desktop (#12293)
 479,77b6f5ae95,2026-10-18,David Racine,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,Sound: mix effects in software instead of one device line each (#11798)
 480,49b8cdb285,2026-10-19,tool4ever,cards,want,,card scripts / editions / tokens / draft data,Update magik_illyana_rasputin_darkchild_demon_uncaged.txt
@@ -510,7 +510,7 @@ n,sha,date,author,area,verdict,ours,why,subject
 509,2153dffc54,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): wire unreachable SVars; Your Mistake Is My Triumph, Disciple of Perdition, Last Rites match the printed card (#12336)"
 510,5abeda04f9,2026-10-21,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,fix Startbutton text
 511,33aecdd6ad,2026-10-21,Fulgur14,cards,want,,card scripts / editions / tokens / draft data,Borg Cube (TRK) (#12338)
-512,0a0bf66a97,2026-10-21,MostCromulent,gui-only,neutral,,Adds players to selection-highlight list; display-only; no protocol method change.,Mark selectable players in entity list prompts (#12289)
+512,0a0bf66a97,2026-10-21,MostCromulent,gui-shared,want,,"Player-visible: a choose-from-list among players now offers the players as the selection's targets, which is what makes a players-only pick an offer the bridge forwards. Corrected 2026-11-09: was neutral.",Mark selectable players in entity list prompts (#12289)
 513,cb1a3dfc58,2026-10-21,Agetian,cards,want,,card scripts / editions / tokens / draft data,- LDA update for Reality Fracture (Standard/Modern). (#12315)
 514,df1da0c7db,2026-10-21,kevlahnota,gui-only,neutral,,desktop/mobile/adventure/quest UI or content; not shipped by cardtable,update SplashScreen
 515,65517870c3,2026-10-21,Shaun Adams,cards,want,,card scripts / editions / tokens / draft data,"fix(cards): Mole Module, Overclocked Electromancer and Raphael trigger on combat damage only (#12343)"
