@@ -6462,6 +6462,16 @@ public final class PlayBridge {
         }
 
         /**
+         * No opening-hand action on a board that is set rather than dealt ({@link MatchContext#skipOpening}: a board
+         * room, a resumed game). Forge runs opening-hand actions even in a Puzzle game
+         * ({@code GameAction.runOpeningHandActions}, after the skipped mulligan), on the throwaway hand dealt before the
+         * board is applied: a seat was asked which of cards it never held to activate (pk-park-resume).
+         */
+        @Override public List<SpellAbility> chooseSaToActivateFromOpeningHand(final List<SpellAbility> usableFromOpeningHand) {
+            return match.skipOpening ? List.of() : super.chooseSaToActivateFromOpeningHand(usableFromOpeningHand);
+        }
+
+        /**
          * Emits {@code {"t":"input","seat":n,"open":bool,"input":"<input class>"?}} whenever this
          * seat's {@code InputQueue} changes — an open or a close alike, so the rebuild (wave 78
          * §A, after the claw dispatch found the first version's time-based resend unsound: it
