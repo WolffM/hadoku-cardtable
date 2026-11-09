@@ -9,7 +9,7 @@ import type { CubeSummary, Tournament } from '@hadoku/shared';
 import { faceOf, type Face } from '../components/Avatar.tsx';
 import { gameTypeLabel, type RoomView } from '../rooms/api.ts';
 import { records, recordText } from '../screens/pod/swiss.ts';
-import { roomCardView } from './roomCard.ts';
+import { roomCardView, type RoomCardView } from './roomCard.ts';
 
 /**
  * Each kind's weight in the draw for the gallery's first page, and the order of the pages after it:
@@ -50,6 +50,9 @@ export interface OpenSeats {
   /** `alice's Draft needs 2` — the leader's name, or the room's when the leader has left. */
   title: string;
   missing: number;
+  /** The room and its card, so the page draws its seats as the room list does. */
+  room: RoomView;
+  view: RoomCardView;
 }
 
 /**
@@ -68,7 +71,7 @@ export function openSeats(rooms: readonly RoomView[], now: number = Date.now()):
     const missing = card.seatsCapacity - card.seatsFilled;
     if (missing <= 0 || (best !== null && missing >= best.missing)) continue;
     const leader = room.members.find((m) => m.id === room.leader)?.name ?? room.name;
-    best = { roomId: room.id, title: `${leader}'s ${gameTypeLabel(room.gameType)} needs ${String(missing)}`, missing };
+    best = { roomId: room.id, title: `${leader}'s ${gameTypeLabel(room.gameType)} needs ${String(missing)}`, missing, room, view: card };
   }
   return best;
 }

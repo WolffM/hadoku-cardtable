@@ -55,7 +55,9 @@ import { avatarColour, avatarInitial, discordTime, groupMessages } from './disco
 import { usePartShown } from './gate.ts';
 import { ArrowGlyph, Gallery } from './Gallery.tsx';
 import { FrontPodium } from './FrontPodium.tsx';
-import { openSeats, pickWildcard, podiumOf, spotlightCube, wildcardPages, type WildcardKind } from './wildcardItems.ts';
+import { openSeats, pickWildcard, podiumOf, spotlightCube, wildcardPages, type OpenSeats, type WildcardKind } from './wildcardItems.ts';
+import { RoomSeats } from './RoomSeats.tsx';
+import { SwordsIcon, StaircaseIcon, DieIcon } from './icons.tsx';
 
 interface WildcardItem {
   key: WildcardKind;
@@ -72,6 +74,8 @@ interface WildcardItem {
   podium?: Tournament;
   /** Every other picture it draws (the podium's faces), by URL: waited on like its art. */
   pictures?: readonly string[];
+  /** A room asking for players, drawn with its format and its seats in place of the body; an open seat enters it, as Join does. */
+  seats?: Pick<OpenSeats, 'room' | 'view'>;
 }
 
 /** A source still asking, as opposed to one that answered with nothing (`null`). */
@@ -103,6 +107,7 @@ function useOpenSeats(): WildcardItem | null | typeof ASKING {
                 kind: 'Open seats now',
                 title: open.title,
                 body: open.missing === 1 ? 'One more and it starts.' : 'Grab a seat.',
+                seats: { room: open.room, view: open.view },
                 action: { href: routeHash({ kind: 'room', roomId: open.roomId }), label: 'Join', external: false },
               },
         );
@@ -416,6 +421,8 @@ function WildcardBody({ item, error }: { item: WildcardItem; error: string | nul
       )}
       {item.podium !== undefined ? (
         <FrontPodium tournament={item.podium} />
+      ) : item.seats !== undefined ? (
+        <OpenSeatsBody title={item.title} seats={item.seats} />
       ) : item.messages === undefined ? (
         <>
           <p className="front-card__release-title">{item.title}</p>
@@ -429,6 +436,27 @@ function WildcardBody({ item, error }: { item: WildcardItem; error: string | nul
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+/** A room asking for players: who needs how many, its format and series, then its seats — an open one enters the room, as Join does. */
+function OpenSeatsBody({ title, seats: { room, view } }: { title: string; seats: Pick<OpenSeats, 'room' | 'view'> }) {
+  const enter = (): void => {
+    playRole('ui.select');
+    navigate({ kind: 'room', roomId: room.id });
+  };
+  return (
+    <div className="front-open-seats">
+      <p className="front-card__release-title">{title}</p>
+      <p className="front-open-seats__meta">
+        {view.mode.icon === 'classic' && <SwordsIcon />}
+        {view.mode.icon === 'gauntlet' && <StaircaseIcon />}
+        {view.mode.icon === 'random' && <DieIcon />}
+        <span className="front-open-seats__mode">{view.mode.text}</span>
+        {view.series !== null && <span className="front-open-seats__series">{view.series}</span>}
+      </p>
+      <RoomSeats room={room} view={view} onTake={enter} />
     </div>
   );
 }

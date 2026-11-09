@@ -220,7 +220,8 @@ the seated players' faces and names, with a dashed "You?" for an open seat
 
 The card's VS is set in **Cinzel** (SIL OFL 1.1, © The Cinzel Project Authors),
 shipped as `apps/server/assets/fonts/Cinzel.ttf` with its licence beside it in
-`Cinzel-OFL.txt`. It is never renamed (OFL's reserved-font-name clause).
+`Cinzel-OFL.txt`. The front page's "Open seats now" card sets its VS in the same file,
+which the UI bundles from that path. It is never renamed (OFL's reserved-font-name clause).
 
 ### Concrete rules for this repo
 

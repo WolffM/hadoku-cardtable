@@ -1,8 +1,9 @@
 /*
  * What a room's symbol card draws, derived from the room body alone (`docs/planning/wave77-2026-10-27.md`
  * §A: "Everything comes from the room body already on the wire"). Pure and framework-free on purpose —
- * `RoomList.tsx` is the only reader, but the derivation is the part worth testing directly, without
- * mounting a component for every `gameType` × mode × phase combination.
+ * `RoomList.tsx` and the banner's "Open seats now" page (`./wildcardItems.ts`, its seats) read it; the
+ * derivation is the part worth testing directly, without mounting a component for every `gameType` ×
+ * mode × phase combination.
  *
  * Draft pick numbers are NOT on the wire (the server never sends a pack or a pick), so `drafting`
  * carries no detail — showing the state without them is the brief's own instruction, not an omission.
@@ -14,7 +15,7 @@
  * the name itself, and `RoomList.tsx` reads that straight off `room.name`.
  */
 
-import { FREE_PICK, POD_MAX_SEATS, POD_SEATS, planDisplayName } from '@hadoku/shared';
+import { FREE_PICK, POD_MAX_SEATS, POD_SEATS, isPodAi, planDisplayName, type Look } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
 import { countdown } from './countdown.ts';
@@ -37,10 +38,22 @@ export interface RoomModeChip {
 
 export type RoomPrimaryAction = 'Join' | 'Watch';
 
+/** One seat the card draws: who sits there (their face), or nobody. */
+export type RoomCardSeat = { kind: 'taken'; id: string; name: string; avatarId: string | undefined; look: Look | undefined } | { kind: 'open' };
+
+/** The most seats drawn; a bigger pod draws the seats it is filling now and counts the rest. */
+const CARD_SEATS_MAX = POD_SEATS;
+
 export interface RoomCardView {
   tournament: boolean;
   seatsFilled: number;
   seatsCapacity: number;
+  /** The seats drawn, in seat order, at most `CARD_SEATS_MAX`. */
+  seats: RoomCardSeat[];
+  /** Taken seats not drawn (a pod past its first 8), shown as "+N". */
+  seatsMore: number;
+  /** Whether an open seat is a way in: the same press as Join. */
+  seatJoinable: boolean;
   mode: RoomModeChip;
   /** Bo1 / Bo3 — `null` when the room has no table yet to read a series length from. */
   series: 'Bo1' | 'Bo3' | null;
@@ -188,6 +201,41 @@ function seatsCapacity(room: RoomView): number {
   return Math.min(POD_MAX_SEATS, Math.max(POD_SEATS, Math.ceil((room.members.length + 1) / POD_SEATS) * POD_SEATS));
 }
 
+/**
+ * Who sits where. A 1v1 room's table players and its open seats; a pod in its lobby, its own seat
+ * order. A pod past its lobby clears its seats, so it draws its members. Past `CARD_SEATS_MAX`, the
+ * window the pod is filling now (its last 8 of `capacity`), and the taken seats before it as a count.
+ */
+function cardSeats(room: RoomView, capacity: number): { seats: RoomCardSeat[]; seatsMore: number } {
+  const member = (id: string, name: string, avatarId?: string): RoomCardSeat => {
+    if (isPodAi(id)) return { kind: 'taken', id, name: room.ai?.name ?? name, avatarId: avatarId ?? room.ai?.avatarId, look: undefined };
+    const m = room.members.find((x) => x.id === id);
+    return { kind: 'taken', id, name: m?.name ?? name, avatarId: m?.avatarId ?? avatarId, look: m?.look };
+  };
+  const open: RoomCardSeat = { kind: 'open' };
+  let all: RoomCardSeat[];
+  if (room.pod === null) {
+    // The host first, as the room's link preview draws it (`apps/server/src/http/preview.ts`): host vs the other seat.
+    const host = room.leader || room.creator;
+    const players = [...(room.tables[0]?.players ?? [])].sort((a, b) => Number(b.memberId === host) - Number(a.memberId === host));
+    all = Array.from({ length: capacity }, (_, i) => {
+      const p = players[i];
+      return p === undefined ? open : member(p.memberId, p.name);
+    });
+  } else if (room.pod.phase === 'lobby') {
+    all = Array.from({ length: capacity }, (_, i) => {
+      const s = room.pod?.seats[i] ?? null;
+      return s === null ? open : member(s.memberId, s.name, s.avatarId);
+    });
+  } else {
+    all = room.members.map((m) => member(m.id, m.name));
+  }
+  if (all.length <= CARD_SEATS_MAX) return { seats: all, seatsMore: 0 };
+  const from = room.pod?.phase === 'lobby' ? all.length - CARD_SEATS_MAX : 0;
+  const seats = all.slice(from, from + CARD_SEATS_MAX);
+  return { seats, seatsMore: all.filter((s) => s.kind === 'taken').length - seats.filter((s) => s.kind === 'taken').length };
+}
+
 /** Everything one room card draws, from the room body alone. `isMine`: the caller is already a member. */
 export function roomCardView(room: RoomView, isMine: boolean, now: number = Date.now()): RoomCardView {
   const state = roomState(room, now);
@@ -197,6 +245,8 @@ export function roomCardView(room: RoomView, isMine: boolean, now: number = Date
     tournament: room.gameType === 'draft' || room.settings.tournament,
     seatsFilled: room.members.length,
     seatsCapacity: capacity,
+    ...cardSeats(room, capacity),
+    seatJoinable: state.key === 'lobby' && primaryAction === 'Join',
     mode: modeChip(room),
     series: seriesLabel(room),
     state,

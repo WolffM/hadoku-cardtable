@@ -63,7 +63,7 @@ const notMine = (over: Partial<RoomView> = {}): RoomView =>
 
 describe('openSeats', () => {
   it('names the leader, the game type and how many seats are open', () => {
-    expect(openSeats([notMine()])).toEqual({ roomId: 'r-1', title: "alice's Constructed needs 1", missing: 1 });
+    expect(openSeats([notMine()])).toMatchObject({ roomId: 'r-1', title: "alice's Constructed needs 1", missing: 1, room: { id: 'r-1' }, view: { seatJoinable: true } });
   });
 
   it('skips testing rooms, rooms the viewer is in, full rooms, rooms already playing and rooms waiting for their event', () => {

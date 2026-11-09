@@ -230,3 +230,49 @@ describe('roomFamily', () => {
     expect(roomFamily(room({ gameType: 'draft' }))).toBe('draft');
   });
 });
+
+describe('roomCardView — the seats it draws', () => {
+  const alice = { id: 'm1', name: 'alice', joinedAt: '', ready: false, avatarId: 'sage' };
+  const bob = { id: 'm2', name: 'bob', joinedAt: '', ready: false };
+  const names = (v: ReturnType<typeof roomCardView>) => v.seats.map((s) => (s.kind === 'open' ? null : s.name));
+
+  it('a 1v1 room: the host first, then the other seat, open when nobody holds it; an open seat is a way in while it is a lobby', () => {
+    const seated = (...players: { id: string; name: string }[]) => table({ players: players.map((p) => ({ memberId: p.id, name: p.name })) });
+    const one = roomCardView(room({ leader: 'm1', members: [alice], tables: [seated(alice)] }), false);
+    expect(names(one)).toEqual(['alice', null]);
+    expect(one.seats[0]).toMatchObject({ avatarId: 'sage' });
+    expect(one.seatJoinable).toBe(true);
+    expect(names(roomCardView(room({ leader: 'm2', members: [alice, bob], tables: [seated(alice, bob)] }), false))).toEqual(['bob', 'alice']);
+    expect(names(roomCardView(room({ members: [], tables: [table()] }), false))).toEqual([null, null]);
+  });
+
+  it('a seat no one may take is drawn, never offered: a full room, or one already playing', () => {
+    const full = roomCardView(room({ members: [alice, bob], tables: [table({ players: [{ memberId: 'm1', name: 'alice' }, { memberId: 'm2', name: 'bob' }] })] }), false);
+    expect(full.seatJoinable).toBe(false);
+    const playing = table({ players: [{ memberId: 'm1', name: 'alice' }], series: { length: 1, wins: [0, 0], games: [], phase: 'playing' } });
+    expect(roomCardView(room({ members: [alice], tables: [playing] }), false)).toMatchObject({ seatJoinable: false, seats: [{ kind: 'taken' }, { kind: 'open' }] });
+  });
+
+  it('the AI holding a seat is drawn as the room’s AI', () => {
+    const v = roomCardView(room({ leader: 'm1', ai: { name: 'Cleric', avatarId: 'cleric' }, tables: [table({ players: [{ memberId: 'm1', name: 'alice' }, { memberId: 'ai', name: 'AI' }] })] }), false);
+    expect(v.seats[1]).toMatchObject({ kind: 'taken', name: 'Cleric', avatarId: 'cleric' });
+  });
+
+  it('a pod in its lobby draws its own seat order; past 8, the pod now filling and a count of the rest', () => {
+    const seats = [{ memberId: 'm1', name: 'alice' }, null, { memberId: 'm2', name: 'bob' }, null, null, null, null, null];
+    const small = roomCardView(room({ gameType: 'draft', members: [alice, bob], pod: pod({ phase: 'lobby', seats }) }), false);
+    expect(names(small)).toEqual(['alice', null, 'bob', null, null, null, null, null]);
+    expect(small.seatsMore).toBe(0);
+    const members = Array.from({ length: 9 }, (_, i) => ({ id: `p${String(i)}`, name: `p${String(i)}`, joinedAt: '', ready: false }));
+    const big = roomCardView(room({ gameType: 'draft', members, pod: pod({ phase: 'lobby', seats: members.map((m) => ({ memberId: m.id, name: m.name })) }) }), false);
+    expect(big.seatsCapacity).toBe(16);
+    expect(names(big)).toEqual(['p8', null, null, null, null, null, null, null]);
+    expect(big.seatsMore).toBe(8);
+  });
+
+  it('a pod past its lobby (its seats cleared) draws its members', () => {
+    const v = roomCardView(room({ gameType: 'draft', members: [alice, bob], pod: pod({ phase: 'drafting' }) }), false);
+    expect(names(v)).toEqual(['alice', 'bob']);
+    expect(v.seatJoinable).toBe(false);
+  });
+});
