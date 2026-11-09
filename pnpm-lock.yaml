@@ -125,6 +125,9 @@ importers:
       '@wolffm/prefs-client':
         specifier: npm:@hadoku/prefs-client@1.1.23
         version: '@hadoku/prefs-client@1.1.23(react@19.2.8)(zod@4.5.4)'
+      '@wolffm/rooms-client':
+        specifier: npm:@hadoku/rooms-client@0.45.63
+        version: '@hadoku/rooms-client@0.45.63(react@19.2.8)(socket.io-client@4.8.3)'
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.62
         version: '@hadoku/rooms-protocol@0.45.62'
@@ -599,8 +602,20 @@ packages:
       react:
         optional: true
 
+  '@hadoku/rooms-client@0.45.63':
+    resolution: {integrity: sha512-eRf2UhFiW3dUeV4YrcFbU+/0xpyR3Q+NRIxPovPGwe5TIqoTML3U9ksY1nJhW/oQqTbSyE+YnGw+MHamX78Iew==}
+    peerDependencies:
+      react: '>=18'
+      socket.io-client: ^4.8.3
+    peerDependenciesMeta:
+      react:
+        optional: true
+
   '@hadoku/rooms-protocol@0.45.62':
     resolution: {integrity: sha512-6xLctfQHAdPJ+ZXqcayAO/OQdONruHi2iwEqnzrv6Uey2qjGAHgmNSNkwLd2Ctqq6q4exno9tmAel24eIzo6GA==}
+
+  '@hadoku/rooms-protocol@0.45.63':
+    resolution: {integrity: sha512-7VlSKtMN/ZH3QooREtjIeCUqwZwEFWqp9H/XH70acjmjtdg4NHgCVpJgvkjpV3Shcbt3LNiSlx9WOjjuv7NAOQ==}
 
   '@hadoku/rooms-server@0.45.62':
     resolution: {integrity: sha512-RltcGf8UF7iqfWaE92/ylgvi6LIZP+OwHAZ0P44PR8PjIym9SjyKm1WDHllT+YwMpVL2YBXpaTAS6nbSVnOtDw==}
@@ -2478,7 +2493,16 @@ snapshots:
     optionalDependencies:
       react: 19.2.8
 
+  '@hadoku/rooms-client@0.45.63(react@19.2.8)(socket.io-client@4.8.3)':
+    dependencies:
+      '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.63'
+      socket.io-client: 4.8.3
+    optionalDependencies:
+      react: 19.2.8
+
   '@hadoku/rooms-protocol@0.45.62': {}
+
+  '@hadoku/rooms-protocol@0.45.63': {}
 
   '@hadoku/rooms-server@0.45.62(socket.io@4.8.3)':
     dependencies:
