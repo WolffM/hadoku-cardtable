@@ -351,7 +351,8 @@ function syncGlow(svg: SVGSVGElement, shape?: Pick<ArrowShape, 'd' | 'points' | 
   const n = spine.replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
   const xs = [n[0], n[2], n[4]].filter((v): v is number => Number.isFinite(v));
   const ys = [n[1], n[3], n[5]].filter((v): v is number => Number.isFinite(v));
-  if (xs.length === 0) return;
+  // A spine missing either axis has no box: Math.min of nothing is Infinity, an invalid viewBox.
+  if (xs.length === 0 || ys.length === 0) return;
   const [left, top] = [Math.min(...xs) - GLOW_PAD, Math.min(...ys) - GLOW_PAD];
   const [width, height] = [Math.max(...xs) - left + GLOW_PAD, Math.max(...ys) - top + GLOW_PAD];
   glow.setAttribute('viewBox', `${r1(left)} ${r1(top)} ${r1(width)} ${r1(height)}`);
