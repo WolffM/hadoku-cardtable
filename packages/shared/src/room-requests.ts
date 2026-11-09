@@ -313,3 +313,16 @@ export const PatchRoomBodySchema = body({
   },
 );
 export type PatchRoomBody = z.output<typeof PatchRoomBodySchema>;
+
+/**
+ * `POST /api/rooms/replay`: make a replay room of a catalogued event. The
+ * collection is one of `GET /api/rooms/replay/events`'s `ReplayEvent`s; the
+ * seat whose player the caller replays; `full` seats the event's whole field
+ * (Swiss then cut) rather than its top 8 (a pure bracket).
+ */
+export const ReplayCreateBodySchema = body({
+  collection: z.string({ error: 'collection must be a string' }).trim().min(1, { error: 'collection must be a string' }),
+  seat: z.number({ error: 'seat must be a number' }).int({ error: 'seat must be a whole number' }).min(0, { error: 'seat must be 0 or more' }),
+  full: z.boolean().optional(),
+});
+export type ReplayCreateBody = z.infer<typeof ReplayCreateBodySchema>;
