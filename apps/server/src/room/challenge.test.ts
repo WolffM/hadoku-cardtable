@@ -53,9 +53,10 @@ describe('a Challenge room', () => {
 		const mine = seats.indexOf(ALICE.id);
 		expect(seats.filter((s) => s === POD_AI)).toHaveLength(7);
 		expect(seats).toHaveLength(8);
-		const decks = room.pod!.seats.map((s) => s?.deckId);
-		expect(decks[(mine + 4) % 8], 'Ozymandias17 met TeaW1thRum in the quarterfinals').toBe('tourney-leg-2026-02-07-8-teaw1thrum');
-		expect(decks[mine], 'the human seat names no list: the caller brings their own').toBeUndefined();
+		const decks = room.aiDeckAssignments!;
+		expect(decks[`ai:${String((mine + 4) % 8)}`], 'Ozymandias17 met TeaW1thRum in the quarterfinals').toBe('tourney-leg-2026-02-07-8-teaw1thrum');
+		expect(Object.keys(decks)).toHaveLength(7);
+		expect(decks[`ai:${String(mine)}`], 'the human seat names no list: the caller brings their own').toBeUndefined();
 	});
 
 	it('seats the whole field for a full replay, Swiss then the cut, with the caller at their player’s final standing', async () => {
@@ -98,8 +99,9 @@ describe('a Challenge room', () => {
 		const { lobby: again } = await lobbyIn(dir);
 		const after = again.get(made.room.id)!;
 		// Names are not stored (R12); who sits where, and on what list, is.
-		const seated = (room: typeof before) => room.pod!.seats.map((s) => [s?.memberId ?? null, s?.deckId]);
+		const seated = (room: typeof before) => room.pod!.seats.map((s) => s?.memberId ?? null);
 		expect(seated(after)).toEqual(seated(before));
+		expect(after.aiDeckAssignments).toEqual(before.aiDeckAssignments);
 		expect(after.locks).toEqual(before.locks);
 		expect(again.aiPod(after.id, ALICE.id, seatIds(again, after.id).indexOf(POD_AI), false)).toEqual({ ok: false, reason: 'historical' });
 	});

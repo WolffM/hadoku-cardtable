@@ -35,8 +35,6 @@ export interface PodLobbyProps {
   members: RoomMember[];
   leaderId: string;
   myMemberId: string | null;
-  /** `PodSeats`' own: a Challenge AI seat's real player, by its list's id (the parent holds the library decks). */
-  playerOf?: (deckId: string) => string | undefined;
   /** `PodSeats`' own: a Challenge's field is the event's. */
   fieldFixed?: boolean;
   iAmReady: boolean;
@@ -47,7 +45,7 @@ export interface PodLobbyProps {
   children?: ReactNode;
 }
 
-export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, playerOf, fieldFixed, iAmReady, readyDisabled, onReady, note, children }: PodLobbyProps) {
+export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, fieldFixed, iAmReady, readyDisabled, onReady, note, children }: PodLobbyProps) {
   const [seatError, setSeatError] = useState<string | null>(null);
   const inFlight = useRef(false);
   const later = useRef<(() => Promise<PodActionOutcome>)[]>([]);
@@ -112,7 +110,6 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, p
                   leaderId={leaderId}
                   readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
                   faceOf={(id) => faceOf(members.find((m) => m.id === id))}
-                  playerOf={playerOf}
                   fieldFixed={fieldFixed}
                   onSit={(seat) => act(() => sitPod(roomId, seat))}
                   onAi={(seat, on) => act(() => aiPod(roomId, seat, on))}

@@ -45,9 +45,9 @@ describe('the pod seat grid', () => {
     expect(onClose).toHaveBeenCalledWith(7, false);
   });
 
-  it('a Challenge: each AI seat names its real player, nothing changes the field, and only the open seat offers Sit', () => {
+  it('a Challenge: nothing changes the field, and only the open seat offers Sit', () => {
     const seats = emptySeats();
-    for (let i = 0; i < POD_SEATS; i++) if (i !== 4) seats[i] = { memberId: POD_AI, name: 'Sunny', avatarId: 'sunny', deckId: `deck-${String(i)}` };
+    for (let i = 0; i < POD_SEATS; i++) if (i !== 4) seats[i] = { memberId: POD_AI, name: i === 0 ? 'TeaW1thRum' : 'Sunny', avatarId: 'sunny' };
     render(
       createElement(PodSeats, {
         seats,
@@ -55,16 +55,13 @@ describe('the pod seat grid', () => {
         leaderId: 'u-alice',
         readyOf: () => false,
         faceOf: () => ({ id: null }),
-        playerOf: (deckId) => (deckId === 'deck-0' ? 'TeaW1thRum' : undefined),
         fieldFixed: true,
         onSit: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
     );
-    expect(screen.getByTestId('pod-seat-0').textContent).toContain('TeaW1thRum');
-    expect(screen.getByTestId('pod-seat-0').dataset.player).toBe('TeaW1thRum');
-    expect(screen.getByTestId('pod-seat-1').textContent, 'a list the page does not hold keeps the seat’s own name').toContain('Sunny');
+    expect(screen.getByTestId('pod-seat-0').textContent, 'the server names a Challenge AI for its real player').toContain('TeaW1thRum');
     expect(screen.queryByTestId('pod-seat-ai-remove')).toBeNull();
     expect(screen.queryByTestId('pod-seat-ai')).toBeNull();
     expect(screen.queryByTestId('pod-seat-close')).toBeNull();

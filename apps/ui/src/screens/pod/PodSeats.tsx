@@ -54,16 +54,10 @@ export interface PodSeatsProps {
   /** The viewer's own member id, or `null` before identity resolves. */
   myMemberId: string | null;
   leaderId: string;
-  /** Looks up a seated member's readiness — the room's own `Ready` flag, unaffected by seating. */
+  /** Looks up a seated member's readiness — the room's own `ready` flag, unaffected by seating. */
   readyOf: (memberId: string) => boolean;
   /** Looks up a seated member's own watchparty avatar id (`undefined` for none) — the same id `Avatar` draws everywhere else. */
   faceOf: (memberId: string) => Face;
-  /**
-   * A Challenge's AI seat carries the `deckId` of its real player's list, public because the event
-   * published it; this names that player on the seat. Absent, or `undefined` for a deck, names none:
-   * a live tournament's deck stays its chooser's secret, and this component never guesses one.
-   */
-  playerOf?: (deckId: string) => string | undefined;
   /** A Challenge's field is the event's: no seat is grown, given to the AI, taken from it or closed. */
   fieldFixed?: boolean;
   onSit: (seat: number) => void;
@@ -73,7 +67,7 @@ export interface PodSeatsProps {
   onClose: (seat: number, closed: boolean) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, playerOf = () => undefined, fieldFixed = false, onSit, onAi, onClose }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFixed = false, onSit, onAi, onClose }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
@@ -135,14 +129,13 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, playerO
           );
         }
         if (isPodAi(occupant.memberId)) {
-          const player = occupant.deckId === undefined ? undefined : playerOf(occupant.deckId);
           return (
-            <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-ai="" data-player={player}>
+            <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-ai="">
               <span className="pod-seats__avatar pod-seats__avatar--ai">
                 {/* The seat's own character (`PodMember.avatarId`); the mark only for a server that sends none. */}
                 <Avatar id={occupant.avatarId} fallback="mark" className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
               </span>
-              <span className="pod-seats__label">{player ?? occupant.name}</span>
+              <span className="pod-seats__label">{occupant.name}</span>
               {!fieldFixed && (
                 <span className="pod-seats__actions">
                   <ActionButton action="ai-remove" className="pod-seats__action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onPress={() => onAi(seat, false)}>

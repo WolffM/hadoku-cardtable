@@ -990,6 +990,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return deck !== null && deck !== undefined && deck.verdict.legal;
 		},
 		currentTournamentDeck,
+		pilotOf: (deckId) => library.deck(deckId)?.deck.pilot,
 		seatTournamentDeck(roomId, tableId, entrant, deck) {
 			if (rooms === null) return;
 			const room = rooms.get(roomId);
