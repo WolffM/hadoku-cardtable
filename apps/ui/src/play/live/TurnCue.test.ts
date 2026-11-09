@@ -58,9 +58,10 @@ describe('useYourTurnCue', () => {
   });
 
   it('the turn number and the active player arriving apart still cue once', () => {
+    // Forge hands the turn over at the last turn's cleanup (PhaseHandler, CLEANUP), a delta before the number moves.
     const hook = mount(view(1, 1));
-    hook.rerender({ v: view(2, 1), on: true });
-    expect(hook.result.current).toBeNull();
+    hook.rerender({ v: view(1, 0), on: true });
+    expect(hook.result.current, 'not the turn just ended').toBeNull();
     hook.rerender({ v: view(2, 0), on: true });
     expect(hook.result.current).toBe(2);
     act(() => {
@@ -68,6 +69,15 @@ describe('useYourTurnCue', () => {
     });
     hook.rerender({ v: { ...view(2, 0) }, on: true });
     expect(hook.result.current, 'and not again for the same turn').toBeNull();
+  });
+
+  it('after an extra turn of theirs, the turn handed over is cued by its own number', () => {
+    const hook = mount(view(1, 1));
+    hook.rerender({ v: view(2, 1), on: true });
+    hook.rerender({ v: view(2, 0), on: true });
+    expect(hook.result.current, 'their extra turn 2 is not yours').toBeNull();
+    hook.rerender({ v: view(3, 0), on: true });
+    expect(hook.result.current).toBe(3);
   });
 
   it('the next game of the match starts over: its turn 1 is cued, even after game one’s', () => {

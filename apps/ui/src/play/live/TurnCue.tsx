@@ -9,8 +9,10 @@
  * reload or a late join mid-turn does not announce a turn already under way, while the pregame
  * (turn 0) to turn 1 is a start like any other. A turn number going DOWN is the next game of the
  * match beginning, and every turn of that game is seen begin. The turn number and the active player
- * can land in separate deltas, so the cue keys on the pair — your turn, and a turn number not cued
- * yet — never on the order they arrive in.
+ * can land in separate deltas, in either order, so the cue keys on the pair — your turn, and a turn
+ * number higher than any this screen saw someone else hold — never on the order they arrive in. Forge
+ * hands the turn over at the last turn's cleanup (`PhaseHandler`'s CLEANUP), a delta before the turn
+ * number moves: the turn just ended is never cued as yours.
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
@@ -27,6 +29,8 @@ interface Seen {
   /** The last turn cued, so a delta repeating it cues nothing. */
   cued: number | null;
   previous: number;
+  /** The highest turn number seen while it was someone else's turn: a turn handed over is cued only once its number passes this. */
+  theirs: number;
 }
 
 /** The turn being cued, while the cue is up; null otherwise. */
@@ -40,14 +44,16 @@ export function useYourTurnCue(view: BoardView | null, enabled: boolean, matchId
     if (turn === null) return;
     let s = seen.current;
     if (s === null || s.match !== matchId) {
-      s = { match: matchId, first: turn, cued: null, previous: turn };
+      s = { match: matchId, first: turn, cued: null, previous: turn, theirs: -1 };
       seen.current = s;
     } else if (turn < s.previous) {
       s.first = -1;
       s.cued = null;
+      s.theirs = -1;
     }
     s.previous = turn;
-    if (!enabled || !yours || turn <= s.first || turn === s.cued) return;
+    if (!yours) s.theirs = Math.max(s.theirs, turn);
+    if (!enabled || !yours || turn <= s.first || turn <= s.theirs || turn === s.cued) return;
     s.cued = turn;
     setCue(turn);
   }, [turn, yours, enabled, matchId]);
