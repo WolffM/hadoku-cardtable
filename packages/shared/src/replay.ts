@@ -15,6 +15,14 @@ import { z } from 'zod';
 import { ManaColorSchema } from './draft.ts';
 import { ServerEnvelopeSchema } from './match-wire.ts';
 
+/**
+ * The version of what `GET /api/replays/:matchId` serves for a recording, asked for as `?v=`. A
+ * browser keeps a replay's body for good, so a change to how the server serves one (v2: faces
+ * recorded before they carried art are served with it) must reach a viewer under a new URL: a
+ * cached body is never asked about again. Bump it whenever a served body would differ.
+ */
+export const REPLAY_BODY_VERSION = 2;
+
 export const ReplaySourceSchema = z.enum(['stream', 'rebuild', 'none']);
 export type ReplaySource = z.infer<typeof ReplaySourceSchema>;
 

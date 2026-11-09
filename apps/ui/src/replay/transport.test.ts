@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseServerFrame } from '@hadoku/forge-wire';
+import { REPLAY_BODY_VERSION } from '@hadoku/shared';
 
 import type { Fetch } from '../http.ts';
 import { fetchRandomReplay, fetchReplay, replayWeight, fetchReplays, parseReplayData, type ReplayListing } from './transport.ts';
@@ -88,6 +89,12 @@ describe('fetchReplay', () => {
     const data = await fetchReplay('m-1', fetchImpl);
     expect(data?.header.matchId).toBe('m-1');
     expect(calls[0]!.url).toContain('replays/m-1');
+  });
+
+  it('asks for the body at the current body version, so a body cached before a server change is never the one drawn', async () => {
+    const { fetchImpl, calls } = stub(() => json(200, GOOD_REPLAY_BODY));
+    await fetchReplay('m-1', fetchImpl);
+    expect(calls[0]!.url).toMatch(new RegExp(`replays/m-1\\?v=${REPLAY_BODY_VERSION}$`));
   });
 
   it('asks for the replay\'s people beside it, and a people route that fails costs only the people', async () => {

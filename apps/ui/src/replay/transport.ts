@@ -25,7 +25,7 @@
 
 import { safeParseServerFrame } from '@hadoku/forge-wire';
 import { z } from 'zod';
-import { ArtIdSchema, isRelayedEvent, PersonFaceSchema, PresenceSchema, RELAYED_ECHO_SCHEMAS, type PersonFace, type PresenceMessage, type RelayedEvent } from '@hadoku/shared';
+import { ArtIdSchema, REPLAY_BODY_VERSION, isRelayedEvent, PersonFaceSchema, PresenceSchema, RELAYED_ECHO_SCHEMAS, type PersonFace, type PresenceMessage, type RelayedEvent } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
 import { parseServerEnvelope, type ServerEnvelope } from '../play/live/transport.ts';
@@ -346,7 +346,7 @@ export async function fetchRandomReplay(fetchImpl: Fetch = defaultFetch, random:
 export async function fetchReplay(matchId: string, fetchImpl: Fetch = defaultFetch): Promise<ReplayData | null> {
   let res: Response;
   try {
-    res = await getJson(apiUrl(`replays/${encodeURIComponent(matchId)}`), fetchImpl);
+    res = await getJson(apiUrl(`replays/${encodeURIComponent(matchId)}?v=${REPLAY_BODY_VERSION}`), fetchImpl);
   } catch {
     throw new Error('Could not reach the server.');
   }
@@ -359,9 +359,9 @@ export async function fetchReplay(matchId: string, fetchImpl: Fetch = defaultFet
   return { ...data, people: await people };
 }
 
-export type ReplayTrouble = 'load-failed' | 'player-error';
+export type ReplayTrouble = 'load-failed' | 'player-error' | 'replay-art';
 
-/** A replay this viewer could not play, told to the server log (`POST /api/replays/report`): the page shows nothing. */
+/** A replay this viewer could not play, or how its art drew, told to the server log (`POST /api/replays/report`): the page shows nothing. */
 export function reportReplayTrouble(what: ReplayTrouble, matchId: string | null, detail: Record<string, unknown>, fetchImpl: Fetch = defaultFetch): void {
   void sendJson(apiUrl('replays/report'), 'POST', { what, matchId, ui: __HADOKU_UI_VERSION__, detail }, fetchImpl, { keepalive: true }).catch((err: unknown) =>
     console.warn('[replay] could not report', what, err),

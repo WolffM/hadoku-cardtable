@@ -13,6 +13,7 @@ import express from 'express';
 import { identityFromHeaders } from '../room/identity.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DELTA_TYPE, deltaKeyType } from '@hadoku/forge-wire';
+import { REPLAY_BODY_VERSION } from '@hadoku/shared';
 import type { ArtIds } from '../play/art-ids.ts';
 import { fixtureFrames } from '../play/fixtures/transcript.ts';
 import { createProjector, EVERY_PLAYER, type StateFrame } from '../play/visibility.ts';
@@ -222,7 +223,7 @@ describe('GET /api/replays/:matchId', () => {
 			],
 		});
 		const base = await openApp(dir);
-		const { status, json, cache } = await call(base, '/api/replays/m-1');
+		const { status, json, cache } = await call(base, `/api/replays/m-1?v=${REPLAY_BODY_VERSION}`);
 		expect(status).toBe(200);
 		expect(cache, 'a finished replay never changes: the browser keeps it, and no shared cache may').toBe('private, max-age=31536000, immutable');
 		expect((json.envs as unknown[]).length).toBe(2);
@@ -230,6 +231,19 @@ describe('GET /api/replays/:matchId', () => {
 		expect(json.relays).toEqual([{ at: 30, event: 'forge:placement', echo: { card: 7 } }]);
 		expect((json.header as { matchId: string }).matchId).toBe('m-1');
 		expect((json.end as { winner: number | null }).winner).toBeNull();
+	});
+
+	it('keeps a body for good only under the current body version: an unversioned or older ask revalidates', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-1', { envs: [{ t: 'env', at: 0, env: { matchId: 'm-1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } } }] });
+		const base = await openApp(dir);
+		const current = await call(base, `/api/replays/m-1?v=${REPLAY_BODY_VERSION}`);
+		for (const url of ['/api/replays/m-1', `/api/replays/m-1?v=${REPLAY_BODY_VERSION - 1}`]) {
+			const stale = await call(base, url);
+			expect(stale.status).toBe(200);
+			expect(stale.cache, `${url}: a body a browser holds as immutable is never asked about again`).toBe('private, no-cache');
+			expect(stale.json, `${url} serves the same body`).toEqual(current.json);
+		}
 	});
 
 	it('404s for a match with neither file', async () => {

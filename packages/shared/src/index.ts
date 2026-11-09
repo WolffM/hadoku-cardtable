@@ -322,6 +322,7 @@ export {
 export {
   ReplaySourceSchema,
   ReplaySummarySchema,
+  REPLAY_BODY_VERSION,
   ReplayListResponseSchema,
   ReplayHeaderSchema,
   ReplayEnvSchema,

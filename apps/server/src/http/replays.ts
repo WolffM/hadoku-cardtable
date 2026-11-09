@@ -33,7 +33,7 @@ import { httpCaller } from './request.js';
 import type { JsonLog } from '@hadoku/service-kernel/log';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
 import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine, type PublicRelayLine } from '../play/recording/writer.js';
-import type { PersonFace } from '@hadoku/shared';
+import { REPLAY_BODY_VERSION, type PersonFace } from '@hadoku/shared';
 import { faceOfPerson, type People, type Person } from '../people.js';
 import type { ArtIds } from '../play/art-ids.js';
 import { restampWatcherFrame, type StateFrame, type WireObj } from '../play/visibility.js';
@@ -107,12 +107,22 @@ function withoutUsers(end: PublicEndLine): PublicEndLine {
  * A finished match's replay never changes, so a browser keeps it: the front page's second visit draws
  * its card from the cache. `private`, never `public`: every `/api` answer is friend-gated, and a shared
  * cache in front of the gate must not hold one.
+ *
+ * Kept for good only under the current {@link REPLAY_BODY_VERSION}: what the server serves for a
+ * recording does change (v2 laid art on faces recorded without it), and a body a browser holds as
+ * immutable is never asked about again. A v1 body cached that way kept the operator's replays artless
+ * after the server had fixed them. Anything else (an old bundle, no `?v=`) revalidates every time.
  */
 const REPLAY_CACHE = 'private, max-age=31536000, immutable';
+const REPLAY_REVALIDATE = 'private, no-cache';
+
+function replayCache(req: Request): string {
+	return req.query.v === String(REPLAY_BODY_VERSION) ? REPLAY_CACHE : REPLAY_REVALIDATE;
+}
 /** The list changes with every finished match: short-lived. */
 const LIST_CACHE = 'private, max-age=15';
 /** What a viewer may report about a replay it could not play (`POST /api/replays/report`). */
-const REPORT_KINDS: ReadonlySet<string> = new Set(['load-failed', 'player-error']);
+const REPORT_KINDS: ReadonlySet<string> = new Set(['load-failed', 'player-error', 'replay-art']);
 const REPORT_MAX_CHARS = 2_000;
 const REPORTS_PER_MINUTE = 30;
 
@@ -420,7 +430,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					.map((l) => ({ at: l.at, seat: l.seat, playerId: l.playerId, presence: l.presence }));
 				const relays = body.filter((l): l is PublicRelayLine => l !== null && l.t === 'relay').map((l) => ({ at: l.at, event: l.event, echo: l.echo }));
 				const stamped = deps.artIds === undefined || lines.some((l) => l.includes('"ScryfallId"')) ? null : await recordedArt(row, header, envs, deps.artIds, deps.dir);
-				res.set('Cache-Control', REPLAY_CACHE);
+				res.set('Cache-Control', replayCache(req));
 				res.json({ header: stamped?.header ?? header, envs: stamped?.envs ?? envs, presence, relays, end: withoutUsers(end) });
 				return;
 			}
@@ -443,7 +453,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 				res.status(404).json({ error: 'rebuild failed' });
 				return;
 			}
-			res.set('Cache-Control', REPLAY_CACHE);
+			res.set('Cache-Control', replayCache(req));
 			res.json(result);
 		} catch (err) {
 			log({ evt: 'replay-detail-read-failed', matchId, error: (err as Error).message });

@@ -23,6 +23,7 @@ import { useEffect, useState } from 'react';
 
 import { closeMatch, type LiveMatch } from '../play/live/match.ts';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
+import { whenArtSettles } from './art-tally.ts';
 import { readyPlayer } from './load.ts';
 import { ReplayBoard } from './ReplayBoard.tsx';
 import type { ReplayClock } from './player.ts';
@@ -39,6 +40,16 @@ type Loaded = { match: LiveMatch; clock: ReplayClock };
 export function ReplayScreen({ matchId }: ReplayScreenProps) {
   const shellRef = useChromeShell('match');
   const [state, setState] = useState<{ loaded: Loaded | null; error: string | null }>({ loaded: null, error: null });
+  const loaded = state.loaded !== null;
+
+  // Once per replay: how many of the first board's faces drew their art, in the server log.
+  useEffect(() => {
+    if (!loaded) return undefined;
+    return whenArtSettles(
+      () => document.querySelector('[data-testid="replay"]'),
+      (tally) => reportReplayTrouble('replay-art', matchId, { ...tally }),
+    );
+  }, [loaded, matchId]);
 
   useEffect(() => {
     setState({ loaded: null, error: null });
