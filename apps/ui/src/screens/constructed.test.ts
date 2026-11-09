@@ -1302,6 +1302,8 @@ describe('a room’s table', () => {
         // renders the builtin table — which is what these tests then drive.
         get: async (): Promise<RoomView | null> => null,
         create: async () => ({ ok: false as const, message: 'not used' }),
+        challenges: async () => [],
+        createChallenge: async () => ({ ok: false as const, message: 'not used' }),
         ready: async () => ({ ok: false as const, message: 'not used' }),
         start: async () => ({ ok: false as const, message: 'not used' }),
         setFormat: async () => ({ ok: false as const, message: 'not used' }),

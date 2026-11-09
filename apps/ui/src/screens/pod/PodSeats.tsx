@@ -59,12 +59,13 @@ export interface PodSeatsProps {
   /** Looks up a seated member's own watchparty avatar id (`undefined` for none) — the same id `Avatar` draws everywhere else. */
   faceOf: (memberId: string) => Face;
   /**
-   * A historical replay seat's deck, by the `deckId` the server carries on it:
-   * the real event's public list, named on the seat because the event itself
-   * published it. `undefined` for every other seat — a live tournament's deck
-   * stays its chooser's secret, and this component never guesses one.
+   * A Challenge's AI seat carries the `deckId` of its real player's list, public because the event
+   * published it; this names that player on the seat. Absent, or `undefined` for a deck, names none:
+   * a live tournament's deck stays its chooser's secret, and this component never guesses one.
    */
-  deckNameOf: (deckId: string) => string | undefined;
+  playerOf?: (deckId: string) => string | undefined;
+  /** A Challenge's field is the event's: no seat is grown, given to the AI, taken from it or closed. */
+  fieldFixed?: boolean;
   onSit: (seat: number) => void;
   /** The AI button on an open seat (`on`), or the AI's own seat given back. */
   onAi: (seat: number, on: boolean) => void;
@@ -72,12 +73,12 @@ export interface PodSeatsProps {
   onClose: (seat: number, closed: boolean) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, deckNameOf, onSit, onAi, onClose }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, playerOf = () => undefined, fieldFixed = false, onSit, onAi, onClose }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
   // A full room: one seat more, for someone who has not sat yet, and for the owner's AI.
-  const grows = (iLead || (!iAmSeated && myMemberId !== null)) && seats.length < POD_MAX_SEATS && seats.every((s) => s !== null);
+  const grows = !fieldFixed && (iLead || (!iAmSeated && myMemberId !== null)) && seats.length < POD_MAX_SEATS && seats.every((s) => s !== null);
   const drawn = seats.length + (grows ? 1 : 0);
 
   return (
@@ -101,16 +102,18 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, deckNam
                 </svg>
               </ActionButton>
               <span className="pod-seats__label">Open</span>
-              <span className="pod-seats__actions">
-                <ActionButton action="ai" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} onPress={() => onAi(seat, true)}>
-                  AI
-                </ActionButton>
-                {iLead && seat < seats.length && (
-                  <ActionButton action="close" className="pod-seats__action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onPress={() => onClose(seat, true)}>
-                    Close
+              {!fieldFixed && (
+                <span className="pod-seats__actions">
+                  <ActionButton action="ai" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} onPress={() => onAi(seat, true)}>
+                    AI
                   </ActionButton>
-                )}
-              </span>
+                  {iLead && seat < seats.length && (
+                    <ActionButton action="close" className="pod-seats__action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onPress={() => onClose(seat, true)}>
+                      Close
+                    </ActionButton>
+                  )}
+                </span>
+              )}
             </li>
           );
         }
@@ -132,18 +135,21 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, deckNam
           );
         }
         if (isPodAi(occupant.memberId)) {
+          const player = occupant.deckId === undefined ? undefined : playerOf(occupant.deckId);
           return (
-            <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-ai="">
+            <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-ai="" data-player={player}>
               <span className="pod-seats__avatar pod-seats__avatar--ai">
                 {/* The seat's own character (`PodMember.avatarId`); the mark only for a server that sends none. */}
                 <Avatar id={occupant.avatarId} fallback="mark" className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
               </span>
-              <span className="pod-seats__label">{occupant.name}</span>
-              <span className="pod-seats__actions">
-                <ActionButton action="ai-remove" className="pod-seats__action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onPress={() => onAi(seat, false)}>
-                  Remove
-                </ActionButton>
-              </span>
+              <span className="pod-seats__label">{player ?? occupant.name}</span>
+              {!fieldFixed && (
+                <span className="pod-seats__actions">
+                  <ActionButton action="ai-remove" className="pod-seats__action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onPress={() => onAi(seat, false)}>
+                    Remove
+                  </ActionButton>
+                </span>
+              )}
             </li>
           );
         }
@@ -170,9 +176,6 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, deckNam
               )}
             </span>
             <PlayerName name={occupant.name} face={faceOf(occupant.memberId)} className="pod-seats__label" />
-            {occupant.deckId !== undefined && deckNameOf(occupant.deckId) !== undefined && (
-              <span className="pod-seats__deck" data-testid={`pod-seat-${seat}-deck`}>{deckNameOf(occupant.deckId)}</span>
-            )}
             <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />
           </li>
         );

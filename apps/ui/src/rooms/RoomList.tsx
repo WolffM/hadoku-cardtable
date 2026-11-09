@@ -53,7 +53,7 @@
 
 import { useCallback, useContext, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@wolffm/themes';
-import { PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX } from '@hadoku/shared';
+import { PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ChallengeEvent } from '@hadoku/shared';
 
 import { apiUrl, sendJson } from '../http.ts';
 import { navigate } from '../screens/route.ts';
@@ -65,9 +65,12 @@ import { watchScroll } from './scroll-watch.ts';
 import { playRole } from '../sound/index.ts';
 import {
   clientModeLabel,
+  GAME_TYPES,
   gameTypeLabel,
   roomsClient,
+  type CreateOutcome,
   type FeaturedPick,
+  type GameType,
   type RoomView,
   type RoomsClient,
 } from './api.ts';
@@ -76,6 +79,8 @@ import { Reveal } from '@hadoku/ui-shell/components';
 import { FrontGateContext, usePartShown } from '../front/gate.ts';
 import { MAX_ROOM_GHOSTS } from '../front/shape.ts';
 import { NEW_ROOM_FIELDS, RoomFields, roomRequest, type RoomFieldValues } from './RoomFields.tsx';
+import { ChallengeFields, firstChoice, type ChallengeChoice } from './ChallengeFields.tsx';
+import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
 import { CreateEventDialog } from './CreateEventDialog.tsx';
 import { latestReads } from './latest.ts';
 import { roomCardView } from '../front/roomCard.ts';
@@ -762,6 +767,10 @@ function RoomRow({
 
 /* ── create ──────────────────────────────────────────────────────────── */
 
+/** What Create room makes: a room of a game type, or a Challenge (`ChallengeFields.tsx`), which is born whole. */
+type CreateKind = GameType | 'challenge';
+const CREATE_KINDS: readonly RadioCard<CreateKind>[] = [...GAME_TYPES, { value: 'challenge', label: 'Challenge' }];
+
 /**
  * The create form, as a modal over the list. Escape, the close button and a
  * press on the backdrop close it; the name field has the focus when it opens,
@@ -774,21 +783,31 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
   const [typed, setTyped] = useState<string | null>(null);
   const name = typed ?? (who === 'pending' ? '' : defaultRoomName(who?.name, () => draw));
   const [fields, setFields] = useState<RoomFieldValues>(NEW_ROOM_FIELDS);
+  const [kind, setKind] = useState<CreateKind>(NEW_ROOM_FIELDS.gameType);
+  // The Challenges are read once, the first time the card is chosen.
+  const [events, setEvents] = useState<readonly ChallengeEvent[] | null>(null);
+  const [choice, setChoice] = useState<ChallengeChoice | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = async (e: FormEvent): Promise<void> => {
-    e.preventDefault();
-    const trimmed = name.trim();
-    if (trimmed === '') {
-      playRole('ui.deny');
-      setError('Name required.');
+  const pick = (next: CreateKind): void => {
+    setKind(next);
+    setError(null);
+    if (next !== 'challenge') {
+      setFields({ ...fields, gameType: next });
       return;
     }
-    playRole('ui.select');
-    setBusy(true);
-    setError(null);
-    const outcome = await client.create({ name: trimmed, ...roomRequest(fields) });
+    if (events !== null) return;
+    client.challenges().then(
+      (list) => {
+        setEvents(list);
+        if (list.length > 0) setChoice(firstChoice(list[0]!));
+      },
+      (err: unknown) => setError((err as Error).message),
+    );
+  };
+
+  const opened = async (outcome: CreateOutcome): Promise<void> => {
     if (!outcome.ok) {
       setBusy(false);
       playRole('ui.deny');
@@ -800,6 +819,28 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
     await warmRoom(outcome.room);
     setBusy(false);
     navigate({ kind: 'room', roomId: outcome.room.id });
+  };
+
+  const submit = async (e: FormEvent): Promise<void> => {
+    e.preventDefault();
+    if (kind === 'challenge') {
+      if (choice === null) return;
+      playRole('ui.select');
+      setBusy(true);
+      setError(null);
+      await opened(await client.createChallenge(choice));
+      return;
+    }
+    const trimmed = name.trim();
+    if (trimmed === '') {
+      playRole('ui.deny');
+      setError('Name required.');
+      return;
+    }
+    playRole('ui.select');
+    setBusy(true);
+    setError(null);
+    await opened(await client.create({ name: trimmed, ...roomRequest(fields) }));
   };
 
   useEffect(() => {
@@ -837,25 +878,34 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
             </button>
           </div>
 
-          <label htmlFor="room-create-name">Name</label>
-          <input
-            id="room-create-name"
-            data-testid="room-create-name"
-            value={name}
-            maxLength={ROOM_NAME_MAX}
-            placeholder="Friday night"
-            // Firefox counts a text field before a password field as the username when its token is
-            // empty, on, off, username, email or tel (LoginManager.shared.sys.mjs); any other opts it out.
-            autoComplete="nickname"
-            autoFocus
-            onChange={(e) => {
-              setTyped(e.target.value);
-              setError(null);
-            }}
-          />
+          <span className="rooms__caption">Game type</span>
+          <RadioCards name="room-create-type" label="Game type" options={CREATE_KINDS} value={kind} onChange={pick} testId="room-create-type" />
 
-          <RoomFields idPrefix="room-create" value={fields} onChange={setFields} />
-          <button type="submit" className="lobby__go" data-testid="room-create-submit" disabled={busy}>
+          {kind === 'challenge' ? (
+            events !== null && choice !== null && <ChallengeFields idPrefix="room-create" events={events} value={choice} onChange={setChoice} />
+          ) : (
+            <>
+              <label htmlFor="room-create-name">Name</label>
+              <input
+                id="room-create-name"
+                data-testid="room-create-name"
+                value={name}
+                maxLength={ROOM_NAME_MAX}
+                placeholder="Friday night"
+                // Firefox counts a text field before a password field as the username when its token is
+                // empty, on, off, username, email or tel (LoginManager.shared.sys.mjs); any other opts it out.
+                autoComplete="nickname"
+                autoFocus
+                onChange={(e) => {
+                  setTyped(e.target.value);
+                  setError(null);
+                }}
+              />
+
+              <RoomFields idPrefix="room-create" value={fields} onChange={setFields} showType={false} />
+            </>
+          )}
+          <button type="submit" className="lobby__go" data-testid="room-create-submit" disabled={busy || (kind === 'challenge' && choice === null)}>
             Create room
           </button>
 

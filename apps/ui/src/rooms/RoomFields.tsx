@@ -33,12 +33,19 @@ export function roomRequest(v: RoomFieldValues): Omit<CreateRequest, 'name'> {
   };
 }
 
-/** `idPrefix` names every input and test id (`room-create` keeps Create room's own). */
-export function RoomFields({ idPrefix, value, onChange }: { idPrefix: string; value: RoomFieldValues; onChange: (next: RoomFieldValues) => void }) {
+/**
+ * `idPrefix` names every input and test id (`room-create` keeps Create room's own). `showType` false
+ * leaves the game type to the caller, who draws its own row (Create room's adds Challenge).
+ */
+export function RoomFields({ idPrefix, value, onChange, showType = true }: { idPrefix: string; value: RoomFieldValues; onChange: (next: RoomFieldValues) => void; showType?: boolean }) {
   return (
     <>
-      <span className="rooms__caption">Game type</span>
-      <GameTypeRow testId={`${idPrefix}-type`} value={value.gameType} onChange={(gameType) => onChange({ ...value, gameType })} />
+      {showType && (
+        <>
+          <span className="rooms__caption">Game type</span>
+          <GameTypeRow testId={`${idPrefix}-type`} value={value.gameType} onChange={(gameType) => onChange({ ...value, gameType })} />
+        </>
+      )}
 
       {value.gameType === 'constructed-1v1' && (
         <>
