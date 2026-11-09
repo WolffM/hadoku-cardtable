@@ -49,10 +49,10 @@ describe('structureOk', () => {
 
 describe('roundsOf', () => {
   it('Swiss only is its Swiss rounds; a cut adds log2 rounds', () => {
-    expect(roundsOf({ swiss: 3, cut: 0 }, 8)).toBe(3);
-    expect(roundsOf({ swiss: 5, cut: 8 }, 32)).toBe(8);
-    expect(roundsOf({ swiss: 0, cut: 8 }, 8)).toBe(3);
-    expect(roundsOf({ swiss: 0, cut: 2 }, 8)).toBe(1);
+    expect(roundsOf({ swiss: 3, cut: 0 })).toBe(3);
+    expect(roundsOf({ swiss: 5, cut: 8 })).toBe(8);
+    expect(roundsOf({ swiss: 0, cut: 8 })).toBe(3);
+    expect(roundsOf({ swiss: 0, cut: 2 })).toBe(1);
   });
 });
 
