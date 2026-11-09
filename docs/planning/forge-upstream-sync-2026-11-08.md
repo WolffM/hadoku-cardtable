@@ -136,6 +136,7 @@ protocol change does to a seat that is Forge's client inside our bridge. Each is
 | An undeclared attacker could not be called back (`w33` Q14, `w46-attack`) | the bridge cleared an empty attack set; Forge's old `pushAttackerCandidates` sent it empty | an attack or block declaration always says its set |
 | An AI decision cut short went unreported (`ai-cutoff.jvm`, red once in CI) | `AITimeoutTracker` lets the eval thread stop itself at the deadline; when it beats the game thread's wait, Forge printed no "AI eval thread at timeout:" line, which is what our cutoff count reads | fork: the game thread logs that cut too, with where the scan stopped |
 | Cancel on the yield bar re-armed the yield (`yield-cancel.jvm`, 1 in 4 under load) | the seat paints the bar on every notice, so it can stand over an auto-passed priority window; a Cancel there went to Forge as End Turn | the bridge ends the yield on that Cancel too |
+| The chooser drew none of six waiting Valakut chips (`w70-valakut`) | a target pick among players only offers no card (no pop-up) and its bar is dead, so the chooser's screen saw no decision open and treated the chain as flowing | the seat's own open selection halts the chain |
 | "Your turn" cued for the turn just ended (`ux-your-turn`) | Forge hands the turn over at cleanup, a delta before `Turn` moves, and the two now arrive apart | the cue waits for a turn number above any it saw someone else hold |
 
 ## Not turned on yet
