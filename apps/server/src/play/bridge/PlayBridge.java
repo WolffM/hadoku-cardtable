@@ -746,9 +746,14 @@ public final class PlayBridge {
          * stopped, or its game is over) is not a failure.
          */
         void seatDisconnected(final int seat) {
+            // Forge's clients try to come back on their own; this match is over, so none of them does.
+            for (final FGameClient c : clients) { c.beginShutdown(); }
             if (stop.getCount() == 0 || gameOverEmitted.get()) { return; }
             fail("seat " + seat + " lost its connection to Forge's server", null);
         }
+
+        /** The seats' loopback clients ({@link #startMatch}). */
+        final List<FGameClient> clients = new java.util.concurrent.CopyOnWriteArrayList<>();
 
         /**
          * This match cannot go on. A one-match JVM exits, as it always has; a {@link #hostMode}
@@ -4425,6 +4430,9 @@ public final class PlayBridge {
             frame(notify("clearWeaklySelectable"));
         }
 
+        /** The input whose offer this seat was last sent as {@code setSelectables}. */
+        private Object selectablesFor;
+
         /** The selection this seat was last sent ({@link #setSelection}). */
         private Selection sentSelection = Selection.NONE;
 
@@ -4486,9 +4494,13 @@ public final class PlayBridge {
             final boolean offers = !selection.cards().isEmpty() || !selection.targets().isEmpty();
             final boolean offered = !prev.cards().isEmpty() || !prev.targets().isEmpty();
             if (offers) {
-                if (!offered || !selection.cards().equals(prev.cards()) || !selection.targets().equals(prev.targets())
+                // Once per input, as Forge sent it from the input's constructor: a pick that takes a player
+                // out of the offer (Kolaghan's Command's first mode) is not a new selection to answer.
+                final Object input = myInput();
+                if (!offered || input != selectablesFor || !selection.cards().equals(prev.cards())
                         || selection.min() != prev.min() || selection.max() != prev.max()) {
                     setSelectables(selection.cards(), selection.min(), selection.max());
+                    selectablesFor = input;
                 }
             } else if (offered) {
                 clearSelectables();
@@ -4505,6 +4517,20 @@ public final class PlayBridge {
                 }
             }
             if (!on.isEmpty()) { setHighlighted(on, true); }
+        }
+
+        /**
+         * The seat's client lost Forge's server. Forge's client now tries to come back on its own
+         * (FGameClient.onDisconnected) and tells its lobby nothing while it does, so this is where a
+         * lost seat is heard: the match fails at once, as it did when nothing reconnected, rather than
+         * leaving both players waiting through a two-minute backoff.
+         */
+        @Override public void onReconnectStateChanged(final forge.gamemodes.net.client.FGameClient.ReconnectState state,
+                                                      final int attemptIndex, final int nextDelaySeconds) {
+            super.onReconnectStateChanged(state, attemptIndex, nextDelaySeconds);
+            if (state != forge.gamemodes.net.client.FGameClient.ReconnectState.CONNECTED) {
+                match.seatDisconnected(seat);
+            }
         }
 
         /** Forge turned the seat's act away (a click whose every ability it would refuse): the browser marks it. */
@@ -8320,7 +8346,7 @@ public final class PlayBridge {
      * before its seats are closed, so the match reads as {@code fatal}, never as a clean stop.
      */
     static void startMatch(final MatchContext match, final Callable<Booted> boot, final long startAt) {
-        final List<FGameClient> clients = new ArrayList<>();
+        final List<FGameClient> clients = match.clients;
         Booted booted = null;
         try {
             booted = boot.call();
@@ -8501,10 +8527,22 @@ public final class PlayBridge {
             final IGameController c = g.getGameController();
             if (c != null) { c.concede(); }
         }
-        final long deadline = System.currentTimeMillis() + 10_000;
+        final long started = System.currentTimeMillis();
+        final long deadline = started + 10_000;
+        boolean hostConceded = false;
         while (!game.isGameOver() && System.currentTimeMillis() < deadline) {
             for (final SeatGui g : match.seatGuis.values()) {
                 for (final PendingAsk ask : g.pending.values()) { ask.answer.complete(ABORTED); }
+            }
+            // A seat whose client lost Forge's server cannot send its concede, and Forge keeps its seat
+            // for a reconnect: its player concedes on the host, through the game's act gate.
+            if (!hostConceded && System.currentTimeMillis() - started > 1_000) {
+                hostConceded = true;
+                for (final forge.game.player.Player p : game.getPlayers()) {
+                    if (!p.hasLost() && match.humanOf(p) instanceof SeatController controller) {
+                        ActGate.of(game).runFirst(controller::concede);
+                    }
+                }
             }
             Thread.sleep(20);
         }
