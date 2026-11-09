@@ -85,7 +85,8 @@ describe.skipIf(!available.ok)(title, () => {
 				const giant = s.zone(0, 'Battlefield').find((c) => c.name === 'Hill Giant')!;
 				const elves = s.zone(1, 'Battlefield').find((c) => c.name === 'Llanowar Elves')!;
 				await castNamed(s, 0, 'Pyroclasm');
-				await waitUntil(() => s.zone(0, 'Graveyard').some((c) => c.id === bears.id), 'the Bears to die', 20_000, s);
+				// Each seat's frames arrive on its own channel: the other seat's burial can land after this one's.
+				await waitUntil(() => [0, 1].every((seat) => payloads(s, seat).some((p) => buries(p, bears.id))), 'the Bears to die on both seats', 20_000, s);
 				for (const seat of [0, 1]) {
 					const frames = payloads(s, seat);
 					const buried = frames.findIndex((p) => buries(p, bears.id));
