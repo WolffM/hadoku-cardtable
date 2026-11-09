@@ -1042,6 +1042,10 @@ in that tree (paths under `forge/`):
   on the prompt (`CMatchUI.showPromptMessage`). `SeatGui` composes the wait itself instead
   (`awaitNextInput`), dropped once a prompt or bar follows, reading the yield off the host's
   `YieldController`.
+- **VERIFIED — an AI cut is logged either way (fork).** `AiController.chooseSpellAbilitiesToPlayFromList`
+  arms the eval thread with the shared deadline (`AITimeoutTracker.arm`/`check`), so the eval thread
+  stops itself and returns what it approved; upstream printed `AI eval thread at timeout:` only when
+  the game thread's `future.get` timed out first. The fork prints it from the game thread in both cases.
 - **VERIFIED — the client times its server out (fork).** `FGameClient` closes and reconnects after
   `READER_IDLE_SECONDS` with nothing read (`LobbyUpdateHandler.userEventTriggered`); upstream hardcoded
   45 s. The fork makes it the server's `forge.net.heartbeatTimeout`, never under three heartbeats.
