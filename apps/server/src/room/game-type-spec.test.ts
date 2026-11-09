@@ -16,11 +16,17 @@
  * the test goes red; restoring `lobby.ts` turns it green again.
  */
 
+import { createServer, type Server } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { AddressInfo } from 'node:net';
+import express from 'express';
 import { afterAll, describe, expect, it } from 'vitest';
 import { registerGameType, type GameTypeSpec } from '@hadoku/shared';
+import type { TablesLibrary } from '../http/library.ts';
+import { attachTables } from '../http/routes.ts';
+import { identityFromHeaders } from './identity.ts';
 import { openLobby, type Lobby } from './lobby.ts';
 
 /** This game's own bot marker — opaque to the registry, which never reads it; only this spec's own `bots.fill` and the test assign it meaning. */
@@ -45,6 +51,7 @@ const BOMBERMAN: GameTypeSpec = {
 registerGameType(BOMBERMAN);
 
 const ALICE = { id: 'fk:aaaaaaaaaaaaaaaa', name: 'user-alice', userId: 'uid-user-alice' };
+const BOB = { id: 'fk:bbbbbbbbbbbbbbbb', name: 'user-bob', userId: 'uid-user-bob' };
 
 const dirs: string[] = [];
 async function tempDir(): Promise<string> {
@@ -96,5 +103,58 @@ describe('a registered game type Magic never wrote', () => {
 		expect(made.ok).toBe(true);
 		const reopened = await openLobby({ dir });
 		expect(reopened.get(made.ok ? made.room.id : '')).toBeUndefined();
+	});
+
+	it('seats 10, and refuses an 11th', async () => {
+		const lobby: Lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Bomberman match', gameType: BOMBERMAN.id, clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) throw new Error(made.reason);
+		const roomId = made.room.id;
+
+		// Alice auto-seats at 0 on create; nine bots fill the rest of this game's own ceiling.
+		for (let seat = 1; seat < 10; seat++) expect(lobby.aiPod(roomId, ALICE.id, seat, true).ok, `seat ${seat}`).toBe(true);
+		expect(lobby.get(roomId)?.pod?.seats.filter((s) => s !== null)).toHaveLength(10);
+
+		// An 11th, by an explicit seat index past the ceiling (`seatInReach`/`podSeatCeiling`, `lobby.ts`) …
+		expect(lobby.aiPod(roomId, ALICE.id, 10, true)).toEqual({ ok: false, reason: 'bad-seat' });
+		// … and by the auto-pick path, with every seat already full (`sitPod`'s own `pod-full`).
+		expect(lobby.join(roomId, BOB).ok).toBe(true);
+		expect(lobby.sitPod(roomId, BOB.id)).toEqual({ ok: false, reason: 'pod-full' });
+	});
+});
+
+/** Answers nothing for any format or deck — the table-view route this describe drives reads neither. */
+const EMPTY_LIBRARY: TablesLibrary = { formats: [], decks: [], faults: [], format: () => undefined, deck: () => undefined };
+
+describe('a registered game type Magic never wrote, over a real table route', () => {
+	it("GET /api/tables/rooms/:roomId answers the room's OWN spec's seats, not a hard two — and that many seats are reachable", async () => {
+		const lobby: Lobby = await openLobby({ dir: await tempDir() });
+		const me = identityFromHeaders({ 'x-user-id': 'user-bomberman-table' }, 'http-bomberman-table');
+		const made = lobby.create({ id: me, name: 'bomberman-table', userId: null }, { name: 'Bomberman table', gameType: BOMBERMAN.id, clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) throw new Error(made.reason);
+
+		// seat 7 — reachable because this room's own pod ceiling is `BOMBERMAN.seats.max` (10), not a table's two.
+		expect(lobby.sitPod(made.room.id, me, 7).ok).toBe(true);
+
+		const app = express();
+		const api = express.Router();
+		attachTables(api, { library: EMPTY_LIBRARY, draftRooms: null, rooms: lobby, log: () => {} });
+		app.use('/api', api);
+		const server: Server = createServer(app);
+		await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+		try {
+			const port = (server.address() as AddressInfo).port;
+			const res = await fetch(`http://127.0.0.1:${port}/api/tables/rooms/${made.room.id}`, { headers: { 'x-user-id': 'user-bomberman-table' } });
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { room: { seats: number } };
+			// The load-bearing number: a plain constructed/draft table answers 2 here (Forge's own
+			// match size, `table.seats`) — bomberman has no `table` field, so its whole room is one
+			// table of its own `seats.max` (`tableSeatCount`, `http/routes.ts`).
+			expect(body.room.seats).toBe(BOMBERMAN.seats.max);
+		} finally {
+			await new Promise<void>((done) => server.close(() => done()));
+		}
 	});
 });

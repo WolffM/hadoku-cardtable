@@ -491,14 +491,27 @@ export function draftPoolForMember(memberId: string, rooms: DraftRooms | null): 
 const CONSTRUCTED = 'constructed-1v1';
 
 /**
- * Two seats, because Forge's match is two seats — read off `CONSTRUCTED`'s
- * own `GameTypeSpec` (`@hadoku/shared`'s `room-modes.ts` registers it). This
- * file's table routes are Magic's own Forge-table surface regardless of
- * which of Magic's two game types a room is actually playing (a draft
- * pod's ROUNDS are still two-seat tables), so the one registered id is read
- * once, not per room.
+ * A table's own seat count, from its room's registered `GameTypeSpec`:
+ * `table.seats` when the game plays in groups smaller than the room (both
+ * of Magic's own types, always 2 — a Forge match, however big the room),
+ * else the room's own `seats.max` (a type with no `table` field plays the
+ * whole room as one table).
  */
-const TABLE_SEATS = gameTypeSpec(CONSTRUCTED)?.seats.max ?? 2;
+function tableSeatCount(room: Pick<RoomViewLike, 'gameType'>): number {
+	const spec = gameTypeSpec(room.gameType);
+	return spec?.table?.seats ?? spec?.seats.max ?? 2;
+}
+
+/**
+ * The same bound, before any room is known: `POST …/sit`'s body is parsed
+ * before the room is loaded, so it cannot read a room's own spec yet. Reads
+ * `CONSTRUCTED`'s — a seat past it still answers plainly here rather than
+ * failing confusingly once the room is read; a seat `tableSeatCount` would
+ * refuse for THIS room is caught there regardless.
+ */
+function bodySeatBound(): number {
+	return gameTypeSpec(CONSTRUCTED)?.seats.max ?? 2;
+}
 
 /** The same answer for a room that does not exist and one you are not in. */
 const NO_ROOM = 'no such room';
@@ -629,8 +642,8 @@ function parseSitBody(raw: unknown): { ok: true; table: unknown; seat: number | 
 	if (raw === undefined) return { ok: true, table: undefined, seat: undefined };
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { ok: false, error: 'body is {} or { table?, seat? }' };
 	const { seat, ...rest } = raw as { seat?: unknown };
-	if (seat !== undefined && (typeof seat !== 'number' || !Number.isInteger(seat) || seat < 0 || seat >= TABLE_SEATS)) {
-		return { ok: false, error: `seat must be a seat number below ${TABLE_SEATS}` };
+	if (seat !== undefined && (typeof seat !== 'number' || !Number.isInteger(seat) || seat < 0 || seat >= bodySeatBound())) {
+		return { ok: false, error: `seat must be a seat number below ${bodySeatBound()}` };
 	}
 	const table = parseTableBody(rest);
 	return table.ok ? { ...table, seat } : table;
@@ -1251,7 +1264,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * until they concede". A decided series or Gauntlet holds nothing (ruling 13).
 	 */
 	function tableLocked(room: RoomViewLike, players: TablePlayer[], matchId: string | null, tableId: string): boolean {
-		return matchId !== null || (players.length >= TABLE_SEATS && players.every((p) => p.ready)) || gauntlets?.holdsTable(room, tableId) === true;
+		return matchId !== null || (players.length >= tableSeatCount(room) && players.every((p) => p.ready)) || gauntlets?.holdsTable(room, tableId) === true;
 	}
 
 	/**
@@ -1292,7 +1305,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// spelling of the prefix to draw a table on a drafted pool.
 				draftId: draftIdOfPool(effectivePoolOf(room)),
 				matchId,
-				seats: TABLE_SEATS,
+				seats: tableSeatCount(room),
 				// The operator's ruling (2026-10-12): once both players are ready, or a
 				// match is live, the seats are locked and nobody stands up. One fact,
 				// so the screen draws Stand up disabled from the same bit the server
@@ -1646,7 +1659,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const players = playersOf(rooms, room, table.id);
 		const seat: SeatRequest = { deck: parsed.deck, rules: rulesOf(tablePoolOf(room, players)) };
 		const mine = players.find((p) => p.member.id === me);
-		if (mine === undefined && players.length >= TABLE_SEATS) {
+		if (mine === undefined && players.length >= tableSeatCount(room)) {
 			res.status(409).json({ error: 'this table already has two players' });
 			return;
 		}
@@ -1748,7 +1761,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			if (nowPlayers.every((p) => p.ready)) {
 				if (rooms.beginSideboarding(room.id, table.id)) {
 					for (const p of nowPlayers) rooms.setSeatReady(room.id, table.id, p.member.id, false);
-				} else if (nowPlayers.length === TABLE_SEATS) {
+				} else if (nowPlayers.length === tableSeatCount(room)) {
 					const deal = dealRandom(room, table.id, nowPlayers, false, rematch);
 					if (!deal.ok) {
 						rooms.setSeatReady(room.id, table.id, me, false);
@@ -1805,7 +1818,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'that seat is already taken' });
 			return;
 		}
-		if (mine === undefined && players.length >= TABLE_SEATS) {
+		if (mine === undefined && players.length >= tableSeatCount(room)) {
 			res.status(409).json({ error: 'this table already has two players' });
 			return;
 		}
@@ -2056,7 +2069,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				return;
 			}
 		} else {
-			if (players.length < TABLE_SEATS) {
+			if (players.length < tableSeatCount(room)) {
 				res.status(409).json({ error: 'both players have to load a deck first' });
 				return;
 			}

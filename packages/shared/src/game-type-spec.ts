@@ -25,7 +25,7 @@
 export interface SeatRange {
   /** Fewest seats this game ever plays with. */
   min: number;
-  /** Most seats a room of this type ever grows to. */
+  /** Most seats a ROOM of this type ever grows to — one meaning across every registered type. */
   max: number;
 }
 
@@ -56,6 +56,13 @@ export interface GameCodec {
 export interface GameTypeSpec {
   id: string;
   seats: SeatRange;
+  /**
+   * A room plays in tables of this many seats; absent means the whole room
+   * is one table of `seats.max` (Magic's own two types each name 2 here,
+   * win or lose, however many sit in the room — a `draft` pod of 30 still
+   * plays its rounds two at a table).
+   */
+  table?: { seats: number };
   /** Whether the room waits on a ready step before it may start (a countdown with none, say). */
   ready: boolean;
   bots?: BotFill;

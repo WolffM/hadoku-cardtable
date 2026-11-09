@@ -625,6 +625,34 @@ function usesPod(room: Pick<RoomRecord, 'gameType' | 'settings'>): boolean {
 	return spec !== undefined && spec.seats.max > 2;
 }
 
+/**
+ * The most seats this room's pod ever grows to. Magic's own two types keep
+ * their unconditional run to `POD_MAX_SEATS` (a draft's pod splits past
+ * eight; a tournament's own `GameTypeSpec.seats.max` already IS
+ * `POD_MAX_SEATS`, so this agrees with reading the spec too — the literal
+ * check is just cheaper). Any OTHER registered pod-using type is capped at
+ * its own `seats.max`, never past it.
+ */
+function podSeatCeiling(room: Pick<RoomRecord, 'gameType' | 'settings'>): number {
+	if (room.gameType === 'draft' || isTournamentRoom(room)) return POD_MAX_SEATS;
+	return gameTypeSpec(room.gameType)?.seats.max ?? POD_MAX_SEATS;
+}
+
+/**
+ * How many seats a NEW room's pod opens with. Magic's own two types always
+ * open at `POD_SEATS` (eight) regardless of their own `seats.max` — a
+ * `constructed-1v1` room is not even using the pod yet at creation (it opens
+ * one if Tournament is turned on later, with room for the full eight), and a
+ * `draft` room's pod splits past eight rather than ever being smaller. Any
+ * OTHER registered pod-using type opens at the smaller of `POD_SEATS` and
+ * its own `seats.max`, so a 3-seat game never allocates five seats nobody
+ * can ever reach.
+ */
+function initialPodSize(gameType: string): number {
+	if (gameType === 'draft' || gameType === 'constructed-1v1') return POD_SEATS;
+	return Math.min(POD_SEATS, gameTypeSpec(gameType)?.seats.max ?? POD_SEATS);
+}
+
 /** The members who hold a seat: the pod's humans in a pod room, else the tables'. In seat order. */
 function playersOf(room: RoomRecord): string[] {
 	if (usesPod(room)) return room.podSeats.filter((s): s is string => s !== null && s !== POD_AI && s !== POD_CLOSED && room.members.some((m) => m.id === s));
@@ -748,9 +776,9 @@ function seatsFixed(room: RoomRecord): boolean {
 	return room.draftStartedAt !== null || heldSplit(room) !== null;
 }
 
-/** Whether `seat` is one the lobby may act on: one the room has, or the one past the last (which grows it). */
+/** Whether `seat` is one the lobby may act on: one the room has, or the one past the last (which grows it) — never past this room's own ceiling (`podSeatCeiling`). */
 function seatInReach(room: RoomRecord, seat: number): boolean {
-	return Number.isInteger(seat) && seat >= 0 && seat < POD_MAX_SEATS && seat <= room.podSeats.length;
+	return Number.isInteger(seat) && seat >= 0 && seat < podSeatCeiling(room) && seat <= room.podSeats.length;
 }
 
 /** The seats the draft deals: every one not closed. */
@@ -3751,8 +3779,8 @@ class FileLobby implements Lobby {
 			draftStartedAt: null,
 			plan: DEFAULT_PLAN,
 			planVerdict: null,
-			podSeats: new Array<string | null>(POD_SEATS).fill(null),
-			podAi: new Array<string | null>(POD_SEATS).fill(null),
+			podSeats: new Array<string | null>(initialPodSize(input.gameType)).fill(null),
+			podAi: new Array<string | null>(initialPodSize(input.gameType)).fill(null),
 			podDrafts: null,
 			podSplit: null,
 			pod: null,
@@ -4415,7 +4443,7 @@ class FileLobby implements Lobby {
 			const open = room.podSeats.findIndex((id, i) => id === null || i === already);
 			// No seat open: one past the last, growing the room by that seat.
 			target = open === -1 ? room.podSeats.length : open;
-			if (target >= POD_MAX_SEATS) return { ok: false, reason: 'pod-full' };
+			if (target >= podSeatCeiling(room)) return { ok: false, reason: 'pod-full' };
 		} else if (target !== already && (room.podSeats[target] ?? null) !== null) {
 			return { ok: false, reason: 'seat-taken' };
 		}

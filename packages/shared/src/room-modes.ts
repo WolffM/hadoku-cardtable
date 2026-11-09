@@ -43,29 +43,33 @@ export type GameType = string;
 
 /**
  * Magic's two `GameTypeSpec`s — the facts true of each on their own, with
- * no running server behind them. `canStart` mirrors
- * `apps/server/src/room/lobby.ts`'s own `POD_MIN_OPEN` (2): the fewest
- * seats either one is ever started with. Magic's deeper rules (deck
- * legality, a draft's own completion, locked decks, bot play, …) are
- * `GameHooks` in that same file, built in `http/routes.ts` and wired in
- * per game type through `Lobby.useGameType`.
+ * no running server behind them. `seats` is the ROOM's own capacity (one
+ * meaning across every registered type); `table.seats` is the smaller
+ * group it actually plays a game WITH, when that differs from the room
+ * (both of Magic's own types play a Forge match of two, however many sit
+ * in the room). `canStart` mirrors `apps/server/src/room/lobby.ts`'s own
+ * `POD_MIN_OPEN` (2): the fewest seats either one is ever started with.
+ * Magic's deeper rules (deck legality, a draft's own completion, locked
+ * decks, bot play, …) are `GameHooks` in that same file, built in
+ * `http/routes.ts` and wired in per game type through `Lobby.useGameType`.
  */
 registerGameType({
   id: 'constructed-1v1',
-  // A Forge match is two seats, win or lose; `apps/server/src/http/routes.ts`'s
-  // table routes read this one.
   seats: { min: 2, max: 2 },
+  table: { seats: 2 },
   ready: true,
   series: { length: 1 },
   canStart: (seated) => (seated >= 2 ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
 });
 registerGameType({
   id: 'draft',
-  // The pod's own seats (`POD_SEATS`/`POD_MAX_SEATS`), not a table's: a
-  // draft's ROUNDS still pair two at a table (the 'constructed-1v1' spec's
-  // own seats), but the pod itself grows one seat at a time past its first
-  // eight (`apps/server/src/room/lobby.ts`'s `grownSeats`).
+  // The pod's own room-wide capacity: it opens at `POD_SEATS` and grows one
+  // seat at a time to `POD_MAX_SEATS` (`apps/server/src/room/lobby.ts`'s
+  // `grownSeats`) — Magic's own two types keep that growth unconditionally,
+  // never capped by this `max`.
   seats: { min: 2, max: POD_MAX_SEATS },
+  // Every ROUND still pairs two at a table, whatever the pod's own size.
+  table: { seats: 2 },
   ready: true,
   series: { length: 3 },
   canStart: (seated) => (seated >= 2 ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
