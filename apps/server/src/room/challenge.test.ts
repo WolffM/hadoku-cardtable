@@ -56,6 +56,7 @@ describe('a Challenge room', () => {
 		const decks = room.aiDeckAssignments!;
 		expect(decks[`ai:${String((mine + 4) % 8)}`], 'Ozymandias17 met TeaW1thRum in the quarterfinals').toBe('tourney-leg-2026-02-07-8-teaw1thrum');
 		expect(Object.keys(decks)).toHaveLength(7);
+		expect(room.seatDecks, 'the caller’s seat plays Ozymandias17’s own list').toEqual({ [String(mine)]: 'tourney-leg-2026-02-07-1-ozymandias17' });
 		expect(decks[`ai:${String(mine)}`], 'the human seat names no list: the caller brings their own').toBeUndefined();
 	});
 
@@ -102,6 +103,7 @@ describe('a Challenge room', () => {
 		const seated = (room: typeof before) => room.pod!.seats.map((s) => s?.memberId ?? null);
 		expect(seated(after)).toEqual(seated(before));
 		expect(after.aiDeckAssignments).toEqual(before.aiDeckAssignments);
+		expect(after.seatDecks).toEqual(before.seatDecks);
 		expect(after.locks).toEqual(before.locks);
 		expect(again.aiPod(after.id, ALICE.id, seatIds(again, after.id).indexOf(POD_AI), false)).toEqual({ ok: false, reason: 'historical' });
 	});

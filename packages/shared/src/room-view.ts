@@ -135,6 +135,8 @@ const roomFields = {
   testing: z.boolean().catch(false),
   /** When the event this room was made for starts (`apps/server/src/room/events.ts`); null for a room no event made. */
   scheduledFor: z.string().nullable().catch(null),
+  /** A Challenge's open seat → the list its real player played, which whoever sits there plays. Absent elsewhere. */
+  seatDecks: z.record(z.string(), z.string()).optional().catch(undefined),
 };
 
 export const RoomViewSchema = z.object(roomFields).transform(withMode);

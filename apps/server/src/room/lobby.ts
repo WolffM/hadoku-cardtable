@@ -353,6 +353,8 @@ export interface RoomView extends PublicRoomView {
 	historical?: true;
 	/** A Challenge's entrant → its real player's library deck id (`RoomRecord.aiDeckAssignments`). */
 	aiDeckAssignments?: Record<string, string>;
+	/** A Challenge's open seat → the list its player plays (`RoomRecord.seatDecks`). */
+	seatDecks?: Record<string, string>;
 	ai: AiPersona;
 }
 
@@ -438,6 +440,8 @@ interface CreateRoomInput {
 	 * field is the event's, so no seat is ever filled, emptied or closed afterwards.
 	 */
 	historicalField?: number;
+	/** A historical room's open seats → the list that seat's real player played: whoever sits there plays it (`#lockTournament`). */
+	seatDecks?: Record<string, string>;
 }
 
 type CreateResult =
@@ -1963,6 +1967,8 @@ interface RoomRecord {
 	historical?: boolean;
 	/** Entrant id → library deck id, the decks the real event's players played (`CreateRoomInput.aiDeckAssignments`'s doc). */
 	aiDeckAssignments?: Record<string, string>;
+	/** A historical room's open seat → its real player's list (`CreateRoomInput.seatDecks`'s doc). */
+	seatDecks?: Record<string, string>;
 	/** A historical room's tournament structure (`PodStructure`): Swiss rounds then a single-elimination cut. Absent: Swiss only, no cut. */
 	historicalStructure?: PodStructure;
 	createdAt: number;
@@ -2028,6 +2034,8 @@ interface StoredMagicGame {
 	historicalStructure?: { swiss: number; cut: number };
 	/** Absent for a room with no entrant deck assignments (`RoomRecord.aiDeckAssignments`'s doc). */
 	aiDeckAssignments?: Record<string, string>;
+	/** Absent for every room that is not a historical replay (`RoomRecord.seatDecks`'s doc). */
+	seatDecks?: Record<string, string>;
 }
 
 /** The room-level `app` blob on disk. The secret is here and ONLY here on disk. */
@@ -2254,6 +2262,9 @@ function decodeMagicGame(raw: unknown): StoredMagicGame {
 	) {
 		throw new Error('app.game.aiDeckAssignments is invalid');
 	}
+	if (g.seatDecks !== undefined && (typeof g.seatDecks !== 'object' || g.seatDecks === null || Array.isArray(g.seatDecks))) {
+		throw new Error('app.game.seatDecks is invalid');
+	}
 	return {
 		format: g.format === undefined ? null : (g.format as FormatId),
 		...storedMode(g),
@@ -2274,6 +2285,7 @@ function decodeMagicGame(raw: unknown): StoredMagicGame {
 		...(g.historical === true ? { historical: true } : {}),
 		...(g.historicalStructure === undefined ? {} : { historicalStructure: { swiss: (g.historicalStructure as { swiss: number }).swiss, cut: (g.historicalStructure as { cut: number }).cut } }),
 		...(g.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...(g.aiDeckAssignments as Record<string, string>) } }),
+		...(g.seatDecks === undefined ? {} : { seatDecks: { ...(g.seatDecks as Record<string, string>) } }),
 	};
 }
 
@@ -2448,6 +2460,8 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		...(room.historical === true ? { historical: true } : {}),
 		// Public like the seats' own `deckId`s, and what the lock deals each AI entrant (`PodChecks.currentTournamentDeck`).
 		...(room.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.aiDeckAssignments } }),
+		// Which list each open seat plays: the room draws it in place of a deck picker.
+		...(room.seatDecks === undefined ? {} : { seatDecks: { ...room.seatDecks } }),
 	};
 }
 
@@ -2763,6 +2777,7 @@ class FileLobby implements Lobby {
 				...(room.historical === true ? { historical: true } : {}),
 				...(room.historicalStructure === undefined ? {} : { historicalStructure: { ...room.historicalStructure } }),
 				...(room.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.aiDeckAssignments } }),
+				...(room.seatDecks === undefined ? {} : { seatDecks: { ...room.seatDecks } }),
 				pod:
 					room.pod === null
 						? null
@@ -3738,6 +3753,7 @@ class FileLobby implements Lobby {
 					}
 				: {}),
 			...(input.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...input.aiDeckAssignments } }),
+			...(input.historical === true && input.seatDecks !== undefined ? { seatDecks: { ...input.seatDecks } } : {}),
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember([], caller, now)],
@@ -3983,9 +3999,19 @@ class FileLobby implements Lobby {
 			this.#log({ event: 'historical-structure-refused', roomId: room.id, structure: room.historicalStructure, field: entrants.length });
 			return { ok: false, reason: 'not-ready' };
 		}
-		const humanReady = (id: string): boolean =>
-			room.mode === 'classic' ? this.#podChecks.hasLegalSeatDeck(room.id, id) : room.members.find((m) => m.id === id)?.ready === true;
+		// A Challenge's seat comes with its real player's list, so its human is ready by their Ready alone.
+		const pressedReady = (id: string): boolean => room.members.find((m) => m.id === id)?.ready === true;
+		const humanReady = (id: string): boolean => (room.mode === 'classic' && room.seatDecks === undefined ? this.#podChecks.hasLegalSeatDeck(room.id, id) : pressedReady(id));
 		if (entrants.some((id) => !isAiEntrant(id) && !humanReady(id))) return { ok: false, reason: 'not-ready' };
+		if (room.seatDecks !== undefined) {
+			// Whoever sits in a Challenge's open seat plays that seat's list: dealt by the lock like an AI's.
+			const dealt = { ...room.aiDeckAssignments };
+			for (const id of entrants) {
+				const deck = isAiEntrant(id) ? undefined : room.seatDecks[String(room.podSeats.indexOf(id))];
+				if (deck !== undefined) dealt[id] = deck;
+			}
+			room.aiDeckAssignments = dealt;
+		}
 		if (tournamentDecksOf(room) === 'locked') {
 			// `currentTournamentDeck` may itself re-enter `rooms.get()` (its real
 			// `routes.ts` implementation reads the room to find a pool/format).
@@ -4621,6 +4647,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					...(game.historical === true ? { historical: true } : {}),
 					...(game.historicalStructure === undefined ? {} : { historicalStructure: { ...game.historicalStructure } }),
 					...(game.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...game.aiDeckAssignments } }),
+					...(game.seatDecks === undefined ? {} : { seatDecks: { ...game.seatDecks } }),
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.
