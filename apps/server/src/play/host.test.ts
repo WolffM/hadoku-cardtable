@@ -1080,6 +1080,25 @@ describe('routing, against a scripted launcher', () => {
 		expect(pool.jvms().flatMap((j) => j.matches)).toHaveLength(8);
 	});
 
+	it('an abandoned JVM\'s late lines are dropped: nothing is written into the records its claw has moved aside', () => {
+		const { launcher, jvms } = scriptedLauncher();
+		// A remote kill is asked of the agent; the JVM's exit comes back later, and lines can come first.
+		const slowKill: JvmLauncher = { ...launcher, launch: (hostId, opts) => ({ ...launcher.launch(hostId, opts), kill: () => undefined }) };
+		const logs: Record<string, unknown>[] = [];
+		const workDir = mkdtempSync(join(scratch, 'scripted-'));
+		const pool = jvmHostFactory({ ...config, workDir }, { warm: false, launcher: slowKill, log: (e) => logs.push(e) });
+		const r = recorder();
+		pool('m-0000000000e1', SPEC, { ...r, log: (e) => logs.push(e) });
+		const [hostId] = [...jvms.keys()];
+		jvms.get(hostId!)!.say({ t: 'warm', bootMs: 1, match: hostId });
+		pool.abandon('the claw failed');
+		// The coordinator's `detach` moves the claw's records aside once its pool is abandoned.
+		renameSync(workDir, `${workDir}.failed`);
+		jvms.get(hostId!)!.say({ t: 'ready', forgePort: 1, bootMs: 1, seats: [], match: 'm-0000000000e1' });
+		expect(logs.filter((e) => e.evt === 'match-degraded')).toEqual([]);
+		expect(r.lines).toEqual([]);
+	});
+
 	it('each line goes to the match it names; a line for no match here is logged and dropped; a JVM\'s death fails only its own matches', () => {
 		const { launcher, jvms } = scriptedLauncher();
 		const poolLog: Record<string, unknown>[] = [];

@@ -95,6 +95,9 @@ export const playPlugin: CardtablePlugin = {
 			onAbandoned: (match) => {
 				parked.park(match);
 			},
+			// A match let go of unfinished (nobody came back, its host failed) frees its table at once,
+			// not on the table's next act: until then the room offers a match that is gone.
+			onFreed: (match) => tables.matchFreed(match),
 			...(CONFIG.playRejoinGraceMs === undefined ? {} : { rejoinGraceMs: CONFIG.playRejoinGraceMs }),
 			// The registry's `emit`, for every seat, before it reaches a socket; the recorder keeps only the watcher's.
 			onEnvelope: (matchId, seat, envelope) => recorder.onEnvelope(matchId, seat, envelope),

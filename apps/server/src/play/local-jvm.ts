@@ -663,6 +663,15 @@ export const FORGE_PREFERENCES: Readonly<Record<string, string>> = {
 	 * paragraph is what was stale, not the mechanism.
 	 */
 	UI_SELECT_FROM_CARD_DISPLAYS: 'false',
+	/**
+	 * Forge asks a blank `PLAYER_NAME` for a name before any match with one human seat
+	 * (`HostedMatch.java:269`, `GamePlayerUtil.setPlayerName`'s "Personalize Forge Gameplay"),
+	 * which is every game against the AI on a fresh profile. The bridge answered it with Forge's
+	 * own default, `Human`, which Forge then saved (prod, 2026-11-09, `bridge-diagnostics` on
+	 * hokon). Set to that default here, nothing changes but the prompt: seat names come from the
+	 * match's spec, never from this preference.
+	 */
+	PLAYER_NAME: 'Human',
 };
 
 function forgePreferencesFile(): string {

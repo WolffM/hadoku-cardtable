@@ -224,6 +224,8 @@ export interface PlayDeps {
 	onGameOver?(match: Match): void;
 	/** See {@link MatchDeps.abandoned}: nobody came back, and the match is about to stop unfinished. The parked store listens. */
 	onAbandoned?(match: Match): void;
+	/** The registry let go of a match (`MatchRegistry`'s `freed`): the table that started it is told at once. */
+	onFreed?(match: Match): void;
 	/** See {@link MatchDeps.liveChanged}: the room the match was started from reads differently. */
 	liveChanged?(match: Match): void;
 	/** See {@link MatchDeps.catalog}. */
@@ -601,6 +603,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 
 	/** Set by `shutdown`: this process is going away, so it starts nothing new. */
 	let draining: string | null = null;
+	/** Set by `close`: nothing more of play's is told to anyone. */
+	let closed = false;
 
 	const attach = host?.attach;
 	const matches = createMatchRegistry({
@@ -617,7 +621,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
 		...(deps.onGameOver === undefined ? {} : { onGameOver: deps.onGameOver }),
 		...(deps.onAbandoned === undefined ? {} : { abandoned: deps.onAbandoned }),
-		freed: (match) => forget(match.id),
+		freed: (match) => {
+			forget(match.id);
+			// A match let go of because this process is going away is not gone: the next server may take
+			// it back, and its boot sweep (`releaseGoneMatches`) lets go of every table whose match did not.
+			if (draining === null && !closed) deps.onFreed?.(match);
+		},
 		...(deps.liveChanged === undefined ? {} : { liveChanged: deps.liveChanged }),
 		...(deps.catalog === undefined ? {} : { catalog: deps.catalog }),
 		...(deps.formatNames === undefined ? {} : { formatNames: deps.formatNames }),
@@ -1551,6 +1560,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		start,
 		adopted,
 		close(): void {
+			closed = true;
 			matches.stopAll();
 			host?.close?.();
 		},

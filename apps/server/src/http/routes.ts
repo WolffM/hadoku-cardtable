@@ -434,6 +434,14 @@ export interface TablesHandle {
 	 */
 	gameOver(match: GameOverMatch): void;
 	/**
+	 * The registry let go of a match (`play/socket.ts`'s `onFreed`). A table still naming it lets go
+	 * too, recording its game if Forge had called one: the same letting-go `liveMatchId` does on
+	 * the table's next act, done now, so a room never shows a game the server no longer has
+	 * (2026-11-09: a challenge's match freed after its player left in the mulligan stayed "playing",
+	 * and the player's return was refused `unknown-match`).
+	 */
+	matchFreed(match: GameOverMatch): void;
+	/**
 	 * A table's series ended off the board (the table card's Abandon or Drop match,
 	 * `http/table-actions.ts`): its seats go back to their registered decks, as a series that
 	 * finished by its games does (`recordGame`).
@@ -1173,6 +1181,15 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * record at all) has no outcome to record (`releaseTableMatch` — the
 	 * series' phase is untouched).
 	 */
+	/** The table still naming `match` lets go of it (`endTableMatch`); none, nothing. */
+	function endMatchOfTable(match: GameOverMatch): void {
+		if (rooms === null) return;
+		const room = rooms.roomOfMatch(match.id);
+		const table = room?.tables.find((t) => t.matchId === match.id);
+		if (room === undefined || table === undefined) return;
+		endTableMatch(room, table, match.id, match);
+	}
+
 	function endTableMatch(room: RoomViewLike, table: RoomTable, matchId: string, match: Omit<GameOverMatch, 'id'> | undefined): void {
 		if (rooms === null) return;
 		const outcome = match?.outcome() ?? null;
@@ -2454,13 +2471,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		releaseGoneMatches() {
 			for (const room of rooms?.list() ?? []) for (const table of room.tables) liveMatchId(room, table);
 		},
-		gameOver(match) {
-			if (rooms === null) return;
-			const room = rooms.roomOfMatch(match.id);
-			if (room === undefined) return;
-			const table = room.tables.find((t) => t.matchId === match.id);
-			if (table === undefined) return;
-			endTableMatch(room, table, match.id, match);
-		},
+		gameOver: endMatchOfTable,
+		matchFreed: endMatchOfTable,
 	};
 }

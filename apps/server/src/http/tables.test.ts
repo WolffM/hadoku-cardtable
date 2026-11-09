@@ -582,6 +582,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 			stats.gameOver(match);
 			tables.gameOver(match);
 		},
+		onFreed: (match) => tables.matchFreed(match),
 		keys,
 	});
 	attached = play;
@@ -2302,6 +2303,26 @@ describe('a room table', () => {
 		// still the finished match's id and `series.games` is empty, because
 		// nothing but a `/api/tables` read would have cleared it. 2 failed.
 		// Restored: 2 passed.
+	});
+
+	it("lets go of a table's match the moment the registry frees it unfinished, with no /api/tables read in between", async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const started = await startRoom(h, 'alice');
+		expect(started.status).toBe(201);
+		const matchId = started.body.matchId as string;
+		expect(h.lobby.get(ROOM)?.tables[0]?.matchId).toBe(matchId);
+
+		// Nobody came back (or its host failed): stopped with no game called, and let go of.
+		h.matches.get(matchId)?.stop();
+		await vi.waitFor(() => expect(h.matches.get(matchId)).toBeUndefined());
+
+		const table = h.lobby.get(ROOM)?.tables[0];
+		expect(table?.matchId, 'the room no longer offers a match the server does not have').toBeNull();
+		expect(table?.series.games, 'no game was called, so none is recorded').toEqual([]);
 	});
 
 	/** Ruling 13.4, for Classic: a decided series holds nothing — the start spent both Readys, and the match is over. */

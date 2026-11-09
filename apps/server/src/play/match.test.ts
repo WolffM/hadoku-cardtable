@@ -2325,6 +2325,12 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		expect(h.host.commands).toHaveLength(1);
 	});
 
+	it("logs a match's own time to ready, and a warm spare's age apart from it", () => {
+		const h = harness();
+		h.host.push({ t: 'ready', forgePort: 1, bootMs: 3_498_274, startMs: 412, seats: [] });
+		expect(h.logs.find((l) => l.evt === 'forge-ready')).toEqual({ evt: 'forge-ready', matchId: h.match.id, startMs: 412, jvmAgeMs: 3_498_274 });
+	});
+
 	it("Forge's removal of cards it has no card for is logged by name, never as an empty reveal", () => {
 		vi.useFakeTimers();
 		const h = harness();

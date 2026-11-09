@@ -2964,7 +2964,9 @@ export class Match {
 						this.deps.log({ evt: 'deck-cards-removed', error: 'Forge has no card for these and removes them from the deck', matchId: this.id, seat: info.seat, cards: info.removed });
 					}
 				}
-				this.deps.log({ evt: 'forge-ready', matchId: this.id, bootMs: line.bootMs });
+				// `startMs` is this match's own start; the bridge's `bootMs` is the JVM's age, which on a warm
+				// spare is however long it sat idle (2026-11-09 logged 3498274 ms for a match ready in 0.4 s).
+				this.deps.log({ evt: 'forge-ready', matchId: this.id, ...(line.startMs === undefined ? {} : { startMs: line.startMs }), jvmAgeMs: line.bootMs });
 				return;
 			case 'frame':
 				if (line.input !== undefined && typeof line.frame === 'object' && line.frame !== null) this.inputOfRaw.set(line.frame, line.input);

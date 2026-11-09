@@ -902,6 +902,10 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			poolLog({ evt: 'bridge-noise', id: jvm.hostId, text: text.slice(0, 200) });
 			return;
 		}
+		// A JVM given up on (abandoned with its claw, or killed as silent) is gone for its matches: they
+		// have moved, and its claw's records may already be moved aside (2026-11-09: a late line wrote
+		// into a renamed run directory and logged its moved match as degraded).
+		if (jvm.unresponsive !== null) return;
 		if (line.t === 'fatal') h.fatal = String(line.message);
 		persist(h, text);
 		if (h.events !== null && !h.handed) h.events.line(line as BridgeLine);
