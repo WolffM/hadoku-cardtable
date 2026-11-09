@@ -318,7 +318,8 @@ describe.skipIf(!available.ok)(title, () => {
 				const replaced = s.lines.slice(lines).filter((l) => l.t === 'log' && (l as { type?: string }).type === 'EFFECT_REPLACED');
 				expect(replaced).toEqual([]);
 				expect(normalized(again.state)).toEqual(normalized(from.state));
-				expect(normalized(from.state).p0battlefield).toEqual(expect.arrayContaining([expect.stringMatching(/^t:.*Image:g_5_5_wurm_trample\/RTR\//)]));
+				// Forge writes a token image's '|' as %7C (GameState.TOKEN_PIPE); a state written with '/' still reads back.
+				expect(normalized(from.state).p0battlefield).toEqual(expect.arrayContaining([expect.stringMatching(/^t:.*Image:g_5_5_wurm_trample%7CRTR%7C/)]));
 				// The snapshot line is printed while the board applies, before the seats' resync: wait for the view —
 				// the turn AND the restored cards, which only the resync carries (the apply's own deltas drop them).
 				const viewTurn = (): number | undefined => ([...s.state(0).values()].find((o) => o._type === 3)?.Turn as { v?: number } | undefined)?.v;

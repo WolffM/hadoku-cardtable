@@ -3215,6 +3215,7 @@ public final class PlayBridge {
             // (AbstractGuiGame.awaitNextInput); a prompt that arrives first cancels it, as Forge's own
             // client does (CMatchUI.showPromptMessage), or it lands on top of the seat's next window.
             cancelAwaitNextInput();
+            syncActionable(true);
             // See `syncMulliganFlag`: this is one of the two calls
             // `InputLondonMulligan.showMessage()` makes that Forge's OWN
             // `RemoteClientGuiGame` never syncs the trackable graph for.
@@ -4420,11 +4421,41 @@ public final class PlayBridge {
         }
 
         private void clearWeaklySelectable() {
+            actionableFor = null;
             frame(notify("clearWeaklySelectable"));
         }
 
         /** The selection this seat was last sent ({@link #setSelection}). */
         private Selection sentSelection = Selection.NONE;
+
+        /** The input the actionable set this seat was last sent belongs to, or null once it is cleared. */
+        private Object actionableFor;
+
+        /** Priority and payment: the inputs whose actionable set the seat's controller scans ({@link SeatController#lastActionable}). */
+        private static boolean scansActionable(final Object input) {
+            return input instanceof forge.gamemodes.match.input.InputPassPriority || input instanceof InputPayMana;
+        }
+
+        /**
+         * Keep the actionable set with the input it was sent for: cleared once another input is open,
+         * and, at a priority or payment prompt, the set the controller scanned for that input, an
+         * empty one included: to the server an empty set means "nothing to do here", and no set means
+         * "not said". It goes out ahead of the prompt, as Forge sent it.
+         */
+        private void syncActionable(final boolean atPrompt) {
+            final Object input = myInput();
+            if (actionableFor != null && actionableFor != input) {
+                clearWeaklySelectable();
+            }
+            if (!atPrompt || !scansActionable(input)) { return; }
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(match.humanOf(mine) instanceof SeatController controller)) { return; }
+            final Object[] scanned = controller.lastActionable();
+            @SuppressWarnings("unchecked")
+            final List<CardView> cards = scanned[0] == input ? (List<CardView>) scanned[1] : List.of();
+            setWeaklySelectable(cards);
+            actionableFor = input;
+        }
 
         /**
          * Forge's one call for what a prompt marks ({@code Selection}): the cards it offers with their
@@ -4441,6 +4472,7 @@ public final class PlayBridge {
             super.setSelection(selection);
             final Selection prev = sentSelection;
             sentSelection = selection;
+            syncActionable(false);
             final List<GameEntityView> off = new ArrayList<>();
             for (final TrackableObject o : prev.chosen()) {
                 if (o instanceof GameEntityView e && !selection.chosen().contains(o)) { off.add(e); }
@@ -4450,17 +4482,27 @@ public final class PlayBridge {
                 if (o instanceof GameEntityView e && !prev.chosen().contains(o) && !on.contains(e)) { on.add(e); }
             }
             if (!off.isEmpty()) { setHighlighted(off, false); }
-            if (!selection.cards().isEmpty()) {
-                if (!selection.cards().equals(prev.cards()) || selection.min() != prev.min() || selection.max() != prev.max()) {
+            // An offer of players alone (Lightning Bolt with no creature out) is a selection too.
+            final boolean offers = !selection.cards().isEmpty() || !selection.targets().isEmpty();
+            final boolean offered = !prev.cards().isEmpty() || !prev.targets().isEmpty();
+            if (offers) {
+                if (!offered || !selection.cards().equals(prev.cards()) || !selection.targets().equals(prev.targets())
+                        || selection.min() != prev.min() || selection.max() != prev.max()) {
                     setSelectables(selection.cards(), selection.min(), selection.max());
                 }
-            } else if (!prev.cards().isEmpty()) {
+            } else if (offered) {
                 clearSelectables();
             }
-            if (!selection.actionable().isEmpty()) {
-                setWeaklySelectable(selection.actionable());
-            } else if (!prev.actionable().isEmpty()) {
-                clearWeaklySelectable();
+            // Priority's and payment's set goes out with their prompt (syncActionable); a combat
+            // declaration's goes out with its selection.
+            final Object input = myInput();
+            if (!scansActionable(input)) {
+                if (!selection.actionable().isEmpty()) {
+                    setWeaklySelectable(selection.actionable());
+                    actionableFor = input;
+                } else if (actionableFor != null) {
+                    clearWeaklySelectable();
+                }
             }
             if (!on.isEmpty()) { setHighlighted(on, true); }
         }
@@ -6473,6 +6515,15 @@ public final class PlayBridge {
          */
         private volatile Object[] unaffordable = { null, java.util.Set.of() };
 
+        /**
+         * The actionable cards of this seat's last priority or payment scan, with the input it was made
+         * for. Forge works it out before it shows the input's prompt; its selection reaches the seat's
+         * GUI later (a selection is decoded after the deltas before it), so the GUI reads it here.
+         */
+        private volatile Object[] lastActionable = { null, List.of() };
+
+        Object[] lastActionable() { return lastActionable; }
+
         Object[] unaffordable() { return unaffordable; }
 
         /**
@@ -6489,6 +6540,7 @@ public final class PlayBridge {
             final Object shown = liveInput();
             if (!paymentMode) { unaffordable = new Object[] { shown, heldBackByCost() }; }
             final List<CardView> actionable = super.getActionableCards(paymentMode, emphasized);
+            if (shown != null) { lastActionable = new Object[] { shown, List.copyOf(actionable) }; }
             final Object after = liveInput();
             if (shown != null && after != shown) {
                 System.err.println("[bridge] seat " + seat + ": its input " + shown.getClass().getSimpleName() + " finished while its offer scan held a swapped controller (now "
@@ -8150,6 +8202,9 @@ public final class PlayBridge {
         // owns the timeout on every ask; see README.md.
         FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.NET_AFK_TIMEOUT, "0");
         RemoteClientGuiGame.useDeltaSync = true;
+        // A spell target on the stack is asked as a choice (TargetSelection.chooseCardFromStack), the
+        // ask the browser answers; Forge's own clients pick it from their stack view instead.
+        forge.gamemodes.net.ProtocolGuiGame.pickStackTargets = false;
     }
 
     /**
