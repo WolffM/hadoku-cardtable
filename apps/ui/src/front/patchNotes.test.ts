@@ -23,8 +23,8 @@ describe('parseReleaseNotes', () => {
     // New's own bullet first, with its bold marker stripped.
     expect(parsed?.bullets[0]).toBe('The table dims while you pick. While you choose a target, attackers or blockers, the rest of the table goes dark so the cards you can pick stand out.');
     // Then Changed's, in its own order.
-    expect(parsed?.bullets[1]).toBe('Next Phase has moved into the question box. When the game waits on you it asks "Proceed to Combat?" (or whichever step is next) with a Next Phase button. With a spell on the stack it asks "Resolve <spell>?" with a Resolve button, and Done Attacking and Done Blocking sit at its bottom left.');
-    expect(parsed?.bullets[2]).toBe('Whose turn it is is easier to see: a brighter edge light, in your colour on your turn.');
+    expect(parsed?.bullets[1]).toBe('Next Phase has moved into the question box. When the game waits on you it asks "Proceed to Combat?" (or whichever step is next) with a Next Phase button. With a spell on the stack it asks "Resolve <spell>?" with a Resolve button, and Done Attacking and Done Blocking sit at its bottom left. (@kawakimi)');
+    expect(parsed?.bullets[2]).toBe('Whose turn it is is easier to see: a brighter edge light, in your colour on your turn. (@kawakimi)');
     // Then Fixed's; Under the hood never reaches the card.
     const fixed = parsed!.sections.find((sec) => sec.heading === 'Fixed')!.bullets;
     expect(parsed?.bullets.at(-1)).toBe(fixed.at(-1)!.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').trim());
