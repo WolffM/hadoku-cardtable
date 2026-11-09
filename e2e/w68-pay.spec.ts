@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, makeTitled, pressOffered } from './play/board.ts';
+import { clickHandCard, makeTitled, pressOffered, says } from './play/board.ts';
 import { pressInMenu } from './play/phone.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -67,8 +67,13 @@ test(titled('Izzet Signet tapped inside Divination’s payment: the cast resolve
     // The payment window: the Signet first, then whatever Forge still offers — one click per offer.
     const clicked: string[] = [];
     const deadline = Date.now() + 30_000;
+    let controlOff = false;
     while (!(await inGraveyard(a, 'you', divination)) && Date.now() < deadline) {
-      if (!(await isTapped(a, signet)) && (await pressOffered(card(a, signet)))) {
+      if (!controlOff && /^Priority:[\s\S]*Stack: 1 to Resolve/.test(await says(a))) {
+        // Paid: under full control she would hold priority over her own spell, so she lets go of it.
+        await pressInMenu(a, 'live-full-control');
+        controlOff = true;
+      } else if (!(await isTapped(a, signet)) && (await pressOffered(card(a, signet)))) {
         clicked.push('Izzet Signet');
       } else {
         const islands = await a
