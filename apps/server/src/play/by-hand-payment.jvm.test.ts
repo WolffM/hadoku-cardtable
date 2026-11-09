@@ -4,7 +4,7 @@
  * The monkey's `ask-unclassified method=payment` (runs 42332476095, 42333563074; Mono Black Control,
  * Hive of the Eye Tyrant's {3}{B} animation): a payment whose Cancel is live is unclassified only when
  * Forge's Auto is dead and the cards it highlights are still enough to pay it. Auto is Forge's AI
- * payer, which never chains a source that needs mana of its own (a Signet) nor taps the card being
+ * payer, which never feeds a Signet with another Signet nor taps the card being
  * paid for (a man-land toward its own animation), so such a payment is the player's to finish by
  * hand. `answerability` said so in its notes and still logged every one as a question it had no
  * rule for. Forge's Auto chains one Signet since the 2026-11-08 pin (`ComputerUtilMana.

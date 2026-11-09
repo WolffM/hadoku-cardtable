@@ -5,9 +5,9 @@
  * The operator, 2026-10-10: "through the breach wasn't showing as playable
  * because … it required tapping izzet signet … is it too hard to calculate that
  * tapping the signets creates mana?" Forge's priority-time affordability check
- * (`AvailableActions.canAfford` → `ComputerUtilMana.canPayManaCost`) counts only
- * mana abilities without a mana cost (`ComputerUtilMana.getAIPlayableMana`), so a
- * Signet ({1},{T}: add two) never counted.
+ * (`AvailableActions.canAfford` → `ComputerUtilMana.canPayManaCost`) counted only
+ * mana abilities without a mana cost then, so a Signet ({1},{T}: add two) never
+ * counted. Forge's payer counts one Signet itself since the 2026-11-08 pin.
  *
  * Scenario `w68-breach`: three Mountains, Urza's Mine and Izzet Signet; Through
  * the Breach ({4}{R}) in hand. Four lands make four; with the Signet, five.

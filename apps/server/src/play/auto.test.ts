@@ -2622,9 +2622,9 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 	});
 
 	it('leaves a payment the highlighted cards could finish by hand to the player, though Auto is dead', () => {
-		// Scheduled run 40485776642 (w68-pay): two Islands and Izzet Signet for Divination. Forge's AI
-		// payer does not chain the Signet's own {1}, so Auto is dead; an Island into the Signet and the
-		// other Island pay it.
+		// Scheduled run 40485776642 (w68-pay, on a pin before 2026-11-08): two Islands and Izzet Signet
+		// for Divination. Forge's AI payer did not chain the Signet's own {1} then, so Auto was dead; an
+		// Island into the Signet and the other Island pay it.
 		const signet = readPromptFacts(notesFor('Divination (102) - Alice draws two cards.\n\nPay Mana Cost: {2}{U}', deadAuto, [109, 110, 111]));
 		expect(signet.noWayToPay).toBe(false);
 		expect(payment(signet).verdict).toBe('answerable');

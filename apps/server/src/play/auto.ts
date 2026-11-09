@@ -949,10 +949,10 @@ export interface PromptFacts {
 	 * `ensureAutoPayManaSources` has found a payment for the cost that is left
 	 * (`InputPayMana.updateMessage`, `InputPayMana.java:402-407`, over
 	 * `ComputerUtilMana.getManaSourcesToPayCost` at `:438-452`). That is the AI's
-	 * payer, and it does not chain a source that needs mana of its own: two
-	 * Islands and Izzet Signet pay Divination's {2}{U} by hand (an Island into
-	 * the Signet's {1}, the other Island), with Auto dead (scheduled run
-	 * 40485776642, w68-pay). So a dead Auto alone is not enough.
+	 * payer. It feeds one source that needs mana of its own (a Signet whose {1} a
+	 * land pays), but never two in a row: an Island and two Izzet Signets pay
+	 * {2}{U} by hand (the Island into one Signet's {1}, that Signet's mana into the
+	 * other's), with Auto dead. So a dead Auto alone is not enough.
 	 *
 	 * Nor is the highlight alone: it is every card that pays SOME part of the cost
 	 * (`InputPayMana.paysWith`), so one Mountain is in it for {2}. Every card in
@@ -1489,7 +1489,7 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
  *
  * | question | answerable when | not answerable → Forge's own answer |
  * | --- | --- | --- |
- * | payment (`InputPayMana`) | Auto is live (`ensureAutoPayManaSources` found a payment, `InputPayMana.java:402-407`), or life can pay (Phyrexian), or the floating pool chooses, or the highlighted cards could pay it by hand (not {@link PromptFacts.noWayToPay}: a Signet fed by a land, a man-land's own mana toward its own animation, which Forge's AI payer never chains) | optional (Cancel live, `!mandatory`, `:389-395`): Cancel — the unpaid branch ("you may pay", "unless pays", an attack tax: that attacker does not attack, `PhaseHandler.java:578-583`) |
+ * | payment (`InputPayMana`) | Auto is live (`ensureAutoPayManaSources` found a payment, `InputPayMana.java:402-407`), or life can pay (Phyrexian), or the floating pool chooses, or the highlighted cards could pay it by hand (not {@link PromptFacts.noWayToPay}: a Signet fed by a land, a man-land's own mana toward its own animation, a Signet fed by another Signet: what Forge's AI payer does not chain) | optional (Cancel live, `!mandatory`, `:389-395`): Cancel — the unpaid branch ("you may pay", "unless pays", an attack tax: that attacker does not attack, `PhaseHandler.java:578-583`) |
  * | `getChoices`, `chooseEntitiesForEffect` | as many options as its minimum | fewer: every option, which is Forge's own clamp of the minimum (`InputSelectEntitiesFromList.java:46`) |
  * | `chooseSingleEntityForEffect` | one option, or optional | none and optional: no pick (null), Forge's own answer to an empty list (`PlayerControllerHuman.chooseSingleEntityForEffect`) |
  * | `getAbilityToPlay` | one ability | none: no pick (null), Forge's "play nothing" |
@@ -1505,7 +1505,7 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
  * Nothing here computes a payment: {@link PromptFacts.noWayToPay} is a dead Auto
  * AND fewer highlighted cards than the fewest mana that pays it, which no clicking can
  * finish. A dead Auto alone is Forge's AI payer finding no route, not proof there
- * is none (a Signet, which needs mana put in, is paid by hand).
+ * is none (a Signet fed by another Signet is paid by hand).
  *
  * Pure. Policy is the caller's: whether the server presses a payment's Cancel is
  * {@link StopPolicy.unpayableCost}, and full control keeps the question.
