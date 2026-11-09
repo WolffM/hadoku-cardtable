@@ -24,12 +24,21 @@ export interface ReleaseSection {
   bullets: string[];
 }
 
-/** One bullet's text with any `**bold**`/`*em*` markers stripped — a card draws plain text. */
+/** A credit in a notes bullet: `@name`, the Discord username of whoever reported or asked for it (docs/RELEASE.md § "Attribution"). */
+const CREDIT = /(?<![\w@/])@([A-Za-z0-9_.-]*[A-Za-z0-9_])/g;
+
+/** One bullet's text with any `**bold**`/`*em*` markers stripped and each credit as the bare name — a card draws plain text. */
 function plainBullet(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/\*(.+?)\*/g, '$1')
+    .replace(CREDIT, '$1')
     .trim();
+}
+
+/** `text` cut into runs of plain text and credited names, in order, so the full notes can mark each name. */
+export function creditRuns(text: string): { text: string; credit: boolean }[] {
+  return text.split(new RegExp(CREDIT.source)).map((part, i) => ({ text: part, credit: i % 2 === 1 })).filter((run) => run.text !== '');
 }
 
 /**

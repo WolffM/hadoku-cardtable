@@ -7,7 +7,7 @@
 import { Fragment, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { Modal } from '../components/Modal.tsx';
-import { fittingBullets, newestFirst, parseReleaseNotes, versionOfPath, type ParsedRelease } from './patchNotes.ts';
+import { creditRuns, fittingBullets, newestFirst, parseReleaseNotes, versionOfPath, type ParsedRelease } from './patchNotes.ts';
 
 // Vite bundles every match eagerly, as raw text, at build time (no server round trip for the notes).
 const RELEASE_FILES = import.meta.glob('../../../../docs/releases/v*.md', { query: '?raw', eager: true, import: 'default' }) as Record<string, string>;
@@ -24,9 +24,13 @@ const RELEASES: ParsedRelease[] = (() => {
   return newestFirst(out);
 })();
 
-/** A bullet's `**bold**` lead drawn bold; everything else as plain text. */
+/** A bullet's `**bold**` lead drawn bold, each credited name marked as the Discord post marks it; everything else as plain text. */
 function inline(text: string): ReactNode {
-  return text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : <Fragment key={i}>{part.replace(/\*(.+?)\*/g, '$1')}</Fragment>));
+  return text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : <Fragment key={i}>{credits(part.replace(/\*(.+?)\*/g, '$1'))}</Fragment>));
+}
+
+function credits(text: string): ReactNode {
+  return creditRuns(text).map((run, i) => (run.credit ? <span key={i} className="patch-notes__credit">{run.text}</span> : <Fragment key={i}>{run.text}</Fragment>));
 }
 
 /**

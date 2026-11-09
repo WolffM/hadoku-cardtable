@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { fittingBullets, newestFirst, parseReleaseNotes, versionOfPath } from './patchNotes.ts';
+import { creditRuns, fittingBullets, newestFirst, parseReleaseNotes, versionOfPath } from './patchNotes.ts';
 
 const RELEASE_PATH = fileURLToPath(new URL('../../../../docs/releases/v0.36.0.md', import.meta.url));
 
@@ -23,8 +23,8 @@ describe('parseReleaseNotes', () => {
     // New's own bullet first, with its bold marker stripped.
     expect(parsed?.bullets[0]).toBe('The table dims while you pick. While you choose a target, attackers or blockers, the rest of the table goes dark so the cards you can pick stand out.');
     // Then Changed's, in its own order.
-    expect(parsed?.bullets[1]).toBe('Next Phase has moved into the question box. When the game waits on you it asks "Proceed to Combat?" (or whichever step is next) with a Next Phase button. With a spell on the stack it asks "Resolve <spell>?" with a Resolve button, and Done Attacking and Done Blocking sit at its bottom left. (@kawakimi)');
-    expect(parsed?.bullets[2]).toBe('Whose turn it is is easier to see: a brighter edge light, in your colour on your turn. (@kawakimi)');
+    expect(parsed?.bullets[1]).toBe('Next Phase has moved into the question box. When the game waits on you it asks "Proceed to Combat?" (or whichever step is next) with a Next Phase button. With a spell on the stack it asks "Resolve <spell>?" with a Resolve button, and Done Attacking and Done Blocking sit at its bottom left. (kawakimi)');
+    expect(parsed?.bullets[2]).toBe('Whose turn it is is easier to see: a brighter edge light, in your colour on your turn. (kawakimi)');
     // Then Fixed's; Under the hood never reaches the card.
     const fixed = parsed!.sections.find((sec) => sec.heading === 'Fixed')!.bullets;
     expect(parsed?.bullets.at(-1)).toBe(fixed.at(-1)!.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').trim());
@@ -55,6 +55,18 @@ describe('parseReleaseNotes', () => {
   it('takes the title as the bare heading when there is no em dash', () => {
     const parsed = parseReleaseNotes('# v1.0.0\n\n## New\n\n- A thing\n', 'v1.0.0');
     expect(parsed?.title).toBe('v1.0.0');
+  });
+});
+
+describe('creditRuns', () => {
+  it('cuts out each credited name, never an address or a path', () => {
+    expect(creditRuns('A fix. (@ohmusama, @the.scrubdaddy). Mail a@b.c')).toEqual([
+      { text: 'A fix. (', credit: false },
+      { text: 'ohmusama', credit: true },
+      { text: ', ', credit: false },
+      { text: 'the.scrubdaddy', credit: true },
+      { text: '). Mail a@b.c', credit: false },
+    ]);
   });
 });
 

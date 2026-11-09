@@ -200,6 +200,14 @@
   color: var(--ink);
 }
 
+/* A credited name, marked as the Discord post marks it: bold, italic, underlined. */
+.patch-notes__credit {
+  color: var(--ink);
+  font-weight: 700;
+  font-style: italic;
+  text-decoration: underline;
+}
+
 /*
  * A card as a manual gallery (`Gallery.tsx`): the arrows in its head, the page between, the dots
  * in its foot. A page fills what the card has left and scrolls inside itself, never the card.
