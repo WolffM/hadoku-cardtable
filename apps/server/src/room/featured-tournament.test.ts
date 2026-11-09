@@ -8,7 +8,7 @@ const DAY = 24 * 60 * 60_000;
 
 /** A finished pod of `size` players, `people` of them people, ending on `day`. */
 function pod(id: string, day: number, size: number, people = 2, closed = false): Tournament {
-	const ids = Array.from({ length: size }, (_, i) => `${id}-p${String(i)}`);
+	const ids = Array.from({ length: size }, (_, i) => (i < people ? `${id}-p${String(i)}` : `ai:${String(i)}`));
 	return {
 		id,
 		name: id,

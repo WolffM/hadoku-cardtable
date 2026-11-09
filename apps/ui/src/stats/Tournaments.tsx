@@ -3,7 +3,9 @@
  * round, newest first, each with its final standings — kept by the server past
  * its room (`apps/server/src/room/tournaments.ts`), so a closed room's results
  * are still here (the operator, 2026-10-19: *"room results should be viewable
- * in the leaderboard page"*).
+ * in the leaderboard page"*). Each draws its top three on the pod's podium beside
+ * the standings, played as it is scrolled to (`PodPodium`'s `compact`). Only pods
+ * two or more people played are served (`playedByPeople`).
  */
 
 import { useEffect, useState } from 'react';
@@ -11,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { TournamentSchema, type Tournament } from '@hadoku/shared';
 
 import { apiUrl, getJson, type Fetch } from '../http.ts';
+import { PodPodium } from '../screens/pod/PodPodium.tsx';
 import { PodStandings } from '../screens/pod/PodStandings.tsx';
 import { faceOf } from '../components/Avatar.tsx';
 
@@ -55,18 +58,26 @@ export function Tournaments({ load = fetchTournaments }: { load?: () => Promise<
   if (list.length === 0) return <p data-testid="tournaments-none">No tournaments yet</p>;
   return (
     <div className="ct-tournaments" data-testid="tournaments">
-      {list.map((t) => (
-        <section key={t.id} className="ct-tournament" data-testid="tournament" data-closed={t.closed ? '' : undefined}>
-          <h2 className="ct-tournament__head">
-            <span>{t.name}</span>
-            <time className="ct-tournament__date" dateTime={new Date(t.endedAt).toISOString()}>
-              {DATE.format(t.endedAt)}
-            </time>
-            {t.closed && <span className="ct-tournament__closed">Closed early</span>}
-          </h2>
-          <PodStandings rows={t.standings} results={t.results} nameOf={(id) => t.names[id] ?? id} avatarOf={(id) => faceOf(t.faces?.[id])} myMemberId={null} />
-        </section>
-      ))}
+      {list.map((t) => {
+        const nameOf = (id: string): string => t.names[id] ?? id;
+        const avatarOf = (id: string) => faceOf(t.faces?.[id]);
+        return (
+          <section key={t.id} className="ct-tournament" data-testid="tournament" data-closed={t.closed ? '' : undefined}>
+            <h2 className="ct-tournament__head">
+              <span>{t.name}</span>
+              <time className="ct-tournament__date" dateTime={new Date(t.endedAt).toISOString()}>
+                {DATE.format(t.endedAt)}
+              </time>
+              <span className="ct-tournament__date">{t.standings.length} players</span>
+              {t.closed && <span className="ct-tournament__closed">Closed early</span>}
+            </h2>
+            <div className="ct-tournament__body">
+              <PodPodium compact rows={t.standings} results={t.results} nameOf={nameOf} avatarOf={avatarOf} myMemberId={null} />
+              <PodStandings rows={t.standings} results={t.results} nameOf={nameOf} avatarOf={avatarOf} myMemberId={null} />
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

@@ -67,7 +67,6 @@ import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './identities.ts';
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { dress, servePictures } from './looks.ts';
 import { makeTitled, resizeWindow, roomIdFromAddress, serverLog as readServerLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { specVideoSlug } from './play/browser.ts';
@@ -75,10 +74,6 @@ import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom, submitCreateRoom } from './play/rooms.ts';
 import { turnNumber } from './play/turn.ts';
 import { isArtRequest, isProductImage } from './art.ts';
-
-/** A picture host the solo pod's test serves (`looks.ts`). */
-const LOOK_PICTURES = 'https://cdn.e2e-looks.test';
-const LOOK_PICTURE = `${LOOK_PICTURES}/alice.svg`;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -1122,9 +1117,6 @@ test(
     let alice: Player | undefined;
     try {
       alice = await join(browser, 'alice');
-      // She wears a picture and a name effect: her past tournament draws them (her look is read when shown).
-      await servePictures(alice.context, LOOK_PICTURES);
-      await dress(alice.context.request, stack.origin, FRIENDS.alice.key, { source: 'upload', url: LOOK_PICTURE, sprite: 'sage', name: FRIENDS.alice.name, cosmetics: { effect: 'effect.glint' } });
       const roomName = `e2e solo ${Date.now()}`;
       const roomId = await createDraftRoom(alice, roomName, stack.origin);
       await expectLobbyNotPod(alice);
@@ -1240,19 +1232,15 @@ test(
       await alice.page.getByTestId('pod-standings-tiebreaks').click();
       await expect(row.locator('td[data-key="gameWinPct"]'), 'her game win % is a number').toHaveText(/^\d+%$/);
 
-      /* ── she owns the room and closes it: back to the lobby, the room gone, its standings kept ── */
+      /* ── she owns the room and closes it: back to the lobby, the room gone; one person against the AI is never a past tournament ── */
       await alice.page.getByTestId('room-close').click();
       await alice.page.getByTestId('room-close-yes').click();
       await expect(alice.page.getByTestId('lobby'), 'closing goes back to the lobby').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('room-name').filter({ hasText: roomName }), 'the room has left the list').toHaveCount(0);
       await alice.page.getByTestId('lobby-stats').click();
       await alice.page.getByTestId('stats-tab-tournaments').click();
-      const kept = alice.page.getByTestId('tournament').filter({ hasText: roomName });
-      await expect(kept, 'the closed room is a past tournament').toHaveCount(1, { timeout: UI_TIMEOUT });
-      await expect(kept.getByTestId(/^pod-standings-row-\d+$/), 'all three entrants kept').toHaveCount(3);
-      const herRow = kept.getByTestId(/^pod-standings-row-\d+$/).filter({ hasText: FRIENDS.alice.name });
-      await expect(herRow.locator('img'), 'her row draws the picture she wears now').toHaveAttribute('src', LOOK_PICTURE);
-      await expect(herRow.locator('[data-dressed] .hc-name'), 'and her name wears its effect').toHaveCount(1);
+      await expect(alice.page.getByTestId('tournaments').or(alice.page.getByTestId('tournaments-none')), 'the list has arrived').toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId('tournament').filter({ hasText: roomName }), 'her solo pod against the AI is not listed').toHaveCount(0);
       await alice.page.getByTestId('back-to-lobby').click();
 
       /* ── the pool is her deck now, on the Decks page beside the trophy ── */

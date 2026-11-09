@@ -4,6 +4,8 @@
  */
 
 .podium {
+  --podium-scale: 1;
+
   position: relative;
   height: 460px;
   overflow: hidden;
@@ -267,6 +269,74 @@
   .podium__stand[data-place='1'] .podium__number {
     font-size: 3.4rem;
   }
+}
+
+/*
+ * The Tournaments page's: a column beside the standings. Every animation holds its first frame until the
+ * podium is scrolled to (`waiting`), and the loops stop while it is off screen again (`idle`).
+ */
+.podium:is([data-phase='waiting'], [data-phase='idle']) *,
+.podium:is([data-phase='waiting'], [data-phase='idle']) *::after {
+  animation-play-state: paused;
+}
+
+.podium--compact {
+  --podium-scale: 0.7;
+
+  height: 340px;
+}
+
+.podium--compact .podium__stands {
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.podium--compact .podium__stand {
+  --block: 96px;
+  --face: 60px;
+
+  flex-basis: 128px;
+}
+
+.podium--compact .podium__stand[data-place='1'] {
+  --block: 134px;
+  --face: 78px;
+}
+
+.podium--compact .podium__stand[data-place='3'] {
+  --block: 68px;
+  --face: 54px;
+}
+
+.podium--compact .podium__crown {
+  width: 32px;
+  height: 22px;
+}
+
+.podium--compact .podium__name {
+  margin-top: 6px;
+  font-size: 0.95rem;
+}
+
+.podium--compact .podium__stand[data-place='1'] .podium__name {
+  font-size: 1.1rem;
+}
+
+.podium--compact .podium__line {
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+}
+
+.podium--compact .podium__number {
+  font-size: 2.6rem;
+}
+
+.podium--compact .podium__stand[data-place='1'] .podium__number {
+  font-size: 3.4rem;
+}
+
+.podium--compact .podium__face--none {
+  font-size: 1.5rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -13,6 +13,8 @@ afterEach(async () => {
 	await Promise.all(servers.splice(0).map((s) => new Promise((r) => s.close(r))));
 });
 
+const standing = (id: string, rank: number) => ({ id, matchPoints: 0, opponentMatchWinPct: 0, gameWinPct: 0, opponentGameWinPct: 0, medianGameMs: null, rank, decidedBy: null });
+
 const RECORD: Tournament = {
 	id: 'r-1-1',
 	name: 'Cube night',
@@ -23,7 +25,7 @@ const RECORD: Tournament = {
 	names: { 'fk:a': 'old-ari', 'fk:b': 'bo', ai: 'Knight' },
 	users: { 'fk:a': 'uid-ari', 'fk:b': 'uid-bo' },
 	faces: { ai: { avatarId: 'knight' } },
-	standings: [],
+	standings: [standing('fk:a', 1), standing('fk:b', 2), standing('ai', 3)],
 	results: [],
 };
 
@@ -66,8 +68,25 @@ describe('GET /api/tournaments', () => {
 	});
 });
 
+describe('GET /api/tournaments: only what two or more people played', () => {
+	it('leaves out a pod one person played against the AI, by the room AI or a tournament AI entrant', async () => {
+		const solo: Tournament = { ...RECORD, id: 'solo', users: { 'fk:a': 'uid-ari' }, standings: [standing('ai', 1), standing('fk:a', 2)] };
+		const soloPod: Tournament = { ...RECORD, id: 'solo-pod', users: { 'fk:a': 'uid-ari' }, standings: [standing('ai:1', 1), standing('fk:a', 2), standing('ai:2', 3), standing('ai:3', 4)] };
+		const url = await serve([RECORD, solo, soloPod], {});
+		const body = (await (await fetch(url)).json()) as { tournaments: Tournament[] };
+		expect(body.tournaments.map((t) => t.id)).toEqual([RECORD.id]);
+	});
+
+	it('counts the people in a record from before userIds were kept by its standings', async () => {
+		const { users: _users, ...old } = RECORD;
+		const oldSolo: Tournament = { ...old, id: 'old-solo', standings: [standing('fk:a', 1), standing('ai', 2)] };
+		const url = await serve([old, oldSolo], {});
+		const body = (await (await fetch(url)).json()) as { tournaments: Tournament[] };
+		expect(body.tournaments.map((t) => t.id)).toEqual([RECORD.id]);
+	});
+});
+
 describe('GET /api/tournaments/featured', () => {
-	const standing = (id: string, rank: number) => ({ id, matchPoints: 0, opponentMatchWinPct: 0, gameWinPct: 0, opponentGameWinPct: 0, medianGameMs: null, rank, decidedBy: null });
 	const POD: Tournament = { ...RECORD, endedAt: 1_000, standings: [standing('fk:a', 1), standing('fk:b', 2), standing('ai', 3)] };
 
 	it('answers the seated tournament, drawn as /api/tournaments draws it', async () => {

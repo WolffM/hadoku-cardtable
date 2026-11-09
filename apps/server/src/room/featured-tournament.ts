@@ -20,6 +20,8 @@
 
 import type { Tournament } from '@hadoku/shared';
 
+import { isAiEntrant, POD_AI } from './lobby.js';
+
 /** How long a result holds the seat after its last round. */
 export const FEATURE_MS = 7 * 24 * 60 * 60_000;
 
@@ -31,11 +33,28 @@ const MIN_PEOPLE = 2;
 const players = (t: Tournament): number => t.standings.length;
 
 /**
+ * How many people played: the entrants that are not the AI (`POD_AI`, or a tournament's own `ai:<seat>`).
+ * Read from the standings rather than `users`, so a record from before userIds were kept counts too.
+ */
+function peopleIn(t: Tournament): number {
+	return t.standings.filter((s) => s.id !== POD_AI && !isAiEntrant(s.id)).length;
+}
+
+/**
+ * Played by at least two people. One person against the AI is practice, and is never shown as a
+ * tournament (the operator, 2026-11-08: *"let's make sure we're never showing tournaments with only one
+ * player in them"*): not on the Tournaments page, not on the front page.
+ */
+export function playedByPeople(t: Tournament): boolean {
+	return peopleIn(t) >= MIN_PEOPLE;
+}
+
+/**
  * Played to its last round (not closed early by its owner), with a top three, by at least two people.
  * A testing room's pod is never recorded at all (`lobby.ts`'s `#archive`).
  */
 export function qualifies(t: Tournament): boolean {
-	return !t.closed && players(t) >= MIN_PLAYERS && Object.keys(t.users ?? {}).length >= MIN_PEOPLE;
+	return !t.closed && players(t) >= MIN_PLAYERS && playedByPeople(t);
 }
 
 const until = (t: Tournament): number => t.endedAt + FEATURE_MS;

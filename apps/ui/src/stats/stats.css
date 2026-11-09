@@ -461,6 +461,7 @@
 }
 
 .ct-tournament__head {
+  flex-wrap: wrap;
   display: flex;
   align-items: baseline;
   gap: 12px;
@@ -473,6 +474,20 @@
   color: var(--color-text-secondary);
   font-size: 0.85rem;
   font-weight: normal;
+}
+
+/* The podium beside the standings; stacked above them once the two no longer fit side by side. */
+.ct-tournament__body {
+  display: grid;
+  grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .ct-tournament__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 600px) {

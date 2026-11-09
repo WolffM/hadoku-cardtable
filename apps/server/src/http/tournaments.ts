@@ -1,5 +1,6 @@
 /*
- * GET /api/tournaments — every past pod, newest first (`room/tournaments.ts`).
+ * GET /api/tournaments — every past pod two or more people played, newest first (`room/tournaments.ts`,
+ * `playedByPeople`).
  * GET /api/tournaments/featured — the one the front page's wildcard opens on
  * (`room/featured-tournament.ts`), or `null`.
  * Member-gated like every other `/api` route.
@@ -14,7 +15,7 @@ import type { Request, Response, Router } from 'express';
 import type { FeaturedTournament, Tournament } from '@hadoku/shared';
 
 import { faceOfPerson, type People, type Person } from '../people.js';
-import { featuredTournament } from '../room/featured-tournament.js';
+import { featuredTournament, playedByPeople } from '../room/featured-tournament.js';
 import type { Tournaments } from '../room/tournaments.js';
 import { UNNAMED } from '../room/lobby.js';
 
@@ -38,7 +39,7 @@ export function attachTournaments(api: Router, deps: { tournaments: Tournaments;
 		return list.map((t) => shown(t, found));
 	};
 	api.get('/tournaments', async (_req: Request, res: Response) => {
-		res.json({ tournaments: await serve(await deps.tournaments.list()) });
+		res.json({ tournaments: await serve((await deps.tournaments.list()).filter(playedByPeople)) });
 	});
 	api.get('/tournaments/featured', async (_req: Request, res: Response) => {
 		const featured = featuredTournament(await deps.tournaments.list(), now());

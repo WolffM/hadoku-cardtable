@@ -7,9 +7,14 @@
  *
  * Drawn from the standings the server ranked, the first three rows (`PodStandingsRow.rank`); a record and
  * points under each name. `prefers-reduced-motion` gets it still: no rise, no drop, no confetti.
+ *
+ * `compact` is the Tournaments page's (`../../stats/Tournaments.tsx`): the same podium at the size of a
+ * column beside the standings (the operator, 2026-11-08: *"a nice graphic next to the table scores with the
+ * podium animation"*). A page lists many, so each holds its first frame until it is scrolled to, plays
+ * from there, and stops its loops (confetti, sparkles, the winner's bob) while it is off screen.
  */
 
-import type { CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import type { PodMatchResult } from '@hadoku/shared';
 
 import { Avatar, type Face } from '../../components/Avatar.tsx';
@@ -24,6 +29,27 @@ export interface PodPodiumProps {
   nameOf: (memberId: string) => string;
   avatarOf: (memberId: string) => Face;
   myMemberId: string | null;
+  /** Column-sized, for beside the standings. */
+  compact?: boolean;
+}
+
+/**
+ * `waiting` until the podium is first on screen, then `shown`; `idle` whenever it is off screen again.
+ * Without an IntersectionObserver it is simply shown.
+ */
+function useOnScreen(el: RefObject<HTMLElement | null>): 'waiting' | 'shown' | 'idle' {
+  const [phase, setPhase] = useState<'waiting' | 'shown' | 'idle'>(typeof IntersectionObserver === 'undefined' ? 'shown' : 'waiting');
+  useEffect(() => {
+    const node = el.current;
+    if (node === null || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e === undefined) return;
+      setPhase((was) => (e.isIntersecting ? 'shown' : was === 'waiting' ? 'waiting' : 'idle'));
+    });
+    io.observe(node);
+    return () => io.disconnect();
+  }, [el]);
+  return phase;
 }
 
 /** Left to right: second, first, third. */
@@ -41,11 +67,13 @@ const CONFETTI = Array.from({ length: 34 }, (_, i) => ({
 }));
 const SPARKLES = [[-120, 120], [118, 96], [-96, 210], [104, 230], [-150, 40], [146, 40], [0, 18], [60, 150]] as const;
 
-export function PodPodium({ rows, results, nameOf, avatarOf, myMemberId }: PodPodiumProps) {
+export function PodPodium({ rows, results, nameOf, avatarOf, myMemberId, compact = false }: PodPodiumProps) {
+  const el = useRef<HTMLElement>(null);
+  const phase = useOnScreen(el);
   if (rows.length < 2) return null;
   const rec = records({ results: [...results] });
   return (
-    <section className="podium" data-testid="pod-podium" aria-label="Podium">
+    <section ref={el} className={compact ? 'podium podium--compact' : 'podium'} data-testid="pod-podium" data-phase={phase} aria-label="Podium">
       <div className="podium__confetti" aria-hidden="true">
         {CONFETTI.map((c, i) => (
           <span key={i} data-mana={c.colour} style={{ left: c.left, width: c.w, height: c.h, animationDuration: c.dur, animationDelay: c.delay } as CSSProperties} />
@@ -80,7 +108,7 @@ export function PodPodium({ rows, results, nameOf, avatarOf, myMemberId }: PodPo
         })}
       </div>
       {SPARKLES.map(([dx, y], i) => (
-        <span key={i} className="podium__sparkle" aria-hidden="true" style={{ left: `calc(50% + ${dx}px)`, top: y, animationDelay: `${1.8 + i * 0.27}s`, animationDuration: `${1.6 + (i % 3) * 0.4}s` }} />
+        <span key={i} className="podium__sparkle" aria-hidden="true" style={{ left: `calc(50% + ${dx}px * var(--podium-scale))`, top: `calc(${y}px * var(--podium-scale))`, animationDelay: `${1.8 + i * 0.27}s`, animationDuration: `${1.6 + (i % 3) * 0.4}s` }} />
       ))}
     </section>
   );

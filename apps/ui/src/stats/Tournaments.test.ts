@@ -43,6 +43,17 @@ describe('the Tournaments tab', () => {
     expect(screen.getByTestId('pod-standings-row-2').textContent).toContain('AI');
   });
 
+  it('stands each pod\'s top finishers on its podium beside the standings, with their record and points', async () => {
+    render(createElement(Tournaments, { load: async () => [cubeNight] }));
+    await waitFor(() => expect(screen.getAllByTestId('tournament')).toHaveLength(1));
+    const podium = screen.getByTestId('tournament').querySelector('.ct-tournament__body > [data-testid="pod-podium"]');
+    expect(podium?.classList.contains('podium--compact')).toBe(true);
+    expect(screen.getByTestId('pod-podium-1').textContent).toContain('Alice');
+    expect(screen.getByTestId('pod-podium-1').textContent).toContain('3 pts');
+    expect(screen.getByTestId('pod-podium-2').textContent).toContain('AI');
+    expect(screen.queryByTestId('pod-podium-3')).toBeNull();
+  });
+
   it('draws each player\'s face and look beside their name, as the server looked them up', async () => {
     const picture = 'https://cdn.discordapp.com/avatars/1/a.png';
     render(createElement(Tournaments, { load: async () => [{ ...cubeNight, faces: { 'u-alice': { avatarId: 'mage', look: { picture, cosmetics: { effect: 'effect.glint' } } }, ai: { avatarId: 'knight' } } }] }));
