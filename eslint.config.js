@@ -241,7 +241,7 @@ export default [
       'apps/server/src/http/tables.test.ts',
       'apps/server/src/play/host.test.ts',
       'apps/server/src/play/socket.test.ts',
-      'apps/server/src/room/feed.test.ts',
+      'apps/server/src/room/watching.test.ts',
       'apps/server/src/room/lobby.test.ts',
       'apps/server/src/room/socket.test.ts',
       'apps/ui/src/play/live/LiveBoard.test.ts',

@@ -29,8 +29,11 @@ import { documentVisibility, rereadWhileVisible, type RereadDeps } from '../visi
 
 export type { FeedTarget, PingReason, PingSource } from '@wolffm/rooms-client';
 
-/** How often a visible screen reads anyway. A lost ping costs at most this much staleness. */
-export const FALLBACK_MS = 30_000;
+/**
+ * How often a visible screen reads anyway. A lost ping costs at most this much staleness. Long,
+ * because a ping is lost only with its socket, and a reconnect already reads again on the ack.
+ */
+export const FALLBACK_MS = 120_000;
 
 export interface RoomFeed {
   /** Call `refresh` on the schedule in this file's header. Returns the stop. */
