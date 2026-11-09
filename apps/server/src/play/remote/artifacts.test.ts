@@ -81,6 +81,25 @@ describe('RemoteJvmLauncher', () => {
 		expect(sent).toMatchObject([{ op: 'attach' }, { op: 'launch', hostId: 'h-new', artifacts: RUNTIME.artifacts, main: 'Main' }]);
 	});
 
+	it('a line sent in the tick of its launch reaches the agent after the launch, never before it', async () => {
+		// The agent drops a line for a JVM it does not have: a canary's `start` sent this way was lost (2026-11-09).
+		const { client, sent } = fakeClient();
+		const t = new RemoteJvmLauncher(client, RUNTIME).launch('h-new', { xmxMb: 512 });
+		t.send('{"t":"start"}');
+		t.send('{"t":"stop"}');
+		expect(sent).toEqual([]);
+		await new Promise((r) => setImmediate(r));
+		expect(sent).toMatchObject([{ op: 'launch', hostId: 'h-new' }, { op: 'line', h: 'h-new', line: '{"t":"start"}' }, { op: 'line', h: 'h-new', line: '{"t":"stop"}' }]);
+		t.send('{"t":"act"}');
+		expect(sent.at(-1)).toEqual({ op: 'line', h: 'h-new', line: '{"t":"act"}' });
+	});
+
+	it('an attached JVM is already there: its lines go at once', () => {
+		const { client, sent } = fakeClient();
+		new RemoteJvmLauncher(client, RUNTIME).attach('h-adopted').send('{"t":"act"}');
+		expect(sent).toEqual([{ op: 'attach', h: 'h-adopted' }, { op: 'line', h: 'h-adopted', line: '{"t":"act"}' }]);
+	});
+
 	it('a launch released before the runtime arrives is never sent', async () => {
 		const { client, sent } = fakeClient();
 		let arrive = (_: RemoteRuntime): void => {};

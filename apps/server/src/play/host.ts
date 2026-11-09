@@ -361,6 +361,12 @@ export interface TurnSnapshot {
 	lossy?: readonly string[];
 }
 
+/**
+ * A bot game's (`MatchSpec.headless`) exit when Forge ended it on its own: the bridge plays the whole
+ * best-of and stops, so this is the game finishing, never its host failing.
+ */
+export const PLAYED_OUT = 'played out';
+
 export interface HostEvents {
 	line(line: BridgeLine): void;
 	/** The host is gone. `reason` says why, for the match's status. */
@@ -941,7 +947,15 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		jvm.matches.delete(h.id);
 		writeRecord(jvm);
 		if (h.events !== null && !h.handed) {
-			h.events.exit(h.stopping ? 'stopped' : h.fatal !== null ? `Forge failed: ${h.fatal}` : 'Forge ended the match without being asked to');
+			h.events.exit(
+				h.stopping
+					? 'stopped'
+					: h.fatal !== null
+						? `Forge failed: ${h.fatal}`
+						: h.entry.spec.headless !== undefined
+							? PLAYED_OUT
+							: 'Forge ended the match without being asked to',
+			);
 		}
 		if (jvm.matches.size === 0) idle(jvm);
 		notifyRoom();

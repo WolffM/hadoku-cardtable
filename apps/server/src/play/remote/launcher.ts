@@ -18,6 +18,12 @@ class RemoteTransport implements JvmTransport, FrameSink {
 	/** The byte offset just past the last line delivered: lines at or before it are repeats. */
 	private taken = 0;
 	private done = false;
+	/**
+	 * Lines sent before the agent was told to launch this JVM. The launch waits for the runtime, and
+	 * the agent drops a line for a JVM it does not have, so a match started on a JVM still being
+	 * launched (a canary on a fresh pool, 2026-11-09) would lose its `start`. Null once launched.
+	 */
+	private early: string[] | null = [];
 	private lineListener: (line: string) => void = () => {};
 	private exitListener: (reason: string) => void = () => {};
 
@@ -27,7 +33,15 @@ class RemoteTransport implements JvmTransport, FrameSink {
 	) {}
 
 	send(line: string): void {
-		if (!this.done) this.client.send({ op: 'line', h: this.hostId, line });
+		if (this.done) return;
+		if (this.early !== null) this.early.push(line);
+		else this.client.send({ op: 'line', h: this.hostId, line });
+	}
+	/** The agent has this JVM (launched or attached): what was sent before goes now, in order. */
+	launched(): void {
+		const early = this.early ?? [];
+		this.early = null;
+		for (const line of early) this.send(line);
 	}
 	onLine(listener: (line: string) => void): void {
 		this.lineListener = listener;
@@ -97,6 +111,7 @@ export class RemoteJvmLauncher implements JvmLauncher {
 					jvmFlags: [...BRIDGE_JVM_FLAGS],
 					forgePreferences: { ...FORGE_PREFERENCES },
 				});
+				t.launched();
 			},
 			(err: unknown) => t.exit(`the agent could not be given this server's runtime: ${(err as Error).message}`),
 		);
@@ -110,6 +125,7 @@ export class RemoteJvmLauncher implements JvmLauncher {
 	attach(hostId: string): JvmTransport {
 		const t = this.transport(hostId);
 		this.client.send({ op: 'attach', h: hostId });
+		t.launched();
 		return t;
 	}
 

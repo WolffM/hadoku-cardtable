@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
 import type { BridgeLine, HostEvents, JvmHostConfig, MatchSpec } from '../host.js';
+import { PLAYED_OUT } from '../host.js';
 import type { JvmLauncher, JvmTransport } from '../jvm-transport.js';
 import type { JvmHealth, ToAgent } from '../remote/wire.js';
 import { Alerts, type AlertSink } from './alerts.js';
@@ -1077,6 +1078,31 @@ describe('failover', () => {
 		expect(r.posted[2]).toBe(
 			'🚨 Match lost: 1 on claw-9 — gone: m-3 (no host can take it). claw-9 is quarantined until fleet-manager reports it healthy and a canary match passes on it.',
 		);
+	});
+
+	it('a bot game that plays out ends on its own and fails nothing: its claw stays in, and the human match beside it stays put', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		const human = start(r, 'm-1');
+		ready(r, 'm-1');
+		const bot = rec(r.order, 'b-1');
+		const botSpec: MatchSpec = {
+			seats: [
+				{ name: 'Bot 1', ai: true, deck: null },
+				{ name: 'Bot 2', ai: true, deck: null },
+			],
+			headless: { bestOf: 3, gameS: 180 },
+		};
+		r.p('b-1', botSpec, bot);
+		const humanOn = jvmOf(r, 'm-1').claw;
+		const botOn = jvmOf(r, 'b-1').claw;
+		jvmOf(r, 'b-1').jvm.say({ t: 'stopped', match: 'b-1' });
+		expect(bot.exits).toEqual([PLAYED_OUT]);
+		expect(hostOf(r, botOn).quarantine).toBeNull();
+		expect(hostOf(r, humanOn).quarantine).toBeNull();
+		expect(jvmOf(r, 'm-1').claw).toBe(humanOn);
+		expect(human.exits).toEqual([]);
+		expect(r.order).toEqual(['exit b-1']);
+		expect(r.posted).toEqual([]);
 	});
 
 	it('a match that never started is placed again on another claw, under the same Match', async () => {

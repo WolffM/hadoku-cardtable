@@ -61,6 +61,7 @@ import {
 	type MatchSpec,
 	type ReapResult,
 	MAX_CONCURRENT_MATCHES,
+	PLAYED_OUT,
 } from '../host.js';
 import { MATCHES_PER_JVM, JVM_HEAP_MB } from '../local-jvm.js';
 import type { JvmLauncher } from '../jvm-transport.js';
@@ -661,7 +662,7 @@ export function placement(opts: PlacementOptions): Placement {
 			},
 			exit: (reason) => {
 				if (p.moved) return;
-				if (closing || reason === 'stopped') {
+				if (closing || reason === 'stopped' || reason === PLAYED_OUT) {
 					if (placed.get(p.id) === p) placed.delete(p.id);
 					p.events.exit(reason);
 					return;
