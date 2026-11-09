@@ -891,10 +891,20 @@ export function roomAi(room: RoomRecord): AiPersona {
 }
 
 /** An AI entrant's character: a tournament pod's own (its seat's, kept through the pod's life), or a draft pod's shared bot (`roomAi`). */
-function entrantPersona(room: RoomRecord, id: string): AiPersona {
+function entrantPersona(room: RoomRecord, id: string, checks: Pick<PodChecks, 'pilotOf'>): AiPersona {
 	if (!isAiEntrant(id)) return roomAi(room);
-	const seat = rawSeat(room, aiEntrantSeat(id));
-	return personaOf(room.podAi[seat] ?? seatAvatar(room, seat));
+	return seatPersona(room, rawSeat(room, aiEntrantSeat(id)), checks);
+}
+
+/**
+ * The AI at a pod seat: its character, named for the real player whose list it plays in a Challenge
+ * (`RoomRecord.aiDeckAssignments`). The name is read from the library each time, never stored (R12).
+ */
+function seatPersona(room: RoomRecord, seat: number, checks: Pick<PodChecks, 'pilotOf'>): AiPersona {
+	const persona = personaOf(room.podAi[seat] ?? seatAvatar(room, seat));
+	const deck = room.aiDeckAssignments?.[`ai:${String(seat)}`];
+	const player = deck === undefined ? undefined : checks.pilotOf?.(deck);
+	return player === undefined ? persona : { ...persona, name: player };
 }
 
 /**
@@ -912,10 +922,10 @@ function rawSeat(room: RoomRecord, podSeat: number): number {
 }
 
 /** `PodView.personas`: every AI entrant the pod's players, pairings and results name. */
-function podPersonas(room: RoomRecord, humans: readonly string[]): PodView['personas'] {
+function podPersonas(room: RoomRecord, humans: readonly string[], checks: Pick<PodChecks, 'pilotOf'>): PodView['personas'] {
 	const pod = room.pod;
 	const ids = [...humans, ...(pod?.pairings.flatMap((p) => p.players) ?? []), ...(pod?.results.flatMap((r) => [r.playerA, r.playerB ?? r.playerA]) ?? [])];
-	return Object.fromEntries([...new Set(ids)].filter((id) => id === POD_AI || isAiEntrant(id)).map((id) => [id, entrantPersona(room, id)]));
+	return Object.fromEntries([...new Set(ids)].filter((id) => id === POD_AI || isAiEntrant(id)).map((id) => [id, entrantPersona(room, id, checks)]));
 }
 
 /** The draft room's own AI character: the bot that drafted across the table from its first human (`draftRooms.ts`'s `botPoolAcross`, by the same rule). A pod round's bot wears its own (`entrantPersona`). */
@@ -992,6 +1002,8 @@ export interface PodChecks {
 	 * table already works.
 	 */
 	seatTournamentDeck(roomId: string, tableId: string, entrant: string, deck: unknown | null): void;
+	/** The real player who played a library deck (its `pilot`): a Challenge AI's name. Absent, or `undefined`, keeps the seat's own character name. */
+	pilotOf?(deckId: string): string | undefined;
 }
 
 /** The bare name a single source gets with no `DraftRooms` wired (no jar/no cube store): its id or code, which is also what the real resolver falls back to. */
@@ -1182,21 +1194,12 @@ function seatedHumans(room: RoomRecord): string[] {
 	return podTable(room).flatMap((place) => (place.kind === 'human' ? [place.id] : []));
 }
 
-function podSeatsView(room: RoomRecord): PodView['seats'] {
+function podSeatsView(room: RoomRecord, checks: Pick<PodChecks, 'pilotOf'>): PodView['seats'] {
 	return room.podSeats.map((id, i) => {
 		if (id === null) return null;
 		if (id === POD_AI) {
-			const persona = personaOf(room.podAi[i] ?? seatAvatar(room, i));
-			// A historical replay's AI seat carries its deck's NAME openly: the
-			// list is the event's own public record. The name — not the deck —
-			// because everything the UI owes a seat here is who it plays as.
-			const assigned = room.historical === true ? room.aiDeckAssignments?.[`ai:${String(i)}`] : undefined;
-			return {
-				memberId: POD_AI,
-				name: persona.name,
-				avatarId: persona.avatarId,
-				...(assigned === undefined ? {} : { deckId: assigned }),
-			} as PodMember;
+			const persona = seatPersona(room, i, checks);
+			return { memberId: POD_AI, name: persona.name, avatarId: persona.avatarId } as PodMember;
 		}
 		if (id === POD_CLOSED) return { memberId: POD_CLOSED, name: '' } as PodMember;
 		const member = room.members.find((m) => m.id === id);
@@ -1243,7 +1246,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// engine's own business (`room/draftRooms.ts`'s `viewForParticipant`), and
 	// `startPodRounds`'s `PodRecord.humans`/`pairings` are what `rounds`/`done`
 	// answer from — this field is not a second source for either.
-	const seats = phase === 'lobby' ? podSeatsView(room) : EMPTY_POD_SEATS;
+	const seats = phase === 'lobby' ? podSeatsView(room, checks) : EMPTY_POD_SEATS;
 	if (phase === 'lobby') {
 		const split = heldSplit(room);
 		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: [], ...(split === null ? {} : { pods: split.pods }), built: [], personas: {}, ...planFields };
@@ -1254,14 +1257,14 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// back to before `#dealPodRounds` has run.
 	const humans = room.pod?.humans ?? seatedHumans(room);
 	if (phase === 'drafting') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: humans, pods: room.podDrafts ?? [humans], built: [], personas: podPersonas(room, humans), ...planFields };
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: humans, pods: room.podDrafts ?? [humans], built: [], personas: podPersonas(room, humans, checks), ...planFields };
 	}
 	// Done building: pressed Play (`playPod`) with a deck that is still legal.
 	// A bot built its deck as it drafted (`botDeck.ts`).
 	const built = humans.filter((id) => isAiEntrant(id) || (room.podPlaying.includes(id) && checks.built(memberDraftId(room, id), id)));
 	const pods = tournament ? [] : (room.podDrafts ?? [humans]);
 	if (phase === 'building') {
-		return { phase, seats, round: 0, rounds: roundsFor(tournament ? humans.length : draftEntrants(room, humans).length), results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: humans, pods, built, personas: podPersonas(room, humans), ...planFields };
+		return { phase, seats, round: 0, rounds: roundsFor(tournament ? humans.length : draftEntrants(room, humans).length), results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: humans, pods, built, personas: podPersonas(room, humans, checks), ...planFields };
 	}
 	// `podPhaseOf` already answers `rounds`/`done` only when `room.pod !== null`
 	// (it throws otherwise, above) — but this cast is the one place that
@@ -1287,7 +1290,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 		// A tournament pod never builds a deck: every entrant who locked in
 		// counts as "built" at once, rather than reading as permanently empty.
 		built: tournament ? humans : built,
-		personas: podPersonas(room, humans),
+		personas: podPersonas(room, humans, checks),
 		...planFields,
 	};
 }
@@ -3322,7 +3325,7 @@ class FileLobby implements Lobby {
 				roomId: room.id,
 				round: pod.round,
 				players,
-				names: [entrantPersona(room, players[0]).name, entrantPersona(room, players[1]).name],
+				names: [entrantPersona(room, players[0], this.#podChecks).name, entrantPersona(room, players[1], this.#podChecks).name],
 				decks: [this.#botDeckSource(room, players[0]), this.#botDeckSource(room, players[1])],
 				bestOf,
 			};
@@ -4204,7 +4207,7 @@ class FileLobby implements Lobby {
 		// pod's own AI entrants (one per AI seat, `aiEntrantId`) are each
 		// named from the character its seat was given (`room.podAi`, kept
 		// through the pod's life — see the field's own doc).
-		const ais = pod.humans.filter(isAiEntrant).map((id) => [id, entrantPersona(room, id)] as const);
+		const ais = pod.humans.filter(isAiEntrant).map((id) => [id, entrantPersona(room, id, this.#podChecks)] as const);
 		const aiNames = Object.fromEntries(ais.map(([id, p]) => [id, p.name]));
 		this.#onTournament({
 			id: tournamentId(room),
@@ -4286,7 +4289,7 @@ class FileLobby implements Lobby {
 		// Gauntlet seat 0, the synthesized AI player seat 1) — never both: an
 		// AI-vs-AI pairing plays a bot game without a table (`#pairRound`'s own doc).
 		const entrants: [string, string] = isAiEntrant(a) ? [b, a] : [a, b];
-		return isAiEntrant(entrants[1]) ? { entrants, ai: entrantPersona(room, entrants[1]) } : { entrants };
+		return isAiEntrant(entrants[1]) ? { entrants, ai: entrantPersona(room, entrants[1], this.#podChecks) } : { entrants };
 	}
 
 	podDraft(draftId: string): PodDeal | null {

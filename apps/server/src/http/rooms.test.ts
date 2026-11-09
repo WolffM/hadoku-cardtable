@@ -2551,6 +2551,8 @@ describe('a tournament locks over HTTP, with the real PodChecks (regression: the
 		expect(made.status, made.text).toBe(201);
 		const room = made.json() as import('../room/lobby.ts').RoomView & { you: { id: string } };
 		expect(room.pod!.seats.findIndex((s) => s?.memberId === room.you.id)).toBe(4);
+		// Each AI seat is named for its real player, read from the library's list (never stored).
+		expect(room.pod!.seats.map((s) => s?.name)).toEqual(['TeaW1thRum', 'romariovidal', 'Matiuzzzo', 'Stanshine', 'user-alice', 'TheGrimLavamancer', 'wonderPreaux', 'SiL3nTGoaT']);
 		const deck = await call(h, 'PUT', `/api/tables/rooms/${room.id}/deck`, { as: 'alice', body: { deck: { library: 'tourney-leg-2026-02-07-1-ozymandias17' } } });
 		expect(deck.status, deck.text).toBe(200);
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } })).status).toBe(200);
@@ -2559,6 +2561,7 @@ describe('a tournament locks over HTTP, with the real PodChecks (regression: the
 		expect(locked.pod?.phase).toBe('rounds');
 		const pairing = locked.pod!.pairings.find((p) => p.players.includes(room.you.id))!;
 		expect(pairing.players).toEqual(['ai:0', room.you.id]);
+		expect(h.lobby.tournamentPairingOf(room.id, pairing.tableId)?.ai?.name, 'the match names its AI as the real player').toBe('TeaW1thRum');
 		const held = h.lobby.playerState(room.id, room.you.id) as { aiDeck?: string; deck?: { choice: { deck: { library: string } } } };
 		expect(held.deck?.choice.deck).toEqual({ library: 'tourney-leg-2026-02-07-1-ozymandias17' });
 		expect(held.aiDeck).toBe(TABLES_LIBRARY.deck('tourney-leg-2026-02-07-8-teaw1thrum')!.text);
