@@ -1,6 +1,6 @@
 ## New
 
-- **Challenge rooms: replay a real MTGO Challenge.** Create room → Challenge, pick the event, its top 8 or its full field, and whose seat you take; every other seat is an AI playing the list its real player played. The first two are the Legacy and Modern Challenge 32 of 2026-02-07.
+- **Challenge rooms: replay a real MTGO Challenge.** Create room → Challenge, pick the event, its top 8 or its full field, and which player you are; you play their list, and every other seat is an AI playing the list its own player played. The first two are the Legacy and Modern Challenge 32 of 2026-02-07.
 
 ## Fixed
 
