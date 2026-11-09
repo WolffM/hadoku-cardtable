@@ -6090,7 +6090,9 @@ public final class PlayBridge {
             final forge.game.player.Player mine = liveSelf(liveGame());
             if (mine == null || !(match.humanOf(mine) instanceof PlayerControllerHuman human)) { return false; }
             final Input open = human.getInputQueue().getInput();
-            if (open != null && !(open instanceof InputLockUI)) { return false; }
+            // The bar can stand over a priority window the yield is passing (the seat composes it on each
+            // notice, AbstractGuiGame.updatePromptForAwait): Cancel there is the bar's too, never End Turn again.
+            if (open != null && !(open instanceof InputLockUI) && !(open instanceof forge.gamemodes.match.input.InputPassPriority)) { return false; }
             final forge.gamemodes.match.YieldController yields = human.getYieldController();
             if (!yields.isYieldActive()) { return false; }
             yields.clearActiveYieldAndDispatch();
