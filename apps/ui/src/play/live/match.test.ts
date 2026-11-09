@@ -35,6 +35,7 @@ import {
   concede,
   currentAsk,
   declaringAttackers,
+  defenderChoices,
   drawnOffer,
   blockFocusOf,
   combatCandidates,
@@ -4515,5 +4516,25 @@ describe('AF397: doomAskOf — what an open choice would send off the battlefiel
     expect(doomAskOf(m)).not.toBeUndefined();
     await sendAndApply(s, m, [clear(), actionable([a])]);
     expect(doomAskOf(m)).toBeUndefined();
+  });
+});
+
+describe('defenderChoices', () => {
+  const seat = (id: number, battlefield: [number, string][], hasLost = false) => ({
+    id,
+    isViewer: id === 2,
+    hasLost,
+    battlefield: battlefield.map(([cid, typeLine]) => ({ id: cid, card: { typeLine } })),
+  });
+  const view = (...players: ReturnType<typeof seat>[]) => ({ players }) as unknown as BoardView;
+
+  it('counts the opponent alone when nothing else can be attacked: our own planeswalker and their creature are no defenders', () => {
+    expect(defenderChoices(view(seat(1, [[40, 'Creature — Wall']]), seat(2, [[10, 'Creature — Bear'], [12, 'Planeswalker — Ours']])), 2)).toBe(1);
+  });
+
+  it("counts the opponent's planeswalker and a battle anywhere, and a player who has lost not at all", () => {
+    expect(defenderChoices(view(seat(1, [[55, 'Legendary Planeswalker — Jace']]), seat(2, [[10, 'Creature — Bear']])), 2)).toBe(2);
+    expect(defenderChoices(view(seat(1, []), seat(2, [[10, 'Creature — Bear'], [13, 'Battle — Siege']])), 2)).toBe(2);
+    expect(defenderChoices(view(seat(1, []), seat(2, [[10, 'Creature — Bear']]), seat(3, [], true)), 2)).toBe(1);
   });
 });

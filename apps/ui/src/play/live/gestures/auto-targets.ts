@@ -14,7 +14,7 @@
  * same facts too would have drawn every stack-item arrow twice. Neither had
  * a production caller left; both are gone with their tests.
  */
-import { defenderChoices, type LiveMatch } from '../match.ts';
+import type { LiveMatch } from '../match.ts';
 import { centreOf } from '../../lift.ts';
 import { cardBox, faceBox } from '../board-dom.ts';
 import type { Point } from './types.ts';
@@ -51,11 +51,9 @@ export interface AutoTargetArrow {
  * An attacker in `rammed` has already set off at what it hit, and its ram is
  * the attack now: it draws no arrow.
  *
- * Nor does an attacker that had only one defender to choose (the operator,
- * 2026-11-07: "that should only happen when there's a planeswalker or other
- * attack target"). Against a lone opponent with no planeswalker or battle out,
- * the arrow says nothing the attacker's own mark does not, and it reads as a
- * target still to be picked.
+ * Every other declared attacker draws its arrow, a lone player included (the
+ * operator, 2026-11-09: one click still sends it — `combatAimer` — but the
+ * arrow stays).
  */
 /**
  * On a phone held upright an attack on a player points at the middle of the edge that player sits beyond,
@@ -76,15 +74,9 @@ const EDGE_INSET_PX = 12;
 
 export function combatArrows(canvas: ParentNode, match: LiveMatch, rammed: ReadonlySet<number>): AutoTargetArrow[] {
   const out: AutoTargetArrow[] = [];
-  const view = match.view;
-  if (view === null || view === undefined) return out;
-  const controllerOf = new Map<number, number>();
-  for (const p of view.players ?? []) for (const c of p.battlefield) controllerOf.set(c.id, p.id);
-  for (const band of view.combat ?? []) {
+  for (const band of match.view?.combat ?? []) {
     for (const attackerId of band.attackers) {
       if (rammed.has(attackerId)) continue;
-      const controller = controllerOf.get(attackerId);
-      if (controller !== undefined && defenderChoices(view, controller) <= 1) continue;
       const source = cardBox(canvas, attackerId);
       if (source === null) continue;
       const to = band.defender.kind === 'card' ? cardBox(canvas, band.defender.id) : faceBox(canvas, band.defender.id);

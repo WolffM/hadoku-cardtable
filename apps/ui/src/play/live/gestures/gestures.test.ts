@@ -1867,11 +1867,6 @@ describe('an attacker’s arrows go the moment its ram sets off', () => {
         },
       });
     const arrow = (key: string) => overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="${key}"]`);
-    // A planeswalker of ours gives their attack a second defender, so it draws arrows at all (`combatArrows`).
-    const walker = mineOf(m).battlefield.at(-1)!.id;
-    expect(walker, 'the planeswalker is not the blocker').not.toBe(blocker);
-    s.send(retypeDelta(walker, ['Planeswalker']));
-    await untilMatch(m, () => expect(mineOf(m).battlefield.find((c) => c.id === walker)!.card.typeLine).toContain('Planeswalker'));
     s.send(phaseDelta('COMBAT_DAMAGE', theirsOf(m).id));
     s.send(attackingDelta([first, second]));
     s.send(combat(true));

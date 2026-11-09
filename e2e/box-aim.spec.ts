@@ -16,8 +16,7 @@
  *
  * Which defender Forge declared is read the way `w46-attack.spec.ts` reads it:
  * by the lasting attack arrow (`combat:<id>`, drawn off Forge's own
- * `CombatView`), whose tip lies on the defender's own element. With the
- * player the only defender there is no arrow to read, and none is drawn.
+ * `CombatView`), whose tip lies on the defender's own element.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without
  * one every test SKIPS and its title says why. Serves the prebuilt
@@ -155,9 +154,7 @@ test(titled('with the player the only defender, a box of three attackers declare
     expect(await pendingCount(page), 'nothing is held').toBe(0);
     await expect(page.locator('[data-gesture-canvas][data-aiming]'), 'and nothing is aimed').toHaveCount(0);
     await expect.poll(() => attackingCount(page, creatures), { timeout: 10_000, message: 'all three declared from the box alone' }).toBe(3);
-    // The player was the only defender, so the attacks draw no arrow: there was nothing to choose
-    // between (the operator, 2026-11-07; `gestures/auto-targets.ts`'s `combatArrows`).
-    await expect(page.locator('[data-testid="stack-target-arrow"][data-key^="combat:"]'), 'one defender: no attack arrows').toHaveCount(0);
+    await expect.poll(() => attacksAt(page, creatures, '[data-player-face]:not([data-viewer])'), { timeout: 10_000, message: 'every one attacks the player' }).toBe(true);
   } finally {
     await seated?.alice.context.close();
     await seated?.bob.context.close();

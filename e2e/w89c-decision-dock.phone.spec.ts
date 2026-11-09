@@ -278,11 +278,23 @@ test(titled('declaring blockers: the question and Done Blocking stand in the bot
     await expect(bar.getByTestId('live-decision-ok')).toHaveText(/Done/);
     await expect(dock(alice.page), 'nothing docks for it').toHaveCount(0);
     await expectBarAnchored(alice.page, 'declare blockers');
-    // Bob's attackers had only alice to attack, so neither screen draws them an arrow (the operator,
-    // 2026-11-07). Where an attack on a player does draw one, on a phone it points at the middle of that
-    // player's edge: `auto-targets.test.ts` pins that geometry.
-    for (const page of [alice.page, bob.page]) {
-      await expect(page.locator('[data-testid="stack-target-arrow"][data-role="attack"]'), 'one defender: no attack arrows').toHaveCount(0);
+    // An attack on a player points at the middle of that player's edge: bob's attackers at the bottom
+    // edge's middle on alice's screen, at the top edge's middle on his own (the operator, 2026-11-04).
+    for (const [page, edge] of [[alice.page, 'bottom'], [bob.page, 'top']] as const) {
+      const tips = await page.evaluate(() =>
+        [...document.querySelectorAll('[data-testid="stack-target-arrow"][data-role="attack"]')].map((arrow) => {
+          const box = arrow.getBoundingClientRect();
+          const nums = (arrow.querySelector('path')?.getAttribute('d') ?? '').replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
+          const board = document.querySelector('.board')!.getBoundingClientRect();
+          return { x: nums[4]! + box.left, y: nums[5]! + box.top, mid: board.left + board.width / 2, top: board.top, bottom: board.bottom };
+        }),
+      );
+      console.log(`[dock] attack arrow tips (${edge}): ${JSON.stringify(tips)}`);
+      expect.soft(tips.length, `${edge}: the two attacks draw their arrows`).toBe(2);
+      for (const t of tips) {
+        expect.soft(Math.abs(t.x - t.mid), `${edge}: an attack on a player points at the middle`).toBeLessThanOrEqual(24);
+        expect.soft(edge === 'bottom' ? t.bottom - t.y : t.y - t.top, `${edge}: at that edge`).toBeLessThanOrEqual(48);
+      }
     }
     expect(await boardLanes(alice.page).count(), 'the four board lanes are drawn').toBe(4);
     // The attackers it asks about are whole inside their own lane: a turned card is drawn on the

@@ -5,7 +5,8 @@
  * one target is there' didn't land. i'm still having to drag arrows even with only one target"*. A
  * click on an attacker or a blocker aims (`gestures/install.ts`'s `aim`) only when it has a choice
  * (`match.ts`'s `combatAimer`): against the opponent alone the click is the card's own, and Forge's
- * `InputAttack` declares it; facing one attacker, a blocker's click blocks it.
+ * `InputAttack` declares it; facing one attacker, a blocker's click blocks it. The declared attack still
+ * draws its arrow to bob, on both screens, for as long as it stands.
  *
  * Scenario `one-defender-click`: alice's Grizzly Bears against bob alone; bob's Wall of Stone. Forge's
  * own state is read off `data-attacking`/`data-blocking`, drawn from Forge's CardView, and once alice
@@ -58,10 +59,17 @@ test(titled('against bob alone one click declares the Bears, and facing one atta
     await expect(a.locator('[data-gesture-canvas][data-aiming]'), 'alice’s board never aims').toHaveCount(0);
     await expect.poll(() => flag(a, bears, 'data-attacking'), { timeout: 10_000, message: 'Forge declared the Bears' }).toBe('true');
     expect(aimSwallows(stack), 'no press was swallowed for an aim').toEqual([]);
+    // The one click still draws the Bears' arrow to bob (the operator, 2026-11-09: "i wanted creatures to
+    // auto-target the player, not for the combat arrow to be gone"), and it stays while they attack.
+    const arrow = (page: Page) => page.locator(`[data-testid="stack-target-arrow"][data-key="combat:${bears}"][data-role="attack"]`);
+    await expect(arrow(a), 'the Bears draw their attack arrow on alice’s screen').toHaveCount(1, { timeout: 10_000 });
     await enabledOk(a).first().click();
     await expect.poll(() => flag(b, bears, 'data-attacking'), { timeout: 30_000, message: 'confirmed, bob sees the Bears attacking' }).toBe('true');
 
     await expect.poll(() => says(b), { timeout: 30_000, message: 'bob’s block window opens' }).toMatch(/select creatures to block/i);
+    for (const [name, page] of [['alice', a], ['bob', b]] as const) {
+      await expect(arrow(page), `${name}: the arrow to bob stays while the Bears attack`).toHaveCount(1, { timeout: 10_000 });
+    }
     expect(await pressOffered(b.locator(`[data-board-card="${wall}"]`)), 'the Wall pressed, once').toBe(true);
     await expect(b.locator('[data-gesture-canvas][data-aiming]'), 'bob’s board never aims').toHaveCount(0);
     await expect.poll(() => flag(b, wall, 'data-blocking'), { timeout: 10_000, message: 'Forge assigned the block' }).toBe('true');

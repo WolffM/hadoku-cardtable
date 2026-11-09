@@ -21,9 +21,8 @@
  *   attacker. then i tried to drag it so it would be blocking something else, but it kept the arrow on
  *   the first one. … let's remove the click to auto block feature and just do drag blocking only. also
  *   can we make attacking arrows and blocking arrows a different color?"* A click on an unassigned wall
- *   blocks nothing; a drag blocks; a second drag moves the block; a drag home unblocks; block arrows
- *   are `--success` (attack arrows are `--danger`, read in `w46-attack.spec.ts`: bob's attacks here had
- *   only alice to attack, and draw none).
+ *   blocks nothing; a drag blocks; a second drag moves the block; a drag home unblocks; attack arrows
+ *   are `--danger`, block arrows `--success`.
  *
  * Confirmed with Full Control held, the declared block is read at Combat Damage on both screens.
  *
@@ -157,10 +156,11 @@ async function blocks(page: Page): Promise<string[]> {
 interface Strokes {
   attack: string | null;
   block: string | null;
+  danger: string;
   success: string;
 }
 
-/** The computed stroke of one attack arrow and one block arrow, beside the theme's success. */
+/** The computed stroke of one attack arrow and one block arrow, beside the theme's danger and success. */
 async function strokes(page: Page): Promise<Strokes> {
   return page.evaluate(() => {
     // The arrow's own colour is its core's fill (`arrow.css`); the rim around it is a mix toward the ink.
@@ -177,7 +177,7 @@ async function strokes(page: Page): Promise<Strokes> {
       probe.remove();
       return c;
     };
-    return { attack: stroke('combat:'), block: stroke('block:'), success: token('--success') };
+    return { attack: stroke('combat:'), block: stroke('block:'), danger: token('--danger'), success: token('--success') };
   });
 }
 
@@ -272,14 +272,13 @@ test(titled('blocking: a click blocks nothing, a drag blocks, a second drag move
     await step('assigned (before OK)', ASSIGNED, "bob's screen shows alice's block while she is still assigning: the arrow, the shield and the blocker colour");
     await log('dragged onto A');
 
-    // The block arrow's colour, on both screens. Bob attacked alice with nothing else to attack, so his
-    // attacks draw no arrow (the operator, 2026-11-07); `w46-attack.spec.ts` reads the attack arrow's
-    // own colour, against a planeswalker.
+    // The colours, while both kinds of arrow are drawn on both screens.
     for (const [name, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
-      await expect.poll(async () => (await strokes(page)).block !== null, { timeout: 10_000 }).toBe(true);
+      await expect.poll(async () => (await strokes(page)).block !== null && (await strokes(page)).attack !== null, { timeout: 10_000 }).toBe(true);
       const s = await strokes(page);
       console.log(`[blocks] strokes ${name} ${JSON.stringify(s)}`);
-      expect.soft(s.attack, `${name}: one defender, so no attack arrow`).toBeNull();
+      expect.soft(s.block, `${name}: the block arrow is not the attack arrow's colour`).not.toBe(s.attack);
+      expect.soft(s.attack, `${name}: the attack arrow is the theme's danger`).toBe(s.danger);
       expect.soft(s.block, `${name}: the block arrow is the theme's success`).toBe(s.success);
     }
 

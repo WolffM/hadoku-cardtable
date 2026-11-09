@@ -258,18 +258,6 @@ test(
         away(first.tip!, nearestEdge),
         `the arrow's tip lands just inside one of Jace's eight edge points (${JSON.stringify(first.tip)} vs ${JSON.stringify(nearestEdge)})`,
       ).toBeLessThanOrEqual(1);
-      // An attack arrow is the theme's danger (the operator, 2026-10-11: attack and block arrows in
-      // different colours; `w54-blockers.spec.ts` reads the block arrow's success).
-      const colour = await alice.page.evaluate((k) => {
-        const head = document.querySelector(`[data-testid="stack-target-arrow"][data-key="${k}"] .arrow__core .arrow__head`);
-        const probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        probe.style.fill = 'var(--danger)';
-        head?.parentElement?.appendChild(probe);
-        const danger = getComputedStyle(probe).fill;
-        probe.remove();
-        return { fill: head === null ? null : getComputedStyle(head).fill, danger };
-      }, key);
-      expect(colour.fill, 'the attack arrow is the theme danger').toBe(colour.danger);
 
       // Bob has no creature (Jace is a planeswalker, not a blocker) and
       // nobody has anything else to decide, so Forge runs the rest of
