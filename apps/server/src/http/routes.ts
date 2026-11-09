@@ -2115,7 +2115,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// what a bot at that draft took (`botDeck.ts`).
 		let botDeck: string | null = null;
 		const held = players[0]!.state.aiDeck;
-		const botKept = vsBot && held !== undefined && (dealsDecks(room) || !newSeries || rematch);
+		// A Classic tournament pairing holds the deck its lock dealt that AI entrant
+		// (`seatTournamentDeck`); its first game is a new series and still plays it.
+		// A drafted pool's pairing deals its bot below, from that bot's own picks.
+		const lockedForPairing = draftIdOfPool(pool) === null && deps.rooms?.tournamentPairingOf?.(room.id, table.id) != null;
+		const botKept = vsBot && held !== undefined && (dealsDecks(room) || lockedForPairing || !newSeries || rematch);
 		if (vsBot) {
 			const owner = loaded[0]!.member.id;
 			const draftId = draftIdOfPool(pool);

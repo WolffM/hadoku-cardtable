@@ -2723,6 +2723,29 @@ describe('a room table', () => {
 		});
 
 		/**
+		 * A Classic tournament's lock snapshots every entrant's deck, an AI's included
+		 * (`PodChecks.seatTournamentDeck` puts it on its human partner's `aiDeck`). The
+		 * table's first game is a new series, and that alone must not throw the
+		 * locked deck away for a fresh draw.
+		 */
+		it('a Classic tournament table against the AI plays the deck the lock dealt that entrant, not a fresh draw', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
+			const table = h.lobby.room(ROOM)!.tables[0]!.id;
+			h.lobby.tournamentPairingOf = (roomId, tableId) => (roomId === ROOM && tableId === table ? { entrants: [ALICE, 'ai:3'] } : null);
+			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
+			const locked = library.deck(SECOND_DECK)!.text;
+			h.lobby.setPlayerState(ROOM, ALICE, { ...(h.lobby.playerState(ROOM, ALICE) as Record<string, unknown>), aiDeck: locked });
+			const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+			try {
+				expect((await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'))).status).toBe(201);
+				expect(h.specs[0]!.seats[1]!.deck).toBe(locked);
+			} finally {
+				random.mockRestore();
+			}
+		});
+
+		/**
 		 * The operator, 2026-10-21: "if rematch is clicked, yes the bot keeps the
 		 * same deck. if we go back to room then it picks a new deck". Every game
 		 * of the Bo3 a Rematch converts into is the same series, so the same bot
