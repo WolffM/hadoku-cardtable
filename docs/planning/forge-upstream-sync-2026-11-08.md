@@ -128,6 +128,11 @@ protocol change does to a seat that is Forge's client inside our bridge. Each is
 | A second target pick answered the first | the bridge resent a selection whose player list shrank after a pick | an offer goes out once per input |
 | Upstream's own tests: 4 reds of 2,193 | our features (ActGate's wait, our variable-amount undo, our real `forge server`) | `ActGate.await` takes the GUI's `awaitInput`; two tests adapted to our semantics, named in their commits |
 | `by-hand-payment.jvm` | Forge's Auto now chains one Signet | a board with two Signets, one paying the other: Auto-dead on the old pin and the new |
+| A chosen card re-sent the offer (`sac-autopick`, `tk-tinker`); a combat declaration's set reached the wrong input | a selection reaches the seat's GUI after the host has moved to the next input, and the bridge read the open input when it arrived | fork: `Selection.input` names the sending input; bridge: the offer and the actionable set are keyed to it, and an offer whose input is gone is never sent |
+| The keep question with dead buttons (`w89c`, `tf-thopter-sword`, `tk-tinker` vs the AI) | the client's 250 ms "Waiting for …" fired between an input's bar and its prompt; Forge cancels it only on the prompt | `SeatGui.awaitNextInput` composes the wait itself, dropped once a prompt or bar follows, and holds the next input's frames while it is out |
+| End Turn showed no yield bar (`cancel-payment`, `yield-cancel`) | the yield line comes from the client's copy of the yield state, which never heard of an End Turn pressed as Cancel; and a yield shorter than 250 ms was never shown | `SeatGui.currentYieldMessage` reads the host's `YieldController`; a yield's bar goes up at once |
+| `[nightly] H3`: a quiet seat failed its match | `FGameClient` drops its server after 45 s with nothing read, whatever the host's timeout | fork: the client's read timeout is the server's (`forge.net.heartbeatTimeout`, a day on our JVMs) |
+| `w68-pay.spec` paid itself | the same Signet change as `by-hand-payment` | the spec moves to `by-hand-signets` |
 
 ## Not turned on yet
 
@@ -140,7 +145,9 @@ protocol change does to a seat that is Forge's client inside our bridge. Each is
 - **UndoManager.** Off: our undo is the stack's. If players want "undo the last spell", that's
   upstream's mechanism to turn on, as its own decision.
 
-## Not verified here
+## Upstream's own, not ours
 
-- `c176445a91` drops a `SameNameAsEach` guard upstream had added in `936c2faf27` (batch 3's
-  reading). That is upstream's own code path, not ours; it is unchecked whether master still lacks it.
+- `c176445a91` (#12477) drops the `SameNameAsEach` guard `936c2faf27` (#12381) had added to
+  `ChangeZoneEffect` ("with nothing to name, no search takes place"), and master at `960c343030` still
+  lacks it: a "for each …, search" with nothing to name now searches. Verified in the diff; upstream's
+  rules code, left as upstream has it.

@@ -1029,6 +1029,22 @@ in that tree (paths under `forge/`):
   `Selection.ofChosen(keptMarks)`. The "Wave 22" facts above about `setSelectables`' two call sites in
   input constructors describe the old pin. The bridge diffs each selection against the last
   (`SeatGui.setSelection`) and sends the old five frames.
+- **VERIFIED — a selection arrives late, and names its input (fork).** The client decodes a
+  `setSelection` only after the deltas ahead of it (`GameClientHandler.decodeArgs`), on its channel
+  thread, so by then the host's game thread may be on the next input. The fork adds
+  `Selection.input` (`InputBase.getSelectionId`, set by `InputBase.showSelection`; 0 from any other
+  caller), and the bridge keys the offer to it, never to the input open when it arrives.
+- **VERIFIED — "Waiting for …" is the client's.** The host sends only `awaitNextInput`
+  (`ProtocolGuiGame.awaitNextInput`, `updateAutoPassPrompt` when a yield is on); the client composes
+  the prompt 250 ms later on a timer (`AbstractGuiGame.awaitNextInput` → `updatePromptForAwait`),
+  with the yield line from its own copy of the yield state (`currentYieldMessage`). An input sends its
+  bar before its prompt (`updateButtons`, then `showMessage`), and Forge's client cancels the wait only
+  on the prompt (`CMatchUI.showPromptMessage`). `SeatGui` composes the wait itself instead
+  (`awaitNextInput`), dropped once a prompt or bar follows, reading the yield off the host's
+  `YieldController`.
+- **VERIFIED — the client times its server out (fork).** `FGameClient` closes and reconnects after
+  `READER_IDLE_SECONDS` with nothing read (`LobbyUpdateHandler.userEventTriggered`); upstream hardcoded
+  45 s. The fork makes it the server's `forge.net.heartbeatTimeout`, never under three heartbeats.
 - **VERIFIED — zones are the client's.** `tempShowZones`, `hideZones` and `restoreOldZones` are gone,
   and `openZones` is no longer a protocol method (Forge #12023, `ProtocolMethod.java`); a reveal is
   `showRevealedCards` / `hideRevealedCards`. The "fifteen asks" above are now thirteen.
