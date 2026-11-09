@@ -1905,7 +1905,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     s.send(parseServerFrame({ kind: 'notify', method: 'message', message: 'line 6', title: '' }));
     await waitFor(() => expect(list.querySelectorAll('li')).toHaveLength(6));
 
-    const decls = declarations(liveCss(), '.live__log');
+    const decls = declarations(readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'log/log.css'), 'utf8'), '.game-log__scroll');
     expect(decls).toContain('overflow-y: auto');
     expect(decls, 'scrolling needs a bounded box, not a content-sized one').toContain('flex: 1 1 0');
   });
@@ -2811,17 +2811,16 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
  * The render half of the log. The lines are Forge's own game log, worded per
  * player by the bridge (`PlayBridge.GameLogForward`); this is what they LOOK like.
  */
-describe('§A.11 — the log is coloured by what happened, and its card names reveal the card', () => {
+describe('§A.11 — the log marks what happened and whose it was, and its card names reveal the card', () => {
   const says = (text: string) => parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '' });
   /** A line of Forge's own game log, as the server sends it. */
   const logged = (text: string, type: GameLogLine['type'], cards: GameLogLine['cards'] = []) =>
     parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '', log: { type, cards } });
-  const lines = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-testid="live-log"] li')];
+  const lines = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-testid="live-log"] [data-log-line]')];
 
-  it('marks each line with its kind, from Forge’s own entry type, and each kind has an ink of its own', async () => {
+  it('marks each line with its kind, from Forge’s own entry type, and marks it in the colour of whose it was', async () => {
     const { s, container } = await liveBoard();
     for (const f of [
-      logged('Volcanic Island - Add U.', 'MANA'),
       logged('Fire Urchin deals 2 damage to Goblin Replica.', 'DAMAGE'),
       says('full control on'),
       logged('Alice played Island', 'LAND'),
@@ -2833,19 +2832,15 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
     ]) {
       s.send(f);
     }
-    await waitFor(() => expect(lines(container)).toHaveLength(9));
-    expect(lines(container).map((li) => li.dataset.logKind)).toEqual(['payment', 'damage', 'control', 'play', 'play', 'said', 'trigger', 'life', 'said']);
-    expect(lines(container).map((li) => li.dataset.logType ?? null)).toEqual(['MANA', 'DAMAGE', null, 'LAND', 'STACK_ADD', null, 'STACK_ADD', 'LIFE', 'DISCARD']);
-    /*
-     * Colour is never the only signal — the words are, and always were. These are
-     * tints on the text rather than badges, so a log read with no colour at all
-     * still says everything it said before.
-     */
-    for (const kind of ['payment', 'trigger', 'damage', 'life', 'play', 'control']) {
-      const rule = new RegExp(`\\.live__log li\\[data-log-kind='${kind}'\\] \\{([^}]*)\\}`).exec(liveCss());
-      expect(rule, `${kind} has a rule`).not.toBeNull();
-      expect(rule![1], `${kind} sets an ink`).toMatch(/color:/);
-    }
+    await waitFor(() => expect(lines(container)).toHaveLength(8));
+    expect(lines(container).map((li) => li.dataset.logKind)).toEqual(['damage', 'said', 'land', 'cast', 'said', 'trigger', 'life', 'discard']);
+    expect(lines(container).map((li) => li.dataset.logType ?? null)).toEqual(['DAMAGE', null, 'LAND', 'STACK_ADD', null, 'STACK_ADD', 'LIFE', 'DISCARD']);
+    // Each line's mark takes its seat's colour, and both are the theme's own inks (`log/log.css`).
+    const css = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'log/log.css'), 'utf8');
+    expect(declarations(css, ".game-log__row[data-log-who='you'] .game-log__mark")).toContain('stroke: var(--game-log-you)');
+    expect(declarations(css, ".game-log__row[data-log-who='them'] .game-log__mark")).toContain('stroke: var(--game-log-them)');
+    expect(declarations(css, '.game-log')).toContain('--game-log-you: var(--accent-ink)');
+    expect(declarations(css, '.game-log')).toContain('--game-log-them: var(--condition-ink)');
   });
 
   it('tells the table’s lines from your own, by the player Forge’s line opens with', async () => {
@@ -2865,20 +2860,20 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
     const named = islands.at(-1)!;
     s.send(logged('Island - Add U.', 'MANA', [{ id: named, name: 'Island' }]));
     await waitFor(() => expect(lines(container)).toHaveLength(1));
-    const name = lines(container)[0]!.querySelector<HTMLElement>('.live__log-card')!;
+    const name = lines(container)[0]!.querySelector<HTMLElement>('.game-log__card')!;
     expect(name.dataset.logCard).toBe('Island');
     expect(Number(name.dataset.inspectIds!.split(',')[0]), 'the named card first, for the inspector').toBe(named);
     // A name Forge's line did not list is plain text, even when the board holds a card of that name.
     s.send(logged('Bob discards Island.', 'DISCARD', []));
     await waitFor(() => expect(lines(container)).toHaveLength(2));
-    expect(lines(container)[1]!.querySelectorAll('.live__log-card')).toHaveLength(0);
+    expect(lines(container)[1]!.querySelectorAll('.game-log__card')).toHaveLength(0);
   });
 
   it('a card name the viewer’s own board holds is a tab stop, and hovering it draws the card through the inspector', async () => {
     const { s, m, container } = await liveBoard();
     s.send(says('paid U — Island, Izzet Guildgate'));
     await waitFor(() => expect(lines(container)).toHaveLength(1));
-    const names = [...lines(container)[0]!.querySelectorAll<HTMLElement>('.live__log-card')];
+    const names = [...lines(container)[0]!.querySelectorAll<HTMLElement>('.game-log__card')];
     expect(names.map((n) => n.dataset.logCard)).toEqual(['Island', 'Izzet Guildgate']);
     expect(names.map((n) => n.tabIndex), 'the keyboard gets what the pointer gets').toEqual([0, 0]);
     // The line still READS as the line: wrapping a name changes no text.
@@ -2903,7 +2898,7 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
     const { s, container } = await liveBoard();
     s.send(says('paid U — Island'));
     await waitFor(() => expect(lines(container)).toHaveLength(1));
-    const name = lines(container)[0]!.querySelector<HTMLElement>('.live__log-card')!;
+    const name = lines(container)[0]!.querySelector<HTMLElement>('.game-log__card')!;
     name.dataset.inspectIds = '999999';
     fireEvent.pointerOver(name, { pointerType: 'mouse' });
     expect(container.querySelector('[data-inspect]')).toBeNull();
@@ -2914,7 +2909,7 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
     const { s, container } = await liveBoard();
     s.send(says('paid B — Swamp'));
     await waitFor(() => expect(lines(container)).toHaveLength(1));
-    expect(lines(container)[0]!.querySelectorAll('.live__log-card')).toHaveLength(0);
+    expect(lines(container)[0]!.querySelectorAll('.game-log__card')).toHaveLength(0);
     expect(lines(container)[0]!.textContent).toBe('paid B — Swamp');
   });
 });

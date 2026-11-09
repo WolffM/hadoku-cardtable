@@ -14,6 +14,12 @@
  * Every class must show on BOTH screens, and nothing alice holds unseen (her Counterspell, the
  * Brainstorm she draws) may appear on bob's.
  *
+ * The operator, 2026-11-09, on the redesign (the canvas "Game Log Redesign"): the log is turns; a
+ * response sits under what it answered and a resolution's results under its spell; the mana that
+ * paid is on the cast, not a line of its own; the untap step says nothing; a target is named even
+ * once it has moved (Unsummon's Elves, in bob's hand by the time its line is written); combat is one
+ * block; each line is marked as yours or theirs.
+ *
  * The operator, 2026-10-12: *"yes, add the draw/tap/counter/token log entries next"*. Forge's log has
  * no entry for a draw, a tap or untap, a counter, a token, or a card moved between hand, library and
  * battlefield; the bridge writes them from Forge's events into the same stream. Below the stack also
@@ -34,41 +40,45 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 const logLines = (page: Page): Promise<string[]> =>
-  page.getByTestId('live-log').locator('li').evaluateAll((els) => els.map((e) => (e.textContent ?? '').replace(/\s+/g, ' ').trim()));
+  page
+    .getByTestId('live-log')
+    .locator('[data-log-line]')
+    .evaluateAll((els) => els.map((e) => (e.textContent ?? '').replace(/\s+/g, ' ').trim()));
 
-/** One line per action class, as Forge's own log words it (`en-US.properties`, `GameLogFormatter`). */
+/** One line per action class, as the log draws it: Forge's words, a target as an arrow, a resolution under its spell. */
 const CLASSES: [string, RegExp][] = [
-  ['cast with a target', /^Alice cast Lightning Bolt targeting \[Bob\]$/],
-  ['trigger', /^Bob triggered Doomed Traveler/],
-  // The Elves are in bob's hand when the line is written, so alice reads "a card": Forge's canBeShownTo at that moment.
-  ['spell resolves (the bounce)', /^Unsummon - Return (a card|Llanowar Elves) to its owner's hand\.$/],
-  ['non-combat damage', /^Lightning Bolt deals 3 non-combat damage to Bob/],
-  ['life', /^Life: Bob \d+ > \d+$/],
+  ['cast with a target', /^alice cast Lightning Bolt → bob$/i],
+  ['trigger', /^bob triggered Doomed Traveler/i],
+  // Under Unsummon: its own line, its name taken off the front, and the Elves NAMED on both screens:
+  // they were on the battlefield when Unsummon targeted them.
+  ['spell resolves (the bounce)', /^Return Llanowar Elves to its owner's hand\.$/],
+  ['non-combat damage', /^Lightning Bolt deals 3 non-combat damage to bob/i],
+  ['life', /^bob −\d+ → \d+$/i],
   ['dies (battlefield to graveyard)', /^Doomed Traveler was put into graveyard from battlefield/i],
   ['exile', /^Savannah Lions was put into exile from battlefield/i],
-  ['discard', /^Bob discards Llanowar Elves/],
-  ['mill', /^Bob milled Forest/],
-  ['attack', /^Alice assigned Grizzly Bears to attack Bob/],
-  ['block', /^Bob didn't block Grizzly Bears/],
-  ['combat damage', /^Grizzly Bears deals 2 combat damage to Bob/],
-  ['land', /^Alice played Mountain$/],
-  ['cast', /^Alice cast Opt$/],
-  ['scry', /^Alice scried 1 card/],
-  ['turn', /^Turn 2 \(Bob\)$/],
+  ['discard', /^bob discards Llanowar Elves/i],
+  ['mill', /^bob milled Forest/i],
+  ['attack', /^alice assigned Grizzly Bears to attack bob/i],
+  ['block', /^bob didn't block Grizzly Bears/i],
+  ['combat damage', /^Grizzly Bears deals 2 combat damage to bob/i],
+  ['land', /^alice played Mountain$/i],
+  ['cast', /^alice cast Opt$/i],
+  ['scry', /^alice scried 1 card/i],
 ];
 
 /** The actions Forge's log does not record, each exactly once on both screens. */
 const WRITTEN: [string, RegExp][] = [
-  ['payment', /^Alice taps Island for U\.$/],
-  ['token', /^Alice creates a 0\/0 Zombie Army Token\.$/],
+  ['token', /^alice creates a 0\/0 Zombie Army Token\.$/i],
   ['counter', /^Zombie Army Token gets three \+1\/\+1 counters\.$/],
   ['search (library to battlefield)', /^Forest was put into Battlefield from Library\.$/],
   ['bounce (battlefield to hand)', /^Ornithopter was put into Hand from Battlefield\.$/],
-  ['untap step', /^Bob untaps their permanents\.$/],
 ];
 
+/** Lines the log no longer has: a payment is on its cast, a colour pick is the payment's, and the untap step says nothing. */
+const GONE = [/\btaps Island\b/i, /\bpicked\b/, /untaps their permanents/];
+
 /** Bob's draw step, as each seat may read it: the card's name to bob alone. */
-const BOB_DRAWS: Record<'alice' | 'bob', RegExp> = { alice: /^Bob draws a card\.$/, bob: /^Bob draws Forest\.$/ };
+const BOB_DRAWS: Record<'alice' | 'bob', RegExp> = { alice: /^bob draws a card\.$/i, bob: /^bob draws Forest\.$/i };
 
 /** Names bob is never shown: alice's uncast Counterspell, and the Brainstorms in her library and hand. */
 const HIDDEN_FROM_BOB = ['Counterspell', 'Brainstorm'];
@@ -164,9 +174,27 @@ test(titled("the log shows Forge's own game log on both screens, every action cl
         [...WRITTEN.map(([name]) => name), 'draw step'].map((name) => `${name}=1`),
       );
     }
-    // Alice's own draws (Thought Scour's, Opt's) name the Brainstorm to her; bob reads only Forge's "Alice draws a card".
-    expect((await logLines(alice.page)).filter((l) => /^Alice draws Brainstorm\.$/.test(l)), "alice's log names her draws").toHaveLength(2);
-    expect((await logLines(bob.page)).filter((l) => /^Alice draws\b/.test(l)), "bob's log has no line of alice's draws of its own").toEqual([]);
+    // Alice's own draws (Thought Scour's, Opt's) name the Brainstorm to her; bob reads only Forge's "alice draws a card".
+    expect((await logLines(alice.page)).filter((l) => /^alice draws Brainstorm\.$/i.test(l)), "alice's log names her draws").toHaveLength(2);
+    expect((await logLines(bob.page)).filter((l) => /^alice draws\b/i.test(l)), "bob's log has no line of alice's draws of its own").toEqual([]);
+    for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
+      const lines = await logLines(page);
+      expect(lines.filter((l) => GONE.some((re) => re.test(l))), `${who}'s log has no payment, colour-pick or untap-step line`).toEqual([]);
+      const log = page.getByTestId('live-log');
+      // Opt's payment is a mana symbol on its own row.
+      await expect(log.locator('[data-log-line]', { hasText: /^alice cast Opt$/i }).locator('.game-log__cost .ms'), `${who}: Opt's row carries the Island's mana`).toHaveCount(1);
+      // Bob's trigger went on the stack over alice's Lightning Bolt: it is drawn nested under it.
+      await expect(log.locator('.game-log__nest [data-log-line]', { hasText: /bob triggered Doomed Traveler/i }), `${who}: the trigger nests under the Bolt`).toHaveCount(1);
+      // Unsummon's resolution is under Unsummon.
+      await expect(log.locator('.game-log__results [data-log-line]', { hasText: /^Return Llanowar Elves to its owner's hand\.$/ }), `${who}: the bounce is under Unsummon`).toHaveCount(1);
+      // Combat is one block: the attack, the stack alice cast during it, and the Bears' damage are all in it.
+      await expect(log.getByTestId('log-combat'), `${who}: one combat block`).toHaveCount(1);
+      await expect(log.getByTestId('log-combat').locator('[data-log-line]', { hasText: /^Grizzly Bears deals 2 combat damage/ }), `${who}: combat damage is in the combat block`).toHaveCount(1);
+      // Turn 2 is bob's: a section of its own, its header in bob's colour on each screen.
+      await expect(log.locator('[data-testid="log-turn"][data-turn="2"] .game-log__who'), `${who}: turn 2 is bob's`).toHaveAttribute('data-seat', who === 'bob' ? 'you' : 'them');
+      // Whose each line is, from the viewer's side.
+      await expect(log.locator('[data-log-line]', { hasText: /^alice cast Opt$/i }), `${who}: Opt is ${who === 'alice' ? 'yours' : 'theirs'}`).toHaveAttribute('data-log-who', who === 'alice' ? 'you' : 'them');
+    }
     const bobText = (await logLines(bob.page)).join('\n');
     const leaked = HIDDEN_FROM_BOB.filter((name) => bobText.includes(name));
     console.log(`[lg-gamelog] hidden names on bob's log: ${leaked.join(', ') || 'none'}`);

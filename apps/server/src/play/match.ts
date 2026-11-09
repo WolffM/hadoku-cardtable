@@ -4002,7 +4002,7 @@ export class Match {
 			if (s.ai || s.playerId === null) continue;
 			const mine = line.players.find((p) => p.player === s.playerId);
 			if (mine === undefined || mine.text === null || mine.text === '') continue;
-			s.heldLog.push({ text: mine.text, log: { type: line.type, cards: mine.cards } });
+			s.heldLog.push({ text: mine.text, log: { type: line.type, cards: mine.cards, ...line.meta } });
 			this.releaseLog(s, false);
 			if (s.heldLog.length > 0 && s.heldLogTimer === null) {
 				const timer = setTimeout(() => {
@@ -4046,7 +4046,7 @@ export class Match {
 		const active = w.projector.activePlayer() ?? this.watcherSource()?.playerId ?? null;
 		const theirs = line.players.find((p) => p.player === active);
 		if (theirs === undefined || theirs.text === null || theirs.text === '') return;
-		w.heldLog.push({ text: theirs.text, log: { type: line.type, cards: theirs.cards } });
+		w.heldLog.push({ text: theirs.text, log: { type: line.type, cards: theirs.cards, ...line.meta } });
 		this.releaseWatcherLog(false);
 		if (w.heldLog.length > 0 && w.heldLogTimer === null) {
 			const timer = setTimeout(() => {

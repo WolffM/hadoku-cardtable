@@ -7555,21 +7555,30 @@ public final class PlayBridge {
                     ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile);
 
             /** A game action Forge's log has no entry for. */
-            private enum Kind { MOVE, TOKEN, TAP, UNTAP, UNTAP_STEP, COUNTER }
+            private enum Kind { MOVE, TOKEN, TAP, UNTAP, COUNTER }
 
             /**
              * One action waiting for the entry that closes it. {@code shown}: a moved card
              * that left a public zone, named to everyone; a token's printed power and
-             * toughness as it entered. {@code resolving}: it happened while the stack
-             * resolved, and waits for that resolution's line.
+             * toughness as it entered. {@code of}: the id of the stack item that was
+             * resolving when it happened (0 for none); it waits for that resolution's line.
              */
             private record Pending(Kind kind, forge.game.player.Player player, forge.game.card.Card card,
-                    ZoneType from, ZoneType to, CounterType counter, int delta, String shown, boolean resolving) { }
+                    ZoneType from, ZoneType to, CounterType counter, int delta, String shown, int of) {
+                boolean resolving() { return of > 0; }
+            }
 
             private final Game game;
             private int sent;
             private final List<Pending> pending = new ArrayList<>();
             private final List<forge.game.GameLogEntry> payment = new ArrayList<>();
+            /**
+             * Each stack item's targets that were in a public zone when it went on the stack, by
+             * the item's id. Its own lines may name them wherever they are when the line is
+             * written (Azorius Charm's attacker is in its owner's library by then, and was public
+             * when it was targeted).
+             */
+            private final Map<Integer, java.util.Set<Integer>> shownTargets = new java.util.HashMap<>();
 
             private final MatchContext match;
 
@@ -7606,6 +7615,14 @@ public final class PlayBridge {
             }
 
             private void written(final forge.game.GameLogEntry entry) {
+                // A mana colour picked for a payment ("Alice picked {G}", PlayerControllerHuman.notifyOfValue,
+                // typed LAND with no card): the payment line already says what the mana was.
+                if (entry.type() == forge.game.GameLogEntryType.LAND && entry.sourceCard() == null) { return; }
+                // "Turn 12": Forge's count of rounds, which the turn lines already number turn by turn.
+                if (entry.type() == forge.game.GameLogEntryType.GAME_OUTCOME && entry.message() != null
+                        && entry.message().matches(java.util.regex.Pattern.quote(forge.util.Localizer.getInstance().getMessage("lblTurn")) + " \\d+")) {
+                    return;
+                }
                 final java.util.Set<Integer> named = namedIds(entry);
                 // A token is new: a later line naming it ("… gain hexproof") did not say it was created.
                 pending.removeIf(p -> p.kind() != Kind.TOKEN && p.card() != null && named.contains(p.card().getId()));
@@ -7614,15 +7631,139 @@ public final class PlayBridge {
                     payment.add(entry);
                     return;
                 }
+                final SpellAbilityStackInstance added = entry.type() == forge.game.GameLogEntryType.STACK_ADD ? stackItemOf(entry) : null;
+                final String paid = added == null ? null : takePayment(added.getActivatingPlayer());
                 sendPayment();
                 if (entry.type() == forge.game.GameLogEntryType.PHASE) {
                     send(true, null);
                     return;
                 }
                 final boolean resolution = entry.type() == forge.game.GameLogEntryType.STACK_RESOLVE
-                        && entry.sourceCard() != null && game.getStack().isResolving();
+                        && entry.sourceCard() != null && game.getStack().isResolving() && game.getStack().peek() != null;
                 send(false, resolution ? entry : null);
-                forward(entry.type(), entry.message(), entry.sourceCard(), java.util.Set.of(), false);
+                final JsonObject meta = new JsonObject();
+                String message = entry.message();
+                if (added != null) {
+                    meta.addProperty("actor", added.getActivatingPlayer().getId());
+                    meta.addProperty("stack", added.getId());
+                    final SpellAbilityStackInstance under = below(added);
+                    if (under != null) { meta.addProperty("parent", under.getId()); }
+                    if (paid != null && !paid.isEmpty()) { meta.addProperty("mana", paid); }
+                    shownTargets.put(added.getId(), publicTargets(added));
+                } else if (resolution) {
+                    final SpellAbilityStackInstance done = game.getStack().peek();
+                    meta.addProperty("resolves", done.getId());
+                    message = resolved(done, entry);
+                } else if (entry.type() != forge.game.GameLogEntryType.COMBAT) {
+                    // Combat is its own block; an attack Forge logs while the stack resolves is not the spell's doing.
+                    final int of = resolvingId();
+                    if (of > 0) { meta.addProperty("of", of); }
+                }
+                if (entry.type() == forge.game.GameLogEntryType.TURN) {
+                    meta.addProperty("turn", game.getPhaseHandler().getTurn());
+                    if (game.getPhaseHandler().getPlayerTurn() != null) { meta.addProperty("actor", game.getPhaseHandler().getPlayerTurn().getId()); }
+                }
+                if (entry.type() == forge.game.GameLogEntryType.LIFE) { life(meta, message); }
+                if (!meta.has("actor") && entry.sourceCard() != null) {
+                    final forge.game.card.Card source = game.findById(entry.sourceCard().getId());
+                    if (source != null && source.getController() != null) { meta.addProperty("actor", source.getController().getId()); }
+                }
+                forward(entry.type(), message, entry.sourceCard(), java.util.Set.of(), false, meta);
+            }
+
+            /** The stack item a {@code STACK_ADD} entry is about: the newest one of its card. */
+            private SpellAbilityStackInstance stackItemOf(final forge.game.GameLogEntry entry) {
+                for (final SpellAbilityStackInstance si : game.getStack()) {
+                    if (entry.sourceCard() == null || si.getSourceCard() != null && si.getSourceCard().getId() == entry.sourceCard().getId()) { return si; }
+                }
+                return null;
+            }
+
+            /** The item directly under {@code si} on the stack: what {@code si} was put on top of. */
+            private SpellAbilityStackInstance below(final SpellAbilityStackInstance si) {
+                boolean found = false;
+                for (final SpellAbilityStackInstance each : game.getStack()) {
+                    if (found) { return each; }
+                    found = each == si;
+                }
+                return null;
+            }
+
+            /** The stack item resolving now, 0 for none. */
+            private int resolvingId() {
+                if (!game.getStack().isResolving()) { return 0; }
+                final SpellAbilityStackInstance si = game.getStack().peek();
+                return si == null ? 0 : si.getId();
+            }
+
+            /** {@code si}'s target cards that are in a public zone, face up, now (as it goes on the stack). */
+            private static java.util.Set<Integer> publicTargets(final SpellAbilityStackInstance si) {
+                final java.util.Set<Integer> ids = new java.util.HashSet<>();
+                for (final forge.game.spellability.TargetChoices tc : si.getSpellAbility().getAllTargetChoices()) {
+                    for (final forge.game.card.Card c : tc.getTargetCards()) {
+                        if (c.getZone() != null && PUBLIC_ZONES.contains(c.getZone().getZoneType()) && !c.isFaceDown()) { ids.add(c.getId()); }
+                    }
+                }
+                return ids;
+            }
+
+            /**
+             * A resolution's line, said as what it did where Forge's says what the card is. A
+             * permanent spell's is {@code "Grizzly Bears - Creature 2 / 2"}: its PRINTED stats, so a
+             * Prime Speaker Zegana that entered with four counters read 1/1. It now says how it
+             * entered: as a 5/5, with 4 loyalty, attached to the creature it was bestowed on. A spell
+             * that fizzled is named with its id, so the name can show the card, and says why.
+             */
+            private String resolved(final SpellAbilityStackInstance si, final forge.game.GameLogEntry entry) {
+                final String message = entry.message() == null ? "" : entry.message();
+                final forge.game.card.Card host = game.findById(entry.sourceCard().getId());
+                if (host == null) { return message; }
+                if (message.equals(forge.util.Localizer.getInstance().getMessage("lblLogCardAbilityFizzles", host.getName()))) {
+                    return host.getView() + (si.isSpell() ? " fizzles: no legal target." : "'s ability fizzles: no legal target.");
+                }
+                if (!si.isSpell() || !host.isPermanent() || !host.isInZone(ZoneType.Battlefield)) { return message; }
+                final forge.game.card.Card on = host.getAttachedTo();
+                if (on != null) { return host.getView() + " enters attached to " + on.getView() + "."; }
+                if (host.isCreature()) { return host.getView() + " enters as a " + host.getNetPower() + "/" + host.getNetToughness() + "."; }
+                if (host.isPlaneswalker()) { return host.getView() + " enters with " + host.getCurrentLoyalty() + " loyalty."; }
+                return host.getView() + " enters.";
+            }
+
+            private static final java.util.regex.Pattern LIFE_LINE = java.util.regex.Pattern.compile("^Life: (.+) (-?\\d+) > (-?\\d+)$");
+
+            /** A {@code LIFE} line's change ("Life: Bob 20 > 17", {@code lblLogPlayerLifeChange}) as numbers. */
+            private void life(final JsonObject meta, final String message) {
+                final java.util.regex.Matcher m = LIFE_LINE.matcher(message == null ? "" : message);
+                if (!m.matches()) { return; }
+                for (final forge.game.player.Player p : game.getPlayers()) {
+                    if (!p.getName().equals(m.group(1))) { continue; }
+                    final JsonObject life = new JsonObject();
+                    life.addProperty("player", p.getId());
+                    life.addProperty("from", Integer.parseInt(m.group(2)));
+                    life.addProperty("to", Integer.parseInt(m.group(3)));
+                    meta.add("life", life);
+                    meta.addProperty("actor", p.getId());
+                    return;
+                }
+            }
+
+            /**
+             * The held payment as the mana that paid for a spell or ability {@code payer} just put on
+             * the stack ({@code "{G}{G}{U}"}, empty when nothing was made), or null when the run is not
+             * wholly that player's own cards' mana abilities and goes as lines of its own.
+             */
+            private String takePayment(final forge.game.player.Player payer) {
+                if (payment.isEmpty() || payer == null) { return null; }
+                final StringBuilder mana = new StringBuilder();
+                for (final forge.game.GameLogEntry entry : payment) {
+                    final String message = entry.message() == null ? "" : entry.message();
+                    final java.util.regex.Matcher id = CARD_ID.matcher(message);
+                    final forge.game.card.Card card = id.find() ? game.findById(Integer.parseInt(id.group(1))) : null;
+                    if (card == null || card.getController() != payer) { return null; }
+                    mana.append(produced(card, message.substring(id.end())));
+                }
+                payment.clear();
+                return mana.toString();
             }
 
             private static java.util.Set<Integer> namedIds(final forge.game.GameLogEntry entry) {
@@ -7660,11 +7801,8 @@ public final class PlayBridge {
                 // A card leaving the battlefield tapped is untapped on its way out (GameAction.java:537): the move says it.
                 if (card == null || !card.isInZone(ZoneType.Battlefield)) { return; }
                 final forge.game.phase.PhaseHandler ph = game.getPhaseHandler();
-                if (!ev.tapped() && ph.getPhase() == PhaseType.UNTAP && card.getController() == ph.getPlayerTurn()) {
-                    final boolean said = pending.stream().anyMatch(p -> p.kind() == Kind.UNTAP_STEP && p.player() == card.getController());
-                    if (!said) { hold(Kind.UNTAP_STEP, card.getController(), null, null, null, null, 0, null); }
-                    return;
-                }
+                // The untap step untaps everything, every turn: a line a turn that says nothing.
+                if (!ev.tapped() && ph.getPhase() == PhaseType.UNTAP && card.getController() == ph.getPlayerTurn()) { return; }
                 hold(ev.tapped() ? Kind.TAP : Kind.UNTAP, card.getController(), card, null, null, null, 0, null);
             }
 
@@ -7678,7 +7816,7 @@ public final class PlayBridge {
                 if (last != null && last.kind() == Kind.COUNTER && last.card() == card && last.counter().equals(ev.type())
                         && Integer.signum(last.delta()) == Integer.signum(delta)) {
                     pending.set(pending.size() - 1, new Pending(Kind.COUNTER, last.player(), card, null, null, ev.type(),
-                            last.delta() + delta, null, last.resolving()));
+                            last.delta() + delta, null, last.of()));
                     return;
                 }
                 hold(Kind.COUNTER, card.getController(), card, null, null, ev.type(), delta, null);
@@ -7693,7 +7831,7 @@ public final class PlayBridge {
 
             private void hold(final Kind kind, final forge.game.player.Player player, final forge.game.card.Card card,
                     final ZoneType from, final ZoneType to, final CounterType counter, final int delta, final String shown) {
-                pending.add(new Pending(kind, player, card, from, to, counter, delta, shown, game.getStack().isResolving()));
+                pending.add(new Pending(kind, player, card, from, to, counter, delta, shown, resolvingId()));
             }
 
             /**
@@ -7731,7 +7869,7 @@ public final class PlayBridge {
             }
 
             private static boolean sameLine(final Pending a, final Pending b) {
-                if (a.kind() != b.kind() || a.player() != b.player() || a.resolving() != b.resolving()) { return false; }
+                if (a.kind() != b.kind() || a.player() != b.player() || a.of() != b.of()) { return false; }
                 return switch (a.kind()) {
                     case MOVE -> drawn(a) == drawn(b) && a.from() == b.from() && a.to() == b.to();
                     case COUNTER -> a == b;
@@ -7767,10 +7905,6 @@ public final class PlayBridge {
                         type = forge.game.GameLogEntryType.INFORMATION;
                         text = who + (first.kind() == Kind.TAP ? " taps " : " untaps ") + list + ".";
                     }
-                    case UNTAP_STEP -> {
-                        type = forge.game.GameLogEntryType.INFORMATION;
-                        text = who + " untaps their permanents.";
-                    }
                     default -> {
                         type = forge.game.GameLogEntryType.INFORMATION;
                         final int n = Math.abs(first.delta());
@@ -7780,7 +7914,10 @@ public final class PlayBridge {
                                 + ".";
                     }
                 }
-                forward(type, text, null, publicIds, revealOnly);
+                final JsonObject meta = new JsonObject();
+                if (first.player() != null) { meta.addProperty("actor", first.player().getId()); }
+                if (first.resolving()) { meta.addProperty("of", first.of()); }
+                forward(type, text, null, publicIds, revealOnly, meta);
             }
 
             /** "a 1/1 Goblin Token (45)", "three 1/1 Goblin Token (45)s and a Clue Token (48)". */
@@ -7813,11 +7950,11 @@ public final class PlayBridge {
                     final forge.game.card.Card card = id.find() ? game.findById(Integer.parseInt(id.group(1))) : null;
                     if (card == null) {
                         // Not a card's mana ability: Forge's own line as it is.
-                        forward(entry.type(), message, entry.sourceCard(), java.util.Set.of(), false);
+                        forward(entry.type(), message, entry.sourceCard(), java.util.Set.of(), false, new JsonObject());
                         continue;
                     }
                     if (payer != null && payer != card.getController()) {
-                        forward(forge.game.GameLogEntryType.MANA, paid(payer, cards, mana, tapped), null, java.util.Set.of(), false);
+                        forward(forge.game.GameLogEntryType.MANA, paid(payer, cards, mana, tapped), null, java.util.Set.of(), false, actor(payer));
                         cards.clear();
                         mana.setLength(0);
                         tapped = true;
@@ -7827,7 +7964,7 @@ public final class PlayBridge {
                     tapped &= card.isTapped();
                     mana.append(produced(card, message.substring(id.end())));
                 }
-                if (payer != null) { forward(forge.game.GameLogEntryType.MANA, paid(payer, cards, mana, tapped), null, java.util.Set.of(), false); }
+                if (payer != null) { forward(forge.game.GameLogEntryType.MANA, paid(payer, cards, mana, tapped), null, java.util.Set.of(), false, actor(payer)); }
             }
 
             private static String paid(final forge.game.player.Player payer, final List<String> cards, final CharSequence mana, final boolean tapped) {
@@ -7856,13 +7993,41 @@ public final class PlayBridge {
                 return add.find() ? add.group(1).trim() : "";
             }
 
+            private static JsonObject actor(final forge.game.player.Player p) {
+                final JsonObject meta = new JsonObject();
+                meta.addProperty("actor", p.getId());
+                return meta;
+            }
+
+            /**
+             * One line to every player, each in their own words ({@link #worded}), with its public
+             * {@code meta} (the wire's {@code GameLogMeta}). A line no actor was found for is the
+             * doing of the player its words open with ("Bob didn't block …").
+             */
             private void forward(final forge.game.GameLogEntryType type, final String message, final CardView source,
-                    final java.util.Set<Integer> publicIds, final boolean revealOnly) {
+                    final java.util.Set<Integer> publicIds, final boolean revealOnly, final JsonObject meta) {
+                if (!meta.has("actor") && message != null) {
+                    for (final forge.game.player.Player p : game.getPlayers()) {
+                        if (message.regionMatches(true, 0, p.getName() + " ", 0, p.getName().length() + 1)) { meta.addProperty("actor", p.getId()); break; }
+                    }
+                }
+                final PhaseType step = game.getPhaseHandler().getPhase();
+                if (step != null) { meta.addProperty("phase", step.name()); }
+                final int item = meta.has("resolves") ? meta.get("resolves").getAsInt() : meta.has("of") ? meta.get("of").getAsInt() : 0;
+                final java.util.Set<Integer> targets = shownTargets.get(item);
+                final java.util.Set<Integer> shown;
+                if (targets == null || targets.isEmpty()) {
+                    shown = publicIds;
+                } else {
+                    shown = new java.util.HashSet<>(publicIds);
+                    shown.addAll(targets);
+                }
                 final JsonObject o = line("log");
                 o.addProperty("type", type.name());
+                o.add("meta", meta);
                 final JsonArray players = new JsonArray();
                 for (final forge.game.player.Player p : game.getPlayers()) {
-                    players.add(worded(message, source, p.getView(), publicIds, revealOnly));
+                    players.add(worded(message, source, p.getView(), shown, revealOnly));
                 }
                 o.add("players", players);
                 match.emit(o);
@@ -7922,7 +8087,8 @@ public final class PlayBridge {
                     hidden.appendReplacement(counted, forge.util.Lang.getNumeral(n) + " cards");
                 }
                 hidden.appendTail(counted);
-                if (!counted.isEmpty()) { counted.setCharAt(0, Character.toUpperCase(counted.charAt(0))); }
+                // "a card was …" opens a sentence; a player's name stays as they wrote it.
+                if (!counted.isEmpty() && !opensWithAName(counted)) { counted.setCharAt(0, Character.toUpperCase(counted.charAt(0))); }
                 out.addProperty("text", counted.toString());
                 final forge.game.card.Card host = source == null ? null : game.findById(source.getId());
                 if (host != null && host.getView().canBeShownTo(viewer)) {
@@ -7933,6 +8099,14 @@ public final class PlayBridge {
                 }
                 out.add("cards", cards);
                 return out;
+            }
+
+            private boolean opensWithAName(final CharSequence text) {
+                for (final forge.game.player.Player p : game.getPlayers()) {
+                    final String name = p.getName();
+                    if (text.length() > name.length() && text.toString().regionMatches(true, 0, name, 0, name.length())) { return true; }
+                }
+                return false;
             }
 
             /** The line is not this viewer's to read. */

@@ -139,12 +139,36 @@ export const FlashIncorrectActionSchema = z.strictObject({
  * player may see, by id, so a name can show that exact card. Ours, not Forge's:
  * the server sends Forge's log through `message` (`apps/server/src/play/match.ts`'s
  * `onGameLog`; the bridge's `GameLogForward` words it per player).
+ *
+ * The rest is what the log panel groups and draws the line by, and every field is
+ * public — the same for each player, so none of it can name a hidden card:
+ *  - `actor`: the Forge player id of whoever did it.
+ *  - `turn`: on a `TURN` line, the turn's number.
+ *  - `stack` / `parent`: on a `STACK_ADD` line, the id of the stack item it put
+ *    on the stack and of the item it went on top of, which is what it answers.
+ *  - `of`: the stack item that was resolving when the line was written, so what a
+ *    resolution did sits under the spell that did it.
+ *  - `resolves`: on the resolution's own line (`STACK_RESOLVE`), the item it finishes.
+ *  - `mana`: on a `STACK_ADD` line, the mana that paid for it (`{G}{G}{U}`).
+ *  - `life`: on a `LIFE` line, whose life and from what to what.
+ *  - `phase`: the step the game was in (Forge's `PhaseType` name), so combat reads as one block.
  */
 export const GameLogLineSchema = z.strictObject({
   type: GameLogEntryTypeSchema,
   cards: z.array(z.strictObject({ id: z.number().int(), name: z.string() })),
+  actor: z.number().int().optional(),
+  turn: z.number().int().optional(),
+  stack: z.number().int().optional(),
+  parent: z.number().int().optional(),
+  of: z.number().int().optional(),
+  resolves: z.number().int().optional(),
+  mana: z.string().optional(),
+  life: z.strictObject({ player: z.number().int(), from: z.number().int(), to: z.number().int() }).optional(),
+  phase: z.string().optional(),
 });
 export type GameLogLine = z.infer<typeof GameLogLineSchema>;
+/** The public half of a log line: what the bridge sends once for every player. */
+export type GameLogMeta = Omit<GameLogLine, 'type' | 'cards'>;
 
 /**
  * A die roll, read where Forge tells it (`PlayBridge.java`'s `SeatController.notifyOfValue`): Forge sends

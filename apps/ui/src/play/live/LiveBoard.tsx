@@ -86,8 +86,10 @@
  * dying or exiled, a scry, the mana that paid, a turn), worded for this seat by
  * the bridge (`PlayBridge.GameLogForward`, which keeps a card this seat may not
  * see out of it). They arrive as Tier-A `message` notifies carrying a `log`
- * (`GameLogLineSchema`); `match.says` holds them (`SAYS_KEPT`) and the logbook
- * draws all of them, braces said in words like every other rules text.
+ * (`GameLogLineSchema`, with each line's public half: who, which stack item,
+ * what it answered or came of, the mana, the life); `match.says` holds them
+ * (`SAYS_KEPT`) and the logbook draws all of them as turns (`./log/GameLog.tsx`,
+ * the operator's 2026-11-09 redesign).
  *
  * ## The overlays have a blocking, and it is the operator's own (wave 26 §B)
  *
@@ -254,11 +256,11 @@
  * new wire shape changes.
  */
 
-import { Component, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Component, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { CLIENT_EVENT, selfAnswer, type ClientEvent, type DraftCard, type RestartState } from '@hadoku/shared';
 import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
-import { YIELDING, type EndedBy, type GameLogLine } from '@hadoku/forge-wire';
+import { YIELDING, type EndedBy } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
 import { parseDck } from '@hadoku/carddata/dck';
 import { CONSTRUCTED_LIMITS, LIMITED_MIN_MAIN_DECK_SIZE, deckFromDeckFile, type Deck } from '@hadoku/deck';
@@ -276,7 +278,7 @@ import { useNamedArt } from '../../screens/libraryPeek.ts';
 import { ActionButton } from '../../components/ActionButton.tsx';
 import { Avatar, NO_FACE, type Face } from '../../components/Avatar.tsx';
 import { PlayerName } from '../../room/look.tsx';
-import { drawnCards, opponentOf, PHASE_LABEL, viewerOf, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
+import { opponentOf, PHASE_LABEL, viewerOf, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, POISON_TO_LOSE, poisonOf, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
 import { CheckMark } from '../marks.tsx';
 import { lookupFromState, plainRulesText, promptLines, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
@@ -341,7 +343,6 @@ import {
   pickedOf,
   pressButton,
   relayout,
-  SAYS_KEPT,
   reportRefusedClick,
   selectCard,
   selectPlayer,
@@ -360,7 +361,6 @@ import {
   type LiveClickables,
   type LiveMatch,
   type MatchTransport,
-  type Say,
 } from './match.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from './prefs.ts';
 import { StopPhaseSchema, stopStep, type StopPhase } from './transport.ts';
@@ -381,6 +381,7 @@ import { installDialogMover, OffersHandContext, offsetToPoint, pointerAt, Questi
 import { answerFromIntent, intentReply, ringFor } from './mana-ring.ts';
 import { ManaRings } from './ManaRing.tsx';
 import { phaseSegmentsOf, PHASE_ORDER } from './phase-segments.ts';
+import { GameLog } from './log/GameLog.tsx';
 
 /* ── Where the match is: seven states, one line ───────────────────────── */
 
@@ -1026,31 +1027,6 @@ function abilityLabelsOf(ask: LiveAsk): Record<number, string> {
   return out;
 }
 
-/**
- * How many of the held says the logbook draws: all of them.
- *
- * It was 2 while the log lived in the control cluster, because the cluster's box
- * is fixed and its slot was two lines tall. The logbook has the height, so the
- * cap is `match.ts`'s own `SAYS_KEPT` — a generously bounded whole game, not a
- * two-line window — and nothing is dropped between what the match holds and
- * what the panel shows.
- */
-const SAYS_SHOWN = SAYS_KEPT;
-
-/* ── the log, as something you can read (wave 28 §A.11, render half) ──── */
-
-/**
- * What KIND of thing a log line reports, which `live.css` colours.
- *
- * The operator, 2026-09-28: *"properly color things based on what happened like
- * damage taken … any cardnames should be hoverable and show what card it is."*
- * A line of Forge's own log carries its `GameLogEntryType`, so the kind is read
- * off that and never off the words. The one line that is not Forge's is the
- * seat's own `full control on`/`off` (`control`); anything else Forge says
- * through `message` falls to `said`.
- */
-type LogKind = 'payment' | 'trigger' | 'damage' | 'life' | 'play' | 'control' | 'said';
-
 /* ── Forge's second button, and the two labels we refuse (items 6, 16) ───── */
 
 /**
@@ -1096,36 +1072,6 @@ function offersSecondButton(match: LiveMatch): boolean {
   return !declaringAttackers(match);
 }
 
-
-
-const KIND_BY_TYPE: Partial<Record<GameLogLine['type'], LogKind>> = {
-  DAMAGE: 'damage',
-  LIFE: 'life',
-  MANA: 'payment',
-  LAND: 'play',
-  STACK_ADD: 'play',
-};
-
-function logKind(say: Say): LogKind {
-  if (say.log === null) return /^full control (on|off)$/.test(say.text) ? 'control' : 'said';
-  // A trigger is Forge's cast line too ("<player> triggered <card>"): the one STACK_ADD told apart by its verb.
-  if (say.log.type === 'STACK_ADD' && /^\S+ triggered /.test(say.text)) return 'trigger';
-  return KIND_BY_TYPE[say.log.type] ?? 'said';
-}
-
-/**
- * The cards this viewer can put a name to, by lower-cased name.
- *
- * Built from the BOARD VIEW and nothing else, which is what makes the hover
- * leak-free by construction: every card in it is already drawn on this viewer's
- * own screen (their hand, either battlefield, either graveyard, either exile, or
- * a stack item's source). An opponent's hand is a COUNT in `BoardView` — the
- * adapter never maps those cards — so there is nothing here to reveal that the
- * viewer could not already click on.
- *
- * A name the viewer's board does not hold simply draws as text with no hover,
- * which is the right answer: we have no card to show.
- */
 /** Reused so `interaction.actionable` allocates nothing when there is no glow to draw. */
 const EMPTY_CARD_IDS: ReadonlySet<number> = new Set();
 
@@ -1182,154 +1128,6 @@ function stagedHandCardId(match: LiveMatch, offered: LiveClickables, blocked: bo
   if (id === null) return undefined;
   const viewer = viewerOf(match.view);
   return viewer?.hand?.some((c) => c.id === id) === true ? id : undefined;
-}
-
-/** The forge ids of every card of each name in the view — what a log line's name hands the inspector. */
-function cardIdsNamedInView(view: BoardView | null): Map<string, number[]> {
-  const out = new Map<string, number[]>();
-  if (view === null) return out;
-  const add = (card: DraftCard, id: number): void => {
-    const key = card.name.toLowerCase();
-    const held = out.get(key);
-    if (held === undefined) out.set(key, [id]);
-    else held.push(id);
-  };
-  for (const p of view.players) {
-    for (const c of drawnCards(p)) add(c.card, c.id);
-  }
-  for (const item of view.stack) if (item.sourceCard !== null && item.sourceCardId !== null) add(item.sourceCard, item.sourceCardId);
-  return out;
-}
-
-function cardsNamedInView(view: BoardView | null): Map<string, DraftCard> {
-  const out = new Map<string, DraftCard>();
-  if (view === null) return out;
-  const add = (card: DraftCard): void => {
-    const key = card.name.toLowerCase();
-    if (!out.has(key)) out.set(key, card);
-  };
-  for (const p of view.players) {
-    for (const c of drawnCards(p)) add(c.card);
-  }
-  for (const item of view.stack) if (item.sourceCard !== null) add(item.sourceCard);
-  return out;
-}
-
-/**
- * A log line, split into the card names it holds and the text between them.
- *
- * Longest name first, so `Volcanic Island` is one match rather than `Island`
- * inside it, and case-insensitively, because Forge's own strings and ours do not
- * agree about it. Non-overlapping: a name already consumed cannot be matched
- * again inside a later one.
- */
-function splitLogLine(line: string, cards: ReadonlyMap<string, DraftCard>): (string | DraftCard)[] {
-  const names = [...cards.keys()].sort((a, b) => b.length - a.length);
-  if (names.length === 0) return line === '' ? [] : [line];
-  const out: (string | DraftCard)[] = [];
-  const lower = line.toLowerCase();
-  let at = 0;
-  while (at < line.length) {
-    let hitAt = -1;
-    let hitName = '';
-    for (const name of names) {
-      const i = lower.indexOf(name, at);
-      if (i === -1) continue;
-      if (hitAt === -1 || i < hitAt || (i === hitAt && name.length > hitName.length)) {
-        hitAt = i;
-        hitName = name;
-      }
-    }
-    if (hitAt === -1) {
-      out.push(line.slice(at));
-      break;
-    }
-    if (hitAt > at) out.push(line.slice(at, hitAt));
-    out.push(cards.get(hitName)!);
-    at = hitAt + hitName.length;
-  }
-  return out.filter((p) => p !== '');
-}
-
-/**
- * One line of the table's log.
- *
- * Three things beyond the words:
- *
- *  - `data-log-kind`, which `live.css` colours. Damage is the one the operator
- *    named; it is not the only one that is worth telling apart at a glance.
- *  - `data-log-type`, Forge's own `GameLogEntryType` for a line of its log.
- *  - `data-log-who`, `them` when the line opens with the OTHER seat's name:
- *    Forge's log names who did a thing first, so a line that opens with the
- *    opponent's name is their doing.
- *  - a card name is HOVERABLE and shows the card — THROUGH THE INSPECTOR, not a
- *    surface of its own (wave 31 P12: *"we shouldn't even create a separate hover
- *    display just use the existing one"*). The name carries `data-inspect-ids`:
- *    for a line of Forge's log, the id of the very card it names first; then
- *    the forge ids of every card of that name in the view; and
- *    `../inspect/index.ts` — which listens on the document — enlarges the tile the
- *    board already drew for the first of them. A name whose cards have no tile
- *    on the page (a zone the board draws as a count, a card hidden from this
- *    seat) shows NOTHING: that is the honest answer, and inventing a face for it
- *    would be the second surface again. The name is `tabindex`-reachable, and the
- *    inspector answers focus as it answers hover.
- *
- * Memoised ({@link sameLogLine}): Forge's log runs to hundreds of lines a game,
- * and the board re-renders on every frame and every gesture.
- */
-interface LogLineProps {
-  say: Say;
-  cards: ReadonlyMap<string, DraftCard>;
-  ids: ReadonlyMap<string, readonly number[]>;
-  theirName: string | null;
-}
-
-const LogLine = memo(function LogLine({ say, cards, ids, theirName }: LogLineProps) {
-  const text = plainRulesText(say.text);
-  const mine = theirName === null || !text.startsWith(`${theirName} `);
-  // A line of Forge's log names its cards by id: those, and only those, are the hover targets.
-  const named = say.log === null ? null : new Map(say.log.cards.map((c) => [c.name.toLowerCase(), c]));
-  const own = named === null ? cards : new Map([...named.values()].map((c) => [c.name.toLowerCase(), { name: c.name } as DraftCard]));
-  const idsOf = (name: string): readonly number[] => {
-    const key = name.toLowerCase();
-    const ref = named?.get(key);
-    return ref === undefined ? (ids.get(key) ?? []) : [ref.id, ...(ids.get(key) ?? []).filter((id) => id !== ref.id)];
-  };
-  return (
-    <li data-log-kind={logKind(say)} data-log-type={say.log?.type} data-log-who={mine ? 'you' : 'them'}>
-      {splitLogLine(text, own).map((piece, i) =>
-        typeof piece === 'string' ? (
-          <span key={i}>{piece}</span>
-        ) : (
-          <span
-            key={i}
-            className="live__log-card"
-            data-log-card={piece.name}
-            data-inspect-ids={idsOf(piece.name).join(',')}
-            tabIndex={0}
-          >
-            {piece.name}
-          </span>
-        ),
-      )}
-    </li>
-  );
-}, sameLogLine);
-
-/**
- * Whether a log line would draw the same again. A line of Forge's log reads the
- * view only for the ids of the cards it names, so a new view redraws it only when
- * one of those changed; any other line reads the whole view.
- */
-function sameLogLine(a: LogLineProps, b: LogLineProps): boolean {
-  if (a.say !== b.say || a.theirName !== b.theirName) return false;
-  if (a.say.log === null) return a.cards === b.cards && a.ids === b.ids;
-  return a.say.log.cards.every((c) => {
-    const key = c.name.toLowerCase();
-    const before = a.ids.get(key) ?? [];
-    const after = b.ids.get(key) ?? [];
-    return before.length === after.length && before.every((id, i) => id === after[i]);
-  });
 }
 
 /* ── The phase, down the side (§C.2) ─────────────────────────────────── */
@@ -3416,14 +3214,6 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
   useEffect(() => setChainHalted(chainHalted, halts), [chainHalted, halts]);
   useEffect(() => () => setChainHalted(null), []);
   const visualView = match.view === null ? null : withGatedPriority(match.view, viewerOpen, opponentOpen);
-  /*
-   * What the log can put a face to, and whose lines are whose. Both come off the
-   * board view the viewer is already looking at — see `cardsNamedInView` for why
-   * that is the leak-free source — and both are `null`/empty before the first
-   * state frame, which draws the log as plain text.
-   */
-  const logCards = cardsNamedInView(match.view);
-  const logIds = cardIdsNamedInView(match.view);
   const theirName = opponentOf(match.view)?.name ?? null;
   /** R11: the turn counter moved off the rail and into the logbook. */
   const whoseTurnNow = match.view === null ? 'nobody' : whoseTurn(match.view);
@@ -3665,14 +3455,14 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
     };
   }, [logOpen, menuOpen, moreOpen, logbookId]);
   /*
-   * The logbook is scrollable and keeps the newest line in view. `.live__log`
-   * (`live.css`) is the scroll owner — a bounded flex child with
+   * The logbook is scrollable and keeps the newest line in view. The game
+   * log's `.game-log__scroll` (`./log/log.css`) is the scroll owner — a bounded flex child with
    * `overflow-y: auto`, since its content can outgrow the box — and this is
    * what puts the bottom of it in view whenever the panel opens or a new line
    * lands while it is already open. A closed panel is `hidden` and not
    * rendered, so there is nothing to scroll for it.
    */
-  const logListRef = useRef<HTMLUListElement>(null);
+  const logListRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!logOpen) return;
     const el = logListRef.current;
@@ -4224,19 +4014,11 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           {plainRulesText(prompt)}
         </p>
         {/*
-         * The says, newest at the bottom, all of the ones the match holds. Brace
-         * notation is said in words, as every other rules text is. This list is
-         * the scroll owner (`overflow-y: auto` in `live.css`); `logListRef`'s
-         * effect keeps the newest line in view rather than relying on a flex
-         * `justify-content: flex-end` trick, which only works while the whole
-         * history fits in the box — not a safe assumption against a history
-         * this long.
+         * The game log (`./log/GameLog.tsx`): every say the match holds, as
+         * turns, newest at the bottom. Its scroll box is `logListRef`, which the
+         * effect above keeps at the newest line.
          */}
-        <ul className="live__log" data-testid="live-log" aria-label="Said" ref={logListRef}>
-          {match.says.slice(-SAYS_SHOWN).map((say, i) => (
-            <LogLine key={i} say={say} cards={logCards} ids={logIds} theirName={theirName} />
-          ))}
-        </ul>
+        <GameLog says={match.says} view={match.view} listRef={logListRef} />
       </div>
       {/*
        * The log's own button (wave 26 §B.4): 36×32, in the right-hand gutter

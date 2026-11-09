@@ -122,7 +122,7 @@
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
-import type { AbortReasonSchema, ClientAction, GameLogLine, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
+import type { AbortReasonSchema, ClientAction, GameLogLine, GameLogMeta, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
 
 import { jsonLogger } from '@hadoku/service-kernel/log';
 export { bridgeDiagnostics } from './diagnostics.js';
@@ -295,8 +295,9 @@ export type BridgeLine =
 	 * One entry of Forge's own game log (`PlayBridge.GameLogForward`), worded once
 	 * per player: `text` is null when the line names a card that player may not
 	 * see in a way the bridge could not reword; `cards` are the ones they may.
+	 * `meta` is the line's public half, the same for every player (`GameLogMeta`).
 	 */
-	| { t: 'log'; type: GameLogLine['type']; players: { player: number; text: string | null; cards: GameLogLine['cards'] }[] }
+	| { t: 'log'; type: GameLogLine['type']; meta?: GameLogMeta; players: { player: number; text: string | null; cards: GameLogLine['cards'] }[] }
 	| { t: 'fatal'; message: string; /** The top frames of the failure's stack (`PlayBridge` `fail`), when it had one. */ frames?: string[] }
 	| { t: 'rejected'; message: string; command: string }
 	| { t: 'stale'; seat: number; callId: string }

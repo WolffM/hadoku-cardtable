@@ -1,0 +1,307 @@
+/*
+ * The game log panel (`./GameLog.tsx`), the design the operator approved on
+ * 2026-11-09 ("Game Log Redesign").
+ *
+ * Every colour is a theme token, and nothing else — the operator, approving
+ * it: *"make sure there are no custom colors allowed. we must only pull colors
+ * from theme system"* (`screens/tokens.test.ts` holds every sheet to that). The
+ * two seats are the theme's accent ink (yours) and its condition ink (theirs),
+ * both measured at 4.5:1 on the page and on a card in every theme; a loss and a
+ * gain are its danger and success inks. Colour is never the only signal: a row
+ * opens with the player's name, and a change of life carries its sign.
+ */
+.game-log {
+  --game-log-you: var(--accent-ink);
+  --game-log-them: var(--condition-ink);
+
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 6px;
+}
+
+/* The turn strip: one number a turn, in the colour of whose turn it was. */
+.game-log__turns {
+  display: flex;
+  flex: none;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+
+.game-log__chip {
+  flex: none;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.game-log__chip[data-seat='you'] {
+  color: var(--game-log-you);
+}
+
+.game-log__chip[data-seat='them'] {
+  color: var(--game-log-them);
+}
+
+.game-log__chip:focus-visible,
+.game-log__head button:focus-visible,
+.game-log__card:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+/*
+ * The scroll owner: a bounded box (`flex: 1 1 0`), so the history scrolls inside
+ * it rather than growing the panel; `LiveBoard.tsx` keeps the newest line in view.
+ */
+.game-log__scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  pointer-events: auto;
+}
+
+.game-log ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A turn's header stays at the top while its rows scroll under it. */
+.game-log__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+}
+
+.game-log__head button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.game-log__chevron {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  fill: none;
+  stroke: var(--ink-dim);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.game-log__turn[data-open] .game-log__chevron {
+  transform: rotate(90deg);
+}
+
+.game-log__n {
+  flex: none;
+  font-weight: 700;
+}
+
+.game-log__who {
+  flex: none;
+  font-weight: 600;
+}
+
+.game-log__who[data-seat='you'],
+.game-log__total[data-seat='you'] .game-log__dot {
+  color: var(--game-log-you);
+}
+
+.game-log__who[data-seat='them'],
+.game-log__total[data-seat='them'] .game-log__dot {
+  color: var(--game-log-them);
+}
+
+.game-log__summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.game-log__lives {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-log__total {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.game-log__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.game-log__delta {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.game-log__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 4px 8px;
+}
+
+/* One line: its mark, its words, and the mana that paid for it. */
+.game-log__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 2px 0;
+  color: var(--ink-dim);
+  font-size: 12.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.game-log__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-log__mark {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 2px;
+  fill: none;
+  stroke: var(--ink-dim);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.game-log__row[data-log-who='you'] .game-log__mark {
+  stroke: var(--game-log-you);
+}
+
+.game-log__row[data-log-who='them'] .game-log__mark {
+  stroke: var(--game-log-them);
+}
+
+/* What happened to the cards is the line's news: the casts, plays and attacks read at full ink. */
+.game-log__row[data-log-kind='cast'],
+.game-log__row[data-log-kind='activate'],
+.game-log__row[data-log-kind='trigger'],
+.game-log__row[data-log-kind='land'],
+.game-log__row[data-log-kind='attack'],
+.game-log__row[data-log-kind='outcome'] {
+  color: var(--ink);
+}
+
+.game-log__row[data-log-kind='outcome'] {
+  font-weight: 600;
+}
+
+/* A card name: the inspector shows it on hover or focus (`./names.ts`). */
+.game-log__card {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline dotted var(--ink-dim);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.game-log__cost {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin-top: 1px;
+  font-size: 13px;
+}
+
+.game-log__times {
+  margin-right: 2px;
+  color: var(--ink-dim);
+  font-size: 10px;
+}
+
+.game-log__life {
+  white-space: nowrap;
+}
+
+.game-log__life[data-sign='down'] b,
+.game-log__delta[data-sign='down'] {
+  color: var(--danger-ink);
+}
+
+.game-log__life[data-sign='up'] b,
+.game-log__delta[data-sign='up'] {
+  color: var(--success-ink);
+}
+
+.game-log__to {
+  color: var(--ink-dim);
+}
+
+/* What answered a spell, indented under it on a thread line. */
+.game-log__nest > ol {
+  margin-left: 6px;
+  padding-left: 11px;
+  border-left: 1px solid var(--line);
+}
+
+/* What a resolution did, under its spell. */
+.game-log__results > ol {
+  padding-left: 21px;
+}
+
+.game-log__results .game-log__row {
+  font-size: 12px;
+}
+
+/* A result's mark recedes: the spell above it already says whose it was. */
+.game-log__results .game-log__row .game-log__mark {
+  stroke: var(--ink-dim);
+}
+
+/* A turn's combat, one block. */
+.game-log__combat > ol {
+  margin: 3px 0;
+  padding: 3px 7px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}

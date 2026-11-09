@@ -106,6 +106,7 @@ export {
   type CoinFlip,
   GameLogLineSchema,
   type GameLogLine,
+  type GameLogMeta,
   ShowErrorDialogSchema,
   ENDED_BY,
   type EndedBy,
