@@ -134,7 +134,7 @@ describe('MusicReview', () => {
     expect(screen.queryAllByRole('button', { name: /^Stop / })).toHaveLength(0);
   });
 
-  it('any number of picks per slot, a rating per candidate, a note per slot; submit sends only what was said, then shows saved', async () => {
+  it('any number of picks per slot, a rating and a pop-out note per candidate; submit sends only what was said, then reads Saved', async () => {
     const reviews = stubReviews();
     render(createElement(MusicReview, { client: stubClient(), reviews, player: stubPlayer() }));
     await screen.findByText('Match Music');
@@ -159,8 +159,21 @@ describe('MusicReview', () => {
     fireEvent.click(rateOne.getByRole('button', { name: 'Maybe' }));
     expect(rateOne.getByRole('button', { name: 'Maybe' }).getAttribute('aria-pressed')).toBe('true');
     expect(rateOne.getByRole('button', { name: 'Keep' }).getAttribute('aria-pressed')).toBe('false');
-    fireEvent.change(within(w).getByRole('textbox', { name: 'W note' }), { target: { value: '  the jig  ' } });
-    fireEvent.change(within(slot(WU)).getByRole('textbox', { name: 'WU note' }), { target: { value: 'none of these' } });
+    // A row's note is shut until its button opens it, under that row; a note left blank says nothing.
+    expect(within(w).queryByRole('textbox')).toBeNull();
+    const noteTwo = within(w).getByRole('button', { name: 'Note on W · two' });
+    fireEvent.click(noteTwo);
+    expect(noteTwo.getAttribute('aria-expanded')).toBe('true');
+    const twoRow = w.querySelector('[data-file="music-w-two/take-1.ogg"]') as HTMLElement;
+    fireEvent.change(within(twoRow).getByRole('textbox', { name: 'W · two note' }), { target: { value: '  the jig  ' } });
+    expect(twoRow.dataset.noted).toBe('');
+    fireEvent.click(within(w).getByRole('button', { name: 'Note on W · three' }));
+    fireEvent.click(within(slot(WU)).getByRole('button', { name: 'Note on WU · one' }));
+    fireEvent.change(within(slot(WU)).getByRole('textbox', { name: 'WU · one note' }), { target: { value: 'too loud' } });
+    // Shutting a note keeps what it says.
+    fireEvent.click(noteTwo);
+    expect(within(twoRow).queryByRole('textbox')).toBeNull();
+    expect(twoRow.dataset.noted).toBe('');
 
     expect(submitButton().dataset.state).toBe('unsent');
     expect(JSON.parse(localStorage.getItem(DRAFT_KEY)!)[W].picks).toEqual(['music-w-two/take-1.ogg', 'music-w-three/take-1.ogg']);
@@ -173,33 +186,37 @@ describe('MusicReview', () => {
           [W]: {
             picks: ['music-w-two/take-1.ogg', 'music-w-three/take-1.ogg'],
             ratings: { 'music-web-w/take-1.ogg': 'no', 'music-w-one/take-1.ogg': 'maybe' },
-            note: 'the jig',
+            notes: { 'music-w-two/take-1.ogg': 'the jig' },
           },
-          [WU]: { picks: [], ratings: {}, note: 'none of these' },
+          [WU]: { picks: [], ratings: {}, notes: { 'music-wu-one/take-1.ogg': 'too loud' } },
         },
       },
     ]);
     expect(submitButton().dataset.state).toBe('saved');
+    expect(submitButton().textContent).toBe('Saved');
     expect(submitButton().disabled).toBe(true);
     expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
 
     // Unpicking is a change again.
     fireEvent.click(within(w).getByRole('button', { name: 'Pick W · three' }));
     expect(submitButton().dataset.state).toBe('unsent');
+    expect(submitButton().textContent).toBe('Submit');
   });
 
   it('re-opening restores the latest submission; an unsent draft wins over it', async () => {
     const record: MusicReviewRecord = {
       at: '2026-10-17T12:00:00.000Z',
       slots: {
-        [W]: { picks: ['music-w-three/take-1.ogg'], ratings: { 'music-w-one/take-1.ogg': 'keep' }, note: 'three' },
+        [W]: { picks: ['music-w-three/take-1.ogg'], ratings: { 'music-w-one/take-1.ogg': 'keep' }, notes: { 'music-w-three/take-1.ogg': 'three' } },
       },
     };
     const first = render(createElement(MusicReview, { client: stubClient(), reviews: stubReviews(record), player: stubPlayer() }));
     await screen.findByText('Match Music');
     expect(within(slot(W)).getByRole('button', { name: 'Pick W · three' }).getAttribute('aria-pressed')).toBe('true');
     expect(within(within(slot(W)).getByRole('group', { name: 'Rate W · one' })).getByRole('button', { name: 'Keep' }).getAttribute('aria-pressed')).toBe('true');
-    expect((within(slot(W)).getByRole('textbox', { name: 'W note' }) as HTMLTextAreaElement).value).toBe('three');
+    // A restored note is open on its row.
+    expect((within(slot(W)).getByRole('textbox', { name: 'W · three note' }) as HTMLTextAreaElement).value).toBe('three');
+    expect(within(slot(W)).getAllByRole('textbox')).toHaveLength(1);
     expect(submitButton().dataset.state).toBe('saved');
 
     fireEvent.click(within(slot(WU)).getByRole('button', { name: 'Pick WU · one' }));
@@ -213,22 +230,25 @@ describe('MusicReview', () => {
   });
 
   it('a draft naming a take the slot no longer offers drops it', async () => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ [W]: { pick: 'music-gone/take-1.ogg', ratings: { 'music-gone/take-1.ogg': 'keep' }, note: 'x' } }));
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({ [W]: { picks: ['music-gone/take-1.ogg', 'music-w-one/take-1.ogg'], ratings: { 'music-gone/take-1.ogg': 'keep' }, notes: { 'music-gone/take-1.ogg': 'x' } } }),
+    );
     const reviews = stubReviews();
     render(createElement(MusicReview, { client: stubClient(), reviews, player: stubPlayer() }));
     await screen.findByText('Match Music');
-    expect(within(slot(W)).queryAllByRole('button', { pressed: true })).toHaveLength(0);
+    expect(within(slot(W)).getAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'))).toEqual(['Pick W · one']);
     await act(async () => {
       fireEvent.click(submitButton());
     });
-    expect(reviews.sent).toEqual([{ slots: { [W]: { picks: [], ratings: {}, note: 'x' } } }]);
+    expect(reviews.sent).toEqual([{ slots: { [W]: { picks: ['music-w-one/take-1.ogg'], ratings: {}, notes: {} } } }]);
   });
 
   it('a draft saved before 2026-10-20 restores its picks, a single pick or a two-lane pair', async () => {
     localStorage.setItem(
       DRAFT_KEY,
       JSON.stringify({
-        [W]: { pick: 'music-w-one/take-1.ogg', ratings: {}, note: '' },
+        [W]: { pick: 'music-w-one/take-1.ogg', ratings: {}, note: 'the one' },
         [WU]: { picks: { normal: 'music-wu-one/take-1.ogg', chiptune: 'music-wu-two/take-1.ogg' }, ratings: {}, note: '' },
       }),
     );
@@ -239,12 +259,14 @@ describe('MusicReview', () => {
       'Pick WU · one',
       'Pick WU · two',
     ]);
+    // Its slot note goes on the one track it was about.
+    expect((within(slot(W)).getByRole('textbox', { name: 'W · one note' }) as HTMLTextAreaElement).value).toBe('the one');
   });
 
   it('reset, pressed twice, blanks the form; a re-open does not restore the set-aside submission; the stored review is untouched', async () => {
     const record: MusicReviewRecord = {
       at: '2026-10-17T12:00:00.000Z',
-      slots: { [W]: { picks: ['music-w-three/take-1.ogg'], ratings: {}, note: 'three' } },
+      slots: { [W]: { picks: ['music-w-three/take-1.ogg'], ratings: {}, notes: { 'music-w-three/take-1.ogg': 'three' } } },
     };
     const reviews = stubReviews(record);
     const first = render(createElement(MusicReview, { client: stubClient(), reviews, player: stubPlayer() }));
@@ -258,7 +280,7 @@ describe('MusicReview', () => {
     fireEvent.click(reset);
     expect(reset.dataset.armed).toBeUndefined();
     expect(document.querySelectorAll('[data-testid="music-review-slot"] [aria-pressed="true"]')).toHaveLength(0);
-    expect((within(slot(W)).getByRole('textbox', { name: 'W note' }) as HTMLTextAreaElement).value).toBe('');
+    expect(within(slot(W)).queryByRole('textbox')).toBeNull();
     expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
     expect(localStorage.getItem(FRESH_KEY)).toBe(record.at);
     // Nothing on screen and nothing sent since: nothing to submit, nothing to reset.

@@ -5,8 +5,9 @@
  * then send the results for review later."* Fifteen slots, one per `MATCH_MUSIC_ROLES` cell; each offers
  * the takes the cell plays today plus the generated Music takes named `<code> · <description>`. A viewer
  * picks any number per slot — every pick goes in the cell, and a player whose slot holds more than one
- * chooses among them in sound settings (the operator, 2026-10-20) — rates any of them, notes the slot, and
- * submits; a later session reads the submissions and sets the assignments by hand.
+ * chooses among them in sound settings (the operator, 2026-10-20) — rates any of them, notes any of them
+ * (a note per track, the operator 2026-11-08: *"a popout textbox for each row rather than one textbox for the
+ * entire color"*), and submits; a later session reads the submissions and sets the assignments by hand.
  *
  * `musicReviewSlots` is the one place a slot's candidates are worked out. The page draws from it and the
  * server validates a submission against it, so the two can never disagree on what was offered.
@@ -71,12 +72,29 @@ export type MusicRating = (typeof MUSIC_RATINGS)[number];
 
 const TakeFileSchema = z.string().regex(TAKE_FILE_RE, 'file must be <folder>/take-<suffix>.ogg');
 
-/** One slot's verdict: the takes picked for its cell, in the order picked. */
-export const MusicReviewEntrySchema = z.object({
-	picks: z.array(TakeFileSchema).default([]).transform((files) => [...new Set(files)]),
-	ratings: z.record(TakeFileSchema, z.enum(MUSIC_RATINGS)).default({}),
-	note: z.string().max(1000).default(''),
-});
+/**
+ * A review written before 2026-11-08 noted the slot (`note`), not a track. Its note goes on the one track the
+ * slot rated or picked; a slot note that spoke of several tracks, or none, has no track to go on and is dropped.
+ */
+export function liftSlotNote(entry: unknown): unknown {
+	if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return entry;
+	const { note, ...rest } = entry as { note?: unknown; notes?: unknown; ratings?: unknown; picks?: unknown };
+	if (typeof note !== 'string' || note.trim() === '' || rest.notes !== undefined) return rest;
+	const ratings = typeof rest.ratings === 'object' && rest.ratings !== null ? Object.keys(rest.ratings) : [];
+	const picks = Array.isArray(rest.picks) ? rest.picks.filter((f): f is string => typeof f === 'string') : [];
+	const files = new Set([...ratings, ...picks]);
+	return files.size === 1 ? { ...rest, notes: { [[...files][0]!]: note } } : rest;
+}
+
+/** One slot's verdict: the takes picked for its cell, in the order picked; a rating and a note per take. */
+export const MusicReviewEntrySchema = z.preprocess(
+	liftSlotNote,
+	z.object({
+		picks: z.array(TakeFileSchema).default([]).transform((files) => [...new Set(files)]),
+		ratings: z.record(TakeFileSchema, z.enum(MUSIC_RATINGS)).default({}),
+		notes: z.record(TakeFileSchema, z.string().max(1000)).default({}),
+	}),
+);
 export type MusicReviewEntry = z.output<typeof MusicReviewEntrySchema>;
 
 /** `POST /api/sounds/music-review`. A slot left out is a slot not reviewed. */
@@ -112,7 +130,7 @@ export const MusicReviewListSchema = z.object({
 export type MusicReviewList = z.output<typeof MusicReviewListSchema>;
 
 /**
- * Every pick and rating must name a candidate its slot offered. Returns the problems, empty when the
+ * Every pick, rating and note must name a candidate its slot offered. Returns the problems, empty when the
  * body is sound.
  */
 export function musicReviewProblems(body: MusicReviewBody, slots: readonly MusicReviewSlot[]): string[] {
@@ -125,6 +143,9 @@ export function musicReviewProblems(body: MusicReviewBody, slots: readonly Music
 		}
 		for (const file of Object.keys(entry.ratings)) {
 			if (!files.has(file)) problems.push(`${cell}: rating for ${file}, which was not offered`);
+		}
+		for (const file of Object.keys(entry.notes)) {
+			if (!files.has(file)) problems.push(`${cell}: note for ${file}, which was not offered`);
 		}
 	}
 	return problems;

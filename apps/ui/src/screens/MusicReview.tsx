@@ -7,18 +7,18 @@
  * candidates: the take the cell plays today (badged) and the generated ones. A card plays its take on a
  * loop through the mixer's music bus, one at a time; its pick button puts it in the slot (any number of
  * takes: a player whose slot holds several chooses among them in sound settings); three small verdicts
- * rate it; a note goes with the slot. Submit stores the whole review as the viewer's own prefs row (through
+ * rate it; its note button opens a note for that track under the row. Submit stores the whole review as the viewer's own prefs row (through
  * the server, which checks it), replacing the one before.
  *
  * Friend tier and above, the same server-answered gate as the builder (`canView`). Re-opening restores
- * this browser's unsent draft, or else the viewer's stored submission; the submit button shows saved
- * while what is on screen is what was sent.
+ * this browser's unsent draft, or else the viewer's stored submission; the submit button reads Saved, in
+ * the success colours, while what is on screen is what was sent.
  *
  * Reset (pressed twice) starts a fresh round: it drops the draft and remembers, in this browser, the `at`
  * of the submission on screen (`FRESH_KEY`), so a re-open no longer restores that one or anything older.
  * The stored review is untouched; the next submission replaces it.
  *
- * Each slot is a panel of track rows — play and name, three verdicts, the pick — under the builder's own
+ * Each slot is a panel of track rows — play and name, three verdicts, the note, the pick — under the builder's own
  * header and buttons, so it reads as one of the sound screens.
  */
 
@@ -28,6 +28,7 @@ import { Icon } from '@wolffm/themes';
 import {
   MUSIC_RATINGS,
   SOUND_MATRIX,
+  liftSlotNote,
   musicReviewSlots,
   type MusicRating,
   type MusicReviewEntry,
@@ -60,7 +61,7 @@ export const RESET_ARM_MS = 4000;
 
 type Review = Record<string, MusicReviewEntry>;
 
-const EMPTY: MusicReviewEntry = { picks: [], ratings: {}, note: '' };
+const EMPTY: MusicReviewEntry = { picks: [], ratings: {}, notes: {} };
 
 /** `WU` → `Azorius`: a slot by the name its colours go by. */
 const SLOT_NAME: ReadonlyMap<string, string> = new Map(SOUND_MATRIX.colour.map((c) => [c.id, c.name]));
@@ -76,11 +77,17 @@ const RATING_LABEL: Record<MusicRating, string> = { keep: 'Keep', maybe: 'Maybe'
 function normalizeReview(review: Review): Review {
   const out: Review = {};
   for (const [cell, e] of Object.entries(review)) {
-    const note = e.note.trim();
-    if (e.picks.length === 0 && Object.keys(e.ratings).length === 0 && note === '') continue;
-    out[cell] = { picks: e.picks, ratings: e.ratings, note };
+    const notes: Record<string, string> = {};
+    for (const [f, n] of Object.entries(e.notes)) if (n.trim() !== '') notes[f] = n.trim();
+    if (e.picks.length === 0 && Object.keys(e.ratings).length === 0 && Object.keys(notes).length === 0) continue;
+    out[cell] = { picks: e.picks, ratings: e.ratings, notes };
   }
   return out;
+}
+
+function sameMap<T>(a: Readonly<Record<string, T>>, b: Readonly<Record<string, T>>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
 }
 
 function sameReview(a: Review, b: Review): boolean {
@@ -91,9 +98,8 @@ function sameReview(a: Review, b: Review): boolean {
   return keys.every((k) => {
     const p = x[k]!;
     const q = y[k];
-    if (q === undefined || p.note !== q.note || p.picks.length !== q.picks.length || p.picks.some((f) => !q.picks.includes(f))) return false;
-    const r = Object.keys(p.ratings);
-    return r.length === Object.keys(q.ratings).length && r.every((f) => p.ratings[f] === q.ratings[f]);
+    if (q === undefined || p.picks.length !== q.picks.length || p.picks.some((f) => !q.picks.includes(f))) return false;
+    return sameMap(p.ratings, q.ratings) && sameMap(p.notes, q.notes);
   });
 }
 
@@ -148,17 +154,16 @@ function fitToSlots(review: Review, slots: readonly MusicReviewSlot[]): Review {
     const e = review[slot.cell];
     if (e === undefined) continue;
     const offered = new Set(slot.candidates.map((c) => c.file));
-    const ratings: Record<string, MusicRating> = {};
-    for (const [f, r] of Object.entries(e.ratings ?? {})) if (offered.has(f) && MUSIC_RATINGS.includes(r)) ratings[f] = r;
     // A draft saved before 2026-10-20 carries one `pick` or a `{ normal, chiptune }` pair: each is what it picked.
     const raw: unknown = e.picks ?? [(e as { pick?: unknown }).pick];
     const listed: unknown[] = Array.isArray(raw) ? raw : typeof raw === 'object' && raw !== null ? Object.values(raw) : [];
     const picks = [...new Set(listed.filter((f): f is string => typeof f === 'string' && offered.has(f)))];
-    out[slot.cell] = {
-      picks,
-      ratings,
-      note: typeof e.note === 'string' ? e.note : '',
-    };
+    const ratings: Record<string, MusicRating> = {};
+    for (const [f, r] of Object.entries(e.ratings ?? {})) if (offered.has(f) && MUSIC_RATINGS.includes(r)) ratings[f] = r;
+    const lifted = liftSlotNote({ ...e, picks, ratings }) as Partial<MusicReviewEntry>;
+    const notes: Record<string, string> = {};
+    for (const [f, n] of Object.entries(lifted.notes ?? {})) if (offered.has(f) && typeof n === 'string') notes[f] = n;
+    out[slot.cell] = { picks, ratings, notes };
   }
   return out;
 }
@@ -178,6 +183,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
   const [playing, setPlaying] = useState<string | null>(null);
   const [send, setSend] = useState<SendState>('idle');
   const [resetArmed, setResetArmed] = useState(false);
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     let alive = true;
@@ -187,7 +193,10 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
       setSlots(s);
       const restored = sinceReset(mine);
       setSubmitted(restored);
-      setReview(fitToSlots(loadDraft() ?? restored?.slots ?? {}, s));
+      const shown = fitToSlots(loadDraft() ?? restored?.slots ?? {}, s);
+      setReview(shown);
+      // A restored note stays out, so it reads back without a press.
+      setOpen(new Set(Object.values(shown).flatMap((e) => Object.keys(e.notes))));
       setCanView(a.canView);
       setLoaded(true);
     });
@@ -232,6 +241,14 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
     player.loopFile(next);
   }
 
+  function toggleNote(file: string): void {
+    setOpen((o) => {
+      const next = new Set(o);
+      if (!next.delete(file)) next.add(file);
+      return next;
+    });
+  }
+
   function reset(): void {
     if (!resetArmed) {
       setResetArmed(true);
@@ -242,6 +259,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
     saveDraft(null);
     setSubmitted(null);
     setReview({});
+    setOpen(new Set());
     setSend('idle');
   }
 
@@ -294,7 +312,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
             onClick={() => void submit()}
           >
             <Icon name={sendState === 'saved' ? 'tick' : sendState === 'failed' ? 'warning' : 'send'} />
-            Submit
+            {sendState === 'saved' ? 'Saved' : 'Submit'}
           </button>
         </nav>
       </header>
@@ -313,6 +331,8 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                   const on = playing === c.file;
                   const rating = entry.ratings[c.file];
                   const picked = entry.picks.includes(c.file);
+                  const note = entry.notes[c.file] ?? '';
+                  const noting = open.has(c.file);
                   return (
                     <li
                       key={c.file}
@@ -321,6 +341,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                       data-picked={picked ? '' : undefined}
                       data-current={c.current ? '' : undefined}
                       data-playing={on ? '' : undefined}
+                      data-noted={note.trim() !== '' ? '' : undefined}
                     >
                       <button
                         type="button"
@@ -359,6 +380,17 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                       </div>
                       <button
                         type="button"
+                        className="music-review__note-toggle"
+                        data-testid="music-review-note-toggle"
+                        aria-label={`Note on ${c.label}`}
+                        title="Note"
+                        aria-expanded={noting}
+                        onClick={() => toggleNote(c.file)}
+                      >
+                        <Icon name="chat" size={uiLength('0.85rem')} />
+                      </button>
+                      <button
+                        type="button"
                         className="music-review__pick ct-toggle"
                         data-testid="music-review-pick"
                         aria-label={`Pick ${c.label}`}
@@ -373,21 +405,24 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                       >
                         <Icon name={picked ? 'tick' : 'plus'} size={uiLength('0.85rem')} />
                       </button>
+                      {noting && (
+                        <textarea
+                          className="music-review__note"
+                          aria-label={`${c.label} note`}
+                          rows={2}
+                          maxLength={1000}
+                          autoFocus
+                          value={note}
+                          onChange={(ev) => {
+                            const text = ev.target.value;
+                            edit(slot.cell, (e) => ({ ...e, notes: { ...e.notes, [c.file]: text } }));
+                          }}
+                        />
+                      )}
                     </li>
                   );
                 })}
               </ol>
-              <textarea
-                className="music-review__note"
-                aria-label={`${slot.code} note`}
-                rows={1}
-                maxLength={1000}
-                value={entry.note}
-                onChange={(ev) => {
-                  const note = ev.target.value;
-                  edit(slot.cell, (e) => ({ ...e, note }));
-                }}
-              />
             </section>
           );
         })}

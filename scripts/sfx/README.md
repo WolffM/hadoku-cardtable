@@ -417,18 +417,19 @@ python3 scripts/sfx/add-track.py <finished wav> --name "W · heraldic fanfare" -
 The operator: *"post it as a new route under /sounds/ i want to be able to go there, test, then send the results
 for review later"*. Each of the 15 match-music slots offers the take its cell plays today (badged) and the Music
 takes named `<code> · ` (`musicReviewSlots`, `packages/shared/src/music-review.ts`). Any friend may submit any
-number of picks per slot, a keep / maybe / no per take and a note per slot; nothing writes `assignments.json`. Reset (pressed twice) starts a blank round in that
+number of picks per slot, a keep / maybe / no and a note per take (a slot note before 2026-11-08); nothing writes `assignments.json`. Reset (pressed twice) starts a blank round in that
 browser and writes nothing to the server.
 
 A submission is stored as the submitter's own prefs-api row, app **`cardtable-music-review`** (hadoku_site
 IDENTITY_MODEL R12, cardtable#25), and replaces the one before it whole:
 
 ```json
-{"at":"2026-10-18T23:59:00.000Z","slots":{"music.match.W|play":{"picks":["music-w-tavern-jig/take-1.ogg"],"ratings":{"music-dawnlight-sanctum/take-1.ogg":"no"},"note":""}}}
+{"at":"2026-10-18T23:59:00.000Z","slots":{"music.match.W|play":{"picks":["music-w-tavern-jig/take-1.ogg"],"ratings":{"music-dawnlight-sanctum/take-1.ogg":"no"},"notes":{"music-dawnlight-sanctum/take-1.ogg":"too bright"}}}}
 ```
 
-Whose it is is the row's userId; no name is kept. A slot left out was not reviewed; no picks with ratings or a note
-is a slot reviewed without a choice. A viewer's row is their current answer
+Whose it is is the row's userId; no name is kept. A slot left out was not reviewed; no picks with ratings or notes
+is a slot reviewed without a choice. A row written before 2026-11-08 holds one `note` per slot; it reads back on
+the one take that slot rated or picked (`liftSlotNote`), and is dropped when it spoke of several or none. A viewer's row is their current answer
 (`GET /api/sounds/music-review/mine`). To act on them, list every row (admin `GET /api/sounds/music-review`) and put each slot's picks in its cell,
 `music.match.<code>|play`, with the admin `PUT /api/sounds/assignments/<cell>` (the builder does the same). A cell
 holding several takes lets each player choose among them by name in sound settings; until they do, one plays at
@@ -514,3 +515,19 @@ export ACESTEP_CHECKPOINTS_DIR=~/.cache/ace-step/checkpoints ACESTEP_DISABLE_TQD
 ~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-finish.py --only rw-r4,rg-r4,w-r4,r-r4,g-r4
 ~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/music-soundscape.py --spec scripts/sfx/music-round4.json --seed 71000
 ```
+
+**The operator's round-4 review (2026-11-09, 5 of 9 rated).** Round 3's per-take ratings did not survive the move
+to prefs-api rows (a6d714808 kept no copy of `music-reviews.jsonl`); what round 3 taught is the prose above, and
+its survivors are the takes still listed.
+
+| take | verdict | the operator |
+| --- | --- | --- |
+| W · 16-bit dawn cloister | keep, picked | *"pretty good, lets take it."* |
+| RW · brass war band | maybe | *"it's pretty good, but a bit too intense. too much noise."* |
+| RG · wild showdown | no | *"ugly"* |
+| R · 16-bit magma vault | no | *"boring"* |
+| G · 16-bit mossy hollow | no | *"not impressive. kinda boring."* |
+
+Unrated: RW drumline assault and war camp at dawn, RG stampede batucada and beast lair. The 16-bit pilots went 1
+of 3: the sewer's sparse recipe holds for a calm place (a cloister) and bores in a slot that wants drive (red) or
+already has a better place (green). RW's brass was close but dense, the round-3 "too much noise" again.

@@ -137,6 +137,7 @@ export {
   MusicReviewListSchema,
   MusicReviewMineSchema,
   MusicReviewRecordSchema,
+  liftSlotNote,
   musicReviewCell,
   musicReviewProblems,
   musicReviewSlots,

@@ -744,13 +744,13 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		const first = await call(h, 'POST', '/api/sounds/music-review', {
 			tier: 'friend',
 			user: 'bob',
-			body: { slots: { [W]: { picks: [JIG.file, FANFARE.file], ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, note: 'the jig' } } },
+			body: { slots: { [W]: { picks: [JIG.file, FANFARE.file], ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, notes: { [JIG.file]: 'the jig' } } } },
 		});
 		expect(first.status).toBe(200);
 		const rec = first.json() as { at: string; slots: unknown };
 		expect(rec).toEqual({
 			at: rec.at,
-			slots: { [W]: { picks: [JIG.file, FANFARE.file], ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, note: 'the jig' } },
+			slots: { [W]: { picks: [JIG.file, FANFARE.file], ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, notes: { [JIG.file]: 'the jig' } } },
 		});
 		expect(Number.isNaN(Date.parse(rec.at))).toBe(false);
 		// The row is bob's, named by his key, and holds no name or id of its own.
@@ -760,19 +760,19 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		const second = await call(h, 'POST', '/api/sounds/music-review', {
 			tier: 'friend',
 			user: 'bob',
-			body: { slots: { [W]: { picks: [WEB.file] }, [WU]: { note: 'none of these' } } },
+			body: { slots: { [W]: { picks: [WEB.file] }, [WU]: { notes: { [SENATE.file]: 'not this one' } } } },
 		});
 		expect(second.status).toBe(200);
 
-		// Newest replaces older, whole: the first review's W ratings and note are gone, not merged in.
+		// Newest replaces older, whole: the first review's W ratings and notes are gone, not merged in.
 		const bob = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'bob' })).json() as { review: { slots: unknown } };
 		expect(bob.review.slots).toEqual({
-			[W]: { picks: [WEB.file], ratings: {}, note: '' },
-			[WU]: { picks: [], ratings: {}, note: 'none of these' },
+			[W]: { picks: [WEB.file], ratings: {}, notes: {} },
+			[WU]: { picks: [], ratings: {}, notes: { [SENATE.file]: 'not this one' } },
 		});
 		expect([...h.prefs.rows(MUSIC_REVIEW_APP_ID).keys()].sort()).toEqual(['alice', 'bob']);
 		const alice = (await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'admin', user: 'alice' })).json() as { review: { slots: unknown } };
-		expect(alice.review.slots).toEqual({ [WU]: { picks: [SENATE.file], ratings: {}, note: '' } });
+		expect(alice.review.slots).toEqual({ [WU]: { picks: [SENATE.file], ratings: {}, notes: {} } });
 		const carol = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'carol' })).json();
 		expect(carol).toEqual({ review: null });
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'sounds-music-review-saved', userId: 'bob', slots: 1 }));
@@ -788,8 +788,8 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		expect((await call(h, 'GET', '/api/sounds/music-review', { user: 'bob' })).status).toBe(403);
 		const list = (await call(h, 'GET', '/api/sounds/music-review', { tier: 'admin', user: 'alice' })).json() as { reviews: { userId: string; slots: unknown }[] };
 		expect(list.reviews.map((r) => [r.userId, r.slots])).toEqual([
-			['bob', { [W]: { picks: [JIG.file], ratings: {}, note: '' } }],
-			['carol', { [WU]: { picks: [SENATE.file], ratings: {}, note: '' } }],
+			['bob', { [W]: { picks: [JIG.file], ratings: {}, notes: {} } }],
+			['carol', { [WU]: { picks: [SENATE.file], ratings: {}, notes: {} } }],
 		]);
 		expect(list.reviews.every((r) => !('name' in r))).toBe(true);
 	});

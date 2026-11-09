@@ -126,7 +126,7 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 	const W = musicReviewCell('W');
 
 	it('fills a slot’s defaults', () => {
-		expect(MusicReviewBodySchema.parse({ slots: { [W]: {} } })).toEqual({ slots: { [W]: { picks: [], ratings: {}, note: '' } } });
+		expect(MusicReviewBodySchema.parse({ slots: { [W]: {} } })).toEqual({ slots: { [W]: { picks: [], ratings: {}, notes: {} } } });
 	});
 
 	it('refuses a slot that is not a match-music cell', () => {
@@ -136,7 +136,7 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 
 	it('refuses an unknown rating and an over-long note', () => {
 		expect(MusicReviewBodySchema.safeParse({ slots: { [W]: { ratings: { 'music-w-tavern-jig/take-1.ogg': 'love' } } } }).success).toBe(false);
-		expect(MusicReviewBodySchema.safeParse({ slots: { [W]: { note: 'x'.repeat(1001) } } }).success).toBe(false);
+		expect(MusicReviewBodySchema.safeParse({ slots: { [W]: { notes: { 'music-w-tavern-jig/take-1.ogg': 'x'.repeat(1001) } } } }).success).toBe(false);
 	});
 
 	it('accepts any number of picks and ratings among the slot’s candidates', () => {
@@ -145,7 +145,7 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 				[W]: {
 					picks: ['music-w-tavern-jig/take-1.ogg', 'music-w-heraldic-fanfare/take-1.ogg'],
 					ratings: { 'music-dawnlight-sanctum/take-1.ogg': 'no' },
-					note: 'jig',
+					notes: { 'music-w-tavern-jig/take-1.ogg': 'jig' },
 				},
 			},
 		});
@@ -153,12 +153,13 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 		expect(body.slots[W]!.picks).toEqual(['music-w-tavern-jig/take-1.ogg', 'music-w-heraldic-fanfare/take-1.ogg']);
 	});
 
-	it('names a pick or a rating its slot never offered', () => {
+	it('names a pick, a rating or a note its slot never offered', () => {
 		const body = MusicReviewBodySchema.parse({
 			slots: {
 				[W]: {
 					picks: ['music-wu-clockwork-senate/take-1.ogg', 'music-wu-lighthouse-march/take-1.ogg'],
 					ratings: { 'wu/take-v1-4000.ogg': 'keep' },
+					notes: { 'wu/take-v1-4000.ogg': 'senate' },
 				},
 			},
 		});
@@ -166,7 +167,26 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 			`${W}: pick music-wu-clockwork-senate/take-1.ogg was not offered`,
 			`${W}: pick music-wu-lighthouse-march/take-1.ogg was not offered`,
 			`${W}: rating for wu/take-v1-4000.ogg, which was not offered`,
+			`${W}: note for wu/take-v1-4000.ogg, which was not offered`,
 		]);
+	});
+
+	it('a review from before 2026-11-08 puts its slot note on the one track it rated or picked, and drops one about several or none', () => {
+		const JIG = 'music-w-tavern-jig/take-1.ogg';
+		const FANFARE = 'music-w-heraldic-fanfare/take-1.ogg';
+		const record = MusicReviewRecordSchema.parse({
+			at: '2026-11-09T01:29:37.603Z',
+			slots: {
+				[W]: { picks: [], ratings: { [JIG]: 'maybe' }, note: 'too much noise' },
+				[musicReviewCell('WU')]: { picks: [], ratings: {}, note: 'none of these' },
+				[musicReviewCell('U')]: { picks: [JIG], ratings: { [FANFARE]: 'no' }, note: 'which?' },
+				[musicReviewCell('B')]: { picks: [JIG], ratings: { [JIG]: 'keep' }, note: 'take it' },
+			},
+		});
+		expect(record.slots[W]).toEqual({ picks: [], ratings: { [JIG]: 'maybe' }, notes: { [JIG]: 'too much noise' } });
+		expect(record.slots[musicReviewCell('WU')]).toEqual({ picks: [], ratings: {}, notes: {} });
+		expect(record.slots[musicReviewCell('U')]!.notes).toEqual({});
+		expect(record.slots[musicReviewCell('B')]!.notes).toEqual({ [JIG]: 'take it' });
 	});
 
 	it('dedupes a slot’s picks, keeping the order picked', () => {

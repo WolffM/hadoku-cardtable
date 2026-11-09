@@ -175,7 +175,7 @@ describe('pickRandom', () => {
 describe('musicReviewClient', () => {
   const RECORD = {
     at: '2026-10-17T12:00:00.000Z',
-    slots: { 'music.match.W|play': { picks: ['music-w-tavern-jig/take-1.ogg'], ratings: {}, note: '' } },
+    slots: { 'music.match.W|play': { picks: ['music-w-tavern-jig/take-1.ogg'], ratings: {}, notes: {} } },
   };
 
   it('mine reads the latest review, and null for none or a failure', async () => {

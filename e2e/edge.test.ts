@@ -127,7 +127,7 @@ test('the edge serves the prefs stand-in to the server’s own review store: a p
   try {
     const bad: string[] = [];
     const store = createMusicReviewStore({ baseUrl: `http://127.0.0.1:${port}${PREFS_MOUNT}`, serviceKey: '', onBadRow: (u) => bad.push(u) });
-    const review = { at: '2026-10-31T00:00:00.000Z', slots: { 'music.match.W|play': { picks: [], ratings: {}, note: 'hm' } } };
+    const review = { at: '2026-10-31T00:00:00.000Z', slots: { 'music.match.W|play': { picks: [], ratings: { 'music-w-one/take-1.ogg': 'maybe' as const }, notes: { 'music-w-one/take-1.ogg': 'hm' } } } };
     await store.save('bob-key', review);
     assert.deepEqual(await store.mine('bob-id'), review);
     assert.equal(await store.mine('carol-id'), null);

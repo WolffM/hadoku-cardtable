@@ -271,26 +271,28 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     await slot.getByRole('button', { name: 'Pick W · w50 jig' }).click();
     await slot.getByRole('button', { name: 'Pick w50 web track' }).click();
     await slot.getByRole('group', { name: 'Rate w50 web track' }).getByRole('button', { name: 'No' }).click();
-    await slot.getByRole('textbox', { name: 'W note' }).fill('the jig');
+    await slot.getByRole('button', { name: 'Note on W · w50 jig' }).click();
+    await slot.getByRole('textbox', { name: 'W · w50 jig note' }).fill('the jig');
 
     const submit = friend.page.getByTestId('music-review-submit');
     const stored = friend.page.waitForResponse((r) => r.request().method() === 'POST' && r.url().endsWith('/api/sounds/music-review'));
     await submit.click();
     expect((await stored).status(), 'the server stored the review').toBe(200);
     await expect(submit).toHaveAttribute('data-state', 'saved');
+    await expect(submit).toHaveText('Saved');
 
     await friend.page.reload();
     await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
     await expect(slot.getByRole('button', { name: 'Pick W · w50 jig' })).toHaveAttribute('aria-pressed', 'true');
     await expect(slot.getByRole('button', { name: 'Pick w50 web track' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(slot.getByRole('textbox', { name: 'W note' })).toHaveValue('the jig');
+    await expect(slot.getByRole('textbox', { name: 'W · w50 jig note' })).toHaveValue('the jig');
     await expect(submit).toHaveAttribute('data-state', 'saved');
 
     // bob's own prefs row holds it, with no name in it.
     const row = await reviewRow('e2e-dana-id');
     expect(Object.keys(row!.blob).sort()).toEqual(['at', 'slots']);
     expect(row!.blob.slots).toEqual({
-      [MUSIC_CELL]: { picks: [MUSIC_GEN, MUSIC_WEB], ratings: { [MUSIC_WEB]: 'no' }, note: 'the jig' },
+      [MUSIC_CELL]: { picks: [MUSIC_GEN, MUSIC_WEB], ratings: { [MUSIC_WEB]: 'no' }, notes: { [MUSIC_GEN]: 'the jig' } },
     });
 
     // Reset, pressed twice: a blank form that a reload does not fill back in, and the row as it was.
@@ -300,7 +302,7 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     await reset.click();
     const said = '[data-testid="music-review-pick"][aria-pressed="true"], .music-review__rate[aria-pressed="true"]';
     await expect(slot.locator(said)).toHaveCount(0);
-    await expect(slot.getByRole('textbox', { name: 'W note' })).toHaveValue('');
+    await expect(slot.getByRole('textbox')).toHaveCount(0);
     await friend.page.reload();
     await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
     await expect(friend.page.locator(said)).toHaveCount(0);

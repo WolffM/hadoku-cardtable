@@ -225,11 +225,13 @@ monos then pairs. Candidates come from data, in one place
 (`musicReviewSlots`, `packages/shared/src/music-review.ts`): the cell's current
 assignment (badged) and every Music take named `<code> · `. Each card loops its
 take on the music bus at the player's levels, one at a time; its pick button
-puts it in the slot, any number per slot; keep / maybe / no rate it; a note
-goes with the slot. Submit is `POST /api/sounds/music-review`,
+puts it in the slot, any number per slot; keep / maybe / no rate it; its note
+button opens a note on that track under its row (per track since 2026-11-08, the
+operator: *"a popout textbox for each row rather than one textbox for the entire
+color"*). Submit is `POST /api/sounds/music-review`,
 validated against the same grouping and stored as the submitter's own
 prefs-api row, app `cardtable-music-review` (`{at, slots: {<cell>: {picks:
-[file, …], ratings, note}}}`; whose it is is the row's userId, and no name is
+[file, …], ratings, notes}}}`, ratings and notes keyed by take file; whose it is is the row's userId, and no name is
 kept; hadoku_site IDENTITY_MODEL R12, cardtable#25). A new submission replaces
 the row whole; no history is kept. Re-opening restores the browser's unsent
 draft, else the viewer's row (`GET /api/sounds/music-review/mine`).
