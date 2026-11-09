@@ -132,7 +132,9 @@ protocol change does to a seat that is Forge's client inside our bridge. Each is
 | The keep question with dead buttons (`w89c`, `tf-thopter-sword`, `tk-tinker` vs the AI) | the client's 250 ms "Waiting for …" fired between an input's bar and its prompt; Forge cancels it only on the prompt | `SeatGui.awaitNextInput` composes the wait itself, dropped once a prompt or bar follows, and holds the next input's frames while it is out |
 | End Turn showed no yield bar (`cancel-payment`, `yield-cancel`) | the yield line comes from the client's copy of the yield state, which never heard of an End Turn pressed as Cancel; and a yield shorter than 250 ms was never shown | `SeatGui.currentYieldMessage` reads the host's `YieldController`; a yield's bar goes up at once |
 | `[nightly] H3`: a quiet seat failed its match | `FGameClient` drops its server after 45 s with nothing read, whatever the host's timeout | fork: the client's read timeout is the server's (`forge.net.heartbeatTimeout`, a day on our JVMs) |
-| `w68-pay.spec` paid itself | the same Signet change as `by-hand-payment` | the spec moves to `by-hand-signets` |
+| `w68-pay.spec` paid itself | the same Signet change as `by-hand-payment`; the two-Signet board cannot be paid by hand from the screen (the server pays the first Signet's {1} with the land) | the spec keeps its board and plays under full control, which leaves every payment to the player |
+| An undeclared attacker could not be called back (`w33` Q14, `w46-attack`) | the bridge cleared an empty attack set; Forge's old `pushAttackerCandidates` sent it empty | an attack or block declaration always says its set |
+| "Your turn" cued for the turn just ended (`ux-your-turn`) | Forge hands the turn over at cleanup, a delta before `Turn` moves, and the two now arrive apart | the cue waits for a turn number above any it saw someone else hold |
 
 ## Not turned on yet
 
