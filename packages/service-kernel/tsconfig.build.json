@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The published build. In this workspace consumers import src/*.ts directly
+    // (tsconfig.json); a package installed under node_modules cannot be
+    // type-stripped by Node, so what npm gets is JavaScript plus declarations,
+    // with each `./x.ts` import rewritten to `./x.js`.
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "sourceMap": false,
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

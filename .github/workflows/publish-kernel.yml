@@ -1,0 +1,149 @@
+name: Publish service kernel
+
+# packages/service-kernel → @wolffm/service-kernel on GitHub Packages (the
+# fleet's games install it from there) and @hadoku/service-kernel on npmjs.
+# Cardtable itself never installs it: its own server imports the workspace
+# copy. The shape is hadoku-watchparty's publish-packages.yml, and the npmjs
+# half is hadoku_site's docs/operations/NPMJS_PUBLISHING.md.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/service-kernel/**'
+      - '.github/workflows/publish-kernel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Each run computes "one patch above the registry's newest", so two at once
+# race for the same version. Queue, never cancel.
+concurrency:
+  group: publish-kernel-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    outputs:
+      npmjs: ${{ steps.npmjs.outputs.live }}
+    steps:
+      - name: Mark the start, so the reported duration is real
+        run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v6
+
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+
+      # BEFORE the version step: next-version reads the registry under the
+      # manifest's name, which is @wolffm/service-kernel only after this.
+      # Written in the runner's checkout, never committed back.
+      - name: Write the published manifest
+        run: node packages/service-kernel/scripts/publish-manifest.ts
+
+      # The version is CI's, never a commit's: one patch above the registry's
+      # newest. A committed version above it is kept, so a deliberate minor
+      # bump still works.
+      - name: Version service-kernel
+        id: version
+        uses: WolffM/hadoku-actions/next-version@v1
+        with:
+          package-dir: packages/service-kernel
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+
+      - name: Build
+        run: node packages/service-kernel/scripts/build.ts
+
+      - name: List what the tarball carries
+        working-directory: packages/service-kernel
+        run: |
+          set -euo pipefail
+          pnpm pack --pack-destination "$RUNNER_TEMP/kernel-pack" >/dev/null
+          tar tzf "$RUNNER_TEMP"/kernel-pack/*.tgz | sort
+          rm -rf "$RUNNER_TEMP/kernel-pack"
+
+      - name: Publish to GitHub Packages
+        if: steps.version.outputs.published != 'true'
+        working-directory: packages/service-kernel
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pnpm publish --no-git-checks
+          echo "📦 Published @wolffm/service-kernel@${{ steps.version.outputs.version }}"
+
+      # npmjs takes a package only once its trusted publisher exists, which
+      # needs a first publish by hand (hadoku_site
+      # docs/requests/service-kernel-npmjs.md). Until the repo variable
+      # NPMJS_SERVICE_KERNEL is `live`, this stage runs as a dry run: it packs,
+      # renames, runs the leak gate and prints the file list, and uploads
+      # nothing, so the hosted job below has nothing to publish and is skipped.
+      - name: Is the npmjs half live?
+        id: npmjs
+        run: echo "live=${{ vars.NPMJS_SERVICE_KERNEL == 'live' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Stage service-kernel for npmjs
+        uses: WolffM/hadoku-actions/publish-npmjs@v1
+        with:
+          package-dir: packages/service-kernel
+          dry-run: ${{ steps.npmjs.outputs.live != 'true' }}
+
+      - name: Report the outcome so a silent failure can't hide
+        if: always()
+        uses: WolffM/hadoku-actions/report-job@v1
+        with:
+          job-name: cardtable:publish-kernel
+          service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+          started-at: ${{ env.JOB_STARTED_AT }}
+
+  # Trusted publishing refuses self-hosted runners: the job above staged the
+  # gated tarball, and this hosted job (no checkout, no secret) hands it to npm.
+  npmjs:
+    needs: publish
+    if: needs.publish.outputs.npmjs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+      actions: read
+    outputs:
+      started-at: ${{ steps.start.outputs.at }}
+    steps:
+      - name: Mark the start, for npmjs-report's duration
+        id: start
+        run: echo "at=$(date -u +%s)" >> "$GITHUB_OUTPUT"
+
+      - uses: WolffM/hadoku-actions/publish-npmjs/publish@v1
+
+  # The hosted job cannot report for itself (Cloudflare challenges a
+  # GitHub-hosted runner before any worker runs), so our runner reports it.
+  npmjs-report:
+    needs: [publish, npmjs]
+    if: always() && needs.publish.outputs.npmjs == 'true'
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 5
+    steps:
+      - name: Carry the hosted job's start, so the reported duration is real
+        run: echo "JOB_STARTED_AT=${{ needs.npmjs.outputs.started-at }}" >> "$GITHUB_ENV"
+
+      - name: Report the outcome so a silent failure can't hide
+        if: always()
+        uses: WolffM/hadoku-actions/report-job@v1
+        with:
+          job-name: cardtable:publish-kernel-npmjs
+          outcome: ${{ needs.npmjs.result }}
+          service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+          started-at: ${{ env.JOB_STARTED_AT }}
