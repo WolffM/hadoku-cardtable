@@ -1990,6 +1990,16 @@ describe('the adapter is the ONLY prose reader', () => {
 		expect(read.window).toBe('priority');
 	});
 
+	it('reads the turn owner whole when the player name has its own parentheses', () => {
+		const prompt = (turn: string, marker = '') => `Priority: ohmusama (猫様)\nTurn: 1 (${turn})${marker}\nPhase: Main phase, precombat\nStack: Empty`;
+		const mine = readPromptFacts(notesFor(prompt('ohmusama (猫様)'), buttons(true), []));
+		expect(mine.myTurn).toBe(true);
+		expect(judgeStop(mine, DEFAULT_STOP_POLICY).rule).toBe('stop-phase');
+		expect(readPromptFacts(notesFor(prompt('Hadoku'), buttons(true), [])).myTurn).toBe(false);
+		expect(readPromptFacts(notesFor(prompt('ohmusama'), buttons(true), [])).myTurn).toBe(false);
+		expect(readPromptFacts(notesFor(prompt('ohmusama (猫様)', '  [Night]'), buttons(true), [])).myTurn).toBe(true);
+	});
+
 	it('gives every field its "ask the player" value when it cannot tell', () => {
 		const blank = readPromptFacts({ playerId: null, prompt: null, buttons: null, actionable: [1], openAsks: 2 });
 		expect(blank).toMatchObject({ window: 'other', phase: null, mine: false, confirmLive: false, sources: null });

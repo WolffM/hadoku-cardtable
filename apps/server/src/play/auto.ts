@@ -1075,7 +1075,9 @@ export interface PromptFacts {
 
 /** Exported for `match.ts`'s `promptShape`: the same patterns, never a second copy. */
 export const PRIORITY = /^Priority: ([^\n]*)/;
-const TURN_OWNER = /^Turn: \d+ \(([^)]*)\)/m;
+// Greedy to the line's last `)` before Forge's optional `  [Day]` marker
+// (`InputBase.getTurnPhasePriorityMessage`): a player name may hold parentheses of its own.
+const TURN_OWNER = /^Turn: \d+ \((.*)\)(?: {2}\[[^\]\n]*\])?$/m;
 const STACK_EMPTY = /^Stack: Empty$/m;
 const PHASE_LINE = /^Phase: (.+)$/m;
 
