@@ -2151,8 +2151,16 @@ function RoomTableScreen({
     };
   }, [client, feed, roomId, mode, gauntletReads, tournament, gauntletTableId]);
 
-  /** One Gauntlet move (ready, ban, pick, choose): the board as it now stands, or the server's words. */
+  /**
+   * One Gauntlet move (ready, ban, pick, choose): the board as it now stands, or the server's words.
+   * One at a time: a press while a move is unanswered was made on the board that answer replaces, so
+   * it is dropped, not sent. A double click on a ban sent it twice, and the second came back "it is
+   * not your turn", drawn as the room's error line, a scroll bar's worth taller.
+   */
+  const gauntletMoving = useRef(false);
   const gauntletMove = (move: () => Promise<GauntletOutcome>): void => {
+    if (gauntletMoving.current) return;
+    gauntletMoving.current = true;
     setActionError(null);
     move()
       .then((outcome) => {
@@ -2163,7 +2171,10 @@ function RoomTableScreen({
         gauntletReads.wrote();
         setGauntlet(outcome.view);
       })
-      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+      .finally(() => {
+        gauntletMoving.current = false;
+      });
   };
 
   /** The LEADER picked the room's other type: it becomes that room, its mode unchosen and nobody ready. */
