@@ -113,12 +113,30 @@ Steps:
 5. **Land** — the pin, the bridge, `forge-wire` and the docs in one commit, with the jar installed
    under `~/.local/share/cardtable/jars/<pin>.jar` before it.
 
+## Found while proving
+
+The rebase compiled and the fork's own tests passed; the real-Forge suites then found what the
+protocol change does to a seat that is Forge's client inside our bridge. Each is fixed at its cause:
+
+| what broke | cause | fix |
+| --- | --- | --- |
+| Seats sat on "Waiting for …" with dead buttons | Forge now composes that prompt on the client, 250 ms after `awaitNextInput`; its own client cancels it when the next prompt arrives (`CMatchUI.showPromptMessage`) | `SeatGui.showPromptMessage` cancels it too |
+| Target selections never opened; held selections never released | Forge sends a prompt's selection after the prompt, and the client decodes it only after the deltas before it (`GameClientHandler.decodeArgs`), while the server releases a selection on the prompt that follows it | fork: `InputBase.showMessageInitial` also sends the selection ahead of `showMessage` (dropped when unchanged); bridge: priority and payment actionable sets are read from the host-side scan (`SeatController.lastActionable`) and sent ahead of their prompt, an empty set included |
+| Counterspell could not target a spell | a networked seat picks stack targets from its stack view (`ProtocolGuiGame.canPickStackTargets` true) | fork: `ProtocolGuiGame.pickStackTargets`, set off by the bridge, keeps Forge's `chooseCardFromStack` ask |
+| A board with a spell on the stack crashed the game | `GameState.applyToGame` marks the stack resolving with nothing resolving; upstream's `isResolving(Card)` lost its null guard | fork: the guard is back |
+| A dropped seat left the match waiting | Forge's client reconnects on its own and tells its lobby nothing meanwhile; Forge's server keeps the seat | bridge: `onReconnectStateChanged` fails the match at once, every client stops retrying, and `endGame` concedes a silent seat on the host |
+| A second target pick answered the first | the bridge resent a selection whose player list shrank after a pick | an offer goes out once per input |
+| Upstream's own tests: 4 reds of 2,193 | our features (ActGate's wait, our variable-amount undo, our real `forge server`) | `ActGate.await` takes the GUI's `awaitInput`; two tests adapted to our semantics, named in their commits |
+| `by-hand-payment.jvm` | Forge's Auto now chains one Signet | a board with two Signets, one paying the other: Auto-dead on the old pin and the new |
+
 ## Not turned on yet
 
 - **Flat Monte Carlo AI.** Upstream's default (`MATCH_AI_FLAT_MONTE_CARLO`, Max on desktop) runs
   rollouts within the AI's 5 s deadline for every decision. That changes CPU per match on a host
   running several matches per JVM, and AI pacing in e2e. The bridge keeps today's AI for this landing.
   Turning it on is one preference, after a capacity measurement (`capacity` telemetry, a soak).
+- **Reconnecting a dropped seat.** Forge's client can now come back; the bridge still fails the match at
+  once, as before. Letting a loopback seat reconnect is its own change.
 - **UndoManager.** Off: our undo is the stack's. If players want "undo the last spell", that's
   upstream's mechanism to turn on, as its own decision.
 
