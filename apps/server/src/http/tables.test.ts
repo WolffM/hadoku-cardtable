@@ -1847,10 +1847,10 @@ describe('a room table', () => {
 			expect(stood.status).toBe(200);
 			expect(stood.body.you).toEqual({ player: false, leader: true });
 			expect(players(stood.body).map((p) => p.name)).toEqual(['user-bob']);
-			// Her seat is free for the next person, who sits behind bob.
+			// Her seat is free for the next person, and bob stays in his.
 			expect(players((await sit(h, 'carol')).body).map((p) => [p.seat, p.name])).toEqual([
-				[0, 'user-bob'],
-				[1, 'user-carol'],
+				[0, 'user-carol'],
+				[1, 'user-bob'],
 			]);
 			// Standing when you hold no seat is a no-op answer.
 			expect((await stand(h, 'alice')).status).toBe(200);

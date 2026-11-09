@@ -148,7 +148,7 @@ describe('a constructed table', () => {
 		expect(s.lobby.setMode(s.roomId, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
 	});
 
-	it('gives a seat back only to its holder, and the next player moves up', async () => {
+	it('gives a seat back only to its holder, and the seat stays empty for the next to sit', async () => {
 		const s = await boot();
 		await s.call('alice', 'PUT', '/deck', DECK);
 		await s.call('bob', 'PUT', '/deck', OTHER);
@@ -160,13 +160,27 @@ describe('a constructed table', () => {
 		expect(roomSeats(s)).toEqual([['bob']]);
 		const mine = await s.call('alice', 'GET', '');
 		expect(mine.body.you).toMatchObject({ player: false });
-		// Sitting down again takes the free seat with no deck.
+		// Sitting down again takes the free seat, the first, with no deck.
 		await s.call('alice', 'POST', '/sit', {});
 		const back = await s.call('alice', 'GET', '');
-		expect((back.body.players as { name: string; deck?: unknown }[]).map((p) => [p.name, p.deck])).toEqual([
-			['bob', undefined],
-			['alice', null],
+		expect((back.body.players as { seat: number; name: string; deck?: unknown }[]).map((p) => [p.seat, p.name, p.deck])).toEqual([
+			[0, 'alice', null],
+			[1, 'bob', undefined],
 		]);
+	});
+
+	it('sits a player in the seat they pick, as a pod does, and moves a seated one there with their deck', async () => {
+		const s = await boot();
+		const where = async () => ((await s.call('alice', 'GET', '')).body.players as { seat: number; name: string }[]).map((p) => [p.seat, p.name]);
+		await s.call('alice', 'PUT', '/deck', DECK);
+		expect(await where()).toEqual([[0, 'alice']]);
+		expect((await s.call('alice', 'POST', '/sit', { seat: 1 })).status).toBe(200);
+		expect(await where(), 'moved, and the first seat left empty').toEqual([[1, 'alice']]);
+		expect(((await s.call('alice', 'GET', '')).body.players as { deck?: { name?: string } | null }[])[0]?.deck, 'the deck moves with her').not.toBeNull();
+		expect(await s.call('bob', 'POST', '/sit', { seat: 1 })).toMatchObject({ status: 409, body: { error: 'that seat is already taken' } });
+		expect(await s.call('bob', 'POST', '/sit', { seat: 2 })).toMatchObject({ status: 400 });
+		expect((await s.call('bob', 'POST', '/sit', { seat: 0 })).status).toBe(200);
+		expect(await where()).toEqual([[0, 'bob'], [1, 'alice']]);
 	});
 
 	it('moves a player who sits at another table, deck and ready left behind', async () => {

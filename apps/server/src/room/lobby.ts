@@ -118,7 +118,7 @@ import { botSeatAcross, pairRound, rankedStandings, rngFromSeed, roundsFor, shuf
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { gauntletHoldsTable, isGauntletState, type GauntletState } from './gauntlet.ts';
 import { roundNamesOf } from './plan.ts';
-import { leaveSeat, readySeat, seatList, sitAt, type TableSeat, type TableSeats } from './seats.ts';
+import { leaveSeat, readySeat, seatList, seatOrder, sitAt, type TableSeat, type TableSeats } from './seats.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, statsModeOf, type SeriesGame, type SeriesRecord, type SeriesRoom } from './series.ts';
 
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
@@ -1408,12 +1408,13 @@ export interface Lobby {
 	/** Who sits at `tableId`, in seat order, with each seat's Ready. Empty when there is no such room or table. */
 	seats(roomId: string, tableId: string): TableSeat[];
 	/**
-	 * `memberId` takes the first open seat at `tableId`, giving up a seat held
-	 * at any other table of the room. True when they hold one there afterwards
-	 * (a seat already held is a no-op); false when there is no such room, table
-	 * or member, or both seats are someone else's.
+	 * `memberId` takes `seat` at `tableId` — the first open one when `seat` is
+	 * absent — giving up a seat held anywhere else in the room, this table's
+	 * other seat included. True when they hold it afterwards (a seat already
+	 * held is a no-op); false when there is no such room, table or member, or
+	 * the seat is someone else's (both are, with no `seat`).
 	 */
-	sit(roomId: string, tableId: string, memberId: string): boolean;
+	sit(roomId: string, tableId: string, memberId: string, seat?: number): boolean;
 	/** `memberId` gives their seat at `tableId` back, Ready and all. False when there is no such room or table. */
 	stand(roomId: string, tableId: string, memberId: string): boolean;
 	/**
@@ -2910,12 +2911,13 @@ class FileLobby implements Lobby {
 		return found === undefined ? [] : seatList(found.table);
 	}
 
-	sit(roomId: string, tableId: string, memberId: string): boolean {
+	sit(roomId: string, tableId: string, memberId: string, seat?: number): boolean {
 		const found = this.#table(roomId, tableId);
 		if (found === undefined || !found.room.members.some((m) => m.id === memberId)) return false;
 		const { room, table } = found;
-		if (table.seats.includes(memberId)) return true;
-		if (!sitAt(room.tables, table, memberId)) return false;
+		const held = table.seats.indexOf(memberId);
+		if (seat === undefined ? held !== -1 : held === seat) return true;
+		if (!sitAt(room.tables, table, memberId, seat)) return false;
 		this.#tookSeat(room.id, table.id, memberId);
 		this.#persist(room);
 		return true;
@@ -2964,7 +2966,7 @@ class FileLobby implements Lobby {
 		if (table.series.phase === 'seating' || table.series.phase === 'done') {
 			// A finished series this start replaces is over, Rematch or not.
 			this.#settleSeries(room, table, true);
-			table.series = newSeries(seriesRoomOf(room), table.seats, 'playing');
+			table.series = newSeries(seriesRoomOf(room), seatOrder(table), 'playing');
 		} else if (table.series.phase === 'sideboarding' || table.series.phase === 'between') {
 			table.series = { ...table.series, phase: 'playing' };
 		}
@@ -3027,7 +3029,7 @@ class FileLobby implements Lobby {
 		table.matchId = null;
 		table.ready = [false, false];
 		// Replaced, not settled: `#settleSeries` never sees it, so nothing is recorded.
-		table.series = newSeries(seriesRoomOf(room), table.seats, 'seating');
+		table.series = newSeries(seriesRoomOf(room), seatOrder(table), 'seating');
 		const next = { ...room.gauntlets };
 		delete next[table.id];
 		room.gauntlets = next;
@@ -3059,7 +3061,8 @@ class FileLobby implements Lobby {
 	 */
 	#forfeit(room: RoomRecord, table: TableRecord, loser: string): [number, number] {
 		const { series } = table;
-		const dropper = isAiEntrant(loser) ? table.seats.indexOf(null) : table.seats.indexOf(loser);
+		const order = seatOrder(table);
+		const dropper = isAiEntrant(loser) ? order.indexOf(null) : order.indexOf(loser);
 		const needed = Math.floor(series.length / 2) + 1;
 		const other = dropper === 0 ? 1 : 0;
 		const wins: [number, number] = [0, 0];
@@ -3068,7 +3071,7 @@ class FileLobby implements Lobby {
 		table.matchId = null;
 		table.ready = [false, false];
 		// Before a first game the series names nobody; the seats are who played it.
-		const played: [string | null, string | null] = series.games.length === 0 ? [table.seats[0] ?? null, table.seats[1] ?? null] : series.played;
+		const played: [string | null, string | null] = series.games.length === 0 ? order : series.played;
 		table.series = { ...series, played, wins, phase: 'done', gameStartedAt: null };
 		this.#settleSeries(room, table, true);
 		table.series = { ...table.series, settled: true };
@@ -3392,9 +3395,10 @@ class FileLobby implements Lobby {
 		return this.#stillSeated(table) && series.played.every((id) => id === null || this.#podChecks.holdsSeriesDeck(room.members.find((m) => m.id === id)?.state));
 	}
 
-	/** Whoever played the table's series still holds the seat they played it in. */
+	/** Whoever played the table's series still sits as they played it. */
 	#stillSeated(table: TableRecord): boolean {
-		return table.series.played.every((id, seat) => table.seats[seat] === id);
+		const order = seatOrder(table);
+		return table.series.played.every((id, seat) => order[seat] === id);
 	}
 
 	/**
@@ -3477,7 +3481,7 @@ class FileLobby implements Lobby {
 	#interruptSeries(room: RoomRecord, unseat: boolean): void {
 		for (const table of room.tables) {
 			this.#settleSeries(room, table, 'interrupted');
-			table.series = newSeries(room, unseat ? [null, null] : table.seats, 'seating');
+			table.series = newSeries(room, unseat ? [null, null] : seatOrder(table), 'seating');
 		}
 		dropHolds(room, unseat);
 	}

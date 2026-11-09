@@ -1427,8 +1427,8 @@ describe('Lobby.releaseTableMatch', () => {
 
 		expect(lobby.get(id)?.matchId).toBeNull();
 		expect(lobby.seats(id, tableId)).toEqual([
-			{ memberId: ALICE.id, ready: false },
-			{ memberId: BOB.id, ready: false },
+			{ memberId: ALICE.id, ready: false, seat: 0 },
+			{ memberId: BOB.id, ready: false, seat: 1 },
 		]);
 		// The table state is opaque here and kept whole.
 		expect(lobby.playerState(id, ALICE.id)).toEqual({ v: 1, deck: 'mono-red' });
@@ -1466,7 +1466,7 @@ describe('Lobby.releaseTableMatch', () => {
 
 		expect(lobby.releaseTableMatch(id, table1)).toBe(true);
 		expect(lobby.seats(id, table1).map((s) => s.ready)).toEqual([false, false]);
-		expect(lobby.seats(id, table2), 'not at the table that released').toEqual([{ memberId: CAROL.id, ready: true }]);
+		expect(lobby.seats(id, table2), 'not at the table that released').toEqual([{ memberId: CAROL.id, ready: true, seat: 0 }]);
 	});
 });
 
@@ -1775,8 +1775,8 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
 			// A mode change keeps both seated, unready, to play it.
 			expect(lobby.seats(id, tableId)).toEqual([
-				{ memberId: ALICE.id, ready: false },
-				{ memberId: BOB.id, ready: false },
+				{ memberId: ALICE.id, ready: false, seat: 0 },
+				{ memberId: BOB.id, ready: false, seat: 1 },
 			]);
 			ended.length = 0;
 			expect(lobby.setTableMatch(id, tableId, 'm-gauntlet-1')).toBe(true);
@@ -2092,7 +2092,7 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 		expect(table(), 'and back').toEqual([ALICE.id, BOB.id]);
 	});
 
-	it('seats members in the order they sat, two at most, and a stand moves the other up with their Ready', async () => {
+	it('seats members in the order they sat, two at most, and a stand leaves the seat empty, the other keeping theirs and their Ready', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -2113,8 +2113,36 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 		expect(lobby.get(id)?.tables[0]?.players.map((p) => p.memberId)).toEqual([BOB.id, ALICE.id]);
 		expect(lobby.setSeatReady(id, tableId, ALICE.id, true)).toBe(true);
 		expect(lobby.stand(id, tableId, BOB.id)).toBe(true);
-		expect(lobby.seats(id, tableId)).toEqual([{ memberId: ALICE.id, ready: true }]);
+		expect(lobby.seats(id, tableId)).toEqual([{ memberId: ALICE.id, ready: true, seat: 1 }]);
 		expect(lobby.stand(id, tableId, BOB.id), 'standing with no seat is a no-op').toBe(true);
+	});
+
+	it('seats a member in the seat they pick, as a pod does: a taken seat is refused, a seated member moves, and an empty first seat stays empty', async () => {
+		const ended: SeriesEnd[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end) });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		lobby.join(id, BOB);
+		lobby.stand(id, tableId, ALICE.id);
+		lobby.stand(id, tableId, BOB.id);
+		expect(lobby.sit(id, tableId, ALICE.id, 1)).toBe(true);
+		expect(lobby.seats(id, tableId), 'the second seat, with the first left open').toEqual([{ memberId: ALICE.id, ready: false, seat: 1 }]);
+		expect(lobby.sit(id, tableId, BOB.id, 1), "alice's seat").toBe(false);
+		expect(lobby.sit(id, tableId, ALICE.id, 1), 'a seat already held').toBe(true);
+		expect(lobby.setSeatReady(id, tableId, ALICE.id, true)).toBe(true);
+		expect(lobby.sit(id, tableId, ALICE.id, 0), 'a move').toBe(true);
+		expect(lobby.seats(id, tableId), 'a move leaves the Ready behind').toEqual([{ memberId: ALICE.id, ready: false, seat: 0 }]);
+		expect(lobby.sit(id, tableId, BOB.id)).toBe(true);
+		expect(lobby.stand(id, tableId, ALICE.id)).toBe(true);
+		expect(lobby.seats(id, tableId), 'nobody moves up').toEqual([{ memberId: BOB.id, ready: false, seat: 1 }]);
+		// A match and its series still number the seated players from the first: bob alone in the second seat is
+		// the match's seat 0 against the AI, so its winner 0 is bob.
+		expect(lobby.setTableMatch(id, tableId, 'm-vs-ai')).toBe(true);
+		lobby.recordGameResult(id, tableId, { matchId: 'm-vs-ai', winner: 0 });
+		expect(lobby.leave(id, BOB.id).ok).toBe(true);
+		expect(ended.map((e) => [e.seats[0]?.memberId, e.winner])).toEqual([[BOB.id, 0]]);
 	});
 
 	it('moves a member who sits at another table, and leaving the room gives the seat back', async () => {
@@ -2130,12 +2158,12 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 		expect(lobby.sit(id, first, ALICE.id) && lobby.setSeatReady(id, first, ALICE.id, true)).toBe(true);
 		expect(lobby.sit(id, first, BOB.id)).toBe(true);
 		expect(lobby.sit(id, added.table.id, ALICE.id)).toBe(true);
-		expect(lobby.seats(id, first)).toEqual([{ memberId: BOB.id, ready: false }]);
-		expect(lobby.seats(id, added.table.id)).toEqual([{ memberId: ALICE.id, ready: false }]);
+		expect(lobby.seats(id, first)).toEqual([{ memberId: BOB.id, ready: false, seat: 1 }]);
+		expect(lobby.seats(id, added.table.id)).toEqual([{ memberId: ALICE.id, ready: false, seat: 0 }]);
 		expect(lobby.leave(id, BOB.id).ok).toBe(true);
 		expect(lobby.seats(id, first)).toEqual([]);
 		const second = await openLobby({ dir });
-		expect(second.seats(id, added.table.id)).toEqual([{ memberId: ALICE.id, ready: false }]);
+		expect(second.seats(id, added.table.id)).toEqual([{ memberId: ALICE.id, ready: false, seat: 0 }]);
 	});
 
 	/**
@@ -2162,7 +2190,7 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 			const { lobby, id, tableId } = await seatedTable();
 			expect(lobby.setPlayerState(id, ALICE.id, { held: 'a deck' })).toBe(true);
 			expect(lobby.releaseAbandonedSeats(ALICE.id)).toEqual([{ roomId: id, tableId }]);
-			expect(lobby.seats(id, tableId)).toEqual([{ memberId: BOB.id, ready: false }]);
+			expect(lobby.seats(id, tableId)).toEqual([{ memberId: BOB.id, ready: false, seat: 1 }]);
 			expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
 		});
 
@@ -2239,7 +2267,7 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 			expect(released.sort((a, b) => a.roomId.localeCompare(b.roomId))).toEqual(
 				[{ roomId: first.room.id, tableId: t1 }, { roomId: second.room.id, tableId: t2 }].sort((a, b) => a.roomId.localeCompare(b.roomId)),
 			);
-			expect(lobby.seats(first.room.id, t1)).toEqual([{ memberId: BOB.id, ready: false }]);
+			expect(lobby.seats(first.room.id, t1)).toEqual([{ memberId: BOB.id, ready: false, seat: 1 }]);
 			expect(lobby.seats(second.room.id, t2)).toEqual([]);
 		});
 	});
@@ -3421,8 +3449,8 @@ describe('a constructed room’s mode', () => {
 		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
 		// The operator, 2026-10-23: "seats get reliquished when changing game mode. can we try to keep players seated?"
 		expect(lobby.seats(id, tableId)).toEqual([
-			{ memberId: ALICE.id, ready: false },
-			{ memberId: BOB.id, ready: false },
+			{ memberId: ALICE.id, ready: false, seat: 0 },
+			{ memberId: BOB.id, ready: false, seat: 1 },
 		]);
 
 		// The same mode with the same options again changes nothing and clears nothing.
@@ -3447,8 +3475,8 @@ describe('a constructed room’s mode', () => {
 		expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} })).toEqual({ ok: false, reason: 'mode-locked' });
 		expect(lobby.get(id)?.mode).toBe('classic');
 		expect(lobby.seats(id, tableId)).toEqual([
-			{ memberId: ALICE.id, ready: false },
-			{ memberId: BOB.id, ready: true },
+			{ memberId: ALICE.id, ready: false, seat: 0 },
+			{ memberId: BOB.id, ready: true, seat: 1 },
 		]);
 
 		// Standing down unlocks it.

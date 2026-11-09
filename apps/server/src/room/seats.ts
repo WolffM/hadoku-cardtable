@@ -1,8 +1,14 @@
 /**
  * A table's two seats and each seat's Ready: the one record of who sits where
- * (`room/lobby.ts` keeps one per table). Seats fill in the order people sit and
- * close up when one stands, so seat 0 is always whoever has sat longest. A
- * Ready belongs to the player in the seat: it leaves with them.
+ * (`room/lobby.ts` keeps one per table). A seat is a place, as a pod's seats
+ * are: someone sits in the seat they pick (the first open one when they pick
+ * none), and a seat someone stands up from stays empty — nobody moves up into
+ * it. A Ready belongs to the player in the seat: it leaves with them.
+ *
+ * The game reads the seated players in seat order with the empty seat skipped
+ * (`seatList`, `seatOrder`): that order is a match's seat order, a series' and
+ * a Gauntlet's, so a player alone in the second seat is still the match's
+ * first seat against the AI.
  */
 
 export type SeatPair = [string | null, string | null];
@@ -12,40 +18,48 @@ export interface TableSeats {
 	ready: [boolean, boolean];
 }
 
-/** A seat's holder and their Ready, as the seats are read out. */
+/** A seat's holder, their Ready, and which of the table's seats they sit in. */
 export interface TableSeat {
 	memberId: string;
 	ready: boolean;
+	seat: number;
 }
 
 /** The seated players, in seat order. */
 export function seatList(table: TableSeats): TableSeat[] {
-	return table.seats.flatMap((memberId, i) => (memberId === null ? [] : [{ memberId, ready: table.ready[i]! }]));
+	return table.seats.flatMap((memberId, seat) => (memberId === null ? [] : [{ memberId, ready: table.ready[seat]!, seat }]));
+}
+
+/** The seated players as a match, a series and a Gauntlet number them: seat order, the empty seat skipped. */
+export function seatOrder(table: TableSeats): SeatPair {
+	const [first, second] = seatList(table);
+	return [first?.memberId ?? null, second?.memberId ?? null];
 }
 
 /**
- * `memberId` takes the first open seat at `table`, giving up a seat held at
- * any other of the room's `tables`. True when they hold a seat at `table`
- * afterwards (one already held is left as it is); false when both are taken
- * by others.
+ * `memberId` sits at `table` — in `seat` when it is given, else the first open
+ * one — giving up a seat held anywhere else in the room's `tables`, this table
+ * included (a move, as a pod's seats allow). True when they hold the seat
+ * afterwards (one already held is left as it is); false when it is someone
+ * else's, or no seat is open.
  */
-export function sitAt(tables: readonly TableSeats[], table: TableSeats, memberId: string): boolean {
-	if (table.seats.includes(memberId)) return true;
-	const open = table.seats.indexOf(null);
-	if (open === -1) return false;
+export function sitAt(tables: readonly TableSeats[], table: TableSeats, memberId: string, seat?: number): boolean {
+	const held = table.seats.indexOf(memberId);
+	if (seat === undefined ? held !== -1 : held === seat) return true;
+	const target = seat ?? table.seats.indexOf(null);
+	if (target === -1 || table.seats[target] !== null) return false;
 	for (const other of tables) leaveSeat(other, memberId);
-	table.seats[open] = memberId;
-	table.ready[open] = false;
+	table.seats[target] = memberId;
+	table.ready[target] = false;
 	return true;
 }
 
-/** Give a seat back, Ready and all; the other player moves up. False when `memberId` held no seat here. */
+/** Give a seat back, Ready and all; it stays empty. False when `memberId` held no seat here. */
 export function leaveSeat(table: TableSeats, memberId: string): boolean {
 	const at = table.seats.indexOf(memberId);
 	if (at === -1) return false;
-	const kept = seatList(table).filter((s) => s.memberId !== memberId);
-	table.seats = [kept[0]?.memberId ?? null, null];
-	table.ready = [kept[0]?.ready ?? false, false];
+	table.seats[at] = null;
+	table.ready[at] = false;
 	return true;
 }
 

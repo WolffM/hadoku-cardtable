@@ -14,7 +14,7 @@
  *   GET  /api/tables/rooms/:roomId         both players' state at ONE of a room's tables (`?table=`, default `tables[0]`)
  *   PUT  /api/tables/rooms/:roomId/deck    `{ deck, table? }` → check MY deck in the TABLE's pool and hold it
  *   POST /api/tables/rooms/:roomId/ready   `{ ready, table? }` → I am (not) ready
- *   POST /api/tables/rooms/:roomId/sit     `{ table? }` → take a free seat (a deck may come later)
+ *   POST /api/tables/rooms/:roomId/sit     `{ table?, seat? }` → take that seat, or the first free one (a deck may come later)
  *   POST /api/tables/rooms/:roomId/stand   `{ table? }` → give my seat back; refused once the table is locked
  *   POST   /api/tables/rooms/:roomId/tables              leader only: add an empty table, answers its `RoomTable`
  *   DELETE /api/tables/rooms/:roomId/tables/:tableId     leader only: remove an empty, idle table other than the first
@@ -617,6 +617,18 @@ function parseTableBody(raw: unknown): { ok: true; table: unknown } | { ok: fals
 	return { ok: true, table: (raw as { table?: unknown }).table };
 }
 
+/** `POST …/sit`'s body: `parseTableBody`'s, plus the seat to take (absent: the first free one). */
+function parseSitBody(raw: unknown): { ok: true; table: unknown; seat: number | undefined } | { ok: false; error: string } {
+	if (raw === undefined) return { ok: true, table: undefined, seat: undefined };
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { ok: false, error: 'body is {} or { table?, seat? }' };
+	const { seat, ...rest } = raw as { seat?: unknown };
+	if (seat !== undefined && (typeof seat !== 'number' || !Number.isInteger(seat) || seat < 0 || seat >= TABLE_SEATS)) {
+		return { ok: false, error: `seat must be a seat number below ${TABLE_SEATS}` };
+	}
+	const table = parseTableBody(rest);
+	return table.ok ? { ...table, seat } : table;
+}
+
 function readDeck(raw: unknown): TableDeck | null {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
 	const d = raw as Partial<TableDeck>;
@@ -653,6 +665,8 @@ interface TablePlayer {
 	member: RoomViewLike['members'][number];
 	state: TablePlayerState;
 	ready: boolean;
+	/** Which of the table's seats they sit in. Their index in `playersOf` is the match's seat, which skips an empty one. */
+	seat: number;
 }
 
 /**
@@ -663,10 +677,10 @@ interface TablePlayer {
  * `table` field means `tables[0]` (the wire contract).
  */
 function playersOf(rooms: TablesRooms, room: RoomViewLike, tableId: string = room.tables[0]!.id): TablePlayer[] {
-	return rooms.seats(room.id, tableId).flatMap(({ memberId, ready }) => {
+	return rooms.seats(room.id, tableId).flatMap(({ memberId, ready, seat }) => {
 		const member = room.members.find((m) => m.id === memberId);
 		if (member === undefined) return [];
-		return [{ member, state: readPlayerState(rooms.playerState(room.id, memberId)) ?? EMPTY_SEAT, ready }];
+		return [{ member, state: readPlayerState(rooms.playerState(room.id, memberId)) ?? EMPTY_SEAT, ready, seat }];
 	});
 }
 
@@ -1267,8 +1281,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// and no client can derive the second one for itself: `room.leader` is a
 			// hashed ParticipantId and nothing tells a caller which id is theirs.
 			you: { player: players.some((p) => p.member.id === me), leader: room.leader === me },
-			players: players.map((p, seat) => ({
-				seat,
+			// In seat order. `seat` is the seat they sit in, which a screen draws them at; with the
+			// first seat empty, the one player's `seat` is 1.
+			players: players.map((p) => ({
+				seat: p.seat,
 				name: p.member.name,
 				// The character this player picked in watchparty's room, when they
 				// have one. Not caller-scoped: a face is not hidden information, and
@@ -1718,7 +1734,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	});
 
 	/**
-	 * Sitting is its own act (2026-10-12). Idempotent: a seat you hold is
+	 * Sitting is its own act (2026-10-12). `seat` picks the seat, as a pod's
+	 * seats do; absent, the first free one. Someone already seated moves to the
+	 * seat they pick (their deck goes with them). Idempotent: a seat you hold is
 	 * answered 200 with the table as it stands. A deck is NOT required to sit,
 	 * and `PUT …/deck` still seats an unseated caller, so neither path is the
 	 * only way in.
@@ -1728,7 +1746,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		if (found === null || rooms === null) return;
 		const { room, me } = found;
 		if (wrongGameType(room, res)) return;
-		const parsedBody = parseTableBody(req.body);
+		const parsedBody = parseSitBody(req.body);
 		if (!parsedBody.ok) {
 			res.status(400).json({ error: parsedBody.error });
 			return;
@@ -1739,8 +1757,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'the match has already started' });
 			return;
 		}
+		const { seat } = parsedBody;
 		const players = playersOf(rooms, room, table.id);
-		if (players.some((p) => p.member.id === me)) {
+		const mine = players.find((p) => p.member.id === me);
+		if (mine !== undefined && (seat === undefined || mine.seat === seat)) {
 			res.json(tableView(room, me, table));
 			return;
 		}
@@ -1748,15 +1768,25 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'the Gauntlet has started' });
 			return;
 		}
-		if (players.length >= TABLE_SEATS) {
+		if (mine !== undefined && tableLocked(room, players, null, table.id)) {
+			res.status(409).json({ error: 'both players are ready — the table is locked' });
+			return;
+		}
+		if (seat !== undefined && players.some((p) => p.seat === seat)) {
+			res.status(409).json({ error: 'that seat is already taken' });
+			return;
+		}
+		if (mine === undefined && players.length >= TABLE_SEATS) {
 			res.status(409).json({ error: 'this table already has two players' });
 			return;
 		}
-		if (!rooms.sit(room.id, table.id, me) || !rooms.setPlayerState(room.id, me, EMPTY_SEAT)) {
+		// A move keeps the deck the player already holds; only someone new to the table starts empty.
+		if (!rooms.sit(room.id, table.id, me, seat) || (mine === undefined && !rooms.setPlayerState(room.id, me, EMPTY_SEAT))) {
 			notFound(res);
 			return;
 		}
-		log({ evt: 'room-sat', room: room.id, table: table.id, seat: players.length });
+		const sat = rooms.seats(room.id, table.id).find((s) => s.memberId === me)?.seat;
+		log({ evt: 'room-sat', room: room.id, table: table.id, seat: sat, ...(mine === undefined ? {} : { from: mine.seat }) });
 		answerTable(res, me, room, table);
 	});
 

@@ -1478,8 +1478,8 @@ function RoomTableScreen({
   const [gauntlet, setGauntlet] = useState<GauntletView | null>(null);
   /** The Gauntlet's reads and this screen's own moves, latest-wins (`../rooms/latest.ts`). */
   const [gauntletReads] = useState(latestReads);
-  /** Whether a seat is ready: the Gauntlet keeps its own readiness, every other mode the table's. */
-  const readyAt = (seat: number): boolean => (mode === 'gauntlet' ? gauntlet?.ready[seat] === true : players[seat]?.ready === true);
+  /** Whether the player `players[index]` is ready: the Gauntlet keeps its own readiness (in that order), every other mode the table's. */
+  const readyAt = (index: number): boolean => (mode === 'gauntlet' ? gauntlet?.ready[index] === true : players[index]?.ready === true);
   useRoomSounds(
     view === null
       ? null
@@ -1553,7 +1553,7 @@ function RoomTableScreen({
   /** The room answered with a refusal rather than a table: there is nothing more to wait for. */
   const settled = locked !== null || tableError !== null;
   /** The empty seat Forge's AI is offered on, if any: the last one, while nobody but me is seated. */
-  const botSeat = players.every((p) => p.you) ? [0, 1].findLast((seat) => players[seat] === undefined) : undefined;
+  const botSeat = players.every((p) => p.you) ? [0, 1].findLast((seat) => !players.some((p) => p.seat === seat)) : undefined;
   /**
    * The AI holding that seat, if it does: a table's seats on the wire are its humans only
    * (`http/routes.ts`'s `tableView`), so a game against Forge's AI leaves the seat empty there. It is
@@ -2221,12 +2221,12 @@ function RoomTableScreen({
    * live (`room.locked`), and the refusal is shown in its own words where a
    * deck or ready refusal is.
    */
-  const sitDown = (): void => {
-    if (queued(() => sitDown())) return;
+  const sitDown = (seat: number): void => {
+    if (queued(() => sitDown(seat))) return;
     setBusy(true);
     setActionError(null);
     client
-      .sit(roomId)
+      .sit(roomId, undefined, seat)
       .then(apply)
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
@@ -2673,7 +2673,7 @@ function RoomTableScreen({
                   <h3 className="table-side__heading">Players</h3>
                   <ul className="pod-seats pod-seats--table" data-testid="room-players">
                     {[0, 1].map((seat) => {
-                      const player = players[seat];
+                      const player = players.find((p) => p.seat === seat);
                       if (aiSeat?.seat === seat) {
                         return (
                           <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-ai="">
@@ -2686,15 +2686,15 @@ function RoomTableScreen({
                       }
                       return player === undefined ? (
                         <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}-empty`}>
-                          {/* Sitting is its own act (2026-10-12): dead once I hold a seat, once the table is locked, or once a match is under way. */}
+                          {/* Sitting is its own act (2026-10-12), in the seat pressed; seated, it moves me there, as a pod's seats do. Dead once the table is locked or a match is under way. */}
                           <ActionButton
                             action="sit"
                             className="pod-seats__avatar pod-seats__avatar--open"
                             data-testid="seat-sit"
                             data-seat={seat}
                             aria-label={`Sit in seat ${seat + 1}`}
-                            disabled={seated || tableLocked || underway}
-                            onPress={sitDown}
+                            disabled={tableLocked || underway}
+                            onPress={() => sitDown(seat)}
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
                               <path d="M12 5v14M5 12h14" />
@@ -2728,13 +2728,13 @@ function RoomTableScreen({
                         <PlayerRow
                           key={seat}
                           seat={seat}
-                          player={{ ...player, ready: readyAt(seat) }}
+                          player={{ ...player, ready: readyAt(players.indexOf(player)) }}
                           face={faceOf(members.find((m) => m.name === player.name))}
                           leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
                           {...(player.you
                             ? {
                                 onReady: () =>
-                                  mode === 'gauntlet' ? gauntletMove(() => client.gauntletReady(roomId, !readyAt(seat))) : setReady(!player.ready),
+                                  mode === 'gauntlet' ? gauntletMove(() => client.gauntletReady(roomId, !readyAt(players.indexOf(player)))) : setReady(!player.ready),
                                 readyDisabled: !canReady || underway,
                               }
                             : {})}

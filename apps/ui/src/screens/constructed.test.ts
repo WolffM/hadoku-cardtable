@@ -376,7 +376,8 @@ function stubServer(table: Table) {
   const view = () => ({
     room: { id: ROOM, name: 'Friday night', gameType: gameType(), matchId: table.matchId, seats: 2, locked: table.locked === true || table.matchId !== null },
     you: { player: table.players.some((p) => p.you), leader: iAmLeader() },
-    players: table.players.map((p, seat) => ({ ...p, seat })),
+    // In seat order, each in the seat it sits in, as `http/routes.ts` answers it.
+    players: [...table.players].sort((a, b) => a.seat - b.seat),
   });
   /*
    * `GET /api/rooms/:id`, as `http/rooms.ts` answers it. `clientMode` is left
@@ -617,27 +618,34 @@ function stubServer(table: Table) {
       if ('rules' in (sent as object)) return json(400, { error: 'unknown field(s): rules' });
       const deckId = sent.deck !== undefined && 'library' in sent.deck ? sent.deck.library : '?';
       const verdict = verdictOf(deckId, table.format ?? '');
+      const at = table.players.findIndex((p) => p.you);
       const mine: RoomPlayer = {
-        seat: 0,
+        // The seat I hold, else the first free one (the real route seats an unseated caller).
+        seat: table.players[at]?.seat ?? [0, 1].find((s) => !table.players.some((p) => p.seat === s))!,
         name: 'user-alice',
         you: true,
         ready: false,
         deck: { name: verdict.deckName, rulesName: verdict.rulesName, legal: verdict.legal, issueCount: verdict.issues.length, choice: body as SeatChoice },
       };
-      const at = table.players.findIndex((p) => p.you);
       if (at === -1) table.players.push(mine);
       else table.players[at] = mine;
       return json(200, view());
     }
     /*
-     * Sitting is its own act (2026-10-12): a seat with no deck yet, and the
-     * stand-up the server refuses once the table is locked.
+     * Sitting is its own act (2026-10-12): a seat with no deck yet, in the seat asked for (else the
+     * first free one), a seated player moving with their deck; and the stand-up the server refuses
+     * once the table is locked.
      */
     if (url.endsWith(`/tables/rooms/${ROOM}/sit`)) {
-      if (table.players.some((p) => p.you)) return json(200, view());
+      const asked = (body as { seat?: number }).seat;
+      const mine = table.players.find((p) => p.you);
+      if (mine !== undefined && (asked === undefined || mine.seat === asked)) return json(200, view());
       if (table.matchId !== null) return json(409, { error: 'the match has already started' });
-      if (table.players.length >= 2) return json(409, { error: 'this table already has two players' });
-      table.players.push({ seat: table.players.length, name: 'user-alice', you: true, ready: false, deck: null });
+      if (asked !== undefined && table.players.some((p) => p.seat === asked)) return json(409, { error: 'that seat is already taken' });
+      if (mine === undefined && table.players.length >= 2) return json(409, { error: 'this table already has two players' });
+      const seat = asked ?? [0, 1].find((s) => !table.players.some((p) => p.seat === s))!;
+      const sat = { ...(mine ?? { name: 'user-alice', you: true, deck: null }), seat, ready: false };
+      table.players = [...table.players.filter((p) => !p.you), sat].sort((a, b) => a.seat - b.seat);
       return json(200, view());
     }
     if (url.endsWith(`/tables/rooms/${ROOM}/stand`)) {
@@ -1001,7 +1009,7 @@ describe('a room’s table', () => {
     expect(screen.queryByTestId('seat-stand')).toBeNull();
     fireEvent.click(screen.getAllByTestId('seat-sit')[0]!);
     await screen.findByTestId('seat-stand');
-    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.method).toBe('POST');
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)).toMatchObject({ method: 'POST', body: { seat: 0 } });
     expect(screen.getByTestId('room-seat-0').hasAttribute('data-mine')).toBe(true);
     expect(screen.getByTestId('room-seat-0').querySelector('.pod-seats__label')?.textContent, 'my name, and no (you) beside it').toBe('user-alice');
     // My own seat's ready state is the button that sets it.
@@ -1010,11 +1018,25 @@ describe('a room’s table', () => {
     expect(ready.getAttribute('aria-pressed')).toBe('false');
     await screen.findByTestId('deck-mine');
     expect(screen.getAllByTestId('seat-sit'), 'the other seat stays on offer').toHaveLength(1);
-    expect((screen.getByTestId('seat-sit') as HTMLButtonElement).disabled, 'but not to someone already seated').toBe(true);
+    expect((screen.getByTestId('seat-sit') as HTMLButtonElement).disabled, 'to me too: a seated player moves, as in a pod').toBe(false);
     expect(
       within(screen.getByTestId('room-seat-1-empty')).queryByTestId('play-vs-bot'),
       'the only one seated may put Forge’s AI in the empty seat',
     ).not.toBeNull();
+  });
+
+  // The operator, 2026-11-08: "non-draft rooms don't seem to respect what seat you tried to join".
+  it('sits me in the seat I press, the second as well as the first, and moves me when I press the other', async () => {
+    const server = await mountRoom({ players: [], matchId: null });
+    fireEvent.click(screen.getByTestId('room-seat-1-empty').querySelector('[data-testid="seat-sit"]') as HTMLElement);
+    await waitFor(() => expect(screen.getByTestId('room-seat-1').hasAttribute('data-mine')).toBe(true));
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.body).toEqual({ seat: 1 });
+    expect(screen.getByTestId('room-seat-0-empty'), 'the first seat stays open').toBeTruthy();
+    expect(within(screen.getByTestId('room-seat-0-empty')).queryByTestId('play-vs-bot'), 'the AI is offered the seat I left').not.toBeNull();
+    fireEvent.click(screen.getByTestId('room-seat-0-empty').querySelector('[data-testid="seat-sit"]') as HTMLElement);
+    await waitFor(() => expect(screen.getByTestId('room-seat-0').hasAttribute('data-mine')).toBe(true));
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.body).toEqual({ seat: 0 });
+    expect(screen.getByTestId('room-seat-1-empty')).toBeTruthy();
   });
 
   // The operator, 2026-10-28 (room r-ae1712d0df3d): the AI's seat drew as an open one through a game against it.
@@ -1826,7 +1848,7 @@ describe('the deck picker', () => {
    */
   it('does not re-send the deck the server is already holding when it arrives', async () => {
     const held: RoomPlayer = {
-      seat: 0,
+      seat: 1,
       name: 'user-alice',
       you: true,
       ready: true,
@@ -2228,7 +2250,7 @@ describe('the table’s pool', () => {
   // The operator, 2026-10-16: "'[Crown] Hadoku (you)' this can be shown as just a crown next to
   // the player's name in their seat. doesn't need to be on the format row".
   it('crowns the leader’s own seat, beside the name, and draws no leader chip on the format row', async () => {
-    await mountRoom({ players: [opponent(), opponent({ name: 'user-alice', you: true })], matchId: null });
+    await mountRoom({ players: [opponent(), opponent({ name: 'user-alice', you: true, seat: 1 })], matchId: null });
     await deckPicker();
     const crown = screen.getByTestId('room-leader');
     expect(crown.closest('[data-testid="room-seat-1"]'), 'on my seat, the leader’s').not.toBeNull();
@@ -3214,7 +3236,7 @@ describe('a builtin room is what it has always been', () => {
   it('shows none of the draft furniture, and asks for no room write of its own', async () => {
     // The other half of the branch: `constructed-1v1` must be what it was, and
     // the draft lobby must not leak into it.
-    const server = await mountRoom({ players: [opponent(), opponent({ name: 'user-alice', you: true })], matchId: null });
+    const server = await mountRoom({ players: [opponent(), opponent({ name: 'user-alice', you: true, seat: 1 })], matchId: null });
     expect(screen.queryByTestId('draft-lobby')).toBeNull();
     expect(screen.queryByTestId('draft-members')).toBeNull();
     expect(screen.queryByTestId('draft-rule')).toBeNull();
