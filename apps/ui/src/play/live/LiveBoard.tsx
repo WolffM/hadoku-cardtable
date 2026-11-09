@@ -3408,8 +3408,10 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
   const viewerOpen = genuinelyAsked(match, 'you', asked);
   const opponentOpen = genuinelyAsked(match, 'them', asked);
   /* Someone must act with the stack as it is: an ability on it is drawn as its chip (`placed.ts`). The other
-   * seat's hold is told at once (`holds`), not after its sentence's grace: a pass however quick halted it. */
-  const chainHalted = viewerOpen || opponentOpen || (!match.spectator && match.othersHold);
+   * seat's hold is told at once (`holds`), not after its sentence's grace: a pass however quick halted it.
+   * This seat's own open selection is a decision too, even with a dead bar and no pop-up: a trigger's
+   * target among players only (Valakut's "any target" with no creature out) offers no card to pop up. */
+  const chainHalted = viewerOpen || opponentOpen || (!match.spectator && (match.othersHold || match.selectables !== null));
   const halts = match.othersHalted;
   useEffect(() => setChainHalted(chainHalted, halts), [chainHalted, halts]);
   useEffect(() => () => setChainHalted(null), []);
