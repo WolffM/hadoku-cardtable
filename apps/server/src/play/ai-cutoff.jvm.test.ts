@@ -67,7 +67,14 @@ describe.skipIf(!available.ok)(title, () => {
 		const recs = ids.map(() => rec());
 		ids.forEach((id, i) => hosts.push(pool!(id, spec, recs[i]!)));
 		const detail = (): string => `cutoffs ${JSON.stringify(cutoffs)}; pool log tail ${JSON.stringify(poolLog.slice(-8))}`;
-		await waitUntil(() => ids.every((id) => cutoffs.some((c) => c.matchId === id)), 'a cutoff for each match', 180_000);
+		try {
+			await waitUntil(() => ids.every((id) => cutoffs.some((c) => c.matchId === id)), 'a cutoff for each match', 180_000);
+		} catch (e) {
+			// What the JVM was doing: the pool's events and the tail of its stderr, which the run dir loses at stop.
+			const runs = (poolLog.filter((l) => l.evt === 'jvm-spawned') as { run: string }[]).map((l) => l.run);
+			const tails = runs.map((run) => readFileSync(join(run, 'bridge.stderr.txt'), 'utf8').split('\n').filter((l) => !/not assigned to any set/.test(l)).slice(-40).join('\n'));
+			throw new Error(`${(e as Error).message}; ${detail()}; pool log ${JSON.stringify(poolLog)}; stderr tail:\n${tails.join('\n---\n')}`);
+		}
 
 		const jvms = pool.jvms();
 		console.log(`[jvm] ai-cutoff: ${jvms.length} JVM(s) ${JSON.stringify(jvms.map((j) => ({ hostId: j.hostId, matches: j.matches })))}; cutoffs ${JSON.stringify(cutoffs)}`);
