@@ -4598,10 +4598,14 @@ public final class PlayBridge {
                 clearSelectables();
             }
             // Priority's and payment's set goes out with their prompt (syncActionable); a combat
-            // declaration's goes out with its selection, while its input is open.
+            // declaration's goes out with its selection, while its input is open, an empty one included:
+            // Forge's attack and block declarations always said theirs (pushAttackerCandidates,
+            // pushBlockerCandidates), and with every candidate declared it is empty while a declared
+            // attacker is still the click that calls it back.
             final Object input = myInput();
             if (!scansActionable(input)) {
-                if (open && !selection.actionable().isEmpty()) {
+                final boolean declares = input instanceof forge.gamemodes.match.input.InputAttack || input instanceof forge.gamemodes.match.input.InputBlock;
+                if (open && (declares || !selection.actionable().isEmpty())) {
                     setWeaklySelectable(selection.actionable());
                     actionableFor = input;
                 } else if (actionableFor != null) {
