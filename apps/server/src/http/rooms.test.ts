@@ -2545,7 +2545,7 @@ describe('a tournament locks over HTTP, with the real PodChecks (regression: the
 	 * list of the AI it meets. Ozymandias17's seat (4) meets TeaW1thRum's (0): the AI is seated FIRST,
 	 * and seating the human after must not wipe the AI's deck it was just handed.
 	 */
-	it('a Challenge: the human’s round-1 table holds the list its AI opponent’s real player played', async () => {
+	it('a Challenge: Ready alone locks it, the human plays their player’s list, and their round-1 table holds the list its AI opponent’s real player played', async () => {
 		const h = await openFullApp(await tempDir());
 		const made = await call(h, 'POST', '/api/rooms/challenge', { as: 'alice', body: { collection: 'tournament-legacy-2026-02-07', player: 'Ozymandias17', field: 'top8' } });
 		expect(made.status, made.text).toBe(201);
@@ -2553,8 +2553,10 @@ describe('a tournament locks over HTTP, with the real PodChecks (regression: the
 		expect(room.pod!.seats.findIndex((s) => s?.memberId === room.you.id)).toBe(4);
 		// Each AI seat is named for its real player, read from the library's list (never stored).
 		expect(room.pod!.seats.map((s) => s?.name)).toEqual(['TeaW1thRum', 'romariovidal', 'Matiuzzzo', 'Stanshine', 'user-alice', 'TheGrimLavamancer', 'wonderPreaux', 'SiL3nTGoaT']);
-		const deck = await call(h, 'PUT', `/api/tables/rooms/${room.id}/deck`, { as: 'alice', body: { deck: { library: 'tourney-leg-2026-02-07-1-ozymandias17' } } });
-		expect(deck.status, deck.text).toBe(200);
+		expect(room.seatDecks, 'the open seat plays its player’s list').toEqual({ '4': 'tourney-leg-2026-02-07-1-ozymandias17' });
+		// Another legal list loaded first changes nothing: the seat's list is what the lock deals.
+		const other = await call(h, 'PUT', `/api/tables/rooms/${room.id}/deck`, { as: 'alice', body: { deck: { library: 'tourney-leg-2026-02-07-2-stanshine' } } });
+		expect(other.status, other.text).toBe(200);
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } })).status).toBe(200);
 
 		const locked = h.lobby.get(room.id)!;

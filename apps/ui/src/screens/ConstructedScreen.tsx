@@ -1521,19 +1521,23 @@ function RoomTableScreen({
    * side effect of a mechanism that predates tournaments entirely.
    */
   const podSeated = tournament && pod !== null && view !== null && pod.seats.some((s) => s?.memberId === view.you.id);
+  // A Challenge's seat comes with its real player's list: nothing to pick, and Ready needs only the seat.
+  const seatDeck = pod === null || view === null ? undefined : view.seatDecks?.[String(pod.seats.findIndex((s) => s?.memberId === view.you.id))];
   /**
    * What stands between my seat and Ready: in Classic, a legal deck of my
    * own; in Gauntlet and All Random the room deals the decks, so only the seat
    * (and a Gauntlet only before its draw, or once it is decided, to begin the next).
    */
   const canReady =
-    mode === 'classic'
-      ? deckId !== '' && myLegal
-      : mode === 'gauntlet'
-        ? (tournament ? podSeated : seated) && ['options', 'done'].includes(gauntlet?.phase ?? 'options')
-        : tournament
-          ? podSeated
-          : seated;
+    seatDeck !== undefined
+      ? podSeated
+      : mode === 'classic'
+        ? deckId !== '' && myLegal
+        : mode === 'gauntlet'
+          ? (tournament ? podSeated : seated) && ['options', 'done'].includes(gauntlet?.phase ?? 'options')
+          : tournament
+            ? podSeated
+            : seated;
   /**
    * The room's own table record (wave 71 §D's wire shape, via `@hadoku/shared`),
    * for the SERIES it carries — `wins`, `games`, `phase` — none of which
@@ -2588,10 +2592,10 @@ function RoomTableScreen({
               >
                 {mode === 'classic' && loaded !== null && (
                   <DeckChooser
-                    options={visibleOptions ?? []}
+                    options={seatDeck === undefined ? (visibleOptions ?? []) : (shownOptions ?? []).filter((o) => o.value === seatDeck)}
                     empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
-                    value={deckId}
-                    disabled={deckOptions === null || underway}
+                    value={seatDeck ?? deckId}
+                    disabled={deckOptions === null || underway || seatDeck !== undefined}
                     pending={shownOptions === null}
                     pendingTiles={ROOM_SKELETON_TILES}
                     swapKey={deckGrid}

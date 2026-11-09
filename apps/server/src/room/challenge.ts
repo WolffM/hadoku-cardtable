@@ -145,9 +145,10 @@ function seatOrder(record: TournamentRecord, field: ChallengeField): string[] {
 
 function roomInput(event: Loaded, seats: readonly string[], mine: number, field: ChallengeField): Parameters<Lobby['create']>[1] {
 	const rankOf = new Map(event.record.standings.map((s) => [s.Player, s.Rank]));
+	const deckOf = (player: string): string => event.deckOfRank.get(rankOf.get(player)!)!;
 	const aiDeckAssignments: Record<string, string> = {};
 	for (const [seat, player] of seats.entries()) {
-		if (seat !== mine) aiDeckAssignments[`ai:${String(seat)}`] = event.deckOfRank.get(rankOf.get(player)!)!;
+		if (seat !== mine) aiDeckAssignments[`ai:${String(seat)}`] = deckOf(player);
 	}
 	return {
 		name: challengeRoomName(event.record.event, field),
@@ -159,6 +160,8 @@ function roomInput(event: Loaded, seats: readonly string[], mine: number, field:
 		// A Challenge plays the Swiss rounds its field needs to find one undefeated player, then cuts.
 		historicalStructure: field === 'full' ? { swiss: Math.ceil(Math.log2(seats.length)), cut: CUT } : { swiss: 0, cut: CUT },
 		aiDeckAssignments,
+		// The person in the open seat plays as its player, list and all.
+		seatDecks: { [String(mine)]: deckOf(seats[mine]!) },
 	};
 }
 
