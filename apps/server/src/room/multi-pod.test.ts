@@ -15,7 +15,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { seatOf } from '@wolffm/rooms-protocol';
 import { POD_MAX_SEATS, POD_SEATS } from '@hadoku/shared';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
-import { openLobby, splitIntoPods, type Lobby, type PodChecks } from './lobby.ts';
+import { openLobby, splitIntoPods, type GameHooks, type Lobby } from './lobby.ts';
 import { loadPool } from './pool.ts';
 import { roundNamesOf } from './plan.ts';
 
@@ -34,7 +34,7 @@ async function tempDir(): Promise<string> {
 const member = (i: number) => ({ id: `fk:${String(i + 1).padStart(16, '0')}`, name: `user-${i + 1}`, userId: null });
 
 /** Checks that answer every pod complete and every drafter built, and record which draft id each question named. */
-function recordingChecks(asked: { built: [string, string][]; seatState: [string, string][] }): PodChecks {
+function recordingChecks(asked: { built: [string, string][]; seatState: [string, string][] }): GameHooks {
 	return {
 		draftComplete: () => true,
 		built: (podId, memberId) => {
@@ -51,6 +51,12 @@ function recordingChecks(asked: { built: [string, string][]; seatState: [string,
 		currentTournamentDeck: () => null,
 		seatTournamentDeck: () => {},
 	};
+}
+
+/** Wires `checks` for both of Magic's own game types — this suite's rooms are always `draft`, but the pre-wave-96 single field served both, so this mirrors that. */
+function wireChecks(lobby: Lobby, checks: GameHooks): void {
+	lobby.useGameType('constructed-1v1', checks);
+	lobby.useGameType('draft', checks);
 }
 
 const T0 = 1_700_000_000_000;
@@ -211,7 +217,7 @@ describe('a room of 13 drafts as 7 + 6 and plays one Swiss of 3 rounds into one 
 	it('waits for every pod to finish drafting', async () => {
 		const { lobby, id } = await startedRoom(13);
 		const done = new Set<string>([id]);
-		lobby.setPodChecks({ ...recordingChecks({ built: [], seatState: [] }), draftComplete: (podId) => done.has(podId) });
+		wireChecks(lobby, { ...recordingChecks({ built: [], seatState: [] }), draftComplete: (podId) => done.has(podId) });
 		expect(lobby.get(id)!.pod?.phase).toBe('drafting');
 		done.add(`${id}~1`);
 		expect(lobby.get(id)!.pod?.phase).toBe('building');
@@ -220,7 +226,7 @@ describe('a room of 13 drafts as 7 + 6 and plays one Swiss of 3 rounds into one 
 	it('asks each drafter’s own pod whether their deck is built, and seats them with it', async () => {
 		const { lobby, id, humans, pods } = await startedRoom(13);
 		const asked = { built: [] as [string, string][], seatState: [] as [string, string][] };
-		lobby.setPodChecks(recordingChecks(asked));
+		wireChecks(lobby, recordingChecks(asked));
 		for (const h of humans) expect(lobby.playPod(id, h).ok).toBe(true);
 		const podOf = (h: string) => (pods[0]!.includes(h) ? id : `${id}~1`);
 		expect(asked.built.length).toBeGreaterThan(0);
@@ -230,7 +236,7 @@ describe('a room of 13 drafts as 7 + 6 and plays one Swiss of 3 rounds into one 
 
 	it('pairs the whole field across pods for 3 rounds and ends with one standings of 13', async () => {
 		const { lobby, id, humans } = await startedRoom(13);
-		lobby.setPodChecks(recordingChecks({ built: [], seatState: [] }));
+		wireChecks(lobby, recordingChecks({ built: [], seatState: [] }));
 		for (const h of humans) lobby.playPod(id, h);
 		let view = lobby.get(id)!;
 		expect(view.pod?.phase).toBe('rounds');

@@ -101,8 +101,9 @@ const roomFields = {
   creator: z.string().catch(''),
   leader: z.string().catch(''),
   /**
-   * What the room plays: Magic's `GAME_TYPES`, or a game this build does not
-   * know, kept as the string it is rather than refused.
+   * What the room plays: any id a `GameTypeSpec` registers
+   * (`game-type-spec.ts`) — Magic's own two, always, or a game this build
+   * does not know, kept as the string it is rather than refused.
    */
   gameType: z.string(),
   /**

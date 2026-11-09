@@ -7,7 +7,7 @@
  * needs no engine.
  *
  * Every room is a Classic tournament with locked decks, entrants seated in
- * join order, readiness faked by `PodChecks` (`lobby.test.ts`'s own
+ * join order, readiness faked by `GameHooks` (`lobby.test.ts`'s own
  * `fakeChecks` shape). A game is "played" the way the play side reports one:
  * `setTableMatch`, then `recordGameResult` for its winner.
  */
@@ -21,7 +21,7 @@ import { pairRound, roundsFor, standings, type MatchResult } from '@hadoku/draft
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { roundNamesOf } from './plan.ts';
-import { openLobby, type Lobby, type PodChecks, type RoomView, type SeriesEnd } from './lobby.ts';
+import { openLobby, type GameHooks, type Lobby, type RoomView, type SeriesEnd } from './lobby.ts';
 
 const dirs: string[] = [];
 
@@ -42,7 +42,7 @@ function member(n: number): { id: string; name: string; userId: string | null } 
 	return { id: `fk:${String(n).repeat(16).slice(0, 16)}`, name: `user-${n}`, userId: null };
 }
 
-function checks(ready: ReadonlySet<string>): PodChecks {
+function checks(ready: ReadonlySet<string>): GameHooks {
 	return {
 		draftComplete: () => true,
 		built: () => true,
@@ -53,6 +53,12 @@ function checks(ready: ReadonlySet<string>): PodChecks {
 		currentTournamentDeck: (_roomId, entrant) => ({ deckOf: entrant }),
 		seatTournamentDeck: () => {},
 	};
+}
+
+/** Wires `hooks` for both of Magic's own game types — every room here is a Classic tournament, but the pre-wave-96 single field served both. */
+function wireChecks(lobby: Lobby, hooks: GameHooks): void {
+	lobby.useGameType('constructed-1v1', hooks);
+	lobby.useGameType('draft', hooks);
 }
 
 interface Pod {
@@ -83,7 +89,7 @@ async function tournament(n: number, opts: { watchingLeader?: boolean; dir?: str
 	// Seated before anyone counts as ready, or the lock would fire on the second seat.
 	standAll(lobby, id);
 	players.forEach((p, seat) => expect(lobby.sitPod(id, p.id, seat).ok, `seat ${seat}`).toBe(true));
-	lobby.setPodChecks(checks(new Set(players.map((p) => p.id))));
+	wireChecks(lobby, checks(new Set(players.map((p) => p.id))));
 	const started = lobby.startDraft(id, leader.id);
 	expect(started.ok, 'the field locks').toBe(true);
 	expect(lobby.get(id)?.pod?.phase).toBe('rounds');
@@ -321,7 +327,7 @@ describe('round end: results posting at once', () => {
 		const pod = await tournament(4);
 		const logged: Record<string, unknown>[] = [];
 		const lobby = await openLobby({ dir: pod.dir, now, log: (e) => logged.push(e) });
-		lobby.setPodChecks(checks(new Set(pod.players.map((p) => p.id))));
+		wireChecks(lobby, checks(new Set(pod.players.map((p) => p.id))));
 		const live: Pod = { ...pod, lobby };
 		const [a, b] = view(live).pod!.pairings;
 		game(live, a!.tableId, 0);
@@ -414,7 +420,7 @@ describe('a restart mid-tournament', () => {
 		for (const pod of [plain, restarted]) game(pod, view(pod).pod!.pairings[0]!.tableId, 0);
 		const before = view(restarted).pod!;
 		const lobby = await openLobby({ dir: restarted.dir, now });
-		lobby.setPodChecks(checks(new Set(restarted.players.map((p) => p.id))));
+		wireChecks(lobby, checks(new Set(restarted.players.map((p) => p.id))));
 		const after: Pod = { ...restarted, lobby };
 		expect(view(after).pod!).toEqual(before);
 		expect(view(after).tables.find((t) => t.id === before.pairings[0]!.tableId)!.series.wins, 'the game played before the restart still counts').toEqual([1, 0]);

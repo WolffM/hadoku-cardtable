@@ -20,11 +20,63 @@
 import { z } from 'zod';
 import type { FormatFamily } from '@hadoku/carddata/formats';
 
-/** Every game type a room may be set to. */
+import { isRegisteredGameType, registerGameType } from './game-type-spec.ts';
+import { POD_MAX_SEATS } from './pod.ts';
+
+/** Magic's own two game types — still a closed list for `isMagicGameType` and the HTTP create/patch gate, which stay Magic-only. */
 export const GAME_TYPES = ['constructed-1v1', 'draft'] as const;
-export const GameTypeSchema = z.enum(GAME_TYPES);
-export type GameType = z.infer<typeof GameTypeSchema>;
-export const DEFAULT_GAME_TYPE: GameType = 'constructed-1v1';
+/**
+ * Any game type a `GameTypeSpec` has registered (`game-type-spec.ts`) —
+ * open, not a closed union. Magic's own two are registered immediately
+ * below, in THIS file rather than a Magic one: `game-type-spec.ts`'s
+ * registry is a plain module-level `Map`, populated only by whatever
+ * imports actually ran, so registering here — the one file every reader of
+ * `GameTypeSchema` necessarily imports — means the registration has always
+ * run before anything can call `.safeParse` on it. Registering from
+ * `magic-room.ts` instead left the registry empty for a caller that
+ * imports some other file in this package directly, bypassing the
+ * `index.ts` barrel that happens to import everything (`platform-split.test.ts`
+ * caught this as a round-trip failure).
+ */
+export const GameTypeSchema = z.string().refine(isRegisteredGameType, { error: 'not a registered game type' });
+export type GameType = string;
+
+/**
+ * Magic's two `GameTypeSpec`s — the facts true of each on their own, with
+ * no running server behind them. `canStart` mirrors
+ * `apps/server/src/room/lobby.ts`'s own `POD_MIN_OPEN` (2): the fewest
+ * seats either one is ever started with. Magic's deeper rules (deck
+ * legality, a draft's own completion, locked decks, bot play, …) are
+ * `GameHooks` in that same file, built in `http/routes.ts` and wired in
+ * per game type through `Lobby.useGameType`.
+ */
+registerGameType({
+  id: 'constructed-1v1',
+  // A Forge match is two seats, win or lose; `apps/server/src/http/routes.ts`'s
+  // table routes read this one.
+  seats: { min: 2, max: 2 },
+  ready: true,
+  series: { length: 1 },
+  canStart: (seated) => (seated >= 2 ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
+});
+registerGameType({
+  id: 'draft',
+  // The pod's own seats (`POD_SEATS`/`POD_MAX_SEATS`), not a table's: a
+  // draft's ROUNDS still pair two at a table (the 'constructed-1v1' spec's
+  // own seats), but the pod itself grows one seat at a time past its first
+  // eight (`apps/server/src/room/lobby.ts`'s `grownSeats`).
+  seats: { min: 2, max: POD_MAX_SEATS },
+  ready: true,
+  series: { length: 3 },
+  canStart: (seated) => (seated >= 2 ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
+});
+/**
+ * Kept as the literal `'constructed-1v1'`, not widened to `GameType`: it is
+ * a valid default for `room-requests.ts`'s own closed `z.enum(GAME_TYPES)`
+ * field (the HTTP create/patch gate, still Magic-only), and a literal is a
+ * `GameType` everywhere one is wanted, so nothing else narrows.
+ */
+export const DEFAULT_GAME_TYPE = 'constructed-1v1' as const;
 
 /** A Constructed room's three modes. */
 export const CONSTRUCTED_MODES = ['classic', 'gauntlet', 'random'] as const;

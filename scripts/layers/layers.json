@@ -65,7 +65,8 @@
     "apps/ui/src/sound/index.ts",
     "packages/shared/src/look.ts",
     "packages/shared/src/room-view.ts",
-    "packages/shared/src/room-feed.ts"
+    "packages/shared/src/room-feed.ts",
+    "packages/shared/src/game-type-spec.ts"
   ],
   "magic": [
     "packages/forge-wire/**",

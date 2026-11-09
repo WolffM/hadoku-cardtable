@@ -13,7 +13,7 @@
  * other call.
  */
 
-import type { ConstructedMode, SeriesPhase } from '@hadoku/shared';
+import { gameTypeSpec, type ConstructedMode, type SeriesPhase } from '@hadoku/shared';
 
 interface SeriesFormat {
 	/** Games a NEW series is best of. */
@@ -43,10 +43,20 @@ const CONSTRUCTED: SeriesFormat = { length: 1, sideboarding: true };
 const GAUNTLET: SeriesFormat = { length: 3, sideboarding: false };
 const POD: SeriesFormat = { length: 3, sideboarding: true };
 
+/**
+ * Magic's own three cases first. Any other registered game type reads its
+ * own spec's `series.length`, with no sideboarding step — a Magic-only
+ * concept this file has no generic equivalent for. An unregistered id
+ * (never Magic's own case to reach here) reads back `CONSTRUCTED`, same as
+ * it silently always has.
+ */
 export function seriesFormatOf(room: SeriesRoom): SeriesFormat {
 	if (room.gameType === 'draft') return POD;
 	if (room.mode === 'gauntlet') return GAUNTLET;
-	return room.tournament === true ? POD : CONSTRUCTED;
+	if (room.tournament === true) return POD;
+	if (room.gameType === 'constructed-1v1') return CONSTRUCTED;
+	const spec = gameTypeSpec(room.gameType);
+	return spec === undefined ? CONSTRUCTED : { length: spec.series.length, sideboarding: false };
 }
 
 /** The mode a game or series is reported under: a pod's is `draft`; a Constructed room with no mode stored is Classic. */

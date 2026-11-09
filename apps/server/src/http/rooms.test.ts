@@ -40,7 +40,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'
  * The frozen pools AND the deck library, read the way production reads them,
  * so what a room's default format is asserted AGAINST is the real list
  * rather than a date copied here, and `openFullApp`'s tournament lock tests
- * check a REAL legal library deck rather than a fake `PodChecks`.
+ * check a REAL legal library deck rather than fake `GameHooks`.
  */
 const TABLES_LIBRARY = loadTablesLibrary(REPO_ROOT);
 const LIBRARY_FORMATS = TABLES_LIBRARY.formats;
@@ -146,10 +146,10 @@ async function openApp(
 
 /**
  * `openApp` PLUS `attachTables` — `index.ts`'s real wiring, both routers on
- * the same `lobby`. Needed for anything that depends on `PodChecks` (a
+ * the same `lobby`. Needed for anything that depends on `GameHooks` (a
  * tournament's Classic/All Random deck seam): `attachRooms` alone leaves
- * `lobby`'s `#podChecks` at its no-op fallback, so a Classic lock could
- * never see a legal deck and the crash this harness exists to reproduce
+ * `lobby` with no hooks wired for either Magic game type, so a Classic lock
+ * could never see a legal deck and the crash this harness exists to reproduce
  * could never happen in `openApp`'s own tests.
  */
 async function openFullApp(
@@ -1599,7 +1599,9 @@ describe('POST /api/rooms/:id/leave', () => {
 		const ids = h.lobby.get(room.id)!.members.map((m) => m.id);
 		expect(h.lobby.setSettings(room.id, ids[0]!, { tournament: true }).ok).toBe(true);
 		ids.forEach((id, seat) => expect(h.lobby.sitPod(room.id, id, seat).ok).toBe(true));
-		h.lobby.setPodChecks({ draftComplete: () => true, built: () => true, seatState: () => null, holdsSeriesDeck: () => true, roundNamesOf: () => ['', '', ''], hasLegalSeatDeck: () => true, currentTournamentDeck: () => null, seatTournamentDeck: () => {} });
+		const checks: import('../room/lobby.ts').GameHooks = { draftComplete: () => true, built: () => true, seatState: () => null, holdsSeriesDeck: () => true, roundNamesOf: () => ['', '', ''], hasLegalSeatDeck: () => true, currentTournamentDeck: () => null, seatTournamentDeck: () => {} };
+		h.lobby.useGameType('constructed-1v1', checks);
+		h.lobby.useGameType('draft', checks);
 		const started = h.lobby.startDraft(room.id, ids[0]!);
 		if (!started.ok) throw new Error(started.reason);
 		const tableId = started.room.pod!.pairings[0]!.tableId;
@@ -2484,13 +2486,13 @@ describe('a constructed room’s mode over HTTP', () => {
 
 /**
  * tour-u's real-browser e2e found this crash; no `lobby.test.ts` fake caught
- * it because `#lockTournament` calls `PodChecks` with the REAL `routes.ts`
- * implementation, which re-enters `rooms.get()` mid-lock — and a fake
- * `PodChecks` never does that. `openFullApp` mounts both `attachRooms` and
+ * it because `#lockTournament` calls `GameHooks` with the REAL `routes.ts`
+ * implementation, which re-enters `rooms.get()` mid-lock — and fake
+ * `GameHooks` never does that. `openFullApp` mounts both `attachRooms` and
  * `attachTables` on the same real `Lobby`, exactly as `index.ts` does, so
- * `#podChecks` is the real one here.
+ * the hooks wired for both Magic game types are the real ones here.
  */
-describe('a tournament locks over HTTP, with the real PodChecks (regression: the lock must not hand out a half-mutated room)', () => {
+describe('a tournament locks over HTTP, with real GameHooks (regression: the lock must not hand out a half-mutated room)', () => {
 	/** Two different library decks of the room's own (newest) pool. */
 	function legalDeckPair(): [string, string] {
 		const decks = TABLES_LIBRARY.decks.filter((d) => d.era === NEWEST_POOL);

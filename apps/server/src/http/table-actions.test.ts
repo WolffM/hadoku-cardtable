@@ -9,7 +9,7 @@ import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 
-import { openLobby, type Lobby } from '../room/lobby.js';
+import { openLobby, type GameHooks, type Lobby } from '../room/lobby.js';
 import { attachRooms } from './rooms.js';
 import { attachTableActions } from './table-actions.js';
 
@@ -49,7 +49,7 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 		expect(lobby.setSettings(roomId, ALICE, { tournament: true }).ok).toBe(true);
 		standAll(lobby, roomId);
 		players.forEach((id, seat) => expect(lobby.sitPod(roomId, id, seat).ok).toBe(true));
-		lobby.setPodChecks({
+		const checks: GameHooks = {
 			draftComplete: () => true,
 			built: () => true,
 			seatState: () => null,
@@ -58,7 +58,9 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 			hasLegalSeatDeck: () => true,
 			currentTournamentDeck: () => null,
 			seatTournamentDeck: () => {},
-		});
+		};
+		lobby.useGameType('constructed-1v1', checks);
+		lobby.useGameType('draft', checks);
 		const started = lobby.startDraft(roomId, ALICE);
 		if (!started.ok) throw new Error(started.reason);
 		tableId = started.room.pod!.pairings[0]!.tableId;

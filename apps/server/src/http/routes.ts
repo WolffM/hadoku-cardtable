@@ -174,7 +174,7 @@ import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
-import { clockOn, FREE_PICK, GAME_CLOCK_MS, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
+import { clockOn, FREE_PICK, GAME_CLOCK_MS, gameTypeSpec, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
 
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, botPoolAt, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
@@ -182,7 +182,7 @@ import { botDeckText } from '../room/botDeck.js';
 import { httpCaller } from './request.js';
 import { prepareJson, sendPrepared, type PreparedJson } from './prepared.js';
 import { isAdmin } from '../edge-auth.js';
-import { aiEntrantSeat, draftIdOfPool, draftPoolId, isAiEntrant, type BotDeckSource, type BotGames, type Lobby, type PodChecks } from '../room/lobby.js';
+import { aiEntrantSeat, draftIdOfPool, draftPoolId, isAiEntrant, type BotDeckSource, type GameHooks, type Lobby } from '../room/lobby.js';
 import type { BotGameInput, BotGameOutcome } from '../play/botgames.js';
 import { roundNamesOf } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
@@ -301,10 +301,8 @@ export interface TablesRooms {
 	): () => void;
 	/** How the pod's draft is dealt: its open seats, who sits where, and its AI characters' names (`room/lobby.ts`). Optional like `onAvatarChange`. */
 	podDraft?(roomId: string): PodDeal | null;
-	/** Wires `PodChecks` into the room registry — see its own doc (`room/lobby.ts`). Optional like `onAvatarChange`. */
-	setPodChecks?(checks: PodChecks): void;
-	/** Wires `BotGames` into the room registry — see its own doc (`room/lobby.ts`). Optional like `setPodChecks`. */
-	setBotGames?(botGames: BotGames): void;
+	/** Wires `GameHooks` for a game type into the room registry — see its own doc (`room/lobby.ts`). Optional like `onAvatarChange`. */
+	useGameType?(type: string, hooks: GameHooks): void;
 	/** A Gauntlet room's stored Gauntlet (`room/lobby.ts`), one per table. Both optional: a registry without them serves no Gauntlet routes. */
 	gauntlet?(roomId: string, tableId?: string): GauntletState | null;
 	setGauntlet?(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean;
@@ -346,7 +344,7 @@ export interface TablesMatches {
 }
 
 /**
- * A bot game's whole wall clock, waiting for room in the ceiling included (`BotGames`): past it the room
+ * A bot game's whole wall clock, waiting for room in the ceiling included (`GameHooks.playBotGame`): past it the room
  * settles the pairing without its result. A best of 3 is at most three of `BOT_GAME_S`.
  */
 export const BOT_GAME_TIMEOUT_MS = 12 * 60_000;
@@ -492,8 +490,15 @@ export function draftPoolForMember(memberId: string, rooms: DraftRooms | null): 
 /** The one game type a table is built for. `draft` rooms are a later wave. */
 const CONSTRUCTED = 'constructed-1v1';
 
-/** Two seats, because Forge's match is two seats. */
-const TABLE_SEATS = 2;
+/**
+ * Two seats, because Forge's match is two seats — read off `CONSTRUCTED`'s
+ * own `GameTypeSpec` (`@hadoku/shared`'s `room-modes.ts` registers it). This
+ * file's table routes are Magic's own Forge-table surface regardless of
+ * which of Magic's two game types a room is actually playing (a draft
+ * pod's ROUNDS are still two-seat tables), so the one registered id is read
+ * once, not per room.
+ */
+const TABLE_SEATS = gameTypeSpec(CONSTRUCTED)?.seats.max ?? 2;
 
 /** The same answer for a room that does not exist and one you are not in. */
 const NO_ROOM = 'no such room';
@@ -569,7 +574,7 @@ function seriesTextOf(state: TablePlayerState): string | null {
 }
 
 /**
- * `PodChecks.holdsSeriesDeck`: the seat still holds the deck it registered for
+ * `GameHooks.holdsSeriesDeck`: the seat still holds the deck it registered for
  * its series, so a finished Bo1 is still open to a Rematch. A deck change, and
  * the format or mode change that drops the hold, both end it.
  */
@@ -890,7 +895,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * (`draftPoolForMember`, the SAME per-person resolution every other
 	 * drafted-pool check in this file uses) — "C's store plus the gate's
 	 * draft check" (wave 72 §P). `null` for no saved deck, or one that fails
-	 * the check — `PodChecks.built`/`.seatState` both read it the same way.
+	 * the check — `GameHooks.built`/`.seatState` both read it the same way.
 	 */
 	function builtDeckVerdict(podId: string, memberId: string): { text: string; verdict: SeatVerdict } | null {
 		const draftRooms = deps.draftRooms;
@@ -904,7 +909,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return { text: verdict.text, verdict };
 	}
 
-	/** `PodChecks.currentTournamentDeck`'s own doc: this entrant's deck right now, for a lock's snapshot or a bot game's deal. */
+	/** `GameHooks.currentTournamentDeck`'s own doc: this entrant's deck right now, for a lock's snapshot or a bot game's deal. */
 	function currentTournamentDeck(roomId: string, entrant: string): TableDeck | null {
 		if (rooms === null) return null;
 		const room = rooms.get(roomId);
@@ -952,10 +957,12 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	// Wave 72 §P: this file is the one place that holds both `room/lobby.ts`'s
-	// `Lobby` (as `rooms`) and `draftRooms`/the gate, so it is where the two
-	// late-bound wires `PodChecks`'s own doc describes are made — `index.ts`
-	// is not touched for either.
-	rooms?.setPodChecks?.({
+	// `Lobby` (as `rooms`) and `draftRooms`/the gate, so it is where `GameHooks`'s
+	// own doc describes the hooks being built. ONE object, registered under
+	// BOTH of Magic's own game types below (`useGameType`): a draft pod and a
+	// constructed tournament already share every one of these questions
+	// (`usesPod` is the one question for both).
+	const magicHooks: GameHooks = {
 		holdsSeriesDeck,
 		// `nameOf` is this file's own say in ONE source's bare name, independent
 		// of any `DraftRoom` — a room still in its lobby has not built one yet
@@ -1023,35 +1030,41 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			const ai = partner === undefined ? {} : { aiDeck: partner };
 			rooms.setPlayerState(roomId, entrant, locked === null ? { v: 1, deck: null, seriesDeck: null, ...ai } : { v: 1, deck: locked, seriesDeck: null, ...ai });
 		},
-	});
-	// Two AI entrants paired together play it out on play's registry, which exists only after this runs
-	// (`deps.matches`), so each game asks for it when it plays. A full server is waited on, a turn at a
-	// time, until the game's clock runs out; anything else without a result is the room's to settle.
-	if (deps.matches !== undefined) rooms?.setBotGames?.({
-		async play(ask) {
-			const decks = ask.players.map((entrant, i) => botGameDeck(ask.roomId, entrant, ask.decks[i]!));
-			if (decks[0] === null || decks[1] === null) {
-				log({ evt: 'bot-game-no-deck', room: ask.roomId, round: ask.round, players: ask.players, missing: ask.players.filter((_, i) => decks[i] === null) });
-				return null;
-			}
-			const deadline = Date.now() + BOT_GAME_TIMEOUT_MS;
-			for (;;) {
-				const registry = deps.matches?.() ?? null;
-				const outcome: BotGameOutcome =
-					registry === null
-						? { ok: false, why: 'capacity', error: 'play is not attached yet' }
-						: registry.botGame === undefined
-							? { ok: false, why: 'failed', error: 'this registry plays no bot game' }
-							: await registry.botGame({ names: ask.names, decks: [decks[0], decks[1]], bestOf: ask.bestOf }, deadline - Date.now());
-				if (outcome.ok) return { wins: outcome.wins, gameMs: outcome.gameMs };
-				if (outcome.why !== 'capacity' || Date.now() + BOT_GAME_RETRY_MS >= deadline) {
-					log({ evt: 'bot-game-no-result', room: ask.roomId, round: ask.round, players: ask.players, why: outcome.why, error: outcome.error });
-					return null;
-				}
-				await new Promise((wait) => setTimeout(wait, BOT_GAME_RETRY_MS).unref());
-			}
-		},
-	});
+		// Two AI entrants paired together play it out on play's registry, which exists only after this runs
+		// (`deps.matches`), so each game asks for it when it plays. A full server is waited on, a turn at a
+		// time, until the game's clock runs out; anything else without a result is the room's to settle.
+		// Absent when `deps.matches` is undefined: `GameHooks.playBotGame`'s own doc, two AI entrants
+		// paired together settle at once instead.
+		...(deps.matches === undefined
+			? {}
+			: {
+					async playBotGame(ask) {
+						const decks = ask.players.map((entrant, i) => botGameDeck(ask.roomId, entrant, ask.decks[i]!));
+						if (decks[0] === null || decks[1] === null) {
+							log({ evt: 'bot-game-no-deck', room: ask.roomId, round: ask.round, players: ask.players, missing: ask.players.filter((_, i) => decks[i] === null) });
+							return null;
+						}
+						const deadline = Date.now() + BOT_GAME_TIMEOUT_MS;
+						for (;;) {
+							const registry = deps.matches?.() ?? null;
+							const outcome: BotGameOutcome =
+								registry === null
+									? { ok: false, why: 'capacity', error: 'play is not attached yet' }
+									: registry.botGame === undefined
+										? { ok: false, why: 'failed', error: 'this registry plays no bot game' }
+										: await registry.botGame({ names: ask.names, decks: [decks[0], decks[1]], bestOf: ask.bestOf }, deadline - Date.now());
+							if (outcome.ok) return { wins: outcome.wins, gameMs: outcome.gameMs };
+							if (outcome.why !== 'capacity' || Date.now() + BOT_GAME_RETRY_MS >= deadline) {
+								log({ evt: 'bot-game-no-result', room: ask.roomId, round: ask.round, players: ask.players, why: outcome.why, error: outcome.error });
+								return null;
+							}
+							await new Promise((wait) => setTimeout(wait, BOT_GAME_RETRY_MS).unref());
+						}
+					},
+				}),
+	};
+	rooms?.useGameType?.('constructed-1v1', magicHooks);
+	rooms?.useGameType?.('draft', magicHooks);
 	deps.draftRooms?.setPodLookup((podId) => rooms?.podDraft?.(podId) ?? null);
 
 	/**

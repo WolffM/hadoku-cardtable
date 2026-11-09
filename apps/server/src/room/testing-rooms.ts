@@ -160,7 +160,7 @@ export interface TestingRoomsDeps {
 	 * SAME one `index.ts` already builds for `attachTables`, needed for one
 	 * legal Classic library deck to seat `TESTING_SEED_CALLER` with before a
 	 * Classic tournament's lock (`#lockTournament`'s own
-	 * `PodChecks.hasLegalSeatDeck` gate, which reads back exactly the shape
+	 * `GameHooks.hasLegalSeatDeck` gate, which reads back exactly the shape
 	 * `legalClassicDeckState` below builds). Omitted entirely (every unit test
 	 * that never wires it): `TESTING_CLASSIC_ROUND2_NAME` is skipped and
 	 * logged, same discipline as `newestSetCode`. The Gauntlet room needs none
@@ -229,7 +229,7 @@ async function seedSetDraft(deps: TestingRoomsDeps, log: (entry: Record<string, 
  * A `TablePlayerState` holding ONE legal Classic library deck for `format` —
  * the exact shape `http/routes.ts`'s `PUT …/deck` route builds (`choice` /
  * `verdict` / `text`), built from a REAL `checkSeat` verdict rather than a
- * fabricated `{ legal: true }`, so `PodChecks.hasLegalSeatDeck` (which reads
+ * fabricated `{ legal: true }`, so `GameHooks.hasLegalSeatDeck` (which reads
  * this shape straight back off the member) passes on a deck that genuinely
  * is legal. "The picker's first legal option" — `legalLibraryDecks`'s own
  * offered order — rather than a fixed deck id, the same rule

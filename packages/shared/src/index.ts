@@ -498,6 +498,16 @@ export {
   newestStandardEra,
 } from './room-modes.ts';
 export {
+  registerGameType,
+  gameTypeSpec,
+  isRegisteredGameType,
+  type GameTypeSpec,
+  type SeatRange,
+  type Verdict,
+  type BotFill,
+  type GameCodec,
+} from './game-type-spec.ts';
+export {
   AVATAR_ID_MAX,
   CLIENT_MODES,
   CLOCK_SETTINGS,

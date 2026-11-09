@@ -50,9 +50,8 @@ import {
 	ROOM_MATCHES_KEPT,
 	ROOM_STALE_MS,
 	type BotGameAsk,
-	type BotGames,
+	type GameHooks,
 	type Lobby,
-	type PodChecks,
 	type RoomView,
 	type SeriesEnd,
 } from './lobby.ts';
@@ -1036,13 +1035,13 @@ describe('a draft that has started', () => {
 		fillWithAi(first, id, ALICE.id);
 		approvePlan(first, id);
 		expect(first.startDraft(id, ALICE.id).ok).toBe(true);
-		first.setPodChecks(checks);
+		wireChecks(first, checks);
 		expect(first.playPod(id, ALICE.id).ok).toBe(true);
 		expect(first.get(id)?.pod?.phase).toBe('building');
 
 		// Mid-build: Alice's Play survives, so Bob's is the one that deals round 1.
 		const second = await openLobby({ dir });
-		second.setPodChecks(checks);
+		wireChecks(second, checks);
 		expect(second.get(id)?.draftStartedAt).not.toBeNull();
 		expect(second.get(id)?.pod?.phase).toBe('building');
 		expect(second.get(id)?.pod?.built).toEqual([ALICE.id]);
@@ -1051,7 +1050,7 @@ describe('a draft that has started', () => {
 
 		// Mid-rounds: the round and its pairing come back.
 		const third = await openLobby({ dir });
-		third.setPodChecks(checks);
+		wireChecks(third, checks);
 		expect(third.get(id)?.pod).toMatchObject({ phase: 'rounds', round: 1 });
 		expect(third.get(id)?.pod?.pairings).toEqual(second.get(id)?.pod?.pairings);
 		expect(third.releaseLostDrafts(() => true)).toEqual([]);
@@ -1472,11 +1471,11 @@ describe('Lobby.releaseTableMatch', () => {
 
 describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its result is recorded once', () => {
 	/** A room with Alice and Bob seated at the first table and game 1 under way; `ended` collects every series result. */
-	async function playingTable(opts: { checks?: PodChecks } = {}) {
+	async function playingTable(opts: { checks?: GameHooks } = {}) {
 		const ended: SeriesEnd[] = [];
 		const logged: Record<string, unknown>[] = [];
 		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end), log: (e) => void logged.push(e) });
-		if (opts.checks !== undefined) lobby.setPodChecks(opts.checks);
+		if (opts.checks !== undefined) wireChecks(lobby, opts.checks);
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
@@ -1621,7 +1620,7 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 	});
 
 	it('a Bo1 ends as Bo1 when a seat no longer holds the deck it played (a deck or format change)', async () => {
-		const checks: PodChecks = { ...fakeChecks(), holdsSeriesDeck: (state) => (state as { same?: boolean } | undefined)?.same !== false };
+		const checks: GameHooks = { ...fakeChecks(), holdsSeriesDeck: (state) => (state as { same?: boolean } | undefined)?.same !== false };
 		const { lobby, id, tableId, ended } = await playingTable({ checks });
 		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
 		expect(lobby.setPlayerState(id, ALICE.id, { same: true })).toBe(true);
@@ -2528,7 +2527,7 @@ describe('Lobby.onChange', () => {
 /* ── wave 72 §P: the pod ──────────────────────────────────────────────────── */
 
 /**
- * A `PodChecks` fake. `built` answers true for every id in `built`;
+ * A `GameHooks` fake. `built` answers true for every id in `built`;
  * `seatState` answers a marker a test can recognise. `legalSeatDeck` is the
  * tournament lock's Classic "ready" set; `currentDeck` is what a `locked`
  * snapshot captures for an entrant (a marker by default); `onSeatDeck`
@@ -2542,7 +2541,7 @@ function fakeChecks(
 		currentDeck?: (entrant: string) => unknown;
 		onSeatDeck?: (tableId: string, entrant: string, deck: unknown) => void;
 	} = {},
-): PodChecks {
+): GameHooks {
 	const built = opts.built ?? new Set<string>();
 	const draftComplete = opts.draftComplete ?? true;
 	const legalSeatDeck = opts.legalSeatDeck ?? new Set<string>();
@@ -2556,6 +2555,43 @@ function fakeChecks(
 		currentTournamentDeck: (_roomId, entrant) => (opts.currentDeck ? opts.currentDeck(entrant) : { deckOf: entrant }),
 		seatTournamentDeck: (_roomId, tableId, entrant, deck) => opts.onSeatDeck?.(tableId, entrant, deck),
 	};
+}
+
+/** The true unwired defaults (`lobby.ts`'s own `NO_GAME_HOOKS`, restated: not exported, so a test that never wires anything still gets exactly this, not `fakeChecks()`'s different ones — `draftComplete` especially). */
+const UNWIRED: GameHooks = {
+	draftComplete: () => false,
+	built: () => false,
+	seatState: () => null,
+	holdsSeriesDeck: () => true,
+	roundNamesOf: (plan) => roundNamesOf(plan, (source) => (source.kind === 'cube' ? source.cubeId : source.code)),
+	hasLegalSeatDeck: () => false,
+	currentTournamentDeck: () => null,
+	seatTournamentDeck: () => {},
+};
+
+/**
+ * Wires `GameHooks`/a bot player for both of Magic's own game types on
+ * `lobby`, re-composing the two independently so a later `wireBotPlay` never
+ * drops an earlier `wireChecks` and vice versa — the checks and the bot
+ * player compose as two independent sub-systems, same as before wave 96's
+ * two fields became one. Per-`Lobby`-instance state (a `WeakMap`), so two
+ * lobbies in one test (a restart) never see each other's wiring, and a
+ * lobby never wired at all keeps the true `UNWIRED` defaults.
+ */
+const wiredChecks = new WeakMap<Lobby, GameHooks>();
+const wiredBotPlay = new WeakMap<Lobby, GameHooks['playBotGame']>();
+function rewire(lobby: Lobby): void {
+	const hooks: GameHooks = { ...(wiredChecks.get(lobby) ?? UNWIRED), ...(wiredBotPlay.has(lobby) ? { playBotGame: wiredBotPlay.get(lobby) } : {}) };
+	lobby.useGameType('constructed-1v1', hooks);
+	lobby.useGameType('draft', hooks);
+}
+function wireChecks(lobby: Lobby, checks: GameHooks): void {
+	wiredChecks.set(lobby, checks);
+	rewire(lobby);
+}
+function wireBotPlay(lobby: Lobby, player: { play: NonNullable<GameHooks['playBotGame']> }): void {
+	wiredBotPlay.set(lobby, player.play);
+	rewire(lobby);
 }
 
 describe('Lobby.sitPod / standPod', () => {
@@ -2694,7 +2730,7 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 
-		// Unwired PodChecks (the default, and the instant before `attachTables`
+		// Unwired hooks (the default, and the instant before `attachTables`
 		// has run): a drafting room can only wait longer, never show the wrong
 		// phase the other way.
 		expect(lobby.get(id)?.pod?.phase).toBe('drafting');
@@ -2704,15 +2740,15 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		expect(lobby.get(id)?.pod?.seats.every((s) => s === null)).toBe(true);
 		// Who is drafting is still the room's to say: the list `built` and the rounds gate are checked against.
 		expect(lobby.get(id)?.pod?.drafters).toEqual([ALICE.id]);
-		lobby.setPodChecks(fakeChecks({ draftComplete: false }));
+		wireChecks(lobby, fakeChecks({ draftComplete: false }));
 		expect(lobby.get(id)?.pod?.phase).toBe('drafting');
 
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set() }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set() }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
 		expect(lobby.get(id)?.pod?.drafters).toEqual([ALICE.id]);
 		expect(lobby.get(id)?.pod?.built).toEqual([]);
 
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
 		// A legal saved deck is not "done building": that is the editor's Play.
 		expect(lobby.get(id)?.pod?.built).toEqual([]);
 
@@ -2727,7 +2763,7 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		expect(started.room.pod?.phase).toBe('rounds');
 		expect(started.room.pod).toMatchObject({ round: 1, rounds: 3, bye: null });
 		// Round 1 across the table: she plays the bot opposite her; the other three pairings are bot games,
-		// settled at once with no `BotGames` wired.
+		// settled at once with no bot player wired.
 		const pairing = started.room.pod!.pairings[0]!;
 		expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, 'ai:4']]);
 		expect(started.room.pod?.results).toEqual([
@@ -2790,10 +2826,10 @@ describe('Lobby.playPod', () => {
 		const { lobby, id } = await buildingPod();
 		expect(lobby.playPod('r-000000000000', ALICE.id)).toEqual({ ok: false, reason: 'no-room' });
 
-		// Still drafting: the default PodChecks has never been wired.
+		// Still drafting: no hooks have been wired for this game type yet.
 		expect(lobby.playPod(id, ALICE.id)).toEqual({ ok: false, reason: 'not-drafter' });
 
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
 		expect(lobby.playPod(id, 'fk:0000000000000000')).toEqual({ ok: false, reason: 'not-drafter' });
 		expect(lobby.playPod(id, CAROL.id)).toEqual({ ok: false, reason: 'not-built' });
@@ -2801,7 +2837,7 @@ describe('Lobby.playPod', () => {
 
 	it('deals round 1 on the LAST drafter’s press, with nobody else’s say, and answers a late press ok', async () => {
 		const { lobby, id } = await buildingPod();
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 		expect(lobby.playPod(id, BOB.id)).toMatchObject({ ok: true, room: { pod: { phase: 'building', built: [BOB.id] } } });
 		expect(lobby.playPod(id, CAROL.id)).toMatchObject({ ok: true, room: { pod: { phase: 'building' } } });
 		// Pressing twice changes nothing.
@@ -2823,7 +2859,7 @@ describe('Lobby.playPod', () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const id = await startedDraft(lobby, [ALICE]);
 		expect(lobby.podDraft(id)?.humans.map((h) => h.participantId)).toEqual([ALICE.id]);
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
 		const started = lobby.playPod(id, ALICE.id);
 		expect(started.ok).toBe(true);
@@ -2843,7 +2879,7 @@ describe('Lobby.playPod', () => {
 		expect(lobby.podDraft(id)?.bots).toHaveLength(6);
 		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
 		const started = playAll(lobby, id, [ALICE, BOB]);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
@@ -2876,7 +2912,7 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		closeOpenSeats(lobby, id, ALICE.id);
 		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 		return { lobby, id };
 	}
 
@@ -2912,7 +2948,7 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		closeOpenSeats(lobby, id, ALICE.id);
 		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 		const started = playAll(lobby, id, [ALICE, BOB, CAROL]);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
@@ -2940,7 +2976,7 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		const seat2 = lobby.get(id)!.pod!.seats[2]!;
 		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
 		const started = lobby.playPod(id, ALICE.id);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
@@ -2961,9 +2997,9 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		closeOpenSeats(lobby, id, ALICE.id);
 		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
 		const asks: BotGameAsk[] = [];
-		lobby.setBotGames({ play: (ask) => (asks.push(ask), new Promise(() => {})) });
+		wireBotPlay(lobby, { play: (ask) => (asks.push(ask), new Promise(() => {})) });
 		const started = lobby.playPod(id, ALICE.id);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
@@ -3059,7 +3095,7 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		// be `[]`, and the pod could never pair a round.
 		expect(lobby.podDraft(id)?.humans.map((h) => h.participantId)).toEqual([ALICE.id, BOB.id, CAROL.id]);
 
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
 
 		const started = playAll(lobby, id, [ALICE, BOB, CAROL]);
@@ -3113,7 +3149,7 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 		closeOpenSeats(lobby, id, ALICE.id);
 		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
-		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
 		expect(playAll(lobby, id, [ALICE, BOB]).ok).toBe(true);
 		return { lobby, id, kept };
 	}
@@ -3174,7 +3210,7 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 			closeOpenSeats(l, made.room.id, ALICE.id);
 			approvePlan(l, made.room.id);
 			expect(l.startDraft(made.room.id, ALICE.id).ok).toBe(true);
-			l.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+			wireChecks(l, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 			expect(playAll(l, made.room.id, [ALICE, BOB, CAROL]).ok).toBe(true);
 			return { l, id: made.room.id };
 		})();
@@ -3793,7 +3829,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.setSettings(id, ALICE.id, { tournament: true, tournamentDecks: 'per-round' }).ok).toBe(true);
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
 			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 
 			const locked = lobby.get(id)!;
@@ -3812,9 +3848,9 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const classicId = await tournamentRoom(lobby, ALICE, 'classic');
 			expect(lobby.sitPod(classicId, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.sitPod(classicId, BOB.id, 1).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) })); // BOB has none
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id]) })); // BOB has none
 			expect(lobby.startDraft(classicId, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
 			expect(lobby.startDraft(classicId, ALICE.id).ok).toBe(true);
 
 			const randomId = await tournamentRoom(lobby, ALICE, 'random');
@@ -3832,7 +3868,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const id = await tournamentRoom(lobby, ALICE, 'classic');
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
 			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		});
 
@@ -3841,7 +3877,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const id = await tournamentRoom(lobby, ALICE, 'classic');
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
 			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 
 			expect(lobby.sitPod(id, CAROL.id, 2)).toEqual({ ok: false, reason: 'not-lobby' });
@@ -3857,7 +3893,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const id = await tournamentRoom(lobby, ALICE, 'classic');
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
 			const started = lobby.startDraft(id, ALICE.id);
 			expect(started.ok).toBe(true);
 			if (!started.ok) return;
@@ -3882,7 +3918,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const id = await tournamentRoom(lobby, ALICE, 'classic');
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
 			const started = lobby.startDraft(id, ALICE.id);
 			expect(started.ok).toBe(true);
 			if (!started.ok) return;
@@ -3907,7 +3943,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
 			expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 			return { lobby, id };
 		}
 
@@ -3959,7 +3995,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			// The AI in seat 0 and Alice in seat 1: the pairing names the AI first, and its table seats Alice at 0.
 			expect(lobby.aiPod(id, ALICE.id, 0, true).ok).toBe(true);
 			expect(lobby.sitPod(id, ALICE.id, 1).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
 			const started = lobby.startDraft(id, ALICE.id);
 			expect(started.ok).toBe(true);
 			if (!started.ok) return;
@@ -4003,7 +4039,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
 			const seat = lobby.get(id)!.pod?.seats[1];
 			expect(seat?.avatarId).toBeTruthy();
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
 			const started = lobby.startDraft(id, ALICE.id);
 			expect(started.ok).toBe(true);
 			if (!started.ok) return;
@@ -4015,7 +4051,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const id = await tournamentRoom(lobby, ALICE, 'classic');
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
 			const started = lobby.startDraft(id, ALICE.id);
 			expect(started.ok).toBe(true);
 			if (!started.ok) return;
@@ -4040,7 +4076,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.sitPod(id, ALICE.id, 1).ok).toBe(true);
 			expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);
 			expect(lobby.sitPod(id, BOB.id, 3).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
 			const started = lobby.startDraft(id, ALICE.id);
 			expect(started.ok).toBe(true);
 			if (!started.ok) return;
@@ -4053,8 +4089,8 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 		});
 
 		describe('bot games: two AI entrants play their pairing out in Forge (the operator, 2026-11-07)', () => {
-			/** BotGames whose every game waits on the test: `asks` in the order asked, each settled by hand. */
-			function heldBotGames(): { botGames: BotGames; asks: { ask: BotGameAsk; settle: (r: { wins: [number, number]; gameMs: number[] } | null) => void }[] } {
+			/** A bot player whose every game waits on the test: `asks` in the order asked, each settled by hand. */
+			function heldBotPlayer(): { botGames: { play: NonNullable<GameHooks['playBotGame']> }; asks: { ask: BotGameAsk; settle: (r: { wins: [number, number]; gameMs: number[] } | null) => void }[] } {
 				const asks: { ask: BotGameAsk; settle: (r: { wins: [number, number]; gameMs: number[] } | null) => void }[] = [];
 				return { asks, botGames: { play: (ask) => new Promise((settle) => asks.push({ ask, settle })) } };
 			}
@@ -4068,14 +4104,14 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 				expect(lobby.sitPod(id, ALICE.id, 1).ok).toBe(true);
 				expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);
 				expect(lobby.sitPod(id, BOB.id, 3).ok).toBe(true);
-				lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+				wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
 				return { lobby, id };
 			}
 
 			it('is played, not settled: no table, the round waits on it like a table, and its real score is the result', async () => {
 				const { lobby, id } = await fourWithTwoAi(await tempDir());
-				const { botGames, asks } = heldBotGames();
-				lobby.setBotGames(botGames);
+				const { botGames, asks } = heldBotPlayer();
+				wireBotPlay(lobby, botGames);
 				const started = lobby.startDraft(id, ALICE.id);
 				expect(started.ok).toBe(true);
 				if (!started.ok) return;
@@ -4103,8 +4139,8 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			it('a bot game with no result settles the old way, the lower seat 2-0, and says so', async () => {
 				const logs: Record<string, unknown>[] = [];
 				const { lobby, id } = await fourWithTwoAi(await tempDir(), (e) => logs.push(e));
-				const { botGames, asks } = heldBotGames();
-				lobby.setBotGames(botGames);
+				const { botGames, asks } = heldBotPlayer();
+				wireBotPlay(lobby, botGames);
 				expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 				asks[0]!.settle(null);
 				await flush();
@@ -4116,28 +4152,28 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			it('a restart mid-game plays it again from its start, and a result for the lost one is let go', async () => {
 				const dir = await tempDir();
 				const { lobby, id } = await fourWithTwoAi(dir);
-				const first = heldBotGames();
-				lobby.setBotGames(first.botGames);
+				const first = heldBotPlayer();
+				wireBotPlay(lobby, first.botGames);
 				expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 				expect(first.asks).toHaveLength(1);
 
 				const reopened = await openLobby({ dir });
 				expect(reopened.get(id)?.pod?.botGames).toEqual([{ players: ['ai:0', 'ai:2'] }]);
-				const second = heldBotGames();
-				reopened.setBotGames(second.botGames);
+				const second = heldBotPlayer();
+				wireBotPlay(reopened, second.botGames);
 				expect(second.asks.map((a) => [a.ask.round, a.ask.players])).toEqual([[1, ['ai:0', 'ai:2']]]);
 				second.asks[0]!.settle({ wins: [2, 0], gameMs: [30_000, 31_000] });
 				await flush();
 				expect(reopened.get(id)?.pod?.results).toEqual([{ round: 1, playerA: 'ai:0', playerB: 'ai:2', gamesA: 2, gamesB: 0, gameMs: [30_000, 31_000] }]);
 				// Asking again while it is played asks nothing twice.
-				reopened.setBotGames(second.botGames);
+				wireBotPlay(reopened, second.botGames);
 				expect(second.asks).toHaveLength(1);
 			});
 
 			it('a seeded testing room never plays one: its rounds are a fixture', async () => {
 				const { lobby, id } = await fourWithTwoAi(await tempDir(), undefined, true);
-				const { botGames, asks } = heldBotGames();
-				lobby.setBotGames(botGames);
+				const { botGames, asks } = heldBotPlayer();
+				wireBotPlay(lobby, botGames);
 				const started = lobby.startDraft(id, ALICE.id);
 				expect(started.ok).toBe(true);
 				expect(asks).toHaveLength(0);
@@ -4150,7 +4186,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const id = await tournamentRoom(lobby, ALICE, 'classic');
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
 			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 			expect(lobby.aiPod(id, ALICE.id, 2, true)).toEqual({ ok: false, reason: 'not-lobby' });
 			expect(lobby.get(id)?.pod?.drafters).toEqual([ALICE.id, BOB.id]);
@@ -4166,7 +4202,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
 			expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
 			const seated: { tableId: string; entrant: string; deck: unknown }[] = [];
-			lobby.setPodChecks(
+			wireChecks(lobby, 
 				fakeChecks({
 					legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]),
 					onSeatDeck: (tableId, entrant, deck) => seated.push({ tableId, entrant, deck }),
@@ -4189,7 +4225,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
 			const seated: { tableId: string; entrant: string; deck: unknown }[] = [];
-			lobby.setPodChecks(
+			wireChecks(lobby, 
 				fakeChecks({
 					legalSeatDeck: new Set([ALICE.id, BOB.id]),
 					onSeatDeck: (tableId, entrant, deck) => seated.push({ tableId, entrant, deck }),
@@ -4215,7 +4251,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
 			expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 			const started = lobby.startDraft(id, ALICE.id);
 			expect(started.ok).toBe(true);
 			if (!started.ok) return;
@@ -4231,7 +4267,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(restored.pod?.pairings).toEqual(started.room.pod!.pairings);
 
 			// The game continues on the restored lobby, exactly where it left off.
-			second.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+			wireChecks(second, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 			second.recordGameResult(id, tableId, { matchId: 'm-1', winner: 0 });
 			const finished = second.recordGameResult(id, tableId, { matchId: 'm-2', winner: 0 });
 			expect(finished.ok).toBe(true);
@@ -4243,7 +4279,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const id = await tournamentRoom(lobby, ALICE, 'classic');
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
 			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 
 			const second = await openLobby({ dir });
@@ -4391,7 +4427,7 @@ describe('a table resolved from its card: Abandon and Drop match (docs/planning/
 		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
 		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 		expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
-		lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+		wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
 		const started = lobby.startDraft(id, ALICE.id);
 		if (!started.ok) throw new Error('rounds did not start');
 		const tableId = started.room.pod!.pairings[0]!.tableId;
@@ -4471,7 +4507,7 @@ describe('a table resolved from its card: Abandon and Drop match (docs/planning/
 		for (const m of [BOB, CAROL, DAVE]) expect(lobby.join(id, m).ok).toBe(true);
 		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
 		[ALICE, BOB, CAROL, DAVE].forEach((m, seat) => expect(lobby.sitPod(id, m.id, seat).ok).toBe(true));
-		lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id, DAVE.id]) }));
+		wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id, DAVE.id]) }));
 		const started = lobby.startDraft(id, ALICE.id);
 		if (!started.ok) throw new Error('rounds did not start');
 		const [first, second] = started.room.pod!.pairings;
@@ -4504,7 +4540,7 @@ describe('Leader tools: DQ a player, reset a game', () => {
 		expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);
 		if (opts.leaderSeated === true) expect(lobby.sitPod(id, ALICE.id, 3).ok).toBe(true);
 		else expect(lobby.aiPod(id, ALICE.id, 3, true).ok).toBe(true);
-		lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+		wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 		const started = lobby.startDraft(id, ALICE.id);
 		if (!started.ok) throw new Error('rounds did not start');
 		const tableOf = (who: string) => lobby.get(id)!.pod!.pairings.find((p) => p.players.includes(who))!.tableId;
@@ -4664,7 +4700,7 @@ describe('roomLocks: what the view says is locked is exactly what the setters re
 				standAll(lobby, id);
 				expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 				expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
-				lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+				wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
 				expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 				expect(lobby.get(id)!.tables.every((t) => t.matchId === null), 'no game running').toBe(true);
 				return id;

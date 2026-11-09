@@ -77,6 +77,7 @@ import {
 	DEFAULT_ROOM_SETTINGS,
 	DRAFT_POOL_PREFIX,
 	DraftPlanSchema,
+	gameTypeSpec,
 	GameTypeSchema,
 	MAGIC_ROOM_STORED_KEYS,
 	isPodAi,
@@ -415,7 +416,7 @@ interface CreateRoomInput {
 	historical?: boolean;
 	/**
 	 * A historical room's entrant deck assignments: entrant id (a member id or `ai:<seat>`)
-	 * → library deck id. Read by `PodChecks.currentTournamentDeck` at the tournament lock,
+	 * → library deck id. Read by `GameHooks.currentTournamentDeck` at the tournament lock,
 	 * so an assigned entrant replays the deck the real player played instead of a drawn one.
 	 * Set the same way `historical` is — never by a client body.
 	 */
@@ -610,13 +611,19 @@ function isTournamentRoom(room: Pick<RoomRecord, 'gameType' | 'settings'>): bool
 	return room.gameType === 'constructed-1v1' && room.settings.tournament;
 }
 
-/** Whether this room's lobby seats through `podSeats` and plays its rounds through `pod` — a `draft` room, or a constructed tournament. */
+/**
+ * Whether this room's lobby seats through `podSeats` and plays its rounds
+ * through `pod` — a `draft` room, a constructed tournament (Magic's own two
+ * literal cases), or any other registered game type whose spec says it
+ * plays with more than a table's two seats (`GameTypeSpec.seats.max`,
+ * `@hadoku/shared`). A spec this process has never registered answers like
+ * Magic's own two always have: a plain 1v1 table.
+ */
 function usesPod(room: Pick<RoomRecord, 'gameType' | 'settings'>): boolean {
-	return room.gameType === 'draft' || isTournamentRoom(room);
+	if (room.gameType === 'draft' || isTournamentRoom(room)) return true;
+	const spec = gameTypeSpec(room.gameType);
+	return spec !== undefined && spec.seats.max > 2;
 }
-
-/** A 1v1 table's seats. */
-const TABLE_SEAT_COUNT = 2;
 
 /** The members who hold a seat: the pod's humans in a pod room, else the tables'. In seat order. */
 function playersOf(room: RoomRecord): string[] {
@@ -877,7 +884,7 @@ function podEntrants(room: RoomRecord): string[] {
  * whatever would normally happen with humans. don't 'fill extra slots' orchestrate the tournament with
  * however many bots were put into seats." So a pod of one human and N bots is an (N+1)-entrant Swiss,
  * with the rounds, pairings, byes and standings a pod of that many humans would have. Two bots paired
- * together play a bot game (`BotGames`). A room that drafts as several pods (`podDrafts`) pairs its
+ * together play a bot game (`GameHooks.playBotGame`). A room that drafts as several pods (`podDrafts`) pairs its
  * humans alone: each pod's bots filled a table of their own, not a seat anyone put them in.
  */
 function draftEntrants(room: RoomRecord, humans: string[]): string[] {
@@ -895,7 +902,7 @@ export function roomAi(room: RoomRecord): AiPersona {
 }
 
 /** An AI entrant's character: a tournament pod's own (its seat's, kept through the pod's life), or a draft pod's shared bot (`roomAi`). */
-function entrantPersona(room: RoomRecord, id: string, checks: Pick<PodChecks, 'pilotOf'>): AiPersona {
+function entrantPersona(room: RoomRecord, id: string, checks: Pick<GameHooks, 'pilotOf'>): AiPersona {
 	if (!isAiEntrant(id)) return roomAi(room);
 	return seatPersona(room, rawSeat(room, aiEntrantSeat(id)), checks);
 }
@@ -904,7 +911,7 @@ function entrantPersona(room: RoomRecord, id: string, checks: Pick<PodChecks, 'p
  * The AI at a pod seat: its character, named for the real player whose list it plays in a Challenge
  * (`RoomRecord.aiDeckAssignments`). The name is read from the library each time, never stored (R12).
  */
-function seatPersona(room: RoomRecord, seat: number, checks: Pick<PodChecks, 'pilotOf'>): AiPersona {
+function seatPersona(room: RoomRecord, seat: number, checks: Pick<GameHooks, 'pilotOf'>): AiPersona {
 	const persona = personaOf(room.podAi[seat] ?? seatAvatar(room, seat));
 	const deck = room.aiDeckAssignments?.[`ai:${String(seat)}`];
 	const player = deck === undefined ? undefined : checks.pilotOf?.(deck);
@@ -926,7 +933,7 @@ function rawSeat(room: RoomRecord, podSeat: number): number {
 }
 
 /** `PodView.personas`: every AI entrant the pod's players, pairings and results name. */
-function podPersonas(room: RoomRecord, humans: readonly string[], checks: Pick<PodChecks, 'pilotOf'>): PodView['personas'] {
+function podPersonas(room: RoomRecord, humans: readonly string[], checks: Pick<GameHooks, 'pilotOf'>): PodView['personas'] {
 	const pod = room.pod;
 	const ids = [...humans, ...(pod?.pairings.flatMap((p) => p.players) ?? []), ...(pod?.results.flatMap((r) => [r.playerA, r.playerB ?? r.playerA]) ?? [])];
 	return Object.fromEntries([...new Set(ids)].filter((id) => id === POD_AI || isAiEntrant(id)).map((id) => [id, entrantPersona(room, id, checks)]));
@@ -942,29 +949,82 @@ function aiOpponent(room: RoomRecord): AiPersona | null {
 }
 
 /**
+ * A series' result, recorded once when the series ends (`#settleSeries`): a
+ * Bo3 when it is decided, a Bo1 when the room moves on without a Rematch. A
+ * Bo3 that ends undecided is a Bo1 of its one finished game, or the Bo3 drawn
+ * (`winner: null`) once two are finished. A seat is the member who played it,
+ * or `null` for Forge's AI.
+ */
+export interface SeriesEnd {
+	roomId: string;
+	tableId: string;
+	mode: string;
+	bestOf: 1 | 3;
+	seats: [{ memberId: string; name: string } | null, { memberId: string; name: string } | null];
+	wins: [number, number];
+	games: SeriesGame[];
+	winner: 0 | 1 | null;
+}
+
+/**
+ * Where a bot game's side gets its deck: the entrant's locked snapshot (`room.lockedDecks`, opaque here
+ * as everywhere in this file), a fresh deal from the room's format (a tournament's `per-round`), or the
+ * pool its seat drafted (a draft pod's bot, `draftEntrants`).
+ */
+export type BotDeckSource = { kind: 'locked'; deck: unknown } | { kind: 'deal' } | { kind: 'drafted'; draftId: string; seat: number };
+
+/** One bot game to play: two AI entrants of `roomId`'s pod, paired together in `round`. */
+export interface BotGameAsk {
+	roomId: string;
+	round: number;
+	players: [string, string];
+	/** Each side's character's name: what Forge calls its player. */
+	names: [string, string];
+	decks: [BotDeckSource, BotDeckSource];
+	bestOf: 1 | 3;
+}
+
+/**
  * What `RoomView.pod` needs that this file cannot answer on its own: whether
  * a pod's DRAFT is complete (`draftRooms.ts`'s `DraftState.status`), whether
  * a given drafter's deck is saved and legal (`draftRooms.ts`'s `builtDeckOf`
  * plus `gate.ts`'s own check — "the gate's draft check" the brief names),
- * and the table player-state to seat a drafter with once a round pairs them
+ * the table player-state to seat a drafter with once a round pairs them
  * (same opaque shape `http/routes.ts` itself reads back through
- * `playerState`/`setPlayerState`; this file never looks inside it).
+ * `playerState`/`setPlayerState`; this file never looks inside it), and —
+ * optionally — playing a bot-vs-bot pairing out instead of settling it at
+ * once.
  *
- * Wired once, from `http/routes.ts`'s `attachTables` — which already holds
+ * **The per-room-instance half of a game's hooks into the lobby** (the
+ * static half, true of a game type on its own with no server behind it, is
+ * `@hadoku/shared`'s `GameTypeSpec`). Wired per game type (`useGameType`),
+ * not baked into any one `Lobby` instance's own code and never naming a
+ * particular game: `http/routes.ts`'s `attachTables` — which already holds
  * `draftRooms`, the gate's `checkSeat`, and this very `Lobby` (as
- * `TablesRooms`) — via `setPodChecks`. `index.ts` is not touched for this:
- * `attachTables` is called with the same `rooms`/`draftRooms` it always was.
- * Unwired (every test that never calls `setPodChecks`, and the instant
- * between `openLobby` returning and `attachTables` running at boot) answers
- * as if nothing has ever been built — a room can only wait longer in
- * `drafting`/`building`, never see a wrong answer the other way.
+ * `TablesRooms`) — builds Magic's own implementation and registers it under
+ * BOTH of Magic's own ids (`'constructed-1v1'` and `'draft'`), one object
+ * serving both exactly as the single field it replaced did (`usesPod` is
+ * already "does this room's lobby use `podSeats`/`pod` at all", true for
+ * both). A game type never wired (every test that never calls
+ * `useGameType` for it, and the instant between `openLobby` returning and
+ * `attachTables` running at boot) answers as if nothing has ever been
+ * built — a room can only wait longer in `drafting`/`building`, never see a
+ * wrong answer the other way.
  *
  * `holdsSeriesDeck` is the one question about a Constructed table: whether a
  * member's table state still holds the deck it played the current series
  * with — what keeps a finished Bo1 open to a Rematch (`#rematchable`).
  * Unwired, every seat does, so only the seats and members decide.
+ *
+ * `playBotGame`, absent (the default): two AI entrants paired together
+ * settle at once (`#pairRound`). Wired: it plays their match out in Forge,
+ * headless (`play/botgames.ts`; the operator, 2026-11-07: "can we have the
+ * bots play real games against each other?" — "real games, headless"),
+ * answering each side's games won, or `null` when there is no result
+ * (Forge failed, the server was full past the wait, or the game ran past
+ * its clock) — the room settles that pairing the old way then.
  */
-export interface PodChecks {
+export interface GameHooks {
 	draftComplete(podId: string): boolean;
 	built(podId: string, memberId: string): boolean;
 	seatState(podId: string, memberId: string): unknown;
@@ -1008,6 +1068,8 @@ export interface PodChecks {
 	seatTournamentDeck(roomId: string, tableId: string, entrant: string, deck: unknown | null): void;
 	/** The real player who played a library deck (its `pilot`): a Challenge AI's name. Absent, or `undefined`, keeps the seat's own character name. */
 	pilotOf?(deckId: string): string | undefined;
+	/** See this interface's own doc, last paragraph. Optional: absent plays no bot game. */
+	playBotGame?(ask: BotGameAsk): Promise<{ wins: [number, number]; gameMs: number[] } | null>;
 }
 
 /** The bare name a single source gets with no `DraftRooms` wired (no jar/no cube store): its id or code, which is also what the real resolver falls back to. */
@@ -1015,7 +1077,7 @@ function fallbackSourceName(source: PoolSource): string {
 	return source.kind === 'cube' ? source.cubeId : source.code;
 }
 
-const NO_POD_CHECKS: PodChecks = {
+const NO_GAME_HOOKS: GameHooks = {
 	draftComplete: () => false,
 	built: () => false,
 	seatState: () => null,
@@ -1025,56 +1087,6 @@ const NO_POD_CHECKS: PodChecks = {
 	currentTournamentDeck: () => null,
 	seatTournamentDeck: () => {},
 };
-
-/**
- * A series' result, recorded once when the series ends (`#settleSeries`): a
- * Bo3 when it is decided, a Bo1 when the room moves on without a Rematch. A
- * Bo3 that ends undecided is a Bo1 of its one finished game, or the Bo3 drawn
- * (`winner: null`) once two are finished. A seat is the member who played it,
- * or `null` for Forge's AI.
- */
-export interface SeriesEnd {
-	roomId: string;
-	tableId: string;
-	mode: string;
-	bestOf: 1 | 3;
-	seats: [{ memberId: string; name: string } | null, { memberId: string; name: string } | null];
-	wins: [number, number];
-	games: SeriesGame[];
-	winner: 0 | 1 | null;
-}
-
-/**
- * Where a bot game's side gets its deck: the entrant's locked snapshot (`room.lockedDecks`, opaque here
- * as everywhere in this file), a fresh deal from the room's format (a tournament's `per-round`), or the
- * pool its seat drafted (a draft pod's bot, `draftEntrants`).
- */
-export type BotDeckSource = { kind: 'locked'; deck: unknown } | { kind: 'deal' } | { kind: 'drafted'; draftId: string; seat: number };
-
-/** One bot game to play: two AI entrants of `roomId`'s pod, paired together in `round`. */
-export interface BotGameAsk {
-	roomId: string;
-	round: number;
-	players: [string, string];
-	/** Each side's character's name: what Forge calls its player. */
-	names: [string, string];
-	decks: [BotDeckSource, BotDeckSource];
-	bestOf: 1 | 3;
-}
-
-/**
- * Plays a pod's bot games: two AI entrants paired together play their match out in Forge, headless
- * (`play/botgames.ts`; the operator, 2026-11-07: "can we have the bots play real games against each
- * other?" — "real games, headless"). Answers each side's games won, or `null` when there is no result
- * (Forge failed, the server was full past the wait, or the game ran past its clock), and the room
- * settles that pairing the old way instead.
- *
- * Wired late from `http/routes.ts`, like `PodChecks` (`setBotGames`). Unwired, a bot game is never
- * asked for: two AI entrants paired together settle at once (`#pairRound`).
- */
-export interface BotGames {
-	play(ask: BotGameAsk): Promise<{ wins: [number, number]; gameMs: number[] } | null>;
-}
 
 /**
  * A draft room's rounds, once `playPod` has dealt round 1. Null before
@@ -1096,7 +1108,7 @@ interface PodRecord {
 	/** Entrants the leader disqualified (`dqPlayer`), in order. Absent on a record written before it. */
 	dropped?: string[];
 	/**
-	 * The CURRENT round's bot games not yet ended (`BotGames`): two AI entrants paired together, with no
+	 * The CURRENT round's bot games not yet ended (`GameHooks.playBotGame`): two AI entrants paired together, with no
 	 * table. Each leaves for `results` when it ends. Absent on a record written before it.
 	 */
 	botGames?: { players: [string, string] }[];
@@ -1162,12 +1174,12 @@ function isStoredGauntlets(v: unknown): v is Record<string, GauntletState> {
 
 /**
  * The room's own gate-free phase: `lobby`/`drafting`/`building`/`rounds`/`done`
- * — see `PodChecks`. Only called for a room `usesPod`.
+ * — see `GameHooks`. Only called for a room `usesPod`.
  *
  * A TOURNAMENT pod never sees `drafting`/`building`: `#lockTournament` sets
  * `draftStartedAt` and a (possibly still-empty) `pod` as ONE atomic
  * mutation, specifically so that nothing — not even a RE-ENTRANT read
- * through `PodChecks` mid-lock (`#newPodTable`'s `seatTournamentDeck` calls
+ * through `GameHooks` mid-lock (`#newPodTable`'s `seatTournamentDeck` calls
  * back into `rooms.get()` before pairing is finished) — can ever observe
  * `draftStartedAt !== null` with `pod === null`. If it ever does, that is a
  * real bug upstream, not a case this function silently answers a phase for:
@@ -1175,7 +1187,7 @@ function isStoredGauntlets(v: unknown): v is Record<string, GauntletState> {
  * lying about which phase it is (a real run of exactly that lie is what
  * crashed `podViewOf`'s blind cast below, 2026-10-22).
  */
-function podPhaseOf(room: RoomRecord, checks: PodChecks): PodPhase {
+function podPhaseOf(room: RoomRecord, checks: GameHooks): PodPhase {
 	if (room.draftStartedAt === null) return 'lobby';
 	if (room.gameType === 'draft') {
 		const pods = room.podDrafts?.length ?? 1;
@@ -1198,7 +1210,7 @@ function seatedHumans(room: RoomRecord): string[] {
 	return podTable(room).flatMap((place) => (place.kind === 'human' ? [place.id] : []));
 }
 
-function podSeatsView(room: RoomRecord, checks: Pick<PodChecks, 'pilotOf'>): PodView['seats'] {
+function podSeatsView(room: RoomRecord, checks: Pick<GameHooks, 'pilotOf'>): PodView['seats'] {
 	return room.podSeats.map((id, i) => {
 		if (id === null) return null;
 		if (id === POD_AI) {
@@ -1241,7 +1253,7 @@ function podStandings(room: RoomRecord, humans: string[], results: MatchResult[]
  * not just `lobby`. A constructed TOURNAMENT pod drafts no pool at all:
  * `plan`/`roundNames`/`verdict` are `null` (`PodView.plan`'s own doc).
  */
-function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
+function podViewOf(room: RoomRecord, checks: GameHooks): PodView {
 	const phase = podPhaseOf(room, checks);
 	const tournament = isTournamentRoom(room);
 	const planFields = tournament ? { plan: null, roundNames: null, verdict: null } : { plan: room.plan, roundNames: checks.roundNamesOf(room.plan), verdict: room.planVerdict };
@@ -1702,13 +1714,17 @@ export interface Lobby {
 
 	/* ── the pod (wave 72 §P) ───────────────────────────────────────────── */
 
-	/** Wires `PodChecks` — see its own doc. Called once, from `http/routes.ts`'s `attachTables`. */
-	setPodChecks(checks: PodChecks): void;
-	/** Wires `BotGames` — see its own doc — and plays every bot game a restored room still owes. Called once, from `http/routes.ts`'s `attachTables`. */
-	setBotGames(botGames: BotGames): void;
+	/**
+	 * Wires `GameHooks` for `type` — see its own doc. Replays every bot game a
+	 * restored room of `type` still owes (`#playPairedBots`), the moment it is
+	 * wired. Called once per game type, from `http/routes.ts`'s
+	 * `attachTables` — Magic's own two ids, `'constructed-1v1'` and
+	 * `'draft'`, wired with the SAME hooks object.
+	 */
+	useGameType(type: string, hooks: GameHooks): void;
 	/**
 	 * How the pod's draft is dealt (`draftRooms.ts`'s pod lookup, wired the same
-	 * way as `setPodChecks`), read off `podTable`: the seats not closed, each
+	 * way as `useGameType`), read off `podTable`: the seats not closed, each
 	 * member who sat at the seat they chose, and the AI seats' names in seat
 	 * order. No humans for a room nobody sat in — the draft then deals every
 	 * seat to a bot, and the first members to connect evict one each.
@@ -1772,10 +1788,10 @@ export interface Lobby {
 	closePod(roomId: string, memberId: string, seat: number, closed: boolean): ClosePodResult;
 	/**
 	 * A drafter is done building — the deck editor's Play. Refused unless their
-	 * saved deck is legal (`PodChecks.built`). Once EVERY human drafter has
+	 * saved deck is legal (`GameHooks.built`). Once EVERY human drafter has
 	 * pressed it, round 1 is dealt with nobody else's say: one bo3-with-sideboarding
 	 * table per pairing (`pairRound`, `@hadoku/draft`), both players seated with
-	 * their saved deck (`PodChecks.seatState`), the bye recorded as a
+	 * their saved deck (`GameHooks.seatState`), the bye recorded as a
 	 * `MatchResult`. Its bots are entrants as its humans are (`draftEntrants`):
 	 * a human paired with one plays it at a table, two paired together play a
 	 * bot game. Every later round starts by itself, as the last of a round ends.
@@ -2411,7 +2427,7 @@ function tournamentDecksOf(room: RoomRecord): RoomSettings['tournamentDecks'] {
 }
 
 /** Magic's part of a room's view, its `game` (`MagicRoomGameSchema`). */
-function magicGameOf(room: RoomRecord, checks: PodChecks): MagicRoomGame {
+function magicGameOf(room: RoomRecord, checks: GameHooks): MagicRoomGame {
 	return {
 		format: room.format,
 		mode: room.mode,
@@ -2423,7 +2439,7 @@ function magicGameOf(room: RoomRecord, checks: PodChecks): MagicRoomGame {
 	};
 }
 
-function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView {
+function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView {
 	const game = magicGameOf(room, checks);
 	return {
 		id: room.id,
@@ -2459,7 +2475,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		testing: room.testing,
 		scheduledFor: room.scheduledFor === undefined ? null : new Date(room.scheduledFor).toISOString(),
 		...(room.historical === true ? { historical: true } : {}),
-		// Public like the seats' own `deckId`s, and what the lock deals each AI entrant (`PodChecks.currentTournamentDeck`).
+		// Public like the seats' own `deckId`s, and what the lock deals each AI entrant (`GameHooks.currentTournamentDeck`).
 		...(room.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.aiDeckAssignments } }),
 		// Which list each open seat plays: the room draws it in place of a deck picker.
 		...(room.seatDecks === undefined ? {} : { seatDecks: { ...room.seatDecks } }),
@@ -2672,10 +2688,11 @@ class FileLobby implements Lobby {
 	/** The pool a room minted here starts on, asked once per room. Resolved by `openLobby`. */
 	#newRoomFormat: () => FormatId;
 
-	/** Wave 72 §P. Unwired until `setPodChecks` runs — see `PodChecks`'s own doc. */
-	#podChecks: PodChecks = NO_POD_CHECKS;
-	/** Unwired until `setBotGames` runs: two AI entrants paired together then settle at once. */
-	#botGames: BotGames | null = null;
+	/**
+	 * Wave 72 §P. Every game type `useGameType` has wired its own `GameHooks`
+	 * for, keyed by `RoomRecord.gameType`. `#hooksFor` is the one reader.
+	 */
+	#hooksByType = new Map<string, GameHooks>();
 	/** Bot games being played now, by room, round and players: one game per pairing, however often it is asked. */
 	readonly #botGamesPlaying = new Set<string>();
 
@@ -2718,8 +2735,13 @@ class FileLobby implements Lobby {
 		this.#ensurePlanChecked(room);
 	}
 
+	/** This room's own `GameHooks` — whatever `useGameType` wired for its `gameType`, or the unwired defaults. */
+	#hooksFor(gameType: string): GameHooks {
+		return this.#hooksByType.get(gameType) ?? NO_GAME_HOOKS;
+	}
+
 	#view(room: RoomRecord): RoomView {
-		return viewOf(room, this.#secrets.has(room.id), this.#podChecks);
+		return viewOf(room, this.#secrets.has(room.id), this.#hooksFor(room.gameType));
 	}
 
 	#persist(room: RoomRecord): void {
@@ -3007,7 +3029,8 @@ class FileLobby implements Lobby {
 	/**
 	 * A change between the 1v1 table and the pod (a game type, or Tournament on or off) changes
 	 * which seats the room has; its players keep playing in the new ones, in the order they sat,
-	 * and its spectators keep watching. A 1v1 table takes the first two; the rest watch.
+	 * and its spectators keep watching. A 1v1 table takes its own game type's `seats.max`
+	 * (Magic's own two types are always 2); the rest watch.
 	 */
 	#carryPlayers(room: RoomRecord, players: readonly string[]): void {
 		if (usesPod(room)) {
@@ -3023,7 +3046,8 @@ class FileLobby implements Lobby {
 		const table = room.tables[0];
 		if (table === undefined) return;
 		for (const id of seatList(table).map((s) => s.memberId)) leaveSeat(table, id);
-		for (const id of players.slice(0, TABLE_SEAT_COUNT)) if (sitAt(room.tables, table, id)) this.#tookSeat(room.id, table.id, id);
+		const tableSeatCount = gameTypeSpec(room.gameType)?.seats.max ?? 2;
+		for (const id of players.slice(0, tableSeatCount)) if (sitAt(room.tables, table, id)) this.#tookSeat(room.id, table.id, id);
 	}
 
 	#recordMatch(room: RoomRecord, matchId: string): void {
@@ -3322,18 +3346,18 @@ class FileLobby implements Lobby {
 		room.pod = { ...pod, round: nextRound, results, pairings, botGames: bots.map((players) => ({ players })), bye };
 		this.#log({ event: 'pod-round-started', roomId: room.id, round: nextRound, tables: pairings.length, bye, settled: settled.length, botGames: bots.length });
 		if (pairings.length === 0 && bots.length === 0) this.#advancePodRound(room, room.pod);
-		else this.#playBotGames(room);
+		else this.#playPairedBots(room);
 	}
 
 	/**
-	 * Play every bot game of the room's current round not already being played (`BotGames`). Called
-	 * when a round pairs, and again for every room restored with one still owed (`setBotGames`): a
+	 * Play every bot game of the room's current round not already being played (`GameHooks.playBotGame`).
+	 * Called when a round pairs, and again for every room restored with one still owed (`useGameType`): a
 	 * restart plays the game again from its start, never waits on the one it lost.
 	 */
-	#playBotGames(room: RoomRecord): void {
+	#playPairedBots(room: RoomRecord): void {
 		const pod = room.pod;
-		const botGames = this.#botGames;
-		if (pod === null || botGames === null) return;
+		const playBotGame = this.#hooksFor(room.gameType).playBotGame;
+		if (pod === null || playBotGame === undefined) return;
 		const bestOf = seriesFormatOf(seriesRoomOf(room)).length === 1 ? 1 : 3;
 		for (const { players } of pod.botGames ?? []) {
 			const key = `${room.id}:${pod.round}:${players.join(':')}`;
@@ -3343,7 +3367,7 @@ class FileLobby implements Lobby {
 				roomId: room.id,
 				round: pod.round,
 				players,
-				names: [entrantPersona(room, players[0], this.#podChecks).name, entrantPersona(room, players[1], this.#podChecks).name],
+				names: [entrantPersona(room, players[0], this.#hooksFor(room.gameType)).name, entrantPersona(room, players[1], this.#hooksFor(room.gameType)).name],
 				decks: [this.#botDeckSource(room, players[0]), this.#botDeckSource(room, players[1])],
 				bestOf,
 			};
@@ -3352,7 +3376,7 @@ class FileLobby implements Lobby {
 				this.#botGamesPlaying.delete(key);
 				this.#botGameEnded(room.id, ask, result, error);
 			};
-			botGames.play(ask).then(
+			playBotGame(ask).then(
 				(result) => ended(result, null),
 				(err: unknown) => ended(null, (err as Error).message),
 			);
@@ -3395,13 +3419,13 @@ class FileLobby implements Lobby {
 	/**
 	 * One round's pairings, split three ways: a LIVE pairing gets a table
 	 * (`#newPodTable`); two AI entrants paired together are a bot game
-	 * (`bots`), played in Forge with no table (`#playBotGames`) — the operator,
+	 * (`bots`), played in Forge with no table (`#playPairedBots`) — the operator,
 	 * 2026-11-07, superseding 2026-10-22's *"settle that match without a
 	 * game… rather than spin up an AI-vs-AI Forge match"*, so the bracket shows
-	 * a real score for every pairing. With no `BotGames` wired (a server
-	 * without Forge, most tests) or in a seeded testing room such a pairing is
-	 * still settled at once (`settledBotGame`), and so is a disqualified
-	 * entrant's.
+	 * a real score for every pairing. With no `GameHooks.playBotGame` wired
+	 * (a server without Forge, most tests) or in a seeded testing room such a
+	 * pairing is still settled at once (`settledBotGame`), and so is a
+	 * disqualified entrant's.
 	 */
 	#pairRound(
 		room: RoomRecord,
@@ -3426,7 +3450,7 @@ class FileLobby implements Lobby {
 				if (!dropped.has(other)) settled.push({ round, playerA: other, playerB: null, gamesA: 2, gamesB: 0 });
 			} else if (isAiEntrant(a) && isAiEntrant(b)) {
 				// A seeded testing room's rounds are a fixture, never played (`#archive` keeps them out of the stats too).
-				if (this.#botGames === null || room.testing === true) settled.push(settledBotGame(round, a, b));
+				if (this.#hooksFor(room.gameType).playBotGame === undefined || room.testing === true) settled.push(settledBotGame(round, a, b));
 				else bots.push([a, b]);
 			} else {
 				pairings.push({ tableId: this.#newPodTable(room, a, b), players: [a, b] });
@@ -3441,7 +3465,7 @@ class FileLobby implements Lobby {
 	 * `docs/planning/tournament-mode-plan.md`'s Design).
 	 *
 	 * A DRAFT pod seats both players with their saved built deck
-	 * (`PodChecks.seatState`); a player `seatState` answers `null` for
+	 * (`GameHooks.seatState`); a player `seatState` answers `null` for
 	 * (should not happen — `playPod` already checked `built` for everyone)
 	 * is left to load one the ordinary way rather than crash the round.
 	 *
@@ -3471,7 +3495,7 @@ class FileLobby implements Lobby {
 			if (id === null) continue;
 			const member = room.members.find((m) => m.id === id);
 			if (member === undefined) continue;
-			const state = this.#podChecks.seatState(memberDraftId(room, id), id);
+			const state = this.#hooksFor(room.gameType).seatState(memberDraftId(room, id), id);
 			if (state !== null && state !== undefined) member.state = state;
 		}
 		if (isTournamentRoom(room) && room.mode !== 'gauntlet') {
@@ -3485,13 +3509,13 @@ class FileLobby implements Lobby {
 	 * Tournament, Classic/All Random: `entrant`'s deck for `tableId` —
 	 * `locked`'s stored snapshot (`room.lockedDecks`, filled once at the lock
 	 * — `#lockTournament`) replayed as-is, or `null` for `per-round` (a fresh
-	 * pick or deal — `PodChecks.seatTournamentDeck`'s own doc). `entrant` may
+	 * pick or deal — `GameHooks.seatTournamentDeck`'s own doc). `entrant` may
 	 * be a member id or a tournament AI entrant id; which it is, and what to
-	 * do about it, is `PodChecks`'s own business, never this file's.
+	 * do about it, is `GameHooks`'s own business, never this file's.
 	 */
 	#seatTournamentDeck(room: RoomRecord, tableId: string, entrant: string): void {
 		const locked = tournamentDecksOf(room) === 'locked' ? room.lockedDecks[entrant] ?? null : null;
-		this.#podChecks.seatTournamentDeck(room.id, tableId, entrant, locked);
+		this.#hooksFor(room.gameType).seatTournamentDeck(room.id, tableId, entrant, locked);
 	}
 
 	beginSideboarding(roomId: string, tableId: string): boolean {
@@ -3509,7 +3533,7 @@ class FileLobby implements Lobby {
 	/**
 	 * A finished Bo1 is open to a Rematch for as long as the room has not moved
 	 * on: the room still plays Bo1 series, the same players sit in the same
-	 * seats, and each still holds the deck it played (`PodChecks.holdsSeriesDeck`
+	 * seats, and each still holds the deck it played (`GameHooks.holdsSeriesDeck`
 	 * — a deck, format or mode change drops or replaces it).
 	 *
 	 * Never a board-state room's (`scenario`): every game there starts from its scripted board, whatever
@@ -3521,7 +3545,7 @@ class FileLobby implements Lobby {
 		const { series } = table;
 		if (room.scenario !== undefined) return false;
 		if (series.phase !== 'done' || series.length !== 1 || series.settled || seriesFormatOf(seriesRoomOf(room)).length !== 1) return false;
-		return this.#stillSeated(table) && series.played.every((id) => id === null || this.#podChecks.holdsSeriesDeck(room.members.find((m) => m.id === id)?.state));
+		return this.#stillSeated(table) && series.played.every((id) => id === null || this.#hooksFor(room.gameType).holdsSeriesDeck(room.members.find((m) => m.id === id)?.state));
 	}
 
 	/** Whoever played the table's series still sits as they played it. */
@@ -3983,11 +4007,11 @@ class FileLobby implements Lobby {
 	 * entrants, at least one human (the operator, 2026-10-22: reversing the
 	 * plan's "no AI seats", but *"an all-AI field makes no sense"*), each
 	 * HUMAN ready per the mode (Classic: a legal deck already held —
-	 * `PodChecks.hasLegalSeatDeck`; Gauntlet/All Random: the room's own
+	 * `GameHooks.hasLegalSeatDeck`; Gauntlet/All Random: the room's own
 	 * `ready` flag). An AI entrant is always ready and never checked.
 	 *
 	 * `tournamentDecks === 'locked'` snapshots every entrant's CURRENT deck
-	 * here for Classic/All Random (`PodChecks.currentTournamentDeck`); a
+	 * here for Classic/All Random (`GameHooks.currentTournamentDeck`); a
 	 * Gauntlet has no locked decks (`tournamentDecksOf`).
 	 *
 	 * The field is fixed from here: `sitPod`/`standPod`/`aiPod`/`closePod`
@@ -4005,7 +4029,7 @@ class FileLobby implements Lobby {
 		}
 		// A Challenge's seat comes with its real player's list, so its human is ready by their Ready alone.
 		const pressedReady = (id: string): boolean => room.members.find((m) => m.id === id)?.ready === true;
-		const humanReady = (id: string): boolean => (room.mode === 'classic' && room.seatDecks === undefined ? this.#podChecks.hasLegalSeatDeck(room.id, id) : pressedReady(id));
+		const humanReady = (id: string): boolean => (room.mode === 'classic' && room.seatDecks === undefined ? this.#hooksFor(room.gameType).hasLegalSeatDeck(room.id, id) : pressedReady(id));
 		if (entrants.some((id) => !isAiEntrant(id) && !humanReady(id))) return { ok: false, reason: 'not-ready' };
 		if (room.seatDecks !== undefined) {
 			// Whoever sits in a Challenge's open seat plays that seat's list: dealt by the lock like an AI's.
@@ -4022,7 +4046,7 @@ class FileLobby implements Lobby {
 			// Safe here: `draftStartedAt` is still null, so any such read answers
 			// `lobby`, same as it would before this function was ever called.
 			const lockedDecks = { ...room.lockedDecks };
-			for (const id of entrants) lockedDecks[id] = this.#podChecks.currentTournamentDeck(room.id, id);
+			for (const id of entrants) lockedDecks[id] = this.#hooksFor(room.gameType).currentTournamentDeck(room.id, id);
 			room.lockedDecks = lockedDecks;
 		}
 		// A tournament room has no 1v1 table once it locks (a real run,
@@ -4040,7 +4064,7 @@ class FileLobby implements Lobby {
 		// `draftStartedAt` and `pod` change together, as ONE atomic mutation —
 		// gather every deck above, BEFORE this point, then mutate, then read.
 		// `#dealPodRounds`, below, pairs the round and makes its tables
-		// (`#newPodTable`'s `PodChecks.seatTournamentDeck` re-enters
+		// (`#newPodTable`'s `GameHooks.seatTournamentDeck` re-enters
 		// `rooms.get()` per table, same as `currentTournamentDeck` above can);
 		// a read that lands inside THAT window must see a pod that genuinely
 		// is in `rounds` — not `draftStartedAt` set with no pod to show for it
@@ -4237,7 +4261,7 @@ class FileLobby implements Lobby {
 		// pod's own AI entrants (one per AI seat, `aiEntrantId`) are each
 		// named from the character its seat was given (`room.podAi`, kept
 		// through the pod's life — see the field's own doc).
-		const ais = pod.humans.filter(isAiEntrant).map((id) => [id, entrantPersona(room, id, this.#podChecks)] as const);
+		const ais = pod.humans.filter(isAiEntrant).map((id) => [id, entrantPersona(room, id, this.#hooksFor(room.gameType))] as const);
 		const aiNames = Object.fromEntries(ais.map(([id, p]) => [id, p.name]));
 		this.#onTournament({
 			id: tournamentId(room),
@@ -4258,14 +4282,9 @@ class FileLobby implements Lobby {
 
 	/* ── the pod (wave 72 §P) ───────────────────────────────────────────── */
 
-	setPodChecks(checks: PodChecks): void {
-		this.#podChecks = checks;
-	}
-
-	/** Wire the bot games (`BotGames`), and play every one a room restored mid-round still owes. */
-	setBotGames(botGames: BotGames): void {
-		this.#botGames = botGames;
-		for (const room of this.#rooms.values()) if ((room.pod?.botGames ?? []).length > 0) this.#playBotGames(room);
+	useGameType(type: string, hooks: GameHooks): void {
+		this.#hooksByType.set(type, hooks);
+		for (const room of this.#rooms.values()) if (room.gameType === type && (room.pod?.botGames ?? []).length > 0) this.#playPairedBots(room);
 	}
 
 	/**
@@ -4319,7 +4338,7 @@ class FileLobby implements Lobby {
 		// Gauntlet seat 0, the synthesized AI player seat 1) — never both: an
 		// AI-vs-AI pairing plays a bot game without a table (`#pairRound`'s own doc).
 		const entrants: [string, string] = isAiEntrant(a) ? [b, a] : [a, b];
-		return isAiEntrant(entrants[1]) ? { entrants, ai: entrantPersona(room, entrants[1], this.#podChecks) } : { entrants };
+		return isAiEntrant(entrants[1]) ? { entrants, ai: entrantPersona(room, entrants[1], this.#hooksFor(room.gameType)) } : { entrants };
 	}
 
 	podDraft(draftId: string): PodDeal | null {
@@ -4377,7 +4396,7 @@ class FileLobby implements Lobby {
 		room.plan = plan;
 		room.planVerdict = verdict;
 		this.#persist(room);
-		this.#log({ event: 'pod-plan-set', roomId, memberId, planName: planDisplayName(plan, this.#podChecks.roundNamesOf(plan)) });
+		this.#log({ event: 'pod-plan-set', roomId, memberId, planName: planDisplayName(plan, this.#hooksFor(room.gameType).roundNamesOf(plan)) });
 		return { ok: true, room: this.#view(room) };
 	}
 
@@ -4483,14 +4502,14 @@ class FileLobby implements Lobby {
 	playPod(roomId: string, memberId: string): PlayPodResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		const phase = room.gameType === 'draft' ? podPhaseOf(room, this.#podChecks) : 'lobby';
+		const phase = room.gameType === 'draft' ? podPhaseOf(room, this.#hooksFor(room.gameType)) : 'lobby';
 		if (phase === 'rounds' || phase === 'done') return { ok: true, room: this.#view(room) };
 		const humans = seatedHumans(room);
 		if (phase !== 'building' || !humans.includes(memberId)) return { ok: false, reason: 'not-drafter' };
-		if (!this.#podChecks.built(memberDraftId(room, memberId), memberId)) return { ok: false, reason: 'not-built' };
+		if (!this.#hooksFor(room.gameType).built(memberDraftId(room, memberId), memberId)) return { ok: false, reason: 'not-built' };
 		if (!room.podPlaying.includes(memberId)) room.podPlaying = [...room.podPlaying, memberId];
 		this.#log({ event: 'pod-play', roomId, memberId });
-		if (humans.every((id) => room.podPlaying.includes(id) && this.#podChecks.built(memberDraftId(room, id), id))) this.#dealPodRounds(room, draftEntrants(room, humans));
+		if (humans.every((id) => room.podPlaying.includes(id) && this.#hooksFor(room.gameType).built(memberDraftId(room, id), id))) this.#dealPodRounds(room, draftEntrants(room, humans));
 		this.#persist(room);
 		return { ok: true, room: this.#view(room) };
 	}
@@ -4507,7 +4526,7 @@ class FileLobby implements Lobby {
 		room.pod = { humans: entrants, round: 1, rounds, results: [...byeResult, ...settled], pairings, botGames: bots.map((players) => ({ players })), bye };
 		this.#log({ event: 'pod-rounds-started', roomId: room.id, rounds, tables: pairings.length, bye, settled: settled.length, botGames: bots.length });
 		if (pairings.length === 0 && bots.length === 0) this.#advancePodRound(room, room.pod);
-		else this.#playBotGames(room);
+		else this.#playPairedBots(room);
 	}
 }
 

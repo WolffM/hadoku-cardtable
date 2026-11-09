@@ -2724,7 +2724,7 @@ describe('a room table', () => {
 
 		/**
 		 * A Classic tournament's lock snapshots every entrant's deck, an AI's included
-		 * (`PodChecks.seatTournamentDeck` puts it on its human partner's `aiDeck`). The
+		 * (`GameHooks.seatTournamentDeck` puts it on its human partner's `aiDeck`). The
 		 * table's first game is a new series, and that alone must not throw the
 		 * locked deck away for a fresh draw.
 		 */

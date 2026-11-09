@@ -23,7 +23,7 @@ import { GAUNTLET_SNAKE, type DraftCard, type GauntletSeatIndex } from '@hadoku/
 import { restoreRooms, sweepRooms, type RestoredRooms, type SweptMatch } from './boot.ts';
 import { DEFAULT_PLAN, joinDraftRoom, singlePoolResolver, stateOf } from './room/draftRooms.ts';
 import { act, drawGauntlet, newGauntlet, startBanpick, type GauntletEraPool, type GauntletState } from './room/gauntlet.ts';
-import { GAME_DRAWN_AFTER_MS, UNNAMED, openLobby, type Lobby, type PodChecks } from './room/lobby.ts';
+import { GAME_DRAWN_AFTER_MS, UNNAMED, openLobby, type GameHooks, type Lobby } from './room/lobby.ts';
 import { participantHandle } from './room/identity.ts';
 import { loadPool, type CubePool } from './room/pool.ts';
 
@@ -46,7 +46,7 @@ function cubePool(): CubePool {
 }
 
 /** The checks `http/routes.ts` installs, answered the same way on both sides of the restart. */
-const CHECKS: PodChecks = {
+const CHECKS: GameHooks = {
 	draftComplete: () => true,
 	built: () => true,
 	seatState: (_podId, memberId) => ({ seatedFor: memberId }),
@@ -66,7 +66,8 @@ async function boot(roomsDir: string, draftsDir: string, cube: CubePool): Promis
 		drafts: { ...singlePoolResolver(cube), storeDir: draftsDir },
 		log: () => undefined,
 	});
-	restored.lobby.setPodChecks(CHECKS);
+	restored.lobby.useGameType('constructed-1v1', CHECKS);
+	restored.lobby.useGameType('draft', CHECKS);
 	return restored;
 }
 
