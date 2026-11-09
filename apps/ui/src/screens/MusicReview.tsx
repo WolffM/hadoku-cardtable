@@ -7,8 +7,9 @@
  * candidates: the take the cell plays today (badged) and the generated ones. A card plays its take on a
  * loop through the mixer's music bus, one at a time; its pick button puts it in the slot (any number of
  * takes: a player whose slot holds several chooses among them in sound settings); three small verdicts
- * rate it; its note button opens a note for that track under the row. Submit stores the whole review as the viewer's own prefs row (through
- * the server, which checks it), replacing the one before.
+ * rate it; its note button opens a note for that track under the row. Submit stores the whole review as
+ * the viewer's own prefs row (through the server, which checks it), replacing the one before; an admin's
+ * submission also goes live in the cells, so the page reads the cells again and the current badges follow.
  *
  * Friend tier and above, the same server-answered gate as the builder (`canView`). Re-opening restores
  * this browser's unsent draft, or else the viewer's stored submission; the submit button reads Saved, in
@@ -34,6 +35,7 @@ import {
   type MusicReviewEntry,
   type MusicReviewRecord,
   type MusicReviewSlot,
+  type SoundTake,
 } from '@hadoku/shared';
 
 import { ManaCost } from '../components/ManaPip.tsx';
@@ -178,6 +180,8 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
   const [loaded, setLoaded] = useState(false);
   const [canView, setCanView] = useState(false);
   const [slots, setSlots] = useState<MusicReviewSlot[]>([]);
+  const [takes, setTakes] = useState<readonly SoundTake[]>([]);
+  const [canEdit, setCanEdit] = useState(false);
   const [review, setReview] = useState<Review>({});
   const [submitted, setSubmitted] = useState<MusicReviewRecord | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
@@ -191,6 +195,8 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
       if (!alive) return;
       const s = musicReviewSlots(takes, a.cells);
       setSlots(s);
+      setTakes(takes);
+      setCanEdit(a.canEdit);
       const restored = sinceReset(mine);
       setSubmitted(restored);
       const shown = fitToSlots(loadDraft() ?? restored?.slots ?? {}, s);
@@ -274,6 +280,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
     setSubmitted(record);
     saveDraft(null);
     setSend('idle');
+    if (canEdit) setSlots(musicReviewSlots(takes, (await client.assignments()).cells));
   }
 
   if (!loaded || !canView) return null;

@@ -417,7 +417,7 @@ python3 scripts/sfx/add-track.py <finished wav> --name "W · heraldic fanfare" -
 The operator: *"post it as a new route under /sounds/ i want to be able to go there, test, then send the results
 for review later"*. Each of the 15 match-music slots offers the take its cell plays today (badged) and the Music
 takes named `<code> · ` (`musicReviewSlots`, `packages/shared/src/music-review.ts`). Any friend may submit any
-number of picks per slot, a keep / maybe / no and a note per take (a slot note before 2026-11-08); nothing writes `assignments.json`. Reset (pressed twice) starts a blank round in that
+number of picks per slot, a keep / maybe / no and a note per take (a slot note before 2026-11-08); an admin's submission also writes `assignments.json` (below), a friend's does not. Reset (pressed twice) starts a blank round in that
 browser and writes nothing to the server.
 
 A submission is stored as the submitter's own prefs-api row, app **`cardtable-music-review`** (hadoku_site
@@ -430,8 +430,11 @@ IDENTITY_MODEL R12, cardtable#25), and replaces the one before it whole:
 Whose it is is the row's userId; no name is kept. A slot left out was not reviewed; no picks with ratings or notes
 is a slot reviewed without a choice. A row written before 2026-11-08 holds one `note` per slot; it reads back on
 the one take that slot rated or picked (`liftSlotNote`), and is dropped when it spoke of several or none. A viewer's row is their current answer
-(`GET /api/sounds/music-review/mine`). To act on them, list every row (admin `GET /api/sounds/music-review`) and put each slot's picks in its cell,
-`music.match.<code>|play`, with the admin `PUT /api/sounds/assignments/<cell>` (the builder does the same). A cell
+(`GET /api/sounds/music-review/mine`). An admin's submission goes live when it is stored: each reviewed slot's cell,
+`music.match.<code>|play`, keeps what it holds, gains the picks and loses every take rated no (`applyMusicReview`;
+the operator, 2026-11-09: *"submit should handle that already"*). A friend's changes no cell: list every row (admin
+`GET /api/sounds/music-review`) and put what the operator agrees with in its cell with the admin
+`PUT /api/sounds/assignments/<cell>` (the builder does the same). A cell
 holding several takes lets each player choose among them by name in sound settings; until they do, one plays at
 random.
 

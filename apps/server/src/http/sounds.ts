@@ -13,7 +13,7 @@
  *   GET /api/sounds/assignments           → 200 { cells, gains, names, versions, pack, canEdit }
  *   GET /api/sounds/pack                  [?v=pack] → 200 every cue take (`sound-pack.ts`) | 304
  *   PUT /api/sounds/assignments/:cell     { files: string[], gain?: number } → 200 { cell, files, gain } | 400 | 403
- *   POST /api/sounds/music-review         MusicReviewBody → 200 MusicReviewRecord | 400 | 403 | 502   (friend tier)
+ *   POST /api/sounds/music-review         MusicReviewBody → 200 MusicReviewRecord | 400 | 403 | 502   (friend tier; an admin's also writes the cells it changes)
  *   GET /api/sounds/music-review/mine     → 200 { review: MusicReviewRecord | null } | 403 | 502      (friend tier)
  *   GET /api/sounds/music-review          → 200 MusicReviewList | 403 | 502                         (admin)
  *
@@ -73,6 +73,7 @@ import {
 	cueTakes,
 	encodeSoundPack,
 	isCellId,
+	applyMusicReview,
 	musicReviewProblems,
 	musicReviewSlots,
 	type Catalogue,
@@ -557,8 +558,9 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 	});
 
 	/*
-	 * The match-music review: any friend may submit, because listening and choosing is the whole job; the
-	 * assignments themselves stay admin-only and are set from the submissions by hand. Every pick and
+	 * The match-music review: any friend may submit, because listening and choosing is the whole job. A
+	 * friend's submission is only a review; an admin's also writes the cells it changes
+	 * (`applyMusicReview`), under the same write lock as a PUT, so the operator's picks play at once. Every pick and
 	 * rating must name a take its slot offers right now (`musicReviewSlots`, the same grouping the page
 	 * draws from).
 	 */
@@ -590,6 +592,17 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 			return prefsFailed(res, 'save', err);
 		}
 		log({ event: 'sounds-music-review-saved', userId: userIdOf(req), slots: Object.keys(record.slots).length });
+		if (isAdmin(req)) {
+			const applied = await withWriteLock(async () => {
+				const stored = await readAssignments(dir, log);
+				const changed = applyMusicReview(stored.cells, record.slots);
+				if (Object.keys(changed).length === 0) return changed;
+				Object.assign(stored.cells, changed);
+				await writeAssignments(dir, stored);
+				return changed;
+			});
+			for (const [cell, files] of Object.entries(applied)) log({ event: 'sounds-assignment-saved', cell, count: files.length, from: 'music-review' });
+		}
 		res.json(record);
 	});
 

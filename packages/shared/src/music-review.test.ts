@@ -12,6 +12,7 @@ import {
 	MUSIC_REVIEW_CODES,
 	MusicReviewBodySchema,
 	MusicReviewRecordSchema,
+	applyMusicReview,
 	musicReviewCell,
 	musicReviewProblems,
 	musicReviewSlots,
@@ -199,5 +200,27 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 	it('a stored review carries no name and no userId: whose it is is the row’s', () => {
 		const rec = MusicReviewRecordSchema.parse({ at: '2026-10-31T00:00:00.000Z', userId: 'u1', name: 'Op', slots: {} });
 		expect(rec).toEqual({ at: '2026-10-31T00:00:00.000Z', slots: {} });
+	});
+});
+
+describe('applyMusicReview', () => {
+	const W = musicReviewCell('W');
+	const U = musicReviewCell('U');
+	const B = musicReviewCell('B');
+	const entry = (picks: string[], ratings: Record<string, 'keep' | 'maybe' | 'no'> = {}) => ({ picks, ratings, notes: {} });
+
+	it('keeps what a slot holds, adds its picks in order, drops its noes; a no beats a pick', () => {
+		const cells = { [W]: ['a/take-1.ogg', 'b/take-1.ogg'], [U]: ['u/take-1.ogg'] };
+		expect(
+			applyMusicReview(cells, {
+				[W]: entry(['c/take-1.ogg', 'a/take-1.ogg', 'd/take-1.ogg'], { 'b/take-1.ogg': 'no', 'd/take-1.ogg': 'no', 'a/take-1.ogg': 'maybe' }),
+				[B]: entry(['k/take-1.ogg']),
+			}),
+		).toEqual({ [W]: ['a/take-1.ogg', 'c/take-1.ogg'], [B]: ['k/take-1.ogg'] });
+	});
+
+	it('returns no cell a review leaves as it was', () => {
+		const cells = { [W]: ['a/take-1.ogg'] };
+		expect(applyMusicReview(cells, { [W]: entry(['a/take-1.ogg'], { 'a/take-1.ogg': 'keep' }), [U]: entry([], { 'x/take-1.ogg': 'no' }) })).toEqual({});
 	});
 });

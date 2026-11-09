@@ -780,6 +780,27 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		expect(await readdir(dir)).not.toContain('music-reviews.jsonl');
 	});
 
+	it("an admin's submission goes live: picks join their cells, a no leaves them; a friend's changes nothing", async () => {
+		const dir = await reviewDir();
+		const h = await openApp(dir);
+		const cells = async () => ((await call(h, 'GET', '/api/sounds/assignments')).json() as { cells: Record<string, string[]> }).cells;
+
+		await call(h, 'POST', '/api/sounds/music-review', { tier: 'friend', user: 'bob', body: { slots: { [W]: { picks: [JIG.file], ratings: { [WEB.file]: 'no' } } } } });
+		expect(await cells()).toEqual({ [W]: [WEB.file] });
+
+		const res = await call(h, 'POST', '/api/sounds/music-review', {
+			tier: 'admin',
+			user: 'alice',
+			body: { slots: { [W]: { picks: [FANFARE.file, JIG.file] }, [WU]: { picks: [SENATE.file] } } },
+		});
+		expect(res.status).toBe(200);
+		expect(await cells()).toEqual({ [W]: [WEB.file, FANFARE.file, JIG.file], [WU]: [SENATE.file] });
+
+		await call(h, 'POST', '/api/sounds/music-review', { tier: 'admin', user: 'alice', body: { slots: { [W]: { picks: [JIG.file], ratings: { [WEB.file]: 'no', [FANFARE.file]: 'no' } } } } });
+		expect(await cells()).toEqual({ [W]: [JIG.file], [WU]: [SENATE.file] });
+		expect(logged).toContainEqual(expect.objectContaining({ event: 'sounds-assignment-saved', cell: W, count: 1, from: 'music-review' }));
+	});
+
 	it('an admin lists every review by userId; a friend may not', async () => {
 		const dir = await reviewDir();
 		const h = await openApp(dir);

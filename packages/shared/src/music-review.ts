@@ -150,3 +150,22 @@ export function musicReviewProblems(body: MusicReviewBody, slots: readonly Music
 	}
 	return problems;
 }
+
+/**
+ * What an admin's submission does to the live cells: each reviewed slot keeps what it holds, gains its
+ * picks in the order picked, and loses every take rated no (a no beats a pick of the same take). Only
+ * the cells that change come back, so an unchanged slot is never rewritten.
+ */
+export function applyMusicReview(
+	cells: Readonly<Record<string, readonly string[]>>,
+	slots: Readonly<Record<string, MusicReviewEntry>>,
+): Record<string, string[]> {
+	const changed: Record<string, string[]> = {};
+	for (const [cell, entry] of Object.entries(slots)) {
+		const before = cells[cell] ?? [];
+		const no = new Set(Object.entries(entry.ratings).flatMap(([file, r]) => (r === 'no' ? [file] : [])));
+		const after = [...new Set([...before, ...entry.picks])].filter((f) => !no.has(f));
+		if (after.length !== before.length || after.some((f, i) => f !== before[i])) changed[cell] = after;
+	}
+	return changed;
+}

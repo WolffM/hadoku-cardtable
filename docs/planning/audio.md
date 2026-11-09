@@ -243,10 +243,11 @@ server: the browser remembers the `at` of the submission it set aside
 or before it. The next submission replaces the row. The marker is per browser:
 another device still restores the old review until it is reset there too.
 
-Nothing writes the assignments: a later session lists the reviews (admin
-`GET /api/sounds/music-review`, by userId) and puts each
-slot's picks in its cell, `music.match.<code>|play` (`musicReviewCell`,
-`packages/shared/src/music-review.ts`; `scripts/sfx/README.md`, Music review).
+An admin's submission goes live at once (the operator, 2026-11-09: *"submit
+should handle that already"*): each reviewed slot's cell, `music.match.<code>|play`,
+keeps what it holds, gains the picks and loses every take rated no
+(`applyMusicReview`, `packages/shared/src/music-review.ts`). A friend's submission
+changes no cell; a later session reads it (admin `GET /api/sounds/music-review`).
 
 ### Several tracks per slot (2026-10-20)
 

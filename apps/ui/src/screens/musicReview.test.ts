@@ -329,6 +329,28 @@ describe('MusicReview', () => {
     }
   });
 
+  it("an admin's submit reads the cells again, so a pick that went live is badged current", async () => {
+    const client = stubClient();
+    let live = CELLS;
+    client.assignments = async () => ({ cells: live, gains: {}, names: {}, versions: {}, pack: '', canEdit: true, canView: true });
+    const reviews = stubReviews();
+    const submit = reviews.submit.bind(reviews);
+    reviews.submit = async (body) => {
+      live = { ...CELLS, [W]: [...CELLS[W]!, 'music-w-two/take-1.ogg'] };
+      return submit(body);
+    };
+    render(createElement(MusicReview, { client, reviews, player: stubPlayer() }));
+    await screen.findByText('Match Music');
+    fireEvent.click(within(slot(W)).getByRole('button', { name: 'Pick W · two' }));
+    const two = () => slot(W).querySelector('[data-file="music-w-two/take-1.ogg"]') as HTMLElement;
+    expect(two().dataset.current).toBeUndefined();
+    await act(async () => {
+      fireEvent.click(submitButton());
+    });
+    expect(two().dataset.current).toBe('');
+    expect(submitButton().dataset.state).toBe('saved');
+  });
+
   it('a refused submit shows failed and keeps the draft', async () => {
     const reviews = stubReviews();
     reviews.fail = true;
