@@ -211,7 +211,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null }));
 			/** One row per priority window this seat was shown: was Forge's set empty, was it passed. */
 			const stops: { seat: number; phase: string; stackEmpty: boolean; idle: boolean; ownMain: boolean; passed: boolean }[] = [];
-			const says: { seat: number; message: string; type: string | null }[] = [];
+			const says: { seat: number; message: string; type: string | null; mana: string | null }[] = [];
 
 			const registry = createMatchRegistry({
 				host: (id, spec, events) =>
@@ -276,7 +276,7 @@ describe.skipIf(!available.ok)(title, () => {
 					} else if (f.method === 'updateButtons') {
 						notes[seat]!.ok = f.enable1;
 					} else if (f.method === 'message') {
-						says.push({ seat, message: f.message, type: f.log?.type ?? null });
+						says.push({ seat, message: f.message, type: f.log?.type ?? null, mana: f.log?.mana ?? null });
 					}
 				},
 			});
@@ -383,7 +383,9 @@ describe.skipIf(!available.ok)(title, () => {
 			const names = ['A', 'B'];
 			const deadline = Date.now() + 200_000;
 			// Every seat is told every line; one seat's copy counts each payment once.
-			const paidSoFar = () => says.filter((x) => x.type === 'MANA' && x.seat === 0).length;
+			// A payment is on the line of the cast it paid for (`GameLogMeta.mana`), not a line of its own.
+			const isPaid = (x: (typeof says)[number]): boolean => x.type === 'STACK_ADD' && (x.mana ?? '') !== '';
+			const paidSoFar = () => says.filter((x) => isPaid(x) && x.seat === 0).length;
 			let casts = 0;
 			while (Date.now() < deadline && paidSoFar() < 2) {
 				answerAsks();
@@ -426,7 +428,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const asks = sent.filter((x) => x.envelope.frame.kind === 'ask').map((x) => x.envelope.frame);
 			// Item 3: the pass is silent, so it is counted off the log it still writes.
 			const passed = logs.filter((l) => l.evt === 'auto-passed');
-			const paid = says.filter((x) => x.type === 'MANA' && x.seat === 0);
+			const paid = says.filter((x) => isPaid(x) && x.seat === 0);
 			console.log(
 				`[lane-c] ${casts} casts, ${stops.length} priority stops (${stops.filter((s) => s.idle).length} with nothing to do), ` +
 					`${passed.length} auto-passed, ${paid.length} payments, ${asks.length} asks reached a browser: ` +
@@ -500,15 +502,21 @@ describe.skipIf(!available.ok)(title, () => {
 			/*
 			 * #8 — a cast is never free: Forge's own log says each mana ability that
 			 * paid (`MagicStack.add`, a `MANA` entry per activation), and the bridge
-			 * sends one payment's entries as one line that names its cards and the mana
-			 * — a name, never an id, on the payer's log and the opponent's alike.
+			 * puts one payment's mana on the line of the cast it paid for (the game log
+			 * redesign, 2026-11-09) — a name, never an id, on the payer's log and the
+			 * opponent's alike, and no line of its own.
 			 */
 			expect(paid.length).toBeGreaterThanOrEqual(2);
 			for (const line of paid) {
 				expect(line.message, line.message).not.toMatch(/\(\d+\)|card #\d+/);
-				expect(line.message, line.message).toMatch(/^[AB] taps \S.* for \{[WUBRGC]\}/);
+				expect(line.message, line.message).toMatch(/^[AB] cast \S/);
+				expect(line.mana, line.message).toMatch(/^(\{[WUBRGC]\})+$/);
 			}
-			expect(says.filter((x) => x.type === 'MANA' && x.seat === 1).map((x) => x.message), 'the opponent is told the same payments').toEqual(paid.map((x) => x.message));
+			expect(says.filter((x) => x.type === 'MANA'), 'no payment is a line of its own').toEqual([]);
+			expect(
+				says.filter((x) => isPaid(x) && x.seat === 1).map((x) => [x.message, x.mana]),
+				'the opponent is told the same payments',
+			).toEqual(paid.map((x) => [x.message, x.mana]));
 
 			// #11/#7 — the ability asks that reached a browser were the player's own
 			// clicks, and this driver answered each by hand through the same reply

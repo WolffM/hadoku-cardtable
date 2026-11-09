@@ -673,12 +673,13 @@ describe.skipIf(!available.ok)(title, () => {
        * click and no button press by either browser — see the module header.
        * The Mountain is tapped all the same: a cast is never free.
        *
-       * The Goblin reaches the stack BEFORE the line describing its payment is
-       * delivered, so the line — Forge's own `MANA` log entry for the Mountain —
-       * is waited for. A payment that never happens fails here with the whole
-       * log rather than with a bare `false`.
+       * The Goblin reaches the stack BEFORE the line describing its cast is
+       * delivered, so the line — the cast, carrying the Mountain's {R} as the mana
+       * that paid for it (`GameLogMeta.mana`) — is waited for. A payment that
+       * never happens fails here with the whole log rather than with a bare `false`.
        */
-      const paidSaid = (): boolean => a.live.says.some((say) => say.log?.type === 'MANA' && /Mountain/.test(say.text));
+      const paidSaid = (): boolean =>
+        a.live.says.some((say) => say.log?.type === 'STACK_ADD' && /Raging Goblin/.test(say.text) && say.log.mana === '{R}');
       const autoPaid = (): boolean => h.serverLog.some((l) => l.evt === 'auto-paid' && l.seat === a.seat);
       try {
         await waitUntil(() => paidSaid() && autoPaid(), 'the Goblin’s payment to be said, and to be the server’s Auto', 20_000);
