@@ -67,12 +67,11 @@ test(titled('Izzet Signet tapped inside Divination’s payment: the cast resolve
     // The payment window: the Signet first, then whatever Forge still offers — one click per offer.
     const clicked: string[] = [];
     const deadline = Date.now() + 30_000;
-    let controlOff = false;
     while (!(await inGraveyard(a, 'you', divination)) && Date.now() < deadline) {
-      if (!controlOff && /^Priority:[\s\S]*Stack: 1 to Resolve/.test(await says(a))) {
-        // Paid: under full control she would hold priority over her own spell, so she lets go of it.
-        await pressInMenu(a, 'live-full-control');
-        controlOff = true;
+      const resolve = a.locator('[data-testid="live-decision-ok"]:enabled');
+      if (/^Priority:[\s\S]*Stack: 1 to Resolve/.test(await says(a)) && (await resolve.count()) > 0) {
+        // Paid: under full control she holds priority over her own spell, and lets it resolve.
+        await resolve.first().click();
       } else if (!(await isTapped(a, signet)) && (await pressOffered(card(a, signet)))) {
         clicked.push('Izzet Signet');
       } else {
