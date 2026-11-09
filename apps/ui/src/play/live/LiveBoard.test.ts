@@ -140,13 +140,13 @@ vi.mock('../../rooms/api.ts', () => ({
 }));
 
 /*
- * The room feed (`../../rooms/feed.ts`), as the server drives it: the result
+ * The room feed (`../../rooms/follow.ts`), as the server drives it: the result
  * screen reads the table once when it starts following, then only when a test
  * says the room changed (`roomPing()`) — standing in for the other player's
  * screen writing the room and the server pushing that.
  */
 const feedState = vi.hoisted(() => ({ followers: new Set<() => void>() }));
-vi.mock('../../rooms/feed.ts', () => ({
+vi.mock('../../rooms/follow.ts', () => ({
   roomFeed: () => ({
     follow: (_target: unknown, refresh: () => void) => {
       refresh();

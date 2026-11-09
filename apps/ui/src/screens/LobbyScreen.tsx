@@ -50,7 +50,7 @@ import { Banner } from '../front/Banner.tsx';
 import { FrontGateContext, useFrontGateState } from '../front/gate.ts';
 import { RoomList } from '../rooms/RoomList.tsx';
 import type { FeaturedPick, RoomsClient } from '../rooms/api.ts';
-import type { RoomFeed } from '../rooms/feed.ts';
+import type { RoomFeed } from '../rooms/follow.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { useSiteTrim } from '../settings/siteTrim.ts';
 import { StatsButton } from '../stats/StatsButton.tsx';

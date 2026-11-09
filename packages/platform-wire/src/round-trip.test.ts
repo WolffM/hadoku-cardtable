@@ -2,8 +2,7 @@
  * Every schema that moved keeps its field names: one recorded payload of each, parsed through the
  * package, comes back equal. Recorded on 2026-11-07: the presence row from a prod match recording
  * (`m-c04f95019ce4.public.jsonl.gz`), the page and match telemetry from prod's own log lines (their
- * `data`, as the server flattened it), the event from the server's `POST /api/events`, the room id
- * from a prod recording's header.
+ * `data`, as the server flattened it), the event from the server's `POST /api/events`.
  */
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -11,11 +10,8 @@ import { z } from 'zod';
 import { serverEnvelopeSchema } from './envelope.ts';
 import { eventListSchema, eventViewSchema } from './events.ts';
 import { BoardFractionSchema, presenceEchoSchema } from './presence.ts';
-import { RoomChangedSchema, RoomWatchSchema } from './room-feed.ts';
 import { roomTableSchemas } from './tables.ts';
 import { clientEventSchema, PageEventSchema } from './telemetry.ts';
-
-const ROOM = 'r-75ebfd413e58';
 
 const PRESENCE_ECHO = {
   matchId: 'm-c04f95019ce4',
@@ -64,12 +60,6 @@ const TABLE = {
 const opaque = z.record(z.string(), z.unknown());
 
 describe('platform-wire round trip', () => {
-  it('a room feed frame and watch', () => {
-    expect(RoomChangedSchema.parse({ room: ROOM })).toEqual({ room: ROOM });
-    expect(RoomChangedSchema.parse({ list: true })).toEqual({ list: true });
-    expect(RoomWatchSchema.parse({ rooms: [ROOM], list: true })).toEqual({ rooms: [ROOM], list: true });
-  });
-
   it('a page telemetry post and a match one', () => {
     expect(PageEventSchema.parse(PAGE_EVENT)).toEqual(PAGE_EVENT);
     expect(clientEventSchema(['sound']).parse(CLIENT_EVENT)).toEqual(CLIENT_EVENT);

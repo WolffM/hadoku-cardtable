@@ -1242,7 +1242,7 @@ describe('picks are rate limited per participant', () => {
  * (`Lobby.sit`) rather than through a draft's own join — the gate this
  * socket layer puts in front of a draft is a different question from the
  * seat-release timer, which fires for ANY connection this server holds (the
- * module header's own point: `room/feed.ts`'s socket shares the same
+ * module header's own point: `room/watching.ts`'s socket shares the same
  * handshake). `schedule` is injected so no test waits out the real 30 s.
  */
 describe('a seat with nobody connected to it, for the window', () => {

@@ -2,7 +2,7 @@
  * Reading something again while the tab is shown, and never while it is hidden.
  *
  * A hidden tab reads nothing; shown again, it reads at once, then on the timer. The room feed's
- * resilience read (`rooms/feed.ts`) and the front page's calendar and polls (`front/events.ts`,
+ * resilience read (`rooms/follow.ts`) and the front page's calendar and polls (`front/events.ts`,
  * `front/polls.ts`) all re-read on a timer, and a tab left open in the background used to keep
  * the last two going around the clock, each poll a request through the edge (and the polls one a
  * read of Rally behind it).

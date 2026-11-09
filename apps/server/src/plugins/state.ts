@@ -24,7 +24,7 @@ import type { SetsStore } from '../pools/sets.js';
 import type { Events } from '../room/events.js';
 import type { AnonymisableTournaments } from '../room/tournaments.js';
 import type { attachDraftSocket } from '../room/socket.js';
-import type { attachRoomFeed } from '../room/feed.js';
+import type { attachRoomFeed } from '../room/watching.js';
 import type { RoomStreams } from '../stream/alloc.js';
 import type { KeyBook } from '../stats/keys.js';
 import type { MatchStats } from '../stats/index.js';

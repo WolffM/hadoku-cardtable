@@ -12,7 +12,7 @@ import { useEffect } from 'react';
 import { accountAvatarId } from './avatar.ts';
 import { watchAvatar } from './avatarWatch.ts';
 import type { RoomIdentityClient } from '../rooms/api.ts';
-import { roomPings, type PingSource } from '../rooms/feed.ts';
+import { roomPings, type PingSource } from '../rooms/follow.ts';
 
 /**
  * Tell our own room which avatar this viewer is wearing: once per room, on every change, and

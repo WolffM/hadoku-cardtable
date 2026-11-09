@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Look, RoomTable, SeriesPhase, TableGame } from '@hadoku/shared';
 
 import { followTableOnce } from '../../play/live/matchStart.ts';
-import { roomFeed } from '../../rooms/feed.ts';
+import { roomFeed } from '../../rooms/follow.ts';
 import { latestReads } from '../../rooms/latest.ts';
 import { roomsClient, type RoomsClient, type RoomView } from '../../rooms/api.ts';
 import { apiUrl, bodyOf, isRecord, sendJson } from '../../http.ts';

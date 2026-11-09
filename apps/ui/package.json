@@ -21,6 +21,7 @@
     "@hadoku/ui-shell": "workspace:*",
     "@wolffm/game-stats-ui": "npm:@hadoku/game-stats-ui@0.1.12",
     "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.23",
+    "@wolffm/rooms-client": "npm:@hadoku/rooms-client@0.45.63",
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.62",
     "@wolffm/task-ui-components": "npm:@hadoku/task-ui-components@4.23.26",
     "@wolffm/themes": "npm:@hadoku/themes@5.13.41",

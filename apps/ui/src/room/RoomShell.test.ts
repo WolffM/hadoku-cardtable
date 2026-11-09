@@ -83,8 +83,8 @@ vi.mock('@wolffm/themes', async (importOriginal) => ({
  * The page's room-feed socket, played by the spec: a real socket.io client would retry its connect
  * forever under the fake timers below, and the server's ack after a reconnect is a call here.
  */
-vi.mock('../rooms/feed.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../rooms/feed.ts')>()),
+vi.mock('../rooms/follow.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../rooms/follow.ts')>()),
   roomPings: () => ({
     subscribe: (target: { room: string } | 'list', onPing: (why: 'changed' | 'heard') => void) => {
       const room = target === 'list' ? 'list' : target.room;

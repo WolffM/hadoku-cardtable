@@ -103,7 +103,7 @@
  *
  * The table — your own deck and verdict, and whether each player is ready —
  * is read from the room again whenever the server says it changed
- * (`../rooms/feed.ts`): no timer reads it.
+ * (`../rooms/follow.ts`): no timer reads it.
  * When both are ready either browser asks the server to start; the
  * server answers one match to both, and `matchId` appearing on the table is
  * what sends each player to `#/match/<id>` — including a player who never
@@ -237,7 +237,7 @@ import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/source.ts';
 import { takeWarmRoom } from '../rooms/warm.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
-import { roomFeed, type RoomFeed } from '../rooms/feed.ts';
+import { roomFeed, type RoomFeed } from '../rooms/follow.ts';
 import { clearJoined, markJoined } from '../rooms/joined.ts';
 import { latestReads } from '../rooms/latest.ts';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
@@ -1315,7 +1315,7 @@ function RoomTableScreen({
   }, [client, draftRoom]);
 
   // The room's table: read now, and again whenever the feed says the room
-  // changed (`../rooms/feed.ts` — never on a fast timer).
+  // changed (`../rooms/follow.ts` — never on a fast timer).
   //
   // ## Entering a room joins it
   //

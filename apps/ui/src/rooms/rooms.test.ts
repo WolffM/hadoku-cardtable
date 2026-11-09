@@ -38,7 +38,7 @@ import {
   type Fetch,
   type RoomView,
 } from './api.ts';
-import type { FeedTarget, RoomFeed } from './feed.ts';
+import type { FeedTarget, RoomFeed } from './follow.ts';
 import SERVER_BODIES from './room-bodies.fixture.json';
 
 afterEach(() => {
@@ -160,7 +160,7 @@ vi.mock('@wolffm/prefs-client', async (importOriginal) => ({
  * No socket in a unit test: the page's own feed reads once and never pings.
  * `manualFeed` is the one a test drives by hand. `./feed.test.ts` tests the real one.
  */
-vi.mock('./feed.ts', async (importOriginal) => {
+vi.mock('./follow.ts', async (importOriginal) => {
   // One object, as the page's own is: a new feed per render would re-follow on every render.
   const quiet: RoomFeed = {
     follow: (_target, refresh) => {
@@ -168,7 +168,7 @@ vi.mock('./feed.ts', async (importOriginal) => {
       return () => undefined;
     },
   };
-  return { ...(await importOriginal<typeof import('./feed.ts')>()), roomFeed: () => quiet };
+  return { ...(await importOriginal<typeof import('./follow.ts')>()), roomFeed: () => quiet };
 });
 
 function manualFeed(): RoomFeed & { ping(): void; targets(): FeedTarget[] } {

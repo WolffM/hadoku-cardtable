@@ -60,7 +60,7 @@ import { navigate } from '../screens/route.ts';
 import { tablesClient } from '../screens/tables.ts';
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { warmRoom } from './warm.ts';
-import { roomFeed, type RoomFeed } from './feed.ts';
+import { roomFeed, type RoomFeed } from './follow.ts';
 import { watchScroll } from './scroll-watch.ts';
 import { playRole } from '../sound/index.ts';
 import {

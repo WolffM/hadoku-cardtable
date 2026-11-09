@@ -265,7 +265,7 @@ import { CONSTRUCTED_LIMITS, LIMITED_MIN_MAIN_DECK_SIZE, deckFromDeckFile, type 
 
 import { navigate, routeHash } from '../../screens/route.ts';
 import { roomsClient, type RoomView } from '../../rooms/api.ts';
-import { roomFeed } from '../../rooms/feed.ts';
+import { roomFeed } from '../../rooms/follow.ts';
 import { latestReads } from '../../rooms/latest.ts';
 import { tablesClient, type RoomTable, type SeatChoice, type StartOutcome, type TablesClient } from '../../screens/tables.ts';
 import { DeckEditor, type ReadyState } from '../../deck/DeckEditor.tsx';
@@ -2179,7 +2179,7 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * Pressing it readies you at the room's table — the same Ready the room screen
  * starts a match on, with the decks both players still hold there — and
  * pressing it again stands you down. This screen reads the table whenever the
- * room changes (`rooms/feed.ts`), draws a check over each face whose player is
+ * room changes (`rooms/follow.ts`), draws a check over each face whose player is
  * ready, and highlights the button of the
  * player the other is waiting on. Once both are ready either screen asks for
  * the match (`startRoom`; the server answers one match to both), and a screen

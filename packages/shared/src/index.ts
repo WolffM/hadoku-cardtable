@@ -312,15 +312,7 @@ export {
   type MatchWireParse,
 } from './match-wire.ts';
 
-export {
-  ROOM_FEED_CHANNEL,
-  ROOM_ID_RE,
-  ROOM_WATCH_MAX,
-  RoomWatchSchema,
-  RoomChangedSchema,
-  type RoomWatch,
-  type RoomChanged,
-} from '@hadoku/platform-wire/room-feed';
+export { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
 export {
   ReplaySourceSchema,
   ReplaySummarySchema,

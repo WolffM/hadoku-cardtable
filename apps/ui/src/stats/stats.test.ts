@@ -24,7 +24,7 @@ import {
 } from '@wolffm/prefs-client/games';
 
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
-import type { RoomFeed } from '../rooms/feed.ts';
+import type { RoomFeed } from '../rooms/follow.ts';
 import { StatsPage, type StatsPageProps } from './StatsPage.tsx';
 import { StatsPage as LazyStatsPage } from './StatsButton.tsx';
 import { prefsBaseUrl, signedInStatsClient, type StatsSource } from './source.ts';

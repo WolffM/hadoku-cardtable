@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "The wire any game speaks: the room feed, telemetry, presence, events and tables, the Discord relay, looks, the restart notice, secure random and a generic server envelope. Knows no game; a game's own part rides as a type parameter. MIT; imports only zod.",
+  "description": "The wire any game speaks: room ids, telemetry, presence, events and tables, the Discord relay, looks, the restart notice, secure random and a generic server envelope. Knows no game; a game's own part rides as a type parameter. MIT; imports only zod.",
   "exports": {
     "./room-feed": "./src/room-feed.ts",
     "./telemetry": "./src/telemetry.ts",

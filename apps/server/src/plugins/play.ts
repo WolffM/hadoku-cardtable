@@ -9,7 +9,7 @@ import { attachPlay, coldStartsFrom, jvmHostFactory, roomFormatNames, spellCopie
 import { clawPlacement, registryRestorer } from '../play/placement/index.js';
 import { reportingAlerts } from '../telemetry.js';
 import { httpDraftbot, type Draftbot } from '../room/draftbot.js';
-import { attachRoomFeed } from '../room/feed.js';
+import { attachRoomFeed } from '../room/watching.js';
 import { attachSessions, playsIn } from '../room/session.js';
 import { attachDraftSocket } from '../room/socket.js';
 import type { CardtablePlugin } from './state.js';

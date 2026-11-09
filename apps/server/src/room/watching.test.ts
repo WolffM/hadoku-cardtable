@@ -16,9 +16,9 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
-import { ROOM_FEED_CHANNEL, type RoomChanged } from '@hadoku/shared';
+import { ROOM_FEED_CHANNEL, type RoomChanged } from '@wolffm/rooms-protocol';
 
-import { attachRoomFeed } from './feed.ts';
+import { attachRoomFeed } from './watching.ts';
 import { deriveParticipantId } from './identity.ts';
 import { openLobby, ROOM_STALE_MS, UNNAMED, type Lobby } from './lobby.ts';
 import { FileRoomStore } from '@wolffm/rooms-server/store';
@@ -181,12 +181,34 @@ describe('the room feed', () => {
 		expect(lobby.get(id)).toBeUndefined();
 	});
 
+	it('a second screen on the list is pushed a new room and every member-count change, with no read on a timer', async () => {
+		const { lobby, port } = await boot();
+		const carol = await connect(port, CAROL);
+		await watch(carol, [], true);
+		const membersOf = (id: string): number | undefined => lobby.list().find((r) => r.id === id)?.members.length;
+
+		const id = room(lobby, ALICE);
+		await settle();
+		expect(carol.heard, 'the new room is said').toEqual([{ list: true }]);
+		expect(membersOf(id)).toBe(1);
+
+		expect(lobby.join(id, { id: BOB.id, name: BOB.name, userId: null }).ok).toBe(true);
+		await settle();
+		expect(carol.heard, 'the join is said').toHaveLength(2);
+		expect(membersOf(id)).toBe(2);
+
+		lobby.leave(id, BOB.id);
+		await settle();
+		expect(carol.heard, 'the leave is said').toHaveLength(3);
+		expect(membersOf(id)).toBe(1);
+	});
+
 	it('refuses a malformed watch in a log line, and keeps the last good one', async () => {
 		const { lobby, port, lines } = await boot();
 		const id = room(lobby, ALICE);
 		const alice = await connect(port, ALICE);
 		await watch(alice, [id]);
-		alice.socket.emit(ROOM_FEED_CHANNEL.watch, { rooms: ['Not A Room!'], list: false });
+		alice.socket.emit(ROOM_FEED_CHANNEL.watch, { rooms: 'not a list', list: false });
 		await settle();
 		expect(lines.map((l) => l.evt)).toEqual(['watch-malformed']);
 		lobby.setReady(id, ALICE.id, true);

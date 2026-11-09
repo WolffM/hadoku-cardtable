@@ -416,7 +416,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const room = ROOM_ID_RE.test(id) ? lobby.get(id) : undefined;
 		if (room === undefined) return noMatch(res);
 		const me = callerOf(req).id;
-		// The room screen reads this; a member's read (or open watch, `room/feed.ts`) keeps a room offered.
+		// The room screen reads this; a member's read (or open watch, `room/watching.ts`) keeps a room offered.
 		lobby.touch(id, me);
 		res.json(roomBody(room, me));
 	});
