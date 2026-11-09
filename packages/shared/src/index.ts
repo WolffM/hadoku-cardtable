@@ -530,6 +530,7 @@ export {
   type PickTimer,
   type RoomSettings,
   type TournamentDecks,
+  ReplayCreateBodySchema,
 } from './room-requests.ts';
 export {
   EVENT_KINDS,

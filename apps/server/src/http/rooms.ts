@@ -99,6 +99,7 @@ import { isAdmin, userNameOf } from '../edge-auth.js';
 import { bodyErrors, callerOf, httpCaller, parseBody, perCallerLimit } from './request.js';
 import {
 	CreateRoomBodySchema,
+	ReplayCreateBodySchema,
 	EmptyBodySchema,
 	JoinRoomBodySchema,
 	PatchRoomBodySchema,
@@ -123,6 +124,7 @@ import {
 	type Lobby,
 	type RoomView,
 } from '../room/lobby.js';
+import { replayEvents, seedReplayRoom } from '../room/seed-replay.js';
 import type { DraftRooms } from '../room/draftRooms.js';
 import { jsonLogger } from '../log.js';
 
@@ -327,6 +329,46 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const room = lobby.get(id);
 		if (room !== undefined && room.testing && !isAdmin(req)) return noMatch(res);
 		next();
+	});
+
+	/**
+	 * The catalogued historical replay events, and making a replay room of one.
+	 *
+	 *   GET  /api/rooms/replay/events  → 200 { events: ReplayEvent[] }
+	 *   POST /api/rooms/replay         { collection, seat, full? } → 201 RoomBody | 400 | 409
+	 *
+	 * The events are the library's tournament imports (`seed-replay.ts`'s own
+	 * `replayEvents`); creating one seats the event's whole field of AIs on
+	 * their real decks, the caller in `seat`, born locked (`historical`). The
+	 * caller needs no special tier: the room is theirs like any room they make,
+	 * and the event's own public record is what it plays.
+	 */
+	rooms.get('/replay/events', (_req: Request, res: Response) => {
+		res.json({ events: replayEvents() });
+	});
+
+	rooms.post('/replay', (req: Request, res: Response) => {
+		const body = parseBody(ReplayCreateBodySchema, req, res);
+		if (body === null) return;
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'create a replay room');
+		void (async () => {
+			try {
+				const roomId = await seedReplayRoom(
+					lobby,
+					{ id: caller.id, name: caller.name, userId: null },
+					{ collection: body.collection, seat: body.seat, full: body.full === true },
+					log,
+				);
+				const room = lobby.get(roomId);
+				if (room === undefined) return res.status(500).json({ error: 'the replay room vanished as it was made' });
+				res.status(201).json(roomBody(room, caller.id));
+			} catch (err) {
+				const message = (err as Error).message;
+				const status = message.includes('no library collection') || message.includes('seat is 0-') || message.includes('no library deck') ? 400 : 500;
+				res.status(status).json({ error: message });
+			}
+		})();
 	});
 
 	rooms.get('/', (req: Request, res: Response) => {

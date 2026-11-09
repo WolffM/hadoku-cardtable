@@ -33,10 +33,15 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { LIBRARY } from '@hadoku/deck/library';
 
 import type { Caller, Lobby } from './lobby.js';
+
+/** `apps/server/src/room` → the repo root. */
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
 /** The synthetic creator, the same rule as `TESTING_SEED_CALLER`: a `dev:` id no browser can present. */
 const REPLAY_SEED_CALLER: Caller = { id: 'dev:replay-seed', name: 'Replay', userId: null };
@@ -70,12 +75,73 @@ function slugifyForReplay(s: string): string {
  * sitting — they arrive through the front door like anyone else, and the seed
  * leaves NO member in the room.
  */
+/**
+ * The catalogued replay events: every library collection that IS a tournament
+ * import (the `tournament-` id prefix `catalog.ts` gives them), with the path
+ * of its `tournament.json` and what it holds. What the HTTP route offers; the
+ * warm-seed reads the same list.
+ */
+export interface ReplayEvent {
+	readonly collection: string;
+	readonly directory: string;
+	readonly name: string;
+	readonly date: string;
+	readonly format: string;
+	readonly players: number;
+}
+
+export function replayEvents(): ReplayEvent[] {
+	return LIBRARY.filter((c) => c.id.startsWith('tournament-')).map((c) => {
+		const record = JSON.parse(readFileSync(join(REPO_ROOT, c.directory, 'tournament.json'), 'utf8')) as TournamentRecord;
+		return {
+			collection: c.id,
+			directory: c.directory,
+			name: record.event.name,
+			date: record.event.date,
+			format: record.event.format,
+			players: record.standings.length,
+		};
+	});
+}
+
+/**
+ * Seed one replay room for `human` (a real caller — the HTTP route's caller,
+ * not the synthetic seed identity) from a catalogued event. Answers the room
+ * id on success. Everything the warm-seed does, minus the synthetic-caller
+ * dance: the human caller joins themselves, takes their seat, and the room is
+ * theirs to ready.
+ */
+export async function seedReplayRoom(
+	lobby: Pick<Lobby, 'create' | 'list' | 'join' | 'standPod' | 'aiPod' | 'leave'>,
+	human: { readonly id: string; readonly name: string; readonly userId?: string | null },
+	opts: { readonly collection: string; readonly seat: number; readonly full?: boolean },
+	log: (entry: Record<string, unknown>) => void = () => {},
+): Promise<string> {
+	const collectionEntry = LIBRARY.find((c) => c.id === opts.collection);
+	if (collectionEntry === undefined) throw new Error(`no library collection ${opts.collection}`);
+	const record = JSON.parse(readFileSync(join(REPO_ROOT, collectionEntry.directory, 'tournament.json'), 'utf8')) as TournamentRecord;
+	const roomId = await seedFromRecord(lobby, record, opts, human, log);
+	return roomId;
+}
+
+/** The warm-seed path: the synthetic caller makes the room and leaves it empty. */
 export async function seedReplay(
 	lobby: Pick<Lobby, 'create' | 'list' | 'join' | 'standPod' | 'aiPod' | 'leave'>,
 	opts: { readonly tournament: string; readonly collection: string; readonly seat: number; readonly full?: boolean },
 	log: (entry: Record<string, unknown>) => void = () => {},
 ): Promise<void> {
 	const record = JSON.parse(readFileSync(opts.tournament, 'utf8')) as TournamentRecord;
+	await seedFromRecord(lobby, record, opts, REPLAY_SEED_CALLER, log);
+	// the synthetic caller leaves after; seedFromRecord handles join/leave for it
+}
+
+async function seedFromRecord(
+	lobby: Pick<Lobby, 'create' | 'list' | 'join' | 'standPod' | 'aiPod' | 'leave'>,
+	record: TournamentRecord,
+	opts: { readonly collection: string; readonly seat: number; readonly full?: boolean },
+	_creator: { readonly id: string },
+	log: (entry: Record<string, unknown>) => void,
+): Promise<string> {
 	const standings = [...record.standings].sort((a, b) => a.Rank - b.Rank);
 	const top8 = standings.filter((s) => s.Rank <= 8);
 	const field = opts.full === true ? standings : top8;
@@ -86,9 +152,10 @@ export async function seedReplay(
 	// Idempotent by name, the same rule as the testing rooms: a warm hook that
 	// runs twice recreates nothing.
 	const name = `${record.event.name} — Top 8 Replay`;
-	if (lobby.list().some((r) => r.name === name)) {
+	const present = lobby.list().find((r) => r.name === name);
+	if (present !== undefined) {
 		log({ event: 'replay-room-present', name });
-		return;
+		return present.id;
 	}
 
 	// Whose deck each seat replays. The top-8 replay lays the event's own
@@ -152,15 +219,17 @@ export async function seedReplay(
 	// seat, readies, and the tournament locks with the real eight. The seed
 	// caller joins for this (aiPod is member-gated) and leaves again — a room
 	// nobody is in, holding seven AIs and one open seat.
-	lobby.join(created.room.id, REPLAY_SEED_CALLER);
+	const seeder: Caller = _creator as Caller;
+	lobby.join(created.room.id, seeder);
 	// `join` auto-seats the creator into the first open pod seat (`seat-auto`),
 	// which may be the seat an AI needs: give it back before seating the field.
-	lobby.standPod(created.room.id, REPLAY_SEED_CALLER.id);
+	lobby.standPod(created.room.id, seeder.id);
 	for (const s of seatPlayers.keys()) {
 		if (s === opts.seat) continue;
-		const ai = lobby.aiPod(created.room.id, REPLAY_SEED_CALLER.id, s, true);
+		const ai = lobby.aiPod(created.room.id, seeder.id, s, true);
 		if (!ai.ok) throw new Error(`ai seat ${String(s)} refused: ${ai.reason}`);
 	}
-	lobby.leave(created.room.id, REPLAY_SEED_CALLER.id);
+	if (_creator.id === REPLAY_SEED_CALLER.id) lobby.leave(created.room.id, REPLAY_SEED_CALLER.id);
 	log({ event: 'replay-room-seeded', roomId: created.room.id, name, seat: opts.seat, human: seatPlayers[opts.seat] });
+	return created.room.id;
 }
