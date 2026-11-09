@@ -1,0 +1,19 @@
+# Two Signets, one paying the other, inside a spell's payment. Seat 0's own
+# turn-1 Main Phase 1: one Island, Izzet Signet and Azorius Signet; Divination
+# ({2}{U}) in hand. By hand: the Island pays Izzet Signet's {1} for {U}{R}, the
+# {R} pays Azorius Signet's {1} for {W}{U}, and {U}{W}{U} pays Divination.
+# Forge's Auto never pays a filter's cost with a source that needs mana of its
+# own (ComputerUtilMana.prepayFilterManaAbility), so the payment is the player's.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Divination
+humanbattlefield=Island;Izzet Signet;Azorius Signet
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

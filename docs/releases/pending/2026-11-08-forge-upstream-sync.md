@@ -4,6 +4,7 @@
 
 ## Changed
 
+- Auto pays with a Signet (or any mana source that costs mana itself) when that's the way to pay.
 - Brawl decks are 100 cards, as on Arena.
 
 ## Fixed
