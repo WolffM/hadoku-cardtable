@@ -3215,11 +3215,85 @@ public final class PlayBridge {
             frame(notify("clearSelectables"));
         }
 
+        /** One thread for every seat's composed wait ({@link #awaitNextInput}). */
+        private static final java.util.concurrent.ScheduledExecutorService WAITS = Executors.newSingleThreadScheduledExecutor(r -> {
+            final Thread t = new Thread(r, "seat-wait");
+            t.setDaemon(true);
+            return t;
+        });
+
+        /** Guards {@link #heard} and {@link #composingWait}: a composed wait and the seat's next input never interleave. */
+        private final Object waitLock = new Object();
+        /** Bumped by each {@code awaitNextInput} and by each prompt or bar the seat's input sends. */
+        private long heard;
+        /** True while this seat composes its wait, whose own prompt and bar are not an input's. */
+        private boolean composingWait;
+
+        /**
+         * The host's notice that this seat waits on someone else. The seat composes "Waiting for …"
+         * (and the yield line) itself, as Forge's client does ({@code AbstractGuiGame.updatePromptForAwait}),
+         * 250 ms later so a window that follows at once shows no wait between. Forge's own timer runs
+         * on another thread and is cancelled only by the next prompt, while an input sends its bar
+         * first: a wait composed between the two left the keep question with dead buttons. Here
+         * the wait is dropped if any prompt or bar arrived after the notice, and composing it holds
+         * off the next input's frames until it is out, so it can only ever come before them.
+         */
+        @Override public void awaitNextInput() {
+            final long at;
+            synchronized (waitLock) { at = ++heard; }
+            // A yield's bar goes up at once, as the host painted it before the client composed it
+            // (AbstractGuiGame.updateAutoPassPrompt): a yield that runs out within the delay was never shown.
+            if (currentYieldMessage() != null) {
+                composeWait(at);
+                return;
+            }
+            WAITS.schedule(() -> composeWait(at), 250, TimeUnit.MILLISECONDS);
+        }
+
+        /** Compose this seat's wait for notice {@code at}, unless a prompt or bar came after it. */
+        private void composeWait(final long at) {
+            synchronized (waitLock) {
+                if (heard != at) { return; }
+                composingWait = true;
+                try {
+                    updatePromptForAwait(getCurrentPlayer());
+                } catch (final RuntimeException e) {
+                    System.err.println("[bridge] seat " + seat + ": could not compose its wait (" + e + ")");
+                } finally {
+                    composingWait = false;
+                }
+            }
+        }
+
+        /**
+         * The yield line of this seat's wait, read off the host's {@code YieldController} for the seat. Forge's
+         * client reads its own copy ({@code AbstractGuiGame.currentYieldMessage}), which the host keeps in step
+         * by {@code applyYieldUpdate}; this seat's copy never heard of an End Turn pressed as Cancel at priority,
+         * so its wait said "Waiting for …" with no yield and no Cancel. In process, the live one is right here.
+         * Worded as Forge words it.
+         */
+        @Override protected String currentYieldMessage() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(match.humanOf(mine) instanceof PlayerControllerHuman human)) { return null; }
+            final forge.gamemodes.match.YieldController yielding = human.getYieldController();
+            if (!yielding.isYieldActive()) { return null; }
+            final forge.util.Localizer loc = forge.util.Localizer.getInstance();
+            final forge.gamemodes.match.YieldMarker m = yielding.getAutoPassUntilMarker();
+            if (m != null) { return loc.getMessage("lblYieldingUntilPhaseFmt", m.getPhaseOwner().getName(), m.getPhase().nameForUi); }
+            if (yielding.autoPassUntilStackEmpty()) { return loc.getMessage("lblYieldingUntilStackClears"); }
+            if (yielding.autoPassUntilEndOfTurn()) { return loc.getMessage("lblYieldingUntilEndOfTurn"); }
+            return null;
+        }
+
+        /** A prompt or bar from the seat's input: any wait composed for an earlier notice is stale now. */
+        private void heardInput() {
+            synchronized (waitLock) {
+                if (!composingWait) { heard++; }
+            }
+        }
+
         @Override public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {
-            // Forge composes "Waiting for …" on this side, 250 ms after the host's awaitNextInput
-            // (AbstractGuiGame.awaitNextInput); a prompt that arrives first cancels it, as Forge's own
-            // client does (CMatchUI.showPromptMessage), or it lands on top of the seat's next window.
-            cancelAwaitNextInput();
+            heardInput();
             syncActionable(true);
             // See `syncMulliganFlag`: this is one of the two calls
             // `InputLondonMulligan.showMessage()` makes that Forge's OWN
@@ -3815,6 +3889,7 @@ public final class PlayBridge {
 
         @Override public void updateButtons(final PlayerView owner, final String label1, final String label2,
                                             final boolean enable1, final boolean enable2, final boolean focus1) {
+            heardInput();
             // The other of the two — see `syncMulliganFlag`.
             syncMulliganFlag();
             if (owner == null) { return; }
@@ -4430,8 +4505,19 @@ public final class PlayBridge {
             frame(notify("clearWeaklySelectable"));
         }
 
-        /** The input whose offer this seat was last sent as {@code setSelectables}. */
-        private Object selectablesFor;
+        /** The input ({@link forge.gamemodes.match.Selection#input}) whose offer this seat was last sent as {@code setSelectables}. */
+        private int selectablesFor;
+
+        /**
+         * Whether the input selection {@code input} came from is this seat's open input. A selection reaches
+         * this GUI late, on its channel thread, after the deltas ahead of it ({@code GameClientHandler.decodeArgs}),
+         * so by then the game thread may have moved on to the next input: what the selection says is about the
+         * input that sent it, never about whatever {@link #myInput} reads now. 0 (no input named it) is taken
+         * as the open one.
+         */
+        private boolean isOpen(final int input) {
+            return input == 0 || myInput() instanceof forge.gamemodes.match.input.InputBase open && open.getSelectionId() == input;
+        }
 
         /** The selection this seat was last sent ({@link #setSelection}). */
         private Selection sentSelection = Selection.NONE;
@@ -4493,23 +4579,29 @@ public final class PlayBridge {
             // An offer of players alone (Lightning Bolt with no creature out) is a selection too.
             final boolean offers = !selection.cards().isEmpty() || !selection.targets().isEmpty();
             final boolean offered = !prev.cards().isEmpty() || !prev.targets().isEmpty();
+            final boolean open = isOpen(selection.input());
             if (offers) {
                 // Once per input, as Forge sent it from the input's constructor: a pick that takes a player
-                // out of the offer (Kolaghan's Command's first mode) is not a new selection to answer.
-                final Object input = myInput();
-                if (!offered || input != selectablesFor || !selection.cards().equals(prev.cards())
+                // out of the offer (Kolaghan's Command's first mode), or a card chosen, is not a new
+                // selection to answer.
+                if (!offered || selection.input() != selectablesFor || !selection.cards().equals(prev.cards())
                         || selection.min() != prev.min() || selection.max() != prev.max()) {
-                    setSelectables(selection.cards(), selection.min(), selection.max());
-                    selectablesFor = input;
+                    if (open) {
+                        setSelectables(selection.cards(), selection.min(), selection.max());
+                    } else if (offered) {
+                        // Its input closed before the offer got here: nothing to answer, and the last offer is older still.
+                        clearSelectables();
+                    }
+                    selectablesFor = selection.input();
                 }
             } else if (offered) {
                 clearSelectables();
             }
             // Priority's and payment's set goes out with their prompt (syncActionable); a combat
-            // declaration's goes out with its selection.
+            // declaration's goes out with its selection, while its input is open.
             final Object input = myInput();
             if (!scansActionable(input)) {
-                if (!selection.actionable().isEmpty()) {
+                if (open && !selection.actionable().isEmpty()) {
                     setWeaklySelectable(selection.actionable());
                     actionableFor = input;
                 } else if (actionableFor != null) {
