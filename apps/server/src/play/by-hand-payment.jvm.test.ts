@@ -7,8 +7,9 @@
  * payer, which never chains a source that needs mana of its own (a Signet) nor taps the card being
  * paid for (a man-land toward its own animation), so such a payment is the player's to finish by
  * hand. `answerability` said so in its notes and still logged every one as a question it had no
- * rule for. The board here is w68-pay's (`e2e/w68-pay.spec.ts` pays it by hand): two Islands and
- * Izzet Signet for Divination.
+ * rule for. Forge's Auto chains one Signet since the 2026-11-08 pin (`ComputerUtilMana.
+ * prepayFilterManaAbility`) but never pays a Signet with another, so the board is two of them:
+ * one Island, Izzet Signet and Azorius Signet for Divination (`scenarios/by-hand-signets.state`).
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/by-hand \
  *   pnpm exec vitest run apps/server/src/play/by-hand-payment.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
@@ -26,10 +27,10 @@ const DECKS: [string, string] = [deck('Islands', ['40 Island']), deck('Mountains
 
 describe.skipIf(!available.ok)(title, () => {
 	it(
-		'Divination over two Islands and Izzet Signet: Auto dead, the window reaches the seat, and the server has a rule for it',
+		'Divination over an Island and two Signets, one paying the other: Auto dead, the window reaches the seat, and the server has a rule for it',
 		async () => {
 			if (!available.ok) return;
-			const s = await startScenario(available.config, { seed: 31, decks: DECKS, scenario: scenarioText('w68-pay'), skipOpening: true, aiOpponent: true });
+			const s = await startScenario(available.config, { seed: 31, decks: DECKS, scenario: scenarioText('by-hand-signets'), skipOpening: true, aiOpponent: true });
 			try {
 				await waitUntil(
 					() => {
@@ -56,7 +57,7 @@ describe.skipIf(!available.ok)(title, () => {
 				const offered = s.logs.filter((l) => l.evt === 'offered' && l.kind === 'payment').at(-1)?.cards as number[] | undefined;
 				console.log(`[by-hand] payment: prompt=${JSON.stringify(s.prompt(0))} bar=${JSON.stringify(s.buttons(0))} offered=${JSON.stringify(offered)}`);
 				// Forge's own facts: Auto dead, Cancel live, three highlighted sources for {2}{U}.
-				expect(s.buttons(0)?.enable1, "Forge's Auto, which never chains the Signet").toBe(false);
+				expect(s.buttons(0)?.enable1, "Forge's Auto, which never pays a Signet with another").toBe(false);
 				expect(s.buttons(0)?.enable2, 'Cancel: the payment is optional').toBe(true);
 				expect(offered?.length).toBeGreaterThanOrEqual(3);
 
