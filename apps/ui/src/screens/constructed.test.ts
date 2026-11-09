@@ -1039,6 +1039,17 @@ describe('a room’s table', () => {
     expect(screen.getByTestId('room-seat-1-empty')).toBeTruthy();
   });
 
+  // The operator, 2026-11-08: "make sure that the 'AI' button also shows for the first seat. all seats should be treated the same".
+  it('offers the AI on every open seat: both while the table is empty, and whichever one I leave open', async () => {
+    const server = await mountRoom({ players: [], matchId: null });
+    for (const seat of [0, 1]) expect(within(screen.getByTestId(`room-seat-${seat}-empty`)).queryByTestId('play-vs-bot'), `seat ${seat + 1}`).not.toBeNull();
+    fireEvent.click(screen.getByTestId('room-seat-1-empty').querySelector('[data-testid="seat-sit"]') as HTMLElement);
+    await waitFor(() => expect(screen.getByTestId('room-seat-1').hasAttribute('data-mine')).toBe(true));
+    expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.body).toEqual({ seat: 1 });
+    expect(screen.getAllByTestId('play-vs-bot')).toHaveLength(1);
+    expect(within(screen.getByTestId('room-seat-0-empty')).queryByTestId('play-vs-bot'), 'on the first seat').not.toBeNull();
+  });
+
   // The operator, 2026-10-28 (room r-ae1712d0df3d): the AI's seat drew as an open one through a game against it.
   it('a game against the AI draws its seat as the AI’s own character, not an open seat', async () => {
     await mountRoom({ players: [opponent({ you: true, name: 'user-alice' })], matchId: 'm-live', ai: { name: 'Sage', avatarId: 'owl' } });

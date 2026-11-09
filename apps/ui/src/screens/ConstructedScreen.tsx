@@ -1552,8 +1552,8 @@ function RoomTableScreen({
   const roomTitle = streamed ? view?.name : (table?.room.name ?? view?.name);
   /** The room answered with a refusal rather than a table: there is nothing more to wait for. */
   const settled = locked !== null || tableError !== null;
-  /** The empty seat Forge's AI is offered on, if any: the last one, while nobody but me is seated. */
-  const botSeat = players.every((p) => p.you) ? [0, 1].findLast((seat) => !players.some((p) => p.seat === seat)) : undefined;
+  /** The empty seats Forge's AI is offered on: every one, while nobody but me is seated, as a pod offers it on every open seat. */
+  const botSeats = players.every((p) => p.you) ? [0, 1].filter((seat) => !players.some((p) => p.seat === seat)) : [];
   /**
    * The AI holding that seat, if it does: a table's seats on the wire are its humans only
    * (`http/routes.ts`'s `tableView`), so a game against Forge's AI leaves the seat empty there. It is
@@ -1564,7 +1564,7 @@ function RoomTableScreen({
    */
   const gauntletAi = gauntlet?.players?.find((p) => p.memberId === null);
   const aiHolds = !tournament && players.length === 1 && (matchId !== null || (gauntletAi !== undefined && gauntlet?.phase !== 'done'));
-  const aiSeat = aiHolds && botSeat !== undefined ? { seat: botSeat, name: gauntletAi?.name ?? view?.ai?.name ?? 'AI', avatarId: gauntletAi?.avatarId ?? view?.ai?.avatarId } : null;
+  const aiSeat = aiHolds && botSeats.length === 1 ? { seat: botSeats[0]!, name: gauntletAi?.name ?? view?.ai?.name ?? 'AI', avatarId: gauntletAi?.avatarId ?? view?.ai?.avatarId } : null;
   /** Nothing of the room's own to draw yet: its skeleton instead. */
   const pending = !streamed && !settled && (!resolved || (!draftRoom && table === null));
   /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
@@ -2703,13 +2703,13 @@ function RoomTableScreen({
                           <span className="pod-seats__label">Open</span>
                           {/*
                            * Forge's AI takes this seat (the operator, 2026-10-02 and
-                           * 2026-10-16): offered while nobody ELSE is seated, on the one
-                           * empty seat that will not be mine — loading a deck seats me at
-                           * the first free one. Live once I am seated with a legal deck;
-                           * the server plays a random library deck legal in this room's
-                           * pool, and holds the same gate.
+                           * 2026-10-16): offered on every empty seat while nobody ELSE is
+                           * seated, the first as well as the second (2026-11-08: "all
+                           * seats should be treated the same"). Live once I am seated with
+                           * a legal deck; the server plays a random library deck legal in
+                           * this room's pool, and holds the same gate.
                            */}
-                          {botSeat === seat && (
+                          {botSeats.includes(seat) && (
                             <span className="pod-seats__actions">
                               <ActionButton
                                 action="vs-bot"
