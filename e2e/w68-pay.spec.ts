@@ -10,11 +10,13 @@
  * Scenario `w68-pay`: two Islands, Izzet Signet, Divination ({2}{U}) in hand —
  * payable only through the Signet. Alice casts it by a click and, in the
  * payment window, clicks the Signet first, then whatever Forge still offers.
- * Divination must reach her graveyard, and bob must see it there.
+ * Divination must reach her graveyard, and bob must see it there. She plays under full control: Forge's
+ * Auto chains the Signet since the 2026-11-08 pin, and without it the server would pay for her.
  */
 import { expect, test, type Page } from '@playwright/test';
 
 import { clickHandCard, makeTitled, pressOffered } from './play/board.ts';
+import { pressInMenu } from './play/phone.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -49,6 +51,11 @@ test(titled('Izzet Signet tapped inside Divination’s payment: the cast resolve
     const divination = (await named(a, HAND, 'Divination'))!;
     const signet = (await named(a, BATTLEFIELD, 'Izzet Signet'))!;
     await expect.poll(() => isOffered(a, divination), { timeout: 45_000, message: 'Divination is offered (only the Signet makes it payable)' }).toBe(true);
+    // Full control leaves every payment to her (`FULL_CONTROL_POLICY`'s `unambiguousPayment: 'ask'`): since the
+    // 2026-11-08 pin Forge's Auto chains a Signet (`ComputerUtilMana.prepayFilterManaAbility`), and the server
+    // would press it for her, so the window this spec pays by hand would never open.
+    await pressInMenu(a, 'live-full-control');
+    await expect(a.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
 
     const t0 = Date.now();
     for (let i = 0; i < 10 && (await named(a, HAND, 'Divination')) !== undefined; i++) {
