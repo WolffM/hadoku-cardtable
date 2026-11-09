@@ -363,8 +363,30 @@
 .lobby__format-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
   margin-bottom: 6px;
+}
+
+/* One segmented bar, as a small `RadioCards` row is (`RadioCards.css` says why). */
+.lobby__format-tabs > button {
+  position: relative;
+}
+
+.lobby__format-tabs > button + button {
+  margin-inline-start: -1px;
+}
+
+.lobby__format-tabs > button:not(:first-child) {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+.lobby__format-tabs > button:not(:last-child) {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.lobby__format-tabs > button:is([aria-selected='true'], :focus-visible) {
+  z-index: 1;
 }
 
 .lobby__format-tabs button,

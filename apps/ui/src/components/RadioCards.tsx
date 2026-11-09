@@ -73,7 +73,9 @@ export function RadioCards<T extends string>({
   renderRow?: (option: RadioCard<T>, input: ReactNode) => ReactNode;
 }) {
   const large = size === 'large';
-  const rootClass = [large ? 'radio-cards radio-cards--large' : 'radio-cards', className].filter((c) => c !== undefined && c !== '').join(' ');
+  // A small row of plain cards is one segmented bar; a large row and a `renderRow` gallery are tiles.
+  const shape = large ? 'radio-cards--large' : renderRow === undefined ? 'radio-cards--segmented' : null;
+  const rootClass = ['radio-cards', shape, className].filter((c) => c !== undefined && c !== null && c !== '').join(' ');
   return (
     <div className={rootClass} role="radiogroup" aria-label={label} aria-disabled={disabled ? 'true' : undefined} data-testid={testId}>
       {options.map((option) => {

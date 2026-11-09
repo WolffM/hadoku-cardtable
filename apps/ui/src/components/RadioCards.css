@@ -42,6 +42,34 @@
   outline-offset: 2px;
 }
 
+/*
+ * A small row of plain cards is one segmented bar (the operator, 2026-11-09: "join each group into
+ * a segmented bar"), so two groups side by side read as two choices, not one run of pills. The
+ * format tabs (`.lobby__format-tabs`, `screens.css`) draw the same bar. Neighbours share a border;
+ * the chosen or focused segment sits over its neighbours so its whole border shows.
+ */
+.radio-cards--segmented {
+  gap: 0;
+}
+
+.radio-cards--segmented > .radio-cards__card + .radio-cards__card {
+  margin-inline-start: -1px;
+}
+
+.radio-cards--segmented > .radio-cards__card:not(:first-child) {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+.radio-cards--segmented > .radio-cards__card:not(:last-child) {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.radio-cards--segmented > .radio-cards__card:is(:has(:checked), :has(:focus-visible)) {
+  z-index: 1;
+}
+
 /* The input is the whole card, and invisible: the card is what is drawn. */
 .radio-cards .radio-cards__input {
   position: absolute;
