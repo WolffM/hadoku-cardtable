@@ -6,9 +6,14 @@
  * idempotency key `<service>-release-<version>` is deduped by ArchiveBot for 7 days, so a restart
  * posts nothing new.
  *
- * A bug's reporter is named in its bullet as `@name` (their hadoku name; docs/RELEASE.md § "Attribution").
- * Those names ride as `mentions`, and ArchiveBot turns each `@name` in the notes into the person's
- * Discord mention, inline where the bullet credits them. No separate thank-you line.
+ * Whoever a bullet credits is named in it as `@name` (docs/RELEASE.md § "Attribution"). The post
+ * shows each as ***__name__*** (bold, italic, underlined) and pings nobody: the operator, 2026-11-09,
+ * "we should not do discord @ mentions anymore".
+ *
+ * Under the newest notes stands one credits post, "Credits & attribution": everyone the notes have
+ * ever credited, most credits first, and the people the app's earlier-credits file names, who helped
+ * before there were release notes. Each release deletes the previous release's credits post and
+ * posts its own after its notes, so the credits are always the newest post.
  *
  * `secret` is the app's webhook secret (empty = skip, never an error); a failed post never blocks
  * boot, and the next boot retries it.
@@ -59,15 +64,9 @@ export async function latestRelease(dir: string, ordering: ReleaseOrdering): Pro
 	return parseNotes(newest.slice(0, -'.md'.length), await readFile(join(dir, newest), 'utf8'));
 }
 
-/**
- * How many releases, newest first, a boot re-sends as edits. ArchiveBot keeps a post's record for 7
- * days and refuses an edit it has no record of, so older notes cannot be changed this way anyway.
- */
-export const EDITABLE_RELEASES = 3;
-
-/** The newest `count` release notes in `dir`, newest first, by `ordering`. */
-export async function recentReleases(dir: string, ordering: ReleaseOrdering, count = EDITABLE_RELEASES): Promise<ReleaseNotes[]> {
-	const names = ordering.newestFirst(await readdir(dir)).slice(0, count);
+/** Every release's notes in `dir`, newest first, by `ordering`. */
+export async function allReleases(dir: string, ordering: ReleaseOrdering): Promise<ReleaseNotes[]> {
+	const names = ordering.newestFirst(await readdir(dir));
 	return Promise.all(names.map(async (name) => parseNotes(name.slice(0, -'.md'.length), await readFile(join(dir, name), 'utf8'))));
 }
 
@@ -141,27 +140,77 @@ export function forDiscord(body: string): string {
 	return out.filter((line, i) => line.trim() !== '' || !(heading(out[i - 1]) || heading(out[i + 1]))).join('\n');
 }
 
-/**
- * Who a release thanks: every `@name` in its notes, the hadoku name of whoever reported a bug the
- * release fixes (docs/RELEASE.md § "Attribution"), each once, in the order the notes first name them.
- * A sentence's closing full stop is not part of a name.
- */
-export function mentionsIn(body: string): string[] {
+/** A credit in notes text: `@name`, not inside a word, a path or an address; a closing full stop is not part of it. */
+const CREDIT = /(?<![\w@/])@([A-Za-z0-9_.-]*[A-Za-z0-9_])/g;
+
+/** Who a text credits: every `@name` in it, each once (case-insensitive), in the order it first names them. */
+export function creditsIn(text: string): string[] {
 	const names = new Map<string, string>();
-	for (const match of body.matchAll(/(?<![\w@/])@([A-Za-z0-9_.-]+)/g)) {
-		const name = match[1]!.replace(/[.-]+$/, '');
-		if (name !== '' && !names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+	for (const match of text.matchAll(CREDIT)) {
+		if (!names.has(match[1]!.toLowerCase())) names.set(match[1]!.toLowerCase(), match[1]!);
 	}
 	return [...names.values()];
 }
 
+/** A credited name as the post shows it: bold, italic and underlined, its own markup characters escaped. */
+export function creditMark(name: string): string {
+	return `***__${name.replace(/[\\*_~`|]/g, (c) => `\\${c}`)}__***`;
+}
+
+/** Notes text with every `@name` credit shown as `creditMark(name)`: nobody is pinged. */
+export function showCredits(text: string): string {
+	return text.replace(CREDIT, (_, name: string) => creditMark(name));
+}
+
 export function releaseEmbeds(notes: ReleaseNotes, appUrl: string): Embed[] {
-	return splitBody(forDiscord(notes.body)).map((description, i) => ({
+	return splitBody(showCredits(forDiscord(notes.body))).map((description, i) => ({
 		...(i === 0 ? { title: notes.title } : {}),
 		description,
 		url: appUrl,
 		color: 0x2f855a,
 	}));
+}
+
+export interface CreditCount {
+	name: string;
+	count: number;
+}
+
+/**
+ * How many things each person is credited with across `releases`: one per line of notes (a
+ * bullet) that names them, however often it does. Most credits first, then by name. Two spellings
+ * of one name differing only in case are one person, shown as first seen.
+ */
+export function creditCounts(releases: readonly ReleaseNotes[]): CreditCount[] {
+	const counts = new Map<string, CreditCount>();
+	for (const notes of releases) {
+		for (const line of forDiscord(notes.body).split('\n')) {
+			for (const name of creditsIn(line)) {
+				const key = name.toLowerCase();
+				const entry = counts.get(key) ?? { name, count: 0 };
+				entry.count += 1;
+				counts.set(key, entry);
+			}
+		}
+	}
+	return [...counts.values()].sort((a, b) => b.count - a.count || a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+}
+
+export const CREDITS_TITLE = 'Credits & attribution';
+
+/**
+ * The credits post's text: everyone the notes credit, most first, with their count, then the people
+ * `earlier` names (credited before there were release notes). Null when it would name nobody.
+ */
+export function creditsBody(releases: readonly ReleaseNotes[], earlier: readonly string[]): string | null {
+	const counts = creditCounts(releases);
+	if (counts.length === 0 && earlier.length === 0) return null;
+	const sections: string[] = [];
+	if (counts.length > 0) {
+		sections.push(['## In the release notes', ...counts.map((c, i) => `${i + 1}. ${creditMark(c.name)} — ${c.count}`)].join('\n'));
+	}
+	if (earlier.length > 0) sections.push(['## Before the release notes', earlier.map(creditMark).join(', ')].join('\n'));
+	return sections.join('\n');
 }
 
 export interface AnnounceOptions {
@@ -173,6 +222,11 @@ export interface AnnounceOptions {
 	secret: string;
 	/** The secret's env var name, used only in the "no secret" skip log line. */
 	secretEnvName: string;
+	/**
+	 * A file whose `@name`s are the people credited before there were release notes, listed after
+	 * the counts in the credits post. Absent or missing file: nobody.
+	 */
+	earlierCreditsFile?: string;
 	archivebotUrl: string;
 	appUrl: string;
 	log: JsonLog;
@@ -180,17 +234,24 @@ export interface AnnounceOptions {
 	now?: () => Date;
 }
 
-/** The signed ArchiveBot request for one release's notes: its idempotency key is the release's own. */
+/**
+ * The signed ArchiveBot request for one release's notes: its idempotency key is the release's own,
+ * its record is kept for good (`retain`), and an edit with no record finds the post by its title's
+ * version (`find`), so a release of any age can still be corrected.
+ */
 function notesPayload(service: string, notes: ReleaseNotes, appUrl: string, now: Date): string {
-	const mentions = mentionsIn(notes.body);
+	const titlePrefix = notes.title.startsWith(`${notes.version} `) ? `${notes.version} ` : notes.title;
 	return JSON.stringify({
 		idempotencyKey: `${service}-release-${notes.version}`,
 		timestamp: now.getTime(),
 		source: service,
-		...(mentions.length === 0 ? {} : { mentions }),
+		retain: true,
+		find: { titlePrefix },
 		embeds: releaseEmbeds(notes, appUrl),
 	});
 }
+
+const creditsKey = (service: string, version: string): string => `${service}-credits-${version}`;
 
 async function postSigned(options: AnnounceOptions, path: string, body: string): Promise<Response> {
 	const signature = createHmac('sha256', options.secret).update(body).digest('hex');
@@ -202,11 +263,29 @@ async function postSigned(options: AnnounceOptions, path: string, body: string):
 	});
 }
 
+/** POST `body` to ArchiveBot's `path`: the status, the raw reply, and a 2xx reply parsed (`{}` otherwise). */
+async function call(options: AnnounceOptions, path: string, body: string): Promise<{ status: number; ok: boolean; raw: string; answer: Record<string, unknown> }> {
+	const res = await postSigned(options, path, body);
+	const raw = await res.text();
+	return { status: res.status, ok: res.ok, raw, answer: res.ok ? (JSON.parse(raw) as Record<string, unknown>) : {} };
+}
+
+async function readEarlierCredits(file: string | undefined): Promise<string[]> {
+	if (file === undefined) return [];
+	try {
+		return creditsIn(await readFile(file, 'utf8'));
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+		throw err;
+	}
+}
+
 /**
- * Post the current release's notes, then re-send the newest few as edits, so a corrected notes file
- * (a credit added to a bullet, a typo) changes its post at the next boot. ArchiveBot edits only a post
- * whose shown text differs and never posts from an edit. Resolves on every outcome; the outcome is
- * logged, never thrown.
+ * At boot, in this order: delete the credits post of every older release (404, none on record, is
+ * the usual answer); post the current release's notes; re-send every release's notes as edits, so a
+ * corrected notes file (a credit added, a typo) changes its post; then post the current release's
+ * credits, or edit them when already posted. ArchiveBot edits only a post whose shown text differs
+ * and never posts from an edit. Resolves on every outcome; each is logged, never thrown.
  */
 export async function announceRelease(options: AnnounceOptions): Promise<void> {
 	const { log, service, ordering } = options;
@@ -215,57 +294,80 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 		return;
 	}
 	const now = () => (options.now ?? (() => new Date()))();
+	let releases: ReleaseNotes[];
 	try {
-		const notes = await latestRelease(options.releasesDir, ordering);
-		if (notes === null) {
-			log({ event: 'release-announce', outcome: 'skipped', reason: `no release notes in ${options.releasesDir}` });
-			return;
-		}
-		const res = await postSigned(options, '/api/messages/send', notesPayload(service, notes, options.appUrl, now()));
-		const reply = await res.text();
-		if (!res.ok) {
-			log({ event: 'release-announce', outcome: 'failed', version: notes.version, status: res.status, reply: reply.slice(0, 500) });
-			return;
-		}
-		const answer = JSON.parse(reply) as { deduped?: boolean; unresolved?: string[] };
-		log({
-			event: 'release-announce',
-			outcome: answer.deduped === true ? 'already-posted' : 'posted',
-			version: notes.version,
-			// A name ArchiveBot could not match to anyone is posted as plain text: say so, so it can be fixed.
-			...(answer.unresolved !== undefined && answer.unresolved.length > 0 ? { unresolved: answer.unresolved } : {}),
-		});
+		releases = await allReleases(options.releasesDir, ordering);
 	} catch (err) {
 		log({ event: 'release-announce', outcome: 'failed', error: err instanceof Error ? err.message : String(err) });
 		return;
 	}
-	let recent: ReleaseNotes[];
-	try {
-		recent = await recentReleases(options.releasesDir, ordering);
-	} catch (err) {
-		log({ event: 'release-edit', outcome: 'failed', error: err instanceof Error ? err.message : String(err) });
+	const notes = releases[0];
+	if (notes === undefined) {
+		log({ event: 'release-announce', outcome: 'skipped', reason: `no release notes in ${options.releasesDir}` });
 		return;
 	}
-	for (const notes of recent) {
+
+	for (const older of releases.slice(1)) {
 		try {
-			const res = await postSigned(options, '/api/messages/edit', notesPayload(service, notes, options.appUrl, now()));
-			const reply = await res.text();
-			// 404: ArchiveBot holds no post for it (older than its 7-day record): nothing to change.
+			const res = await call(options, '/api/messages/delete', JSON.stringify({ idempotencyKey: creditsKey(service, older.version), timestamp: now().getTime(), source: service }));
+			if (res.status === 404) continue;
+			log({ event: 'release-credits', outcome: res.ok ? 'deleted' : 'failed', version: older.version, ...(res.ok ? {} : { status: res.status, reply: res.raw.slice(0, 500) }) });
+		} catch (err) {
+			log({ event: 'release-credits', outcome: 'failed', version: older.version, error: err instanceof Error ? err.message : String(err) });
+		}
+	}
+
+	try {
+		const res = await call(options, '/api/messages/send', notesPayload(service, notes, options.appUrl, now()));
+		if (!res.ok) {
+			log({ event: 'release-announce', outcome: 'failed', version: notes.version, status: res.status, reply: res.raw.slice(0, 500) });
+			return;
+		}
+		log({ event: 'release-announce', outcome: res.answer.deduped === true ? 'already-posted' : 'posted', version: notes.version });
+	} catch (err) {
+		log({ event: 'release-announce', outcome: 'failed', version: notes.version, error: err instanceof Error ? err.message : String(err) });
+		return;
+	}
+
+	for (const release of releases) {
+		try {
+			const res = await call(options, '/api/messages/edit', notesPayload(service, release, options.appUrl, now()));
+			// 404: no post for it, on record or in the channel's history: nothing to change.
 			if (res.status === 404) continue;
 			if (!res.ok) {
-				log({ event: 'release-edit', outcome: 'failed', version: notes.version, status: res.status, reply: reply.slice(0, 500) });
+				log({ event: 'release-edit', outcome: 'failed', version: release.version, status: res.status, reply: res.raw.slice(0, 500) });
 				continue;
 			}
-			const answer = JSON.parse(reply) as { edited?: boolean; unresolved?: string[] };
-			if (answer.edited !== true) continue;
-			log({
-				event: 'release-edit',
-				outcome: 'edited',
-				version: notes.version,
-				...(answer.unresolved !== undefined && answer.unresolved.length > 0 ? { unresolved: answer.unresolved } : {}),
-			});
+			if (res.answer.edited === true) log({ event: 'release-edit', outcome: 'edited', version: release.version });
 		} catch (err) {
-			log({ event: 'release-edit', outcome: 'failed', version: notes.version, error: err instanceof Error ? err.message : String(err) });
+			log({ event: 'release-edit', outcome: 'failed', version: release.version, error: err instanceof Error ? err.message : String(err) });
 		}
+	}
+
+	try {
+		const body = creditsBody(releases, await readEarlierCredits(options.earlierCreditsFile));
+		if (body === null) return;
+		const payload = (at: Date): string =>
+			JSON.stringify({
+				idempotencyKey: creditsKey(service, notes.version),
+				timestamp: at.getTime(),
+				source: service,
+				retain: true,
+				embeds: splitBody(body).map((description, i) => ({ ...(i === 0 ? { title: CREDITS_TITLE } : {}), description, url: options.appUrl, color: 0x2f855a })),
+			});
+		const sent = await call(options, '/api/messages/send', payload(now()));
+		if (!sent.ok) {
+			log({ event: 'release-credits', outcome: 'failed', version: notes.version, status: sent.status, reply: sent.raw.slice(0, 500) });
+			return;
+		}
+		if (sent.answer.deduped !== true) {
+			log({ event: 'release-credits', outcome: 'posted', version: notes.version });
+			return;
+		}
+		const edited = await call(options, '/api/messages/edit', payload(now()));
+		if (!edited.ok) log({ event: 'release-credits', outcome: 'failed', version: notes.version, status: edited.status, reply: edited.raw.slice(0, 500) });
+		else if (edited.answer.edited === true) log({ event: 'release-credits', outcome: 'edited', version: notes.version });
+	} catch (err) {
+		log({ event: 'release-credits', outcome: 'failed', version: notes.version, error: err instanceof Error ? err.message : String(err) });
 	}
 }

@@ -3,7 +3,7 @@
  * (`cardtable`) and the secret-skip reason naming `ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET` — plus a
  * few checks against this repo's REAL `docs/releases` content (length caps, no mid-sentence
  * breaks, the pending-notes style rule), which a synthetic fixture cannot stand in for. The
- * generic logic (parseNotes, splitBody, forDiscord, mentionsIn, the full announceRelease flow)
+ * generic logic (parseNotes, splitBody, forDiscord, creditsIn, the full announceRelease flow)
  * is proved in `@hadoku/service-kernel`'s own suite now (w93-K2).
  */
 import { createHmac } from 'node:crypto';
@@ -15,7 +15,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { announceRelease, latestRelease, parseNotes, releaseEmbeds, forDiscord } from './announce.ts';
+import { allReleases, announceRelease, creditsBody, creditsIn, EARLIER_CREDITS_FILE, latestRelease, parseNotes, releaseEmbeds, forDiscord } from './announce.ts';
 
 const RELEASES = resolve(dirname(fileURLToPath(import.meta.url)), '../../../docs/releases');
 const SECRET = 'test-secret';
@@ -93,6 +93,17 @@ describe('release notes against this repo\'s real docs/releases', () => {
 		}
 	});
 
+	it('fits the credits post, every release and the earlier-credits file counted, in one Discord message', async () => {
+		const body = creditsBody(await allReleases(RELEASES), creditsIn(await readFile(resolve(RELEASES, EARLIER_CREDITS_FILE), 'utf8')));
+		expect((body ?? '').length).toBeLessThanOrEqual(6000 - 'Credits & attribution'.length);
+	});
+
+	it('credits people only as @name: no Discord mention markup in any notes file', async () => {
+		for (const name of (await readdir(RELEASES)).filter((n) => n.endsWith('.md'))) {
+			expect(await readFile(resolve(RELEASES, name), 'utf8'), name).not.toMatch(/<@!?\d+>/);
+		}
+	});
+
 	it('posts no line of a release notes file broken mid-sentence', async () => {
 		for (const name of (await readdir(RELEASES)).filter((n) => /^v\d+\.\d+\.\d+\.md$/.test(n))) {
 			const notes = parseNotes(name.slice(0, -3), await readFile(resolve(RELEASES, name), 'utf8'));
@@ -106,15 +117,20 @@ describe('release notes against this repo\'s real docs/releases', () => {
 });
 
 describe('announceRelease: cardtable\'s own frozen literals', () => {
-	it('posts the release once per key, signed, with idempotencyKey "cardtable-release-<version>" and source "cardtable"', async () => {
+	it('posts the release as "cardtable-release-<version>", then its credits as "cardtable-credits-<version>", source "cardtable"', async () => {
 		const bot = await archivebot(() => [200, { success: true, messageId: '1' }]);
 		const { entries, log } = logs();
 		await announceRelease({ releasesDir: RELEASES, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
 		const notes = (await latestRelease(RELEASES))!;
-		expect(bot.received.filter((r) => r.url === '/api/messages/send')).toHaveLength(1);
-		const sent = JSON.parse(bot.received[0].raw);
-		expect(sent).toMatchObject({ idempotencyKey: `cardtable-release-${notes.version}`, source: 'cardtable' });
-		expect(entries).toEqual([{ event: 'release-announce', outcome: 'posted', version: notes.version }]);
+		const sends = bot.received.filter((r) => r.url === '/api/messages/send').map((r) => JSON.parse(r.raw));
+		expect(sends.map((s) => [s.idempotencyKey, s.source])).toEqual([
+			[`cardtable-release-${notes.version}`, 'cardtable'],
+			[`cardtable-credits-${notes.version}`, 'cardtable'],
+		]);
+		expect(entries).toEqual([
+			{ event: 'release-announce', outcome: 'posted', version: notes.version },
+			{ event: 'release-credits', outcome: 'posted', version: notes.version },
+		]);
 	});
 
 	it('skips, naming ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET, without a secret and sends nothing', async () => {

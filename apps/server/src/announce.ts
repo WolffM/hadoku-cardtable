@@ -6,21 +6,21 @@
  * Prod only, by `ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET`: PPE's wrapper deliberately does not hold it,
  * and an unset secret is a skip, not an error.
  *
- * Every export and signature here is unchanged from before this moved into the kernel: `index.ts`
- * and `announce.test.ts` import this path exactly as they did. The two cardtable-specific bits are
- * the service id (`cardtable`, which names the idempotency key and the `source` field) and the
- * ordering of release files, which the kernel cannot read itself — it is
- * `scripts/release/build-version.ts`'s `newestReleaseFile`/`releaseFilesNewestFirst`, injected here.
+ * The cardtable-specific bits are the service id (`cardtable`, which names the idempotency keys and
+ * the `source` field), the ordering of release files, which the kernel cannot read itself — it is
+ * `scripts/release/build-version.ts`'s `newestReleaseFile`/`releaseFilesNewestFirst`, injected here —
+ * and the earlier-credits file, `docs/releases/before-releases.md` (docs/RELEASE.md § "Attribution").
  */
+import { join } from 'node:path';
 import { newestReleaseFile, releaseFilesNewestFirst } from '../../../scripts/release/build-version.js';
 import {
+	allReleases as kernelAllReleases,
 	announceRelease as kernelAnnounceRelease,
-	EDITABLE_RELEASES,
+	creditsBody,
+	creditsIn,
 	forDiscord,
 	latestRelease as kernelLatestRelease,
-	mentionsIn,
 	parseNotes,
-	recentReleases as kernelRecentReleases,
 	releaseEmbeds,
 	splitBody,
 	type AnnounceOptions as KernelAnnounceOptions,
@@ -29,25 +29,34 @@ import {
 	type ReleaseOrdering,
 } from '@hadoku/service-kernel/lifecycle';
 
-export { EDITABLE_RELEASES, forDiscord, mentionsIn, parseNotes, releaseEmbeds, splitBody, type Embed, type ReleaseNotes };
+export { creditsBody, creditsIn, forDiscord, parseNotes, releaseEmbeds, splitBody, type Embed, type ReleaseNotes };
 
 const SERVICE = 'cardtable';
 const SECRET_ENV_NAME = 'ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET';
 const ORDERING: ReleaseOrdering = { newest: newestReleaseFile, newestFirst: releaseFilesNewestFirst };
 
-export type AnnounceOptions = Omit<KernelAnnounceOptions, 'service' | 'ordering' | 'secretEnvName'>;
+/** People credited before there were release notes, as `@name`s, in the releases directory. */
+export const EARLIER_CREDITS_FILE = 'before-releases.md';
+
+export type AnnounceOptions = Omit<KernelAnnounceOptions, 'service' | 'ordering' | 'secretEnvName' | 'earlierCreditsFile'>;
 
 /** The newest release notes in `dir`, by semver, or null when there are none. */
 export async function latestRelease(dir: string): Promise<ReleaseNotes | null> {
 	return kernelLatestRelease(dir, ORDERING);
 }
 
-/** The newest `count` release notes in `dir`, newest first. */
-export async function recentReleases(dir: string, count = EDITABLE_RELEASES): Promise<ReleaseNotes[]> {
-	return kernelRecentReleases(dir, ORDERING, count);
+/** Every release's notes in `dir`, newest first. */
+export async function allReleases(dir: string): Promise<ReleaseNotes[]> {
+	return kernelAllReleases(dir, ORDERING);
 }
 
 /** cardtable's release announce: service `cardtable`, `ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET`. */
 export async function announceRelease(options: AnnounceOptions): Promise<void> {
-	return kernelAnnounceRelease({ ...options, service: SERVICE, ordering: ORDERING, secretEnvName: SECRET_ENV_NAME });
+	return kernelAnnounceRelease({
+		...options,
+		service: SERVICE,
+		ordering: ORDERING,
+		secretEnvName: SECRET_ENV_NAME,
+		earlierCreditsFile: join(options.releasesDir, EARLIER_CREDITS_FILE),
+	});
 }

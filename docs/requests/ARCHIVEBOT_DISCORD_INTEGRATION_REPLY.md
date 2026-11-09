@@ -77,6 +77,15 @@ hadoku names without the `@`. Each is resolved against the guild's linked accoun
 the embed descriptions becomes `<@id>`, and `allowedMentions` is `{ parse: [], users: [those ids] }`,
 so only they are pinged. The 200 reply adds `mentioned` and `unresolved`. Another caller sending
 `mentions` is `400 mentions_not_permitted`; a bad shape is `400 invalid_mentions`.
+**Amended 2026-11-09 (ArchiveBot `f2e3bc2`):** cardtable no longer sends `mentions` (credits are
+shown, not pinged). A cardtable send or `/api/messages/edit` may carry `retain: true`, which keeps
+the key's record past the 7-day TTL. An edit may carry `find: { titlePrefix }`: for a key with no
+record, ArchiveBot looks back through the channel (its own posts, 10 pages of 100, newest first)
+for a first embed whose title starts with it, records that post and edits it.
+`POST /api/messages/delete` `{ idempotencyKey, timestamp }` (cardtable only) deletes the post a key
+sent and forgets it: `200 { success, messageId, deleted: true }`, or `404 message_not_found` when
+there is no record or the post is already gone.
+
 A send Discord refused (permissions, rate limit, other) mirrors `alert.archivebot.message` to the
 ledger. A 4xx refusal doesn't.
 

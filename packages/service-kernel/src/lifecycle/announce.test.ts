@@ -14,7 +14,7 @@ import type { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { announceRelease, EDITABLE_RELEASES, forDiscord, latestRelease, mentionsIn, parseNotes, recentReleases, releaseEmbeds, splitBody, type ReleaseOrdering } from './announce.ts';
+import { allReleases, announceRelease, creditCounts, creditMark, creditsBody, creditsIn, forDiscord, latestRelease, parseNotes, releaseEmbeds, showCredits, splitBody, type ReleaseOrdering } from './announce.ts';
 
 const SECRET = 'test-secret';
 const SERVICE = 'myapp';
@@ -48,8 +48,15 @@ afterEach(async () => {
 	server = null;
 });
 
-/** A stand-in ArchiveBot: verifies the signature, answers like `/api/messages/send`, and `/api/messages/edit` with `editReply` (default: no post on record). */
-async function archivebot(reply: () => [number, unknown], editReply: (version: string) => [number, unknown] = () => [404, { error: 'message_not_found' }]): Promise<{ url: string; received: Received[] }> {
+type Reply = [number, unknown];
+const NOT_FOUND: Reply = [404, { error: 'message_not_found' }];
+
+/**
+ * A stand-in ArchiveBot: verifies the signature and answers `/api/messages/send` with `reply`,
+ * `/api/messages/edit` with `editReply` and `/api/messages/delete` with `deleteReply`, each given the
+ * request's idempotency key (defaults for the last two: no post on record).
+ */
+async function archivebot(reply: (key: string) => Reply, editReply: (key: string) => Reply = () => NOT_FOUND, deleteReply: (key: string) => Reply = () => NOT_FOUND): Promise<{ url: string; received: Received[] }> {
 	const received: Received[] = [];
 	server = createServer((req, res) => {
 		let raw = '';
@@ -58,14 +65,10 @@ async function archivebot(reply: () => [number, unknown], editReply: (version: s
 			const signature = req.headers['x-hadoku-signature'] as string | undefined;
 			received.push({ url: req.url, signature, raw });
 			const expected = `sha256=${createHmac('sha256', SECRET).update(raw).digest('hex')}`;
-			const [status, body] =
-				signature !== expected
-					? [401, { error: 'invalid_signature' }]
-					: req.url === '/api/messages/send'
-						? reply()
-						: req.url === '/api/messages/edit'
-							? editReply(String(JSON.parse(raw).idempotencyKey).replace(`${SERVICE}-release-`, ''))
-							: [404, { error: 'not_found' }];
+			const key = String(JSON.parse(raw).idempotencyKey);
+			const routes: Record<string, (key: string) => Reply> = { '/api/messages/send': reply, '/api/messages/edit': editReply, '/api/messages/delete': deleteReply };
+			const route = routes[req.url ?? ''];
+			const [status, body] = signature !== expected ? [401, { error: 'invalid_signature' }] : route ? route(key) : [404, { error: 'not_found' }];
 			res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
 		});
 	});
@@ -101,13 +104,13 @@ describe('release notes', () => {
 		}
 	});
 
-	it('recentReleases is newest-first, capped at EDITABLE_RELEASES by default', async () => {
+	it('allReleases is every release, newest first, and nothing else in the directory', async () => {
 		const dir = await mkdtemp(resolve(tmpdir(), 'service-kernel-releases-'));
 		try {
 			for (const v of ['v1.0.0', 'v1.1.0', 'v1.2.0', 'v1.3.0']) await writeFile(resolve(dir, `${v}.md`), `# ${v}\n\nbody`);
-			const recent = await recentReleases(dir, ORDERING);
-			expect(recent.map((n) => n.version)).toEqual(['v1.3.0', 'v1.2.0', 'v1.1.0']);
-			expect(recent).toHaveLength(EDITABLE_RELEASES);
+			await writeFile(resolve(dir, 'before-releases.md'), '- @someone');
+			const all = await allReleases(dir, ORDERING);
+			expect(all.map((n) => n.version)).toEqual(['v1.3.0', 'v1.2.0', 'v1.1.0', 'v1.0.0']);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
@@ -173,44 +176,59 @@ describe('release notes', () => {
 	});
 });
 
-describe('who a release thanks', () => {
-	it('is every @name in the notes, once each, in order, without a sentence’s full stop', () => {
+describe('credits', () => {
+	it('creditsIn is every @name, once each, in order, without a sentence’s full stop', () => {
 		const body = '## Fixed\n- The grid holds still in Rally. (@ohmusama)\n- A wheel scrolls one thing. Thanks @OhMuSama and @bob.\n- Mail me at a@b.c, see example.com/@x';
-		expect(mentionsIn(body)).toEqual(['ohmusama', 'bob']);
+		expect(creditsIn(body)).toEqual(['ohmusama', 'bob']);
+		expect(creditsIn('## Fixed\n- Something.')).toEqual([]);
 	});
 
-	it('is nobody when nobody is named', () => {
-		expect(mentionsIn('## Fixed\n- Something.')).toEqual([]);
+	it('shows each credit bold, italic and underlined, never as an @, escaping markup in a name', () => {
+		expect(showCredits('- A fix. (@ohmusama, @the.scrubdaddy)\n- Mail a@b.c')).toBe('- A fix. (***__ohmusama__***, ***__the.scrubdaddy__***)\n- Mail a@b.c');
+		expect(creditMark('snake_case*')).toBe('***__snake\\_case\\*__***');
+	});
+
+	it('the posted notes carry no @ at all', () => {
+		const embeds = releaseEmbeds(parseNotes('v1.0.0', '# v1.0.0 — t\n\n## Fixed\n- A fix. (@ohmusama)'), 'https://example.com/');
+		expect(embeds[0]!.description).toBe('## Fixed\n- A fix. (***__ohmusama__***)');
+	});
+
+	it('counts one credit per bullet across every release, most first, then by name, one person whatever the case', () => {
+		const releases = [
+			parseNotes('v1.1.0', '# v1.1.0\n\n## Fixed\n- One. (@bob)\n- Two. (@Ohmusama, @bob)\n- Three, said twice. (@zed) (@zed)'),
+			parseNotes('v1.0.0', '# v1.0.0\n\n## Fixed\n- Wrapped over\n  two lines. (@ohmusama)\n- Four. (@amy)'),
+		];
+		expect(creditCounts(releases)).toEqual([
+			{ name: 'bob', count: 2 },
+			{ name: 'Ohmusama', count: 2 },
+			{ name: 'amy', count: 1 },
+			{ name: 'zed', count: 1 },
+		]);
+	});
+
+	it('the credits post lists the counts, then the people from before the notes, and is null when there is nobody', () => {
+		const releases = [parseNotes('v1.0.0', '# v1.0.0\n\n## Fixed\n- One. (@bob)\n- Two. (@bob, @amy)')];
+		expect(creditsBody(releases, ['early', 'bird'])).toBe(
+			['## In the release notes', '1. ***__bob__*** — 2', '2. ***__amy__*** — 1', '## Before the release notes', '***__early__***, ***__bird__***'].join('\n'),
+		);
+		expect(creditsBody([parseNotes('v1.0.0', '# v1.0.0\n\n- Nobody.')], [])).toBeNull();
+		expect(creditsBody([], ['early'])).toBe('## Before the release notes\n***__early__***');
 	});
 });
 
 describe('announceRelease', () => {
-	it('sends the reporters a release names as mentions, with no thank-you line, and logs any no account carries', async () => {
+	it('sends no mentions and no content: a credit is shown, nobody is pinged', async () => {
 		const dir = await mkdtemp(resolve(tmpdir(), 'service-kernel-announce-'));
 		try {
-			await writeFile(resolve(dir, 'v9.9.0.md'), '# v9.9.0 — thanks\n\n## Fixed\n- The grid holds still in Rally. (@ohmusama)\n- The wheel scrolls one thing. (@ohmusama, @ghost)\n');
-			const bot = await archivebot(() => [200, { success: true, messageId: '1', mentioned: ['ohmusama'], unresolved: ['ghost'] }]);
+			await writeFile(resolve(dir, 'v9.9.0.md'), '# v9.9.0 — thanks\n\n## Fixed\n- The grid holds still in Rally. (@ohmusama)\n');
+			const bot = await archivebot(() => [200, { success: true, messageId: '1' }]);
 			const { entries, log } = logs();
 			await announceRelease({ service: SERVICE, ordering: ORDERING, releasesDir: dir, secret: SECRET, secretEnvName: 'SOME_WEBHOOK_SECRET', archivebotUrl: bot.url, appUrl: 'https://example.com/', log });
 			const sent = JSON.parse(bot.received[0]!.raw);
-			expect(sent.mentions).toEqual(['ohmusama', 'ghost']);
-			expect(sent).not.toHaveProperty('content');
-			expect(sent.embeds[0].description).toContain('(@ohmusama)');
-			expect(entries).toEqual([{ event: 'release-announce', outcome: 'posted', version: 'v9.9.0', unresolved: ['ghost'] }]);
-		} finally {
-			await rm(dir, { recursive: true, force: true });
-		}
-	});
-
-	it('sends no content and no mentions when the notes name nobody', async () => {
-		const dir = await mkdtemp(resolve(tmpdir(), 'service-kernel-announce-'));
-		try {
-			await writeFile(resolve(dir, 'v9.9.0.md'), '# v9.9.0 — quiet\n\n## Fixed\n- Something.\n');
-			const bot = await archivebot(() => [200, { success: true, messageId: '1' }]);
-			await announceRelease({ service: SERVICE, ordering: ORDERING, releasesDir: dir, secret: SECRET, secretEnvName: 'SOME_WEBHOOK_SECRET', archivebotUrl: bot.url, appUrl: 'https://example.com/', log: logs().log });
-			const sent = JSON.parse(bot.received[0]!.raw);
-			expect(sent).not.toHaveProperty('content');
 			expect(sent).not.toHaveProperty('mentions');
+			expect(sent).not.toHaveProperty('content');
+			expect(sent.embeds[0].description).toContain('(***__ohmusama__***)');
+			expect(entries[0]).toEqual({ event: 'release-announce', outcome: 'posted', version: 'v9.9.0' });
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
@@ -234,25 +252,94 @@ describe('announceRelease', () => {
 		}
 	});
 
-	it('then re-sends the newest releases as edits, and logs only the posts it changed', async () => {
+	it('then re-sends every release as an edit that keeps its record and can find an old post, logging only the posts it changed', async () => {
 		const dir = await mkdtemp(resolve(tmpdir(), 'service-kernel-announce-'));
 		try {
 			for (const v of ['v1.0.0', 'v1.1.0', 'v1.2.0', 'v1.3.0']) await writeFile(resolve(dir, `${v}.md`), `# ${v} — t\n\n## Fixed\n- A fix.\n`);
-			await writeFile(resolve(dir, 'v1.2.0.md'), '# v1.2.0 — t\n\n## New\n- Mana floating asks first. (@the.scrubdaddy)\n');
+			await writeFile(resolve(dir, 'v1.0.0.md'), '# v1.0.0 — t\n\n## New\n- Mana floating asks first. (@the.scrubdaddy)\n');
 			const bot = await archivebot(
 				() => [200, { success: true, messageId: '1' }],
-				(version) => (version === 'v1.2.0' ? [200, { success: true, messageId: '2', edited: true }] : [200, { success: true, messageId: '3', unchanged: true }]),
+				(key) => (key === 'myapp-release-v1.0.0' ? [200, { success: true, messageId: '2', edited: true }] : [200, { success: true, messageId: '3', unchanged: true }]),
 			);
 			const { entries, log } = logs();
 			await announceRelease({ service: SERVICE, ordering: ORDERING, releasesDir: dir, secret: SECRET, secretEnvName: 'SOME_WEBHOOK_SECRET', archivebotUrl: bot.url, appUrl: 'https://example.com/', log });
 			const edits = bot.received.filter((r) => r.url === '/api/messages/edit').map((r) => JSON.parse(r.raw));
-			expect(edits.map((e) => e.idempotencyKey)).toEqual(['myapp-release-v1.3.0', 'myapp-release-v1.2.0', 'myapp-release-v1.1.0']);
-			expect(edits[1].mentions).toEqual(['the.scrubdaddy']);
-			expect(edits[1].embeds[0].description).toContain('(@the.scrubdaddy)');
-			expect(entries).toEqual([
+			expect(edits.filter((e) => e.idempotencyKey.startsWith('myapp-release-')).map((e) => [e.idempotencyKey, e.retain, e.find])).toEqual(
+				['v1.3.0', 'v1.2.0', 'v1.1.0', 'v1.0.0'].map((v) => [`myapp-release-${v}`, true, { titlePrefix: `${v} ` }]),
+			);
+			expect(edits.find((e) => e.idempotencyKey === 'myapp-release-v1.0.0').embeds[0].description).toContain('(***__the.scrubdaddy__***)');
+			expect(entries.filter((e) => e.event !== 'release-credits')).toEqual([
 				{ event: 'release-announce', outcome: 'posted', version: 'v1.3.0' },
-				{ event: 'release-edit', outcome: 'edited', version: 'v1.2.0' },
+				{ event: 'release-edit', outcome: 'edited', version: 'v1.0.0' },
 			]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('deletes the older releases\' credits, posts the notes, edits, then posts this release\'s credits last', async () => {
+		const dir = await mkdtemp(resolve(tmpdir(), 'service-kernel-announce-'));
+		try {
+			await writeFile(resolve(dir, 'v1.0.0.md'), '# v1.0.0 — t\n\n## Fixed\n- One. (@bob)\n');
+			await writeFile(resolve(dir, 'v1.1.0.md'), '# v1.1.0 — t\n\n## Fixed\n- Two. (@amy, @bob)\n');
+			await writeFile(resolve(dir, 'before-releases.md'), '# Before\n\n- @early\n');
+			const bot = await archivebot(
+				() => [200, { success: true, messageId: '1' }],
+				() => [200, { success: true, unchanged: true }],
+				(key) => (key === 'myapp-credits-v1.0.0' ? [200, { success: true, deleted: true }] : NOT_FOUND),
+			);
+			const { entries, log } = logs();
+			await announceRelease({ service: SERVICE, ordering: ORDERING, releasesDir: dir, secret: SECRET, secretEnvName: 'SOME_WEBHOOK_SECRET', archivebotUrl: bot.url, appUrl: 'https://example.com/', log, earlierCreditsFile: resolve(dir, 'before-releases.md') });
+			expect(bot.received.map((r) => `${r.url} ${JSON.parse(r.raw).idempotencyKey}`)).toEqual([
+				'/api/messages/delete myapp-credits-v1.0.0',
+				'/api/messages/send myapp-release-v1.1.0',
+				'/api/messages/edit myapp-release-v1.1.0',
+				'/api/messages/edit myapp-release-v1.0.0',
+				'/api/messages/send myapp-credits-v1.1.0',
+			]);
+			const credits = JSON.parse(bot.received.at(-1)!.raw);
+			expect(credits).toMatchObject({ retain: true, source: SERVICE });
+			expect(credits).not.toHaveProperty('mentions');
+			expect(credits.embeds).toEqual([
+				{ title: 'Credits & attribution', description: creditsBody(await allReleases(dir, ORDERING), ['early']), url: 'https://example.com/', color: 0x2f855a },
+			]);
+			expect(entries).toEqual([
+				{ event: 'release-credits', outcome: 'deleted', version: 'v1.0.0' },
+				{ event: 'release-announce', outcome: 'posted', version: 'v1.1.0' },
+				{ event: 'release-credits', outcome: 'posted', version: 'v1.1.0' },
+			]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('credits already posted are edited instead, so a credit added later shows', async () => {
+		const dir = await mkdtemp(resolve(tmpdir(), 'service-kernel-announce-'));
+		try {
+			await writeFile(resolve(dir, 'v1.0.0.md'), '# v1.0.0 — t\n\n## Fixed\n- One. (@bob)\n');
+			const bot = await archivebot(
+				() => [200, { success: true, messageId: '1', deduped: true }],
+				(key) => (key === 'myapp-credits-v1.0.0' ? [200, { success: true, edited: true }] : [200, { success: true, unchanged: true }]),
+			);
+			const { entries, log } = logs();
+			await announceRelease({ service: SERVICE, ordering: ORDERING, releasesDir: dir, secret: SECRET, secretEnvName: 'SOME_WEBHOOK_SECRET', archivebotUrl: bot.url, appUrl: 'https://example.com/', log, earlierCreditsFile: resolve(dir, 'missing.md') });
+			expect(bot.received.at(-1)!.url).toBe('/api/messages/edit');
+			expect(entries).toEqual([
+				{ event: 'release-announce', outcome: 'already-posted', version: 'v1.0.0' },
+				{ event: 'release-credits', outcome: 'edited', version: 'v1.0.0' },
+			]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('posts no credits when nobody is credited', async () => {
+		const dir = await mkdtemp(resolve(tmpdir(), 'service-kernel-announce-'));
+		try {
+			await writeFile(resolve(dir, 'v1.0.0.md'), '# v1.0.0 — t\n\n## Fixed\n- One.\n');
+			const bot = await archivebot(() => [200, { success: true, messageId: '1' }]);
+			await announceRelease({ service: SERVICE, ordering: ORDERING, releasesDir: dir, secret: SECRET, secretEnvName: 'SOME_WEBHOOK_SECRET', archivebotUrl: bot.url, appUrl: 'https://example.com/', log: logs().log });
+			expect(bot.received.map((r) => JSON.parse(r.raw).idempotencyKey)).not.toContain('myapp-credits-v1.0.0');
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

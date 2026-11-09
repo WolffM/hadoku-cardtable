@@ -14,7 +14,8 @@ they're deleted in the commit that lands the notes.
 ## Cutting a release
 
 **`/cutrelease`** (`.claude/skills/cutrelease/SKILL.md`) does steps 1–7 with the operator: it
-combines the pending files, shows the notes for editing, lands them and runs the release. By hand:
+combines the pending files, asks who each bullet credits, shows the notes and the credits post
+for editing, lands them and runs the release. By hand:
 
 1. **Pick the version.** `vX.Y.Z`, one product version per release. Bump the minor when any
    pending file has a `## New` or `## Changed` bullet, the patch when they are all fixes. The
@@ -35,7 +36,9 @@ combines the pending files, shows the notes for editing, lands them and runs the
    pending file covers gets a bullet too, in the player's words (a row's "check it by" column
    helps); say which bullets came from commits, so the operator can check them. Leave out
    anything a player can't see (tests, CI, refactors), unless it fixed something they hit.
-4. **The operator reads and edits them.** Then land the notes file and the removal of the pending
+4. **The operator credits and edits them.** Ask who each New, Changed and Fixed bullet is
+   attributed to (§ "Attribution"); `node scripts/release/credits.ts docs/releases/vX.Y.Z.md`
+   prints the credits post as it will read. Then land the notes file and the removal of the pending
    files in one commit on `main`, like any doc. A docs-only change doesn't redeploy PPE.
 5. **Check PPE.** The sha being released is (normally) what PPE already runs (`hadoku.me/cardtable-ppe/`,
    `curl -s localhost:9011/health`). Play it there. Its Forge pin's jar must be installed
@@ -52,8 +55,8 @@ combines the pending files, shows the notes for editing, lands them and runs the
 7. **Confirm prod.** `/health` on 9008 reports the deployed bundle (see the memory note
    "Confirm a deploy from /health"). Prod posts the notes to Discord's `#announcements` when it
    boots on the release: look for `"svc":"cardtable-release"` with `outcome: posted` (or
-   `already-posted` on a restart) in `pm2 logs cardtable`. A `failed` line says why; the next boot
-   retries.
+   `already-posted` on a restart), then a `release-credits` line with `outcome: posted`, in
+   `pm2 logs cardtable`. A `failed` line says why; the next boot retries.
 
 ## Notes style
 
@@ -103,28 +106,36 @@ Every notes file, and every pending file, follows this.
 
 ### Attribution
 
-The operator, 2026-11-05: *"whenever a bug was attributed to someone, we need to @ them in the
-announcements when they are posted."* A bug reported by a named person carries their hadoku name
-at the end of its bullet, in parentheses: `- The sample pack's grid holds still in Rally. (@ohmusama)`.
-Two reporters are `(@ohmusama, @bob)`. Keep it through every edit, from the pending file to the
-release notes, and fold two bullets into one only if the merged bullet keeps every name.
+The operator, 2026-11-05: whoever reported a bug gets credited in the bullet that fixes it. And
+2026-11-09: *"put their names next to their attribution (italicized, bolded and underlined) however
+we should not do discord @ mentions anymore."* Every bug fix or feature that someone reported or
+asked for carries their hadoku name at the end of its bullet, in parentheses:
+`- The sample pack's grid holds still in Rally. (@ohmusama)`. Two people are `(@ohmusama, @bob)`.
+Keep it through every edit, from the pending file to the release notes, and fold two bullets into
+one only if the merged bullet keeps every name. `/cutrelease` asks the operator who each new
+bullet credits before the notes land. Nothing else in the notes may start with `@`.
 
-At boot prod posts the notes (`apps/server/src/announce.ts`) and names everyone they credit as
-`mentions`; ArchiveBot turns each `@name` in the bullets into that person's Discord mention, inline,
-from the account linked to that hadoku name or else the one member with that exact Discord name.
-There is no separate thank-you line (the operator, 2026-11-05: *"just the inline mentions are good
-enough"*). A name it cannot match is posted as typed, and the boot log's `release-announce` line
-lists it under `unresolved`. Nothing else in the notes
-may start with `@`.
+In the notes file a credit is `@name`, because that is what the tooling counts. The post shows each
+one as ***__name__*** (`apps/server/src/announce.ts`, the kernel's `showCredits`) and sends no
+`mentions`, so nobody is pinged.
+
+**Credits & attribution.** Under the newest notes stands one more post: everyone the release notes
+have ever credited, most credits first (one per bullet naming them), then the people
+`docs/releases/before-releases.md` names, who helped before there were release notes. At boot
+on a new release prod, in order: deletes the previous releases' credits posts, posts the notes,
+re-sends every release's notes as edits, and posts the new credits. So the credits are always the
+newest post, and they count the release that just shipped. The boot log's `release-credits` lines
+say what it deleted, posted or edited.
 
 ### Correcting a posted release
 
-A released notes file may be corrected (a credit added to a bullet, a typo) for about a week after
-its post: edit `docs/releases/vX.Y.Z.md` on main, the operator's call only. At every boot prod
-re-sends its newest three releases to ArchiveBot's `/api/messages/edit`, which edits a post only
-when its text differs and never posts; a post older than ArchiveBot's 7-day record is left alone.
-The change reaches Discord at prod's next boot, so with the next release. The boot log has a
-`release-edit` line for each post it changed.
+A released notes file of any age may be corrected (a credit added to a bullet, a typo): edit
+`docs/releases/vX.Y.Z.md` on main, the operator's call only. At every boot prod re-sends every
+release to ArchiveBot's `/api/messages/edit`, which edits a post only when its text differs and
+never posts. ArchiveBot keeps cardtable's records for good (`retain`), and finds a post it has no
+record of by its title's version in #announcements (`find`). The change reaches Discord at prod's
+next boot, so with the next release, and the credits post is recounted then too. The boot log has
+a `release-edit` line for each post it changed.
 
 ## Fixing prod
 

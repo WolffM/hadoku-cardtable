@@ -1,6 +1,6 @@
 ---
 name: cutrelease
-description: Cut a cardtable release — combine every pending release-note file in docs/releases/pending/ into docs/releases/vX.Y.Z.md, show the operator the notes to edit, land them (removing the pending files), run release.yml and confirm prod. Use when the operator says /cutrelease, "cut a release", "ship to prod", "release vX.Y.Z", or asks what the next release would contain.
+description: Cut a cardtable release — combine every pending release-note file in docs/releases/pending/ into docs/releases/vX.Y.Z.md, ask the operator who each bug fix or feature credits, show them the notes and the credits post to edit, land them (removing the pending files), run release.yml and confirm prod replaced the credits post under the new notes. Use when the operator says /cutrelease, "cut a release", "ship to prod", "release vX.Y.Z", or asks what the next release would contain.
 ---
 
 # Cut a release
@@ -8,6 +8,17 @@ description: Cut a cardtable release — combine every pending release-note file
 The operator invokes this. Prod (`hadoku.me/cardtable/`) moves only through it; `main` already
 deploys to PPE (`hadoku.me/cardtable-ppe/`) by itself. `docs/RELEASE.md` is the process this
 follows, step for step; read it if anything here is unclear.
+
+Every release does the same five things in Discord's #announcements (the operator, 2026-11-09):
+
+1. delete the previous **Credits & attribution** post,
+2. write the new release notes,
+3. ask the operator who each bug fix or feature is attributed to,
+4. post the new release notes,
+5. post the new **Credits & attribution** post under them.
+
+You do 2 and 3 here, with the operator. Prod does 1, 4 and 5 by itself, in that order, when it
+boots on the release (`docs/RELEASE.md` § "Attribution"), and step 8 confirms it did.
 
 ## 1. Gather
 
@@ -46,19 +57,43 @@ words; a fix is one short plain line.
 - **Every pending bullet**, under its own heading, in the order the files sort (they are dated).
   Fold two bullets about the same thing into one, and cut a pending bullet down to the style's
   length when it is a small fix written long.
-- **Every `(@name)` stays.** A pending bullet's reporters ride into the notes unchanged, and a
-  folded bullet keeps every name from both (`docs/RELEASE.md` § "Attribution"): the post pings them.
+- **Every `(@name)` stays.** A pending bullet's credits ride into the notes unchanged, and a
+  folded bullet keeps every name from both (`docs/RELEASE.md` § "Attribution"). The post shows
+  each as ***__name__*** and pings nobody. Never write a Discord mention (`<@id>`).
 - **Fixes** groups the commits no player sees by kind ("Faster checks before an update
   ships.", "Dependency updates."), one plain sentence each.
 
-## 3. The operator edits
+## 3. Ask who is credited
+
+Every bullet under New, Changed and Fixed may credit whoever reported the bug or asked for the
+feature. Fixes bullets credit nobody. Ask on every release, even when the pending files carried
+names already: the operator knows who asked, and the files often don't.
+
+1. List the names used so far, with their counts, to pick from:
+   ```sh
+   node scripts/release/credits.ts
+   ```
+2. Show the operator every New, Changed and Fixed bullet, numbered, each with the `(@name)` it
+   already carries. Then ask, in chat (not a multiple-choice question, since names are free text):
+   *who is attributed to which?* They answer like `2 ohmusama, 5 bob ohmusama, rest none`.
+3. Write each answer onto its bullet as `(@name)` at the end, `(@a, @b)` for two, keeping the
+   names already there. A hadoku name, as the operator spells it. Ask again if a name is new and
+   looks like a typo of a known one.
+
+## 4. The operator edits
 
 Show the operator the full notes text in chat, then the **coverage**: every commit from "Commits
 to cover", each with the bullet it went into, so a missing one shows. Mark the bullets you wrote
-for a gap. Ask them to edit or approve. Apply their edits verbatim. Do not land
-or release until they say the notes are right.
+for a gap. Then the **credits post** as it will read under these notes:
 
-## 4. Land the notes
+```sh
+node scripts/release/credits.ts docs/releases/vX.Y.Z.md
+```
+
+Ask them to edit or approve. Apply their edits verbatim. Do not land or release until they say
+the notes are right.
+
+## 5. Land the notes
 
 One commit on the worktree: the notes file added, every `docs/releases/pending/*.md` it combined
 removed (never the README). Message `release: vX.Y.Z notes`, no AI attribution. Rebase on
@@ -66,7 +101,7 @@ removed (never the README). Message `release: vX.Y.Z notes`, no AI attribution. 
 pending folder after the rebase: a file another lane landed meanwhile is not in these notes,
 so leave it for the next release and tell the operator.
 
-## 5. Check PPE and the jar
+## 6. Check PPE and the jar
 
 The sha to release is the notes commit, or main's head once it contains it. PPE normally runs
 the code already (`curl -s localhost:9011/health`). Its Forge pin's jar must be installed:
@@ -75,7 +110,7 @@ the code already (`curl -s localhost:9011/health`). Its Forge pin's jar must be 
 ls ~/.local/share/cardtable/jars/$(git rev-parse <sha>:forge).jar
 ```
 
-## 6. Release
+## 7. Release
 
 `release.yml` refuses a sha whose `check` is not green or that lacks the notes file. Wait for
 `check` on the notes commit with ONE background `scripts/lanes/watch-run.sh <run-id>`; if a newer
@@ -91,11 +126,16 @@ release under a different name, as a rollback does.
 
 Then wait for that run the same way.
 
-## 7. Confirm prod
+## 8. Confirm prod
 
 - `curl -s localhost:9008/health` reports the released bundle;
   `git -C /home/hadoku/srv/hadoku-cardtable merge-base --is-ancestor <sha> HEAD` succeeds.
-- `pm2 logs cardtable` shows `"svc":"cardtable-release"` with `outcome: posted` (or
-  `already-posted` after a restart) for the Discord announcement; `failed` says why.
+- `pm2 logs cardtable --lines 200 --nostream | grep cardtable-release` shows, in this order:
+  `release-credits` `deleted` for the previous release's credits post (absent only on the first
+  release that has one), `release-announce` `posted` (or `already-posted` after a restart) for the
+  notes, any `release-edit` `edited` lines for older notes whose text changed, and
+  `release-credits` `posted` for the new credits post. A `failed` line says why; the next boot
+  retries.
 
-Tell the operator: the version, the sha, that prod runs it, and that the notes were posted.
+Tell the operator: the version, the sha, that prod runs it, that the notes were posted, and that
+the credits post was replaced under them.
