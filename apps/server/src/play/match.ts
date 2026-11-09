@@ -626,6 +626,11 @@ export interface SeatState {
 	 */
 	behindReveal: unknown[];
 	/**
+	 * The callId of the reveal last put on this seat's wire, until the frame that opens the seat's next
+	 * decision goes out after it and says it is over ({@link Match.emit}, the envelope's `revealOver`).
+	 */
+	openReveal: string | null;
+	/**
 	 * Synthetic asks this seat currently holds, keyed by the SYNTHETIC callId
 	 * (`chooseSingleEntityForEffect`'s own) — each maps back to the TWO real
 	 * Forge `getChoices` asks (the reveal, always answered `[]`, and the real
@@ -1330,6 +1335,8 @@ export class Match {
 		/** Log lines, oldest first, each waiting for the watchers' board to show the cards it names ({@link Match.releaseWatcherLog}). */
 		heldLog: { text: string; log: GameLogLine }[];
 		heldLogTimer: NodeJS.Timeout | null;
+		/** The reveal last sent to the watchers, until the seat it was shown to moves on ({@link Match.closeWatcherReveal}). */
+		openReveal: ServerFrame & { kind: 'ask' } | null;
 	};
 
 	private readonly deps: MatchDeps;
@@ -1443,7 +1450,7 @@ export class Match {
 		this.epoch = restore?.epoch ?? `${id}:${this.startedAt}`;
 		this.latestSnapshot = restore?.snapshot ?? null;
 		this.art = createArtIds(deps.catalog ?? null, spec.seats.map((s) => s.deck));
-		this.watcher = { projector: createProjector(EVERY_PLAYER, this.art), seq: 0, history: createStateHistory(), heldLog: [], heldLogTimer: null };
+		this.watcher = { projector: createProjector(EVERY_PLAYER, this.art), seq: 0, history: createStateHistory(), heldLog: [], heldLogTimer: null, openReveal: null };
 		this.seats = spec.seats.map((s, seat) => ({
 			seat,
 			ai: s.ai,
@@ -1500,6 +1507,7 @@ export class Match {
 			clicked: null,
 			pendingReveal: null,
 			behindReveal: [],
+			openReveal: null,
 			mergedChoice: new Map(),
 			owed: null,
 			folds: new Map(),
@@ -2718,16 +2726,44 @@ export class Match {
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
 		const input = this.inputOfFrame.get(frame);
 		if (input !== undefined) s.shownInput = input;
+		const revealOver = this.revealEndedBy(s, frame, mark);
 		this.deps.emit(s.seat, {
 			matchId: this.id,
 			cursor,
 			frame,
 			...(input === undefined ? {} : { input }),
+			...(revealOver === null ? {} : { revealOver }),
 			...(mark === null ? {} : { [mark]: true }),
 			...(chained ? { pairsWithNext: true } : {}),
 			...(extra ?? {}),
 		});
 		if (frame.method === 'updateButtons') this.syncClock();
+	}
+
+	/**
+	 * The reveal `frame` ends on seat `s`'s wire, if any. A reveal is shown until the seat's next
+	 * decision (an ask or a selection) takes its place; the server, which sends both in order, says so
+	 * on that decision's envelope, and tells the watchers the same of the reveal they were shown. So
+	 * a seat, a watcher and a replay all close a reveal on the one signal.
+	 */
+	private revealEndedBy(s: SeatState, frame: ServerFrame, mark: WireSend['mark']): string | null {
+		if (mark === 'displayOnly' && frame.kind === 'ask') {
+			s.openReveal = frame.callId;
+			return null;
+		}
+		const open = s.openReveal;
+		if (open === null || !opensAnInput(frame)) return null;
+		s.openReveal = null;
+		this.closeWatcherReveal(open);
+		return open;
+	}
+
+	/** The watchers' reveal `callId` is over: its own frame again, marked as the carrier of that news. */
+	private closeWatcherReveal(callId: string): void {
+		const open = this.watcher.openReveal;
+		if (open === null || open.callId !== callId) return;
+		this.watcher.openReveal = null;
+		this.sendWatcher(open, false, { revealOver: callId });
 	}
 
 	/**
@@ -2868,8 +2904,9 @@ export class Match {
 	 * die, a coin, an announcement) is not replayed to a late joiner, as a seat's own snapshot
 	 * re-sends none of it either.
 	 */
-	private sendWatcher(frame: ServerFrame, kept = true, mark: { displayOnly: true; forceNotice?: true } | null = null): void {
+	private sendWatcher(frame: ServerFrame, kept = true, mark: { displayOnly: true; forceNotice?: true } | { revealOver: string } | null = null): void {
 		if (kept) this.watcher.history.push(frame);
+		if (mark !== null && 'displayOnly' in mark && frame.kind === 'ask') this.watcher.openReveal = frame;
 		this.watcher.seq += 1;
 		const cursor: WireCursor = { epoch: this.epoch, seq: this.watcher.seq };
 		this.deps.emit(WATCHER_SEAT, { matchId: this.id, cursor, frame, ...(mark ?? {}) });

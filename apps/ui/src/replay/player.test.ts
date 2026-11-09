@@ -239,22 +239,34 @@ describe('createReplayPlayer', () => {
     vi.useRealTimers();
   });
 
-  it('a seek replays the board, not what a player was shown in the moment: a recorded reveal opens no notice and no question', () => {
+  it('a seek draws the reveal still showing at its target, never as a question, and none past the close the recording carries', () => {
     vi.useFakeTimers();
     const data = threeFrameReplay(1000);
     const reveal = parseServerFrame({ kind: 'ask', callId: 'r-1', method: 'getChoices', message: 'Revealed', min: -1, max: -1, choices: [{ key: 'c0', label: 'Lightning Bolt', ref: null }], selected: [] }, 'getChoices');
-    const envs = [...data.envs];
-    envs.splice(2, 0, { at: 500, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 3 }, frame: reveal, displayOnly: true } });
-    const last = envs[3]!;
-    envs[3] = { ...last, env: { ...last.env, cursor: { epoch: 'e1', seq: 4 } } };
+    const [setGameView, openView, delta] = data.envs;
+    const envs: ReplayData['envs'] = [
+      setGameView!,
+      openView!,
+      { at: 500, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 3 }, frame: reveal, displayOnly: true } },
+      { ...delta!, env: { ...delta!.env, cursor: { epoch: 'e1', seq: 4 } } },
+      { at: 1500, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 5 }, frame: reveal, revealOver: 'r-1' } },
+    ];
     const { match, clock } = createReplayPlayer({ ...data, envs });
-    clock.play();
 
-    clock.pause();
     clock.seek(1000);
     expect(match.view?.players.map((p) => p.life)).toEqual([15, 20]);
     expect(match.asks, 'no question').toEqual([]);
-    expect(match.reveal, 'no notice').toBeNull();
+    expect(match.reveal?.callId, 'the reveal still showing at 1000').toBe('r-1');
+
+    clock.seek(1500);
+    expect(match.reveal, 'closed by the recorded revealOver').toBeNull();
+    expect(match.asks, 'the carrier is no question either').toEqual([]);
+
+    clock.seek(1000);
+    clock.play();
+    vi.advanceTimersByTime(600);
+    expect(match.reveal, 'playback closes it on the same frame').toBeNull();
+    expect(match.asks).toEqual([]);
 
     closeMatch(match);
     clock.dispose();

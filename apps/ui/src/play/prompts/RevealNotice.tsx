@@ -16,8 +16,10 @@
  * (the operator, 2026-10-10, on Ghost Quarter's fail to find, a whole library
  * shown: *"i would expect at least some kind of decision to be there like
  * 'cancel' or 'ok' to acknowledge it"*). A clock would take a forty-card
- * library away mid-read. The seat's next real decision still takes its place
- * (`../live/match.ts`).
+ * library away mid-read. It also closes when the server says the reveal is
+ * over (`revealOver`: the seat it was shown to has its next decision), the one
+ * signal a seat, a watcher and a replay all close it on (`../live/match.ts`'s
+ * `deliverFrame`).
  *
  * It is not a `.live__prompt`, so the inspector enlarges its tiles the way it
  * does the board's (one expanded card view), and nothing that gates on an

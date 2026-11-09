@@ -428,6 +428,7 @@ export const ServerEnvelopeSchema = serverEnvelopeSchema(ServerFrameSchema)
     displayOnly: z.literal(true).optional(),
     pairsWithNext: z.literal(true).optional(),
     forceNotice: z.literal(true).optional(),
+    revealOver: z.string().min(1).optional(),
     /** The input Forge showed this window frame for: what an act made on it names back (`ClientEnvelope.input`). */
     input: z.number().int().positive().optional(),
   })
@@ -456,6 +457,14 @@ export interface ServerEnvelope extends PlatformServerEnvelope<ServerFrame> {
    * other frame, and only ever alongside `displayOnly`.
    */
   forceNotice?: true;
+  /**
+   * The `displayOnly` reveal with this callId is over: whoever it was shown to has moved on to their
+   * next decision (`apps/server/src/play/match.ts`'s `emit`). On a seat's wire it rides on the frame
+   * that opens that decision. On the watcher channel, which is shown no decision, it rides on the
+   * reveal's own frame sent again — that frame is a carrier, not a reveal to show. One rule for every
+   * board, live or replayed: a reveal stays until its OK, or until this names it.
+   */
+  revealOver?: string;
   /**
    * The frame is one half of a Forge window (`showPromptMessage` and `updateButtons`, which Forge
    * sends as two notifies in an order of each input's own) and its other half is the very next

@@ -1,0 +1,17 @@
+# A reveal ends for a watcher when it ends for the seat it was shown to. Alice (seat 0, the active
+# player, so the one the watchers are shown) holds two Ghost Quarters and her own Underground River;
+# her library has no basic land, so Ghost Quarter on her own River makes her search fail and shows her
+# library as a reveal. Her second Ghost Quarter is her next decision, which says the reveal is over.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Ghost Quarter;Ghost Quarter;Underground River
+humanlibrary=Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears
+humangraveyard=
+aihand=
+aibattlefield=Underground River
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

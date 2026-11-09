@@ -127,6 +127,7 @@ const replayFrame = ({ env }: RecordedEnv): ReplayFrame => ({
   frame: env.frame,
   ...(env.displayOnly === true ? { displayOnly: true } : {}),
   ...(env.forceNotice === true ? { forceNotice: true } : {}),
+  ...(env.revealOver === undefined ? {} : { revealOver: env.revealOver }),
 });
 
 type WireObject = { _type?: unknown; _id?: unknown } & Record<string, unknown>;

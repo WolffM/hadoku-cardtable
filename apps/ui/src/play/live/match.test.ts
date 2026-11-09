@@ -4325,12 +4325,42 @@ describe('a display-only reveal is a notice, never a question', () => {
     expect((await s.framesFrom(m)).filter((f) => f.ok && f.value.kind !== 'act')).toEqual([]);
   });
 
-  it("the seat's next real question takes its place", async () => {
+  async function sendMarked(s: ReplayServer, m: LiveMatch, frame: ServerFrame, marks: Record<string, unknown>): Promise<void> {
+    const target = m.stats.applied + 1;
+    const cursor = s.lose(frame);
+    s.sendRaw({ ...s.sent(cursor.seq), ...marks });
+    await until('the marked frame applied', () => m.stats.applied >= target);
+  }
+
+  it("closes when the server says it is over, on the frame of the seat's next question", async () => {
+    const { s, m } = await fullGame();
+    await showReveal(s, m, reveal('r2'));
+    await sendMarked(s, m, optionAsk('o2'), { revealOver: 'r2' });
+    expect(m.reveal).toBeNull();
+    expect(currentAsk(m)?.callId).toBe('o2');
+  });
+
+  it('a question the server does not mark leaves it showing: the board never decides a reveal is over alone', async () => {
     const { s, m } = await fullGame();
     await showReveal(s, m, reveal('r2'));
     await sendAndApply(s, m, [optionAsk('o2')]);
-    expect(m.reveal).toBeNull();
+    expect(m.reveal?.callId).toBe('r2');
     expect(currentAsk(m)?.callId).toBe('o2');
+  });
+
+  it("a watcher's close is the reveal's own frame again: it closes the notice and opens no question", async () => {
+    const { s, m } = await fullGame();
+    await showReveal(s, m, reveal('r2'));
+    await sendMarked(s, m, reveal('r2'), { revealOver: 'r2' });
+    expect(m.reveal).toBeNull();
+    expect(m.asks).toEqual([]);
+  });
+
+  it("a close for another reveal leaves this one showing", async () => {
+    const { s, m } = await fullGame();
+    await showReveal(s, m, reveal('r2'));
+    await sendMarked(s, m, optionAsk('o2'), { revealOver: 'r-old' });
+    expect(m.reveal?.callId).toBe('r2');
   });
 
   it('dismissing it clears it; a stale dismissal of another reveal does not', async () => {

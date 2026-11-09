@@ -2397,6 +2397,34 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		expect(other?.envelope.displayOnly).toBeUndefined();
 	});
 
+	it("the seat's next decision says the reveal is over, and the watchers are told the same on the reveal's own frame", () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		const frame = revealFrame('x-reveal-over', [940]);
+		h.host.push({ t: 'frame', seat: 0, frame });
+		const watcherReveal = h.sent.find((s) => s.seat === WATCHER_SEAT && s.envelope.frame.kind === 'ask');
+		expect(watcherReveal?.envelope, 'the watchers were shown it').toMatchObject({ frame, displayOnly: true });
+		expect(watcherReveal?.envelope.revealOver).toBeUndefined();
+		const before = h.sent.length;
+
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-next', method: 'openZones', controller: { kind: 'player', id: 0 }, zones: [], players: [], backupLastZones: false } });
+		const after = h.sent.slice(before);
+		const next = after.find((s) => s.seat === 0 && s.envelope.frame.kind === 'ask');
+		expect(next?.envelope, "on the seat's wire, the decision's own envelope carries it").toMatchObject({ revealOver: 'x-reveal-over' });
+		expect(next?.envelope.displayOnly).toBeUndefined();
+		const toWatchers = after.filter((s) => s.seat === WATCHER_SEAT);
+		expect(toWatchers.map((s) => s.envelope), 'the watchers are asked nothing: the reveal again carries the news').toEqual([
+			expect.objectContaining({ frame, revealOver: 'x-reveal-over' }),
+		]);
+		expect(toWatchers[0]?.envelope.displayOnly).toBeUndefined();
+
+		// Said once: the decision after it carries nothing.
+		const once = h.sent.length;
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 'x-later', method: 'openZones', controller: { kind: 'player', id: 0 }, zones: [], players: [], backupLastZones: false } });
+		expect(h.sent.slice(once).filter((s) => s.envelope.revealOver !== undefined)).toEqual([]);
+	});
+
 	it('what Forge did after the reveal reaches the seat after it: every frame but an ask waits behind a held (choiceFollows) reveal, in order', () => {
 		vi.useFakeTimers();
 		const h = harness();

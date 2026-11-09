@@ -1519,13 +1519,39 @@ function cardRefs(value: unknown, out: Set<number>): Set<number> {
   return out;
 }
 
-/** A frame {@link LiveMatch.windowHalf} holds until the end of its chain, with what its envelope said to do with it. */
+/** A frame with what its envelope said to do with it: held in {@link LiveMatch.windowHalf} until the end of its chain, or read from a recording. */
 interface HeldFrame {
   frame: ServerFrame;
-  displayOnly: boolean;
-  forceNotice: boolean;
+  /** A reveal shown, not kept: `@hadoku/shared`'s `ServerEnvelope.displayOnly`. */
+  displayOnly?: true;
+  forceNotice?: true;
+  /** The reveal with this callId is over: `ServerEnvelope.revealOver`. */
+  revealOver?: string;
   /** The input Forge showed this frame for (the envelope's `input`), when the server named one. */
-  input: number | undefined;
+  input?: number;
+}
+
+/**
+ * One frame onto the board, as its envelope says: the one way a live stream and a replay's playback
+ * apply a frame. A reveal stays until its OK or until the server says it is over (`revealOver`) —
+ * the same news for a seat and a watcher, so neither board decides it alone. A frame that is the
+ * reveal it closes is only the carrier of that news (the watcher channel's: it is shown no decision
+ * to carry it on).
+ */
+function deliverFrame(match: LiveMatch, h: HeldFrame): void {
+  if (h.revealOver !== undefined) {
+    if (match.reveal?.callId === h.revealOver) match.reveal = null;
+    if (h.frame.kind === 'ask' && h.frame.callId === h.revealOver) return;
+  }
+  if (h.displayOnly === true) {
+    showReveal(match, h.frame, h.forceNotice === true);
+    return;
+  }
+  // The window now drawn is this input's: what an act made on it names. A window frame the
+  // server named no input for leaves none: an act on it names none and is judged as Forge
+  // judges it, never as made on the window before.
+  if (WINDOW_FRAMES.has(h.frame.method)) match.inputId = h.input ?? null;
+  applyFrame(match, h.frame);
 }
 
 /** The cards the seat's open decision shows: Forge's prompt card and every card an open ask names (`AdaptOptions.promptCards`). */
@@ -3763,21 +3789,13 @@ function ingestNow(match: LiveMatch, raw: unknown): void {
   match.cursor = cursor;
   match.stats.applied += 1;
   match.resyncsWithoutProgress = 0;
-  const held: HeldFrame = { frame: parsed.value, displayOnly: envelope.value.displayOnly === true, forceNotice: envelope.value.forceNotice === true, input: envelope.value.input };
+  const { displayOnly, forceNotice, revealOver, input } = envelope.value;
+  const held: HeldFrame = { frame: parsed.value, displayOnly, forceNotice, revealOver, input };
   if (envelope.value.pairsWithNext === true) match.windowHalf.push(held);
   else {
     const chain = [...match.windowHalf, held];
     match.windowHalf = [];
-    for (const h of chain) {
-      if (h.displayOnly) showReveal(match, h.frame, h.forceNotice);
-      else {
-        // The window now drawn is this input's: what an act made on it names. A window frame the
-        // server named no input for leaves none: an act on it names none and is judged as Forge
-        // judges it, never as made on the window before.
-        if (WINDOW_FRAMES.has(h.frame.method)) match.inputId = h.input ?? null;
-        applyFrame(match, h.frame);
-      }
-    }
+    for (const h of chain) deliverFrame(match, h);
   }
   if (match.offerHold !== null) dropMarked(match.offerHold, { cards: match.highlighted, players: match.highlightedPlayers });
   sendDeferredSelect(match);
@@ -3929,8 +3947,6 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       if (!asksManaColor(frame) && !asksIntendedAbility(match, frame)) match.manaIntent = null;
     } else match.asks[i] = frame;
     if (askedKey(match) !== asked) redraw(match);
-    // The seat's next real decision takes the place of a reveal still showing.
-    match.reveal = null;
     // A question to answer by hand ends the silence: what was held is not drawn under it, nor after.
     if (askedByHand(frame)) match.offerHold = null;
     unspend(match);
@@ -3992,8 +4008,6 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       max: frame.max,
       players: frame.players === undefined ? null : new Set(frame.players.map((p) => p.id)),
     };
-    // A selection is a decision too: it takes the reveal's place, as an ask does.
-    match.reveal = null;
     match.inputLive = true;
     // Forge's word on what this seat may do: nothing held is drawn past it.
     match.offerHold = null;
@@ -4231,11 +4245,20 @@ function discardLocal(match: LiveMatch): void {
 
 /* ── A replay ────────────────────────────────────────────────────────── */
 
-/** One recorded frame, with the marks its envelope carried (`displayOnly`: a reveal shown, not kept). */
-export interface ReplayFrame {
-  frame: ServerFrame;
-  displayOnly?: boolean;
-  forceNotice?: boolean;
+/** One recorded frame, with the marks its envelope carried: delivered as a live one is ({@link deliverFrame}). */
+export type ReplayFrame = HeldFrame;
+
+/**
+ * The reveal still showing once `frames` have been delivered from the start: the last one shown that
+ * no later frame says is over (`revealOver`). What a seek draws, so jumping into a reveal shows it.
+ */
+function openRevealOf(frames: readonly ReplayFrame[]): ReplayFrame | null {
+  let open: ReplayFrame | null = null;
+  for (const h of frames) {
+    if (open !== null && open.frame.kind === 'ask' && h.revealOver === open.frame.callId) open = null;
+    else if (h.displayOnly === true) open = h;
+  }
+  return open;
 }
 
 /**
@@ -4256,7 +4279,7 @@ export interface ReplayFold {
   match: LiveMatch;
   /**
    * `'start'`: the board from nothing, `frames` folded as a snapshot's history is (a seek, a loop) —
-   * no hit, no reveal, only the game's end. `'here'`: `frames` applied on top, as a live board
+   * no hit, only the game's end and the reveal still showing there. `'here'`: `frames` applied on top, as a live board
    * applies its stream (playback), so what a live watcher saw happen is drawn happening.
    */
   fold(frames: readonly ReplayFrame[], from: 'start' | 'here'): void;
@@ -4311,11 +4334,10 @@ export function replayMatch(matchId: string, playerId: number, options: { pointe
         match.revealed = null;
         foldFrames(match, frames.map((f) => f.frame), 'history');
         for (const { frame } of frames) if (endsTheGame(frame)) applyFrame(match, frame);
+        const reveal = openRevealOf(frames);
+        if (reveal !== null && !match.finished) showReveal(match, reveal.frame, reveal.forceNotice === true);
       } else {
-        for (const { frame, displayOnly, forceNotice } of frames) {
-          if (displayOnly === true) showReveal(match, frame, forceNotice === true);
-          else applyFrame(match, frame);
-        }
+        for (const h of frames) deliverFrame(match, h);
       }
       notify(match);
     },
