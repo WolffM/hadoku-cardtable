@@ -814,9 +814,9 @@
 /*
  * A question's card is no wider than it needs to be, centred in the column: the operator, trailer cut 4,
  * *"i didn't realize the decision modal was so much wider than it needed to be. instead let's have it
- * display on one line, but just not be wider than is necessary"*. The card's width is the larger of the
- * question on one line and its answers row; only a question longer than the column wraps, and then into
- * balanced lines.
+ * display on one line, but just not be wider than is necessary"*. Its words wrap into balanced lines;
+ * how many is `ConfirmPrompt.tsx`'s `useWrappedFit`, which folds them toward a squarer card (the operator,
+ * 2026-11-09).
  */
 .live__prompt > .confirm {
   align-self: center;

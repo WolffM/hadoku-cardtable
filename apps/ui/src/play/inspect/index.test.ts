@@ -258,6 +258,8 @@ describe('opening', () => {
     const rect = (box: { left: number; top: number; right: number; bottom: number }): DOMRect =>
       ({ ...box, width: box.right - box.left, height: box.bottom - box.top, x: box.left, y: box.top, toJSON() {} }) as DOMRect;
     board.querySelector<HTMLElement>('[data-board-zoom]')!.getBoundingClientRect = () => rect({ left: 0, top: 0, right: 1200, bottom: 800 });
+    board.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!.getBoundingClientRect = () =>
+      rect({ left: 0, top: 700, right: 1200, bottom: 800 });
     modalEl.getBoundingClientRect = () => rect({ left: 600, top: 200, right: 900, bottom: 500 });
     cardEl.getBoundingClientRect = () => rect({ left: 340, top: 250, right: 580, bottom: 380 });
     try {
@@ -265,11 +267,44 @@ describe('opening', () => {
       const shown = document.querySelector<HTMLElement>('[data-inspect]');
       expect(shown, 'the board card still enlarges').not.toBeNull();
       expect(shown!.parentElement).toBe(board.querySelector('[data-board-zoom]'));
-      // `place.test.ts`'s own "card under the pop-up's left edge" case: the
-      // panel is pushed to the pop-up's RIGHT instead of its (blocked) left.
-      expect(shown!.style.left).toBe('908px');
+      // The pop-up's left is the card's own place and its right has no room for a whole card, which
+      // never shrinks (a hand card's size, the operator 2026-11-09): it stands on the card's right,
+      // over the pop-up, never over the card.
+      expect(shown!.style.left).toBe('588px');
       expect(shown!.style.top).toBe('250px');
-      expect(parseFloat(shown!.style.width)).toBeCloseTo(1200 - 8 - 908, 6);
+      expect(shown!.style.width).toBe(`${PREF_W}px`);
+    } finally {
+      live.remove();
+    }
+  });
+
+  it("a card in a question stands beside the question's sheet, not its larger host, at a hand card's size", () => {
+    // The operator, 2026-11-09, on Ponder: the card enlarged "weirdly far away from the decision box"
+    // and too small. Ponder's host (`.live__prompt:has(.prompt__zones)`) runs from the seats' avatars to
+    // the phase rail and centres a narrower sheet; the panel stood left of the HOST, shrunk into the strip.
+    const { board } = mountBoard();
+    const live = document.createElement('div');
+    live.className = 'live';
+    live.innerHTML =
+      '<div class="live__prompt" data-testid="live-decision-host"><section class="prompt"><ul><li data-card-id="77"><article class="card" data-card-id="w77"><span class="card__name">Ponder Top</span></article></li></ul></section></div>';
+    document.body.appendChild(live);
+    const rect = (box: { left: number; top: number; right: number; bottom: number }): DOMRect =>
+      ({ ...box, width: box.right - box.left, height: box.bottom - box.top, x: box.left, y: box.top, toJSON() {} }) as DOMRect;
+    board.querySelector<HTMLElement>('[data-board-zoom]')!.getBoundingClientRect = () => rect({ left: 0, top: 0, right: 1200, bottom: 800 });
+    board.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!.getBoundingClientRect = () =>
+      rect({ left: 0, top: 700, right: 1200, bottom: 800 });
+    live.querySelector<HTMLElement>('.live__prompt')!.getBoundingClientRect = () => rect({ left: 136, top: 96, right: 900, bottom: 576 });
+    live.querySelector<HTMLElement>('.prompt')!.getBoundingClientRect = () => rect({ left: 300, top: 200, right: 780, bottom: 500 });
+    const cardEl = live.querySelector('.card')!;
+    cardEl.getBoundingClientRect = () => rect({ left: 320, top: 260, right: 420, bottom: 400 });
+    try {
+      hover(cardEl);
+      const shown = document.querySelector<HTMLElement>('[data-inspect]');
+      expect(shown).not.toBeNull();
+      // The sheet's left has no room for a whole card; its right does: 780 + GAP, level with the card.
+      expect(shown!.style.left).toBe('788px');
+      expect(shown!.style.top).toBe('260px');
+      expect(shown!.style.width).toBe(`${PREF_W}px`);
     } finally {
       live.remove();
     }
@@ -287,6 +322,8 @@ describe('opening', () => {
     const rect = (box: { left: number; top: number; right: number; bottom: number }): DOMRect =>
       ({ ...box, width: box.right - box.left, height: box.bottom - box.top, x: box.left, y: box.top, toJSON() {} }) as DOMRect;
     board.querySelector<HTMLElement>('[data-board-zoom]')!.getBoundingClientRect = () => rect({ left: 0, top: 0, right: 1200, bottom: 800 });
+    board.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!.getBoundingClientRect = () =>
+      rect({ left: 0, top: 700, right: 1200, bottom: 800 });
     view.getBoundingClientRect = () => rect({ left: 125, top: 357, right: 729, bottom: 792 });
     const cardEl = view.querySelector('.card')!;
     cardEl.getBoundingClientRect = () => rect({ left: 300, top: 400, right: 368, bottom: 495 });

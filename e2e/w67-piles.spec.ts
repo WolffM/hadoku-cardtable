@@ -62,6 +62,15 @@ type Box = { x: number; y: number; width: number; height: number };
 const overlap = (a: Box, b: Box): number =>
   Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
 
+/** How wide a hovered hand card enlarges (`inspect/index.ts`'s `zoomWidth`): the size every enlargement takes. */
+const handZoom = (page: Page): Promise<number> =>
+  page.evaluate(() => {
+    const layer = document.querySelector('[data-board-zoom]')!.getBoundingClientRect();
+    const hand = document.querySelector('[data-zone="hand"][data-owner="you"]')?.getBoundingClientRect();
+    const floor = hand === undefined ? layer.bottom : Math.min(hand.top, layer.bottom);
+    return Math.min(380, (floor - layer.top - 16) / (680 / 488), layer.width - 16);
+  });
+
 /** The graveyard card with the most of itself showing, not one Forge offers: its id, name and the middle of what shows. */
 const topCard = (page: Page) =>
   page.evaluate(() => {
@@ -221,15 +230,18 @@ test(titled('a huge graveyard opens as a pile view: the inspector gives way to i
       console.log(`[w69-pile] after three small moves inside ${top.name}: inspector panels ${afterNudge}`);
       expect(afterNudge, 'a small move inside the clicked card does not bring the inspector back').toBe(0);
 
-      // A card in the open view is read as usual, beside the view.
+      // A card in the open view is read at a hand card's size: beside the view where a whole card fits,
+      // over it where none does (the operator, 2026-11-09), never over the card being read.
       const inView = view(alice.page).locator('li[data-card-id]').nth(3);
       const vb = (await inView.boundingBox())!;
       const inViewName = ((await inView.locator('.card__name').first().textContent()) ?? '').trim();
       await alice.page.mouse.move(vb.x + vb.width / 2, vb.y + vb.height / 2, { steps: 6 });
       await expect(inspector(alice.page).locator('.card__name'), 'a card in the view is read in the inspector').toHaveText(inViewName, { timeout: 3_000 });
       const beside = (await inspector(alice.page).boundingBox())!;
-      console.log(`[w69-pile] hovering ${inViewName} in the view: inspector covers ${Math.round(overlap(beside, panel))}px² of the view`);
-      expect(overlap(beside, panel), 'the inspector stands beside the view').toBe(0);
+      const handSize = await handZoom(alice.page);
+      console.log(`[w69-pile] hovering ${inViewName} in the view: inspector ${Math.round(beside.width)}px wide (a hand card's ${Math.round(handSize)}), covers ${Math.round(overlap(beside, panel))}px² of the view, ${Math.round(overlap(beside, vb))}px² of the card`);
+      expect(beside.width, "the inspector is a hand card's size").toBeCloseTo(handSize, 0);
+      expect(overlap(beside, vb), 'the inspector never covers the card being read').toBe(0);
 
       // Back onto the graveyard card after leaving it: read again.
       await alice.page.mouse.move(top.x, top.y, { steps: 6 });
@@ -257,14 +269,15 @@ test(titled('a huge graveyard opens as a pile view: the inspector gives way to i
     await alice.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
     await expect(inspector(alice.page).locator('.card__name'), 'hovering it in the view opens the inspector on it').toHaveText('Think Twice', { timeout: 3_000 });
     console.log('[piles] hovering Think Twice in the view shows it in the inspector');
-    // The one inspector stands clear of the open view, as it does of an open decision window.
+    // The one inspector is a hand card's size: beside the open view where a whole card fits, over it where
+    // none does (the operator, 2026-11-09), never over the card being read.
     const shown = (await inspector(alice.page).boundingBox())!;
     const rect = (b: { x: number; y: number; width: number; height: number }): string =>
       `${Math.round(b.x)},${Math.round(b.y)}–${Math.round(b.x + b.width)},${Math.round(b.y + b.height)}`;
-    const overlapW = Math.max(0, Math.min(shown.x + shown.width, panel.x + panel.width) - Math.max(shown.x, panel.x));
-    const overlapH = Math.max(0, Math.min(shown.y + shown.height, panel.y + panel.height) - Math.max(shown.y, panel.y));
-    console.log(`[piles] inspector ${rect(shown)}, pile view ${rect(panel)}, overlap ${Math.round(overlapW)}×${Math.round(overlapH)}px`);
-    expect(overlapW * overlapH, 'the inspector covers the pile view').toBe(0);
+    const handSize = await handZoom(alice.page);
+    console.log(`[piles] inspector ${rect(shown)}, pile view ${rect(panel)}, over the view ${Math.round(overlap(shown, panel))}px², over the card ${Math.round(overlap(shown, box))}px²`);
+    expect(shown.width, "the inspector is a hand card's size").toBeCloseTo(handSize, 0);
+    expect(overlap(shown, box), 'the inspector never covers the card being read').toBe(0);
 
     // A click picks the offered card up, as a hand card's does, and the view gives way to it; the next
     // press, on the table, is the release that casts it.

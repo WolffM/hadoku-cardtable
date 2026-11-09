@@ -305,13 +305,26 @@ export function PromptCheckBox({ check }: { check: PromptCheck }) {
 /** The wrapped text a question's card holds: its question and the rules text under it. */
 const WRAPPING = ':scope > :is(.confirm__message, .confirm__context)';
 
+/** The most lines a question's paragraphs are folded into while looking for its shape. */
+const MOST_LINES = 8;
+
+/** The fewest words a folded line holds, in ems: a short question ("Proceed to Combat?") stays on one line. */
+const SHORTEST_LINE_EM = 16;
+
+/** The shape a question's card aims for, width over height: a card turned on its side (488 × 680). */
+const SHAPE = 680 / 488;
+
 /**
- * A question's card no wider than its words (the operator, trailer cut 4: *"display on one line, but just
- * not be wider than is necessary"*). `live.css` sizes the card to its content, which holds while each line
- * fits; a paragraph that wraps (longer than the column) would still fill the column, since a box keeps the
- * width it wrapped at. So once laid out, each wrapped paragraph takes its widest line's width, and the
- * card shrinks to it. Only in the decision column (`.live__prompt`), measured again when the column
- * changes size; every read comes before any write.
+ * A question's card is as near square as its words allow: the operator, 2026-11-09, *"decision boxes are poorly
+ * attempting to be as 'square' as possible"*, on a long question drawn as one line where one break in the
+ * middle would have read far better. It is never narrower than what does not wrap (the title, the answers,
+ * a card) and never wider than the column; between those, its paragraphs are tried folded into one line,
+ * two, three … each balanced (`live.css`'s `text-wrap: balance`) while each line still holds
+ * `SHORTEST_LINE_EM` of words, and the card that comes out closest to
+ * `SHAPE` is kept — squarer than a strip, never a narrow column of words. Then each wrapped paragraph
+ * takes its widest line's width and the card shrinks to it (a
+ * box keeps the width it wrapped at, so without that it would stay at the fold's measure). Only in the
+ * decision column (`.live__prompt`), measured again when the column changes size.
  */
 function useWrappedFit(card: RefObject<HTMLElement | null>, text: string): void {
   useLayoutEffect(() => {
@@ -319,13 +332,39 @@ function useWrappedFit(card: RefObject<HTMLElement | null>, text: string): void 
     const column = el?.parentElement;
     // A DOM with no layout (jsdom) has no line boxes to measure.
     if (el == null || column == null || !column.classList.contains('live__prompt') || typeof Range.prototype.getClientRects !== 'function') return undefined;
+    const lineBoxes = (p: HTMLElement): DOMRect[] => {
+      const range = document.createRange();
+      range.selectNodeContents(p);
+      return [...range.getClientRects()].filter((r) => r.width > 0);
+    };
+    const fold = (paragraphs: HTMLElement[], width: string): void => {
+      for (const p of paragraphs) p.style.maxInlineSize = width;
+    };
     const fit = (): void => {
       const paragraphs = [...el.querySelectorAll<HTMLElement>(WRAPPING)];
-      for (const p of paragraphs) p.style.maxInlineSize = '';
+      if (paragraphs.length === 0) return;
+      fold(paragraphs, '');
+      // Each paragraph's words laid end to end: the sum of its line boxes.
+      const longest = Math.max(...paragraphs.map((p) => lineBoxes(p).reduce((sum, r) => sum + r.width, 0)));
+      // The narrowest the card's words may go: what the rest of the card holds them to.
+      fold(paragraphs, '1px');
+      const floor = Math.ceil(el.clientWidth - paddingX(el));
+      let best: { width: string; skew: number } | null = null;
+      const shortest = SHORTEST_LINE_EM * parseFloat(getComputedStyle(paragraphs[0]!).fontSize);
+      for (let lines = 1; lines <= MOST_LINES; lines += 1) {
+        if (lines > 1 && longest / lines < shortest) break;
+        const measure = Math.max(floor, Math.ceil(longest / lines) + 1);
+        const width = lines === 1 ? '' : `${measure}px`;
+        fold(paragraphs, width);
+        const box = el.getBoundingClientRect();
+        if (box.width === 0 || box.height === 0) return;
+        const skew = Math.abs(Math.log(box.width / box.height / SHAPE));
+        if (best === null || skew < best.skew - 0.01) best = { width, skew };
+        if (measure === floor) break;
+      }
+      fold(paragraphs, best?.width ?? '');
       const widths = paragraphs.map((p) => {
-        const range = document.createRange();
-        range.selectNodeContents(p);
-        const lines = [...range.getClientRects()].filter((r) => r.width > 0);
+        const lines = lineBoxes(p);
         if (new Set(lines.map((r) => Math.round(r.top))).size < 2) return null;
         return Math.ceil(Math.max(...lines.map((r) => r.right)) - Math.min(...lines.map((r) => r.left))) + 1;
       });
@@ -346,6 +385,12 @@ function useWrappedFit(card: RefObject<HTMLElement | null>, text: string): void 
     resized.observe(column);
     return () => resized.disconnect();
   }, [card, text]);
+}
+
+/** An element's own horizontal padding, in px. */
+function paddingX(el: HTMLElement): number {
+  const style = getComputedStyle(el);
+  return parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
 }
 
 /**

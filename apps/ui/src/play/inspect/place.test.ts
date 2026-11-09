@@ -171,17 +171,13 @@ describe('placeBesideModal', () => {
     expect(overlaps(spot, modal)).toBe(false);
   });
 
-  it('shrinks onto the roomier side rather than ever covering the pop-up', () => {
+  it('never shrinks: with no clean room either side, it covers the pop-up rather than the card', () => {
     const modal: Rect = { left: 150, top: 200, right: 1000, bottom: 600 };
     const hover: Rect = { left: 900, top: 260, right: 980, bottom: 370 };
     const spot = placeBesideModal(hover, modal, AREA);
-    // Left room 150 - 8 - 8 = 134, right room 1200 - 8 - 1008 = 184: the right
-    // wins. `placeBesideModal` now finds this width by narrowing in on the
-    // widest clean size (the hover-avoidance below), so it is asserted to the
-    // nearest micron rather than bit-exact.
-    expect(spot.left).toBe(1000 + GAP);
-    expect(spot.width).toBeCloseTo(184, 6);
-    expect(overlaps(spot, modal)).toBe(false);
+    expect(spot.width).toBe(PREF_W);
+    // Left of the card, level with it: over the pop-up, clear of the card.
+    expect(spot).toEqual({ left: 900 - GAP - PREF_W, top: 260, width: PREF_W });
   });
 
   it('keeps the panel inside the area vertically', () => {
@@ -199,8 +195,8 @@ describe('placeBesideModal', () => {
  * no longer enough to clear: the hovered card's own rect is a second thing
  * the panel may never touch. Four candidates are tried in this order — left
  * of the pop-up, right of it, above the hovered card, below it — the first
- * clean against BOTH rects wins; none clean shrinks each to its own widest
- * clean size and the widest of the four wins.
+ * clean against BOTH rects wins; none clean, it stays whole and covers the
+ * card least (the operator, 2026-11-09: never smaller than a hand card's).
  */
 describe('placeBesideModal avoids the hovered card too', () => {
   const AREA: Rect = { left: 0, top: 0, right: 1200, bottom: 800 };
@@ -216,16 +212,10 @@ describe('placeBesideModal avoids the hovered card too', () => {
   };
 
   it("a card sitting under the pop-up's left edge — where the panel would otherwise go — pushes it RIGHT instead", () => {
-    // Room for the LEFT slot alone would be plenty (and is exactly what the
-    // previous function returned, blind to `hover`) — but the hovered card is
-    // sitting in it.
-    const modal: Rect = { left: 600, top: 200, right: 900, bottom: 500 };
+    const modal: Rect = { left: 600, top: 200, right: 800, bottom: 500 };
     const hover: Rect = { left: 340, top: 250, right: 580, bottom: 380 };
     const spot = placeBesideModal(hover, modal, AREA);
-    // The right slot is narrower than the preferred width: the panel takes what is there.
-    expect({ left: spot.left, top: spot.top }).toEqual({ left: 908, top: 250 });
-    expect(spot.width).toBeCloseTo(Math.min(PREF_W, AREA.right - GAP - 908), 6);
-    expect(spot.left).toBe(modal.right + GAP);
+    expect(spot).toEqual({ left: modal.right + GAP, top: 250, width: PREF_W });
     expect(overlaps(spot, modal)).toBe(false);
     expect(overlaps(spot, hover)).toBe(false);
   });
@@ -239,22 +229,31 @@ describe('placeBesideModal avoids the hovered card too', () => {
     expect(overlaps(spot, hover)).toBe(false);
   });
 
-  it('a tall pop-up spanning the width, with the card below it, shrinks the panel to stand ABOVE the card', () => {
-    const modal: Rect = { left: 0, top: 0, right: 1200, bottom: 650 };
-    const hover: Rect = { left: 500, top: 700, right: 700, bottom: 780 };
+  it('a pop-up filling the board, the card inside it: the panel stays whole and covers the pop-up, never the card', () => {
+    const modal: Rect = { left: 0, top: 0, right: 1200, bottom: 800 };
+    const hover: Rect = { left: 500, top: 300, right: 640, bottom: 495 };
     const spot = placeBesideModal(hover, modal, AREA);
-    // Neither side of a full-width pop-up has any room at all, and standing
-    // BELOW the card is squeezed against the area's own floor to almost
-    // nothing — ABOVE the card is the one candidate with real room: its
-    // bottom edge is a GAP clear of the card (`hover.top - GAP`, fixed, the
-    // anchor every width shares) and it shrinks exactly until its top edge
-    // clears the pop-up's own bottom edge.
-    expect(spot.left).toBe(hover.left);
-    expect(spot.top + spot.width * CARD_TALL).toBeCloseTo(hover.top - GAP, 6);
-    expect(spot.top).toBeCloseTo(modal.bottom, 6);
-    expect(spot.width).toBeCloseTo((42 * 488) / 680, 6);
-    expect(overlaps(spot, modal)).toBe(false);
+    expect(spot.width).toBe(PREF_W);
+    expect(spot.left).toBe(hover.left - GAP - PREF_W);
     expect(overlaps(spot, hover)).toBe(false);
+  });
+
+  it('takes the size it is given — a hand card’s — not the preferred one', () => {
+    const modal: Rect = { left: 500, top: 200, right: 900, bottom: 600 };
+    const hover: Rect = { left: 520, top: 260, right: 600, bottom: 370 };
+    const spot = placeBesideModal(hover, modal, AREA, 300);
+    expect(spot).toEqual({ left: 500 - GAP - 300, top: 260, width: 300 });
+  });
+
+  it('a card too wide for every side covers the card least', () => {
+    const narrow: Rect = { left: 0, top: 0, right: 420, bottom: 800 };
+    const modal: Rect = { left: 0, top: 0, right: 420, bottom: 800 };
+    const hover: Rect = { left: 150, top: 100, right: 270, bottom: 270 };
+    const spot = placeBesideModal(hover, modal, narrow);
+    expect(spot.width).toBe(PREF_W);
+    // No side holds it whole: below the card, slid up inside the board, covers the least of it.
+    expect(spot.left).toBe(420 - GAP - PREF_W);
+    expect(spot.top).toBeCloseTo(800 - GAP - PREF_W * CARD_TALL, 6);
   });
 });
 
@@ -278,7 +277,7 @@ describe('a panel that is not a card’s proportion', () => {
   it('beside a decision window, too', () => {
     const modal: Rect = { left: 700, top: 0, right: 1200, bottom: 800 };
     const hover: Rect = { left: 20, top: 400, right: 80, bottom: 460 };
-    const spot = placeBesideModal(hover, modal, BOARD, CHIPS_TALL);
+    const spot = placeBesideModal(hover, modal, BOARD, PREF_W, CHIPS_TALL);
     expect(spot.width).toBe(PREF_W);
     expect(spot.left + spot.width, 'clear of the window').toBeLessThanOrEqual(modal.left - GAP);
     expect(spot.top, 'level with the avatar').toBe(hover.top);
