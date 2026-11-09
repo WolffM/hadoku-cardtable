@@ -223,7 +223,25 @@ export function userNameOf(req: Request): string | null {
 /** `userNameOf` for a socket's handshake, whose headers went through the same sanitizing. */
 export function userNameFromHeaders(headers: IncomingHttpHeaders): string | null {
 	const n = headers['x-user-name'];
-	return typeof n === 'string' && n !== '' ? n : null;
+	return typeof n === 'string' && n !== '' ? utf8HeaderValue(n) : null;
+}
+
+const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true });
+
+/**
+ * A header value as the text its sender meant. The edge sends a name's UTF-8
+ * bytes and Node reads every header byte as one Latin-1 character, so
+ * `王蟲様` arrives as `ç\x8e\x8bè…`. Bytes that are valid UTF-8 are read as
+ * UTF-8; anything else (plain ASCII, or a lone Latin-1 byte) is kept as it came.
+ */
+export function utf8HeaderValue(value: string): string {
+	const codes = Array.from(value, (c) => c.charCodeAt(0));
+	if (!codes.some((c) => c >= 0x80) || codes.some((c) => c > 0xff)) return value;
+	try {
+		return STRICT_UTF8.decode(Buffer.from(value, 'latin1'));
+	} catch {
+		return value;
+	}
 }
 
 /** The one admin check: `rankOf(tierOf(req)) >= rankOf('admin')`. */

@@ -193,6 +193,14 @@ describe('the header readers', () => {
 		expect(userNameFromHeaders({ 'x-user-name': 'Ada' })).toBe('Ada');
 	});
 
+	it('reads a non-ASCII name the edge sent as UTF-8 bytes, which Node hands over as Latin-1', () => {
+		const onTheWire = Buffer.from('ohmusama (王蟲様)', 'utf8').toString('latin1');
+		expect(userNameFromHeaders({ 'x-user-name': onTheWire })).toBe('ohmusama (王蟲様)');
+		expect(userNameFromHeaders({ 'x-user-name': Buffer.from('José', 'utf8').toString('latin1') })).toBe('José');
+		// A lone Latin-1 byte is not UTF-8: kept as it came.
+		expect(userNameFromHeaders({ 'x-user-name': 'Jos\xe9' })).toBe('Jos\xe9');
+	});
+
 	it('isAdmin is the one admin check: rankOf(tierOf(req)) >= rankOf("admin")', () => {
 		expect(isAdmin(reqOf({ 'x-hadoku-tier': 'admin' }))).toBe(true);
 		expect(isAdmin(reqOf({ 'x-hadoku-tier': 'wife' }))).toBe(false);
