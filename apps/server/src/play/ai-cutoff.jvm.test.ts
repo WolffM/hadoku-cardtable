@@ -73,7 +73,7 @@ describe.skipIf(!available.ok)(title, () => {
 			// What the JVM was doing: the pool's events and the tail of its stderr, which the run dir loses at stop.
 			const runs = (poolLog.filter((l) => l.evt === 'jvm-spawned') as { run: string }[]).map((l) => l.run);
 			const tails = runs.map((run) => readFileSync(join(run, 'bridge.stderr.txt'), 'utf8').split('\n').filter((l) => !/not assigned to any set/.test(l)).slice(-40).join('\n'));
-			throw new Error(`${(e as Error).message}; ${detail()}; pool log ${JSON.stringify(poolLog)}; stderr tail:\n${tails.join('\n---\n')}`);
+			throw new Error(`${(e as Error).message}; ${detail()}; pool log ${JSON.stringify(poolLog)}; stderr tail:\n${tails.join('\n---\n')}`, { cause: e });
 		}
 
 		const jvms = pool.jvms();
