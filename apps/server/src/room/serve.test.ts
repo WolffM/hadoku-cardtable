@@ -58,6 +58,8 @@ interface Harness {
 	tableKey: string;
 	lockedTableKey: string;
 	presence: ReturnType<typeof import('./socket.ts').createSeatPresence>;
+	/** The served room's account lookup, whose cache a test can fill as a resumed match would. */
+	people: ReturnType<typeof import('../people.ts').createPeople>;
 	/** What the stand-in prefs-api says each account is called, by userId; change it to rename someone. */
 	names: Map<string, string>;
 	served: Awaited<ReturnType<typeof import('./serve.ts').attachServedRoom>>;
@@ -115,6 +117,7 @@ async function boot(): Promise<Harness> {
 		tableKey: `cardtable-${made.room.id}-${made.room.tables[0]!.id}`,
 		lockedTableKey: `cardtable-${locked.room.id}-${locked.room.tables[0]!.id}`,
 		presence,
+		people,
 		names,
 		served,
 		events,
@@ -311,6 +314,24 @@ describe('attachServedRoom', () => {
 			alice.socket.emit('identity_update', { name: 'Ariadne' });
 			await vi.waitFor(() => expect(nameOfAlice()).toBe('Ariadne'));
 			await vi.waitFor(() => expect(lastRoster(carol).map((u) => u.name)).toContain('Ariadne'));
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('a person the served room has not seen since it started is read fresh on joining, not from the people cache', async () => {
+		const h = await boot();
+		try {
+			const aliceId = participantIdFor('alice');
+			h.lobby.join(h.roomId, { id: aliceId, name: 'header-alice', userId: 'user-alice' });
+			// A restart: a resumed match's seats fill people's cache before alice's room socket is back.
+			h.names.set('user-alice', 'Ari');
+			await h.people.resolve(['user-alice']);
+			// She changes her account while that socket is still reconnecting, so the chrome's
+			// `identity_update` reaches a server she has not joined yet and is dropped.
+			h.names.set('user-alice', 'Ariadne');
+			await joinRoom(h.port, edgeHeaders('alice'), `cardtable-${h.roomId}`);
+			await vi.waitFor(() => expect(h.lobby.get(h.roomId)?.members.find((m) => m.id === aliceId)?.name).toBe('Ariadne'));
 		} finally {
 			await h.close();
 		}

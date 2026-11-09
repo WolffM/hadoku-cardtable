@@ -15,9 +15,10 @@
  *
  * ## One answer to "who is this"
  *
- * `account` is `people.ts`'s lookup, keyed by the edge's `X-User-Id`, and honours `fresh` (the
- * chrome's `identity_update` after a rename or a new picture, and the account's own join or chat
- * once its copy is `accountStaleMs` old). serveRoom pushes the answer to every connection of the
+ * `account` is `people.ts`'s lookup, keyed by the edge's `X-User-Id`, and always reads fresh:
+ * serveRoom calls it on the chrome's `identity_update` after a rename or a new picture, on the
+ * account's own join or chat once its copy is `accountStaleMs` old, and on a person's first join
+ * since this server started. serveRoom pushes the answer to every connection of the
  * account and calls `apply`, which writes it into the lobby (`applyPerson`): the room list, the
  * table and the chrome all read the same name, picture and character, and a rename reaches the
  * other players' room list with nobody rejoining.
@@ -166,8 +167,13 @@ export async function attachServedRoom(io: SocketIOServer, deps: ServeDeps): Pro
 				},
 			};
 		},
-		async account(accountId, { fresh }) {
-			const person = (await people.resolve([accountId], { fresh })).get(accountId);
+		// Always read fresh. serveRoom asks without `fresh` only for a person it holds no copy of (their
+		// first join or line since this server started), and people's cache may predate a change they
+		// made while their socket was down: a restart's resumed match fills it, and the chrome's
+		// `identity_update` for a pick made before the socket rejoined is dropped ("join the room
+		// first"), so this read is the only one that sees the pick.
+		async account(accountId) {
+			const person = (await people.resolve([accountId], { fresh: true })).get(accountId);
 			if (person === undefined) return null;
 			// `sprite` rides along so a change of character alone is a change of identity too.
 			const identity: AccountIdentity & { sprite?: string } = {
