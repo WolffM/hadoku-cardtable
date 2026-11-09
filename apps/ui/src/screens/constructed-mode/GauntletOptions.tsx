@@ -4,15 +4,21 @@
  * standard/modern/legacy and the year or allow random"*). Only eras the server
  * offers are listed — each holds the ten decks a Gauntlet is drawn from.
  * Leaving both random is `{}`: the server draws the era when both are ready.
+ *
+ * Drawn as Classic draws its pool: the format tabs, then the year slider, with
+ * the slider's one stop that is not a year, left of the oldest, for Random.
  */
 
 import type { GauntletOptions as Options } from '@hadoku/shared';
 
-import { RadioCards, type RadioCard } from '../../components/RadioCards.tsx';
-import { formatEraYear } from '../../front/formatLabel.ts';
+import { YearSlider, type YearStop } from '../../components/YearSlider.tsx';
 import { FORMAT_TABS, type FormatFamily, type GauntletEraOption } from '../tables.ts';
+import { eraStops, FormatTabs, type FormatTab } from './FormatTabs.tsx';
 
-type FamilyCard = FormatFamily | 'random';
+type FamilyTab = FormatFamily | 'random';
+
+/** The year stop that is not a year: the server draws one. */
+const RANDOM_YEAR: YearStop = { id: '', label: 'Random', year: null };
 
 export function GauntletOptions({
   eras,
@@ -29,38 +35,29 @@ export function GauntletOptions({
   disabled: boolean;
   onChange: (options: Options) => void;
 }) {
-  const families: readonly RadioCard<FamilyCard>[] = [
-    ...FORMAT_TABS.filter((tab) => eras.some((e) => e.family === tab.id)).map((tab) => ({ value: tab.id, label: tab.label })),
-    { value: 'random', label: 'Random' },
-  ];
+  const families: readonly FormatTab<FamilyTab>[] = [...FORMAT_TABS.filter((tab) => eras.some((e) => e.family === tab.id)), { id: 'random', label: 'Random' }];
   const family = options.family ?? null;
-  const years = family === null ? [] : eras.filter((e) => e.family === family);
+  const locked = !leader || disabled;
   return (
     <>
-      <RadioCards
-        name="gauntlet-family"
-        label="Gauntlet format"
-        options={families}
+      <FormatTabs
+        tabs={families}
         value={family ?? 'random'}
-        disabled={!leader || disabled}
-        onChange={(next) => onChange(next === 'random' ? {} : { family: next })}
-        testId="gauntlet-family"
+        disabled={locked}
+        testId="gauntlet"
+        onChoose={(next) => {
+          if (next !== (family ?? 'random')) onChange(next === 'random' ? {} : { family: next });
+        }}
       />
       {family !== null && (
-        <select
-          data-testid="gauntlet-era"
-          aria-label={`${family} year`}
+        <YearSlider
+          testId="gauntlet-era"
+          label={`${FORMAT_TABS.find((t) => t.id === family)!.label} year`}
+          stops={[RANDOM_YEAR, ...eraStops(eras.filter((e) => e.family === family))]}
           value={options.era ?? ''}
-          disabled={!leader || disabled}
-          onChange={(e) => onChange(e.target.value === '' ? { family } : { family, era: e.target.value })}
-        >
-          <option value="">Random</option>
-          {years.map((e) => (
-            <option key={e.id} value={e.id} title={e.title}>
-              {formatEraYear(e.id)}
-            </option>
-          ))}
-        </select>
+          disabled={locked}
+          onChange={(era) => onChange(era === '' ? { family } : { family, era })}
+        />
       )}
     </>
   );

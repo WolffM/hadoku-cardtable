@@ -2932,18 +2932,22 @@ describe('the room’s mode', () => {
 
   it('Gauntlet offers the server’s families and years, or Random: the leader’s picks are the room’s options', async () => {
     const server = await mountModeRoom({ players: [], matchId: null, mode: { mode: 'gauntlet', modeOptions: {} } });
-    const families = await screen.findByTestId('gauntlet-family');
+    const families = await screen.findByTestId('gauntlet-tabs');
     // Standard has no era with ten decks here, so it is not offered.
     expect(families.textContent).toBe('ModernLegacyRandom');
-    expect((screen.getByTestId('gauntlet-family-random') as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByTestId('gauntlet-tab-random').getAttribute('aria-selected')).toBe('true');
     expect(screen.queryByTestId('gauntlet-era')).toBeNull();
     expect(screen.queryByTestId('deck-mine')).toBeNull();
 
-    fireEvent.click(screen.getByTestId('gauntlet-family-modern'));
-    const era = (await screen.findByTestId('gauntlet-era')) as HTMLSelectElement;
-    expect([...era.options].map((o) => o.textContent)).toEqual(['Random', '2014', '2012']);
-    fireEvent.change(era, { target: { value: 'modern-2012-07-13' } });
-    await waitFor(() => expect((screen.getByTestId('gauntlet-era') as HTMLSelectElement).value).toBe('modern-2012-07-13'));
+    fireEvent.click(screen.getByTestId('gauntlet-tab-modern'));
+    // Classic's year slider, with Random left of the oldest year: no dropdown.
+    const era = await screen.findByTestId('gauntlet-era');
+    expect(era.closest('.lobby__modeline')?.querySelector('select')).toBeNull();
+    expect(within(era).getByRole('slider').getAttribute('aria-label')).toBe('Modern year');
+    expect(sliderStops('gauntlet-era')).toEqual(['', 'modern-2012-07-13', 'modern-2014-07-18']);
+    await waitFor(() => expect(sliderValue('gauntlet-era')).toBe(''));
+    await act(async () => slide('gauntlet-era', 'modern-2012-07-13'));
+    await waitFor(() => expect(sliderValue('gauntlet-era')).toBe('modern-2012-07-13'));
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([
       { mode: 'gauntlet', modeOptions: { family: 'modern' } },
       { mode: 'gauntlet', modeOptions: { family: 'modern', era: 'modern-2012-07-13' } },
@@ -2957,15 +2961,14 @@ describe('the room’s mode', () => {
       answer = r;
     });
     await mountModeRoom(table);
-    const era = () => screen.getByTestId('gauntlet-era') as HTMLSelectElement;
-    await waitFor(() => expect(era().value).toBe(''));
-    fireEvent.change(era(), { target: { value: 'modern-2012-07-13' } });
-    // The write is still on the wire: the select shows the pick, not the room's Random.
-    expect(era().value).toBe('modern-2012-07-13');
+    await waitFor(() => expect(sliderValue('gauntlet-era')).toBe(''));
+    await act(async () => slide('gauntlet-era', 'modern-2012-07-13'));
+    // The write is still on the wire: the slider shows the pick, not the room's Random.
+    await waitFor(() => expect(sliderValue('gauntlet-era')).toBe('modern-2012-07-13'));
     table.refusePatch = { status: 409, error: 'mode-locked' };
     answer();
     await screen.findByTestId('table-error');
-    expect(era().value).toBe('');
+    expect(sliderValue('gauntlet-era')).toBe('');
   });
 
   it('a Gauntlet seat readies with the Gauntlet, not the table, and once it is ready the mode is fixed', async () => {
@@ -2977,7 +2980,7 @@ describe('the room’s mode', () => {
     expect(server.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/gauntlet/ready')).map((c) => c.body)).toEqual([{ ready: true }]);
     expect(server.calls.some((c) => c.url.endsWith(`/tables/rooms/${ROOM}/ready`))).toBe(false);
     expect(screen.getByTestId('ready-toggle').getAttribute('aria-pressed')).toBe('true');
-    expect((screen.getByTestId('gauntlet-family-random') as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByTestId('gauntlet-tab-random') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('a drawn Gauntlet draws its board in the room, and the mode stays fixed', async () => {

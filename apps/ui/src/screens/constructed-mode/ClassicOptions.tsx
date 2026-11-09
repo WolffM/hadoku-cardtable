@@ -16,12 +16,13 @@ import { useEffect, useState } from 'react';
 
 import { FREE_PICK } from '@hadoku/shared';
 import { YearSlider, type YearStop } from '../../components/YearSlider.tsx';
-import { formatEraLabel, formatEraYear } from '../../front/formatLabel.ts';
+import { formatEraLabel } from '../../front/formatLabel.ts';
 import { erasOf, FORMAT_TABS, newestFormat, type FormatFamily, type TableFormat } from '../tables.ts';
+import { eraStops, FormatTabs, type FormatTab } from './FormatTabs.tsx';
 
 /** Free pick's browse: a format's library, or the decks you drafted (`#/decks`). */
 export type BrowseTab = FormatFamily | 'mine';
-const BROWSE_TABS: ReadonlyArray<{ id: BrowseTab; label: string }> = [...FORMAT_TABS, { id: 'mine', label: 'My decks' }];
+const BROWSE_TABS: readonly FormatTab<BrowseTab>[] = [...FORMAT_TABS, { id: 'mine', label: 'My decks' }];
 
 export interface Browse {
   family: BrowseTab;
@@ -38,16 +39,6 @@ export function toggledFreePick(formats: readonly TableFormat[], poolId: string,
   const family = browse.family === 'mine' ? 'standard' : browse.family;
   const era = browse.era || erasOf(formats, family)[0]?.id;
   return { pool: era ?? newestFormat(formats) };
-}
-
-/** A tab's eras as the slider's stops: oldest on the left, each at its year. */
-export function yearStops(formats: readonly TableFormat[], tab: FormatFamily): YearStop[] {
-  return erasOf(formats, tab)
-    .reverse()
-    .flatMap((f) => {
-      const year = Number(formatEraYear(f.id));
-      return Number.isInteger(year) ? [{ id: f.id, label: String(year), year }] : [];
-    });
 }
 
 /** Free pick's browse stop that is not a year: every year of the tab at once. */
@@ -118,30 +109,21 @@ export function ClassicOptions({
           pool as text and cannot move it. */}
       {leader && !freePick && (
         <>
-          <div className="lobby__format-tabs" role="tablist" data-testid="format-tabs">
-            {FORMAT_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className="ct-toggle"
-                role="tab"
-                aria-selected={formatTab === tab.id}
-                data-testid={`format-tab-${tab.id}`}
-                disabled={disabled}
-                onClick={() => {
-                  setFormatTab(tab.id);
-                  const first = erasOf(formats, tab.id)[0];
-                  if (first !== undefined && formats.find((f) => f.id === shownPool)?.family !== tab.id) ask(first.id);
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <FormatTabs
+            tabs={FORMAT_TABS}
+            value={formatTab}
+            disabled={disabled}
+            testId="format"
+            onChoose={(tab) => {
+              setFormatTab(tab);
+              const first = erasOf(formats, tab)[0];
+              if (first !== undefined && formats.find((f) => f.id === shownPool)?.family !== tab) ask(first.id);
+            }}
+          />
           <YearSlider
             testId="format"
             label={`${FORMAT_TABS.find((t) => t.id === formatTab)!.label} year`}
-            stops={yearStops(formats, formatTab)}
+            stops={eraStops(erasOf(formats, formatTab))}
             value={shownPool}
             disabled={disabled}
             busy={asked !== null}
@@ -159,27 +141,13 @@ export function ClassicOptions({
       {/* On Free pick, everybody's own browse — see `shownOptions`. */}
       {freePick && (
         <>
-          <div className="lobby__format-tabs" role="tablist" data-testid="browse-tabs">
-            {BROWSE_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className="ct-toggle"
-                role="tab"
-                aria-selected={browse.family === tab.id}
-                data-testid={`browse-tab-${tab.id}`}
-                onClick={() => onBrowse({ family: tab.id, era: '' })}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <FormatTabs tabs={BROWSE_TABS} value={browse.family} testId="browse" onChoose={(family) => onBrowse({ family, era: '' })} />
           {/* My decks have no years. Every year at once sits left of the oldest. */}
           {browse.family !== 'mine' && (
             <YearSlider
               testId="browse-era"
               label={`${FORMAT_TABS.find((t) => t.id === browse.family)!.label} year`}
-              stops={[ALL_YEARS, ...yearStops(formats, browse.family)]}
+              stops={[ALL_YEARS, ...eraStops(erasOf(formats, browse.family))]}
               value={browse.era}
               onChange={(era) => onBrowse({ family: browse.family, era })}
             />
