@@ -344,10 +344,14 @@ ${right === null ? name("You?", RIGHT_X, MUTE) : name(right.name, RIGHT_X, INK)}
 </svg>`;
 }
 
+/**
+ * Only the named font files are loaded: resvg builds its font database on every render, and a scan
+ * of the system's fonts (thousands on a full host) blocked the event loop for 0.1–1 s a card.
+ */
 export function renderCard(svg: string, fontFiles: readonly string[]): Buffer {
   return new Resvg(svg, {
     font: {
-      loadSystemFonts: true,
+      loadSystemFonts: false,
       fontFiles: [...fontFiles],
       defaultFontFamily: SANS,
     },
@@ -446,7 +450,19 @@ export function attachPreview(router: Router, deps: PreviewDeps): void {
   });
 }
 
-/** The faces the card is set in, shipped beside the server (`assets/fonts`). */
+const NOTO = "/usr/share/fonts/truetype/noto";
+const NOTO_CJK = "/usr/share/fonts/opentype/noto";
+
+/**
+ * The faces the card is set in: Cinzel, shipped beside the server (`assets/fonts`), and the host's
+ * Noto Sans at the names' weight. A name with a character Noto Sans lacks is set whole in the first
+ * font that has them all, so the CJK face is the bold one only (it also has the symbols).
+ * `attachPreview` keeps only the files that exist.
+ */
 export function previewFonts(pkgRoot: string): string[] {
-  return [join(pkgRoot, "assets/fonts/Cinzel.ttf")];
+  return [
+    join(pkgRoot, "assets/fonts/Cinzel.ttf"),
+    `${NOTO}/NotoSans-SemiBold.ttf`,
+    `${NOTO_CJK}/NotoSansCJK-Bold.ttc`,
+  ];
 }
