@@ -65,8 +65,13 @@ const CHAT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
  */
 type RoomPlace = { served: string; roomId: string; kind: 'room' | 'table' } | { served: string; roomId: null; kind: 'match' };
 
-/** `cardtable-<id>` → the place it names, or null when it is not one of ours or names nothing live. */
-export function placeOfKey(lobby: Pick<Lobby, 'get'>, isMatch: (id: string) => boolean, roomKey: string): RoomPlace | null {
+/**
+ * `cardtable-<id>` → the place it names, or null when it is not one of ours or names nothing live.
+ * A table's key is `<roomId>-<tableId>`, or `<roomId>-<matchId>` when the screen's copy of the room
+ * no longer names the table its match was played at (`App.tsx`'s `tableChatId`); either is the
+ * room's table chat, the match found through the lobby's own memory of it (`roomOfMatch`).
+ */
+export function placeOfKey(lobby: Pick<Lobby, 'get' | 'roomOfMatch'>, isMatch: (id: string) => boolean, roomKey: string): RoomPlace | null {
 	const prefix = `${APP_ID}-`;
 	if (!roomKey.startsWith(prefix)) return null;
 	const id = roomKey.slice(prefix.length);
@@ -74,8 +79,9 @@ export function placeOfKey(lobby: Pick<Lobby, 'get'>, isMatch: (id: string) => b
 	if (lobby.get(id) !== undefined) return { served: id, roomId: id, kind: 'room' };
 	for (let at = id.indexOf('-'); at !== -1; at = id.indexOf('-', at + 1)) {
 		const room = lobby.get(id.slice(0, at));
-		const tableId = id.slice(at + 1);
-		if (room?.tables.some((t) => t.id === tableId) === true) return { served: id, roomId: room.id, kind: 'table' };
+		if (room === undefined) continue;
+		const rest = id.slice(at + 1);
+		if (room.tables.some((t) => t.id === rest) || lobby.roomOfMatch(rest)?.id === room.id) return { served: id, roomId: room.id, kind: 'table' };
 	}
 	return isMatch(id) ? { served: id, roomId: null, kind: 'match' } : null;
 }
@@ -133,11 +139,16 @@ export async function attachServedRoom(io: SocketIOServer, deps: ServeDeps): Pro
 			// Provenance is sanitized engine-wide (`gate.ts`'s `gateSocketIo`, installed by the draft
 			// socket on this same `io`) before any namespace's `connection` fires.
 			const headers = socket.request.headers;
-			if (rankOf(handshakeTier(headers)) < rankOf(deps.minTier)) return null;
+			// Which gate refused, and the key it refused: a refusal the log cannot explain is one nobody can fix.
+			const refuse = (gate: 'tier' | 'no-place' | 'not-member'): null => {
+				deps.onEvent?.('warn', 'room.refused', { sid: socket.id, room_key: join.room_key, gate });
+				return null;
+			};
+			if (rankOf(handshakeTier(headers)) < rankOf(deps.minTier)) return refuse('tier');
 			const place = placeOfKey(lobby, deps.isMatch, join.room_key);
-			if (place === null) return null;
+			if (place === null) return refuse('no-place');
 			const participantId = identityFromHeaders(headers, socket.id);
-			if (!mayJoin(lobby, place, participantId)) return null;
+			if (!mayJoin(lobby, place, participantId)) return refuse('not-member');
 			const roomId = place.roomId;
 			const accountId = accountOfHeaders(headers);
 			return {

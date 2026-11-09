@@ -61,6 +61,8 @@ interface Harness {
 	/** What the stand-in prefs-api says each account is called, by userId; change it to rename someone. */
 	names: Map<string, string>;
 	served: Awaited<ReturnType<typeof import('./serve.ts').attachServedRoom>>;
+	/** What the served room logged, `room.refused` among it. */
+	events: Array<{ event: string; fields: Record<string, unknown> }>;
 	close: () => Promise<void>;
 }
 
@@ -95,7 +97,16 @@ async function boot(): Promise<Harness> {
 	const http = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
 	gateMod.gateSocketIo(io, { minTier: 'friend', surface: 'draft-socket' });
-	const served = await serveMod.attachServedRoom(io, { lobby, presence, people, isMatch: (id) => id === LIVE_MATCH, minTier: 'friend', stateDir: () => chatDir });
+	const events: Array<{ event: string; fields: Record<string, unknown> }> = [];
+	const served = await serveMod.attachServedRoom(io, {
+		lobby,
+		presence,
+		people,
+		isMatch: (id) => id === LIVE_MATCH,
+		minTier: 'friend',
+		stateDir: () => chatDir,
+		onEvent: (_level, event, fields) => events.push({ event, fields }),
+	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	return {
 		port: (http.address() as AddressInfo).port,
@@ -106,6 +117,7 @@ async function boot(): Promise<Harness> {
 		presence,
 		names,
 		served,
+		events,
 		close: async () => {
 			served.close();
 			io.close();
@@ -155,8 +167,11 @@ afterAll(async () => {
 /* ── placeOfKey ──────────────────────────────────────────────────────── */
 
 describe('placeOfKey', () => {
+	const room = { id: 'r-abc', tables: [{ id: 't-1' }] } as unknown as NonNullable<ReturnType<Lobby['get']>>;
 	const lobby = {
-		get: (id: string) => (id === 'r-abc' ? ({ id: 'r-abc', tables: [{ id: 't-1' }] } as unknown as ReturnType<Lobby['get']>) : undefined),
+		get: (id: string) => (id === 'r-abc' ? room : undefined),
+		// The room remembers a match its table has moved on from.
+		roomOfMatch: (id: string) => (id === 'm-past' ? room : undefined),
 	};
 	const place = (key: string) => placeOfKey(lobby, (id) => id === 'm-1', key);
 
@@ -168,6 +183,10 @@ describe('placeOfKey', () => {
 		expect(place('cardtable-r-abc-t-1')).toEqual({ served: 'r-abc-t-1', roomId: 'r-abc', kind: 'table' });
 	});
 
+	it('a room’s key with a match it played, when the screen’s copy no longer names that table, is the room’s table chat', () => {
+		expect(place('cardtable-r-abc-m-past')).toEqual({ served: 'r-abc-m-past', roomId: 'r-abc', kind: 'table' });
+	});
+
 	it('a match no room holds is served by its own id', () => {
 		expect(place('cardtable-m-1')).toEqual({ served: 'm-1', roomId: null, kind: 'match' });
 	});
@@ -177,6 +196,7 @@ describe('placeOfKey', () => {
 		expect(place('cardtable-r-zzz')).toBeNull();
 		expect(place('cardtable-m-2')).toBeNull();
 		expect(place('cardtable-r-abc-t-9')).toBeNull();
+		expect(place('cardtable-r-abc-m-elsewhere')).toBeNull();
 		expect(place('cardtable-R-ABC')).toBeNull();
 		expect(place('cardtable-')).toBeNull();
 	});
@@ -236,6 +256,7 @@ describe('attachServedRoom', () => {
 			bob.socket.emit('chat_send', { text: 'bob should never be heard' });
 			await vi.waitFor(() => expect(bob.errors.length).toBeGreaterThan(1));
 			expect([bob.snapshots, bob.historyEvents, alice.broadcasts]).toEqual([0, 0, []]);
+			expect(h.events.find((e) => e.event === 'room.refused')?.fields).toMatchObject({ room_key: key, gate: 'not-member' });
 			expect((await h.served.chat.store.recentMessages(h.roomId)).some((m) => m.text === 'bob should never be heard')).toBe(false);
 		} finally {
 			await h.close();
@@ -250,6 +271,9 @@ describe('attachServedRoom', () => {
 			const lost = await joinRoom(h.port, edgeHeaders('alice'), 'cardtable-r-doesnotexist00');
 			await vi.waitFor(() => expect([anon.errors[0]?.code, lost.errors[0]?.code]).toEqual(['auth/forbidden', 'auth/forbidden']));
 			expect([anon.snapshots, lost.snapshots]).toEqual([0, 0]);
+			// Each refusal says which key and which gate.
+			const refused = h.events.filter((e) => e.event === 'room.refused').map((e) => [e.fields.room_key, e.fields.gate]);
+			expect(refused).toEqual(expect.arrayContaining([[`cardtable-${h.roomId}`, 'tier'], ['cardtable-r-doesnotexist00', 'no-place']]));
 		} finally {
 			await h.close();
 		}
