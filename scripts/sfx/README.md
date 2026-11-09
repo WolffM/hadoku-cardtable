@@ -464,7 +464,8 @@ export ACESTEP_CHECKPOINTS_DIR=~/.cache/ace-step/checkpoints ACESTEP_DISABLE_TQD
 
 The operator: *"eventually i want to have 2 tracks for every slot. one 'normal' and one 16-bit."* `music-round3.json`
 gives every prompt a `lane` and names it `"<CODE> · 16-bit <description>"` or `"<CODE> · <description>"`, so the
-review page can group both lanes per slot. The 16-bit prompts each name a console palette (SNES SPC700 samples or
+review page can group both lanes per slot. **Retired:** the two lanes are not a requirement (the operator, 2026-11-09: *"16-bit tracks are not a
+requirement anymore. we're just trying to generate good music"*); a slot holds whatever good tracks it has. The 16-bit prompts each name a console palette (SNES SPC700 samples or
 Mega Drive YM2612 FM) and, where the colour allows, ask for no drums or for varied fills instead of a steady snare
 (round 1's grotto). The normal prompts follow the reviewers' style references (Frutiger Aero, riff-driven heavy
 metal, psychedelic swamp blues, string-fusion djent) as directions only. The G, W and U normal takes are
