@@ -1002,7 +1002,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// A human entrant: `locked` replays the snapshot verbatim; `per-round`
 			// clears the hold so Classic's `PUT …/deck` is required again and All
 			// Random's own ready-time deal (`dealRandom`) sees no held deck to keep.
-			rooms.setPlayerState(roomId, entrant, locked === null ? { v: 1, deck: null, seriesDeck: null } : { v: 1, deck: locked, seriesDeck: null });
+			// Their AI partner's deck is the AI branch's alone: a pairing seats its
+			// AI first when the AI's seat sorts first, and this must not wipe it.
+			const partner = readPlayerState(rooms.playerState(roomId, entrant))?.aiDeck;
+			const ai = partner === undefined ? {} : { aiDeck: partner };
+			rooms.setPlayerState(roomId, entrant, locked === null ? { v: 1, deck: null, seriesDeck: null, ...ai } : { v: 1, deck: locked, seriesDeck: null, ...ai });
 		},
 	});
 	// Two AI entrants paired together play it out on play's registry, which exists only after this runs

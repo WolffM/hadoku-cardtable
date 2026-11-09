@@ -349,6 +349,10 @@ export interface RoomView extends PublicRoomView {
 	/** This server hosts only Magic's game types: its codec quarantines a saved room of any other. */
 	gameType: GameType;
 	game: MagicRoomGame;
+	/** A Challenge room (`RoomRecord.historical`): born whole, its field the event's. */
+	historical?: true;
+	/** A Challenge's entrant → its real player's library deck id (`RoomRecord.aiDeckAssignments`). */
+	aiDeckAssignments?: Record<string, string>;
 	ai: AiPersona;
 }
 
@@ -2439,6 +2443,8 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		testing: room.testing,
 		scheduledFor: room.scheduledFor === undefined ? null : new Date(room.scheduledFor).toISOString(),
 		...(room.historical === true ? { historical: true } : {}),
+		// Public like the seats' own `deckId`s, and what the lock deals each AI entrant (`PodChecks.currentTournamentDeck`).
+		...(room.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.aiDeckAssignments } }),
 	};
 }
 
