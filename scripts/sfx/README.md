@@ -535,3 +535,29 @@ its survivors are the takes still listed.
 Unrated: RW drumline assault and war camp at dawn, RG stampede batucada and beast lair. The 16-bit pilots went 1
 of 3: the sewer's sparse recipe holds for a calm place (a cloister) and bores in a slot that wants drive (red) or
 already has a better place (green). RW's brass was close but dense, the round-3 "too much noise" again.
+
+### Round 5: good music only, two or more per slot (2026-11-09)
+
+The operator: *"i need at least 2 tracks for each combo. can you come up with some new unique tracks?"*, and *"16-bit
+tracks are not a requirement anymore. we're just trying to generate good music."* `music-round5.json` gives every
+slot holding fewer than two live tracks three new ideas (RG, empty, four) and the slots at two one more each: 37
+prompts, all of round 3's two kinds that kept, none repeating an earlier round's genre. Fights ask for a warm,
+soft-topped mix and run through-composed with a breakdown; places are written as heard from far off and sit 6 dB
+under their beds.
+
+- 74 takes (2 per prompt). Both takes of spider's duel and arcane library failed the stereo test (−0.35 to −0.55,
+  sparse acoustic again) and steppe horde had one weak pass; seeds 3–4 (`--takes 4 --only …`) gave each a clean take.
+- Each prompt's `pick` is the take imported: phase and seam first, then the warmer one (lower centroid and 2–6 kHz
+  share) where both passed. The bright takes of mossy cave, redwood, temple, arena and warehouse were dropped.
+- Two soundscapes came out hissy against the keeps (woodland flute, a keep, has 17 % of its energy up high; meadow had
+  48 %, storm workshop 40 %: insects, a waterfall, rain and tesla crackle). Their beds were rewritten muffled and
+  lower and rebuilt (20 % and 15 %).
+- All 37 are imported into the live catalogue; none is in a cell until the operator picks it.
+
+```sh
+export ACESTEP_CHECKPOINTS_DIR=~/.cache/ace-step/checkpoints ACESTEP_DISABLE_TQDM=1
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-generate.py --spec scripts/sfx/music-round5.json --seed 80000
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-generate.py --spec scripts/sfx/music-round5.json --seed 80000 --takes 4 --only bg-r5-spider,u-r5-library,rg-r5-steppe
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-finish.py --only <every round-5 id>
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/music-soundscape.py --spec scripts/sfx/music-round5.json --seed 81000
+```

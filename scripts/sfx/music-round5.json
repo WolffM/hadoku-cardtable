@@ -1,0 +1,1135 @@
+{
+ "about": "Match music round 5 (2026-11-09). The operator: \"i need at least 2 tracks for each combo. can you come up with some new unique tracks?\" and \"16-bit tracks are not a requirement anymore. we're just trying to generate good music.\" Every slot with fewer than two live tracks (RG none; B, BG, G, GU, GW, R, RW, U, WB, WU one) gets three new ideas, RG four, and the slots at two get one more for variety. Only the two kinds that kept: battle in costume (one distinct genre fought out, warm soft-topped mix, through-composed with a breakdown) and a place you are in (music written as heard from far off, laid 6 dB under its beds). No genre repeats an earlier round.",
+ "defaults": {
+  "duration": 260,
+  "steps": 50,
+  "cfg": 7.0,
+  "shift": 1.0
+ },
+ "prompts": [
+  {
+   "id": "rg-r5-capoeira",
+   "colour": "RG",
+   "name": "RG · capoeira roda",
+   "takes": 2,
+   "caption": "capoeira fight music, berimbau twang leading, atabaque and pandeiro driving, agogo bell, handclaps, two fighters circling and striking, building intensity, acoustic and raw, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - lone berimbau]\n\n[Roda - drums join, slow game]\n\n[Game - tempo rises, berimbau calls]\n\n[Breakdown - berimbau and claps]\n\n[Fight - fast game, full percussion]\n\n[Outro - berimbau closes the roda]",
+   "bpm": 104,
+   "key": "D Major",
+   "meter": "4",
+   "pick": 1
+  },
+  {
+   "id": "rg-r5-steppe",
+   "colour": "RG",
+   "name": "RG · steppe horde gallop",
+   "takes": 2,
+   "caption": "galloping steppe war music, morin khuur horsehead fiddle and tovshuur lute, deep frame drums in a horse gallop rhythm, low drone, two clans charging across grassland, wild and earthy, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - wind and drone]\n\n[Gallop - frame drums and fiddle]\n\n[Charge - fiddle duel with the lute]\n\n[Breakdown - drone and hoofbeat drums]\n\n[Clash - full gallop, new melody]\n\n[Outro - riders scatter]",
+   "bpm": 132,
+   "key": "A Minor",
+   "meter": "6",
+   "pick": 4
+  },
+  {
+   "id": "rg-r5-junglebreaks",
+   "colour": "RG",
+   "name": "RG · jungle hunt breaks",
+   "takes": 2,
+   "caption": "organic drum and bass hunt, live breakbeat with congas and log drums, deep rolling sub bass, dark marimba ostinato, a predator chasing prey through a jungle at night, tense and fast, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - congas and night]\n\n[Stalk - marimba and soft breaks]\n\n[Chase - full breakbeat and sub bass]\n\n[Breakdown - log drums alone]\n\n[Pounce - double-time breaks]\n\n[Outro - the hunt ends]",
+   "bpm": 172,
+   "key": "F Minor",
+   "meter": "4",
+   "pick": 1
+  },
+  {
+   "id": "rg-r5-savanna",
+   "colour": "RG",
+   "name": "RG · savanna storm",
+   "takes": 2,
+   "caption": "slow pounding war drums and a low horn calling a few times, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence and wind]\n\n[Drums - distant pulse]\n\n[Call - low horn]\n\n[Pause]\n\n[Drums - closer and heavier]\n\n[Call - two horns answer]",
+   "bpm": 70,
+   "key": "C Minor",
+   "meter": "4",
+   "duration": 240,
+   "pick": 2
+  },
+  {
+   "id": "rw-r5-standoff",
+   "colour": "RW",
+   "name": "RW · western standoff",
+   "takes": 2,
+   "caption": "spaghetti western gunfight music, twangy baritone guitar, mariachi trumpet in its low register, nylon guitar strumming, timpani and anvil hits, slow tense standoff that breaks into a gallop, cinematic, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - lone guitar and wind]\n\n[Standoff - slow trumpet over strummed guitar]\n\n[Tension - timpani rolls]\n\n[Draw - sudden gallop]\n\n[Duel - trumpet and guitar trade lines]\n\n[Outro - one last echoing note]",
+   "bpm": 92,
+   "key": "D Minor",
+   "meter": "6",
+   "pick": 2
+  },
+  {
+   "id": "rw-r5-siege",
+   "colour": "RW",
+   "name": "RW · siege at night",
+   "takes": 2,
+   "caption": "night siege battle music, low cello and bass ostinato, deep war drums, french horns held low, a disciplined army scaling walls in the dark, driving and restrained, not dense, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - cello ostinato alone]\n\n[Approach - drums join softly]\n\n[Ladders - horns enter low]\n\n[Breakdown - ostinato and heartbeat drum]\n\n[Assault - full drums and horns, new figure]\n\n[Outro - silence over the walls]",
+   "bpm": 116,
+   "key": "E Minor",
+   "meter": "4",
+   "pick": 1
+  },
+  {
+   "id": "rw-r5-arena",
+   "colour": "RW",
+   "name": "RW · arena from below",
+   "takes": 2,
+   "caption": "a heavy war drum beat and low brass fanfare playing in a stadium above, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Fanfare - distant brass]\n\n[Drums - steady beat]\n\n[Pause]\n\n[Fanfare - brass and drums]\n\n[Drums - fading]",
+   "bpm": 96,
+   "key": "G Minor",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "r-r5-surf",
+   "colour": "R",
+   "name": "R · surf rock shootout",
+   "takes": 2,
+   "caption": "fast instrumental surf rock gunfight, two reverb-drenched electric guitars trading tremolo-picked riffs, driving tom-heavy drums, growling bass, a desert car chase that ends in a shootout, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - drum fill]\n\n[Chase - main riff]\n\n[Duel - guitars trade riffs]\n\n[Breakdown - bass and toms]\n\n[Shootout - double-picked climax, new riff]\n\n[Outro - spring reverb crash]",
+   "bpm": 168,
+   "key": "E Minor",
+   "meter": "4",
+   "pick": 2
+  },
+  {
+   "id": "r-r5-manouche",
+   "colour": "R",
+   "name": "R · gypsy jazz cutting contest",
+   "takes": 2,
+   "caption": "fiery gypsy jazz at breakneck speed, violin and lead acoustic guitar trading furious solos, la pompe rhythm guitar, upright double bass, a cutting contest that turns into a fight, acoustic, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - rhythm guitar pompe]\n\n[Head - violin and guitar together]\n\n[Cutting - guitar solo]\n\n[Answer - violin solo]\n\n[Breakdown - bass alone]\n\n[Brawl - both solo at once, faster]\n\n[Outro - final stab]",
+   "bpm": 220,
+   "key": "A Minor",
+   "meter": "4",
+   "pick": 2
+  },
+  {
+   "id": "r-r5-forge",
+   "colour": "R",
+   "name": "R · volcano forge",
+   "takes": 2,
+   "caption": "slow heavy war drums and deep throat-like low brass playing a few rough phrases, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence and rumble]\n\n[Drums - slow pulse]\n\n[Phrase - low brass]\n\n[Pause]\n\n[Drums - pulse]\n\n[Phrase - low brass, rising]",
+   "bpm": 66,
+   "key": "D Minor",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "g-r5-redwood",
+   "colour": "G",
+   "name": "G · redwood fog",
+   "takes": 2,
+   "caption": "a solo cello and a low wooden flute playing slow long phrases in turn, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Phrase - cello]\n\n[Pause]\n\n[Phrase - wooden flute]\n\n[Pause]\n\n[Phrase - cello and flute together]",
+   "bpm": 60,
+   "key": "D Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "g-r5-mosscave",
+   "colour": "G",
+   "name": "G · mossy cave spring",
+   "takes": 2,
+   "caption": "a hang drum and kalimba playing slow gentle patterns, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - drips]\n\n[Pattern - hang drum]\n\n[Pause]\n\n[Pattern - kalimba answers]\n\n[Pause]\n\n[Pattern - both, softly]",
+   "bpm": 72,
+   "key": "F Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "g-r5-meadow",
+   "colour": "G",
+   "name": "G · mountain meadow",
+   "takes": 2,
+   "caption": "a lone alphorn and a soft string pad playing a few slow calls across a valley, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Call - alphorn]\n\n[Pad - strings]\n\n[Pause]\n\n[Call - alphorn answers itself]\n\n[Pad - strings fade]",
+   "bpm": 58,
+   "key": "Bb Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "u-r5-sunkenchurch",
+   "colour": "U",
+   "name": "U · sunken cathedral",
+   "takes": 2,
+   "caption": "a slow pipe organ chord progression and a soft choir pad, muffled as if under water, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Chords - organ]\n\n[Pause]\n\n[Pad - choir]\n\n[Chords - organ and choir]\n\n[Fade]",
+   "bpm": 52,
+   "key": "C# Minor",
+   "meter": "4",
+   "duration": 240,
+   "pick": 2
+  },
+  {
+   "id": "u-r5-library",
+   "colour": "U",
+   "name": "U · arcane library at night",
+   "takes": 2,
+   "caption": "a slow harp and celesta playing sparse mysterious phrases, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Phrase - harp]\n\n[Pause]\n\n[Phrase - celesta]\n\n[Pause]\n\n[Phrase - harp and celesta]",
+   "bpm": 64,
+   "key": "E Minor",
+   "meter": "4",
+   "duration": 240,
+   "pick": 3
+  },
+  {
+   "id": "u-r5-wizardchess",
+   "colour": "U",
+   "name": "U · duel of minds",
+   "takes": 2,
+   "caption": "minimalist duel of two wizards, interlocking piano and celesta arpeggios, pulsing low strings, a marimba answering in a different meter, mysterious and tense, cerebral and shifting, like a chess match, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - single piano pattern]\n\n[Opening - celesta answers]\n\n[Gambit - strings pulse, patterns shift]\n\n[Breakdown - one quiet pattern]\n\n[Endgame - every pattern at once, new harmony]\n\n[Outro - checkmate chord]",
+   "bpm": 120,
+   "key": "F# Minor",
+   "meter": "7",
+   "pick": 1
+  },
+  {
+   "id": "b-r5-darkwave",
+   "colour": "B",
+   "name": "B · darkwave pursuit",
+   "takes": 2,
+   "caption": "darkwave chase, pulsing analog synth bass arpeggio, cold drum machine, gated snare, brooding minor synth pads, a cat-and-mouse pursuit through a city at night, cold and driving, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - arpeggio alone]\n\n[Pursuit - drums and bass]\n\n[Close in - pads swell]\n\n[Breakdown - heartbeat kick and pad]\n\n[Corner - double-time arpeggio, new chords]\n\n[Outro - arpeggio stops dead]",
+   "bpm": 124,
+   "key": "B Minor",
+   "meter": "4",
+   "pick": 2
+  },
+  {
+   "id": "b-r5-velvetclub",
+   "colour": "B",
+   "name": "B · vampire lounge",
+   "takes": 2,
+   "caption": "slow dark trip-hop with an upright bass, brushed drums, a dusty minor piano loop and vinyl crackle, playing in another room, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - crackle]\n\n[Groove - bass and brushes]\n\n[Piano - dusty loop]\n\n[Pause - bass alone]\n\n[Groove - full]\n\n[Fade]",
+   "bpm": 78,
+   "key": "G Minor",
+   "meter": "4",
+   "duration": 240,
+   "pick": 2
+  },
+  {
+   "id": "b-r5-poisoner",
+   "colour": "B",
+   "name": "B · poisoner's duet",
+   "takes": 2,
+   "caption": "a deadly duet for harpsichord and cello, baroque but dark, each instrument trying to outplay the other, pizzicato stabs, tempo rising like a poisoned toast going wrong, sinister and elegant, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - lone harpsichord]\n\n[Toast - cello joins in counterpoint]\n\n[Duel - trading fast runs]\n\n[Breakdown - cello pizzicato alone]\n\n[Poison - harpsichord frantic, new figure]\n\n[Outro - one cello note dies away]",
+   "bpm": 108,
+   "key": "D Minor",
+   "meter": "3",
+   "pick": 2
+  },
+  {
+   "id": "wu-r5-skyport",
+   "colour": "WU",
+   "name": "WU · sky port",
+   "takes": 2,
+   "caption": "a string quartet playing a calm stately piece on an airship deck, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Theme - quartet]\n\n[Pause]\n\n[Variation - violin and cello]\n\n[Theme - quartet, new key]\n\n[Fade]",
+   "bpm": 84,
+   "key": "D Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "wu-r5-tribunal",
+   "colour": "WU",
+   "name": "WU · tribunal fugue",
+   "takes": 2,
+   "caption": "a courtroom argued as a fugue, harpsichord and string quartet trading strict counterpoint, measured snare taps like a gavel, two voices arguing a case and neither yielding, precise and clean, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - subject on harpsichord]\n\n[Exposition - strings answer]\n\n[Argument - voices cross]\n\n[Recess - a quiet chorale]\n\n[Verdict - stretto, voices overlap, new key]\n\n[Outro - gavel]",
+   "bpm": 112,
+   "key": "G Minor",
+   "meter": "4",
+   "pick": 2
+  },
+  {
+   "id": "wu-r5-observatory",
+   "colour": "WU",
+   "name": "WU · mountaintop observatory",
+   "takes": 2,
+   "caption": "a soft choir pad and celesta playing a slow, wondering melody, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Pad - choir]\n\n[Melody - celesta]\n\n[Pause]\n\n[Melody - celesta and choir]\n\n[Fade]",
+   "bpm": 56,
+   "key": "A Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 2
+  },
+  {
+   "id": "wb-r5-vault",
+   "colour": "WB",
+   "name": "WB · treasury vault",
+   "takes": 2,
+   "caption": "a small chamber choir singing a slow solemn hymn without words, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Hymn - choir]\n\n[Pause]\n\n[Hymn - lower voices]\n\n[Hymn - full choir]\n\n[Fade]",
+   "bpm": 54,
+   "key": "Eb Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "wb-r5-heist",
+   "colour": "WB",
+   "name": "WB · casino heist",
+   "takes": 2,
+   "caption": "1960s spy jazz big band heist, walking upright bass, muted trumpet and baritone sax riff, vibraphone, tight brushed swing drums, a cool and sly robbery that turns into a chase, smoky and stylish, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - bass walk]\n\n[Casing - vibraphone and muted horn]\n\n[Inside - saxes slink]\n\n[Breakdown - bass and brushes]\n\n[Getaway - full band, new riff, faster]\n\n[Outro - one last horn stab]",
+   "bpm": 140,
+   "key": "C Minor",
+   "meter": "4",
+   "pick": 2
+  },
+  {
+   "id": "wb-r5-minuet",
+   "colour": "WB",
+   "name": "WB · masked ball duel",
+   "takes": 2,
+   "caption": "a dark minuet at a masked ball turning into a sword fight, harpsichord, string orchestra, low brass, elegant then violent, swirling triple meter, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - stately harpsichord]\n\n[Minuet - strings join]\n\n[Insult - low brass]\n\n[Breakdown - harpsichord alone]\n\n[Swordplay - fast strings, new figure]\n\n[Outro - final bow]",
+   "bpm": 132,
+   "key": "E Minor",
+   "meter": "3",
+   "pick": 1
+  },
+  {
+   "id": "gu-r5-kelp",
+   "colour": "GU",
+   "name": "GU · bioluminescent kelp forest",
+   "takes": 2,
+   "caption": "a slow kalimba and a soft glassy synth pad playing gentle shifting patterns, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Pattern - kalimba]\n\n[Pad - glassy synth]\n\n[Pause]\n\n[Pattern - kalimba and pad]\n\n[Fade]",
+   "bpm": 66,
+   "key": "D Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "gu-r5-mutation",
+   "colour": "GU",
+   "name": "GU · mutation experiment",
+   "takes": 2,
+   "caption": "organic glitch electronica, marimba and plucked strings cut into stuttering patterns, squelching synth bass, wet bubbling textures, an experiment mutating and fighting its tank, playful then menacing, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - single marimba cell]\n\n[Growth - patterns multiply]\n\n[Mutation - squelching bass, glitches]\n\n[Breakdown - bubbles and pulse]\n\n[Breakout - full groove, new mutation]\n\n[Outro - tank cracks]",
+   "bpm": 126,
+   "key": "Bb Minor",
+   "meter": "4",
+   "pick": 1
+  },
+  {
+   "id": "gu-r5-tidelab",
+   "colour": "GU",
+   "name": "GU · tidepool laboratory",
+   "takes": 2,
+   "caption": "a vibraphone and soft electric piano playing a slow curious melody, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Melody - vibraphone]\n\n[Pause]\n\n[Answer - electric piano]\n\n[Melody - both]\n\n[Fade]",
+   "bpm": 72,
+   "key": "F Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "gw-r5-treecity",
+   "colour": "GW",
+   "name": "GW · elven tree city",
+   "takes": 2,
+   "caption": "a harp and a soft wordless choir pad playing a slow warm melody, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Melody - harp]\n\n[Pad - choir]\n\n[Pause]\n\n[Melody - harp and choir]\n\n[Fade]",
+   "bpm": 62,
+   "key": "G Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "gw-r5-griots",
+   "colour": "GW",
+   "name": "GW · kora duel",
+   "takes": 2,
+   "caption": "two kora harps in a fast rolling duel, balafon and djembe driving, talking drum calls, warm acoustic, a friendly contest that grows fierce, interlocking and joyful, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - lone kora]\n\n[Duel - second kora answers]\n\n[Drums - djembe and balafon]\n\n[Breakdown - talking drum alone]\n\n[Contest - both koras at full speed, new cycle]\n\n[Outro - together on one note]",
+   "bpm": 118,
+   "key": "C Major",
+   "meter": "6",
+   "pick": 2
+  },
+  {
+   "id": "gw-r5-temple",
+   "colour": "GW",
+   "name": "GW · garden temple courtyard",
+   "takes": 2,
+   "caption": "a few soft low voices humming a slow chant with a bamboo flute, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Chant - humming]\n\n[Pause]\n\n[Flute - bamboo flute]\n\n[Chant - humming and flute]\n\n[Fade]",
+   "bpm": 56,
+   "key": "D Major",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "bg-r5-fungal",
+   "colour": "BG",
+   "name": "BG · fungal cavern",
+   "takes": 2,
+   "caption": "a low cello drone and a bone xylophone playing slow uneasy notes, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Drone - cello]\n\n[Notes - bone xylophone]\n\n[Pause]\n\n[Drone and notes]\n\n[Fade]",
+   "bpm": 58,
+   "key": "C Minor",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "bg-r5-spider",
+   "colour": "BG",
+   "name": "BG · spider's duel",
+   "takes": 2,
+   "caption": "creeping macabre string battle, fast col legno and pizzicato strings, bone percussion, contrabassoon and bass clarinet, a giant spider fighting a beetle, creeping then frantic, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - tapping col legno]\n\n[Creep - pizzicato and bass clarinet]\n\n[Strike - fast strings]\n\n[Breakdown - bone percussion alone]\n\n[Frenzy - full strings, new figure]\n\n[Outro - a single pluck]",
+   "bpm": 112,
+   "key": "F Minor",
+   "meter": "4",
+   "pick": 4
+  },
+  {
+   "id": "bg-r5-pitfight",
+   "colour": "BG",
+   "name": "BG · bone pit groove",
+   "takes": 2,
+   "caption": "heavy industrial percussion fight made of bones and metal pipes, slow crushing groove, deep distorted bass, gang shouts, an underground fighting pit beneath a city, heavy and grimy, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - pipes struck]\n\n[Groove - bones and bass]\n\n[Fight - heavier groove]\n\n[Breakdown - pipes alone]\n\n[Slaughter - double-time, new groove]\n\n[Outro - a final slam]",
+   "bpm": 88,
+   "key": "D Minor",
+   "meter": "4",
+   "pick": 2
+  },
+  {
+   "id": "ub-r5-deepstation",
+   "colour": "UB",
+   "name": "UB · deep-sea station",
+   "takes": 2,
+   "caption": "a low synth drone and a slow sinister piano motif, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Drone - synth]\n\n[Motif - piano]\n\n[Pause]\n\n[Motif - piano, lower]\n\n[Fade]",
+   "bpm": 54,
+   "key": "Eb Minor",
+   "meter": "4",
+   "duration": 240,
+   "pick": 2
+  },
+  {
+   "id": "ur-r5-workshop",
+   "colour": "UR",
+   "name": "UR · storm workshop",
+   "takes": 2,
+   "caption": "a fast pulsing analog synth sequence and a prog-rock organ, playing in another room, heard from far away, lots of space and silence, quiet",
+   "structure": "[Intro - silence]\n\n[Sequence - synth]\n\n[Organ - riff]\n\n[Pause]\n\n[Sequence and organ]\n\n[Fade]",
+   "bpm": 132,
+   "key": "E Minor",
+   "meter": "4",
+   "duration": 240,
+   "pick": 1
+  },
+  {
+   "id": "br-r5-warehouse",
+   "colour": "BR",
+   "name": "BR · burning warehouse brawl",
+   "takes": 2,
+   "caption": "heavy industrial breakbeat brawl, distorted drum breaks, grinding synth bass, metallic hits, a bare-knuckle fight in a burning warehouse, gritty and relentless, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - fire and a lone break]\n\n[Brawl - full break and bass]\n\n[Haymaker - metallic hits]\n\n[Breakdown - kick and fire]\n\n[Finish - double-time, new bass line]\n\n[Outro - collapse]",
+   "bpm": 140,
+   "key": "C# Minor",
+   "meter": "4",
+   "pick": 2
+  }
+ ],
+ "soundscapes": [
+  {
+   "id": "rg-r5-savanna",
+   "colour": "RG",
+   "name": "RG · savanna storm",
+   "music": {
+    "take": "rg-r5-savanna-2",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a thunderstorm rolling over a dry savanna at dusk, wind through tall grass, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "rain starting to fall on dry grassland, field recording",
+     "db": -9
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a lion roaring in the distance on a savanna, field recording",
+     "every": 75,
+     "db": -4
+    },
+    {
+     "prompt": "a herd of animals stampeding far away, field recording",
+     "every": 90,
+     "db": -6
+    },
+    {
+     "prompt": "a close thunder crack, field recording",
+     "every": 60,
+     "db": -3
+    }
+   ]
+  },
+  {
+   "id": "rw-r5-arena",
+   "colour": "RW",
+   "name": "RW · arena from below",
+   "music": {
+    "take": "rw-r5-arena-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "inside a stone tunnel beneath an arena, a huge crowd roaring above, muffled, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a torch crackling in a stone corridor, field recording",
+     "db": -10
+    }
+   ],
+   "events": [
+    {
+     "prompt": "iron gate rattling and opening in a stone tunnel, field recording",
+     "every": 70,
+     "db": -4
+    },
+    {
+     "prompt": "swords clashing far away in an arena, field recording",
+     "every": 45,
+     "db": -6
+    },
+    {
+     "prompt": "a crowd erupting in a huge cheer far away, field recording",
+     "every": 60,
+     "db": -5
+    }
+   ]
+  },
+  {
+   "id": "r-r5-forge",
+   "colour": "R",
+   "name": "R · volcano forge",
+   "music": {
+    "take": "r-r5-forge-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "inside a volcanic cave, lava bubbling and hissing, deep rumbling, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a roaring forge fire and bellows, field recording",
+     "db": -6
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a heavy hammer striking an anvil inside a cave, field recording",
+     "every": 30,
+     "db": -4
+    },
+    {
+     "prompt": "molten rock cracking and splashing, field recording",
+     "every": 50,
+     "db": -6
+    },
+    {
+     "prompt": "a distant volcanic eruption boom, field recording",
+     "every": 90,
+     "db": -5
+    }
+   ]
+  },
+  {
+   "id": "g-r5-redwood",
+   "colour": "G",
+   "name": "G · redwood fog",
+   "music": {
+    "take": "g-r5-redwood-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a giant redwood forest in morning fog, soft wind high in the trees, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a small creek trickling over stones, field recording",
+     "db": -10
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a woodpecker drumming on a tree far away, field recording",
+     "every": 50,
+     "db": -6
+    },
+    {
+     "prompt": "an elk bugling far away in a forest, field recording",
+     "every": 90,
+     "db": -5
+    },
+    {
+     "prompt": "a raven calling in a forest, field recording",
+     "every": 60,
+     "db": -6
+    }
+   ]
+  },
+  {
+   "id": "g-r5-mosscave",
+   "colour": "G",
+   "name": "G · mossy cave spring",
+   "music": {
+    "take": "g-r5-mosscave-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "inside a mossy cave with a spring, water dripping and trickling, echoing, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "birdsong from outside a cave entrance, field recording",
+     "db": -10
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a frog croaking in a cave pool, field recording",
+     "every": 45,
+     "db": -5
+    },
+    {
+     "prompt": "a bat fluttering in a cave, field recording",
+     "every": 70,
+     "db": -8
+    }
+   ]
+  },
+  {
+   "id": "g-r5-meadow",
+   "colour": "G",
+   "name": "G · mountain meadow",
+   "music": {
+    "take": "g-r5-meadow-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "soft wind through tall grass in a high mountain meadow, a few distant birds, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a waterfall very far across a valley, faint and low, field recording",
+     "db": -14
+    }
+   ],
+   "events": [
+    {
+     "prompt": "cowbells far away in a mountain pasture, field recording",
+     "every": 60,
+     "db": -8
+    },
+    {
+     "prompt": "an eagle crying high above mountains, field recording",
+     "every": 75,
+     "db": -5
+    },
+    {
+     "prompt": "marmots whistling in a meadow, field recording",
+     "every": 55,
+     "db": -7
+    }
+   ]
+  },
+  {
+   "id": "u-r5-sunkenchurch",
+   "colour": "U",
+   "name": "U · sunken cathedral",
+   "music": {
+    "take": "u-r5-sunkenchurch-2",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "deep underwater ambience inside a sunken stone building, muffled currents, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "air bubbles rising underwater, field recording",
+     "db": -10
+    }
+   ],
+   "events": [
+    {
+     "prompt": "whale song echoing underwater far away, field recording",
+     "every": 70,
+     "db": -4
+    },
+    {
+     "prompt": "a large metal bell ringing under water, muffled, field recording",
+     "every": 90,
+     "db": -8
+    },
+    {
+     "prompt": "stone creaking under water pressure, field recording",
+     "every": 60,
+     "db": -7
+    }
+   ]
+  },
+  {
+   "id": "u-r5-library",
+   "colour": "U",
+   "name": "U · arcane library at night",
+   "music": {
+    "take": "u-r5-library-3",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a large old library at night, heavy rain on tall windows, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a grandfather clock ticking in a large room, field recording",
+     "db": -9
+    }
+   ],
+   "events": [
+    {
+     "prompt": "pages of an old book turning, field recording",
+     "every": 40,
+     "db": -6
+    },
+    {
+     "prompt": "thunder rumbling far away, field recording",
+     "every": 80,
+     "db": -5
+    },
+    {
+     "prompt": "a wooden ladder creaking in a library, field recording",
+     "every": 65,
+     "db": -8
+    }
+   ]
+  },
+  {
+   "id": "b-r5-velvetclub",
+   "colour": "B",
+   "name": "B · vampire lounge",
+   "music": {
+    "take": "b-r5-velvetclub-2",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a dim underground nightclub heard from a back room, murmuring crowd, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "glasses clinking and ice in a bar, field recording",
+     "db": -10
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a woman laughing softly far away in a club, field recording",
+     "every": 60,
+     "db": -8
+    },
+    {
+     "prompt": "a heavy door opening and closing in a club, field recording",
+     "every": 75,
+     "db": -6
+    }
+   ]
+  },
+  {
+   "id": "wu-r5-skyport",
+   "colour": "WU",
+   "name": "WU · sky port",
+   "music": {
+    "take": "wu-r5-skyport-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "high wind on an airship deck above the clouds, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "large propellers and engines humming steadily, field recording",
+     "db": -7
+    }
+   ],
+   "events": [
+    {
+     "prompt": "ropes creaking and sails flapping on an airship, field recording",
+     "every": 45,
+     "db": -6
+    },
+    {
+     "prompt": "a ship's bell ringing far away in wind, field recording",
+     "every": 90,
+     "db": -9
+    },
+    {
+     "prompt": "seabirds calling high above, field recording",
+     "every": 70,
+     "db": -8
+    }
+   ]
+  },
+  {
+   "id": "wu-r5-observatory",
+   "colour": "WU",
+   "name": "WU · mountaintop observatory",
+   "music": {
+    "take": "wu-r5-observatory-2",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a cold wind howling around a stone tower on a mountain at night, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "large brass gears turning slowly in a dome, field recording",
+     "db": -8
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a heavy dome shutter sliding open, field recording",
+     "every": 90,
+     "db": -5
+    },
+    {
+     "prompt": "a ticking clockwork mechanism, field recording",
+     "every": 50,
+     "db": -9
+    }
+   ]
+  },
+  {
+   "id": "wb-r5-vault",
+   "colour": "WB",
+   "name": "WB · treasury vault",
+   "music": {
+    "take": "wb-r5-vault-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a vast marble vault hall, echoing footsteps and quiet murmurs, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "coins being counted and stacked on a stone table, field recording",
+     "db": -8
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a massive vault door closing with a deep boom, field recording",
+     "every": 80,
+     "db": -4
+    },
+    {
+     "prompt": "a heavy key turning in an iron lock, field recording",
+     "every": 60,
+     "db": -6
+    },
+    {
+     "prompt": "a bag of gold coins dropped on stone, field recording",
+     "every": 50,
+     "db": -7
+    }
+   ]
+  },
+  {
+   "id": "gu-r5-kelp",
+   "colour": "GU",
+   "name": "GU · bioluminescent kelp forest",
+   "music": {
+    "take": "gu-r5-kelp-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "underwater in a kelp forest, gentle currents and swaying, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "tiny bubbles fizzing underwater, field recording",
+     "db": -10
+    }
+   ],
+   "events": [
+    {
+     "prompt": "dolphin clicks and whistles underwater, field recording",
+     "every": 60,
+     "db": -6
+    },
+    {
+     "prompt": "a large fish swimming past underwater, field recording",
+     "every": 75,
+     "db": -8
+    }
+   ]
+  },
+  {
+   "id": "gu-r5-tidelab",
+   "colour": "GU",
+   "name": "GU · tidepool laboratory",
+   "music": {
+    "take": "gu-r5-tidelab-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a seaside laboratory with bubbling water tanks and pumps humming, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "waves washing over rocks outside, field recording",
+     "db": -8
+    }
+   ],
+   "events": [
+    {
+     "prompt": "sonar ping echoing, field recording",
+     "every": 50,
+     "db": -8
+    },
+    {
+     "prompt": "glass beakers clinking, field recording",
+     "every": 60,
+     "db": -8
+    },
+    {
+     "prompt": "seagulls outside a window, field recording",
+     "every": 80,
+     "db": -9
+    }
+   ]
+  },
+  {
+   "id": "gw-r5-treecity",
+   "colour": "GW",
+   "name": "GW · elven tree city",
+   "music": {
+    "take": "gw-r5-treecity-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a city in giant trees at night, leaves rustling, crickets, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a small fountain trickling, field recording",
+     "db": -10
+    }
+   ],
+   "events": [
+    {
+     "prompt": "an owl hooting in a forest at night, field recording",
+     "every": 60,
+     "db": -6
+    },
+    {
+     "prompt": "soft distant laughter and voices in a village, field recording",
+     "every": 80,
+     "db": -9
+    },
+    {
+     "prompt": "wooden wind chimes clacking softly, field recording",
+     "every": 50,
+     "db": -9
+    }
+   ]
+  },
+  {
+   "id": "gw-r5-temple",
+   "colour": "GW",
+   "name": "GW · garden temple courtyard",
+   "music": {
+    "take": "gw-r5-temple-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a temple garden courtyard on a summer evening, birds and wind in leaves, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "water flowing through a bamboo fountain, field recording",
+     "db": -9
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a bamboo water fountain knocking on stone, field recording",
+     "every": 40,
+     "db": -7
+    },
+    {
+     "prompt": "a cuckoo calling in a garden, field recording",
+     "every": 70,
+     "db": -7
+    }
+   ]
+  },
+  {
+   "id": "bg-r5-fungal",
+   "colour": "BG",
+   "name": "BG · fungal cavern",
+   "music": {
+    "take": "bg-r5-fungal-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a damp underground cavern full of mushrooms, dripping, wet squelching, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "insects clicking and chittering in the dark, field recording",
+     "db": -8
+    }
+   ],
+   "events": [
+    {
+     "prompt": "spore pods bursting softly, field recording",
+     "every": 40,
+     "db": -7
+    },
+    {
+     "prompt": "something large crawling over wet rock, field recording",
+     "every": 70,
+     "db": -6
+    },
+    {
+     "prompt": "a deep echoing drip into a pool, field recording",
+     "every": 50,
+     "db": -8
+    }
+   ]
+  },
+  {
+   "id": "ub-r5-deepstation",
+   "colour": "UB",
+   "name": "UB · deep-sea station",
+   "music": {
+    "take": "ub-r5-deepstation-2",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "inside a deep-sea research station, steel hull groaning, air vents humming, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "water dripping inside a metal room, field recording",
+     "db": -9
+    }
+   ],
+   "events": [
+    {
+     "prompt": "sonar ping underwater, field recording",
+     "every": 50,
+     "db": -7
+    },
+    {
+     "prompt": "a large creature knocking on a steel hull, field recording",
+     "every": 90,
+     "db": -5
+    },
+    {
+     "prompt": "metal pipes creaking under pressure, field recording",
+     "every": 60,
+     "db": -7
+    }
+   ]
+  },
+  {
+   "id": "ur-r5-workshop",
+   "colour": "UR",
+   "name": "UR · storm workshop",
+   "music": {
+    "take": "ur-r5-workshop-1",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "inside a wooden workshop during a thunderstorm, rain muffled on the roof, machinery humming low, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a low electric hum of large coils in a room, field recording",
+     "db": -12
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a tesla coil crackling with electricity, field recording",
+     "every": 45,
+     "db": -10
+    },
+    {
+     "prompt": "a loud thunder crack, field recording",
+     "every": 70,
+     "db": -4
+    },
+    {
+     "prompt": "gears and pistons clanking, field recording",
+     "every": 55,
+     "db": -7
+    }
+   ]
+  }
+ ]
+}
