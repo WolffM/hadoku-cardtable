@@ -28,7 +28,7 @@ import { botSeatAcross, rankedStandings, rngFromSeed, roundsFor, shuffle, type M
 import { isGauntletState, type GauntletState } from './gauntlet.ts';
 import { roundNamesOf } from './plan.ts';
 import type { SeriesGame, SeriesRoom } from './series.ts';
-import type { RoomRecord } from './lobby.ts';
+import type { RoomRecord } from './lobby-codec.ts';
 
 type Face = string | null | undefined;
 
