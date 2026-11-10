@@ -140,6 +140,18 @@ const roomFields = {
   seatDecks: z.record(z.string(), z.string()).optional().catch(undefined),
 };
 
+/**
+ * A room made for an event (`scheduledFor`) is open to come into and chat in from the moment it
+ * exists, but seats nobody until this long before the event starts. The server holds it; the
+ * room draws its seats shut until then.
+ */
+export const SEATS_OPEN_BEFORE_MS = 30 * 60_000;
+
+/** When the seats of a room whose event starts at `scheduledFor` (ms) open, in ms. */
+export function seatsOpenAt(scheduledFor: number): number {
+  return scheduledFor - SEATS_OPEN_BEFORE_MS;
+}
+
 export const RoomViewSchema = z.object(roomFields).transform(withMode);
 export type RoomView = z.infer<typeof RoomViewSchema>;
 

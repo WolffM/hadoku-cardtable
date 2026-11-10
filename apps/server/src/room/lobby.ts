@@ -111,6 +111,8 @@ import {
 	type RoomTable,
 	type SeriesPhase,
 	sameLook,
+	SEATS_OPEN_BEFORE_MS,
+	seatsOpenAt,
 	type Look,
 } from '@hadoku/shared';
 // `@hadoku/draft` depends on `@hadoku/shared`, never the reverse, so `pod.ts`
@@ -494,7 +496,7 @@ type RecordGameResultResult =
 
 type StartDraftResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' | 'plan-not-ready' | 'not-split' | 'not-leader' };
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' | 'plan-not-ready' | 'not-split' | 'not-leader' | 'not-open' };
 
 type SplitPodResult =
 	| { ok: true; room: RoomView }
@@ -524,7 +526,7 @@ type LeaveResult =
 
 type SitPodResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'pod-full' | 'historical' };
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'not-open' | 'bad-seat' | 'seat-taken' | 'pod-full' | 'historical' };
 
 type ClosePodResult =
 	| { ok: true; room: RoomView }
@@ -672,6 +674,9 @@ export const POD_CLOSED = 'closed';
 
 /** The fewest seats a pod is left with: one player and one more. */
 export const POD_MIN_OPEN = 2;
+
+/** What a seat refused before its event's seats open (`Lobby.seatsShutUntil`) says to whoever pressed it. */
+export const SEATS_SHUT = `seats open ${String(SEATS_OPEN_BEFORE_MS / 60_000)} minutes before the event starts`;
 
 /**
  * A pod's own draft id: the room's id for its first pod (so a room of 8 or fewer drafts exactly as it always
@@ -1659,8 +1664,14 @@ export interface Lobby {
 	anonymise(ids: ReadonlySet<string>, to: string): number;
 	/** Resolves once every room forgotten so far is gone from disk too (a failed delete is logged as `room-forget-failed`). */
 	removed(): Promise<void>;
-	/** Move the start of the event a room was made for (`CreateRoomInput.scheduledFor`). False when there is no such room. */
+	/** Move the start of the event a room was made for (`CreateRoomInput.scheduledFor`), and its seats' opening with it. False when there is no such room. */
 	reschedule(roomId: string, at: number): boolean;
+	/**
+	 * When a room made for an event opens its seats (`seatsOpenAt`), while they are still shut by the
+	 * lobby's clock: until then nobody sits, is seated on joining or on Ready, and nothing deals.
+	 * Null once they are open, for a room no event made, and for no such room.
+	 */
+	seatsShutUntil(roomId: string): number | null;
 	create(caller: Caller, input: CreateRoomInput): CreateResult;
 	/**
 	 * The room a watchparty room's game slot binds to (D21): `wp-` plus a digest
@@ -3017,6 +3028,7 @@ class FileLobby implements Lobby {
 	 * a live match or a Gauntlet that holds it.
 	 */
 	#autoSeat(room: RoomRecord, memberId: string): void {
+		if (this.#seatsShut(room) !== null) return;
 		const players = playersOf(room);
 		if (room.members.some((m) => m.id !== memberId && !players.includes(m.id))) return;
 		if (usesPod(room)) {
@@ -3034,6 +3046,18 @@ class FileLobby implements Lobby {
 		if (!sitAt(room.tables, table, memberId)) return;
 		this.#tookSeat(room.id, table.id, memberId);
 		this.#log({ event: 'seat-auto', roomId: room.id, tableId: table.id, memberId });
+	}
+
+	/** `Lobby.seatsShutUntil`, for a room in hand. */
+	#seatsShut(room: RoomRecord): number | null {
+		if (room.scheduledFor === undefined) return null;
+		const opens = seatsOpenAt(room.scheduledFor);
+		return this.#now() < opens ? opens : null;
+	}
+
+	seatsShutUntil(roomId: string): number | null {
+		const room = this.#rooms.get(roomId);
+		return room === undefined ? null : this.#seatsShut(room);
 	}
 
 	#tookSeat(roomId: string, tableId: string, memberId: string): void {
@@ -3083,7 +3107,7 @@ class FileLobby implements Lobby {
 		const { room, table } = found;
 		const held = table.seats.indexOf(memberId);
 		if (seat === undefined ? held !== -1 : held === seat) return true;
-		if (!sitAt(room.tables, table, memberId, seat)) return false;
+		if (this.#seatsShut(room) !== null || !sitAt(room.tables, table, memberId, seat)) return false;
 		this.#tookSeat(room.id, table.id, memberId);
 		this.#persist(room);
 		return true;
@@ -3865,7 +3889,7 @@ class FileLobby implements Lobby {
 		// In a pod's lobby, Ready is "I am playing": a member who has not sat takes
 		// the first open seat. A full pod leaves them watching, ready or not — the
 		// deal never waits on a member who holds no seat.
-		if (ready && room.gameType === 'draft' && room.draftStartedAt === null && !room.podSeats.includes(memberId)) {
+		if (ready && room.gameType === 'draft' && room.draftStartedAt === null && !room.podSeats.includes(memberId) && this.#seatsShut(room) === null) {
 			const open = room.podSeats.indexOf(null);
 			if (open !== -1) room.podSeats = room.podSeats.map((id, i) => (i === open ? memberId : id));
 		}
@@ -3963,6 +3987,7 @@ class FileLobby implements Lobby {
 		// the second one arrives after the first member's flags may already have
 		// been cleared by a leave. A room that has started has started.
 		if (room.draftStartedAt !== null) return { ok: true, room: this.#view(room) };
+		if (this.#seatsShut(room) !== null) return { ok: false, reason: 'not-open' };
 		if (isTournamentRoom(room)) return this.#lockTournament(room);
 		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
 		const gate = dealGate(room);
@@ -4015,7 +4040,7 @@ class FileLobby implements Lobby {
 	 * call once locked a no-op, so calling this from several places is safe.
 	 */
 	#maybeLockTournament(room: RoomRecord): void {
-		if (!isTournamentRoom(room) || room.draftStartedAt !== null) return;
+		if (!isTournamentRoom(room) || room.draftStartedAt !== null || this.#seatsShut(room) !== null) return;
 		this.#lockTournament(room);
 	}
 
@@ -4425,6 +4450,7 @@ class FileLobby implements Lobby {
 		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
 		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (seatsFixed(room)) return { ok: false, reason: 'not-lobby' };
+		if (this.#seatsShut(room) !== null) return { ok: false, reason: 'not-open' };
 		if (seat !== undefined && !seatInReach(room, seat)) return { ok: false, reason: 'bad-seat' };
 		const already = room.podSeats.indexOf(memberId);
 		let target = seat;
@@ -4478,6 +4504,7 @@ class FileLobby implements Lobby {
 		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (seatsFixed(room)) return { ok: false, reason: 'not-lobby' };
 		if (room.historical === true) return { ok: false, reason: 'historical' };
+		if (on && this.#seatsShut(room) !== null) return { ok: false, reason: 'not-open' };
 		if (!seatInReach(room, seat) || (!on && seat >= room.podSeats.length)) return { ok: false, reason: 'bad-seat' };
 		const now = room.podSeats[seat] ?? null;
 		if (on ? now === POD_AI : now === null) return { ok: true, room: this.#view(room) };

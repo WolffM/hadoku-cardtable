@@ -68,6 +68,9 @@ test('a draft tournament opens its room with the pick timer and clock the form c
   await pick(page, 'event-create-clock-on');
   await page.getByTestId('event-create-submit').click();
   await expect(page).toHaveURL(/\/room\/r-[0-9a-f]{12}/);
+  // Tomorrow's event: the room is open at once, its seats only half an hour before it starts.
+  await expect(page.getByTestId('seats-open-at')).toBeVisible();
+  await expect(page.getByTestId('pod-seat-sit').first()).toBeDisabled();
 
   const event = await listed(page, title);
   expect(event).toMatchObject({ kind: 'draft-pod', room: { gameType: 'draft', phase: 'lobby', settings: { clock: 'on', pickTimer: { on: true, speed: 2 } } } });

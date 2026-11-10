@@ -32,7 +32,7 @@ import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import { loadPool } from './pool.ts';
 import { roundNamesOf } from './plan.ts';
-import { AVATAR_ID_MAX, clockOn, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, ROOM_CONTROLS, type ClientMode, type RoomLocks, type GauntletPlayer, type PoolVerdict, type Tournament } from '@hadoku/shared';
+import { AVATAR_ID_MAX, clockOn, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, ROOM_CONTROLS, SEATS_OPEN_BEFORE_MS, type ClientMode, type RoomLocks, type GauntletPlayer, type PoolVerdict, type Tournament } from '@hadoku/shared';
 import {
 	AVATAR_POOL,
 	UNNAMED,
@@ -4711,5 +4711,83 @@ describe('roomLocks: what the view says is locked is exactly what the setters re
 			},
 			{ gameType: 'draft-started', mode: 'draft-started', event: 'draft-started', format: 'draft-started', rules: 'draft-started' },
 		);
+	});
+});
+
+describe("an event's room seats nobody until 30 minutes before the event", () => {
+	const START = 1_900_000_000_000;
+	const OPENS = START - SEATS_OPEN_BEFORE_MS;
+
+	it('a pod: open to come into at once, but no seat, Ready seat, AI or deal until the opening; then seats as any room does', async () => {
+		let clock = START - 2 * 60 * 60_000;
+		const lobby = await openLobby({ dir: await tempDir(), now: () => clock });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin', scheduledFor: START });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(lobby.seatsShutUntil(id)).toBe(OPENS);
+		expect(made.room.pod?.seats.every((s) => s === null), 'the organizer is not seated on making it').toBe(true);
+
+		expect(lobby.join(id, BOB).ok, 'anyone may come in').toBe(true);
+		expect(lobby.get(id)?.pod?.seats.every((s) => s === null), 'nor is a newcomer').toBe(true);
+		expect(lobby.sitPod(id, BOB.id)).toEqual({ ok: false, reason: 'not-open' });
+		expect(lobby.sitPod(id, ALICE.id, 0)).toEqual({ ok: false, reason: 'not-open' });
+		expect(lobby.aiPod(id, ALICE.id, 1, true)).toEqual({ ok: false, reason: 'not-open' });
+		expect(lobby.setReady(id, BOB.id, true)).toBe(true);
+		expect(lobby.get(id)?.pod?.seats.every((s) => s === null), 'Ready does not take a seat either').toBe(true);
+		expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'not-open' });
+
+		clock = OPENS - 1;
+		expect(lobby.sitPod(id, BOB.id)).toEqual({ ok: false, reason: 'not-open' });
+		clock = OPENS;
+		expect(lobby.seatsShutUntil(id)).toBeNull();
+		expect(lobby.get(id)?.pod?.seats.every((s) => s === null), 'nobody is seated by the opening itself').toBe(true);
+		expect(lobby.sitPod(id, BOB.id, 0).ok).toBe(true);
+		expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
+	});
+
+	it('a 1v1 table: sit refused and nobody auto-seated before the opening; after it, sit works as ever', async () => {
+		let clock = START - 60 * 60_000;
+		const lobby = await openLobby({ dir: await tempDir(), now: () => clock });
+		const made = lobby.create(ALICE, { name: 'Cup', gameType: 'constructed-1v1', clientMode: 'builtin', scheduledFor: START });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		expect(lobby.seats(id, tableId)).toEqual([]);
+		lobby.join(id, BOB);
+		expect(lobby.seats(id, tableId)).toEqual([]);
+		expect(lobby.sit(id, tableId, ALICE.id)).toBe(false);
+
+		clock = OPENS;
+		expect(lobby.sit(id, tableId, ALICE.id)).toBe(true);
+		expect(lobby.sit(id, tableId, BOB.id)).toBe(true);
+		lobby.join(id, CAROL);
+		expect(lobby.seats(id, tableId).map((s) => s.memberId), 'a full table leaves the newcomer watching').toEqual([ALICE.id, BOB.id]);
+	});
+
+	it('rescheduling moves the opening with the event', async () => {
+		let clock = START - 60 * 60_000;
+		const lobby = await openLobby({ dir: await tempDir(), now: () => clock });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin', scheduledFor: START });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		clock = OPENS + 1;
+		expect(lobby.seatsShutUntil(id)).toBeNull();
+
+		const later = START + 24 * 60 * 60_000;
+		expect(lobby.reschedule(id, later)).toBe(true);
+		expect(lobby.seatsShutUntil(id)).toBe(later - SEATS_OPEN_BEFORE_MS);
+		expect(lobby.sitPod(id, ALICE.id)).toEqual({ ok: false, reason: 'not-open' });
+
+		expect(lobby.reschedule(id, clock + SEATS_OPEN_BEFORE_MS - 1)).toBe(true);
+		expect(lobby.seatsShutUntil(id), 'moved sooner, into its last half hour').toBeNull();
+		expect(lobby.sitPod(id, ALICE.id).ok).toBe(true);
+	});
+
+	it('a room no event made is unchanged: its seats are never shut and its creator sits', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		expect(lobby.seatsShutUntil(made.room.id)).toBeNull();
+		expect(made.room.tables[0]?.players.map((p) => p.memberId)).toEqual([ALICE.id]);
 	});
 });

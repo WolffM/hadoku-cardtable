@@ -60,6 +60,8 @@ export interface PodSeatsProps {
   faceOf: (memberId: string) => Face;
   /** A Challenge's field is the event's: no seat is grown, given to the AI, taken from it or closed. */
   fieldFixed?: boolean;
+  /** An event's room before its seats open (`../../room/seatsOpen.tsx`): nobody sits, nor gives a seat to the AI. */
+  shut?: boolean;
   onSit: (seat: number) => void;
   /** The AI button on an open seat (`on`), or the AI's own seat given back. */
   onAi: (seat: number, on: boolean) => void;
@@ -67,7 +69,7 @@ export interface PodSeatsProps {
   onClose: (seat: number, closed: boolean) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFixed = false, onSit, onAi, onClose }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFixed = false, shut = false, onSit, onAi, onClose }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
@@ -88,7 +90,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFi
                 data-testid="pod-seat-sit"
                 data-seat={seat}
                 aria-label={`Sit in seat ${seat + 1}`}
-                disabled={iAmSeated && seat >= seats.length}
+                disabled={shut || (iAmSeated && seat >= seats.length)}
                 onPress={() => onSit(seat)}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
@@ -98,7 +100,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFi
               <span className="pod-seats__label">Open</span>
               {!fieldFixed && (
                 <span className="pod-seats__actions">
-                  <ActionButton action="ai" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} onPress={() => onAi(seat, true)}>
+                  <ActionButton action="ai" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} disabled={shut} onPress={() => onAi(seat, true)}>
                     AI
                   </ActionButton>
                   {iLead && seat < seats.length && (

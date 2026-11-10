@@ -118,6 +118,7 @@ import {
 } from '@hadoku/shared';
 import {
 	POD_MIN_OPEN,
+	SEATS_SHUT,
 	watchpartyRoomId,
 	type Lobby,
 	type RoomView,
@@ -587,6 +588,8 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 								? 'a room of more than 8 drafts once the leader has split it into pods'
 								: result.reason === 'not-leader'
 									? 'only the room owner starts the draft of a split room'
+								: result.reason === 'not-open'
+									? SEATS_SHUT
 								: 'every seat needs a player or the AI, and every player ready, before the draft starts',
 			});
 		}
@@ -642,6 +645,8 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 					? 'this room does not have a pod'
 					: result.reason === 'not-lobby'
 						? 'seats are fixed once the room is split or its draft has started'
+						: result.reason === 'not-open'
+							? SEATS_SHUT
 						: result.reason === 'bad-seat'
 							? 'that seat is past the last one'
 							: result.reason === 'seat-taken'
@@ -689,7 +694,9 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 					? 'this room does not have a pod'
 					: result.reason === 'not-lobby'
 						? 'seats are fixed once the room is split or its draft has started'
-						: 'that seat is already taken';
+						: result.reason === 'not-open'
+							? SEATS_SHUT
+							: 'that seat is already taken';
 			return res.status(409).json({ error });
 		}
 		res.json(roomBody(result.room, caller.id));

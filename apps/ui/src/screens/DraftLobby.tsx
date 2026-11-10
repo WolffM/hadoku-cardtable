@@ -136,6 +136,7 @@ export function DraftLobby({
   members,
   leaderId,
   myId,
+  scheduledFor = null,
   iAmReady,
   allReady,
   dealing,
@@ -152,6 +153,8 @@ export function DraftLobby({
   leaderId: string;
   /** My member id here (`RoomView.you.id`); `''` while unknown. */
   myId: string;
+  /** `PodLobby`'s own: when the event this room was made for starts. */
+  scheduledFor?: string | null;
   iAmReady: boolean;
   allReady: boolean;
   dealing: boolean;
@@ -416,6 +419,7 @@ export function DraftLobby({
       members={members}
       leaderId={leaderId}
       myMemberId={myMemberId}
+      scheduledFor={scheduledFor}
       iAmReady={iAmReady}
       readyDisabled={dealing || members.length === 0 || (pod !== null && (planBusy || pendingLocalAttempt || !planOk))}
       onReady={onReady}

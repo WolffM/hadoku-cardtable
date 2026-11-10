@@ -182,7 +182,7 @@ import { botDeckText } from '../room/botDeck.js';
 import { httpCaller } from './request.js';
 import { prepareJson, sendPrepared, type PreparedJson } from './prepared.js';
 import { isAdmin } from '../edge-auth.js';
-import { aiEntrantSeat, draftIdOfPool, draftPoolId, isAiEntrant, type BotDeckSource, type GameHooks, type Lobby } from '../room/lobby.js';
+import { aiEntrantSeat, draftIdOfPool, draftPoolId, isAiEntrant, SEATS_SHUT, type BotDeckSource, type GameHooks, type Lobby } from '../room/lobby.js';
 import type { BotGameInput, BotGameOutcome } from '../play/botgames.js';
 import { roundNamesOf } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
@@ -278,6 +278,8 @@ export interface TablesRooms {
 	setPlayerState: Lobby['setPlayerState'];
 	seats: Lobby['seats'];
 	sit: Lobby['sit'];
+	/** Optional like `onAvatarChange`: a registry without it never shuts a seat. */
+	seatsShutUntil?: Lobby['seatsShutUntil'];
 	stand: Lobby['stand'];
 	setSeatReady: Lobby['setSeatReady'];
 	setTableMatch: Lobby['setTableMatch'];
@@ -1395,6 +1397,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * the pod is `done`: the one drafter of a pod of bots plays the AI again
 	 * from it.
 	 */
+	/** A room made for an event seats nobody until its seats open (`Lobby.seatsShutUntil`): answered 409 here. */
+	function seatsShut(room: RoomViewLike, res: Response): boolean {
+		if ((rooms?.seatsShutUntil?.(room.id) ?? null) === null) return false;
+		res.status(409).json({ error: SEATS_SHUT });
+		return true;
+	}
+
 	function wrongGameType(room: RoomViewLike, res: Response): boolean {
 		if (room.gameType === CONSTRUCTED) return false;
 		if (room.gameType === 'draft' && (room.pod?.phase === 'rounds' || room.pod?.phase === 'done')) return false;
@@ -1680,6 +1689,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'this table already has two players' });
 			return;
 		}
+		if (mine === undefined && seatsShut(room, res)) return;
 		const verdict = checkSeat(seat, context(req));
 		if ('error' in verdict) {
 			res.status(400).json({ error: verdict.error });
@@ -1835,6 +1845,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'that seat is already taken' });
 			return;
 		}
+		if (seatsShut(room, res)) return;
 		if (mine === undefined && players.length >= tableSeatCount(room)) {
 			res.status(409).json({ error: 'this table already has two players' });
 			return;

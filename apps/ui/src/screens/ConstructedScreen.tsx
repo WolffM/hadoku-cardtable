@@ -205,6 +205,7 @@ import { entrantLookup, heldFor, myCurrentTable, relayedPodSource, useFollowMyTa
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { useRoomSounds } from './roomSounds.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
+import { SeatsOpenNote, useSeatsShutUntil } from '../room/seatsOpen.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
 import { POD_AI } from './pod/wire.ts';
 import { TableCard } from './TableCard.tsx';
@@ -1465,6 +1466,8 @@ function RoomTableScreen({
   const bothReady = players.length === 2 && players.every((p) => p.ready);
   /** A start asked for or a match running: the table is no longer anyone's to change. */
   const underway = starting || matchId !== null;
+  // An event's room seats nobody, and so holds nobody's deck, until shortly before the event.
+  const seatsShutUntil = useSeatsShutUntil(view?.scheduledFor ?? null);
   /**
    * The room's Constructed mode, or null until the leader picks one. A room
    * record that could not be read leaves the mode unknown, and the table then
@@ -2516,6 +2519,7 @@ function RoomTableScreen({
             members={members}
             leaderId={view?.leader ?? ''}
             myId={view?.you.id ?? ''}
+            scheduledFor={view?.scheduledFor ?? null}
             iAmReady={iAmReady}
             allReady={allReady}
             dealing={dealing}
@@ -2597,6 +2601,7 @@ function RoomTableScreen({
                 leaderId={view?.leader ?? ''}
                 myMemberId={view?.you.id ?? null}
                 fieldFixed={view?.locks.gameType === 'historical'}
+                scheduledFor={view?.scheduledFor ?? null}
                 iAmReady={iAmReady}
                 readyDisabled={!canReady}
                 onReady={setDraftReady}
@@ -2606,7 +2611,7 @@ function RoomTableScreen({
                     options={seatDeck === undefined ? (visibleOptions ?? []) : (shownOptions ?? []).filter((o) => o.value === seatDeck)}
                     empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
                     value={seatDeck ?? deckId}
-                    disabled={deckOptions === null || underway || seatDeck !== undefined}
+                    disabled={deckOptions === null || underway || seatDeck !== undefined || seatsShutUntil !== null}
                     pending={shownOptions === null}
                     pendingTiles={ROOM_SKELETON_TILES}
                     swapKey={deckGrid}
@@ -2681,6 +2686,7 @@ function RoomTableScreen({
                     {startState}
                   </p>
                 )}
+                {seatsShutUntil !== null && <SeatsOpenNote opensAt={seatsShutUntil} />}
                 {matchLink}
               </div>
               {/* Drawn as the draft room draws its seats (the operator, 2026-10-22: "can we also show seats the same way we show seats then in draft?"). */}
@@ -2709,7 +2715,7 @@ function RoomTableScreen({
                             data-testid="seat-sit"
                             data-seat={seat}
                             aria-label={`Sit in seat ${seat + 1}`}
-                            disabled={tableLocked || underway}
+                            disabled={tableLocked || underway || seatsShutUntil !== null}
                             onPress={() => sitDown(seat)}
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
@@ -2838,7 +2844,7 @@ function RoomTableScreen({
                     options={visibleOptions ?? []}
                     empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
                     value={deckId}
-                    disabled={deckOptions === null || underway}
+                    disabled={deckOptions === null || underway || seatsShutUntil !== null}
                     pending={shownOptions === null}
                     pendingTiles={ROOM_SKELETON_TILES}
                     swapKey={deckGrid}

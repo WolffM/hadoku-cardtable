@@ -26,6 +26,7 @@ import { PodSplit, PodSplitAction, standingPods } from './PodSplit.tsx';
 import { ReadyToggle } from './ReadyToggle.tsx';
 import { podPlayers, type PodView } from './wire.ts';
 import { faceOf } from '../../components/Avatar.tsx';
+import { SeatsOpenNote, useSeatsShutUntil } from '../../room/seatsOpen.tsx';
 
 export interface PodLobbyProps {
   testId: string;
@@ -37,6 +38,8 @@ export interface PodLobbyProps {
   myMemberId: string | null;
   /** `PodSeats`' own: a Challenge's field is the event's. */
   fieldFixed?: boolean;
+  /** When the event this room was made for starts (`RoomView.scheduledFor`): its seats stay shut until shortly before. */
+  scheduledFor?: string | null;
   iAmReady: boolean;
   readyDisabled: boolean;
   onReady: (ready: boolean) => void;
@@ -45,7 +48,8 @@ export interface PodLobbyProps {
   children?: ReactNode;
 }
 
-export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, fieldFixed, iAmReady, readyDisabled, onReady, note, children }: PodLobbyProps) {
+export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, fieldFixed, scheduledFor = null, iAmReady, readyDisabled, onReady, note, children }: PodLobbyProps) {
+  const shutUntil = useSeatsShutUntil(scheduledFor);
   const [seatError, setSeatError] = useState<string | null>(null);
   const inFlight = useRef(false);
   const later = useRef<(() => Promise<PodActionOutcome>)[]>([]);
@@ -76,6 +80,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
       onReady={onReady}
       note={
         <>
+          {shutUntil !== null && <SeatsOpenNote opensAt={shutUntil} />}
           {note}
           {pod !== null && (
             <PodSplitAction
@@ -111,6 +116,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
                   readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
                   faceOf={(id) => faceOf(members.find((m) => m.id === id))}
                   fieldFixed={fieldFixed}
+                  shut={shutUntil !== null}
                   onSit={(seat) => act(() => sitPod(roomId, seat))}
                   onAi={(seat, on) => act(() => aiPod(roomId, seat, on))}
                   onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}

@@ -2979,3 +2979,28 @@ describe('the eight-player tournament rooms (admin only, seeded finished and mid
 		expect(pod.results.filter((r) => r.round === 2)).toHaveLength(3);
 	});
 });
+
+describe("an event's room before its seats open", () => {
+	it('answers a pod sit, an AI seat, a table sit and a deck that would seat 409, in words', async () => {
+		const h = await openFullApp(await tempDir());
+		const organizer = { id: 'fk:9999999999999999', name: 'user-org', userId: 'uid-user-org' };
+		const pod = h.lobby.create(organizer, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin', scheduledFor: Date.now() + 2 * 60 * 60_000 });
+		const table = h.lobby.create(organizer, { name: 'Cup', gameType: 'constructed-1v1', clientMode: 'builtin', scheduledFor: Date.now() + 2 * 60 * 60_000 });
+		if (!pod.ok || !table.ok) throw new Error('create failed');
+		const shut = { error: lobbyMod.SEATS_SHUT };
+		for (const id of [pod.room.id, table.room.id]) expect((await call(h, 'POST', `/api/rooms/${id}/join`)).status).toBe(200);
+		expect(h.lobby.get(pod.room.id)?.pod?.seats.every((s) => s === null), 'coming in seats nobody').toBe(true);
+		expect(h.lobby.get(table.room.id)?.tables[0]?.players, 'at a table either').toEqual([]);
+
+		const sat = await call(h, 'POST', `/api/rooms/${pod.room.id}/pod/sit`, { body: { seat: 0 } });
+		expect([sat.status, sat.json()]).toEqual([409, shut]);
+		const ai = await call(h, 'POST', `/api/rooms/${pod.room.id}/pod/ai`, { body: { seat: 1, on: true } });
+		expect([ai.status, ai.json()]).toEqual([409, shut]);
+
+		const tableSat = await call(h, 'POST', `/api/tables/rooms/${table.room.id}/sit`, {});
+		expect([tableSat.status, tableSat.json()]).toEqual([409, shut]);
+		const deck = TABLES_LIBRARY.decks.find((d) => d.era === NEWEST_POOL)!.id;
+		const held = await call(h, 'PUT', `/api/tables/rooms/${table.room.id}/deck`, { body: { deck: { library: deck } } });
+		expect([held.status, held.json()]).toEqual([409, shut]);
+	});
+});

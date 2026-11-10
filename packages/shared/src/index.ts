@@ -400,6 +400,8 @@ export {
   OPEN_ROOM_LOCKS,
   ROOM_CONTROLS,
   ROOM_LOCK_REASONS,
+  SEATS_OPEN_BEFORE_MS,
+  seatsOpenAt,
   type RoomControl,
   type RoomLocks,
   type RoomMember,
