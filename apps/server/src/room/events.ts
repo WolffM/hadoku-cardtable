@@ -25,6 +25,8 @@ const EventRecordSchema = z.object({
 	organizerUserId: z.string().nullable().optional(),
 	/** Read only, from a record written before `organizerUserId`: never written again. */
 	organizerName: z.string().optional(),
+	/** The Rally sign-up form it was made from: Rally counts who can make it (`EventView.signedUp`). */
+	formId: z.string().optional(),
 	createdAt: z.number(),
 });
 export type EventRecord = z.infer<typeof EventRecordSchema>;

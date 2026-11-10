@@ -18,6 +18,8 @@ export interface CreateTournamentRequest {
   /** ISO date-time. */
   startsAt: string;
   room: Record<string, unknown>;
+  /** The Rally form it is made from, whose count of who can make it the calendar shows. */
+  formId?: string;
 }
 
 const defaultFetch: Fetch = (input, init) => fetch(input, init);

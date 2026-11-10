@@ -69,6 +69,7 @@ describe('a form attached from Create event shows under Polls at once (cardtable
     schema: { name: 'event-signup', version: 1 },
     attachedBy: 'alice',
     mine: true,
+    windows: [],
   });
 
   /** A polls read the test answers by hand, in whatever order it likes. */

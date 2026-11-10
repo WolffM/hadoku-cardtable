@@ -568,6 +568,8 @@ export {
   rallyFormIdOf,
   rallyReturnOf,
   type RallyFormSummary,
+  type RallyWindow,
+  type RallyAvailability,
   type AttachFormBody,
   type AttachedForm,
 } from '@hadoku/platform-wire/events';

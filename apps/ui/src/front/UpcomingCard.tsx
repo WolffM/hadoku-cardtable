@@ -7,7 +7,8 @@
  *     a date block, its title, when, and its room as the room is now (`GET /api/events` reads each
  *     event's room live, so an edit in the room shows here at once). View opens the room, Sign up
  *     joins it; the organizer moves or cancels their own instead.
- *   - **Polls** — the open Rally forms attached to events (`./polls.ts`), each with Open to Rally.
+ *   - **Polls** — the open Rally forms attached to events (`./polls.ts`), each with Open to Rally;
+ *     whoever attached one may make its event from it (Create event, filled in from the form).
  *
  * Events are made from the room list's Create event (`../rooms/CreateEventDialog.tsx`).
  *
@@ -21,6 +22,7 @@ import type { EventView } from '@hadoku/shared';
 
 import { Reveal } from '@hadoku/ui-shell/components';
 import { roomsClient } from '../rooms/api.ts';
+import { CreateEventDialog } from '../rooms/CreateEventDialog.tsx';
 import { navigate } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
 import { countdown } from './countdown.ts';
@@ -43,11 +45,15 @@ function DateBlock({ at }: { at: string }) {
   );
 }
 
-/** The room's own state, as the room is now: its format and how many have signed up. */
+/**
+ * The room's own state, as the room is now: its format and how many have signed up — those who
+ * said on its Rally form they can make it, for an event made from one; else those in its room.
+ */
 function roomLine(event: EventView): string | null {
   const room = event.room ?? null;
   if (room === null) return null;
-  const parts = [room.format === '' ? null : formatEraLabel(room.format), `${String(room.phase === null ? room.members : room.entrants)} signed up`];
+  const signedUp = event.signedUp ?? (room.phase === null ? room.members : room.entrants);
+  const parts = [room.format === '' ? null : formatEraLabel(room.format), `${String(signedUp)} signed up`];
   return parts.filter((p): p is string => p !== null).join(' · ');
 }
 
@@ -269,6 +275,7 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
 }
 
 function PollRow({ poll, now }: { poll: Poll; now: number }) {
+  const [making, setMaking] = useState(false);
   return (
     <li className="front-card__event" data-testid="front-poll">
       {poll.closesAt !== null && <DateBlock at={poll.closesAt} />}
@@ -276,11 +283,17 @@ function PollRow({ poll, now }: { poll: Poll; now: number }) {
         <span className="front-card__event-title">{poll.title}</span>
         {poll.closesAt !== null && <span className="front-card__event-detail">closes {countdown(poll.closesAt, now)}</span>}
         <span className="front-card__event-actions">
+          {poll.mine && poll.windows.length > 0 && (
+            <button type="button" className="button" data-testid="front-poll-create-event" onClick={() => setMaking(true)}>
+              Create event
+            </button>
+          )}
           <a className="button front-card__more" data-testid="front-poll-open" href={poll.url} target="_blank" rel="noopener noreferrer">
             Open
           </a>
         </span>
       </span>
+      {making && <CreateEventDialog poll={poll} onClose={() => setMaking(false)} />}
     </li>
   );
 }

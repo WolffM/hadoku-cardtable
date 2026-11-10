@@ -50,6 +50,12 @@ export const eventViewSchema = <K extends z.ZodType, R extends z.ZodType>(kind: 
     roomId: z.string().nullable().catch(null),
     /** The room as it is now. Always sent; optional only so a reader's fixture may leave it out. */
     room: room.nullable().catch(null).optional(),
+    /**
+     * How many said on the event's Rally form that they can make it: respondents free for the
+     * form's whole length from `startsAt`. Null for an event made without a form, or while Rally
+     * cannot say.
+     */
+    signedUp: z.number().int().min(0).nullable().catch(null).optional(),
   });
 
 export const eventListSchema = <V extends z.ZodType>(view: V) => z.object({ events: z.array(view).catch([]) });
@@ -61,7 +67,27 @@ export const RALLY_EVENT_SCHEMA = { name: 'event-signup', version: 1 } as const;
 
 export const RallyFormIdSchema = z.string({ error: 'formId must be a Rally form id' }).regex(/^[A-Za-z0-9_-]{1,64}$/, { error: 'formId must be a Rally form id' });
 
-/** Rally's `GET /rally/api/forms/{id}/summary`, its `data`. */
+/** One of a form's best windows: when, how many can make all of it, and the pick those people would play (an option ref). */
+export const RallyWindowSchema = z.object({
+  at: z.string(),
+  endsAt: z.string(),
+  free: z.number().int().min(0),
+  pick: z.string().nullable(),
+});
+export type RallyWindow = z.infer<typeof RallyWindowSchema>;
+
+/**
+ * What Rally tells a service caller of a form's time question with a length: for each start that
+ * anyone can make, how many can make the whole length; and the best windows. Counts, never names.
+ */
+export const RallyAvailabilitySchema = z.object({
+  lengthMin: z.number().int(),
+  starts: z.array(z.object({ at: z.string(), free: z.number().int().min(0) })),
+  best: z.array(RallyWindowSchema),
+});
+export type RallyAvailability = z.infer<typeof RallyAvailabilitySchema>;
+
+/** Rally's `GET /rally/api/forms/{id}/summary`, its `data`. `availability` comes to a service caller only. */
 export const RallyFormSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -70,6 +96,7 @@ export const RallyFormSummarySchema = z.object({
   url: z.string(),
   createdBy: z.string().nullable(),
   schema: z.object({ name: z.string(), version: z.number().int() }),
+  availability: RallyAvailabilitySchema.optional().catch(undefined),
 });
 export type RallyFormSummary = z.infer<typeof RallyFormSummarySchema>;
 
@@ -83,10 +110,12 @@ export const AttachFormBodySchema = strictBody({ formId: RallyFormIdSchema });
 export type AttachFormBody = z.output<typeof AttachFormBodySchema>;
 
 /** An attached form as `GET /api/events/forms` and `POST /api/events/forms` send it: Rally's summary, and who attached it. */
-export const AttachedFormSchema = RallyFormSummarySchema.extend({
+export const AttachedFormSchema = RallyFormSummarySchema.omit({ availability: true }).extend({
   attachedBy: z.string(),
-  /** Whether the caller attached it: only they may detach it. */
+  /** Whether the caller attached it: only they may detach it, or make an event from it. */
   mine: z.boolean().catch(false),
+  /** Its best windows, best first, for an event made from it (`RallyWindow`); empty when its time question has no length. */
+  windows: z.array(RallyWindowSchema).catch([]),
 });
 export type AttachedForm = z.infer<typeof AttachedFormSchema>;
 

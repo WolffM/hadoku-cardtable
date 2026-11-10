@@ -3,7 +3,7 @@
  * route; everyone sees every event and form, and only an event's organizer moves or cancels it.
  *
  *   GET    /api/events            → 200 { events: EventView[] }, soonest first
- *   POST   /api/events            { title, startsAt, room } → 201 EventView | 400 | 403 | 409 { verdict } | 429
+ *   POST   /api/events            { title, startsAt, room, formId? } → 201 EventView | 400 | 403 | 404 | 409 { verdict } | 429 | 502
  *   PATCH  /api/events/:id        { startsAt, title? } → 200 EventView | 400 | 403 | 404
  *   DELETE /api/events/:id        → 200 { ok: true } | 403 | 404
  *   GET    /api/events/forms      → 200 { forms: AttachedForm[] }, the open ones, closing soonest first
@@ -17,7 +17,10 @@
  * a draft has started in it; moving the start moves the room's `scheduledFor` with it.
  *
  * A form is checked through Rally's summary with this server's service key (signed-in callers
- * only on Rally's side), and only an `event-signup@1` form is attached.
+ * only on Rally's side), and only an `event-signup@1` form is attached. Being a service caller,
+ * this server also reads the form's availability as counts: an attached form lists its best
+ * windows, and an event made from a form (`formId`) shows how many can make its start
+ * (`signedUp`), live, so a later answer counts too.
  */
 
 import type { Request, Response, Router } from 'express';
@@ -190,7 +193,20 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		return (userId, kept) => (userId == null ? undefined : found.get(userId)?.name) ?? kept ?? UNNAMED;
 	};
 
-	const view = (e: EventRecord, room: RoomView, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string): EventView => ({
+	/**
+	 * How many said on the event's form that they can make it: Rally's count of respondents free for
+	 * the form's whole length from the event's start (0 at a start nobody can make). Null without a
+	 * form, or while Rally cannot say; an expired answer is shown while the next is read.
+	 */
+	const signedUpOf = async (e: EventRecord): Promise<number | null> => {
+		if (e.formId === undefined) return null;
+		const found = await summary(e.formId, true);
+		const availability = found.ok ? found.summary.availability : undefined;
+		if (availability === undefined) return null;
+		return availability.starts.find((s) => Date.parse(s.at) === e.startsAt)?.free ?? 0;
+	};
+
+	const view = (e: EventRecord, room: RoomView, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string, signedUp: number | null): EventView => ({
 		id: e.id,
 		kind: kindOf(room),
 		title: room.name,
@@ -199,12 +215,14 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		mine: e.organizerId === callerId,
 		roomId: room.id,
 		room: roomState(room),
+		signedUp,
 	});
 
-	const formView = (f: FormRecord, s: RallyFormSummary, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string): AttachedForm => ({
+	const formView = (f: FormRecord, { availability, ...s }: RallyFormSummary, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string): AttachedForm => ({
 		...s,
 		attachedBy: nameOf(f.attachedByUserId, f.attachedByName),
 		mine: f.attachedById === callerId,
+		windows: availability?.best ?? [],
 	});
 
 	const refuse = (res: Response, reason: 'no-event' | 'not-organizer'): void => {
@@ -264,14 +282,12 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 
 	api.get('/events', async (req: Request, res: Response) => {
 		const me = httpCaller(req);
-		const upcoming = events.upcoming(now());
-		const nameOf = await namesOf(upcoming.map((e) => e.organizerUserId));
-		res.json({
-			events: upcoming.flatMap((e) => {
-				const room = lobby.get(e.roomId);
-				return room === undefined ? [] : [view(e, room, me, nameOf)];
-			}),
+		const upcoming = events.upcoming(now()).flatMap((e) => {
+			const room = lobby.get(e.roomId);
+			return room === undefined ? [] : [{ e, room }];
 		});
+		const [nameOf, signedUp] = await Promise.all([namesOf(upcoming.map(({ e }) => e.organizerUserId)), Promise.all(upcoming.map(({ e }) => signedUpOf(e)))]);
+		res.json({ events: upcoming.map(({ e, room }, i) => view(e, room, me, nameOf, signedUp[i]!)) });
 	});
 
 	api.post('/events', async (req: Request, res: Response) => {
@@ -281,6 +297,16 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (!isDurableParticipantId(caller.id)) return res.status(403).json({ error: 'the edge did not name you, so you cannot organize an event' });
 		const startsAt = Date.parse(body.startsAt);
 		if (startsAt < now() - STARTS_AT_GRACE_MS) return res.status(400).json({ error: 'startsAt must not be in the past' });
+		// The form is checked before the room exists too: only a sign-up form Rally knows is linked.
+		if (body.formId !== undefined) {
+			const found = await summary(body.formId);
+			if (!found.ok || !isEventSignupForm(found.summary)) {
+				deps.log({ event: 'event-form-refused', formId: body.formId, reason: found.ok ? 'schema' : found.reason });
+				if (found.ok) return res.status(400).json({ error: 'only an event sign-up form can be linked' });
+				if (found.reason === 'not-found') return res.status(404).json({ error: 'Rally has no such form' });
+				return res.status(502).json({ error: 'Rally did not answer; try again in a moment' });
+			}
+		}
 		if (!createLimit(req, res)) return;
 
 		// The pool is checked before the room exists, so a refused one leaves nothing behind.
@@ -296,8 +322,8 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (Object.keys(settings).length > 0) lobby.setSettings(roomId, caller.id, settings);
 		if (body.plan !== undefined && verdict !== null) lobby.setPodPlan(roomId, caller.id, body.plan, verdict);
 
-		const event = events.create({ roomId, startsAt, organizerId: caller.id, organizerUserId: caller.userId }, now());
-		res.status(201).json(view(event, lobby.get(roomId)!, caller.id, () => caller.name));
+		const event = events.create({ roomId, startsAt, organizerId: caller.id, organizerUserId: caller.userId, ...(body.formId === undefined ? {} : { formId: body.formId }) }, now());
+		res.status(201).json(view(event, lobby.get(roomId)!, caller.id, () => caller.name, await signedUpOf(event)));
 	});
 
 	api.patch('/events/:id', async (req: Request, res: Response) => {
@@ -315,7 +341,8 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		const result = events.reschedule(existing.id, me, startsAt);
 		if (!result.ok) return refuse(res, result.reason);
 		lobby.reschedule(room.id, startsAt);
-		res.json(view(result.event, lobby.get(room.id) ?? room, me, await namesOf([result.event.organizerUserId])));
+		const [nameOf, signedUp] = await Promise.all([namesOf([result.event.organizerUserId]), signedUpOf(result.event)]);
+		res.json(view(result.event, lobby.get(room.id) ?? room, me, nameOf, signedUp));
 	});
 
 	api.delete('/events/:id', (req: Request, res: Response) => {

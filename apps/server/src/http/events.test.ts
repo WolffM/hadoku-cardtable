@@ -334,6 +334,62 @@ describe('/api/events/forms', () => {
 	});
 });
 
+describe('an event made from a Rally form', () => {
+	const START = '2026-11-29T22:30:00.000Z';
+	const AVAILABILITY = {
+		lengthMin: 180,
+		starts: [
+			{ at: '2026-11-29T21:30:00.000Z', free: 2 },
+			{ at: START, free: 8 },
+		],
+		best: [{ at: START, endsAt: '2026-11-30T01:30:00.000Z', free: 8, pick: 'preset-blb' }],
+	};
+
+	it('an attached form lists its best windows and the pick for each, and never every start', async () => {
+		const clock = { now: Date.UTC(2026, 10, 10, 12) };
+		const { base } = await openApp(clock, { poll: rallyForm('poll', { availability: AVAILABILITY }), plain: rallyForm('plain') });
+		await call(base, 'alice', 'POST', '/events/forms', { formId: 'poll' });
+		await call(base, 'alice', 'POST', '/events/forms', { formId: 'plain' });
+		const listed = (await call(base, 'bob', 'GET', '/events/forms')).body as { forms: Record<string, unknown>[] };
+		const byId = Object.fromEntries(listed.forms.map((f) => [f.id, f]));
+		expect(byId.poll!.windows).toEqual(AVAILABILITY.best);
+		expect(byId.poll!.availability).toBeUndefined();
+		expect(byId.plain!.windows).toEqual([]);
+	});
+
+	it('shows how many can make its start, read live from Rally, and 0 at a start nobody can make', async () => {
+		const clock = { now: Date.UTC(2026, 10, 10, 12) };
+		const rally: Record<string, RallyRow> = { poll: rallyForm('poll', { availability: AVAILABILITY }) };
+		const { base } = await openApp(clock, rally);
+		const made = await call(base, 'alice', 'POST', '/events', { ...tournament('Draft Major', START, { gameType: 'draft' }), formId: 'poll' });
+		expect(made.status).toBe(201);
+		const event = EventViewSchema.parse(made.body);
+		expect(event.signedUp).toBe(8);
+		await call(base, 'alice', 'POST', '/events', tournament('No form', START, { gameType: 'draft' }));
+
+		const signedUp = async () => Object.fromEntries(EventListSchema.parse((await call(base, 'bob', 'GET', '/events')).body).events.map((e) => [e.title, e.signedUp]));
+		expect(await signedUp()).toEqual({ 'Draft Major': 8, 'No form': null });
+
+		// A later answer counts once Rally's answer is re-read.
+		rally.poll = rallyForm('poll', { availability: { ...AVAILABILITY, starts: [{ at: START, free: 9 }] } });
+		clock.now += 6 * 60_000;
+		await vi.waitFor(async () => expect((await signedUp())['Draft Major']).toBe(9));
+
+		const moved = await call(base, 'alice', 'PATCH', `/events/${event.id}`, { startsAt: '2026-11-29T23:30:00.000Z' });
+		expect(EventViewSchema.parse(moved.body).signedUp).toBe(0);
+	});
+
+	it('links only a sign-up form Rally knows, before any room is made', async () => {
+		const clock = { now: Date.UTC(2026, 10, 10, 12) };
+		const { base, lobby } = await openApp(clock, { custom: rallyForm('custom', { schema: { name: 'custom', version: 1 } }), down: { status: 500 } });
+		const make = async (formId: string) => (await call(base, 'alice', 'POST', '/events', { ...tournament('T', START, { gameType: 'draft' }), formId })).status;
+		expect(await make('custom')).toBe(400);
+		expect(await make('nope')).toBe(404);
+		expect(await make('down')).toBe(502);
+		expect(lobby.list().length).toBe(0);
+	});
+});
+
 describe('Rally links', () => {
 	it('reads the return trip from location.search, before the hash route', () => {
 		expect(rallyReturnOf('?form=abc123&ref=ct-42')).toEqual({ formId: 'abc123', ref: 'ct-42' });

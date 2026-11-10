@@ -1,7 +1,7 @@
 /* Events, Magic's part (the frame and Rally forms are `@hadoku/platform-wire/events`): the tournament
  * room an event plays, as Create event sets it up and the calendar reads it (`apps/server/src/room/events.ts`). */
 
-import { eventListSchema, eventTitleSchema, eventViewSchema, rallyCreateUrl as rallyCreateUrlFor, StartsAtSchema, strictBody, updateEventBodySchema } from '@hadoku/platform-wire/events';
+import { eventListSchema, eventTitleSchema, eventViewSchema, rallyCreateUrl as rallyCreateUrlFor, RallyFormIdSchema, StartsAtSchema, strictBody, updateEventBodySchema } from '@hadoku/platform-wire/events';
 import { z } from 'zod';
 
 import { PodPhaseSchema } from './pod.ts';
@@ -53,7 +53,9 @@ export const CreateEventBodySchema = strictBody({
   title: eventTitleSchema(ROOM_NAME_MAX),
   startsAt: StartsAtSchema,
   room: TournamentRoomSchema.prefault({}),
-}).transform(({ title, startsAt, room: { format, settings, plan, ...fields } }, ctx) => {
+  /** The Rally sign-up form it was made from: its count of who can make it shows as the event's `signedUp`. */
+  formId: RallyFormIdSchema.optional(),
+}).transform(({ title, startsAt, formId, room: { format, settings, plan, ...fields } }, ctx) => {
   const room = CreateRoomBodySchema.safeParse({ ...fields, name: title });
   if (!room.success) {
     for (const issue of room.error.issues) ctx.addIssue({ code: 'custom', path: ['room', ...issue.path.map(String)], message: issue.message });
@@ -62,7 +64,7 @@ export const CreateEventBodySchema = strictBody({
   const draft = room.data.gameType === 'draft';
   if (draft && format !== undefined) ctx.addIssue({ code: 'custom', path: ['room', 'format'], message: 'a draft room drafts its pool: send plan, not format' });
   if (!draft && plan !== undefined) ctx.addIssue({ code: 'custom', path: ['room', 'plan'], message: 'only a draft room has a plan' });
-  return { title, startsAt, room: room.data, format, settings: settings ?? {}, plan };
+  return { title, startsAt, formId, room: room.data, format, settings: settings ?? {}, plan };
 });
 export type CreateEventBody = z.output<typeof CreateEventBodySchema>;
 

@@ -6,7 +6,7 @@
  * rule, clock, pick timer, hand smoothing — the same ones the room's leader changes later.
  */
 
-import { DEFAULT_ROOM_SETTINGS, ROOM_PASSWORD_MAX, type ClockSetting, type ConstructedMode, type CubeSummary, type PickTimer, type TournamentDecks } from '@hadoku/shared';
+import { DEFAULT_ROOM_SETTINGS, ROOM_PASSWORD_MAX, type ClockSetting, type ConstructedMode, type CubeSummary, type DraftPreset, type PickTimer, type TournamentDecks } from '@hadoku/shared';
 
 import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
 import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
@@ -81,8 +81,10 @@ export function RoomFields({ idPrefix, value, onChange, showType = true }: { idP
 export interface TournamentValues {
   /** A constructed room's format; null is the room's default (the newest Standard era). */
   format: string | null;
-  /** A draft room's cube, every round; null is the room's default pool. */
+  /** A draft room's cube, every round; null is the room's default pool, or `preset`'s. */
   cube: string | null;
+  /** A draft room's saved preset, its whole plan; null for a cube or the default pool. */
+  preset: DraftPreset | null;
   tournamentDecks: TournamentDecks;
   clock: ClockSetting;
   pickTimer: PickTimer;
@@ -92,6 +94,7 @@ export interface TournamentValues {
 export const NEW_TOURNAMENT: TournamentValues = {
   format: null,
   cube: null,
+  preset: null,
   tournamentDecks: DEFAULT_ROOM_SETTINGS.tournamentDecks,
   clock: DEFAULT_ROOM_SETTINGS.clock,
   pickTimer: { ...DEFAULT_ROOM_SETTINGS.pickTimer },
@@ -102,8 +105,8 @@ export const NEW_TOURNAMENT: TournamentValues = {
 export function tournamentRoom(fields: RoomFieldValues, t: TournamentValues): Record<string, unknown> {
   const room = createRoomFields(roomRequest(fields));
   if (fields.gameType === 'draft') {
-    const cube = t.cube === null ? {} : { plan: { rounds: [0, 1, 2].map(() => ({ kind: 'cube', cubeId: t.cube })) } };
-    return { ...room, ...cube, settings: { clock: t.clock, pickTimer: t.pickTimer, handSmoothing: t.handSmoothing } };
+    const pool = t.preset !== null ? { plan: t.preset.plan } : t.cube === null ? {} : { plan: { rounds: [0, 1, 2].map(() => ({ kind: 'cube', cubeId: t.cube })) } };
+    return { ...room, ...pool, settings: { clock: t.clock, pickTimer: t.pickTimer, handSmoothing: t.handSmoothing } };
   }
   return { ...room, ...(t.format === null ? {} : { format: t.format }), settings: { tournamentDecks: t.tournamentDecks, clock: t.clock, handSmoothing: t.handSmoothing } };
 }
@@ -130,7 +133,10 @@ const ON_OFF: readonly RadioCard<'on' | 'off'>[] = [
   { value: 'off', label: 'Off' },
 ];
 
-/** The format and cube lists, or null while they load (each picker then offers only the default). */
+/** A preset's value in the pool select, beside the cubes' bare ids. */
+const PRESET_VALUE = 'preset:';
+
+/** The format, cube and preset lists, or null while they load (each picker then offers only the default). */
 export function TournamentFields({
   idPrefix,
   gameType,
@@ -138,6 +144,7 @@ export function TournamentFields({
   onChange,
   formats,
   cubes,
+  presets,
 }: {
   idPrefix: string;
   gameType: GameType;
@@ -145,20 +152,36 @@ export function TournamentFields({
   onChange: (next: TournamentValues) => void;
   formats: readonly TableFormat[] | null;
   cubes: readonly CubeSummary[] | null;
+  presets: readonly DraftPreset[] | null;
 }) {
   const set = (patch: Partial<TournamentValues>): void => onChange({ ...value, ...patch });
+  const pickPool = (choice: string): void => {
+    const preset = choice.startsWith(PRESET_VALUE) ? (presets ?? []).find((p) => `${PRESET_VALUE}${p.id}` === choice) : undefined;
+    set(preset !== undefined ? { preset, cube: null } : { preset: null, cube: choice === '' ? null : choice });
+  };
   return (
     <>
       {gameType === 'draft' ? (
         <>
-          <label htmlFor={`${idPrefix}-cube`}>Cube</label>
-          <select id={`${idPrefix}-cube`} data-testid={`${idPrefix}-cube`} value={value.cube ?? ''} onChange={(e) => set({ cube: e.target.value === '' ? null : e.target.value })}>
+          <label htmlFor={`${idPrefix}-cube`}>Pool</label>
+          <select id={`${idPrefix}-cube`} data-testid={`${idPrefix}-cube`} value={value.preset !== null ? `${PRESET_VALUE}${value.preset.id}` : (value.cube ?? '')} onChange={(e) => pickPool(e.target.value)}>
             <option value="">Default</option>
-            {(cubes ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            {(presets ?? []).length > 0 && (
+              <optgroup label="Presets">
+                {(presets ?? []).map((p) => (
+                  <option key={p.id} value={`${PRESET_VALUE}${p.id}`}>
+                    {p.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Cubes">
+              {(cubes ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
 
           <span className="rooms__caption">Pick timer</span>
