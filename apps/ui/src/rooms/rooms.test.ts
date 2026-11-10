@@ -44,6 +44,7 @@ import SERVER_BODIES from './room-bodies.fixture.json';
 afterEach(() => {
   cleanup();
   globalThis.location.hash = '';
+  savedPrefs.current = {};
 });
 
 const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView => ({
@@ -151,6 +152,12 @@ function server(rooms: RoomView[], opts: { password?: string; listStatus?: numbe
 
 /** Who the fleet says the viewer is; a spec sets `name` before opening Create room. */
 const whoamiAnswer = vi.hoisted(() => ({ name: 'Alice' as string | null }));
+/** The viewer's saved preferences; a spec turns `experimental` on to be offered a Challenge. */
+const savedPrefs = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+vi.mock('@wolffm/prefs-client/react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wolffm/prefs-client/react')>()),
+  usePrefs: () => ({ prefs: savedPrefs.current, save: () => Promise.resolve(), loading: false, error: null }),
+}));
 vi.mock('@wolffm/prefs-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wolffm/prefs-client')>()),
   whoami: () => Promise.resolve({ userId: 'u-alice', userType: 'friend' as const, name: whoamiAnswer.name }),
@@ -748,9 +755,8 @@ describe('creating a room', () => {
     expect(types.map((r) => [r.value, r.checked, r.disabled])).toEqual([
       ['constructed-1v1', true, false],
       ['draft', false, false],
-      ['challenge', false, false],
     ]);
-    expect(screen.getByRole('radiogroup', { name: 'Game type' }).textContent).toBe('ConstructedDraftChallenge');
+    expect(screen.getByRole('radiogroup', { name: 'Game type' }).textContent, 'no Challenge without Experimental features').toBe('ConstructedDraft');
     const modes = within(screen.getByTestId('room-create-constructed-mode')).getAllByRole('radio') as HTMLInputElement[];
     expect(modes.map((r) => [r.value, r.checked])).toEqual([
       ['classic', false],
@@ -772,6 +778,7 @@ describe('creating a room', () => {
   });
 
   it('creates a Challenge: an event, its field, whose seat to take, and no name to type', async () => {
+    savedPrefs.current = { experimental: true };
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');

@@ -53,6 +53,7 @@
 
 import { useCallback, useContext, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@wolffm/themes';
+import { usePrefs } from '@wolffm/prefs-client/react';
 import { PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ChallengeEvent } from '@hadoku/shared';
 
 import { apiUrl, sendJson } from '../http.ts';
@@ -63,6 +64,7 @@ import { warmRoom } from './warm.ts';
 import { roomFeed, type RoomFeed } from './follow.ts';
 import { watchScroll } from './scroll-watch.ts';
 import { playRole } from '../sound/index.ts';
+import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import {
   clientModeLabel,
   GAME_TYPES,
@@ -767,7 +769,11 @@ function RoomRow({
 
 /* ── create ──────────────────────────────────────────────────────────── */
 
-/** What Create room makes: a room of a game type, or a Challenge (`ChallengeFields.tsx`), which is born whole. */
+/**
+ * What Create room makes: a room of a game type, or a Challenge (`ChallengeFields.tsx`), which is
+ * born whole. Challenge is offered only to a player with Experimental features on (the operator,
+ * 2026-11-10); a Challenge room already made is listed and joined like any other.
+ */
 type CreateKind = GameType | 'challenge';
 const CREATE_KINDS: readonly RadioCard<CreateKind>[] = [...GAME_TYPES, { value: 'challenge', label: 'Challenge' }];
 
@@ -783,7 +789,10 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
   const [typed, setTyped] = useState<string | null>(null);
   const name = typed ?? (who === 'pending' ? '' : defaultRoomName(who?.name, () => draw));
   const [fields, setFields] = useState<RoomFieldValues>(NEW_ROOM_FIELDS);
-  const [kind, setKind] = useState<CreateKind>(NEW_ROOM_FIELDS.gameType);
+  const [picked, setKind] = useState<CreateKind>(NEW_ROOM_FIELDS.gameType);
+  const experimental = usePrefs(getPlayPrefsClient()).prefs?.experimental ?? PLAY_PREFS_DEFAULTS.experimental;
+  // Turned off while the form is open on Challenge: the form falls back to the room it would make.
+  const kind: CreateKind = picked === 'challenge' && !experimental ? fields.gameType : picked;
   // The Challenges are read once, the first time the card is chosen.
   const [events, setEvents] = useState<readonly ChallengeEvent[] | null>(null);
   const [choice, setChoice] = useState<ChallengeChoice | null>(null);
@@ -879,7 +888,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
           </div>
 
           <span className="rooms__caption">Game type</span>
-          <RadioCards name="room-create-type" label="Game type" options={CREATE_KINDS} value={kind} onChange={pick} testId="room-create-type" />
+          <RadioCards name="room-create-type" label="Game type" options={experimental ? CREATE_KINDS : GAME_TYPES} value={kind} onChange={pick} testId="room-create-type" />
 
           {kind === 'challenge' ? (
             events !== null && choice !== null && <ChallengeFields idPrefix="room-create" events={events} value={choice} onChange={setChoice} />

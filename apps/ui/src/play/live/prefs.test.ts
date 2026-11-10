@@ -53,6 +53,7 @@ describe('PlayPrefsSchema', () => {
       mistakeBubbles: true,
       uiScale: 1,
       packLayout: 'fan',
+      experimental: false,
     });
   });
 
@@ -83,8 +84,8 @@ describe('PlayPrefsSchema', () => {
 });
 
 describe('PLAY_PREFS_DEFAULTS', () => {
-  it('matches Board’s own default (item 11: single), the End step stop’s (on), Fast Mode’s (off — paced), "Say my mistakes" (on), and a draft pack fanned', () => {
-    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, endStepAlways: false, fastMode: false, mistakeBubbles: true, uiScale: 1, packLayout: 'fan' });
+  it('matches Board’s own default (item 11: single), the End step stop’s (on), Fast Mode’s (off — paced), "Say my mistakes" (on), a draft pack fanned, and Experimental features off', () => {
+    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, endStepAlways: false, fastMode: false, mistakeBubbles: true, uiScale: 1, packLayout: 'fan', experimental: false });
   });
 
   it('parses through its own schema — the defaults are themselves valid prefs', () => {

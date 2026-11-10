@@ -32,7 +32,7 @@ import { applyUiScale, clampUiScale, rememberedUiScale, rememberUiScale, UI_SCAL
 
 import { forgetCardWidths } from '../play/card-size.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
-import { GameSettings, MatchSettings } from './GameSettings.tsx';
+import { ExperimentalSettings, GameSettings, MatchSettings } from './GameSettings.tsx';
 import { SoundSettings } from './SoundSettings.tsx';
 import { Popover, usePopover } from '../components/Popover.tsx';
 import './settings.css';
@@ -46,6 +46,7 @@ export const CARDTABLE_SETTINGS_TABS: AppSettingsTab[] = [
       <div className="ct-settings__tab">
         <GameSettings />
         <MatchSettings />
+        <ExperimentalSettings />
       </div>
     ),
   },

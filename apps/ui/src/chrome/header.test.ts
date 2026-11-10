@@ -126,7 +126,7 @@ describe('the game’s settings are in the header’s popout', () => {
     expect(tabs, 'no catch-all App tab').not.toContain('App');
     expect(screen.getByRole('tab', { name: 'Game' }).getAttribute('aria-selected'), 'nothing remembered: the game’s first tab').toBe('true');
     for (const [tab, sections] of [
-      ['Game', ['settings-game']],
+      ['Game', ['settings-game', 'settings-experimental']],
       ['Sound', ['settings-sound']],
       ['Display', ['settings-display']],
     ] as const) {

@@ -12,6 +12,9 @@
  *     transport (`../play/live/pace.ts`).
  *   - **"Say my mistakes"** (approved 2026-10-26) — default on. Client-only: the board draws the
  *     seat's own mistake bubble (`../play/live/MistakeBubble.tsx`).
+ *   - **Experimental features** (2026-11-10) — default off. Shows what is not ready for everyone:
+ *     today Create room's Challenge (`../rooms/RoomList.tsx`). A Challenge room already made is
+ *     listed and joinable either way.
  *
  * Each control only SAVES (2026-10-30). The board reads the same preferences and applies a change
  * the moment it lands — from here, from another tab, or from a host's popout this page did not draw
@@ -87,6 +90,22 @@ export function GameSettings() {
         checked={prefs?.mistakeBubbles ?? PLAY_PREFS_DEFAULTS.mistakeBubbles}
         label="Say my mistakes"
         onChange={(on) => persist({ mistakeBubbles: on })}
+      />
+    </fieldset>
+  );
+}
+
+/** Off by default: what is not ready for everyone stays out of sight until a player asks for it. */
+export function ExperimentalSettings() {
+  const { prefs, save } = usePrefs(getPlayPrefsClient());
+  return (
+    <fieldset className="ct-settings__section" data-testid="settings-experimental">
+      <legend>Experimental</legend>
+      <Toggle
+        testId="settings-experimental-features"
+        checked={prefs?.experimental ?? PLAY_PREFS_DEFAULTS.experimental}
+        label="Experimental features"
+        onChange={(on) => void save({ experimental: on })}
       />
     </fieldset>
   );

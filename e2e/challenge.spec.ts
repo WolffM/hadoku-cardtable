@@ -11,6 +11,7 @@ import { expect, test } from '@playwright/test';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
+import { closeSettings, openSettings } from './play/w32.ts';
 import { ready } from './play/tournament.ts';
 
 const forge = forgeAvailability();
@@ -27,6 +28,13 @@ test(titled('a Challenge made from Create room seats the real top 8, and Ready o
     const alice = await openFriend(browser, 'alice');
     const page = alice.page;
     await page.goto(`${stack.origin}${PREFIX}/`);
+    await openCreateRoom(page);
+    await expect(page.getByTestId('room-create-type-challenge'), 'Challenge is offered only with Experimental features on').toHaveCount(0);
+    await page.getByTestId('room-create-close').click();
+    const experimental = (await openSettings(page)).getByTestId('settings-experimental-features');
+    await experimental.click();
+    await expect(experimental).toBeChecked();
+    await closeSettings(page);
     await openCreateRoom(page);
     await page.getByTestId('room-create-type-challenge').click();
     await expect(page.getByTestId('room-create-challenge')).toHaveValue('tournament-legacy-2026-02-07', { timeout: UI_TIMEOUT });

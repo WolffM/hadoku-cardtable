@@ -2935,7 +2935,7 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
 
     fireEvent.click(getByTestId('settings-gear'));
     const dialog = getByTestId('settings');
-    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Sound', 'Display']);
+    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Experimental', 'Sound', 'Display']);
     expect(container.querySelector('.live__ask')).toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });

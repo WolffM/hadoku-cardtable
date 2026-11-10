@@ -90,6 +90,8 @@ export const PlayPrefsSchema = borrowed.emptyObject
     uiScale: borrowed.number.refine((v) => v >= UI_SCALE.min && v <= UI_SCALE.max, { message: 'outside the UI scale range' }).optional(),
     /** A draft pack drawn fanned or as a grid (the operator, 2026-10-23: "remember whether a player has set the drafting mode to fan or grid"). */
     packLayout: PackLayoutPrefSchema.optional(),
+    /** "Experimental features" (operator, 2026-11-10): shows what is not ready for everyone, today Create room's Challenge. Off by default. */
+    experimental: borrowed.boolean.optional(),
   })
   .strict();
 
@@ -103,6 +105,7 @@ export interface PlayPrefs {
   mistakeBubbles?: boolean;
   uiScale?: number;
   packLayout?: PackLayout;
+  experimental?: boolean;
 }
 
 /**
@@ -131,6 +134,7 @@ export const PLAY_PREFS_DEFAULTS: {
   mistakeBubbles: boolean;
   uiScale: number;
   packLayout: PackLayout;
+  experimental: boolean;
 } = {
   boardLayout: 'single',
   endStepStop: true,
@@ -139,6 +143,7 @@ export const PLAY_PREFS_DEFAULTS: {
   mistakeBubbles: true,
   uiScale: 1,
   packLayout: 'fan',
+  experimental: false,
 };
 
 /**
