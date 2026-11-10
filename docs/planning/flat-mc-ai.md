@@ -1,21 +1,43 @@
-# Flat Monte Carlo AI: measured, not on yet (2026-11-09)
+# Flat Monte Carlo AI: measured, kept off (2026-11-09, decided 2026-11-10)
 
 Upstream Forge's Flat Monte Carlo AI (`81628c048c` and ~22 more, synced on 2026-11-08) plays each
 option of an AI decision out a few times on a copy of the game and takes the best. The operator
 wanted it on (*"seems nice, let's get that also"*), after a measurement. This is that measurement.
 
-**Outcome: it stays off.** Two findings:
+**Outcome: it stays off.** The operator read the numbers and ruled on 2026-11-10: *"ok we keep
+it off."* Two findings:
 
 1. On today's pin every level fills a JVM's 2 GB heap within minutes, because of **a leak in our
    own fork** (`AiCache`, below). The fix is fork branch `cardtable/aicache-per-game`
-   (`21ad8f3ae3`, on pin `c0275250da`); it also stops today's heuristic AI keeping one finished
+   (`800980bbc5`, rebased onto pin `b626664422`; measured as `21ad8f3ae3` on `c0275250da`, the same
+   two commits); it also stops today's heuristic AI keeping one finished
    game per match, so it belongs in the next pin whatever happens to Flat MC.
 2. On the fixed jar, `base` (the only level a person would not notice waiting on) won 196 of 378
    games against the plain AI: 51.9 %, 95 % interval 47–57 %, not distinguishable from even. It
    costs ~2× the AI's CPU and a 5–15 s stall about once in 330 decisions, for no measured gain.
 
 The setting is ready, `CARDTABLE_AI_FLAT_MC` (default `off`), for when upstream's search is worth
-it: a rerun is `ForgeScale -Dstress.flatMcAb=true` on the pin of the day.
+it. Revisit it only with a new measurement, in this order: pin the `AiCache` fix, rerun
+`ForgeScale -Dstress.flatMcAb=true` on that pin, and turn a level on only if its A/B win rate is
+clearly above even (the 95 % interval clear of 50 %) and its p99 decision stays under ~1 s; then a
+full Forge run (`-f full=true`) and one PPE match before any default changes.
+
+### What this measurement taught
+
+- **A `weakKeys()` cache whose values reach their own key never lets go.** Guava weak keys only
+  help when nothing in the value points back at the key; here the values held the game's cards and
+  players. A per-object cache belongs on the object (`Game.getAiCache`). A heap that climbs for as
+  long as games are played is a leak; prove it with a JFR old-object sample
+  (`path-to-gc-roots=true`) or a class histogram counting live `forge.game.Game`, not by raising `-Xmx`.
+- **An A/B between two AIs must swap seats independently of the deck pairing.** The first
+  `flatMcAb` draft put the Flat MC seat on the same parity as the deck pair, so the deck decided the
+  seat; the MC seat is now `index/(decks/2) % 2`, swapped every lap.
+- **Search costs show in the tail, not the median.** Every level's p50 was 2–4 ms; `lite`/`max`
+  failed on p99 (>10 s), because the opponent-turn lookahead runs one uninterruptible rollout of
+  3–4.5 s. Judge an AI change on p99, max and the share of decisions over 5 s.
+- **Upstream's preference default is desktop's, not ours.** `MATCH_AI_FLAT_MONTE_CARLO` is on
+  (Max) on desktop; the bridge sets it per match from `CARDTABLE_AI_FLAT_MC`, and the JVM-wide pref
+  stays `false`.
 
 ## The setting
 

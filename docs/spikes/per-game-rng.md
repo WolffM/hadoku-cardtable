@@ -53,7 +53,7 @@ Where the bindings are made (all in the fork):
 | `AiController` eval thread | `new Thread(MyRandom.propagate(future), "Game AI Eval")`. |
 | `AiAttackController` pool | each task is `MyRandom.propagate(...)`d when it is added. |
 | `SpellAbilityPicker.evaluateSa` | binds a fresh `Random(seedFromGameStream)` per simulation instead of swapping the JVM-wide one (which would no longer reach a bound thread, and raced other games before). |
-| `AiCache` | per game (`Cache<Game, …>` with weak keys); `getCached(Game, key, …)`, `clear(Game)`. |
+| `AiCache` | per game (`Cache<Game, …>` with weak keys); `getCached(Game, key, …)`, `clear(Game)`. **Leaks every game** (its values hold the key; found 2026-11-09, `docs/planning/flat-mc-ai.md`); fix on fork `cardtable/aicache-per-game` moves the cache onto `Game`. |
 
 The bridge (`apps/server/src/play/bridge/PlayBridge.java`, `startMatch`): the seed
 block builds `seeded = seed == null ? new SecureRandom() : new Random(seed)`, wraps it

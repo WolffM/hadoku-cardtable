@@ -1065,7 +1065,14 @@ in that tree (paths under `forge/`):
   (`MagicStack.undo`) behind the Undo button; the bridge sets the mode to `Off`.
 - **VERIFIED — AI.** `forge-core/src/main/java/forge/util/AITimeoutTracker.java` gives every AI decision
   one deadline (`Game.getAITimeout`); `FPref.MATCH_AI_FLAT_MONTE_CARLO` (default `true`, Max on
-  desktop, `HostedMatch.java:165`) turns on Flat Monte Carlo rollouts. The bridge sets it `false`.
+  desktop, `HostedMatch.java:165`) turns on Flat Monte Carlo rollouts. The bridge sets it `false`
+  and sets the game's own `AI_FLAT_MONTE_CARLO`/`_LITE`/`_MAX` per match from `CARDTABLE_AI_FLAT_MC`
+  (default `off`; measured and kept off 2026-11-10, `docs/planning/flat-mc-ai.md`).
+- **VERIFIED — our fork's per-game `AiCache` keeps every game alive** (fork `7878fe7546`,
+  `forge-ai/src/main/java/forge/ai/AiCache.java`): a `Cache<Game, …>.weakKeys()` whose values hold the
+  game's cards and players, so the key is never released. Seen as 198 live `Game` for 4 matches
+  (class histogram) and a JFR old-object sample rooted at `AiCache.byGame`. Fix on fork branch
+  `cardtable/aicache-per-game` (`800980bbc5`, cache on `Game.getAiCache`), not yet pinned.
 - **VERIFIED — one hosting server per process became several.** `HostingServer.java` is upstream's
   hook for "the server this process hosts"; the fork makes it a set and finds a game's server by
   `Server.hosts(game)`.

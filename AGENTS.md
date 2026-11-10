@@ -160,7 +160,8 @@ does not anchor on the line start counts the commented-out constant at
 Java 21 ✓ and Maven ✓ — **the fleet provides both, on `PATH`** (D14, amended
 2026-11-02): `jdk21` and `maven` in `fleet converge-toolchain`, a Temurin JDK 21
 and Maven 3.9 under `/opt/fleet-tools`, behind `/usr/local/bin/{java,javac,mvn}`
-on every node, kept current by the fleet. `which javac` and `which mvn` find
+on every node, kept current by the fleet (exception, checked 2026-11-10: claw-1 has `javac` but
+no `mvn`, so build Forge jars on another claw). `which javac` and `which mvn` find
 them. The old user-local tarballs under `~/.local/opt` are retired: nothing
 updates them, so never point anything there.
 
