@@ -25,7 +25,7 @@ export interface Secret {
 	hash: string;
 }
 
-export function hashPassword(password: string, salt: Buffer): Buffer {
+function hashPassword(password: string, salt: Buffer): Buffer {
 	return scryptSync(password.normalize('NFC'), salt, KEY_BYTES);
 }
 

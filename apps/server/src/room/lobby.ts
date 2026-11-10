@@ -57,7 +57,7 @@
  * rather than a member who silently vanishes on the next restart.
  */
 
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
 	FileRoomStore,
 	STORE_VERSION,
@@ -1261,7 +1261,7 @@ function inPlay(room: RoomRecord): boolean {
  * possible to click?"*). Once the pod is dealt nothing about the room changes; before that, what the
  * room plays and its event freeze with a Ready or a game (`modeLocked`), its pool and rules with a game.
  */
-export function roomLocks(room: RoomRecord): RoomLocks {
+function roomLocks(room: RoomRecord): RoomLocks {
 	const started = room.draftStartedAt !== null ? 'draft-started' : null;
 	const plays = started ?? (modeLocked(room) ? 'mode-locked' : null);
 	const playing = started ?? (inPlay(room) ? 'mode-locked' : null);

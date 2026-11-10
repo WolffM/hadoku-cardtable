@@ -30,7 +30,7 @@ import { ROOM_STALE_MS } from './constants.js';
 const FEED_TOUCH_MS = ROOM_STALE_MS / 6;
 
 /** A narrow slice of `room/lobby.ts`'s `Lobby` — declared here, not imported, so this platform file carries no edge into the tangled lobby. `FileLobby` satisfies it structurally. */
-export interface RoomFeedLobby {
+interface RoomFeedLobby {
 	touch(roomId: string, memberId: string): void;
 	isMember(roomId: string, memberId: string): boolean;
 	onChange(listener: (roomId: string) => void): () => void;

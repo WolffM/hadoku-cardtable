@@ -30,7 +30,7 @@ type RoomsLeaveResult = { ok: true; forfeited?: { tableId: string; matchIds: str
 type RoomsCloseResult = { ok: true; matches: string[] } | { ok: false };
 
 /** A narrow slice of `room/lobby.ts`'s `Lobby` — declared here, not imported, so this platform file carries no edge into the tangled lobby. */
-export interface RoomsLobby {
+interface RoomsLobby {
 	list(): readonly RoomSummary[];
 	leave(roomId: string, memberId: string): RoomsLeaveResult;
 	close(roomId: string, callerId: string): RoomsCloseResult;
