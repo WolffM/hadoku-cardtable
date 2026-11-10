@@ -40,23 +40,85 @@
  * with it. A fault at ANY stage (the sync, the rebuild, the swap) leaves
  * `catalogPath` and the live `catalog` exactly as they were.
  *
- * `rebuild`'s peak RSS measured locally at ~1.03 GB for the full 2026-09-15
- * cache (118,026 printings) — see this lane's closing note — comfortably
- * under the 2 GB figure the brief named for moving this to a child process,
- * so it runs on the server's own heap.
+ * ## The build runs on a worker thread (#54, 2026-11-10)
+ *
+ * It used to run on the server's own thread, on the reasoning that its ~1 GB
+ * peak fit the heap and a real Scryfall release was rare. Neither held up.
+ * Scryfall moves `updated_at` twice a day (≈10:06Z and ≈22:06Z), prices and
+ * all, so the first boot after each move rebuilds. PPE redeploys on every push
+ * to main, so it rebuilt twice a day, every day: a 1.2–2.1 s event-loop block
+ * and a 0.8–1.5 GB heap spike each time. Every one of those rebuilds wrote a
+ * catalog byte-identical to the one it replaced.
+ *
+ * So `buildInWorker` (the default `buildFn`) runs `runBuildCatalog` in
+ * `./catalog-build-worker.ts`, and a result identical to the live file is
+ * dropped. Nothing is swapped, `onSwap` is not called, and the run logs
+ * `changed: false, reason: 'same-catalog'`. What is left on the server's thread
+ * is `catalog.swap` (~0.4 s to parse ~30 MB), and only when the catalog really
+ * changed.
  */
 
-import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { Worker } from 'node:worker_threads';
 
-import { runBuildCatalog, sync, type RunBuildCatalogOptions, type RunBuildCatalogResult, type SyncOptions, type SyncResult } from '@hadoku/carddata';
+import { sync, type RunBuildCatalogOptions, type RunBuildCatalogResult, type SyncOptions, type SyncResult } from '@hadoku/carddata';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { CardCatalog } from './catalog.ts';
 
 const log = jsonLogger('cardtable-pools');
 
 const DEFAULT_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The worker's entry beside this module: `catalog-build-worker.ts` from source (tsx, vitest), and
+ * `catalog-build-worker.js` from the bundle, where `import.meta.url` is `dist/index.js` and the
+ * build writes the worker beside it.
+ */
+export function buildWorkerUrl(from: string = import.meta.url): URL {
+	return new URL(from.endsWith('.ts') ? './catalog-build-worker.ts' : './catalog-build-worker.js', from);
+}
+
+/** `runBuildCatalog` on a worker thread, so the parse never blocks the server's own thread. */
+export function buildInWorker(options: RunBuildCatalogOptions, url: URL = buildWorkerUrl()): Promise<RunBuildCatalogResult> {
+	return new Promise((resolve, reject) => {
+		const worker = new Worker(url, { workerData: options });
+		let settled = false;
+		worker.once('message', (msg: { ok: true; result: RunBuildCatalogResult } | { ok: false; message: string }) => {
+			settled = true;
+			if (msg.ok) resolve(msg.result);
+			else reject(new Error(msg.message));
+		});
+		worker.once('error', (err) => {
+			settled = true;
+			reject(err);
+		});
+		worker.once('exit', (code) => {
+			if (!settled) reject(new Error(`catalog build worker exited with code ${code} and no result`));
+		});
+	});
+}
+
+/** A file's sha-256, read in chunks so a 30 MB catalog never blocks the thread. */
+function fileHash(path: string): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const hash = createHash('sha256');
+		createReadStream(path)
+			.on('data', (chunk) => hash.update(chunk))
+			.on('end', () => resolve(hash.digest('hex')))
+			.on('error', reject);
+	});
+}
+
+/** Whether two files hold the same bytes. A missing file is never the same as anything. */
+async function sameBytes(a: string, b: string): Promise<boolean> {
+	const sizes = await Promise.all([stat(a), stat(b)].map((p) => p.then((s) => s.size).catch(() => null)));
+	if (sizes[0] === null || sizes[1] === null || sizes[0] !== sizes[1]) return false;
+	const [ha, hb] = await Promise.all([fileHash(a), fileHash(b)]);
+	return ha === hb;
+}
 
 export interface CreateCatalogRefreshOpts {
 	/** The live catalog object held by every reader (`index.ts`'s `createCubeStore` call, `room/plan.ts`'s checker, …). */
@@ -69,7 +131,7 @@ export interface CreateCatalogRefreshOpts {
 	onSwap?: () => void;
 	/** Injectable for a test; default `sync` from `@hadoku/carddata`. Never let a test call the real one — it hits the network. */
 	syncFn?: (options: SyncOptions) => Promise<SyncResult>;
-	/** Injectable for a test; default `runBuildCatalog` from `@hadoku/carddata`. */
+	/** Injectable for a test; default `buildInWorker` (`runBuildCatalog` on a worker thread). */
 	buildFn?: (options: RunBuildCatalogOptions) => Promise<RunBuildCatalogResult>;
 	log?: (entry: Record<string, unknown>) => void;
 }
@@ -98,7 +160,7 @@ export interface CatalogRefresh {
 export function createCatalogRefresh(opts: CreateCatalogRefreshOpts): CatalogRefresh {
 	const { catalog, scryfallDir, catalogPath, onSwap } = opts;
 	const syncFn = opts.syncFn ?? sync;
-	const buildFn = opts.buildFn ?? runBuildCatalog;
+	const buildFn = opts.buildFn ?? buildInWorker;
 	const warn = opts.log ?? log;
 
 	let running = false;
@@ -135,6 +197,16 @@ export function createCatalogRefresh(opts: CreateCatalogRefreshOpts): CatalogRef
 				warn({ evt: 'catalog-refresh-fault', stage: 'build', detail });
 				await rm(tmpPath, { force: true }).catch(() => {});
 				return { ran: true, changed: false, fault: detail };
+			}
+
+			const same = await sameBytes(built.outPath, catalogPath).catch((err: Error) => {
+				warn({ evt: 'catalog-refresh-compare-fault', detail: err.message });
+				return false;
+			});
+			if (same) {
+				await rm(built.outPath, { force: true }).catch((err: Error) => warn({ evt: 'catalog-refresh-temp-left', path: built.outPath, detail: err.message }));
+				warn({ evt: 'catalog-refresh-finish', changed: false, reason: 'same-catalog', sourceUpdatedAt: syncResult.manifest.sourceUpdatedAt });
+				return { ran: true, changed: false, fault: null };
 			}
 
 			try {

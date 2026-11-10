@@ -21,8 +21,9 @@
     "types": ["node"]
   },
   // Tests are included so they are TYPECHECKED. They cannot reach `dist/`:
-  // esbuild bundles from `src/index.ts` alone, so nothing a test imports is
-  // reachable from the entry point and nothing a test defines is emitted.
+  // esbuild bundles from `src/index.ts` and the catalog build's worker
+  // (`src/pools/catalog-build-worker.ts`) alone, so nothing a test defines is
+  // reachable from an entry point or emitted.
   "include": ["src/**/*.ts"],
   // `src/play/monkey/` (the monkey seat fuzzer, never imported by `src/index.ts`)
   // reaches into `apps/ui/src` for its board/prompt rules, which need the DOM

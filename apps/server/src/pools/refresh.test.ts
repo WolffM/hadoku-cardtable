@@ -19,7 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RunBuildCatalogOptions, RunBuildCatalogResult, SyncOptions, SyncResult } from '@hadoku/carddata';
 import { loadCardCatalog } from './catalog.ts';
-import { createCatalogRefresh } from './refresh.ts';
+import { buildInWorker, buildWorkerUrl, createCatalogRefresh } from './refresh.ts';
 
 const BOLT = {
 	cardId: 'lightning bolt',
@@ -117,6 +117,29 @@ describe('createCatalogRefresh', () => {
 		expect(onDisk.cards['delver of secrets // insectile aberration']).toBeDefined();
 		const leftovers = (await readdir(join(dir, 'catalog'))).filter((f) => f.endsWith('.tmp'));
 		expect(leftovers).toEqual([]);
+	});
+
+	it('a newer listing whose rebuild is byte-identical to the live catalog: no swap, no onSwap, no temp file left', async () => {
+		const live = await readFile(catalogPath, 'utf8');
+		const catalog = loadCardCatalog(catalogPath);
+		const swap = vi.spyOn(catalog, 'swap');
+		const syncFn = vi.fn(async (): Promise<SyncResult> => manifestResult({ upToDate: false }));
+		const buildFn = vi.fn(async (options: RunBuildCatalogOptions): Promise<RunBuildCatalogResult> => {
+			await writeFile(options.outPath as string, live, 'utf8');
+			return { outPath: options.outPath as string, cardCount: 1, aliasCount: 0, printings: 1 };
+		});
+		const onSwap = vi.fn();
+
+		const refresh = createCatalogRefresh({ catalog, scryfallDir, catalogPath, syncFn, buildFn, onSwap, log });
+		const outcome = await refresh.runOnce();
+
+		expect(outcome).toEqual({ ran: true, changed: false, fault: null });
+		expect(buildFn).toHaveBeenCalledTimes(1);
+		expect(swap).not.toHaveBeenCalled();
+		expect(onSwap).not.toHaveBeenCalled();
+		expect(logs.at(-1)).toMatchObject({ evt: 'catalog-refresh-finish', changed: false, reason: 'same-catalog' });
+		expect(await readFile(catalogPath, 'utf8')).toBe(live);
+		expect((await readdir(join(dir, 'catalog'))).filter((f) => f.endsWith('.tmp'))).toEqual([]);
 	});
 
 	it('an older or equal bulk listing: does nothing (no rebuild, no swap)', async () => {
@@ -242,5 +265,57 @@ describe('createCatalogRefresh', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+/**
+ * The real worker (`catalog-build-worker.ts`, from source) against a one-card `cards.jsonl` in a
+ * scratch dir: the default `buildFn` builds off the server's thread and hands back the same result
+ * `runBuildCatalog` would, and a build that fails comes back as a rejection carrying its message.
+ */
+describe('buildInWorker', () => {
+	let dir: string;
+
+	beforeEach(async () => {
+		dir = await mkdtemp(join(tmpdir(), 'refresh-worker-'));
+	});
+
+	afterEach(async () => {
+		await rm(dir, { recursive: true, force: true });
+	});
+
+	it('resolves the bundle’s worker beside dist/index.js, and the source’s beside this module', () => {
+		expect(buildWorkerUrl('file:///srv/apps/server/dist/index.js').pathname).toBe('/srv/apps/server/dist/catalog-build-worker.js');
+		expect(buildWorkerUrl('file:///srv/apps/server/src/pools/refresh.ts').pathname).toBe('/srv/apps/server/src/pools/catalog-build-worker.ts');
+	});
+
+	it('builds the catalog on a worker thread', async () => {
+		const fireIce = {
+			id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+			name: 'Fire // Ice',
+			lang: 'en',
+			set: 'apc',
+			collector_number: '119',
+			released_at: '2001-06-04',
+			layout: 'split',
+			colors: null,
+			mana_cost: null,
+			cmc: 2,
+			card_faces: [
+				{ name: 'Fire', mana_cost: '{1}{R}', colors: ['R'], type_line: 'Instant', oracle_text: 'Fire deals 2 damage divided as you choose among one or two targets.' },
+				{ name: 'Ice', mana_cost: '{1}{U}', colors: ['U'], type_line: 'Instant', oracle_text: 'Tap target permanent. Draw a card.' },
+			],
+		};
+		await writeFile(join(dir, 'cards.jsonl'), `${JSON.stringify(fireIce)}\n`, 'utf8');
+		const outPath = join(dir, 'cards.json');
+
+		const result = await buildInWorker({ dataDir: dir, outPath });
+
+		expect(result).toMatchObject({ outPath, cardCount: 1 });
+		expect(loadCardCatalog(outPath).byName('Fire // Ice')?.name).toBe('Fire // Ice');
+	});
+
+	it('a build that fails in the worker rejects with its message', async () => {
+		await expect(buildInWorker({ dataDir: dir, outPath: join(dir, 'cards.json') })).rejects.toThrow(/No card cache at/);
 	});
 });

@@ -28,7 +28,8 @@
  * TypeScript SOURCE with `.ts` imports, which `tsc` refuses to emit. The externals passed to
  * esbuild are this package's own `dependencies` minus the `@hadoku/*` ones; anything a workspace
  * package pulls in transitively must be BUNDLED, because pnpm's strict layout does not expose it
- * next to `dist/`. `dist/index.js` is still a plain file that plain `node` runs.
+ * next to `dist/`. `dist/index.js` is still a plain file that plain `node` runs. The one other
+ * entry is the catalog build's worker thread, `dist/catalog-build-worker.js` (`pools/refresh.ts`).
  */
 
 import { dirname, resolve } from 'node:path';
