@@ -98,6 +98,24 @@ describe('layer fence — imports', () => {
 		throw new Error(lines.join('\n'));
 	});
 
+	it('no violating edge is new, whatever the count — slack a deleted edge leaves never admits another', () => {
+		const fresh = violations.filter((e) => {
+			const pair = `${e.fromLayer}→${e.toLayer}`;
+			return !(baseline.edgeKeys[pair] ?? []).includes(edgeKey(e));
+		});
+		if (fresh.length === 0) return;
+		throw new Error(
+			[
+				`${fresh.length} violating import(s) not in baseline.json (counts now: ${JSON.stringify(counts)}):`,
+				...fresh.map((e) => `  ${e.fromFile}:${e.line} imports '${e.spec}' (${e.fromLayer}→${e.toLayer})`),
+				'\nThree ways out: move the Magic part next to its Magic peers; classify the importing file as' +
+					' Magic in layers.json if that is what it is; or put the generic part in a platform file.' +
+					'\nIf the edge is an old one whose file was renamed, run `node scripts/layers/baseline.ts' +
+					" --accept-rise` and name the rename in the commit.",
+			].join('\n'),
+		);
+	});
+
 	it('a count that FALLS is a pass, not silence — print the baseline-refresh command', () => {
 		const fallen = Object.entries(baseline.edgeCounts).filter(([pair, was]) => (counts[pair] ?? 0) < was);
 		if (fallen.length > 0) {

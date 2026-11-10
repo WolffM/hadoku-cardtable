@@ -1,7 +1,7 @@
 {
 	"edgeCounts": {
-		"platform→magic": 69,
-		"platform→tangled": 12
+		"platform→magic": 60,
+		"platform→tangled": 11
 	},
 	"edgeKeys": {
 		"platform→magic": [
@@ -24,7 +24,6 @@
 			"apps/server/src/play/recording/recorder.ts→../art.js",
 			"apps/server/src/play/recording/recorder.ts→../deck-colors.js",
 			"apps/server/src/play/recording/recorder.ts→@hadoku/shared",
-			"apps/server/src/room/feed.ts→@hadoku/shared",
 			"apps/server/src/stream/alloc.ts→@hadoku/shared",
 			"apps/server/src/stream/index.ts→@hadoku/shared",
 			"apps/ui/src/components/Avatar.tsx→../play/marks.tsx",
@@ -48,29 +47,21 @@
 			"apps/ui/src/rally/RallyEmbed.tsx→@hadoku/shared",
 			"apps/ui/src/rally/api.ts→@hadoku/shared",
 			"apps/ui/src/restart-notice.ts→@hadoku/shared",
-			"apps/ui/src/room/RoomShell.tsx→../rooms/api.ts",
 			"apps/ui/src/room/RoomShell.tsx→@hadoku/shared",
 			"apps/ui/src/room/avatar.ts→@hadoku/shared",
-			"apps/ui/src/room/avatarAssert.ts→../rooms/api.ts",
-			"apps/ui/src/room/avatarAssert.ts→../rooms/feed.ts",
 			"apps/ui/src/room/look.tsx→@hadoku/shared",
+			"apps/ui/src/room/seatsOpen.tsx→@hadoku/shared",
 			"apps/ui/src/screens/route.ts→@hadoku/shared",
 			"apps/ui/src/settings/Settings.tsx→../play/card-size.ts",
 			"apps/ui/src/settings/Settings.tsx→../play/live/prefs.ts",
 			"apps/ui/src/settings/Settings.tsx→./GameSettings.tsx",
 			"apps/ui/src/settings/Settings.tsx→./SoundSettings.tsx",
 			"apps/ui/src/sound/index.ts→./builderClient.ts",
-			"apps/ui/src/sound/mix.ts→./builderClient.ts",
-			"apps/ui/src/sound/mix.ts→@hadoku/shared",
+			"apps/ui/src/sound/index.ts→./registry.ts",
 			"apps/ui/src/sound/queue.ts→@hadoku/deck",
 			"apps/ui/src/sound/queue.ts→@hadoku/shared",
 			"apps/ui/src/usage.ts→@hadoku/shared",
-			"packages/shared/src/events.ts→./pod.ts",
-			"packages/shared/src/events.ts→./pool.ts",
-			"packages/shared/src/events.ts→./room-modes.ts",
-			"packages/shared/src/events.ts→./room-requests.ts",
-			"packages/shared/src/room-view.ts→./pod.ts",
-			"packages/shared/src/room-view.ts→./room-modes.ts",
+			"packages/shared/src/room-view.ts→./magic-room.ts",
 			"packages/shared/src/room-view.ts→./room-requests.ts",
 			"packages/shared/src/room-view.ts→./room-tables.ts"
 		],
@@ -81,11 +72,10 @@
 			"apps/server/src/erase/recordings.ts→../room/lobby.js",
 			"apps/server/src/erase/rooms.ts→../room/lobby.js",
 			"apps/server/src/http/events.ts→../room/lobby.js",
-			"apps/server/src/http/request.ts→../room/lobby.js",
 			"apps/server/src/play/placement/restore.ts→../match.js",
 			"apps/server/src/play/recording/rebuild.ts→../match.js",
 			"apps/server/src/play/recording/recorder.ts→../match.js",
-			"apps/server/src/room/feed.ts→./lobby.js"
+			"apps/server/src/room/watching.ts→./lobby.js"
 		]
 	},
 	"tangled": [
