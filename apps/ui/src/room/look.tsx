@@ -22,7 +22,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { cleanWorn, decorHtml, nameHtml, onPictureColour, pictureColour, readPictureColour, type AvatarCosmetics } from '@wolffm/prefs-client/cosmetics';
-import type { Look } from '@hadoku/shared';
+import type { Look } from '@hadoku/platform-wire/look';
 
 import { watchpartyOrigin } from './avatar.ts';
 import './look.css';

@@ -17,12 +17,12 @@
  */
 
 import { z } from 'zod';
+import { AVATAR_ID_MAX } from '@hadoku/platform-wire/look';
 
 import { LookSchema } from './look.ts';
-import { magicRoomFields, withMode } from './magic-room.ts';
 import { ROOM_ID_RE } from './room-feed.ts';
-import { AVATAR_ID_MAX, DEFAULT_ROOM_SETTINGS, RoomSettingsSchema, type RoomSettings } from './room-requests.ts';
-import { RoomTablesSchema, TableGamesSchema } from './room-tables.ts';
+
+export { SEATS_OPEN_BEFORE_MS, seatsOpenAt } from '@hadoku/platform-wire/events';
 
 const memberFields = z.object({
   /** A ParticipantId from `identityFromHeaders`. */
@@ -64,12 +64,6 @@ export const RoomYouSchema = z
   .catch(() => ({ id: '', leader: false, ready: false }));
 export type RoomYou = z.infer<typeof RoomYouSchema>;
 
-/** Every setting a body carries as a boolean, and the server's default for the rest. */
-const RoomSettingsViewSchema = z
-  .object(RoomSettingsSchema.partial().shape)
-  .transform((s): RoomSettings => ({ ...DEFAULT_ROOM_SETTINGS, ...s }))
-  .catch(() => ({ ...DEFAULT_ROOM_SETTINGS }));
-
 /** A member this build cannot read is left out of the list, not the room. */
 const membersSchema = z
   .array(RoomMemberSchema.nullable().catch(null))
@@ -95,7 +89,13 @@ const RoomLocksSchema = z
   .object({ gameType: RoomLockSchema.catch(null), mode: RoomLockSchema.catch(null), event: RoomLockSchema.catch(null), format: RoomLockSchema.catch(null), rules: RoomLockSchema.catch(null) })
   .catch(() => ({ ...OPEN_ROOM_LOCKS }));
 
-const roomFields = {
+/**
+ * Every field a room has whatever game it plays. The game's own part — `format`, `mode`, a pod, a
+ * table's seats and the rest — is NOT here: `magic-room.ts` spreads this base together with
+ * Magic's fields to build `RoomViewSchema`/`RoomBodySchema`, so this stays the one object a future
+ * game's own composition could reuse unchanged.
+ */
+export const roomBaseFields = {
   id: z.string().regex(ROOM_ID_RE),
   name: z.string(),
   creator: z.string().catch(''),
@@ -113,15 +113,11 @@ const roomFields = {
    * a server that predates it.
    */
   game: z.unknown().optional(),
-  ...magicRoomFields,
-  settings: RoomSettingsViewSchema,
   /** What cannot change now, and why (`RoomLocks`). A server that sends none: everything open, and its refusals still answer. */
   locks: RoomLocksSchema,
   /** Whether a password is set: never the password, never any hash of it. */
   locked: z.boolean(),
   members: membersSchema,
-  /** The room's tables, always at least one. */
-  tables: RoomTablesSchema.catch(() => []),
   /** The first table's live match, restated for readers that only know one table. */
   matchId: z.string().nullable().catch(null),
   createdAt: z.string().catch(''),
@@ -139,30 +135,3 @@ const roomFields = {
   /** A Challenge's open seat → the list its real player played, which whoever sits there plays. Absent elsewhere. */
   seatDecks: z.record(z.string(), z.string()).optional().catch(undefined),
 };
-
-/**
- * A room made for an event (`scheduledFor`) is open to come into and chat in from the moment it
- * exists, but seats nobody until this long before the event starts. The server holds it; the
- * room draws its seats shut until then.
- */
-export const SEATS_OPEN_BEFORE_MS = 30 * 60_000;
-
-/** When the seats of a room whose event starts at `scheduledFor` (ms) open, in ms. */
-export function seatsOpenAt(scheduledFor: number): number {
-  return scheduledFor - SEATS_OPEN_BEFORE_MS;
-}
-
-export const RoomViewSchema = z.object(roomFields).transform(withMode);
-export type RoomView = z.infer<typeof RoomViewSchema>;
-
-export const RoomBodySchema = z
-  .object({
-    ...roomFields,
-    you: RoomYouSchema,
-    /** Each table's game for the table card, by table id; none from a server that does not send it. */
-    tableGames: TableGamesSchema.optional().catch(undefined),
-    /** The room's AI, the character an AI seat plays as (`room/lobby.ts`'s `roomAi`). */
-    ai: z.object({ name: z.string(), avatarId: z.string().max(AVATAR_ID_MAX) }).optional().catch(undefined),
-  })
-  .transform(withMode);
-export type RoomBody = z.infer<typeof RoomBodySchema>;

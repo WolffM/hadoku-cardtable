@@ -40,7 +40,6 @@
     "apps/ui/src/front/camera.ts",
     "apps/ui/src/front/countdown.ts",
     "apps/ui/src/front/discordChat.ts",
-    "apps/ui/src/front/events.ts",
     "apps/ui/src/front/gallery.ts",
     "apps/ui/src/front/Gallery.tsx",
     "apps/ui/src/front/gate.ts",

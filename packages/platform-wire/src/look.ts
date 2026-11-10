@@ -40,6 +40,12 @@ export const WornSchema = z.object({
 /** The longest picture URL a look carries: Discord's and Steam's CDN paths are well under it. */
 export const LOOK_PICTURE_MAX = 2048;
 
+/**
+ * Watchparty's own bound on an avatar id (`sprite: z.string().min(1).max(32)` in
+ * `@wolffm/watchparty-ui@0.39.8`'s bundled `room-chrome.js`).
+ */
+export const AVATAR_ID_MAX = 32;
+
 export const LookSchema = z.object({
   /** An https image, square, drawn instead of the character's portrait. Absent: the character is the picture. */
   picture: z.url({ protocol: /^https$/ }).max(LOOK_PICTURE_MAX).optional().catch(undefined),
@@ -53,7 +59,7 @@ export type Look = z.infer<typeof LookSchema>;
  * record is shown: their character and their look, looked up then (R12), never kept with the record.
  */
 export const PersonFaceSchema = z.object({
-  avatarId: z.string().trim().min(1).max(32).optional().catch(undefined),
+  avatarId: z.string().trim().min(1).max(AVATAR_ID_MAX).optional().catch(undefined),
   look: LookSchema.optional().catch(undefined),
 });
 export type PersonFace = z.infer<typeof PersonFaceSchema>;

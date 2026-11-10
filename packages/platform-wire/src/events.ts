@@ -21,6 +21,18 @@ export const eventTitleSchema = (max: number) =>
 
 export const StartsAtSchema = z.iso.datetime({ offset: true, error: 'startsAt must be an ISO date-time' });
 
+/**
+ * A room made for an event (`scheduledFor`) is open to come into and chat in from the moment it
+ * exists, but seats nobody until this long before the event starts. The server holds it; the
+ * room draws its seats shut until then.
+ */
+export const SEATS_OPEN_BEFORE_MS = 30 * 60_000;
+
+/** When the seats of a room whose event starts at `scheduledFor` (ms) open, in ms. */
+export function seatsOpenAt(scheduledFor: number): number {
+  return scheduledFor - SEATS_OPEN_BEFORE_MS;
+}
+
 /** A request body that names its unknown fields. */
 export const strictBody = <S extends z.ZodRawShape>(shape: S) =>
   z.strictObject(shape, {

@@ -1,16 +1,13 @@
 {
 	"edgeCounts": {
-		"platform→magic": 60,
+		"platform→magic": 43,
 		"platform→tangled": 11
 	},
 	"edgeKeys": {
 		"platform→magic": [
 			"apps/agent/src/agent.ts→./draftbot.ts",
-			"apps/server/src/http/client-events.ts→@hadoku/shared",
 			"apps/server/src/http/events.ts→@hadoku/shared",
 			"apps/server/src/http/trim.ts→./sounds.js",
-			"apps/server/src/http/usage.ts→@hadoku/shared",
-			"apps/server/src/people.ts→@hadoku/shared",
 			"apps/server/src/play/host.ts→@hadoku/forge-wire",
 			"apps/server/src/play/placement/coordinator.ts→../../room/draftbot.js",
 			"apps/server/src/play/placement/coordinator.ts→./draftbot.js",
@@ -24,8 +21,6 @@
 			"apps/server/src/play/recording/recorder.ts→../art.js",
 			"apps/server/src/play/recording/recorder.ts→../deck-colors.js",
 			"apps/server/src/play/recording/recorder.ts→@hadoku/shared",
-			"apps/server/src/stream/alloc.ts→@hadoku/shared",
-			"apps/server/src/stream/index.ts→@hadoku/shared",
 			"apps/ui/src/components/Avatar.tsx→../play/marks.tsx",
 			"apps/ui/src/components/Avatar.tsx→@hadoku/shared",
 			"apps/ui/src/components/ConnectionBanner.tsx→../draft/connection.ts",
@@ -33,9 +28,6 @@
 			"apps/ui/src/front/Banner.tsx→./LiveSlot.tsx",
 			"apps/ui/src/front/Banner.tsx→./UpcomingCard.tsx",
 			"apps/ui/src/front/Banner.tsx→./WildcardCard.tsx",
-			"apps/ui/src/front/discordChat.ts→@hadoku/shared",
-			"apps/ui/src/front/events.ts→@hadoku/shared",
-			"apps/ui/src/front/polls.ts→@hadoku/shared",
 			"apps/ui/src/rally/RallyEmbed.tsx→../components/CardPile.tsx",
 			"apps/ui/src/rally/RallyEmbed.tsx→../components/CardTile.tsx",
 			"apps/ui/src/rally/RallyEmbed.tsx→../components/DraftScreen.tsx",
@@ -46,11 +38,6 @@
 			"apps/ui/src/rally/RallyEmbed.tsx→../play/inspect/index.ts",
 			"apps/ui/src/rally/RallyEmbed.tsx→@hadoku/shared",
 			"apps/ui/src/rally/api.ts→@hadoku/shared",
-			"apps/ui/src/restart-notice.ts→@hadoku/shared",
-			"apps/ui/src/room/RoomShell.tsx→@hadoku/shared",
-			"apps/ui/src/room/avatar.ts→@hadoku/shared",
-			"apps/ui/src/room/look.tsx→@hadoku/shared",
-			"apps/ui/src/room/seatsOpen.tsx→@hadoku/shared",
 			"apps/ui/src/screens/route.ts→@hadoku/shared",
 			"apps/ui/src/settings/Settings.tsx→../play/card-size.ts",
 			"apps/ui/src/settings/Settings.tsx→../play/live/prefs.ts",
@@ -59,11 +46,7 @@
 			"apps/ui/src/sound/index.ts→./builderClient.ts",
 			"apps/ui/src/sound/index.ts→./registry.ts",
 			"apps/ui/src/sound/queue.ts→@hadoku/deck",
-			"apps/ui/src/sound/queue.ts→@hadoku/shared",
-			"apps/ui/src/usage.ts→@hadoku/shared",
-			"packages/shared/src/room-view.ts→./magic-room.ts",
-			"packages/shared/src/room-view.ts→./room-requests.ts",
-			"packages/shared/src/room-view.ts→./room-tables.ts"
+			"apps/ui/src/sound/queue.ts→@hadoku/shared"
 		],
 		"platform→tangled": [
 			"apps/server/src/boot.ts→./play/match.js",

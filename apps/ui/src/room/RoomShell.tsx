@@ -49,7 +49,7 @@ import { createPortal } from 'react-dom';
 import { RoomChrome } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
 import { useHadokuTheme, type Theme } from '@wolffm/themes';
-import { ROOM_ID_RE } from '@hadoku/shared';
+import { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
 import { appId } from '@hadoku/ui-shell/app-id';
 import { useRoomFrame } from '@hadoku/ui-shell/chrome/shell';
 

@@ -395,8 +395,6 @@ export { FORMAT_ID_MAX, SCENARIO_MAX, StartMatchBodySchema, type StartMatchBody 
 export {
   RoomMemberSchema,
   RoomYouSchema,
-  RoomViewSchema,
-  RoomBodySchema,
   OPEN_ROOM_LOCKS,
   ROOM_CONTROLS,
   ROOM_LOCK_REASONS,
@@ -406,8 +404,6 @@ export {
   type RoomLocks,
   type RoomMember,
   type RoomYou,
-  type RoomView,
-  type RoomBody,
 } from './room-view.ts';
 export * from './magic-room.ts';
 export { LOOK_PICTURE_MAX, LookSchema, PersonFaceSchema, WornSchema, lookOrNone, sameLook, type Look, type PersonFace, type Worn } from '@hadoku/platform-wire/look';

@@ -9,17 +9,14 @@
  */
 
 import { z } from 'zod';
+import { AVATAR_ID_MAX } from '@hadoku/platform-wire/look';
 
 import { POD_MAX_SEATS } from './pod.ts';
 import { CONSTRUCTED_MODES, DEFAULT_GAME_TYPE, GAME_TYPES, GameTypeSchema, RoomModeSchema, type RoomMode } from './room-modes.ts';
 
+export { AVATAR_ID_MAX };
 export const ROOM_NAME_MAX = 60;
 export const ROOM_PASSWORD_MAX = 200;
-/**
- * Watchparty's own bound on an avatar id (`sprite: z.string().min(1).max(32)` in
- * `@wolffm/watchparty-ui@0.39.8`'s bundled `room-chrome.js`).
- */
-export const AVATAR_ID_MAX = 32;
 /** Watchparty's room id is opaque to us; this only bounds what is hashed. */
 export const WATCHPARTY_ROOM_MAX = 200;
 

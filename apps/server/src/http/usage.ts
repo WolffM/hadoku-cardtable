@@ -6,12 +6,12 @@
  * answered but 204.
  *
  * Every export and signature below is unchanged from before this moved into the kernel:
- * `index.ts` imports this path exactly as it did. The cardtable-specific bits are `@hadoku/shared`'s
- * schema and path, bound here — the kernel itself never imports `@hadoku/shared`.
+ * `index.ts` imports this path exactly as it did. The cardtable-specific bits are
+ * `@hadoku/platform-wire/telemetry`'s schema and path, bound here — the kernel itself never imports it.
  */
 import type { Router } from 'express';
 
-import { USAGE_PATH, UsageBatchSchema } from '@hadoku/shared';
+import { USAGE_PATH, UsageBatchSchema } from '@hadoku/platform-wire/telemetry';
 import {
 	attachUsage as kernelAttachUsage,
 	MAX_BATCHES_PER_MINUTE,

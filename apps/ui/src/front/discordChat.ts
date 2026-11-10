@@ -2,11 +2,11 @@
  * The wildcard's Discord chat (`./WildcardCard.tsx`), laid out the way Discord's own client lays out
  * a channel: consecutive messages from one author within seven minutes share a header, and each
  * header carries Discord's own timestamp wording. Avatars and name colours are the real ones, from
- * ArchiveBot (`@hadoku/shared`'s `discord.ts`); only when it could not read an avatar does the author
+ * ArchiveBot (`@hadoku/platform-wire/discord`); only when it could not read an avatar does the author
  * get their initial on one of Discord's default-avatar colours, picked from their name.
  */
 
-import type { DiscordMessage } from '@hadoku/shared';
+import type { DiscordMessage } from '@hadoku/platform-wire/discord';
 
 /** Discord starts a new header after this long, even for the same author. */
 export const GROUP_GAP_MS = 7 * 60_000;

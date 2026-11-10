@@ -1,7 +1,9 @@
 /**
- * Magic's part of a room. A room is a `gameType` plus a `game` blob the game
- * itself validates (`room-view.ts`); this file is Magic's blob, for the two
- * game types Magic plays.
+ * Magic's part of a room, and the composition that turns `room-view.ts`'s generic base into the
+ * `RoomView`/`RoomBody` `/api/rooms` actually answers with. A room is a `gameType` plus a `game`
+ * blob the game itself validates; this file is Magic's blob, for the two game types Magic plays —
+ * and, because the platform base must not know that blob's shape, it is also where the base and
+ * the blob are spread together.
  *
  * Two shapes, because the wire and the disk carry different things:
  *
@@ -15,10 +17,13 @@
  */
 
 import { z } from 'zod';
+import { AVATAR_ID_MAX } from '@hadoku/platform-wire/look';
 
 import { RoomPodSchema } from './pod.ts';
+import { roomBaseFields, RoomYouSchema } from './room-view.ts';
 import { GAME_TYPES, RoomModeSchema, type ConstructedMode, type GameType, type ModeOptions } from './room-modes.ts';
-import { ClientModeSchema, DEFAULT_CLIENT_MODE } from './room-requests.ts';
+import { ClientModeSchema, DEFAULT_CLIENT_MODE, DEFAULT_ROOM_SETTINGS, RoomSettingsSchema, type RoomSettings } from './room-requests.ts';
+import { RoomTablesSchema, TableGamesSchema } from './room-tables.ts';
 
 /** Whether Magic plays this game type. A room of any other type carries no Magic field. */
 export function isMagicGameType(gameType: string): gameType is GameType {
@@ -89,3 +94,37 @@ export function withMode<T extends { mode?: unknown; modeOptions?: unknown }>({ 
 /** A room view's `game` for a Magic room. */
 export const MagicRoomGameSchema = z.object(magicRoomFields).transform(withMode);
 export type MagicRoomGame = z.infer<typeof MagicRoomGameSchema>;
+
+/** Every setting a body carries as a boolean, and the server's default for the rest. */
+const RoomSettingsViewSchema = z
+  .object(RoomSettingsSchema.partial().shape)
+  .transform((s): RoomSettings => ({ ...DEFAULT_ROOM_SETTINGS, ...s }))
+  .catch(() => ({ ...DEFAULT_ROOM_SETTINGS }));
+
+/**
+ * The room's base (`room-view.ts`'s `roomBaseFields`) plus Magic's own fields, settings and
+ * tables — this composition, not the base alone, is `RoomView`/`RoomBody` as `/api/rooms` answers
+ * with it. A future game would compose the same base with its own fields instead.
+ */
+const roomFields = {
+  ...roomBaseFields,
+  ...magicRoomFields,
+  settings: RoomSettingsViewSchema,
+  /** The room's tables, always at least one. */
+  tables: RoomTablesSchema.catch(() => []),
+};
+
+export const RoomViewSchema = z.object(roomFields).transform(withMode);
+export type RoomView = z.infer<typeof RoomViewSchema>;
+
+export const RoomBodySchema = z
+  .object({
+    ...roomFields,
+    you: RoomYouSchema,
+    /** Each table's game for the table card, by table id; none from a server that does not send it. */
+    tableGames: TableGamesSchema.optional().catch(undefined),
+    /** The room's AI, the character an AI seat plays as (`room/lobby.ts`'s `roomAi`). */
+    ai: z.object({ name: z.string(), avatarId: z.string().max(AVATAR_ID_MAX) }).optional().catch(undefined),
+  })
+  .transform(withMode);
+export type RoomBody = z.infer<typeof RoomBodySchema>;

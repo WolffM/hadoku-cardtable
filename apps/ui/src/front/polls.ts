@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { AttachedFormSchema, type AttachedForm } from '@hadoku/shared';
+import { AttachedFormSchema, type AttachedForm } from '@hadoku/platform-wire/events';
 
 import { apiUrl, bodyOf, getJson, isRecord, serverMessage, type Fetch } from '../http.ts';
 import { rereadWhileVisible } from '../visible.ts';

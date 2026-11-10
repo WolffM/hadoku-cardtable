@@ -16,7 +16,7 @@
  * (`room/lobby.ts`'s `AVATAR_POOL`).
  */
 
-import { AVATAR_ID_MAX } from '@hadoku/shared';
+import { AVATAR_ID_MAX } from '@hadoku/platform-wire/look';
 
 /**
  * Watchparty's server, on whatever origin serves this page. In production that

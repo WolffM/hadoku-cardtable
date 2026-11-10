@@ -57,7 +57,7 @@ import { request as httpRequest } from 'node:http';
 import express from 'express';
 
 import { gateUpgrade } from '../gate.js';
-import { ROOM_ID_RE } from '@hadoku/shared';
+import { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
 import { isStaticIndexLike, type RoomStreams } from './alloc.js';
 
 export interface StreamDeps {

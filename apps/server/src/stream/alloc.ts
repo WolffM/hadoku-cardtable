@@ -43,7 +43,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ROOM_ID_RE } from '@hadoku/shared';
+import { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
 
 import { CONFIG } from '../config.js';
 

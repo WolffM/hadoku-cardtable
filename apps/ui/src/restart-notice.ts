@@ -7,7 +7,7 @@
  * coming back on its own, so the screen says so quietly. Past that, or after a
  * drop with no notice, it is an ordinary lost connection again.
  */
-import { SERVER_RESTARTING_EVENT } from '@hadoku/shared';
+import { SERVER_RESTARTING_EVENT } from '@hadoku/platform-wire/restarting';
 
 /** How long a planned restart reads as updating before it reads as reconnecting. */
 export const QUIET_RECONNECT_MS = 8_000;

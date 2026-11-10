@@ -18,7 +18,7 @@
 
 import { resolveAvatars, type ResolvedPerson } from '@wolffm/prefs-client/avatar';
 import { cleanWorn } from '@wolffm/prefs-client/cosmetics';
-import { AVATAR_ID_MAX, LOOK_PICTURE_MAX, lookOrNone, type Look, type PersonFace } from '@hadoku/shared';
+import { AVATAR_ID_MAX, LOOK_PICTURE_MAX, lookOrNone, type Look, type PersonFace } from '@hadoku/platform-wire/look';
 
 /** One person, as a screen shows them. */
 export interface Person {

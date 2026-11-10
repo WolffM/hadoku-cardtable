@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { seatsOpenAt } from '@hadoku/shared';
+import { seatsOpenAt } from '@hadoku/platform-wire/events';
 import { countdown } from '../front/countdown.ts';
 
 /** When a room whose event starts at `scheduledFor` (ISO) opens its seats, in ms, while that is after `now`; null once open or for a room no event made. */
