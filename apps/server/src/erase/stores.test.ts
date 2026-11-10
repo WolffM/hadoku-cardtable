@@ -140,4 +140,23 @@ describe('account erase in the match recordings', () => {
 		expect(lines).toEqual([{ t: 'header', spec: { seats: [{ name: 'Bob' }, { name: UNNAMED }] } }, { t: 'end', users: ['uid-bob', null] }]);
 		expect(await step.erase(personOf('uid-alice'))).toBe(0);
 	});
+
+	it('parses only a recording whose text holds the userId, so the rest of the archive costs a substring search', async () => {
+		const dir = temp();
+		// Not JSON at all: parsing it would throw. It does not hold the userId, so it is never parsed.
+		writeFileSync(join(dir, 'm-000000000004.public.jsonl.gz'), gzipSync(Buffer.from('not json\n')));
+		const pub = join(dir, 'm-000000000005.public.jsonl.gz');
+		writeFileSync(pub, gz([{ t: 'header', players: ['Alice'] }, { t: 'end', seats: [{ seat: 0, userId: 'uid-alice' }] }]));
+		expect(await recordingsStep(dir).erase(personOf('uid-alice'))).toBe(1);
+		expect(read(pub)).not.toContain('uid-alice');
+		// The garbage file is untouched, and a person it does not name passes it by.
+		expect(read(join(dir, 'm-000000000004.public.jsonl.gz'))).toBe('not json\n');
+	});
+
+	it('a missing recordings dir is nothing to erase; an unreadable one fails the erase rather than answering 0', async () => {
+		expect(await recordingsStep(join(temp(), 'never-made')).erase(personOf('uid-alice'))).toBe(0);
+		const file = join(temp(), 'a-file');
+		writeFileSync(file, '');
+		await expect(recordingsStep(file).erase(personOf('uid-alice'))).rejects.toThrow(/ENOTDIR/);
+	});
 });

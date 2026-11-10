@@ -12,33 +12,50 @@
  *
  * A recording from before seats kept their userId names nobody this can match, and is left to
  * its retention, as the ruling says.
+ *
+ * ## Off the event loop (#55, 2026-11-10)
+ *
+ * Every erase used to gunzip and parse every line of every recording, synchronously: 181–197 ms of
+ * blocked server for the 23 MB the archive held on 2026-11-10, growing with every match played,
+ * and prod's loop showed it on each of ~90 erases in an hour. Now the files are read and unzipped
+ * asynchronously (zlib on libuv's pool), and a recording is parsed only when its text holds the
+ * person's userId. An end line names them by that exact string, so a file without it cannot name
+ * them, and the screen costs a substring search.
  */
 
-import { readdirSync, readFileSync, renameSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { readdir, readFile, rename, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { gunzipSync, gzipSync } from 'node:zlib';
+import { promisify } from 'node:util';
+import { gunzip as gunzipCb, gzip as gzipCb } from 'node:zlib';
 import { UNNAMED } from '../room/constants.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
 import { replaceIds } from './anonymise.js';
 import type { EraseStep } from './index.js';
 
+const gunzip = promisify(gunzipCb);
+const gzip = promisify(gzipCb);
+
 type Line = Record<string, unknown>;
 
-function readLines(path: string): Line[] {
-	return gunzipSync(readFileSync(path))
-		.toString('utf8')
+/** A recording file's text, read and unzipped off the event loop. */
+async function readText(path: string): Promise<string> {
+	return (await gunzip(await readFile(path))).toString('utf8');
+}
+
+function parseLines(text: string): Line[] {
+	return text
 		.split('\n')
 		.filter((l) => l.length > 0)
 		.map((l) => JSON.parse(l) as Line);
 }
 
 /** Rewrite a recording file whole, keeping the mtime its retention reads. */
-function writeLines(path: string, lines: readonly Line[]): void {
-	const { atime, mtime } = statSync(path);
+async function writeLines(path: string, lines: readonly Line[]): Promise<void> {
+	const { atime, mtime } = await stat(path);
 	const tmp = `${path}.erase.tmp`;
-	writeFileSync(tmp, gzipSync(Buffer.from(lines.map((l) => JSON.stringify(l)).join('\n') + '\n', 'utf8')));
-	utimesSync(tmp, atime, mtime);
-	renameSync(tmp, path);
+	await writeFile(tmp, await gzip(Buffer.from(lines.map((l) => JSON.stringify(l)).join('\n') + '\n', 'utf8')));
+	await utimes(tmp, atime, mtime);
+	await rename(tmp, path);
 }
 
 /** The seats an end line names `userId` in: its recorded seats' `userId`, or its by-seat `users`. Drops each as it finds it. */
@@ -73,25 +90,36 @@ function seatNames(header: Line | undefined, seats: readonly number[]): string[]
 export function recordingsStep(dir: string): EraseStep {
 	return {
 		what: 'recordings',
-		erase: ({ userId }) => {
+		erase: async ({ userId }) => {
 			let files: string[];
 			try {
-				files = readdirSync(dir);
-			} catch {
-				return 0;
+				files = await readdir(dir);
+			} catch (err) {
+				if ((err as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+				throw err;
 			}
 			const matchIds = new Set(files.flatMap((f) => (f.endsWith(PUBLIC_SUFFIX) ? [f.slice(0, -PUBLIC_SUFFIX.length)] : f.endsWith(ACTIONS_SUFFIX) ? [f.slice(0, -ACTIONS_SUFFIX.length)] : [])));
 			let changed = 0;
 			for (const matchId of matchIds) {
-				const recording = [PUBLIC_SUFFIX, ACTIONS_SUFFIX]
-					.filter((suffix) => files.includes(matchId + suffix))
-					.map((suffix) => ({ path: join(dir, matchId + suffix), lines: readLines(join(dir, matchId + suffix)) }));
+				const texts: { path: string; text: string }[] = [];
+				for (const suffix of [PUBLIC_SUFFIX, ACTIONS_SUFFIX]) {
+					if (!files.includes(matchId + suffix)) continue;
+					const path = join(dir, matchId + suffix);
+					const text = await readText(path).catch((err: NodeJS.ErrnoException) => {
+						// Retention may age a file out between the listing and this read: it names no one now.
+						if (err.code === 'ENOENT') return null;
+						throw err;
+					});
+					if (text !== null) texts.push({ path, text });
+				}
+				if (!texts.some(({ text }) => text.includes(userId))) continue;
+				const recording = texts.map(({ path, text }) => ({ path, lines: parseLines(text) }));
 				const seats = recording.flatMap(({ lines }) => dropUser(lines.findLast((l) => l.t === 'end'), userId));
 				if (seats.length === 0) continue;
 				const names = new Set(recording.flatMap(({ lines }) => seatNames(lines.find((l) => l.t === 'header'), seats)));
 				for (const { path, lines } of recording) {
 					replaceIds(lines, names, UNNAMED);
-					writeLines(path, lines);
+					await writeLines(path, lines);
 				}
 				changed++;
 			}
