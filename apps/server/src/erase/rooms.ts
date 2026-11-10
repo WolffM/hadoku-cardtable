@@ -13,15 +13,33 @@
  */
 
 import type { ParticipantId } from '@wolffm/rooms-protocol';
-import type { Lobby } from '../room/lobby.js';
 import type { ErasedPerson, EraseStep } from './index.js';
 
 export interface LiveMatch {
 	seatOf(participantId: ParticipantId): number | null;
 }
 
+/** What this file reads off a room — `FileLobby.list()`'s own `RoomView[]` satisfies this structurally. */
+interface RoomSummary {
+	id: string;
+	members: readonly { id: string }[];
+}
+
+/** `room/lobby.ts`'s own `LeaveResult`/`CloseRoomResult`, narrowed to what this file reads; `FileLobby` satisfies both structurally. */
+type RoomsLeaveResult = { ok: true; forfeited?: { tableId: string; matchIds: string[] } } | { ok: false };
+type RoomsCloseResult = { ok: true; matches: string[] } | { ok: false };
+
+/** A narrow slice of `room/lobby.ts`'s `Lobby` — declared here, not imported, so this platform file carries no edge into the tangled lobby. */
+export interface RoomsLobby {
+	list(): readonly RoomSummary[];
+	leave(roomId: string, memberId: string): RoomsLeaveResult;
+	close(roomId: string, callerId: string): RoomsCloseResult;
+	anonymise(ids: ReadonlySet<string>, to: string): number;
+	removed(): Promise<void>;
+}
+
 export interface RoomsEraseDeps<M extends LiveMatch> {
-	lobby: Pick<Lobby, 'list' | 'leave' | 'close' | 'anonymise' | 'removed'>;
+	lobby: RoomsLobby;
 	/** Every match still being played. */
 	liveMatches(): readonly M[];
 	/** End a live match as `loser`'s forfeit (`table-actions.ts`'s `endForfeitedGame`). */

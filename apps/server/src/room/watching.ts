@@ -24,13 +24,20 @@ import { attachRoomBookFeed, type RoomFeedHandle } from '@wolffm/rooms-server';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 
 import { identityFromHeaders } from './identity.js';
-import { ROOM_STALE_MS, type Lobby } from './lobby.js';
+import { ROOM_STALE_MS } from './constants.js';
 
 /** Well inside `ROOM_STALE_MS`, so an open room never stops being offered. */
 const FEED_TOUCH_MS = ROOM_STALE_MS / 6;
 
+/** A narrow slice of `room/lobby.ts`'s `Lobby` — declared here, not imported, so this platform file carries no edge into the tangled lobby. `FileLobby` satisfies it structurally. */
+export interface RoomFeedLobby {
+	touch(roomId: string, memberId: string): void;
+	isMember(roomId: string, memberId: string): boolean;
+	onChange(listener: (roomId: string) => void): () => void;
+}
+
 interface RoomFeedDeps {
-	lobby: Lobby;
+	lobby: RoomFeedLobby;
 	log?: (line: Record<string, unknown>) => void;
 	/** Injected for tests. */
 	touchEveryMs?: number;

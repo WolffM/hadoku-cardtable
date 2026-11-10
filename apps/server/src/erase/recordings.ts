@@ -17,7 +17,7 @@
 import { readdirSync, readFileSync, renameSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
-import { UNNAMED } from '../room/lobby.js';
+import { UNNAMED } from '../room/constants.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
 import { replaceIds } from './anonymise.js';
 import type { EraseStep } from './index.js';
