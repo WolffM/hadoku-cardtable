@@ -153,6 +153,10 @@ protocol change does to a seat that is Forge's client inside our bridge. Each is
   rollouts within the AI's 5 s deadline for every decision. That changes CPU per match on a host
   running several matches per JVM, and AI pacing in e2e. The bridge keeps today's AI for this landing.
   Turning it on is one preference, after a capacity measurement (`capacity` telemetry, a soak).
+  Measured 2026-11-09 (`flat-mc-ai.md`): every level fills a JVM's heap, through our own
+  `7878fe7546` (the per-game `AiCache` keeps every game, and so every rollout's copy, alive; fix
+  on fork branch `cardtable/aicache-per-game`). Fixed, its `base` level won 51.9 % of 378 games
+  against the plain AI, no measurable gain, so it stays off; the setting is `CARDTABLE_AI_FLAT_MC`.
 - **Reconnecting a dropped seat.** Forge's client can now come back; the bridge still fails the match at
   once, as before. Letting a loopback seat reconnect is its own change.
 - **UndoManager.** Off: our undo is the stack's. If players want "undo the last spell", that's
