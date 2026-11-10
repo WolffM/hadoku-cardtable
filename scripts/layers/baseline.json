@@ -1,6 +1,6 @@
 {
 	"edgeCounts": {
-		"platform→magic": 43,
+		"platform→magic": 26,
 		"platform→tangled": 11
 	},
 	"edgeKeys": {
@@ -22,31 +22,14 @@
 			"apps/server/src/play/recording/recorder.ts→../deck-colors.js",
 			"apps/server/src/play/recording/recorder.ts→@hadoku/shared",
 			"apps/ui/src/components/Avatar.tsx→../play/marks.tsx",
-			"apps/ui/src/components/Avatar.tsx→@hadoku/shared",
 			"apps/ui/src/components/ConnectionBanner.tsx→../draft/connection.ts",
-			"apps/ui/src/front/Banner.tsx→../rooms/api.ts",
-			"apps/ui/src/front/Banner.tsx→./LiveSlot.tsx",
-			"apps/ui/src/front/Banner.tsx→./UpcomingCard.tsx",
-			"apps/ui/src/front/Banner.tsx→./WildcardCard.tsx",
-			"apps/ui/src/rally/RallyEmbed.tsx→../components/CardPile.tsx",
-			"apps/ui/src/rally/RallyEmbed.tsx→../components/CardTile.tsx",
-			"apps/ui/src/rally/RallyEmbed.tsx→../components/DraftScreen.tsx",
-			"apps/ui/src/rally/RallyEmbed.tsx→../components/PackView.tsx",
-			"apps/ui/src/rally/RallyEmbed.tsx→../components/PoolView.tsx",
-			"apps/ui/src/rally/RallyEmbed.tsx→../components/cardFit.ts",
-			"apps/ui/src/rally/RallyEmbed.tsx→../deck/cardOrder.ts",
-			"apps/ui/src/rally/RallyEmbed.tsx→../play/inspect/index.ts",
-			"apps/ui/src/rally/RallyEmbed.tsx→@hadoku/shared",
-			"apps/ui/src/rally/api.ts→@hadoku/shared",
 			"apps/ui/src/screens/route.ts→@hadoku/shared",
 			"apps/ui/src/settings/Settings.tsx→../play/card-size.ts",
 			"apps/ui/src/settings/Settings.tsx→../play/live/prefs.ts",
 			"apps/ui/src/settings/Settings.tsx→./GameSettings.tsx",
 			"apps/ui/src/settings/Settings.tsx→./SoundSettings.tsx",
 			"apps/ui/src/sound/index.ts→./builderClient.ts",
-			"apps/ui/src/sound/index.ts→./registry.ts",
-			"apps/ui/src/sound/queue.ts→@hadoku/deck",
-			"apps/ui/src/sound/queue.ts→@hadoku/shared"
+			"apps/ui/src/sound/index.ts→./registry.ts"
 		],
 		"platform→tangled": [
 			"apps/server/src/boot.ts→./play/match.js",

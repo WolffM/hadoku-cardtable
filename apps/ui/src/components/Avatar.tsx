@@ -9,7 +9,7 @@
  */
 
 import { createContext, useState, type ImgHTMLAttributes } from 'react';
-import type { Look } from '@hadoku/shared';
+import type { Look } from '@hadoku/platform-wire/look';
 
 import { avatarSquareUrl } from '../room/avatar.ts';
 import { FaceDecor } from '../room/look.tsx';
