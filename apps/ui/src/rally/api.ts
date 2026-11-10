@@ -9,9 +9,7 @@ import {
   RallyPackViewSchema,
   rallyEnvelope,
   type RallyCardsView,
-  type RallyCatalogue,
   type RallyPackView,
-  type RallyView,
 } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, serverMessage, type Fetch } from '../http.ts';
@@ -22,11 +20,11 @@ const CardsBody = rallyEnvelope(RallyCardsViewSchema);
 const PackBody = rallyEnvelope(RallyPackViewSchema);
 
 /** The page's data, or a thrown `Error` whose message is what the page says instead. */
-export async function fetchRallyView(catalogue: RallyCatalogue, id: string, view: RallyView, fetchImpl?: Fetch): Promise<RallyViewData> {
+export async function fetchRallyView(catalogue: string, id: string, view: string, fetchImpl?: Fetch): Promise<RallyViewData> {
   const res = await getJson(apiUrl(`rally/views/${catalogue}/${encodeURIComponent(id)}/${view}`), fetchImpl);
   const body = await bodyOf(res);
   const parsed = view === 'cards' ? CardsBody.safeParse(body) : PackBody.safeParse(body);
   if (!parsed.success) throw new Error(serverMessage(body, res.status));
   if (!parsed.data.success) throw new Error(parsed.data.error);
-  return view === 'cards' ? { view, data: parsed.data.data as RallyCardsView } : { view, data: parsed.data.data as RallyPackView };
+  return view === 'cards' ? { view, data: parsed.data.data as RallyCardsView } : { view: 'pack', data: parsed.data.data as RallyPackView };
 }

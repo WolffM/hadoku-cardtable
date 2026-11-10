@@ -1,6 +1,6 @@
 {
 	"edgeCounts": {
-		"platform→magic": 26,
+		"platform→magic": 17,
 		"platform→tangled": 11
 	},
 	"edgeKeys": {
@@ -20,16 +20,7 @@
 			"apps/server/src/play/recording/recorder.ts→../art-ids.js",
 			"apps/server/src/play/recording/recorder.ts→../art.js",
 			"apps/server/src/play/recording/recorder.ts→../deck-colors.js",
-			"apps/server/src/play/recording/recorder.ts→@hadoku/shared",
-			"apps/ui/src/components/Avatar.tsx→../play/marks.tsx",
-			"apps/ui/src/components/ConnectionBanner.tsx→../draft/connection.ts",
-			"apps/ui/src/screens/route.ts→@hadoku/shared",
-			"apps/ui/src/settings/Settings.tsx→../play/card-size.ts",
-			"apps/ui/src/settings/Settings.tsx→../play/live/prefs.ts",
-			"apps/ui/src/settings/Settings.tsx→./GameSettings.tsx",
-			"apps/ui/src/settings/Settings.tsx→./SoundSettings.tsx",
-			"apps/ui/src/sound/index.ts→./builderClient.ts",
-			"apps/ui/src/sound/index.ts→./registry.ts"
+			"apps/server/src/play/recording/recorder.ts→@hadoku/shared"
 		],
 		"platform→tangled": [
 			"apps/server/src/boot.ts→./play/match.js",

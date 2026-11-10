@@ -6,35 +6,23 @@
  *
  * The mixer, mute store, queue mechanics and gain slider are generic
  * (`@hadoku/ui-shell/sound`, w92-C). This file is the one place that hands
- * them cardtable's role registry and server client through `createSound`,
- * and re-exports its instance under the same flat names every importer
+ * them a game's role registry and server client through `createSound`,
+ * registered once by the composition root (`../composition.tsx`), and
+ * re-exports its instance under the same flat names every importer
  * already uses — nothing above this file changed. `setRolePlayer` swaps
  * the mixer for a recorder, so a test asserts raised events without audio.
  */
 
-import { createSound } from '@hadoku/ui-shell/sound';
+import { createSound, type SoundConfig } from '@hadoku/ui-shell/sound';
 
-import { SOUND_REGISTRY } from './registry.ts';
-import { soundsClient } from './builderClient.ts';
+import { registered } from '../registered.ts';
 
-/** `ui.*` roles already logged one by one as they sound: left out of the interface tally so they are not double-counted. */
-const INDIVIDUALLY_LOGGED = new Set(['ui.pass', 'ui.prompt', 'ui.priority']);
+type Sound = ReturnType<typeof createSound<string>>;
+const sound = registered<Sound>('sound');
+export const registerSound = (config: SoundConfig<string>): void => sound.set(createSound(config));
 
-/** Built lazily, like the mixer itself: nothing about sound does anything until something plays. */
-let cachedClient: ReturnType<typeof soundsClient> | null = null;
-function client(): ReturnType<typeof soundsClient> {
-  return (cachedClient ??= soundsClient());
-}
-
-const sound = createSound({
-  registry: SOUND_REGISTRY,
-  individuallyLogged: INDIVIDUALLY_LOGGED,
-  client: {
-    takeUrl: (file, version) => client().takeUrl(file, version),
-    loadAssignments: () => client().assignments(),
-    loadPack: (pack) => client().pack(pack),
-  },
-});
+/** Each name calls the registered instance when it is called, so an importer can bind it before the composition root runs. */
+const live = new Proxy({} as Sound, { get: (_, name: keyof Sound) => (...args: never[]) => (sound.get()[name] as (...a: never[]) => unknown)(...args) });
 
 export const {
   setRolePlayer,
@@ -49,7 +37,7 @@ export const {
   setScreenMusic,
   setMatchMusic,
   roleHandler,
-} = sound;
+} = live;
 
 /**
  * For a screen's `onPointerOver`: the pointer arriving on an enabled button plays the card hover. One sound for

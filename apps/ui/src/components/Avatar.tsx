@@ -8,12 +8,15 @@
  * nothing to draw, and when the image will not load.
  */
 
-import { createContext, useState, type ImgHTMLAttributes } from 'react';
+import { createContext, useState, type ComponentType, type ImgHTMLAttributes } from 'react';
 import type { Look } from '@hadoku/platform-wire/look';
 
 import { avatarSquareUrl } from '../room/avatar.ts';
 import { FaceDecor } from '../room/look.tsx';
-import { PlayerMark } from '../play/marks.tsx';
+import { registered } from '../registered.ts';
+/** The game's own silhouette for a face with no image (`fallback="mark"`). */
+const playerMark = registered<ComponentType<{ className?: string | undefined }>>('player mark');
+export const registerPlayerMark = playerMark.set;
 
 /** Everything a face is drawn from: spread it into `<Avatar>` (`<Avatar {...face} … />`). */
 export interface Face {
@@ -74,6 +77,7 @@ export function Avatar({ id, look, fallback, fallbackClassName, name = '', ...im
     );
   }
   if (fallback === 'mark') {
+    const PlayerMark = playerMark.get();
     return (
       <>
         <PlayerMark className={fallbackClassName ?? img.className} />

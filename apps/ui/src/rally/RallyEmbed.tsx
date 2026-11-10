@@ -23,7 +23,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import type { RallyCardGroup, RallyCatalogue, RallyView } from '@hadoku/shared';
+import type { RallyCardGroup } from '@hadoku/shared';
 
 import { groupCards } from '../deck/cardOrder.ts';
 import { CardPile } from '../components/CardPile.tsx';
@@ -38,9 +38,9 @@ import { fetchRallyView, type RallyViewData } from './api.ts';
 import './RallyEmbed.css';
 
 export interface RallyEmbedProps {
-  catalogue: RallyCatalogue;
+  catalogue: string;
   id: string;
-  view: RallyView;
+  view: string;
 }
 
 /** Rally's own message names: the frame's height and title, posted up; a key pressed in its modal, posted down. */

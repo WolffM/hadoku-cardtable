@@ -51,7 +51,9 @@ import { useTrim } from '../settings/siteTrim.ts';
 import { useSoundPrefs } from '@hadoku/ui-shell/sound';
 import { scaleRootOf } from '@hadoku/ui-shell/settings';
 import type { GameBundleContext } from './contract.ts';
+import { composeGame } from '../composition.tsx';
 import './embed.css';
+composeGame();
 
 const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'decks', 'play', 'sounds', 'sounds-sandbox', 'sounds-music', 'ui']);
 

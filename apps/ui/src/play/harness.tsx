@@ -14,6 +14,8 @@ import { ensureCosmeticsStyles } from '@wolffm/prefs-client/cosmetics';
 import '../styles.css';
 import { Board } from './Board.tsx';
 import { boardFromFixture, PLAY_FIXTURES } from './fixtures.ts';
+import { composeGame } from '../composition.tsx';
+composeGame();
 
 // As the app's entry does (`main.tsx`): the faces' sheet is there before anything is drawn.
 ensureCosmeticsStyles();

@@ -5,11 +5,25 @@ import { setImmediate } from 'node:timers';
 
 import { configureShell } from '@hadoku/ui-shell/app-id';
 import { configure } from '@testing-library/dom';
-import { afterEach, beforeEach } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect } from 'vitest';
 
 import { APP_ID } from '../app-name.ts';
 
 configureShell({ appId: APP_ID });
+
+// Every UI test sees the game wired as the app wires it (`./composition.tsx`). Imported once the test file
+// has been, so the parts registered are the ones its own `vi.mock`s replaced. A file that replaced a
+// registering module outright (a factory with no `register…`) has opted out of that part, and of the ones after it:
+// `play/live/matchStart.test.ts` (route.ts, sound/index.ts), `screens/roomSounds.test.ts` and
+// `screens/gauntlet/sounds.test.ts` (sound/index.ts).
+beforeAll(async () => {
+  if (expect.getState().testPath?.includes('/apps/ui/src/') !== true) return;
+  try {
+    (await import('./composition.tsx')).composeGame();
+  } catch (error) {
+    if (!/^\[vitest\] No "register\w+" export is defined on the .* mock/.test(String((error as Error).message))) throw error;
+  }
+});
 
 // testing-library's `waitFor` default of 1 s is a hang detector locally and a
 // load detector there — the same frame-timing case that reddened the deploy gate

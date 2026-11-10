@@ -20,37 +20,40 @@
  * Every value is a preference in the fleet's service (`../play/live/prefs.ts`,
  * `../sound/mute.ts`), so whichever host draws a control, the board reads the change from the
  * service and applies it. Only "This match" is not a preference: the board publishes it
- * (`./liveMatch.ts`).
+ * (`./liveMatch.ts`). The Game and Sound tabs are the game's own, handed in by `../composition.tsx`.
  */
 
-import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createContext, createElement, Fragment, useContext, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import { Icon } from '@wolffm/themes';
 import type { AppSettingsTab } from '@wolffm/task-ui-components';
 
+import type { PrefsClient } from '@wolffm/prefs-client';
 import { usePrefs } from '@wolffm/prefs-client/react';
 import { applyUiScale, clampUiScale, rememberedUiScale, rememberUiScale, UI_SCALE, uiLength } from '@hadoku/ui-shell/settings';
 
-import { forgetCardWidths } from '../play/card-size.ts';
-import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
-import { ExperimentalSettings, GameSettings, MatchSettings } from './GameSettings.tsx';
-import { SoundSettings } from './SoundSettings.tsx';
 import { Popover, usePopover } from '../components/Popover.tsx';
+import { registered } from '../registered.ts';
 import './settings.css';
+
+/** The game's own sections, where its UI scale is saved (and the scale before anything is), and what a new scale makes stale. */
+export interface SettingsParts {
+  Game: ComponentType;
+  Sound: ComponentType;
+  prefs: () => PrefsClient<{ uiScale?: number }>;
+  defaultScale: number;
+  onScaled: () => void;
+}
+const parts = registered<SettingsParts>('settings');
+export const registerSettings = parts.set;
 
 /** The settings as tabs, in the order a player looks for them: how the game plays first, one slider last. */
 export const CARDTABLE_SETTINGS_TABS: AppSettingsTab[] = [
   {
     id: 'game',
     label: 'Game',
-    render: () => (
-      <div className="ct-settings__tab">
-        <GameSettings />
-        <MatchSettings />
-        <ExperimentalSettings />
-      </div>
-    ),
+    render: () => <div className="ct-settings__tab">{createElement(parts.get().Game)}</div>,
   },
-  { id: 'sound', label: 'Sound', render: () => <div className="ct-settings__tab"><SoundSettings /></div> },
+  { id: 'sound', label: 'Sound', render: () => <div className="ct-settings__tab">{createElement(parts.get().Sound)}</div> },
   { id: 'display', label: 'Display', render: () => <div className="ct-settings__tab"><DisplaySettings /></div> },
 ];
 
@@ -92,8 +95,9 @@ export function useHostDrawsSettings(): boolean {
  * still reading the pointer against it — a click on 110% came back as 90%.
  */
 function DisplaySettings() {
-  const { prefs, save } = usePrefs(getPlayPrefsClient());
-  const saved = clampUiScale(prefs?.uiScale ?? PLAY_PREFS_DEFAULTS.uiScale);
+  const { prefs: client, defaultScale } = parts.get();
+  const { prefs, save } = usePrefs(client());
+  const saved = clampUiScale(prefs?.uiScale ?? defaultScale);
   const [held, setHeld] = useState<number | null>(null);
   const shown = held ?? saved;
   const slider = useRef<HTMLInputElement>(null);
@@ -138,17 +142,18 @@ function DisplaySettings() {
  * answer, the scale this browser applied last: a layout effect, so the first frame is drawn at it.
  */
 export function useUiScale(root: () => HTMLElement | null): void {
-  const { prefs } = usePrefs(getPlayPrefsClient());
+  const { prefs: client, defaultScale, onScaled } = parts.get();
+  const { prefs } = usePrefs(client());
   const [remembered] = useState(rememberedUiScale);
-  const scale = prefs?.uiScale ?? remembered ?? PLAY_PREFS_DEFAULTS.uiScale;
+  const scale = prefs?.uiScale ?? remembered ?? defaultScale;
   useLayoutEffect(() => {
     const el = root();
     if (el === null) return undefined;
     applyUiScale(el, scale);
     // Every card width the board kept was measured at the old scale.
-    forgetCardWidths();
+    onScaled();
     return () => applyUiScale(el, 1);
-  }, [root, scale]);
+  }, [root, scale, onScaled]);
   useEffect(() => {
     if (prefs !== null) rememberUiScale(scale);
   }, [prefs, scale]);

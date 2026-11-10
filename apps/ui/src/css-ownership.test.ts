@@ -56,6 +56,7 @@ const SHARED: Record<string, string> = {
   'ct-panel': 'the trim hook: every panel that takes the decoration chosen in Settings → Trim (`@ui-shell/chrome/trim.css`)',
   'cardtable-chrome': 'the chrome root: the app and the embed mount the same one, and the embed adds its modifier',
   'sound-builder': 'the sound tools (builder, sandbox, music review, queue) are one sheet’s screens',
+  'ct-settings': 'the settings shell (settings/Settings.tsx): the game’s own sections, handed in by composition.tsx, draw its rows',
 };
 
 /** Blocks (rules A, B) and classes (rule C) whose fix is in a sheet another lane holds. Each must still fail, or its entry goes. */

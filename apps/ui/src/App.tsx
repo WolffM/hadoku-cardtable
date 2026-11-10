@@ -48,6 +48,8 @@ import { useJoined } from './rooms/joined.ts';
 import { CARDTABLE_SETTINGS_TABS, HostDrawsSettingsProvider, useUiScale } from './settings/Settings.tsx';
 import { useTrim } from './settings/siteTrim.ts';
 import { useSoundPrefs } from '@hadoku/ui-shell/sound';
+import { composeGame } from './composition.tsx';
+composeGame();
 
 export type AppProps = ScreenProps;
 

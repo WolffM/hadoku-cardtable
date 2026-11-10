@@ -27,6 +27,8 @@ import { ensureCosmeticsStyles } from '@wolffm/prefs-client/cosmetics';
 import '../../styles.css';
 import { LiveBoard } from './LiveBoard.tsx';
 import { socketIoMatchTransport, startMatch, type SocketIoMatchOptions } from './match.ts';
+import { composeGame } from '../../composition.tsx';
+composeGame();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('harness.html is missing #root');

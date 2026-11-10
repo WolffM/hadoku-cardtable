@@ -72,7 +72,11 @@
 
 import { useMemo, useSyncExternalStore } from 'react';
 
-import { RallyCatalogueSchema, RallyViewSchema, type RallyCatalogue, type RallyView } from '@hadoku/shared';
+import { registered } from '../registered.ts';
+
+/** Whether `#/embed/<catalogue>/<id>/<view>` is one of the game's pages; any other is the lobby. */
+const embedAddress = registered<(catalogue: string, view: string) => boolean>('embed address');
+export const registerEmbedAddress = embedAddress.set;
 
 /** Where the app is. The single source of truth for what gets rendered. */
 export type Route =
@@ -98,7 +102,7 @@ export type Route =
   | { kind: 'decks'; draftId?: string }
   | { kind: 'inventory' }
   /** A Rally pick option's page in Rally's frame: no header, no room (cardtable#24). */
-  | { kind: 'rally-embed'; catalogue: RallyCatalogue; id: string; view: RallyView };
+  | { kind: 'rally-embed'; catalogue: string; id: string; view: string };
 
 /**
  * `#/room/r-1a2b3c` → `{ kind: 'room', roomId: 'r-1a2b3c' }`.
@@ -124,10 +128,9 @@ export function parseRoute(hash: string): Route {
 
   const parts = path.split('/');
   if (parts.length === 4 && parts[0] === 'embed') {
-    const catalogue = RallyCatalogueSchema.safeParse(parts[1]);
-    const view = RallyViewSchema.safeParse(parts[3]);
+    const [catalogue, view] = [parts[1]!, parts[3]!];
     const id = decodeSegment(parts[2]!);
-    return catalogue.success && view.success && id !== '' ? { kind: 'rally-embed', catalogue: catalogue.data, id, view: view.data } : { kind: 'lobby' };
+    return embedAddress.get()(catalogue, view) && id !== '' ? { kind: 'rally-embed', catalogue, id, view } : { kind: 'lobby' };
   }
   if (parts.length === 4 && parts[0] === 'room' && parts[2] === 'table') {
     const [roomId, tableId] = [decodeSegment(parts[1]!), decodeSegment(parts[3]!)];

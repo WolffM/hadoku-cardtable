@@ -21,6 +21,8 @@ import { DraftScreen, DraftSkeleton } from '../components/DraftScreen.tsx';
 import { loadFixtures } from '../draft/fixtures.ts';
 import { initialState } from '../draft/table.ts';
 import { applyUiScale } from '@hadoku/ui-shell/settings';
+import { composeGame } from '../composition.tsx';
+composeGame();
 
 declare global {
   interface Window {

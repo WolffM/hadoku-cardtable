@@ -24,7 +24,7 @@
  * live region still announces it, politely, when the player reaches a pause.
  */
 
-import { isWorthShowing, type ConnectionState } from '../draft/connection.ts';
+import { isWorthShowing, type ConnectionState } from './connection-state.ts';
 import './spectate.css';
 
 export interface ConnectionBannerProps {
