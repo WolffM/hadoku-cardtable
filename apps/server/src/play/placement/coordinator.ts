@@ -69,7 +69,6 @@ import type { AgentClient } from '../remote/client.js';
 import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
 import { SECTION, contractViolations, type Violation } from './audit.js';
-import type { Draftbot } from '../../room/draftbot.js';
 import { ClawDraftbots } from './draftbot.js';
 import { CONTRACT, type HostingContract } from './contract.js';
 import { STATUS_MAX_AGE_S, type FleetDemand, type FleetNode, type FleetSource, type FleetStatus } from './fleet.js';
@@ -283,6 +282,11 @@ export interface HostsView {
 	alerts: { key: string; at: string; text: string }[];
 }
 
+/** The one call `room/draftbot.ts`'s `Draftbot` declares; `ClawDraftbots` satisfies it structurally. */
+export interface DraftbotAdvisor {
+	batchDraft(inputs: { pack: string[]; pool: string[] }[], signal: AbortSignal): Promise<{ oracle: string; rating: number }[][]>;
+}
+
 export type Placement = MatchHostFactory &
 	Omit<JvmHostFactory, 'room'> & {
 	room(): 'warm' | 'booting' | 'none' | 'full';
@@ -296,7 +300,7 @@ export type Placement = MatchHostFactory &
 	/** The first poll and its connects: what `orphans` waits for. */
 	ready: Promise<void>;
 	/** The draft bot service on the claws: what the draft rooms ask for bot picks. */
-	draftbot: Draftbot;
+	draftbot: DraftbotAdvisor;
 };
 
 /** A start-to-first-frame canary: a human seat and an AI seat with random precons, stopped at once. */

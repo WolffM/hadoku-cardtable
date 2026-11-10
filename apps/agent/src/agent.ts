@@ -9,8 +9,8 @@
  * window kills every JVM it runs, because a coordinator that has failed this
  * claw over must never meet a second copy of a match (forge-hosting-plan §5).
  *
- * It also runs the draft bot service when the coordinator asks (`draftbot.ts`),
- * and passes the coordinator's draft bot calls to it.
+ * It also runs one extra service beside its JVMs when the coordinator asks for it (today, the
+ * draft bot, wired in by `main.ts`), and passes the coordinator's calls for it along.
  *
  * The wire, its signing and every message are in
  * `apps/server/src/play/remote/wire.ts`.
@@ -41,15 +41,24 @@ import {
 	sha256Hex,
 	sliceNeedMb,
 	type ArtifactKind,
+	type DraftbotHealth,
 	type FromAgent,
 	type LaunchSpec,
 	type ToAgent,
 } from '../../server/src/play/remote/wire.ts';
 import { Cgroups } from './cgroups.ts';
-import { DraftbotService } from './draftbot.ts';
 import { Jvm, type Installed, type Log } from './jvm.ts';
 import { Store } from './store.ts';
 
+/** The one extra service the agent runs beside its JVMs. `DraftbotService` (a Magic file) satisfies this structurally; `main.ts` builds it. */
+export interface ExtraService {
+	readonly running: string | null;
+	status(): DraftbotHealth | null;
+	want(sha: string, dir: string): void;
+	refuse(sha: string, why: string): void;
+	stop(): void;
+	forward(path: string, body: unknown): Promise<{ status: number; body: unknown }>;
+}
 /** A coordinator frame longer than this ends the session. */
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 
@@ -69,6 +78,8 @@ export interface AgentOptions {
 	memoryMaxMb?: number | null;
 	now?: () => number;
 	log?: Log;
+	/** Built from the agent's own cgroups, log and clock, once they exist. */
+	extra: (cgroups: Cgroups, log: Log, now: () => number) => ExtraService;
 }
 
 interface Session {
@@ -80,7 +91,7 @@ interface Session {
 export class Agent {
 	readonly store: Store;
 	readonly cgroups: Cgroups;
-	readonly draftbot: DraftbotService;
+	readonly draftbot: ExtraService;
 	readonly jvms = new Map<string, Jvm>();
 	private readonly watchers = new Map<string, FSWatcher>();
 	private readonly guard: ReplayGuard;
@@ -107,7 +118,7 @@ export class Agent {
 		this.guard = new ReplayGuard(this.now);
 		this.store = new Store(opts.home, this.now);
 		this.cgroups = new Cgroups(opts.cgroupRoot, opts.ownCgroupFile, this.log);
-		this.draftbot = new DraftbotService(opts.home, this.cgroups, this.log, this.now);
+		this.draftbot = opts.extra(this.cgroups, this.log, this.now);
 		this.jvmDir = join(opts.home, 'jvms');
 		mkdirSync(this.jvmDir, { recursive: true });
 		this.started = this.now();
@@ -398,7 +409,7 @@ export class Agent {
 		}
 	}
 
-	/** The draft bot service, as the coordinator wants it: artifact `sha`, or none. */
+	/** The extra service, as the coordinator wants it: artifact `sha`, or none. No-op with none wired in. */
 	private runDraftbot(sha: string | null): void {
 		if (sha === null) return this.draftbot.stop();
 		if (this.draftbot.running === sha) return;

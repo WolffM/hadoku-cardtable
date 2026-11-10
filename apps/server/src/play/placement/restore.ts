@@ -4,10 +4,14 @@
  * registry does not know.
  */
 
-import type { MatchRegistry } from '../match.js';
 import type { Restorer } from './coordinator.js';
 
-export function registryRestorer(registry: MatchRegistry): Restorer {
+/** What this needs of `match.ts`'s `MatchRegistry`, which satisfies it structurally. */
+export interface Restorable {
+	restore(id: string): { from: 'snapshot'; turn: number } | { from: 'spec' } | null;
+	get(id: string): { status: string } | undefined;
+}
+export function registryRestorer(registry: Restorable): Restorer {
 	return {
 		restore(matchId) {
 			const restored = registry.restore(matchId);

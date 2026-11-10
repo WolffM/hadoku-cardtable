@@ -108,7 +108,20 @@ const clock = { t: Date.now() };
 const now = (): number => clock.t;
 
 async function startAgent(home: string, cg = fakeCgroups(), fenceMs = 10_000, log: Log = () => {}): Promise<{ agent: Agent; port: number; cg: typeof cg }> {
-	const agent = new Agent({ home, port: 0, host: '127.0.0.1', publicKey, version: 'test', fenceMs, heartbeatMs: 100, cgroupRoot: cg.root, ownCgroupFile: cg.ownCgroupFile, now, log });
+	const agent = new Agent({
+		home,
+		port: 0,
+		host: '127.0.0.1',
+		publicKey,
+		version: 'test',
+		fenceMs,
+		heartbeatMs: 100,
+		cgroupRoot: cg.root,
+		ownCgroupFile: cg.ownCgroupFile,
+		now,
+		log,
+		extra: (cgroups, extraLog, extraNow) => new DraftbotService(home, cgroups, extraLog, extraNow),
+	});
 	const port = await agent.listen();
 	cleanup.push(() => agent.close());
 	return { agent, port, cg };

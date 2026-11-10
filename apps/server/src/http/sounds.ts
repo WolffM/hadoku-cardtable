@@ -53,12 +53,13 @@
  * was renamed/removed by a later import run).
  */
 
-import { createHash, randomUUID } from 'node:crypto';
-import { appendFile, mkdir, open, readFile, rename, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { appendFile, mkdir, readFile, rename, stat } from 'node:fs/promises';
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 import { join, resolve as resolvePath, sep } from 'node:path';
 
+import { atomicWriteJson } from '@hadoku/service-kernel/state';
 import {
 	CatalogueSchema,
 	GainSchema,
@@ -224,26 +225,6 @@ async function readAssignments(dir: string, log: JsonLog): Promise<StoredAssignm
 	}
 	if (dropped > 0) log({ event: 'sounds-assignments-cells-dropped', count: dropped });
 	return { cells, gains };
-}
-
-/**
- * Temp file, then rename over the target — the same shape `@wolffm/rooms-server/store`
- * uses for its own snapshots. A process that dies between the two steps
- * leaves the `.tmp` file as evidence and the previous `assignments.json`
- * untouched; nothing ever reads a half-written file because nothing is ever
- * renamed into place until the write is complete.
- */
-export async function atomicWriteJson(target: string, data: unknown): Promise<void> {
-	await mkdir(join(target, '..'), { recursive: true });
-	const tmp = `${target}.${process.pid}.${randomUUID()}.tmp`;
-	const handle = await open(tmp, 'w');
-	try {
-		await handle.writeFile(JSON.stringify(data, null, 2));
-		await handle.sync();
-	} finally {
-		await handle.close();
-	}
-	await rename(tmp, target);
 }
 
 async function writeAssignments(dir: string, stored: StoredAssignments): Promise<void> {

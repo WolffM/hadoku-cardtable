@@ -16,8 +16,8 @@ import { Router } from 'express';
 
 import { rankOf, tierOf } from '../edge-auth.js';
 import { jsonLogger, type JsonLog } from '@hadoku/service-kernel/log';
+import { atomicWriteJson } from '@hadoku/service-kernel/state';
 import { bodyErrors } from './request.js';
-import { atomicWriteJson } from './sounds.js';
 
 export interface TrimDeps {
 	/** The file the site's trim is kept in. Created on the first PUT, never on a read. */

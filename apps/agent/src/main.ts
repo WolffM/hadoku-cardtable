@@ -17,6 +17,7 @@
 import { createPublicKey } from 'node:crypto';
 
 import { Agent } from './agent.ts';
+import { DraftbotService } from './draftbot.ts';
 
 declare const AGENT_PUBLIC_KEY: string;
 declare const AGENT_VERSION: string;
@@ -27,8 +28,9 @@ if (!Number.isInteger(port) || port <= 0) {
 	console.error('CARDTABLE_AGENT_PORT is not set');
 	process.exit(2);
 }
+const home = env.CARDTABLE_AGENT_HOME ?? process.cwd();
 const agent = new Agent({
-	home: env.CARDTABLE_AGENT_HOME ?? process.cwd(),
+	home,
 	port,
 	host: env.CARDTABLE_AGENT_LISTEN,
 	publicKey: createPublicKey(AGENT_PUBLIC_KEY),
@@ -36,5 +38,6 @@ const agent = new Agent({
 	fenceMs: env.CARDTABLE_AGENT_FENCE_MS ? Number(env.CARDTABLE_AGENT_FENCE_MS) : undefined,
 	cgroupRoot: env.CARDTABLE_AGENT_NO_CGROUPS === '1' ? null : '/sys/fs/cgroup',
 	memoryMaxMb: env.CARDTABLE_AGENT_MEMORY_MB ? Number(env.CARDTABLE_AGENT_MEMORY_MB) : null,
+	extra: (cgroups, log, now) => new DraftbotService(home, cgroups, log, now),
 });
 await agent.listen();
