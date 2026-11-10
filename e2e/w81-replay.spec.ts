@@ -217,12 +217,15 @@ function turnsOf(envs: { at: number; env: unknown }[]): { at: number; player: nu
 /**
  * The turn a board draws and the player at its bottom (by the name on their hand), read together
  * off the board itself: the card's title follows the match at once, the board a paced beat later.
+ * `whose` is the rail's `data-whose`: `yours` while the player drawn at the bottom is the active one.
  */
-const drawnTurn = (scope: Page, within: string): Promise<{ turn: number; bottom: string }> =>
+const drawnTurn = (scope: Page, within: string): Promise<{ turn: number; whose: string; bottom: string }> =>
   scope.evaluate((root) => {
     const board = document.querySelector(root);
+    const rail = board?.querySelector('[data-testid="live-phases"]');
     return {
-      turn: Number(board?.querySelector('[data-testid="live-phases"]')?.getAttribute('data-turn') ?? 0),
+      turn: Number(rail?.getAttribute('data-turn') ?? 0),
+      whose: rail?.getAttribute('data-whose') ?? '',
       bottom: (board?.querySelector('.seat[data-viewer] section[data-zone="hand"][aria-label]')?.getAttribute('aria-label') ?? '').replace(/ Hand$/, ''),
     };
   }, within);
@@ -491,8 +494,18 @@ test(
       await expect(looper.locator('[data-testid="featured-match"] [data-testid="player"]').first()).toBeVisible({ timeout: 30_000 });
       let loops = 0;
       let lastTurn = 0;
-      /** Each turn's bottom player on the card: whose turn it is (bob on 1 and 3, alice on 2). */
+      /**
+       * Each turn's bottom player on the card, read on the first sample of that turn: whose turn it
+       * is (bob on 1 and 3, alice on 2). Not every sample's: Forge sends a turn change as two
+       * frames, `PlayerTurn` first and `Turn` 2–8 ms later (every prod recording, 2026-11-10), so
+       * a sample that lands between them draws the next player under the old turn's number. The
+       * board is right to — the player at the bottom is the active one — which every sample asserts.
+       */
       const bottomByTurn = new Map<number, Set<string>>();
+      /** The turn the last sample drew, so a turn's first sample is known. */
+      let drawnBefore = 0;
+      /** Samples whose bottom player was not the active one. */
+      const notActive: { turn: number; whose: string; bottom: string }[] = [];
       /** Turn 3's capture regions, in order (one entry per change), and whether the cursor showed while temporary. */
       const regions: string[] = [];
       let cursorShownAway = false;
@@ -502,7 +515,9 @@ test(
         if (turn < lastTurn) loops += 1;
         lastTurn = turn;
         const drawn = await drawnTurn(looper, '[data-testid="featured-match"]');
-        if (drawn.turn > 0) bottomByTurn.set(drawn.turn, (bottomByTurn.get(drawn.turn) ?? new Set()).add(drawn.bottom));
+        if (drawn.turn > 0 && drawn.whose !== 'yours') notActive.push(drawn);
+        if (drawn.turn > 0 && drawn.turn !== drawnBefore) bottomByTurn.set(drawn.turn, (bottomByTurn.get(drawn.turn) ?? new Set()).add(drawn.bottom));
+        drawnBefore = drawn.turn;
         if (turn === 3) {
           const seen = await looper.locator('[data-testid="featured-match"] .featured-match__viewport').evaluate((viewport) => {
             const box = viewport.getBoundingClientRect();
@@ -520,6 +535,7 @@ test(
       const flips = Object.fromEntries([...bottomByTurn].map(([t, names]) => [t, [...names]]));
       console.log(`[w81] front card, bottom player by turn: ${JSON.stringify(flips)}`);
       expect(flips, 'the card flips to the active player at every turn').toEqual({ 1: ['Bob'], 2: ['Alice'], 3: ['Bob'] });
+      expect(notActive, 'the player at the bottom of the card is the active one at every sample').toEqual([]);
       const frontTrouble = await trouble(looper);
       console.log(`[w81] front card: ${loops} loops; trouble ${JSON.stringify(frontTrouble)}`);
       expect(loops, 'the card loops the replay at least three times').toBeGreaterThanOrEqual(3);
