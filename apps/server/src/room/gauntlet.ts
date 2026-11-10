@@ -203,14 +203,17 @@ export function gauntletHoldsTable(state: GauntletState): boolean {
 }
 
 /**
- * The era a fresh draw opens with — the family is drawn first, then an era of
- * it, as a new room's random era is (`lobby.ts`'s `randomFormat`), so a
- * family with many eras does not crowd the others out. `null` when nothing
+ * The era a fresh draw opens with, among those `options`' family and year allow — the
+ * family is drawn first, then an era of it, as a new room's random era is (`lobby.ts`'s
+ * `randomFormat`), so a family with many eras does not crowd the others out. `null` when nothing
  * eligible matches `options`.
  */
 export function pickEra(eras: readonly GauntletEraPool[], options: GauntletOptions, random: () => number): GauntletEraPool | null {
 	const eligible = eras.filter(
-		(e) => e.decks.length >= GAUNTLET_DECKS && (options.era === undefined || e.id === options.era) && (options.family === undefined || e.family === options.family),
+		(e) =>
+			e.decks.length >= GAUNTLET_DECKS &&
+			(options.year === undefined || eraYear(e.id) === options.year) &&
+			(options.family === undefined || e.family === options.family),
 	);
 	if (eligible.length === 0) return null;
 	const families = [...new Set(eligible.map((e) => e.family))];
@@ -219,6 +222,12 @@ export function pickEra(eras: readonly GauntletEraPool[], options: GauntletOptio
 		eligible.filter((e) => e.family === family),
 		random,
 	);
+}
+
+/** The year an era's id names: its date's (`2012-07-13`, `modern-2012-07-13`). */
+export function eraYear(id: string): number | null {
+	const m = /(\d{4})-\d{2}-\d{2}$/.exec(id);
+	return m === null ? null : Number(m[1]);
 }
 
 /** Draw the era, ten distinct decks of it and the coin flip (`pickEra`'s own doc for the era). */

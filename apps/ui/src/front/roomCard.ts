@@ -80,8 +80,8 @@ export function roomFamily(room: RoomView): RoomFamily {
     if (id.startsWith('legacy')) return 'legacy';
     return /^\d{4}-\d{2}-\d{2}$/.test(id) || id === 'standard' ? 'standard' : 'other';
   };
-  const options = room.modeOptions as { era?: string; family?: string; pool?: string } | null;
-  if (room.mode === 'gauntlet') return fromId(options?.era ?? options?.family ?? 'standard');
+  const options = room.modeOptions as { family?: string; pool?: string } | null;
+  if (room.mode === 'gauntlet') return fromId(options?.family ?? 'standard');
   if (room.mode === 'random') return fromId(options?.pool);
   return fromId(room.format);
 }
@@ -116,8 +116,8 @@ function modeChip(room: RoomView): RoomModeChip {
     return { icon: 'classic', text };
   }
   if (room.mode === 'gauntlet') {
-    const opts = room.modeOptions as { family?: string; era?: string } | null;
-    const text = opts?.family !== undefined ? capitalize(opts.family) : opts?.era !== undefined && opts.era !== '' ? formatEraLabel(opts.era) : 'Any era';
+    const opts = room.modeOptions as { family?: string; year?: number } | null;
+    const text = [opts?.family === undefined ? null : capitalize(opts.family), opts?.year ?? null].filter((w) => w !== null).join(' ') || 'Any era';
     return { icon: 'gauntlet', text };
   }
   // 'random'

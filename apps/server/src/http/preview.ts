@@ -129,13 +129,11 @@ function formatOf(
   mode: string | null,
 ): { family: string | null; year: string | null } {
   const opts = options(room);
-  if (mode === "gauntlet") {
-    const era = eraParts(opts.era);
+  if (mode === "gauntlet")
     return {
-      family: typeof opts.family === "string" ? opts.family : era.family,
-      year: era.year,
+      family: typeof opts.family === "string" ? opts.family : null,
+      year: typeof opts.year === "number" ? String(opts.year) : null,
     };
-  }
   if (mode === "random")
     return {
       family:

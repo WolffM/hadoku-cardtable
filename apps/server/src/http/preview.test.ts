@@ -46,11 +46,11 @@ describe("describeRoom: [Format] [Mode] [Year] 1v1", () => {
     expect(describeRoom(room())).toBe("Modern Gauntlet 1v1");
     expect(
       describeRoom(
-        room({ modeOptions: { family: "legacy", era: "legacy-2015-06-01" } }),
+        room({ modeOptions: { family: "legacy", year: 2015 } }),
       ),
     ).toBe("Legacy Gauntlet 2015 1v1");
-    expect(describeRoom(room({ modeOptions: { era: "2019-10-04" } }))).toBe(
-      "Standard Gauntlet 2019 1v1",
+    expect(describeRoom(room({ modeOptions: { year: 2019 } }))).toBe(
+      "Gauntlet 2019 1v1",
     );
     expect(describeRoom(room({ modeOptions: {} }))).toBe("Gauntlet 1v1");
   });

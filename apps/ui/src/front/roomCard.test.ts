@@ -68,9 +68,10 @@ describe('roomCardView — Constructed modes', () => {
     expect(roomCardView(room({ mode: 'classic', modeOptions: {}, format: 'free' }), false).mode).toMatchObject({ icon: 'classic', text: 'Free pick' });
   });
 
-  it('reads Gauntlet as its family, its era label, or Any era when neither is chosen', () => {
+  it('reads Gauntlet as its family and year, either alone, or Any era when neither is chosen', () => {
     expect(roomCardView(room({ mode: 'gauntlet', modeOptions: { family: 'modern' } }), false).mode).toMatchObject({ icon: 'gauntlet', text: 'Modern' });
-    expect(roomCardView(room({ mode: 'gauntlet', modeOptions: { era: 'legacy-2020-01-01' } }), false).mode).toMatchObject({ icon: 'gauntlet', text: 'Legacy 2020' });
+    expect(roomCardView(room({ mode: 'gauntlet', modeOptions: { family: 'legacy', year: 2020 } }), false).mode).toMatchObject({ icon: 'gauntlet', text: 'Legacy 2020' });
+    expect(roomCardView(room({ mode: 'gauntlet', modeOptions: { year: 2015 } }), false).mode).toMatchObject({ icon: 'gauntlet', text: '2015' });
     expect(roomCardView(room({ mode: 'gauntlet', modeOptions: {} }), false).mode).toMatchObject({ icon: 'gauntlet', text: 'Any era' });
   });
 
@@ -222,7 +223,7 @@ describe('roomFamily', () => {
     expect(roomFamily(room({ format: 'modern-2011-07-15' }))).toBe('modern');
     expect(roomFamily(room({ format: 'legacy-2011-07-15' }))).toBe('legacy');
     expect(roomFamily(room({ format: 'free' }))).toBe('other');
-    expect(roomFamily(room({ mode: 'gauntlet', modeOptions: { era: 'legacy-2004-01-01' } }))).toBe('legacy');
+    expect(roomFamily(room({ mode: 'gauntlet', modeOptions: { family: 'legacy', year: 2004 } }))).toBe('legacy');
     expect(roomFamily(room({ mode: 'gauntlet', modeOptions: { family: 'modern' } }))).toBe('modern');
     expect(roomFamily(room({ mode: 'gauntlet', modeOptions: {} }))).toBe('standard');
     expect(roomFamily(room({ mode: 'random', modeOptions: { pool: 'full' } }))).toBe('other');

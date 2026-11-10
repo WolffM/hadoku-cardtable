@@ -841,7 +841,7 @@ describe('creating a room', () => {
   });
 
   it('reads a room’s mode and options, and an unknown pair as unchosen', () => {
-    expect(parseRoomView({ ...OPEN, mode: 'gauntlet', modeOptions: { era: '2022-07-08' } })).toMatchObject({ mode: 'gauntlet', modeOptions: { era: '2022-07-08' } });
+    expect(parseRoomView({ ...OPEN, mode: 'gauntlet', modeOptions: { year: 2022 } })).toMatchObject({ mode: 'gauntlet', modeOptions: { year: 2022 } });
     expect(parseRoomView({ ...OPEN, mode: 'sealed', modeOptions: {} })).toMatchObject({ mode: null, modeOptions: null });
     expect(parseRoomView({ ...OPEN, mode: 'random', modeOptions: { pool: 'vintage' } })).toMatchObject({ mode: null, modeOptions: null });
     const { mode: _m, modeOptions: _o, ...older } = OPEN;

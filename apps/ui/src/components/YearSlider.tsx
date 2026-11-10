@@ -74,6 +74,9 @@ export function yearLine(stops: readonly YearStop[]): YearLine {
     const rank: TickRank = at % 10 === 0 ? 'decade' : at % 5 === 0 ? 'half' : 'year';
     ticks.push({ at, stop, rank, label: rank === 'year' ? null : String(at) });
   }
+  // The stop that is not a year names itself in a word ("All", "Random"), wider than a year: a year's label within two years of it gives way.
+  const word = ticks.find((t) => t.rank === 'other');
+  if (word !== undefined) for (const t of ticks) if (t !== word && Math.abs(t.at - word.at) <= 2) t.label = null;
   // Each end says where the line starts and stops, unless a label already stands within two years of it.
   for (const end of [ticks.at(0), ticks.at(-1)]) {
     if (end !== undefined && end.label === null && !ticks.some((t) => t.label !== null && Math.abs(t.at - end.at) <= 2)) end.label = String(end.at);

@@ -74,6 +74,11 @@ describe('yearLine', () => {
     expect(line.ticks[0]).toEqual({ at: 2011, stop: 0, rank: 'other', label: 'All' });
   });
 
+  it('keeps a year label from crowding the stop that is not a year: within two years of it, the year goes unlabelled', () => {
+    const line = yearLine([{ id: '', label: 'Random', year: null }, year(2010), year(2015), year(2024)]);
+    expect(line.ticks.filter((t) => t.label !== null).map((t) => t.label)).toEqual(['Random', '2015', '2020', '2024']);
+  });
+
   it('spreads the places end to end, and a lone place sits in the middle', () => {
     expect([2010, 2015, 2020].map((at) => lineFraction(at, { min: 2010, max: 2020 }))).toEqual([0, 0.5, 1]);
     expect(lineFraction(2010, { min: 2010, max: 2010 })).toBe(0.5);

@@ -2930,27 +2930,38 @@ describe('the room’s mode', () => {
     for (const m of ['classic', 'gauntlet', 'random']) expect(radio(m).disabled).toBe(true);
   });
 
-  it('Gauntlet offers the server’s families and years, or Random: the leader’s picks are the room’s options', async () => {
+  it('Gauntlet offers the server’s families and years, each or Random: the leader’s picks are the room’s options', async () => {
     const server = await mountModeRoom({ players: [], matchId: null, mode: { mode: 'gauntlet', modeOptions: {} } });
     const families = await screen.findByTestId('gauntlet-tabs');
     // Standard has no era with ten decks here, so it is not offered.
     expect(families.textContent).toBe('ModernLegacyRandom');
     expect(screen.getByTestId('gauntlet-tab-random').getAttribute('aria-selected')).toBe('true');
-    expect(screen.queryByTestId('gauntlet-era')).toBeNull();
     expect(screen.queryByTestId('deck-mine')).toBeNull();
-
-    fireEvent.click(screen.getByTestId('gauntlet-tab-modern'));
-    // Classic's year slider, with Random left of the oldest year: no dropdown.
-    const era = await screen.findByTestId('gauntlet-era');
+    // Classic's year slider, always drawn, with Random left of the oldest year: no dropdown. With no
+    // family it offers every year any family has.
+    const era = screen.getByTestId('gauntlet-era');
     expect(era.closest('.lobby__modeline')?.querySelector('select')).toBeNull();
+    expect(sliderStops('gauntlet-era')).toEqual(['', '2012', '2014', '2016']);
+    expect(sliderValue('gauntlet-era')).toBe('');
+
+    // The operator, 2026-11-10: "if format is random but year is 2015, then it will randomly pick standard/modern/legacy from that year".
+    await act(async () => slide('gauntlet-era', '2014'));
+    await waitFor(() => expect(sliderValue('gauntlet-era')).toBe('2014'));
+    // A family that has the year keeps it…
+    fireEvent.click(screen.getByTestId('gauntlet-tab-modern'));
+    await waitFor(() => expect(sliderStops('gauntlet-era')).toEqual(['', '2012', '2014']));
     expect(within(era).getByRole('slider').getAttribute('aria-label')).toBe('Modern year');
-    expect(sliderStops('gauntlet-era')).toEqual(['', 'modern-2012-07-13', 'modern-2014-07-18']);
+    expect(sliderValue('gauntlet-era')).toBe('2014');
+    await act(async () => slide('gauntlet-era', '2012'));
+    await waitFor(() => expect(sliderValue('gauntlet-era')).toBe('2012'));
+    // …and one that does not goes back to Random.
+    fireEvent.click(screen.getByTestId('gauntlet-tab-legacy'));
     await waitFor(() => expect(sliderValue('gauntlet-era')).toBe(''));
-    await act(async () => slide('gauntlet-era', 'modern-2012-07-13'));
-    await waitFor(() => expect(sliderValue('gauntlet-era')).toBe('modern-2012-07-13'));
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([
-      { mode: 'gauntlet', modeOptions: { family: 'modern' } },
-      { mode: 'gauntlet', modeOptions: { family: 'modern', era: 'modern-2012-07-13' } },
+      { mode: 'gauntlet', modeOptions: { year: 2014 } },
+      { mode: 'gauntlet', modeOptions: { family: 'modern', year: 2014 } },
+      { mode: 'gauntlet', modeOptions: { family: 'modern', year: 2012 } },
+      { mode: 'gauntlet', modeOptions: { family: 'legacy' } },
     ]);
   });
 
@@ -2962,9 +2973,9 @@ describe('the room’s mode', () => {
     });
     await mountModeRoom(table);
     await waitFor(() => expect(sliderValue('gauntlet-era')).toBe(''));
-    await act(async () => slide('gauntlet-era', 'modern-2012-07-13'));
+    await act(async () => slide('gauntlet-era', '2012'));
     // The write is still on the wire: the slider shows the pick, not the room's Random.
-    await waitFor(() => expect(sliderValue('gauntlet-era')).toBe('modern-2012-07-13'));
+    await waitFor(() => expect(sliderValue('gauntlet-era')).toBe('2012'));
     table.refusePatch = { status: 409, error: 'mode-locked' };
     answer();
     await screen.findByTestId('table-error');

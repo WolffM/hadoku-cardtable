@@ -133,15 +133,33 @@ export const ClassicOptionsSchema = z.object({}).strict();
 export type ClassicOptions = z.infer<typeof ClassicOptionsSchema>;
 
 /**
- * A Gauntlet's options. `era` is a room format id (a frozen era's date, the
- * server's `FormatId`); leaving both out means the server draws the era.
+ * A Gauntlet's options: a format family and a year, each left out for the server to draw. A family
+ * has at most one era a year, so the two name one era; a year alone is drawn among the families that
+ * have an era that year (the operator, 2026-11-10: "if format is random but year is 2015, then it
+ * will randomly pick standard/modern/legacy from that year").
+ *
+ * Until 2026-11-10 the year was an era's id (`era: 'modern-2012-07-13'`); a stored room still holding
+ * one reads as its family and year.
  */
-export const GauntletOptionsSchema = z
-  .object({
-    family: FormatFamilySchema.optional(),
-    era: z.string().min(1).max(64).optional(),
-  })
-  .strict();
+export const GauntletOptionsSchema = z.preprocess(
+  fromEraId,
+  z
+    .object({
+      family: FormatFamilySchema.optional(),
+      year: z.number().int().min(1990).max(2100).optional(),
+    })
+    .strict(),
+);
+
+const ERA_ID = /^(?:(modern|legacy)-)?(\d{4})-\d{2}-\d{2}$/;
+
+/** `{ era }` as the family and year it names; anything else as it is. */
+function fromEraId(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || !('era' in raw)) return raw;
+  const { era, ...rest } = raw as Record<string, unknown>;
+  const m = typeof era === 'string' ? ERA_ID.exec(era) : null;
+  return m === null ? raw : { ...rest, family: m[1] ?? 'standard', year: Number(m[2]) };
+}
 export type GauntletOptions = z.infer<typeof GauntletOptionsSchema>;
 
 /**

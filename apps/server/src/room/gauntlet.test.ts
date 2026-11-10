@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GAUNTLET_DECKS, GAUNTLET_SNAKE, type GauntletSeatIndex } from '@hadoku/shared';
+import { GAUNTLET_DECKS, GAUNTLET_SNAKE, GauntletOptionsSchema, type GauntletSeatIndex } from '@hadoku/shared';
 
 import {
 	act,
@@ -104,7 +104,7 @@ describe('the eras a Gauntlet is drawn from', () => {
 			const out = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, now: NOW, options: {}, random: seeded(seed) });
 			expect(out.ok && ['2022-04-29', 'modern-2022-04-29'].includes(out.state.era!.id)).toBe(true);
 		}
-		const small = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, now: NOW, options: { era: '1998-07-01' }, random: seeded() });
+		const small = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, now: NOW, options: { family: 'standard', year: 1998 }, random: seeded() });
 		expect(small).toEqual({ ok: false, reason: 'no-era' });
 		const family = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, now: NOW, options: { family: 'legacy' }, random: seeded() });
 		expect(family).toEqual({ ok: false, reason: 'no-era' });
@@ -124,6 +124,19 @@ describe('the eras a Gauntlet is drawn from', () => {
 		expect(firsts).toEqual(new Set([0, 1]));
 	});
 
+	// The operator, 2026-11-10: "if format is random but year is 2015, then it will randomly pick standard/modern/legacy from that year".
+	it('a year with no family draws among the families that have an era that year', () => {
+		const drawnIds = new Set(Array.from({ length: 40 }, (_, i) => pickEra(ERAS, { year: 2022 }, seeded(i + 1))?.id));
+		expect(drawnIds).toEqual(new Set(['2022-04-29', 'modern-2022-04-29']));
+	});
+
+	it('a stored era id reads as its family and year', () => {
+		expect(GauntletOptionsSchema.parse({ era: 'modern-2012-07-13' })).toEqual({ family: 'modern', year: 2012 });
+		expect(GauntletOptionsSchema.parse({ family: 'standard', era: '2012-07-13' })).toEqual({ family: 'standard', year: 2012 });
+		expect(GauntletOptionsSchema.parse({})).toEqual({});
+		expect(GauntletOptionsSchema.safeParse({ year: 2015.5 }).success).toBe(false);
+	});
+
 	it('draws only once: a second draw is refused', () => {
 		const s = drawn();
 		expect(drawGauntlet(s, { players: [...HUMANS], eras: ERAS, now: NOW, options: {}, random: seeded() })).toEqual({ ok: false, reason: 'drawn' });
@@ -133,7 +146,9 @@ describe('the eras a Gauntlet is drawn from', () => {
 		for (let seed = 1; seed < 40; seed++) {
 			expect(['2022-04-29', 'modern-2022-04-29']).toContain(pickEra(ERAS, {}, seeded(seed))?.id);
 		}
-		expect(pickEra(ERAS, { era: '1998-07-01' }, seeded())).toBeNull();
+		expect(pickEra(ERAS, { family: 'standard', year: 1998 }, seeded())).toBeNull();
+		expect(pickEra(ERAS, { year: 1998 }, seeded())).toBeNull();
+		expect(pickEra(ERAS, { family: 'modern', year: 2022 }, seeded())?.id).toBe('modern-2022-04-29');
 		expect(pickEra(ERAS, { family: 'legacy' }, seeded())).toBeNull();
 		expect(pickEra(ERAS, { family: 'modern' }, seeded())?.id).toBe('modern-2022-04-29');
 	});

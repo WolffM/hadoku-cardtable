@@ -49,7 +49,7 @@ test('a Gauntlet readied over the API: a page that reads its table before its ro
       name: `e2e gauntlet start ${Date.now()}`,
       gameType: 'constructed-1v1',
       mode: 'gauntlet',
-      modeOptions: { family: 'modern', era: 'modern-2012-07-13' },
+      modeOptions: { family: 'modern', year: 2012 },
     });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     const roomId = created.body.id;
