@@ -130,6 +130,10 @@ import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, stat
 import type { TableFormat } from '../http/library.js';
 import { replaceIds } from '../erase/anonymise.js';
 import { makeSecret, mintRoomId, mintTableId, passwordMatches, type Secret } from './provisioning.ts';
+import { ROOM_STALE_MS, UNNAMED } from './constants.ts';
+// Re-exported so every file that already imported one of these from `lobby.ts`
+// keeps working unchanged — `constants.ts` is their real home now.
+export { ROOM_STALE_MS, UNNAMED };
 // Pods, tournaments, AI seats and their view (`PodView`) — split out, wave 99 §L.
 import {
 	aiEntrantId,
@@ -358,12 +362,6 @@ function freeAvatar(members: readonly MemberRecord[]): string | undefined {
 	return pickAvatar(members.map((m) => m.avatarId));
 }
 
-/**
- * What a member is called before any request of theirs has named them: one restored from a saved
- * room, which keeps no names (R12). The same word the HTTP layer gives a key the edge sent no
- * name for.
- */
-export const UNNAMED = 'friend';
 
 /** A new member, wearing the room's next free character. */
 function newMember(room: readonly MemberRecord[], caller: Caller, joinedAt: number): MemberRecord {
@@ -616,20 +614,6 @@ export const CASUAL_ROOM_IDLE_MS = 8 * 60 * 60_000;
  */
 export const GAME_DRAWN_AFTER_MS = 8 * 60 * 60_000;
 
-/**
- * How long a room may go without a touch before the front page stops
- * OFFERING it (wave 31). The room is not deleted (`ROOM_IDLE_MS` does that, much
- * later); it just stops advertising itself.
- *
- * The operator: *"why are 'hi there' and 'hi there2' still showing up?"* Rooms
- * restore on boot and live twelve hours, and the list prints a room's STORED
- * members, not who is connected, so a dead table looked alive with an Enter
- * button. A room someone has open is touched by its screen's reads and, for as
- * long as the screen stays open, by the room feed (`room/watching.ts`), so "nobody
- * touched it for thirty minutes" means nobody is there. A room with a match or
- * a draft under way is exempt: its players are on another screen.
- */
-export const ROOM_STALE_MS = 30 * 60_000;
 
 interface AvatarChange {
 	roomId: string;
