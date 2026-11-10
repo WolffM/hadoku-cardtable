@@ -67,7 +67,7 @@ import {
 	type SerializedMember,
 } from '@wolffm/rooms-server/store';
 import { AVATAR_POOL, createSeatTable, isDurableParticipantId, pickAvatar } from '@wolffm/rooms-protocol';
-import { addMember, clearReady, createMembershipLedger, isReady, memberLeft, readyParticipants, setReady as ledgerSetReady, type MembershipLedger } from '@wolffm/rooms-server';
+import { addMember, clearReady, createMembershipLedger, isReady, memberLeft, setReady as ledgerSetReady } from '@wolffm/rooms-server';
 import {
 	AVATAR_ID_MAX,
 	DEFAULT_CLIENT_MODE,
@@ -92,7 +92,6 @@ import {
 	type RoomSettings,
 	type RoomView as PublicRoomView,
 	type Tournament,
-	type PodView,
 	type RoomTable,
 	type SeriesPhase,
 	sameLook,
@@ -105,7 +104,6 @@ import {
 import { pairRound, roundsFor, roundsOf, structureOk, type MatchResult, type PodPlayer, type PodStructure } from '@hadoku/draft';
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { gauntletHoldsTable, type GauntletState } from './gauntlet.ts';
-import { roundNamesOf } from './plan.ts';
 import { leaveSeat, readySeat, seatList, seatOrder, sitAt, type TableSeat } from './seats.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, type SeriesRecord } from './series.ts';
 
@@ -120,7 +118,6 @@ import { ROOM_STALE_MS, UNNAMED } from './constants.ts';
 export { ROOM_STALE_MS, UNNAMED };
 // Pods, tournaments, AI seats and their view (`PodView`) — split out, wave 99 §L.
 import {
-	aiEntrantId,
 	aiEntrantSeat,
 	copySplit,
 	dealGate,
@@ -132,11 +129,6 @@ import {
 	heldSplit,
 	initialPodSize,
 	isAiEntrant,
-	isStoredGauntlets,
-	isStoredLockedDecks,
-	isStoredPodRecord,
-	isStoredPodSeats,
-	isStoredPodSplit,
 	isTournamentRoom,
 	memberDraftId,
 	NO_GAME_HOOKS,
@@ -172,7 +164,6 @@ import {
 	type BotGameAsk,
 	type GameHooks,
 	type PodRecord,
-	type PodSplit,
 	type SeriesEnd,
 	type TournamentPairing,
 } from './pods.ts';
