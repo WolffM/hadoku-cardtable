@@ -129,6 +129,7 @@ import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, stat
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
 import { replaceIds } from '../erase/anonymise.js';
+import { makeSecret, mintRoomId, mintTableId, passwordMatches, type Secret } from './provisioning.ts';
 // Pods, tournaments, AI seats and their view (`PodView`) — split out, wave 99 §L.
 import {
 	aiEntrantId,
@@ -1120,36 +1121,6 @@ interface OpenLobbyOptions {
 	checkPlan?: (plan: DraftPlan) => Promise<PoolVerdict>;
 }
 
-// ── the password ─────────────────────────────────────────────────────────────
-
-/**
- * scrypt at node's defaults (N=2^14, r=8, p=1): tens of milliseconds, paid once
- * at create and once per join attempt by a non-member, and join attempts are
- * rate-limited per caller in `http/rooms.ts`. Sync, because the lobby is a
- * synchronous in-memory structure and a friend group creates rooms by hand.
- */
-const SALT_BYTES = 16;
-const KEY_BYTES = 32;
-
-interface Secret {
-	salt: string;
-	hash: string;
-}
-
-function hashPassword(password: string, salt: Buffer): Buffer {
-	return scryptSync(password.normalize('NFC'), salt, KEY_BYTES);
-}
-
-function makeSecret(password: string): Secret {
-	const salt = randomBytes(SALT_BYTES);
-	return { salt: salt.toString('hex'), hash: hashPassword(password, salt).toString('hex') };
-}
-
-function passwordMatches(secret: Secret, password: string): boolean {
-	const expected = Buffer.from(secret.hash, 'hex');
-	const got = hashPassword(password, Buffer.from(secret.salt, 'hex'));
-	return got.length === expected.length && timingSafeEqual(got, expected);
-}
 
 // ── the stored record ────────────────────────────────────────────────────────
 
@@ -1763,22 +1734,6 @@ function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView 
 	};
 }
 
-/**
- * `r-` plus 12 hex characters. The prefix means a room id can never equal a
- * draft id or a match id; 48 random bits make a collision a non-event at this
- * scale, and `create` re-rolls on one anyway.
- */
-function mintRoomId(): string {
-	return `r-${randomBytes(6).toString('hex')}`;
-}
-
-/** `t-` plus 8 hex characters, per the wire contract. Re-rolls on a collision against `existing`. */
-function mintTableId(existing: readonly string[]): string {
-	const held = new Set(existing);
-	let id = `t-${randomBytes(4).toString('hex')}`;
-	while (held.has(id)) id = `t-${randomBytes(4).toString('hex')}`;
-	return id;
-}
 
 /**
  * The first table's id for a room migrated from before wave 71 — DETERMINISTIC,
