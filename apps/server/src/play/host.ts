@@ -127,7 +127,7 @@ import type { AbortReasonSchema, ClientAction, GameLogLine, GameLogMeta, Loss, S
 import { jsonLogger } from '@hadoku/service-kernel/log';
 export { bridgeDiagnostics } from './diagnostics.js';
 import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
-import { JVM_HEAP_MB, MATCHES_PER_JVM, localJvmLauncher, writeFileAtomic, type JvmHostConfig } from './local-jvm.js';
+import { JVM_HEAP_MB, MATCHES_PER_JVM, localJvmLauncher, writeFileAtomic, type AiFlatMc, type JvmHostConfig } from './local-jvm.js';
 
 export {
 	BRIDGE_CACHE_MAX_AGE_MS,
@@ -556,8 +556,8 @@ export function readJvmRecord(dir: string): JvmRecord | null {
 }
 
 /** The config object the bridge reads from a `start` line. `matchId` first: a refusal quotes the line's first 200 characters. */
-function bridgeConfig(matchId: string, spec: MatchSpec): Record<string, unknown> {
-	return { matchId, ...spec };
+function bridgeConfig(matchId: string, spec: MatchSpec, aiFlatMc: AiFlatMc): Record<string, unknown> {
+	return { matchId, ...spec, aiFlatMc };
 }
 
 /** The match id a refused `start` named, from the `rejected` line's quote of it. */
@@ -1161,8 +1161,8 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		};
 		jvm.matches.set(matchId, h);
 		writeRecord(jvm);
-		events.log({ evt: 'match-placed', matchId, hostId: jvm.hostId, warm: jvm.warm, matches: jvm.matches.size });
-		jvm.transport.send(JSON.stringify({ t: 'start', config: bridgeConfig(matchId, spec), match: jvm.hostId }));
+		events.log({ evt: 'match-placed', matchId, hostId: jvm.hostId, warm: jvm.warm, matches: jvm.matches.size, aiFlatMc: config.aiFlatMc ?? 'off' });
+		jvm.transport.send(JSON.stringify({ t: 'start', config: bridgeConfig(matchId, spec, config.aiFlatMc ?? 'off'), match: jvm.hostId }));
 		notifyRoom();
 		replenish();
 		return hostFace(h);

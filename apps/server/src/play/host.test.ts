@@ -1099,6 +1099,22 @@ describe('routing, against a scripted launcher', () => {
 		expect(r.lines).toEqual([]);
 	});
 
+	it("every match's start carries the configured AI level (CARDTABLE_AI_FLAT_MC), and its placement says which", () => {
+		const { launcher, jvms } = scriptedLauncher();
+		const workDir = mkdtempSync(join(scratch, 'scripted-'));
+		const pool = jvmHostFactory({ ...config, workDir, perJvm: 2, aiFlatMc: 'lite' }, { warm: false, launcher });
+		const [a, b] = [recorder(), recorder()];
+		pool('m-0000000000e1', SPEC, a);
+		pool('m-0000000000e2', SPEC, b);
+		const sent = [...jvms.values()].flatMap((j) => j.sent.map((line) => JSON.parse(line) as { t: string; config?: { matchId: string; aiFlatMc?: string } }));
+		expect(sent.filter((c) => c.t === 'start').map((c) => [c.config?.matchId, c.config?.aiFlatMc])).toEqual([
+			['m-0000000000e1', 'lite'],
+			['m-0000000000e2', 'lite'],
+		]);
+		expect(a.logs.find((e) => e.evt === 'match-placed')).toMatchObject({ aiFlatMc: 'lite' });
+		pool.close();
+	});
+
 	it('each line goes to the match it names; a line for no match here is logged and dropped; a JVM\'s death fails only its own matches', () => {
 		const { launcher, jvms } = scriptedLauncher();
 		const poolLog: Record<string, unknown>[] = [];
@@ -1113,6 +1129,8 @@ describe('routing, against a scripted launcher', () => {
 		// The start line names the host; its config names the match first.
 		expect(JSON.parse(jvms.get(one!)!.sent[0]!)).toMatchObject({ t: 'start', match: one, config: { matchId: 'm-0000000000d1' } });
 		expect(jvms.get(one!)!.sent[0]).toMatch(/^\{"t":"start","config":\{"matchId":"m-0000000000d1"/);
+		// No level configured: the AI a person plays thinks as it always did.
+		expect(JSON.parse(jvms.get(one!)!.sent[0]!).config.aiFlatMc).toBe('off');
 
 		jvms.get(one!)!.say({ t: 'warm', bootMs: 1, match: one });
 		jvms.get(one!)!.say({ t: 'ready', forgePort: 1, bootMs: 1, seats: [], match: 'm-0000000000d2' });

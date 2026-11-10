@@ -488,6 +488,15 @@ public final class PlayBridge {
         final boolean handSmoothing;
 
         /**
+         * How hard Forge's AI thinks in this match: Forge's Flat Monte Carlo search, which plays each
+         * of an AI decision's options out a few times on a copy of the game and takes the best.
+         * {@code off}, {@code base} (the AI profile's own search), {@code lite} (Forge's phone
+         * setting) or {@code max} (its desktop setting). The server's {@code CARDTABLE_AI_FLAT_MC};
+         * absent or unknown is {@code off}, the heuristic AI alone.
+         */
+        final String aiFlatMc;
+
+        /**
          * Wave 71 §E. Optional. Names the seat ({@code 0} or {@code 1}) the room wants
          * asked play-or-draw. {@code null} (the room sent no {@code chooser}): the
          * match's coin toss is untouched, byte-identical to before this wave.
@@ -659,6 +668,11 @@ public final class PlayBridge {
             seed = root.has("seed") && !root.get("seed").isJsonNull() ? root.get("seed").getAsLong() : null;
             scenario = root.has("scenario") && !root.get("scenario").isJsonNull() ? root.get("scenario").getAsString() : null;
             handSmoothing = root.has("handSmoothing") && root.get("handSmoothing").getAsBoolean();
+            final String flatMc = root.has("aiFlatMc") && !root.get("aiFlatMc").isJsonNull() ? root.get("aiFlatMc").getAsString() : "off";
+            aiFlatMc = switch (flatMc) {
+                case "base", "lite", "max" -> flatMc;
+                default -> "off";
+            };
             skipOpening = root.has("skipOpening") && root.get("skipOpening").getAsBoolean();
             restore = root.has("restore") && root.get("restore").getAsBoolean();
             chooser = root.has("chooser") && !root.get("chooser").isJsonNull() ? root.get("chooser").getAsInt() : null;
@@ -7144,6 +7158,11 @@ public final class PlayBridge {
                 if (AI_TIMEOUT_SEC >= 0) {
                     hm.getGame().AI_TIMEOUT = AI_TIMEOUT_SEC;
                 }
+                // HostedMatch.startGame set these from the JVM's preferences and GuiBase.isMobile; the
+                // match's own setting wins.
+                hm.getGame().AI_FLAT_MONTE_CARLO = !"off".equals(m.aiFlatMc);
+                hm.getGame().AI_FLAT_MONTE_CARLO_MAX = "max".equals(m.aiFlatMc);
+                hm.getGame().AI_FLAT_MONTE_CARLO_LITE = "lite".equals(m.aiFlatMc);
                 if ("game-throw".equals(FAULT)) {
                     throw new Error("cardtable.fault=game-throw: a test-only failure on the game thread");
                 }
@@ -8572,8 +8591,9 @@ public final class PlayBridge {
             // Forge's UndoManager would store a whole-game memento at every priority, for every match this
             // JVM hosts; it is never what a seat's Undo performs, so it records nothing.
             prefs.setPref(FPref.UI_UNDO_MODE, ForgeConstants.UNDO_MODE_OFF);
-            // Forge's Flat Monte Carlo AI (its default since 2026-10) rolls each decision out within the AI
-            // timeout; cardtable's AI stays the heuristic one until its CPU cost per hosted match is measured.
+            // Forge's Flat Monte Carlo AI is set per match (MatchContext.aiFlatMc, applied in the start-game
+            // hook). The JVM-wide preference stays off: Forge also reads it to keep AI-only cards in the decks
+            // it generates for the AI, and every deck here is one a seat brought.
             prefs.setPref(FPref.MATCH_AI_FLAT_MONTE_CARLO, false);
             return null;
         });

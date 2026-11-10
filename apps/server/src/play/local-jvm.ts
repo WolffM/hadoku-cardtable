@@ -56,6 +56,9 @@
  *   CARDTABLE_PLAY_WARM_JVM          `0` to keep no JVM booted ahead of a match; default on
  *   CARDTABLE_PLAY_MATCHES_PER_JVM   matches one JVM hosts at most; default `MATCHES_PER_JVM`
  *   CARDTABLE_PLAY_BRIDGE_CACHE      where the compiled bridge is kept; default `~/.cache/cardtable/bridge`
+ *   CARDTABLE_AI_FLAT_MC             how hard the AI a person plays thinks: `off`, `base`, `lite` or `max`
+ *                                    (`AiFlatMc`); default `AI_FLAT_MC`. Read per match, so a restart of the
+ *                                    server flips it for every match started after, on JVMs already running too
  *
  * The bridge needs a JDK — `javac` to compile, or `jdk.compiler` for the source launcher it falls
  * back to — which is why the user-local Temurin comes first, ahead of whatever `java` is on `PATH`
@@ -139,6 +142,32 @@ export interface JvmHostConfig {
 	xmxMb?: number;
 	/** A JVM silent this long is killed and every match on it failed. Default `UNRESPONSIVE_MS` (host.ts); see "Liveness". */
 	unresponsiveMs?: number;
+	/** Each match's `AiFlatMc`, sent with its `start`. Absent is `off`. */
+	aiFlatMc?: AiFlatMc;
+}
+
+/**
+ * Forge's Flat Monte Carlo AI: on each decision with more than one sensible play, the AI plays
+ * each out a few times on a copy of the game and takes the best (`FlatMonteCarloPicker`).
+ * `off` is the heuristic AI alone; `base` the AI profile's own search (450 ms a decision, 2 s a
+ * turn); `lite` Forge's phone setting (600 ms, 2.5 s, plus its attack search and a look at the
+ * opponent's next turn for small decisions); `max` its desktop setting (1.5 s, 6 s, more lines,
+ * more samples, the opponent's turn always). `PlayBridge.java`'s `MatchContext.aiFlatMc`.
+ */
+export type AiFlatMc = 'off' | 'base' | 'lite' | 'max';
+const AI_FLAT_MC_LEVELS: readonly AiFlatMc[] = ['off', 'base', 'lite', 'max'];
+
+/** `CARDTABLE_AI_FLAT_MC`'s default. See docs/planning/flat-mc-ai.md for the measurement behind it. */
+export const AI_FLAT_MC: AiFlatMc = 'off';
+
+/**
+ * `CARDTABLE_AI_FLAT_MC`: unset is {@link AI_FLAT_MC}; anything that is not a level is `off`, so a
+ * typo made while turning it down in a hurry never leaves it on.
+ */
+export function aiFlatMcFrom(raw: string | undefined): AiFlatMc {
+	if (raw === undefined || raw.trim() === '') return AI_FLAT_MC;
+	const level = raw.trim().toLowerCase();
+	return AI_FLAT_MC_LEVELS.find((l) => l === level) ?? 'off';
 }
 
 /**
@@ -230,6 +259,7 @@ export function jvmHostConfig(env: NodeJS.ProcessEnv = process.env): JvmAvailabi
 			stopGraceMs: 5000,
 			warmJvm: env.CARDTABLE_PLAY_WARM_JVM !== '0',
 			perJvm: positiveInt(env.CARDTABLE_PLAY_MATCHES_PER_JVM, MATCHES_PER_JVM),
+			aiFlatMc: aiFlatMcFrom(env.CARDTABLE_AI_FLAT_MC),
 		},
 	};
 }
