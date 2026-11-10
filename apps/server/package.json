@@ -21,7 +21,7 @@
     "@hadoku/service-kernel": "workspace:*",
     "@hadoku/shared": "workspace:*",
     "@resvg/resvg-js": "^2.6.2",
-    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.23",
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.24",
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.69",
     "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.69",
     "express": "^5.1.0",
