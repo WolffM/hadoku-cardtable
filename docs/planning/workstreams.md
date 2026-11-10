@@ -177,7 +177,7 @@ it. PR-5 is new and exists to serve it.
 
 | # | Programme | State |
 | --- | --- | --- |
-| **PR-9** | **Platform** — make this repo a general tool for future games: the scaffolding, networking, rooms and accounts are kept, and a new game brings its own engine, data and UI. The operator, 2026-11-06: *"we are likely to want to make new games with new UI, but want to retain the power of the scaffolding, networking, user management, and other stuff"*; on rooms: *"watchparty and cardtable really should share essentially all the same code here"* | **PLANNED 2026-11-06, six decisions answered the same day.** Plan: artifact https://claude.ai/artifact/Jm5BXZj9xLPnpMGDwLSTKu, HTML copy at `~/.cache/cardtable-manager/platform-plan/`. Phase 1 is **w91**, `docs/planning/wave91-2026-11-06.md`: the layer fence, D26 (MIT by default) and one handshake gate |
+| **PR-9** | **Platform** — make this repo a general tool for future games: the scaffolding, networking, rooms and accounts are kept, and a new game brings its own engine, data and UI. The operator, 2026-11-06: *"we are likely to want to make new games with new UI, but want to retain the power of the scaffolding, networking, user management, and other stuff"*; on rooms: *"watchparty and cardtable really should share essentially all the same code here"* | **Phases 1–4 on main, verified 2026-11-10 at c1f8ee5d3**: fence w91; kernel and shell w92–w94; wire and room storage w95a/b; the room core w96–w98 (serveRoom `c57616449`). Phase 3 still to do: bomberman and the template swap edge-auth, and the `game.*` reader sweep. Phases 5 (match host) and 6 are not started. **Fence debt, measured live:** 59 platform→magic and 11 platform→tangled edges; `lobby.ts` 4,716 lines. The ratchet only counts, so 3 new edges got in through slack (see Wave 99). **w99 SCAFFOLDED 2026-11-10** (`docs/planning/wave99-2026-11-10.md`): closes the leak and takes the edges toward 0/≤5, and splits lobby.ts |
 | **PR-8** | **Presentation** — sound, motion, board and UI art. The operator, 2026-09-27: *"one of the most important parts of this project is getting the graphics/audio to be upgraded. thats a huge part of the appeal, otherwise all we've done is create magic online with slight improvements"* | **NEW, and the operator's stated priority after w25**: *"i would prefer to not be debugging the game functionality for much longer."* See the presentation section below for what exists, what does not, and the three decisions that gate it |
 | **PR-7** | **The outer shell** — adopt hadoku_site's `templates/game` and delete our hand-written wrapper in favour of it | **SCHEDULED: the wave immediately after the game client.** Operator, 2026-09-20. Not before — the shell wraps the client, and the client is the unproven half |
 | **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS. W19 landed the QOL wave**: static canvas with player faces, only-Forge-offered clickability + drag + targeter, stops only where a legal action exists with payment said out loud, art ids for every card and stack item. The operator's bar — *"i would not even call this alpha playable yet"* — was the brief; their re-test is the remaining proof |
@@ -3691,3 +3691,16 @@ re-prove); `forge.yml` keys an aimed proof by its node (`dd2da62b3`); a `--dry-r
 - the Forge upstream sync, before phase 5 (the operator's call);
 - cardtable's lane labels, after fleet-manager's;
 - re-lands #45 and #47.
+
+
+## Wave 99 (platform fence cleanup) — scaffolded 2026-11-10
+
+Worktree `.claude/worktrees/w99-manager`, branch `w99` off origin/main c1f8ee5d3 (CI green). Wave file `docs/planning/wave99-2026-11-10.md`; handoff `docs/handoff/w99.md` (gitignored). Base gate log `~/.cache/cardtable-manager/w99-base-check.log`. Lanes:
+- **W**, the wire: 16 edges, rebinding to `@hadoku/platform-wire` and making `room-view.ts` generic;
+- **U**, the UI: 26 edges; rally, Banner and sound/queue move to magic, plus seams for Settings, sound, Avatar, ConnectionBanner and route;
+- **R**, server play: 20 edges; recording moves to magic, plus seams for placement, host, trim and agent;
+- **L**, the lobby: 8 importer edges, and `lobby.ts` split to ≤ 3,400 lines (the long pole);
+- **step 0** (manager): `ratchet.test.ts` fails on any new edge key regardless of count, and the baseline is lowered to the live 59/11.
+
+**Found while scaffolding:** `baseline.json` still read 69/12 from w91 (2026-11-07); nobody had lowered it. The slack let in `sound/index.ts→registry.ts` (02c0ddf5d), `room-view.ts→magic-room.ts` (ab83586e4) and `watching.ts→lobby.js` (d1a512e46) with the ratchet green. `baseline.ts` refused to regenerate ("2 pair(s) rose").
+**Base gate:** 13596 passed, 1 failed (`library.test.ts:668`, a 5 s timeout at load ~38; it passes alone in 1.3 s; CI on c1f8ee5d3 is green; added to #44).
