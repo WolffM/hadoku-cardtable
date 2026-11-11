@@ -69,7 +69,6 @@ import type { AgentClient } from '../remote/client.js';
 import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
 import { SECTION, contractViolations, type Violation } from './audit.js';
-import { ClawDraftbots } from './draftbot.js';
 import { CONTRACT, type HostingContract } from './contract.js';
 import { STATUS_MAX_AGE_S, type FleetDemand, type FleetNode, type FleetSource, type FleetStatus } from './fleet.js';
 import {
@@ -173,6 +172,8 @@ export interface PlacementOptions {
 	timers?: boolean;
 	now?: () => number;
 	log?: (entry: Record<string, unknown>) => void;
+	/** The draft bot service placement runs on the claws, built by the game that has one (`draftbot.ts`'s `ClawDraftbots`). */
+	draftbots(deps: { alerts: Alerts; now: () => number; log: (entry: Record<string, unknown>) => void }): DraftbotPlacement;
 }
 
 interface Host {
@@ -287,6 +288,27 @@ export interface DraftbotAdvisor {
 	batchDraft(inputs: { pack: string[]; pool: string[] }[], signal: AbortSignal): Promise<{ oracle: string; rating: number }[][]>;
 }
 
+/** One connected claw, as placement sees it at a tick. */
+export interface DraftbotClaw {
+	name: string;
+	client: Pick<AgentClient, 'lost' | 'health' | 'send' | 'call'>;
+	/** It may run it: not quarantined, not failing. */
+	usable: boolean;
+	/** The draft bot artifact it holds; null until pushed. */
+	sha: string | null;
+	/** Why it holds none, when the push failed. */
+	error: string | null;
+}
+
+/** The draft bot service as placement drives it: which claws run it, and the claws to choose from at each tick. */
+export interface DraftbotPlacement extends DraftbotAdvisor {
+	/** Whether `claw` is chosen to run it: its slice reserves the room. */
+	runsOn(claw: string): boolean;
+	view(): { chosen: string[]; failing: string[] };
+	/** Every health tick, with every connected claw in placement order. */
+	step(claws: DraftbotClaw[]): void;
+}
+
 export type Placement = MatchHostFactory &
 	Omit<JvmHostFactory, 'room'> & {
 	room(): 'warm' | 'booting' | 'none' | 'full';
@@ -374,7 +396,7 @@ export function placement(opts: PlacementOptions): Placement {
 	let exceptHost: Host | null = null;
 	const fencedBatches = new Map<Host, Moved[]>();
 	const timers: NodeJS.Timeout[] = [];
-	const draftbots = new ClawDraftbots({ alerts, now, log });
+	const draftbots = opts.draftbots({ alerts, now, log });
 
 	const notifyRoom = (): void => {
 		for (const l of roomWatchers) l();

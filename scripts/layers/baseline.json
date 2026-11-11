@@ -1,11 +1,10 @@
 {
 	"edgeCounts": {
-		"platform→magic": 2
+		"platform→magic": 1
 	},
 	"edgeKeys": {
 		"platform→magic": [
-			"apps/server/src/play/host.ts→@hadoku/forge-wire",
-			"apps/server/src/play/placement/coordinator.ts→./draftbot.js"
+			"apps/server/src/play/host.ts→@hadoku/forge-wire"
 		]
 	},
 	"tangled": [

@@ -7,6 +7,7 @@ import { CONFIG } from '../config.js';
 import { sweepRooms } from '../boot.js';
 import { attachPlay, coldStartsFrom, jvmHostFactory, roomFormatNames, spellCopierLookup, type PlayHandle } from '../play/index.js';
 import { clawPlacement, registryRestorer } from '../play/placement/index.js';
+import { ClawDraftbots } from '../play/placement/draftbot.js';
 import { reportingAlerts } from '../telemetry.js';
 import { httpDraftbot, type Draftbot } from '../room/draftbot.js';
 import { attachRoomFeed } from '../room/watching.js';
@@ -66,7 +67,7 @@ export const playPlugin: CardtablePlugin = {
 		// Where matches run (`CARDTABLE_PLAY_HOSTS`): this machine's pool, or placement across the claws
 		// with this machine as the backstop. Every alert placement posts is also a service event.
 		const { placementLog } = state;
-		state.clawHosts = forge.ok && CONFIG.playHosts === 'claws' ? clawPlacement(forge.config, { webhook: CONFIG.alertWebhook, forceFile: CONFIG.backstopForceFile, restartGraceMs: CONFIG.restartGraceMs, log: reportingAlerts(placementLog), fleet: state.primedFleet }) : null;
+		state.clawHosts = forge.ok && CONFIG.playHosts === 'claws' ? clawPlacement(forge.config, { webhook: CONFIG.alertWebhook, forceFile: CONFIG.backstopForceFile, restartGraceMs: CONFIG.restartGraceMs, log: reportingAlerts(placementLog), fleet: state.primedFleet, draftbots: (deps) => new ClawDraftbots(deps) }) : null;
 		state.localHost = forge.ok && state.clawHosts === null ? jvmHostFactory(forge.config) : null;
 		const { clawHosts, localHost } = state;
 		placementLog({ evt: 'play-hosts', mode: forge.ok ? CONFIG.playHosts : 'none', alerts: CONFIG.alertWebhook === '' ? 'logged only' : 'discord' });

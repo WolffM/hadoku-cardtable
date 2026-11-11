@@ -17,6 +17,7 @@ import { Alerts, type AlertSink } from './alerts.js';
 import { contractViolations } from './audit.js';
 import { CONTRACT, contractOf } from './contract.js';
 import { CONTRACT_HOLD_MS, NOTICE_SLACK_MS, placement, type AgentLink, type Placement, type Restorer } from './coordinator.js';
+import { ClawDraftbots } from './draftbot.js';
 import type { FleetDemand, FleetNode, FleetSource, FleetStatus } from './fleet.js';
 import { BOOT_STATUS_MAX_AGE_S, CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, PRIMED_MAX_AGE_MS, STATUS_MAX_AGE_S, fleetCli, fleetCliPath, parseDemand, parseNodeStatus, primeFleet } from './fleet.js';
 import {
@@ -234,6 +235,7 @@ async function rig(
 		config: cfg,
 		// The coordinator on its own: two slices, whatever hosting.json says today.
 		contract: { ...CONTRACT, min: 2 },
+		draftbots: (deps) => new ClawDraftbots(deps),
 		fleet,
 		connect: (node) => {
 			const claw = claws.get(node);

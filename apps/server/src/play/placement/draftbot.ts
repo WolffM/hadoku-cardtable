@@ -16,9 +16,9 @@
  */
 
 import { batchDraftAnswer, type Draftbot, type DraftbotInput, type DraftbotRatings } from '../../room/draftbot.js';
-import type { AgentClient } from '../remote/client.js';
 import { DRAFTBOT_PATH } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
+import type { DraftbotClaw, DraftbotPlacement } from './coordinator.js';
 
 /** A primary and a backup. */
 export const DRAFTBOT_CLAWS = 2;
@@ -34,19 +34,7 @@ export const DRAFTBOT_RETRY_MS = 5 * 60_000;
 /** No draft bot up anywhere for this long is an alert. */
 export const DRAFTBOT_DOWN_MS = 5 * 60_000;
 
-/** One connected claw, as placement sees it at a tick. */
-export interface DraftbotClaw {
-	name: string;
-	client: Pick<AgentClient, 'lost' | 'health' | 'send' | 'call'>;
-	/** It may run it: not quarantined, not failing. */
-	usable: boolean;
-	/** The draft bot artifact it holds; null until pushed. */
-	sha: string | null;
-	/** Why it holds none, when the push failed. */
-	error: string | null;
-}
-
-export class ClawDraftbots implements Draftbot {
+export class ClawDraftbots implements Draftbot, DraftbotPlacement {
 	private claws = new Map<string, DraftbotClaw>();
 	private chosen: string[] = [];
 	/** What each claw was asked to run, and since when it should have been up. */

@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { DraftbotHealth, ToAgent } from '../remote/wire.js';
 import { Alerts } from './alerts.js';
-import { ClawDraftbots, DRAFTBOT_DOWN_MS, DRAFTBOT_PRIMARY_MS, DRAFTBOT_RETRY_MS, DRAFTBOT_START_MS, type DraftbotClaw } from './draftbot.js';
+import { ClawDraftbots, DRAFTBOT_DOWN_MS, DRAFTBOT_PRIMARY_MS, DRAFTBOT_RETRY_MS, DRAFTBOT_START_MS } from './draftbot.js';
+import type { DraftbotClaw } from './coordinator.js';
 
 const SHA = 'a'.repeat(64);
 const INPUTS = [{ pack: ['x', 'y'], pool: [] }];
