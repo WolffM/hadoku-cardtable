@@ -265,7 +265,7 @@ export async function expectNoDesync(h: DesyncSource): Promise<void> {
 function expectHitsDealt(seat: number, held: Pick<BoardView, 'hits' | 'faceHits'>, history: readonly ServerFrame[]): void {
   const dealt: { hits: Omit<DamageHit, 'seq'>[]; faceHits: Omit<FaceHit, 'seq'>[] } = { hits: [], faceHits: [] };
   for (const frame of history) {
-    if (frame.method !== 'applyDelta') continue;
+    if (frame.method !== 'applyDelta' && frame.method !== 'setGameView') continue;
     for (const [cardId, sourceId, amount] of frame.payload.damage ?? []) dealt.hits.push({ cardId, sourceId: sourceId >= 0 ? sourceId : null, amount });
     for (const [playerId, sourceId, amount, combat] of frame.payload.faceDamage ?? []) dealt.faceHits.push({ playerId, sourceId: sourceId >= 0 ? sourceId : null, amount, combat });
   }

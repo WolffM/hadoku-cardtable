@@ -57,10 +57,10 @@ type Payload = {
 	faceDamage?: [number, number, number, boolean][];
 };
 
-/** Each state frame `seat` was sent, in order, as its payload. */
+/** Each state frame `seat` was sent, in order, as its payload: a whole view mid-game carries hits too. */
 function payloads(s: Scenario, seat: number): Payload[] {
 	return s.sent
-		.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify' && (x.envelope.frame as { method?: string }).method === 'applyDelta')
+		.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify' && ['setGameView', 'applyDelta'].includes((x.envelope.frame as { method?: string }).method ?? ''))
 		.map((x) => (x.envelope.frame as unknown as { payload: Payload }).payload);
 }
 

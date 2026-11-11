@@ -3632,16 +3632,14 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[], source: 'l
   let changed = false;
   for (const frame of frames) {
     if (frame.method === 'setGameView') {
-      const { gameView, sequenceNumber, ...siblings } = frame.payload;
+      const { gameView, sequenceNumber, damage, deaths, faceDamage, counteredStackItems, ...siblings } = frame.payload;
       packets = [{ seq: sequenceNumber, checksum: 0, checksumProperties: [], newObjects: gameView, objectDeltas: {}, events: [], ...siblings }];
+      noteJournal(match, { damage, deaths, faceDamage, counteredStackItems }, source);
       changed = true;
     } else if (frame.method === 'applyDelta') {
       const { packet, damage, deaths, faceDamage, counteredStackItems, ...siblings } = frame.payload;
       packets.push({ ...packet, ...siblings });
-      if (damage !== undefined && source === 'live') noteHits(match, damage);
-      if (deaths !== undefined) noteDeaths(match, deaths);
-      if (faceDamage !== undefined && source === 'live') noteFaceHits(match, faceDamage);
-      if (counteredStackItems !== undefined) noteCountered(match, counteredStackItems);
+      noteJournal(match, { damage, deaths, faceDamage, counteredStackItems }, source);
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -3661,6 +3659,21 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[], source: 'l
   match.forgeSeq = seq;
   match.skippedDeltas += skippedDeltas;
   redraw(match);
+}
+
+/**
+ * What a state frame says happened since the last one: an `applyDelta`, or a `setGameView` Forge sent
+ * mid-game, whose damage may have come in no delta before it. A history frame's damage is no hit to draw.
+ */
+function noteJournal(
+  match: LiveMatch,
+  { damage, deaths, faceDamage, counteredStackItems }: Pick<Extract<ServerFrame, { method: 'applyDelta' }>['payload'], 'damage' | 'deaths' | 'faceDamage' | 'counteredStackItems'>,
+  source: 'live' | 'history',
+): void {
+  if (damage !== undefined && source === 'live') noteHits(match, damage);
+  if (deaths !== undefined) noteDeaths(match, deaths);
+  if (faceDamage !== undefined && source === 'live') noteFaceHits(match, faceDamage);
+  if (counteredStackItems !== undefined) noteCountered(match, counteredStackItems);
 }
 
 /** How many damage hits a match keeps: far more than one resolution deals, and still bounded. */

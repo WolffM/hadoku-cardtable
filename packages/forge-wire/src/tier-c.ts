@@ -829,7 +829,7 @@ export type ConditionMet = z.infer<typeof ConditionMetSchema>;
  * The bridge's sixth addition beside the packet: the damage dealt to cards since the seat's last
  * state frame (`PlayBridge.java`'s `DamageJournal`, Forge's own `GameEventCardDamaged`), oldest
  * first, as `[targetId, sourceId, amount]` — `sourceId` -1 when Forge names none. An event list, not
- * a snapshot, and only on `applyDelta`: a creature killed by it is in its graveyard, its damage
+ * a snapshot, on a state frame drawn mid-game ({@link EffectsShape}): a creature killed by it is in its graveyard, its damage
  * wiped, by the time the frame is built, so the view alone never says it was hit.
  */
 export const DamageSchema = z.array(z.tuple([JavaInt, JavaInt, JavaInt]));
@@ -844,7 +844,7 @@ export type DeathCause = z.infer<typeof DeathCauseSchema>;
 /**
  * The bridge's seventh addition beside the packet: why each permanent that went to its graveyard
  * since the seat's last state frame went there (`PlayBridge.java`'s `EffectJournal`, the fork's
- * `GameEventCardDied`), oldest first, as `[cardId, cause]`. An event list, only on `applyDelta`.
+ * `GameEventCardDied`), oldest first, as `[cardId, cause]`. An event list ({@link EffectsShape}).
  */
 export const DeathsSchema = z.array(z.tuple([JavaInt, DeathCauseSchema]));
 
@@ -854,7 +854,7 @@ export type Deaths = z.infer<typeof DeathsSchema>;
  * The bridge's eighth addition beside the packet: the damage dealt to players since the seat's last
  * state frame (`PlayBridge.java`'s `EffectJournal`, Forge's own `GameEventPlayerDamaged`), oldest
  * first, as `[playerId, sourceId, amount, combat]` — `sourceId` -1 when Forge names none. The life
- * total says how much was lost; this says who dealt it. An event list, only on `applyDelta`.
+ * total says how much was lost; this says who dealt it. An event list ({@link EffectsShape}).
  */
 export const FaceDamageSchema = z.array(z.tuple([JavaInt, JavaInt, JavaInt, z.boolean()]));
 
@@ -868,13 +868,25 @@ export type FaceDamage = z.infer<typeof FaceDamageSchema>;
  * removeFromStack` removes its TARGET from the stack directly, mid-resolution of the countering
  * spell) or a fizzle (`GameEventSpellResolved`'s own `hasFizzled`: its target was gone when its
  * turn to resolve came). The UI (`live/placed.ts`) draws every id here the same way — a crack and a
- * fade in place — never the house glide a clean resolution gets. An event list, not a snapshot, and
- * only on `applyDelta`, exactly like `damage`/`deaths`/`faceDamage`: the item is off the live stack
- * by the time the frame is built, so the view alone never says how it left.
+ * fade in place — never the house glide a clean resolution gets. An event list, not a snapshot,
+ * exactly like `damage`/`deaths`/`faceDamage`: the item is off the live stack by the time the frame
+ * is built, so the view alone never says how it left.
  */
 export const CounteredStackItemsSchema = z.array(JavaInt);
 
 export type CounteredStackItems = z.infer<typeof CounteredStackItemsSchema>;
+
+/**
+ * What happened since the seat's last state frame that the view cannot say, on every `applyDelta` and on a
+ * `setGameView` Forge sends mid-game: the damage it shows may have come in no delta before it. A new game's
+ * first `setGameView` carries none (`PlayBridge.java`'s `effectsSince`).
+ */
+const EffectsShape = {
+  damage: DamageSchema.optional(),
+  deaths: DeathsSchema.optional(),
+  faceDamage: FaceDamageSchema.optional(),
+  counteredStackItems: CounteredStackItemsSchema.optional(),
+};
 
 /**
  * The bridge's state facts beside both state frames' packet, each a snapshot the fold replaces when
@@ -911,6 +923,7 @@ export const SetGameViewSchema = z.strictObject({
   payload: StateSiblingsSchema.extend({
     gameView: GameStateSchema,
     sequenceNumber: SequenceNumber,
+    ...EffectsShape,
   }),
 });
 
@@ -941,10 +954,7 @@ export const ApplyDeltaSchema = z.strictObject({
   method: z.literal('applyDelta'),
   payload: StateSiblingsSchema.extend({
     packet: DeltaPacketSchema,
-    damage: DamageSchema.optional(),
-    deaths: DeathsSchema.optional(),
-    faceDamage: FaceDamageSchema.optional(),
-    counteredStackItems: CounteredStackItemsSchema.optional(),
+    ...EffectsShape,
   }),
 });
 

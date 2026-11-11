@@ -582,15 +582,15 @@ describe('Tier C — damage', () => {
     expect(DamageSchema.safeParse([101]).success).toBe(false);
   });
 
-  it('is optional on applyDelta and carried when present; a snapshot never carries it', () => {
+  it('is optional on both state frames and carried when present: Forge sends a whole view mid-game too', () => {
     const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, damage: [[101, 131, 3]] } });
     expect(delta.success && delta.data.payload.damage).toEqual([[101, 131, 3]]);
     const view = SetGameViewSchema.safeParse({
       kind: 'notify',
       method: 'setGameView',
-      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, damage: [[101, 131, 3]] },
+      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, damage: [[101, 131, 3]], faceDamage: [[1, 131, 2, true]], deaths: [[101, 'LETHAL_DAMAGE']] },
     });
-    expect(view.success).toBe(false);
+    expect(view.success && [view.data.payload.damage, view.data.payload.faceDamage, view.data.payload.deaths]).toEqual([[[101, 131, 3]], [[1, 131, 2, true]], [[101, 'LETHAL_DAMAGE']]]);
   });
 });
 
@@ -620,18 +620,15 @@ describe('Tier C — counteredStackItems (AE27)', () => {
     expect(CounteredStackItemsSchema.safeParse([[101, 102]]).success).toBe(false);
   });
 
-  it('is optional on applyDelta, carried when present, and absent from setGameView (an event list, only on applyDelta like damage/deaths)', () => {
+  it('is optional on both state frames and carried when present, like damage/deaths', () => {
     const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, counteredStackItems: [101] } });
     expect(delta.success && delta.data.payload.counteredStackItems).toEqual([101]);
     const view = SetGameViewSchema.safeParse({
       kind: 'notify',
       method: 'setGameView',
-      // `counteredStackItems` is not a key `StateSiblingsSchema` declares, and that schema is strict:
-      // a setGameView carrying it must be rejected, the same way an unknown key on any other tier-C
-      // frame is — never silently accepted where only `applyDelta` sends it.
       payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, counteredStackItems: [101] },
     });
-    expect(view.success).toBe(false);
+    expect(view.success && view.data.payload.counteredStackItems).toEqual([101]);
   });
 });
 

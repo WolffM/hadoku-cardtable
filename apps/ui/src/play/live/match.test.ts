@@ -3905,6 +3905,21 @@ describe('damage — the bridge’s own hits', () => {
     expect(m.view!.hits?.map((h) => h.seq), 'an event list: kept, and never drawn twice (numbers reads above the last seq)').toEqual([1, 2]);
   });
 
+  it('a whole view Forge sends mid-game brings the hits it shows: the life it drops comes with who dealt it, and the ram', async () => {
+    const { s, m } = await fullGame();
+    const before = m.view!;
+    const viewer = before.players.find((p) => p.isViewer)!;
+    const attacker = before.players.find((p) => !p.isViewer)!.battlefield[0]!.id;
+    const key = deltaKey(DELTA_TYPE.player, viewer.id);
+    const gameView = { ...Object.fromEntries(m.state), [key]: { ...m.state.get(key)!, Life: { t: 'int', v: viewer.life - 3 } } };
+    seq += 1;
+    await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: seq, faceDamage: [[viewer.id, attacker, 3, true]] } })]);
+    const diff = diffViews(before, m.view!);
+    expect(diff.life.map((c) => c.to - c.from), 'the whole view drops the life').toEqual([-3]);
+    expect(diff.faceHits.map((h) => [h.playerId, h.sourceId, h.amount]), 'and says who dealt it, in the same view').toEqual([[viewer.id, attacker, 3]]);
+    expect(planRams(diff.hits, diff.faceHits, () => true).rams.map((r) => r.sourceId), 'so the attacker rams').toEqual([attacker]);
+  });
+
   it('a snapshot after a fight (a reconnect, a resync) brings none of its hits back as new: the board does not ram again', async () => {
     const { s, m } = await fullGame();
     const viewer = m.view!.players.find((p) => p.isViewer)!;

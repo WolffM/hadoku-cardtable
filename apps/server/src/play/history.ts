@@ -24,7 +24,7 @@
  *   default is the empty value a frame naming it as empty would give.
  * - **The deaths and the countered stack items so far**, in one `applyDelta` with an empty packet.
  *   A page notes every `deaths` and `counteredStackItems` in a snapshot, history or not, keeping the
- *   most recent of each (`noteDeaths`, `noteCountered`); a `setGameView` cannot carry them. They are
+ *   most recent of each (`noteDeaths`, `noteCountered`); the base `setGameView` does not carry them. They are
  *   kept here in the order the page keeps them (a death moves its card to the end; a counter does
  *   not move one already noted) and left to the page to trim, so the base gives every page — a fresh
  *   one, or a mounted board that still holds older ones — what the whole history would have. (The
@@ -45,9 +45,7 @@ import {
 	deltaKey,
 	intOf,
 	StateSiblingsSchema,
-	type CounteredStackItems,
 	type DeathCause,
-	type Deaths,
 	type ServerFrame,
 	type StateSiblings,
 } from '@hadoku/forge-wire';
@@ -104,19 +102,21 @@ export function createStateHistory(): StateHistory {
 				openView = frame;
 				return;
 			}
+			if (state.method !== 'setGameView' && state.method !== 'applyDelta') return;
+			// Both state frames carry what happened since the last one: a `setGameView` mid-game does too.
+			const { deaths: died, counteredStackItems } = state.payload;
+			for (const [cardId, cause] of died ?? []) {
+				deaths.delete(cardId);
+				deaths.set(cardId, cause);
+			}
+			for (const id of counteredStackItems ?? []) countered.add(id);
 			if (state.method === 'setGameView') {
 				siblings = named(state.payload);
 				seq = state.payload.sequenceNumber;
-			} else if (state.method === 'applyDelta') {
-				const { deaths: died, counteredStackItems } = state.payload as { deaths?: Deaths; counteredStackItems?: CounteredStackItems };
-				for (const [cardId, cause] of died ?? []) {
-					deaths.delete(cardId);
-					deaths.set(cardId, cause);
-				}
-				for (const id of counteredStackItems ?? []) countered.add(id);
+			} else {
 				siblings = { ...siblings, ...named(state.payload) };
 				if (seq !== null) seq = state.payload.packet.seq;
-			} else return;
+			}
 			foldFrame(board, state);
 			if (seq === null) return;
 			const now = intOf(board.get(GAME_KEY), 'Turn') ?? 0;

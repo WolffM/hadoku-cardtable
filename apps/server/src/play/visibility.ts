@@ -226,13 +226,21 @@ export interface DeltaPacketJson {
 
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number } & StateSiblings }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number } & Journal & StateSiblings }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
 	| {
 			kind: 'notify';
 			method: 'applyDelta';
-			payload: { packet: DeltaPacketJson; damage?: Damage; deaths?: Deaths; faceDamage?: FaceDamage; counteredStackItems?: CounteredStackItems } & StateSiblings;
+			payload: { packet: DeltaPacketJson } & Journal & StateSiblings;
 	  };
+
+/** What happened since a seat's last state frame that the view cannot say (`tier-c.ts`'s `EffectsShape`). */
+interface Journal {
+	damage?: Damage;
+	deaths?: Deaths;
+	faceDamage?: FaceDamage;
+	counteredStackItems?: CounteredStackItems;
+}
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -1131,6 +1139,21 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 		return { faceDamage: hits.map(([player, source, amount, combat]) => [player, source >= 0 && granted(zones, source) !== 'hidden' ? source : -1, amount, combat] as const) };
 	}
 
+	/**
+	 * What happened since the last state frame, as this seat may see it. `counteredStackItems` passes
+	 * UNREDACTED, the same reasoning as `stackTargetSpells`: they are stack item ids, and the Stack zone
+	 * is public, so naming which of them left by a counter (rather than resolving) hides nothing a card
+	 * redaction elsewhere in the same frame has not already hidden.
+	 */
+	function journalSeen(payload: Journal): Journal {
+		return {
+			...damageSeen(payload.damage),
+			...deathsSeen(payload.deaths),
+			...faceDamageSeen(payload.faceDamage),
+			...(payload.counteredStackItems === undefined ? {} : { counteredStackItems: payload.counteredStackItems }),
+		};
+	}
+
 	/** Why each permanent died, for the cards this seat is sent at all: a graveyard is public, so in practice every one. */
 	function deathsSeen(deaths: Deaths | undefined): { deaths?: Deaths } {
 		if (deaths === undefined) return {};
@@ -1195,6 +1218,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 							...printedPTSeen(frame.payload.printedPT),
 							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),
 							...conditionMetSeen(frame.payload.conditionMet),
+							...journalSeen(frame.payload),
 						},
 					};
 				}
@@ -1217,14 +1241,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 							...printedPTSeen(frame.payload.printedPT),
 							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),
 							...conditionMetSeen(frame.payload.conditionMet),
-							...damageSeen(frame.payload.damage),
-							...deathsSeen(frame.payload.deaths),
-							...faceDamageSeen(frame.payload.faceDamage),
-							// AE27 — passed through UNREDACTED, same reasoning as `stackTargetSpells`
-							// above: these are stack item ids, and the Stack zone is public, so naming
-							// which of them left by a counter (rather than resolving) hides nothing a
-							// card redaction elsewhere in this same frame has not already hidden.
-							...(frame.payload.counteredStackItems === undefined ? {} : { counteredStackItems: frame.payload.counteredStackItems }),
+							...journalSeen(frame.payload),
 						},
 					};
 			}

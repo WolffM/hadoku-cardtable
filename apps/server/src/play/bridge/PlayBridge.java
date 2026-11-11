@@ -2761,10 +2761,13 @@ public final class PlayBridge {
         /** The first {@link BridgeGui.EffectJournal} entry this seat has not been sent. */
         private long effectsFrom;
 
+        /** The game this seat's last state frame drew, so a {@code setGameView} can tell a new game from one mid-game. */
+        private Game drawn;
+
         /**
          * The damage and deaths since this seat's last state frame, added to {@code payload} as
-         * {@code damage}, {@code deaths} and {@code faceDamage} when there are any. A snapshot ({@code setGameView})
-         * passes {@code false}: it skips past them, since what it draws is the board after.
+         * {@code damage}, {@code deaths} and {@code faceDamage} when there are any. A new game's first
+         * {@code setGameView} passes {@code false}: it skips past them, since nothing before it is news.
          */
         void effectsSince(final JsonObject payload, final boolean send) {
             final BridgeGui.EffectJournal journal = match.effects;
@@ -3118,7 +3121,11 @@ public final class PlayBridge {
             payload.add("gameView", objectTable(liveGame(), full.getNewObjects()));
             payload.addProperty("sequenceNumber", sequenceNumber);
             addStackFacts(liveGame(), payload);
-            effectsSince(payload, false);
+            // Forge sends a whole view mid-game too, and the damage it shows may have come in no delta
+            // before it: the hits ride it, or the life drops with no attacker drawn charging.
+            final Game game = liveGame();
+            effectsSince(payload, game != null && game == drawn);
+            drawn = game;
             sendState(f, payload, full);
         }
 
@@ -3153,6 +3160,7 @@ public final class PlayBridge {
                 payload.add("packet", packetJson(liveGame(), packet));
                 addStackFacts(liveGame(), payload);
                 effectsSince(payload, true);
+                drawn = liveGame();
                 sendState(f, payload, packet);
             }
             super.applyDelta(packet);

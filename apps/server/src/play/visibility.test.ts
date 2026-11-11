@@ -325,8 +325,7 @@ describe('stackTargetSpells (wave 49 §A)', () => {
 /**
  * AE27 — `counteredStackItems`, `PlayBridge.java`'s `EffectJournal` addition. Passed through
  * UNREDACTED, the same reasoning as `stackTargetSpells` above: stack item ids, and the Stack zone
- * is public. Only on `applyDelta` (an event, like `damage`/`deaths`) — `setGameView` never carries
- * it at all, so there is nothing to project there.
+ * is public. An event, like `damage`/`deaths`, on `applyDelta` and on a `setGameView` mid-game.
  */
 describe('counteredStackItems (AE27)', () => {
 	it('applyDelta: passed through exactly, present or absent', () => {
@@ -338,6 +337,37 @@ describe('counteredStackItems (AE27)', () => {
 
 		const without = createProjector(0).project(first) as Extract<StateFrame, { method: 'applyDelta' }>;
 		expect(without.payload.counteredStackItems).toBeUndefined();
+	});
+});
+
+describe('the journal on a whole view mid-game', () => {
+	it('carries the hits, deaths and counters it shows, a source this seat may not see named as none', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const payload = {
+			gameView,
+			sequenceNumber: 1,
+			damage: [[onField, onField, 2]] as [number, number, number][],
+			faceDamage: [
+				[0, onField, 3, true],
+				[0, inTheirHand, 1, false],
+			] as [number, number, number, boolean][],
+			deaths: [[onField, 'LETHAL_DAMAGE']] as [number, 'LETHAL_DAMAGE'][],
+			counteredStackItems: [50],
+		};
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(out.payload.damage).toEqual([[onField, onField, 2]]);
+		expect(out.payload.faceDamage).toEqual([
+			[0, onField, 3, true],
+			[0, -1, 1, false],
+		]);
+		expect(out.payload.deaths).toEqual([[onField, 'LETHAL_DAMAGE']]);
+		expect(out.payload.counteredStackItems).toEqual([50]);
+		const owner = createProjector(1).project({ kind: 'notify', method: 'setGameView', payload }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(owner.payload.faceDamage).toEqual(payload.faceDamage);
 	});
 });
 

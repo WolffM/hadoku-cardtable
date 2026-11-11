@@ -80,12 +80,20 @@ const TAIL: ServerFrame[] = [
   // Written into again: a page that had dropped the empty face would skip this.
   delta({ objectDeltas: { [FACE_A]: { _type: DELTA_TYPE.cardState, _id: CARD_A * 16, Name: str('Grizzly Bears') } } }, { waitingEffects: [], conditionMet: [CARD_A] }),
   delta({ objectDeltas: life(0, 15) }, { lifePaying: [], counteredStackItems: [9002] }),
-  // A reset mid-game, naming two facts: every other one goes back to empty on the page.
+  // A reset mid-game, naming two facts: every other one goes back to empty on the page. It carries what
+  // happened since the last frame too, as Forge's whole view mid-game does: its deaths and counters are kept.
   (() => {
     const view = SEAT0.findLast((f) => f.method === 'setGameView') as unknown as Extract<StateFrame, { method: 'setGameView' }>;
     const gameView = { ...view.payload.gameView, [GAME]: { ...view.payload.gameView[GAME]!, Turn: int(3) } };
     seq += 1;
-    return parseServerFrame({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: seq, stackTargetSpells: [], cantBlock: [CARD_A] } }, 'hand-written reset');
+    return parseServerFrame(
+      {
+        kind: 'notify',
+        method: 'setGameView',
+        payload: { gameView, sequenceNumber: seq, stackTargetSpells: [], cantBlock: [CARD_A], deaths: [[CARD_A, 'DEATHTOUCH']], counteredStackItems: [9003], faceDamage: [[0, CARD_B, 1, true]] },
+      },
+      'hand-written reset',
+    );
   })(),
   delta({ objectDeltas: { ...turn(4), ...life(1, 12) } }, { tokenSources: [[CARD_A, CARD_B]], deaths: [[CARD_B, 'ZERO_TOUGHNESS']] }),
   delta({ objectDeltas: life(0, 14) }, { printedPT: [[CARD_B, 1, 1]] }),
@@ -205,10 +213,10 @@ describe('a history compacted at the start of each turn', () => {
       printedPT: [[CARD_B, { power: 1, toughness: 1 }]],
       conditionMet: [],
       deathCauses: [
-        [CARD_A, 'SACRIFICED'],
+        [CARD_A, 'DEATHTOUCH'],
         [CARD_B, 'ZERO_TOUGHNESS'],
       ],
-      counteredStackItems: [9001, 9002],
+      counteredStackItems: [9001, 9002, 9003],
       view: expect.objectContaining({ players: expect.any(Array) }),
     });
     expect(MatchSnapshotSchema.safeParse({ matchId: 'm', seat: 0, playerId: 0, cursor: null, frames: history.frames() }).success).toBe(true);
