@@ -22,7 +22,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bridgeLaunch, defaultBridgeCache, defaultBridgeSource, defaultJava } from '../play/local-jvm.js';
+import { defaultJava } from '../play/engine-runtime.js';
+import { bridgeLaunch, defaultBridgeCache, defaultBridgeSource } from '../play/local-jvm.js';
 import { defaultPoolServiceSource } from '../pools/forge.js';
 
 const TREE = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');

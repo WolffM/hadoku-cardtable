@@ -25,7 +25,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, ren
 import { join } from 'node:path';
 
 import { bridgeDiagnostics } from '../../server/src/play/diagnostics.ts';
-import { RECYCLE_HEAP_SHARE, type ArtifactSet, type FromAgent, type JvmHealth, type LaunchSpec } from '../../server/src/play/remote/wire.ts';
+import { RECYCLE_HEAP_SHARE, runtimeOf, type ArtifactSet, type FromAgent, type JvmHealth, type LaunchSpec } from '../../server/src/play/remote/wire.ts';
 import type { Cgroups } from './cgroups.ts';
 
 /** How much of a dead JVM's stderr is read for its exit reason, and how many lines of it are kept. */
@@ -90,7 +90,7 @@ function stageRun(dir: string, spec: LaunchSpec, at: Installed): void {
 	);
 	writeFileSync(
 		join(dir, 'user', 'preferences', 'forge.preferences'),
-		`${Object.entries(spec.forgePreferences)
+		`${Object.entries(runtimeOf(spec).forgePreferences)
 			.map(([k, v]) => `${k}=${v}`)
 			.join('\n')}\n`,
 	);
@@ -98,9 +98,10 @@ function stageRun(dir: string, spec: LaunchSpec, at: Installed): void {
 
 /** Everything after the bridge's own flags: heap, OOM, CPUs, GC log, classpath, main. */
 export function jvmArgs(dir: string, spec: LaunchSpec, at: Installed, cpus: number | null): string[] {
+	const runtime = runtimeOf(spec);
 	const own = [
-		`-Xms${spec.xmxMb}m`,
-		`-Xmx${spec.xmxMb}m`,
+		`-Xms${runtime.xmxMb}m`,
+		`-Xmx${runtime.xmxMb}m`,
 		// The whole heap faulted in at start, so GC never asks the kernel for a page mid-match (H14).
 		'-XX:+AlwaysPreTouch',
 		'-XX:+ExitOnOutOfMemoryError',
@@ -110,11 +111,11 @@ export function jvmArgs(dir: string, spec: LaunchSpec, at: Installed, cpus: numb
 	return [
 		'-Djava.awt.headless=true',
 		`-Djava.io.tmpdir=${dir}/jvm-tmp`,
-		...spec.jvmFlags.filter((f) => !own.includes(f)),
+		...runtime.jvmFlags.filter((f) => !own.includes(f)),
 		...own,
 		'-cp',
 		`${at.bridge}:${at.jar}`,
-		spec.main,
+		runtime.main,
 		'--host',
 		spec.hostId,
 	];
@@ -169,6 +170,7 @@ export class Jvm {
 	}
 
 	static launch(dir: string, spec: LaunchSpec, at: Installed, cgroups: Cgroups, log: Log, now: () => number = Date.now): Jvm {
+		const runtime = runtimeOf(spec);
 		stageRun(dir, spec, at);
 		const stdinFd = openSync(join(dir, 'in.fifo'), 'r+');
 		const outFd = openSync(join(dir, 'out.jsonl'), 'a');
@@ -187,7 +189,7 @@ export class Jvm {
 			hostId: spec.hostId,
 			pid: child.pid,
 			startTicks: procStartTicks(child.pid) ?? '',
-			xmxMb: spec.xmxMb,
+			xmxMb: runtime.xmxMb,
 			artifacts: spec.artifacts,
 			launchedAt: now(),
 			acked: 0,
@@ -199,7 +201,7 @@ export class Jvm {
 		child.on('error', (e) => jvm.ended({ error: e.message }));
 		child.on('exit', (code, signal) => jvm.ended({ code, signal }));
 		jvm.openStdin();
-		log('jvm-launched', { hostId: spec.hostId, pid: child.pid, xmxMb: spec.xmxMb });
+		log('jvm-launched', { hostId: spec.hostId, pid: child.pid, xmxMb: runtime.xmxMb });
 		return jvm;
 	}
 

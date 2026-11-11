@@ -4,6 +4,12 @@
  * matches into JVMs; this file starts them, reaches their line streams and settles what they
  * leave on disk.
  *
+ * What is generic to any process hosted this way — the fifo transport, pid liveness, the run-dir
+ * and crash-record bookkeeping — lives in `engine-runtime.ts`; what is here is Forge's own:
+ * compiling and launching the bridge, its preferences, and `stageRunDir`'s Forge-specific profile
+ * layout. `forgeEngineRuntime` at the bottom of this file is `EngineRuntime` mapped onto that —
+ * not yet consumed by `host.ts`, which still calls this file's functions directly.
+ *
  * ## The run directory
  *
  * Every local JVM gets `<workDir>/<hostId>` (`stageRunDir`): Forge's profile, a `res` symlink,
@@ -69,15 +75,12 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
 	closeSync,
-	constants as fsConstants,
 	existsSync,
-	lstatSync,
 	mkdirSync,
 	openSync,
 	readdirSync,
 	readSync,
 	readFileSync,
-	readlinkSync,
 	realpathSync,
 	renameSync,
 	rmSync,
@@ -85,16 +88,38 @@ import {
 	symlinkSync,
 	utimesSync,
 	writeFileSync,
-	writeSync,
 } from 'node:fs';
-import { Socket } from 'node:net';
 import { homedir } from 'node:os';
-import { basename, delimiter, dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 import { playWorkDir } from '../config.js';
 import { bridgeDiagnostics } from './diagnostics.js';
+import {
+	CRASH_MARKER,
+	IN_FIFO,
+	JVM_TMP_DIR,
+	OUT_FIFO,
+	PID_POLL_MS,
+	REAP_CONFIRM_MS,
+	cwdIsUnder,
+	defaultJava,
+	killPid,
+	makeFifos,
+	openJvmIo,
+	pidIsRunning,
+	pidIsStandingIn,
+	pidIsStandingInRun,
+	positiveInt,
+	processCwds,
+	pruneCrashRecords,
+	runDirs,
+	sleepSync,
+	type EngineRuntime,
+	type JvmIo,
+	type SweepResult,
+} from './engine-runtime.js';
 import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
 
 /**
@@ -189,31 +214,6 @@ export const JVM_HEAP_MB = 2048;
 export type JvmAvailability = { ok: true; config: JvmHostConfig } | { ok: false; reason: string };
 
 /**
- * The `java` to run when `CARDTABLE_JAVA` names none, as an ABSOLUTE path whenever one can be
- * found: `bridgeLaunch` looks for `javac` beside it, and beside a bare `java` is `./javac`, which
- * never exists. That sent every JDK found only on `PATH` to the source launcher, and the pool
- * service with it, which needs the compiled bridge (no set drafts at all on a contributor's machine).
- *
- * In order: `$JAVA_HOME/bin/java`, then the first `java` on `PATH` with its symlinks followed
- * (`/usr/local/bin/java` is a link into the fleet's JDK, and `javac` sits beside the real file, not
- * the link). A bare `java` only when neither exists.
- *
- * NOT `~/.local/opt/jdk-21*` any more (D14, amended 2026-11-02). That user-local Temurin was the
- * right call when the host had only a JRE and no sudo, and this looked there FIRST, so once the
- * fleet began managing the JDK (`jdk21` in `fleet converge-toolchain`, on PATH) the play engine
- * kept a tarball from 2026-08-18 that nothing updates. The JDK the hub picks here is also the one
- * it packs and ships to the claws' agents (`packBase`), so the stale copy travelled with it.
- */
-export function defaultJava(env: NodeJS.ProcessEnv = process.env): string {
-	const candidates = [
-		...(env.JAVA_HOME ? [join(env.JAVA_HOME, 'bin', 'java')] : []),
-		...(env.PATH ?? '').split(delimiter).filter((dir) => dir !== '').map((dir) => join(dir, 'java')),
-	];
-	const found = candidates.find((p) => existsSync(p) && statSync(p).isFile());
-	return found === undefined ? 'java' : realpathSync(found);
-}
-
-/**
  * `src/play/bridge/PlayBridge.java` from here under `tsx`, or from `dist/` in
  * the bundle, where `import.meta.url` is `dist/index.js`.
  */
@@ -221,12 +221,6 @@ export function defaultBridgeSource(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
 	const candidates = [join(here, 'bridge', 'PlayBridge.java'), resolve(here, '..', 'src', 'play', 'bridge', 'PlayBridge.java')];
 	return candidates.find((p) => existsSync(p)) ?? (candidates[0] as string);
-}
-
-/** A whole number of at least 1 from `raw`, else `fallback`. */
-function positiveInt(raw: string | undefined, fallback: number): number {
-	const n = raw === undefined || raw.trim() === '' ? Number.NaN : Number(raw);
-	return Number.isInteger(n) && n >= 1 ? n : fallback;
 }
 
 /** Where compiled bridges are kept, shared by every tree on the host (keyed by `bridgeVersion`). */
@@ -414,128 +408,13 @@ export function bridgeVersion(config: BridgeConfig): string {
 
 /* ── A JVM that outlives us: the fifos and the launch record ─────────── */
 
-/** The JVM's stdin. Both ends open it `O_RDWR`; see "A JVM outlives its server". */
-const IN_FIFO = 'in.fifo';
-/** The JVM's stdout, same treatment. */
-const OUT_FIFO = 'out.fifo';
 /** `{hostId, pid, startedAt}`: what a later process finds a running JVM by. Written at launch. */
 export const LAUNCH_RECORD_FILE = 'launch.json';
-/**
- * The JVM's `java.io.tmpdir`. Forge's lz4-java unpacks a native `.so` there on
- * every boot and only removes it on a clean JVM exit, which a SIGKILLed bridge
- * never has — so under the default `/tmp` every killed match leaked one copy
- * (3,036 of them on the host's RAM-backed /tmp, 2026-10-10). Inside the run dir it
- * goes wherever the run dir goes: removed on a clean end, pruned on a crash.
- */
-const JVM_TMP_DIR = 'tmp';
-
-/** How often an attached JVM (which is nobody's child, so has no `exit` event) is checked for. */
-const PID_POLL_MS = 1000;
-
-/**
- * Two named pipes in the run dir. `mkfifo(3)` has no binding in `node:fs`, so
- * this shells out — once per run directory, at staging time.
- */
-export function makeFifos(run: string): void {
-	const made = spawnSync('mkfifo', [join(run, IN_FIFO), join(run, OUT_FIFO)], { stdio: 'pipe' });
-	if (made.error !== undefined) throw made.error;
-	if (made.status !== 0) {
-		throw new Error(`mkfifo failed in ${run} (status ${made.status}): ${made.stderr?.toString().trim() ?? ''}`);
-	}
-}
-
-/**
- * The transport to one JVM, either end of which may be opened by a process that
- * did not create it. Both fds are `O_RDWR` so neither side ever reads EOF —
- * the bridge would exit on one, and we could not tell a handed-over JVM from a
- * dead one.
- */
-export interface JvmIo {
-	/** Queue one line for the JVM's stdin; never blocks. See {@link openJvmIo}. */
-	write(line: string): void;
-	lines: NodeJS.ReadableStream;
-	close(): void;
-}
-
-/** How soon a write the fifo had no room for is tried again. */
-const STDIN_RETRY_MS = 20;
-
-/**
- * The read end is a `net.Socket` over the fd, **not** `fs.createReadStream`.
- * That is not a style choice: `fs.read` on a blocking fifo fd parks a libuv
- * THREADPOOL thread for as long as the fifo is empty, and the pool is four
- * threads by default. Two matches and a spare is three readers waiting on a
- * quiet Forge, and the fourth thread is every other piece of async file work
- * this process does — which is how the first version of this deadlocked
- * `host.test.ts` outright. `net.Socket` puts the fd in libuv's event loop
- * (`uv_pipe_open`, epoll) and occupies no thread at all.
- */
-export function openJvmIo(run: string, log: (entry: Record<string, unknown>) => void): JvmIo {
-	// The write end is non-blocking, and a line the fifo has no room for waits in `pending`.
-	// A blocking `writeSync` into a fifo nobody drains — a JVM that died before its stdin thread
-	// ran — parks the whole event loop: its own `exit` is never handled, every other match and
-	// socket stops, and the matches placed on it hold their ceiling slots for good. Our fd is
-	// `O_RDWR`, so a dead reader is no EPIPE; the fifo just fills. The child's stdin is its own
-	// open (`spawn` below), so the JVM still reads a blocking fd.
-	const writeFd = openSync(join(run, IN_FIFO), fsConstants.O_RDWR | fsConstants.O_NONBLOCK);
-	const readFd = openSync(join(run, OUT_FIFO), 'r+');
-	const lines = new Socket({ fd: readFd, readable: true, writable: false });
-	lines.on('error', () => {
-		// The fd went with the JVM, or was closed under us. The exit path says why.
-	});
-	const pending: Buffer[] = [];
-	let retry: NodeJS.Timeout | null = null;
-	let closed = false;
-	let waitingSince: number | null = null;
-	const flush = (): void => {
-		retry = null;
-		while (!closed && pending.length > 0) {
-			const head = pending[0]!;
-			let wrote: number;
-			try {
-				wrote = writeSync(writeFd, head);
-			} catch (err) {
-				if ((err as NodeJS.ErrnoException).code === 'EAGAIN') {
-					if (waitingSince === null) {
-						waitingSince = Date.now();
-						log({ evt: 'bridge-stdin-full', run, queued: pending.reduce((n, b) => n + b.length, 0) });
-					}
-					retry = setTimeout(flush, STDIN_RETRY_MS);
-					return;
-				}
-				// The fd is gone with the JVM. The exit path reports that.
-				log({ evt: 'bridge-stdin-error', run, error: (err as Error).message });
-				pending.length = 0;
-				return;
-			}
-			if (wrote < head.length) pending[0] = head.subarray(wrote);
-			else pending.shift();
-		}
-		if (waitingSince !== null) {
-			log({ evt: 'bridge-stdin-drained', run, waitedMs: Date.now() - waitingSince });
-			waitingSince = null;
-		}
-	};
-	return {
-		write(line: string): void {
-			if (closed) return;
-			pending.push(Buffer.from(`${line}\n`));
-			if (retry === null && pending.length === 1) flush();
-		},
-		lines,
-		close(): void {
-			closed = true;
-			pending.length = 0;
-			if (retry !== null) clearTimeout(retry);
-			lines.destroy();
-			try {
-				closeSync(writeFd);
-			} catch {
-				// Already closed, or the fd went with the stream. Nothing to recover.
-			}
-		},
-	};
-}
+// JVM_TMP_DIR's own doc (`engine-runtime.ts`): Forge's lz4-java unpacks a native `.so` there on
+// every boot and only removes it on a clean JVM exit, which a SIGKILLed bridge never has — so
+// under the default `/tmp` every killed match leaked one copy (3,036 of them on the host's
+// RAM-backed /tmp, 2026-10-10). Inside the run dir it goes wherever the run dir goes: removed on
+// a clean end, pruned on a crash.
 
 /**
  * Write `file` whole or not at all: into a temporary file beside it, then renamed over
@@ -552,71 +431,6 @@ export function writeFileAtomic(file: string, text: string): void {
 		rmSync(tmp, { force: true });
 		throw err;
 	}
-}
-
-
-
-/**
- * Is `pid` still the process standing in `run`? The cwd check is what makes
- * this safe against pid reuse: a recycled pid is some other program, in some
- * other directory. Null when `/proc` cannot answer.
- */
-function pidIsStandingIn(pid: number, run: string): boolean | null {
-	let cwd: string;
-	try {
-		cwd = readlinkSync(`/proc/${pid}/cwd`);
-	} catch (err) {
-		const code = (err as NodeJS.ErrnoException).code;
-		if (code === 'ENOENT' || code === 'ESRCH') return false;
-		// EACCES/EPERM: the process exists and is not ours to inspect. Not ours to claim either.
-		if (code === 'EACCES' || code === 'EPERM') return false;
-		return null;
-	}
-	return cwd === run;
-}
-
-/**
- * `pidIsStandingIn`, tolerant of a work dir reached through a symlink: `/proc`
- * answers with the resolved path and `stageRunDir` did not resolve one, so the
- * two spellings can differ. `sweepRunDirs` avoids this by resolving `workDir`
- * itself; a JVM holding its own `run` string has to ask both ways.
- */
-function pidIsStandingInRun(pid: number, run: string): boolean {
-	if (pidIsStandingIn(pid, run) === true) return true;
-	let resolved: string;
-	try {
-		resolved = realpathSync(run);
-	} catch {
-		return false;
-	}
-	return resolved !== run && pidIsStandingIn(pid, resolved) === true;
-}
-
-/**
- * Alive, and not a zombie waiting to be reaped. A zombie still answers signal 0
- * — it has a pid until its parent collects it — so `/proc/<pid>/stat` is what
- * decides. `e2e/play.spec.ts` asks the same question the same way, on purpose:
- * the contract it checks and the code that keeps it should not disagree about
- * what "still running" means.
- */
-function pidIsRunning(pid: number): boolean {
-	try {
-		return !readFileSync(`/proc/${pid}/stat`, 'utf8').includes(') Z ');
-	} catch {
-		return false; // no /proc entry: it has exited
-	}
-}
-
-/** How long `reapOnExit` will spin waiting for a SIGKILL to land. Measured at 0 ms. */
-const REAP_CONFIRM_MS = 100;
-
-/**
- * Block this thread for `ms`. Only ever used by `reapOnExit`, which runs with
- * `process.exit` a statement or two away: the JVM's death has to be confirmed
- * before we stop existing, and there is no later tick in which to confirm it.
- */
-function sleepSync(ms: number): void {
-	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 /**
@@ -744,8 +558,6 @@ function runDirDiagnostics(run: string): { line: string; count: number }[] {
 		closeSync(fd);
 	}
 }
-const CRASH_MARKER = 'crash.json';
-
 /**
  * JVM host ids (`h-…`), and the one-match JVMs (`m-…`, `spare-…`) of the servers before many
  * matches per JVM, which a boot still ends and removes. Nothing else under `workDir` is ours.
@@ -770,97 +582,6 @@ function keepCrashRecord(run: string, record: CrashRecord): void {
 		if (!keep.has(entry)) rmSync(join(run, entry), { recursive: true, force: true });
 	}
 	writeFileAtomic(join(run, CRASH_MARKER), `${JSON.stringify(record, null, 2)}\n`);
-}
-
-/** Our run directories directly under `workDir`, as real paths. */
-function runDirs(workDir: string): { name: string; dir: string; mtimeMs: number }[] {
-	if (!existsSync(workDir)) return [];
-	const root = realpathSync(workDir);
-	const dirs: { name: string; dir: string; mtimeMs: number }[] = [];
-	for (const name of readdirSync(root)) {
-		if (!RUN_DIR_NAME.test(name)) continue;
-		const dir = join(root, name);
-		const stat = lstatSync(dir);
-		if (stat.isDirectory()) dirs.push({ name, dir, mtimeMs: stat.mtimeMs });
-	}
-	return dirs;
-}
-
-/** When a crash record was written: its own `at`, else the directory's mtime. */
-function crashTime(dir: string, mtimeMs: number): number {
-	const at = Date.parse((JSON.parse(readFileSync(join(dir, CRASH_MARKER), 'utf8')) as { at?: string }).at ?? '');
-	return Number.isNaN(at) ? mtimeMs : at;
-}
-
-/**
- * Enforce the crash-record bound: the newest `CRASH_RECORDS_KEPT` within
- * `CRASH_RECORD_MAX_AGE_MS` stay, the rest go. Returns what it removed.
- */
-function pruneCrashRecords(workDir: string, now = Date.now()): { kept: string[]; removed: string[] } {
-	const records = runDirs(workDir)
-		.filter((d) => existsSync(join(d.dir, CRASH_MARKER)))
-		.map((d) => ({ ...d, at: crashTime(d.dir, d.mtimeMs) }))
-		.sort((a, b) => b.at - a.at);
-	const kept: string[] = [];
-	const removed: string[] = [];
-	for (const r of records) {
-		if (kept.length < CRASH_RECORDS_KEPT && now - r.at <= CRASH_RECORD_MAX_AGE_MS) {
-			kept.push(r.name);
-		} else {
-			rmSync(r.dir, { recursive: true, force: true });
-			removed.push(r.name);
-		}
-	}
-	return { kept, removed };
-}
-
-/**
- * The working directory of every process on this host that we can see, or
- * null when `/proc` cannot say (not Linux). A process that exits between the
- * listing and the readlink, or belongs to another user, is not standing in one
- * of our directories.
- */
-function processCwds(): string[] | null {
-	let pids: string[];
-	try {
-		pids = readdirSync('/proc').filter((p) => /^\d+$/.test(p));
-	} catch (err) {
-		if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
-		throw err;
-	}
-	const cwds: string[] = [];
-	for (const pid of pids) {
-		try {
-			cwds.push(readlinkSync(`/proc/${pid}/cwd`));
-		} catch (err) {
-			const code = (err as NodeJS.ErrnoException).code;
-			if (code !== 'ENOENT' && code !== 'EACCES' && code !== 'ESRCH' && code !== 'EPERM') throw err;
-		}
-	}
-	return cwds;
-}
-
-export interface SweepResult {
-	/** Directories removed: dead, not fresh, not a crash record within the bound. */
-	removed: string[];
-	/** Spared: some process is standing in it — a running JVM, ours or another server's. */
-	live: string[];
-	/** Spared: changed within `RUN_DIR_FRESH_MS`. */
-	fresh: string[];
-	/** Crash records kept, and those the bound removed. */
-	crashes: { kept: string[]; removed: string[] };
-	/**
-	 * Live JVMs of ours: the directory's own `launch.json` names the very process standing in it.
-	 * A subset of `live`, oldest first; what `JvmLauncher.running()` offers back.
-	 */
-	running: { hostId: string; pid: number; run: string; startedAt: string }[];
-	/**
-	 * Live directories the sweep ENDED: a one-match JVM from before many matches per JVM
-	 * (`m-…`/`spare-…`), named by its own record's pid. Nothing re-attaches those any more.
-	 */
-	killed: string[];
-	/** Set when the sweep did nothing, and why. */
-	skipped?: string;
 }
 
 /** `<run>/launch.json`, or null when it is missing, unreadable or not one. */
@@ -896,8 +617,8 @@ export function sweepRunDirs(workDir: string, now = Date.now()): SweepResult {
 	const result: SweepResult = { removed: [], live: [], fresh: [], crashes: { kept: [], removed: [] }, running: [], killed: [] };
 	const cwds = processCwds();
 	if (cwds === null) return { ...result, skipped: '/proc is not readable, so a live run directory cannot be told from a dead one' };
-	for (const { name, dir, mtimeMs } of runDirs(workDir)) {
-		if (cwds.some((cwd) => cwd === dir || cwd.startsWith(dir + sep))) {
+	for (const { name, dir, mtimeMs } of runDirs(workDir, RUN_DIR_NAME)) {
+		if (cwds.some((cwd) => cwdIsUnder(cwd, dir))) {
 			// LIVE. Some process is standing here, so the directory is not ours to remove on a
 			// guess — that guard is why another server's JVM survives. The only question asked is
 			// whose it is, answered by the directory's own record: a pid that IS the process
@@ -928,19 +649,9 @@ export function sweepRunDirs(workDir: string, now = Date.now()): SweepResult {
 		}
 	}
 	result.running.sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
-	result.crashes = pruneCrashRecords(workDir, now);
+	result.crashes = pruneCrashRecords(workDir, RUN_DIR_NAME, CRASH_MARKER, CRASH_RECORDS_KEPT, CRASH_RECORD_MAX_AGE_MS, now);
 	return result;
 }
-
-/** SIGKILL a pid we own, or say nothing: it may have gone between the check and here. */
-function killPid(pid: number): void {
-	try {
-		process.kill(pid, 'SIGKILL');
-	} catch {
-		// ESRCH — already gone, which is the outcome we wanted.
-	}
-}
-
 
 /* ── One JVM's transport, over its fifos ─────────────────────────────── */
 
@@ -1154,7 +865,7 @@ class LocalJvm implements JvmTransport {
 				return;
 			}
 			keepCrashRecord(this.run, { id: this.hostId, ...ending, at: new Date().toISOString() });
-			const pruned = pruneCrashRecords(this.config.workDir);
+			const pruned = pruneCrashRecords(this.config.workDir, RUN_DIR_NAME, CRASH_MARKER, CRASH_RECORDS_KEPT, CRASH_RECORD_MAX_AGE_MS);
 			this.log({ evt: 'run-dir-kept', id: this.hostId, run: this.run, files: [...CRASH_RECORD_FILES], pruned: pruned.removed });
 		} catch (err) {
 			this.log({ evt: 'run-dir-settle-failed', id: this.hostId, run: this.run, error: (err as Error).message });
@@ -1231,5 +942,38 @@ export function localJvmLauncher(config: JvmHostConfig, options: LocalLauncherOp
 			found.delete(hostId);
 			return new LocalJvm(config, hostId, at.run, { mode: 'attach', pid: at.pid }, log);
 		},
+	};
+}
+
+/* ── EngineRuntime: Forge's bridge JVM as the first implementation ──── */
+
+/**
+ * `EngineRuntime` (`engine-runtime.ts`) mapped onto Forge's own code: what `host.ts` would ask of
+ * any engine it ran matches through, if it asked through the interface instead of calling
+ * `bridgeLaunch`/`localJvmLauncher` directly, which is still what it does today (L2, rewiring the
+ * coordinator through this, is a later lane). This is the proof the shape fits, not a live path.
+ *
+ * One honest gap: the sketch's `argv(dir, size)` carries no host id, but Forge's real spawn
+ * (`LocalJvm`'s constructor, above) appends `'--host', hostId` after exactly these flags — the
+ * interface doesn't yet carry a host id to launch with, which is also why nothing calls this.
+ */
+export function forgeEngineRuntime(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void): EngineRuntime {
+	return {
+		artifacts: { jar: config.jar, res: config.res, bridgeSource: config.bridgeSource },
+		argv: (dir, size) => {
+			const bridge = bridgeLaunch(config, log);
+			return [
+				'-Djava.awt.headless=true',
+				`-Djava.io.tmpdir=${join(dir, JVM_TMP_DIR)}`,
+				...BRIDGE_JVM_FLAGS,
+				`-Xmx${size.memoryMb}m`,
+				...config.jvmOpts,
+				...bridge.args,
+			];
+		},
+		// ~172 MB live idle (JVM_HEAP_MB's doc, above: Wave 9 lane D; 4–9 MB in hosting-test-plan B3).
+		overheadMb: 172,
+		perProcess: config.perJvm ?? MATCHES_PER_JVM,
+		health: () => ({ recycle: false }),
 	};
 }

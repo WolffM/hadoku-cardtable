@@ -227,6 +227,22 @@ export const ARTIFACT_KINDS: readonly ArtifactKind[] = [...JVM_ARTIFACT_KINDS, '
  */
 export const DRAFTBOT_PATH = '/draftbot/batchdraft';
 
+/**
+ * What a JVM-hosted engine's runtime needs to launch, once named by a `kind` rather than carried
+ * as `LaunchSpec`'s own top-level fields. The one kind today is Forge's bridge JVM; another
+ * engine's agent would add its own `kind` rather than reuse these fields for something else.
+ */
+export interface JvmRuntimeSpec {
+	kind: 'jvm';
+	xmxMb: number;
+	/** The bridge's main class inside the `bridge` artifact. */
+	main: string;
+	/** `BRIDGE_JVM_FLAGS` from `host.ts`: the coordinator's, so the agent never keeps a copy. */
+	jvmFlags: string[];
+	/** Written to `user/preferences/forge.preferences` (`host.ts` `FORGE_PREFERENCES`). */
+	forgePreferences: Record<string, string>;
+}
+
 export interface LaunchSpec {
 	hostId: string;
 	xmxMb: number;
@@ -237,6 +253,24 @@ export interface LaunchSpec {
 	jvmFlags: string[];
 	/** Written to `user/preferences/forge.preferences` (`host.ts` `FORGE_PREFERENCES`). */
 	forgePreferences: Record<string, string>;
+	/**
+	 * The same four fields above, named instead of flattened. Additive: a server built after this
+	 * field existed sends both this and the flat fields, so an agent built before it (reading only
+	 * the flat fields) still launches; `runtimeOf` is the one place that picks between them. Once
+	 * every agent in the fleet reads `runtime`, a later rollout drops the flat fields from here and
+	 * from `runtimeOf`'s fallback.
+	 */
+	runtime?: JvmRuntimeSpec;
+}
+
+/**
+ * `spec.runtime` when the server sent one, else the same four fields read from `LaunchSpec`'s own
+ * top level — the fallback an agent built before `runtime` existed needs, and the only place that
+ * branch lives. A test removing this fallback is `agent.compat.test.ts`'s old→new case; one
+ * removing `runtime` from a `LaunchSpec` a new server builds is its new→old case.
+ */
+export function runtimeOf(spec: LaunchSpec): JvmRuntimeSpec {
+	return spec.runtime ?? { kind: 'jvm', xmxMb: spec.xmxMb, main: spec.main, jvmFlags: spec.jvmFlags, forgePreferences: spec.forgePreferences };
 }
 
 export type ToAgent =

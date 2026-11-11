@@ -38,6 +38,7 @@ import {
 	ReplayGuard,
 	checkRequest,
 	openFrame,
+	runtimeOf,
 	sha256Hex,
 	sliceNeedMb,
 	type ArtifactKind,
@@ -428,12 +429,13 @@ export class Agent {
 	private launchRefusal(spec: LaunchSpec): string | null {
 		if (!HOST_ID.test(spec.hostId)) return 'bad host id';
 		if (this.jvms.has(spec.hostId)) return `host id ${spec.hostId} is already on this claw`;
-		if (!Number.isInteger(spec.xmxMb) || spec.xmxMb < 256) return 'xmxMb: an integer ≥ 256';
-		if (!Array.isArray(spec.jvmFlags) || spec.jvmFlags.some((f) => typeof f !== 'string' || !f.startsWith('-'))) return 'jvmFlags: flags only';
+		const runtime = runtimeOf(spec);
+		if (!Number.isInteger(runtime.xmxMb) || runtime.xmxMb < 256) return 'xmxMb: an integer ≥ 256';
+		if (!Array.isArray(runtime.jvmFlags) || runtime.jvmFlags.some((f) => typeof f !== 'string' || !f.startsWith('-'))) return 'jvmFlags: flags only';
 		const max = this.cgroups.slice().memoryMaxMb ?? this.opts.memoryMaxMb ?? null;
 		if (max !== null) {
 			const draftbot = this.draftbot.running !== null;
-			const need = sliceNeedMb([...this.live().map((j) => j.xmxMb), spec.xmxMb], draftbot);
+			const need = sliceNeedMb([...this.live().map((j) => j.xmxMb), runtime.xmxMb], draftbot);
 			if (need > max) return `does not fit: ${need} MB needed (each JVM -Xmx + ${JVM_OVERHEAD_MB} MB, agent ${AGENT_RESERVE_MB} MB${draftbot ? `, draft bot ${DRAFTBOT_MB} MB` : ''}) in a ${max} MB slice`;
 		}
 		return null;

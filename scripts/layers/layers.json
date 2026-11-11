@@ -26,6 +26,7 @@
     "apps/server/src/play/recording/**",
     "apps/server/src/play/jvm-transport.ts",
     "apps/server/src/play/local-jvm.ts",
+    "apps/server/src/play/engine-runtime.ts",
     "apps/server/src/play/host.ts",
     "apps/server/src/play/start-queue.ts",
     "apps/server/src/play/clock.ts",

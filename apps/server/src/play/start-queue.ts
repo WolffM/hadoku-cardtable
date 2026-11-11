@@ -26,6 +26,7 @@
  * everything else on the factory.
  */
 
+import { positiveInt } from './engine-runtime.js';
 import type { BridgeCommand, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 
 /**
@@ -37,9 +38,7 @@ export const COLD_STARTS = 2;
 
 /** `CARDTABLE_PLAY_COLD_STARTS`, a whole number ≥ 1; anything else is the default. */
 export function coldStartsFrom(env: NodeJS.ProcessEnv = process.env): number {
-	const raw = env.CARDTABLE_PLAY_COLD_STARTS;
-	const n = raw === undefined || raw.trim() === '' ? Number.NaN : Number(raw);
-	return Number.isInteger(n) && n >= 1 ? n : COLD_STARTS;
+	return positiveInt(env.CARDTABLE_PLAY_COLD_STARTS, COLD_STARTS);
 }
 
 /** What a start is told beyond a host's own events. Both optional: a host that boots at once says neither. */

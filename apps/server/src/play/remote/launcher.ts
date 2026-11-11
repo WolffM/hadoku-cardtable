@@ -110,6 +110,9 @@ export class RemoteJvmLauncher implements JvmLauncher {
 					main: runtime.main,
 					jvmFlags: [...BRIDGE_JVM_FLAGS],
 					forgePreferences: { ...FORGE_PREFERENCES },
+					// Additive (`wire.ts` `runtimeOf`): an agent built before this field existed still
+					// launches off the flat fields above; this is only for one built after.
+					runtime: { kind: 'jvm', xmxMb: opts.xmxMb, main: runtime.main, jvmFlags: [...BRIDGE_JVM_FLAGS], forgePreferences: { ...FORGE_PREFERENCES } },
 				});
 				t.launched();
 			},
