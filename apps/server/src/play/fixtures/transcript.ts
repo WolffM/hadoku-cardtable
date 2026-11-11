@@ -231,7 +231,7 @@ export function everyString(state: ReadonlyMap<string, WireObj>, cardId: number)
  * `visibility.ts`: every identifying string of every card that sat in the
  * opponent's hand or sideboard or in any library at every observed step, minus
  * any string that the viewer may legitimately see on a card they saw (on the
- * table, in a graveyard or exile, or in their own hand or sideboard) — two
+ * table, on the stack, in a graveyard or exile, or in their own hand or sideboard) — two
  * decks can both hold a Mountain, and a Bog Imp's whole rules text, "Flying",
  * is a keyword on every other flyer in view.
  *
@@ -260,6 +260,15 @@ export function secretsFor(
 	const everHidden = new Set<number>();
 	for (const state of states) {
 		for (const obj of state.values()) {
+			// A spell on the stack is public: GameView.Stack names stack items, and each
+			// item's SourceCard is the card. Read off the player zones alone, a check that
+			// landed while a spell was on the stack called the spell a leak.
+			if (obj._type === DELTA_TYPE.game) {
+				for (const item of ids(obj, 'Stack')) {
+					const source = state.get(deltaKey(DELTA_TYPE.stackItem, item))?.SourceCard as { v?: unknown } | undefined;
+					if (typeof source?.v === 'number') everShown.add(source.v);
+				}
+			}
 			if (obj._type !== DELTA_TYPE.player) continue;
 			const mine = obj._id === viewer;
 			for (const prop of ['Battlefield', 'Graveyard', 'Exile', 'Command']) for (const id of ids(obj, prop)) everShown.add(id);
