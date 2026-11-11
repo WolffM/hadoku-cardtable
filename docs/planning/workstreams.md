@@ -177,7 +177,7 @@ it. PR-5 is new and exists to serve it.
 
 | # | Programme | State |
 | --- | --- | --- |
-| **PR-9** | **Platform** — make this repo a general tool for future games: the scaffolding, networking, rooms and accounts are kept, and a new game brings its own engine, data and UI. The operator, 2026-11-06: *"we are likely to want to make new games with new UI, but want to retain the power of the scaffolding, networking, user management, and other stuff"*; on rooms: *"watchparty and cardtable really should share essentially all the same code here"* | **Phases 1–4 on main, verified 2026-11-10 at c1f8ee5d3**: fence w91; kernel and shell w92–w94; wire and room storage w95a/b; the room core w96–w98 (serveRoom `c57616449`). Phase 3 still to do: bomberman and the template swap edge-auth, and the `game.*` reader sweep. Phases 5 (match host) and 6 are not started. **Fence debt, measured live:** 59 platform→magic and 11 platform→tangled edges; `lobby.ts` 4,716 lines. The ratchet only counts, so 3 new edges got in through slack (see Wave 99). **w99 SCAFFOLDED 2026-11-10** (`docs/planning/wave99-2026-11-10.md`): closes the leak and takes the edges toward 0/≤5, and splits lobby.ts |
+| **PR-9** | **Platform** — make this repo a general tool for future games: the scaffolding, networking, rooms and accounts are kept, and a new game brings its own engine, data and UI. The operator, 2026-11-06: *"we are likely to want to make new games with new UI, but want to retain the power of the scaffolding, networking, user management, and other stuff"*; on rooms: *"watchparty and cardtable really should share essentially all the same code here"* | **Phases 1–4 on main; phase 3 has one item left (verified 2026-11-11 at 11fb96678).** Fence w91; kernel and shell w92–w94; wire and room storage w95a/b; room core w96–w98; **fence cleanup w99 VERIFIED**: edges 60/11 → **2/0**, `lobby.ts` 4,716 → **3,386**, the ratchet key-strict. Bomberman and `templates/game` were already on `@wolffm/service-kernel` (hadoku_site 880bf59b6, 2026-11-08), so the board's "edge-auth swap" item was stale. Phase 3's last item is the `game.*` reader sweep, **w100, a single session, SCAFFOLDED 2026-11-11** (`docs/planning/wave100-2026-11-11.md`). Phases 5 (match host) and 6 are not started |
 | **PR-8** | **Presentation** — sound, motion, board and UI art. The operator, 2026-09-27: *"one of the most important parts of this project is getting the graphics/audio to be upgraded. thats a huge part of the appeal, otherwise all we've done is create magic online with slight improvements"* | **NEW, and the operator's stated priority after w25**: *"i would prefer to not be debugging the game functionality for much longer."* See the presentation section below for what exists, what does not, and the three decisions that gate it |
 | **PR-7** | **The outer shell** — adopt hadoku_site's `templates/game` and delete our hand-written wrapper in favour of it | **SCHEDULED: the wave immediately after the game client.** Operator, 2026-09-20. Not before — the shell wraps the client, and the client is the unproven half |
 | **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS. W19 landed the QOL wave**: static canvas with player faces, only-Forge-offered clickability + drag + targeter, stops only where a legal action exists with payment said out loud, art ids for every card and stack item. The operator's bar — *"i would not even call this alpha playable yet"* — was the brief; their re-test is the remaining proof |
@@ -3704,3 +3704,33 @@ Worktree `.claude/worktrees/w99-manager`, branch `w99` off origin/main c1f8ee5d3
 
 **Found while scaffolding:** `baseline.json` still read 69/12 from w91 (2026-11-07); nobody had lowered it. The slack let in `sound/index.ts→registry.ts` (02c0ddf5d), `room-view.ts→magic-room.ts` (ab83586e4) and `watching.ts→lobby.js` (d1a512e46) with the ratchet green. `baseline.ts` refused to regenerate ("2 pair(s) rose").
 **Base gate:** 13596 passed, 1 failed (`library.test.ts:668`, a 5 s timeout at load ~38; it passes alone in 1.3 s; CI on c1f8ee5d3 is green; added to #44).
+
+
+## Wave 99, verified by the tracker 2026-11-11
+
+All five closing notes (`~/.cache/cardtable-manager/w99-{0,W,U,R,L}-closing.md`) were checked against artifacts at origin/main 11fb96678:
+- **The live scan** (`collectEdges` + `isViolation`): **2 platform→magic, 0 platform→tangled**, exactly the two survivors R named (`play/host.ts:125 → @hadoku/forge-wire`, `play/placement/coordinator.ts:72 → ./draftbot.js`). `baseline.json` reads `{platform→magic: 2}`.
+- **The ratchet:** 8/8, including `no violating edge is new, whatever the count` (`ratchet.test.ts:101`). Step 0's baseline read 60/11, not 59/11, because a fourth leaked edge (`room/seatsOpen.tsx`, 3c0ed3370) landed after the scaffold.
+- **`lobby.ts`:** 3,386 lines (≤ 3,400). `lobby.test.ts`, `lobby-ledger.test.ts` and `codec.test.ts` are byte-identical to cbdf3afe8 (`git diff` is empty).
+- **Deploy:** CI is green on 11fb96678. PPE `/health` is at 11fb96678, which contains every w99 land (the last was 8d0d6adfc). Prod is ce20cc51f (v0.66.0) and gets w99 at the next `/cutrelease`.
+- **R's open item, the agent wiring without a full run, is settled:** the scheduled full Forge run on 11fb96678 at 2026-11-11 10:22Z was green.
+- **A red investigated:** the 10:03Z scheduled run's one red was `multi-match.jvm.test.ts:200`, where the thread dump saw one `Game-N` thread, not two (claw-10, run 43000394258). It went green on the same sha at 10:22Z. No w99 commit touched the bridge or that test. Recorded on #51.
+- **Base-gate flake:** `library.test.ts:668` timed out under load ~38 (on #44).
+
+**Left over:**
+- the 2 survivors (w100 item 3);
+- `lobby.ts` stays `tangled`: its room CRUD (`:628-1063`) and FileLobby's core (`:1345-3386`) need a generic room store with Magic injected, which is phase 5 or 6;
+- no rally-embed e2e spec exists (U);
+- the watchparty request for room provisioning was not filed (w100 item 4);
+- `templates/game` pins `@wolffm/service-kernel` 0.1.0 while bomberman is at 0.1.14 (hadoku_site's to bump).
+
+**Size check:** 4 lanes ran in parallel for about 2 h, and U escalated to Opus mid-wave. Wall-clock was 20:43Z → 23:56Z, 3 h 13 m. knip and jscpd stayed flat across the wave.
+
+## Wave 100 (platform phase 3, the `game.*` reader sweep) — scaffolded 2026-11-11, a single session
+
+A single session, not a wave: one wire contract, so there is no third independent lane. Worktree `.claude/worktrees/w100-game-sweep`, branch `w100` off 11fb96678. Brief `docs/planning/wave100-2026-11-11.md`. Base gate log `~/.cache/cardtable-manager/w100-base-check.log`.
+Items:
+1. readers to `game.*` (measured: UI 47 source reads in 8 files, server about 27 in about 11, about 660 test reads, 13 e2e JSON reads);
+2. drop the top-level copies, **gated on prod carrying item 1** (open tabs would otherwise read defaults); otherwise left on `carry/w100-drop-copies` for the tracker;
+3. the two w99 survivors;
+4. `docs/requests/WATCHPARTY_ROOM_PROVISIONING.md`.
