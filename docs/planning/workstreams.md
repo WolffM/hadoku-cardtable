@@ -177,7 +177,7 @@ it. PR-5 is new and exists to serve it.
 
 | # | Programme | State |
 | --- | --- | --- |
-| **PR-9** | **Platform** — make this repo a general tool for future games: the scaffolding, networking, rooms and accounts are kept, and a new game brings its own engine, data and UI. The operator, 2026-11-06: *"we are likely to want to make new games with new UI, but want to retain the power of the scaffolding, networking, user management, and other stuff"*; on rooms: *"watchparty and cardtable really should share essentially all the same code here"* | **Phases 1–4 on main; phase 3 has one item left (verified 2026-11-11 at 11fb96678).** Fence w91; kernel and shell w92–w94; wire and room storage w95a/b; room core w96–w98; **fence cleanup w99 VERIFIED**: edges 60/11 → **2/0**, `lobby.ts` 4,716 → **3,386**, the ratchet key-strict. Bomberman and `templates/game` were already on `@wolffm/service-kernel` (hadoku_site 880bf59b6, 2026-11-08), so the board's "edge-auth swap" item was stale. Phase 3's last item is the `game.*` reader sweep, **w100, a single session, SCAFFOLDED 2026-11-11** (`docs/planning/wave100-2026-11-11.md`). Phases 5 (match host) and 6 are not started |
+| **PR-9** | **Platform** — make this repo a general tool for future games: the scaffolding, networking, rooms and accounts are kept, and a new game brings its own engine, data and UI. The operator, 2026-11-06: *"we are likely to want to make new games with new UI, but want to retain the power of the scaffolding, networking, user management, and other stuff"*; on rooms: *"watchparty and cardtable really should share essentially all the same code here"* | **Phases 1–4 on main; phase 3 has one item left (verified 2026-11-11 at 11fb96678).** Fence w91; kernel and shell w92–w94; wire and room storage w95a/b; room core w96–w98; **fence cleanup w99 VERIFIED**: edges 60/11 → **2/0**, `lobby.ts` 4,716 → **3,386**, the ratchet key-strict. Bomberman and `templates/game` were already on `@wolffm/service-kernel` (hadoku_site 880bf59b6, 2026-11-08), so the board's "edge-auth swap" item was stale. Phase 3's last item is the `game.*` reader sweep, **w100, a single session, SCAFFOLDED 2026-11-11** (`docs/planning/wave100-2026-11-11.md`). Phases 5 (match host) and 6 are not started **Phase 5 cut 2026-11-11 into four steps** (w101 the seams, w102 the `class Match` split as a single session, w103 the runtimes incl. in-process, w104 the UI slot + ConstructedScreen + bomberman embedded). **w101 SCAFFOLDED** (`docs/planning/wave101-2026-11-11.md`) |
 | **PR-8** | **Presentation** — sound, motion, board and UI art. The operator, 2026-09-27: *"one of the most important parts of this project is getting the graphics/audio to be upgraded. thats a huge part of the appeal, otherwise all we've done is create magic online with slight improvements"* | **NEW, and the operator's stated priority after w25**: *"i would prefer to not be debugging the game functionality for much longer."* See the presentation section below for what exists, what does not, and the three decisions that gate it |
 | **PR-7** | **The outer shell** — adopt hadoku_site's `templates/game` and delete our hand-written wrapper in favour of it | **SCHEDULED: the wave immediately after the game client.** Operator, 2026-09-20. Not before — the shell wraps the client, and the client is the unproven half |
 | **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS. W19 landed the QOL wave**: static canvas with player faces, only-Forge-offered clickability + drag + targeter, stops only where a legal action exists with payment said out loud, art ids for every card and stack item. The operator's bar — *"i would not even call this alpha playable yet"* — was the brief; their re-test is the remaining proof |
@@ -3734,3 +3734,17 @@ Items:
 2. drop the top-level copies, **gated on prod carrying item 1** (open tabs would otherwise read defaults); otherwise left on `carry/w100-drop-copies` for the tracker;
 3. the two w99 survivors;
 4. `docs/requests/WATCHPARTY_ROOM_PROVISIONING.md`.
+
+## Wave 101 (platform phase 5, part 1: the match host seams) — scaffolded 2026-11-11
+
+Worktree `.claude/worktrees/w101-manager`, branch `w101` off 170e6826c. Lane S's worktree is `~/repos/hadoku-watchparty/.claude/worktrees/w101-S`, with a link-farm node_modules so workspace packages resolve to the worktree. Wave file `docs/planning/wave101-2026-11-11.md`; handoff `docs/handoff/w101.md`. Base gate logs `~/.cache/cardtable-manager/w101-base-check.log` and `w101-S-base-test.log`. Lanes:
+- **R:** EngineRuntime split out of local-jvm; a runtime-typed, additive LaunchSpec; `remote/wire.ts` moves to a package, and deploy.sh follows it; L2 `Durable`. Dispatch is gated on w100 releasing `play/` and `plugins`.
+- **M:** `match.ts` pure moves, `game-adapter.ts`, and the member map that is w102's brief.
+- **S** (watchparty): `GameBundleContext.match`/`channel`, `MatchChannel` and a reference channel.
+- **F:** one full Forge run.
+
+**Measured at scaffold:**
+- the Forge upstream sync precondition is met (c7f569e9e, 2026-11-09);
+- `class Match` is `match.ts:1269-4961`;
+- the server never checks the agent's version, so an additive launch spec needs no coordinated claw deploy;
+- `deploy.sh build` imports `remote/wire.ts` by path, so R owns it.
