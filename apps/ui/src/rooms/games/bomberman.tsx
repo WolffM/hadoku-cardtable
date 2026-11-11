@@ -14,7 +14,7 @@
 import { BundleSlot } from '../BundleSlot.tsx';
 import { registerGameRoomUi } from '../game-setup.ts';
 
-/** `docs/planning/wave104-2026-11-11.md`'s Settled: hadoku-bomberman's watchparty embed, same path cardtable and watchparty both load it from. */
+/** Hadoku-bomberman's own embed, at the path watchparty loads it from too; it is never copied here. */
 export const BOMBERMAN_EMBED_SRC = '/bomberman/embed/bomberman-embed.js';
 
 registerGameRoomUi('bomberman', {

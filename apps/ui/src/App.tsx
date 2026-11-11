@@ -34,6 +34,7 @@
 import { useEffect, useState } from 'react';
 
 import { AppHeader } from '@wolffm/task-ui-components';
+import { RouteLink } from './screens/BackLink.tsx';
 import { Screen, type ScreenProps } from './screens/Screen.tsx';
 import { useRoute } from './screens/route.ts';
 import { setScreenMusic } from './sound/index.ts';
@@ -199,7 +200,7 @@ export function App({ transport }: AppProps) {
       // The title is the way HOME. The operator, 2026-09-26: *"'Card Table' at
       // the top should be clickable and bring you back to the entry page."*
       //
-      // A real `<a href="#/">`, not an onClick on a heading: an anchor is
+      // A real `<a href="#/">` (`RouteLink`), not an onClick on a heading: an anchor is
       // keyboard-reachable, announces itself as a link, and middle-clicks.
       // `AppHeader`'s `title` takes a NODE for exactly this — its own docs call
       // it "a node for custom markup (e.g. a clickable title button)" — and the
@@ -208,9 +209,9 @@ export function App({ transport }: AppProps) {
       // in a <button>"). The name is still `__HADOKU_APP_NAME__`, so the audit's
       // `header-name` rule still reads it as derived rather than hard-coded.
       title={
-        <a className="cardtable-chrome__home" href="#/">
+        <RouteLink className="cardtable-chrome__home" to={{ kind: 'lobby' }} data-testid="chrome-home">
           <h1 className="cardtable-chrome__home-name">{__HADOKU_APP_NAME__}</h1>
-        </a>
+        </RouteLink>
       }
       // NO name in `status`. The viewer's name used to render here, and that was a
       // deliberate break with the fleet's convention — identity lives in the

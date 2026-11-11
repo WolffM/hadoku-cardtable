@@ -105,6 +105,25 @@ describe('a registered game type Magic never wrote', () => {
 		expect(reopened.get(made.ok ? made.room.id : '')).toBeUndefined();
 	});
 
+	it('a type of fewer than eight seats survives a restart, its pod read back at its own size', async () => {
+		// `initialPodSize` opens a small type's pod at its own `seats.max`; the codec reads that
+		// pod back against the same type's range, not Magic's eight.
+		registerGameType({ id: 'four-seat', seats: { min: 2, max: 4 }, ready: false, series: { length: 1 }, canStart: () => ({ ok: true }) });
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const made = lobby.create(ALICE, { name: 'Four of us', gameType: 'four-seat', clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		const seats = lobby.get(made.room.id)?.game.pod?.seats.map((s) => s?.memberId ?? null);
+		expect(seats).toEqual([ALICE.id, BOB.id, null, null]);
+
+		const logged: Record<string, unknown>[] = [];
+		const reopened = await openLobby({ dir, log: (entry) => logged.push(entry) });
+		expect(logged.filter((e) => e.event === 'room-quarantined')).toEqual([]);
+		expect(reopened.get(made.room.id)?.gameType).toBe('four-seat');
+		expect(reopened.get(made.room.id)?.game.pod?.seats.map((s) => s?.memberId ?? null)).toEqual(seats);
+	});
+
 	it('seats 10, and refuses an 11th', async () => {
 		const lobby: Lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Bomberman match', gameType: BOMBERMAN.id, clientMode: 'builtin' });

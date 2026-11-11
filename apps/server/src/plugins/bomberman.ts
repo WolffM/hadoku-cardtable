@@ -12,9 +12,6 @@
  *   hard-caps at 2 players) — proven generically in `apps/server/src/room/game-type-spec.test.ts`.
  * - `ready: false`, `series: {length:1}`, no `bots`: no ready step, one game, empty seats stay empty.
  * - `gameCodec.storedKeys: []`: nothing of bomberman's own is kept under a saved room's `game` key.
- *   One more reason `seats.max` is 10, not 2: `room/pods.ts`'s `initialPodSize` allocates
- *   `min(POD_SEATS=8, seats.max)` seats, and `isStoredPodSeats` in the same file refuses to read
- *   one back under 8 on restore — below 8 quarantines on the very next restart; 10 clears it.
  */
 
 import { registerGameType } from '@hadoku/shared';

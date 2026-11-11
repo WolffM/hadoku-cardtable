@@ -160,10 +160,8 @@ describe('bomberman is a registered game type', () => {
 			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Boom room', gameType: BOMBERMAN_GAME_TYPE } })
 		).json() as import('../room/lobby.ts').RoomView;
 
-		// A fresh `openLobby` on the SAME dir — `index.ts`'s own restart. Would quarantine
-		// (`room-quarantined` in `logged`) if `seats.max` allocated a `podSeats` array shorter
-		// than `POD_SEATS` (`room/pods.ts`'s `initialPodSize`/`isStoredPodSeats` — see this
-		// plugin's own doc comment); 10 does not.
+		// A fresh `openLobby` on the SAME dir — `index.ts`'s own restart. An unreadable record
+		// would quarantine (`room-quarantined` in `logged`).
 		const second = await openApp(dir);
 		const reread = await call(second, 'GET', `/api/rooms/${created.id}`, { as: 'bob' });
 		expect(reread.status).toBe(200);

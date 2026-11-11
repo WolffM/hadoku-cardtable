@@ -62,11 +62,11 @@ test('a bomberman room: made, both seats join, the stub mounts with roomKey + bo
       await expect(seats).toContainText(['e2e-alice', 'e2e-bob']);
     }
 
-    // Leaving the room (a hash-only navigation, never a reload) unmounts the mounted bundle —
-    // not merely "the page changed", which a full navigation would prove trivially and dishonestly.
-    await alice.page.evaluate(() => {
-      window.location.hash = '#/';
-    });
+    // Leaving the room the way a player does, by the header's way home (an in-page navigation,
+    // never a reload), unmounts the mounted bundle — not merely "the page changed", which a full
+    // navigation would prove trivially and dishonestly.
+    await alice.page.getByTestId('chrome-home').click();
+    await expect.poll(() => alice.page.evaluate(() => window.location.pathname)).not.toContain('/room/');
     await expect(fixturePanel(alice.page)).toHaveCount(0);
     await expect
       .poll(() => alice.page.evaluate(() => (window as unknown as { __bombermanFixture?: { unmounts: number } }).__bombermanFixture?.unmounts ?? 0))

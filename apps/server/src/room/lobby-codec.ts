@@ -21,7 +21,6 @@ import {
 	DraftPlanSchema,
 	GameTypeSchema,
 	MAGIC_ROOM_STORED_KEYS,
-	POD_SEATS,
 	PoolVerdictSchema,
 	RoomModeSchema,
 	RoomSettingsSchema,
@@ -45,6 +44,7 @@ import {
 	isStoredGauntlets,
 	isStoredLockedDecks,
 	isStoredPodRecord,
+	initialPodSize,
 	isStoredPodSeats,
 	isStoredPodSplit,
 	type PodRecord,
@@ -403,7 +403,7 @@ function liftV1(a: Record<string, unknown>): Record<string, unknown> {
  * default when absent. A pre-tournament `gauntlet` comes back as it was stored;
  * `deserialize` moves it onto the room's first table.
  */
-function decodeMagicGame(raw: unknown): StoredMagicGame {
+function decodeMagicGame(raw: unknown, gameType: string): StoredMagicGame {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new Error('app.game is not an object');
 	const g = raw as Record<string, unknown>;
 	// Written before wave 18: absent means `builtin`, which is what those rooms
@@ -428,8 +428,8 @@ function decodeMagicGame(raw: unknown): StoredMagicGame {
 		throw new Error('app.game.planVerdict is invalid');
 	}
 	// Absent is a room written before wave 72 §P, which has nobody seated.
-	if (g.podSeats !== undefined && !isStoredPodSeats(g.podSeats)) throw new Error('app.game.podSeats is invalid');
-	if (g.podAi !== undefined && !isStoredPodSeats(g.podAi)) throw new Error('app.game.podAi is invalid');
+	if (g.podSeats !== undefined && !isStoredPodSeats(g.podSeats, gameType)) throw new Error('app.game.podSeats is invalid');
+	if (g.podAi !== undefined && !isStoredPodSeats(g.podAi, gameType)) throw new Error('app.game.podAi is invalid');
 	if (g.podDrafts !== undefined && !(Array.isArray(g.podDrafts) && g.podDrafts.every((p) => Array.isArray(p) && p.every((m) => typeof m === 'string')))) {
 		throw new Error('app.game.podDrafts is invalid');
 	}
@@ -477,8 +477,8 @@ function decodeMagicGame(raw: unknown): StoredMagicGame {
 		draftStartedAt: g.draftStartedAt === undefined ? null : (g.draftStartedAt as number | null),
 		plan: g.plan === undefined ? DEFAULT_PLAN : (g.plan as DraftPlan),
 		planVerdict: g.planVerdict === undefined ? null : (g.planVerdict as PoolVerdict | null),
-		podSeats: g.podSeats === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(g.podSeats as (string | null)[])],
-		podAi: g.podAi === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(g.podAi as (string | null)[])],
+		podSeats: g.podSeats === undefined ? new Array<string | null>(initialPodSize(gameType)).fill(null) : [...(g.podSeats as (string | null)[])],
+		podAi: g.podAi === undefined ? new Array<string | null>(initialPodSize(gameType)).fill(null) : [...(g.podAi as (string | null)[])],
 		...(g.podDrafts === undefined ? {} : { podDrafts: (g.podDrafts as string[][]).map((p) => [...p]) }),
 		...(g.podSplit === undefined ? {} : { podSplit: copySplit(g.podSplit as PodSplit) }),
 		pod: g.pod === undefined || g.pod === null ? null : (g.pod as PodRecord),
@@ -528,7 +528,7 @@ export const appCodec: AppCodec<StoredApp> = {
 		if (a.testing !== undefined && typeof a.testing !== 'boolean') throw new Error('app.testing is invalid');
 		if (a.scheduledFor !== undefined && typeof a.scheduledFor !== 'number') throw new Error('app.scheduledFor is invalid');
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
-		const { gauntlet, gauntlets, ...game } = decodeMagicGame(a.game);
+		const { gauntlet, gauntlets, ...game } = decodeMagicGame(a.game, gameType.data);
 		const settings = storedSettings(a.settings as Partial<RoomSettings> | undefined);
 		const matchId = a.matchId as string | null;
 		// Migrated from the pre-wave-71 shape: one table, holding the room's old

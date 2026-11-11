@@ -43,6 +43,7 @@ vi.mock('@wolffm/prefs-client/react', () => ({
 }));
 
 import { App } from '../App.tsx';
+import { currentRoute } from '../screens/route.ts';
 import { DISCORD_INVITE_URL, GITHUB_REPO_URL } from './HeaderLinks.tsx';
 
 afterEach(() => {
@@ -79,6 +80,23 @@ describe('the standard child-app header', () => {
     // The heading stays INSIDE the link — the shape `AppHeader`'s node title is
     // documented for, and what keeps the page with an <h1> at all.
     expect(title.querySelector('h1')?.textContent).toBe(__HADOKU_APP_NAME__);
+  });
+
+  it("goes home from a room's own page, whose address is a path, not a hash", async () => {
+    // A room lives at `room/<id>`, and `#/` names nothing, so on that address the link's own
+    // hash leaves the route on the room: pressing it must navigate, not merely rewrite the hash.
+    history.replaceState(null, '', `${import.meta.env.BASE_URL}room/r-home`);
+    try {
+      render(createElement(App));
+      expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-home' });
+
+      fireEvent.click(screen.getByRole('link', { name: __HADOKU_APP_NAME__ }));
+
+      await vi.waitFor(() => expect(currentRoute()).toEqual({ kind: 'lobby' }));
+      expect(location.pathname).toBe(import.meta.env.BASE_URL);
+    } finally {
+      history.replaceState(null, '', import.meta.env.BASE_URL);
+    }
   });
 });
 

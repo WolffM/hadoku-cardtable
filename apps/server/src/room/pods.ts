@@ -697,8 +697,9 @@ export function isStoredPodRecord(v: unknown): v is PodRecord {
 	return p.bye === null || typeof p.bye === 'string';
 }
 
-export function isStoredPodSeats(v: unknown): v is (string | null)[] {
-	return Array.isArray(v) && v.length >= POD_SEATS && v.length <= POD_MAX_SEATS && v.every((s) => s === null || typeof s === 'string');
+/** A stored pod's seats for a room of `gameType`: never fewer than that type's pod opens with (`initialPodSize`). */
+export function isStoredPodSeats(v: unknown, gameType: string): v is (string | null)[] {
+	return Array.isArray(v) && v.length >= initialPodSize(gameType) && v.length <= POD_MAX_SEATS && v.every((s) => s === null || typeof s === 'string');
 }
 
 export function isStoredPodSplit(v: unknown): v is PodSplit {
