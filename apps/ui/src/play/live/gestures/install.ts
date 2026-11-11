@@ -604,6 +604,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let tapQueue: number[] = [];
   /** The land whose click is out and not yet shown on the board. */
   let tapSent: number | null = null;
+  /**
+   * The Forge input the last tap was sent on. A land shows tapped before Forge opens its next
+   * input, and the board still offers the next land then (the held offer), so a click sent at that
+   * moment names the input Forge has already moved past and is refused as stale. The next land
+   * goes out once Forge shows a new input. Only when tapping: an untap is Forge undoing the land's
+   * mana ability inside the same input (`tryUndo`), which opens none.
+   */
+  let tapInput: number | null = null;
   /** The state the sweep's clicks put each land in: tapped (true) or untapped. */
   let tapTo = true;
   let tapTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1483,6 +1491,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (tapSent !== null) clearTapPending(canvas, tapSent);
     tapQueue = [];
     tapSent = null;
+    tapInput = null;
     if (tapTimer !== null) clearTimeout(tapTimer);
     tapTimer = null;
   }
@@ -1524,8 +1533,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
       }
       // Not offered yet (Forge re-offers the board after each click): the next notify tries again.
       if (!landsOffered(match).some((c) => c.id === next)) return;
+      // Forge has not shown the input after the last tap's: a click now would name the old one.
+      if (tapTo && tapInput !== null && match.inputId === tapInput) return;
       tapQueue.shift();
       tapSent = next;
+      tapInput = match.inputId;
       if (tapTimer !== null) clearTimeout(tapTimer);
       tapTimer = setTimeout(endTapSweep, TAP_SWEEP_MS);
       if (!selectCard(match, next)) tapSent = null;

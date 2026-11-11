@@ -81,7 +81,15 @@ test(titled("Brain Freeze's storm copies: one pick with \"Same target for all\" 
           if (text !== lastSays) console.log(`[af62] alice says "${(lastSays = text).trim().slice(0, 140)}"`);
           if (asksTarget(text) && wiredTargets() > questions.length) {
             const same = alice.page.getByTestId('live-same-target');
-            const offered = (await same.count()) > 0;
+            // A copy's question draws the box once Forge's input is live, a beat after its text (run
+            // 42499979930: the text at .928, the input at 17.081). The spell's own target never offers it.
+            const offered =
+              questions.length === 0
+                ? (await same.count()) > 0
+                : await same.waitFor({ timeout: 3_000 }).then(
+                    () => true,
+                    () => false,
+                  );
             questions.push({ says: text.trim().slice(0, 120), offered });
             console.log(`[af62] target question ${questions.length}: offered same-target ${offered}`);
             if (offered && !ticked) {

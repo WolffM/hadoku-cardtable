@@ -21,6 +21,7 @@ import {
   LIFE_COLOUR_MS,
   POP_MS,
   POP_THRESHOLD,
+  RESOLUTION_CARRY_MS,
   RISE_MS,
   STACK_OFFSET_PX,
   STACK_STAGGER_MS,
@@ -518,6 +519,44 @@ describe('installNumbers: a resolution’s hits', () => {
     expect(overlay.querySelector('.effect-impact'), 'and takes the impact').not.toBeNull();
     expect(overlay.querySelector('.board-number')?.textContent, 'a life total still shows its number').toBe('-2');
     expect(life.textContent, 'the counter lands the hit whole').toBe('18');
+    handle.dispose();
+  });
+
+  /*
+   * fx-effects.spec.ts:217, run 42547289885: on a loaded host alice's resolution of Sorin's +1 came as
+   * three deltas over 212 ms, the item leaving the stack in one and her life change in the next, and
+   * her screen drew a bare −2 with nothing travelling. Mutation: drop `carriedResolution` and the first
+   * of these fails.
+   */
+  it('a life change a view after its resolution left the stack still travels from it, when its face hit names that source', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay, life } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const board = (life1: number): BoardView => view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, life1)]);
+    handle.notify(withStack(board(20), [item(40, 8)]));
+    handle.notify(board(20)); // the item leaves the stack: no life change yet
+    vi.advanceTimersByTime(200);
+    life.textContent = '18';
+    handle.notify({ ...board(18), faceHits: [{ seq: 3, playerId: 1, sourceId: 8, amount: 2, combat: false }] });
+    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.hit, 'the hit leaves the resolution’s source').toBe('player:1:40');
+    expect(life.textContent, 'the counter waits for it to land').toBe('20');
+    handle.dispose();
+  });
+
+  it('a later life change with no face hit from that source never borrows the resolution: nothing travels', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const board = (life1: number): BoardView => view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, life1)]);
+    handle.notify(withStack(board(20), [item(40, 8)]));
+    handle.notify(board(20));
+    handle.notify({ ...board(19), faceHits: [{ seq: 3, playerId: 1, sourceId: 99, amount: 1, combat: false }] });
+    expect(overlay.querySelector('.effect-hit'), 'another source’s damage').toBeNull();
+    handle.notify(board(18));
+    expect(overlay.querySelector('.effect-hit'), 'a payment: no face hit at all').toBeNull();
+    vi.advanceTimersByTime(RESOLUTION_CARRY_MS + 1);
+    handle.notify({ ...board(16), faceHits: [{ seq: 4, playerId: 1, sourceId: 8, amount: 2, combat: false }] });
+    expect(overlay.querySelector('.effect-hit'), 'the same source, but long after its resolution').toBeNull();
     handle.dispose();
   });
 

@@ -185,6 +185,12 @@ export const LIFE_COLOUR_MS = 1500;
 export const LIFE_PUNCH_MS = 320;
 /** How long what a hit reached flashes (`numbers.css`'s `effect-hit-flash`). */
 const HIT_FLASH_MS = 360;
+/**
+ * How long a resolution may still claim a life change that arrives without one (the `lastResolution`
+ * note in `installNumbers`). The split seen took 212 ms on a loaded host; a second covers that with
+ * room, and the face-hit check, not this window, is what keeps an unrelated loss from borrowing it.
+ */
+export const RESOLUTION_CARRY_MS = 1000;
 /** An arrival with nowhere to travel from fades in over this long. */
 const ARRIVE_FADE_MS = 240;
 
@@ -792,6 +798,27 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    */
   const revealedBySource = new Map<number, Revealed>();
 
+  /**
+   * The last resolution and where its hit flies from, kept for a view or two after it left the stack.
+   * Forge can send a resolution's life change a delta after the one that takes the item off the stack
+   * (a loaded host split Sorin's +1 into three deltas over 212 ms), and a hit needs both. A life change
+   * with no resolution of its own takes this one only when it carries a face hit from the same source
+   * card: Forge fires that hit with the life loss (`Player.java`'s `addDamageAfterPrevention`), so a
+   * payment or a drain from anything else never borrows it.
+   */
+  let lastResolution: { item: StackEntry; origin: Boxed | null; hue: ManaColor | null; at: number } | null = null;
+
+  /** {@link lastResolution}, when this player's face hits name its source and it is recent enough. */
+  function carriedResolution(faceHits: readonly FaceHit[]): { item: StackEntry; origin: Boxed; hue: ManaColor | null } | null {
+    const last = lastResolution;
+    if (last === null || Date.now() - last.at > RESOLUTION_CARRY_MS) return null;
+    const source = last.item.sourceCardId;
+    if (source === null || !faceHits.some((h) => h.sourceId === source)) return null;
+    // Where it flew from may have been redrawn since: where the source is now, else nothing travels.
+    const origin = last.origin instanceof Element && !last.origin.isConnected ? sourceOf(last.item) : last.origin;
+    return origin === null ? null : { item: last.item, origin, hue: last.hue };
+  }
+
   function revealLink(revealed: Revealed, waitMs: number): { at: Boxed | null; waitMs: number } {
     const first = revealed.cardIds[0];
     return { at: first === undefined ? null : revealedCard(first), waitMs };
@@ -1033,6 +1060,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
      */
     const sourceOnBoard = before?.players.flatMap((pl) => pl.battlefield).find((c) => c.id === item?.sourceCardId);
     const spellHue = item?.sourceCard == null ? null : ((cardColours(item.sourceCard, sourceOnBoard?.choices)[0] as ManaColor | undefined) ?? null);
+    if (item !== undefined) lastResolution = { item, origin, hue: spellHue, at: Date.now() };
     let beat = 0;
     const nextDelay = (): number => startMs + beat++ * BEAT_STAGGER_MS;
     /** Bolts go one after another, far enough apart that each one's slam (and the death it causes) reads on its own (the operator, 2026-10-15: "all cards seem to go away at the same time"). */
@@ -1216,7 +1244,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
           landed();
           spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: chunk.delta, tempo });
         };
-        if (origin === null || item === undefined) {
+        const carried = item === undefined ? carriedResolution(faceHitsHere) : null;
+        const hitItem = item ?? carried?.item;
+        const hitOrigin = item === undefined ? (carried?.origin ?? null) : origin;
+        if (hitOrigin === null || hitItem === undefined) {
           // Nothing travels (a payment, Fast Mode, reduced motion): each instance in turn, Fast Mode all at once.
           const delay = fast() ? 0 : i * BOLT_STAGGER_MS;
           endMs = Math.max(endMs, delay);
@@ -1228,8 +1259,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         if (firstLifeLand === null) firstLifeLand = delay + HIT_MS;
         // AF420: seeded by the resolution too (the stack item's own id), so every cast flies its own
         // arc — the same key on both screens; a later instance of the same resolution adds its index.
-        const key = i === 0 ? `player:${change.playerId}:${item.id}` : `player:${change.playerId}:${item.id}:${i}`;
-        hit(origin, face, key, lifeColour(chunk.delta), delay, land, spellHue, Math.abs(chunk.delta), tempo);
+        const key = i === 0 ? `player:${change.playerId}:${hitItem.id}` : `player:${change.playerId}:${hitItem.id}:${i}`;
+        hit(hitOrigin, face, key, lifeColour(chunk.delta), delay, land, item === undefined ? (carried?.hue ?? null) : spellHue, Math.abs(chunk.delta), tempo);
         if (chunk.delta < 0) boltSound(delay + HIT_MS, -chunk.delta);
       });
     }

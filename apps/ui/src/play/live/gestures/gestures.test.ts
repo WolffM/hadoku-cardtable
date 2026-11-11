@@ -69,6 +69,7 @@ import { GLIDE_MS } from '../../motion.ts';
 import { TAPPED_PENDING_ATTR, UNTAPPED_PENDING_ATTR } from './commit.ts';
 import { TIP_INSET } from './arrow.ts';
 import { installGestures } from './index.ts';
+import { MATCH_EVENTS } from '../transport.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
 import { RAMMING_ATTR } from '../ram.ts';
 import { heldManaPress, manaPressOf, releaseHeldPress } from '../mana-press.ts';
@@ -1388,6 +1389,36 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
   });
 
   /*
+   * stacking.spec.ts:389, run 42578269881: the land showed tapped, the board still offered the next
+   * one (the held offer) in the old input's window, and its click went out naming that input, a
+   * millisecond after Forge had opened the next. The server refused it as stale and nothing sent it
+   * again. Mutation: drop the `tapInput` guard in `pumpTaps` and the second land goes out on input 6.
+   */
+  it('the next land waits for Forge’s next input, not just the board’s tapped land: a click on the old one is refused', async () => {
+    const { s, m, lands, offered, sweep } = await landsOffered();
+    const rest = offered.filter((id) => id !== lands[0]);
+    for (const f of notify([prompt('Priority'), actionable(offered), okBar()])) s.send(f, 6);
+    await untilMatch(m, () => expect(m.inputId).toBe(6));
+    sweep(700, 300);
+    await s.untilClientFrames(1);
+
+    // The land is tapped and the old window is drawn again: its input is still 6.
+    await deliver(s, m, [offerWithdrawn(), tappedDelta(lands[0]!)]);
+    for (const f of notify([prompt('Priority'), actionable(rest), okBar()])) s.send(f, 6);
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(rest.length));
+    expect(await s.framesFrom(m), 'nothing goes out on the input the first land answered').toHaveLength(1);
+
+    for (const f of notify([prompt('Priority'), actionable(rest), okBar()])) s.send(f, 7);
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([
+      ['selectCard', lands[0]],
+      ['selectCard', lands[1]],
+    ]);
+    const inputs = s.received.filter((r) => r.event === MATCH_EVENTS.clientToServer).map((r) => (r.payload as { input?: number }).input);
+    expect(inputs, 'each land on the input it was offered in').toEqual([6, 7]);
+  });
+
+  /*
    * The operator, 2026-10-08: "when drawing a box to tap
    * lands, can we have them all tap simultaneously rather than one at a
    * time?" The SEND stays one at a time (the test above) — this is the DRAWN
@@ -1480,6 +1511,26 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     for (const f of notify([prompt('Priority'), actionable(offered), okBar()])) s.send(f);
     await s.untilClientFrames(2);
     expect((await sent(s, m))[1]).toEqual(['selectCard', lands[1]]);
+  });
+
+  /*
+   * An untap is Forge undoing the land's mana ability inside the input it is in (`tryUndo`): the window
+   * comes back on the same input (a claw, run 42932985913: input 12 before and after). Mutation: let
+   * `pumpTaps`'s input guard apply to untaps and the second land never goes out.
+   */
+  it('an untap sweep goes on in the same input: Forge opens no new one for an undo', async () => {
+    const { s, m, lands, offered, sweep } = await landsOffered(() => true);
+    for (const f of notify([prompt('Priority'), actionable(offered), okBar()])) s.send(f, 12);
+    await untilMatch(m, () => expect(m.inputId).toBe(12));
+    sweep(700, 300);
+    await s.untilClientFrames(1);
+    await deliver(s, m, [offerWithdrawn(), tappedDelta(lands[0]!, false)]);
+    for (const f of notify([prompt('Priority'), actionable(offered), okBar()])) s.send(f, 12);
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([
+      ['selectCard', lands[0]],
+      ['selectCard', lands[1]],
+    ]);
   });
 
   it('the release draws every boxed tapped land upright at once, before Forge has confirmed any of them', async () => {
