@@ -19,7 +19,7 @@ describe('runPool', () => {
       return i;
     });
     const out = await runPool(tasks, 3, () => null);
-    expect(out).toEqual({ results: [0, 1, 2, 3, 4, 5, 6], stopped: null });
+    expect(out).toEqual({ results: [0, 1, 2, 3, 4, 5, 6], stopped: null, outOfTime: false });
     expect(peak).toBe(3);
   });
 
@@ -36,5 +36,21 @@ describe('runPool', () => {
     expect(started.length).toBeLessThanOrEqual(7);
     expect(out.results).toHaveLength(started.length);
     expect(out.results).toContain('refused');
+  });
+
+  it('takes no new task once its time is spent: the ones already running finish and the report says so', async () => {
+    let spent = false;
+    const started: number[] = [];
+    const tasks = Array.from({ length: 50 }, (_, i) => async () => {
+      started.push(i);
+      await tick();
+      if (i === 4) spent = true;
+      return i;
+    });
+    const out = await runPool(tasks, 3, () => null, () => spent);
+    expect(out.outOfTime).toBe(true);
+    expect(out.stopped).toBeNull();
+    expect(started.length).toBeLessThanOrEqual(7);
+    expect(out.results).toEqual(started.slice().sort((a, b) => a - b));
   });
 });

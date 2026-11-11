@@ -35,7 +35,8 @@ export interface MatchResult {
   started: string;
   ended: string | null;
   turns: number | null;
-  outcome: 'won' | 'lost' | 'drawn' | 'conceded' | 'timed-out' | 'crashed' | 'refused' | 'unknown';
+  /** `turn-capped`: still playing at the turn cap; `cut-short`: still playing when the run's budget ran out. Neither is flagged. */
+  outcome: 'won' | 'lost' | 'drawn' | 'conceded' | 'timed-out' | 'turn-capped' | 'cut-short' | 'crashed' | 'refused' | 'unknown';
   /** The server's answer when it would not start this match. */
   refused?: { status: number; error: string };
   decisions: number;
@@ -51,6 +52,8 @@ export interface MonkeyReport {
   flagged: Flag[];
   /** Why the run stopped before covering every deck (`stopReason`), or null. */
   stopped: string | null;
+  /** The run's time ran out (`--budget-ms`) with this many matches never started, or null when none were left. */
+  outOfTime: { budgetMs: number; unstarted: number } | null;
   summary: {
     matches: number;
     flagged: number;
@@ -79,7 +82,14 @@ export function stopReason(result: MatchResult): string | null {
   return `the server refused to start a match (HTTP 503: ${result.refused.error}); no further matches were started`;
 }
 
-export function buildReport(seed: number, decksCovered: string[], matches: MatchResult[], startedAt: string, stopped: string | null): MonkeyReport {
+export function buildReport(
+  seed: number,
+  decksCovered: string[],
+  matches: MatchResult[],
+  startedAt: string,
+  stopped: string | null,
+  outOfTime: MonkeyReport['outOfTime'] = null,
+): MonkeyReport {
   const flagged = matches.flatMap((m) => m.flags);
   const byKind = emptyByKind();
   for (const f of flagged) byKind[f.kind] += 1;
@@ -91,6 +101,7 @@ export function buildReport(seed: number, decksCovered: string[], matches: Match
     matches,
     flagged,
     stopped,
+    outOfTime,
     summary: { matches: matches.length, flagged: flagged.length, byKind },
   };
 }
@@ -103,6 +114,7 @@ export function summaryText(report: MonkeyReport): string {
   const lines: string[] = [];
   lines.push(`monkey: seed ${report.seed}, ${report.summary.matches} match(es), ${report.summary.flagged} flag(s)`);
   if (report.stopped !== null) lines.push(`STOPPED EARLY: ${report.stopped}`);
+  if (report.outOfTime !== null) lines.push(`out of time: the ${Math.round(report.outOfTime.budgetMs / 60_000)}-minute budget was spent with ${report.outOfTime.unstarted} match(es) not started`);
   for (const [kind, count] of Object.entries(report.summary.byKind)) {
     if (count > 0) lines.push(`  ${kind}: ${count}`);
   }

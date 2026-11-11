@@ -46,6 +46,8 @@ function tasks(origin: string, n: number): (() => Promise<MatchResult>)[] {
       stuckMs: 1000,
       matchTimeoutMs: 1000,
       turnCap: 1,
+      turnStallMs: 1000,
+      stopAt: Infinity,
       serverLogFile: '/nonexistent',
       workDir: '/nonexistent',
     }),

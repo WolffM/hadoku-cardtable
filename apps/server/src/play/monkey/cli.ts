@@ -33,21 +33,34 @@ interface Args {
   deck: string | null;
   /** A random sample of this many library decks, instead of every one (or `--deck`'s one). */
   sample: number | null;
+  /**
+   * How long the run may keep starting matches, or null for no limit. Once spent, the matches
+   * already playing finish and the report is written; a CI job's own timeout would kill the run
+   * before it wrote anything (four nightly runs of all 1,523 decks were cancelled at 90 minutes).
+   */
+  budgetMs: number | null;
   out: string;
   stuckMs: number;
-  /** The wall a match may run to. Default: {@link TURN_MS} for each turn the turn cap allows. */
+  /** The wall a match may run to, a backstop. Default: {@link TURN_MS} for each turn the turn cap allows. */
   matchTimeoutMs: number;
   turnCap: number;
+  /** How long one turn may go on before the match is timed out as stalled. */
+  turnStallMs: number;
   concurrency: number;
 }
 
 /**
  * The wall-clock allowance per turn behind `--match-timeout-ms`'s default. The turn cap bounds how
- * long a game may be; the wall only guards a match that stops advancing without tripping the stuck
- * watch, so it must not bind first on a game still moving at a loaded host's pace. A flat 180 s did:
- * Magpie vs Urza at 52 turns, 3.5 s a turn with nothing stalled, timed out (forge.yml run 42396799060).
+ * long a game may be, and a turn that stops advancing is caught by `--turn-stall-ms`; the wall is
+ * only a backstop, so it must not bind first on a game still moving at a loaded host's pace. A
+ * flat 180 s did (Magpie vs Urza, 3.5 s a turn, run 42396799060), and so did 6 s a turn: control
+ * and combo games moved at 12-25 s a turn in dispatch 43055771453.
  */
-const TURN_MS = 6_000;
+const TURN_MS = 30_000;
+/** The default `--turn-stall-ms`: one turn this long is hundreds of decisions without the game moving on. */
+const TURN_STALL_MS = 300_000;
+/** How long the matches still playing when the budget is spent may go on before they are conceded. */
+const BUDGET_GRACE_MS = 8 * 60_000;
 /** How long a finished run may take to exit before `watchExit` names what holds it. */
 const EXIT_WATCH_MS = 30_000;
 
@@ -57,16 +70,19 @@ function parseArgs(argv: readonly string[]): Args {
     return i >= 0 ? argv[i + 1] : undefined;
   };
   const sample = get('sample');
+  const budget = get('budget-ms');
   const turnCap = Number(get('turn-cap') ?? '60');
   return {
     seed: seedArg(get('seed')) ?? Date.now(),
     matchesPerDeck: Number(get('matches-per-deck') ?? '1'),
     deck: get('deck') ?? null,
     sample: sample === undefined ? null : Number(sample),
+    budgetMs: budget === undefined ? null : Number(budget),
     out: get('out') ?? resolve(process.cwd(), 'monkey-report.json'),
     stuckMs: Number(get('stuck-ms') ?? '20000'),
     matchTimeoutMs: Number(get('match-timeout-ms') ?? String(turnCap * TURN_MS)),
     turnCap,
+    turnStallMs: Number(get('turn-stall-ms') ?? String(TURN_STALL_MS)),
     concurrency: Number(get('concurrency') ?? '2'),
   };
 }
@@ -97,11 +113,14 @@ async function main(): Promise<void> {
         ? library.filter((d) => d.id === args.deck)
         : args.sample !== null
           ? seedRng.sample(library, args.sample)
-          : library;
+          : // Every deck, in an order the seed picks: a run its budget cuts short covers a different
+            // part of the library each night, rather than the same first decks every time.
+            seedRng.sample(library, library.length);
     if (decksToCover.length === 0) throw new Error(`no library deck ${JSON.stringify(args.deck)}`);
     console.log(`[monkey] ${library.length} library deck(s); covering ${decksToCover.length}`);
 
     const startedAt = new Date().toISOString();
+    const budgetEnds = args.budgetMs === null ? Infinity : Date.now() + args.budgetMs;
     const tasks: (() => Promise<MatchResult>)[] = [];
     let runIndex = 0;
     for (const deck of decksToCover) {
@@ -124,6 +143,8 @@ async function main(): Promise<void> {
             stuckMs: args.stuckMs,
             matchTimeoutMs: args.matchTimeoutMs,
             turnCap: args.turnCap,
+            turnStallMs: args.turnStallMs,
+            stopAt: budgetEnds + BUDGET_GRACE_MS,
             serverLogFile: stack.serverLogFile,
             workDir: stack.workDir,
           });
@@ -133,8 +154,10 @@ async function main(): Promise<void> {
       }
     }
 
-    const { results: matches, stopped } = await runPool(tasks, args.concurrency, stopReason);
-    const report = buildReport(seed, decksToCover.map((d) => d.id), matches, startedAt, stopped);
+    const { results: matches, stopped, outOfTime } = await runPool(tasks, args.concurrency, stopReason, () => Date.now() >= budgetEnds);
+    const outOfTimeFacts = outOfTime && args.budgetMs !== null ? { budgetMs: args.budgetMs, unstarted: tasks.length - matches.length } : null;
+    const played = decksToCover.slice(0, Math.ceil(matches.length / args.matchesPerDeck)).map((d) => d.id);
+    const report = buildReport(seed, played, matches, startedAt, stopped, outOfTimeFacts);
     writeFileSync(args.out, JSON.stringify(report, null, 2));
     console.log('');
     console.log(summaryText(report));

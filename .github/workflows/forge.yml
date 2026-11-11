@@ -930,10 +930,11 @@ jobs:
     name: forge-monkey
     if: github.event_name == 'schedule' && github.event.schedule == '0 10 * * *' || (github.event_name == 'workflow_dispatch' && inputs.monkey == true)
     runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21","lane-forge"]') }}
-    # A sampled dispatch run is a handful of matches; the nightly covers every
-    # library deck (1459 at this writing) at one match each — budgeted like a
-    # `forge-e2e` full shard, since each match is a whole game played to a turn
-    # cap, not a UI click.
+    # A sampled dispatch run is a handful of matches. The nightly takes the
+    # whole library (1,523 decks at this writing, hours of play at three at a
+    # time) in a seed-shuffled order and plays for as long as its budget
+    # (`--budget-ms`, below) lasts, so each night covers a different slice and
+    # the report is always written before this timeout.
     timeout-minutes: ${{ github.event_name == 'schedule' && 90 || 30 }}
     steps:
       - uses: actions/checkout@v6
@@ -982,10 +983,15 @@ jobs:
           elif [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then
             args+=(--sample 8)
           fi
-          # A nightly run with no sample/deck given covers every library deck — see the job comment.
+          # A nightly run with no sample/deck given takes every library deck in an order its seed
+          # picks, for as long as its budget lasts. The budget stops new matches well inside the
+          # job's timeout, so the matches still playing finish and the report is written and
+          # uploaded: a run the timeout kills uploads nothing. A match still playing 8 min past the
+          # budget is conceded (cli.ts BUDGET_GRACE_MS), so 75+8 fits 90 and 17+8 fits 30.
+          budget_ms=$(( ${{ github.event_name == 'schedule' && 75 || 17 }} * 60 * 1000 ))
           set -x
           apps/server/node_modules/.bin/tsx apps/server/src/play/monkey/cli.ts \
-            --matches-per-deck 1 --concurrency 3 \
+            --matches-per-deck 1 --concurrency 3 --budget-ms "$budget_ms" \
             --out "${{ runner.temp }}/monkey-report.json" \
             "${args[@]}"
 

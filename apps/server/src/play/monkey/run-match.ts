@@ -28,8 +28,13 @@ export interface RunMatchOptions {
   decks: { seat0: string; seat1: string };
   deckRefs: { seat0: { id: string; era: string }; seat1: { id: string; era: string } };
   stuckMs: number;
+  /** The wall a match may run to: a backstop only, well past what a game still moving takes. */
   matchTimeoutMs: number;
   turnCap: number;
+  /** How long one turn may go on before the match is timed out as a game that stopped advancing. */
+  turnStallMs: number;
+  /** When the run's budget is spent (epoch ms): a match still playing then is conceded, unflagged. */
+  stopAt: number;
   /** The running stack's own server log, for `ask-unanswerable`/`ask-unclassified`. */
   serverLogFile: string;
   /** The running stack's work dir: each JVM's run dir, and its `bridge.stderr.txt`, is under it. */
@@ -181,6 +186,40 @@ async function giveUp(match: LiveMatch): Promise<{ ended: boolean; evidence: str
   return { ended: match.over || match.ended !== null, evidence: [sent, seen] };
 }
 
+/**
+ * Whether a board's trouble report means the match cannot go on. Two are a board noting how its
+ * connect went while it keeps trying, which a real tab recovers from by itself: `slow-connect` (a
+ * first connect over three seconds, `match.ts`'s `SLOW_CONNECT_REPORT_MS`) and `connect-error`
+ * (one failed attempt, retried). Ending a match on those threw away healthy games on a loaded claw:
+ * all 20 "crashes" in run 43055771453 were `slow-connect`, the socket connected and its snapshot on
+ * the way. A connect that never comes good still ends the match, as `no-snapshot` ten seconds in.
+ */
+export function troubleEndsMatch(what: MatchTrouble): boolean {
+  return what !== 'slow-connect' && what !== 'connect-error';
+}
+
+/** Why a match the seat is still playing must stop now, or null to play on. */
+export type StopFor = 'turn-cap' | 'turn-stall' | 'wall' | 'budget';
+
+/**
+ * Whether to stop a match still in progress, and why. Only a game that stopped advancing is a
+ * finding: one turn going on past `turnStallMs`, or the whole match past its wall. Reaching the turn
+ * cap is a long game, and the run's budget running out is the run's own limit; neither is flagged.
+ * A wall of 6 s a turn timed out games still moving at 12-25 s a turn (control and combo decks,
+ * 25-45 decisions a turn at about 2 a second) in dispatch 43055771453.
+ */
+export function stopFor(
+  state: { turn: number; turnSince: number; startedAt: number },
+  opts: Pick<RunMatchOptions, 'turnCap' | 'turnStallMs' | 'matchTimeoutMs' | 'stopAt'>,
+  now: number,
+): StopFor | null {
+  if (state.turn > opts.turnCap) return 'turn-cap';
+  if (now >= opts.stopAt) return 'budget';
+  if (now - state.turnSince > opts.turnStallMs) return 'turn-stall';
+  if (now - state.startedAt > opts.matchTimeoutMs) return 'wall';
+  return null;
+}
+
 export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const started = new Date().toISOString();
   const started201 = await startAiMatch(opts);
@@ -245,19 +284,26 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     // BroadcastChannel, and in Node an open channel keeps the process alive after the report is written.
     tabId: mintTabId(),
     report: (what, detail) => {
-      crashed ??= { what, detail };
+      if (troubleEndsMatch(what)) crashed ??= { what, detail };
     },
   });
 
   const drainLog = makeLogTail(opts.serverLogFile);
   const drainServerFlags = (): { evt: string; detail: string }[] => serverFlagsOf(drainLog(), matchId);
 
-  const deadline = Date.now() + opts.matchTimeoutMs;
+  const progress = { turn: 0, turnSince: Date.now(), startedAt: Date.now() };
+  let stopped: StopFor | null = null;
   const isOver = (): boolean => {
     if (crashed !== null) return true;
     if (match.over || match.ended !== null) return true;
-    if ((match.view?.turn ?? 0) > opts.turnCap) return true;
-    return Date.now() > deadline;
+    const now = Date.now();
+    const turn = match.view?.turn ?? 0;
+    if (turn !== progress.turn) {
+      progress.turn = turn;
+      progress.turnSince = now;
+    }
+    stopped = stopFor(progress, opts, now);
+    return stopped !== null;
   };
 
   const { flags, decisions, repeated } = await driveSeat(
@@ -295,7 +341,8 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   // Every match this run leaves unfinished is conceded, a crashed one too: the server cannot tell
   // a seat whose socket broke from one about to reconnect, and keeps its slot for it.
   const unfinished = !match.over && match.ended === null;
-  const timedOut = crashed === null && unfinished;
+  const reason = stopped as StopFor | null;
+  const timedOut = crashed === null && unfinished && (reason === 'turn-stall' || reason === 'wall');
   const gaveUp = unfinished ? await giveUp(match) : null;
   const ended = gaveUp?.ended ?? true;
   const notEnded = ended ? '' : `; its concede was not seen to end it within ${GIVE_UP_MS} ms`;
@@ -306,17 +353,23 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     // that ran out its cap is either a seat repeating one act or a game that stopped answering.
     extra.push(
       noFinishFlag(
-        `the match did not finish within its cap (turn ${match.view?.turn ?? '?'}, ${opts.turnCap} turns / ${opts.matchTimeoutMs} ms)${notEnded}`,
+        reason === 'turn-stall'
+          ? `turn ${match.view?.turn ?? '?'} went on for over ${opts.turnStallMs} ms (${decisions} decision(s) in the match)${notEnded}`
+          : `the match did not finish within its wall (${opts.matchTimeoutMs} ms, turn ${match.view?.turn ?? '?'})${notEnded}`,
         [...repeated.map((r) => `repeated: ${r}`), ...(ended ? lastServerRows(opts.serverLogFile, matchId) : evidence), ...wire.map((w) => `wire: ${w}`)],
       ),
     );
   }
   if (crashed !== null) extra.push(noFinishFlag(`${troubleDetail(crashed)}${notEnded}`, evidence));
+  // A long game or the run's own budget is no finding, but a concede that did not end it still is.
+  if (crashed === null && unfinished && !timedOut && !ended) extra.push(noFinishFlag(`stopped (${reason})${notEnded}`, evidence));
 
   const turns = match.view?.turn ?? null;
   let outcome: MatchResult['outcome'] = 'unknown';
   if (crashed !== null) outcome = 'crashed';
   else if (timedOut) outcome = 'timed-out';
+  else if (unfinished && reason === 'turn-cap') outcome = 'turn-capped';
+  else if (unfinished && reason === 'budget') outcome = 'cut-short';
   else if (match.ended !== null) outcome = 'crashed';
   else if (match.over) {
     const myId = match.playerId;

@@ -51,7 +51,7 @@ here is testing one card's specific behaviour.
 | `click-refused` | the server (Forge's `flashIncorrectAction`) or this client's own guard refused an answer — not the server's `cause: 'unpayable'` flash, which is it cancelling a cost nothing can pay (e2d49c260), a handled case (`isRefusal`) | the wire tap on `forge:s2c`, and `selectCard`/`selectPlayer`/`pressButton`/`answerAsk`'s own return value |
 | `loop` | a DECLINED optional ask came back with the same method and the same offered shape three times running, AT THE SAME turn and phase, with no act of this seat's own in between (a click on the same card again opens a new question, not the old one coming back; a `tempShowZones` that recurs every cleanup step by design is excluded outright) | `declineStreak` in `seat-driver.ts` |
 | `server-unclassified` | the server logged `ask-unclassified` for this match — a question `answerability` has no rule for. Not `ask-unanswerable`: that is the server answering, by its own rule (7f343ec90), a question no seat could (`serverFlagsOf`) | the running stack's own JSON log file, tailed per match |
-| `no-finish` | the match never started (`POST /api/play/matches` refused it for a reason other than a 503), the connection broke (`report`'s `connect-error`/`disconnected`/…), or it did not finish within `--turn-cap` (default 60) or `--match-timeout-ms` (default 6 s per turn of the turn cap, 360000: the wall guards a match that stops advancing, never one still moving) | `run-match.ts` |
+| `no-finish` | the match never started (`POST /api/play/matches` refused it for a reason other than a 503), the connection broke (`report`'s `disconnected`, `snapshot-failed`, `no-snapshot` or `stale-build-reload`; a `slow-connect` or one `connect-error` is a board noting its connect while it keeps trying, and ends nothing), one turn went on past `--turn-stall-ms` (default 300000), or the match ran past `--match-timeout-ms` (a backstop, default 30 s per turn of the turn cap). Reaching `--turn-cap` (default 60) ends a match as `turn-capped` and a run's `--budget-ms` running out ends one as `cut-short`; neither is flagged, since a long game is not a finding | `run-match.ts` |
 
 ### Reading a report
 
@@ -98,8 +98,11 @@ also picked by that per-match RNG, so it is reproduced too.
 
 Every deck `GET /api/tables/decks` lists for the running server (`deck-pool.ts`)
 — 1459 at this writing, the whole `@hadoku/deck/library` manifest. `--deck
-<id>` runs one; `--sample <n>` runs a random `n`; neither flag runs every one
-(the nightly CI job's default). Each run's seat 0 is the named deck; seat 1
+<id>` runs one; `--sample <n>` runs a random `n`; neither flag takes every
+one, in an order the seed shuffles. `--budget-ms` stops starting matches once
+it is spent (the ones playing get 8 minutes more, then are conceded as
+`cut-short`) and writes the report; the nightly CI job takes the whole library
+with a 75-minute budget, so each night covers a different slice of it. Each run's seat 0 is the named deck; seat 1
 (Forge's AI) is a second deck drawn by the same per-match RNG — so across many
 runs every deck is played BOTH by the monkey directly and by the AI, though
 within one run the monkey only ever holds seat 0. (Scope decision: a
@@ -138,14 +141,14 @@ Mutation evidence, each reverted before landing:
   beside it that must NOT flag (asking for what was offered; the same shape
   recurring across DIFFERENT turns, which is ordinary play; `tempShowZones`/
   `openZones` recurring by design; another match's log line).
-- **`no-finish`** — `--turn-cap 1` on a real match timed it out and flagged
-  `no-finish`; no code change needed, since the cap is exactly this flag's
-  own trigger.
+- **`no-finish`** — a real match with a short `--turn-stall-ms` timed out and
+  flagged `no-finish`. (`--turn-cap 1` no longer does: a game at the turn cap
+  is `turn-capped`, unflagged.)
 
 ## CI
 
-`.github/workflows/forge.yml`'s `forge-monkey` job: every library deck,
-nightly (the `0 10 * * *` cron, beside the existing full-run schedule), on
+`.github/workflows/forge.yml`'s `forge-monkey` job: the library in a
+seed-shuffled order for a 75-minute budget, nightly (the `0 10 * * *` cron, beside the existing full-run schedule), on
 the per-pin bundle `scripts/forge-bundle.sh` resolves for whatever commit is
 on `main` that night. A manual dispatch with `monkey: true` runs a sample of
 8 by default (`monkey_sample`/`monkey_seed`/`monkey_deck` inputs to narrow or
