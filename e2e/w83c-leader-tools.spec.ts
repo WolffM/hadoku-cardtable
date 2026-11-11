@@ -28,13 +28,15 @@ const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
 interface RoomBody {
   members: { id: string; name: string }[];
   tables: { id: string; matchId: string | null; players: { memberId: string }[]; series: { wins: [number, number]; games: unknown[]; phase: string } }[];
-  pod: {
-    phase: string;
-    round: number;
-    pairings: { tableId: string; players: [string, string] }[];
-    results: { round: number; playerA: string; playerB: string | null; gamesA: number; gamesB: number }[];
-    standings: { id: string }[];
-    dropped?: string[];
+  game: {
+    pod: {
+      phase: string;
+      round: number;
+      pairings: { tableId: string; players: [string, string] }[];
+      results: { round: number; playerA: string; playerB: string | null; gamesA: number; gamesB: number }[];
+      standings: { id: string }[];
+      dropped?: string[];
+    };
   };
 }
 
@@ -67,7 +69,7 @@ async function tournament(origin: string, leader: Friend, members: Friend[], ent
 
 /** The entrant's own current table, from the room. */
 function tableOf(room: RoomBody, memberId: string): RoomBody['tables'][number] {
-  const pairing = room.pod.pairings.find((p) => p.players.includes(memberId));
+  const pairing = room.game.pod.pairings.find((p) => p.players.includes(memberId));
   const table = room.tables.find((t) => t.id === pairing?.tableId);
   if (table === undefined) throw new Error(`${memberId}: no table this round`);
   return table;
@@ -116,7 +118,7 @@ test(titled('a watching leader resets a game (the score stands, a fresh game fol
     const roomId = await tournament(stack.origin, alice, [alice, bob, carol], [bob, carol], 2);
     const room = async () => (await call<RoomBody>(alice, stack.origin, 'GET', `/rooms/${roomId}`)).body;
     let r = await room();
-    expect(r.pod.phase, 'the field locked').toBe('rounds');
+    expect(r.game.pod.phase, 'the field locked').toBe('rounds');
     const id = (f: Friend) => r.members.find((m) => m.name === `e2e-${f.name}`)!.id;
     const [bobId, carolId] = [id(bob), id(carol)];
     const bobs = tableOf(r, bobId);
@@ -155,20 +157,20 @@ test(titled('a watching leader resets a game (the score stands, a fresh game fol
     await confirmOnCard(alice.page, bobs.id, /^DQ e2e-bob$/);
     await expect(bob.page.getByTestId('game-result'), 'bob: his game ends at once').toBeVisible({ timeout: 15_000 });
     r = await room();
-    console.log(`[w83c] after DQ: results ${JSON.stringify(r.pod.results)} dropped ${JSON.stringify(r.pod.dropped)} (game ${bobGame})`);
-    expect(r.pod.dropped).toEqual([bobId]);
-    const lost = r.pod.results.find((x) => x.round === 1 && (x.playerA === bobId || x.playerB === bobId))!;
+    console.log(`[w83c] after DQ: results ${JSON.stringify(r.game.pod.results)} dropped ${JSON.stringify(r.game.pod.dropped)} (game ${bobGame})`);
+    expect(r.game.pod.dropped).toEqual([bobId]);
+    const lost = r.game.pod.results.find((x) => x.round === 1 && (x.playerA === bobId || x.playerB === bobId))!;
     expect(lost.playerA === bobId ? [lost.gamesA, lost.gamesB] : [lost.gamesB, lost.gamesA], 'a loss').toEqual([0, 2]);
 
     // Carol finishes round 1; round 2 gives Bob no table — his opponent's pairing is a bye.
     await carol.page.getByTestId('live-concede').click();
     await carol.page.getByTestId('live-concede-yes').click();
-    await expect.poll(async () => (await room()).pod.round, { timeout: UI_TIMEOUT }).toBeGreaterThan(1);
+    await expect.poll(async () => (await room()).game.pod.round, { timeout: UI_TIMEOUT }).toBeGreaterThan(1);
     r = await room();
-    console.log(`[w83c] round 2: pairings ${JSON.stringify(r.pod.pairings)} results ${JSON.stringify(r.pod.results.filter((x) => x.round === 2))}`);
-    expect(r.pod.pairings.flatMap((p) => p.players)).not.toContain(bobId);
-    expect(r.pod.results.filter((x) => x.round === 2 && (x.playerA === bobId || x.playerB === bobId)), 'his record is kept as it was').toEqual([]);
-    expect(r.pod.results.filter((x) => x.round === 2 && x.playerB === null), 'whoever drew him has a bye').toHaveLength(1);
+    console.log(`[w83c] round 2: pairings ${JSON.stringify(r.game.pod.pairings)} results ${JSON.stringify(r.game.pod.results.filter((x) => x.round === 2))}`);
+    expect(r.game.pod.pairings.flatMap((p) => p.players)).not.toContain(bobId);
+    expect(r.game.pod.results.filter((x) => x.round === 2 && (x.playerA === bobId || x.playerB === bobId)), 'his record is kept as it was').toEqual([]);
+    expect(r.game.pod.results.filter((x) => x.round === 2 && x.playerB === null), 'whoever drew him has a bye').toHaveLength(1);
 
     // The standings keep him, marked.
     await alice.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
@@ -215,10 +217,10 @@ test(titled('a seated leader resets their own game and both seats are back in a 
     await expect(alice.page.getByTestId('game-result'), 'alice: the game ends on the leave').toBeVisible({ timeout: 15_000 });
     await expect(alice.page.getByTestId('game-result')).toHaveAttribute('data-result', 'victory');
     const done = await room();
-    console.log(`[w83c] after leave: ${JSON.stringify(done.pod)}`);
-    expect(done.pod.dropped).toEqual([bobId]);
-    expect(done.pod.results).toHaveLength(1);
-    expect(done.pod.phase).toBe('done');
+    console.log(`[w83c] after leave: ${JSON.stringify(done.game.pod)}`);
+    expect(done.game.pod.dropped).toEqual([bobId]);
+    expect(done.game.pod.results).toHaveLength(1);
+    expect(done.game.pod.phase).toBe('done');
   } finally {
     await stack.stop();
   }

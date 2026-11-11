@@ -87,7 +87,7 @@ describe('app codec v2 reads v1 rooms from disk', () => {
 			expect(fromV2.lobby.get(snapshot.roomId)).toEqual(view);
 			// The view's `game` is Magic's blob, and the top level restates it.
 			const { format, mode, modeOptions, clientMode, draftStartedAt, pod } = view!;
-			expect(view!.game).toEqual({ format, mode, modeOptions, clientMode, draftStartedAt, pod, ...(view!.scenario === undefined ? {} : { scenario: view!.scenario }) });
+			expect(view!.game).toEqual({ format, mode, modeOptions, clientMode, draftStartedAt, pod, ...(view!.game.scenario === undefined ? {} : { scenario: view!.game.scenario }) });
 		});
 	});
 });

@@ -258,7 +258,7 @@
 
 import { Component, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import { CLIENT_EVENT, selfAnswer, type ClientEvent, type DraftCard, type RestartState } from '@hadoku/shared';
+import { CLIENT_EVENT, magicGame, selfAnswer, type ClientEvent, type DraftCard, type RestartState } from '@hadoku/shared';
 import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
 import { YIELDING, type EndedBy } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
@@ -2379,13 +2379,13 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
    * finished table, for ever (the operator, 2026-10-19: *"it seems like it just
    * lets me keep clicking 'next game' forever"*).
    */
-  const inPod = room !== null && room.pod !== null;
+  const inPod = room !== null && magicGame(room).pod !== null;
   /**
    * A Gauntlet is never rematched: between its games the button is Next game,
    * and once it is decided the next Gauntlet is set up in the room (the
    * operator, 2026-10-21: *"when match is finished don't show 'rematch' button"*).
    */
-  const rematchable = !inPod && room?.mode !== 'gauntlet';
+  const rematchable = !inPod && (room === null || magicGame(room).mode !== 'gauntlet');
   /**
    * A room change (mode, pool) since this game interrupted its series: the
    * table is back to a fresh `seating` series without it (ruling 14). Its

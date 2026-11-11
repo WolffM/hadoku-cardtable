@@ -64,8 +64,8 @@ export const GAUNTLET_AI_BEAT_MS = 600;
 export interface GauntletRoom {
 	id: string;
 	gameType: string;
-	mode?: RoomModeState['mode'];
-	modeOptions?: RoomModeState['modeOptions'];
+	/** Magic's part of the room: its mode and that mode's options, absent or null until chosen. */
+	game: { mode?: RoomModeState['mode']; modeOptions?: RoomModeState['modeOptions'] };
 	members: { id: string; name: string }[];
 	ai?: { name: string; avatarId?: string };
 	tables: { id: string; matchId: string | null }[];
@@ -126,7 +126,7 @@ export interface GauntletHandle {
 }
 
 function isGauntlet(room: GauntletRoom): boolean {
-	return room.gameType === 'constructed-1v1' && room.mode === 'gauntlet';
+	return room.gameType === 'constructed-1v1' && room.game.mode === 'gauntlet';
 }
 
 const REFUSALS: Record<string, [number, string]> = {
@@ -316,7 +316,7 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 			answer(res, room, tableId, me);
 			return;
 		}
-		const options = GauntletOptionsSchema.safeParse(room.modeOptions ?? {});
+		const options = GauntletOptionsSchema.safeParse(room.game.modeOptions ?? {});
 		const opts = options.success ? options.data : {};
 		const drawn = drawGauntlet(readied.state, { players: players as [GauntletPlayer, GauntletPlayer], eras, options: opts, random: deps.random, now: now() });
 		if (!drawn.ok) {

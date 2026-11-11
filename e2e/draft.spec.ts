@@ -134,12 +134,15 @@ interface Msg {
 interface RoomWire {
   id: string;
   gameType: string;
-  draftStartedAt: string | null;
   members: { id: string; name: string; ready: boolean }[];
   /** Who the room's AI plays as. */
   ai: { name: string; avatarId: string };
-  /** The pod past its lobby: the round's pairings, each bot entrant's character, and the results. */
-  pod: { pairings: { players: [string, string] }[]; personas: Record<string, { name: string; avatarId: string }> } | null;
+  /** Magic's part of the room. */
+  game: {
+    draftStartedAt: string | null;
+    /** The pod past its lobby: the round's pairings, each bot entrant's character, and the results. */
+    pod: { pairings: { players: [string, string] }[]; personas: Record<string, { name: string; avatarId: string }> } | null;
+  };
 }
 
 /* ── one person at the table ─────────────────────────────────────────── */
@@ -538,7 +541,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   await expectLobbyNotPod(alice);
   const created = await roomState(alice, roomId);
   expect(created.gameType).toBe('draft');
-  expect(created.draftStartedAt, 'creating a draft room does not deal a draft').toBeNull();
+  expect(created.game.draftStartedAt, 'creating a draft room does not deal a draft').toBeNull();
 
   /* ── bob arrives from the room list, and from nowhere else ────────── */
 
@@ -579,7 +582,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
     .toBe(1);
 
   const halfway = await roomState(alice, roomId);
-  expect(halfway.draftStartedAt, 'one ready member of two does not deal a draft').toBeNull();
+  expect(halfway.game.draftStartedAt, 'one ready member of two does not deal a draft').toBeNull();
   await expect(alice.page.getByTestId('pod')).toHaveCount(0);
   await expect(bob.page.getByTestId('pod')).toHaveCount(0);
 
@@ -587,11 +590,11 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
 
   await readyPod(bob.page);
   // Both seated and ready, six seats open: still no deal until the AI holds them.
-  expect((await roomState(alice, roomId)).draftStartedAt, 'an open seat holds the deal').toBeNull();
+  expect((await roomState(alice, roomId)).game.draftStartedAt, 'an open seat holds the deal').toBeNull();
   await fillWithAi(alice.page, UI_TIMEOUT);
   await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
   await expect(bob.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
-  expect((await roomState(alice, roomId)).draftStartedAt, 'every seat filled and every player ready deals the draft').not.toBeNull();
+  expect((await roomState(alice, roomId)).game.draftStartedAt, 'every seat filled and every player ready deals the draft').not.toBeNull();
 
   // Which seat each browser got is a race; that they are BOTH here is not.
   const aliceSeat = await seatFromWire(alice);
@@ -1177,7 +1180,7 @@ test(
       const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
       await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
       const game1 = alice.page.url();
-      const round1 = (await roomState(alice, roomId, stack.origin)).pod!;
+      const round1 = (await roomState(alice, roomId, stack.origin)).game.pod!;
       expect(round1.pairings.map((p) => p.players[1]), 'she plays seat 2’s bot').toEqual(['ai:2']);
       const opponent = round1.personas['ai:2']!;
       await expect(alice.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });

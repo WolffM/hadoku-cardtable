@@ -16,7 +16,7 @@ const library = loadTablesLibrary(REPO_ROOT);
 
 interface Harness {
 	url: string;
-	room: GauntletRoom & { format: string };
+	room: GauntletRoom & { game: { format: string } };
 	/** `tableId` defaults to the room's first table — a plain one-table harness never has to name it. */
 	stored: (tableId?: string) => GauntletState | null;
 	/** Run every timer that is due, in order, as often as they re-arm. */
@@ -37,7 +37,7 @@ afterEach(async () => {
 	open = null;
 });
 
-async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] = { family: 'modern' }): Promise<Harness> {
+async function boot(seated: string[], modeOptions: GauntletRoom['game']['modeOptions'] = { family: 'modern' }): Promise<Harness> {
 	return bootRoom({
 		members: [
 			{ id: 'alice', name: 'Alice' },
@@ -60,7 +60,7 @@ async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] =
  */
 async function bootRoom(input: {
 	members: { id: string; name: string }[];
-	modeOptions?: GauntletRoom['modeOptions'];
+	modeOptions?: GauntletRoom['game']['modeOptions'];
 	tables: { id: string; seated: string[] }[];
 }): Promise<Harness> {
 	const gauntlets = new Map<string, GauntletState>();
@@ -68,12 +68,10 @@ async function bootRoom(input: {
 	for (const t of input.tables) readyBy.set(t.id, new Set());
 	const seatedBy = new Map(input.tables.map((t) => [t.id, t.seated]));
 	const pairings: Harness['pairings'] = {};
-	const room: GauntletRoom & { format: string } = {
+	const room: GauntletRoom & { game: { format: string } } = {
 		id: 'r-1',
 		gameType: 'constructed-1v1',
-		mode: 'gauntlet',
-		modeOptions: input.modeOptions ?? { family: 'modern' },
-		format: '2016-07-22',
+		game: { mode: 'gauntlet', modeOptions: input.modeOptions ?? { family: 'modern' }, format: '2016-07-22' },
 		members: input.members,
 		ai: { name: 'Sage' },
 		tables: input.tables.map((t) => ({ id: t.id, matchId: null })),
@@ -179,7 +177,7 @@ describe('the Gauntlet routes', () => {
 		const v = await view(h, 'alice');
 		expect(v.phase).toBe('reveal');
 		expect(v.era?.family).toBe('modern');
-		expect(h.room.format, 'the era is the table’s, from its dealt decks, never the room’s pool').toBe('2016-07-22');
+		expect(h.room.game.format, 'the era is the table’s, from its dealt decks, never the room’s pool').toBe('2016-07-22');
 		expect(v.revealAt).toBe(h.clock.now);
 		expect(v.decks).toHaveLength(GAUNTLET_DECKS);
 		expect(v.decks.every((d) => d.main.length > 0 && d.name !== '')).toBe(true);
@@ -307,7 +305,7 @@ describe('the Gauntlet routes', () => {
 
 	it('answers a room that is not playing a Gauntlet with a refusal', async () => {
 		const h = await boot([...ME]);
-		h.room.mode = 'classic';
+		h.room.game.mode = 'classic';
 		expect((await call(h, 'alice', '/rooms/r-1/gauntlet')).status).toBe(409);
 		expect(h.handle.startRefusal(h.room)).toBeNull();
 	});

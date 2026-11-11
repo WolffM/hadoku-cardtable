@@ -43,7 +43,7 @@ import { botPoolAcross, createDraftRooms, joinDraftRoom, singlePoolResolver, sta
 import { botDeckText } from '../room/botDeck.js';
 import { isBotSeat } from '@hadoku/draft';
 import { draftPoolId } from '../room/lobby.js';
-import { convertToBo3, newSeries, recordGame, seriesFormatOf } from '../room/series.js';
+import { convertToBo3, newSeries, recordGame, seriesFormatOf, type SeriesRoom } from '../room/series.js';
 import { leaveSeat, readySeat, seatList, sitAt, type TableSeats } from '../room/seats.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
@@ -297,8 +297,6 @@ interface FakeRoom {
 	id: string;
 	name: string;
 	gameType: string;
-	/** The room's pool: one per table, for both seats. Mutable here, so a test can put a room in a state the leader's setter would never leave it in. */
-	format: string;
 	settings: { handSmoothing: boolean; clock?: ClockSetting };
 	leader: string;
 	/** `avatarId` optional and never blank, exactly as `RoomViewLike` states it. */
@@ -310,17 +308,33 @@ interface FakeRoom {
 	state: Map<string, unknown>;
 	/** Each table's seats and Readys, by table id, through `room/seats.ts` as the real lobby keeps them; `tables[].players` is drawn from it. */
 	seats: Map<string, TableSeats>;
-	/** Wave 72 §P: `RoomViewLike` carries it now, but no test in this file plays a pod — every fake room is constructed and this stays `null`. */
-	pod: { phase: string } | null;
-	/** A Constructed room's mode and its options (`@hadoku/shared`'s `RoomModeState`); absent reads as no mode chosen. The mode sizes its series (`room/series.ts`'s `seriesFormatOf`). */
-	mode?: RoomModeState['mode'];
-	modeOptions?: RoomModeState['modeOptions'];
+	/** Magic's part of the room, mutable here, so a test can put a room in a state the leader's setter would never leave it in. */
+	game: {
+		/** The room's pool: one per table, for both seats. */
+		format: string;
+		/** `RoomViewLike` carries it, but no test in this file plays a pod — every fake room is constructed and this stays `null`. */
+		pod: { phase: string } | null;
+		/** A Constructed room's mode and its options (`@hadoku/shared`'s `RoomModeState`); absent reads as no mode chosen. The mode sizes its series (`room/series.ts`'s `seriesFormatOf`). */
+		mode?: RoomModeState['mode'];
+		modeOptions?: RoomModeState['modeOptions'];
+		/** `room/lobby.ts`'s `RoomRecord.scenario` — absent is every room a friend ever opens. Mutable directly: no fake setter exists for a field only `room/testing-rooms.ts` ever sets on the real lobby. */
+		scenario?: string;
+	};
 	/** `Lobby.gauntlet`'s stored Gauntlet; absent reads as none. */
 	gauntlet?: GauntletState | null;
-	/** `room/lobby.ts`'s `RoomRecord.scenario` — absent is every room a friend ever opens. Mutable directly, same as `settings` above: no fake setter exists for a field only `room/testing-rooms.ts` ever sets on the real lobby. */
-	scenario?: string;
-	/** `room/lobby.ts`'s `RoomRecord.testing` — absent is every room a friend ever opens. Mutable directly, same reasoning as `scenario` above. */
+	/** `room/lobby.ts`'s `RoomRecord.testing` — absent is every room a friend ever opens. Mutable directly, same reasoning as `game.scenario` above. */
 	testing?: boolean;
+}
+
+/** What the room's series reads of it (`room/series.ts`'s `SeriesRoom`). */
+function seriesRoom(room: FakeRoom): SeriesRoom {
+	return { gameType: room.gameType, mode: room.game.mode };
+}
+
+/** `room`, its game changed by `game`: a test's room in a state only the leader's setters reach. */
+function withGame(room: FakeRoom, game: Partial<FakeRoom['game']>): FakeRoom {
+	Object.assign(room.game, game);
+	return room;
 }
 
 interface FakeLobby extends TablesRooms {
@@ -362,7 +376,7 @@ function fakeLobby(): FakeLobby {
 				id,
 				name: `room ${id}`,
 				gameType,
-				format,
+				game: { format, pod: null },
 				settings: { handSmoothing: true },
 				leader: members[0]?.id ?? '',
 				members,
@@ -370,7 +384,6 @@ function fakeLobby(): FakeLobby {
 				matches: [],
 				state: new Map(),
 				seats: new Map(),
-				pod: null,
 			};
 			held.set(id, room);
 			return room;
@@ -426,7 +439,7 @@ function fakeLobby(): FakeLobby {
 			const table = room?.tables.find((t) => t.id === tableId);
 			if (room === undefined || table === undefined || table.matchId !== null) return false;
 			if (table.series.phase === 'seating' || table.series.phase === 'done') {
-				const { length, wins, games } = newSeries(room, [], 'playing');
+				const { length, wins, games } = newSeries(seriesRoom(room), [], 'playing');
 				table.series = { length, wins, games, phase: 'playing' };
 			} else {
 				table.series = { ...table.series, phase: 'playing' };
@@ -452,7 +465,7 @@ function fakeLobby(): FakeLobby {
 			if (room === undefined || table === undefined) return { ok: false };
 			table.matchId = null;
 			seatsAt(roomId, tableId)!.seats.ready = [false, false];
-			const { length, wins, games, phase } = recordGame({ ...table.series, played: [null, null], mode: 'classic', settled: false }, seriesFormatOf(room), result);
+			const { length, wins, games, phase } = recordGame({ ...table.series, played: [null, null], mode: 'classic', settled: false }, seriesFormatOf(seriesRoom(room)), result);
 			table.series = { length, wins, games, phase };
 			return { ok: true };
 		},
@@ -469,7 +482,7 @@ function fakeLobby(): FakeLobby {
 			const room = held.get(roomId);
 			if (room === undefined) return { ok: false, reason: 'no-room' };
 			if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-			const table = emptyTable(mintTable(), seriesFormatOf(room).length);
+			const table = emptyTable(mintTable(), seriesFormatOf(seriesRoom(room)).length);
 			room.tables.push(table);
 			return { ok: true, table };
 		},
@@ -1273,7 +1286,7 @@ describe('a room table', () => {
 		const h = await boot();
 		const room = h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
 		const scenario = 'turn=1\nactiveplayer=human\nactivephase=MAIN1\nhumanlife=20\nailife=20\nhumanhand=\nhumanbattlefield=\nhumanlibrary=Mountain\nhumangraveyard=\naihand=\naibattlefield=\nailibrary=Mountain\naigraveyard=\n';
-		room.scenario = scenario;
+		room.game.scenario = scenario;
 		expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
 		expect((await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'))).status).toBe(201);
 		expect(h.specs[0]?.scenario).toBe(scenario);
@@ -1287,7 +1300,7 @@ describe('a room table', () => {
 	it('seats and deals the caller of a board-state room who holds no deck, and starts the AI on its board', async () => {
 		const h = await boot();
 		const room = h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
-		room.scenario = 'turn=1\nactiveplayer=human\nactivephase=MAIN1\nhumanlife=20\nailife=20\n';
+		room.game.scenario = 'turn=1\nactiveplayer=human\nactivephase=MAIN1\nhumanlife=20\nailife=20\n';
 		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
 		expect(res.status).toBe(201);
 		expect(h.specs[0]?.skipOpening).toBe(true);
@@ -1422,7 +1435,7 @@ describe('a room table', () => {
 			const botDeck = library.decks.find((d) => d.text === seats[1]?.deck);
 			expect(botDeck).toBeDefined();
 			// Checked the way a player's own deck is, in a second room on the same pool.
-			h.lobby.open('r-check', [{ id: ALICE, name: 'user-alice' }], undefined, h.lobby.room(ROOM)?.format);
+			h.lobby.open('r-check', [{ id: ALICE, name: 'user-alice' }], undefined, h.lobby.room(ROOM)?.game.format);
 			const verdict = await putDeck(h, 'alice', deckBody(botDeck!.id), 'r-check');
 			expect(verdict.status).toBe(200);
 			expect(myDeck(verdict.body)?.legal).toBe(true);
@@ -2115,7 +2128,7 @@ describe('a room table', () => {
 				roomId: ROOM,
 				rated: true,
 				startedAt: Date.parse(startedAt),
-				attrs: { format: library.format(h.lobby.room(ROOM)!.format)!.family, pool: h.lobby.room(ROOM)!.format, opponent: 'human', mode: 'classic', bestOf: 1 },
+				attrs: { format: library.format(h.lobby.room(ROOM)!.game.format)!.family, pool: h.lobby.room(ROOM)!.game.format, opponent: 'human', mode: 'classic', bestOf: 1 },
 			});
 			expect(report.seats.map((s) => [s.seat, s.kind, s.userKey, s.displayName, s.placement, s.attrs?.deck, s.attrs?.deckId])).toEqual([
 				[0, 'user', 'friend-key-alice', 'user-alice', 1, 'UG Polymorph (Antoine Ruel)', UG_POLYMORPH],
@@ -2479,7 +2492,7 @@ describe('a room table', () => {
 		// Set directly, which is a state the leader's setter would never leave
 		// behind — it drops every hold and both ready flags. That is the point: the
 		// start route does not trust the stored verdict, it checks the room's pool.
-		room.format = POWER_2010;
+		room.game.format = POWER_2010;
 		const refused = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'));
 		expect(refused.status).toBe(422);
 		expect(refused.body.error).toBe("user-alice's deck is not legal in Standard (M11)");
@@ -2491,7 +2504,7 @@ describe('a room table', () => {
 		expect(h.specs).toEqual([]);
 
 		// Back on the pool both decks are legal in, the same two holds start.
-		room.format = POWER_2011;
+		room.game.format = POWER_2011;
 		expect((await startRoom(h, 'bob')).status).toBe(201);
 	});
 
@@ -2518,11 +2531,11 @@ describe('a room table', () => {
 		});
 		// A room that goes unknown UNDER a loaded table refuses the start too, and
 		// with the same sentence: nothing is checked against a pool nobody froze.
-		room.format = POWER_2010;
+		room.game.format = POWER_2010;
 		await bothLoaded(h);
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');
-		room.format = 'unavailable';
+		room.game.format = 'unavailable';
 		const started = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
 		expect(started).toMatchObject({ status: 409, body: { error: 'this room\'s format "unavailable" is not one this server has' } });
 		expect(h.specs).toEqual([]);
@@ -3109,7 +3122,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 	/** The pod's own room, in its rounds. Its stored `format` is an unrelated era, as a real draft room's is. */
 	const openRoom = (h: Harness, id = ROOM, members: FakeRoom['members'] = [...MEMBERS]) => {
 		const room = h.lobby.open(id, members, 'draft', POWER_2010);
-		room.pod = { phase: 'rounds' };
+		room.game.pod = { phase: 'rounds' };
 		return room;
 	};
 	const putDeck = (h: Harness, user: string, dck: string, id = ROOM) =>
@@ -3489,7 +3502,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 		const pools = pod(h, PODTABLE);
 		h.lobby.open(PODTABLE, [...MEMBERS], 'draft', POWER_2010);
 		const room = h.lobby.room(PODTABLE)!;
-		room.pod = { phase: 'rounds' };
+		room.game.pod = { phase: 'rounds' };
 
 		const putPodDeck = (user: string, dck: string) =>
 			call(h, 'PUT', `/api/tables/rooms/${PODTABLE}/deck`, { deck: { dck } }, edgeHeaders(user));
@@ -3524,7 +3537,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 		const h = await boot();
 		h.lobby.open(PODTABLE, [...MEMBERS], 'draft', POWER_2010);
 		const room = h.lobby.room(PODTABLE)!;
-		room.pod = { phase: 'done' };
+		room.game.pod = { phase: 'done' };
 		room.tables[0]!.series.phase = 'done';
 		for (const body of [{ room: PODTABLE }, { room: PODTABLE, bot: true }]) {
 			const res = await start(h, body, '/api/play/matches', 'application/json', edgeHeaders('alice'));
@@ -3540,7 +3553,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 		const room = h.lobby.room(PODTABLE)!;
 		// `done` keeps its tables, for their history; a finished series there starts nothing (below).
 		for (const phase of ['lobby', 'drafting', 'building'] as const) {
-			room.pod = { phase };
+			room.game.pod = { phase };
 			const res = await call(h, 'PUT', `/api/tables/rooms/${PODTABLE}/deck`, { deck: { dck: 'anything' } }, edgeHeaders('alice'));
 			expect(res.status).toBe(409);
 			expect(res.body.error).toContain('not constructed-1v1 or a pod at its tables');
@@ -3556,7 +3569,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 describe('an All Random table', () => {
 	const ROOM = 'r-random';
 	const room = (h: Harness, members: FakeRoom['members'], pool: 'full' | 'standard' | 'modern' | 'legacy' = 'modern', lock = false) =>
-		Object.assign(h.lobby.open(ROOM, members), { mode: 'random' as const, modeOptions: lock ? { pool, lock } : { pool } });
+		withGame(h.lobby.open(ROOM, members), { mode: 'random' as const, modeOptions: lock ? { pool, lock } : { pool } });
 	const sit = (h: Harness, user: string) => call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders(user));
 	const setReady = (h: Harness, user: string) => call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: true }, edgeHeaders(user));
 	const myDeck = (body: Record<string, unknown>) => (body.players as { you: boolean; deck?: { name: string } | null }[]).find((p) => p.you)?.deck;
@@ -3817,7 +3830,7 @@ describe('a Gauntlet table', () => {
 
 	it("deals the chosen decks in the Gauntlet's era at the table, leaves the room's pool alone, and the AI plays its own choice", async () => {
 		const h = await boot();
-		const room = Object.assign(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
+		const room = withGame(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
 		expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders('alice'))).status).toBe(200);
 		const g = atChoice();
 		h.lobby.setGauntlet!(ROOM, g);
@@ -3837,7 +3850,7 @@ describe('a Gauntlet table', () => {
 		const spec = h.specs[0]!;
 		expect(spec.seats.map((s) => s.deck)).toEqual([library.deck(mine)!.text, library.deck(aiDeck)!.text]);
 		expect(spec.format, "the match plays the Gauntlet's era").toBe(g.era!.id);
-		expect(room.format, "the room's own pool is untouched").toBe(POWER_2010);
+		expect(room.game.format, "the room's own pool is untouched").toBe(POWER_2010);
 	});
 
 	/**
@@ -3848,7 +3861,7 @@ describe('a Gauntlet table', () => {
 	 */
 	it('asks the previous game’s loser play-or-draw, as any Bo3 does', async () => {
 		const h = await boot();
-		const room = Object.assign(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
+		const room = withGame(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
 		expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders('alice'))).status).toBe(200);
 		const g = atChoice();
 		h.lobby.setGauntlet!(ROOM, g);
@@ -3873,7 +3886,7 @@ describe('a Gauntlet table', () => {
 	/** Ruling 13.4: a drawn Gauntlet holds the table until it is decided, and then the room is free again. */
 	it('locks the table from the draw until the Gauntlet is decided; then the seat stands, and a Ready draws a new Gauntlet', async () => {
 		const h = await boot();
-		const room = Object.assign(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
+		const room = withGame(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
 		expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders('alice'))).status).toBe(200);
 		const g = atChoice();
 		h.lobby.setGauntlet!(ROOM, g);

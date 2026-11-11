@@ -93,9 +93,9 @@ test(
       // Ready, for Gauntlet, is the room-level member ready — no deck to pick pre-lock (ruling 4).
       // Bob's own Ready is the last thing the field needs: it locks by itself (ruling 7).
       expect((await aliceApi('POST', `/rooms/${roomId}/ready`, { ready: true })).status).toBe(200);
-      const locked = await bobApi<{ pod: PodView | null }>('POST', `/rooms/${roomId}/ready`, { ready: true });
+      const locked = await bobApi<{ game: { pod: PodView | null } }>('POST', `/rooms/${roomId}/ready`, { ready: true });
       expect(locked.status, JSON.stringify(locked.body)).toBe(200);
-      const pod1 = locked.body.pod!;
+      const pod1 = locked.body.game.pod!;
       expect(pod1.phase, 'the field locked itself on Bob’s own Ready').toBe('rounds');
       expect(pod1.round).toBe(1);
       console.log(`[tournament-gauntlet] round 1 pairings: ${JSON.stringify(pod1.pairings)}`);
@@ -103,14 +103,14 @@ test(
       // Resolve each human's own table the same way the UI's `myTournamentTable` would: whichever
       // of `view.tables` holds their own member id — never by the pairing's own entrant ids, which
       // are real member/AI ids, not these test's literal names.
-      type RoomView = { tables: { id: string; players: { memberId: string }[] }[]; you: { id: string }; pod: PodView };
+      type RoomView = { tables: { id: string; players: { memberId: string }[] }[]; you: { id: string }; game: { pod: PodView } };
       const roomView = await aliceApi<RoomView>('GET', `/rooms/${roomId}`);
       const myAliceId = roomView.body.you.id;
       const bobView = await bobApi<RoomView>('GET', `/rooms/${roomId}`);
       const myBobId = bobView.body.you.id;
       // An earlier round's table stays in `tables`; only the current pairings' tables count.
       const tableOf = (view: RoomView, memberId: string): string => {
-        const current = new Set(view.pod.pairings.map((p) => p.tableId));
+        const current = new Set(view.game.pod.pairings.map((p) => p.tableId));
         return view.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === memberId))!.id;
       };
       const t1Alice = tableOf(roomView.body, myAliceId);
@@ -185,8 +185,8 @@ test(
       await finishMatch(bobApi, bob.page, t1Bob);
 
       // Round 1 settles for both.
-      await expect.poll(async () => (await aliceApi<{ pod: PodView }>('GET', `/rooms/${roomId}`)).body.pod.round, { timeout: 60_000, message: 'round 2 begins' }).toBe(2);
-      const pod2 = (await aliceApi<{ pod: PodView }>('GET', `/rooms/${roomId}`)).body.pod;
+      await expect.poll(async () => (await aliceApi<{ game: { pod: PodView } }>('GET', `/rooms/${roomId}`)).body.game.pod.round, { timeout: 60_000, message: 'round 2 begins' }).toBe(2);
+      const pod2 = (await aliceApi<{ game: { pod: PodView } }>('GET', `/rooms/${roomId}`)).body.game.pod;
       console.log(`[tournament-gauntlet] round 2 pairings: ${JSON.stringify(pod2.pairings)}`);
 
       const roomView2 = await aliceApi<RoomView>('GET', `/rooms/${roomId}`);

@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { magicRoomFields, RoomBodySchema, RoomViewSchema } from './magic-room.ts';
+import { magicGame, magicRoomFields, RoomBodySchema, RoomViewSchema } from './magic-room.ts';
 import { roomBaseFields } from './room-view.ts';
 
 const FIXTURE_VIEW = {
@@ -19,6 +19,8 @@ const FIXTURE_VIEW = {
   creator: 'alice-id',
   leader: 'alice-id',
   gameType: 'draft',
+  // Magic's blob, as the server has sent it beside the top-level copies since it began sending one.
+  game: { format: 'cube-2026', clientMode: 'builtin', draftStartedAt: null, pod: null },
   format: 'cube-2026',
   clientMode: 'builtin',
   draftStartedAt: null,
@@ -41,9 +43,14 @@ const FIXTURE_VIEW = {
 
 const FIXTURE_BODY = { ...FIXTURE_VIEW, you: { id: 'alice-id', leader: true, ready: true }, ai: { name: 'Lia', avatarId: 'npc-lia' } };
 
-/** Captured from the pre-split, monolithic `RoomViewSchema.parse(FIXTURE_VIEW)` — byte for byte. */
+/**
+ * Captured from the pre-split, monolithic `RoomViewSchema.parse(FIXTURE_VIEW)` — byte for byte, but for `game`, which that
+ * schema left unread and this one parses as Magic's blob (its mode and options read as unchosen, as at the top level).
+ */
 const EXPECTED_VIEW = {
-  id: 'r-abc123', name: 'Cube night', creator: 'alice-id', leader: 'alice-id', gameType: 'draft', format: 'cube-2026', clientMode: 'builtin',
+  id: 'r-abc123', name: 'Cube night', creator: 'alice-id', leader: 'alice-id', gameType: 'draft',
+  game: { format: 'cube-2026', clientMode: 'builtin', draftStartedAt: null, pod: null, mode: null, modeOptions: null },
+  format: 'cube-2026', clientMode: 'builtin',
   draftStartedAt: null, pod: null,
   settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' },
   locks: { gameType: 'draft-started', mode: null, event: null, format: null, rules: null },
@@ -69,6 +76,30 @@ describe('RoomView/RoomBody: platform base + magic composition parse to the same
 
   it('RoomBodySchema (now composed in magic-room.ts) matches the pre-split output', () => {
     expect(RoomBodySchema.parse(FIXTURE_BODY)).toStrictEqual(EXPECTED_BODY);
+  });
+
+  it("parses Magic's blob as `game`: every field the top level restates reads the same from it", () => {
+    // A constructed room as `viewOf` sends it: Magic's fields at the top level and again under `game`.
+    const magic = { format: '2018-07-13', mode: 'gauntlet', modeOptions: { family: 'modern', year: 2020 }, clientMode: 'streamed', draftStartedAt: null, pod: null, scenario: 'board.pzl' };
+    const body = { ...FIXTURE_BODY, gameType: 'constructed-1v1', ...magic, game: magic };
+    for (const schema of [RoomViewSchema, RoomBodySchema]) {
+      const parsed = schema.parse(body) as Record<string, unknown> & { gameType: string };
+      const game = magicGame(parsed) as Record<string, unknown>;
+      for (const key of Object.keys(magicRoomFields)) expect(game[key], key).toStrictEqual(parsed[key]);
+    }
+    // And a draft room's, its pod and its draft's start with it.
+    const draft = RoomViewSchema.parse({ ...FIXTURE_VIEW, game: { ...FIXTURE_VIEW.game, draftStartedAt: '2026-11-01T00:10:00.000Z' } });
+    expect(magicGame(draft)).toStrictEqual({ format: 'cube-2026', clientMode: 'builtin', draftStartedAt: '2026-11-01T00:10:00.000Z', pod: null, mode: null, modeOptions: null });
+  });
+
+  it("reads a Magic room's missing or malformed blob as every field at its fallback, and another game's as it came", () => {
+    const fallback = { format: '', clientMode: 'builtin', draftStartedAt: null, pod: null, mode: null, modeOptions: null };
+    const { game: _none, ...older } = FIXTURE_VIEW;
+    expect(magicGame(RoomViewSchema.parse(older))).toStrictEqual(fallback);
+    expect(magicGame(RoomViewSchema.parse({ ...FIXTURE_VIEW, game: 'not a blob' }))).toStrictEqual(fallback);
+    const other = RoomViewSchema.parse({ ...FIXTURE_VIEW, gameType: 'bomberman', game: { arena: 3 } });
+    expect(other.game).toStrictEqual({ arena: 3 });
+    expect(magicGame(other)).toStrictEqual(fallback);
   });
 
   it("the platform base carries none of Magic's own room fields", () => {

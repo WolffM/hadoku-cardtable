@@ -33,6 +33,7 @@ const ROOM: RoomView = {
   creator: 'fk:alice',
   leader: 'fk:alice',
   gameType: 'constructed-1v1',
+  game: { format: 'unavailable', mode: null, modeOptions: null, clientMode: 'builtin', draftStartedAt: null, pod: null },
   format: 'unavailable',
   settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
   locks: { ...OPEN_ROOM_LOCKS },

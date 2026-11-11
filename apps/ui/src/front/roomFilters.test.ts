@@ -42,30 +42,29 @@ const pod = (over: Partial<PodView> & { phase: PodView['phase'] }): PodView => (
   ...over,
 });
 
-const room = (over: Partial<RoomView> = {}): RoomView => ({
-  id: 'r-1',
-  name: 'Table',
-  creator: '',
-  leader: '',
-  gameType: 'constructed-1v1',
-  format: '2026-01-01',
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
-  locks: { ...OPEN_ROOM_LOCKS },
-  mode: 'classic',
-  modeOptions: {},
-  clientMode: 'builtin',
-  locked: false,
-  members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],
-  tables: [table()],
-  matchId: null,
-  draftStartedAt: null,
-  pod: null,
-  createdAt: '',
-  testing: false,
-  scheduledFor: null,
-  you: { id: 'm1', leader: true, ready: false },
-  ...over,
-});
+const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clientMode = 'builtin', draftStartedAt = null, pod = null, ...over }: Partial<RoomView> = {}): RoomView => {
+  const game = { format, mode, modeOptions, clientMode, draftStartedAt, pod };
+  return {
+    id: 'r-1',
+    name: 'Table',
+    creator: '',
+    leader: '',
+    gameType: 'constructed-1v1',
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
+    locks: { ...OPEN_ROOM_LOCKS },
+    locked: false,
+    members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],
+    tables: [table()],
+    matchId: null,
+    createdAt: '',
+    testing: false,
+    scheduledFor: null,
+    you: { id: 'm1', leader: true, ready: false },
+    ...game,
+    game,
+    ...over,
+  };
+};
 
 describe('matchesRoomFilters', () => {
   it('an unset filter never excludes a room', () => {

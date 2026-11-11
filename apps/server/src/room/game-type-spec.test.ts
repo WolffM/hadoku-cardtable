@@ -77,15 +77,15 @@ describe('a registered game type Magic never wrote', () => {
 
 		// seat 7 — past index 1, which is as far as a plain 1v1 table ever reaches.
 		expect(lobby.sitPod(roomId, ALICE.id, 7).ok).toBe(true);
-		expect(lobby.get(roomId)?.pod?.seats[7]?.memberId).toBe(ALICE.id);
+		expect(lobby.get(roomId)?.game.pod?.seats[7]?.memberId).toBe(ALICE.id);
 
 		// fill bots — this game's OWN spec decides the marker; the lobby only ever sees a member id string.
-		const seated = lobby.get(roomId)!.pod!.seats.map((s) => s?.memberId ?? null);
+		const seated = lobby.get(roomId)!.game.pod!.seats.map((s) => s?.memberId ?? null);
 		const filled = BOMBERMAN.bots!.fill(seated);
 		filled.forEach((occupant, seat) => {
 			if (occupant === BOMBERMAN_BOT && seated[seat] === null) expect(lobby.aiPod(roomId, ALICE.id, seat, true).ok).toBe(true);
 		});
-		const afterFill = lobby.get(roomId)!.pod!.seats;
+		const afterFill = lobby.get(roomId)!.game.pod!.seats;
 		const filledCount = afterFill.filter((s) => s !== null).length;
 		expect(filledCount).toBeGreaterThan(1);
 		expect(filledCount).toBeLessThanOrEqual(BOMBERMAN.seats.max);
@@ -114,7 +114,7 @@ describe('a registered game type Magic never wrote', () => {
 
 		// Alice auto-seats at 0 on create; nine bots fill the rest of this game's own ceiling.
 		for (let seat = 1; seat < 10; seat++) expect(lobby.aiPod(roomId, ALICE.id, seat, true).ok, `seat ${seat}`).toBe(true);
-		expect(lobby.get(roomId)?.pod?.seats.filter((s) => s !== null)).toHaveLength(10);
+		expect(lobby.get(roomId)?.game.pod?.seats.filter((s) => s !== null)).toHaveLength(10);
 
 		// An 11th, by an explicit seat index past the ceiling (`seatInReach`/`podSeatCeiling`, `lobby.ts`) …
 		expect(lobby.aiPod(roomId, ALICE.id, 10, true)).toEqual({ ok: false, reason: 'bad-seat' });

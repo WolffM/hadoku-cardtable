@@ -168,12 +168,9 @@ type StoreRoom = NonNullable<ReturnType<ParkedStoreDeps['roomOf']>>;
 const ROOM: StoreRoom = {
 	id: 'r-00000001',
 	name: 'Friday night',
-	clientMode: 'builtin',
 	gameType: 'constructed-1v1',
-	format: 'free',
+	game: { format: 'free', mode: 'classic', modeOptions: {}, clientMode: 'builtin', draftStartedAt: null, pod: null },
 	settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'on', pickTimer: { on: false, speed: 1 } },
-	mode: 'classic',
-	modeOptions: {},
 	testing: false,
 	members: [
 		{ id: 'fk:aaaaaaaaaaaaaaaa', name: 'Alice', joinedAt: '', ready: false },

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseRoomView, type RoomView } from '../../rooms/api.ts';
 import { fetchPodContext, heldFor, nextGameStarts, playPod, relayedPodSource, sitPod, standPod, startTableMatch } from './client.ts';
 import { POD_SEATS, type PodView } from './wire.ts';
+import { withMagicGame } from '../../rooms/room-body.testing.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -34,7 +35,7 @@ const podFixture = (): PodView => ({
 });
 
 /** A room body as `GET /api/rooms/:id` sends one: the fields a body must carry to be a room, and these. */
-const roomBody = (fields: Record<string, unknown>): Record<string, unknown> => ({ id: 'r-cube', name: 'Cube night', gameType: 'draft', locked: false, members: [], ...fields });
+const roomBody = (fields: Record<string, unknown>): Record<string, unknown> => withMagicGame({ id: 'r-cube', name: 'Cube night', gameType: 'draft', locked: false, members: [], ...fields });
 const answer = (fields: Record<string, unknown>): Response => new Response(JSON.stringify(roomBody(fields)), { status: 200 });
 const room = (fields: Record<string, unknown>): RoomView => parseRoomView(roomBody(fields))!;
 

@@ -18,6 +18,7 @@
  * never drawn: a stale table from an earlier visit is worse than a load.
  */
 
+import { magicGame } from '@hadoku/shared';
 import {
   legalDecksIn,
   newestFormat,
@@ -55,7 +56,8 @@ async function readRoom(view: RoomView, tables: TablesClient): Promise<WarmRoom 
   // A table the server refused is the screen's to explain, in its own words.
   if (!table.ok) return null;
   if (catalogue === undefined) return { view, table: table.table };
-  const poolId = view.format !== '' ? view.format : newestFormat(catalogue.formats);
+  const { format } = magicGame(view);
+  const poolId = format !== '' ? format : newestFormat(catalogue.formats);
   if (poolId === '') return { view, table: table.table, catalogue };
   const sweep = await legalDecksIn(tables, poolId, catalogue.decks);
   // The tiles' art is named by the server, card by card: asked now, the grid draws with it.

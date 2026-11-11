@@ -57,10 +57,10 @@ test(forge.ok ? 'an admin opens the seeded Gauntlet round-2 room, sees round 1 d
     console.log(`[tr-tourney-round2] room ${roomId}: round 1 past, standings for 3`);
 
     /* ── round 2's own table: the seed has already left it, open for a real admin ── */
-    const view = await api<{ pod: PodView; tables: { id: string; players: { memberId: string }[] }[] }>('GET', `/rooms/${roomId}`);
-    expect(view.body.pod.round, 'round 2 is open').toBe(2);
-    expect(view.body.pod.pairings, 'one live pairing').toHaveLength(1);
-    const tableId = view.body.pod.pairings[0]!.tableId;
+    const view = await api<{ game: { pod: PodView }; tables: { id: string; players: { memberId: string }[] }[] }>('GET', `/rooms/${roomId}`);
+    expect(view.body.game.pod.round, 'round 2 is open').toBe(2);
+    expect(view.body.game.pod.pairings, 'one live pairing').toHaveLength(1);
+    const tableId = view.body.game.pod.pairings[0]!.tableId;
     expect(view.body.tables.find((t) => t.id === tableId)?.players ?? [], 'the seed’s seat is free').toHaveLength(0);
 
     const sat = await api('POST', `/tables/rooms/${roomId}/sit`, { table: tableId });

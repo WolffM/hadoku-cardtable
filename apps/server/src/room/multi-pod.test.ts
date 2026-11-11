@@ -81,8 +81,8 @@ async function readyRoom(n: number, dir?: string): Promise<{ lobby: Lobby; id: s
 	const id = made.room.id;
 	for (const m of people.slice(1)) expect(lobby.join(id, m).ok).toBe(true);
 	for (const m of people) expect(lobby.sitPod(id, m.id).ok, `${m.name} sits`).toBe(true);
-	expect(lobby.get(id)!.pod!.seats).toHaveLength(Math.max(n, POD_SEATS));
-	lobby.get(id)!.pod!.seats.forEach((s, seat) => {
+	expect(lobby.get(id)!.game.pod!.seats).toHaveLength(Math.max(n, POD_SEATS));
+	lobby.get(id)!.game.pod!.seats.forEach((s, seat) => {
 		if (s === null) expect(lobby.aiPod(id, people[0]!.id, seat, true).ok).toBe(true);
 	});
 	lobby.setPodPlan(id, people[0]!.id, DEFAULT_PLAN, { ok: true, cards: 1 });
@@ -95,7 +95,7 @@ async function startedRoom(n: number, dir?: string): Promise<{ lobby: Lobby; id:
 	const { lobby, id, humans } = await readyRoom(n, dir);
 	if (n > POD_SEATS) expect(lobby.splitPod(id, humans[0]!).ok).toBe(true);
 	expect(lobby.startDraft(id, humans[0]!).ok).toBe(true);
-	return { lobby, id, humans, pods: lobby.get(id)!.pod?.pods ?? [humans] };
+	return { lobby, id, humans, pods: lobby.get(id)!.game.pod?.pods ?? [humans] };
 }
 
 describe('Split & randomize: past 8 drafters, the leader splits the ready room into random pods before the draft', () => {
@@ -108,7 +108,7 @@ describe('Split & randomize: past 8 drafters, the leader splits the ready room i
 		expect(lobby.splitPod(id, humans[0]!)).toEqual({ ok: false, reason: 'not-ready' });
 		expect(lobby.setReady(id, humans[4]!, true)).toBe(true);
 		expect(lobby.splitPod(id, humans[1]!)).toEqual({ ok: false, reason: 'not-leader' });
-		expect(lobby.get(id)!.pod?.pods).toBeUndefined();
+		expect(lobby.get(id)!.game.pod?.pods).toBeUndefined();
 		expect(lobby.splitPod(id, humans[0]!).ok).toBe(true);
 	});
 
@@ -117,7 +117,7 @@ describe('Split & randomize: past 8 drafters, the leader splits the ready room i
 		const split = lobby.splitPod(id, humans[0]!);
 		if (!split.ok) throw new Error(split.reason);
 		expect(seeds).toHaveLength(1);
-		const pods = split.room.pod?.pods;
+		const pods = split.room.game.pod?.pods;
 		expect(pods?.map((p) => p.length)).toEqual([5, 4]);
 		expect(new Set(pods?.flat())).toEqual(new Set(humans));
 		expect(pods).toEqual(splitIntoPods(humans, seeds[0]!));
@@ -127,7 +127,7 @@ describe('Split & randomize: past 8 drafters, the leader splits the ready room i
 		expect(firsts.size).toBeGreaterThan(1);
 		// A second press while the split stands changes nothing.
 		const again = lobby.splitPod(id, humans[0]!);
-		expect(again.ok && again.room.pod?.pods).toEqual(pods);
+		expect(again.ok && again.room.game.pod?.pods).toEqual(pods);
 		expect(seeds).toHaveLength(1);
 	});
 
@@ -137,10 +137,10 @@ describe('Split & randomize: past 8 drafters, the leader splits the ready room i
 		const split = lobby.splitPod(id, humans[0]!);
 		if (!split.ok) throw new Error(split.reason);
 		expect(lobby.startDraft(id, humans[3]!)).toEqual({ ok: false, reason: 'not-leader' });
-		expect(lobby.get(id)!.pod?.phase).toBe('lobby');
+		expect(lobby.get(id)!.game.pod?.phase).toBe('lobby');
 		expect(lobby.startDraft(id, humans[0]!).ok).toBe(true);
-		expect(lobby.get(id)!.pod?.phase).toBe('drafting');
-		expect(lobby.get(id)!.pod?.pods).toEqual(split.room.pod?.pods);
+		expect(lobby.get(id)!.game.pod?.phase).toBe('drafting');
+		expect(lobby.get(id)!.game.pod?.pods).toEqual(split.room.game.pod?.pods);
 	});
 
 	it('once split, every position is locked: nobody unreadies, sits, stands, or changes a seat', async () => {
@@ -153,22 +153,22 @@ describe('Split & randomize: past 8 drafters, the leader splits the ready room i
 		expect(lobby.sitPod(id, humans[2]!, 10)).toEqual({ ok: false, reason: 'not-lobby' });
 		expect(lobby.aiPod(id, humans[0]!, 10, true)).toEqual({ ok: false, reason: 'not-lobby' });
 		expect(lobby.closePod(id, humans[0]!, 10, true)).toMatchObject({ ok: false, reason: 'not-lobby' });
-		expect(lobby.get(id)!.pod?.pods).toEqual(split.room.pod?.pods);
-		expect(lobby.get(id)!.pod?.seats).toEqual(split.room.pod?.seats);
+		expect(lobby.get(id)!.game.pod?.pods).toEqual(split.room.game.pod?.pods);
+		expect(lobby.get(id)!.game.pod?.seats).toEqual(split.room.game.pod?.seats);
 	});
 
 	it('someone leaving the room voids the split, and the leader splits again', async () => {
 		const { lobby, id, humans } = await readyRoom(11);
 		expect(lobby.splitPod(id, humans[0]!).ok).toBe(true);
 		expect(lobby.leave(id, humans[10]!).ok).toBe(true);
-		expect(lobby.get(id)!.pod?.pods).toBeUndefined();
+		expect(lobby.get(id)!.game.pod?.pods).toBeUndefined();
 		// Their seat is still theirs (as leaving a lobby always was), without a Ready: nothing deals.
 		expect(lobby.startDraft(id, humans[0]!)).toEqual({ ok: false, reason: 'not-ready' });
 		// Back in and ready again, the leader splits again.
 		expect(lobby.join(id, member(10)).ok).toBe(true);
 		expect(lobby.setReady(id, humans[10]!, true)).toBe(true);
 		const resplit = lobby.splitPod(id, humans[0]!);
-		expect(resplit.ok && resplit.room.pod?.pods?.map((p) => p.length)).toEqual([6, 5]);
+		expect(resplit.ok && resplit.room.game.pod?.pods?.map((p) => p.length)).toEqual([6, 5]);
 	});
 
 	it('a room of 8 or fewer needs no split and starts as it always has', async () => {
@@ -182,7 +182,7 @@ describe('a room of 13 drafts as 7 + 6 and plays one Swiss of 3 rounds into one 
 	it('drafts the split’s 7 + 6, each pod on its own draft id, the second routed by member', async () => {
 		const { lobby, id, humans, pods } = await startedRoom(13);
 		const view = lobby.get(id)!;
-		expect(view.pod?.phase).toBe('drafting');
+		expect(view.game.pod?.phase).toBe('drafting');
 		expect(pods.map((p) => p.length)).toEqual([7, 6]);
 		expect(new Set(pods.flat())).toEqual(new Set(humans));
 
@@ -222,9 +222,9 @@ describe('a room of 13 drafts as 7 + 6 and plays one Swiss of 3 rounds into one 
 		const { lobby, id } = await startedRoom(13);
 		const done = new Set<string>([id]);
 		wireChecks(lobby, { ...recordingChecks({ built: [], seatState: [] }), draftComplete: (podId) => done.has(podId) });
-		expect(lobby.get(id)!.pod?.phase).toBe('drafting');
+		expect(lobby.get(id)!.game.pod?.phase).toBe('drafting');
 		done.add(`${id}~1`);
-		expect(lobby.get(id)!.pod?.phase).toBe('building');
+		expect(lobby.get(id)!.game.pod?.phase).toBe('building');
 	});
 
 	it('asks each drafter’s own pod whether their deck is built, and seats them with it', async () => {
@@ -243,25 +243,25 @@ describe('a room of 13 drafts as 7 + 6 and plays one Swiss of 3 rounds into one 
 		wireChecks(lobby, recordingChecks({ built: [], seatState: [] }));
 		for (const h of humans) lobby.playPod(id, h);
 		let view = lobby.get(id)!;
-		expect(view.pod?.phase).toBe('rounds');
-		expect(view.pod?.rounds).toBe(3);
+		expect(view.game.pod?.phase).toBe('rounds');
+		expect(view.game.pod?.rounds).toBe(3);
 		// Round 1 pairs the whole field by seat, whatever pod each drafted in: seat i plays seat i + 7, seat 6 has the bye.
-		expect(view.pod?.pairings.map((p) => p.players)).toEqual(Array.from({ length: 6 }, (_, i) => [humans[i], humans[i + 7]]));
-		expect(view.pod?.bye).toBe(humans[6]);
+		expect(view.game.pod?.pairings.map((p) => p.players)).toEqual(Array.from({ length: 6 }, (_, i) => [humans[i], humans[i + 7]]));
+		expect(view.game.pod?.bye).toBe(humans[6]);
 
 		for (let round = 1; round <= 3; round++) {
 			view = lobby.get(id)!;
-			expect(view.pod?.round).toBe(round);
-			for (const p of view.pod!.pairings) {
+			expect(view.game.pod?.round).toBe(round);
+			for (const p of view.game.pod!.pairings) {
 				lobby.recordGameResult(id, p.tableId, { matchId: `m-${round}-${p.tableId}-1`, winner: 0 });
 				lobby.recordGameResult(id, p.tableId, { matchId: `m-${round}-${p.tableId}-2`, winner: 0 });
 			}
 		}
 		const done = lobby.get(id)!;
-		expect(done.pod?.phase).toBe('done');
-		expect(done.pod?.standings).toHaveLength(13);
-		expect(new Set(done.pod?.standings.map((r) => r.id))).toEqual(new Set(humans));
-		expect(done.pod?.results.filter((r) => r.playerB === null)).toHaveLength(3);
+		expect(done.game.pod?.phase).toBe('done');
+		expect(done.game.pod?.standings).toHaveLength(13);
+		expect(new Set(done.game.pod?.standings.map((r) => r.id))).toEqual(new Set(humans));
+		expect(done.game.pod?.results.filter((r) => r.playerB === null)).toHaveLength(3);
 	});
 });
 
@@ -274,12 +274,12 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 		const id = made.room.id;
 		for (const m of people.slice(1)) lobby.join(id, m);
 		for (const m of people.slice(0, 8)) expect(lobby.sitPod(id, m.id).ok).toBe(true);
-		expect(lobby.get(id)!.pod!.seats).toHaveLength(8);
+		expect(lobby.get(id)!.game.pod!.seats).toHaveLength(8);
 		expect(lobby.sitPod(id, people[8]!.id).ok).toBe(true);
-		expect(lobby.get(id)!.pod!.seats).toHaveLength(9);
-		expect(lobby.get(id)!.pod!.seats[8]?.memberId).toBe(people[8]!.id);
+		expect(lobby.get(id)!.game.pod!.seats).toHaveLength(9);
+		expect(lobby.get(id)!.game.pod!.seats[8]?.memberId).toBe(people[8]!.id);
 		expect(lobby.standPod(id, people[8]!.id).ok).toBe(true);
-		expect(lobby.get(id)!.pod!.seats).toHaveLength(8);
+		expect(lobby.get(id)!.game.pod!.seats).toHaveLength(8);
 	});
 
 	it('the AI button on the seat past the last grows the room too, and a bad seat past it is refused', async () => {
@@ -292,7 +292,7 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 		expect(lobby.aiPod(id, owner.id, 9, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
 		for (let seat = 0; seat < 8; seat++) expect(lobby.aiPod(id, owner.id, seat, true).ok).toBe(true);
 		expect(lobby.aiPod(id, owner.id, 8, true).ok).toBe(true);
-		expect(lobby.get(id)!.pod!.seats).toHaveLength(9);
+		expect(lobby.get(id)!.game.pod!.seats).toHaveLength(9);
 		expect(lobby.aiPod(id, owner.id, 10, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
 	});
 
@@ -310,7 +310,7 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 
 	it('a room of 8 or fewer drafts exactly as before: one pod on the room id', async () => {
 		const { lobby, id } = await startedRoom(5);
-		expect(lobby.get(id)!.pod?.pods).toEqual([lobby.get(id)!.pod!.drafters]);
+		expect(lobby.get(id)!.game.pod?.pods).toEqual([lobby.get(id)!.game.pod!.drafters]);
 		expect(lobby.podDraft(id)?.podOf).toBeUndefined();
 		expect(lobby.podDraft(`${id}~1`)).toBeNull();
 	});
@@ -320,12 +320,12 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 		const { lobby, id, humans } = await readyRoom(10, dir);
 		const split = lobby.splitPod(id, humans[0]!);
 		if (!split.ok) throw new Error(split.reason);
-		expect((await openLobby({ dir })).get(id)!.pod?.pods).toEqual(split.room.pod?.pods);
+		expect((await openLobby({ dir })).get(id)!.game.pod?.pods).toEqual(split.room.game.pod?.pods);
 
 		const drafted = await tempDir();
 		const started = await startedRoom(10, drafted);
 		const again = await openLobby({ dir: drafted });
-		expect(again.get(started.id)!.pod?.pods).toEqual(started.pods);
+		expect(again.get(started.id)!.game.pod?.pods).toEqual(started.pods);
 		expect(again.podDraft(`${started.id}~1`)?.humans.map((h) => h.participantId)).toEqual(started.pods[1]);
 	});
 });

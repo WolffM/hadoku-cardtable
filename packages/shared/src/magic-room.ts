@@ -95,6 +95,23 @@ export function withMode<T extends { mode?: unknown; modeOptions?: unknown }>({ 
 export const MagicRoomGameSchema = z.object(magicRoomFields).transform(withMode);
 export type MagicRoomGame = z.infer<typeof MagicRoomGameSchema>;
 
+/** What a body that lacks Magic's blob reads back: every field at its fallback. */
+const NO_MAGIC_GAME: MagicRoomGame = Object.freeze(MagicRoomGameSchema.parse({}));
+
+/** A room's `game` parsed as Magic's blob when Magic plays the room; any other game's blob stays as it came. */
+function withGame<T extends { gameType: string; game?: unknown }>(room: T): T {
+  return isMagicGameType(room.gameType) ? { ...room, game: MagicRoomGameSchema.catch(() => NO_MAGIC_GAME).parse(room.game ?? {}) } : room;
+}
+
+/**
+ * Magic's part of a parsed room: its `game`, which `RoomViewSchema`/`RoomBodySchema` parsed with
+ * `MagicRoomGameSchema` because Magic plays it. A room of another game reads every field at its
+ * fallback, as a body that lacks them does.
+ */
+export function magicGame(room: { gameType: string; game?: unknown }): MagicRoomGame {
+  return isMagicGameType(room.gameType) ? (room.game as MagicRoomGame) : NO_MAGIC_GAME;
+}
+
 /** Every setting a body carries as a boolean, and the server's default for the rest. */
 const RoomSettingsViewSchema = z
   .object(RoomSettingsSchema.partial().shape)
@@ -114,7 +131,7 @@ const roomFields = {
   tables: RoomTablesSchema.catch(() => []),
 };
 
-export const RoomViewSchema = z.object(roomFields).transform(withMode);
+export const RoomViewSchema = z.object(roomFields).transform(withMode).transform(withGame);
 export type RoomView = z.infer<typeof RoomViewSchema>;
 
 export const RoomBodySchema = z
@@ -126,5 +143,6 @@ export const RoomBodySchema = z
     /** The room's AI, the character an AI seat plays as (`room/lobby.ts`'s `roomAi`). */
     ai: z.object({ name: z.string(), avatarId: z.string().max(AVATAR_ID_MAX) }).optional().catch(undefined),
   })
-  .transform(withMode);
+  .transform(withMode)
+  .transform(withGame);
 export type RoomBody = z.infer<typeof RoomBodySchema>;

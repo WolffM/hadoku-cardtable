@@ -32,7 +32,7 @@ export interface DecksDeps {
 	/** Null when the server has no draft rooms (no cube pool loaded). */
 	draftRooms: DraftRooms | null;
 	/** The lobby room a pod belongs to, by the same id — its name and pod; undefined once it is gone. */
-	room: (roomId: string) => { name: string; pod: PodView | null } | undefined;
+	room: (roomId: string) => { name: string; game: { pod: PodView | null } } | undefined;
 	log?: (entry: Record<string, unknown>) => void;
 }
 
@@ -52,7 +52,7 @@ function deckIn(room: DraftRoom, caller: string, deps: DecksDeps, draftRooms: Dr
 		createdAt: room.createdAt,
 		pool: view.viewer.pool,
 		deck: builtDeckOf(room, caller),
-		concluded: lobbyRoom === undefined || lobbyRoom.pod?.phase === 'done',
+		concluded: lobbyRoom === undefined || lobbyRoom.game.pod?.phase === 'done',
 	};
 }
 

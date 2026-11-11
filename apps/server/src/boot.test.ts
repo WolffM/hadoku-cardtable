@@ -143,7 +143,7 @@ function readyDraft(lobby: Lobby, name: string, sit: boolean): string {
 	const id = created(lobby, name, { gameType: 'draft', clientMode: 'builtin' });
 	if (sit) for (const [i, m] of EVERYONE.entries()) expect(lobby.sitPod(id, m.id, i)).toMatchObject({ ok: true });
 	for (const m of EVERYONE) expect(lobby.setReady(id, m.id, true)).toBe(true);
-	(lobby.get(id)?.pod?.seats ?? []).forEach((occupant, seat) => {
+	(lobby.get(id)?.game.pod?.seats ?? []).forEach((occupant, seat) => {
 		if (occupant === null) expect(lobby.aiPod(id, ALICE.id, seat, true)).toMatchObject({ ok: true });
 	});
 	lobby.setPodPlan(id, ALICE.id, DEFAULT_PLAN, VERDICT);
@@ -172,11 +172,11 @@ function tournament(lobby: Lobby, name: string, mode: 'classic' | 'gauntlet' | '
 	expect(lobby.sitPod(id, ALICE.id, 0)).toMatchObject({ ok: true });
 	if (seated === 'humans') expect(lobby.sitPod(id, BOB.id, 1)).toMatchObject({ ok: true });
 	else expect(lobby.aiPod(id, ALICE.id, 1, true)).toMatchObject({ ok: true });
-	for (const m of seated === 'humans' ? [ALICE, BOB] : [ALICE]) if (lobby.get(id)!.draftStartedAt === null) lobby.setReady(id, m.id, true);
+	for (const m of seated === 'humans' ? [ALICE, BOB] : [ALICE]) if (lobby.get(id)!.game.draftStartedAt === null) lobby.setReady(id, m.id, true);
 	// A complete field of legal decks locks itself (ruling 7); otherwise the leader starts it.
-	if (lobby.get(id)!.draftStartedAt === null) expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
-	expect(lobby.get(id)!.pod?.phase).toBe('rounds');
-	const pairing = lobby.get(id)!.pod!.pairings[0]!;
+	if (lobby.get(id)!.game.draftStartedAt === null) expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
+	expect(lobby.get(id)!.game.pod?.phase).toBe('rounds');
+	const pairing = lobby.get(id)!.game.pod!.pairings[0]!;
 	if (mode === 'gauntlet') {
 		const players = pairing.players as [string, string];
 		expect(lobby.setGauntlet(id, gauntletInChoose(players), pairing.tableId)).toBe(true);
@@ -209,8 +209,8 @@ describe('a restart gives every room in flight back the way it was left', () => 
 		rooms.podRounds = readyDraft(lobby, 'pod-rounds', true);
 		drafts.open(rooms.podRounds);
 		for (const m of EVERYONE) expect(lobby.playPod(rooms.podRounds, m.id)).toMatchObject({ ok: true });
-		expect(lobby.get(rooms.podRounds)!.pod!.phase).toBe('rounds');
-		const podTable = lobby.get(rooms.podRounds)!.pod!.pairings[0]!.tableId;
+		expect(lobby.get(rooms.podRounds)!.game.pod!.phase).toBe('rounds');
+		const podTable = lobby.get(rooms.podRounds)!.game.pod!.pairings[0]!.tableId;
 		expect(lobby.setTableMatch(rooms.podRounds, podTable, 'm-pod-rounds')).toBe(true);
 
 		// Constructed tournaments mid-round, in every mode, and one against the AI.
@@ -220,12 +220,12 @@ describe('a restart gives every room in flight back the way it was left', () => 
 		rooms.vsAiTournament = tournament(lobby, 'vs-ai-tournament', 'classic', 'vs-ai');
 		// A finished tournament: its result carries its games' lengths, and the standings their median.
 		rooms.timedTournament = tournament(lobby, 'timed-tournament', 'classic', 'humans');
-		const timedTable = lobby.get(rooms.timedTournament)!.pod!.pairings[0]!.tableId;
+		const timedTable = lobby.get(rooms.timedTournament)!.game.pod!.pairings[0]!.tableId;
 		expect(lobby.recordGameResult(rooms.timedTournament, timedTable, { matchId: 'm-timed-tournament', winner: 0 }).ok).toBe(true);
 		expect(lobby.setTableMatch(rooms.timedTournament, timedTable, 'm-timed-2')).toBe(true);
 		expect(lobby.recordGameResult(rooms.timedTournament, timedTable, { matchId: 'm-timed-2', winner: 0 }).ok).toBe(true);
-		expect(lobby.get(rooms.timedTournament)!.pod!.results[0]!.gameMs).toHaveLength(2);
-		expect(lobby.get(rooms.timedTournament)!.pod!.standings[0]!.medianGameMs).not.toBeNull();
+		expect(lobby.get(rooms.timedTournament)!.game.pod!.results[0]!.gameMs).toHaveLength(2);
+		expect(lobby.get(rooms.timedTournament)!.game.pod!.standings[0]!.medianGameMs).not.toBeNull();
 
 		// Gauntlet tables in banpick and in choose.
 		for (const [key, state] of [
@@ -332,8 +332,8 @@ describe('a restart gives every room in flight back the way it was left', () => 
 
 		const after = await boot(roomsDir, draftsDir, cube);
 		expect(after.lostDrafts).toEqual([draft]);
-		expect(after.lobby.get(draft)?.draftStartedAt).toBeNull();
-		expect(after.lobby.get(kept)?.pod).toMatchObject({
+		expect(after.lobby.get(draft)?.game.draftStartedAt).toBeNull();
+		expect(after.lobby.get(kept)?.game.pod).toMatchObject({
 			phase: 'rounds',
 			round: 1,
 		});

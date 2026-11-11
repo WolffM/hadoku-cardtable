@@ -24,7 +24,12 @@ const DOT = Buffer.from(
   "base64",
 );
 
-function room(over: Partial<PreviewRoom> = {}): PreviewRoom {
+function room({
+  format = "legacy-2022-04-29",
+  mode = "gauntlet",
+  modeOptions = { family: "modern" },
+  ...over
+}: Partial<PreviewRoom> & Partial<PreviewRoom["game"]> = {}): PreviewRoom {
   return {
     name: "Hadoku's Lair",
     gameType: "constructed-1v1",
@@ -32,9 +37,7 @@ function room(over: Partial<PreviewRoom> = {}): PreviewRoom {
     testing: false,
     leader: "fk:host",
     creator: "fk:host",
-    format: "legacy-2022-04-29",
-    mode: "gauntlet",
-    modeOptions: { family: "modern" },
+    game: { format, mode, modeOptions },
     members: [{ id: "fk:host", name: "friend", joinedAt: "", ready: false }],
     tables: [{ players: [{ memberId: "fk:host" }] }],
     ...over,

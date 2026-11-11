@@ -51,7 +51,7 @@ export interface ParkedSeat {
 export interface ParkedRoom {
 	id: string;
 	name: string;
-	clientMode: RoomView['clientMode'];
+	clientMode: RoomView['game']['clientMode'];
 	gameType: RoomView['gameType'];
 	format: string;
 	settings: RoomSettings;
@@ -109,7 +109,7 @@ export interface ParkedStoreDeps {
 	dir: string;
 	log(entry: Record<string, unknown>): void;
 	/** The room that started a match, or undefined (`Lobby.roomOfMatch`). */
-	roomOf(matchId: string): Pick<RoomView, 'id' | 'name' | 'clientMode' | 'gameType' | 'format' | 'settings' | 'mode' | 'modeOptions' | 'testing' | 'members'> | undefined;
+	roomOf(matchId: string): Pick<RoomView, 'id' | 'name' | 'gameType' | 'game' | 'settings' | 'testing' | 'members'> | undefined;
 	/** A pool's name in words. */
 	formatName(pool: string): string;
 	/** The Forge build this server runs. */
@@ -190,18 +190,18 @@ export function openParkedStore(deps: ParkedStoreDeps): ParkedStore {
 			// The opening a resume adds back (`restoredSpec`), and the board of the game this one was resumed from, go.
 			const { scenario: _scenario, skipOpening: _skipOpening, restore: _restore, ...spec } = match.spec;
 			const clockMs = match.clockLeft();
-			const format = match.spec.format ?? room.format;
+			const format = match.spec.format ?? room.game.format;
 			const record: ParkedRecord = {
 				v: VERSION,
 				matchId: match.id,
 				room: {
 					id: room.id,
 					name: room.name,
-					clientMode: room.clientMode,
+					clientMode: room.game.clientMode,
 					gameType: room.gameType,
-					format: room.format,
+					format: room.game.format,
 					settings: { ...room.settings },
-					mode: room.mode === null || room.modeOptions === null ? null : ({ mode: room.mode, modeOptions: room.modeOptions } as RoomMode),
+					mode: room.game.mode === null || room.game.modeOptions === null ? null : ({ mode: room.game.mode, modeOptions: room.game.modeOptions } as RoomMode),
 				},
 				seats: [seat(0), seat(1)],
 				format,

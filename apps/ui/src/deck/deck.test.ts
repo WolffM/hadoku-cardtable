@@ -33,6 +33,7 @@ import type { Fetch } from '../http.ts';
 import { tablesClient, type Verdict } from '../screens/tables.ts';
 import { draftedSeat, cardIndex, mainSummary, libraryDeckPool, libraryDeckText, suggestBasics } from './build.ts';
 import { splitBasics } from '../draft/deckFromPool.ts';
+import { withMagicGame } from '../rooms/room-body.testing.ts';
 
 // A card known by its name is answered as the server answers it (`GET /api/cards/art`).
 beforeEach(serveNamedArt);
@@ -871,7 +872,8 @@ describe('DeckScreen', () => {
   // up, if they can go straight into the game then we should put them there".
   describe('Play goes where the player ends up', () => {
     const roomAt = (phase: 'building' | 'rounds') =>
-      ({
+      withMagicGame({
+        gameType: 'draft',
         you: { id: 'u-me', leader: true, ready: false },
         pod: { phase, pairings: phase === 'rounds' ? [{ tableId: 't-1', players: ['u-me', 'ai'] }] : [] },
         tables: [{ id: 't-1', players: [{ seat: 0, memberId: 'u-me', name: 'Me' }], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } }],

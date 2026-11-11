@@ -13,7 +13,7 @@
  * `screens/lobby.test.ts` gives.
  */
 
-import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
+import { magicGame, OPEN_ROOM_LOCKS } from '@hadoku/shared';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -47,33 +47,43 @@ afterEach(() => {
   savedPrefs.current = {};
 });
 
-const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView => ({
-  creator: 'http-a',
-  leader: 'http-a',
-  gameType: 'constructed-1v1',
-  // The table's pool, and what the caller is in this room (w25). Both are
-  // always on the wire; `parseRoomView`'s defaults for a body that lost them
-  // are asserted in "the pool and the caller" below.
-  format: '2011-02-13',
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
-  locks: { ...OPEN_ROOM_LOCKS },
-  mode: null,
-  modeOptions: null,
-  you: { id: 'http-a', leader: true, ready: false },
-  clientMode: 'builtin',
-  locked: false,
-  members: [{ id: 'http-a', name: 'alice', joinedAt: '2026-09-19T00:00:00.000Z', ready: false }],
-  matchId: null,
-  draftStartedAt: null,
-  createdAt: '2026-09-19T00:00:00.000Z',
-  tables: [],
-  pod: null,
-  testing: false,
-  scheduledFor: null,
-  ...over,
-});
+const room = ({ format = '2011-02-13', mode = null, modeOptions = null, clientMode = 'builtin', draftStartedAt = null, pod = null, ...over }: Partial<RoomView> & { id: string; name: string }): RoomView => {
+  const game = { format, mode, modeOptions, clientMode, draftStartedAt, pod };
+  return {
+    creator: 'http-a',
+    leader: 'http-a',
+    gameType: 'constructed-1v1',
+    // The table's pool, and what the caller is in this room (w25). Both are
+    // always on the wire; `parseRoomView`'s defaults for a body that lost them
+    // are asserted in "the pool and the caller" below.
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
+    locks: { ...OPEN_ROOM_LOCKS },
+    you: { id: 'http-a', leader: true, ready: false },
+    locked: false,
+    members: [{ id: 'http-a', name: 'alice', joinedAt: '2026-09-19T00:00:00.000Z', ready: false }],
+    matchId: null,
+    createdAt: '2026-09-19T00:00:00.000Z',
+    tables: [],
+    testing: false,
+    scheduledFor: null,
+    ...game,
+    game,
+    ...over,
+  };
+};
 
 const OPEN = room({ id: 'r-open', name: 'Friday night' });
+/** OPEN's body with `game` read from `over` over OPEN's own blob, or with `drop`'s keys missing from it. */
+const openWithGame = (over: Record<string, unknown>, drop: readonly string[] = []): Record<string, unknown> => {
+  const game: Record<string, unknown> = { ...magicGame(OPEN), ...over };
+  for (const key of drop) delete game[key];
+  return { ...OPEN, game };
+};
+/** Magic's part of `body` as the browser parses it. */
+const gameOf = (body: unknown) => {
+  const view = parseRoomView(body);
+  return view === null ? null : magicGame(view);
+};
 const LOCKED = room({
   id: 'r-locked',
   name: 'Siblings keep out',
@@ -380,15 +390,14 @@ describe('the room’s readiness', () => {
   });
 
   it('reads draftStartedAt as a string or null, and nothing else — a missing one is the lobby', () => {
-    expect(parseRoomView({ ...OPEN, draftStartedAt: '2026-09-26T10:00:00.000Z' })?.draftStartedAt).toBe(
+    expect(gameOf(openWithGame({ draftStartedAt: '2026-09-26T10:00:00.000Z' }))?.draftStartedAt).toBe(
       '2026-09-26T10:00:00.000Z',
     );
-    const older: Record<string, unknown> = { ...OPEN };
-    delete older.draftStartedAt;
-    expect('draftStartedAt' in older).toBe(false);
-    expect(parseRoomView(older)?.draftStartedAt).toBeNull();
+    const older = openWithGame({}, ['draftStartedAt']);
+    expect('draftStartedAt' in (older.game as object)).toBe(false);
+    expect(gameOf(older)?.draftStartedAt).toBeNull();
     for (const near of [0, 1758880000000, true, {}, null]) {
-      expect(parseRoomView({ ...OPEN, draftStartedAt: near })?.draftStartedAt).toBeNull();
+      expect(gameOf(openWithGame({ draftStartedAt: near }))?.draftStartedAt).toBeNull();
     }
   });
 
@@ -464,7 +473,7 @@ describe('the room writes', () => {
     const { calls, client } = writes(() => json(200, started));
 
     const outcome = await client.start('r-cube');
-    expect(outcome.ok && outcome.room.draftStartedAt).toBe('2026-09-26T10:00:00.000Z');
+    expect(outcome.ok && magicGame(outcome.room).draftStartedAt).toBe('2026-09-26T10:00:00.000Z');
     expect(calls).toEqual([{ url: '/cardtable/api/rooms/r-cube/start', method: 'POST', body: {} }]);
   });
 
@@ -514,7 +523,7 @@ describe('the room writes', () => {
     const { calls, client } = writes(() => json(200, moved));
 
     const outcome = await client.setFormat('r-open', '2011-07-01');
-    expect(outcome.ok && outcome.room.format).toBe('2011-07-01');
+    expect(outcome.ok && magicGame(outcome.room).format).toBe('2011-07-01');
     // PATCH, not POST, and on the room itself — the same route and allow-list
     // that already carries `{ gameType }`.
     expect(calls).toEqual([
@@ -534,7 +543,7 @@ describe('the room writes', () => {
     const moved = room({ id: 'r-open', name: 'Friday night', mode: 'random', modeOptions: { pool: 'modern' } });
     const { calls, client } = writes(() => json(200, moved));
     const outcome = await client.setRoomMode('r-open', { mode: 'random', modeOptions: { pool: 'modern' } });
-    expect(outcome.ok && [outcome.room.mode, outcome.room.modeOptions]).toEqual(['random', { pool: 'modern' }]);
+    expect(outcome.ok && [magicGame(outcome.room).mode, magicGame(outcome.room).modeOptions]).toEqual(['random', { pool: 'modern' }]);
     expect(calls).toEqual([
       { url: '/cardtable/api/rooms/r-open', method: 'PATCH', body: { mode: 'random', modeOptions: { pool: 'modern' } } },
     ]);
@@ -603,28 +612,25 @@ describe('RoomView.tables and RoomView.pod', () => {
       roundNames: ['Test Cube', 'Test Cube', 'Test Cube'],
       verdict: null,
     };
-    expect(parseRoomView({ ...OPEN, pod: POD })?.pod).toEqual(POD);
+    expect(gameOf(openWithGame({ pod: POD }))?.pod).toEqual(POD);
   });
 
   it('reads no pod rather than throwing when the body is absent, null, or malformed', () => {
-    const { pod: _gone, ...older } = OPEN;
-    expect(parseRoomView(older)?.pod).toBeNull();
-    expect(parseRoomView({ ...OPEN, pod: null })?.pod).toBeNull();
-    expect(parseRoomView({ ...OPEN, pod: { phase: 'lobby' } })?.pod).toBeNull();
+    expect(gameOf(openWithGame({}, ['pod']))?.pod).toBeNull();
+    expect(gameOf(openWithGame({ pod: null }))?.pod).toBeNull();
+    expect(gameOf(openWithGame({ pod: { phase: 'lobby' } }))?.pod).toBeNull();
   });
 });
 
 describe('the pool and the caller', () => {
   it('reads the room’s pool as a string, and an absent one as empty rather than a guess', () => {
-    expect(parseRoomView({ ...OPEN, format: '2011-07-01' })?.format).toBe('2011-07-01');
+    expect(gameOf(openWithGame({ format: '2011-07-01' }))?.format).toBe('2011-07-01');
     // The shape a server that predates the field sends: none at all. Empty is
     // the honest answer, and the room screen's fallback is the newest pool —
     // it is not this parser's job to invent one.
-    const older: Record<string, unknown> = { ...OPEN };
-    delete older.format;
-    expect(parseRoomView(older)?.format).toBe('');
+    expect(gameOf(openWithGame({}, ['format']))?.format).toBe('');
     for (const near of [0, true, {}, null, ['2011-07-01']]) {
-      expect(parseRoomView({ ...OPEN, format: near })?.format).toBe('');
+      expect(gameOf(openWithGame({ format: near }))?.format).toBe('');
     }
   });
 
@@ -653,18 +659,17 @@ describe('the pool and the caller', () => {
 
 describe('the client mode', () => {
   it('defaults a missing field to builtin, so an older server cannot render as streamed', () => {
-    const noMode: Record<string, unknown> = { ...OPEN };
-    delete noMode.clientMode;
-    expect('clientMode' in noMode).toBe(false);
-    expect(parseRoomView(noMode)?.clientMode).toBe('builtin');
-    expect(parseRoomView({ ...OPEN, clientMode: undefined })?.clientMode).toBe('builtin');
-    expect(parseRoomView({ ...OPEN, clientMode: null })?.clientMode).toBe('builtin');
+    const noMode = openWithGame({}, ['clientMode']);
+    expect('clientMode' in (noMode.game as object)).toBe(false);
+    expect(gameOf(noMode)?.clientMode).toBe('builtin');
+    expect(gameOf(openWithGame({ clientMode: undefined }))?.clientMode).toBe('builtin');
+    expect(gameOf(openWithGame({ clientMode: null }))?.clientMode).toBe('builtin');
   });
 
   it('takes only the exact string "streamed" as streamed — never a near miss', () => {
-    expect(parseRoomView({ ...OPEN, clientMode: 'streamed' })?.clientMode).toBe('streamed');
+    expect(gameOf(openWithGame({ clientMode: 'streamed' }))?.clientMode).toBe('streamed');
     for (const near of ['Streamed', 'STREAMED', ' streamed', 'stream', 1, true, {}, ['streamed']]) {
-      expect(parseRoomView({ ...OPEN, clientMode: near })?.clientMode).toBe('builtin');
+      expect(gameOf(openWithGame({ clientMode: near }))?.clientMode).toBe('builtin');
     }
   });
 
@@ -848,11 +853,10 @@ describe('creating a room', () => {
   });
 
   it('reads a room’s mode and options, and an unknown pair as unchosen', () => {
-    expect(parseRoomView({ ...OPEN, mode: 'gauntlet', modeOptions: { year: 2022 } })).toMatchObject({ mode: 'gauntlet', modeOptions: { year: 2022 } });
-    expect(parseRoomView({ ...OPEN, mode: 'sealed', modeOptions: {} })).toMatchObject({ mode: null, modeOptions: null });
-    expect(parseRoomView({ ...OPEN, mode: 'random', modeOptions: { pool: 'vintage' } })).toMatchObject({ mode: null, modeOptions: null });
-    const { mode: _m, modeOptions: _o, ...older } = OPEN;
-    expect(parseRoomView(older)).toMatchObject({ mode: null, modeOptions: null });
+    expect(gameOf(openWithGame({ mode: 'gauntlet', modeOptions: { year: 2022 } }))).toMatchObject({ mode: 'gauntlet', modeOptions: { year: 2022 } });
+    expect(gameOf(openWithGame({ mode: 'sealed', modeOptions: {} }))).toMatchObject({ mode: null, modeOptions: null });
+    expect(gameOf(openWithGame({ mode: 'random', modeOptions: { pool: 'vintage' } }))).toMatchObject({ mode: null, modeOptions: null });
+    expect(gameOf(openWithGame({}, ['mode', 'modeOptions']))).toMatchObject({ mode: null, modeOptions: null });
   });
 
   it('All Random is created on the whole library, and Gauntlet with no options (a random era)', async () => {
@@ -971,9 +975,9 @@ describe('creating a room', () => {
   it('carries the mode through to the room it lands you in', async () => {
     const { client } = server([]);
     const created = await client.create({ name: 'Full client night', gameType: 'draft', clientMode: 'streamed' });
-    expect(created.ok && created.room.clientMode).toBe('streamed');
+    expect(created.ok && magicGame(created.room).clientMode).toBe('streamed');
     const plain = await client.create({ name: 'Ours', gameType: 'constructed-1v1', clientMode: 'builtin' });
-    expect(plain.ok && plain.room.clientMode).toBe('builtin');
+    expect(plain.ok && magicGame(plain.room).clientMode).toBe('builtin');
   });
 
   it('refuses a nameless room without calling the server', async () => {

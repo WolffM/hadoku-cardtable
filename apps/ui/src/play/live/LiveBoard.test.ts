@@ -29,6 +29,7 @@ import { QUIET_RECONNECT_MS } from '../../restart-notice.ts';
 import { parseDck } from '@hadoku/carddata/dck';
 import { deckFromDeckFile } from '@hadoku/deck';
 import { setRolePlayer } from '../../sound/index.ts';
+import { withMagicGame } from '../../rooms/room-body.testing.ts';
 import type { SoundEvent } from '@hadoku/ui-shell/sound';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
@@ -123,7 +124,8 @@ vi.mock('../../rooms/api.ts', () => ({
       roomsClientState.gets += 1;
       roomsClientState.afterGet?.();
       if (roomsClientState.hold) await new Promise<void>((release) => roomsClientState.held.push(release));
-      return room;
+      // A Magic room, as every room the server sends is: its own fields under `game` too.
+      return room === null ? null : withMagicGame({ gameType: 'constructed-1v1', ...room });
     },
   }),
   // `DraftLobby.tsx` calls this at module scope (`poolsClient()`), and this

@@ -5,6 +5,14 @@
     "creator": "fk:a9d95a027ac540c0",
     "leader": "fk:a9d95a027ac540c0",
     "gameType": "constructed-1v1",
+    "game": {
+      "format": "2025-06-30",
+      "mode": "classic",
+      "modeOptions": {},
+      "clientMode": "builtin",
+      "draftStartedAt": null,
+      "pod": null
+    },
     "format": "2025-06-30",
     "settings": {
       "handSmoothing": true,
@@ -82,6 +90,57 @@
     "creator": "fk:a9d95a027ac540c0",
     "leader": "fk:a9d95a027ac540c0",
     "gameType": "draft",
+    "game": {
+      "format": "2025-06-30",
+      "mode": null,
+      "modeOptions": null,
+      "clientMode": "builtin",
+      "draftStartedAt": null,
+      "pod": {
+        "phase": "lobby",
+        "seats": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "round": 0,
+        "rounds": 0,
+        "results": [],
+        "standings": [],
+        "pairings": [],
+        "bye": null,
+        "drafters": [],
+        "built": [],
+        "personas": {},
+        "plan": {
+          "rounds": [
+            {
+              "kind": "cube",
+              "cubeId": "mtgo-vintage-cube-2025-12"
+            },
+            {
+              "kind": "cube",
+              "cubeId": "mtgo-vintage-cube-2025-12"
+            },
+            {
+              "kind": "cube",
+              "cubeId": "mtgo-vintage-cube-2025-12"
+            }
+          ]
+        },
+        "roundNames": [
+          "mtgo-vintage-cube-2025-12",
+          "mtgo-vintage-cube-2025-12",
+          "mtgo-vintage-cube-2025-12"
+        ],
+        "verdict": null
+      }
+    },
     "format": "2025-06-30",
     "settings": {
       "handSmoothing": true,

@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { Look, RoomTable, SeriesPhase, TableGame } from '@hadoku/shared';
+import { magicGame, type Look, type RoomTable, type SeriesPhase, type TableGame } from '@hadoku/shared';
 
 import { followTableOnce } from '../../play/live/matchStart.ts';
 import { roomFeed } from '../../rooms/follow.ts';
@@ -84,11 +84,12 @@ export interface PodContext {
  * list does.
  */
 export function podContextOf(room: RoomView): PodContext {
+  const { pod } = magicGame(room);
   return {
-    pod: room.pod,
+    pod,
     tables: room.tables,
     games: room.tableGames ?? {},
-    ...entrantLookup(room.pod, room.members),
+    ...entrantLookup(pod, room.members),
     members: room.members.map((m) => ({ id: m.id, name: m.name })),
     leaderId: room.leader,
     name: room.name,

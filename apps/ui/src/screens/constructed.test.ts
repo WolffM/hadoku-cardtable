@@ -110,6 +110,7 @@ import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
 import { takeWarmRoom, warmRoom } from '../rooms/warm.ts';
 import type { RoomFeed } from '../rooms/follow.ts';
+import { withMagicGame } from '../rooms/room-body.testing.ts';
 import {
   RANDOM_DECK,
   erasOf,
@@ -400,7 +401,8 @@ function stubServer(table: Table) {
     const playing = started ?? (inPlay ? 'mode-locked' : null);
     return { gameType: plays, mode: plays, event: plays, format: playing, rules: playing };
   };
-  const roomRecord = (): Record<string, unknown> => ({
+  const roomRecord = (): Record<string, unknown> =>
+    withMagicGame({
     id: ROOM,
     name: table.name ?? 'Friday night',
     creator: 'p-alice',
@@ -1324,7 +1326,7 @@ describe('a room’s table', () => {
           return ok
             ? {
                 ok: true as const,
-                room: {
+                room: withMagicGame({
                   id: roomId,
                   name: roomId,
                   creator: 'p-alice',
@@ -1346,7 +1348,7 @@ describe('a room’s table', () => {
                   pod: null,
                   testing: false,
                   scheduledFor: null,
-                },
+                }),
               }
             : { ok: false as const, reason: outcome };
         },

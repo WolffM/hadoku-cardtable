@@ -60,7 +60,7 @@ afterAll(async () => {
 	for (const dir of dirs) await rm(dir, { recursive: true, force: true });
 });
 
-type Lobby = Map<string, { name: string; pod: PodView | null }>;
+type Lobby = Map<string, { name: string; game: { pod: PodView | null } }>;
 
 async function openApp(draftRooms: DraftRooms, lobby: Lobby): Promise<string> {
 	const app = express();
@@ -105,8 +105,8 @@ describe('/api/decks', () => {
 		dirs.push(storeDir);
 		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir });
 		const lobby: Lobby = new Map([
-			['pod-done', { name: 'Friday cube', pod: pod('rounds') }],
-			['pod-drafting', { name: 'Still picking', pod: null }],
+			['pod-done', { name: 'Friday cube', game: { pod: pod('rounds') } }],
+			['pod-drafting', { name: 'Still picking', game: { pod: null } }],
 		]);
 		seatIn(draftRooms, 'pod-done', 'alice', true);
 		seatIn(draftRooms, 'pod-drafting', 'alice', false);
@@ -130,7 +130,7 @@ describe('/api/decks', () => {
 		const storeDir = await mkdtemp(join(tmpdir(), 'cardtable-decks-test-'));
 		dirs.push(storeDir);
 		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir });
-		const lobby: Lobby = new Map([['pod-a', { name: 'Pod A', pod: pod('rounds') }]]);
+		const lobby: Lobby = new Map([['pod-a', { name: 'Pod A', game: { pod: pod('rounds') } }]]);
 		seatIn(draftRooms, 'pod-a', 'alice', true);
 		seatIn(draftRooms, 'pod-gone', 'alice', true);
 		draftRooms.find('pod-a')?.app.persist(draftRooms.find('pod-a')!);
@@ -142,7 +142,7 @@ describe('/api/decks', () => {
 		expect((await call(base, 'PATCH', '/api/decks/pod-a', 'bob', { name: 'Mine now' })).status).toBe(404);
 		expect((await call(base, 'PATCH', '/api/decks/pod-a', 'alice', { name: '   ' })).status).toBe(400);
 
-		lobby.set('pod-a', { name: 'Pod A', pod: pod('done') });
+		lobby.set('pod-a', { name: 'Pod A', game: { pod: pod('done') } });
 		const renamed = await call(base, 'PATCH', '/api/decks/pod-a', 'alice', { name: '  Blue tempo ' });
 		expect(renamed.status).toBe(200);
 		expect((renamed.json.deck as { name: string }).name).toBe('Blue tempo');

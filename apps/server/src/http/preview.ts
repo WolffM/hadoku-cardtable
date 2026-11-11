@@ -69,9 +69,8 @@ export interface PreviewRoom {
   testing: boolean;
   leader: string;
   creator: string;
-  format: string;
-  mode?: unknown;
-  modeOptions?: unknown;
+  /** Magic's part of the room, the fields of it the card draws. */
+  game: { format: string; mode?: unknown; modeOptions?: unknown };
   members: readonly RoomMember[];
   /** Each table's seated players: the first table's other player is the host's opponent. */
   tables: readonly { players: readonly { memberId: string }[] }[];
@@ -118,8 +117,8 @@ function eraParts(era: unknown): {
 }
 
 function options(room: PreviewRoom): Record<string, unknown> {
-  return typeof room.modeOptions === "object" && room.modeOptions !== null
-    ? (room.modeOptions as Record<string, unknown>)
+  return typeof room.game.modeOptions === "object" && room.game.modeOptions !== null
+    ? (room.game.modeOptions as Record<string, unknown>)
     : {};
 }
 
@@ -142,7 +141,7 @@ function formatOf(
           : null,
       year: null,
     };
-  return eraParts(room.format);
+  return eraParts(room.game.format);
 }
 
 /**
@@ -151,7 +150,7 @@ function formatOf(
  */
 export function describeRoom(room: PreviewRoom): string {
   if (room.gameType === "draft") return "Cube Draft";
-  const mode = typeof room.mode === "string" ? room.mode : null;
+  const mode = typeof room.game.mode === "string" ? room.game.mode : null;
   const { family, year } = formatOf(room, mode);
   return [
     family === null ? null : (FAMILY_NAMES[family] ?? null),

@@ -15,7 +15,7 @@
  * the name itself, and `RoomList.tsx` reads that straight off `room.name`.
  */
 
-import { FREE_PICK, POD_MAX_SEATS, POD_SEATS, isPodAi, planDisplayName, type Look } from '@hadoku/shared';
+import { FREE_PICK, POD_MAX_SEATS, POD_SEATS, isPodAi, magicGame, planDisplayName, type Look } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
 import { countdown } from './countdown.ts';
@@ -80,10 +80,11 @@ export function roomFamily(room: RoomView): RoomFamily {
     if (id.startsWith('legacy')) return 'legacy';
     return /^\d{4}-\d{2}-\d{2}$/.test(id) || id === 'standard' ? 'standard' : 'other';
   };
-  const options = room.modeOptions as { family?: string; pool?: string } | null;
-  if (room.mode === 'gauntlet') return fromId(options?.family ?? 'standard');
-  if (room.mode === 'random') return fromId(options?.pool);
-  return fromId(room.format);
+  const { mode, modeOptions, format } = magicGame(room);
+  const options = modeOptions as { family?: string; pool?: string } | null;
+  if (mode === 'gauntlet') return fromId(options?.family ?? 'standard');
+  if (mode === 'random') return fromId(options?.pool);
+  return fromId(format);
 }
 
 const STATE_LABEL: Readonly<Record<RoomStateKey, string>> = {
@@ -102,26 +103,26 @@ function capitalize(s: string): string {
 
 /** The mode chip: Classic/Gauntlet/All Random with their format or pool, or the draft's cube — no mode icon there. */
 function modeChip(room: RoomView): RoomModeChip {
+  const { pod, mode, modeOptions, format } = magicGame(room);
   if (room.gameType === 'draft') {
-    const pod = room.pod;
     const text = pod !== null && pod.plan !== null && pod.roundNames !== null ? planDisplayName(pod.plan, pod.roundNames) : 'Draft';
     return { icon: null, text };
   }
-  if (room.mode === null) return { icon: null, text: 'Mode unset' };
-  if (room.mode === 'classic') {
+  if (mode === null) return { icon: null, text: 'Mode unset' };
+  if (mode === 'classic') {
     // Ruling 5 (2026-10-27): a format era's id reads as a short label — "Standard 2018",
     // "Modern 2011", "Legacy 2011" — never its raw id. `formatEraLabel` is the one pure
     // formatter, tested on its own (`formatLabel.test.ts`).
-    const text = room.format === FREE_PICK || room.format === '' ? 'Free pick' : formatEraLabel(room.format);
+    const text = format === FREE_PICK || format === '' ? 'Free pick' : formatEraLabel(format);
     return { icon: 'classic', text };
   }
-  if (room.mode === 'gauntlet') {
-    const opts = room.modeOptions as { family?: string; year?: number } | null;
+  if (mode === 'gauntlet') {
+    const opts = modeOptions as { family?: string; year?: number } | null;
     const text = [opts?.family === undefined ? null : capitalize(opts.family), opts?.year ?? null].filter((w) => w !== null).join(' ') || 'Any era';
     return { icon: 'gauntlet', text };
   }
   // 'random'
-  const opts = room.modeOptions as { pool?: string } | null;
+  const opts = modeOptions as { pool?: string } | null;
   const pool = opts?.pool ?? 'full';
   return { icon: 'random', text: pool === 'full' ? 'Full' : capitalize(pool) };
 }
@@ -152,7 +153,7 @@ function roomState(room: RoomView, now: number): RoomCardState {
 }
 
 function phaseState(room: RoomView): RoomCardState {
-  const pod = room.pod;
+  const { pod } = magicGame(room);
   // Ruling 9 (2026-10-27): "Waiting for players", not "Waiting for a player".
   const waitingForPlayers = room.members.length < 2;
   if (pod !== null) {
@@ -184,7 +185,7 @@ function phaseState(room: RoomView): RoomCardState {
  * table's own series phase (and so this card's `state.key`) has caught up.
  */
 function actions(room: RoomView, state: RoomCardState, isMine: boolean): { primaryAction: RoomPrimaryAction; extraWatch: boolean } {
-  const seatOpen = state.key === 'lobby' && room.members.length < (room.pod !== null ? POD_MAX_SEATS : 2);
+  const seatOpen = state.key === 'lobby' && room.members.length < (magicGame(room).pod !== null ? POD_MAX_SEATS : 2);
   // One way in, member or not (the operator, 2026-10-29: a separate button for each "seems pointless").
   const primaryAction: RoomPrimaryAction = isMine || seatOpen ? 'Join' : 'Watch';
   const inProgress = state.key !== 'lobby' && state.key !== 'done';
@@ -197,7 +198,7 @@ function actions(room: RoomView, state: RoomCardState, isMine: boolean): { prima
  * all), so it counts the pod now filling: 5 of 8, 8 of 16, and 64 of 64 once it is full.
  */
 function seatsCapacity(room: RoomView): number {
-  if (room.pod === null) return 2;
+  if (magicGame(room).pod === null) return 2;
   return Math.min(POD_MAX_SEATS, Math.max(POD_SEATS, Math.ceil((room.members.length + 1) / POD_SEATS) * POD_SEATS));
 }
 
@@ -213,8 +214,9 @@ function cardSeats(room: RoomView, capacity: number): { seats: RoomCardSeat[]; s
     return { kind: 'taken', id, name: m?.name ?? name, avatarId: m?.avatarId ?? avatarId, look: m?.look };
   };
   const open: RoomCardSeat = { kind: 'open' };
+  const { pod } = magicGame(room);
   let all: RoomCardSeat[];
-  if (room.pod === null) {
+  if (pod === null) {
     // The host first, as the room's link preview draws it (`apps/server/src/http/preview.ts`): host vs the other seat.
     const host = room.leader || room.creator;
     const players = [...(room.tables[0]?.players ?? [])].sort((a, b) => Number(b.memberId === host) - Number(a.memberId === host));
@@ -222,16 +224,16 @@ function cardSeats(room: RoomView, capacity: number): { seats: RoomCardSeat[]; s
       const p = players[i];
       return p === undefined ? open : member(p.memberId, p.name);
     });
-  } else if (room.pod.phase === 'lobby') {
+  } else if (pod.phase === 'lobby') {
     all = Array.from({ length: capacity }, (_, i) => {
-      const s = room.pod?.seats[i] ?? null;
+      const s = pod.seats[i] ?? null;
       return s === null ? open : member(s.memberId, s.name, s.avatarId);
     });
   } else {
     all = room.members.map((m) => member(m.id, m.name));
   }
   if (all.length <= CARD_SEATS_MAX) return { seats: all, seatsMore: 0 };
-  const from = room.pod?.phase === 'lobby' ? all.length - CARD_SEATS_MAX : 0;
+  const from = pod?.phase === 'lobby' ? all.length - CARD_SEATS_MAX : 0;
   const seats = all.slice(from, from + CARD_SEATS_MAX);
   return { seats, seatsMore: all.filter((s) => s.kind === 'taken').length - seats.filter((s) => s.kind === 'taken').length };
 }

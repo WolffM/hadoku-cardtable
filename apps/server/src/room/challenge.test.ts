@@ -23,7 +23,7 @@ afterAll(async () => {
 });
 
 /** The room's seat ids as the lobby holds them: a member id, `POD_AI`, or `null` for open. */
-const seatIds = (lobby: Lobby, roomId: string): (string | null)[] => lobby.get(roomId)!.pod!.seats.map((s) => s?.memberId ?? null);
+const seatIds = (lobby: Lobby, roomId: string): (string | null)[] => lobby.get(roomId)!.game.pod!.seats.map((s) => s?.memberId ?? null);
 
 describe('Challenge catalogue', () => {
 	it('lists every tournament import with its standings, each player joined to their own list by rank', async () => {
@@ -100,7 +100,7 @@ describe('a Challenge room', () => {
 		const { lobby: again } = await lobbyIn(dir);
 		const after = again.get(made.room.id)!;
 		// Names are not stored (R12); who sits where, and on what list, is.
-		const seated = (room: typeof before) => room.pod!.seats.map((s) => s?.memberId ?? null);
+		const seated = (room: typeof before) => room.game.pod!.seats.map((s) => s?.memberId ?? null);
 		expect(seated(after)).toEqual(seated(before));
 		expect(after.aiDeckAssignments).toEqual(before.aiDeckAssignments);
 		expect(after.seatDecks).toEqual(before.seatDecks);

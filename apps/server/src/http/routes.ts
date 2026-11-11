@@ -225,11 +225,22 @@ export interface RoomViewLike {
 	id: string;
 	name: string;
 	gameType: string;
-	/** The room's pool: a `TableFormat.id`, and the rules for BOTH seats. */
-	format: string;
-	/** A Constructed room's mode and its options; absent or null until chosen (a game then reports as Classic, `statsModeOf`). */
-	mode?: RoomModeState['mode'];
-	modeOptions?: RoomModeState['modeOptions'];
+	/** Magic's part of the room (`@hadoku/shared`'s `MagicRoomGame`), the fields of it a table reads. */
+	game: {
+		/** The room's pool: a `TableFormat.id`, and the rules for BOTH seats. */
+		format: string;
+		/** A Constructed room's mode and its options; absent or null until chosen (a game then reports as Classic, `statsModeOf`). */
+		mode?: RoomModeState['mode'];
+		modeOptions?: RoomModeState['modeOptions'];
+		/**
+		 * `null` for a `constructed-1v1` room, always present for a `draft` one. Only `phase`
+		 * (`wrongGameType`'s "or a pod in rounds") and `results` (`dealtUnseen`) are read here — the
+		 * rest of the view's pod is `GET /api/rooms/:id`'s own concern, not a table route's.
+		 */
+		pod: { phase: string; results?: readonly { playerA: string; playerB: string | null }[] } | null;
+		/** A board-state testing room's own scenario (`room/lobby.ts`'s `RoomRecord.scenario`). Absent for every other room. `startFromRoom`'s only reader. */
+		scenario?: string;
+	};
 	/** How the room's matches are dealt (`room/lobby.ts`'s `RoomSettings`). */
 	settings: { handSmoothing: boolean; tournament?: boolean; tournamentDecks?: string; clock?: ClockSetting };
 	/** A historical replay room's entrant deck assignments (`RoomRecord.aiDeckAssignments`). Absent for every other room. */
@@ -253,17 +264,8 @@ export interface RoomViewLike {
 	 * gate and the start route's `chooser` wiring both read them.
 	 */
 	tables: RoomTable[];
-	/**
-	 * Wave 72 §P: `null` for a `constructed-1v1` room, always present for a
-	 * `draft` one. Only `phase` (`wrongGameType`'s "or a pod in rounds") and
-	 * `results` (`dealtUnseen`) are read here — the rest of `RoomView.pod` is `GET /api/rooms/:id`'s own
-	 * concern, not a table route's.
-	 */
-	pod: { phase: string; results?: readonly { playerA: string; playerB: string | null }[] } | null;
 	/** A seeded, admin-only testing room (`room/lobby.ts`'s `RoomRecord.testing`). Absent on a registry that predates testing rooms, same as every other flag here — reads as `false`. */
 	testing?: boolean;
-	/** A board-state testing room's own scenario (`room/lobby.ts`'s `RoomRecord.scenario`). Absent for every other room. `startFromRoom`'s only reader. */
-	scenario?: string;
 }
 
 /** The subset of `room/lobby.ts`'s `Lobby` a table uses. */
@@ -951,14 +953,14 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// room's era is refused by the same gate rather than slipping through.
 		const assigned = room.aiDeckAssignments?.[entrant];
 		if (assigned !== undefined) {
-			return tableDeckOfLibrary(assigned, rulesOf(room.format), entrant);
+			return tableDeckOfLibrary(assigned, rulesOf(room.game.format), entrant);
 		}
 		// An AI entrant is dealt the same way `startFromRoom`'s vs-bot
 		// fallback deals one; a human's is whatever they already loaded (the
 		// lock's own `hasLegalSeatDeck` gate already required it to be legal).
 		if (isAiEntrant(entrant)) {
-			const id = pickLibraryBotDeckId(room.format, entrant);
-			return id === null ? null : tableDeckOfLibrary(id, rulesOf(room.format), entrant);
+			const id = pickLibraryBotDeckId(room.game.format, entrant);
+			return id === null ? null : tableDeckOfLibrary(id, rulesOf(room.game.format), entrant);
 		}
 		return readPlayerState(rooms.playerState(roomId, entrant))?.deck ?? null;
 	}
@@ -1265,7 +1267,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * draft room's table plays.
 	 */
 	function effectivePoolOf(room: RoomViewLike): string {
-		return room.gameType === 'draft' ? draftPoolId(room.id) : room.format;
+		return room.gameType === 'draft' ? draftPoolId(room.id) : room.game.format;
 	}
 
 	function poolName(pool: string): string {
@@ -1380,7 +1382,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// seen it once they have finished a match with it (the operator: "Show it once played"). A bye is
 		// not a match.
 		const lockedTournament = room.settings.tournament === true && room.settings.tournamentDecks === 'locked';
-		return !(lockedTournament && (room.pod?.results ?? []).some((r) => r.playerB !== null && (r.playerA === memberId || r.playerB === memberId)));
+		return !(lockedTournament && (room.game.pod?.results ?? []).some((r) => r.playerB !== null && (r.playerA === memberId || r.playerB === memberId)));
 	}
 
 	/** Every room route answers this, and only this, when you may not act. */
@@ -1406,7 +1408,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	function wrongGameType(room: RoomViewLike, res: Response): boolean {
 		if (room.gameType === CONSTRUCTED) return false;
-		if (room.gameType === 'draft' && (room.pod?.phase === 'rounds' || room.pod?.phase === 'done')) return false;
+		if (room.gameType === 'draft' && (room.game.pod?.phase === 'rounds' || room.game.pod?.phase === 'done')) return false;
 		res.status(409).json({ error: `this room plays ${room.gameType}, not ${CONSTRUCTED} or a pod at its tables` });
 		return true;
 	}
@@ -1429,8 +1431,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	/** An All Random room's pool, or null for every other room. */
 	function randomPoolOf(room: RoomViewLike): RandomPool | null {
-		if (room.gameType !== CONSTRUCTED || room.mode !== 'random') return null;
-		const options = RandomOptionsSchema.safeParse(room.modeOptions);
+		if (room.gameType !== CONSTRUCTED || room.game.mode !== 'random') return null;
+		const options = RandomOptionsSchema.safeParse(room.game.modeOptions);
 		return options.success ? options.data.pool : null;
 	}
 
@@ -1496,7 +1498,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	/** Whether an All Random room keeps each table's first deal for every game (`RandomOptions.lock`). */
 	function randomLocked(room: RoomViewLike): boolean {
-		const options = RandomOptionsSchema.safeParse(room.modeOptions);
+		const options = RandomOptionsSchema.safeParse(room.game.modeOptions);
 		return options.success && options.data.lock === true;
 	}
 
@@ -2040,7 +2042,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// A pod's series is its round: once it is over, the next game is the pod's
 		// next round, never another series at the same table (the operator,
 		// 2026-10-19: "it seems like it just lets me keep clicking 'next game' forever").
-		if (room.pod !== null && table.series.phase === 'done') {
+		if (room.game.pod !== null && table.series.phase === 'done') {
 			res.status(409).json({ error: 'this series is over — the standings are in the room' });
 			return;
 		}
@@ -2063,7 +2065,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// caller is seated and, holding no deck, dealt a legal library one —
 		// the board replaces the hand and battlefield it would have dealt. Entering
 		// may already have seated them (`room/lobby.ts`'s `#autoSeat`), deckless.
-		if (vsBot && room.scenario !== undefined && room.pod === null && players.every((p) => p.member.id === me) && (players[0]?.state.deck ?? null) === null) {
+		if (vsBot && room.game.scenario !== undefined && room.game.pod === null && players.every((p) => p.member.id === me) && (players[0]?.state.deck ?? null) === null) {
 			const refusal = seatOnBoard(room, table.id, me);
 			if (refusal !== null) {
 				res.status(409).json({ error: refusal });
@@ -2297,7 +2299,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// trusted on `res.locals` (never JSON, so no client can forge it) for
 		// `play/socket.ts`'s probe gate, the one legitimate production path
 		// around "a scenario is a TEST facility, never a production one".
-		const scenario = room.scenario;
+		const scenario = room.game.scenario;
 		if (scenario !== undefined) res.locals.trustedScenario = true;
 		// Everyone this start seats can read its place in the queue for a JVM (`GET /api/play/queue`).
 		res.locals.startedFor = players.map((p) => p.member.id);
@@ -2473,7 +2475,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					format: family,
 					pool,
 					opponent: match.spec.seats.some((s) => s.ai) ? 'bot' : 'human',
-					mode: statsModeOf(room),
+					mode: statsModeOf({ gameType: room.gameType, mode: room.game.mode }),
 					...(bestOf === undefined ? {} : { bestOf }),
 				},
 				seats,

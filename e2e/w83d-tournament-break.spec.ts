@@ -53,8 +53,8 @@ async function afterGame(f: Friend, roomUrl: string): Promise<string> {
   const room = (await f.page.evaluate(
     (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
-  )) as { pod: { phase: string } | null; tables: { series: { phase: string } }[] };
-  if (room.pod?.phase === 'done') return 'done';
+  )) as { game: { pod: { phase: string } | null }; tables: { series: { phase: string } }[] };
+  if (room.game.pod?.phase === 'done') return 'done';
   return room.tables.some((t) => t.series.phase === 'sideboarding') ? 'sideboarding' : 'playing';
 }
 

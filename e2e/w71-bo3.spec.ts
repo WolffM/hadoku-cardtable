@@ -123,7 +123,7 @@ test(titled('Classic Bo1 → Rematch: game 1 stays, the series is Bo3 at 1-0 in 
 
     // 1. A Classic room. A new room's own format is RANDOM (`room/lobby.ts`'s
     // `randomFormat`), so the decks are picked for whatever era it got.
-    const created = await post<{ id: string; format: string }>(alice.context.request, stack.origin, '/rooms', {
+    const created = await post<{ id: string; game: { format: string } }>(alice.context.request, stack.origin, '/rooms', {
       name: `e2e w71-bo3 ${Date.now()}`,
       gameType: 'constructed-1v1',
       mode: 'classic',
@@ -131,8 +131,8 @@ test(titled('Classic Bo1 → Rematch: game 1 stays, the series is Bo3 at 1-0 in 
     const roomId = created.id;
     await post(bob.context.request, stack.origin, `/rooms/${roomId}/join`, {});
 
-    const decks = await twoLegalDecksFor(alice.context.request, stack.origin, created.format);
-    console.log(`[w71-bo3] room ${roomId} on ${created.format}: decks ${decks.join(', ')}`);
+    const decks = await twoLegalDecksFor(alice.context.request, stack.origin, created.game.format);
+    console.log(`[w71-bo3] room ${roomId} on ${created.game.format}: decks ${decks.join(', ')}`);
     const loadAndReady = async (f: Friend, deck: string): Promise<void> => {
       await put(f.context.request, stack.origin, `/tables/rooms/${roomId}/deck`, { deck: { library: deck } });
       await post(f.context.request, stack.origin, `/tables/rooms/${roomId}/ready`, { ready: true });
@@ -229,14 +229,14 @@ test(titled('a mode change during sideboarding interrupts the Bo3: the sideboard
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await bob.page.goto(`${stack.origin}${PREFIX}/`);
 
-    const created = await post<{ id: string; format: string }>(alice.context.request, stack.origin, '/rooms', {
+    const created = await post<{ id: string; game: { format: string } }>(alice.context.request, stack.origin, '/rooms', {
       name: `e2e w71-bo3 interrupted ${Date.now()}`,
       gameType: 'constructed-1v1',
       mode: 'classic',
     });
     const roomId = created.id;
     await post(bob.context.request, stack.origin, `/rooms/${roomId}/join`, {});
-    const decks = await twoLegalDecksFor(alice.context.request, stack.origin, created.format);
+    const decks = await twoLegalDecksFor(alice.context.request, stack.origin, created.game.format);
     for (const [f, deck] of [[alice, decks[0]], [bob, decks[1]]] as const) {
       await put(f.context.request, stack.origin, `/tables/rooms/${roomId}/deck`, { deck: { library: deck } });
       await post(f.context.request, stack.origin, `/tables/rooms/${roomId}/ready`, { ready: true });

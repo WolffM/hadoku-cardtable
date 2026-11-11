@@ -7,6 +7,7 @@
  * (`../screens/pod/PodSeats.tsx`). An open seat that is a way in is a button, the same press as the
  * page's Join. What is drawn is derived by `./roomCard.ts` (`seats`, `seatsMore`, `seatJoinable`).
  */
+import { magicGame } from '@hadoku/shared';
 import type { RoomView } from '../rooms/api.ts';
 import { Avatar } from '../components/Avatar.tsx';
 import type { RoomCardSeat, RoomCardView } from './roomCard.ts';
@@ -61,7 +62,7 @@ function Seat({ seat, duel, joinable, roomName, onTake }: SeatProps) {
 }
 
 export function RoomSeats({ room, view, onTake }: { room: RoomView; view: RoomCardView; onTake: () => void }) {
-  const duel = room.pod === null;
+  const duel = magicGame(room).pod === null;
   const seat = (s: RoomCardSeat, i: number) => <Seat key={i} seat={s} duel={duel} joinable={view.seatJoinable} roomName={room.name} onTake={onTake} />;
   if (duel) {
     return (

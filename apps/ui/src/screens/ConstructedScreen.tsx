@@ -157,7 +157,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
-import { DEFAULT_ROOM_SETTINGS, OPEN_ROOM_LOCKS } from '@hadoku/shared';
+import { DEFAULT_ROOM_SETTINGS, magicGame, OPEN_ROOM_LOCKS } from '@hadoku/shared';
 import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodView, type RoomMode, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
@@ -1190,6 +1190,8 @@ function RoomTableScreen({
    * not a second round trip after it.
    */
   const [view, setView] = useState<RoomView | null>(warm?.view ?? null);
+  /** Magic's part of the room, once it has been read. */
+  const game = view === null ? null : magicGame(view);
   /** The room record's reads and this screen's own writes of it, latest-wins (`../rooms/latest.ts`). */
   const [roomReads] = useState(latestReads);
   const [resolved, setResolved] = useState(warm !== undefined);
@@ -1199,7 +1201,7 @@ function RoomTableScreen({
     if (view !== null) podSource.land(view);
   }, [podSource, view]);
   /** Latched on the first read. A room does not change mode under its players. */
-  const modeRef = useRef<ClientMode | null>(warm?.view.clientMode ?? null);
+  const modeRef = useRef<ClientMode | null>(warm === undefined ? null : magicGame(warm.view).clientMode);
   /** A refusal from `ready` or `start`, in the server's own words. */
   const [draftError, setDraftError] = useState<string | null>(null);
   const [dealing, setDealing] = useState(false);
@@ -1222,9 +1224,9 @@ function RoomTableScreen({
    * behaviour every room had before there was a draft branch.
    */
   const draftRoom = view?.gameType === 'draft';
-  const draftStartedAt = view?.draftStartedAt ?? null;
+  const draftStartedAt = game?.draftStartedAt ?? null;
   const members = view?.members ?? [];
-  const allReady = podDealable(view?.pod?.seats, members);
+  const allReady = podDealable(game?.pod?.seats, members);
   /** Your own readiness in a DRAFT room, as the ROOM says it. Not a latch. */
   const iAmReady = view?.you.ready === true;
   /**
@@ -1245,7 +1247,7 @@ function RoomTableScreen({
    * said — never `formats[0]`, which is the oldest frozen pool and is where
    * every room used to open (operator, 2026-09-27: newest).
    */
-  const poolId = view?.format !== undefined && view.format !== '' ? view.format : newestFormat(loaded?.formats ?? []);
+  const poolId = game !== null && game.format !== '' ? game.format : newestFormat(loaded?.formats ?? []);
   /** The pool's own catalogue row: its name, and for an era its set list. */
   const poolFormat = loaded?.formats.find((f) => f.id === poolId) ?? null;
   /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
@@ -1258,7 +1260,7 @@ function RoomTableScreen({
    * (as `ClassicOptions` holds its year). A refusal clears it, and the controls are back on the room's.
    */
   const [askedMode, setAskedMode] = useState<RoomMode | null>(null);
-  const shown: RoomMode | null = askedMode ?? (view?.mode == null ? null : ({ mode: view.mode, modeOptions: view.modeOptions } as RoomMode));
+  const shown: RoomMode | null = askedMode ?? (game?.mode == null ? null : ({ mode: game.mode, modeOptions: game.modeOptions } as RoomMode));
   const randomOptions = shown?.mode === 'random' ? shown.modeOptions : null;
   /**
    * Tournament mode (`docs/planning/tournament-mode-plan.md`): a Constructed
@@ -1268,7 +1270,7 @@ function RoomTableScreen({
   const tournament = view?.settings.tournament === true;
   const clock = view !== null && view !== undefined && clockOn(view.settings, view.gameType);
   const tournamentDecks = view?.settings.tournamentDecks ?? 'locked';
-  const pod: PodView | null = view?.pod ?? null;
+  const pod: PodView | null = game?.pod ?? null;
   /** The pod's seats are still open — Tournament/Decks are the leader's, and seats, AI and Lock all act. */
   const tournamentLobby = tournament && pod !== null && pod.phase === 'lobby';
   /** Seats are locked: the bracket, standings and "your table" replace the lobby's seats entirely. */
@@ -1431,7 +1433,7 @@ function RoomTableScreen({
             read();
             return;
           }
-          modeRef.current ??= room.clientMode;
+          modeRef.current ??= magicGame(room).clientMode;
           setView(room);
           setResolved(true);
         },
@@ -1474,7 +1476,7 @@ function RoomTableScreen({
    * draws as Classic — the table it has always drawn without that record. It
    * starts nothing until the record lands (`startAs`, below).
    */
-  const mode = view === null ? 'classic' : view.mode;
+  const mode = game === null ? 'classic' : game.mode;
   /** The mode the controls draw: the leader's ask while it is in flight, else the room's. */
   const shownMode = askedMode?.mode ?? mode;
   /** A Gauntlet room's state as I may see it; null in any other mode. */
@@ -2515,7 +2517,7 @@ function RoomTableScreen({
           </section>
           <DraftLobby
             roomId={roomId}
-            pod={view?.pod ?? null}
+            pod={game?.pod ?? null}
             members={members}
             leaderId={view?.leader ?? ''}
             myId={view?.you.id ?? ''}

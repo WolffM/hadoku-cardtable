@@ -54,7 +54,7 @@
 import { useCallback, useContext, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@wolffm/themes';
 import { usePrefs } from '@wolffm/prefs-client/react';
-import { PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ChallengeEvent } from '@hadoku/shared';
+import { magicGame, PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ChallengeEvent } from '@hadoku/shared';
 
 import { apiUrl, sendJson } from '../http.ts';
 import { navigate } from '../screens/route.ts';
@@ -517,7 +517,8 @@ function RoomRow({
     setError(null);
     // A joined room is marked by the client itself (`rooms/api.ts`), before the navigate below.
     const outcome = await client.join(room.id, withPassword);
-    if (outcome.ok && room.scenario !== undefined && room.pod === null) {
+    const { scenario, pod } = magicGame(room);
+    if (outcome.ok && scenario !== undefined && pod === null) {
       // A board-state room (no pod: a tournament's board is its round's table) opens on its game, the one already running or a new one against the AI.
       const started = await tablesClient().startVsBot(room.id);
       if (started.ok) {
@@ -716,9 +717,9 @@ function RoomRow({
           {/* Only on a streamed room (the operator, 2026-10-10): the form makes
               nothing but our table now, so the label is said where it is the
               exception, not on every row. */}
-          {room.clientMode === 'streamed' && (
-            <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
-              {clientModeLabel(room.clientMode)}
+          {magicGame(room).clientMode === 'streamed' && (
+            <span className="rooms__mode" data-testid="room-mode" data-mode="streamed">
+              {clientModeLabel('streamed')}
             </span>
           )}
         </div>

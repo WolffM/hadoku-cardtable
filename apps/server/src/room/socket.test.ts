@@ -162,12 +162,12 @@ async function bootLobby(settings: Partial<RoomSettings> = {}): Promise<Lobby> {
 	// startDraft also gates on the plan's verdict (wave 73 §A follow-up) — this
 	// lobby is never given a `checkPlan`, so nothing auto-checks one; approve
 	// it directly, the way a PUT would, since this file is not about plans.
-	const plan = lobby.get(startedRoomId)?.pod?.plan;
+	const plan = lobby.get(startedRoomId)?.game.pod?.plan;
 	if (plan === undefined || plan === null) throw new Error('the started room has no plan');
 	if (!lobby.setPodPlan(startedRoomId, OWNER.id, plan, { ok: true, cards: 1 }).ok) throw new Error('the lobby refused to approve the plan');
 	const started = lobby.startDraft(startedRoomId, OWNER.id);
 	if (!started.ok) throw new Error(`the lobby refused to start the draft: ${started.reason}`);
-	if (lobby.get(pendingRoomId)?.draftStartedAt !== null) throw new Error('the pending room started itself');
+	if (lobby.get(pendingRoomId)?.game.draftStartedAt !== null) throw new Error('the pending room started itself');
 	return lobby;
 }
 
@@ -446,7 +446,7 @@ describe('a join against a draft that has not started', () => {
 		// The lobby really has this room, and it really is a draft: the refusal
 		// below is about readiness and nothing else.
 		expect(live().lobby.get(pendingRoomId)?.gameType).toBe('draft');
-		expect(live().lobby.get(pendingRoomId)?.draftStartedAt).toBeNull();
+		expect(live().lobby.get(pendingRoomId)?.game.draftStartedAt).toBeNull();
 
 		alice.send(joinDraft(pendingRoomId));
 		await waitUntil(() => alice.received.length > 0, 'the refusal');
@@ -496,7 +496,7 @@ describe('a join against a draft that has not started', () => {
 		// then `startDraft` — and nothing about the socket changed.
 		expect(live().lobby.setReady(pendingRoomId, OWNER.id, true)).toBe(true);
 		for (let seat = 1; seat < 8; seat++) expect(live().lobby.aiPod(pendingRoomId, OWNER.id, seat, true).ok).toBe(true);
-		const pendingPlan = live().lobby.get(pendingRoomId)?.pod?.plan;
+		const pendingPlan = live().lobby.get(pendingRoomId)?.game.pod?.plan;
 		if (pendingPlan === undefined || pendingPlan === null) throw new Error('the pending room has no plan');
 		expect(live().lobby.setPodPlan(pendingRoomId, OWNER.id, pendingPlan, { ok: true, cards: 1 }).ok).toBe(true);
 		expect(live().lobby.startDraft(pendingRoomId, OWNER.id).ok).toBe(true);
@@ -1380,14 +1380,14 @@ describe('a room of several pods', () => {
 		const id = made.room.id;
 		for (const m of people.slice(1)) expect(lobby.join(id, m).ok).toBe(true);
 		for (const m of people) expect(lobby.sitPod(id, m.id).ok).toBe(true);
-		lobby.get(id)!.pod!.seats.forEach((s, seat) => {
+		lobby.get(id)!.game.pod!.seats.forEach((s, seat) => {
 			if (s === null) expect(lobby.aiPod(id, people[0]!.id, seat, true).ok).toBe(true);
 		});
-		lobby.setPodPlan(id, people[0]!.id, lobby.get(id)!.pod!.plan!, { ok: true, cards: 1 });
+		lobby.setPodPlan(id, people[0]!.id, lobby.get(id)!.game.pod!.plan!, { ok: true, cards: 1 });
 		for (const m of people) expect(lobby.setReady(id, m.id, true)).toBe(true);
 		const split = lobby.splitPod(id, people[0]!.id);
 		if (!split.ok) throw new Error(split.reason);
-		const pods = split.room.pod!.pods!;
+		const pods = split.room.game.pod!.pods!;
 		expect(pods.map((p) => p.length)).toEqual([5, 4]);
 		expect(lobby.startDraft(id, people[0]!.id).ok).toBe(true);
 		// Who drafts in which pod is the split's draw: one drafter from each.
@@ -1432,7 +1432,7 @@ describe('the pod socket under one live tab per player', () => {
 		if (!made.ok) throw new Error(made.reason);
 		const id = made.room.id;
 		for (let seat = 1; seat < 8; seat++) expect(lobby.aiPod(id, alice.id, seat, true).ok).toBe(true);
-		expect(lobby.setPodPlan(id, alice.id, lobby.get(id)!.pod!.plan!, { ok: true, cards: 1 }).ok).toBe(true);
+		expect(lobby.setPodPlan(id, alice.id, lobby.get(id)!.game.pod!.plan!, { ok: true, cards: 1 }).ok).toBe(true);
 		expect(lobby.setReady(id, alice.id, true)).toBe(true);
 		expect(lobby.startDraft(id, alice.id).ok).toBe(true);
 		return id;

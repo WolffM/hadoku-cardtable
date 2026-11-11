@@ -268,7 +268,7 @@ test(
        */
       const deadline = Date.now() + BOT_GAME_MS;
       for (;;) {
-        const pod = ((await (await alice.context.request.get(`${stack.origin}${PREFIX}/api/rooms/${roomId}`)).json()) as { pod: PodView }).pod;
+        const pod = ((await (await alice.context.request.get(`${stack.origin}${PREFIX}/api/rooms/${roomId}`)).json()) as { game: { pod: PodView } }).game.pod;
         if (pod.round >= 2) break;
         expect(pod.botGames ?? [], 'round 1 still stands only while its bot game is played').not.toEqual([]);
         expect(Date.now(), 'the bot game reports within its clock').toBeLessThan(deadline);

@@ -50,6 +50,7 @@
  * them, so production gets the real API.
  */
 
+import { magicGame } from '@hadoku/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DeckEditor } from '../deck/DeckEditor.tsx';
@@ -178,7 +179,8 @@ export function DeckScreen({
       const marked = await playPod(draftId);
       if (!marked.ok) return fail(marked.message ?? 'The pod refused that.');
       const room = await rooms.get(draftId).catch(() => null);
-      const mine = room?.pod?.phase === 'rounds' ? myCurrentTable(room.pod, room.tables, room.you.id) : undefined;
+      const pod = room === null ? null : magicGame(room).pod;
+      const mine = room !== null && pod?.phase === 'rounds' ? myCurrentTable(pod, room.tables, room.you.id) : undefined;
       if (mine === undefined) return toRoom();
       // Straight past my table's page, which this stands in for: the hub has carried me there already.
       followTableOnce(draftId, mine.id, mine.id);

@@ -28,7 +28,7 @@ const UI_TIMEOUT = 30_000;
 
 interface PodBody {
   members: { id: string; name: string }[];
-  pod: { phase: string; seats: ({ memberId: string } | null)[]; pods?: string[][] } | null;
+  game: { pod: { phase: string; seats: ({ memberId: string } | null)[]; pods?: string[][] } | null };
 }
 
 async function roomBody(f: Friend, roomId: string): Promise<PodBody> {
@@ -72,8 +72,8 @@ test(titled('nine drafters: the leader splits the ready room 5 + 4 at random, an
     await expect(alice.page.getByTestId('pod-seat-8'), 'alice: the ninth seat').toBeVisible({ timeout: UI_TIMEOUT });
     await expect(alice.page.getByTestId('pod-seats')).not.toContainText(/Pod \d/);
     const seated = await roomBody(alice, roomId);
-    console.log(`[w84b] seats: ${seated.pod?.seats.map((s) => s?.memberId ?? '-').join(' ')}`);
-    expect(seated.pod?.seats).toHaveLength(9);
+    console.log(`[w84b] seats: ${seated.game.pod?.seats.map((s) => s?.memberId ?? '-').join(' ')}`);
+    expect(seated.game.pod?.seats).toHaveLength(9);
 
     // Not until everyone is ready, and only for the leader.
     await readyPod(bob.page);
@@ -91,10 +91,10 @@ test(titled('nine drafters: the leader splits the ready room 5 + 4 at random, an
       await expect(p.page.locator('[data-testid^="pod-split-pod-"][data-mine]'), `${p.name}: their own pod is marked`).toHaveCount(1);
     }
     const split = await roomBody(alice, roomId);
-    const pods = split.pod?.pods ?? [];
+    const pods = split.game.pod?.pods ?? [];
     console.log(`[w84b] pods: ${JSON.stringify(pods)}`);
     expect(pods.map((p) => p.length)).toEqual([5, 4]);
-    expect(new Set(pods.flat())).toEqual(new Set(seated.pod?.seats.flatMap((s) => (s === null ? [] : [s.memberId]))));
+    expect(new Set(pods.flat())).toEqual(new Set(seated.game.pod?.seats.flatMap((s) => (s === null ? [] : [s.memberId]))));
 
     // Locked: nobody stands down or changes a seat, and nothing deals until the leader confirms.
     for (const p of [alice, bob]) {

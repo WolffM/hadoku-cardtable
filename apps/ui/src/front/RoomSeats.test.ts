@@ -18,30 +18,29 @@ const table = (players: RoomTable['players'], phase: RoomTable['series']['phase'
   series: { length: 1, wins: [0, 0], games: [], phase },
 });
 
-const room = (over: Partial<RoomView> = {}): RoomView => ({
-  id: 'r-1',
-  name: 'Table',
-  creator: 'm1',
-  leader: 'm1',
-  gameType: 'constructed-1v1',
-  format: '2026-01-01',
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
-  locks: { ...OPEN_ROOM_LOCKS },
-  mode: 'classic',
-  modeOptions: {},
-  clientMode: 'builtin',
-  locked: false,
-  members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],
-  tables: [table([{ memberId: 'm1', name: 'alice' }])],
-  matchId: null,
-  draftStartedAt: null,
-  pod: null,
-  createdAt: '',
-  testing: false,
-  scheduledFor: null,
-  you: { id: 'viewer', leader: false, ready: false },
-  ...over,
-});
+const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clientMode = 'builtin', draftStartedAt = null, pod = null, ...over }: Partial<RoomView> = {}): RoomView => {
+  const game = { format, mode, modeOptions, clientMode, draftStartedAt, pod };
+  return {
+    id: 'r-1',
+    name: 'Table',
+    creator: 'm1',
+    leader: 'm1',
+    gameType: 'constructed-1v1',
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
+    locks: { ...OPEN_ROOM_LOCKS },
+    locked: false,
+    members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],
+    tables: [table([{ memberId: 'm1', name: 'alice' }])],
+    matchId: null,
+    createdAt: '',
+    testing: false,
+    scheduledFor: null,
+    you: { id: 'viewer', leader: false, ready: false },
+    ...game,
+    game,
+    ...over,
+  };
+};
 
 const pod = (seats: PodView['seats']): PodView => ({
   phase: 'lobby',
