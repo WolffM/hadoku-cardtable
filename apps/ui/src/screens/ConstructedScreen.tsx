@@ -193,6 +193,7 @@ import {
 import { MatchRules } from '../rooms/MatchRules.tsx';
 import { RoomHeader } from '../rooms/RoomHeader.tsx';
 import { gameRoomUiFor, registerGameRoomUi, type GameSetupProps } from '../rooms/game-setup.ts';
+import { RoomShell } from '../rooms/screen/RoomShell.tsx';
 import { ClassicOptions, toggledFreePick, type Browse } from './constructed-mode/ClassicOptions.tsx';
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
@@ -2776,20 +2777,25 @@ function RoomTableScreen({
   }
 
   return (
-    <div ref={shellRef} className="shell shell--fit" data-testid="constructed" data-members={view?.members.length ?? undefined}>
-      <header className="shell__head">
-        {/* The room's own name, never its id: until the room has answered, a
-            skeleton line where the name will be. */}
-        {roomTitle !== undefined ? (
-          <h1 className="shell__title" data-testid="room-name">
-            {roomTitle}
-          </h1>
-        ) : settled ? (
-          <h1 className="shell__title">Room</h1>
-        ) : (
-          <span className="skeleton skeleton--title" />
-        )}
-        <div className="shell__tools">
+    <RoomShell
+      shellRef={shellRef}
+      dataMembers={view?.members.length ?? undefined}
+      roomTitle={roomTitle}
+      settled={settled}
+      streamed={streamed}
+      resolved={resolved}
+      pending={pending}
+      pendingBody={<RoomSkeleton />}
+      streamedBody={<StreamedSeats roomId={roomId} members={view?.members ?? []} streamFetch={streamFetch} />}
+      streamedSubLine={
+        // A streamed room says so under its name: it is not our table. Ours needs no line (the
+        // operator, 2026-10-21: "i don't need the 'Constructed 1v1' title inside the room").
+        <p className="shell__sub" data-testid="room-client-mode">
+          Forge’s full client
+        </p>
+      }
+      headerTools={
+        <>
           {/* Room settings, beside Close: a draft room's before its deal, a constructed room's once a mode is chosen. */}
           {!streamed && resolved && draftRoom && (
             <MatchRules
@@ -2815,79 +2821,31 @@ function RoomTableScreen({
           )}
           {!streamed && iAmLeader && <CloseRoom roomId={roomId} rooms={rooms} resettable={draftStartedAt === null} />}
           <SettingsGear />
-        </div>
-        {/* A streamed room says so under its name: it is not our table. Ours
-            needs no line (the operator, 2026-10-21: "i don't need the
-            'Constructed 1v1' title inside the room"). */}
-        {resolved && streamed && (
-          <p className="shell__sub" data-testid="room-client-mode">
-            Forge’s full client
-          </p>
-        )}
-      </header>
+        </>
+      }
+      locked={locked}
+      password={password}
+      onPasswordChange={setPassword}
+      onPasswordSubmit={() => {
+        passwordRef.current = password;
+        setLocked(null);
+        setTableError(null);
+        setAttempt((n) => n + 1);
+      }}
+      roomMissingMessage={locked === null && tableError !== null && table === null ? tableError : null}
+    >
+      {/* The game type's own UI, through the registry: what it draws before the room is
+          underway (`setup`), and what it draws once it is (`game`). `gameUiProps`,
+          `registerGameRoomUi` and `gameRoomUiFor` are defined above, right before this screen's
+          early return for a dealt draft pod.
 
-      <main className="lobby lobby--room" aria-busy={pending ? 'true' : undefined}>
-        {pending && <RoomSkeleton />}
-        {streamed && <StreamedSeats roomId={roomId} members={view?.members ?? []} streamFetch={streamFetch} />}
-        {/* Everything below is the builtin room, unchanged. It waits for the
-            room record as well as the table so a streamed room never flashes
-            a deck picker on its way in; both reads are in flight together, so
-            this is not a second round trip. */}
-        {!streamed && resolved && (
-          <>
-        {locked !== null && (
-          <form
-            className="lobby__locked ct-panel"
-            data-testid="room-locked"
-            onSubmit={(e) => {
-              e.preventDefault();
-              passwordRef.current = password;
-              setLocked(null);
-              setTableError(null);
-              setAttempt((n) => n + 1);
-            }}
-          >
-            <p role="alert">
-              {locked === 'need'
-                ? 'This room needs a password.'
-                : locked === 'wrong'
-                  ? 'Wrong password.'
-                  : 'Too many attempts.'}
-            </p>
-            <label htmlFor="room-password">Password</label>
-            <input
-              id="room-password"
-              data-testid="room-password"
-              type="password"
-              autoComplete="off"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button type="submit" data-testid="room-password-submit" disabled={locked === 'rate-limited'}>
-              Join
-            </button>
-          </form>
-        )}
-        {locked === null && tableError !== null && table === null && (
-          <p className="ct-error" role="alert" data-testid="room-missing">
-            {tableError}
-          </p>
-        )}
-        {/* Everything from here down is a registered game type's own UI: what it draws before
-            the room is underway (`setup`), and what it draws once it is (`game`). `gameUiProps`,
-            `registerGameRoomUi` and `gameRoomUiFor` are defined above, right before this screen's
-            early return for a dealt draft pod.
-
-            `game` is NOT called here for a draft room: a dealt pod is a full-screen replacement
-            (no room chrome at all — the early return above), never something drawn inside this
-            `<main>`, so draft's own `game` (`PodScreen`) is reached only from there. Here, a
-            draft room draws only its `setup` (the lobby). */}
-        {gameRoomUiFor(view?.gameType ?? gameType)?.setup?.(gameUiProps)}
-        {!draftRoom && gameRoomUiFor(view?.gameType ?? gameType)?.game(gameUiProps)}
-          </>
-        )}
-      </main>
-    </div>
+          `game` is NOT called here for a draft room: a dealt pod is a full-screen replacement
+          (no room chrome at all — the early return above), never something drawn inside the
+          shell's `<main>`, so draft's own `game` (`PodScreen`) is reached only from there. Here,
+          a draft room draws only its `setup` (the lobby). */}
+      {gameRoomUiFor(view?.gameType ?? gameType)?.setup?.(gameUiProps)}
+      {!draftRoom && gameRoomUiFor(view?.gameType ?? gameType)?.game(gameUiProps)}
+    </RoomShell>
   );
 }
 
