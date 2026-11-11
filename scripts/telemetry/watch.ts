@@ -560,8 +560,20 @@ export function digest(s: Summary): string {
 	return cut(lines.join('\n'), DIGEST_MAX);
 }
 
-function serviceKey(): string {
-	if (process.env.CARDTABLE_TELEMETRY_KEY) return process.env.CARDTABLE_TELEMETRY_KEY;
+/**
+ * The caller key, from the first that is set: CARDTABLE_TELEMETRY_KEY (the
+ * value), CARDTABLE_TELEMETRY_KEY_FILE (a `.devvault.local.json` to read it
+ * from — what daily.sh passes, so the cron run needs no working directory
+ * inside any checkout), else the `.devvault.local.json` of the checkout it runs
+ * in (cwd, then the main worktree), for a hand run.
+ */
+export function serviceKey(env: NodeJS.ProcessEnv = process.env): string {
+	if (env.CARDTABLE_TELEMETRY_KEY) return env.CARDTABLE_TELEMETRY_KEY;
+	if (env.CARDTABLE_TELEMETRY_KEY_FILE) {
+		const key = (JSON.parse(readFileSync(env.CARDTABLE_TELEMETRY_KEY_FILE, 'utf8')) as { key?: string }).key;
+		if (!key) throw new Error(`no service key: ${env.CARDTABLE_TELEMETRY_KEY_FILE} has no "key" field`);
+		return key;
+	}
 	const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
 		encoding: 'utf8',
 	}).trim();
@@ -569,7 +581,9 @@ function serviceKey(): string {
 		const file = join(dir, '.devvault.local.json');
 		if (existsSync(file)) return (JSON.parse(readFileSync(file, 'utf8')) as { key: string }).key;
 	}
-	throw new Error('no service key: set CARDTABLE_TELEMETRY_KEY or run from a checkout with .devvault.local.json');
+	throw new Error(
+		'no service key: set CARDTABLE_TELEMETRY_KEY(_FILE) or run from a checkout with .devvault.local.json',
+	);
 }
 
 async function ownIp(given: string | undefined): Promise<string> {

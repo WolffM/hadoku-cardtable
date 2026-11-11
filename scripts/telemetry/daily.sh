@@ -11,23 +11,30 @@
 # Each run also posts a digest, with the report attached, to the Discord channel
 # behind the vault's DISCORD_CARDTABLE_DAILY_WEBHOOK (watch.ts --post).
 #
-# Installed in hadoku's crontab, run from the PPE tree (it tracks main). The
-# service key is the main checkout's .devvault.local.json, read by watch.ts
-# from its working directory — never on a command line or in the crontab.
+# Installed in hadoku's crontab, run from the PPE tree (it tracks main), with
+# that tree as its working directory. The service key is read by watch.ts from
+# KEY_FILE, never from a command line or the crontab. Its default is the repo's
+# canonical caller-key file: key rotation writes every repo's key under
+# ~/repos/<repo>/.devvault.local.json (hadoku_site mgmt-api lib/devvault-keys.ts)
+# and the ~/srv clones only symlink to it. A build-aside deploy swaps the ~/srv
+# clone whole and an untracked link does not follow, so the clone is not a
+# stable place to read it from. Until 2026-11-11 this cd'd into that ~/repos
+# checkout, the operator's workspace, to find the key.
 # Reports older than 90 days (the logs' own retention) are deleted.
 set -uo pipefail
 
-KEY_DIR=${CARDTABLE_TELEMETRY_KEY_DIR:-/home/hadoku/repos/hadoku-cardtable}
+KEY_FILE=${CARDTABLE_TELEMETRY_KEY_FILE:-/home/hadoku/repos/hadoku-cardtable/.devvault.local.json}
 OUT=${CARDTABLE_TELEMETRY_OUT:-/home/hadoku/.local/state/cardtable/telemetry}
 NODE=${CARDTABLE_TELEMETRY_NODE:-/home/hadoku/.local/share/fnm/node-versions/v24.18.0/installation/bin/node}
-WATCH="$(cd "$(dirname "$0")" && pwd)/watch.ts"
+TREE="$(cd "$(dirname "$0")/../.." && pwd)"
+WATCH="$TREE/scripts/telemetry/watch.ts"
 
 mkdir -p "$OUT"
 day=$(date -u +%F)
 report="$OUT/$day.txt"
 
-cd "$KEY_DIR" || exit 1
-"$NODE" "$WATCH" --hours 24 --post > "$report" 2>&1
+cd "$TREE" || exit 1
+CARDTABLE_TELEMETRY_KEY_FILE="$KEY_FILE" "$NODE" "$WATCH" --hours 24 --post > "$report" 2>&1
 code=$?
 ln -sfn "$day.txt" "$OUT/latest.txt"
 

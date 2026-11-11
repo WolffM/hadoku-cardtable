@@ -247,3 +247,18 @@ describe('backup', () => {
 		expect(render(s)).toContain('## Backup: job log unreadable: /jobs: HTTP 403');
 	});
 });
+
+describe('serviceKey', () => {
+	it('reads CARDTABLE_TELEMETRY_KEY_FILE without looking at the working directory', async () => {
+		const { mkdtempSync, writeFileSync } = await import('node:fs');
+		const { tmpdir } = await import('node:os');
+		const { join } = await import('node:path');
+		const { serviceKey } = await import('./watch.ts');
+		const file = join(mkdtempSync(join(tmpdir(), 'watch-key-')), '.devvault.local.json');
+		writeFileSync(file, JSON.stringify({ key: 'from-file' }));
+		expect(serviceKey({ CARDTABLE_TELEMETRY_KEY_FILE: file })).toBe('from-file');
+		expect(serviceKey({ CARDTABLE_TELEMETRY_KEY: 'value-wins', CARDTABLE_TELEMETRY_KEY_FILE: file })).toBe('value-wins');
+		writeFileSync(file, '{}');
+		expect(() => serviceKey({ CARDTABLE_TELEMETRY_KEY_FILE: file })).toThrow(/no "key" field/);
+	});
+});

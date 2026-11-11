@@ -241,7 +241,8 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
   excluded), the busiest accounts, rate limits, errors. It exits 2 on a gate
   breach (an anonymous caller cardtable itself answered) or a `seal-refused`.
   **It runs daily** (hadoku's crontab, 06:00 host time (Pacific), `scripts/telemetry/daily.sh`
-  from the PPE tree): reports in `~/.local/state/cardtable/telemetry/`
+  from the PPE tree, reading the caller key from `~/repos/hadoku-cardtable/.devvault.local.json`,
+  where key rotation writes it): reports in `~/.local/state/cardtable/telemetry/`
   (`latest.txt`), and an `ALERTS` line for every day it exited non-zero. Read
   `latest.txt` and `ALERTS` at the start of a session.
 - **What the server reports** (`apps/server/src/telemetry.ts`, one post per
