@@ -18,7 +18,8 @@ import { ClientFrameSchema } from '@hadoku/forge-wire';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type MatchSpec } from '../host.js';
-import { createMatchRegistry, WATCHER_SEAT } from '../match.js';
+import { createMatchRegistry } from '../match.js';
+import { WATCHER_SEAT } from '../match/forge-session.js';
 import { bridgeDigest, createRecorder, forgePin, serverVersion } from './recorder.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
 

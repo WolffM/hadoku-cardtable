@@ -26,7 +26,8 @@ import type { ServerEnvelope } from '@hadoku/shared';
 
 import type { DeckCosts } from '../deck-colors.js';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from '../host.js';
-import { createMatchRegistry, WATCHER_SEAT } from '../match.js';
+import { createMatchRegistry } from '../match.js';
+import { WATCHER_SEAT } from '../match/forge-session.js';
 import { boardDigest } from './position.js';
 import { nightly } from '../scenario.js';
 import { COLD_STARTS, queueColdStarts } from '../start-queue.js';

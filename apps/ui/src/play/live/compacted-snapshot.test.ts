@@ -20,7 +20,8 @@ import { MatchSnapshotSchema, type MatchSnapshot, type ServerEnvelope } from '@h
 import { loadTranscript, replayFactory, type ReplayHost } from '../../../../server/src/play/fixtures/transcript.ts';
 import type { BridgeLine } from '../../../../server/src/play/host.ts';
 import { createStateHistory } from '../../../../server/src/play/history.ts';
-import { WATCHER_SEAT, createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
+import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
+import { WATCHER_SEAT } from '../../../../server/src/play/match/forge-session.ts';
 import { foldFrames, type StateFrame } from '../../../../server/src/play/visibility.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from './match.ts';
 

@@ -45,7 +45,8 @@ import {
 } from './auto.js';
 import { FORGE_PREFERENCES } from './host.js';
 import { copyTargets, parseCardScript, type SpellCopy } from './spell-copiers.js';
-import { WATCHER_SEAT, createMatchRegistry, type Match } from './match.js';
+import { createMatchRegistry, type Match } from './match.js';
+import { WATCHER_SEAT } from './match/forge-session.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/transcript.js';
 

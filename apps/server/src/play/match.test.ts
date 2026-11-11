@@ -26,8 +26,10 @@ import {
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
-import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, CONCEDE_ANSWER_MS, WATCHER_SEAT, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity } from './match.js';
-import { ACTIVITY_WINDOW_MS, MATCH_ENDED_TITLE, PENDING_REVEAL_CHOICE_MS, RESTART_ASK_MS } from './match/forge-frames.js';
+import { createMatchRegistry, type Match, type MatchSpecWithIdentity } from './match.js';
+import { MATCH_ENDED_TITLE, PENDING_REVEAL_CHOICE_MS } from './match/forge-frames.js';
+import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, WATCHER_SEAT, frameGist } from './match/forge-session.js';
+import { ACTIVITY_WINDOW_MS, CONCEDE_ANSWER_MS, RESTART_ASK_MS } from './match/shell.js';
 import { restoredSpec, type Restored } from './match/registry.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
@@ -492,7 +494,7 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		vi.advanceTimersByTime(200);
 		const before = h.told.length;
 		h.host.push(PROBE_ASK);
-		const recheck = (h.match as unknown as { checkWaitingOn(): void }).checkWaitingOn.bind(h.match);
+		const recheck = (h.match.session as unknown as { checkWaitingOn(): void }).checkWaitingOn.bind(h.match.session);
 		for (let i = 0; i < 10; i++) {
 			vi.advanceTimersByTime(40);
 			recheck();

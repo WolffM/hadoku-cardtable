@@ -188,7 +188,8 @@ import { roundNamesOf } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
 import { statsModeOf } from '../room/series.js';
 import type { MatchSpec } from '../play/host.js';
-import { AI_SEAT_OWNER, type GameOutcome } from '../play/match.js';
+import type { GameOutcome } from '../play/match.js';
+import { AI_SEAT_OWNER } from '../play/match/forge-session.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
 import {
 	checkSeat,

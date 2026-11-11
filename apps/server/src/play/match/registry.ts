@@ -2,7 +2,8 @@ import type { ParticipantId } from '@wolffm/rooms-protocol';
 import type { RestartState, SeatIdentity, ServerEnvelope, StopPhase } from '@hadoku/shared';
 
 import type { HostEvents, MatchHost, MatchRecord, MatchSpec, TurnSnapshot } from '../host.js';
-import type { Match, MatchDeps, SeatState } from '../match.js';
+import type { Match, MatchDeps } from '../match.js';
+import type { SeatState } from './forge-session.js';
 
 /**
  * The spec that starts a match again from a turn-start snapshot: the same seats, decks and room

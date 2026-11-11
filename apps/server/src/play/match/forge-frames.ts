@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { type ChoiceOption, type ClientFrame, type ServerFrame, currentFace, deltaKey, DELTA_TYPE, idsOf, intOf, strOf } from '@hadoku/forge-wire';
 
 import { PAY_MANA, PRIORITY, type StopWindow } from '../auto.js';
-import type { SeatState } from '../match.js';
+import type { SeatState } from './forge-session.js';
 import type { WireObj } from '../visibility.js';
 
 /**
@@ -90,9 +90,6 @@ export function forgeAct(frame: ActFrame): ActFrame {
 /** What a seat is shown when its match fails. Title and wording are ours; the frame is forge-wire's. */
 export const MATCH_ENDED_TITLE = 'Match ended';
 
-/** How far back {@link Match.activity} counts the seconds in which the table changed. */
-export const ACTIVITY_WINDOW_MS = 120_000;
-
 /**
  * How many `message` lines a seat keeps for a re-send after a snapshot.
  *
@@ -145,11 +142,7 @@ export function stackTopHostCardId(state: ReadonlyMap<string, WireObj>): number 
 	return top === undefined ? null : intOf(state.get(deltaKey(DELTA_TYPE.stackItem, top)), 'SourceCard');
 }
 
-export type ClaimOutcome = { ok: true; seat: number; fresh: boolean } | { ok: false; error: string };
-export type ClientOutcome = { ok: true } | { ok: false; error: string };
 
-/** How long a restart ask waits for the other seat before it counts as declined. */
-export const RESTART_ASK_MS = 30_000;
 export interface ProbeResult {
 	answer?: boolean;
 	ms?: number;

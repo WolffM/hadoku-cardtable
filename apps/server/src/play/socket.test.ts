@@ -22,7 +22,7 @@ import { DEFAULT_STOP_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
 import { MAX_CONCURRENT_MATCHES, type BridgeLine, type HostEvents, type MatchRecord, type MatchHostFactory, type MatchSpec } from './host.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, ReplayHost, secretsFor } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
-import { WATCHER_SEAT } from './match.js';
+import { WATCHER_SEAT } from './match/forge-session.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { attachSessions, IDLE_MS } from '../room/session.js';
 

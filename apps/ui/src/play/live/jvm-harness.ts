@@ -41,7 +41,8 @@ import { ARRANGEMENT_EVENT, CLIENT_EVENT, OFFERED_EVENT, PLACED_EVENT, PRESENCE_
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
 import { withEndStepStop } from '../../../../server/src/play/auto.ts';
-import { WATCHER_SEAT, createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
+import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
+import { WATCHER_SEAT } from '../../../../server/src/play/match/forge-session.ts';
 import { dumpTimeoutReport, scenarioText, summarizeFrame } from '../../../../server/src/play/scenario.ts';
 import type { BoardView, DamageHit, FaceHit } from '../adapter.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from './match.ts';

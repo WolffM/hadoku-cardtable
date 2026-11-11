@@ -35,13 +35,19 @@ interface ToyCheckpoint {
 	turn: number;
 }
 
-const toyAdapter: GameAdapter<ToySpec, ToyLine, ToyCmd, ToyFrame, unknown, ToyCheckpoint> = {
+const toyAdapter: GameAdapter<ToySpec, ToyLine, ToyCmd, ToyFrame, ToyCheckpoint> = {
 	seats: (spec) => spec.seats,
 	classify: (line): ClassifiedLine<ToyCheckpoint> => (line.t === 'ready' ? { t: 'ready' } : { t: 'info' }),
-	session: (out): GameSession<unknown> => ({
-		ingest(seat, raw) {
-			out.toSeat(seat, { kind: 'notify', text: JSON.stringify(raw) });
+	session: (out): GameSession<ToyLine, ToyCmd> => ({
+		onLine(line) {
+			out.toSeat(0, { kind: 'notify', text: JSON.stringify(line) });
 		},
+		command: (c) => out.command(c),
+		waitedOn: () => false,
+		tellRoster: () => {},
+		turn: () => null,
+		activeSeat: () => null,
+		openAsks: () => 0,
 	}),
 	restoreSpec: (spec, _cp) => spec,
 	concede: (seat) => ({ t: 'act', seat, method: 'concede' }),
@@ -58,12 +64,15 @@ describe('a toy, non-Forge adapter fits GameAdapter/GameSession', () => {
 		expect(toyAdapter.classify({ t: 'cutoff', where: 'AiController' })).toEqual({ t: 'info' });
 	});
 
-	it('seats(), session().ingest(), concede() and notice() all compile and run against the toy shapes', () => {
+	it('seats(), session().onLine()/command(), concede() and notice() all compile and run against the toy shapes', () => {
 		expect(toyAdapter.seats({ seats: [{ ai: false, name: 'Hadoku' }] })).toEqual([{ ai: false, name: 'Hadoku' }]);
 		const toSeat: { seat: number; frame: ToyFrame }[] = [];
-		const session = toyAdapter.session({ toSeat: (seat, f) => toSeat.push({ seat, frame: f }), toWatchers: () => {}, command: () => {} });
-		session.ingest(0, { pressed: 'ok' });
-		expect(toSeat).toEqual([{ seat: 0, frame: { kind: 'notify', text: '{"pressed":"ok"}' } }]);
+		const sent: ToyCmd[] = [];
+		const session = toyAdapter.session({ toSeat: (seat, f) => toSeat.push({ seat, frame: f }), toWatchers: () => {}, command: (c) => sent.push(c) });
+		session.onLine({ t: 'stopped' });
+		expect(toSeat).toEqual([{ seat: 0, frame: { kind: 'notify', text: '{"t":"stopped"}' } }]);
+		session.command(toyAdapter.concede(0));
+		expect(sent).toEqual([{ t: 'act', seat: 0, method: 'concede' }]);
 		expect(toyAdapter.concede(1)).toEqual({ t: 'act', seat: 1, method: 'concede' });
 		expect(toyAdapter.notice('the match ended')).toEqual({ kind: 'notify', text: 'the match ended' });
 	});
