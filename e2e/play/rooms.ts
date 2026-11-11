@@ -75,8 +75,8 @@ async function myTableId(page: Page, roomId: string): Promise<string> {
   const room = (await page.evaluate(
     (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
-  )) as { you: { id: string }; pod: { pairings: { tableId: string; players: string[] }[] } | null };
-  const mine = room.pod?.pairings.find((p) => p.players.includes(room.you.id));
+  )) as { you: { id: string }; game: { pod: { pairings: { tableId: string; players: string[] }[] } | null } };
+  const mine = room.game.pod?.pairings.find((p) => p.players.includes(room.you.id));
   if (mine === undefined) throw new Error(`no table of mine in ${roomId}'s current round`);
   return mine.tableId;
 }
