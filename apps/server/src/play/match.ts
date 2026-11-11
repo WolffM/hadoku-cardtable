@@ -109,12 +109,9 @@ import {
 	type ServerFrame,
 	type TriggerDecision,
 	YIELDING,
-	currentFace,
 	deltaKey,
 	DELTA_TYPE,
 	idsOf,
-	intOf,
-	strOf,
 } from '@hadoku/forge-wire';
 import {
 	selfAnswer,
@@ -147,7 +144,6 @@ import {
 	owing,
 	PAY_MANA,
 	paymentCost,
-	PRIORITY,
 	readPromptFacts,
 	repeatedAbilityToPlay,
 	type Owed,
@@ -172,6 +168,56 @@ import { runBotGame, type BotGameInput, type BotGameOutcome } from './botgames.j
 import type { StartEvents } from './start-queue.js';
 import { faceNames, namesForFormat } from './names.js';
 import type { SpellCopy } from './spell-copiers.js';
+import { type MatchStatus, type OutcomeFacts, winnerSeatFromLosers } from './match/outcome.js';
+import { ENDED_KEPT, EndedMatch, restoredSpec, type RegistryDeps, type Restored, type ResumeFrom } from './match/registry.js';
+import {
+	answersAnInput,
+	ACTIVITY_WINDOW_MS,
+	asReveal,
+	barForgeKept,
+	type ButtonsFrame,
+	buttonsShape,
+	cardName,
+	CHECKED_ACTS,
+	choiceCardIds,
+	type ClaimOutcome,
+	type ClientOutcome,
+	forgeAct,
+	type FrameLogEntry,
+	FRAMES_RING_SIZE,
+	INPUT_ACTS,
+	isCardSubset,
+	isRefusal,
+	JUST_DISCARDED_TTL_MS,
+	LOG_HOLD_MAX_MS,
+	LOOK_HOLD_FLUSH_MS,
+	MATCH_ENDED_TITLE,
+	newMatchId,
+	opensAnInput,
+	PENDING_REVEAL_CHOICE_MS,
+	type ProbeResult,
+	PROMPT_HOLD_FLUSH_MS,
+	type PromptFrame,
+	promptShape,
+	type RevealFrame,
+	RESTART_ASK_MS,
+	sameCardSet,
+	SAYS_KEPT,
+	showsAWindow,
+	STALE_ACT,
+	stackTopHostCardId,
+	STUCK_WINDOW_MS,
+	type StuckWindow,
+	TARGET_QUESTION,
+	WAITING_ON_GRACE_MS,
+	windowKey,
+	type WindowMark,
+	windowMark,
+	WINDOW_FRAMES,
+	type WireSend,
+	YIELD_ACCEPT_LABEL,
+	YIELD_DECLINE_LABEL,
+} from './match/forge-frames.js';
 
 /**
  * `host.ts`'s `SeatSpec`, widened with the name the caller gave the seat. The
@@ -254,8 +300,6 @@ function askGist(frame: ServerFrame): { source?: number; title?: string } {
 	};
 }
 
-export type MatchStatus = 'starting' | 'running' | 'over' | 'failed' | 'stopped';
-
 /** Why the server called a game a draw ({@link Match.forceDraw}): it ran `GAME_DRAWN_AFTER_MS`. */
 export type DrawReason = EndedBy;
 
@@ -272,17 +316,6 @@ export type GameOutcome =
 	| { kind: 'drawn' }
 	/** Forge named a winner that no seat can be told from. */
 	| { kind: 'unplaced' };
-
-/** What {@link gameOutcome} reads off a match. */
-export interface OutcomeFacts {
-	endedAt: number | null;
-	winner: string | null;
-	winnerSeat: 0 | 1 | null;
-	concededBy: number | null;
-	/** The seat whose chess clock ran out; its concede is the server's ({@link Match.timedOut}). */
-	timedOut?: number | null;
-	spec: { seats: readonly { name: string }[] };
-}
 
 /**
  * The ONE place a game's outcome is classified; every reader of a result (the
@@ -308,26 +341,6 @@ export interface OpenAsk {
 	method: string;
 	frame: ServerFrame;
 	sentAt: number;
-}
-
-/**
- * Which of two seats won, from Forge's `losers` (player ids): a seat whose
- * player id is among them lost, so the other won; with only one seat's id
- * known (an AI game — the AI never opens a view), that seat won exactly when
- * somebody lost and it was not that seat. Null for anything else: no losers,
- * both or neither known seat lost, or more than two seats.
- */
-export function winnerSeatFromLosers(seats: readonly { seat: number; playerId: number | null }[], losers: readonly number[] | undefined): 0 | 1 | null {
-	if (losers === undefined || losers.length === 0 || seats.length !== 2) return null;
-	const known = seats.filter((s) => s.playerId !== null);
-	const lost = known.filter((s) => losers.includes(s.playerId!));
-	const other = (seat: number): 0 | 1 | null => (seat === 0 ? 1 : seat === 1 ? 0 : null);
-	if (known.length === 2) return lost.length === 1 ? other(lost[0]!.seat) : null;
-	if (known.length === 1) {
-		const only = known[0]!.seat;
-		return lost.length === 1 ? other(only) : only === 0 || only === 1 ? only : null;
-	}
-	return null;
 }
 
 export interface SeatState {
@@ -893,91 +906,6 @@ export const CONCEDE_ANSWER_MS = 10_000;
 const ABORT_SAFE: ReadonlySet<string> = new Set(['showConfirmDialog', 'showOptionDialog', 'confirm']);
 
 /**
- * The acts that are a game input — a click Forge's game thread must take and
- * answer with something. A yield preference, a concede and a resync are not.
- */
-/**
- * A bridge frame that tells the seat what it may do next — an ask, a prompt,
- * a bar or a selection — as opposed to state that changed on the way there.
- */
-function answersAnInput(frame: unknown): boolean {
-	const f = frame as { kind?: unknown; method?: unknown } | null;
-	return f?.kind === 'ask' || f?.method === 'showPromptMessage' || f?.method === 'updateButtons' || f?.method === 'setSelectables';
-}
-
-/** Where the game stood at a window, read off Forge's own priority line ("Turn: 16 (…)", "Phase: …", "Stack: Empty" / "Stack: 1 to Resolve."). */
-interface WindowMark {
-	turn: number | null;
-	phase: string | null;
-	stack: number | null;
-}
-
-function windowMark(prompt: { message?: unknown } | null): WindowMark {
-	const message = typeof prompt?.message === 'string' ? prompt.message : '';
-	const turn = /^Turn: (\d+)/m.exec(message)?.[1];
-	const phase = /^Phase: (.+)$/m.exec(message)?.[1] ?? null;
-	const stack = /^Stack: Empty$/m.test(message) ? 0 : /^Stack: (\d+)/m.exec(message)?.[1];
-	return { turn: turn === undefined ? null : Number(turn), phase, stack: stack === undefined ? null : Number(stack) };
-}
-
-/** Forge putting a question or a selection to the seat: an input of its own, never a priority window. */
-function opensAnInput(frame: unknown): boolean {
-	const f = frame as { kind?: unknown; method?: unknown } | null;
-	return f?.kind === 'ask' || (f?.kind === 'notify' && f.method === 'setSelectables');
-}
-
-/** The `why` of a bridge `dropped` line for an act made on an input Forge had moved past (`PlayBridge.java`'s `madeOnAnother`). */
-const STALE_ACT = 'made on an input Forge has moved past';
-
-/** The frames that show a seat its window: the ones whose input an act made on them names. */
-const WINDOW_FRAMES: ReadonlySet<string> = new Set(['showPromptMessage', 'updateButtons', 'setSelectables', 'setWeaklySelectable']);
-
-/** The acts the bridge checks were made on the input still open (`PlayBridge.java`'s `madeOnAnother`). */
-const CHECKED_ACTS: ReadonlySet<string> = new Set(['selectCard', 'selectPlayer', 'selectButtonOk', 'selectButtonCancel']);
-
-/** Forge turning the seat's last act away: its input stands, and nothing more is shown for it. */
-function isRefusal(frame: unknown): boolean {
-	const f = frame as { kind?: unknown; method?: unknown } | null;
-	return f?.kind === 'notify' && f.method === 'flashIncorrectAction';
-}
-
-/** Forge showing a seat its input — what ends {@link SeatState.staleBar}. An ask does not: answering it can still leave Forge silent. */
-function showsAWindow(frame: unknown): boolean {
-	const f = frame as { kind?: unknown; method?: unknown } | null;
-	return f?.kind === 'notify' && (f.method === 'showPromptMessage' || f.method === 'updateButtons' || f.method === 'setSelectables');
-}
-
-/**
- * The bar Forge still has up when it re-shows a payment by its prompt alone, or null. A payment
- * updates its message after every mana paid into it and sends a bar only when Auto can pay the rest
- * (`InputPayMana.updateMessage`): a prompt for the same card's payment with no bar before it is the
- * same input, whose bar {@link Match.disableStaleButtons} took off the seat's screen for the act. Left
- * off, the payment's Cancel stayed dead with nothing left to tap (monkey run 42372898159, Walking
- * Ballista X=20).
- */
-function barForgeKept(s: SeatState, frame: unknown): ButtonsFrame | null {
-	if (s.staleBar === null || s.payment === null) return null;
-	const f = frame as ServerFrame;
-	if (f.kind !== 'notify' || f.method !== 'showPromptMessage' || promptShape(f) !== 'payment') return null;
-	if ((f.card?.id ?? null) !== s.payment.card) return null;
-	return s.staleBar;
-}
-
-type ActFrame = Extract<ClientFrame, { kind: 'act' }>;
-
-const INPUT_ACTS: ReadonlySet<string> = new Set(['selectButtonOk', 'selectButtonCancel', 'selectCard', 'selectPlayer', 'selectAbility', 'useMana']);
-
-/** The act as Forge takes it: `sameTarget` is the server's own (`./trigger-targets.ts`), never Forge's. */
-function forgeAct(frame: ActFrame): ActFrame {
-	if ((frame.method !== 'selectPlayer' && frame.method !== 'selectCard') || frame.sameTarget === undefined) return frame;
-	const { sameTarget: _sameTarget, ...rest } = frame;
-	return rest;
-}
-
-/** What a seat is shown when its match fails. Title and wording are ours; the frame is forge-wire's. */
-export const MATCH_ENDED_TITLE = 'Match ended';
-
-/**
  * The "seat" the watcher channel is emitted on (2026-10-12, the party request
  * in `docs/requests/WATCHPARTY_SEATS_AND_SPECTATORS.md`). Not a seat: nobody
  * holds it, nothing is read from it, and `fromClient` and every other
@@ -986,285 +914,6 @@ export const MATCH_ENDED_TITLE = 'Match ended';
  * every socket that joined with no seat of its own, and `SKIP` the rest.
  */
 export const WATCHER_SEAT = -1;
-
-/** How far back {@link Match.activity} counts the seconds in which the table changed. */
-export const ACTIVITY_WINDOW_MS = 120_000;
-
-/**
- * How many `message` lines a seat keeps for a re-send after a snapshot.
- *
- * This used to be 8 — a few turns at most — so a reconnect mid-game refilled
- * only the tail. Raised to the whole game with a generous cap, rather than
- * removed outright, so a pathological match cannot grow this array without
- * bound.
- */
-const SAYS_KEPT = 2000;
-
-/**
- * The longest a game log line waits for the delta that shows its cards
- * ({@link Match.onGameLog}). The wait is about order, not secrecy — the bridge
- * already decided the seat may read the line — so a line whose card never
- * becomes visible on this seat's board still goes, this late.
- */
-const LOG_HOLD_MAX_MS = 1000;
-
-/**
- * The name this seat is entitled to see for a card, off its own projected
- * state — never off the raw stream. A card the projection hid has no name here,
- * and the id it falls back to is the one the seat already holds.
- */
-/** Forge's own wording for a target question: "Select target noncreature spell", "Valakut, … - Select any target". */
-const TARGET_QUESTION = /\btargets?\b/i;
-
-function cardName(state: ReadonlyMap<string, WireObj>, id: number): string | null {
-	const view = state.get(deltaKey(DELTA_TYPE.card, id));
-	if (view === undefined) return null;
-	for (const obj of [currentFace(state, id), view]) {
-		const name = strOf(obj, 'Name');
-		if (name !== null && name !== '') return name;
-	}
-	return null;
-}
-
-/**
- * The id of the card at the TOP of `Game.Stack`, or null with nothing on it.
- * {@link Match.waitingOnFor}'s own fallback: a `showPromptMessage`
- * carries no `card` for an ordinary priority prompt — including the one-shot
- * "Priority: … Stack: 1 to Resolve." window Forge gives the CASTER before
- * their own spell resolves — so a selection or an ask that opens mid-resolution
- * (Thirst for Knowledge's own discard, confirmed against the real jar: a
- * `setSelectables`, not an ask with a card) has no fresher signal to read.
- * `Game.Stack` lists top-first (reversing it
- * gives arrival order), so index 0 is the top.
- */
-function stackTopHostCardId(state: ReadonlyMap<string, WireObj>): number | null {
-	const top = idsOf(state.get(deltaKey(DELTA_TYPE.game, 1)), 'Stack')[0];
-	return top === undefined ? null : intOf(state.get(deltaKey(DELTA_TYPE.stackItem, top)), 'SourceCard');
-}
-
-export type ClaimOutcome = { ok: true; seat: number; fresh: boolean } | { ok: false; error: string };
-export type ClientOutcome = { ok: true } | { ok: false; error: string };
-
-/** How long a restart ask waits for the other seat before it counts as declined. */
-export const RESTART_ASK_MS = 30_000;
-export interface ProbeResult {
-	answer?: boolean;
-	ms?: number;
-	error?: string;
-}
-
-export function newMatchId(): string {
-	return `m-${randomBytes(6).toString('hex')}`;
-}
-
-/* ── Wave 35 §S, R4: "Thoughtseize is one step" ───────────────────────────
- *
- * `DiscardEffect`'s `RevealYouChoose` mode (Thoughtseize, and any card shaped
- * like it) resolves in THREE Forge asks, confirmed against a real jar
- * (`scenario-thoughtseize.jvm.test.ts`, `wave35-evidence/s3-thoughtseize.md`):
- *
- *   1. `getChoices(message, -1, -1, wholeHand)` to the CASTER — a REVEAL
- *      (Forge's own encoding of "nothing to choose, just look": `rules.ts`'s
- *      `choiceBounds` reads the same `max <= 0` convention this file's
- *      `onlyAnswer` already does for the identical case).
- *   2. `getChoices(message, min, max, validOnly)` to the CASTER — the real
- *      choice, already correctly excluding lands (`DiscardValid$ Card.nonLand`
- *      is Forge's own filter, not ours).
- *   3. `getChoices(message, -1, -1, [theOneCardTaken])` to the DISCARDER — a
- *      second REVEAL, this time of just what was chosen, with no decision at
- *      all.
- *
- * The operator's ruling (2026-10-02): fold 1 into 2 — the caster gets ONE
- * choice showing the whole hand with the unchoosable cards greyed, the
- * "Rampant Growth shape" `apps/ui/src/play/prompts/ChoicePrompts.tsx` already
- * draws for `chooseSingleEntityForEffect`'s `delayedReveal` — and drop 3
- * outright, because the opponent learns which card went from the log and
- * their own graveyard.
- *
- * Both are applied here, generically, over the STRUCTURE of the asks —
- * never a card name or a message string as the deciding fact, same rule
- * `auto.ts`'s own header states for its shortcuts:
- *
- *  - "fold": a `getChoices` reveal (`min === max === -1`) immediately
- *    followed (ignoring ordinary state/notify frames) by a `getChoices`
- *    choice for the SAME SEAT whose `choices` are a subset of the reveal's.
- *    `max === 1` only for now (`chooseSingleEntityForEffect` is singular) —
- *    a `RevealYouChoose` with `NumCards` above 1 is left unmerged, a known
- *    gap noted in the evidence doc rather than guessed at.
- *  - "drop": a `getChoices` reveal whose `choices` are EXACTLY the card ids a
- *    fold or an ordinary reply just sent Forge as a discard choice, for
- *    EITHER seat — `Match.noteDiscardChoice` is the one place that sets it,
- *    from every path that can answer a real discard choice.
- */
-
-/**
- * How long a held reveal Forge said a choice follows (`choiceFollows`, read off Forge's live,
- * resolving ability by `PlayBridge.java`'s `revealChoiceFollows` — never a guess at Forge's
- * speed) waits for that choice. On a loaded host the choice came 295 ms after its reveal, and
- * the seat was shown the reveal and a bare choice apart (closing run 42354601891) under the
- * fixed 250 ms window this replaced (#39: `PENDING_REVEAL_FOLD_MS`, which held EVERY reveal —
- * folding or not — is gone; an unflagged reveal now shows at once, with no wait at all). This
- * only bounds a reveal whose flagged choice never comes, which is logged.
- */
-export const PENDING_REVEAL_CHOICE_MS = 10_000;
-
-type PromptFrame = Extract<ServerFrame, { method: 'showPromptMessage' }>;
-type ButtonsFrame = Extract<ServerFrame, { method: 'updateButtons' }>;
-
-/**
- * What a window asks, read off its frames (a confirm by the ability it confirms): the identity a
- * repeat was once judged by. Kept only to log a window it would have withheld that is a different
- * Forge input (`repeat-unproven`).
- */
-function windowKey(prompt: PromptFrame, buttons: ButtonsFrame | null): string {
-	return prompt.confirmAbility != null
-		? JSON.stringify(['confirm', prompt.confirmAbility.hostCard.id, prompt.confirmAbility.abilityId])
-		: JSON.stringify([prompt.message, prompt.targetAbility ?? null, buttons?.label1 ?? null, buttons?.label2 ?? null]);
-}
-
-/**
- * How long a held half waits for the other before it is forwarded undecided.
- * Forge sends the two within a few milliseconds; a payment's bar and its
- * prompt were measured up to 251 ms apart on a loaded jar, so this is
- * headroom, not a target.
- */
-const PROMPT_HOLD_FLUSH_MS = 2000;
-
-/**
- * How long a window the server withheld may stay Forge's open input, with its queue not moving,
- * before it is shown to the seat ({@link Match.armStuckWindow}). An answer Forge takes moves its
- * queue in milliseconds; this is headroom for a loaded jar, not a target.
- */
-const STUCK_WINDOW_MS = 5000;
-
-/** A withheld window kept for the seat in case Forge never takes the answer it was withheld for. */
-interface StuckWindow {
-	timer: NodeJS.Timeout;
-	prompt: PromptFrame;
-	buttons: ButtonsFrame | null;
-	offer: ServerFrame | null;
-	order: 'prompt-first' | 'buttons-first';
-	why: string;
-	input: number | null;
-	inputMoves: number;
-}
-
-/**
- * How long a seat's {@link SeatState.lookHold} waits for the decision behind it before its frames go
- * out anyway. Forge asks within a few milliseconds of the look (6 ms on run 41604622647's scry); a
- * look nothing asks about (a static's `MayLookAt`) is late by this much, once.
- */
-const LOOK_HOLD_FLUSH_MS = 500;
-
-/** One {@link Match.send}, as it will go on the wire. */
-interface WireSend {
-	frame: ServerFrame;
-	mark: 'displayOnly' | 'pairsWithNext' | null;
-	extra?: { forceNotice: true };
-}
-
-/**
- * Which decider-readable window a frame belongs to, and so which way it pairs.
- * Forge's inputs send the two halves in a fixed order per input:
- * `InputPassPriority.showNormalPrompt` the prompt and then its OK bar;
- * `InputPayMana.updateMessage` the `Auto` bar and then the prompt (after
- * `showMessage` has already sent a disabled `Auto` bar);
- * `InputConfirm.showMessage` the Yes/No bar and then the prompt;
- * `InputSelectTargets.showMessage` a trigger's target prompt and then its bar.
- * A prompt with no shape here (an attack, a block, a spell's target) is no decider's to answer and
- * is never held, and neither is a bar with none (InputAttack's per-click
- * refresh above all).
- */
-type WindowShape = 'priority' | 'payment' | 'confirm' | 'target';
-
-function promptShape(frame: PromptFrame): WindowShape | null {
-	if (frame.confirmAbility != null) return 'confirm';
-	if (frame.targetAbility !== undefined) return 'target';
-	if (PAY_MANA.test(frame.message)) return 'payment';
-	if (PRIORITY.test(frame.message)) return 'priority';
-	return null;
-}
-
-function buttonsShape(frame: ButtonsFrame): WindowShape | null {
-	if (frame.label1 === 'Auto') return 'payment';
-	if (frame.label1 === 'Yes' && frame.label2 === 'No') return 'confirm';
-	return null;
-}
-
-
-/** One decided window, as {@link Match.recordWindow} keeps it for the `match-frames` log event. */
-interface FrameLogEntry {
-	t: number;
-	seat: number;
-	kind: StopWindow;
-	decision: 'forwarded' | 'withheld';
-	why: string;
-	message: string | null;
-	buttons: { label1: string; enable1: boolean; label2: string; enable2: boolean } | null;
-}
-
-/** How many {@link FrameLogEntry} rows one match keeps — a ring, not a log that grows forever. */
-const FRAMES_RING_SIZE = 500;
-
-/**
- * `InputPassPriority.showYieldSuggestionPrompt`'s own button labels
- * (`en-US.properties`: `lblAccept`, `lblDecline`) — see
- * {@link Match.maybeDeclineYieldSuggestion}'s own header (wave 35 §S item 2).
- */
-const YIELD_ACCEPT_LABEL = 'Accept';
-const YIELD_DECLINE_LABEL = 'Decline';
-
-/** A wait that appears is told to the other seat after this long; one that clears, at once — `Match.checkWaitingOn`. */
-const WAITING_ON_GRACE_MS = 150;
-
-/** How long a just-sent discard choice stays eligible to silence its own echo. */
-const JUST_DISCARDED_TTL_MS = 5_000;
-
-/** The card ids a `getChoices` frame's `choices` name, in order. */
-function choiceCardIds(choices: readonly ChoiceOption[]): number[] {
-	const ids: number[] = [];
-	for (const c of choices) if (c.ref !== null && c.ref.kind === 'card') ids.push(c.ref.id);
-	return ids;
-}
-
-/** Every id of `small` is also in `big` — true for an empty `small` too, which never merges here (`.length > 0` guards every call site). */
-function isCardSubset(small: readonly number[], big: readonly number[]): boolean {
-	const set = new Set(big);
-	return small.every((id) => set.has(id));
-}
-
-function sameCardSet(a: readonly number[], b: ReadonlySet<number>): boolean {
-	return a.length === b.size && a.every((id) => b.has(id));
-}
-
-type RevealFrame = Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>;
-
-/**
- * An ask in which nothing may be chosen (`max <= 0`) is Forge showing cards,
- * not asking about them — `reveal(message, items)` IS `getChoices(message, -1,
- * -1, items)` (`AbstractGuiGame.java:785-788`), and the one legal reply to
- * any such ask is the empty list. A `chooseEntitiesForEffect` of that shape is
- * read as the `getChoices` reveal of every card it names (its options, then
- * its `delayedReveal`), each labelled by `nameOf`, so a reveal reaches the
- * seat in one shape whatever Forge called. Null for an ask with something to
- * choose.
- */
-function asReveal(frame: Extract<ServerFrame, { kind: 'ask' }>, nameOf: (ref: NonNullable<ChoiceOption['ref']>) => string): RevealFrame | null {
-	if (frame.method === 'getChoices') return frame.max <= 0 ? frame : null;
-	if (frame.method !== 'chooseEntitiesForEffect' || frame.max > 0) return null;
-	const refs = new Map<string, NonNullable<ChoiceOption['ref']>>();
-	for (const ref of [...frame.optionList, ...(frame.delayedReveal?.cards ?? [])]) refs.set(`${ref.kind}:${ref.id}`, ref);
-	return {
-		kind: 'ask',
-		callId: frame.callId,
-		method: 'getChoices',
-		message: frame.title,
-		min: -1,
-		max: -1,
-		choices: [...refs.values()].map((ref, i) => ({ key: `c${i}`, label: nameOf(ref), ref })),
-		selected: [],
-	};
-}
 
 export class Match {
 	readonly id: string;
@@ -4934,35 +4583,6 @@ export class Match {
 	}
 }
 
-/**
- * The spec that starts a match again from a turn-start snapshot: the same seats, decks and room
- * settings, opening on the snapshot's board with no coin toss and no mulligan (`skipOpening`).
- * `chooser` goes: it rigs the coin toss, which a restore never makes, and an unspent rig would
- * answer the next random choice between two players instead.
- *
- * What the restored game does not have, read from `GameState` (`initFromGame`, `applyToGame`) on
- * pin 5eff8436 — everything from the snapshot's upkeep on is played again, and of the turn before
- * it, only what the board shows survives:
- * - effects that last until end of turn or longer and are not a card's own (`DetachedCardEffect`s
- *   are skipped: a stolen creature goes back under its owner's control unless an Aura or other
- *   permanent still says otherwise), emblems and other command-zone effects with no card;
- * - delayed triggers ("at the beginning of the next upkeep…") and anything that waited for them;
- * - what a card remembers that is not a card, and a player's history: spells cast, life gained or
- *   lost and creatures died last turn, monarch and initiative, day/night, turns taken (Forge's
- *   per-player turn count);
- * - phased-out permanents' phasing timestamps and every control and layer timestamp, so effects
- *   that apply in timestamp order are re-applied in the order the cards come back;
- * - triggers waiting to go on the stack as the upkeep begins (an untap step's "whenever … untaps");
- * - a seat's open asks, and its remembered trigger choices, which Forge holds by ability (its
- *   stops, auto-yields and full control come across);
- * - random-number state: the restored game draws fresh randomness from its new JVM.
- * Card ids change: every seat resyncs onto the new epoch.
- */
-export function restoredSpec(spec: MatchSpec, snapshot: TurnSnapshot): MatchSpec {
-	const { chooser: _chooser, ...rest } = spec;
-	return { ...rest, scenario: snapshot.state, skipOpening: true, restore: true };
-}
-
 /* ── The registry ────────────────────────────────────────────────────── */
 
 export interface MatchRegistry {
@@ -5018,75 +4638,6 @@ export interface MatchRegistry {
 	 */
 	handOver(): { handed: Match[]; ending: Match[] };
 }
-
-/** A resumed game's start: who holds each seat, the turn-start snapshot it opens on, and each seat's clock. */
-export interface ResumeFrom {
-	owners: readonly (string | null)[];
-	snapshot: TurnSnapshot;
-	clockMs?: [number, number];
-}
-
-/** How many {@link EndedMatch}es the registry keeps, newest first. Each is a spec and a few fields. */
-export const ENDED_KEPT = 256;
-
-/**
- * What the registry keeps of a match once it has let go of it: what its readers still ask after the
- * game — `GET /play/matches/:id`, a seat's own deck list, the table card's decks, a refused join's
- * words — and nothing of its play. The histories, projectors, asks and frame ring a long game held
- * (megabytes a seat) go with the match.
- */
-export class EndedMatch {
-	readonly id: string;
-	readonly status: 'stopped' | 'failed';
-	readonly failure: string | null;
-	readonly winner: string | null;
-	/** The match's spec without a scenario: a resumed game's opening board is the parked record's to keep. */
-	readonly spec: MatchSpec;
-	readonly seats: readonly Pick<SeatState, 'seat' | 'ai' | 'owner' | 'playerId' | 'deck'>[];
-
-	constructor(match: Match) {
-		const { scenario: _scenario, ...spec } = match.spec;
-		this.id = match.id;
-		this.status = match.status === 'failed' ? 'failed' : 'stopped';
-		this.failure = match.failure;
-		this.winner = match.winner;
-		this.spec = spec;
-		this.seats = match.seats.map(({ seat, ai, owner, playerId, deck }) => ({ seat, ai, owner, playerId, deck }));
-	}
-
-	seatOf(participantId: ParticipantId): number | null {
-		return this.seats.find((s) => s.owner === participantId)?.seat ?? null;
-	}
-
-	/** Nothing is under way. */
-	live(): null {
-		return null;
-	}
-}
-
-/** What {@link MatchRegistry.restore} did: back to the start of turn `turn`, or a fresh game from the match's spec. */
-export type Restored = { match: Match; from: 'snapshot'; turn: number } | { match: Match; from: 'spec' };
-
-export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'restartChanged' | 'restartTurn' | 'onGameOver' | 'liveChanged' | 'abandoned' | 'ended'> & {
-	/** The ceiling a bot game counts against (`MatchRegistry.botGame`). Default `MAX_CONCURRENT_MATCHES`. */
-	maxMatches?: number;
-	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
-	/** See {@link MatchDeps.seatsChanged}. */
-	seatsChanged?(match: Match, seats: SeatIdentity[]): void;
-	/** See {@link MatchDeps.phaseStopChanged}. */
-	phaseStopChanged?(match: Match, seat: number, phase: StopPhase | null): void;
-	/** See {@link MatchDeps.restartChanged}. */
-	restartChanged?(match: Match, state: RestartState): void;
-	/** See {@link MatchDeps.onGameOver}. */
-	onGameOver?(match: Match): void;
-	liveChanged?(match: Match): void;
-	/** See {@link MatchDeps.abandoned}: the match can be parked (`parked.ts`). */
-	abandoned?(match: Match): void;
-	/** The registry let go of `match` ({@link MatchRegistry.find}): whatever was kept for it elsewhere can go too. */
-	freed?(match: Match): void;
-	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
-	attach?(record: MatchRecord, events: HostEvents): MatchHost;
-};
 
 export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 	const matches = new Map<string, Match>();
@@ -5243,3 +4794,4 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 	};
 	return registry;
 }
+

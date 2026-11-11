@@ -43,8 +43,8 @@ import { createArtIds, type ArtCatalog } from '../art-ids.js';
 import type { DeckCosts } from '../deck-colors.js';
 import { seatDeckColors } from '../deck-colors.js';
 import type { BridgeCommand, MatchHost, MatchHostFactory, MatchSpec, SeatSpec } from '../host.js';
-import type { OutcomeFacts } from '../match.js';
 import { gameOutcome, WATCHER_SEAT } from '../match.js';
+import type { OutcomeFacts } from '../match/outcome.js';
 import { createSeatPosition, type SeatPosition } from './position.js';
 import { createMatchRecordingWriter, type MatchRecordingWriter, type RecordedSeat } from './writer.js';
 

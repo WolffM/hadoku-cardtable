@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { gameOutcome, winnerSeatFromLosers } from './match.ts';
+import { gameOutcome } from './match.ts';
+import { winnerSeatFromLosers } from './match/outcome.ts';
 
 const human = (seat: number, playerId: number | null) => ({ seat, playerId });
 

@@ -16,7 +16,8 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import type { BridgeLine, MatchSpec } from './host.js';
 import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/transcript.js';
-import { ENDED_KEPT, createMatchRegistry, restoredSpec, type Match } from './match.js';
+import { createMatchRegistry, type Match } from './match.js';
+import { ENDED_KEPT, restoredSpec } from './match/registry.js';
 import { openParkedStore, type ParkedStore, type ParkedStoreDeps } from './parked.js';
 import { identityFromHeaders } from '../room/identity.js';
 import type { Lobby } from '../room/lobby.js';

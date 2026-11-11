@@ -60,7 +60,7 @@ import type { ServerEnvelope } from '@hadoku/shared';
 
 import { artOf } from '../art.js';
 import { seatDeckColors, type DeckCosts } from '../deck-colors.js';
-import { winnerSeatFromLosers } from '../match.js';
+import { winnerSeatFromLosers } from '../match/outcome.js';
 import { jvmHostConfig, type BridgeCommand, type BridgeLine, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
 import { createProjector, EVERY_PLAYER, type StateFrame } from '../visibility.js';
 import { createArtIds, type ArtCatalog, type ArtIds } from '../art-ids.js';

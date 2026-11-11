@@ -26,7 +26,9 @@ import {
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
-import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, CONCEDE_ANSWER_MS, MATCH_ENDED_TITLE, PENDING_REVEAL_CHOICE_MS, RESTART_ASK_MS, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored } from './match.js';
+import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, CONCEDE_ANSWER_MS, WATCHER_SEAT, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity } from './match.js';
+import { ACTIVITY_WINDOW_MS, MATCH_ENDED_TITLE, PENDING_REVEAL_CHOICE_MS, RESTART_ASK_MS } from './match/forge-frames.js';
+import { restoredSpec, type Restored } from './match/registry.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
 	FLYING_FILE,
