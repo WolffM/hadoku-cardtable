@@ -3748,3 +3748,27 @@ Worktree `.claude/worktrees/w101-manager`, branch `w101` off 170e6826c. Lane S's
 - `class Match` is `match.ts:1269-4961`;
 - the server never checks the agent's version, so an additive launch spec needs no coordinated claw deploy;
 - `deploy.sh build` imports `remote/wire.ts` by path, so R owns it.
+## Wave 100, verified by the tracker 2026-11-11
+
+Every commit named in `~/.cache/cardtable-manager/w100-closing.md` is on origin/main.
+- **Item 1:** 446e96fdf, fb3c30deb, c8795b60f, and the follow-up 7922ceada. CI 43065339110 green; PPE carried c8795b60f; prod v0.66.1 (03bef3035) carries 7922ceada.
+- **Item 3.1:** 53c58f37b. Fence platform→magic 2 → 1. Item 3.2 (host.ts generic) is deferred to w103.
+- **Item 4:** 10ee38dc4.
+
+**Item 2** (drop the top-level copies) sits on `carry/w100-drop-copies`. The tracker is landing it now that prod carries item 1: worktree `w100-carry`, rebased to bd648d786, with proof shards 1, 3, 4 and 5 on `verify/w100-carry`.
+
+**Open red, no cause named yet:** `play.spec.ts:941` failed twice on w100's pre-rebase sha, then passed twice. Main passed it twice too.
+
+## Wave 101, closing (manager wrapping up, 2026-11-11)
+
+- **Landed:** M (c31162d59, e0e321410; `match.ts` 5,245 → 4,797, member map), S (watchparty c784ffa5, rooms-protocol 0.45.76) and R re-cut (d2d68f95a: `EngineRuntime`, additive `LaunchSpec.runtime`, decode-old tests). F's full run 43054537675 was green except one shard cut off by its time cap.
+- **CI red on d2d68f95a,** `w90e-editor-desktop.spec.ts:16`. The manager named the cause from the artifact: a helper race at the pack handover. `openSoloDeckEditor` swallows a failed click (`e2e/w90e-editor.ts:33`) and then polls 20 s instead of re-clicking. Not R. **Open:** fix the helper to re-click on poll timeout.
+- **Deferred:** §R.3 (wire package) → w102h; §R.4 (host.ts generic, `Durable`) → w103.
+
+## Waves 102, 102h, 104 — scaffolded 2026-11-11, run side by side
+
+The operator ruled 2026-11-11 that the tracker chains the platform waves through phase 6 without asking for confirmation. The operator reviews two things: live bomberman, and a final code analysis.
+- **w102** (one session): `class Match` → `MatchShell` (platform) + `ForgeSession` (magic), from `docs/planning/w102-match-split-map.md`. Wave file `wave102-2026-11-11.md`.
+- **w102h** (one session): `remote/wire.ts` → `packages/host-wire`, and deploy.sh follows it. Wave file `wave102h-2026-11-11.md`.
+- **w104** (wave, lanes P/B/X): the platform room screen out of `ConstructedScreen.tsx`; watchparty's bundle host moves into `@wolffm/rooms-client` and cardtable gets a `BundleSlot`; bomberman as a cardtable room type. The Magic board through the slot moves to phase 6. Wave file `wave104-2026-11-11.md`.
+- **Next:** w103 (runtimes, plus host.ts generic) after w102, then phase 6.
