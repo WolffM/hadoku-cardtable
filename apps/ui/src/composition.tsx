@@ -1,5 +1,9 @@
 /* The game's parts, handed to the generic files that draw them: once per composition root (`./App.tsx`, `./embed/EmbedApp.tsx`), and in `./test-setup.ts`. */
 import { RallyCatalogueSchema, RallyViewSchema } from '@hadoku/shared';
+// Bomberman's own room UI (`rooms/games/bomberman.tsx`) registers itself at module scope the
+// moment it is imported, unlike everything below, which `composeGame()` wires explicitly — so a
+// side-effect import is this file's whole job for it.
+import './rooms/games/bomberman.tsx';
 import { registerPlayerMark } from './components/Avatar.tsx';
 import { forgetCardWidths } from './play/card-size.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from './play/live/prefs.ts';

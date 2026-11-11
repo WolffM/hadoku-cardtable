@@ -760,8 +760,9 @@ describe('creating a room', () => {
     expect(types.map((r) => [r.value, r.checked, r.disabled])).toEqual([
       ['constructed-1v1', true, false],
       ['draft', false, false],
+      ['bomberman', false, false],
     ]);
-    expect(screen.getByRole('radiogroup', { name: 'Game type' }).textContent, 'no Challenge without Experimental features').toBe('ConstructedDraft');
+    expect(screen.getByRole('radiogroup', { name: 'Game type' }).textContent, 'no Challenge without Experimental features').toBe('ConstructedDraftBomberman');
     const modes = within(screen.getByTestId('room-create-constructed-mode')).getAllByRole('radio') as HTMLInputElement[];
     expect(modes.map((r) => [r.value, r.checked])).toEqual([
       ['classic', false],
@@ -835,6 +836,30 @@ describe('creating a room', () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
       name: 'Cube night',
       gameType: 'draft',
+      clientMode: 'builtin',
+    });
+    await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-new' }));
+  });
+
+  it('creates a bomberman room through the form, no Experimental flag needed and no mode sent (ruling 7: open to every member)', async () => {
+    const { client, calls } = server([]);
+    mount(client);
+    await screen.findByTestId('rooms-empty');
+    openCreate();
+
+    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Boom room' } });
+    // A mode picked for Constructed is not sent for bomberman either: it has no mode at all.
+    fireEvent.click(screen.getByTestId('room-create-constructed-mode-classic'));
+    fireEvent.click(screen.getByTestId('room-create-type-bomberman'));
+    expect((screen.getByTestId('room-create-type-bomberman') as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByTestId('room-create-constructed-mode')).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+    });
+
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
+      name: 'Boom room',
+      gameType: 'bomberman',
       clientMode: 'builtin',
     });
     await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-new' }));

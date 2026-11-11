@@ -418,7 +418,7 @@ describe('POST /api/rooms', () => {
 			[{ name: '   ' }, 'name must be 1–60 characters'],
 			[{ name: 'x'.repeat(61) }, 'name must be 1–60 characters'],
 			[{ name: 'bad\u0007name' }, 'name must not contain control characters'],
-			[{ name: 'ok', gameType: 'chess' }, 'gameType must be one of: constructed-1v1, draft'],
+			[{ name: 'ok', gameType: 'chess' }, 'gameType is not a registered game type'],
 			// An unknown mode is a stated refusal, NOT a silent fall back to builtin:
 			// a creator who asked for a streamed room must not quietly get our table.
 			[{ name: 'ok', clientMode: 'telepathy' }, 'clientMode must be one of: builtin, streamed'],

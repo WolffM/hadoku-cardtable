@@ -35,7 +35,7 @@ import type { RoomView } from './api.ts';
 export interface WarmRoom {
   readonly view: RoomView;
   readonly table: RoomTable;
-  /** The formats and decks; absent for a draft room, which holds no deck. */
+  /** The formats and decks; absent for a draft room or any other non-Constructed room, none of which hold a deck. */
   readonly catalogue?: { formats: TableFormat[]; decks: TableDeck[] };
   /** The room pool's legality sweep, when its deck picker would ask for one. */
   readonly sweep?: LegalSweep;
@@ -48,10 +48,13 @@ let pending: { roomId: string; warm: WarmRoom } | null = null;
 
 /** What the room screen's first render needs, read while the list is still on screen. */
 async function readRoom(view: RoomView, tables: TablesClient): Promise<WarmRoom | null> {
-  const draft = view.gameType === 'draft';
+  // Only a Constructed room ever shows a deck picker: a draft holds no deck of its own, and
+  // neither does any OTHER registered game type (bomberman, say) — "not a draft" used to stand in
+  // for "is Constructed", which wrongly fetched Magic's whole deck catalogue for a non-Magic room.
+  const needsCatalogue = view.gameType === 'constructed-1v1';
   const [table, catalogue] = await Promise.all([
     tables.table(view.id),
-    draft ? undefined : Promise.all([tables.formats(), tables.decks()]).then(([formats, decks]) => ({ formats, decks })),
+    needsCatalogue ? Promise.all([tables.formats(), tables.decks()]).then(([formats, decks]) => ({ formats, decks })) : undefined,
   ]);
   // A table the server refused is the screen's to explain, in its own words.
   if (!table.ok) return null;

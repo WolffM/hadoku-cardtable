@@ -68,6 +68,25 @@ export interface RoomCardView {
 export type RoomFamily = 'standard' | 'modern' | 'legacy' | 'draft' | 'other';
 
 /**
+ * Whether this room is one of Magic's own two types. `@hadoku/shared`'s `magicGame()` already
+ * answers `NO_MAGIC_GAME` (pod `null`, mode `null`, format `''`, …) for any other registered type
+ * (bomberman, say) — a deliberate "never show Magic's fields for a game that is not Magic's"
+ * refusal, not an accident. The consequence this file works around below: the SERVER already
+ * computes a real `pod` for any `usesPod` room regardless of game (`room/pods.ts`'s `usesPod` asks
+ * a registered type's OWN `seats.max`, not only `draft`), but the client-side `magicGame()` never
+ * hands it back for a non-Magic room, so this file cannot read a non-Magic room's real seats or
+ * capacity generically today. A platform room card is deliberately plainer for it instead: every
+ * current member drawn as a filled seat, no claimed capacity above that. Showing a non-Magic
+ * room's REAL growable capacity needs `magicGame()` (or the view itself) to stop refusing pod data
+ * for a registered non-Magic type — flagged, not fixed, here (`magic-room.ts` is not this file's
+ * to change, and the room view's Magic-copies migration already in flight is the more likely place
+ * for it to land).
+ */
+function isMagicRoom(room: RoomView): boolean {
+  return room.gameType === 'draft' || room.gameType === 'constructed-1v1';
+}
+
+/**
  * A room's format family: a draft is `draft`; a constructed room reads its Gauntlet era, its All Random
  * pool, or its own `format` id (`<family>-<date>` for Modern/Legacy, a bare date for Standard,
  * `formatLabel.ts`); anything else — Free pick, the full random pool — is `other`.
@@ -103,6 +122,9 @@ function capitalize(s: string): string {
 
 /** The mode chip: Classic/Gauntlet/All Random with their format or pool, or the draft's cube — no mode icon there. */
 function modeChip(room: RoomView): RoomModeChip {
+  // A non-Magic room has no mode to unset: the chip names the game itself instead of the
+  // Magic-only "Mode unset" fallback below, which would otherwise read as a Magic room gone wrong.
+  if (!isMagicRoom(room)) return { icon: null, text: capitalize(room.gameType) };
   const { pod, mode, modeOptions, format } = magicGame(room);
   if (room.gameType === 'draft') {
     const text = pod !== null && pod.plan !== null && pod.roundNames !== null ? planDisplayName(pod.plan, pod.roundNames) : 'Draft';
@@ -185,7 +207,9 @@ function phaseState(room: RoomView): RoomCardState {
  * table's own series phase (and so this card's `state.key`) has caught up.
  */
 function actions(room: RoomView, state: RoomCardState, isMine: boolean): { primaryAction: RoomPrimaryAction; extraWatch: boolean } {
-  const seatOpen = state.key === 'lobby' && room.members.length < (magicGame(room).pod !== null ? POD_MAX_SEATS : 2);
+  // A non-Magic room's real ceiling is not readable here yet (`isMagicRoom`'s own doc) — generous
+  // rather than wrong: the server's own `sitPod`/`usesPod` is still what actually refuses an 11th.
+  const seatOpen = state.key === 'lobby' && room.members.length < (!isMagicRoom(room) ? POD_MAX_SEATS : magicGame(room).pod !== null ? POD_MAX_SEATS : 2);
   // One way in, member or not (the operator, 2026-10-29: a separate button for each "seems pointless").
   const primaryAction: RoomPrimaryAction = isMine || seatOpen ? 'Join' : 'Watch';
   const inProgress = state.key !== 'lobby' && state.key !== 'done';
@@ -198,6 +222,8 @@ function actions(room: RoomView, state: RoomCardState, isMine: boolean): { prima
  * all), so it counts the pod now filling: 5 of 8, 8 of 16, and 64 of 64 once it is full.
  */
 function seatsCapacity(room: RoomView): number {
+  // The platform card: every member drawn as filled, no claimed capacity above that (`isMagicRoom`'s own doc).
+  if (!isMagicRoom(room)) return room.members.length;
   if (magicGame(room).pod === null) return 2;
   return Math.min(POD_MAX_SEATS, Math.max(POD_SEATS, Math.ceil((room.members.length + 1) / POD_SEATS) * POD_SEATS));
 }
@@ -214,6 +240,13 @@ function cardSeats(room: RoomView, capacity: number): { seats: RoomCardSeat[]; s
     return { kind: 'taken', id, name: m?.name ?? name, avatarId: m?.avatarId ?? avatarId, look: m?.look };
   };
   const open: RoomCardSeat = { kind: 'open' };
+  if (!isMagicRoom(room)) {
+    // The platform card: every member is a filled seat (no open-seat concept drawn generically yet,
+    // `isMagicRoom`'s own doc) — "faces", not Magic's table/pod split.
+    const all = room.members.map((m) => member(m.id, m.name, m.avatarId));
+    if (all.length <= CARD_SEATS_MAX) return { seats: all, seatsMore: 0 };
+    return { seats: all.slice(0, CARD_SEATS_MAX), seatsMore: all.length - CARD_SEATS_MAX };
+  }
   const { pod } = magicGame(room);
   let all: RoomCardSeat[];
   if (pod === null) {
@@ -250,7 +283,8 @@ export function roomCardView(room: RoomView, isMine: boolean, now: number = Date
     ...cardSeats(room, capacity),
     seatJoinable: state.key === 'lobby' && primaryAction === 'Join',
     mode: modeChip(room),
-    series: seriesLabel(room),
+    // Bo1/Bo3 is Magic's own match-length jargon; a non-Magic room shows no series chip at all.
+    series: isMagicRoom(room) ? seriesLabel(room) : null,
     state,
     primaryAction,
     extraWatch,
