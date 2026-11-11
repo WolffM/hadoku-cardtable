@@ -69,7 +69,9 @@
     "packages/shared/src/room-view.ts",
     "packages/shared/src/room-feed.ts",
     "packages/shared/src/game-type-spec.ts",
-    "apps/ui/src/rooms/game-setup.ts"
+    "apps/ui/src/rooms/game-setup.ts",
+    "apps/ui/src/rooms/BundleSlot.tsx",
+    "apps/ui/src/rooms/bundle-slot.fixture.ts"
   ],
   "magic": [
     "packages/forge-wire/**",

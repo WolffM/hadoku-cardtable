@@ -1,0 +1,28 @@
+/*
+ * BundleSlot — the room's placeholder for a bundled game's own UI (bomberman's, today). The
+ * bundle draws everything inside `.room-bundle-slot__host`, inside its own shadow root; this
+ * file only sizes the box it gets.
+ */
+
+.room-bundle-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-height: 320px;
+}
+
+.room-bundle-slot__host {
+  position: relative;
+  flex: 1;
+  min-height: 320px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.room-bundle-slot__error {
+  margin: 0;
+  color: var(--danger);
+}
