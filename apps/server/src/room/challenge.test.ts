@@ -45,7 +45,7 @@ describe('a Challenge room', () => {
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
 		const room = lobby.get(made.room.id)!;
-		expect(room).toMatchObject({ name: 'Legacy Challenge 32 Top 8, 2026-02-07', format: 'legacy-2026-02-07', mode: 'classic', leader: ALICE.id });
+		expect(room).toMatchObject({ name: 'Legacy Challenge 32 Top 8, 2026-02-07', game: { format: 'legacy-2026-02-07', mode: 'classic' }, leader: ALICE.id });
 		expect(room.settings).toMatchObject({ tournament: true, tournamentDecks: 'locked' });
 		expect(room.locks).toEqual({ gameType: 'historical', mode: 'historical', event: 'historical', format: 'historical', rules: 'historical' });
 		// The event's quarterfinals, laid onto round 1's across-the-table pairs (seat i meets seat i + 4).

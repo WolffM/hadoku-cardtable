@@ -139,8 +139,7 @@ describe('/api/events', () => {
 		expect(room).toMatchObject({
 			name: 'Pauper cup',
 			gameType: 'constructed-1v1',
-			mode: 'classic',
-			format: 'free',
+			game: { mode: 'classic', format: 'free' },
 			scheduledFor: startsAt,
 			settings: { tournament: true, tournamentDecks: 'per-round', clock: 'on', handSmoothing: false },
 		});
@@ -159,7 +158,7 @@ describe('/api/events', () => {
 		expect(made.status).toBe(201);
 		const event = EventViewSchema.parse(made.body);
 		expect(event.kind).toBe('draft-pod');
-		expect(lobby.get(event.roomId!)).toMatchObject({ gameType: 'draft', settings: { pickTimer: { on: true, speed: 2 } }, pod: { plan: PLAN, verdict: { ok: true } } });
+		expect(lobby.get(event.roomId!)).toMatchObject({ gameType: 'draft', settings: { pickTimer: { on: true, speed: 2 } }, game: { pod: { plan: PLAN, verdict: { ok: true } } } });
 		expect(event.room).toMatchObject({ gameType: 'draft', phase: 'lobby', settings: { pickTimer: { on: true, speed: 2 } } });
 
 		const refused = await call(base, 'alice', 'POST', '/events', tournament('Bad cube', startsAt, { gameType: 'draft', plan: REFUSED_PLAN }));

@@ -2842,12 +2842,12 @@ describe('Lobby.playPod', () => {
 	it('deals round 1 on the LAST drafter’s press, with nobody else’s say, and answers a late press ok', async () => {
 		const { lobby, id } = await buildingPod();
 		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
-		expect(lobby.playPod(id, BOB.id)).toMatchObject({ ok: true, room: { pod: { phase: 'building', built: [BOB.id] } } });
-		expect(lobby.playPod(id, CAROL.id)).toMatchObject({ ok: true, room: { pod: { phase: 'building' } } });
+		expect(lobby.playPod(id, BOB.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'building', built: [BOB.id] } } } });
+		expect(lobby.playPod(id, CAROL.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'building' } } } });
 		// Pressing twice changes nothing.
-		expect(lobby.playPod(id, CAROL.id)).toMatchObject({ ok: true, room: { pod: { phase: 'building' } } });
-		expect(lobby.playPod(id, ALICE.id)).toMatchObject({ ok: true, room: { pod: { phase: 'rounds', round: 1 } } });
-		expect(lobby.playPod(id, BOB.id)).toMatchObject({ ok: true, room: { pod: { phase: 'rounds', round: 1 } } });
+		expect(lobby.playPod(id, CAROL.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'building' } } } });
+		expect(lobby.playPod(id, ALICE.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'rounds', round: 1 } } } });
+		expect(lobby.playPod(id, BOB.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'rounds', round: 1 } } } });
 	});
 
 	/**

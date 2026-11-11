@@ -407,14 +407,14 @@ describe('POST /api/rooms', () => {
 		}).rooms;
 		expect(listed.map((r) => r.game.clientMode)).toEqual(['streamed']);
 		expect(
-			((await call(h, 'GET', `/api/rooms/${created.id}`, { as: 'bob' })).json() as { clientMode: string })
-				.clientMode,
+			((await call(h, 'GET', `/api/rooms/${created.id}`, { as: 'bob' })).json() as { game: { clientMode: string } })
+				.game.clientMode,
 		).toBe('streamed');
 
 		const second = await openApp(dir);
 		expect(
-			((await call(second, 'GET', `/api/rooms/${created.id}`, { as: 'bob' })).json() as { clientMode: string })
-				.clientMode,
+			((await call(second, 'GET', `/api/rooms/${created.id}`, { as: 'bob' })).json() as { game: { clientMode: string } })
+				.game.clientMode,
 		).toBe('streamed');
 	});
 
@@ -881,7 +881,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		const byMember = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'bob', body: { format: OLDEST_POOL } });
 		expect(byMember.status).toBe(403);
 		expect((byMember.json() as { error: string }).error).toBe('only the room leader can change the format');
-		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { format: string }).format).toBe(NEWEST_POOL);
+		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { game: { format: string } }).game.format).toBe(NEWEST_POOL);
 
 		// A friend who is not even in the room gets the same 403 for a room that
 		// exists, and the shared 404 for one that does not.
@@ -892,7 +892,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 
 		const byLeader = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format: OLDEST_POOL } });
 		expect(byLeader.status).toBe(200);
-		expect((byLeader.json() as { format: string }).format).toBe(OLDEST_POOL);
+		expect((byLeader.json() as { game: { format: string } }).game.format).toBe(OLDEST_POOL);
 	});
 
 	it('clears both readiness flags and every deck hold when the pool changes', async () => {
@@ -1304,12 +1304,12 @@ describe('a room’s clientMode', () => {
 		h.lobby.setPlayerState(created.id, created.creator, { deck: 'mono-red' });
 		h.lobby.setTableMatch(created.id, created.tables[0]!.id, 'match-9');
 
-		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { clientMode: string };
-		expect(after.clientMode).toBe('streamed');
+		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { game: { clientMode: string } };
+		expect(after.game.clientMode).toBe('streamed');
 		// Across a restart too, so nothing above persisted a room that lost it.
 		const second = await openApp(dir);
 		expect(
-			((await call(second, 'GET', `/api/rooms/${created.id}`)).json() as { clientMode: string }).clientMode,
+			((await call(second, 'GET', `/api/rooms/${created.id}`)).json() as { game: { clientMode: string } }).game.clientMode,
 		).toBe('streamed');
 	});
 });
@@ -2184,17 +2184,17 @@ describe('a constructed room’s mode over HTTP', () => {
 		const h = await openApp(await tempDir());
 		const plain = await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } });
 		expect(plain.status).toBe(201);
-		expect(plain.json()).toMatchObject({ mode: null, modeOptions: null });
+		expect(plain.json()).toMatchObject({ game: { mode: null, modeOptions: null } });
 
 		const chosen = await call(h, 'POST', '/api/rooms', {
 			as: 'alice',
 			body: { name: 'Random', mode: 'random', modeOptions: { pool: 'modern' } },
 		});
 		expect(chosen.status).toBe(201);
-		expect(chosen.json()).toMatchObject({ mode: 'random', modeOptions: { pool: 'modern' } });
+		expect(chosen.json()).toMatchObject({ game: { mode: 'random', modeOptions: { pool: 'modern' } } });
 
 		const classic = await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Classic', mode: 'classic' } });
-		expect(classic.json()).toMatchObject({ mode: 'classic', modeOptions: {} });
+		expect(classic.json()).toMatchObject({ game: { mode: 'classic', modeOptions: {} } });
 
 		for (const body of [
 			{ name: 'x', mode: 'sealed' },
@@ -2228,7 +2228,7 @@ describe('a constructed room’s mode over HTTP', () => {
 			body: { mode: 'gauntlet', modeOptions: { family: 'legacy' } },
 		});
 		expect(byLeader.status).toBe(200);
-		expect(byLeader.json()).toMatchObject({ mode: 'gauntlet', modeOptions: { family: 'legacy' } });
+		expect(byLeader.json()).toMatchObject({ game: { mode: 'gauntlet', modeOptions: { family: 'legacy' } } });
 	});
 
 	it('PATCH refuses a mode change with 409 mode-locked once a seated player is ready', async () => {
@@ -2245,7 +2245,7 @@ describe('a constructed room’s mode over HTTP', () => {
 		const locked = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { mode: 'random', modeOptions: { pool: 'full' } } });
 		expect(locked.status).toBe(409);
 		expect(locked.json()).toMatchObject({ reason: 'mode-locked' });
-		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { mode: string }).mode).toBe('classic');
+		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { game: { mode: string } }).game.mode).toBe('classic');
 	});
 
 	it('PATCH refuses a game type change with 409 mode-locked once a seated player is ready, naming the game type', async () => {
@@ -2269,19 +2269,19 @@ describe('a constructed room’s mode over HTTP', () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open', mode: 'classic' } })).json() as {
 			id: string;
-			format: string;
+			game: { format: string };
 			tables: { id: string }[];
 			you: { id: string };
 		};
 		const tableId = created.tables[0]!.id;
 		h.lobby.sit(created.id, tableId, created.you.id);
 		expect(h.lobby.setTableMatch(created.id, tableId, 'm-in-play')).toBe(true);
-		const other = created.format === '2011-07-15' ? '2012-07-13' : '2011-07-15';
+		const other = created.game.format === '2011-07-15' ? '2012-07-13' : '2011-07-15';
 
 		const locked = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format: other } });
 		expect(locked.status).toBe(409);
 		expect(locked.json()).toEqual({ error: 'a game is under way or a seated player is ready; the format cannot change now', reason: 'mode-locked' });
-		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { format: string }).format).toBe(created.format);
+		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { game: { format: string } }).game.format).toBe(created.game.format);
 	});
 });
 
@@ -2509,8 +2509,8 @@ describe('Gauntlet tournaments over HTTP, with the real routes.ts adapter', () =
 		// does: the CURRENT round's own `pod.pairings` — never by scanning
 		// `room.tables` for a seated memberId, which also matches an EARLIER
 		// round's own (still-seated, never cleared) table.
-		type RoomView = { pod: { pairings: { tableId: string; players: string[] }[] } | null };
-		const tableOf = (view: RoomView, memberId: string): string => view.pod!.pairings.find((p) => p.players.includes(memberId))!.tableId;
+		type RoomView = { game: { pod: { pairings: { tableId: string; players: string[] }[] } | null } };
+		const tableOf = (view: RoomView, memberId: string): string => view.game.pod!.pairings.find((p) => p.players.includes(memberId))!.tableId;
 		const aliceRoom = (await call(h, 'GET', `/api/rooms/${id}`, { as: 'alice' })).json() as RoomView;
 		const bobRoom = (await call(h, 'GET', `/api/rooms/${id}`, { as: 'bob' })).json() as RoomView;
 		const t1Alice = tableOf(aliceRoom, aliceId);
@@ -2674,7 +2674,7 @@ describe('testing rooms (admin only, seeded)', () => {
 		const board = adminRooms.find((r) => r.name === 'Testing: Board — Midgame')!;
 		const boardGet = await call(h, 'GET', `/api/rooms/${board.id}`, { headers: { 'x-hadoku-tier': 'admin' } });
 		expect(boardGet.status).toBe(200);
-		expect((boardGet.json() as { scenario: string }).scenario).toContain('Elspeth');
+		expect((boardGet.json() as { game: { scenario: string } }).game.scenario).toContain('Elspeth');
 	});
 
 	// Lane testing-states, 2026-10-23: `scenario` rides the same "no field for
@@ -2841,10 +2841,10 @@ describe('the "round 2" tournament rooms (admin only, seeded in progress)', () =
 		const room = listed.rooms.find((r) => r.name === name);
 		expect(room, `${name} is seeded`).toBeDefined();
 		const got = (await call(h, 'GET', `/api/rooms/${room!.id}`, admin)).json() as {
-			pod: { round: number; results: unknown[]; standings: unknown[]; pairings: { tableId: string; players: [string, string] }[] } | null;
+			game: { pod: { round: number; results: unknown[]; standings: unknown[]; pairings: { tableId: string; players: [string, string] }[] } | null };
 		};
-		expect(got.pod, `${name} uses a pod`).not.toBeNull();
-		return { id: room!.id, pod: got.pod! };
+		expect(got.game.pod, `${name} uses a pod`).not.toBeNull();
+		return { id: room!.id, pod: got.game.pod! };
 	}
 
 	it('both rooms seed with round 1 decided (a result per entrant) and standings for all three, paired into round 2 with one live table', async () => {
@@ -2878,8 +2878,8 @@ describe('the "round 2" tournament rooms (admin only, seeded in progress)', () =
 		expect(h.lobby.get(id)?.leader, 'the first admin in leads it').toBe(h.lobby.get(id)?.members[0]?.id);
 
 		expect((await call(h, 'POST', `/api/tables/rooms/${id}/sit`, { ...admin, body: { table: tableId } })).status).toBe(200);
-		const legalDeck = (await call(h, 'GET', `/api/rooms/${id}`, admin)).json() as { format: string };
-		const anyLegalDeck = TABLES_LIBRARY.decks.find((d) => d.era === legalDeck.format)?.id ?? TABLES_LIBRARY.decks[0]!.id;
+		const legalDeck = (await call(h, 'GET', `/api/rooms/${id}`, admin)).json() as { game: { format: string } };
+		const anyLegalDeck = TABLES_LIBRARY.decks.find((d) => d.era === legalDeck.game.format)?.id ?? TABLES_LIBRARY.decks[0]!.id;
 		const deckRes = await call(h, 'PUT', `/api/tables/rooms/${id}/deck`, { ...admin, body: { deck: { library: anyLegalDeck }, table: tableId } });
 		expect(deckRes.status, deckRes.text).toBe(200);
 
@@ -2934,8 +2934,8 @@ describe('the eight-player tournament rooms (admin only, seeded finished and mid
 		const listed = (await call(h, 'GET', '/api/rooms', admin)).json() as { rooms: { id: string; name: string }[] };
 		const room = listed.rooms.find((r) => r.name === name);
 		expect(room, `${name} is seeded`).toBeDefined();
-		const got = (await call(h, 'GET', `/api/rooms/${room!.id}`, admin)).json() as { pod: Pod; members: { id: string; name: string }[] };
-		return { pod: got.pod, members: got.members };
+		const got = (await call(h, 'GET', `/api/rooms/${room!.id}`, admin)).json() as { game: { pod: Pod }; members: { id: string; name: string }[] };
+		return { pod: got.game.pod, members: got.members };
 	}
 
 	it('the finished room has played all three rounds of an eight-player field to done, the seed still in it', async () => {
