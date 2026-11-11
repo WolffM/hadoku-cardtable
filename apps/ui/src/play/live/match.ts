@@ -3167,9 +3167,16 @@ export function undoableManaSource(match: LiveMatch, ask: LiveAsk): number | nul
  */
 export function undoManaChoice(match: LiveMatch, ask: Extract<LiveAsk, { method: 'getChoices' }>, source: number): void {
   const first = ask.choices[0];
+  // The window the source was tapped in is still drawn (the held offer), source and all: a click on it
+  // would name the input Forge leaves once the colour is in, and be refused as stale. Its next one counts.
+  const tappedIn = match.inputId;
   if (first === undefined || !answerAsk(match, ask.callId, 'getChoices', [first.key])) return;
   const tapped = (): boolean => match.view?.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === source && c.tapped)) === true;
-  afterState(match, () => match.asks.length === 0 && tapped() && boardInteraction(match).selectable.has(source), () => selectCard(match, source));
+  afterState(
+    match,
+    () => match.asks.length === 0 && (tappedIn === null || match.inputId !== tappedIn) && tapped() && boardInteraction(match).selectable.has(source),
+    () => selectCard(match, source),
+  );
 }
 
 /** Whether `attacker` is one this seat can drag a blocker onto while `InputBlock` runs, and `blocker` is its own. */

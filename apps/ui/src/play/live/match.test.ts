@@ -135,9 +135,9 @@ async function connect(s: ReplayServer): Promise<LiveMatch> {
 }
 
 /** Send, and wait until the client has applied it. */
-async function sendAndApply(s: ReplayServer, m: LiveMatch, frames: readonly ServerFrame[]): Promise<void> {
+async function sendAndApply(s: ReplayServer, m: LiveMatch, frames: readonly ServerFrame[], input?: number): Promise<void> {
   const target = m.stats.applied + frames.length;
-  for (const f of frames) s.send(f);
+  for (const f of frames) s.send(f, input);
   await until(`${frames.length} frame(s) applied`, () => m.stats.applied >= target);
 }
 
@@ -3535,6 +3535,32 @@ describe('a tapped permanent is clicked to untap exactly when Forge offers it', 
     await sendAndApply(s, m, [actionable([a])]);
     await until('the undo click', () => s.clientFrames().length === 2);
     expect(s.clientFrames()[1]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
+  });
+
+  /*
+   * af141-mox-opal.spec.ts:24, run 42782506722: the colour reply and the undo click went out in the same
+   * millisecond. The tapped Mox was still drawn offered from the priority window it was tapped in (the
+   * held offer), so the click named that input; Forge opened its next one 26 ms later and the server
+   * refused the click as stale, leaving the Mox tapped. Mutation: drop the input check in
+   * `undoManaChoice` and the click goes out on input 4.
+   */
+  it('the undo click waits for the input Forge opens after the colour, not the old window still drawn', async () => {
+    const { s, m } = await fullGame();
+    const [a] = me(m).battlefield.filter((c) => !c.tapped).map((c) => c.id) as [number];
+    await sendAndApply(s, m, [prompt('Priority'), bar('End Turn'), actionable([a])], 4);
+    expect(selectCard(m, a)).toBe(true);
+    await sendAndApply(s, m, [tap(a, true), colourAsk(a)]);
+    const ask = m.asks[0]!;
+    undoManaChoice(m, ask as Extract<typeof ask, { method: 'getChoices' }>, a);
+    await until('the colour at the server', () => s.clientFrames().length >= 2);
+    // The old window drawn again, still input 4: nothing goes out on it.
+    await sendAndApply(s, m, [prompt('Priority'), actionable([a])], 4);
+    expect(s.clientFrames(), 'no click on the input Forge has left').toHaveLength(2);
+    await sendAndApply(s, m, [prompt('Priority'), actionable([a])], 5);
+    await until('the undo click', () => s.clientFrames().length === 3);
+    expect(s.clientFrames()[2]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
+    const inputs = s.received.filter((r) => r.event === MATCH_EVENTS.clientToServer).map((r) => (r.payload as { input?: number }).input);
+    expect(inputs.at(-1), 'on the input Forge opened').toBe(5);
   });
 
   it("a mana ability's question names no source (it never uses the stack): the click that began the act does", async () => {
