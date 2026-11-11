@@ -36,6 +36,7 @@ import {
 	FLYING_FILE,
 	FLYING_MATCH,
 	everyString,
+	fixtureFrames,
 	identifyingStrings,
 	leaked,
 	loadTranscript,
@@ -44,7 +45,7 @@ import {
 	secretsFor,
 	type ReplayHost,
 } from './fixtures/transcript.js';
-import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
+import { createProjector, foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import { installTelemetry } from '../telemetry.js';
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa';
@@ -951,6 +952,46 @@ describe("regression: the red jvm.test.ts run ('Flying'), from its captured fram
 				if (obj._type === DELTA_TYPE.cardState) expect(cardIdOfState(obj._id)).not.toBe(99);
 			}
 		}
+	});
+});
+
+describe('regression: a spell on the stack (prompts.jvm.test.ts, the Arc Lightning row)', () => {
+	// The Tier C stream: at packet 20 (seq 20) Alice's Gemini Engine (card 77) has left her hand
+	// for the stack — GameView.Stack names stack item 33, whose SourceCard is 77 — and it reaches
+	// the battlefield one packet later. A cast spell is public, so seat 0 is sent its name. The
+	// oracle once read shown cards off the player zones only, so a check that landed while a
+	// spell sat on the stack called the spell a leak.
+	const frames = fixtureFrames();
+	const linesUpTo = (n: number): BridgeLine[] => frames.slice(0, n).map((frame) => ({ t: 'frame', seat: 0, frame }) as BridgeLine);
+	const emittedUpTo = (n: number): string => {
+		const projector = createProjector(0);
+		return frames
+			.slice(0, n)
+			.map((f) => JSON.stringify(projector.project(f)))
+			.join('\n');
+	};
+
+	it('holds the case: card 77 is on the stack at packet 20 and was in the opponent\'s hand before', () => {
+		const states = rawStatesOf(linesUpTo(20), 0);
+		const last = states[states.length - 1] as Map<string, WireObj>;
+		expect(last.get(deltaKey(DELTA_TYPE.card, 77))?.Zone).toMatchObject({ v: 'Stack' });
+		expect(identifyingStrings(last, 77)).toContain('Gemini Engine');
+		expect(secretsFor(rawStatesOf(linesUpTo(19), 0), 0).secrets.has('Gemini Engine')).toBe(true);
+	});
+
+	it('counts a card on the stack as shown, and the projection that sends its name leaks nothing', () => {
+		const { secrets, hiddenCards } = secretsFor(rawStatesOf(linesUpTo(20), 0), 0);
+		expect(hiddenCards.has(77)).toBe(false);
+		expect(secrets.has('Gemini Engine')).toBe(false);
+		expect(leaked(['Gemini Engine'], emittedUpTo(20))).toEqual(['Gemini Engine']);
+		expect(secrets.size).toBeGreaterThan(0);
+		expect(leaked(secrets, emittedUpTo(20))).toEqual([]);
+	});
+
+	it('still keeps the card secret while it is in hand, and the projection does not send it', () => {
+		const { secrets } = secretsFor(rawStatesOf(linesUpTo(19), 0), 0);
+		expect(secrets.has('Gemini Engine')).toBe(true);
+		expect(leaked(secrets, emittedUpTo(19))).toEqual([]);
 	});
 });
 
