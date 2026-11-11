@@ -29,9 +29,20 @@ export async function openSoloDeckEditor(page: Page, timeoutMs = 120_000): Promi
       await page.waitForTimeout(150);
       continue;
     }
-    await enabled.first().click({ timeout: 2_000 }).catch(() => undefined);
+    // Clicked again until the pick takes: a click the pack's own redraw intercepts (a new pack
+    // fanning in under the hovered card's inspector) is never sent, and one try left the pick
+    // waiting on nothing (CI run 43082207703, pack 3 pick 1).
+    const card = page.locator(`[data-testid="pack"] button[data-card-id="${id}"]`);
+    const picked = async (): Promise<boolean> => page.url().includes('#/deck/') || (await card.count()) === 0;
     await expect
-      .poll(async () => page.url().includes('#/deck/') || (await page.locator(`[data-testid="pack"] button[data-card-id="${id}"]`).count()) === 0, { timeout: 20_000 })
+      .poll(
+        async () => {
+          if (await picked()) return true;
+          await card.click({ timeout: 2_000 }).catch(() => undefined);
+          return picked();
+        },
+        { timeout: 20_000, intervals: [500] },
+      )
       .toBe(true);
   }
   await expect(page.getByTestId('deck-editor')).toBeVisible({ timeout: 30_000 });
