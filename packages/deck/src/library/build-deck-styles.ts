@@ -84,6 +84,14 @@ function mtgtop8DeckId(collection: LibraryCollection, file: string, sourceUrl: s
 export function libraryDeckStyles(): Record<string, DeckStyle> {
   const styles: Record<string, DeckStyle> = {};
   for (const collection of LIBRARY) {
+    // A tournament import never has a selection, whatever year it shares with one
+    // (ALICE 1996 and the 1996 power summer collide on the filename).
+    if (collection.id.startsWith('tournament-')) {
+      for (const entry of collection.decks) {
+        if (styles[entry.id] !== undefined) throw new Error(`${entry.id}: catalogued twice`);
+      }
+      continue;
+    }
     const path = selectionPath(collection.family, collection.date.slice(0, 4));
     if (!existsSync(join(REPO_ROOT, path))) {
       for (const entry of collection.decks) {

@@ -3164,6 +3164,38 @@ export const TOURNAMENT_LEGACY_2026_02_08_LEGACY: LibraryCollection = {
 };
 
 /**
+ * The oldest event in the library — Pro Tour Columbus 1996 (July 6, 1996),
+ * the ALICE block Pro Tour (Ice Age + Alliances). Nine complete decklists
+ * survive (of 167 seniors + 57 juniors): the senior top 4, three juniors
+ * (Borer, McCabe, Finkel), Gridley's 20th-place weenie and Brickwell's 77th.
+ * Hand-transcribed from mtg.wiki's card-for-card preservation, citation per
+ * file. The pool is the block itself, hand-frozen (alice-1996-07-06): every
+ * paper ICE/ALL printing, no bans — 1996 predated them.
+ */
+export const TOURNAMENT_ALICE_1996_COLUMBUS: LibraryCollection = {
+  family: 'standard',
+  id: 'tournament-alice-1996-07-06',
+  directory: `${DECKS_ROOT}/tournament-alice-1996-07-06-pt-columbus`,
+  event: 'Pro Tour Columbus 1996 — ALICE block (the 9 preserved decklists)',
+  format: 'ALICE (Ice Age + Alliances)',
+  date: '1996-07-06',
+  source: 'https://mtg.wiki/page/1996_Pro_Tour_Columbus/Block_decks',
+  decks: [
+    { id: "tourney-alice-1996-07-06-1-olle-rade", file: "1-olle-rade-bugbind.dck" },
+    { id: "tourney-alice-1996-07-06-2-sean-fleischman", file: "2-sean-fleischman-good-stuff.dck" },
+    { id: "tourney-alice-1996-07-06-3-alvaro-marques", file: "3-alvaro-marques-blinkie-haups.dck" },
+    { id: "tourney-alice-1996-07-06-4-peter-radonjic", file: "4-peter-radonjic-good-stuff.dck" },
+    { id: "tourney-alice-1996-07-06-5-evan-gridley", file: "5-evan-gridley-white-weenie.dck" },
+    { id: "tourney-alice-1996-07-06-6-daniel-brickwell", file: "6-daniel-brickwell-counter-post.dck" },
+    { id: "tourney-alice-1996-07-06-7-terry-borer", file: "7-terry-borer-bugbind.dck" },
+    { id: "tourney-alice-1996-07-06-8-paul-mccabe", file: "8-paul-mccabe-canadian-bugbind.dck" },
+    { id: "tourney-alice-1996-07-06-9-jon-finkel", file: "9-jon-finkel-counter-post.dck" },
+  ],
+};
+
+
+/**
+ * One real MTGO tournament, imported whole — the 2026-02-07 Modern Challenge/**
  * One real MTGO tournament, imported whole — the 2026-02-07 Modern Challenge
  * 32, all 32 decklists, transcribed by `build-tournament-library.ts` from
  * `fbettega/MTG_decklistcache` (the open JSON cache of MTGO/melee/Topdeck
@@ -3239,6 +3271,7 @@ export const TOURNAMENT_2026_02_07_MODERN: LibraryCollection = {
 /** Every collection in the library, oldest era first. */
 export const LIBRARY: readonly LibraryCollection[] = [
   POWER_SUMMER_1995_STANDARD,
+  TOURNAMENT_ALICE_1996_COLUMBUS,
   POWER_SUMMER_1996_STANDARD,
   POWER_SUMMER_1997_STANDARD,
   POWER_SUMMER_1998_STANDARD,
