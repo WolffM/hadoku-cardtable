@@ -128,6 +128,20 @@ mkdirSync(RECORDINGS_DIR, { recursive: true });
 
 const secret = randomBytes(24).toString('hex');
 
+/**
+ * What `scripts/stream/container.sh` reads to find the Forge it mounts and the image it runs, taken
+ * from the runner's env under the script's own STREAM_ names. `CARDTABLE_FORGE_RES` itself stays off
+ * this server: it plays no Forge (see "Deliberately absent" below), only the container does.
+ */
+function streamContainerEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const out: Record<string, string> = {};
+  const res = env.CARDTABLE_STREAM_FORGE_RES ?? env.CARDTABLE_FORGE_RES;
+  if (res !== undefined) out.CARDTABLE_STREAM_FORGE_RES = res;
+  if (env.CARDTABLE_STREAM_FORGE_JAR !== undefined) out.CARDTABLE_STREAM_FORGE_JAR = env.CARDTABLE_STREAM_FORGE_JAR;
+  if (env.CARDTABLE_STREAM_IMAGE !== undefined) out.CARDTABLE_STREAM_IMAGE = env.CARDTABLE_STREAM_IMAGE;
+  return out;
+}
+
 const server = spawn(process.execPath, [SERVER_JS], {
   cwd: ROOT,
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -171,6 +185,11 @@ const server = spawn(process.execPath, [SERVER_JS], {
     // constant. Both ends have to move together or every provision is refused.
     CARDTABLE_STREAM_PORT_MIN: String(STREAM_BASE_PORT),
     CARDTABLE_STREAM_PORT_MAX: String(STREAM_PORT_MAX),
+    // The Forge a streamed room's container mounts, and its image. `streamed-live.spec.ts` asks
+    // `container.sh check` in the RUNNER's env before it provisions; the server's own `container.sh up`
+    // runs in THIS env, so whatever the check saw has to reach it, or the check passes and every
+    // provision is refused with "no Forge res" at the checkout's own, empty, `forge/`.
+    ...streamContainerEnv(process.env),
     // Deliberately absent: CARDTABLE_INSECURE_NO_EDGE_AUTH, CARDTABLE_FORGE_JAR,
     // CARDTABLE_PLAY_PROBE. This is the production posture, minus Forge, which
     // a draft does not touch. `CARDTABLE_PLAY_SEED` was here too, and that was
