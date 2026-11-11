@@ -192,6 +192,7 @@ import {
 } from '../rooms/api.ts';
 import { MatchRules } from '../rooms/MatchRules.tsx';
 import { RoomHeader } from '../rooms/RoomHeader.tsx';
+import { gameRoomUiFor, registerGameRoomUi, type GameSetupProps } from '../rooms/game-setup.ts';
 import { ClassicOptions, toggledFreePick, type Browse } from './constructed-mode/ClassicOptions.tsx';
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
@@ -2392,16 +2393,386 @@ function RoomTableScreen({
     ) : undefined;
 
   /*
-   * The pod: the draft room's second phase, and the whole screen while it lasts.
-   *
-   * Not nested inside the room chrome below. The pod has a status bar of its own
-   * carrying the room's id, the cube, the seats and the invite link, so putting
-   * it inside `.lobby` — a grid of 300px cards — would squeeze the table it
-   * draws and say the room's name twice. A locked room is asked for its password
-   * first: the form for that is in the body below.
+   * Magic's own rendering, registered under its two game types and reached from here through
+   * `gameRoomUiFor` rather than an inline branch on `gameType`. The registered functions still
+   * close over this render's own locals (`view`, `table`, every piece of state above) instead of
+   * reading them off `gameUiProps`, because that state is still this component's — it moves once
+   * Magic's setup and game rendering relocate to their own module. Re-registering every render is
+   * idempotent (the same two keys, a fresh closure each time) and costs one `Map.set` each; it is
+   * a stepping stone, not the shape this settles into once that move happens.
    */
+  const gameUiProps: GameSetupProps = {
+    view,
+    me: { userId: view?.you.id ?? '', seat: mine?.seat ?? null, isLeader: iAmLeader },
+    underway,
+  };
+  registerGameRoomUi('draft', {
+    // `locked === null`: the original JSX gated this whole section on it (a locked room asks
+    // for its password first, in the body above, and draws nothing of the draft lobby below it
+    // until that is answered).
+    setup: () =>
+      locked === null && (
+        <>
+          <section className="lobby__card">
+            <RoomHeader gameType={gameType} typeDisabled={!iAmLeader || typeLocked} onGameType={chooseGameType} />
+            {actionError !== null && (
+              <p className="ct-error" role="alert" data-testid="table-error">
+                {actionError}
+              </p>
+            )}
+          </section>
+          <DraftLobby
+            roomId={roomId}
+            pod={game?.pod ?? null}
+            members={members}
+            leaderId={view?.leader ?? ''}
+            myId={view?.you.id ?? ''}
+            scheduledFor={view?.scheduledFor ?? null}
+            iAmReady={iAmReady}
+            allReady={allReady}
+            dealing={dealing}
+            error={draftError}
+            onReady={setDraftReady}
+            onRetry={() => {
+              askedDeal.current = false;
+              setDraftError(null);
+              setDealAttempt((n) => n + 1);
+            }}
+          />
+        </>
+      ),
+    game: () => <PodScreen draftId={roomId} tableId={tableId} makeTransport={makeTransport} podSource={podSource} />,
+  });
+  registerGameRoomUi('constructed-1v1', {
+    setup: () => (
+      <>
+        {loadError !== null && (
+          <p className="ct-error" role="alert" data-testid="tables-load-error">
+            Could not load the formats and decks: {loadError}
+          </p>
+        )}
+        {table !== null && (
+          <section className="lobby__card">
+            {/* The room's type and its event above its mode (the operator, 2026-10-21 and
+                2026-10-22), so the mode and its options keep their one line. Tournament applies
+                across every mode (ruling 2) and is offered once a mode is chosen. */}
+            <RoomHeader
+              gameType={gameType}
+              typeDisabled={!iAmLeader || typeLocked}
+              onGameType={chooseGameType}
+              event={mode === null ? undefined : { tournament, disabled: !iAmLeader || eventLocked, onChange: toggleTournament }}
+            />
+            <div className="lobby__modeline">
+              <ModeRow mode={shownMode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
+              {shownMode === 'classic' && loaded !== null && (
+                <ClassicOptions
+                  formats={loaded.formats}
+                  poolId={poolId}
+                  leader={iAmLeader}
+                  disabled={formatLocked}
+                  onPool={choosePool}
+                  browse={browse}
+                  onBrowse={setBrowse}
+                />
+              )}
+              {shown?.mode === 'gauntlet' && gauntletEras !== null && (
+                <GauntletOptions
+                  eras={gauntletEras}
+                  options={shown.modeOptions}
+                  leader={iAmLeader}
+                  disabled={modeLocked}
+                  onChange={(options) => writeMode({ mode: 'gauntlet', modeOptions: options })}
+                />
+              )}
+              {shownMode === 'random' && (
+                <AllRandomOptions
+                  // The pair parsed together (`parseRoomView`), so an All Random room's options carry its pool.
+                  value={randomOptions?.pool ?? null}
+                  disabled={!iAmLeader || modeLocked}
+                  onChange={(pool) => writeMode({ mode: 'random', modeOptions: { ...randomOptions, pool } })}
+                />
+              )}
+            </div>
+            {actionError !== null && (
+              <p className="ct-error" role="alert" data-testid="table-error">
+                {actionError}
+              </p>
+            )}
+          </section>
+        )}
+      </>
+    ),
+    game: () =>
+      table === null ? null : (
+        <>
+          {mode !== null && tournamentLobby ? (
+            <PodLobby
+              testId="tournament-lobby"
+              roomId={roomId}
+              pod={pod}
+              members={members}
+              leaderId={view?.leader ?? ''}
+              myMemberId={view?.you.id ?? null}
+              fieldFixed={view?.locks.gameType === 'historical'}
+              scheduledFor={view?.scheduledFor ?? null}
+              iAmReady={iAmReady}
+              readyDisabled={!canReady}
+              onReady={setDraftReady}
+            >
+              {mode === 'classic' && loaded !== null && (
+                <DeckChooser
+                  options={seatDeck === undefined ? (visibleOptions ?? []) : (shownOptions ?? []).filter((o) => o.value === seatDeck)}
+                  empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
+                  value={seatDeck ?? deckId}
+                  disabled={deckOptions === null || underway || seatDeck !== undefined || seatsShutUntil !== null}
+                  pending={shownOptions === null}
+                  pendingTiles={ROOM_SKELETON_TILES}
+                  swapKey={deckGrid}
+                  onChoose={chooseDeck}
+                />
+              )}
+            </PodLobby>
+          ) : mode !== null && tournamentRounds ? (
+            tableId !== undefined ? (
+              <TablePage
+                roomId={roomId}
+                pod={pod!}
+                table={view?.tables.find((t) => t.id === tableId)}
+                myMemberId={view?.you.id ?? null}
+                nameOf={tNameOf}
+                avatarOf={tAvatarOf}
+                canStart={tCanStart}
+                refresh={view}
+                tables={client}
+                game={tableId === undefined ? undefined : view?.tableGames?.[tableId]}
+                ready={tGauntletReady}
+              >
+                {tDeckPicking && loaded !== null && (
+                  <DeckChooser
+                    options={visibleOptions ?? []}
+                    empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
+                    value={tDeckId}
+                    disabled={deckOptions === null}
+                    pending={shownOptions === null}
+                    pendingTiles={ROOM_SKELETON_TILES}
+                    swapKey={deckGrid}
+                    onChoose={chooseTournamentTableDeck}
+                  />
+                )}
+                {tGauntletBoard}
+              </TablePage>
+            ) : (
+              <RoomHub
+                roomId={roomId}
+                pod={pod!}
+                tables={view?.tables ?? []}
+                games={view?.tableGames}
+                myMemberId={view?.you.id ?? null}
+                nameOf={tNameOf}
+                avatarOf={tAvatarOf}
+                leaderId={view?.leader ?? ''}
+              />
+            )
+          ) : mode !== null && tableId !== undefined ? (
+            <TablePage
+              roomId={roomId}
+              pod={null}
+              table={view?.tables.find((t) => t.id === tableId)}
+              myMemberId={view?.you.id ?? null}
+              nameOf={tNameOf}
+              avatarOf={tAvatarOf}
+              canStart={false}
+              refresh={view}
+              tables={client}
+                game={tableId === undefined ? undefined : view?.tableGames?.[tableId]}
+            />
+          ) : (
+            mode !== null && (
+            <>
+          <section className="lobby__card">
+            {/* Where the table stands sits on its heading's line, which has the
+                width to spare: a line added under the seats comes off the room's height. */}
+            <div className="lobby__deckhead">
+              <h2>At the table</h2>
+              {startState !== null && (
+                <p className="lobby__note" data-testid="start-state">
+                  {startState}
+                </p>
+              )}
+              {seatsShutUntil !== null && <SeatsOpenNote opensAt={seatsShutUntil} />}
+              {matchLink}
+            </div>
+            {/* Drawn as the draft room draws its seats (the operator, 2026-10-22: "can we also show seats the same way we show seats then in draft?"). */}
+            <div className="table-sides">
+              <div className="table-side">
+                <h3 className="table-side__heading">Players</h3>
+                <ul className="pod-seats pod-seats--table" data-testid="room-players">
+                  {[0, 1].map((seat) => {
+                    const player = players.find((p) => p.seat === seat);
+                    if (aiSeat?.seat === seat) {
+                      return (
+                        <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-ai="">
+                          <span className="pod-seats__avatar pod-seats__avatar--ai">
+                            <Avatar id={aiSeat.avatarId} fallback="mark" className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
+                          </span>
+                          <span className="pod-seats__label">{aiSeat.name}</span>
+                        </li>
+                      );
+                    }
+                    return player === undefined ? (
+                      <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}-empty`}>
+                        {/* Sitting is its own act (2026-10-12), in the seat pressed; seated, it moves me there, as a pod's seats do. Dead once the table is locked or a match is under way. */}
+                        <ActionButton
+                          action="sit"
+                          className="pod-seats__avatar pod-seats__avatar--open"
+                          data-testid="seat-sit"
+                          data-seat={seat}
+                          aria-label={`Sit in seat ${seat + 1}`}
+                          disabled={tableLocked || underway || seatsShutUntil !== null}
+                          onPress={() => sitDown(seat)}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14" />
+                          </svg>
+                        </ActionButton>
+                        <span className="pod-seats__label">Open</span>
+                        {/*
+                         * Forge's AI takes this seat (the operator, 2026-10-02 and
+                         * 2026-10-16): offered on every empty seat while nobody ELSE is
+                         * seated, the first as well as the second (2026-11-08: "all
+                         * seats should be treated the same"). Live once I am seated with
+                         * a legal deck; the server plays a random library deck legal in
+                         * this room's pool, and holds the same gate.
+                         */}
+                        {botSeats.includes(seat) && (
+                          <span className="pod-seats__actions">
+                            <ActionButton
+                              action="vs-bot"
+                              className="pod-seats__action"
+                              data-testid="play-vs-bot"
+                              aria-label="Play the AI"
+                              disabled={!canReady || underway}
+                              onPress={mode === 'gauntlet' ? () => gauntletMove(() => client.gauntletReady(roomId, true, true)) : startVsBot}
+                            >
+                              AI
+                            </ActionButton>
+                          </span>
+                        )}
+                      </li>
+                    ) : (
+                      <PlayerRow
+                        key={seat}
+                        seat={seat}
+                        player={{ ...player, ready: readyAt(players.indexOf(player)) }}
+                        face={faceOf(members.find((m) => m.name === player.name))}
+                        leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
+                        {...(player.you
+                          ? {
+                              onReady: () =>
+                                mode === 'gauntlet' ? gauntletMove(() => client.gauntletReady(roomId, !readyAt(players.indexOf(player)))) : setReady(!player.ready),
+                              readyDisabled: !canReady || underway,
+                            }
+                          : {})}
+                      />
+                    );
+                  })}
+                </ul>
+              </div>
+              <RoomSpectators
+                spectators={members.filter((m) => !players.some((p) => p.name === m.name))}
+                myId={view?.you.id ?? null}
+                leaderId={view?.leader ?? ''}
+                {...(seated ? { onWatch: standUp } : {})}
+                watchDisabled={tableLocked || underway}
+              />
+            </div>
+            {startRefused}
+          </section>
+
+          {mode === 'gauntlet' ? (
+            // The board between games too, from the choice onward. From the choice to the board the
+            // room stays the screen the choice was made on (the operator, 2026-10-21: *"let's go
+            // stragiht from deck selection into the next game"*, and *"theres still an extra screen …
+            // we need to get rid of this"*): the start, its refusal and the way back into a live game
+            // are the table's, above it, as in every mode.
+            gauntlet !== null && (
+              <GauntletScreen
+                view={gauntlet}
+                faces={seatFaces(gauntlet, members)}
+                onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck))}
+                onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck))}
+                onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
+              />
+            )
+          ) : spectating ? null : mySideboarding && players.some((p) => p.you) ? (
+            // Between games, the room's table is its card (`TableCard.tsx`), the way back to the table page's sideboard.
+            <TableCard
+              testId="room-table-card"
+              tableId={myTable.id}
+              players={[myTable.players[0]?.memberId ?? '', myTable.players[1]?.memberId ?? POD_AI]}
+              nameOf={(id) => (id === POD_AI ? (view?.ai?.name ?? tNameOf(id)) : tNameOf(id))}
+              avatarOf={(id) => (id === POD_AI ? { id: view?.ai?.avatarId ?? null } : tAvatarOf(id))}
+              myMemberId={view?.you.id ?? null}
+              series={{ length: myTable.series.length, wins: myTable.series.wins, played: myTable.series.games.length, phase: myTable.series.phase }}
+              matchId={myTable.matchId}
+              game={view?.tableGames?.[myTable.id]}
+              go={{ label: 'Sideboard', href: routeHash({ kind: 'room', roomId, tableId: myTable.id }), testId: 'room-table-link' }}
+              onAbandon={() => resolveTable('abandon', roomId, myTable.id)}
+            />
+          ) : mode !== 'classic' ? null : loaded === null ? (
+            loadError === null && <DeckCardSkeleton />
+          ) : (
+              <section className="lobby__card lobby__decks">
+                {/* The sets the chosen era is made of, as symbols — the operator's
+                    own ask, for a Standard era. An
+                    eternal format's forty-odd sets drew a strip the operator called
+                    ridiculous (2026-10-07), so those draw none either. */}
+                {/* Beside them, the deck grid's filters. */}
+                <div className="lobby__setsrow">
+                  {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
+                  <DeckFilterBar filter={deckFilter} onChange={setDeckFilter} />
+                  {/* Random is a button and not one of the tiles because it is not a
+                      state a deck can be in: it resolves to one of the decks on offer,
+                      and the chooser then reads that deck (`chooseDeck`). */}
+                  <button
+                    type="button"
+                    className="deckpick__random"
+                    data-testid="deck-random"
+                    data-deck-id={RANDOM_DECK}
+                    disabled={deckOptions === null || underway}
+                    onClick={() => chooseDeck(RANDOM_DECK)}
+                  >
+                    Random
+                  </button>
+                </div>
+
+                {/* Only the decks the room's pool offers, and the pool's
+                    answer is the gate's. Disabled until it has answered: an
+                    option list assembled before the answer would offer decks
+                    the pool does not have. */}
+                <span className="lobby__field lobby__field--hidden" id="deck-mine-label">
+                  You play
+                </span>
+                <DeckChooser
+                  options={visibleOptions ?? []}
+                  empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
+                  value={deckId}
+                  disabled={deckOptions === null || underway || seatsShutUntil !== null}
+                  pending={shownOptions === null}
+                  pendingTiles={ROOM_SKELETON_TILES}
+                  swapKey={deckGrid}
+                  onChoose={chooseDeck}
+                />
+              </section>
+          )}
+            </>
+            )
+          )}
+        </>
+      ),
+  });
   if (!streamed && draftRoom && draftStartedAt !== null && locked === null) {
-    return <PodScreen draftId={roomId} tableId={tableId} makeTransport={makeTransport} podSource={podSource} />;
+    return gameRoomUiFor('draft')!.game(gameUiProps);
   }
 
   return (
@@ -2502,363 +2873,17 @@ function RoomTableScreen({
             {tableError}
           </p>
         )}
-        {/* The draft room's first phase. Nothing below this is drawn for it:
-            there is no deck to hold, no seat at a constructed table, and every
-            table write it could make is a 409. */}
-        {locked === null && draftRoom && (
-          <>
-          <section className="lobby__card">
-            <RoomHeader gameType={gameType} typeDisabled={!iAmLeader || typeLocked} onGameType={chooseGameType} />
-            {actionError !== null && (
-              <p className="ct-error" role="alert" data-testid="table-error">
-                {actionError}
-              </p>
-            )}
-          </section>
-          <DraftLobby
-            roomId={roomId}
-            pod={game?.pod ?? null}
-            members={members}
-            leaderId={view?.leader ?? ''}
-            myId={view?.you.id ?? ''}
-            scheduledFor={view?.scheduledFor ?? null}
-            iAmReady={iAmReady}
-            allReady={allReady}
-            dealing={dealing}
-            error={draftError}
-            onReady={setDraftReady}
-            onRetry={() => {
-              askedDeal.current = false;
-              setDraftError(null);
-              setDealAttempt((n) => n + 1);
-            }}
-          />
-          </>
-        )}
+        {/* Everything from here down is a registered game type's own UI: what it draws before
+            the room is underway (`setup`), and what it draws once it is (`game`). `gameUiProps`,
+            `registerGameRoomUi` and `gameRoomUiFor` are defined above, right before this screen's
+            early return for a dealt draft pod.
 
-        {!draftRoom && loadError !== null && (
-          <p className="ct-error" role="alert" data-testid="tables-load-error">
-            Could not load the formats and decks: {loadError}
-          </p>
-        )}
-
-        {!draftRoom && table !== null && (
-          <>
-            {/* The mode, and the chosen mode's options beside it. With no mode
-                chosen this row is the whole room (the operator, 2026-10-21). */}
-            <section className="lobby__card">
-              {/* The room's type and its event above its mode (the operator, 2026-10-21 and
-                  2026-10-22), so the mode and its options keep their one line. Tournament applies
-                  across every mode (ruling 2) and is offered once a mode is chosen. */}
-              <RoomHeader
-                gameType={gameType}
-                typeDisabled={!iAmLeader || typeLocked}
-                onGameType={chooseGameType}
-                event={mode === null ? undefined : { tournament, disabled: !iAmLeader || eventLocked, onChange: toggleTournament }}
-              />
-              <div className="lobby__modeline">
-                <ModeRow mode={shownMode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
-                {shownMode === 'classic' && loaded !== null && (
-                  <ClassicOptions
-                    formats={loaded.formats}
-                    poolId={poolId}
-                    leader={iAmLeader}
-                    disabled={formatLocked}
-                    onPool={choosePool}
-                    browse={browse}
-                    onBrowse={setBrowse}
-                  />
-                )}
-                {shown?.mode === 'gauntlet' && gauntletEras !== null && (
-                  <GauntletOptions
-                    eras={gauntletEras}
-                    options={shown.modeOptions}
-                    leader={iAmLeader}
-                    disabled={modeLocked}
-                    onChange={(options) => writeMode({ mode: 'gauntlet', modeOptions: options })}
-                  />
-                )}
-                {shownMode === 'random' && (
-                  <AllRandomOptions
-                    // The pair parsed together (`parseRoomView`), so an All Random room's options carry its pool.
-                    value={randomOptions?.pool ?? null}
-                    disabled={!iAmLeader || modeLocked}
-                    onChange={(pool) => writeMode({ mode: 'random', modeOptions: { ...randomOptions, pool } })}
-                  />
-                )}
-              </div>
-              {actionError !== null && (
-                <p className="ct-error" role="alert" data-testid="table-error">
-                  {actionError}
-                </p>
-              )}
-            </section>
-
-            {mode !== null && tournamentLobby ? (
-              <PodLobby
-                testId="tournament-lobby"
-                roomId={roomId}
-                pod={pod}
-                members={members}
-                leaderId={view?.leader ?? ''}
-                myMemberId={view?.you.id ?? null}
-                fieldFixed={view?.locks.gameType === 'historical'}
-                scheduledFor={view?.scheduledFor ?? null}
-                iAmReady={iAmReady}
-                readyDisabled={!canReady}
-                onReady={setDraftReady}
-              >
-                {mode === 'classic' && loaded !== null && (
-                  <DeckChooser
-                    options={seatDeck === undefined ? (visibleOptions ?? []) : (shownOptions ?? []).filter((o) => o.value === seatDeck)}
-                    empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
-                    value={seatDeck ?? deckId}
-                    disabled={deckOptions === null || underway || seatDeck !== undefined || seatsShutUntil !== null}
-                    pending={shownOptions === null}
-                    pendingTiles={ROOM_SKELETON_TILES}
-                    swapKey={deckGrid}
-                    onChoose={chooseDeck}
-                  />
-                )}
-              </PodLobby>
-            ) : mode !== null && tournamentRounds ? (
-              tableId !== undefined ? (
-                <TablePage
-                  roomId={roomId}
-                  pod={pod!}
-                  table={view?.tables.find((t) => t.id === tableId)}
-                  myMemberId={view?.you.id ?? null}
-                  nameOf={tNameOf}
-                  avatarOf={tAvatarOf}
-                  canStart={tCanStart}
-                  refresh={view}
-                  tables={client}
-                  game={tableId === undefined ? undefined : view?.tableGames?.[tableId]}
-                  ready={tGauntletReady}
-                >
-                  {tDeckPicking && loaded !== null && (
-                    <DeckChooser
-                      options={visibleOptions ?? []}
-                      empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
-                      value={tDeckId}
-                      disabled={deckOptions === null}
-                      pending={shownOptions === null}
-                      pendingTiles={ROOM_SKELETON_TILES}
-                      swapKey={deckGrid}
-                      onChoose={chooseTournamentTableDeck}
-                    />
-                  )}
-                  {tGauntletBoard}
-                </TablePage>
-              ) : (
-                <RoomHub
-                  roomId={roomId}
-                  pod={pod!}
-                  tables={view?.tables ?? []}
-                  games={view?.tableGames}
-                  myMemberId={view?.you.id ?? null}
-                  nameOf={tNameOf}
-                  avatarOf={tAvatarOf}
-                  leaderId={view?.leader ?? ''}
-                />
-              )
-            ) : mode !== null && tableId !== undefined ? (
-              <TablePage
-                roomId={roomId}
-                pod={null}
-                table={view?.tables.find((t) => t.id === tableId)}
-                myMemberId={view?.you.id ?? null}
-                nameOf={tNameOf}
-                avatarOf={tAvatarOf}
-                canStart={false}
-                refresh={view}
-                tables={client}
-                  game={tableId === undefined ? undefined : view?.tableGames?.[tableId]}
-              />
-            ) : (
-              mode !== null && (
-              <>
-            <section className="lobby__card">
-              {/* Where the table stands sits on its heading's line, which has the
-                  width to spare: a line added under the seats comes off the room's height. */}
-              <div className="lobby__deckhead">
-                <h2>At the table</h2>
-                {startState !== null && (
-                  <p className="lobby__note" data-testid="start-state">
-                    {startState}
-                  </p>
-                )}
-                {seatsShutUntil !== null && <SeatsOpenNote opensAt={seatsShutUntil} />}
-                {matchLink}
-              </div>
-              {/* Drawn as the draft room draws its seats (the operator, 2026-10-22: "can we also show seats the same way we show seats then in draft?"). */}
-              <div className="table-sides">
-                <div className="table-side">
-                  <h3 className="table-side__heading">Players</h3>
-                  <ul className="pod-seats pod-seats--table" data-testid="room-players">
-                    {[0, 1].map((seat) => {
-                      const player = players.find((p) => p.seat === seat);
-                      if (aiSeat?.seat === seat) {
-                        return (
-                          <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-ai="">
-                            <span className="pod-seats__avatar pod-seats__avatar--ai">
-                              <Avatar id={aiSeat.avatarId} fallback="mark" className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
-                            </span>
-                            <span className="pod-seats__label">{aiSeat.name}</span>
-                          </li>
-                        );
-                      }
-                      return player === undefined ? (
-                        <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}-empty`}>
-                          {/* Sitting is its own act (2026-10-12), in the seat pressed; seated, it moves me there, as a pod's seats do. Dead once the table is locked or a match is under way. */}
-                          <ActionButton
-                            action="sit"
-                            className="pod-seats__avatar pod-seats__avatar--open"
-                            data-testid="seat-sit"
-                            data-seat={seat}
-                            aria-label={`Sit in seat ${seat + 1}`}
-                            disabled={tableLocked || underway || seatsShutUntil !== null}
-                            onPress={() => sitDown(seat)}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
-                              <path d="M12 5v14M5 12h14" />
-                            </svg>
-                          </ActionButton>
-                          <span className="pod-seats__label">Open</span>
-                          {/*
-                           * Forge's AI takes this seat (the operator, 2026-10-02 and
-                           * 2026-10-16): offered on every empty seat while nobody ELSE is
-                           * seated, the first as well as the second (2026-11-08: "all
-                           * seats should be treated the same"). Live once I am seated with
-                           * a legal deck; the server plays a random library deck legal in
-                           * this room's pool, and holds the same gate.
-                           */}
-                          {botSeats.includes(seat) && (
-                            <span className="pod-seats__actions">
-                              <ActionButton
-                                action="vs-bot"
-                                className="pod-seats__action"
-                                data-testid="play-vs-bot"
-                                aria-label="Play the AI"
-                                disabled={!canReady || underway}
-                                onPress={mode === 'gauntlet' ? () => gauntletMove(() => client.gauntletReady(roomId, true, true)) : startVsBot}
-                              >
-                                AI
-                              </ActionButton>
-                            </span>
-                          )}
-                        </li>
-                      ) : (
-                        <PlayerRow
-                          key={seat}
-                          seat={seat}
-                          player={{ ...player, ready: readyAt(players.indexOf(player)) }}
-                          face={faceOf(members.find((m) => m.name === player.name))}
-                          leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
-                          {...(player.you
-                            ? {
-                                onReady: () =>
-                                  mode === 'gauntlet' ? gauntletMove(() => client.gauntletReady(roomId, !readyAt(players.indexOf(player)))) : setReady(!player.ready),
-                                readyDisabled: !canReady || underway,
-                              }
-                            : {})}
-                        />
-                      );
-                    })}
-                  </ul>
-                </div>
-                <RoomSpectators
-                  spectators={members.filter((m) => !players.some((p) => p.name === m.name))}
-                  myId={view?.you.id ?? null}
-                  leaderId={view?.leader ?? ''}
-                  {...(seated ? { onWatch: standUp } : {})}
-                  watchDisabled={tableLocked || underway}
-                />
-              </div>
-              {startRefused}
-            </section>
-
-            {mode === 'gauntlet' ? (
-              // The board between games too, from the choice onward. From the choice to the board the
-              // room stays the screen the choice was made on (the operator, 2026-10-21: *"let's go
-              // stragiht from deck selection into the next game"*, and *"theres still an extra screen …
-              // we need to get rid of this"*): the start, its refusal and the way back into a live game
-              // are the table's, above it, as in every mode.
-              gauntlet !== null && (
-                <GauntletScreen
-                  view={gauntlet}
-                  faces={seatFaces(gauntlet, members)}
-                  onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck))}
-                  onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck))}
-                  onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
-                />
-              )
-            ) : spectating ? null : mySideboarding && players.some((p) => p.you) ? (
-              // Between games, the room's table is its card (`TableCard.tsx`), the way back to the table page's sideboard.
-              <TableCard
-                testId="room-table-card"
-                tableId={myTable.id}
-                players={[myTable.players[0]?.memberId ?? '', myTable.players[1]?.memberId ?? POD_AI]}
-                nameOf={(id) => (id === POD_AI ? (view?.ai?.name ?? tNameOf(id)) : tNameOf(id))}
-                avatarOf={(id) => (id === POD_AI ? { id: view?.ai?.avatarId ?? null } : tAvatarOf(id))}
-                myMemberId={view?.you.id ?? null}
-                series={{ length: myTable.series.length, wins: myTable.series.wins, played: myTable.series.games.length, phase: myTable.series.phase }}
-                matchId={myTable.matchId}
-                game={view?.tableGames?.[myTable.id]}
-                go={{ label: 'Sideboard', href: routeHash({ kind: 'room', roomId, tableId: myTable.id }), testId: 'room-table-link' }}
-                onAbandon={() => resolveTable('abandon', roomId, myTable.id)}
-              />
-            ) : mode !== 'classic' ? null : loaded === null ? (
-              loadError === null && <DeckCardSkeleton />
-            ) : (
-                <section className="lobby__card lobby__decks">
-                  {/* The sets the chosen era is made of, as symbols — the operator's
-                      own ask, for a Standard era. An
-                      eternal format's forty-odd sets drew a strip the operator called
-                      ridiculous (2026-10-07), so those draw none either. */}
-                  {/* Beside them, the deck grid's filters. */}
-                  <div className="lobby__setsrow">
-                    {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
-                    <DeckFilterBar filter={deckFilter} onChange={setDeckFilter} />
-                    {/* Random is a button and not one of the tiles because it is not a
-                        state a deck can be in: it resolves to one of the decks on offer,
-                        and the chooser then reads that deck (`chooseDeck`). */}
-                    <button
-                      type="button"
-                      className="deckpick__random"
-                      data-testid="deck-random"
-                      data-deck-id={RANDOM_DECK}
-                      disabled={deckOptions === null || underway}
-                      onClick={() => chooseDeck(RANDOM_DECK)}
-                    >
-                      Random
-                    </button>
-                  </div>
-
-                  {/* Only the decks the room's pool offers, and the pool's
-                      answer is the gate's. Disabled until it has answered: an
-                      option list assembled before the answer would offer decks
-                      the pool does not have. */}
-                  <span className="lobby__field lobby__field--hidden" id="deck-mine-label">
-                    You play
-                  </span>
-                  <DeckChooser
-                    options={visibleOptions ?? []}
-                    empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
-                    value={deckId}
-                    disabled={deckOptions === null || underway || seatsShutUntil !== null}
-                    pending={shownOptions === null}
-                    pendingTiles={ROOM_SKELETON_TILES}
-                    swapKey={deckGrid}
-                    onChoose={chooseDeck}
-                  />
-                </section>
-            )}
-              </>
-              )
-            )}
-          </>
-        )}
+            `game` is NOT called here for a draft room: a dealt pod is a full-screen replacement
+            (no room chrome at all — the early return above), never something drawn inside this
+            `<main>`, so draft's own `game` (`PodScreen`) is reached only from there. Here, a
+            draft room draws only its `setup` (the lobby). */}
+        {gameRoomUiFor(gameType)?.setup?.(gameUiProps)}
+        {!draftRoom && gameRoomUiFor(gameType)?.game(gameUiProps)}
           </>
         )}
       </main>
