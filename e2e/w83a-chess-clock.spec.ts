@@ -77,6 +77,8 @@ test(titled('a seat that idles on priority runs out of time and loses; the other
       expect(b.you.text, "bob's own clock does not move while alice is waited on").toBe(bobAtStart!.text);
       expect(a.them.text, "bob's clock on alice's screen does not move either").toBe(bobAtStart!.text);
       expect(b.you.running).toBe(false);
+      // At zero it can fall no further; the flag's result can take longer than one reading to draw, and is awaited below.
+      if (aliceLow === 0) break;
       expect(a.you.seconds, "alice's clock falls").toBeLessThan(aliceLow);
       expect(Math.abs(a.you.seconds - b.them.seconds), 'both screens agree on alice to the second').toBeLessThanOrEqual(1);
       aliceLow = a.you.seconds;
