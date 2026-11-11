@@ -7,9 +7,8 @@
  *
  * Two shapes, because the wire and the disk carry different things:
  *
- * - `MagicRoomGameSchema` is the blob a `RoomView` carries as `game`. It holds
- *   only what the view already showed (the same values are also restated at the
- *   view's top level, for the readers that have not moved to `game.*` yet).
+ * - `MagicRoomGameSchema` is the blob a `RoomView` carries as `game`, and the only
+ *   place a view carries Magic's fields; `magicGame` reads it.
  * - `MAGIC_ROOM_STORED_KEYS` names the fields a saved room nests under `game`
  *   (app version 2, `apps/server/src/room/lobby.ts`'s app codec). Several of
  *   them never reach the wire: a Gauntlet's draw and a tournament's locked decks
@@ -86,7 +85,7 @@ export const magicRoomFields = {
  * A constructed room's mode and that mode's options, or both null: until the
  * leader chooses one, for a draft room, and for a pair this build does not know.
  */
-export function withMode<T extends { mode?: unknown; modeOptions?: unknown }>({ mode, modeOptions, ...rest }: T): Omit<T, 'mode' | 'modeOptions'> & { mode: ConstructedMode | null; modeOptions: ModeOptions | null } {
+function withMode<T extends { mode?: unknown; modeOptions?: unknown }>({ mode, modeOptions, ...rest }: T): Omit<T, 'mode' | 'modeOptions'> & { mode: ConstructedMode | null; modeOptions: ModeOptions | null } {
   const parsed = RoomModeSchema.safeParse({ mode, modeOptions });
   return { ...rest, ...(parsed.success ? parsed.data : { mode: null, modeOptions: null }) };
 }
@@ -125,13 +124,12 @@ const RoomSettingsViewSchema = z
  */
 const roomFields = {
   ...roomBaseFields,
-  ...magicRoomFields,
   settings: RoomSettingsViewSchema,
   /** The room's tables, always at least one. */
   tables: RoomTablesSchema.catch(() => []),
 };
 
-export const RoomViewSchema = z.object(roomFields).transform(withMode).transform(withGame);
+export const RoomViewSchema = z.object(roomFields).transform(withGame);
 export type RoomView = z.infer<typeof RoomViewSchema>;
 
 export const RoomBodySchema = z
@@ -143,6 +141,5 @@ export const RoomBodySchema = z
     /** The room's AI, the character an AI seat plays as (`room/lobby.ts`'s `roomAi`). */
     ai: z.object({ name: z.string(), avatarId: z.string().max(AVATAR_ID_MAX) }).optional().catch(undefined),
   })
-  .transform(withMode)
   .transform(withGame);
 export type RoomBody = z.infer<typeof RoomBodySchema>;

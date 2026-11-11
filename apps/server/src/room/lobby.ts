@@ -1142,16 +1142,13 @@ function magicGameOf(room: RoomRecord, checks: GameHooks): MagicRoomGame {
 }
 
 function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView {
-	const game = magicGameOf(room, checks);
 	return {
 		id: room.id,
 		name: room.name,
 		creator: room.creator,
 		leader: room.leader,
 		gameType: room.gameType,
-		game,
-		// Restated from `game` for the readers that have not moved to `game.*`.
-		...game,
+		game: magicGameOf(room, checks),
 		settings: { ...room.settings, tournamentDecks: tournamentDecksOf(room) },
 		locks: roomLocks(room),
 		locked,

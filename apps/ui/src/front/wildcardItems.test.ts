@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { CubeSummary, PodView, RoomTable, Tournament } from '@hadoku/shared';
+import type { MagicRoomGame } from '@hadoku/shared';
 import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
@@ -33,7 +34,7 @@ const pod = (over: Partial<PodView> & { phase: PodView['phase'] }): PodView => (
   ...over,
 });
 
-const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clientMode = 'builtin', draftStartedAt = null, pod = null, ...over }: Partial<RoomView> = {}): RoomView => {
+const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clientMode = 'builtin', draftStartedAt = null, pod = null, ...over }: Partial<RoomView> & Partial<MagicRoomGame> = {}): RoomView => {
   const game = { format, mode, modeOptions, clientMode, draftStartedAt, pod };
   return {
     id: 'r-1',
@@ -51,13 +52,12 @@ const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clien
     testing: false,
     scheduledFor: null,
     you: { id: 'm1', leader: true, ready: false },
-    ...game,
     game,
     ...over,
   };
 };
 
-const notMine = (over: Partial<RoomView> = {}): RoomView =>
+const notMine = (over: Partial<RoomView> & Partial<MagicRoomGame> = {}): RoomView =>
   room({ leader: 'm1', you: { id: 'viewer', leader: false, ready: false }, ...over });
 
 describe('openSeats', () => {

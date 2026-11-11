@@ -108,9 +108,8 @@ export const roomBaseFields = {
   gameType: z.string(),
   /**
    * The game's own part of the room, which the game validates: Magic's is
-   * `MagicRoomGameSchema` (`magic-room.ts`). Its fields are also restated at the
-   * top level below, for readers that have not moved to `game.*`. Absent from
-   * a server that predates it.
+   * `MagicRoomGameSchema` (`magic-room.ts`), which `magicGame` reads. Absent
+   * from a server that predates it.
    */
   game: z.unknown().optional(),
   /** What cannot change now, and why (`RoomLocks`). A server that sends none: everything open, and its refusals still answer. */

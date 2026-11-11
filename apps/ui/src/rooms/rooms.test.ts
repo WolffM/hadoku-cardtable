@@ -14,6 +14,7 @@
  */
 
 import { magicGame, OPEN_ROOM_LOCKS } from '@hadoku/shared';
+import type { MagicRoomGame } from '@hadoku/shared';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -47,7 +48,7 @@ afterEach(() => {
   savedPrefs.current = {};
 });
 
-const room = ({ format = '2011-02-13', mode = null, modeOptions = null, clientMode = 'builtin', draftStartedAt = null, pod = null, ...over }: Partial<RoomView> & { id: string; name: string }): RoomView => {
+const room = ({ format = '2011-02-13', mode = null, modeOptions = null, clientMode = 'builtin', draftStartedAt = null, pod = null, ...over }: Partial<RoomView> & Partial<MagicRoomGame> & { id: string; name: string }): RoomView => {
   const game = { format, mode, modeOptions, clientMode, draftStartedAt, pod };
   return {
     creator: 'http-a',
@@ -66,7 +67,6 @@ const room = ({ format = '2011-02-13', mode = null, modeOptions = null, clientMo
     tables: [],
     testing: false,
     scheduledFor: null,
-    ...game,
     game,
     ...over,
   };

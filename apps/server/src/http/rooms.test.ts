@@ -347,11 +347,8 @@ describe('POST /api/rooms', () => {
 		// The whole public shape, so a field added without a decision fails here.
 		expect(Object.keys(room).sort()).toEqual([
 			'ai',
-			'clientMode',
 			'createdAt',
 			'creator',
-			'draftStartedAt',
-			'format',
 			'game',
 			'gameType',
 			'id',
@@ -360,10 +357,7 @@ describe('POST /api/rooms', () => {
 			'locks',
 			'matchId',
 			'members',
-			'mode',
-			'modeOptions',
 			'name',
-			'pod',
 			'scheduledFor',
 			'settings',
 			'tables',
@@ -371,9 +365,8 @@ describe('POST /api/rooms', () => {
 			'you',
 		]);
 		expect(Object.keys(room.members[0]).sort()).toEqual(['avatarId', 'id', 'joinedAt', 'name', 'ready']);
-		// Magic's blob, which the top level restates for the readers that have not moved to `game.*`.
-		const { format, mode, modeOptions, clientMode, draftStartedAt, pod } = room;
-		expect(room.game).toEqual({ format, mode, modeOptions, clientMode, draftStartedAt, pod });
+		// Magic's blob: the only place the view carries its fields.
+		expect(Object.keys(room.game).sort()).toEqual(['clientMode', 'draftStartedAt', 'format', 'mode', 'modeOptions', 'pod']);
 
 		// The verbatim body, for the lanes coding against it.
 		if (process.env.CARDTABLE_ROOMVIEW_OUT) {

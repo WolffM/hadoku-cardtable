@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PodView, RoomTable } from '@hadoku/shared';
+import type { MagicRoomGame } from '@hadoku/shared';
 import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
@@ -18,7 +19,7 @@ const table = (players: RoomTable['players'], phase: RoomTable['series']['phase'
   series: { length: 1, wins: [0, 0], games: [], phase },
 });
 
-const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clientMode = 'builtin', draftStartedAt = null, pod = null, ...over }: Partial<RoomView> = {}): RoomView => {
+const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clientMode = 'builtin', draftStartedAt = null, pod = null, ...over }: Partial<RoomView> & Partial<MagicRoomGame> = {}): RoomView => {
   const game = { format, mode, modeOptions, clientMode, draftStartedAt, pod };
   return {
     id: 'r-1',
@@ -36,7 +37,6 @@ const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clien
     testing: false,
     scheduledFor: null,
     you: { id: 'viewer', leader: false, ready: false },
-    ...game,
     game,
     ...over,
   };

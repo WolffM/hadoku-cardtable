@@ -13,7 +13,6 @@
       "draftStartedAt": null,
       "pod": null
     },
-    "format": "2025-06-30",
     "settings": {
       "handSmoothing": true,
       "tournament": false,
@@ -32,9 +31,6 @@
       "format": null,
       "rules": null
     },
-    "mode": "classic",
-    "modeOptions": {},
-    "clientMode": "builtin",
     "locked": false,
     "members": [
       {
@@ -69,8 +65,6 @@
       }
     ],
     "matchId": null,
-    "draftStartedAt": null,
-    "pod": null,
     "ai": {
       "name": "Cleric",
       "avatarId": "cleric"
@@ -141,7 +135,6 @@
         "verdict": null
       }
     },
-    "format": "2025-06-30",
     "settings": {
       "handSmoothing": true,
       "tournament": false,
@@ -160,9 +153,6 @@
       "format": null,
       "rules": null
     },
-    "mode": null,
-    "modeOptions": null,
-    "clientMode": "builtin",
     "locked": true,
     "members": [
       {
@@ -190,51 +180,6 @@
       }
     ],
     "matchId": null,
-    "draftStartedAt": null,
-    "pod": {
-      "phase": "lobby",
-      "seats": [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      "round": 0,
-      "rounds": 0,
-      "results": [],
-      "standings": [],
-      "pairings": [],
-      "bye": null,
-      "drafters": [],
-      "built": [],
-      "personas": {},
-      "plan": {
-        "rounds": [
-          {
-            "kind": "cube",
-            "cubeId": "mtgo-vintage-cube-2025-12"
-          },
-          {
-            "kind": "cube",
-            "cubeId": "mtgo-vintage-cube-2025-12"
-          },
-          {
-            "kind": "cube",
-            "cubeId": "mtgo-vintage-cube-2025-12"
-          }
-        ]
-      },
-      "roundNames": [
-        "mtgo-vintage-cube-2025-12",
-        "mtgo-vintage-cube-2025-12",
-        "mtgo-vintage-cube-2025-12"
-      ],
-      "verdict": null
-    },
     "ai": {
       "name": "Herald",
       "avatarId": "herald"

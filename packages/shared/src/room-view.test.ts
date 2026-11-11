@@ -1,6 +1,6 @@
 /**
  * Splitting the room view into a platform base and Magic's composition must not move a single byte of what a browser already
- * reads. These fixtures are shaped like `apps/server/src/http/rooms.test.ts`'s "answers a room the
+ * reads, and Magic's fields reach it only as `game`. These fixtures are shaped like `apps/server/src/http/rooms.test.ts`'s "answers a room the
  * browser reads as itself" room — a real draft room's view and body — and the expected output below
  * was captured by running them through `RoomViewSchema`/`RoomBodySchema` BEFORE the split (the
  * monolithic schema that lived whole in `room-view.ts`). If the split ever changes what either
@@ -19,12 +19,8 @@ const FIXTURE_VIEW = {
   creator: 'alice-id',
   leader: 'alice-id',
   gameType: 'draft',
-  // Magic's blob, as the server has sent it beside the top-level copies since it began sending one.
+  // Magic's blob: the only place the server sends its fields.
   game: { format: 'cube-2026', clientMode: 'builtin', draftStartedAt: null, pod: null },
-  format: 'cube-2026',
-  clientMode: 'builtin',
-  draftStartedAt: null,
-  pod: null,
   settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' },
   locks: { gameType: 'draft-started', mode: null, event: null, format: null, rules: null },
   locked: true,
@@ -44,14 +40,12 @@ const FIXTURE_VIEW = {
 const FIXTURE_BODY = { ...FIXTURE_VIEW, you: { id: 'alice-id', leader: true, ready: true }, ai: { name: 'Lia', avatarId: 'npc-lia' } };
 
 /**
- * Captured from the pre-split, monolithic `RoomViewSchema.parse(FIXTURE_VIEW)` — byte for byte, but for `game`, which that
- * schema left unread and this one parses as Magic's blob (its mode and options read as unchosen, as at the top level).
+ * Captured from the pre-split, monolithic `RoomViewSchema.parse(FIXTURE_VIEW)` — byte for byte, but for Magic's fields, which
+ * that schema read at the top level and this one reads only from `game` (its mode and options read as unchosen).
  */
 const EXPECTED_VIEW = {
   id: 'r-abc123', name: 'Cube night', creator: 'alice-id', leader: 'alice-id', gameType: 'draft',
   game: { format: 'cube-2026', clientMode: 'builtin', draftStartedAt: null, pod: null, mode: null, modeOptions: null },
-  format: 'cube-2026', clientMode: 'builtin',
-  draftStartedAt: null, pod: null,
   settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' },
   locks: { gameType: 'draft-started', mode: null, event: null, format: null, rules: null },
   locked: true,
@@ -63,7 +57,6 @@ const EXPECTED_VIEW = {
     { id: 't-0000abcd', players: [{ memberId: 'alice-id', name: 'alice' }, { memberId: 'bob-id', name: 'bob' }], matchId: null, series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-1', winner: 0 }], phase: 'between' } },
   ],
   matchId: null, createdAt: '2026-11-01T00:00:00.000Z', testing: false, scheduledFor: null,
-  mode: null, modeOptions: null,
 };
 
 /** Captured the same way from `RoomBodySchema.parse(FIXTURE_BODY)`. */
@@ -78,14 +71,14 @@ describe('RoomView/RoomBody: platform base + magic composition parse to the same
     expect(RoomBodySchema.parse(FIXTURE_BODY)).toStrictEqual(EXPECTED_BODY);
   });
 
-  it("parses Magic's blob as `game`: every field the top level restates reads the same from it", () => {
-    // A constructed room as `viewOf` sends it: Magic's fields at the top level and again under `game`.
+  it("parses Magic's blob as `game`, and reads none of its fields at the top level", () => {
+    // A constructed room as `viewOf` sends it; the same fields at the top level are a body this schema does not read.
     const magic = { format: '2018-07-13', mode: 'gauntlet', modeOptions: { family: 'modern', year: 2020 }, clientMode: 'streamed', draftStartedAt: null, pod: null, scenario: 'board.pzl' };
     const body = { ...FIXTURE_BODY, gameType: 'constructed-1v1', ...magic, game: magic };
     for (const schema of [RoomViewSchema, RoomBodySchema]) {
       const parsed = schema.parse(body) as Record<string, unknown> & { gameType: string };
       const game = magicGame(parsed) as Record<string, unknown>;
-      for (const key of Object.keys(magicRoomFields)) expect(game[key], key).toStrictEqual(parsed[key]);
+      for (const key of Object.keys(magicRoomFields)) expect([game[key], parsed[key]], key).toStrictEqual([magic[key as keyof typeof magic], undefined]);
     }
     // And a draft room's, its pod and its draft's start with it.
     const draft = RoomViewSchema.parse({ ...FIXTURE_VIEW, game: { ...FIXTURE_VIEW.game, draftStartedAt: '2026-11-01T00:10:00.000Z' } });
