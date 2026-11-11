@@ -1126,7 +1126,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const match = matches.get(parsed.value.matchId);
 			const seat = match === undefined ? undefined : joined.get(match.id);
 			if (match === undefined || seat === undefined) {
-				log({ evt: 'c2s-not-joined', participantId, matchId: parsed.value.matchId });
+				const { frame } = parsed.value;
+				// What was dropped: a reconnect's new socket sending ahead of its join loses it.
+				log({ evt: 'c2s-not-joined', participantId, matchId: parsed.value.matchId, kind: frame.kind, ...('method' in frame ? { method: frame.method } : {}), ...('callId' in frame ? { callId: frame.callId } : {}) });
 				return;
 			}
 			if (!isController(match.id, seat, socket.id)) {

@@ -1077,6 +1077,14 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   reloading: boolean;
   lastVerdict: SeqVerdict | null;
   connected: boolean;
+  /**
+   * Acts made while the socket was down, sent once the rejoin is answered. Not left to socket.io's
+   * own buffer: it sends a buffered emit as the socket reconnects, before the `connect` that
+   * re-joins (socket.io-client's `onconnect`), so the server drops it as `c2s-not-joined` and the
+   * press is lost. An act names the Forge input it was made on, so one Forge has moved past by
+   * then is dropped by the server, never applied to the next window.
+   */
+  heldActs: ClientEnvelope[];
   everConnected: boolean;
   /** Dropped by a planned server restart, inside its quiet window (`restart-notice.ts`). */
   serverUpdating: boolean;
@@ -1239,7 +1247,18 @@ function send(match: LiveMatch, frame: ClientEnvelope['frame'], placement?: Plac
   // An act names the input of the window it was made on: one Forge has moved past is dropped, never applied to the next (#40).
   const input = frame.kind === 'act' && INPUT_ACTS.has(frame.method) && match.inputId !== null ? { input: match.inputId } : {};
   const envelope: ClientEnvelope = { matchId: match.matchId, frame, ...(placement === undefined ? {} : { placement }), ...input };
+  if (frame.kind === 'act' && !match.connected) {
+    match.heldActs.push(envelope);
+    return;
+  }
   match.transport.emit(MATCH_EVENTS.clientToServer, envelope);
+}
+
+/** The acts held while the socket was down ({@link LiveMatch.heldActs}), now that the seat is joined again. */
+function sendHeldActs(match: LiveMatch): void {
+  const held = match.heldActs;
+  match.heldActs = [];
+  for (const envelope of held) match.transport.emit(MATCH_EVENTS.clientToServer, envelope);
 }
 
 /** The frames that show this seat a window: the ones whose input an act made on the window names. */
@@ -1345,6 +1364,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     reloading: false,
     lastVerdict: null,
     connected: false,
+    heldActs: [],
     everConnected: false,
     serverUpdating: false,
     rejoin: null,
@@ -3422,6 +3442,7 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
       reportRejoin(match);
     }
     adoptSnapshot(match, ack.value);
+    if (kind === 'join') sendHeldActs(match);
   });
 }
 

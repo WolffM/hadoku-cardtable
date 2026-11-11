@@ -13,7 +13,7 @@
  * A recording from before seats kept their userId names nobody this can match, and is left to
  * its retention, as the ruling says.
  *
- * ## Off the event loop (#55, 2026-11-10)
+ * ## Off the event loop
  *
  * Every erase used to gunzip and parse every line of every recording, synchronously: 181–197 ms of
  * blocked server for the 23 MB the archive held on 2026-11-10, growing with every match played,

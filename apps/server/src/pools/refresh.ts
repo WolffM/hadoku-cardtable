@@ -40,7 +40,7 @@
  * with it. A fault at ANY stage (the sync, the rebuild, the swap) leaves
  * `catalogPath` and the live `catalog` exactly as they were.
  *
- * ## The build runs on a worker thread (#54, 2026-11-10)
+ * ## The build runs on a worker thread
  *
  * It used to run on the server's own thread, on the reasoning that its ~1 GB
  * peak fit the heap and a real Scryfall release was rare. Neither held up.

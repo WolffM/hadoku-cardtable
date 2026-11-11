@@ -4,7 +4,7 @@
  *
  * The build reads the whole Scryfall bulk file (~190 MB) as one string and parses it: measured
  * 2026-11-10 at a 1.9 s single block and ~0.9–1.5 GB of heap. On the server's own thread that froze
- * every socket for that long, twice a day on PPE (#54). Here it costs the worker's own heap, freed
+ * every socket for that long, twice a day on PPE. Here it costs the worker's own heap, freed
  * when the worker exits.
  *
  * One message back, then the thread ends: `{ ok: true, result }` or `{ ok: false, message }`.

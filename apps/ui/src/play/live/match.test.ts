@@ -472,6 +472,59 @@ describe('the socket transport', () => {
       io.close();
     }
   });
+
+  // chips-clickable, run 42390533706: a press made while the socket was down never reached Forge.
+  // socket.io sends an emit it buffered while down as the socket reconnects, ahead of the `connect`
+  // that re-joins, and the server drops an act from a socket that has not joined.
+  it('an act made while the socket is down reaches the server after the rejoin, not ahead of it', async () => {
+    const serverRequire = createRequire(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../server/package.json'));
+    type ServerSocket = {
+      on(event: string, fn: (payload: unknown, ack?: (r: unknown) => void) => void): void;
+      conn: { close(): void };
+    };
+    const { Server } = serverRequire('socket.io') as {
+      Server: new (http: HttpServer) => {
+        use(fn: (socket: unknown, next: () => void) => void): void;
+        on(event: 'connection', handler: (socket: ServerSocket) => void): void;
+        close(): void;
+      };
+    };
+    const http = createServer();
+    const io = new Server(http);
+    // The server's rule (`apps/server/src/play/socket.ts`): an act counts only from a socket that has joined.
+    const acts: { joined: boolean; payload: unknown }[] = [];
+    const sockets: ServerSocket[] = [];
+    let connections = 0;
+    // The reconnect waits, so the press lands while the socket is down.
+    io.use((_socket, next) => void setTimeout(next, ++connections === 1 ? 0 : 300));
+    io.on('connection', (socket) => {
+      sockets.push(socket);
+      let joined = false;
+      socket.on(MATCH_EVENTS.join, (_payload, ack) => {
+        joined = true;
+        ack?.({ matchId: 'm', seat: 0, playerId: 0, cursor: { epoch: 'e', seq: 1 }, frames: [FRAMES[0]] });
+      });
+      socket.on(MATCH_EVENTS.clientToServer, (payload) => void acts.push({ joined, payload }));
+    });
+    await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
+    const m = startMatch({
+      matchId: 'm',
+      tabId: 'tab-12345678',
+      transport: socketIoMatchTransport({ url: `http://127.0.0.1:${(http.address() as AddressInfo).port}`, path: '/socket.io/', transports: ['websocket'] }),
+    });
+    try {
+      await until('the first join', () => m.connected && m.stats.snapshots === 1);
+      sockets[0]!.conn.close();
+      await until('the drop', () => !m.connected);
+      concede(m);
+      await until('the rejoin', () => m.stats.snapshots === 2);
+      await until('the act at the server', () => acts.length === 1);
+      expect(acts).toEqual([{ joined: true, payload: { matchId: 'm', frame: { kind: 'act', method: 'concede' } } }]);
+    } finally {
+      closeMatch(m);
+      io.close();
+    }
+  });
 });
 
 // Match m-ca7bad04b715, 2026-10-28: the server could not tell this tab's reconnect from a second window.
