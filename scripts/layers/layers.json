@@ -126,7 +126,12 @@
     "apps/ui/src/fit/draft-load.tsx",
     "apps/ui/src/embed/**",
     "apps/ui/src/screens/Screen.tsx",
-    "apps/ui/src/screens/LobbyScreen.tsx"
+    "apps/ui/src/screens/LobbyScreen.tsx",
+    "apps/server/src/plugins/index.ts",
+    "apps/server/src/plugins/bomberman.ts",
+    "apps/server/src/plugins/bomberman.test.ts",
+    "apps/ui/src/rooms/games/bomberman.tsx",
+    "apps/ui/src/rooms/games/bomberman.test.ts"
   ],
   "tangled": [
     "apps/server/src/room/lobby.ts",

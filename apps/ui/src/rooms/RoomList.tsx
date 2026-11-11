@@ -606,9 +606,11 @@ function RoomRow({
       data-match={matchesFilters ? undefined : 'false'}
       data-family={view.family}
     >
-      {/* The room's own scene, large and faint behind the info, over its format family's gradient (`rooms.css`). */}
+      {/* The room's own scene, large and faint behind the info, over its format family's gradient
+          (`rooms.css`) — Magic's own two types only; a non-Magic room (bomberman, say) gets the
+          plain platform card with no Magic scene at all. */}
       <span className="room-card__mark" aria-hidden="true">
-        {room.gameType === 'draft' ? <PodScene /> : <DecksFacingScene />}
+        {room.gameType === 'draft' ? <PodScene /> : room.gameType === 'constructed-1v1' ? <DecksFacingScene /> : null}
       </span>
       <div className="room-card__body">
         {/* Row 1: type, name, trophy, seats — one line, never wraps (ruling 1). The lock (ruling 8,
@@ -618,7 +620,7 @@ function RoomRow({
             otherwise. The one survivor is the name's own, and only when it is actually truncated. */}
         <div className="room-card__row1">
           <span className="room-card__type-icon" aria-hidden="true">
-            {room.gameType === 'draft' ? <DraftIcon /> : <ConstructedIcon />}
+            {room.gameType === 'draft' ? <DraftIcon /> : room.gameType === 'constructed-1v1' ? <ConstructedIcon /> : null}
           </span>
           <span
             ref={nameRef}
@@ -771,12 +773,25 @@ function RoomRow({
 /* ── create ──────────────────────────────────────────────────────────── */
 
 /**
+ * Bomberman's own wire id — a plain string literal, the same way `'constructed-1v1'` and
+ * `'draft'` are written here rather than shared from one constant with the server
+ * (`apps/server/src/plugins/bomberman.ts` registers the matching spec). Offered here, not in
+ * `api.ts`'s `GAME_TYPES`: that list is also `GameTypeRow.tsx`'s, shared with `RoomHeader.tsx`'s
+ * in-room "convert to the other type" control, which stays Magic's own two — converting a live
+ * room into a game with no Match at all is not this wave's question.
+ */
+const BOMBERMAN_GAME_TYPE = 'bomberman';
+
+/** What Create room offers for "Game type": Magic's own two, plus Bomberman (ruling 7: open to every member, no gate). */
+const ROOM_GAME_TYPES: readonly RadioCard<GameType>[] = [...GAME_TYPES, { value: BOMBERMAN_GAME_TYPE, label: 'Bomberman' }];
+
+/**
  * What Create room makes: a room of a game type, or a Challenge (`ChallengeFields.tsx`), which is
  * born whole. Challenge is offered only to a player with Experimental features on (the operator,
  * 2026-11-10); a Challenge room already made is listed and joined like any other.
  */
 type CreateKind = GameType | 'challenge';
-const CREATE_KINDS: readonly RadioCard<CreateKind>[] = [...GAME_TYPES, { value: 'challenge', label: 'Challenge' }];
+const CREATE_KINDS: readonly RadioCard<CreateKind>[] = [...ROOM_GAME_TYPES, { value: 'challenge', label: 'Challenge' }];
 
 /**
  * The create form, as a modal over the list. Escape, the close button and a
@@ -889,7 +904,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
           </div>
 
           <span className="rooms__caption">Game type</span>
-          <RadioCards name="room-create-type" label="Game type" options={experimental ? CREATE_KINDS : GAME_TYPES} value={kind} onChange={pick} testId="room-create-type" />
+          <RadioCards name="room-create-type" label="Game type" options={experimental ? CREATE_KINDS : ROOM_GAME_TYPES} value={kind} onChange={pick} testId="room-create-type" />
 
           {kind === 'challenge' ? (
             events !== null && choice !== null && <ChallengeFields idPrefix="room-create" events={events} value={choice} onChange={setChoice} />

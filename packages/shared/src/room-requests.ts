@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { AVATAR_ID_MAX } from '@hadoku/platform-wire/look';
 
+import { isRegisteredGameType } from './game-type-spec.ts';
 import { POD_MAX_SEATS } from './pod.ts';
 import { CONSTRUCTED_MODES, DEFAULT_GAME_TYPE, GAME_TYPES, GameTypeSchema, RoomModeSchema, type RoomMode } from './room-modes.ts';
 
@@ -138,7 +139,20 @@ function body<S extends z.ZodRawShape>(shape: S) {
 }
 
 const oneOf = (field: string, values: readonly string[]): string => `${field} must be one of: ${values.join(', ')}`;
-const gameTypeField = z.enum(GAME_TYPES, { error: oneOf('gameType', GAME_TYPES) });
+/**
+ * Any game type a `GameTypeSpec` has registered (`game-type-spec.ts`), not Magic's own closed
+ * list: a game that registers a spec may open a room exactly as Magic's two types do, with no
+ * change here. A game's OWN fields (Magic's `mode`, below) are still refused on a type that is
+ * not that game's own — this gate only says the type itself is one the server knows how to seat.
+ */
+const gameTypeField = z.string({ error: 'gameType must be a string' }).refine(isRegisteredGameType, { error: 'gameType is not a registered game type' });
+/**
+ * `PATCH /api/rooms/:id`'s own gate stays Magic's closed pair: converting a LIVE room (a table
+ * already seated, maybe mid-match) into a type `room/lobby.ts`'s convert path (`setGameType`)
+ * was never built for is not this wave's question, unlike creating one fresh. The old
+ * `z.enum(GAME_TYPES)` behaviour and its old message, unchanged.
+ */
+const patchGameTypeField = z.enum(GAME_TYPES, { error: oneOf('gameType', GAME_TYPES) });
 const seatField = z.int({ error: `seat must be an integer 0..${POD_MAX_SEATS - 1}` }).min(0).max(POD_MAX_SEATS - 1);
 
 /**
@@ -288,7 +302,7 @@ export const PatchRoomBodySchema = body({
       const format = FormatFieldSchema.safeParse(o.format);
       return format.success ? { format: format.data } : first(format);
     }
-    const gameType = gameTypeField.safeParse(o.gameType);
+    const gameType = patchGameTypeField.safeParse(o.gameType);
     return gameType.success ? { gameType: gameType.data } : first(gameType);
   },
 );

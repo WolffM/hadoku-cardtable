@@ -2882,8 +2882,8 @@ function RoomTableScreen({
             (no room chrome at all — the early return above), never something drawn inside this
             `<main>`, so draft's own `game` (`PodScreen`) is reached only from there. Here, a
             draft room draws only its `setup` (the lobby). */}
-        {gameRoomUiFor(gameType)?.setup?.(gameUiProps)}
-        {!draftRoom && gameRoomUiFor(gameType)?.game(gameUiProps)}
+        {gameRoomUiFor(view?.gameType ?? gameType)?.setup?.(gameUiProps)}
+        {!draftRoom && gameRoomUiFor(view?.gameType ?? gameType)?.game(gameUiProps)}
           </>
         )}
       </main>

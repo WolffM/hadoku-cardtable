@@ -27,7 +27,9 @@ export function hasActiveFilter(filters: RoomFilters): boolean {
 /** Whether `room` (its card view `view`) matches every filter that is ON. An unset filter never excludes a room. */
 export function matchesRoomFilters(room: RoomView, view: RoomCardView, filters: RoomFilters): boolean {
   if (filters.type === 'draft' && room.gameType !== 'draft') return false;
-  if (filters.type === 'constructed' && room.gameType === 'draft') return false;
+  // Strictly Magic's own Constructed, not merely "not a draft": a registered non-Magic room
+  // (bomberman, say) is neither of this pair, so it matches NEITHER [Draft | Constructed] choice.
+  if (filters.type === 'constructed' && room.gameType !== 'constructed-1v1') return false;
   if (filters.notFull && view.seatsFilled >= view.seatsCapacity) return false;
   if (filters.kind === 'tournament' && !view.tournament) return false;
   if (filters.kind === 'duel' && view.tournament) return false;

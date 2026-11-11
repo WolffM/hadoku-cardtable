@@ -82,6 +82,16 @@ describe('matchesRoomFilters', () => {
     expect(matchesRoomFilters(draft, roomCardView(draft, false), constructedFilter)).toBe(false);
   });
 
+  it('a registered non-Magic room (bomberman, say) matches neither Draft nor Constructed', () => {
+    const bomberman = room({ gameType: 'bomberman', mode: null, modeOptions: null });
+    const draftFilter: RoomFilters = { ...DEFAULT_ROOM_FILTERS, type: 'draft' };
+    const constructedFilter: RoomFilters = { ...DEFAULT_ROOM_FILTERS, type: 'constructed' };
+    expect(matchesRoomFilters(bomberman, roomCardView(bomberman, false), draftFilter)).toBe(false);
+    expect(matchesRoomFilters(bomberman, roomCardView(bomberman, false), constructedFilter)).toBe(false);
+    // Neither filter ON: it is never excluded for its type.
+    expect(matchesRoomFilters(bomberman, roomCardView(bomberman, false), DEFAULT_ROOM_FILTERS)).toBe(true);
+  });
+
   it('Not full excludes a room whose seats are filled to capacity', () => {
     const full = room({ members: [{ id: 'm1', name: 'a', joinedAt: '', ready: false }, { id: 'm2', name: 'b', joinedAt: '', ready: false }] });
     const open = room();

@@ -276,3 +276,40 @@ describe('roomCardView — the seats it draws', () => {
     expect(v.seatJoinable).toBe(false);
   });
 });
+
+/**
+ * A registered non-Magic room (bomberman, say): `@hadoku/shared`'s `isMagicGameType` answers
+ * false for ANY id outside Magic's own two, with no dependence on the open registry
+ * (`game-type-spec.ts`) — this file never needs bomberman actually registered to prove it reads
+ * such a room as the plain platform card, name/seats/faces, no Magic scene.
+ */
+describe('roomCardView — a registered non-Magic room (the platform card)', () => {
+  const alice = { id: 'm1', name: 'alice', joinedAt: '', ready: false, avatarId: 'sage' };
+  const bob = { id: 'm2', name: 'bob', joinedAt: '', ready: false };
+  const bomberman = (over: Partial<RoomView> = {}) => room({ gameType: 'bomberman', mode: null, modeOptions: null, ...over });
+
+  it('names the game in the mode chip rather than the Magic-only "Mode unset", and shows no series chip', () => {
+    const view = roomCardView(bomberman(), false);
+    expect(view.mode).toEqual({ icon: null, text: 'Bomberman' });
+    expect(view.series).toBeNull();
+    expect(view.tournament).toBe(false);
+    expect(roomFamily(bomberman())).toBe('other');
+  });
+
+  it('draws every member as a filled seat — faces, not a Magic table or pod', () => {
+    const view = roomCardView(bomberman({ members: [alice, bob] }), false);
+    expect(view.seats).toEqual([
+      { kind: 'taken', id: 'm1', name: 'alice', avatarId: 'sage', look: undefined },
+      { kind: 'taken', id: 'm2', name: 'bob', avatarId: undefined, look: undefined },
+    ]);
+    expect(view.seatsMore).toBe(0);
+    expect(view).toMatchObject({ seatsFilled: 2, seatsCapacity: 2 });
+  });
+
+  it('still offers Join past two members — unlike a plain constructed room, which would already say Watch', () => {
+    const members = [alice, bob, { id: 'm3', name: 'carol', joinedAt: '', ready: false }];
+    expect(roomCardView(bomberman({ members }), false).primaryAction).toBe('Join');
+    // The same member count on a plain constructed room is already full.
+    expect(roomCardView(room({ members: members.slice(0, 2) }), false).primaryAction).toBe('Watch');
+  });
+});

@@ -3,6 +3,7 @@
  * production boots (`plugins/presence.test.ts`).
  */
 import { fleetPlugin, stateDirPlugin } from './boot.js';
+import { bombermanPlugin } from './bomberman.js';
 import { erasePlugin } from './erase.js';
 import { libraryPlugin } from './library.js';
 import { listenPlugin, warmPlugin } from './listen.js';
@@ -20,6 +21,7 @@ import { tournamentsEventsPlugin } from './tournaments-events.js';
 
 export const PLUGINS: CardtablePlugin[] = [
 	stateDirPlugin,
+	bombermanPlugin,
 	fleetPlugin,
 	libraryPlugin,
 	tournamentsEventsPlugin,
