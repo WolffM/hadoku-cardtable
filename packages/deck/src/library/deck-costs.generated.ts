@@ -4,7 +4,7 @@
  *
  *   node packages/deck/src/library/build-deck-costs.ts
  *
- * Every card the 1523 catalogued library decks play that HAS a mana cost,
+ * Every card the 1617 catalogued library decks play that HAS a mana cost,
  * with Scryfall's own cost string, taken from `decks/pools/*.generated.json`.
  * Lands are absent rather than mapped to `""`, which is what `deckColorsByName`
  * reads absence as: no coloured pip.
@@ -17,7 +17,7 @@
  * every run, so a stale copy is red rather than quiet.
  */
 
-/** 4624 cards. Name → Scryfall `mana_cost`. */
+/** 4638 cards. Name → Scryfall `mana_cost`. */
 export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Abbot of Keral Keep": "{1}{R}",
   "Abduction": "{2}{U}{U}",
@@ -150,6 +150,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Anoint with Affliction": "{1}{B}",
   "Anointed Peacekeeper": "{2}{W}",
   "Anointer of Champions": "{W}",
+  "Anticausal Vestige": "{6}",
   "Anticipate": "{1}{U}",
   "Anurid Brushhopper": "{1}{G}{W}",
   "Ao, the Dawn Sky": "{3}{W}{W}",
@@ -350,6 +351,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Birthing Ritual": "{1}{G}",
   "Bitter Reunion": "{1}{R}",
   "Bitter Triumph": "{1}{B}",
+  "Bitterbloom Bearer": "{B}{B}",
   "Bitterblossom": "{1}{B}",
   "Bitterheart Witch": "{4}{B}",
   "Bituminous Blast": "{3}{B}{R}",
@@ -742,6 +744,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Control Magic": "{2}{U}{U}",
   "Coppercoat Vanguard": "{1}{W}",
   "Copperhorn Scout": "{G}",
+  "Copy Artifact": "{1}{U}",
   "Copy Enchantment": "{2}{U}",
   "Coralhelm Commander": "{U}{U}",
   "Cori-Steel Cutter": "{1}{R}",
@@ -760,6 +763,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Courser of Kruphix": "{1}{G}{G}",
   "Court Hussar": "{2}{U}",
   "Court of Cunning": "{1}{U}{U}",
+  "Coveted Jewel": "{6}",
   "Covetous Dragon": "{4}{R}",
   "Crackling Doom": "{R}{W}{B}",
   "Cragganwick Cremator": "{2}{R}{R}",
@@ -885,12 +889,14 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Death Cloud": "{X}{B}{B}{B}",
   "Death Grasp": "{X}{W}{B}",
   "Death Spark": "{R}",
+  "Death Wish": "{1}{B}{B}",
   "Death's Shadow": "{B}",
   "Deathcap Cultivator": "{1}{G}",
   "Deathgorge Scavenger": "{2}{G}",
   "Deathmark": "{B}",
   "Deathmist Raptor": "{1}{G}{G}",
   "Deathrite Shaman": "{B/G}",
+  "Debt to the Deathless": "{X}{W}{W}{B}{B}",
   "Debtors' Knell": "{4}{W/B}{W/B}{W/B}",
   "Deceiver Exarch": "{2}{U}",
   "Decisive Denial": "{G}{U}",
@@ -1586,6 +1592,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Glassdust Hulk": "{3}{W}{U}",
   "Gleeful Demolition": "{R}",
   "Glen Elendra Archmage": "{3}{U}",
+  "Glimmer Lens": "{1}{W}",
   "Glimmer of Genius": "{3}{U}",
   "Glimpse of Freedom": "{1}{U}",
   "Glimpse of Nature": "{G}",
@@ -1738,6 +1745,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Hagra Mauling": "{2}{B}{B}",
   "Hajar, Loyal Bodyguard": "{R}{G}",
   "Halana and Alena, Partners": "{2}{R}{G}",
+  "Haliya, Guided by Light": "{2}{W}",
   "Hall Monitor": "{R}",
   "Hall of Gemstone": "{1}{G}{G}",
   "Hall of Triumph": "{3}",
@@ -2128,7 +2136,9 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Khalni Heart Expedition": "{1}{G}",
   "Kiki-Jiki, Mirror Breaker": "{2}{R}{R}{R}",
   "Kiln Fiend": "{1}{R}",
+  "Kinscaer Sentry": "{1}{W}",
   "Kiora Bests the Sea God": "{5}{U}{U}",
+  "Kiora's Dismissal": "{U}",
   "Kiora, the Crashing Wave": "{2}{G}{U}",
   "Kira, Great Glass-Spinner": "{1}{U}{U}",
   "Kird Ape": "{R}",
@@ -2440,6 +2450,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Memnite": "{0}",
   "Memoricide": "{3}{B}",
   "Memory Deluge": "{2}{U}{U}",
+  "Memory Guardian": "{4}{U}",
   "Memory Lapse": "{1}{U}",
   "Memory's Journey": "{1}{U}",
   "Mental Misstep": "{U/P}",
@@ -2464,6 +2475,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Metalworker": "{3}",
   "Meteor Golem": "{7}",
   "Meteor Storm": "{R}{G}",
+  "Meteor Sword": "{7}",
   "Michiko's Reign of Truth": "{1}{W}",
   "Midnight Clock": "{2}{U}",
   "Midnight Haunting": "{2}{W}",
@@ -2737,6 +2749,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Oko, Thief of Crowns": "{1}{G}{U}",
   "Old Man of the Sea": "{1}{U}{U}",
   "Old Rutstein": "{1}{B}{G}",
+  "Oliphaunt": "{5}{R}",
   "Olivia Voldaren": "{2}{B}{R}",
   "Omen of the Sea": "{1}{U}",
   "Omen of the Sun": "{2}{W}",
@@ -4481,6 +4494,7 @@ export const LIBRARY_CARD_COSTS: Readonly<Record<string, string>> = {
   "Wastescape Battlemage": "{1}{C}",
   "Watchwolf": "{G}{W}",
   "Waterfront Bouncer": "{1}{U}",
+  "Waterlogged Teachings": "{3}{U/B}",
   "Wax": "{G} // {W}",
   "Wax // Wane": "{G} // {W}",
   "Wayfarer's Bauble": "{1}",

@@ -422,7 +422,7 @@ describe('the library as a whole', () => {
   // the 27 new eras has 24. Every other era is 24. 2026-11-08: the first
   // tournament import (a whole MTGO field, not a selection) is the 68th —
   // 32 decks, the complete Modern Challenge 32 of 2026-02-07.
-  it('is sixty-nine eras across three families and 1523 decks, oldest first within each family', () => {
+  it('is seventy-two eras across three families and 1617 decks, oldest first within each family', () => {
     expect(LIBRARY.map((c) => [c.id, c.family, c.format, c.date, c.decks.length])).toEqual([
       ['power-summer-1995', 'standard', 'Type 2 (CHR)', '1995-07-01', 9],
       ['power-summer-1996', 'standard', 'Type 2 (ALL)', '1996-07-10', 12],
@@ -492,10 +492,13 @@ describe('the library as a whole', () => {
       ['power-summer-legacy-2023', 'legacy', 'Legacy (MAT)', '2023-05-29', 24],
       ['power-summer-legacy-2024', 'legacy', 'Legacy (OTJ)', '2024-04-19', 24],
       ['power-summer-legacy-2025', 'legacy', 'Legacy (FIN)', '2025-06-30', 24],
+      ['tournament-legacy-2026-02-01', 'legacy', 'Legacy (2026-01-26)', '2026-02-01', 31],
+      ['tournament-legacy-2026-02-04', 'legacy', 'Legacy (2026-01-26)', '2026-02-04', 32],
       ['tournament-legacy-2026-02-07', 'legacy', 'Legacy (2026-01-26)', '2026-02-07', 32],
+      ['tournament-legacy-2026-02-08', 'legacy', 'Legacy (2026-01-26)', '2026-02-08', 31],
     ]);
-    expect(ALL_DECKS).toHaveLength(1523);
-    expect(libraryDeckPaths()).toHaveLength(1523);
+    expect(ALL_DECKS).toHaveLength(1617);
+    expect(libraryDeckPaths()).toHaveLength(1617);
   });
 
   it('is oldest-first WITHIN each family, in Standard/Modern/Legacy order', () => {

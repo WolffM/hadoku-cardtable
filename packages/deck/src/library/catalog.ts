@@ -3025,6 +3025,145 @@ export const TOURNAMENT_2026_02_07_LEGACY: LibraryCollection = {
 
 
 /**
+ * One real MTGO tournament, imported whole — the 2026-02-01 Legacy Challenge 32 (the other Feb 1 event), all 32 decklists, transcribed by `build-tournament-library.ts`. Validated 32/32 legal in its era against the real corpus; same om1-free Legacy field as its Feb 7 sibling.
+ */
+export const TOURNAMENT_LEGACY_2026_02_01_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'tournament-legacy-2026-02-01',
+  directory: `${DECKS_ROOT}/tournament-legacy-2026-02-01-legacy-challenge-32`,
+  event: 'Legacy Challenge 32 — 2026-02-01, MTGO (the whole 32-deck field)',
+  format: 'Legacy (2026-01-26)',
+  date: '2026-02-01',
+  source: 'https://github.com/fbettega/MTG_decklistcache (Tournaments/MTGO/2026/02/01/legacy-2026-02-01.json)',
+  decks: [
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-1-selfeisek", file: "2-selfeisek.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-2-ford0076", file: "1-ford0076.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-3-kozz27", file: "3-kozz27.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-4-katuo079595", file: "5-katuo079595.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-5-azmyk1231", file: "4-azmyk1231.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-6-fuzzy-meow", file: "6-fuzzy-meow.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-7-trohck", file: "7-trohck.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-8-riddle0423", file: "8-riddle0423.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-9-musasabi", file: "9-musasabi.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-10-spaghettifingers", file: "10-spaghettifingers.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-11-fuya", file: "11-fuya.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-12-tonyscapone", file: "12-tonyscapone.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-13-venom1", file: "13-venom1.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-14-janosh12345", file: "14-janosh12345.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-15-jankyb", file: "15-jankyb.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-16-goblink1ng", file: "16-goblink1ng.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-17-mypotatoes", file: "17-mypotatoes.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-18-responsiblystupid", file: "18-responsiblystupid.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-19-xdinguskhan", file: "19-xdinguskhan.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-21-schmeckles", file: "21-schmeckles.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-22-lord-beerus", file: "22-lord-beerus.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-23-babbuja", file: "23-babbuja.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-24-basicwitch", file: "24-basicwitch.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-25-doctor-x", file: "25-doctor-x.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-26-matiuzzzo", file: "26-matiuzzzo.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-27-mikeegan", file: "27-mikeegan.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-28-stardustpigeon", file: "28-stardustpigeon.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-29-isacconoli", file: "29-isacconoli.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-30-minyafriend", file: "30-minyafriend.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-31-cachorrowo", file: "31-cachorrowo.dck" },
+    { id: "tourney-legacy-2026-02-01-legacy-challenge-32-32-kyataoka", file: "32-kyataoka.dck" },
+  ],
+};
+
+/**
+ * One real MTGO tournament, imported whole — the 2026-02-04 Legacy Challenge 32, all 32 decklists, transcribed by `build-tournament-library.ts`. Validated 32/32 legal in its era against the real corpus; same om1-free Legacy field class as the Feb 7 event.
+ */
+export const TOURNAMENT_LEGACY_2026_02_04_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'tournament-legacy-2026-02-04',
+  directory: `${DECKS_ROOT}/tournament-legacy-2026-02-04-legacy-challenge-32`,
+  event: 'Legacy Challenge 32 — 2026-02-04, MTGO (the whole 32-deck field)',
+  format: 'Legacy (2026-01-26)',
+  date: '2026-02-04',
+  source: 'https://github.com/fbettega/MTG_decklistcache (Tournaments/MTGO/2026/02/04/legacy-2026-02-04.json)',
+  decks: [
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-1-crazymorango", file: "3-crazymorango.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-2-sprouts", file: "5-sprouts.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-3-giabella", file: "4-giabella.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-4-andrewwa", file: "6-andrewwa.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-5-xfile", file: "1-xfile.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-6-meninooney", file: "7-meninooney.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-7-o-danielakos", file: "2-o-danielakos.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-8-i-b-true", file: "8-i-b-true.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-9-thegrimlavamancer", file: "9-thegrimlavamancer.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-10-cachorrowo", file: "10-cachorrowo.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-11-venom1", file: "11-venom1.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-12-nao-xx", file: "12-nao-xx.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-13-tonyscapone", file: "13-tonyscapone.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-14-choutin", file: "14-choutin.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-15-xdinguskhan", file: "15-xdinguskhan.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-16-dominiquetutor", file: "16-dominiquetutor.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-17-bawer", file: "17-bawer.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-18-drpp", file: "18-drpp.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-19-otazz", file: "19-otazz.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-20-amigo", file: "20-amigo.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-21-ecoscuro", file: "21-ecoscuro.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-22-olbeda", file: "22-olbeda.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-23-parkss", file: "23-parkss.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-24-lord-beerus", file: "24-lord-beerus.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-25-rpsbonjwa", file: "25-rpsbonjwa.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-26-batutinha", file: "26-batutinha.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-27-4funnowin", file: "27-4funnowin.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-28-supercow12653", file: "28-supercow12653.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-29-mmapson125", file: "29-mmapson125.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-30-lasvegaschaos", file: "30-lasvegaschaos.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-31-dogeminer02", file: "31-dogeminer02.dck" },
+    { id: "tourney-legacy-2026-02-04-legacy-challenge-32-32-karatedom", file: "32-karatedom.dck" },
+  ],
+};
+
+/**
+ * One real MTGO tournament, imported whole — the 2026-02-08 Legacy Challenge 32, all 32 decklists, transcribed by `build-tournament-library.ts`. Validated 32/32 legal in its era against the real corpus; same om1-free Legacy field class as the Feb 7 event.
+ */
+export const TOURNAMENT_LEGACY_2026_02_08_LEGACY: LibraryCollection = {
+  family: 'legacy',
+  id: 'tournament-legacy-2026-02-08',
+  directory: `${DECKS_ROOT}/tournament-legacy-2026-02-08-legacy-challenge-32`,
+  event: 'Legacy Challenge 32 — 2026-02-08, MTGO (the whole 32-deck field)',
+  format: 'Legacy (2026-01-26)',
+  date: '2026-02-08',
+  source: 'https://github.com/fbettega/MTG_decklistcache (Tournaments/MTGO/2026/02/08/legacy-2026-02-08.json)',
+  decks: [
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-1-dominiquetutor", file: "5-dominiquetutor.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-2-mypotatoes", file: "6-mypotatoes.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-3-sil3ntgoat", file: "1-sil3ntgoat.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-4-matiuzzzo", file: "7-matiuzzzo.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-5-azmyk1231", file: "2-azmyk1231.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-6-kyataoka", file: "8-kyataoka.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-7-stardustpigeon", file: "3-stardustpigeon.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-8-xdinguskhan", file: "4-xdinguskhan.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-9-sautay", file: "9-sautay.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-10-thedingoking", file: "10-thedingoking.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-11-nekoyama2", file: "11-nekoyama2.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-12-vitocorleone", file: "12-vitocorleone.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-13-jankyb", file: "13-jankyb.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-14-habsburger", file: "14-habsburger.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-15-ejk", file: "15-ejk.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-16-ayukawa", file: "16-ayukawa.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-17-prima-plum", file: "17-prima-plum.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-18-choutin", file: "18-choutin.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-19-harry1232", file: "19-harry1232.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-20-riddle0423", file: "20-riddle0423.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-21-lilianna1989", file: "21-lilianna1989.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-22-oosunq", file: "22-oosunq.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-24-hamandcheese", file: "24-hamandcheese.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-25-golfsapao", file: "25-golfsapao.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-26-nanovo", file: "26-nanovo.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-27-rockenoma222", file: "27-rockenoma222.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-28-giabella", file: "28-giabella.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-29-inf", file: "29-inf.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-30-trohck", file: "30-trohck.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-31-lord-beerus", file: "31-lord-beerus.dck" },
+    { id: "tourney-legacy-2026-02-08-legacy-challenge-32-32-mc-amp2267", file: "32-mc-amp2267.dck" },
+  ],
+};
+
+/**
  * One real MTGO tournament, imported whole — the 2026-02-07 Modern Challenge
  * 32, all 32 decklists, transcribed by `build-tournament-library.ts` from
  * `fbettega/MTG_decklistcache` (the open JSON cache of MTGO/melee/Topdeck
@@ -3167,7 +3306,10 @@ export const LIBRARY: readonly LibraryCollection[] = [
   POWER_SUMMER_2023_LEGACY,
   POWER_SUMMER_2024_LEGACY,
   POWER_SUMMER_2025_LEGACY,
+  TOURNAMENT_LEGACY_2026_02_01_LEGACY,
+  TOURNAMENT_LEGACY_2026_02_04_LEGACY,
   TOURNAMENT_2026_02_07_LEGACY,
+  TOURNAMENT_LEGACY_2026_02_08_LEGACY,
 ];
 
 /**
