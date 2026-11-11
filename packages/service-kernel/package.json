@@ -24,8 +24,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.72",
-    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.72",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.73",
+    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.73",
     "express": "^5.1.0",
     "socket.io": "^4.8.3"
   },
