@@ -1,8 +1,8 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, sign, verify } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { DRAFTBOT_MB, EMPTY_SHA, ReplayGuard, SKEW_MS, checkRequest, openFrame, privateKeyFrom, publicPemOf, sha256Hex, signFrame, signRequest, sliceNeedMb } from './wire.js';
+import { AGENT_PORT, DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, RELAY_PROTOCOL, ReplayGuard, SKEW_MS, checkRequest, openFrame, privateKeyFrom, publicPemOf, sha256Hex, signFrame, signRequest, sliceNeedMb } from './wire.js';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 const other = generateKeyPairSync('ed25519');
@@ -92,5 +92,29 @@ describe('the draft bot on the wire', () => {
 		expect(sliceNeedMb([2048], true)).toBe(100 + 2048 + 400 + DRAFTBOT_MB);
 		// A 4 GB unit still holds one 2 GB-heap JVM beside it.
 		expect(sliceNeedMb([2048], true)).toBeLessThanOrEqual(4096);
+	});
+});
+
+// The claws keep the agent they were last installed with, and both sides import this file, so a
+// change here that is consistent on both sides passes every other test while the new server can
+// no longer reach a deployed agent. These are the facts a deployed agent checks, written out.
+describe('what a deployed agent speaks', () => {
+	it('listens on its port, upgrades to the relay by name, and serves the draft bot at its path', () => {
+		expect(AGENT_PORT).toBe(7621);
+		expect(RELAY_PROTOCOL).toBe('cardtable-relay');
+		expect(DRAFTBOT_PATH).toBe('/draftbot/batchdraft');
+	});
+
+	it('verifies a request signed over "<METHOD>\\n<path>\\n<ts>\\n<body sha>"', () => {
+		const h = signRequest(privateKey, 'POST', '/install', EMPTY_SHA, T);
+		expect(Object.keys(h).sort()).toEqual(['x-agent-body', 'x-agent-sig', 'x-agent-ts']);
+		expect(verify(null, Buffer.from(`POST\n/install\n${T}\n${EMPTY_SHA}`), publicKey, Buffer.from(h['x-agent-sig'], 'base64'))).toBe(true);
+	});
+
+	it('opens a frame signed over "relay\\n<nonce>\\n<seq>\\n<JSON of m>"', () => {
+		const m = { op: 'kill', h: 'h-1' } as const;
+		const body = JSON.stringify(m);
+		const sig = sign(null, Buffer.from(`relay\nn-1\n1\n${body}`), privateKey).toString('base64');
+		expect(openFrame(publicKey, 'n-1', 1, `{"seq":1,"sig":"${sig}","m":${body}}`)).toEqual({ m });
 	});
 });
