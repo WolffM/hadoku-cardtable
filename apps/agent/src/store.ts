@@ -18,7 +18,7 @@ import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSyn
 import { join } from 'node:path';
 import type { Readable } from 'node:stream';
 
-import { ARTIFACT_KINDS, SHA256, type ArtifactKind } from '../../server/src/play/remote/wire.ts';
+import { ARTIFACT_KINDS, SHA256, type ArtifactKind } from '@hadoku/host-wire';
 
 export const KEEP_PER_KIND = 2;
 

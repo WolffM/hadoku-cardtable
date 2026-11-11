@@ -16,7 +16,7 @@
  */
 
 import { batchDraftAnswer, type Draftbot, type DraftbotInput, type DraftbotRatings } from '../../room/draftbot.js';
-import { DRAFTBOT_PATH } from '../remote/wire.js';
+import { DRAFTBOT_PATH } from '@hadoku/host-wire';
 import type { Alerts } from './alerts.js';
 import type { DraftbotClaw, DraftbotPlacement } from './coordinator.js';
 

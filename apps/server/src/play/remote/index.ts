@@ -18,7 +18,7 @@ import type { JvmHostConfig } from '../host.js';
 import { packDraftbot, packRuntime, pushDraftbot, pushRuntime } from './artifacts.js';
 import { AgentClient } from './client.js';
 import { RemoteJvmLauncher, type RemoteRuntime } from './launcher.js';
-import { AGENT_PORT, privateKeyFrom } from './wire.js';
+import { AGENT_PORT, privateKeyFrom } from '@hadoku/host-wire';
 
 export { AgentClient } from './client.js';
 export { RemoteJvmLauncher } from './launcher.js';

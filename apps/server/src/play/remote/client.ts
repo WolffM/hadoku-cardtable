@@ -16,7 +16,7 @@ import { request, type IncomingMessage } from 'node:http';
 import type { Socket } from 'node:net';
 import type { KeyObject } from 'node:crypto';
 
-import { EMPTY_SHA, FENCE_MS, HEARTBEAT_MS, RELAY_PROTOCOL, sha256Hex, signFrame, signRequest, type DraftbotHealth, type FromAgent, type JvmHealth, type SliceHealth, type ToAgent } from './wire.js';
+import { EMPTY_SHA, FENCE_MS, HEARTBEAT_MS, RELAY_PROTOCOL, sha256Hex, signFrame, signRequest, type DraftbotHealth, type FromAgent, type JvmHealth, type SliceHealth, type ToAgent } from '@hadoku/host-wire';
 
 export interface AgentClientOptions {
 	/** `http://<claw>:7621` */

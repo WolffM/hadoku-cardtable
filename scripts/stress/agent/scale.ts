@@ -22,7 +22,7 @@ import { join } from 'node:path';
 import { packBase, packDir, pushRuntime } from '../../../apps/server/src/play/remote/artifacts.js';
 import { AgentClient } from '../../../apps/server/src/play/remote/client.js';
 import { defaultJava } from '../../../apps/server/src/play/local-jvm.js';
-import { AGENT_PORT, HOST_ID, privateKeyFrom } from '../../../apps/server/src/play/remote/wire.js';
+import { AGENT_PORT, HOST_ID, privateKeyFrom } from '../../../packages/host-wire/src/wire.ts';
 
 const [node, label, xmx, ...props] = process.argv.slice(2);
 if (!node || !label || !xmx || !HOST_ID.test(label)) {

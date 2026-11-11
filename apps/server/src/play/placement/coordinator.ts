@@ -66,7 +66,7 @@ import {
 import { MATCHES_PER_JVM, JVM_HEAP_MB } from '../local-jvm.js';
 import type { JvmLauncher } from '../jvm-transport.js';
 import type { AgentClient } from '../remote/client.js';
-import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '../remote/wire.js';
+import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '@hadoku/host-wire';
 import type { Alerts } from './alerts.js';
 import { SECTION, contractViolations, type Violation } from './audit.js';
 import { CONTRACT, type HostingContract } from './contract.js';

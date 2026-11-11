@@ -6,7 +6,7 @@ import { Readable } from 'node:stream';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { sha256Hex } from '../../server/src/play/remote/wire.ts';
+import { sha256Hex } from '@hadoku/host-wire';
 import { KEEP_PER_KIND, Store } from './store.ts';
 
 const dirs: string[] = [];

@@ -12,7 +12,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import type { BridgeLine, HostEvents, JvmHostConfig, MatchSpec } from '../host.js';
 import { PLAYED_OUT } from '../host.js';
 import type { JvmLauncher, JvmTransport } from '../jvm-transport.js';
-import type { JvmHealth, ToAgent } from '../remote/wire.js';
+import type { JvmHealth, ToAgent } from '@hadoku/host-wire';
 import { Alerts, type AlertSink } from './alerts.js';
 import { contractViolations } from './audit.js';
 import { CONTRACT, contractOf } from './contract.js';

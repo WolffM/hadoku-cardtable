@@ -39,7 +39,11 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@24.13.3)(jsdom@30.0.1)(lightningcss@1.33.0)(tsx@4.23.13)
 
-  apps/agent: {}
+  apps/agent:
+    dependencies:
+      '@hadoku/host-wire':
+        specifier: workspace:*
+        version: link:../../packages/host-wire
 
   apps/server:
     dependencies:
@@ -55,6 +59,9 @@ importers:
       '@hadoku/forge-wire':
         specifier: workspace:*
         version: link:../../packages/forge-wire
+      '@hadoku/host-wire':
+        specifier: workspace:*
+        version: link:../../packages/host-wire
       '@hadoku/platform-wire':
         specifier: workspace:*
         version: link:../../packages/platform-wire
@@ -219,6 +226,8 @@ importers:
       zod:
         specifier: 4.5.4
         version: 4.5.4
+
+  packages/host-wire: {}
 
   packages/platform-wire:
     dependencies:

@@ -25,7 +25,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, ren
 import { join } from 'node:path';
 
 import { bridgeDiagnostics } from '../../server/src/play/diagnostics.ts';
-import { RECYCLE_HEAP_SHARE, runtimeOf, type ArtifactSet, type FromAgent, type JvmHealth, type LaunchSpec } from '../../server/src/play/remote/wire.ts';
+import { RECYCLE_HEAP_SHARE, runtimeOf, type ArtifactSet, type FromAgent, type JvmHealth, type LaunchSpec } from '@hadoku/host-wire';
 import type { Cgroups } from './cgroups.ts';
 
 /** How much of a dead JVM's stderr is read for its exit reason, and how many lines of it are kept. */

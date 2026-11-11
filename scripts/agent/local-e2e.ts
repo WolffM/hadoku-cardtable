@@ -37,7 +37,7 @@ import { ClawDraftbots, type DraftbotClaw } from '../../apps/server/src/play/pla
 import { DRAFTBOT_PIN, packDraftbot, pushDraftbot } from '../../apps/server/src/play/remote/artifacts.js';
 import { AgentClient } from '../../apps/server/src/play/remote/client.js';
 import { AGENT_KEY_ENV, connectRemoteHost, type RemoteHost } from '../../apps/server/src/play/remote/index.js';
-import { privateKeyFrom } from '../../apps/server/src/play/remote/wire.js';
+import { privateKeyFrom } from '../../packages/host-wire/src/wire.ts';
 
 const dir = process.env.AGENT_DIR ?? '';
 if (dir === '') throw new Error('AGENT_DIR is not set');

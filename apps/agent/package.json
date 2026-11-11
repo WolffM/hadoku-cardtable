@@ -7,5 +7,8 @@
   "description": "The host agent on a hosting claw: verified artifacts, --host bridge JVMs in leaf cgroups, a signed line relay to the coordinator, fencing. Bundled to one file for node 22 by scripts/agent/deploy.sh.",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hadoku/host-wire": "workspace:*"
   }
 }

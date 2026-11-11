@@ -17,7 +17,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { SliceHealth } from '../../server/src/play/remote/wire.ts';
+import type { SliceHealth } from '@hadoku/host-wire';
 
 const MB = 1024 * 1024;
 

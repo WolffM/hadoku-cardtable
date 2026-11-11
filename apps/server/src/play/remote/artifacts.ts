@@ -19,7 +19,7 @@ import { basename, dirname, join } from 'node:path';
 import { bridgeLaunch, type JvmHostConfig } from '../host.js';
 import type { AgentClient } from './client.js';
 import type { RemoteRuntime } from './launcher.js';
-import { JVM_ARTIFACT_KINDS, sha256Hex, type ArtifactKind, type ArtifactSet, type JvmArtifactKind } from './wire.js';
+import { JVM_ARTIFACT_KINDS, sha256Hex, type ArtifactKind, type ArtifactSet, type JvmArtifactKind } from '@hadoku/host-wire';
 
 /** Forge `res` subtrees the bridge never reads (as `scripts/stress/run.sh` trims them). */
 export const RES_EXCLUDES = ['adventure', 'music', 'skins'];

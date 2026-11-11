@@ -2,8 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     // esbuild bundles (scripts/agent/deploy.sh); tsc only typechecks. The wire is
-    // imported from the server's source by its `.ts` path, as the server's own
-    // workspace packages are.
+    // @hadoku/host-wire, a workspace package of `.ts` source.
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "declaration": false,

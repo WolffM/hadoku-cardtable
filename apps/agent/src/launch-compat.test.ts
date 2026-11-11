@@ -21,7 +21,7 @@ import { generateKeyPairSync } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { openFrame, signFrame, type ArtifactSet, type LaunchSpec, type ToAgent } from '../../server/src/play/remote/wire.ts';
+import { openFrame, signFrame, type ArtifactSet, type LaunchSpec, type ToAgent } from '@hadoku/host-wire';
 import { jvmArgs, type Installed } from './jvm.ts';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');

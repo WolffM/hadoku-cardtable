@@ -13,7 +13,7 @@
  * draft bot, wired in by `main.ts`), and passes the coordinator's calls for it along.
  *
  * The wire, its signing and every message are in
- * `apps/server/src/play/remote/wire.ts`.
+ * `@hadoku/host-wire` (`packages/host-wire/src/wire.ts`).
  */
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
@@ -46,7 +46,7 @@ import {
 	type FromAgent,
 	type LaunchSpec,
 	type ToAgent,
-} from '../../server/src/play/remote/wire.ts';
+} from '@hadoku/host-wire';
 import { Cgroups } from './cgroups.ts';
 import { Jvm, type Installed, type Log } from './jvm.ts';
 import { Store } from './store.ts';

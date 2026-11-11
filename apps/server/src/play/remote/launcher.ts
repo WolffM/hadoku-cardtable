@@ -6,7 +6,7 @@
 import { BRIDGE_JVM_FLAGS, FORGE_PREFERENCES } from '../host.js';
 import type { JvmLauncher, JvmTransport } from '../jvm-transport.js';
 import type { AgentClient, FrameSink } from './client.js';
-import type { ArtifactSet } from './wire.js';
+import type { ArtifactSet } from '@hadoku/host-wire';
 
 /** What every JVM this launcher starts runs on (`artifacts.ts` `pushArtifacts`). */
 export interface RemoteRuntime {

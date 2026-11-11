@@ -1,0 +1,14 @@
+{
+  "name": "@hadoku/host-wire",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The signed wire between a match host and the agent on a hosting claw: request signing, the relay's frames, the messages each side sends, artifact hashes and slice sizing. Knows no game. MIT; imports only node builtins, because the agent bundles it for node 22.",
+  "exports": {
+    ".": "./src/wire.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

@@ -21,7 +21,7 @@ import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } 
 import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 
-import { DRAFTBOT_MB, type DraftbotHealth } from '../../server/src/play/remote/wire.ts';
+import { DRAFTBOT_MB, type DraftbotHealth } from '@hadoku/host-wire';
 import type { Cgroups } from './cgroups.ts';
 import { procStartTicks, type Log } from './jvm.ts';
 

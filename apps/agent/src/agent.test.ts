@@ -17,7 +17,7 @@ import { pushDraftbot, pushRuntime, type PackedRuntime } from '../../server/src/
 import { AgentClient } from '../../server/src/play/remote/client.ts';
 import { RemoteJvmLauncher } from '../../server/src/play/remote/launcher.ts';
 import type { JvmTransport } from '../../server/src/play/jvm-transport.ts';
-import { DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, RELAY_PROTOCOL, sha256Hex, signRequest, type DraftbotHealth } from '../../server/src/play/remote/wire.ts';
+import { DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, RELAY_PROTOCOL, sha256Hex, signRequest, type DraftbotHealth } from '@hadoku/host-wire';
 import { Agent } from './agent.ts';
 import { DraftbotService } from './draftbot.ts';
 import { Cgroups } from './cgroups.ts';

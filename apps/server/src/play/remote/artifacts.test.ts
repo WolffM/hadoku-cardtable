@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DRAFTBOT_PIN, packDir, prepareDraftbot } from './artifacts.js';
 import type { AgentClient } from './client.js';
 import { RemoteJvmLauncher, type RemoteRuntime } from './launcher.js';
-import { sha256Hex } from './wire.js';
+import { sha256Hex } from '@hadoku/host-wire';
 
 const scratch: string[] = [];
 afterEach(() => {

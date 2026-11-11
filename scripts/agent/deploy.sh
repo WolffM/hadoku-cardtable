@@ -44,10 +44,10 @@ build)
 		CARDTABLE_AGENT_SIGNING_KEY=$(cat "${AGENT_KEY_FILE:?CARDTABLE_AGENT_SIGNING_KEY or AGENT_KEY_FILE}")
 	fi
 	pub=$(CARDTABLE_AGENT_SIGNING_KEY=$CARDTABLE_AGENT_SIGNING_KEY node --input-type=module -e "
-		import { privateKeyFrom, publicPemOf } from '$ROOT/apps/server/src/play/remote/wire.ts';
+		import { privateKeyFrom, publicPemOf } from '$ROOT/packages/host-wire/src/wire.ts';
 		process.stdout.write(JSON.stringify(publicPemOf(privateKeyFrom(process.env.CARDTABLE_AGENT_SIGNING_KEY))));
 	")
-	version=$(git -C "$ROOT" rev-parse --short=12 HEAD)$(git -C "$ROOT" diff --quiet HEAD -- apps/agent apps/server/src/play/remote || echo -dirty)
+	version=$(git -C "$ROOT" rev-parse --short=12 HEAD)$(git -C "$ROOT" diff --quiet HEAD -- apps/agent apps/server/src/play/remote packages/host-wire || echo -dirty)
 	"$ESBUILD" "$ROOT/apps/agent/src/main.ts" --bundle --platform=node --format=esm --target=node22 \
 		--define:AGENT_PUBLIC_KEY="$pub" --define:AGENT_VERSION="\"$version\"" \
 		--banner:js='#!/usr/bin/node' --log-level=warning --outfile="$out/run"
