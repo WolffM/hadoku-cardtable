@@ -3772,3 +3772,21 @@ The operator ruled 2026-11-11 that the tracker chains the platform waves through
 - **w102h** (one session): `remote/wire.ts` → `packages/host-wire`, and deploy.sh follows it. Wave file `wave102h-2026-11-11.md`.
 - **w104** (wave, lanes P/B/X): the platform room screen out of `ConstructedScreen.tsx`; watchparty's bundle host moves into `@wolffm/rooms-client` and cardtable gets a `BundleSlot`; bomberman as a cardtable room type. The Magic board through the slot moves to phase 6. Wave file `wave104-2026-11-11.md`.
 - **Next:** w103 (runtimes, plus host.ts generic) after w102, then phase 6.
+
+## Wave 100 item 2, wave 102h and wave 104, verified by the tracker 2026-11-11
+
+- **w100 item 2 is landed: 3c75ea0d2.** Main's first CI on it was cancelled when the e2e job hit its 15-minute `timeout-minutes` on a loaded runner. No test had failed, so the tracker re-ran the failed jobs; the rerun was green and PPE took 3c75ea0d2.
+  - PPE before and after for r-25bebe1203c9: exactly the six top-level Magic keys are gone (`clientMode`, `draftStartedAt`, `format`, `mode`, `modeOptions`, `pod`); the other 18 keys and `game.*` are identical (`~/.cache/cardtable-manager/w100-view-{before,after-ppe}.json`).
+  - **Phase 3 is done in code.** Prod gets it at the next `/cutrelease`.
+- **The streamed-live red was a harness bug, fixed in ecfbed621.** The spec's precondition saw `CARDTABLE_FORGE_RES`, but the harness's server didn't, so every provision was refused with "no Forge res". It reproduced on main on hokon. After the fix, 2/2 pass on main and on 3c75ea0d2.
+- **w102h is landed and verified:** 05ebda1c1 and e4e4c4982 (`packages/host-wire`, MIT, platform). PPE carries e4e4c4982; no importer of `remote/wire` is left. A mutation of `RELAY_PROTOCOL` survived at first, which is why e4e4c4982 pins the deployed agent's wire. streamed-live passes 2/2 on main after it.
+- **w104:**
+  - B landed (watchparty 85d1bea7, rooms-client 0.45.81; cardtable fdd7fb541 `BundleSlot`). The CSP already allows `/bomberman/embed/`.
+  - P landed step 1 (34c6783a5, the game-setup registry). Step 2 is on `carry/w104-P2`, because its proof was cut off at the time cap with board-motion reds.
+  - X is on `carry/w104-X`. The bomberman room mounts its bundle in CI; the leave step is red. Both carries go to **w104b**, a single session (`wave104b-2026-11-11.md`).
+- **Open (infra):**
+  - ci.yml's e2e job has a 15-minute cap that a loaded runner can hit (first case 43108363941).
+  - `e2e-rerun.ts` counts a self-skip as red, so a claw dispatch that picks up `streamed-live.spec.ts` is always red.
+  - Failures of GitHub's artifact upload can eat a shard's 45-minute cap.
+  - forge.yml's selector never picks non-Forge e2e specs (bomberman.spec runs only in ci.yml).
+- **Open (platform):** `room/pods.ts` `isStoredPodSeats` refuses a stored pod of fewer than 8 seats, so a registered type with `seats.max` < 8 quarantines on restart. w104b item 1 fixes it. `isSameOriginPath` is duplicated in rooms-client and watchparty's shared package (watchparty's).
