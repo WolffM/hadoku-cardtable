@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test, type BrowserContext } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -49,7 +49,10 @@ async function flagRelayTestFixture(context: BrowserContext): Promise<void> {
 }
 
 /** A `relay-test` room the create form has no button for — `createRoomByApi`'s own technique
- *  (`play/rooms.ts`), widened to a game type that helper's own type does not name. */
+ *  (`play/rooms.ts`), widened to a game type that helper's own type does not name. Setting
+ *  `window.location.hash` only starts the navigation: the app's router then normalizes it into
+ *  the room's real path and clears the hash, so the id is read back with `roomIdFromAddress`
+ *  (`play/board.ts`) — the same helper every other spec waits on, never the hash itself. */
 async function createRelayTestRoom(friend: Friend, origin: string, name: string): Promise<string> {
   await friend.page.goto(`${origin}${PREFIX}/`);
   await friend.page.evaluate(async (body) => {
@@ -63,11 +66,7 @@ async function createRelayTestRoom(friend: Friend, origin: string, name: string)
     const made = (await res.json()) as { id: string };
     window.location.hash = `#/room/${made.id}`;
   }, { name, gameType: 'relay-test', clientMode: 'builtin' });
-  await friend.page.waitForFunction(() => /\/room\/[a-z0-9-]+$/.test(window.location.hash), null, { timeout: 30_000 });
-  const hash = await friend.page.evaluate(() => window.location.hash);
-  const m = /\/room\/([a-z0-9-]+)$/.exec(hash);
-  if (m === null) throw new Error(`no room id in ${hash}`);
-  return m[1]!;
+  return roomIdFromAddress(friend.page);
 }
 
 const panel = (f: Friend) => f.page.getByTestId('relay-fixture');
