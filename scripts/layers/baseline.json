@@ -5,7 +5,6 @@
 		"apps/server/src/room/lobby.ts",
 		"apps/server/src/http/routes.ts",
 		"apps/server/src/play/match.ts",
-		"apps/ui/src/screens/ConstructedScreen.tsx",
 		"apps/server/src/room/draftRooms.ts",
 		"apps/server/src/room/emit.ts",
 		"apps/server/src/room/socket.ts",

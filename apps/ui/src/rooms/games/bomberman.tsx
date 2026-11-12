@@ -5,10 +5,9 @@
  * pre-start configuration to show above the seats (no deck, no format), and `BundleSlot` draws
  * its own players from `view.members` once it mounts — there is nothing else to seat here.
  *
- * Registered at module scope, once, the moment this module is imported — unlike Magic's own two
- * types, which still re-register every render from inside `RoomTableScreen` (a stepping stone
- * `game-setup.ts`'s own doc names, not a pattern to copy here). Importing this module is what
- * makes bomberman a choosable room type's UI exist; nothing else here has a side effect.
+ * Registered at module scope, once, the moment this module is imported, as Magic's two types are
+ * from `screens/magic-room-ui.tsx`. Importing this module is what makes bomberman a choosable room
+ * type's UI exist; nothing else here has a side effect.
  */
 
 import { BundleSlot } from '../BundleSlot.tsx';

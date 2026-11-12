@@ -75,6 +75,8 @@
     "packages/shared/src/game-type-spec.ts",
     "apps/ui/src/rooms/game-setup.ts",
     "apps/ui/src/rooms/BundleSlot.tsx",
+    "apps/ui/src/rooms/game-clients.tsx",
+    "apps/ui/src/rooms/relay-test-fixture.tsx",
     "apps/ui/src/rooms/relay-channel.ts",
     "apps/ui/src/rooms/bundle-slot.fixture.ts",
     "apps/ui/src/rooms/screen/**"
@@ -142,7 +144,6 @@
     "apps/server/src/room/lobby.ts",
     "apps/server/src/http/routes.ts",
     "apps/server/src/play/match.ts",
-    "apps/ui/src/screens/ConstructedScreen.tsx",
     "apps/server/src/room/draftRooms.ts",
     "apps/server/src/room/emit.ts",
     "apps/server/src/room/socket.ts",

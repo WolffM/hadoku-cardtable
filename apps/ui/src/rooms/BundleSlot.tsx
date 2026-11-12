@@ -51,11 +51,15 @@ import { useHadokuTheme } from '@wolffm/themes';
 // already uses to reach `apps/server/src/http/card-art.ts`. Still one module and one registry:
 // `@hadoku/shared`'s package.json exports only `.` → `./src/index.ts`, which re-exports this same
 // file, so Vite and vitest resolve both paths to the identical module.
-import { gameTypeSpec, registerGameType } from '../../../../packages/shared/src/game-type-spec.ts';
+import { gameTypeSpec } from '../../../../packages/shared/src/game-type-spec.ts';
 
 import { useWhoami } from '../room/whoami.ts';
-import { registerGameRoomUi, type RoomViewBase } from './game-setup.ts';
+import type { RoomViewBase } from './game-setup.ts';
 import { openRelayChannel } from './relay-channel.ts';
+// The relay channel's own e2e fixture (`relay-test`), never a real room type: a side-effect
+// import, exactly as `composition.tsx` imports `rooms/games/bomberman.tsx` — see that module's
+// own doc for the flag it reads before registering anything.
+import './relay-test-fixture.tsx';
 import './BundleSlot.css';
 
 export interface BundleSlotProps {
@@ -153,33 +157,4 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
       )}
     </div>
   );
-}
-
-/**
- * The relay channel's own e2e fixture, and only it. `relay-test` is never a real room type a player can
- * pick — the server's own `relay-test` (`apps/server/src/plugins/relay.ts`) is registered only
- * behind `CARDTABLE_PLAY_PROBE=1`, never in production — so this client-side registration needs
- * the same kind of fence, but a browser bundle has no env var to read. `e2e/relay-fixture.spec.ts`
- * sets `window.__CARDTABLE_E2E_RELAY_TEST__` with Playwright's `addInitScript`, BEFORE this
- * module (already reachable from `rooms/games/bomberman.tsx` → `composition.tsx`, eagerly
- * imported at boot) ever evaluates, so the flag is in place the moment this line runs. Never set
- * outside that one spec: dead code for every real player and every other test.
- */
-declare global {
-  interface Window {
-    __CARDTABLE_E2E_RELAY_TEST__?: boolean;
-  }
-}
-if (typeof window !== 'undefined' && window.__CARDTABLE_E2E_RELAY_TEST__ === true) {
-  registerGameType({
-    id: 'relay-test',
-    runtime: 'relay',
-    seats: { min: 2, max: 2 },
-    ready: false,
-    series: { length: 1 },
-    canStart: (seated) => (seated >= 2 ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
-  });
-  registerGameRoomUi('relay-test', {
-    game: (p) => <BundleSlot src="/relay-fixture/relay-test-embed.js" view={p.view} me={p.me} />,
-  });
 }

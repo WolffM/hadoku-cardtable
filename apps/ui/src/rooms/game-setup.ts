@@ -13,9 +13,10 @@
  * two reads land together.
  *
  * This file is `platform`: it imports no game's own code, Magic's included. A game registers
- * itself by calling `registerGameRoomUi` from ITS OWN module. Magic still registers from inside
- * `RoomTableScreen`'s own render (`screens/ConstructedScreen.tsx`), where its render functions
- * live today; it moves to its own module once that split happens.
+ * itself by calling `registerGameRoomUi` from ITS OWN module, once, at import — Magic's `draft`
+ * and `constructed-1v1` do this from `screens/magic-room-ui.tsx`, the same way bomberman's own
+ * module does, reading the room's injected clients from `rooms/game-clients.tsx` rather than
+ * closing over `RoomTableScreen`'s props.
  */
 
 import type { ReactNode } from 'react';
@@ -72,9 +73,8 @@ const registry = new Map<string, GameRoomUi>();
 
 /**
  * Registers (or replaces) the UI a `gameType` renders inside the room screen. Called once, at
- * module scope, from the game type's own module; Magic calls it instead from inside
- * `RoomTableScreen`'s own render, where its render functions still live, so it re-registers every
- * render rather than once at module scope — a stepping stone until that code moves out.
+ * module scope, from the game type's own module — every registrant, Magic's `draft` and
+ * `constructed-1v1` included.
  */
 export function registerGameRoomUi(gameType: string, ui: GameRoomUi): void {
   registry.set(gameType, ui);
