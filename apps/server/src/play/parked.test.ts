@@ -166,6 +166,9 @@ describe('the registry lets go of a match that ended', () => {
 		expect((hosts[0] as ReplayHost).spec).toEqual(restoredSpec(TWO_HUMANS, from.snapshot));
 		expect(match.owners()).toEqual(['fk:aaaaaaaaaaaaaaaa', null]);
 		expect(match.latestSnapshot).toEqual(from.snapshot);
+		// `ParkedRecord.snapshot` — the value a resume hands `create` as `from.snapshot` — is Forge's
+		// checkpoint: it reaches the resumed match as `latestCheckpoint` too, through `restore.checkpoint`.
+		expect(match.latestCheckpoint).toEqual(from.snapshot);
 		expect(match.clockLeft()).toEqual([30_000, 40_000]);
 		expect(match.claim('fk:bbbbbbbbbbbbbbbb')).toMatchObject({ ok: true, seat: 1 });
 		expect(match.claim('fk:cccccccccccccccc')).toEqual({ ok: false, error: 'match-full' });

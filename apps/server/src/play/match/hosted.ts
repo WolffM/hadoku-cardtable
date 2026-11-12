@@ -22,10 +22,12 @@ export interface HostedMatchDeps<Line extends { t: string }, Cmd extends { t: st
 	/**
 	 * `GameAdapter.restoreSpec`, generically: a match restored from a checkpoint
 	 * (`restore.checkpoint`, below) opens on it rather than fresh. Absent: a restore with a
-	 * checkpoint keeps the spec it was given — Forge's own restore stays `match/registry.ts`'s
-	 * `restoredSpec`, called by the registry before `new Match(...)` on its own `TurnSnapshot`
-	 * rather than through here, until the two converge (`Match`'s own `restore` never carries a
-	 * `checkpoint`, so this is never reached for it).
+	 * checkpoint keeps the spec it was given. Forge's own is `match/registry.ts`'s `restoredSpec`,
+	 * wired in once by `createMatchRegistry` (never caller-settable — `RegistryDeps` omits this
+	 * field). Forge's checkpoint IS its `TurnSnapshot`, the same value `latestSnapshot`/
+	 * `MatchRecord.snapshot` already carry, so `match/registry.ts`'s `create`/`restore` pass it
+	 * through as `restore.checkpoint` and let this constructor transform the spec, rather than
+	 * calling `restoredSpec` themselves before `new Match(...)` — one path, not two.
 	 */
 	restoreSpec?(spec: MatchSpec, cp: unknown): MatchSpec;
 }
@@ -36,10 +38,11 @@ export abstract class HostedMatch<Line extends { t: string }, Cmd extends { t: s
 	/**
 	 * `spec` is transformed through {@link HostedMatchDeps.restoreSpec} right here, before
 	 * `MatchShell`'s own constructor ever sees it, when this match is being restored from a
-	 * checkpoint — the shell's own version of what `match/registry.ts`'s `restoredSpec` already
-	 * does for Forge from a `TurnSnapshot`, generalised. A subclass with no checkpoint of its own
-	 * (`Match`'s `restore` never has one) or no `restoreSpec` of its own passes `spec` through
-	 * unchanged, exactly as before this constructor existed.
+	 * checkpoint. `Match`'s own restore carries one too now — `match/registry.ts`'s `create`/
+	 * `restore` pass its `TurnSnapshot` through as `restore.checkpoint`, and `createMatchRegistry`
+	 * wires `restoredSpec` in as `deps.restoreSpec` — so Forge resumes through the exact same hook
+	 * the toy game does. A subclass with no checkpoint, or no `restoreSpec` of its own, passes
+	 * `spec` through unchanged, exactly as before this constructor existed.
 	 */
 	constructor(
 		id: string,
@@ -55,7 +58,8 @@ export abstract class HostedMatch<Line extends { t: string }, Cmd extends { t: s
 	 * Forge's own `latestSnapshot` (parking and restore both go through it, via
 	 * {@link MatchShell.remember} and this constructor's own `restoreSpec` call above). A game
 	 * whose engine produces one calls this from its own `onLine`'s `'checkpoint'` case —
-	 * `fixtures/toy-game/match.ts`'s `ToyMatch` is the first caller.
+	 * `fixtures/toy-game/match.ts`'s `ToyMatch` first, then `play/match.ts`'s `Match` on Forge's
+	 * own `'snapshot'` line.
 	 */
 	protected noteCheckpoint(cp: unknown): void {
 		this.latestCheckpoint = cp;

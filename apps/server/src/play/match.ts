@@ -298,7 +298,7 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 		 * would be handed the other player's hand. The start time is the third:
 		 * a replay would stamp it with the restart.
 		 */
-		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number; snapshot?: TurnSnapshot | null; clockMs?: [number, number] },
+		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number; snapshot?: TurnSnapshot | null; checkpoint?: unknown; clockMs?: [number, number] },
 	) {
 		super(id, spec, deps, restore);
 		this.session = new ForgeSession(id, this.epoch, spec, deps, this);
@@ -393,14 +393,21 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 			case 'fatal':
 				this.fail(line.message, line.frames);
 				return;
-			case 'snapshot':
-				this.latestSnapshot = { turn: line.turn, state: line.state, ...(line.lossy === undefined || line.lossy.length === 0 ? {} : { lossy: line.lossy }) };
+			case 'snapshot': {
+				// Forge's own checkpoint, generically: `noteCheckpoint` sets `latestCheckpoint` and
+				// calls `remember()` — the same hook `fixtures/toy-game/match.ts`'s `ToyMatch` calls
+				// from its own `'checkpoint'` case, so a restore's `HostedMatch.restoreSpec` dispatch
+				// (`match/hosted.ts`) reaches Forge too. `latestSnapshot` stays Forge's own, strongly
+				// typed field (`restartState`/`restorable` read it directly); both now hold the same value.
+				const snapshot: TurnSnapshot = { turn: line.turn, state: line.state, ...(line.lossy === undefined || line.lossy.length === 0 ? {} : { lossy: line.lossy }) };
+				this.latestSnapshot = snapshot;
 				this.deps.log({ evt: 'turn-snapshot', matchId: this.id, turn: line.turn, bytes: Buffer.byteLength(line.state), ms: line.ms });
 				if (line.lossy !== undefined && line.lossy.length > 0) this.deps.log({ evt: 'snapshot-lossy', matchId: this.id, turn: line.turn, kinds: line.lossy });
 				if (this.restartAsk !== null && this.restartAsk.turn !== line.turn) this.closeRestartAsk();
 				this.tellRestart();
-				this.remember();
+				this.noteCheckpoint(snapshot);
 				return;
+			}
 			default:
 				this.session.onLine(line);
 		}
@@ -587,6 +594,9 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			};
 		return {
 			...deps,
+			// Forge's own `GameAdapter.restoreSpec` (see `restoredSpec`'s own doc): wired in here,
+			// the registry's one caller, rather than left to `create`/`restore` to apply themselves.
+			restoreSpec: restoredSpec,
 			emit: when((m, seat: number, envelope: ServerEnvelope) => deps.emit(m, seat, envelope)),
 			seatsChanged: when((m, seats: SeatIdentity[]) => deps.seatsChanged?.(m, seats)),
 			phaseStopChanged: when((m, seat: number, phase: StopPhase | null) => deps.phaseStopChanged?.(m, seat, phase)),
@@ -610,13 +620,16 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 	const registry: MatchRegistry = {
 		create(spec, from) {
 			const id = newMatchId();
+			// `spec` goes through UNCHANGED: with `from` given, `restore.checkpoint` below is `HostedMatch`'s
+			// own constructor's cue to run it through `deps.restoreSpec` (`restoredSpec`, wired in above) —
+			// the one path `restoredSpec`'s own doc describes, not a second transform made here.
 			const match: Match = new Match(
 				id,
-				from === undefined ? spec : restoredSpec(spec, from.snapshot),
+				spec,
 				depsOf(id, () => match),
 				from === undefined
 					? undefined
-					: { epoch: null, owners: [...from.owners], startedAt: (deps.now ?? Date.now)(), snapshot: from.snapshot, ...(from.clockMs === undefined ? {} : { clockMs: from.clockMs }) },
+					: { epoch: null, owners: [...from.owners], startedAt: (deps.now ?? Date.now)(), snapshot: from.snapshot, checkpoint: from.snapshot, ...(from.clockMs === undefined ? {} : { clockMs: from.clockMs }) },
 			);
 			matches.set(id, match);
 			ended.delete(id);
@@ -660,13 +673,15 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			if (old === undefined) return null;
 			const snapshot = old.latestSnapshot;
 			const now = (deps.now ?? Date.now)();
-			const spec = snapshot === null ? old.spec : restoredSpec(old.spec, snapshot);
-			const match: Match = new Match(id, spec, depsOf(id, () => match), {
+			// `old.spec` goes through UNCHANGED, same as `create` above: `checkpoint` (when there is a
+			// snapshot to restore from) is `HostedMatch`'s own cue to run it through `restoredSpec` itself.
+			const match: Match = new Match(id, old.spec, depsOf(id, () => match), {
 				// Never the old epoch's spelling, `${id}:${startedAt}`, even within its millisecond.
 				epoch: `${id}:${now}:${randomBytes(4).toString('hex')}`,
 				owners: old.owners(),
 				startedAt: old.startedAt,
 				snapshot,
+				...(snapshot === null ? {} : { checkpoint: snapshot }),
 				...(() => {
 					const clockMs = old.clockLeft();
 					return clockMs === null ? {} : { clockMs };

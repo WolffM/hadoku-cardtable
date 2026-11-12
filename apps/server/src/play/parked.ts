@@ -81,11 +81,21 @@ export interface ParkedSummary {
 	resumedAs?: ResumedAs;
 }
 
+/**
+ * Forge's own `GameAdapter.Checkpoint` (`match/hosted.ts`'s `HostedMatchDeps.restoreSpec`): the
+ * turn-start snapshot a resume opens on, through `restoredSpec`. Named here so a reader of
+ * {@link ParkedRecord.snapshot} sees it is that value, in substance, kept on disk rather than in
+ * `MatchShell.latestCheckpoint` — the same shape `MatchRecord.checkpoint`/`Durable.checkpoint`
+ * (`host.ts`) carry opaquely for a re-attach, typed here because only Forge ever parks.
+ */
+export type Checkpoint = TurnSnapshot;
+
 export interface ParkedRecord extends ParkedSummary {
 	v: typeof VERSION;
 	/** The match's spec, without the opening a resume adds back (`restoredSpec`). */
 	spec: MatchSpec;
-	snapshot: TurnSnapshot;
+	/** See {@link Checkpoint}. */
+	snapshot: Checkpoint;
 	/** Each seat's chess-clock time left, absent in a game without a clock. */
 	clockMs?: [number, number];
 }

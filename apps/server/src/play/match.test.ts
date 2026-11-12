@@ -1631,6 +1631,10 @@ describe('a match restored from its turn-start snapshot', () => {
 		match.claim(ALICE);
 		state.push(SNAPSHOT);
 		expect(match.latestSnapshot).toEqual({ turn: 3, state: SNAPSHOT.state });
+		// `onLine`'s `'snapshot'` case feeds `HostedMatch.noteCheckpoint` — the same generic hook
+		// `fixtures/toy-game/match.ts`'s `ToyMatch` calls from its own `'checkpoint'` case — so Forge's
+		// checkpoint is this match's `latestSnapshot`, not a second, never-set field.
+		expect(match.latestCheckpoint).toEqual({ turn: 3, state: SNAPSHOT.state });
 		expect(state.remembered).toEqual({ epoch: match.epoch, owners: [ALICE, null], snapshot: { turn: 3, state: SNAPSHOT.state } });
 	});
 
@@ -1649,6 +1653,9 @@ describe('a match restored from its turn-start snapshot', () => {
 		expect(spec).toEqual({ seats: h.match.spec.seats, seed: 7, scenario: SNAPSHOT.state, skipOpening: true, restore: true });
 		expect(spec).toEqual(restoredSpec(h.match.spec, { turn: 3, state: SNAPSHOT.state }));
 		expect(r.latestSnapshot).toEqual({ turn: 3, state: SNAPSHOT.state });
+		// The restored match's `checkpoint` ran through `HostedMatch`'s own constructor, same as the
+		// spec it restored: `restore.checkpoint`, not a direct `restoredSpec` call in the registry.
+		expect(r.latestCheckpoint).toEqual({ turn: 3, state: SNAPSHOT.state });
 		expect((h.hosts[0] as ReplayHost).stopped).toBe(true);
 	});
 
@@ -1691,6 +1698,9 @@ describe('a match restored from its turn-start snapshot', () => {
 		expect(r.epoch).not.toBe(match.epoch);
 		expect(r.owners()).toEqual([ALICE, BOB]);
 		expect(r.latestSnapshot).toBeNull();
+		// No snapshot means no `restore.checkpoint`: `HostedMatch`'s constructor never calls
+		// `restoreSpec`, so the host below gets the spec unchanged (its `chooser` included).
+		expect(r.latestCheckpoint).toBeNull();
 		expect((hosts[1] as ReplayHost).spec).toEqual(spec);
 		expect(logs.find((l) => l.evt === 'match-restored')).toMatchObject({ from: 'spec', matchId: match.id });
 		expect(registry.restore('m-nonexistent')).toBeNull();

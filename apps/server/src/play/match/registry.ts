@@ -29,6 +29,11 @@ import type { SeatState } from './forge-session.js';
  *   stops, auto-yields and full control come across);
  * - random-number state: the restored game draws fresh randomness from its new JVM.
  * Card ids change: every seat resyncs onto the new epoch.
+ *
+ * Forge's own `GameAdapter.restoreSpec` (`match/hosted.ts`'s `HostedMatchDeps.restoreSpec`,
+ * `Checkpoint` = `TurnSnapshot`): `createMatchRegistry` wires this in as `deps.restoreSpec` once,
+ * and `HostedMatch`'s own constructor is the only caller — `create`/`restore`, below, pass the
+ * snapshot through as `restore.checkpoint` rather than calling this themselves.
  */
 export function restoredSpec(spec: MatchSpec, snapshot: TurnSnapshot): MatchSpec {
 	const { chooser: _chooser, ...rest } = spec;
@@ -83,7 +88,12 @@ export class EndedMatch {
 /** What {@link MatchRegistry.restore} did: back to the start of turn `turn`, or a fresh game from the match's spec. */
 export type Restored = { match: Match; from: 'snapshot'; turn: number } | { match: Match; from: 'spec' };
 
-export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'restartChanged' | 'restartTurn' | 'onGameOver' | 'liveChanged' | 'abandoned' | 'ended'> & {
+export type RegistryDeps = Omit<
+	MatchDeps,
+	// `restoreSpec` is Forge's own (`restoredSpec`, above): the registry wires it in itself, on
+	// every match, so it is never a caller's to set.
+	'emit' | 'seatsChanged' | 'phaseStopChanged' | 'restartChanged' | 'restartTurn' | 'onGameOver' | 'liveChanged' | 'abandoned' | 'ended' | 'restoreSpec'
+> & {
 	/** The ceiling a bot game counts against (`MatchRegistry.botGame`). Default `MAX_CONCURRENT_MATCHES`. */
 	maxMatches?: number;
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
