@@ -14,7 +14,7 @@
  * the game did — Forge can drop a sent act (no input was open) or apply two sent in order in either
  * order (`PlayBridge.java`'s `setPhaseDelayOff` doc, and `ActGate`'s own doc on the fork side).
  * `ActGate` already takes every act of a game one at a time, in arrival order, holding one that
- * arrives between two inputs for the next (`GameServerHandler`'s `BETWEEN_INPUTS_MS`) — so an act
+ * arrives between two inputs for the next (`ActGate`'s `BETWEEN_INPUTS_MS`) — so an act
  * this log holds WAS applied, live, against whatever input was open then. Resending the very same
  * acts, one at a time, waiting for a fresh JVM's own `applied` echo for each before the next, drives
  * the SAME serialised, order-preserving gate the live run went through — a position poll (what
@@ -312,7 +312,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	// alike: a seat's `IGameController` is wired only once Forge's match-start runnable has
 	// actually run, which races this host's own `ready` line by milliseconds — sending the first
 	// command before that hit "no game controller yet" server-side, found live — and `ActGate`'s
-	// own hold for an act sent between two inputs (`GameServerHandler`'s `BETWEEN_INPUTS_MS`, 5 s)
+	// own hold for an act sent between two inputs (`ActGate`'s `BETWEEN_INPUTS_MS`, 5 s)
 	// is a wall-clock decision whose outcome (apply to whatever opens next vs. silently drop) a
 	// resend-on-timeout cannot safely undo: a held act applied right as the resend lands is a
 	// silent double-act — found live, on a claw, a real board divergence with no "diverged" note

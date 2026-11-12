@@ -345,6 +345,29 @@ them, and re-derivations by the Wave 7 manager are marked.
   `shouldDispatchToGuiThread` is `protected` and overridable
   (`GameProtocolHandler.java:30`), which is reasoned, not run.
 
+### A prompt's show walks the views on the EDT
+
+- **VERIFIED (2026-11-11, fork pin 65ddbd50)** — `InputProxy.update` queues
+  `showMessageInitial` onto the EDT (`InputProxy.java:73`), and since upstream
+  `ea5fe47050d` that show sends the input's selection through
+  `ProtocolGuiGame.setSelection` → `syncAndSend`, a whole walk of the trackable
+  graph (`DeltaSyncManager.collectDeltas`), documented game-thread-only.
+  `InputSyncronizedBase.stop()` walks it too (its own `setSelection`) on the act's
+  thread and then releases the game thread. An act pressed ahead runs the moment
+  the game waits on the next input (`ActGate.settle`), so it walked beside the
+  show; `InputShowRaceTest` counted 43 overlapping walks in one game, and the
+  11-08 match death was one of them. The fork holds one lock per game across the
+  show, every act and every stop (`ActGate.withViews`), released while an act
+  waits on an input of its own; the same test counts none.
+- **VERIFIED (2026-11-11, fork pin e70a36c5)** — the show must also *read* the
+  input inside that lock. `InputProxy` read `getInput()` when it queued the show;
+  an act that answered that input before the EDT got the lock left the show to
+  re-arm a stopped input, and the next press went to the input after it (in
+  `selection-burst.jvm.test.ts` the OK cancelled Bolt's targets). The show now
+  reads the current input under the lock and skips one whose latch is done
+  (`InputSyncronizedBase.isDone`); `InputShowRaceTest` counted 5 such stale shows
+  in one game before, none after.
+
 ### `ReplyPool`'s future is neither of the two things it looks like
 
 - **VERIFIED (W7 manager, correcting both spikes)** — `ReplyPool`'s pool is

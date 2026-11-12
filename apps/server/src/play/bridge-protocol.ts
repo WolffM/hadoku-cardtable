@@ -82,7 +82,7 @@ export type BridgeLine =
 	 * this file's own `BridgeCommand`'s `act` frame sent it (`kind`/`method` plus
 	 * that method's own fields); `input` is the open input's simple class name,
 	 * for a log a human can read. An act Forge drops (no input was open, or its
-	 * hold past `GameServerHandler`'s `BETWEEN_INPUTS_MS` timed out) is never
+	 * hold past `ActGate`'s `BETWEEN_INPUTS_MS` timed out) is never
 	 * echoed — the recorder (`recording/recorder.ts`) must log only this line,
 	 * never the `act` command at send time, so a dropped act never enters the log.
 	 */

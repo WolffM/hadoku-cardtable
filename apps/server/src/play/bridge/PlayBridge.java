@@ -6688,13 +6688,14 @@ public final class PlayBridge {
          *
          * <p><b>Applied vs. dropped.</b> {@code InputProxy}'s own methods are all
          * {@code if (inp != null) inp.selectXxx(...)} ({@code InputProxy.java}), so an act Forge
-         * drops (no input open, or the hold timed out — {@code GameServerHandler}'s own
+         * drops (no input open, or the hold timed out — {@code ActGate}'s own
          * {@code BETWEEN_INPUTS_MS}/{@code ActGate.settle}) is one where {@code getInputProxy()
          * .getInput()} reads null or an {@code InputLockUI} the instant this method runs — the SAME
-         * test {@code GameServerHandler.runInBackground} itself uses to decide whether an act is
+         * test {@code ActGate.settleThenRun} itself uses to decide whether an act is
          * really waiting on an input ({@code input != null && !(input instanceof InputLockUI)},
-         * {@code GameServerHandler.java:52-53}). Read it BEFORE calling {@code super}, since the
-         * call is what may close this input and open the next one.
+         * {@code ActGate.java:73}); an act that settles into a game already over is dropped there
+         * and never reaches this method. Read it BEFORE calling {@code super}, since the call is
+         * what may close this input and open the next one.
          */
         private Object liveInput() {
             final Object in = getInputProxy().getInput();
@@ -8926,12 +8927,14 @@ public final class PlayBridge {
                 for (final PendingAsk ask : g.pending.values()) { ask.answer.complete(ABORTED); }
             }
             // A seat whose client lost Forge's server cannot send its concede, and Forge keeps its seat
-            // for a reconnect: its player concedes on the host, through the game's act gate.
+            // for a reconnect: its player concedes on the host, through the game's act gate, never while a
+            // prompt is being shown (ActGate.withViews).
             if (!hostConceded && System.currentTimeMillis() - started > 1_000) {
                 hostConceded = true;
+                final ActGate gate = ActGate.of(game);
                 for (final forge.game.player.Player p : game.getPlayers()) {
                     if (!p.hasLost() && match.humanOf(p) instanceof SeatController controller) {
-                        ActGate.of(game).runFirst(controller::concede);
+                        gate.runFirst(() -> gate.withViews(controller::concede));
                     }
                 }
             }
@@ -9005,9 +9008,12 @@ public final class PlayBridge {
             if (game.isGameOver()) { return; }
             // Forge's own draw (`GameDrawEffect`, `DrawOfferCoordinator`): every player still in the game
             // draws, then the game ends. Without the first half `onGameOver` makes each of them a winner.
-            for (final forge.game.player.Player p : game.getPlayers()) { p.intentionalDraw(); }
-            game.setGameOver(GameEndReason.Draw);
-            for (final PlayerControllerHuman h : humans) { h.getInputQueue().onGameOver(true); }
+            // Never while a prompt is being shown: its show walks the views (ActGate.withViews).
+            gate.withViews(() -> {
+                for (final forge.game.player.Player p : game.getPlayers()) { p.intentionalDraw(); }
+                game.setGameOver(GameEndReason.Draw);
+                for (final PlayerControllerHuman h : humans) { h.getInputQueue().onGameOver(true); }
+            });
         }), "bridge-draw-" + match.matchId);
         t.setDaemon(true);
         t.start();

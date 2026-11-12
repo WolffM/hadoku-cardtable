@@ -228,7 +228,7 @@ What it does:
 - The action log (`v:2`) records applied acts, in applied order, and answers with their `ask`
   number. Nothing else.
 - A rebuild sends each act only once its seat has an open input. That way ActGate's 5 s
-  between-inputs hold (`GameServerHandler.java`'s `BETWEEN_INPUTS_MS`) never holds or drops one.
+  between-inputs hold (`ActGate.java`'s `BETWEEN_INPUTS_MS`) never holds or drops one.
   Then it waits for the act's echo.
 - The pin comes from the jar's name or its bundle directory (`<pin>/forge.jar` on CI).
 
