@@ -13,7 +13,7 @@
  *
  * On the wire, that ask is Forge's `IGuiGame.updateButtons` with
  * `label1:'Play', label2:'Draw', enable1:true, enable2:true`
- * (`packages/forge-wire/src/tier-b.ts:301-311`), sent to ONE seat only — the one
+ * (`games/magic/packages/forge-wire/src/tier-b.ts:301-311`), sent to ONE seat only — the one
  * `goesFirst` resolved to. `apps/server/src/play/match.ts`'s `noteCoinToss`
  * (:1952-1965) watches every seat's frames for exactly that shape and records
  * `this.coinToss = { winner: s.seat, at }` the first time it sees one, which

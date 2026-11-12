@@ -101,6 +101,8 @@ forge/           Forge, a git submodule of the public fork WolffM/forge
 apps/server/     Node room + draft server
 apps/ui/         React SPA
 packages/shared/ Zod wire schemas
+packages/*       the platform packages (MIT where every file is platform)
+games/magic/     Magic's own home (GPL, games/magic/LICENSE): packages/{carddata,deck,draft,forge-wire}
 cubes/           cube lists
 docs/            architecture, Forge analysis, licensing
 docs/requests/   outbound asks to other repos

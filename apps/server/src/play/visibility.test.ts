@@ -47,7 +47,7 @@ import type { ArtIds } from './art-ids.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EVENTS_FIXTURE = resolve(
 	HERE,
-	'../../../../packages/forge-wire/src/events/fixtures/GameEventCardChangeZone.json',
+	'../../../../games/magic/packages/forge-wire/src/events/fixtures/GameEventCardChangeZone.json',
 );
 
 /** Seat 0 is "Bob" (player id 0), seat 1 is "Alice" (player id 1) — `fixtures.ts`. */

@@ -1302,7 +1302,7 @@ public final class PlayBridge {
      * the live {@code Game}'s own {@code MagicStack} directly and sends the
      * pairing as a SIBLING
      * of {@code packet}/{@code gameView} in the frame's own payload —
-     * additive to the envelope (`packages/forge-wire/src/tier-c.ts`'s
+     * additive to the envelope (`games/magic/packages/forge-wire/src/tier-c.ts`'s
      * {@code StackTargetSpellsSchema}), not to {@code STATE_PROPERTIES}.
      *
      * <p>One pair per stack item that targets another stack item, from the
@@ -4276,7 +4276,7 @@ public final class PlayBridge {
 
         /**
          * Forge's answer to "what is worth clicking RIGHT NOW", at priority and
-         * during payment — see `packages/forge-wire/src/tier-b.ts`.
+         * during payment — see `games/magic/packages/forge-wire/src/tier-b.ts`.
          *
          * {@code setSelectables} is sent only by the two selection inputs, so
          * without this pair a client has nothing to go on at priority and has to

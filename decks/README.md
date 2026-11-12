@@ -5,7 +5,7 @@ format it is legal in, the date that format was current, and **the URL the list
 was copied from**. A deck nobody can trace is a deck nobody can correct, so
 `loadLibraryDeck` refuses one without a citation.
 
-The code that reads these lives in `packages/deck/src/library/`.
+The code that reads these lives in `games/magic/packages/deck/src/library/`.
 
 ## What is here
 
@@ -92,7 +92,7 @@ legacy-2025/     Legacy (FIN), 2025-06-30     (24 decks)
 pools/           GENERATED card pools, so the tests need no corpus
 ```
 
-The catalog (`packages/deck/src/library/catalog.ts`) carries each era's
+The catalog (`games/magic/packages/deck/src/library/catalog.ts`) carries each era's
 rationale; this file carries the tables. The *selection* — which decks these
 are and why — lives one level up, in `docs/planning/deck-selection/`:
 `eras.json`/`eras-modern.json`/`eras-legacy.json` name the snapshots,
@@ -225,8 +225,8 @@ After a selection or catalogue change, from the repo root (none needs the
 corpus or the network):
 
 ```sh
-node packages/deck/src/library/build-deck-costs.ts    # deck-costs.generated.ts: every played card's cost
-node packages/deck/src/library/build-deck-styles.ts   # deck-styles.generated.ts: every deck's play style
+node games/magic/packages/deck/src/library/build-deck-costs.ts    # deck-costs.generated.ts: every played card's cost
+node games/magic/packages/deck/src/library/build-deck-styles.ts   # deck-styles.generated.ts: every deck's play style
 ```
 
 `build-deck-styles.ts` joins each `.dck` (by its `Source URL`'s mtgtop8 deck
@@ -279,6 +279,6 @@ the corpus is indifferent to but Forge itself is not.
   real: `CardDb.getCardFromSet` returns null for all six under `TSP`, checked
   directly. `build-library.ts`'s `CARD_SET_FIXUPS` has the per-card fix.
 
-Both are in `packages/carddata/data/cards.jsonl` as `tsb`/`csp` printings
+Both are in `$CARDTABLE_SCRYFALL_DIR/cards.jsonl` as `tsb`/`csp` printings
 respectively, within the 2008 era's legal sets either way, so neither fixup
 changes which cards are LEGAL — only which printing Forge resolves them to.

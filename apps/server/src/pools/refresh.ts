@@ -3,7 +3,7 @@
  * no restart.
  *
  * The Scryfall sync under the catalog was frozen 2026-09-15
- * (`packages/carddata/data/manifest.json`): any set released after that has
+ * (`$CARDTABLE_SCRYFALL_DIR/manifest.json`): any set released after that has
  * no card text, and every source with a later card is refused for
  * `missingText` (`room/plan.ts`'s verdict). This job is how that stops being
  * true without a deploy.

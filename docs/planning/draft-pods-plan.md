@@ -65,7 +65,7 @@ headless".) Every bot seat of a draft pod is a Swiss entrant like a human; see "
 
 ## What existed on 2026-10-17
 
-- **Draft:** the engine is ours (`packages/draft`, O2), 8 × 3 × 15, bots fill
+- **Draft:** the engine is ours (`games/magic/packages/draft`, O2), 8 × 3 × 15, bots fill
   the empty seats. `draft.spec` has two browsers draft a pod to "Draft complete".
   It is hidden from the create form ("Coming Soon", `271260aa`). Nothing after
   `PodScreen`'s "Draft complete" leads to the builder. A pool exists only while
@@ -106,7 +106,7 @@ room step **between** Forge matches, using the deck editor against the player's
 
 This keeps bo1 + Rematch and bo3 on one path and keeps the Java bridge as it is.
 Forge's in-match `sideboard` ask stays answered with `null`. The unreached
-`SideboardPrompt`, its rules and `packages/forge-wire/src/sideboard.ts` are
+`SideboardPrompt`, its rules and `games/magic/packages/forge-wire/src/sideboard.ts` are
 **deleted** by the lane that ships the sideboard step.
 
 ### Tables
@@ -154,7 +154,7 @@ A draft room runs in phases: **lobby → drafting → building → rounds → do
   - **Round 1: across the table.** Entrants are ordered by pod seat, and entrant
     *i* plays entrant *i + ⌈N/2⌉*. With an odd *N*, the one that formula leaves
     unpaired (position ⌈N/2⌉, the middle seat) gets the bye
-    (`packages/draft/src/pairing.ts`).
+    (`games/magic/packages/draft/src/pairing.ts`).
   - **Later rounds: by score.** Match points (win 3, draw 1), and no repeat
     pairing while another is possible.
   - **A bye** goes to the lowest-ranked player who has not had one, bot or

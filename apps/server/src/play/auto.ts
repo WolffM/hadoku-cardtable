@@ -144,7 +144,7 @@
  *   desktop UI reads it through `getActivateAction`; neither is on our wire. That
  *   set, sent as a payment window's `setSelectables`, is what would let `'auto'`
  *   answer item 6 without anything here knowing what red mana is.
- * - `packages/forge-wire/src/{envelope,examples,index}.ts` — `sendYieldUpdate`
+ * - `games/magic/packages/forge-wire/src/{envelope,examples,index}.ts` — `sendYieldUpdate`
  *   is modelled in `tier-b.ts` (`SendYieldUpdateSchema`) but is deliberately NOT
  *   in `TIER_B_METHODS`: `envelope.test.ts` pins the census at 23 Tier B methods
  *   and 41 required, and that file is not this lane's.

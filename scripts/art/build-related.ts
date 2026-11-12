@@ -31,7 +31,7 @@
  *
  * ## Regenerate with
  *
- *   node scripts/art/build-related.ts --cache=<any checkout>/packages/carddata/data \
+ *   node scripts/art/build-related.ts \
  *     --forge-res=<a checkout with forge>/forge/forge-gui/res
  *
  * after `build-art-ids.ts`, whose token rows it reads. No network. Sorted, so a
@@ -41,11 +41,12 @@
 import { createReadStream, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { withoutAlchemy } from '../../packages/carddata/src/alchemy.ts';
+import { withoutAlchemy } from '../../games/magic/packages/carddata/src/alchemy.ts';
+import { corpusDir } from '../../games/magic/packages/carddata/src/corpus-dir.ts';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const arg = (name: string): string | undefined => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
-const CACHE = resolve(arg('cache') ?? resolve(ROOT, 'packages/carddata/data'), 'cards.jsonl');
+const CACHE = resolve(arg('cache') ?? corpusDir(), 'cards.jsonl');
 const FORGE_RES = resolve(arg('forge-res') ?? resolve(ROOT, 'forge/forge-gui/res'));
 const ART_IDS = resolve(ROOT, 'apps/server/src/play/art-ids.json');
 const OUT = resolve(arg('out') ?? resolve(ROOT, 'apps/ui/src/draft/related.json'));

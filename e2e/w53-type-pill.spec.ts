@@ -87,7 +87,7 @@ test(titled('T2 — Magus of the Moon: a nonbasic land wears a pill reading Land
  * T3 — the w52 follow-up (item 3): `nothingToDecide` folds `manaOnly` in
  * alongside the viewer's own lands, so End Turn is highlighted for a seat
  * whose only offer is a Signet (w52's own card, `setWeaklySelectable.manaOnly`
- * — `packages/forge-wire/src/tier-b.ts`).
+ * — `games/magic/packages/forge-wire/src/tier-b.ts`).
  *
  * `w52-s-signet.state` itself is NOT used here: it puts the Signet on the
  * OPPONENT's battlefield specifically to prove the SERVER auto-passes that

@@ -367,7 +367,7 @@ function sourceOf(name, line, column) {
   }
   const at = consumer?.originalPositionFor({ line, column: Math.max(0, column) });
   if (at?.source == null) return `${name}@bundle:${line}`;
-  const file = at.source.replace(/^.*?(apps\/ui\/src\/|packages\/|scripts\/fps\/|node_modules\/(\.pnpm\/[^/]+\/node_modules\/)?)/, '$1').replace(/^node_modules\/\.pnpm\/[^/]+\/node_modules\//, '');
+  const file = at.source.replace(/^.*?(apps\/ui\/src\/|packages\/|games\/|scripts\/fps\/|node_modules\/(\.pnpm\/[^/]+\/node_modules\/)?)/, '$1').replace(/^node_modules\/\.pnpm\/[^/]+\/node_modules\//, '');
   return `${name}@${file}:${at.line}`;
 }
 

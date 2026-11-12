@@ -1,4 +1,4 @@
-"""Rewrite each era's entry in packages/deck/src/library/catalog.ts from its selection file:
+"""Rewrite each era's entry in games/magic/packages/deck/src/library/catalog.ts from its selection file:
 the doc comment's numbers and the `decks` list. The selection is the source of truth
 (README.md: "re-selecting is a data edit there and a re-run of select_decks.py"); this
 keeps the catalog from being a second, hand-typed copy of it. Run after select_decks.py

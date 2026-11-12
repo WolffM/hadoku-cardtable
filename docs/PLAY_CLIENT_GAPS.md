@@ -62,4 +62,4 @@ that covers about 43 of 278 distinct names (825 of 2,944 main-deck cards), and
 no basic lands; the committed play fixture (GRN/MRD/DST precons) matches none.
 Everything else draws `CardTile`'s text tile. Full coverage needs a committed
 `Name|SET → scryfallId` table for the deck library plus basics, generated from
-Scryfall bulk data (`packages/carddata`), passed as `artIds`.
+Scryfall bulk data (`games/magic/packages/carddata`), passed as `artIds`.

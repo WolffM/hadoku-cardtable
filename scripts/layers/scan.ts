@@ -5,12 +5,13 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, posix } from 'node:path';
+import { basename, dirname, join, posix } from 'node:path';
 import ts from 'typescript';
 
 import { type Layer, type Resolver, REPO_ROOT, packageLayerFor, packageOf } from './classify.ts';
 
-// Every .ts/.tsx file git tracks under an app's or a package's src dir, repo-relative, /-joined.
+// Every .ts/.tsx file git tracks under an app's or a package's src dir (`packages/*` or a game's
+// `games/*/packages/*`), repo-relative, /-joined.
 export function listSourceFiles(): string[] {
 	const out = execFileSync(
 		'git',
@@ -24,6 +25,10 @@ export function listSourceFiles(): string[] {
 			'packages/*/src/**/*.ts',
 			'packages/*/src/*.tsx',
 			'packages/*/src/**/*.tsx',
+			'games/*/packages/*/src/*.ts',
+			'games/*/packages/*/src/**/*.ts',
+			'games/*/packages/*/src/*.tsx',
+			'games/*/packages/*/src/**/*.tsx',
 		],
 		{ cwd: REPO_ROOT, encoding: 'utf8' },
 	)
@@ -204,7 +209,7 @@ export interface LicenceMismatch {
 
 /** `platform` iff every one of a package's classified files is `platform`; else GPL-3.0-or-later. */
 export function expectedLicenceOf(pkgDir: string, resolver: Resolver, allFiles: string[]): string {
-	const name = pkgDir.split('/')[1];
+	const name = basename(pkgDir);
 	return packageLayerFor(name, resolver, allFiles) === 'platform' ? 'MIT' : 'GPL-3.0-or-later';
 }
 
@@ -216,15 +221,15 @@ interface PackageLicenceRow {
 }
 
 function allPackageLicenceRows(resolver: Resolver, allFiles: string[]): PackageLicenceRow[] {
-	const out = execFileSync('git', ['ls-files', 'apps/*/package.json', 'packages/*/package.json'], {
+	const out = execFileSync('git', ['ls-files', 'apps/*/package.json', 'packages/*/package.json', 'games/*/packages/*/package.json'], {
 		cwd: REPO_ROOT,
 		encoding: 'utf8',
 	})
 		.split('\n')
 		.filter(Boolean);
 	return out.map((relPath) => {
-		const pkgDir = dirname(relPath); // e.g. apps/server or packages/shared
-		const name = pkgDir.split('/')[1];
+		const pkgDir = dirname(relPath); // e.g. apps/server, packages/shared or games/magic/packages/deck
+		const name = basename(pkgDir);
 		const pkgJson = JSON.parse(readFileSync(join(REPO_ROOT, relPath), 'utf8'));
 		return {
 			name,

@@ -57,7 +57,7 @@ export default [
 
   // ── Server + shared packages (node) ─────────────────────────────────
   {
-    files: ['apps/server/src/**/*.ts', 'packages/*/src/**/*.ts'],
+    files: ['apps/server/src/**/*.ts', 'packages/*/src/**/*.ts', 'games/*/packages/*/src/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
@@ -148,7 +148,7 @@ export default [
 
   // ── Architecture rules, checked on the source rather than by tests that grep it ──
   {
-    files: ['packages/forge-wire/src/**/*.ts'],
+    files: ['games/magic/packages/forge-wire/src/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -233,7 +233,7 @@ export default [
 
   // ── Unit tests: wait on state, assert behaviour ──────────────────────
   {
-    files: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
+    files: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'games/*/packages/*/src/**/*.test.ts'],
     ignores: [
       '**/*.jvm.test.ts',
       // Files that still sleep on a wall clock, to be emptied rather than grown.

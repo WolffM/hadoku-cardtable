@@ -67,7 +67,7 @@ const { Server } = serverRequire('socket.io') as { Server: new (http: HttpServer
 /**
  * The committed capture as `applyDelta` frames — exactly as captured, minus the
  * fixture's own `_truncatedTo` annotation, which is not wire data (the same
- * treatment `packages/forge-wire/src/tier-c.fixture.test.ts` gives it).
+ * treatment `games/magic/packages/forge-wire/src/tier-c.fixture.test.ts` gives it).
  */
 export function fixtureFrames(): ServerFrame[] {
   return (game1 as Record<string, unknown>[]).map((packet, i) => {

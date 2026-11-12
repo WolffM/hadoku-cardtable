@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
-import { otherFaces } from '../../packages/carddata/src/faces.ts';
+import { otherFaces } from '../../games/magic/packages/carddata/src/faces.ts';
 import { faceRows, mostUsedPrinting, scenarioNames, tokenPrintingOrder, type PrintingVote } from './build-art-ids.ts';
 
 describe('tokenPrintingOrder: a token falls back to a printing with its stats', () => {

@@ -3166,7 +3166,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 * even ask me?"*
 	 *
 	 * Commanded exactly as the Auto press above is, on the act
-	 * `packages/forge-wire` has carried since wave 17 (`tier-a.ts:51`, `:196`) and
+	 * `games/magic/packages/forge-wire` has carried since wave 17 (`tier-a.ts:51`, `:196`) and
 	 * the browser already sends (`apps/ui/src/play/live/match.ts`). Nothing is
 	 * said: the cast never happened, so there is no cost to account for, and the
 	 * board returning to priority IS the answer. The window itself is answered,

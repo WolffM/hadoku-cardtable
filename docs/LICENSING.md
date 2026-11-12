@@ -103,8 +103,9 @@ least restrictive."*
 - **GPL-3.0-or-later stays wherever Forge requires it**: the `forge/` submodule itself, every file
   the layer map classifies `magic`, `tangled` or `site`, and — because a package's licence is
   declared once for the whole package — any package that still holds one such file. Today that is
-  `apps/server`, `apps/ui`, `apps/agent`, `packages/shared`, `forge-wire`, `carddata`, `deck` and
-  `draft`. A package becomes MIT only once *every* file inside it is `platform`.
+  `apps/server`, `apps/ui`, `apps/agent`, `packages/shared`, and the four Magic packages under
+  `games/magic/packages/` (`forge-wire`, `carddata`, `deck` and `draft`). A package becomes MIT only
+  once *every* file inside it is `platform`.
 - **The record of which file is in which layer is `scripts/layers/layers.json`** (wave 91 §A):
   four layers (`platform`, `magic`, `tangled`, `site`), kept honest by
   `scripts/layers/ratchet.test.ts`, which runs in `pnpm run check` and fails the moment a
@@ -117,10 +118,18 @@ least restrictive."*
   calls its three remaining files `platform`, its `package.json` still says GPL-3.0-or-later, and
   the gap is named rather than silently allowed — `baseline.json`'s `pendingLicence` list carries
   `room-store` until the relicense commit lands (wave 91 §B), and that list may only shrink.
+- **Where Magic lives: `games/magic/`, under its own `games/magic/LICENSE`** (GPL-3.0-or-later, the
+  same text as the root `LICENSE`). Since 2026-11-12 it holds the four Magic packages
+  (`games/magic/packages/{carddata,deck,draft,forge-wire}`); each keeps its own `license` field and
+  its Forge headers, and the ratchet's licence check reads `games/*/packages/*` as it reads
+  `packages/*`. The rest of the Magic layer (the server's play and draft code, the board UI, the
+  bridge) still lives in `apps/server` and `apps/ui`, where the layer map is its boundary, and moves
+  under `games/magic/` in later stages. Once `apps/` holds only the site, its packages can turn MIT.
 
 ### Checklist
 
 - [x] `LICENSE` = GPL-3.0 at repo root
+- [x] `games/magic/LICENSE` = GPL-3.0, the same text, over everything under `games/magic/`
 - [x] D26: MIT is the default for new platform code; GPL stays wherever Forge requires it
       (`scripts/layers/layers.json` is the record; `scripts/layers/ratchet.test.ts` enforces it)
 - [x] `NOTICE.md` credits Forge and links upstream
@@ -463,7 +472,7 @@ same interface.
 
 **Where we stand, as of 2026-10-11.** Art is loaded by the browser straight
 from **Scryfall's image CDN (`cards.scryfall.io`)**: the art manifest is empty,
-so `packages/carddata/src/art/index.ts` resolves every card to Scryfall. Each
+so `games/magic/packages/carddata/src/art/index.ts` resolves every card to Scryfall. Each
 guideline against what the UI actually does:
 
 | Their guideline | What we do |
@@ -560,7 +569,7 @@ fails the build if any of those blobs reaches the bundle.
 **Images** — browsers load card art from Scryfall's image CDN at the sizes the
 UI needs (`normal` for tiles, `art_crop` for the cover tile). The bytes are
 never modified, never committed to git and never bundled. The manifest keeps the
-source swappable per card: `packages/carddata/src/cli/upload-art.ts` can upload
+source swappable per card: `games/magic/packages/carddata/src/cli/upload-art.ts` can upload
 art to `cdn.hadoku.me` and point manifest rows at it, which is not in use today.
 
 There is **no prescribed attribution string** on Scryfall's pages. The

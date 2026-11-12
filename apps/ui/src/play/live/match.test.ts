@@ -1163,7 +1163,7 @@ describe('clicking the board: only what Forge offered', () => {
    * PREVIOUS, already-finished action — stale by the time a plain yes/no
    * opens with nothing to do with it. `showConfirmDialog`/`showOptionDialog`/
    * `showInputDialog` never carry a card on their own wire shape
-   * (`packages/forge-wire/src/tier-a.ts`); a NEW one of these clears it.
+   * (`games/magic/packages/forge-wire/src/tier-a.ts`); a NEW one of these clears it.
    */
   it('J12: a card-less ask (showOptionDialog) clears `lastSelectedCard` — a stale click must not supply the next arrow a tail', async () => {
     const { s, m } = await fullGame();
@@ -4559,7 +4559,7 @@ describe('a display-only reveal is a notice, never a question', () => {
 
 /*
  * AF397 (doomed cards): `doomAskOf` — hand-built `selection` frames, matching exactly what
- * `PlayBridge.java`'s `openSelection` puts on the wire (`packages/forge-wire/src/tier-b.ts`'s own
+ * `PlayBridge.java`'s `openSelection` puts on the wire (`games/magic/packages/forge-wire/src/tier-b.ts`'s own
  * schema), proven against real Forge for the legend rule (`af397-legend-rule.jvm.test.ts`) and a
  * destroy/exile target (`af397-destroy-target.jvm.test.ts`).
  */

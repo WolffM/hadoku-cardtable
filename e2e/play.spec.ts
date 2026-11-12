@@ -494,7 +494,7 @@ interface DeckLine {
  * Secrets`) while other sources write both (`Delver of Secrets // Insectile
  * Aberration`), and neither side is wrong — so the comparison is made on the
  * front face, lower-cased. This is the same front-face rule the cube resolver
- * needed (`packages/carddata`), for the same reason.
+ * needed (`games/magic/packages/carddata`), for the same reason.
  */
 function cardKey(name: string): string {
   return name.split('//')[0].trim().toLowerCase();

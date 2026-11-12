@@ -3,8 +3,8 @@
  * deck library and the deck gate, drafts and decks, the cube, set and preset pickers, Rally's
  * catalogues, and the catalog's daily refresh.
  */
-import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { corpusDir } from '@hadoku/carddata';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '../config.js';
 import { attachDecks } from '../http/decks.js';
@@ -73,7 +73,7 @@ export const tablesPlugin: CardtablePlugin = {
 		// would otherwise download into the shared cache at its own boot; the e2e harnesses set it off.
 		const catalogRefresh = createCatalogRefresh({
 			catalog: state.catalog,
-			scryfallDir: process.env.CARDTABLE_SCRYFALL_DIR ?? resolve(homedir(), '.local/share/cardtable/scryfall'),
+			scryfallDir: corpusDir(),
 			catalogPath: CONFIG.catalogPath,
 			onSwap: () => state.setsStore.clearMissingTextVerdicts(),
 			log: jsonLogger('cardtable-pools'),

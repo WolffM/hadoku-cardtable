@@ -20,11 +20,11 @@
  *
  * ## What it is derived from, and why that is sound
  *
- * `occupant` comes from the live seat table (`occupantOf`, `packages/draft/src/
+ * `occupant` comes from the live seat table (`occupantOf`, `games/magic/packages/draft/src/
  * view.ts:33`) and goes to `null` the moment a seat is released. `displayName`
  * comes from `state.displayNames[id]`, which is written once when a participant
  * is seated (`draftRooms.ts:225`, `engine.ts:177`) and — verified by grep over
- * `apps/server/src` and `packages/draft/src` — is **never cleared**. A seat that
+ * `apps/server/src` and `games/magic/packages/draft/src` — is **never cleared**. A seat that
  * has never held anybody falls through to the literal `Seat ${id}` default at
  * `view.ts:37`.
  *

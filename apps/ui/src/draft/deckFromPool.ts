@@ -30,7 +30,7 @@ export function defaultDeckName(draftId: string): string {
  * played.
  *
  * That is `newDeck`'s contract and Forge's limited editor's behaviour both —
- * see `packages/deck/src/deck.ts`. The structural consequence is the one worth
+ * see `games/magic/packages/deck/src/deck.ts`. The structural consequence is the one worth
  * knowing: because every card starts in the sideboard and the only operations
  * move cards between the two piles, a card that was never drafted has no way
  * into the maindeck. "You may only play what you drafted" needs no validator.

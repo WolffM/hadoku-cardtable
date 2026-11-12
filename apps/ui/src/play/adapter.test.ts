@@ -556,7 +556,7 @@ describe('§A.2 #11 — the attachment properties the adapter used to ignore', (
    * packets: `AttachedCards` and `EntityAttachedTo` appear zero times — so the
    * relation is exercised by writing the documented encoding into the real
    * state. `AttachedCards` is a `CardViewCollectionType`, which crosses as a
-   * `list` of `int` (`packages/forge-wire/src/tier-c.ts`), and both properties
+   * `list` of `int` (`games/magic/packages/forge-wire/src/tier-c.ts`), and both properties
    * are in `apps/server/src/play/visibility.ts`'s `FACE_ONLY_KEEP`, so a seat
    * really does receive them.
    */

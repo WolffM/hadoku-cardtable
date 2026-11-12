@@ -7,7 +7,7 @@
  * ## Why this exists
  *
  * A claw has no `~/.local/share/cardtable/catalog/cards.json` — that file is
- * built offline and deployed to hokon only (`packages/carddata`'s
+ * built offline and deployed to hokon only (`games/magic/packages/carddata`'s
  * `build-catalog` CLI), and nothing provisions it on the claw fleet. Without
  * it, `CardCatalog.byName`/`byPrinting` answer `null` for every card, so
  * `room/plan.ts`'s verdict refuses every realistic/set-cube source for

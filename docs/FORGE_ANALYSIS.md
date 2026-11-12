@@ -315,7 +315,7 @@ Everything above was read. Everything below was **run**, or read to settle a
 question a run raised, and each line names the file it came from. Two spikes
 produced these: `docs/spikes/itoclient.md` (Wave 6 lane F, one real `IToClient`
 call across a real socket) and Wave 7 lanes B and C
-(`docs/spikes/forge-server.md`, `packages/forge-wire/`).
+(`docs/spikes/forge-server.md`, `games/magic/packages/forge-wire/`).
 
 Wave 6 lane F ended with a list headed *"Lines owed to `docs/FORGE_ANALYSIS.md`"*
 and did not own this file. **They were never placed** — this section is that
@@ -407,7 +407,7 @@ them, and re-derivations by the Wave 7 manager are marked.
   **218** — the four extras are `:270`, `:271`, `:274`, `:294`.
 - **UNRESOLVED** — whether a real delta stream survives a JSON round trip. That
   is Wave 7 lane A, and its verdict lands in `docs/spikes/tier-c.md`.
-  `packages/forge-wire/src/tier-c.ts` refuses to model these three methods until
+  `games/magic/packages/forge-wire/src/tier-c.ts` refuses to model these three methods until
   it does, on purpose.
 
 ### Method-shape facts the wire contract turned up (Wave 7 lane C)
@@ -591,7 +591,7 @@ design, not a bug in our UI.
   (`grep -rn 'updateIsMulligan' forge/ --include=*.java` → 3 lines: the
   declaration and those two). Because it is a *property*, it arrives on the state
   channel and survives a resync like any other state; we model it at
-  `packages/forge-wire/src/tier-c.ts:514`.
+  `games/magic/packages/forge-wire/src/tier-c.ts:514`.
 - **Consequence, recorded because it is Forge's and not ours:** a seat in a
   London mulligan is offered nothing up front. A client whose click loop is
   driven by what Forge named as clickable therefore cannot start it, and the only

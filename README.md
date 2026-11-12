@@ -39,7 +39,8 @@ drew, and let the watchparty room layer own everything above a match.
 forge/            Forge fork (GPL-3.0), a git submodule of github.com/WolffM/forge
 apps/server/      Node room, draft and play server; runs Forge headless per match
 apps/ui/          React SPA: lobby, draft, deck building, the play table
-packages/         shared wire schemas, card data, draft and deck logic
+packages/         shared wire schemas and the platform packages
+games/magic/      Magic's own packages (GPL-3.0): card data, deck and draft logic, Forge's wire
 cubes/, decks/    cube lists and preconstructed decks
 docs/             architecture, Forge analysis, licensing, decisions
 e2e/              Playwright specs against a real Forge

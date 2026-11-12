@@ -33,7 +33,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../../../..');
-const wire = await import(path.join(REPO, 'packages/forge-wire/src/index.ts'));
+const wire = await import(path.join(REPO, 'games/magic/packages/forge-wire/src/index.ts'));
 
 const root = path.resolve(process.argv[2] || '.');
 const port = Number(process.argv[3] || 8741);

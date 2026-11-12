@@ -12,7 +12,7 @@
  *
  * **`results`/`standings` mirror `@hadoku/draft`'s `MatchResult`/
  * `StandingsRow` shapes rather than importing them.** `@hadoku/draft` already
- * depends on `@hadoku/shared` (`packages/draft/package.json`), so the
+ * depends on `@hadoku/shared` (`games/magic/packages/draft/package.json`), so the
  * dependency can only run this direction — importing back would be a cycle.
  * The shapes are restated here, field for field, the same discipline
  * `room-tables.ts`'s `RoomTableGame`/`RoomTableSeries` already keep for

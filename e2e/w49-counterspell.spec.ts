@@ -24,7 +24,7 @@
  *    same as alice's own cast auto-answers in test 1 when full control is
  *    off) — so alice, who answered no ask, can only see the arc from the
  *    BRIDGE's own wire fact (`PlayBridge.java`'s `stackTargetSpells`,
- *    `packages/forge-wire/src/tier-c.ts`'s `StackTargetSpellsSchema`, read by
+ *    `games/magic/packages/forge-wire/src/tier-c.ts`'s `StackTargetSpellsSchema`, read by
  *    `adapter.ts` onto each `StackEntry.targetStackItemId` and drawn by
  *    `live/placed.ts`'s `.placed__arrow`s). Full control is ON for alice so
  *    SHE gets a window at her own priority to read the arc before anything

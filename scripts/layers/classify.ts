@@ -121,9 +121,9 @@ export function buildResolver(map: LayersMap): Resolver {
 	};
 }
 
-/** The `packages/<name>` or `apps/<name>` a source path belongs to, or `null` outside both. */
+/** The `apps/<name>`, `packages/<name>` or `games/<game>/packages/<name>` a source path belongs to, or `null` outside them. */
 export function packageOf(relPath: string): string | null {
-	const m = /^(?:apps|packages)\/([^/]+)\//.exec(relPath);
+	const m = /^(?:apps|packages|games\/[^/]+\/packages)\/([^/]+)\//.exec(relPath);
 	return m ? m[1] : null;
 }
 
@@ -138,9 +138,7 @@ export function packageLayerFor(
 	resolver: Resolver,
 	allFiles: string[],
 ): 'platform' | 'magic' {
-	const prefix1 = `packages/${pkgName}/`;
-	const prefix2 = `apps/${pkgName}/`;
-	const files = allFiles.filter((f) => f.startsWith(prefix1) || f.startsWith(prefix2));
+	const files = allFiles.filter((f) => packageOf(f) === pkgName);
 	if (files.length === 0) return 'magic'; // unknown package: assume the stricter side
 	for (const f of files) {
 		const layer = resolver.layerOf(f);

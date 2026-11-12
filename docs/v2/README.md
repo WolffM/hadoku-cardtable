@@ -34,7 +34,7 @@ Art for cards' effects (B) does not depend on the board layout and can start at 
 
 ## Track C — the engineering v2 needs (found in the code, 2026-10-02)
 
-- **An events channel.** Forge's game events are fully modelled (`packages/forge-wire/src/events/`: 41
+- **An events channel.** Forge's game events are fully modelled (`games/magic/packages/forge-wire/src/events/`: 41
   classes, validated against 330,942 real events: `GameEventCardTapped`, `AttackersDeclared`,
   `CardDamaged`, `CardChangeZone`, `SpellAbilityCast`, `SpellResolved`, `PlayerLivesChanged`…), but
   **the server sends every browser `events: []`** (`apps/server/src/play/visibility.ts:478,501`).

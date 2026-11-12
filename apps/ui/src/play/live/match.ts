@@ -718,7 +718,7 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   weaklySelectable: ReadonlySet<number> | null;
   /**
    * Wave 53 T: w52 §S's `manaOnly`, carried on the SAME `setWeaklySelectable`
-   * frame (`packages/forge-wire/src/tier-b.ts`) — the offered cards with no
+   * frame (`games/magic/packages/forge-wire/src/tier-b.ts`) — the offered cards with no
    * non-mana play the seat can make now (a land, a mana rock like a Signet, a
    * man-land whose animation it cannot pay for), read by the bridge off Forge's
    * abilities and its affordability test, never card text.
@@ -4026,7 +4026,7 @@ export function dismissReveal(match: LiveMatch, callId: string): void {
 /**
  * J12 (wave 64): the three ask methods whose own wire schema carries no card
  * at all — `showConfirmDialog`/`showOptionDialog`/`showInputDialog`
- * (`packages/forge-wire/src/tier-a.ts`), never `getChoices` or the others,
+ * (`games/magic/packages/forge-wire/src/tier-a.ts`), never `getChoices` or the others,
  * which sometimes do. A NEW one of these opening is "a prompt without a
  * card," and clears {@link LiveMatch.lastSelectedCard} at the source — a
  * stale click from two actions ago must not supply `clickOrigin`'s arrow

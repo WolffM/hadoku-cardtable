@@ -139,7 +139,7 @@ describe('the library', () => {
 		// first three collections added, every time for the same reason: a count
 		// pinned here duplicates a fact `LIBRARY` already states. The shape pin
 		// that SHOULD fail when a collection appears lives in
-		// `packages/deck/src/library/library.test.ts`, once, on purpose.
+		// `games/magic/packages/deck/src/library/library.test.ts`, once, on purpose.
 		expect(library.formats.map((f) => f.id)).toContain(POWER_2010);
 		expect(library.formats.map((f) => f.id)).toContain(POWER_2012);
 		expect(library.formats.map((f) => f.pool.name)).toContain('Standard (M11)');

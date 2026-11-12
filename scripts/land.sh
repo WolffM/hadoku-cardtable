@@ -154,7 +154,7 @@ CHANGED=$(git diff --name-only origin/main..HEAD)
 # deleted module, which `related` cannot follow to the suites that still import it.
 TESTS="pnpm run test"
 GONE=$({ grep -E '\.tsx?$' <<<"$CHANGED" || true; } | while read -r f; do [ -f "$f" ] || echo "$f"; done)
-if [ -z "$GONE" ] && ! grep -qE -e '^(packages/|apps/ui/src/test-setup\.ts$)' -f <(grep -v '^#' scripts/ci/run-all.txt) <<<"$CHANGED"; then
+if [ -z "$GONE" ] && ! grep -qE -e '^(packages/|games/[^/]+/packages/|apps/ui/src/test-setup\.ts$)' -f <(grep -v '^#' scripts/ci/run-all.txt) <<<"$CHANGED"; then
   mapfile -t RELATED < <(grep -E '\.(tsx?|css|json)$' <<<"$CHANGED" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
   # Suites that read the tree from disk, not through an import, are out of `related`'s reach, so
   # they say what they read: a `// @reads <path>…` line (repo paths; `*` spans directories, a

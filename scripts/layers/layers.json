@@ -82,10 +82,10 @@
     "apps/ui/src/rooms/screen/**"
   ],
   "magic": [
-    "packages/forge-wire/**",
-    "packages/carddata/**",
-    "packages/deck/**",
-    "packages/draft/**",
+    "games/magic/packages/forge-wire/**",
+    "games/magic/packages/carddata/**",
+    "games/magic/packages/deck/**",
+    "games/magic/packages/draft/**",
     "apps/server/src/**/*.java",
     "apps/ui/src/rally/**",
     "apps/server/src/play/recording/recorder.ts",

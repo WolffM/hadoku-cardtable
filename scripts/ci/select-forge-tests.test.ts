@@ -194,7 +194,7 @@ describe('the per-file rules', () => {
   });
 
   it("the engine pin and a package's manifest run everything", () => {
-    for (const f of ['forge', 'packages/forge-wire/package.json']) {
+    for (const f of ['forge', 'packages/shared/package.json', 'games/magic/packages/forge-wire/package.json']) {
       const sel = select(fixtureRepo(), [modified(f)]);
       expect(sel, f).toMatchObject({ e2e: true, specs: null, jvm: true, jvmFiles: null });
     }
@@ -304,6 +304,13 @@ describe('the per-file rules', () => {
     expect(used.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
     const unused = select(repo, [modified('packages/wire/src/coin.ts', diff(5, ['  return 2;'], ['  return 1;']))]);
     expect(unused.specs).toEqual([...SMOKE].sort());
+  });
+
+  it("a game's package (games/<game>/packages/<name>) resolves by its name too", () => {
+    const moved = Object.fromEntries(Object.entries(WIRE).map(([k, v]) => [k.replace(/^packages\//, 'games/magic/packages/'), v]));
+    const repo = fixtureRepo(moved);
+    const used = select(repo, [modified('games/magic/packages/wire/src/coin.ts', diff(2, ["  return 't';"], ["  return 'h';"]))]);
+    expect(used.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
   });
 
   it("an edit to a barrel's re-exports alone selects nothing — what uses a new export changed with it", () => {

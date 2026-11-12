@@ -265,5 +265,6 @@ states them:
   projects' browsers, no `--with-deps`, per D14). It is idempotent and a no-op once
   `~/.cache/ms-playwright` is warm.
 - Root `vitest` does not collect `isolation.test.ts`: it uses `node:test`, and
-  the vitest config includes only `apps/*/src` and `packages/*/src`. The root
+  the vitest config includes only `apps/*/src`, `packages/*/src`, `games/*/packages/*/src`
+  and `scripts/`. The root
   `typecheck` does pick up `@hadoku/e2e`'s own `tsc --noEmit`.

@@ -1,9 +1,9 @@
-"""Card facts by name from the repo's own corpus (packages/carddata/data/cards.jsonl,
+"""Card facts by name from the repo's own corpus ($CARDTABLE_SCRYFALL_DIR/cards.jsonl,
 gitignored, read from the main checkout). Indexed by full name AND by front face, since
 mtgtop8 lists a double-faced card by its front."""
 import json, os, pickle, re, unicodedata
 
-CORPUS = os.environ.get('CARDS_JSONL', '/home/hadoku/repos/hadoku-cardtable/packages/carddata/data/cards.jsonl')
+CORPUS = os.environ.get('CARDS_JSONL', os.path.expanduser('~/.local/share/cardtable/scryfall/cards.jsonl'))
 CACHE = '/tmp/claude-1000/cards-index-v2.pkl'
 BASICS = {'Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Snow-Covered Plains', 'Snow-Covered Island',
           'Snow-Covered Swamp', 'Snow-Covered Mountain', 'Snow-Covered Forest', 'Wastes'}

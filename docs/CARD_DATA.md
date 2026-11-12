@@ -63,7 +63,7 @@ From <https://scryfall.com/docs/api>:
 Note what this means for the earlier assumption that a browser-shaped UA was
 the workaround: probe C shows it *works*, and Scryfall's rule shows it is
 **wrong to use**. An honest identifying UA is both compliant and sufficient.
-Ours is set in `packages/carddata/src/scryfall/client.ts`:
+Ours is set in `games/magic/packages/carddata/src/scryfall/client.ts`:
 
 ```
 hadoku-cardtable/0.1 (+https://hadoku.me/cardtable/)
@@ -189,7 +189,7 @@ already sets.
 
 ## 2. The ingest
 
-`packages/carddata`. **Zero runtime dependencies** — Node 24 builtins only
+`games/magic/packages/carddata`. **Zero runtime dependencies** — Node 24 builtins only
 (`fetch`, `node:zlib`, `node:stream`, `node:readline`, `node:fs`). There is no
 build step: Node 24 strips TypeScript natively, so the files in `src/` are what
 run.
@@ -211,7 +211,7 @@ Options (pass after `--`):
 | Flag | Meaning |
 | --- | --- |
 | `--type=<name>` | bulk file to ingest. Default `oracle_cards`. Also `default_cards`, `unique_artwork`, `all_cards`. |
-| `--out=<dir>` | cache directory. Default `packages/carddata/data/`. |
+| `--out=<dir>` | cache directory. Default `$CARDTABLE_SCRYFALL_DIR`, else `~/.local/share/cardtable/scryfall` (`corpusDir()`). |
 | `--force` | re-download even when the cache already matches Scryfall's timestamp. |
 | `--limit=<n>` | stop after *n* cards. Smoke tests only — writes a deliberately partial cache and says so. |
 
@@ -222,8 +222,11 @@ what Scryfall themselves suggest for gameplay data (§1.3).
 
 ### 2.2 What it writes
 
-Into `packages/carddata/data/` (already gitignored by the root `data/` rule —
-verified with `git check-ignore`):
+Into the host's corpus, `$CARDTABLE_SCRYFALL_DIR`, else `~/.local/share/cardtable/scryfall`
+(`corpusDir()`), outside every checkout. One copy per host: the server's catalog refresh,
+`scripts/land.sh` and every CLI read the same one. Until 2026-11-12 the CLIs defaulted to an
+in-tree `packages/carddata/data/` instead; a deploy tree may still hold that old copy, and
+nothing reads it.
 
 - `cards.jsonl` — one projected card per line.
 - `manifest.json` — `bulkType`, `sourceUpdatedAt` (Scryfall's timestamp, used
@@ -296,13 +299,13 @@ Two independent checks back this up:
 
    ```sh
    grep -rniE "\.jpg|\.png|image_uris|scryfall\.io" \
-     packages/carddata/src/scryfall/project.ts packages/carddata/src/resolve.ts
+     games/magic/packages/carddata/src/scryfall/project.ts games/magic/packages/carddata/src/resolve.ts
    echo $?
    ```
 
    must print nothing and exit **1**. Verified 2026-09-15: it does.
 
-   **This grep used to be scoped to all of `packages/carddata/src` and it no
+   **This grep used to be scoped to all of `games/magic/packages/carddata/src` and it no
    longer can be.** That wider form now exits **0** — legitimately — because
    `src/art/index.ts` names `cards.scryfall.io` and `cdn.hadoku.me` as the two
    allowed art origins, and `src/cli/upload-art.ts` exists to fetch and upload
@@ -320,7 +323,7 @@ The bulk-download URL is **taken from Scryfall's listing response**, not
 hardcoded, so no bulk-file hostname appears in our source at all. It is required
 to be HTTPS. (The two *image* hostnames do appear, deliberately and in exactly
 one place each — `SCRYFALL_IMAGE_BASE` and `CDN_BASE` in
-`packages/carddata/src/art/index.ts`. That is D15's art path, not this ingest.)
+`games/magic/packages/carddata/src/art/index.ts`. That is D15's art path, not this ingest.)
 
 ### 2.4 Verified end-to-end
 
@@ -399,7 +402,7 @@ ASCII (`Dandân`, `El-Hajjâj`).
 ### 3.3 The test
 
 ```sh
-pnpm vitest run packages/carddata
+pnpm vitest run games/magic/packages/carddata
 ```
 
 Exit **0** (74 tests in this package as of Wave 2; 29 of them are Wave 1's
@@ -622,7 +625,7 @@ with no mana cost or type line — a blank card by another route:
 pnpm --filter @hadoku/carddata resolve
 ```
 
-Writes `packages/carddata/reports/cube-resolution.json` — **deliberately not
+Writes `games/magic/packages/carddata/reports/cube-resolution.json` — **deliberately not
 under any directory called `data/`**, which `.gitignore` refuses repo-wide. A
 report that silently fails to commit is worse than no report.
 
@@ -682,7 +685,7 @@ or Scryfall bump and the test tells you exactly what moved.
 ### 5.6 D13 still bites
 
 ```sh
-grep -rniE "\.jpg|\.png|image_uris|scryfall\.io" packages/carddata/src; echo $?
+grep -rniE "\.jpg|\.png|image_uris|scryfall\.io" games/magic/packages/carddata/src; echo $?
 ```
 
 prints nothing, exit **1** — unchanged by any of the above. A second,

@@ -15,7 +15,7 @@
  * on NVENC, so nothing competes for the CPU. The other seat runs headless in software; nobody sees it.
  *
  * The e2e `openFriend` blocks every request that leaves 127.0.0.1 (a test must not depend on the network).
- * A promo clip wants the art, which resolves to the CDN or Scryfall (`packages/carddata/src/art/index.ts`),
+ * A promo clip wants the art, which resolves to the CDN or Scryfall (`games/magic/packages/carddata/src/art/index.ts`),
  * so `openPromoFriend` lets image requests out and still blocks everything else.
  *
  * Fast Mode is OFF: the animations are the point. Clips land in `e2e/.run/promo/<clip>/` as `<clip>.mkv`

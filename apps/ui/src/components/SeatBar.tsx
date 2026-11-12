@@ -9,7 +9,7 @@
  * them for who is passing to who."* So the seats sit around a ring in `SeatId`
  * order — the order the pack passes along, which is the content, not the
  * styling — and an arrow between each pair of neighbours points the way this
- * pack goes (`packages/draft/src/engine.ts`: left is seat s to s + 1). A seated
+ * pack goes (`games/magic/packages/draft/src/engine.ts`: left is seat s to s + 1). A seated
  * player's table is turned so their own seat is at the bottom; everyone else's
  * keeps seat 0 there, whichever seat they watch, so pressing a seat moves only
  * its outline and never the table (the operator, 2026-10-21). The arrow into the

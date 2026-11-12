@@ -1,6 +1,7 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  - 'games/*/packages/*'
   - 'e2e'
 
 # `forge/` is a vendored Java tree (gitignored until WolffM/forge exists) and is

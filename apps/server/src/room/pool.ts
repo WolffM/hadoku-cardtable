@@ -2,7 +2,7 @@
  * Reading one `{cube,size,cards}` file — a cube, in the shape every one of
  * them is written: the UI's single bundled pool once, and now any of the 8
  * shortlisted cube files under `apps/server/pools/cubes/` (wave 73 §A, built
- * by `packages/carddata/src/cli/build-pool.ts`'s `--out-dir=`), each a
+ * by `games/magic/packages/carddata/src/cli/build-pool.ts`'s `--out-dir=`), each a
  * `PoolSource` a room's plan can name by file stem
  * (`packages/shared/src/pool.ts`'s `CubeSummary.id`).
  *

@@ -20,17 +20,33 @@ done
 WT=$(realpath "$1")   # absolute: the @hadoku links are built from it, and a relative one dangles
 # A real install's own links live under the same names; repointing them would break it quietly.
 [ -d "$WT/node_modules/.pnpm" ] && [ ! -L "$WT/node_modules/.pnpm" ] && { echo "link: $WT has its own pnpm install — not linking" >&2; exit 2; }
-for nm in $(cd $MAIN && find . -maxdepth 3 -name node_modules -not -path './node_modules/*' -not -path './forge/*' -not -path './.claude/*'); do
-  [ -d "$WT/$nm" ] && find "$WT/$nm" -maxdepth 2 -type l -delete
-  mkdir -p "$WT/$nm"
-  for e in $(ls -A "$MAIN/$nm"); do
-    case "$e" in .vite|.vite-temp) mkdir -p "$WT/$nm/$e"; continue;; esac
+# Where each workspace package lives, by name: `packages/*` or `games/*/packages/*`. The source and the
+# worktree may differ in layout (a package moved since the source last deployed), so every link is placed
+# by the package's name, never by the source's path.
+declare -A SRC_DIR WT_DIR
+index() {   # index <root> <assoc name>
+  local -n into=$2; local m d
+  for m in "$1"/package.json "$1"/{apps,packages,games/*/packages}/*/package.json "$1"/e2e/package.json; do
+    [ -f "$m" ] || continue; d=$(dirname "$m"); d=${d#"$1"}; d=${d#/}
+    into[$(node -p "require(process.argv[1]).name" "$m")]=${d:-.}
+  done
+}
+index "$MAIN" SRC_DIR; index "$WT" WT_DIR
+for name in "${!SRC_DIR[@]}"; do
+  src="$MAIN/${SRC_DIR[$name]}/node_modules"; [ -d "$src" ] || continue
+  [ -n "${WT_DIR[$name]:-}" ] || continue
+  dst="$WT/${WT_DIR[$name]}/node_modules"
+  [ -d "$dst" ] && find "$dst" -maxdepth 2 -type l -delete
+  mkdir -p "$dst"
+  for e in $(ls -A "$src"); do
+    case "$e" in .vite|.vite-temp) mkdir -p "$dst/$e"; continue;; esac
     if [ "$e" = "@hadoku" ]; then
-      mkdir -p "$WT/$nm/@hadoku"
-      for p in $(ls -A "$MAIN/$nm/@hadoku"); do
-        tgt=$(readlink -f "$MAIN/$nm/@hadoku/$p"); rel=${tgt#$MAIN/}
-        [ -e "$WT/$nm/@hadoku/$p" ] || ln -s "$WT/$rel" "$WT/$nm/@hadoku/$p"
+      mkdir -p "$dst/@hadoku"
+      for p in $(ls -A "$src/@hadoku"); do
+        own=${WT_DIR[@hadoku/$p]:-}
+        [ -n "$own" ] && tgt="$WT/$own" || tgt=$(readlink -f "$src/@hadoku/$p")
+        [ -e "$dst/@hadoku/$p" ] || ln -s "$tgt" "$dst/@hadoku/$p"
       done
-    elif [ ! -e "$WT/$nm/$e" ]; then ln -s "$MAIN/$nm/$e" "$WT/$nm/$e"; fi
+    elif [ ! -e "$dst/$e" ]; then ln -s "$src/$e" "$dst/$e"; fi
   done
 done

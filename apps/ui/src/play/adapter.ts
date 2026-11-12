@@ -67,7 +67,7 @@
  * ## Attachment: `AttachedCards` is the authority, `EntityAttachedTo` is not
  *
  * Both arrive (`TrackableProperty.java:16, 90`; mapped by
- * `packages/forge-wire/src/tier-c.ts` and let through by
+ * `games/magic/packages/forge-wire/src/tier-c.ts` and let through by
  * `apps/server/src/play/visibility.ts`'s `FACE_ONLY_KEEP`), and they say the
  * same thing from opposite ends — which of them the board may BUILD a stack
  * from is not a matter of taste:
@@ -131,7 +131,7 @@
  * invisible, which is the bug.
  *
  * It crosses as `ManaMapType` → `{ t: 'map', v: [[byte, int], …] }`
- * (`packages/forge-wire/src/tier-c.ts`), and the keys are **`ManaAtom`'s**, not
+ * (`games/magic/packages/forge-wire/src/tier-c.ts`), and the keys are **`ManaAtom`'s**, not
  * `MagicColor`'s. That distinction is the whole of the mapping and it is easy to
  * get wrong in exactly one place: `updateMana` iterates `ManaAtom.MANATYPES`
  * (`ManaAtom.java:15`), whose colourless is `1 << 5` = **32**, while

@@ -46,7 +46,7 @@
  *   an e2e spec, a jvm suite                            itself
  *   an e2e helper                                       the specs that use what it touched
  *   a scenario (`*.state`)                              the specs + jvm suites that name it
- *   a module under apps/ or packages/ that a spec
+ *   a module under apps/, packages/ or games/ that a spec
  *   imports, through its helpers, at any depth          that spec, on a push too; past
  *                                                       `FULL_SHARE` of the specs, every spec
  *                                                       even on a push (then the rules below)
@@ -392,13 +392,20 @@ export function importsOf(repo: Repo, file: string): string[] {
   return out;
 }
 
+/** Where workspace package `name` lives: `packages/<name>`, or a game's `games/<game>/packages/<name>`. */
+function packageDir(repo: Repo, name: string): string | null {
+  const games = [...new Set(repo.list('games').map((f) => f.split('/')[1]))];
+  return ['packages', ...games.map((g) => `games/${g}/packages`)].map((d) => `${d}/${name}`).find((d) => repo.read(`${d}/package.json`) !== null) ?? null;
+}
+
 /** The repo path a specifier in `from` names (`./x.js` may be `x.ts`; `@hadoku/deck/library` is what that package exports as `./library`), or null. */
 export function resolveImport(repo: Repo, from: string, spec: string): string | null {
   const pkg = /^@hadoku\/([\w-]+)(\/.+)?$/.exec(spec);
   if (pkg) {
-    const manifest = repo.read(`packages/${pkg[1]}/package.json`);
+    const dir = packageDir(repo, pkg[1]);
+    const manifest = dir === null ? null : repo.read(`${dir}/package.json`);
     const exported = manifest === null ? undefined : (JSON.parse(manifest) as { exports?: Record<string, string> }).exports?.[`.${pkg[2] ?? ''}`];
-    return typeof exported === 'string' ? normalize(join(`packages/${pkg[1]}`, exported)) : null;
+    return typeof exported === 'string' ? normalize(join(dir!, exported)) : null;
   }
   if (!spec.startsWith('.')) return null;
   const base = normalize(join(dirname(from), spec));
@@ -407,7 +414,7 @@ export function resolveImport(repo: Repo, from: string, spec: string): string | 
 }
 
 /**
- * Each module under apps/ or packages/ a Forge spec imports, at any depth,
+ * Each module under apps/, packages/ or games/ a Forge spec imports, at any depth,
  * through e2e helpers and the modules themselves: module → spec → the first
  * file the spec imported on the way (the helper that leads there, or the
  * module itself).
@@ -426,7 +433,7 @@ export function specImports(repo: Repo, specs: string[]): Map<string, Map<string
       }
     }
     for (const [m, first] of via) {
-      if (!/^(apps|packages)\//.test(m)) continue;
+      if (!/^(apps|packages|games)\//.test(m)) continue;
       if (!out.has(m)) out.set(m, new Map());
       out.get(m)!.set(s, first);
     }
@@ -746,7 +753,7 @@ export function universe(repo: Repo): Universe {
     .filter((f) => /^e2e\/[^/]+\.spec\.ts$/.test(f))
     .filter((f) => /forge\.ok|startPlayStack|startScenarioMatch/.test(repo.read(f) ?? ''))
     .map((f) => f.slice('e2e/'.length));
-  const jvm = [...repo.list('apps'), ...repo.list('packages')].filter((f) => f.endsWith('.jvm.test.ts'));
+  const jvm = [...repo.list('apps'), ...repo.list('packages'), ...repo.list('games')].filter((f) => f.endsWith('.jvm.test.ts'));
   return { specs, jvm };
 }
 
@@ -1018,7 +1025,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
   const users = new Map<Change, Map<string, number>>();
   /** The files using what change `c` touched, by name (`usersOf`). */
   const usersOfChange = (c: Change): Map<string, number> => {
-    allImporters ??= importersIn(repo, 'apps', 'packages', 'e2e');
+    allImporters ??= importersIn(repo, 'apps', 'packages', 'games', 'e2e');
     if (!users.has(c)) users.set(c, usersOf(repo, allImporters, c.filename, c.patch));
     return users.get(c)!;
   };
@@ -1108,7 +1115,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       everything(`${f}: changes what every match runs on`);
       continue;
     }
-    if (/^(apps|packages)\//.test(f) && c.status !== 'removed') {
+    if (/^(apps|packages|games)\//.test(f) && c.status !== 'removed') {
       imports ??= specImports(repo, all.specs);
       for (const [s, via] of imports.get(f) ?? []) {
         imported.add(s);
@@ -1173,7 +1180,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       for (const [s, hit] of callers) addSpec(s, 2, `${f}: route ${hit}`, W.importer);
       continue;
     }
-    if (/^(apps\/ui|packages)\//.test(f)) {
+    if (/^(apps\/ui|packages|games\/[^/]+\/packages)\//.test(f)) {
       if (c.status === 'removed') {
         allSpecs ??= `${f}: removed — what it rendered may be gone`;
         allJvm ??= `${f}: removed`;
@@ -1186,7 +1193,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       jvmUsing(c);
       history(f, namesOf(c));
       // A package the server runs a hot path through: what guards that path guards this.
-      if (/^packages\//.test(f)) for (const g of guards) for (const [u] of usersOfChange(c)) if (g.paths.test(u)) guard(g, `${f}, used by ${u}`);
+      if (/^(packages|games\/[^/]+\/packages)\//.test(f)) for (const g of guards) for (const [u] of usersOfChange(c)) if (g.paths.test(u)) guard(g, `${f}, used by ${u}`);
       if (f.endsWith('.json')) {
         smoke(f);
         // Data: the components importing it render it, but every key they render is theirs, not its.
@@ -1194,7 +1201,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
         continue;
       }
       for (const s of specsUsing(c)) addSpec(s, 2, `uses ${f}`, W.importer);
-      uiImporters ??= importersIn(repo, 'apps/ui', 'packages');
+      uiImporters ??= importersIn(repo, 'apps/ui', 'packages', 'games');
       const r = f.endsWith('.css') ? cssChangeKeys(repo, f, c.patch) : reachedKeys(repo, uiImporters, f, c.patch);
       if (keyCount(r.direct) + keyCount(r.reached) === 0) {
         if (r.typesOnly) reasons.push(`${f}: type declarations only — tsc covers them`);

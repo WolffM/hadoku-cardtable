@@ -282,7 +282,7 @@ describe('server → client', () => {
 
 describe('errors are values', () => {
   it('can represent every PickRejection the engine returns', () => {
-    // Pinned literally: `packages/draft/src/engine.ts` owns this union and this
+    // Pinned literally: `games/magic/packages/draft/src/engine.ts` owns this union and this
     // package cannot import it (the dependency runs the other way).
     expect([...PICK_REJECTION_CODES]).toEqual([
       'draft-complete',

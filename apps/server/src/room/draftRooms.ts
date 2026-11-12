@@ -302,7 +302,7 @@ export const DEFAULT_PARAMS: DraftParams = {
 
 /**
  * The shortlist file stem `build-pool --out-dir=` gave MTGO Vintage Cube
- * 2025-12 (`packages/carddata/src/cli/build-pool.ts`'s `slug()`) — the
+ * 2025-12 (`games/magic/packages/carddata/src/cli/build-pool.ts`'s `slug()`) — the
  * `CubeSummary.id`/`PoolSource.cubeId` this server knows it by.
  */
 export const DEFAULT_CUBE_ID = 'mtgo-vintage-cube-2025-04';

@@ -30,7 +30,7 @@ import { isAnnotationKey, type WireObject, type WirePacket } from './wire.ts';
 /** Every object the client knows about, by delta key. */
 export type WireState = ReadonlyMap<string, WireObject>;
 
-/** A packet with the bridge's state facts beside it (`packages/forge-wire`'s `StateSiblingsSchema`), each replacing the last folded. */
+/** A packet with the bridge's state facts beside it (`games/magic/packages/forge-wire`'s `StateSiblingsSchema`), each replacing the last folded. */
 export interface FoldablePacket extends WirePacket, StateSiblings {}
 
 /** A permanent's printed card, as `printedTypes` names it: its type line, and whether it is a token. */

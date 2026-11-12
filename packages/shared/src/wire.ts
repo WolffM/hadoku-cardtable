@@ -200,7 +200,7 @@ export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 /**
  * The engine's own `PickRejection`, verbatim.
  *
- * `packages/draft/src/engine.ts` returns these as values rather than throwing,
+ * `games/magic/packages/draft/src/engine.ts` returns these as values rather than throwing,
  * and the wire must be able to carry every one of them or the server is forced
  * to flatten a known reason into a string. Kept as a literal list rather than
  * imported because `@hadoku/draft` depends on this package, not the other way

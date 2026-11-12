@@ -7,7 +7,7 @@
  * Both are Wave 7 lane D's, committed under `decks/` at the repo root:
  *
  *   - **formats** — `decks/pools/standard-<date>.generated.json`. Each is
- *     `standardPoolAt(date)` (Wave 6, `packages/carddata/src/formats`) run over
+ *     `standardPoolAt(date)` (Wave 6, `games/magic/packages/carddata/src/formats`) run over
  *     the real card corpus and frozen, because that corpus is 183 MB, gitignored
  *     and not on the deploy host. So "pick a format" is "pick a date whose pool
  *     was frozen", and the list grows by running `build-pool-fixture.ts` for a

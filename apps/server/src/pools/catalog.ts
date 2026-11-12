@@ -1,6 +1,6 @@
 /**
  * The compact card catalog: one `DraftCard` per known card name, generated
- * offline by `packages/carddata/src/cli/build-catalog.ts` from the Scryfall
+ * offline by `games/magic/packages/carddata/src/cli/build-catalog.ts` from the Scryfall
  * sync (`cards.jsonl`) and indexed here at boot. It answers "what are this
  * card's gameplay fields" for any name a source hands it that did not come
  * with its own text — a Cube Cobra import (`cubecobra.ts` keeps only `name`

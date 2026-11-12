@@ -31,7 +31,7 @@
  * ask and holds no client-side intent): `PlayBridge.java` now computes the
  * same pairing itself, off the live stack rather than off `StackItemView`'s
  * property bag, and sends it as `stackTargetSpells` — a SIBLING of the frame's
- * `packet`/`gameView`, not a `TrackableProperty` (`packages/forge-wire/src/
+ * `packet`/`gameView`, not a `TrackableProperty` (`games/magic/packages/forge-wire/src/
  * tier-c.ts`'s `StackTargetSpellsSchema`). The final assertions below (after
  * the `TargetCards`/`TargetPlayers` ones) are that proof, read off the actual
  * frames this seat was sent, in the SAME exchange: the wire now DOES carry

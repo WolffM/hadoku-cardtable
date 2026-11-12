@@ -400,7 +400,7 @@ money, no public tier, no WotC marks — stands unchanged.
 The operator decided this explicitly, three separate times. What it means, in
 full:
 
-- **Art is uploaded to `cdn.hadoku.me`** by `packages/carddata/src/cli/upload-art.ts`,
+- **Art is uploaded to `cdn.hadoku.me`** by `games/magic/packages/carddata/src/cli/upload-art.ts`,
   fetched once from Scryfall at their rate-limit guidance rather than hotlinked
   per tile. The CDN is content-addressed by SHA-256, so the upload is idempotent
   and a modified image would be a different object.
@@ -415,7 +415,7 @@ full:
   new image stay easy. So a card's art is an indirection, never a URL in a component:
   `apps/ui/src/draft/art-manifest.json` (since 2026-11-07 `apps/server/src/play/art-manifest.json`,
   over the art mirror, served by `/api/art/<id>`) maps `scryfallId → { source, key }` and
-  `packages/carddata/src/art/index.ts` resolves it, with an absent or unusable row
+  `games/magic/packages/carddata/src/art/index.ts` resolves it, with an absent or unusable row
   falling back to Scryfall and then to the text tile. Repointing one card is a
   **one-line data edit reviewable in a diff**. The manifest is kept out of
   `pool.json` on purpose, because `build-pool` regenerates the pool wholesale and
@@ -720,7 +720,7 @@ this repo when any one of these becomes true:
 the day it was written and is the state it was specified in — P4 was specified
 for watchparty, and `apps/server/src/play/match.ts` shipped its own asks by
 `callId` instead. Re-verified 2026-09-26: nothing under `apps/` or `packages/`
-imports `@hadoku/room-ask` except two doc comments in `packages/forge-wire`
+imports `@hadoku/room-ask` except two doc comments in `games/magic/packages/forge-wire`
 (`envelope.ts:52`, `index.ts:30`). Carrying a clean-room package costs this
 paragraph; reproducing one costs a firewall.
 

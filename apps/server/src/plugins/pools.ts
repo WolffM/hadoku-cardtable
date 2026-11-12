@@ -22,7 +22,7 @@ export const poolsPlugin: CardtablePlugin = {
 	phase: 'stores',
 	setup(ctx) {
 		const { state } = ctx;
-		// `shortlistDir` is the committed, generated 8-cube list (`packages/carddata/src/cli/build-pool.ts
+		// `shortlistDir` is the committed, generated 8-cube list (`games/magic/packages/carddata/src/cli/build-pool.ts
 		// --out-dir=`): read-only, never `CARDTABLE_*`-overridden, because it ships with the bundle.
 		// `importDir` (`CARDTABLE_CUBES_DIR`) is writable: a friend's Cube Cobra imports, flat `<id>.json`.
 		state.shortlistDir = resolve(state.pkgRoot, 'pools/cubes');

@@ -1,6 +1,6 @@
 /*
  * Challenge rooms: a real MTGO Challenge, replayed. A library collection that is a tournament
- * import (`packages/deck/src/library/build-tournament-library.ts`: one `.dck` per player and the
+ * import (`games/magic/packages/deck/src/library/build-tournament-library.ts`: one `.dck` per player and the
  * event's own `tournament.json`) becomes a room whose field is that event's: an AI in every seat
  * playing the list its real player played, and one seat left open for the person replaying it.
  *

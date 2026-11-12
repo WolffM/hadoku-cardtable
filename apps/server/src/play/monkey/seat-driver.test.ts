@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 // Not re-exported from `@hadoku/forge-wire`'s own index (its `exports` map
 // is `.` → `src/index.ts` alone), so this reaches the package's test fixture
 // file directly — it is `export`ed there precisely to be a shared fixture.
-import { SERVER_FRAME_EXAMPLES } from '../../../../../packages/forge-wire/src/examples.ts';
+import { SERVER_FRAME_EXAMPLES } from '../../../../../games/magic/packages/forge-wire/src/examples.ts';
 
 import { clearDeclineStreak, declineStreak, hasNoLegalAnswer, type DeclinedStreaks } from './seat-driver.ts';
 import type { LiveAsk } from './random-answer.ts';

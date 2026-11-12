@@ -164,7 +164,7 @@ function pillBorders(css: (el: Element, property: string) => string): Map<string
 
 /**
  * Real cross-era history, the way `apps/server/src/http/tables.test.ts` and
- * `packages/deck/src/library/library.test.ts` both use it: 2010's UG Polymorph
+ * `games/magic/packages/deck/src/library/library.test.ts` both use it: 2010's UG Polymorph
  * (Antoine Ruel) plays four Jace, the Mind Sculptor, legal in its own era
  * (`Standard (M11)`, 2010-07-16) and banned the moment `Standard (M12)`
  * (2011-07-15) takes effect. This file stubs the SERVER's answer rather than
@@ -3624,7 +3624,7 @@ describe('draftedDeckOf', () => {
  * here than `DeckView` colours it, which is exactly the disagreement wave 26
  * exported one fold to prevent. Each case therefore recomputes the answer from
  * the frozen pool's own `manaCost` and asserts the dropdown matches it.
- * (`packages/deck`'s `library.test.ts` guards the map itself, byte for byte.)
+ * (`games/magic/packages/deck`'s `library.test.ts` guards the map itself, byte for byte.)
  */
 
 /* ── real library decks, shared by the two suites that need one ─────────── */

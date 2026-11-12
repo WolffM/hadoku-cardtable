@@ -39,7 +39,7 @@ const PREFIX = '/cardtable';
 /**
  * Every card face in what a socket was sent. A face is a tracked object whose
  * `_type` is not a player's (1 — players carry a `Name` too) with a `Name`,
- * which Forge sends TYPED (`{ t: 'str', v }`, `packages/forge-wire/src/tier-c.ts`)
+ * which Forge sends TYPED (`{ t: 'str', v }`, `games/magic/packages/forge-wire/src/tier-c.ts`)
  * and a fixture may send plain, or a card a game log line names (`message`'s
  * `log.cards`). Walked, not grepped: a string match for `"Name":"…"` cannot see
  * a typed value and so could never fail.

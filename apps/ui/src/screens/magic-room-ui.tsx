@@ -379,8 +379,8 @@ export function draftedDeckOf(draftId: string, pool: readonly DraftCard[]): Deck
  *
  * **A static map, on purpose, and here is the reason** — the alternative was to
  * put the block in the pool fixtures through their own generator
- * (`packages/deck/src/library/build-pool-fixture.ts`), and that generator
- * **cannot answer the question**. It reads `packages/carddata/data/cards.jsonl`,
+ * (`games/magic/packages/deck/src/library/build-pool-fixture.ts`), and that generator
+ * **cannot answer the question**. It reads `$CARDTABLE_SCRYFALL_DIR/cards.jsonl`,
  * Scryfall's `default_cards` bulk export, and a Scryfall CARD object carries
  * `set`, `set_name` and `set_type` and **no `block` field at all** (verified
  * against the committed corpus: every key of a card row is listed by

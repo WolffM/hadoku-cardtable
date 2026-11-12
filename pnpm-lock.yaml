@@ -49,16 +49,16 @@ importers:
     dependencies:
       '@hadoku/carddata':
         specifier: workspace:*
-        version: link:../../packages/carddata
+        version: link:../../games/magic/packages/carddata
       '@hadoku/deck':
         specifier: workspace:*
-        version: link:../../packages/deck
+        version: link:../../games/magic/packages/deck
       '@hadoku/draft':
         specifier: workspace:*
-        version: link:../../packages/draft
+        version: link:../../games/magic/packages/draft
       '@hadoku/forge-wire':
         specifier: workspace:*
-        version: link:../../packages/forge-wire
+        version: link:../../games/magic/packages/forge-wire
       '@hadoku/host-wire':
         specifier: workspace:*
         version: link:../../packages/host-wire
@@ -110,13 +110,13 @@ importers:
     dependencies:
       '@hadoku/carddata':
         specifier: workspace:*
-        version: link:../../packages/carddata
+        version: link:../../games/magic/packages/carddata
       '@hadoku/deck':
         specifier: workspace:*
-        version: link:../../packages/deck
+        version: link:../../games/magic/packages/deck
       '@hadoku/forge-wire':
         specifier: workspace:*
-        version: link:../../packages/forge-wire
+        version: link:../../games/magic/packages/forge-wire
       '@hadoku/platform-wire':
         specifier: workspace:*
         version: link:../../packages/platform-wire
@@ -194,31 +194,31 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  packages/carddata:
+  games/magic/packages/carddata:
     dependencies:
       '@wolffm/cdn-client':
         specifier: npm:@hadoku/cdn-client@2.1.0
         version: '@hadoku/cdn-client@2.1.0(react@19.2.8)'
 
-  packages/deck:
+  games/magic/packages/deck:
     dependencies:
       '@hadoku/carddata':
         specifier: workspace:*
         version: link:../carddata
 
-  packages/draft:
+  games/magic/packages/draft:
     dependencies:
       '@hadoku/carddata':
         specifier: workspace:*
         version: link:../carddata
       '@hadoku/shared':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../../../../packages/shared
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.91
         version: '@hadoku/rooms-protocol@0.45.91'
 
-  packages/forge-wire:
+  games/magic/packages/forge-wire:
     dependencies:
       '@hadoku/deck':
         specifier: workspace:*
@@ -264,10 +264,10 @@ importers:
     dependencies:
       '@hadoku/carddata':
         specifier: workspace:*
-        version: link:../carddata
+        version: link:../../games/magic/packages/carddata
       '@hadoku/forge-wire':
         specifier: workspace:*
-        version: link:../forge-wire
+        version: link:../../games/magic/packages/forge-wire
       '@hadoku/platform-wire':
         specifier: workspace:*
         version: link:../platform-wire

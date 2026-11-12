@@ -4,10 +4,10 @@
  *
  * ## Regenerate with
  *
- *   node scripts/art/build-art-artists.ts --cache=<any checkout>/packages/carddata/data
+ *   node scripts/art/build-art-artists.ts
  *
  * after `build-art-ids.ts`, which decides which ids exist. `--cache` defaults to
- * `packages/carddata/data` (gitignored; a worktree has none of its own).
+ * the host's corpus (`corpusDir()`: `CARDTABLE_SCRYFALL_DIR`, else `~/.local/share/cardtable/scryfall`).
  *
  * ## Why this file exists
  *
@@ -29,7 +29,8 @@ import { createInterface } from 'node:readline';
 import { join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { BACK_FACE } from '../../packages/carddata/src/art/ids.ts';
+import { BACK_FACE } from '../../games/magic/packages/carddata/src/art/ids.ts';
+import { corpusDir } from '../../games/magic/packages/carddata/src/corpus-dir.ts';
 
 const REPO_ROOT = resolvePath(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const DRAFT_DIR = join(REPO_ROOT, 'apps', 'ui', 'src', 'draft');
@@ -57,7 +58,7 @@ function artistOf(printing: Printing, back: boolean): string | null {
 }
 
 async function main(argv: readonly string[]): Promise<number> {
-  let cacheDir = join(REPO_ROOT, 'packages', 'carddata', 'data');
+  let cacheDir = corpusDir();
   for (const arg of argv) {
     if (arg.startsWith('--cache=')) cacheDir = resolvePath(arg.slice('--cache='.length));
     else {

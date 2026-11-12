@@ -4,7 +4,7 @@
  * The distinction is derived rather than declared (see `seatStatus.ts`), so the
  * test that matters is the one that pins both sides of the derivation: a seat
  * that kept its name is held, a seat that still carries the `Seat N` default is
- * free. If `packages/draft/src/view.ts` ever stops falling back to that default,
+ * free. If `games/magic/packages/draft/src/view.ts` ever stops falling back to that default,
  * or the server starts clearing `displayNames`, the second test below fails and
  * the reader is sent to the file that changed.
  *
@@ -58,7 +58,7 @@ describe('what a seat is', () => {
   });
 
   it('the default name is exactly the one the view builder writes', () => {
-    // `packages/draft/src/view.ts:37` — `state.displayNames[id] ?? \`Seat ${id}\``.
+    // `games/magic/packages/draft/src/view.ts:37` — `state.displayNames[id] ?? \`Seat ${id}\``.
     // Spelled out here so a change on that side breaks a test rather than
     // silently turning every free chair into a held one.
     expect(defaultSeatName(0)).toBe('Seat 0');

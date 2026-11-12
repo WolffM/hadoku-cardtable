@@ -19,7 +19,7 @@
  * carrying `ImageKey`, `OracleText` and the rest; and the opening sync carries
  * both LIBRARIES, in order, named. The events arm is worse: a
  * `GameEventCardChangeZone` for a draw names the drawn card
- * (`packages/forge-wire/src/events/fixtures/GameEventCardChangeZone.json`).
+ * (`games/magic/packages/forge-wire/src/events/fixtures/GameEventCardChangeZone.json`).
  *
  * So a browser never sees Forge's stream. It sees this projection of it.
  *

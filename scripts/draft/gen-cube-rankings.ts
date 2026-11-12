@@ -1,5 +1,5 @@
 /*
- * Regenerate `packages/draft/src/cube-rankings.generated.ts` from Forge's cube pick order.
+ * Regenerate `games/magic/packages/draft/src/cube-rankings.generated.ts` from Forge's cube pick order.
  *
  *   node scripts/draft/gen-cube-rankings.ts [--rankings=<path to rankings_cubecobra.txt>]
  *

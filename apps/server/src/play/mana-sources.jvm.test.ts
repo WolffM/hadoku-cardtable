@@ -23,7 +23,7 @@
  *    to pay for it) is a real decision and stops. An ability it cannot pay for is
  *    none: Celestial Colonnade alone is passed.
  *
- * The mana pool is not on the wire (`packages/forge-wire` carries no pool
+ * The mana pool is not on the wire (`games/magic/packages/forge-wire` carries no pool
  * property), so it is not asserted; `tapped`, the offer and the stop are.
  *
  * Folds in what `w65-elves.jvm.test.ts` (Forest, Elves, two Forests out of order)

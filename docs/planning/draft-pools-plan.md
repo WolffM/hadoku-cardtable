@@ -62,16 +62,16 @@ saved as a named **preset**; pack rounds stay **3 × 15**.
 
 - **One pool for the whole server.** `apps/server/src/index.ts:413` loads
   `apps/ui/src/draft/pool.json` (the Vintage Cube 2025-12, built offline by
-  `packages/carddata/src/cli/build-pool.ts`) and hands it to `createDraftRooms`
+  `games/magic/packages/carddata/src/cli/build-pool.ts`) and hands it to `createDraftRooms`
   as `pool` + `cube`. Every pod drafts that cube.
-- **The engine slices one pool.** `packages/draft/src/engine.ts`'s
+- **The engine slices one pool.** `games/magic/packages/draft/src/engine.ts`'s
   `DraftConfig` takes `pool`, `packCount`, `packSize`; a pack is a slice of the
   shuffled pool.
 - **The UI reads the same file** as a card index: `apps/ui/src/draft/live.ts`,
   `apps/ui/src/play/adapter.ts` (printed base values),
   `apps/ui/src/play/live/art-preload.ts` (`preloadCubeArt`),
   `apps/ui/src/play/prompts/testing.ts`.
-- **Card data.** `packages/carddata/data/cards.jsonl` (176 MB, Scryfall bulk,
+- **Card data.** `$CARDTABLE_SCRYFALL_DIR/cards.jsonl` (176 MB, Scryfall bulk,
   synced **2026-09-15**) is read only by CLIs. The server has no runtime card
   index.
 - **Art.** `resolveArtUrl` falls back to Scryfall by `scryfallId` for any card
@@ -106,7 +106,7 @@ Custom tab that edits each round. Zod schemas in `packages/shared`.
 
 `DraftConfig.pool` is replaced by `packs: DraftCard[][][]` (`[round][seat]`).
 The engine stops shuffling and slicing; it passes what it is given. Dealing
-moves to a pure `deal(plan, seed, seatCount)` in `packages/draft`, plus the
+moves to a pure `deal(plan, seed, seatCount)` in `games/magic/packages/draft`, plus the
 Forge call for realistic rounds.
 
 - **Cube rounds** draw from one shuffled copy of that cube. Two rounds of the
@@ -242,5 +242,5 @@ Each step starts as a failing spec (standing rule) and lands on its own.
 - **Three bundled cubes parse to 0 cards** (`MTGO Grixis Cube 2019-09`,
   `MTGO Grixis Cube (540 Cards)`, `Old School … Full Set 878`). None are
   shortlisted. Diagnose and record them, but it does not block this work.
-- **Bots** score by colour and mana (`packages/draft/src/bot.ts`), so any card
+- **Bots** score by colour and mana (`games/magic/packages/draft/src/bot.ts`), so any card
   works. Realistic packs may want rarity-aware picks later. Not in scope.

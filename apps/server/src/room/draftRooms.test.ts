@@ -830,7 +830,7 @@ describe('the wire seat rows agree with seatRows, row for row', () => {
 	/*
 	 * `seatRows(table)` is 0.39.4's answer to "how does a renderer see a bounded
 	 * table": every existing seat, then empty rows out to `capacity`. A draft
-	 * payload's `seats` is built in `packages/draft/src/view.ts`, which still
+	 * payload's `seats` is built in `games/magic/packages/draft/src/view.ts`, which still
 	 * hand-rolls `Array.from({ length: state.seatCount })`.
 	 *
 	 * Those two agree only while the table is exactly `capacity` seats long, and
