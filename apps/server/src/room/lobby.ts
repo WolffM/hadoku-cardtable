@@ -344,18 +344,19 @@ export { AVATAR_POOL };
 
 
 /**
- * The first character in the pool no current member wears — `rooms-protocol`'s
- * `pickAvatar`, asked with no `preferred` (so it is exactly "the first free
- * one"). Undefined when all are taken: that member goes without.
+ * A character in the pool no current member wears — `rooms-protocol`'s
+ * `pickAvatar`, asked with no `preferred`, which draws one of the free ones at
+ * random (`draw`) so a newcomer is not always handed the same first character.
+ * Undefined when all are taken: that member goes without.
  */
-function freeAvatar(members: readonly MemberRecord[]): string | undefined {
-	return pickAvatar(members.map((m) => m.avatarId));
+function freeAvatar(members: readonly MemberRecord[], draw: () => number): string | undefined {
+	return pickAvatar(members.map((m) => m.avatarId), undefined, AVATAR_POOL, draw);
 }
 
 
 /** A new member, wearing the room's next free character. */
-function newMember(room: readonly MemberRecord[], caller: Caller, joinedAt: number): MemberRecord {
-	const avatarId = freeAvatar(room);
+function newMember(room: readonly MemberRecord[], caller: Caller, joinedAt: number, draw: () => number): MemberRecord {
+	const avatarId = freeAvatar(room, draw);
 	return {
 		id: caller.id,
 		userId: caller.userId,
@@ -1080,6 +1081,8 @@ interface OpenLobbyOptions {
 	defaultFormat?: FormatId;
 	/** Injected for tests: the draw behind a new room's random format. `Math.random` otherwise. */
 	random?: () => number;
+	/** Injected for tests: the draw behind the free character a member is handed (`() => 0`, the first free one). `Math.random` otherwise. */
+	avatarDraw?: () => number;
 	/**
 	 * The eras a new room's format is drawn from: the `formats` of the library the
 	 * server loaded at boot (`index.ts`), so a room only ever opens on an era the
@@ -1393,9 +1396,11 @@ class FileLobby implements Lobby {
 	 * starts a fresh one.
 	 */
 	readonly #planChecks = new Map<string, Promise<PoolVerdict>>();
+	readonly #avatarDraw: () => number;
 
-	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, newRoomFormat: () => FormatId, onTournament: (t: Tournament) => void, onSeriesEnd: (end: SeriesEnd) => void, checkPlan: ((plan: DraftPlan) => Promise<PoolVerdict>) | null) {
+	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, newRoomFormat: () => FormatId, onTournament: (t: Tournament) => void, onSeriesEnd: (end: SeriesEnd) => void, checkPlan: ((plan: DraftPlan) => Promise<PoolVerdict>) | null, avatarDraw: () => number) {
 		this.#store = store;
+		this.#avatarDraw = avatarDraw;
 		this.#checkPlan = checkPlan;
 		this.#now = now;
 		this.#log = log;
@@ -2492,7 +2497,7 @@ class FileLobby implements Lobby {
 			...(input.historical === true && input.seatDecks !== undefined ? { seatDecks: { ...input.seatDecks } } : {}),
 			createdAt: now,
 			updatedAt: now,
-			members: [newMember([], caller, now)],
+			members: [newMember([], caller, now, this.#avatarDraw)],
 			ledger,
 		};
 		if (room.historical === true && input.historicalField !== undefined) seatHistoricalField(room, input.historicalField);
@@ -2530,7 +2535,7 @@ class FileLobby implements Lobby {
 		// An empty ledger's first member becomes its leader (an emptied room's new arrival leads it).
 		addMember(room.ledger, caller.id, now);
 		room.leader = room.ledger.leaderId ?? room.leader;
-		room.members.push(newMember(room.members, caller, now));
+		room.members.push(newMember(room.members, caller, now, this.#avatarDraw));
 		this.#autoSeat(room, caller.id);
 		this.#persist(room);
 		this.#log({ event: 'room-joined', roomId, members: room.members.length });
@@ -2590,7 +2595,7 @@ class FileLobby implements Lobby {
 		// asker the next free one. Their own pick, when they have one, is never moved.
 		const moved = room.members.filter((m) => m !== member && m.avatarGiven === true && m.avatarId === next);
 		for (const m of moved) {
-			const free = freeAvatar(room.members);
+			const free = freeAvatar(room.members, this.#avatarDraw);
 			if (free === undefined) {
 				delete m.avatarId;
 				delete m.avatarGiven;
@@ -3257,6 +3262,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 	const log = opts.log ?? (() => {});
 	const fixed = opts.defaultFormat;
 	const random = opts.random ?? Math.random;
+	const avatarDraw = opts.avatarDraw ?? Math.random;
 	const formats = opts.formats ?? [];
 	const lobby = new FileLobby(
 		store,
@@ -3266,6 +3272,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 		opts.onTournament ?? (() => {}),
 		opts.onSeriesEnd ?? (() => {}),
 		opts.checkPlan ?? null,
+		avatarDraw,
 	);
 
 	for (const roomId of await store.list()) {
@@ -3311,7 +3318,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 				// Nothing names a member on disk (R12): they are `UNNAMED` until their next
 				// request renames them, and wear the room's next free character until their
 				// screen asserts their own, exactly as on a first join.
-				const avatarId = freeAvatar(members);
+				const avatarId = freeAvatar(members, avatarDraw);
 				// Kept across the restart, unlike the draft itself: the room comes
 				// back in its lobby phase with everybody still ready, which is one
 				// click from starting again rather than four.

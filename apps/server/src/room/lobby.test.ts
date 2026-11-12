@@ -1141,7 +1141,7 @@ describe('a member\'s avatar', () => {
 		room?.members.find((m) => m.id === memberId);
 
 	it('is handed out on joining, the first character no member wears, and a pick replaces it on every view of the room', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1160,7 +1160,7 @@ describe('a member\'s avatar', () => {
 	});
 
 	it('tells a subscriber when it CHANGES, and stays quiet for a re-assert (Q6)', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Live', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1179,7 +1179,7 @@ describe('a member\'s avatar', () => {
 	});
 
 	it('is each member\'s own — setting one leaves everybody else alone', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Two of us', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1191,7 +1191,7 @@ describe('a member\'s avatar', () => {
 	});
 
 	it('moves a handed-out character to the next free one when another member picks it, and never moves a pick', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Picks', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1216,7 +1216,7 @@ describe('a member\'s avatar', () => {
 	});
 
 	it('is handed out only while a character is free, and a leaver frees theirs', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir: await tempDir() });
 		const callers = [ALICE, BOB, CAROL, ...Array.from({ length: AVATAR_POOL.length - 2 }, (_, i) => ({ id: `fk:${String(i + 4).padStart(16, '0')}`, name: `user-${i + 4}`, userId: null }))];
 		const made = lobby.create(callers[0]!, { name: 'Crowd', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
@@ -1236,7 +1236,7 @@ describe('a member\'s avatar', () => {
 
 	it('is not saved: after a restart a member wears a handed-out character until their screen asserts theirs (R12)', async () => {
 		const dir = await tempDir();
-		const first = await openLobby({ dir });
+		const first = await openLobby({ avatarDraw: () => 0, dir });
 		const made = first.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1245,7 +1245,7 @@ describe('a member\'s avatar', () => {
 
 		const saved = (await new FileRoomStore(dir).load(made.room.id))!;
 		expect(JSON.stringify(saved)).not.toContain('knight');
-		const second = await openLobby({ dir });
+		const second = await openLobby({ avatarDraw: () => 0, dir });
 		expect(avatarOf(second.get(made.room.id), ALICE.id)?.avatarId).toBe(AVATAR_POOL[0]);
 		expect(avatarOf(second.get(made.room.id), BOB.id)?.avatarId).toBe(AVATAR_POOL[1]);
 		// Her screen asserts hers, and it takes over the handed-out one.
@@ -1255,7 +1255,7 @@ describe('a member\'s avatar', () => {
 
 	it('a Gauntlet saves no member player’s name; read back, it names them as the room does now (R12)', async () => {
 		const dir = await tempDir();
-		const first = await openLobby({ dir });
+		const first = await openLobby({ avatarDraw: () => 0, dir });
 		const made = first.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1264,7 +1264,7 @@ describe('a member\'s avatar', () => {
 		expect(first.gauntlet(made.room.id)?.players?.map((p) => p.name)).toEqual([ALICE.name, 'Ajani']);
 		expect(JSON.stringify(await new FileRoomStore(dir).load(made.room.id))).not.toContain(`"${ALICE.name}"`);
 
-		const second = await openLobby({ dir });
+		const second = await openLobby({ avatarDraw: () => 0, dir });
 		expect(second.gauntlet(made.room.id)?.players?.map((p) => p.name)).toEqual([UNNAMED, 'Ajani']);
 		second.rename({ id: ALICE.id, name: 'Alicia' });
 		expect(second.gauntlet(made.room.id)?.players?.map((p) => p.name)).toEqual(['Alicia', 'Ajani']);
@@ -1272,7 +1272,7 @@ describe('a member\'s avatar', () => {
 
 	it('folds null and every blank spelling to ABSENT, never to an empty string', async () => {
 		const dir = await tempDir();
-		const lobby = await openLobby({ dir });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1293,7 +1293,7 @@ describe('a member\'s avatar', () => {
 	});
 
 	it('is trimmed, and is NOT checked against watchparty\'s eight characters', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1310,7 +1310,7 @@ describe('a member\'s avatar', () => {
 	});
 
 	it('refuses a room that does not exist and a caller who is not a member', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1341,7 +1341,7 @@ describe('a member\'s avatar', () => {
 		} as unknown as RoomSnapshot;
 		new FileRoomStore(dir).saveSync(snapshot);
 
-		const lobby = await openLobby({ dir });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir });
 		const room = lobby.get('r-restored');
 		expect(room?.members.map((m) => [m.name, m.avatarId])).toEqual([
 			[UNNAMED, AVATAR_POOL[0]],
@@ -1360,7 +1360,7 @@ describe('a member\'s look', () => {
 	const LOOK = { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.halo' } };
 
 	it('is on every view of the room, is nobody else\'s, and a change is told to the room and its matches', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Dressed', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1393,13 +1393,13 @@ describe('a member\'s look', () => {
 
 	it('is the person\'s, not the room\'s: a reopened room has none until it is looked up again', async () => {
 		const dir = await tempDir();
-		const lobby = await openLobby({ dir });
+		const lobby = await openLobby({ avatarDraw: () => 0, dir });
 		const made = lobby.create(ALICE, { name: 'Kept', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
 		lobby.setLook(made.room.id, ALICE.id, LOOK);
 		lobby.setReady(made.room.id, ALICE.id, true);
-		const reopened = await openLobby({ dir });
+		const reopened = await openLobby({ avatarDraw: () => 0, dir });
 		expect(reopened.get(made.room.id)?.members[0]).not.toHaveProperty('look');
 	});
 });
