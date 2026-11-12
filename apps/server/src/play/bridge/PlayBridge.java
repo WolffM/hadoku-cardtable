@@ -3338,7 +3338,7 @@ public final class PlayBridge {
             frame(notify("clearSelectables"));
         }
 
-        /** One thread for every seat's composed wait ({@link #awaitNextInput}). */
+        /** One timer for every seat's composed wait ({@link #awaitNextInput}); the wait itself is composed on the seat's {@link #ui}. */
         private static final java.util.concurrent.ScheduledExecutorService WAITS = Executors.newSingleThreadScheduledExecutor(r -> {
             final Thread t = new Thread(r, "seat-wait");
             t.setDaemon(true);
@@ -3360,6 +3360,10 @@ public final class PlayBridge {
          * first: a wait composed between the two left the keep question with dead buttons. Here
          * the wait is dropped if any prompt or bar arrived after the notice, and composing it holds
          * off the next input's frames until it is out, so it can only ever come before them.
+         * It is composed on the seat's own thread, between the seat's updates: Forge's client
+         * applies an update with new objects by clearing every object it holds and refilling it
+         * ({@code NetworkGuiGame.createObjectOnly}), and a wait read in that gap found no players
+         * and said "Waiting for opponent...".
          */
         @Override public void awaitNextInput() {
             final long at;
@@ -3370,7 +3374,13 @@ public final class PlayBridge {
                 composeWait(at);
                 return;
             }
-            WAITS.schedule(() -> composeWait(at), 250, TimeUnit.MILLISECONDS);
+            WAITS.schedule(() -> {
+                try {
+                    ui.execute(() -> composeWait(at));
+                } catch (final java.util.concurrent.RejectedExecutionException e) {
+                    System.err.println("[bridge] seat " + seat + ": its wait came due after the seat closed");
+                }
+            }, 250, TimeUnit.MILLISECONDS);
         }
 
         /** Compose this seat's wait for notice {@code at}, unless a prompt or bar came after it. */
