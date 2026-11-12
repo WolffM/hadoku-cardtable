@@ -251,11 +251,11 @@ describe('the parked store', () => {
 	});
 
 	/**
-	 * w105 §K: "Persisted records decode old files" — this file decodes a real, sanitized parked
-	 * record (`fixtures/parked.sample.json`, above `PARKED_SAMPLE`'s own doc), written by a server
-	 * before this wave's checkpoint work, exactly as it is on disk — never hand-typed.
+	 * Persisted records decode old files: this decodes a real, sanitized parked record
+	 * (`fixtures/parked.sample.json`, above `PARKED_SAMPLE`'s own doc), written by a server before
+	 * checkpoint parking existed, exactly as it is on disk — never hand-typed.
 	 */
-	it('decodes a real parked file written before this wave', () => {
+	it('decodes a real parked file written before checkpoint parking existed', () => {
 		const dir = tempDir();
 		const matchId = 'm-cdb6dd6c983a';
 		writeFileSync(join(dir, `${matchId}.json`), readFileSync(PARKED_SAMPLE, 'utf8'));

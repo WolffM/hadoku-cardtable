@@ -3472,6 +3472,16 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	}
 
 	/**
+	 * {@link GameSession.notice}: the shell's own hook for words with no game state behind them —
+	 * today only `'server-stopping'` (`Match.serverStopping`). Unchanged from before the hook
+	 * existed: {@link endNotice} is what said it, directly, before `Match.serverStopping` moved
+	 * behind this.
+	 */
+	notice(_kind: 'server-stopping', message: string): void {
+		this.endNotice(message);
+	}
+
+	/**
 	 * {@link GameSession.ended}: the match's one sweep at stop, fail or exit. `reason` is
 	 * null for a stop, which has nothing to tell a seat — `tellSeatsItEnded` only runs for a real
 	 * failure or exit. Idempotent in every piece (`logFrames`'s own guard, `endNotice`'s per-seat

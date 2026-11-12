@@ -64,14 +64,15 @@
  * A `pm2 restart` used to end every live game: the process exited and
  * `host.ts`'s exit hook SIGKILLed every JVM, so the client's next `forge:join`
  * was answered `unknown-match`. The JVM now outlives the server (see
- * `host.ts`, "A match outlives its server") and this file is the half that
- * rebuilds the match around it.
+ * `host.ts`, "A match outlives its server") and `MatchShell`'s `handOver` plus `HostedMatch`'s
+ * `resume` (`match/shell.ts`, `match/hosted.ts` — both generic over any engine) are the half that
+ * rebuilds a match around one; this file adds Forge's own `serverStopping`.
  *
  * - **Going down**: `handOver` lets go of the JVM without killing it and emits
  *   NOTHING. A frame sent on the way out would take a `seq` the next server's
  *   replay cannot reproduce. A match that cannot be handed over gets
  *   `serverStopping` instead, which tells its seats in words.
- * - **Coming back**: `resume` is `start`'s twin. The host replays every line
+ * - **Coming back**: `HostedMatch`'s `resume` is `start`'s twin. The host replays every line
  *   the dead server read — synchronously, before the first live line — so each
  *   seat's projector, history, `seq`, prompt, buttons and open asks rebuild
  *   themselves from exactly the input that built them the first time. Two
@@ -81,8 +82,8 @@
  * - **Commands are not replayed outward.** `replaying` gags `command`: every
  *   reply, abort, auto-pass and auto-payment in the stream was already sent by
  *   the server that read it. The two that CLOSE an ask are fed back in through
- *   `onReplayedCommand`, because nothing the bridge says records that an ask
- *   was answered — without it a seat would be re-shown a modal it had
+ *   `GameSession.replayed` (`ForgeSession.replayed`), because nothing the bridge says records
+ *   that an ask was answered — without it a seat would be re-shown a modal it had
  *   already dismissed.
  *
  * ## Crash: the seats are told, on the stream they already read (Wave 10)
@@ -112,14 +113,14 @@ import {
 
 import { type StopPolicy } from './auto.js';
 import { type ArtCatalog, type ArtIds } from './art-ids.js';
-import { MAX_CONCURRENT_MATCHES, type HostEvents, type MatchHost, type MatchHostFactory, type MatchRecord, type MatchSpec, type TurnSnapshot } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type MatchRecord, type MatchSpec, type TurnSnapshot } from './host.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { runBotGame, type BotGameInput, type BotGameOutcome } from './botgames.js';
-import type { StartEvents } from './start-queue.js';
 import type { SpellCopy } from './spell-copiers.js';
 import { type OutcomeFacts, winnerSeatFromLosers } from './match/outcome.js';
 import { ForgeSession, type SeatState } from './match/forge-session.js';
-import { MatchShell, type ClientOutcome, type ShellDeps } from './match/shell.js';
+import { type ClientOutcome } from './match/shell.js';
+import { HostedMatch, type HostedMatchDeps } from './match/hosted.js';
 import { ENDED_KEPT, EndedMatch, restoredSpec, type RegistryDeps, type Restored, type ResumeFrom } from './match/registry.js';
 import { newMatchId, type ProbeResult } from './match/forge-frames.js';
 
@@ -190,11 +191,6 @@ export function gameOutcome(match: OutcomeFacts): GameOutcome | null {
 	if (match.winnerSeat !== null) return { kind: 'won', winner: match.winnerSeat, conceded: false };
 	const named = match.spec.seats.findIndex((s) => s.name === match.winner);
 	return named === 0 || named === 1 ? { kind: 'won', winner: named, conceded: false } : { kind: 'unplaced' };
-}
-
-/** What any `HostedMatch` needs beyond {@link ShellDeps}: a factory for the host its own engine runs on. */
-export interface HostedMatchDeps<Line extends { t: string }, Cmd extends { t: string }> extends ShellDeps {
-	host: MatchHostFactory<Line, Cmd>;
 }
 
 export interface MatchDeps extends HostedMatchDeps<BridgeLine, BridgeCommand> {
@@ -268,124 +264,10 @@ export interface MatchDeps extends HostedMatchDeps<BridgeLine, BridgeCommand> {
 }
 
 /**
- * `Match` over any {@link GameSession}: the shell lifecycle (`MatchShell`) plus the host
- * lifecycle every engine needs the same way — start, resume-after-a-restart, the replay gag's
- * `replayed` hook, and the sweep at stop/fail/exit (`GameSession.ended`). Nothing below is
- * Forge-specific: `Match` is `HostedMatch<BridgeLine, BridgeCommand>` with a `ForgeSession`;
- * `fixtures/toy-game/match.ts`'s `ToyMatch` is `HostedMatch<ToyLine, ToyCmd>` with the toy's.
- * What stays abstract here (`seats`, `onLine`, `concedeCommand`, `forceConcede`) is exactly what
- * only the game itself can answer.
+ * Forge's own {@link HostedMatch}: every fact about the game itself is asked of {@link session},
+ * a `ForgeSession`. `fixtures/toy-game/match.ts`'s `ToyMatch` and `runtimes/relay-match.ts`'s
+ * `RelayMatch` are `HostedMatch` over their own `GameSession`s the same way.
  */
-export abstract class HostedMatch<Line extends { t: string }, Cmd extends { t: string }> extends MatchShell<Line, Cmd> {
-	declare protected readonly deps: HostedMatchDeps<Line, Cmd>;
-
-	/**
-	 * Start the host. Separate from the constructor so nothing can emit before the match is
-	 * registered. A host that throws fails the match here, so a start never leaves one
-	 * `starting` for good and never escapes the route as an exception.
-	 */
-	start(): void {
-		if (this.host !== null) return;
-		try {
-			this.host = this.deps.host(this.id, this.spec, this.hostEvents());
-		} catch (err) {
-			this.refuseStart(err as Error);
-			return;
-		}
-		this.remember();
-	}
-
-	/**
-	 * Take over a host that is already playing this match, left running by a server that has
-	 * exited (Wave 22 §E). `attach` replays that server's whole line stream into `onLine` before
-	 * it returns, so by the time this call is done every seat holds the history, cursor and open
-	 * asks it held — same epoch, same owners — and a client resyncs rather than starting over.
-	 *
-	 * Separate from `start` for the same reason `start` is separate from the constructor: nothing
-	 * may emit before the match is in the registry.
-	 */
-	resume(attach: (events: HostEvents<Line, Cmd>) => MatchHost<Cmd>): void {
-		if (this.host !== null) return;
-		this.replaying = true;
-		try {
-			this.host = attach(this.hostEvents());
-		} finally {
-			this.replaying = false;
-		}
-		this.syncClock();
-		this.remember();
-		this.deps.log({
-			evt: 'match-resumed',
-			matchId: this.id,
-			status: this.status,
-			epoch: this.epoch,
-			seats: this.seats.map((s) => ({ seat: s.seat, playerId: s.playerId, asks: this.game.openAsks(s.seat) })),
-		});
-		this.armRejoinGrace();
-	}
-
-	protected hostEvents(): StartEvents<Line, Cmd> {
-		return {
-			line: (line) => this.onLine(line),
-			exit: (reason) => this.onExit(reason),
-			log: (entry) => this.deps.log(entry),
-			replayed: (command) => this.game.replayed(command),
-			queued: (place) => {
-				this.queuePlace = place;
-			},
-			booting: () => {
-				this.queuePlace = null;
-				for (const arm of this.bootWaiters.splice(0)) arm();
-			},
-			unstartable: (err) => this.refuseStart(err),
-		};
-	}
-
-	/** Stop on purpose. The host's exit that follows is then not a failure. */
-	stop(): void {
-		if (this.status !== 'starting' && this.status !== 'running' && this.status !== 'over') return;
-		this.status = 'stopped';
-		this.stopClock();
-		this.closeRestartAsk();
-		this.game.ended(null);
-		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: 'stopped' });
-		this.host?.stop();
-		this.tellEnded();
-	}
-
-	/**
-	 * `frames`: where the engine threw (Forge's bridge `fatal` line) — the log row names the
-	 * iteration a bare message cannot.
-	 */
-	fail(reason: string, frames?: string[]): void {
-		if (this.status === 'failed' || this.status === 'stopped') return;
-		this.status = 'failed';
-		this.failure = reason;
-		this.stopClock();
-		this.deps.log({ evt: 'match-failed', matchId: this.id, reason, ...(frames === undefined ? {} : { frames }) });
-		this.game.ended(reason);
-		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: reason });
-		this.host?.stop();
-		this.tellEnded();
-	}
-
-	private onExit(reason: string): void {
-		if (this.overTimer !== null) clearTimeout(this.overTimer);
-		this.stopClock();
-		const dying = this.status === 'starting' || this.status === 'running';
-		// A game that already ended naturally (`status === 'over'`) is not told "cannot continue" —
-		// its seats already have their result; `ended(null)` still sweeps asks/probes/frames.
-		this.game.ended(dying ? reason : null);
-		if (dying) {
-			this.fail(reason);
-			return;
-		}
-		if (this.status !== 'over') return;
-		this.status = 'stopped';
-		this.tellEnded();
-	}
-}
-
 export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	winner: string | null = null;
 	/**
@@ -432,11 +314,13 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	 * This process is stopping and this match cannot outlive it. Every seat with a
 	 * board is told so in words, on the stream it already reads, and the notice is
 	 * kept so a later snapshot repeats it — the same machinery a crash uses,
-	 * because to the player it is the same event.
+	 * because to the player it is the same event. Behind `GameSession.notice`
+	 * (`ForgeSession.notice` is a one-line call to `endNotice`,
+	 * unchanged); `RelayMatch.serverStopping` is the same hook on its own session.
 	 */
 	serverStopping(message: string): void {
 		this.deps.log({ evt: 'match-ending-with-server', matchId: this.id, status: this.status });
-		this.session.endNotice(message);
+		this.game.notice?.('server-stopping', message);
 	}
 
 	/**

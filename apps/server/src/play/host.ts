@@ -451,7 +451,7 @@ export function matchStderrPath(workDir: string, log: readonly Record<string, un
 
 const isClockMs = (v: unknown): v is [number, number] => Array.isArray(v) && v.length === 2 && v.every((ms) => Number.isInteger(ms) && ms >= 0);
 
-/** A record's `snapshot` as a server actually wrote it — H's gap (w103): this was never checked, so it was never decoded either. */
+/** A record's `snapshot` as a server actually wrote it: this was never checked, so it was never decoded either. */
 const isTurnSnapshot = (v: unknown): v is TurnSnapshot =>
 	typeof v === 'object' && v !== null && typeof (v as TurnSnapshot).turn === 'number' && typeof (v as TurnSnapshot).state === 'string';
 
@@ -479,10 +479,11 @@ export function readJvmRecord(dir: string): JvmRecord | null {
 			epoch: typeof m.epoch === 'string' ? m.epoch : null,
 			owners: Array.isArray(m.owners) ? m.owners.map((o) => (typeof o === 'string' ? o : null)) : [],
 			// Durable's own field: opaque to this file, so it is passed through as whatever the
-			// record holds — absent (every file older than w105) decodes as null, never dropped.
+			// record holds — absent on a record written before checkpoints existed decodes as
+			// null, never dropped.
 			checkpoint: m.checkpoint ?? null,
-			// H's gap (w103): `remember` has written this since e308cdf9b, but nothing read it back
-			// until now — an orphan re-attached after a restart lost its turn-start snapshot.
+			// `remember` has written this since e308cdf9b, but nothing read it back until now — an
+			// orphan re-attached after a restart lost its turn-start snapshot.
 			...(isTurnSnapshot(m.snapshot) ? { snapshot: m.snapshot } : {}),
 			spec: m.spec,
 			...(isClockMs(m.clockMs) ? { clockMs: m.clockMs } : {}),

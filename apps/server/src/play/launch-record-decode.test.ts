@@ -61,19 +61,18 @@ describe('readJvmRecord decodes a real jvm.json', () => {
 		expect(match?.matchId).toBe('m-3fdac6ff0bb1');
 		expect(match?.owners).toEqual([null, null]);
 		expect(match?.spec.seats.map((s: { name: string }) => s.name)).toEqual(['A', 'B']);
-		// w105 §K: `checkpoint` is opaque and absent on a file this old (written before it existed)
-		// decodes as null, never dropped.
+		// `checkpoint` is opaque and absent on a record written before checkpoints existed decodes
+		// as null, never dropped.
 		expect(match?.checkpoint).toBeNull();
-		// w103 §H's gap, closed in w105: `snapshot` was written by this same real server (it is in
-		// the fixture's own JSON, above) but never read back until now.
+		// `snapshot` was written by this same real server (it is in the fixture's own JSON, above)
+		// but never read back until now.
 		expect(match?.snapshot).toEqual({ turn: 10, state: expect.stringContaining('turn=10\nactiveplayer=p1') });
 	});
 
 	/**
-	 * w105 §K: a file whose server DID write a checkpoint (every file this wave's server writes, from
-	 * now on) decodes it through, opaque to this file — never `JSON.parse`d or shape-checked here,
-	 * since only the game that wrote it knows its shape. Added onto a COPY of the real fixture, never
-	 * hand-typed, so the rest of the match is still real.
+	 * A file whose server DID write a checkpoint decodes it through, opaque to this file — never
+	 * `JSON.parse`d or shape-checked here, since only the game that wrote it knows its shape. Added
+	 * onto a COPY of the real fixture, never hand-typed, so the rest of the match is still real.
 	 */
 	it('decodes a checkpoint a server actually wrote, opaque, whatever shape it is', () => {
 		const dir = stageFixture('jvm.sample.json', 'jvm.json');
@@ -85,9 +84,9 @@ describe('readJvmRecord decodes a real jvm.json', () => {
 	});
 
 	/**
-	 * w105 §K: a `snapshot` that is not the shape `TurnSnapshot` ever is (Forge never writes
-	 * anything else there, but a hand-edited or corrupted file might) is dropped, not thrown on or
-	 * passed through malformed — the same fallback-not-crash contract `epoch`/`owners` already have.
+	 * A `snapshot` that is not the shape `TurnSnapshot` ever is (Forge never writes anything else
+	 * there, but a hand-edited or corrupted file might) is dropped, not thrown on or passed through
+	 * malformed — the same fallback-not-crash contract `epoch`/`owners` already have.
 	 */
 	it('drops a snapshot that is not shaped like one, rather than passing it through malformed', () => {
 		const dir = stageFixture('jvm.sample.json', 'jvm.json');

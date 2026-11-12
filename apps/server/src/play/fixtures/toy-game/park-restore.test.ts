@@ -5,16 +5,17 @@ import type { MatchSpec } from '../../host.js';
 import { inProcessHost } from '../../runtimes/in-process.js';
 import { toyAdapter } from './adapter.js';
 import { ToyMatch, type ToyMatchDeps } from './match.js';
-import { type ToyCheckpoint, toyEngine } from './rules.js';
+import { toyEngine } from './rules.js';
 
 /**
- * w105 §K step 4: a non-Forge game parks at a checkpoint and restores from it — generically,
- * through `MatchShell.latestCheckpoint`/`remember` and `GameAdapter.restoreSpec`, the same seam a
- * generic `HostedMatch` would use to park through `parked.ts` once that is wired (Forge's own
- * stays `ParkedStore.park`, unchanged this wave). Nothing here touches disk: "parking" is letting
- * the first match go and keeping only what a restart would have — its checkpoint and its seats'
- * owners — then building a second `ToyMatch` from them over a FRESH `inProcessHost`, as a
- * restarted server's would be.
+ * A non-Forge game parks at a checkpoint and restores from it — generically,
+ * through `HostedMatch.noteCheckpoint`/`MatchShell.remember` and `HostedMatchDeps.restoreSpec`
+ * (`HostedMatch`'s own constructor calls it, the shell's version of what `restoredSpec` already
+ * does for Forge from a `TurnSnapshot`). Nothing here touches disk: "parking" is letting the first
+ * match go and keeping only what a restart would have — its checkpoint and its seats' owners —
+ * then building a second `ToyMatch` from them over a FRESH `inProcessHost`, as a restarted
+ * server's would be. The ORIGINAL spec is handed to the second match, unchanged: `restoreSpec` is
+ * what transforms it, not the test.
  */
 
 const ALICE = 'fk:alice' as ParticipantId;
@@ -23,7 +24,7 @@ const BOB = 'fk:bob' as ParticipantId;
 const SPEC: MatchSpec = { seats: [{ ai: false, name: 'Alice', deck: null }, { ai: false, name: 'Bob', deck: null }] };
 
 function deps(): ToyMatchDeps {
-	return { log: () => undefined, host: inProcessHost(toyEngine()), emit: () => undefined, emitWatchers: () => undefined };
+	return { log: () => undefined, host: inProcessHost(toyEngine()), emit: () => undefined, emitWatchers: () => undefined, restoreSpec: toyAdapter.restoreSpec };
 }
 
 describe('a toy match parks at a checkpoint and restores from it through a fresh in-process host', () => {
@@ -40,12 +41,12 @@ describe('a toy match parks at a checkpoint and restores from it through a fresh
 		expect(first.latestCheckpoint).toEqual({ score: [2, 1] });
 
 		// What a restart has: the checkpoint and the seats' owners, nothing else of the game in memory.
-		// (`latestCheckpoint` is opaque to the shell, `unknown`; only the game that wrote it — here,
-		// this test standing in for `ToyMatch`'s own caller — knows it is a `ToyCheckpoint`.)
 		const owners = first.owners();
-		const checkpoint = first.latestCheckpoint as ToyCheckpoint;
+		const checkpoint = first.latestCheckpoint;
 
-		const second = new ToyMatch('toy-park-1', toyAdapter.restoreSpec(SPEC, checkpoint), deps(), {
+		// `SPEC` unchanged: `HostedMatch`'s own constructor runs `deps.restoreSpec(SPEC, checkpoint)`
+		// internally, because `restore.checkpoint` is set and `deps.restoreSpec` is given, above.
+		const second = new ToyMatch('toy-park-1', SPEC, deps(), {
 			epoch: first.epoch,
 			owners,
 			startedAt: first.startedAt,

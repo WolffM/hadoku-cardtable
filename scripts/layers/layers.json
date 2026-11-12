@@ -35,6 +35,7 @@
     "apps/server/src/play/game-adapter.ts",
     "apps/server/src/play/match/outcome.ts",
     "apps/server/src/play/match/shell.ts",
+    "apps/server/src/play/match/hosted.ts",
     "apps/server/src/play/runtimes/**",
     "apps/server/src/play/relay-socket.ts",
     "apps/agent/src/*.ts",

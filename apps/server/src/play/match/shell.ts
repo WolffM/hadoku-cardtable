@@ -169,7 +169,7 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 
 	/**
 	 * The newest `{ t: 'checkpoint' }` line `GameAdapter.classify` read, opaque to the shell —
-	 * w105's generic twin of {@link latestSnapshot}, which stays Forge's own. Set by the composing
+	 * The generic twin of {@link latestSnapshot}, which stays Forge's own. Set by the composing
 	 * match whenever its own `onLine` sees one (`fixtures/toy-game/match.ts`'s `ToyMatch` is the
 	 * first caller; a generic `HostedMatch` reading `classify` directly is a later step), and
 	 * written down with the record exactly like {@link latestSnapshot} ({@link remember}). A spec

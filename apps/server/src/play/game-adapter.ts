@@ -121,14 +121,11 @@ export interface GameSession<Line, Cmd> {
 	 */
 	ended(reason: string | null): void;
 	/**
-	 * w105's notice hook: the shell has words for a seat with no game state behind them — today
+	 * The notice hook: the shell has words for a seat with no game state behind them — today
 	 * only `'server-stopping'` (`Match.serverStopping`'s `message`, said as Forge's own
-	 * `endNotice` always has; `ForgeSession` keeps implementing it directly until the shell calls
-	 * this instead). Optional, not required yet: `ForgeSession` does not implement it this wave
-	 * (`match/forge-session.ts` is another lane's row this wave — w103 §G's own precedent, hooks
-	 * land optional-then-required in the commit that wires the shell's call site and Forge's
-	 * implementation together). The toy game implements it trivially, to prove it fits a session
-	 * with nothing of its own to say.
+	 * `endNotice` always has — `ForgeSession.notice` is a one-line call to it). `RelaySession`'s
+	 * tells every seat the same message as a relayed line; the toy game implements it trivially,
+	 * to prove it fits a session with nothing of its own to say.
 	 */
 	notice?(kind: 'server-stopping', message: string): void;
 }

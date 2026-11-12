@@ -9,7 +9,7 @@
 import { type ParticipantId } from '@wolffm/rooms-protocol';
 
 import type { MatchSpec } from '../../host.js';
-import { HostedMatch, type HostedMatchDeps } from '../../match.js';
+import { HostedMatch, type HostedMatchDeps } from '../../match/hosted.js';
 import type { ShellSeat } from '../../match/shell.js';
 import { toyAdapter, type ToyFrame } from './adapter.js';
 import type { ToyCmd, ToyLine } from './rules.js';
@@ -71,11 +71,11 @@ export class ToyMatch extends HostedMatch<ToyLine, ToyCmd> {
 				this.game.onLine(line);
 				return;
 			case 'checkpoint':
-				// Kept exactly as `MatchShell.remember` keeps Forge's own `latestSnapshot`: a later park
-				// (this toy never actually parks to disk — `ParkedStore` is Forge's — but a restart that
-				// builds a fresh `ToyMatch` with this as its `restore.checkpoint` resumes from it).
-				this.latestCheckpoint = c.cp;
-				this.remember();
+				// Hoisted into `HostedMatch.noteCheckpoint`: this toy never actually parks to
+				// disk (`ParkedStore` is Forge's), but a restart that builds a fresh `ToyMatch` with
+				// this as its `restore.checkpoint` — and `deps.restoreSpec: toyAdapter.restoreSpec` —
+				// resumes from it, through `HostedMatch`'s own constructor.
+				this.noteCheckpoint(c.cp);
 				return;
 			case 'fatal':
 				this.fail(c.why);
