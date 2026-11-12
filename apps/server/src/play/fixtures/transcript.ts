@@ -27,7 +27,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DELTA_TYPE, cardIdOfState, deltaKey } from '@hadoku/forge-wire';
+import { DELTA_TYPE, boolOf, cardIdOfState, deltaKey, intOf } from '@hadoku/forge-wire';
 
 import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
@@ -187,6 +187,22 @@ function ids(obj: WireObj | undefined, prop: string): number[] {
 	return Array.isArray(v?.v) ? v.v.map((x) => x.v) : [];
 }
 
+/**
+ * Whether `cardId`'s TRUE face is knowable to `viewer` just because it sits in a public zone
+ * (Battlefield, Stack, Graveyard, Exile, Command) — matching `visibility.ts`'s own `faceShownTo`:
+ * always for its own controller, for a grant (`PlayerMayLook`), or simply when it is not face-down.
+ * A face-down card an OPPONENT controls stays unknown even on the stack (`PEEKABLE_FACE_DOWN_ZONES`
+ * lets only the controller peek) — the oracle's own blind spot this closes: every public zone was
+ * waved through as fully known regardless, so a real leak of a face-down card's Name there (a morph,
+ * a manifest, a face-down spell) would never have registered as a secret to catch.
+ */
+function trueFaceKnownTo(state: ReadonlyMap<string, WireObj>, cardId: number, viewer: number, controller: number | null): boolean {
+	if (controller === viewer) return true;
+	const card = state.get(deltaKey(DELTA_TYPE.card, cardId));
+	if (!boolOf(card, 'Facedown')) return true;
+	return ids(card, 'PlayerMayLook').includes(viewer);
+}
+
 /** Every string that says WHICH card this is. */
 export function identifyingStrings(state: ReadonlyMap<string, WireObj>, cardId: number): string[] {
 	const out: string[] = [];
@@ -263,16 +279,26 @@ export function secretsFor(
 		for (const obj of state.values()) {
 			// A spell on the stack is public: GameView.Stack names stack items, and each
 			// item's SourceCard is the card. Read off the player zones alone, a check that
-			// landed while a spell was on the stack called the spell a leak.
+			// landed while a spell was on the stack called the spell a leak. Its TRUE face,
+			// though, is public only when it is not face-down or this viewer controls it
+			// (`trueFaceKnownTo`) — a face-down spell on the stack still hides its name from
+			// an opponent, the same as any other face-down card in a public zone below.
 			if (obj._type === DELTA_TYPE.game) {
 				for (const item of ids(obj, 'Stack')) {
 					const source = state.get(deltaKey(DELTA_TYPE.stackItem, item))?.SourceCard as { v?: unknown } | undefined;
-					if (typeof source?.v === 'number') everShown.add(source.v);
+					if (typeof source?.v !== 'number') continue;
+					const card = state.get(deltaKey(DELTA_TYPE.card, source.v));
+					const controller = intOf(card, 'Controller') ?? intOf(card, 'Owner');
+					(trueFaceKnownTo(state, source.v, viewer, controller) ? everShown : everHidden).add(source.v);
 				}
 			}
 			if (obj._type !== DELTA_TYPE.player) continue;
 			const mine = obj._id === viewer;
-			for (const prop of ['Battlefield', 'Graveyard', 'Exile', 'Command']) for (const id of ids(obj, prop)) everShown.add(id);
+			// Battlefield/Graveyard/Exile/Command are all public zones (`visibility.ts`'s
+			// `PUBLIC_ZONES`), but a face-down card there — a morph, a manifest — keeps its
+			// true face from everyone but its controller (`trueFaceKnownTo`); `obj._id` is
+			// that controller, so `mine` already settles it without a second lookup.
+			for (const prop of ['Battlefield', 'Graveyard', 'Exile', 'Command']) for (const id of ids(obj, prop)) (trueFaceKnownTo(state, id, viewer, mine ? viewer : null) ? everShown : everHidden).add(id);
 			// A sideboard is the owner's to know and nobody else's. Precons can list a card in
 			// both [Main] and [Sideboard] ("Arcane Tempo": Beacon Bolt, The Mirari Conjecture),
 			// and the owner's named sideboard copy once read as a leak of the library copy.

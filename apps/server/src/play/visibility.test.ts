@@ -1460,6 +1460,16 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(held(aliceOut, 30)).toEqual({ t: 'str', v: 'Grizzly Bears' });
 	});
 
+	it('a face-down spell on the stack reaches its controller whole and the opponent as its face only', () => {
+		// The stack is public (`PUBLIC_ZONES`), but a face-down card there still hides its name from
+		// everyone but its controller — `PEEKABLE_FACE_DOWN_ZONES` is what lets the controller (bob,
+		// `Controller: int(1)` from `card()`) peek at their own; the opponent (alice) never can.
+		const onStack = { ...card(30), Zone: { t: 'enum', v: 'Stack' }, Facedown: { t: 'bool', v: true } };
+		const { alice, bob } = both(table({ Hand: [10], Library: [20, 21, 22] }, onStack));
+		expect(bob.visibilityOf(30), 'its controller may peek at their own face-down spell on the stack').toBe('full');
+		expect(alice.visibilityOf(30), 'the opponent sees it, but not its face').toBe('faceOnly');
+	});
+
 	it('does not learn a card that sat in a hand before it was ever public, nor a face-down permanent bounced to a hand', () => {
 		const faceDown = { ...card(30), Facedown: { t: 'bool', v: true } };
 		const { alice, bob, aliceOut, bobOut } = both(

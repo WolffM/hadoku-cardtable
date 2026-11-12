@@ -117,21 +117,31 @@ function named(ask: Ask, name: (id: number) => string, wanted: readonly string[]
 /**
  * Seat 0 casts `card` in `scenario` against Forge's AI, answers its one ruled ask first with a set the
  * prompt refuses and then with a valid one (or as `answer` says), and hands the two asks and the set
- * taken to `check`.
+ * taken to `check`, along with `nameAt`: a name as the search showed it, for an option that is still
+ * resolvable from `check`'s own moment but might not be (below).
  */
 async function chosenOnce(
 	scenario: string,
 	card: string,
 	seed: number,
-	check: (s: Scenario, first: Ask, taken: Ref[]) => void,
+	check: (s: Scenario, first: Ask, taken: Ref[], nameAt: (id: number) => string) => void,
 	answer: Answer = (ask, nth) => (nth === 0 ? brokenSet(ask) : validSet(ask)),
 ): Promise<void> {
 	if (!available.ok) return;
 	const searches: { ask: Ask; answer: Ref[] }[] = [];
 	const at: { s?: Scenario } = {};
+	// Every option a ChosenSet ask ever offered, named as seat 0 saw it AT THE TIME. A card this
+	// search offered and the player did not take is put back and the library shuffled (Shard
+	// Convergence's own rule): visibility.ts rightly forgets a shuffled-back library card's identity
+	// after that — the player saw it during the search, not forever — so a `check` run once the whole
+	// spell has resolved cannot re-derive that name from seat 0's CURRENT state the way it can for a
+	// taken card now sitting, always visible, in its own hand. `nameAt` is the record of what the
+	// search itself showed, taken once, before the shuffle can take it back.
+	const seenAt = new Map<number, string>();
 	const reply = (frame: Record<string, unknown>): unknown => {
 		const f = frame as Ask;
 		if (f.method !== 'chooseEntitiesForEffect' || f.rules === undefined) return undefined;
+		for (const r of f.optionList ?? []) if (!seenAt.has(r.id)) seenAt.set(r.id, nameOf(at.s!, 0, r.id));
 		const chosen = answer(f, searches.length, (id) => nameOf(at.s!, 0, id));
 		searches.push({ ask: f, answer: chosen });
 		return chosen;
@@ -148,7 +158,7 @@ async function chosenOnce(
 		expect(second!.ask.rules).toEqual(first!.ask.rules);
 		expect(searchRuleProblems(first!.ask.rules, idsOf(first!.answer)), 'the first answer is one the prompt refuses').not.toEqual([]);
 		expect(searchRuleProblems(second!.ask.rules, idsOf(second!.answer)), 'the second answer is one the prompt takes').toEqual([]);
-		check(s, first!.ask, second!.answer);
+		check(s, first!.ask, second!.answer, (id) => seenAt.get(id) ?? nameOf(s, 0, id));
 	} finally {
 		await s.stop();
 	}
@@ -163,18 +173,22 @@ describe.skipIf(!available.ok)(title, () => {
 		'Shard Convergence (ChangeZone EACH): one pick of a Plains, Island, Swamp and Mountain; two Plains refused; Volcanic Island fills one slot',
 		async () => {
 			if (!available.ok) return;
-			await chosenOnce('set-shard', 'Shard Convergence', 11, (s, first, taken) => {
+			await chosenOnce('set-shard', 'Shard Convergence', 11, (s, first, taken, nameAt) => {
 				expect(first.max).toBe(4);
 				const slots = slotsOf(first)!;
 				expect(slots.fill).toBe(false);
-				expect(slots.slots.map((ids) => ids.map((id) => nameOf(s, 0, id)).sort())).toEqual([
+				// `nameAt`, not `nameOf`: the Plains this search offered but did not take goes back to the
+				// library and is shuffled, so seat 0's CURRENT state has rightly forgotten it by the time this
+				// runs (the whole spell has resolved) — `nameOf(s, 0, id)` would read it back as `#<id>`.
+				expect(slots.slots.map((ids) => ids.map((id) => nameAt(id)).sort())).toEqual([
 					['Plains', 'Plains'],
 					['Island', 'Volcanic Island'],
 					['Swamp'],
 					['Volcanic Island'],
 				]);
 				// Forest fits no slot, so it is not offered.
-				expect(names(s, first.optionList!)).toEqual(['Island', 'Plains', 'Plains', 'Swamp', 'Volcanic Island']);
+				expect((first.optionList ?? []).map((r) => nameAt(r.id)).sort()).toEqual(['Island', 'Plains', 'Plains', 'Swamp', 'Volcanic Island']);
+				// `taken` went to hand, always visible to its own owner: `nameOf` (current state) is fine here.
 				expect(names(s, taken)).toEqual(['Island', 'Plains', 'Swamp', 'Volcanic Island']);
 				expect(zoneNames(s, 'Hand')).toEqual(['Island', 'Plains', 'Swamp', 'Volcanic Island']);
 			});
