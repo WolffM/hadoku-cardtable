@@ -347,6 +347,27 @@ function seatAvatar(room: RoomRecord, seat: number): string {
 	return drawAvatar(`${room.id}:${seat}`);
 }
 
+/** Whether a HUMAN member of the room already wears `avatarId` — never an AI seat's own. */
+function wornByHuman(room: RoomRecord, avatarId: string): boolean {
+	return room.members.some((m) => m.avatarId === avatarId);
+}
+
+/**
+ * The AI seat's character as shown now — `room.podAi[seat]`'s stored draw, unless a human member now
+ * wears that exact face, in which case a fresh one is drawn (never stored back): `freeAiAvatar`'s own
+ * invariant ("nobody shares a face while one is free") is computed once, at seat time, against
+ * `room.members`' avatarIds as they stood then. A member who joins and is seated before their account's
+ * look comes back (`people.ts`'s `applyPerson` resolves it lazily, off the join) still reads as
+ * avatar-less at that instant, so the AI's draw can land on the exact face the member is given moments
+ * later. Recomputed here on every read rather than patched once, so it stays right through whichever
+ * member's avatar changes after — a human's own account is always the one that is real; the AI's is the
+ * one with another to draw from.
+ */
+function resolvedAiAvatar(room: RoomRecord, seat: number): string | null {
+	const stored = room.podAi[seat] ?? null;
+	return stored !== null && wornByHuman(room, stored) ? freeAiAvatar(room, seat) : stored;
+}
+
 /** One place at the pod's table: a member, or the AI (with no character for a seat nobody filled). */
 type PodPlace = { kind: 'human'; id: string } | { kind: 'ai'; persona: AiPersona | null };
 
@@ -360,8 +381,8 @@ export function podTable(room: RoomRecord): PodPlace[] {
 	return room.podSeats.flatMap((id, i): PodPlace[] => {
 		if (id === POD_CLOSED) return [];
 		if (id !== null && id !== POD_AI) return [{ kind: 'human', id }];
-		const avatar = id === POD_AI ? room.podAi[i] : null;
-		return [{ kind: 'ai', persona: avatar === null || avatar === undefined ? null : personaOf(avatar) }];
+		const avatar = id === POD_AI ? resolvedAiAvatar(room, i) : null;
+		return [{ kind: 'ai', persona: avatar === null ? null : personaOf(avatar) }];
 	});
 }
 
@@ -459,7 +480,7 @@ export function entrantPersona(room: RoomRecord, id: string, checks: Pick<GameHo
  * (`RoomRecord.aiDeckAssignments`). The name is read from the library each time, never stored (R12).
  */
 function seatPersona(room: RoomRecord, seat: number, checks: Pick<GameHooks, 'pilotOf'>): AiPersona {
-	const persona = personaOf(room.podAi[seat] ?? seatAvatar(room, seat));
+	const persona = personaOf(resolvedAiAvatar(room, seat) ?? seatAvatar(room, seat));
 	const deck = room.aiDeckAssignments?.[`ai:${String(seat)}`];
 	const player = deck === undefined ? undefined : checks.pilotOf?.(deck);
 	return player === undefined ? persona : { ...persona, name: player };

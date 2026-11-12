@@ -757,6 +757,30 @@ export function isStop(msg: string, seat: number, s: Scenario): boolean {
 	return policy.stopOnTheirTurn.includes(phase) || policy.stopWithPlayOnTheirTurn.includes(phase);
 }
 
+/**
+ * The cleanup discard: a hand of eight is one over the maximum. A pick of the last card it asks for
+ * ends it, so OK is pressed only while it is still this seat's prompt with a live bar. A blind OK on a
+ * timer outlived it: Forge had moved on, and the press passed whatever window the seat stood at by then
+ * (blockers.jvm Q10: the defender's Declare Blockers). `discarding` is the caller's own set, shared
+ * across both seats' calls (and, for a wait that outgrows `passUntil`'s own window, across every call
+ * made while it waits — priority.jvm's cast-and-resolve wait does not go through `passUntil` at all, but
+ * a seat can still cross the hand-size maximum while it polls, and a half-answered discard blocks
+ * Forge's one game thread on it regardless of which wait is doing the polling).
+ */
+export function cleanupDiscard(s: Scenario, seat: number, discarding: Set<number>): void {
+	const at = s.sent.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1)).filter((i) => i >= 0).pop();
+	if (at === undefined || s.pressed.has(at)) return;
+	const msg = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
+	if (!/^Cleanup Phase\nSelect \d+ card\(s\) to discard/.test(msg)) return;
+	if (discarding.has(at)) {
+		if (s.buttons(seat)?.enable1 === true) s.ok(seat);
+		return;
+	}
+	discarding.add(at);
+	const card = s.zone(seat, 'Hand')[0];
+	if (card !== undefined) s.select(seat, card.id);
+}
+
 /** Press OK once on every NEW stop of either seat, until `done`. */
 export async function passUntil(s: Scenario, done: () => boolean, label: string, ms = 60_000): Promise<void> {
 	const discarding = new Set<number>();
@@ -765,26 +789,13 @@ export async function passUntil(s: Scenario, done: () => boolean, label: string,
 		s.answerAsks();
 		if (done()) return true;
 		for (const seat of [0, 1]) {
+			cleanupDiscard(s, seat, discarding);
 			const at = s.sent
 				.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1))
 				.filter((i) => i >= 0)
 				.pop();
 			if (at === undefined || s.pressed.has(at)) continue;
 			const msg = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
-			// The cleanup discard: a hand of eight is one over the maximum. A pick of the last card it
-			// asks for ends it, so OK is pressed only while it is still this seat's prompt with a live
-			// bar. A blind OK on a timer outlived it: Forge had moved on, and the press passed whatever
-			// window the seat stood at by then (blockers.jvm Q10: the defender's Declare Blockers).
-			if (/^Cleanup Phase\nSelect \d+ card\(s\) to discard/.test(msg)) {
-				if (discarding.has(at)) {
-					if (s.buttons(seat)?.enable1 === true) s.ok(seat);
-					continue;
-				}
-				discarding.add(at);
-				const card = s.zone(seat, 'Hand')[0];
-				if (card !== undefined) s.select(seat, card.id);
-				continue;
-			}
 			if (!isStop(msg, seat, s) || s.buttons(seat)?.enable1 !== true) continue;
 			s.ok(seat);
 		}

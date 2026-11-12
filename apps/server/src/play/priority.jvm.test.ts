@@ -12,34 +12,11 @@ import { describe, expect, it } from 'vitest';
 import type { ServerFrame } from '@hadoku/forge-wire';
 
 import { onlyAnswer } from './auto.js';
-import { available, deck, forgeFrames, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, cleanupDiscard, deck, forgeFrames, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'what the caster is shown after casting, against real Forge'
 	: `what the caster is shown after casting, against real Forge — SKIPPED: ${available.reason}`;
-
-/**
- * `passUntil`'s own cleanup-discard handling (`scenario.ts`), repeated here because the cast-and-
- * resolve wait below does not go through `passUntil`: a seat over the hand-size maximum can be
- * asked to discard at any point this test waits, not only between `passUntil`'s own stops. A half
- * answered discard (a card selected, never confirmed with OK) leaves Forge's one game thread
- * blocked on it — observed locally: a wait that outgrew `passUntil`'s own window left seat 1's
- * cleanup discard stuck mid-pick, and seat 0 (casting, on a LATER turn) never got anything back.
- * `discarding` is shared across both seats' calls, exactly as `passUntil` shares one set.
- */
-function handleCleanupDiscard(s: Scenario, seat: number, discarding: Set<number>): void {
-	const at = s.sent.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1)).filter((i) => i >= 0).pop();
-	if (at === undefined || s.pressed.has(at)) return;
-	const msg = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
-	if (!/^Cleanup Phase\nSelect \d+ card\(s\) to discard/.test(msg)) return;
-	if (discarding.has(at)) {
-		if (s.buttons(seat)?.enable1 === true) s.ok(seat);
-		return;
-	}
-	discarding.add(at);
-	const card = s.zone(seat, 'Hand')[0];
-	if (card !== undefined) s.select(seat, card.id);
-}
 
 function dump(s: Scenario, from: number, seats: number[], t0: number): string[] {
 	const out: string[] = [];
@@ -91,8 +68,8 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(
 					() => {
 						s.answerAsks();
-						handleCleanupDiscard(s, x, discarding);
-						handleCleanupDiscard(s, y, discarding);
+						cleanupDiscard(s, x, discarding);
+						cleanupDiscard(s, y, discarding);
 						return inOwnMain(s, x, 3);
 					},
 					`seat ${x} back at its own main after the second land`,
@@ -123,8 +100,8 @@ describe.skipIf(!available.ok)(title, () => {
 						// Seat y can cross the hand-size maximum while this waits (it draws every turn
 						// and plays no land of its own in this test) — a half-answered discard would
 						// block Forge's one game thread on an unrelated window forever.
-						handleCleanupDiscard(s, x, discarding);
-						handleCleanupDiscard(s, y, discarding);
+						cleanupDiscard(s, x, discarding);
+						cleanupDiscard(s, y, discarding);
 						if (!targeted && /target/i.test(s.prompt(x))) {
 							targeted = true;
 							s.match.fromClient(x, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: oppId }, triggerEvent: null } as never);
