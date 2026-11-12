@@ -26,7 +26,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 import type { ServerEnvelope } from '@hadoku/shared';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type JvmHostConfig, type JvmHostFactory, type MatchSpec } from './host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type JvmHostConfig, type JvmHostFactory, type MatchSpec } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
+const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry, type Match } from './match.js';
 import { nightly } from './scenario.js';
 
@@ -59,7 +61,7 @@ const VS_AI = {
 
 interface Run {
 	match: Match;
-	pool: JvmHostFactory;
+	pool: JvmHostFactory<BridgeLine, BridgeCommand>;
 	logs: Record<string, unknown>[];
 	sent: { seat: number; envelope: ServerEnvelope }[];
 	pid(): number;

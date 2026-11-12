@@ -18,7 +18,7 @@ import { DELTA_TYPE, cardStateKey, deltaKey, parseServerFrame, type ServerFrame 
 import { MatchSnapshotSchema, type MatchSnapshot, type ServerEnvelope } from '@hadoku/shared';
 
 import { loadTranscript, replayFactory, type ReplayHost } from '../../../../server/src/play/fixtures/transcript.ts';
-import type { BridgeLine } from '../../../../server/src/play/host.ts';
+import type { BridgeLine } from '../../../../server/src/play/bridge-protocol.ts';
 import { createStateHistory } from '../../../../server/src/play/history.ts';
 import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
 import { WATCHER_SEAT } from '../../../../server/src/play/match/forge-session.ts';

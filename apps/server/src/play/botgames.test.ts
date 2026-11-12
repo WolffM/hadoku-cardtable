@@ -1,20 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import { BOT_GAME_S, botGameSpec, runBotGame, type BotGameInput } from './botgames.ts';
-import type { BridgeLine, HostEvents, MatchHostFactory, MatchSpec } from './host.ts';
+import type { HostEvents, MatchHostFactory, MatchSpec } from './host.ts';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.ts';
 
 const INPUT: BotGameInput = { names: ['Knight', 'Wizard'], decks: ['[main]\n40 Island', '[main]\n40 Swamp'], bestOf: 3 };
 
 /** A host whose one match the test drives: its spec, its lines, its exit, and whether it was stopped. */
-function fakeHost(): { host: MatchHostFactory; spec: () => MatchSpec; say: (line: BridgeLine) => void; exit: (reason: string) => void; stopped: () => boolean } {
-	let events: HostEvents | null = null;
+function fakeHost(): { host: MatchHostFactory<BridgeLine, BridgeCommand>; spec: () => MatchSpec; say: (line: BridgeLine) => void; exit: (reason: string) => void; stopped: () => boolean } {
+	let events: HostEvents<BridgeLine, BridgeCommand> | null = null;
 	let spec: MatchSpec | null = null;
 	let stopped = false;
-	const host = ((_id: string, s: MatchSpec, e: HostEvents) => {
+	const host = ((_id: string, s: MatchSpec, e: HostEvents<BridgeLine, BridgeCommand>) => {
 		spec = s;
 		events = e;
 		return { send: () => {}, stop: () => void (stopped = true) };
-	}) as unknown as MatchHostFactory;
+	}) as unknown as MatchHostFactory<BridgeLine, BridgeCommand>;
 	return { host, spec: () => spec!, say: (line) => events!.line(line), exit: (reason) => events!.exit(reason), stopped: () => stopped };
 }
 
@@ -82,7 +83,7 @@ describe('runBotGame', () => {
 	it('a host that cannot place it is no result', async () => {
 		const host = (() => {
 			throw new Error('no Forge host is configured');
-		}) as unknown as MatchHostFactory;
+		}) as unknown as MatchHostFactory<BridgeLine, BridgeCommand>;
 		expect(await runBotGame(host, 'b-6', INPUT, { timeoutMs: 60_000, log: () => {} })).toEqual({ ok: false, why: 'failed', error: 'no Forge host is configured' });
 	});
 });

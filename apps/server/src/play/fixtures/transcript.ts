@@ -29,7 +29,8 @@ import { fileURLToPath } from 'node:url';
 
 import { DELTA_TYPE, cardIdOfState, deltaKey } from '@hadoku/forge-wire';
 
-import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
+import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
+import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { type DeltaPacketJson, type StateFrame, type WireObj } from '../visibility.js';
 
 const TRANSCRIPT_FILE = resolve(dirname(fileURLToPath(import.meta.url)), 'bridge-two-seats.ndjson');
@@ -92,13 +93,13 @@ export function loadTranscript(file = TRANSCRIPT_FILE, matchId = TRANSCRIPT_MATC
 }
 
 /** A host with no JVM: the test pushes recorded lines, and reads the commands sent. */
-export class ReplayHost implements MatchHost {
+export class ReplayHost implements MatchHost<BridgeCommand> {
 	readonly commands: BridgeCommand[] = [];
 	stopped = false;
 	constructor(
 		readonly matchId: string,
 		readonly spec: MatchSpec,
-		private readonly events: HostEvents,
+		private readonly events: HostEvents<BridgeLine, BridgeCommand>,
 	) {}
 	push(...lines: BridgeLine[]): void {
 		for (const line of lines) this.events.line(line);
@@ -114,7 +115,7 @@ export class ReplayHost implements MatchHost {
 	}
 }
 
-export function replayFactory(): { factory: MatchHostFactory; hosts: ReplayHost[] } {
+export function replayFactory(): { factory: MatchHostFactory<BridgeLine, BridgeCommand>; hosts: ReplayHost[] } {
 	const hosts: ReplayHost[] = [];
 	return {
 		hosts,

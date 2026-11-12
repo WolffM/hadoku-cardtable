@@ -11,7 +11,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { botDeckText } from '../room/botDeck.js';
 import { loadPool } from '../room/pool.js';
 import { runBotGame } from './botgames.js';
-import { jvmHostConfig, jvmHostFactory, type JvmHostFactory } from './host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, type JvmHostFactory } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
+const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 
 const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 const title = available.ok ? 'a bot game, played out by two Forge AIs on a real bridge' : `a bot game, played out by two Forge AIs on a real bridge — SKIPPED: ${available.reason}`;
@@ -24,7 +26,7 @@ const GOBLINS = '[metadata]\nName=Goblins\n[main]\n17 Mountain\n23 Raging Goblin
 const BEARS = '[metadata]\nName=Bears\n[main]\n17 Forest\n23 Grizzly Bears\n';
 
 describe.skipIf(!available.ok)(title, () => {
-	let pool: JvmHostFactory | null = null;
+	let pool: JvmHostFactory<BridgeLine, BridgeCommand> | null = null;
 	afterEach(() => {
 		pool?.close();
 		pool = null;

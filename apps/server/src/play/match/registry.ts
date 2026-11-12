@@ -2,6 +2,7 @@ import type { ParticipantId } from '@wolffm/rooms-protocol';
 import type { RestartState, SeatIdentity, ServerEnvelope, StopPhase } from '@hadoku/shared';
 
 import type { HostEvents, MatchHost, MatchRecord, MatchSpec, TurnSnapshot } from '../host.js';
+import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import type { Match, MatchDeps } from '../match.js';
 import type { SeatState } from './forge-session.js';
 
@@ -100,5 +101,5 @@ export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopC
 	/** The registry let go of `match` ({@link MatchRegistry.find}): whatever was kept for it elsewhere can go too. */
 	freed?(match: Match): void;
 	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
-	attach?(record: MatchRecord, events: HostEvents): MatchHost;
+	attach?(record: MatchRecord, events: HostEvents<BridgeLine, BridgeCommand>): MatchHost<BridgeCommand>;
 };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadTranscript } from '../fixtures/transcript.js';
-import type { BridgeLine } from '../host.js';
+import type { BridgeLine } from '../bridge-protocol.js';
 import { boardDigest, createSeatPosition, isStateLine, lastPrompt, normalisedBoard, STATE_METHODS } from './position.js';
 
 function setGameView(seat: number, gameView: Record<string, { _type: number; _id: number; [k: string]: unknown }>): BridgeLine {

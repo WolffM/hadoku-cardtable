@@ -36,7 +36,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ClientFrameSchema, deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
+const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry } from './match.js';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';

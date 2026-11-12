@@ -1,12 +1,6 @@
 {
-	"edgeCounts": {
-		"platform→magic": 1
-	},
-	"edgeKeys": {
-		"platform→magic": [
-			"apps/server/src/play/host.ts→@hadoku/forge-wire"
-		]
-	},
+	"edgeCounts": {},
+	"edgeKeys": {},
 	"tangled": [
 		"apps/server/src/room/lobby.ts",
 		"apps/server/src/http/routes.ts",

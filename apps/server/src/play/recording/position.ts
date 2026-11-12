@@ -26,7 +26,7 @@
 
 import { createHash } from 'node:crypto';
 
-import type { BridgeLine } from '../host.js';
+import type { BridgeLine } from '../bridge-protocol.js';
 import { foldFrame, foldFrames, type StateFrame, type WireObj } from '../visibility.js';
 
 /** The three state-carrying bridge methods a seat's board folds from. */

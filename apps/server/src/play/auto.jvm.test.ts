@@ -73,7 +73,9 @@ import {
 	type PromptFacts,
 	type SeatNotes,
 } from './auto.js';
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
+const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry } from './match.js';
 import { finishMulligan, scenarioText, startScenario, waitUntil as waitUntilScenario } from './scenario.js';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';

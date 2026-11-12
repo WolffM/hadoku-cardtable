@@ -2,14 +2,14 @@
  * The coordinator's placement across hosts: claws first, hokon as the backstop.
  *
  * `CARDTABLE_PLAY_HOSTS=claws` puts this in front of `host.ts`'s JVM pools; `local` (the default)
- * leaves today's one local pool alone. It is a `MatchHostFactory` like the pool it wraps, so
+ * leaves today's one local pool alone. It is a `MatchHostFactory<L, C>` like the pool it wraps, so
  * `match.ts`, `start-queue.ts` and the recorder see no difference.
  *
  * - **Hosts.** One `jvmHostFactory` pool per claw, over that claw's agent (`remote/`), with its
  *   records and streams under `<workDir>-claws/<node>`, so the local boot sweep of `workDir` never
  *   reads them. One local pool on hokon, the backstop, with no warm JVM. The claws are the nodes
  *   fleet-manager reports with a hosting slice (`fleet.ts`), read every `FLEET_POLL_MS`.
- * - **Placement** is `rules.ts`: the six bars, then the slices we asked for (`inUse`: the first
+ * - **Placement<L, C>** is `rules.ts`: the six bars, then the slices we asked for (`inUse`: the first
  *   `demand` usable claws, in `HOST_ORDER`), spread by free room with the faster core breaking
  *   ties; any other claw once those are full; hokon only when no claw can take the match
  *   (fleet-manager's backstop rule). With nowhere to go `room()` answers `full` and the start
@@ -49,9 +49,9 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 
 import {
+	isLifecycle,
 	jvmHostFactory,
 	type AiCutoff,
-	type BridgeLine,
 	type HostEvents,
 	type JvmHostConfig,
 	type JvmHostFactory,
@@ -150,9 +150,9 @@ export interface Restorer {
 const FENCED = 'fenced:';
 
 /** Proves a claw can host again: null when it passed, else why not. */
-export type Canary = (node: string, pool: JvmHostFactory) => Promise<string | null>;
+export type Canary<L extends { t: string }, C extends { t: string }> = (node: string, pool: JvmHostFactory<L, C>) => Promise<string | null>;
 
-export interface PlacementOptions {
+export interface PlacementOptions<L extends { t: string }, C extends { t: string }> {
 	config: JvmHostConfig;
 	fleet: FleetSource;
 	/** Connect to the agent on `node` and give it this server's runtime (`connectRemoteHost`). */
@@ -161,7 +161,7 @@ export interface PlacementOptions {
 	/** hokon's launcher. Default: this machine's (`localJvmLauncher`, with its boot sweep). */
 	backstopLauncher?: JvmLauncher;
 	backstopJvms?: number;
-	canary?: Canary;
+	canary?: Canary<L, C>;
 	/** The hosting contract. Default `hosting.json`'s (`contract.ts`). */
 	contract?: HostingContract;
 	/** The operator's backstop force file (`rules.ts` `readForce`). */
@@ -176,10 +176,10 @@ export interface PlacementOptions {
 	draftbots(deps: { alerts: Alerts; now: () => number; log: (entry: Record<string, unknown>) => void }): DraftbotPlacement;
 }
 
-interface Host {
+interface Host<L extends { t: string }, C extends { t: string }> {
 	readonly name: string;
 	readonly kind: 'claw' | 'backstop';
-	pool: JvmHostFactory | null;
+	pool: JvmHostFactory<L, C> | null;
 	link: ClawConnection | null;
 	connecting: boolean;
 	agentError: string | null;
@@ -210,14 +210,14 @@ interface Host {
  * What `Match` holds: the host it talks to, which a start placed again (it failed before it was
  * `ready`) swaps underneath it.
  */
-class Face implements MatchHost {
+class Face<C extends { t: string }> implements MatchHost<C> {
 	private remembered: { epoch: string; owners: (string | null)[] } | null = null;
-	constructor(private target: MatchHost) {}
-	swap(target: MatchHost): void {
+	constructor(private target: MatchHost<C>) {}
+	swap(target: MatchHost<C>): void {
 		this.target = target;
 		if (this.remembered !== null) target.remember?.(this.remembered);
 	}
-	send(command: Parameters<MatchHost['send']>[0]): void {
+	send(command: Parameters<MatchHost<C>['send']>[0]): void {
 		this.target.send(command);
 	}
 	stop(): void {
@@ -233,12 +233,12 @@ class Face implements MatchHost {
 }
 
 /** One match on one host, as this layer knows it. */
-interface Placed {
+interface Placed<L extends { t: string }, C extends { t: string }> {
 	readonly id: string;
 	readonly spec: MatchSpec;
-	readonly events: HostEvents;
-	readonly host: Host;
-	face: Face | null;
+	readonly events: HostEvents<L, C>;
+	readonly host: Host<L, C>;
+	face: Face<C> | null;
 	/** Forge said `ready`: the match has been shown to its seats, so it can only be restored. */
 	ready: boolean;
 	/** Moved elsewhere: everything its old host still says is dropped. */
@@ -309,8 +309,8 @@ export interface DraftbotPlacement extends DraftbotAdvisor {
 	step(claws: DraftbotClaw[]): void;
 }
 
-export type Placement = MatchHostFactory &
-	Omit<JvmHostFactory, 'room'> & {
+export type Placement<L extends { t: string }, C extends { t: string }> = MatchHostFactory<L, C> &
+	Omit<JvmHostFactory<L, C>, 'room'> & {
 	room(): 'warm' | 'booting' | 'none' | 'full';
 	/** The registry's restore, once it exists (it is built after the factory). */
 	restoreWith(restorer: Restorer): void;
@@ -326,12 +326,12 @@ export type Placement = MatchHostFactory &
 };
 
 /** A start-to-first-frame canary: a human seat and an AI seat with random precons, stopped at once. */
-export function frameCanary(timeoutMs = CANARY_TIMEOUT_MS): Canary {
+export function frameCanary<L extends { t: string }, C extends { t: string }>(timeoutMs = CANARY_TIMEOUT_MS): Canary<L, C> {
 	const spec: MatchSpec = { seats: [{ name: 'canary', ai: false, deck: null }, { name: 'canary-ai', ai: true, deck: null }], seed: 1 };
 	return (_node, pool) =>
 		new Promise((resolve) => {
 			let done = false;
-			let host: MatchHost | null = null;
+			let host: MatchHost<C> | null = null;
 			const finish = (why: string | null): void => {
 				if (done) return;
 				done = true;
@@ -345,7 +345,7 @@ export function frameCanary(timeoutMs = CANARY_TIMEOUT_MS): Canary {
 				host = pool(`m-canary${randomBytes(4).toString('hex')}`, spec, {
 					line: (l) => {
 						if (l.t === 'frame') finish(null);
-						else if (l.t === 'fatal') finish(`fatal: ${l.message}`);
+						else if (isLifecycle(l) && l.t === 'fatal') finish(`fatal: ${l.message}`);
 					},
 					exit: (reason) => finish(`ended before its first frame: ${reason}`),
 					log: () => {},
@@ -356,21 +356,21 @@ export function frameCanary(timeoutMs = CANARY_TIMEOUT_MS): Canary {
 		});
 }
 
-export function placement(opts: PlacementOptions): Placement {
+export function placement<L extends { t: string }, C extends { t: string }>(opts: PlacementOptions<L, C>): Placement<L, C> {
 	const now = opts.now ?? Date.now;
 	const log = opts.log ?? (() => {});
 	const config = opts.config;
 	const perJvm = config.perJvm ?? MATCHES_PER_JVM;
 	const xmxMb = config.xmxMb ?? JVM_HEAP_MB;
 	const graceMs = opts.restartGraceMs ?? RESTART_GRACE_MS;
-	const canary = opts.canary ?? frameCanary();
+	const canary = opts.canary ?? frameCanary<L, C>();
 	const alerts = opts.alerts;
 	const contract = opts.contract ?? CONTRACT;
 	const clawsDir = `${config.workDir}-claws`;
 
-	const hosts = new Map<string, Host>();
-	const placed = new Map<string, Placed>();
-	const orphanHost = new Map<string, Host>();
+	const hosts = new Map<string, Host<L, C>>();
+	const placed = new Map<string, Placed<L, C>>();
+	const orphanHost = new Map<string, Host<L, C>>();
 	const roomWatchers: (() => void)[] = [];
 	const fatalBefore = new Set<string>();
 	let restorer: Restorer | null = null;
@@ -393,8 +393,8 @@ export function placement(opts: PlacementOptions): Placement {
 	const noticesSeen = new Map<string, number | null>();
 	let firstRead = true;
 	/** Set while a restore runs: the factory never places onto the host being failed. */
-	let exceptHost: Host | null = null;
-	const fencedBatches = new Map<Host, Moved[]>();
+	let exceptHost: Host<L, C> | null = null;
+	const fencedBatches = new Map<Host<L, C>, Moved[]>();
 	const timers: NodeJS.Timeout[] = [];
 	const draftbots = opts.draftbots({ alerts, now, log });
 
@@ -402,8 +402,8 @@ export function placement(opts: PlacementOptions): Placement {
 		for (const l of roomWatchers) l();
 	};
 
-	function newHost(name: string, kind: Host['kind'], maxJvms: number): Host {
-		const host: Host = {
+	function newHost(name: string, kind: Host<L, C>['kind'], maxJvms: number): Host<L, C> {
+		const host: Host<L, C> = {
 			name,
 			kind,
 			pool: null,
@@ -425,8 +425,8 @@ export function placement(opts: PlacementOptions): Placement {
 		return host;
 	}
 
-	function makePool(host: Host, launcher: JvmLauncher | undefined, workDir: string, warm: boolean): JvmHostFactory {
-		const pool = jvmHostFactory(
+	function makePool(host: Host<L, C>, launcher: JvmLauncher | undefined, workDir: string, warm: boolean): JvmHostFactory<L, C> {
+		const pool = jvmHostFactory<L, C>(
 			{ ...config, workDir },
 			{ ...(launcher === undefined ? {} : { launcher }), warm, maxJvms: () => host.maxJvms, onCutoff: (c) => aiCutoff(host, c), log: (e) => log({ ...e, host: host.name }) },
 		);
@@ -437,10 +437,10 @@ export function placement(opts: PlacementOptions): Placement {
 	const hokon = newHost('hokon', 'backstop', opts.backstopJvms ?? BACKSTOP_JVMS);
 	hokon.pool = makePool(hokon, opts.backstopLauncher, config.workDir, false);
 
-	const claws = (): Host[] => [...hosts.values()].filter((h) => h.kind === 'claw');
+	const claws = (): Host<L, C>[] => [...hosts.values()].filter((h) => h.kind === 'claw');
 
 	/** Matches a host can still take: room in its JVMs, and room for JVMs it does not run yet. */
-	function free(host: Host): number {
+	function free(host: Host<L, C>): number {
 		if (host.pool === null) return 0;
 		const jvms = host.pool.jvms();
 		const inJvms = jvms.filter((j) => !j.draining).reduce((n, j) => n + Math.max(0, perJvm - j.matches.length), 0);
@@ -448,13 +448,13 @@ export function placement(opts: PlacementOptions): Placement {
 	}
 
 	/** AI cutoffs on `host` within `AI_CUTOFF_WINDOW_MS`, forgetting older ones. */
-	function recentCutoffs(host: Host): number {
+	function recentCutoffs(host: Host<L, C>): number {
 		const since = now() - AI_CUTOFF_WINDOW_MS;
 		while (host.cutoffs.length > 0 && host.cutoffs[0]! <= since) host.cutoffs.shift();
 		return host.cutoffs.length;
 	}
 
-	function barsOf(host: Host): Bar[] {
+	function barsOf(host: Host<L, C>): Bar[] {
 		if (host.kind === 'backstop') {
 			const room = free(host);
 			return [
@@ -490,7 +490,7 @@ export function placement(opts: PlacementOptions): Placement {
 	 * The best host for a new match now, never `except`: the slices we asked for, spread; then any
 	 * other claw, in `HOST_ORDER`; then hokon, which no claw being able to take it promotes.
 	 */
-	function pick(except: Host | null = null): Host | null {
+	function pick(except: Host<L, C> | null = null): Host<L, C> | null {
 		const open = claws().filter((h) => h !== except && eligible(barsOf(h)));
 		const first = inUseNow();
 		const spread = rankClaws(open.filter((h) => first.has(h.name)).map((h) => ({ node: h.name, free: free(h), host: h })))[0];
@@ -515,7 +515,7 @@ export function placement(opts: PlacementOptions): Placement {
 	 * it fails the `ai` bar at once, and opens `ai:<host>` with one alert. `tick` resolves it once
 	 * `AI_CUTOFF_WINDOW_MS` passes without another. Live matches stay where they are.
 	 */
-	function aiCutoff(host: Host, cutoff: AiCutoff): void {
+	function aiCutoff(host: Host<L, C>, cutoff: AiCutoff): void {
 		host.cutoffs.push(now());
 		const recent = recentCutoffs(host);
 		log({ evt: 'host-ai-cutoff', host: host.name, jvm: cutoff.hostId, matchId: cutoff.matchId, where: cutoff.where, recent });
@@ -555,14 +555,14 @@ export function placement(opts: PlacementOptions): Placement {
 		alerts.fire('capacity', `⚠️ Capacity: a Forge match is waiting for a host. ${whyNone()}.${fleet}`);
 	}
 
-	function matchesOn(host: Host): number {
+	function matchesOn(host: Host<L, C>): number {
 		let n = 0;
 		for (const p of placed.values()) if (p.host === host) n += 1;
 		return n;
 	}
 
 	/** Usable, as `DemandClaw` means it: every bar but room and AI quality holds. */
-	function usable(host: Host): boolean {
+	function usable(host: Host<L, C>): boolean {
 		return barsOf(host).every((b) => b.ok || b.bar === 'room' || b.bar === 'ai');
 	}
 
@@ -674,17 +674,17 @@ export function placement(opts: PlacementOptions): Placement {
 
 	/* ── Matches ── */
 
-	function wrap(p: Placed): HostEvents {
+	function wrap(p: Placed<L, C>): HostEvents<L, C> {
 		return {
-			line: (l: BridgeLine) => {
+			line: (l: L) => {
 				if (p.moved) return;
 				if (l.t === 'ready') p.ready = true;
-				if (l.t === 'fatal' && p.ready && !closing) {
+				if (isLifecycle(l) && l.t === 'fatal' && p.ready && !closing) {
 					matchFailed(p, `a match failed on it: ${l.message}`);
 					return;
 				}
 				p.events.line(l);
-				if ((l as { t: string }).t === 'snapshot' && p.moveAtTurnStart) plannedMove(p);
+				if (l.t === 'snapshot' && p.moveAtTurnStart) plannedMove(p);
 			},
 			exit: (reason) => {
 				if (p.moved) return;
@@ -700,11 +700,11 @@ export function placement(opts: PlacementOptions): Placement {
 		};
 	}
 
-	function placeOn(host: Host, matchId: string, spec: MatchSpec, events: HostEvents, face: Face | null = null): MatchHost {
+	function placeOn(host: Host<L, C>, matchId: string, spec: MatchSpec, events: HostEvents<L, C>, face: Face<C> | null = null): MatchHost<C> {
 		if (host.pool === null) throw new Error(`${host.name} has no JVM pool`);
-		const p: Placed = { id: matchId, spec, events, host, face, ready: false, moved: false, moveAtTurnStart: false };
+		const p: Placed<L, C> = { id: matchId, spec, events, host, face, ready: false, moved: false, moveAtTurnStart: false };
 		const target = host.pool(matchId, spec, wrap(p));
-		if (face === null) p.face = new Face(target);
+		if (face === null) p.face = new Face<C>(target);
 		else face.swap(target);
 		placed.set(matchId, p);
 		events.log({ evt: 'match-host', matchId, host: host.name });
@@ -713,7 +713,7 @@ export function placement(opts: PlacementOptions): Placement {
 	}
 
 	/** A match's host said it failed. On a claw that is the claw's failure; on hokon, the match's. */
-	function matchFailed(p: Placed, cause: string): void {
+	function matchFailed(p: Placed<L, C>, cause: string): void {
 		const fatal = cause.startsWith('a match failed on it');
 		if (fatal && fatalBefore.has(p.id)) {
 			// It failed the same way on the host it was moved to: the match is the common factor.
@@ -743,7 +743,7 @@ export function placement(opts: PlacementOptions): Placement {
 	 * JVM 28 ms before claw-8 fenced it too, and the match was started a third time on hokon).
 	 * The JVM's matches exit one by one in the same tick: one alert lists them all.
 	 */
-	function fencedOver(p: Placed, cause: string): void {
+	function fencedOver(p: Placed<L, C>, cause: string): void {
 		for (const host of hosts.values()) {
 			for (const j of host.pool?.jvms() ?? []) if (j.adopted) host.pool?.drain(j.hostId, `a JVM taken back from the earlier server was fenced: ${cause}`);
 		}
@@ -771,7 +771,7 @@ export function placement(opts: PlacementOptions): Placement {
 	 * Restore `p` elsewhere, then fail the old match: in that order, so the seats never see the end
 	 * of a match that is coming back.
 	 */
-	function move(p: Placed, cause: string, from: Host, refuse: string | null = null, except: Host | null = from): Moved {
+	function move(p: Placed<L, C>, cause: string, from: Host<L, C>, refuse: string | null = null, except: Host<L, C> | null = from): Moved {
 		p.moved = true;
 		if (placed.get(p.id) === p) placed.delete(p.id);
 		const t0 = now();
@@ -816,12 +816,12 @@ export function placement(opts: PlacementOptions): Placement {
 		const ms = now() - t0;
 		const to = why === null ? (placed.get(p.id)?.host.name ?? 'the start queue') : null;
 		p.events.log({ evt: why === null ? 'match-moved' : 'match-lost', matchId: p.id, from: from.name, to, cause, ...(why === null ? { how } : { why }), ms });
-		// Placed again, the same `Match` goes on through its swapped face; restored, the old one ends.
+		// Placed<L, C> again, the same `Match` goes on through its swapped face; restored, the old one ends.
 		if (why !== null || p.ready) p.events.exit(why === null ? `moved to ${to}: ${cause}` : `the match was lost: ${cause}, and ${why}`);
 		return { matchId: p.id, to, how: why ?? how, ms };
 	}
 
-	function failClaw(host: Host, cause: string): void {
+	function failClaw(host: Host<L, C>, cause: string): void {
 		if (host.failing) return;
 		host.failing = true;
 		const t0 = now();
@@ -840,7 +840,7 @@ export function placement(opts: PlacementOptions): Placement {
 		notifyRoom();
 	}
 
-	function alertIncident(host: Host, cause: string, moved: Moved[], lost: Moved[]): void {
+	function alertIncident(host: Host<L, C>, cause: string, moved: Moved[], lost: Moved[]): void {
 		const list = (rs: Moved[]): string => rs.map((r) => `${r.matchId} → ${r.to} (${r.how}, ${r.ms} ms)`).join('; ');
 		const quarantined = host.kind === 'claw' ? ` ${host.name} is quarantined until fleet-manager reports it healthy and a canary match passes on it.` : '';
 		if (moved.length > 0 || lost.length === 0) {
@@ -855,14 +855,14 @@ export function placement(opts: PlacementOptions): Placement {
 		}
 	}
 
-	function quarantine(host: Host, cause: string): void {
+	function quarantine(host: Host<L, C>, cause: string): void {
 		if (host.kind !== 'claw') return;
 		host.quarantine ??= { cause, at: now(), canary: null, nextCanary: 0, canaryRunning: false };
 		log({ evt: 'claw-quarantined', host: host.name, cause });
 	}
 
 	/** Let go of everything on a failed claw: kill what still runs, keep its records out of the next pool's way. */
-	function detach(host: Host, cause: string): void {
+	function detach(host: Host<L, C>, cause: string): void {
 		const pool = host.pool;
 		host.pool = null;
 		pool?.abandon(cause);
@@ -877,7 +877,7 @@ export function placement(opts: PlacementOptions): Placement {
 		if (host.link !== null && host.link.client.lost !== null) host.link = null;
 	}
 
-	function plannedMove(p: Placed): void {
+	function plannedMove(p: Placed<L, C>): void {
 		if (p.moved || restorer === null) return;
 		const from = p.host;
 		if (pick(from) === null) {
@@ -906,12 +906,12 @@ export function placement(opts: PlacementOptions): Placement {
 	/* ── Hosts ── */
 
 	/** JVMs its slice holds, by the agent's fit rule, beside the draft bot when it runs it. */
-	function fitJvms(host: Host): number {
+	function fitJvms(host: Host<L, C>): number {
 		const draftbot = draftbots.runsOn(host.name);
 		return jvmsThatFit(host.memoryMb, xmxMb, (xs) => sliceNeedMb(xs, draftbot));
 	}
 
-	function ensureClaw(node: FleetNode): Host {
+	function ensureClaw(node: FleetNode): Host<L, C> {
 		const existing = hosts.get(node.node);
 		if (existing !== undefined) return existing;
 		const host = newHost(node.node, 'claw', 0);
@@ -931,7 +931,7 @@ export function placement(opts: PlacementOptions): Placement {
 		for (const h of claws()) h.maxJvms = fitJvms(h);
 	}
 
-	async function connectClaw(host: Host): Promise<void> {
+	async function connectClaw(host: Host<L, C>): Promise<void> {
 		host.connecting = true;
 		try {
 			const conn = await opts.connect(host.name);
@@ -976,7 +976,7 @@ export function placement(opts: PlacementOptions): Placement {
 		}
 	}
 
-	function agentLost(host: Host, conn: ClawConnection, reason: string): void {
+	function agentLost(host: Host<L, C>, conn: ClawConnection, reason: string): void {
 		if (host.link !== conn) return;
 		host.link = null;
 		if (closing) return;
@@ -1010,7 +1010,7 @@ export function placement(opts: PlacementOptions): Placement {
 		notifyRoom();
 	}
 
-	async function recover(host: Host): Promise<void> {
+	async function recover(host: Host<L, C>): Promise<void> {
 		const q = host.quarantine;
 		if (q === null || q.canaryRunning || now() < q.nextCanary) return;
 		const f = host.fleet;
@@ -1092,14 +1092,14 @@ export function placement(opts: PlacementOptions): Placement {
 		notifyRoom();
 	}
 
-	const factory = ((matchId: string, spec: MatchSpec, events: HostEvents): MatchHost => {
+	const factory = ((matchId: string, spec: MatchSpec, events: HostEvents<L, C>): MatchHost<C> => {
 		const host = pick(exceptHost);
 		if (host === null) {
 			capacityShort();
 			throw new Error(`no Forge host can take a match now (${whyNone()})`);
 		}
 		return placeOn(host, matchId, spec, events);
-	}) as Placement;
+	}) as Placement<L, C>;
 
 	factory.restoreWith = (r) => {
 		restorer = r;
@@ -1162,8 +1162,8 @@ export function placement(opts: PlacementOptions): Placement {
 		const host = orphanHost.get(record.matchId);
 		if (host === undefined || host.pool === null) throw new Error(`there is no orphan match ${record.matchId} to attach to`);
 		orphanHost.delete(record.matchId);
-		const p: Placed = { id: record.matchId, spec: record.spec, events, host, face: null, ready: true, moved: false, moveAtTurnStart: false };
-		p.face = new Face(host.pool.attach(record, wrap(p)));
+		const p: Placed<L, C> = { id: record.matchId, spec: record.spec, events, host, face: null, ready: true, moved: false, moveAtTurnStart: false };
+		p.face = new Face<C>(host.pool.attach(record, wrap(p)));
 		placed.set(record.matchId, p);
 		return p.face;
 	};

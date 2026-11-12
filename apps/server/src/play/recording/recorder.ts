@@ -42,7 +42,8 @@ import { artOf } from '../art.js';
 import { createArtIds, type ArtCatalog } from '../art-ids.js';
 import type { DeckCosts } from '../deck-colors.js';
 import { seatDeckColors } from '../deck-colors.js';
-import type { BridgeCommand, MatchHost, MatchHostFactory, MatchSpec, SeatSpec } from '../host.js';
+import type { MatchHost, MatchHostFactory, MatchSpec, SeatSpec } from '../host.js';
+import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { gameOutcome } from '../match.js';
 import { WATCHER_SEAT } from '../match/forge-session.js';
 import type { OutcomeFacts } from '../match/outcome.js';
@@ -120,7 +121,7 @@ export interface RecorderDeps {
 
 export interface Recorder {
 	/** Wrap a host factory so every match it makes is recorded. Everything else about `inner` (its `close`, `attach`, `room`, …) passes through unchanged. */
-	host(inner: MatchHostFactory): MatchHostFactory;
+	host(inner: MatchHostFactory<BridgeLine, BridgeCommand>): MatchHostFactory<BridgeLine, BridgeCommand>;
 	/** Wire to the registry's `emit`, via `PlayDeps.onEnvelope`: every seat's envelope, every match. Only `WATCHER_SEAT` is recorded. */
 	onEnvelope(matchId: string, seat: number, envelope: ServerEnvelope): void;
 	/**
@@ -323,7 +324,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 				// agents were told to hold their JVMs, so every restart killed every live match.
 				return {
 					stop: () => host.stop(),
-					...(host.remember === undefined ? {} : { remember: (state: Parameters<NonNullable<MatchHost['remember']>>[0]) => host.remember?.(state) }),
+					...(host.remember === undefined ? {} : { remember: (state: Parameters<NonNullable<MatchHost<BridgeCommand>['remember']>>[0]) => host.remember?.(state) }),
 					...(host.handOver === undefined ? {} : { handOver: () => host.handOver?.() ?? false }),
 					send(command: BridgeCommand) {
 						guarded(log, matchId, 'command', () => {
@@ -337,7 +338,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 						host.send(command);
 					},
 				};
-			}) as MatchHostFactory;
+			}) as MatchHostFactory<BridgeLine, BridgeCommand>;
 			// `close`, `orphans`, `attach`, `handOverAll`, `reapOnExit`, `room`, `booting`, `watchRoom`: passed through as-is.
 			// A reattached match (`attach`) gets no session and is not recorded — see the module header.
 			Object.assign(wrapped, inner);

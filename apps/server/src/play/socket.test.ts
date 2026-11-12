@@ -19,7 +19,8 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import { parseStartBody, parseStopPolicyEnv, STOP_POLICY_ENV } from './socket.ts';
 import { DEFAULT_STOP_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
-import { MAX_CONCURRENT_MATCHES, type BridgeLine, type HostEvents, type MatchRecord, type MatchHostFactory, type MatchSpec } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type HostEvents, type MatchRecord, type MatchHostFactory, type MatchSpec } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, ReplayHost, secretsFor } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
 import { WATCHER_SEAT } from './match/forge-session.js';
@@ -83,7 +84,7 @@ async function boot(
 		/** Each seat holder's avatar, by user name — what the room answers in production. */
 		faces?: Map<string, string>;
 		/** The JVM pool, when the test needs the re-attach seam; its hosts are listed in `hosts`. */
-		host?: { factory: MatchHostFactory; hosts: ReplayHost[] };
+		host?: { factory: MatchHostFactory<BridgeLine, BridgeCommand>; hosts: ReplayHost[] };
 		onAbandoned?: (match: import('./match.ts').Match) => void;
 		/** The server's build, told to every socket on connect. */
 		build?: string;
@@ -338,7 +339,7 @@ describe('POST /api/play/matches', () => {
 	it('a host that cannot start a JVM answers 503 in words, as JSON, and the match is failed rather than left starting', async () => {
 		const factory = (() => {
 			throw Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' });
-		}) as MatchHostFactory;
+		}) as MatchHostFactory<BridgeLine, BridgeCommand>;
 		const h = await boot({ host: { factory, hosts: [] } });
 		const res = await refusedStart(h);
 		expect(res.status).toBe(503);
@@ -1648,7 +1649,7 @@ const isFinishGame = (f: unknown): boolean => (f as { frame?: { method?: string 
  * (`attach`, as the real host replays `<run>/stream.jsonl`). A host that was
  * not handed over died with its process and is offered to nobody.
  */
-function jvmPool(): { factory: MatchHostFactory; hosts: ReplayHost[] } {
+function jvmPool(): { factory: MatchHostFactory<BridgeLine, BridgeCommand>; hosts: ReplayHost[] } {
 	const hosts: ReplayHost[] = [];
 	const handed: { host: DurableHost; record: MatchRecord }[] = [];
 	const offered = new Set<string>();
@@ -1670,7 +1671,7 @@ function jvmPool(): { factory: MatchHostFactory; hosts: ReplayHost[] } {
 			return true;
 		}
 	}
-	const make = (id: string, spec: MatchSpec, events: HostEvents): DurableHost => {
+	const make = (id: string, spec: MatchSpec, events: HostEvents<BridgeLine, BridgeCommand>): DurableHost => {
 		const host = new DurableHost(id, spec, events);
 		hosts.push(host);
 		return host;
@@ -1679,7 +1680,7 @@ function jvmPool(): { factory: MatchHostFactory; hosts: ReplayHost[] } {
 		hosts,
 		factory: Object.assign(make, {
 			orphans: async () => handed.filter((h) => !offered.has(h.record.matchId)).map((h) => (offered.add(h.record.matchId), h.record)),
-			attach: (record: MatchRecord, events: HostEvents) => {
+			attach: (record: MatchRecord, events: HostEvents<BridgeLine, BridgeCommand>) => {
 				const back = make(record.matchId, record.spec!, events);
 				back.push(...handed.find((h) => h.record.matchId === record.matchId)!.host.said);
 				return back;

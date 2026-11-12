@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { BridgeCommand, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
+import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { COLD_STARTS, coldStartsFrom, queueColdStarts, type StartEvents } from './start-queue.js';
 
 const SPEC = { seats: [] } as unknown as MatchSpec;
@@ -11,12 +12,12 @@ const SPEC = { seats: [] } as unknown as MatchSpec;
  * finishes JVM i's boot.
  */
 function pool(perJvm = 2) {
-	const asked: { id: string; jvm: number; events: HostEvents; sent: BridgeCommand[]; remembered: unknown[]; stopped: boolean }[] = [];
+	const asked: { id: string; jvm: number; events: HostEvents<BridgeLine, BridgeCommand>; sent: BridgeCommand[]; remembered: unknown[]; stopped: boolean }[] = [];
 	const jvms: { warm: boolean; matches: number }[] = [];
 	let watcher: (() => void) | null = null;
 	const open = () => jvms.findIndex((j) => j.warm && j.matches < perJvm);
 	const booting = () => jvms.findIndex((j) => !j.warm && j.matches < perJvm);
-	const factory = ((id: string, _spec: MatchSpec, events: HostEvents): MatchHost => {
+	const factory = ((id: string, _spec: MatchSpec, events: HostEvents<BridgeLine, BridgeCommand>): MatchHost<BridgeCommand> => {
 		let at = open();
 		if (at < 0) at = booting();
 		if (at < 0) {
@@ -33,7 +34,7 @@ function pool(perJvm = 2) {
 			},
 			remember: (r) => placed.remembered.push(r),
 		};
-	}) as MatchHostFactory;
+	}) as MatchHostFactory<BridgeLine, BridgeCommand>;
 	factory.room = () => (open() >= 0 ? 'warm' : booting() >= 0 ? 'booting' : 'none');
 	factory.booting = () => jvms.filter((j) => !j.warm).length;
 	factory.watchRoom = (listener) => {
@@ -61,7 +62,7 @@ function pool(perJvm = 2) {
 
 function events() {
 	const seen = { places: [] as number[], booting: 0, exits: [] as string[], lines: 0 };
-	const ev: StartEvents = {
+	const ev: StartEvents<BridgeLine, BridgeCommand> = {
 		line: () => {
 			seen.lines += 1;
 		},
@@ -129,7 +130,7 @@ describe('queueColdStarts', () => {
 		const bare = ((id: string) => {
 			asked.push(id);
 			return { send: () => undefined, stop: () => undefined };
-		}) as unknown as MatchHostFactory;
+		}) as unknown as MatchHostFactory<BridgeLine, BridgeCommand>;
 		const q = queueColdStarts(bare, 1, () => {});
 		for (const id of ['m-0', 'm-1', 'm-2']) q(id, SPEC, events().ev);
 		expect(asked).toEqual(['m-0', 'm-1', 'm-2']);
@@ -169,10 +170,10 @@ describe('queueColdStarts', () => {
 	it('closing drops every waiter with a reason; a factory that throws throws to its caller', () => {
 		let fail = true;
 		const p = pool(1);
-		const throwing = Object.assign((id: string, spec: MatchSpec, ev: HostEvents) => {
+		const throwing = Object.assign((id: string, spec: MatchSpec, ev: HostEvents<BridgeLine, BridgeCommand>) => {
 			if (fail) throw new Error('no run dir');
 			return p.factory(id, spec, ev);
-		}, { room: p.factory.room, booting: p.factory.booting, watchRoom: p.factory.watchRoom }) as MatchHostFactory;
+		}, { room: p.factory.room, booting: p.factory.booting, watchRoom: p.factory.watchRoom }) as MatchHostFactory<BridgeLine, BridgeCommand>;
 		const q = queueColdStarts(throwing, 1, () => {});
 		expect(() => q('m-0', SPEC, events().ev)).toThrow('no run dir');
 		expect(q.queue()).toEqual({ booting: 0, waiting: 0 });
@@ -188,15 +189,15 @@ describe('queueColdStarts', () => {
 	it('a waiter the factory cannot place is told why with the error itself, then exits', () => {
 		let fail = false;
 		const p = pool(1);
-		const throwing = Object.assign((id: string, spec: MatchSpec, ev: HostEvents) => {
+		const throwing = Object.assign((id: string, spec: MatchSpec, ev: HostEvents<BridgeLine, BridgeCommand>) => {
 			if (fail) throw new Error('ENOSPC: no space left on device, write');
 			return p.factory(id, spec, ev);
-		}, { room: p.factory.room, booting: p.factory.booting, watchRoom: p.factory.watchRoom }) as MatchHostFactory;
+		}, { room: p.factory.room, booting: p.factory.booting, watchRoom: p.factory.watchRoom }) as MatchHostFactory<BridgeLine, BridgeCommand>;
 		const q = queueColdStarts(throwing, 1, () => {});
 		q('m-1', SPEC, events().ev);
 		const waiter = events();
 		const refused: Error[] = [];
-		const told: StartEvents = { ...waiter.ev, unstartable: (err) => refused.push(err) };
+		const told: StartEvents<BridgeLine, BridgeCommand> = { ...waiter.ev, unstartable: (err) => refused.push(err) };
 		q('m-2', SPEC, told);
 		expect(waiter.seen.places).toEqual([1]);
 		fail = true;

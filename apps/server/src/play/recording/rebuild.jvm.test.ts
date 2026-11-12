@@ -25,7 +25,9 @@ import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 import type { DeckCosts } from '../deck-colors.js';
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from '../host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type MatchSpec } from '../host.js';
+import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
+const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry } from '../match.js';
 import { WATCHER_SEAT } from '../match/forge-session.js';
 import { boardDigest } from './position.js';

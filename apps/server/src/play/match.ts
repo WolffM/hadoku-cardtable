@@ -112,7 +112,8 @@ import {
 
 import { type StopPolicy } from './auto.js';
 import { type ArtCatalog, type ArtIds } from './art-ids.js';
-import { MAX_CONCURRENT_MATCHES, type BridgeCommand, type BridgeLine, type HostEvents, type MatchHost, type MatchHostFactory, type MatchRecord, type MatchSpec, type TurnSnapshot } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type HostEvents, type MatchHost, type MatchHostFactory, type MatchRecord, type MatchSpec, type TurnSnapshot } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { runBotGame, type BotGameInput, type BotGameOutcome } from './botgames.js';
 import type { StartEvents } from './start-queue.js';
 import type { SpellCopy } from './spell-copiers.js';
@@ -192,7 +193,7 @@ export function gameOutcome(match: OutcomeFacts): GameOutcome | null {
 }
 
 export interface MatchDeps extends ShellDeps {
-	host: MatchHostFactory;
+	host: MatchHostFactory<BridgeLine, BridgeCommand>;
 	/** The card catalog every face's art id is decided from (`art-ids.ts`). Absent: the committed art table alone. */
 	catalog?: ArtCatalog | null;
 	/**
@@ -330,7 +331,7 @@ export class Match extends MatchShell {
 	 * Separate from `start` for the same reason `start` is separate from the
 	 * constructor: nothing may emit before the match is in the registry.
 	 */
-	resume(attach: (events: HostEvents) => MatchHost): void {
+	resume(attach: (events: HostEvents<BridgeLine, BridgeCommand>) => MatchHost<BridgeCommand>): void {
 		if (this.host !== null) return;
 		this.replaying = true;
 		try {
@@ -350,7 +351,7 @@ export class Match extends MatchShell {
 		this.armRejoinGrace();
 	}
 
-	private hostEvents(): StartEvents {
+	private hostEvents(): StartEvents<BridgeLine, BridgeCommand> {
 		return {
 			line: (line) => this.onLine(line),
 			exit: (reason) => this.onExit(reason),

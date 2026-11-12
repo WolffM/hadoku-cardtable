@@ -19,7 +19,7 @@ import type { ServerFrame } from '@hadoku/forge-wire';
 
 import { DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
-import type { BridgeLine } from './host.js';
+import type { BridgeLine } from './bridge-protocol.js';
 import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario, type ScenarioOptions } from './scenario.js';
 
 const title = (t: string): string => (available.ok ? t : `${t} — SKIPPED: ${available.reason}`);

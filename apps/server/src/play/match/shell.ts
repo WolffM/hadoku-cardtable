@@ -14,7 +14,15 @@ import { isDurableParticipantId, type ParticipantId } from '@wolffm/rooms-protoc
 import { report } from '../../telemetry.js';
 import { ChessClock } from '../clock.js';
 import type { GameSession } from '../game-adapter.js';
-import type { BridgeCommand, BridgeLine, MatchHost, MatchSpec, TurnSnapshot } from '../host.js';
+import type { MatchHost, MatchSpec, TurnSnapshot } from '../host.js';
+
+/**
+ * This shell's own `game`/`host` fields stay platform: a bare `{ t }` would reject the literal
+ * commands and lines it still builds itself (a forced concede's `act`, a forced `gameover`) under
+ * excess-property checking, so the index signature absorbs them without naming Forge's own
+ * `BridgeLine`/`BridgeCommand` (`bridge-protocol.ts`, magic) here.
+ */
+type EngineMsg = { t: string } & Record<string, unknown>;
 import type { MatchStatus } from './outcome.js';
 
 export type ClaimOutcome = { ok: true; seat: number; fresh: boolean } | { ok: false; error: string };
@@ -136,7 +144,7 @@ export abstract class MatchShell {
 	 */
 	readonly startedAt: number;
 	readonly spec: MatchSpec;
-	host: MatchHost | null = null;
+	host: MatchHost<EngineMsg> | null = null;
 	protected readonly now: () => number;
 	readonly runningWaiters: ((outcome: ClientOutcome) => void)[] = [];
 	/** `whenRunning` timeouts not yet started, because the match is waiting for a boot slot. */
@@ -587,7 +595,7 @@ export abstract class MatchShell {
 		this.deps.restartChanged?.(state);
 	}
 	/** The game this match plays: every fact about it the shell needs is asked of it. Set by the composing match, before anything can reach it. */
-	protected game!: GameSession<BridgeLine, BridgeCommand>;
+	protected game!: GameSession<EngineMsg, EngineMsg>;
 	abstract readonly seats: readonly ShellSeat[];
 	protected readonly deps: ShellDeps;
 
@@ -611,7 +619,7 @@ export abstract class MatchShell {
 	}
 
 	/** One line from the engine, as the composing match reads it: a concede the engine never ends ends here as its game-over would. */
-	protected abstract onLine(line: BridgeLine): void;
+	protected abstract onLine(line: EngineMsg): void;
 	abstract fail(reason: string, frames?: string[]): void;
 	abstract stop(): void;
 }

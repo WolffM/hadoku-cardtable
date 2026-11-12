@@ -14,7 +14,8 @@
  */
 
 import { report } from '../telemetry.js';
-import type { BridgeLine, MatchHostFactory, MatchSpec } from './host.js';
+import type { MatchHostFactory, MatchSpec } from './host.js';
+import type { BridgeLine, BridgeCommand } from './bridge-protocol.js';
 
 /** A bot game's one game, in seconds of wall clock, before the bridge calls it a draw (Forge's own sim clock is 120). */
 export const BOT_GAME_S = 180;
@@ -51,7 +52,7 @@ export function botGameSpec(input: BotGameInput): MatchSpec {
  * counted, or why there is no result. Past `timeoutMs` it is stopped and answers `timeout`; the caller
  * decides what a missing result means.
  */
-export function runBotGame(host: MatchHostFactory, matchId: string, input: BotGameInput, opts: { timeoutMs: number; log: (entry: Record<string, unknown>) => void }): Promise<BotGameOutcome> {
+export function runBotGame(host: MatchHostFactory<BridgeLine, BridgeCommand>, matchId: string, input: BotGameInput, opts: { timeoutMs: number; log: (entry: Record<string, unknown>) => void }): Promise<BotGameOutcome> {
 	const { log } = opts;
 	const startedAt = Date.now();
 	const wins: [number, number] = [0, 0];
@@ -81,7 +82,7 @@ export function runBotGame(host: MatchHostFactory, matchId: string, input: BotGa
 				fatal = line.message;
 			}
 		};
-		let running: ReturnType<MatchHostFactory> | null = null;
+		let running: ReturnType<MatchHostFactory<BridgeLine, BridgeCommand>> | null = null;
 		log({ evt: 'bot-game-started', matchId, names: input.names, bestOf: input.bestOf });
 		report('bot-game', { phase: 'started', matchId });
 		try {

@@ -17,7 +17,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { BridgeLine } from './host.js';
+import type { BridgeLine } from './bridge-protocol.js';
 import { available, deck, inOwnMain, landPayer, passUntil, promptBar, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok ? 'restore from a turn-start snapshot, against real Forge' : `restore from a turn-start snapshot, against real Forge — SKIPPED: ${available.reason}`;

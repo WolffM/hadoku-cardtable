@@ -55,7 +55,9 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostFactory, type MatchSpec } from './host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type JvmHostFactory, type MatchSpec } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
+const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry, type Match } from './match.js';
 import { foldFrames, type StateFrame } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
@@ -86,7 +88,7 @@ function precon(name: string): string {
 
 describe.skipIf(!available.ok)(title, () => {
 	const matches: Match[] = [];
-	const pools: JvmHostFactory[] = [];
+	const pools: JvmHostFactory<BridgeLine, BridgeCommand>[] = [];
 
 	afterAll(async () => {
 		for (const m of matches) m.stop();

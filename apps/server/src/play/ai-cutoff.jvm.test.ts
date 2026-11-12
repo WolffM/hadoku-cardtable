@@ -21,14 +21,17 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { jvmHostFactory, liveJvmCount, type AiCutoff, type BridgeLine, type HostEvents, type JvmHostFactory, type MatchHost, type MatchSpec } from './host.js';
+import { jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type AiCutoff, type HostEvents, type JvmHostFactory, type MatchHost, type MatchSpec } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { available, deck, scenarioText, waitUntil } from './scenario.js';
+
+const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 
 const title = available.ok
 	? 'an AI cutoff in a shared JVM is counted for its own match, against a real bridge'
 	: `an AI cutoff in a shared JVM is counted for its own match, against a real bridge — SKIPPED: ${available.reason}`;
 
-interface Rec extends HostEvents {
+interface Rec extends HostEvents<BridgeLine, BridgeCommand> {
 	lines: BridgeLine[];
 	logs: Record<string, unknown>[];
 }
@@ -41,8 +44,8 @@ function rec(): Rec {
 describe.skipIf(!available.ok)(title, () => {
 	const poolLog: Record<string, unknown>[] = [];
 	const cutoffs: AiCutoff[] = [];
-	const hosts: MatchHost[] = [];
-	let pool: JvmHostFactory | null = null;
+	const hosts: MatchHost<BridgeCommand>[] = [];
+	let pool: JvmHostFactory<BridgeLine, BridgeCommand> | null = null;
 
 	afterAll(async () => {
 		for (const h of hosts) h.stop();

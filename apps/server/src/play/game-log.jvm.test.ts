@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { GameLogMeta } from '@hadoku/forge-wire';
 
-import type { BridgeLine } from './host.js';
+import type { BridgeLine } from './bridge-protocol.js';
 import { available, castNamed, deck, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok

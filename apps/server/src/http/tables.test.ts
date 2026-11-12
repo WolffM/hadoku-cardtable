@@ -31,6 +31,7 @@ import type { MatchReport } from '@wolffm/prefs-client/games';
 import type { ClientFrame } from '@hadoku/forge-wire';
 import { GAME_CLOCK_MS, type ClockSetting } from '@hadoku/shared';
 import type { MatchRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
+import type { BridgeCommand, BridgeLine } from '../play/bridge-protocol.js';
 import type { MatchRegistry } from '../play/match.js';
 import {
 	MATCH_EVENTS,
@@ -535,7 +536,7 @@ afterEach(async () => {
  * rooms), and `host` stands in for the JVM pool — a restart's re-attaches
  * through its `orphans`/`attach`.
  */
-async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): Promise<Harness> {
+async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory<BridgeLine, BridgeCommand> } = {}): Promise<Harness> {
 	const cube = loadPool(CUBE_FILE);
 	if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
 	const rooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube.pool), now: () => 1_700_000_000_000 });
@@ -2090,9 +2091,9 @@ describe('a room table', () => {
 			harness = null;
 
 			const { factory, hosts } = replayFactory();
-			const host: MatchHostFactory = Object.assign(factory, {
+			const host: MatchHostFactory<BridgeLine, BridgeCommand> = Object.assign(factory, {
 				orphans: async () => [record],
-				attach: (r: MatchRecord, events: Parameters<MatchHostFactory>[2]) => {
+				attach: (r: MatchRecord, events: Parameters<MatchHostFactory<BridgeLine, BridgeCommand>>[2]) => {
 					const back = factory(r.matchId, r.spec!, events) as ReplayHost;
 					back.push(...OPENING);
 					return back;

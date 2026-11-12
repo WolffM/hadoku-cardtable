@@ -25,7 +25,8 @@ import {
 } from '@hadoku/shared';
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
-import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
+import type { HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { createMatchRegistry, type Match, type MatchSpecWithIdentity } from './match.js';
 import { MATCH_ENDED_TITLE, PENDING_REVEAL_CHOICE_MS } from './match/forge-frames.js';
 import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, WATCHER_SEAT, frameGist } from './match/forge-session.js';
@@ -1552,8 +1553,8 @@ interface Survivable {
 	commandsSent(): BridgeCommand[];
 }
 
-function survivable(): { factory: MatchHostFactory; attach: (record: MatchRecord, events: HostEvents) => MatchHost; state: Survivable } {
-	let events: HostEvents | null = null;
+function survivable(): { factory: MatchHostFactory<BridgeLine, BridgeCommand>; attach: (record: MatchRecord, events: HostEvents<BridgeLine, BridgeCommand>) => MatchHost<BridgeCommand>; state: Survivable } {
+	let events: HostEvents<BridgeLine, BridgeCommand> | null = null;
 	const state: Survivable = {
 		stream: [],
 		remembered: null,
@@ -1567,7 +1568,7 @@ function survivable(): { factory: MatchHostFactory; attach: (record: MatchRecord
 		},
 		commandsSent: () => state.stream.flatMap((e) => (e.t === 'sent' ? [e.command] : [])),
 	};
-	const face = (): MatchHost => ({
+	const face = (): MatchHost<BridgeCommand> => ({
 		send: (command) => void state.stream.push({ t: 'sent', command }),
 		stop: () => void (state.stopped = true),
 		remember: (s) => void (state.remembered = { epoch: s.epoch, owners: [...s.owners], snapshot: s.snapshot ?? null }),

@@ -8,7 +8,9 @@
 
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostFactory } from '../play/host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type JvmHostFactory } from '../play/host.js';
+import type { BridgeCommand, BridgeLine } from '../play/bridge-protocol.js';
+const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry, type Match } from '../play/match.js';
 import { POWER_2012, UW_DELVER, ctx, drafted, draftedDeckText } from './gate-fixture.js';
 import { checkSeat, type SeatVerdict } from './gate.js';
@@ -38,7 +40,7 @@ const title = available.ok
 
 describe.skipIf(!available.ok)(title, () => {
 	const matches: Match[] = [];
-	const pools: JvmHostFactory[] = [];
+	const pools: JvmHostFactory<BridgeLine, BridgeCommand>[] = [];
 
 	afterAll(async () => {
 		for (const m of matches) m.stop();

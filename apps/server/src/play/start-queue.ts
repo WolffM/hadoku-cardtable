@@ -27,7 +27,7 @@
  */
 
 import { positiveInt } from './engine-runtime.js';
-import type { BridgeCommand, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
+import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 
 /**
  * JVMs booting at once before a start that needs another waits. A lone boot on a claw under CI
@@ -42,7 +42,7 @@ export function coldStartsFrom(env: NodeJS.ProcessEnv = process.env): number {
 }
 
 /** What a start is told beyond a host's own events. Both optional: a host that boots at once says neither. */
-export interface StartEvents extends HostEvents {
+export interface StartEvents<L extends { t: string }, C extends { t: string }> extends HostEvents<L, C> {
 	/** Waiting for a boot slot, at this 1-based place. Said again each time the place changes. */
 	queued?(place: number): void;
 	/** The match is being placed now: the start timeout runs from here. */
@@ -52,16 +52,16 @@ export interface StartEvents extends HostEvents {
 }
 
 /** A waiting start's host until its JVM is asked for. */
-class WaitingHost implements MatchHost {
-	private host: MatchHost | null = null;
-	private readonly held: BridgeCommand[] = [];
+class WaitingHost<L extends { t: string }, C extends { t: string }> implements MatchHost<C> {
+	private host: MatchHost<C> | null = null;
+	private readonly held: C[] = [];
 	private remembered: { epoch: string; owners: (string | null)[] } | null = null;
 	private gone = false;
 
-	constructor(private readonly leave: () => void, private readonly events: HostEvents) {}
+	constructor(private readonly leave: () => void, private readonly events: HostEvents<L, C>) {}
 
 	/** The real host: everything held goes to it, in order. */
-	become(host: MatchHost): void {
+	become(host: MatchHost<C>): void {
 		this.host = host;
 		if (this.remembered !== null) host.remember?.(this.remembered);
 		for (const command of this.held.splice(0)) host.send(command);
@@ -74,7 +74,7 @@ class WaitingHost implements MatchHost {
 		this.events.exit(reason);
 	}
 
-	send(command: BridgeCommand): void {
+	send(command: C): void {
 		if (this.host !== null) this.host.send(command);
 		else this.held.push(command);
 	}
@@ -101,22 +101,26 @@ class WaitingHost implements MatchHost {
 	}
 }
 
-interface Waiting {
+interface Waiting<L extends { t: string }, C extends { t: string }> {
 	matchId: string;
 	spec: MatchSpec;
-	events: StartEvents;
-	host: WaitingHost;
+	events: StartEvents<L, C>;
+	host: WaitingHost<L, C>;
 	place: number;
 	since: number;
 }
 
-export type QueuedFactory = MatchHostFactory & {
+export type QueuedFactory<L extends { t: string }, C extends { t: string }> = MatchHostFactory<L, C> & {
 	/** JVMs booting now, and starts waiting, for diagnostics and tests. */
 	queue(): { booting: number; waiting: number };
 };
 
-export function queueColdStarts(factory: MatchHostFactory, limit: number, log: (entry: Record<string, unknown>) => void): QueuedFactory {
-	const waiting: Waiting[] = [];
+export function queueColdStarts<L extends { t: string }, C extends { t: string }>(
+	factory: MatchHostFactory<L, C>,
+	limit: number,
+	log: (entry: Record<string, unknown>) => void,
+): QueuedFactory<L, C> {
+	const waiting: Waiting<L, C>[] = [];
 	const booting = (): number => factory.booting?.() ?? 0;
 	/** A start may go now: some host may take it, and it needs no boot or another boot fits. */
 	const free = (): boolean => {
@@ -126,7 +130,7 @@ export function queueColdStarts(factory: MatchHostFactory, limit: number, log: (
 	let pumping = false;
 
 	/** Place this match now. Throws what the factory throws. */
-	function begin(matchId: string, spec: MatchSpec, events: StartEvents, waitedMs: number | null): MatchHost {
+	function begin(matchId: string, spec: MatchSpec, events: StartEvents<L, C>, waitedMs: number | null): MatchHost<C> {
 		log({ evt: 'start-booting', matchId, room: factory.room?.() ?? 'warm', booting: booting(), ...(waitedMs === null ? {} : { waitedMs }) });
 		events.booting?.();
 		return factory(matchId, spec, events);
@@ -139,7 +143,7 @@ export function queueColdStarts(factory: MatchHostFactory, limit: number, log: (
 		try {
 			while (waiting.length > 0 && free()) {
 				const next = waiting.shift()!;
-				let host: MatchHost;
+				let host: MatchHost<C>;
 				try {
 					host = begin(next.matchId, next.spec, next.events, Date.now() - next.since);
 				} catch (err) {
@@ -163,15 +167,15 @@ export function queueColdStarts(factory: MatchHostFactory, limit: number, log: (
 		for (const w of waiting.splice(0)) w.host.drop(reason);
 	}
 
-	const queued = ((matchId: string, spec: MatchSpec, events: StartEvents): MatchHost => {
+	const queued = ((matchId: string, spec: MatchSpec, events: StartEvents<L, C>): MatchHost<C> => {
 		if (waiting.length === 0 && free()) return begin(matchId, spec, events, null);
-		const entry: Waiting = {
+		const entry: Waiting<L, C> = {
 			matchId,
 			spec,
 			events,
 			place: 0,
 			since: Date.now(),
-			host: new WaitingHost(() => {
+			host: new WaitingHost<L, C>(() => {
 				const i = waiting.indexOf(entry);
 				if (i >= 0) waiting.splice(i, 1);
 				pump();
@@ -181,7 +185,7 @@ export function queueColdStarts(factory: MatchHostFactory, limit: number, log: (
 		log({ evt: 'start-queued', matchId, place: waiting.length, booting: booting(), limit });
 		pump();
 		return entry.host;
-	}) as QueuedFactory;
+	}) as QueuedFactory<L, C>;
 
 	factory.watchRoom?.(pump);
 

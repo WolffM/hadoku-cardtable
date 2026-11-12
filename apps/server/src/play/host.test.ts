@@ -24,13 +24,12 @@ import {
 	ORPHAN_MAX_MS,
 	WARM_MAX_FAILURES,
 	bridgeLaunch,
-	jvmHostFactory,
+	jvmHostFactory as jvmHostFactoryGeneric,
 	liveJvmCount,
 	readJvmRecord,
 	streamFile,
 	sweepRunDirs,
 	type AiCutoff,
-	type BridgeLine,
 	type HostEvents,
 	type JvmHostConfig,
 	type JvmHostFactory,
@@ -38,9 +37,15 @@ import {
 	type MatchSpec,
 	type ReapResult,
 } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
 import { queueColdStarts } from './start-queue.js';
 import { LAUNCH_RECORD_FILE, readLaunchRecord } from './local-jvm.js';
+
+/** Every test here proves against Forge's own line and command types. */
+function jvmHostFactory(config: JvmHostConfig, options?: Parameters<typeof jvmHostFactoryGeneric>[1]): JvmHostFactory<BridgeLine, BridgeCommand> {
+	return jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
+}
 
 const FAKE = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-bridge.mjs');
 // A slow case's own budget, which must never undercut CI's (vitest.config.ts):
@@ -91,7 +96,7 @@ async function waitUntil(predicate: () => boolean, label: string, timeoutMs = 10
 	}
 }
 
-interface Recorder extends HostEvents {
+interface Recorder extends HostEvents<BridgeLine, BridgeCommand> {
 	lines: BridgeLine[];
 	exits: string[];
 	logs: Record<string, unknown>[];
@@ -111,11 +116,11 @@ function recorder(): Recorder {
 
 const ready = (r: Recorder): boolean => r.lines.some((l) => l.t === 'ready');
 
-const pools: JvmHostFactory[] = [];
-const hosts: MatchHost[] = [];
+const pools: JvmHostFactory<BridgeLine, BridgeCommand>[] = [];
+const hosts: MatchHost<BridgeCommand>[] = [];
 
 /** `close()` retires only idle JVMs — a JVM keeps its matches — so each test's matches are stopped here. */
-function track(host: MatchHost): MatchHost {
+function track(host: MatchHost<BridgeCommand>): MatchHost<BridgeCommand> {
 	hosts.push(host);
 	return host;
 }
@@ -917,14 +922,14 @@ describe('going down: what must die before we do', () => {
 	});
 
 	interface Deaf {
-		host: MatchHost;
+		host: MatchHost<BridgeCommand>;
 		hostId: string;
 		pid: number;
 		run: string;
 	}
 
 	/** One match on a JVM of its own that answers nothing. It never says `ready`; it only exists. */
-	async function deafMatch(pool: JvmHostFactory, poolLog: Record<string, unknown>[], matchId: string): Promise<Deaf> {
+	async function deafMatch(pool: JvmHostFactory<BridgeLine, BridgeCommand>, poolLog: Record<string, unknown>[], matchId: string): Promise<Deaf> {
 		const host = pool(matchId, SPEC, recorder());
 		const hostId = pool.jvms().find((j) => j.matches.includes(matchId))!.hostId;
 		const { pid, run } = spawned(poolLog, hostId);

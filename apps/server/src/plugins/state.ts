@@ -14,6 +14,7 @@ import type { Featured } from '../play/featured.js';
 import type { ParkedStore } from '../play/parked.js';
 import type { Placement } from '../play/placement/index.js';
 import type { JvmHostFactory } from '../play/host.js';
+import type { BridgeCommand, BridgeLine } from '../play/bridge-protocol.js';
 import type { PlayHandle, jvmHostConfig, roomDeckCosts } from '../play/index.js';
 import type { Recorder } from '../play/recording/recorder.js';
 import type { ArtKeys } from '../pools/art-keys.js';
@@ -97,8 +98,8 @@ export interface Cardtable {
 	// sockets
 	draftSocket: ReturnType<typeof attachDraftSocket>;
 	roomFeed: ReturnType<typeof attachRoomFeed>;
-	clawHosts: Placement | null;
-	localHost: JvmHostFactory | null;
+	clawHosts: Placement<BridgeLine, BridgeCommand> | null;
+	localHost: JvmHostFactory<BridgeLine, BridgeCommand> | null;
 	play: PlayHandle | null;
 }
 

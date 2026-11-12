@@ -128,6 +128,7 @@ import type { ArtCatalog } from './art-ids.js';
 import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { COLD_STARTS, queueColdStarts } from './start-queue.js';
 import { WATCHER_SEAT } from './match/forge-session.js';
 import { createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity, type SeatSpecWithIdentity } from './match.js';
@@ -166,7 +167,7 @@ export interface PlayDeps {
 	/** The tier floor. `CONFIG.minTier` in production. */
 	minTier: string;
 	/** Where a match's Forge runs. Null when Forge is not configured: starting a match answers 503. */
-	host: MatchHostFactory | null;
+	host: MatchHostFactory<BridgeLine, BridgeCommand> | null;
 	log?: PlayLog;
 	/**
 	 * This server's build (`recorder.ts`'s `serverVersion`), told to every socket on connect

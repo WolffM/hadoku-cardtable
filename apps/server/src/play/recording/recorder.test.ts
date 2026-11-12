@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { DeckCosts } from '../deck-colors.js';
-import type { BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
+import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
+import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { anonymousSpec, bridgeDigest, createRecorder, forgePin, SEATS_RECORD_MS, serverVersion } from './recorder.js';
 
 let dir: string;
@@ -29,8 +30,8 @@ function spec(seed?: number): MatchSpec {
 	return { seed, seats: [{ name: 'A', ai: false, deck: null }, { name: 'B', ai: false, deck: null }] };
 }
 
-interface FakeFactory extends MatchHostFactory {
-	calls: { matchId: string; spec: MatchSpec; events: HostEvents }[];
+interface FakeFactory extends MatchHostFactory<BridgeLine, BridgeCommand> {
+	calls: { matchId: string; spec: MatchSpec; events: HostEvents<BridgeLine, BridgeCommand> }[];
 	sends: unknown[];
 }
 
@@ -39,7 +40,7 @@ function fakeFactory(): FakeFactory {
 	const sends: unknown[] = [];
 	const factory = ((matchId, s, events) => {
 		calls.push({ matchId, spec: s, events });
-		const host: MatchHost = { send: (c) => sends.push(c), stop: () => undefined };
+		const host: MatchHost<BridgeCommand> = { send: (c) => sends.push(c), stop: () => undefined };
 		return host;
 	}) as FakeFactory;
 	factory.calls = calls;
@@ -107,7 +108,7 @@ describe('createRecorder', () => {
 	it("keeps a class host's own methods: stop, handOver and remember reach it (placement's Face)", () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
 		const said: string[] = [];
-		class ClassHost implements MatchHost {
+		class ClassHost implements MatchHost<BridgeCommand> {
 			send(): void {
 				said.push('send');
 			}
@@ -122,7 +123,7 @@ describe('createRecorder', () => {
 				said.push('remember');
 			}
 		}
-		const inner = (() => new ClassHost()) as unknown as MatchHostFactory;
+		const inner = (() => new ClassHost()) as unknown as MatchHostFactory<BridgeLine, BridgeCommand>;
 		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS });
 		const host = recorder.host(inner)('m-9', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
 		expect(host.handOver?.()).toBe(true);

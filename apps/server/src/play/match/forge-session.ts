@@ -67,7 +67,8 @@ import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type Sam
 import { matchCards } from '../art.js';
 import { createArtIds, type ArtIds } from '../art-ids.js';
 import { fallbackFor, type Fallback } from '../unparsed.js';
-import { type BridgeCommand, type BridgeLine, type MatchHost, type MatchSpec } from '../host.js';
+import { type MatchHost, type MatchSpec } from '../host.js';
+import { type BridgeCommand, type BridgeLine } from '../bridge-protocol.js';
 import { faceNames, namesForFormat } from '../names.js';
 import type { SpellCopy } from '../spell-copiers.js';
 import type { GameSession } from '../game-adapter.js';
@@ -805,7 +806,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		return s !== undefined && !s.ai && this.waitingOnFor(s) !== null;
 	}
 
-	command(command: Parameters<MatchHost['send']>[0]): void {
+	command(command: Parameters<MatchHost<BridgeCommand>['send']>[0]): void {
 		// Before the null check, not after: during a replay the answer is already in
 		// Forge AND `this.host` does not exist yet, because `attach` replays the
 		// stream before it returns the host. A replayed line that provokes an

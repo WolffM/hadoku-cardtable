@@ -61,7 +61,8 @@ import type { ServerEnvelope } from '@hadoku/shared';
 import { artOf } from '../art.js';
 import { seatDeckColors, type DeckCosts } from '../deck-colors.js';
 import { winnerSeatFromLosers } from '../match/outcome.js';
-import { jvmHostConfig, type BridgeCommand, type BridgeLine, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
+import { jvmHostConfig, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
+import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { createProjector, EVERY_PLAYER, type StateFrame } from '../visibility.js';
 import { createArtIds, type ArtCatalog, type ArtIds } from '../art-ids.js';
 import { bridgeDigest, forgePin } from './recorder.js';
@@ -150,7 +151,7 @@ export function canRebuild(header: Pick<ActionHeaderLine, 'pin' | 'bridge' | 'sp
 export interface RebuildDeps {
 	recordingsDir: string;
 	/** The match host factory to start the rebuild's JVM through — in production, the server's own queued factory (`start-queue.ts`), so a rebuild queues behind real matches and never ahead of them. */
-	host: MatchHostFactory;
+	host: MatchHostFactory<BridgeLine, BridgeCommand>;
 	log: (entry: Record<string, unknown>) => void;
 	/** Folds a seat's deck into its colours for the public header's `decks` — same dep, same shape, as `recorder.ts`'s own `RecorderDeps.deckCosts`. */
 	deckCosts: DeckCosts;
@@ -322,7 +323,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	let exited: string | null = null;
 	const t0 = Date.now();
 
-	let host: MatchHost;
+	let host: MatchHost<BridgeCommand>;
 	try {
 		host = deps.host(`${matchId}-rebuild-${Date.now()}`, header.spec, {
 			line: (l) => {

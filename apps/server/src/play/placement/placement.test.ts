@@ -9,7 +9,8 @@ import { join } from 'node:path';
 
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
-import type { BridgeLine, HostEvents, JvmHostConfig, MatchSpec } from '../host.js';
+import type { HostEvents, JvmHostConfig, MatchSpec } from '../host.js';
+import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { PLAYED_OUT } from '../host.js';
 import type { JvmLauncher, JvmTransport } from '../jvm-transport.js';
 import type { JvmHealth, ToAgent } from '@hadoku/host-wire';
@@ -165,7 +166,7 @@ function fleetNode(node: string, extra: Partial<FleetNode> = {}): FleetNode {
 }
 
 interface Rig {
-	p: Placement;
+	p: Placement<BridgeLine, BridgeCommand>;
 	clock: { t: number };
 	claws: Map<string, FakeClaw>;
 	nodes: FleetNode[];
@@ -277,7 +278,7 @@ async function rig(
 	return { p, clock, claws, nodes, fleetDown, demands, converger, posted, logs, backstopJvms: backstop.jvms, canary, warmAll, order, restored, restorer };
 }
 
-interface Rec extends HostEvents {
+interface Rec extends HostEvents<BridgeLine, BridgeCommand> {
 	lines: BridgeLine[];
 	exits: string[];
 	logs: Record<string, unknown>[];

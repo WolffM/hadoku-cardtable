@@ -27,13 +27,13 @@ export interface ClawPlacementOptions {
 	log: (entry: Record<string, unknown>) => void;
 	/** The fleet to read; default fleet-manager's CLI. `index.ts` passes one primed at boot (`primeFleet`). */
 	fleet?: FleetSource;
-	/** The draft bot service on the claws (`PlacementOptions.draftbots`). */
-	draftbots: PlacementOptions['draftbots'];
+	/** The draft bot service on the claws (`PlacementOptions.draftbots`). Inert for L/C: never mentions either. */
+	draftbots: PlacementOptions<{ t: string }, { t: string }>['draftbots'];
 }
 
 /** The production wiring: fleet-manager's CLI, the agents on the claws, Discord. */
-export function clawPlacement(config: JvmHostConfig, opts: ClawPlacementOptions): Placement {
-	return placement({
+export function clawPlacement<L extends { t: string }, C extends { t: string }>(config: JvmHostConfig, opts: ClawPlacementOptions): Placement<L, C> {
+	return placement<L, C>({
 		config,
 		fleet: opts.fleet ?? fleetCli({ log: opts.log }),
 		connect: (node) => connectRemoteHost(node, config),

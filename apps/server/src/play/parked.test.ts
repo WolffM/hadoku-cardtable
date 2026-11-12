@@ -14,7 +14,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
-import type { BridgeLine, MatchSpec } from './host.js';
+import type { MatchSpec } from './host.js';
+import type { BridgeLine } from './bridge-protocol.js';
 import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/transcript.js';
 import { createMatchRegistry, type Match } from './match.js';
 import { ENDED_KEPT, restoredSpec } from './match/registry.js';

@@ -122,7 +122,6 @@
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
-import type { AbortReasonSchema, ClientAction, GameLogLine, GameLogMeta, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
 
 import { jsonLogger } from '@hadoku/service-kernel/log';
 export { bridgeDiagnostics } from './diagnostics.js';
@@ -243,116 +242,21 @@ export interface MatchSpec {
 	clockMs?: [number, number];
 }
 
-type AbortReason = (typeof AbortReasonSchema)['_zod']['output'];
-
 /**
- * Node → Forge. On the wire each command also carries `match` — the JVM host adds
- * it and the bridge refuses a command without its own match id.
+ * The four lines the host and placement read from any engine's own line type `L`; everything else
+ * is the game's own (w103 §H's pinned shape). Forge's full `BridgeLine` (now `bridge-protocol.ts`)
+ * narrows onto this through {@link isLifecycle} — TypeScript cannot narrow a generic `L extends {
+ * t: string }` on its `t` member directly (w100 finding 3.2), so a caller holding an `L` checks
+ * `isLifecycle(line)` first and reads the narrowed shape, never `line.t === 'ready'` on the bare `L`.
  */
-export type BridgeCommand =
-	| { t: 'reply'; seat: number; callId: string; result: unknown }
-	| { t: 'abort'; seat: number; callId: string; reason: AbortReason }
-	/**
-	 * `input`: the id of the input the seat made this act on (the `input` its window's frame lines
-	 * carried); the bridge drops an act whose input is no longer the one open when Forge applies it
-	 * (`PlayBridge.java`'s `MatchContext.actInputs`). Absent: applied as Forge applies it.
-	 */
-	| { t: 'act'; seat: number; frame: ClientAction | SendYieldUpdate; input?: number }
-	/** Re-send every ask the seat is parked on, original callIds (`match.ts`'s `armActWatch`). */
-	| { t: 'resend-pending'; seat: number }
-	/** Forge's Cancel on the seat's open mana payment only, never on an input opened after it (`PlayBridge.java`'s `cancelPayment`). */
-	| { t: 'cancel-payment'; seat: number }
-	| { t: 'probe'; seat: number; probeId: string; message: string }
-	/** End the game as a draw, Forge's `GameEndReason.Draw` (`PlayBridge.java`'s `forceDraw`; `Match.forceDraw`). */
-	| { t: 'draw' }
-	| { t: 'stop' };
+export type HostLifecycleLine = { t: 'ready' } | { t: 'fatal'; message: string } | { t: 'frame' } | { t: 'snapshot' };
 
-/**
- * Forge → Node. `frame.frame` is unvalidated here; `match.ts` parses it. On the
- * wire every line also carries `match`, checked and dropped by the JVM host.
- */
-export type BridgeLine =
-	/**
-	 * `bootMs` is from the JVM's own start (for a spare, that includes its idle
-	 * wait); `startMs` from the moment the match was handed to it (Wave 10).
-	 */
-	/**
-	 * `removed`: the cards of the seat's deck Forge has no card for, which it drops as the game starts
-	 * (`PlayBridge.java`'s `unsupportedIn`). Absent from a line an older bridge wrote.
-	 */
-	| { t: 'ready'; forgePort: number; bootMs: number; startMs?: number; seats: { seat: number; ai: boolean; deck: string; removed?: string[] }[] }
-	/** `input`: the id of the input open on the seat when the frame was shown (`PlayBridge.java`'s `MatchContext.inputId`); absent when none is. */
-	| { t: 'frame'; seat: number; frame: unknown; input?: number }
-	| { t: 'probe'; probeId: string; seat: number; answer?: boolean; ms?: number; error?: string }
-	/**
-	 * `losers`: the player ids Forge has lost (`Player.hasLost`), the same ids the views carry.
-	 * Absent from a line an older bridge wrote, which a resumed match may replay.
-	 * `lost`: why each of them lost, as Forge decided it (`PlayerOutcome.lossState`); absent likewise.
-	 * A bot game's (`MatchSpec.headless`) carries `seat`, the winner's (`null` for a draw), and the game's `ms` instead.
-	 */
-	| { t: 'gameover'; winner: string | null; losers?: number[]; lost?: Loss[]; seat?: number | null; ms?: number }
-	/**
-	 * One entry of Forge's own game log (`PlayBridge.GameLogForward`), worded once
-	 * per player: `text` is null when the line names a card that player may not
-	 * see in a way the bridge could not reword; `cards` are the ones they may.
-	 * `meta` is the line's public half, the same for every player (`GameLogMeta`).
-	 */
-	| { t: 'log'; type: GameLogLine['type']; meta?: GameLogMeta; players: { player: number; text: string | null; cards: GameLogLine['cards'] }[] }
-	| { t: 'fatal'; message: string; /** The top frames of the failure's stack (`PlayBridge` `fail`), when it had one. */ frames?: string[] }
-	| { t: 'rejected'; message: string; command: string }
-	| { t: 'stale'; seat: number; callId: string }
-	/** The asks a `resend-pending` sent again, after their frames. */
-	| { t: 'resent'; seat: number; callIds: string[] }
-	| { t: 'unsupported'; seat: number; method: string }
-	/**
-	 * Wave 32, Q5 — the bridge switched Forge's phase-pacing sleep for a seat
-	 * (`SeatGui.setPhaseDelayOff`). Informational: it exists so a log and a suite
-	 * can see that the exemption is armed by an End Turn click and lifted after it.
-	 */
-	| { t: 'pace'; seat: number; skipPhaseDelay: boolean; at: number }
-	/**
-	 * Wave 78 §A — Forge actually applied this seat's act to an open input, in
-	 * APPLIED order (`seq`, one counter shared by both seats of a match —
-	 * `PlayBridge.java`'s `SeatController.applied`). `act` is in the same shape
-	 * this file's own `BridgeCommand`'s `act` frame sent it (`kind`/`method` plus
-	 * that method's own fields); `input` is the open input's simple class name,
-	 * for a log a human can read. An act Forge drops (no input was open, or its
-	 * hold past `GameServerHandler`'s `BETWEEN_INPUTS_MS` timed out) is never
-	 * echoed — the recorder (`recording/recorder.ts`) must log only this line,
-	 * never the `act` command at send time, so a dropped act never enters the log.
-	 */
-	| { t: 'applied'; seat: number; seq: number; input: string; act: ClientAction }
-	/**
-	 * Wave 78 §A, second pass — this seat's own `InputQueue` just opened or closed an input
-	 * (`PlayBridge.java`'s `SeatController.emitInputState`, a second `Observer` on that queue).
-	 * `input` (the open input's simple class name) is present only when `open` is true. Exists so
-	 * a rebuild can wait for "this seat HAS an open input" before ever sending an act, rather than
-	 * sending into the gap and letting `ActGate`'s own `BETWEEN_INPUTS_MS` hold-or-drop decide —
-	 * resending on THAT timeout, tried first, could double-apply an act onto whatever opened right
-	 * after the hold gave up on it.
-	 */
-	| { t: 'input'; seat: number; open: boolean; input?: string }
-	/**
-	 * An act the bridge kept from Forge: a click sent to answer a selection that closed before Forge
-	 * reached it (`MatchContext.selectionClicks`), or an act made on an input that was no longer the
-	 * open one when Forge applied it (`MatchContext.actInputs`, `card` -1 for a button). Either would
-	 * have landed in whatever input came next. Never applied, so never an `applied` line.
-	 */
-	| { t: 'dropped'; seat: number; method: string; card: number; why: string }
-	/**
-	 * A spell or ability went on the stack for a seat's player while its controller was not a human's:
-	 * the AI made a play for the seat (`PlayBridge.java`'s `Impersonation`). Never expected.
-	 */
-	| { t: 'impersonated'; seat: number; card: number; ability: string; controller: string; thread: string }
-	/** A seat's input finished while its offer scan held the seat's controller swapped for an AI's (`SeatController.pushActionableCards`). */
-	| { t: 'scan-overtaken'; seat: number; input: string }
-	/**
-	 * The game as its turn's upkeep begins (`PlayBridge.TurnSnapshot`): Forge's `GameState` text, a
-	 * scenario that restores the match to the start of that turn (`match.ts`'s `restoredSpec`).
-	 * `ms` is how long the bridge took to write it. `lossy` names what the game held that the text
-	 * cannot (`docs/planning/restart-turn-plan.md` part 2); absent or empty is the whole game.
-	 */
-	| { t: 'snapshot'; turn: number; state: string; ms: number; lossy?: string[] };
+const LIFECYCLE_T = new Set(['ready', 'fatal', 'frame', 'snapshot']);
+
+/** Narrows any engine's line onto the four the host itself understands. See {@link HostLifecycleLine}. */
+export function isLifecycle<L extends { t: string }>(line: L): line is L & HostLifecycleLine {
+	return LIFECYCLE_T.has(line.t);
+}
 
 /** The latest `snapshot` line a match has had: what a restore starts it from. */
 export interface TurnSnapshot {
@@ -368,8 +272,12 @@ export interface TurnSnapshot {
  */
 export const PLAYED_OUT = 'played out';
 
-export interface HostEvents {
-	line(line: BridgeLine): void;
+/**
+ * What a match host tells its match, generic over the engine's own line type `L` (w103 §H's pinned
+ * shape: Forge instantiates this `HostEvents<BridgeLine>`, `bridge-protocol.ts`).
+ */
+export interface HostEvents<L extends { t: string }, C extends { t: string }> {
+	line(line: L): void;
 	/** The host is gone. `reason` says why, for the match's status. */
 	exit(reason: string): void;
 	log(entry: Record<string, unknown>): void;
@@ -378,11 +286,12 @@ export interface HostEvents {
 	 * JVM. Nothing the bridge says records that an ask was answered, so without
 	 * this a resumed match would re-open asks Forge has already returned from.
 	 */
-	replayed?(command: BridgeCommand): void;
+	replayed?(command: C): void;
 }
 
-export interface MatchHost {
-	send(command: BridgeCommand): void;
+/** What a match sends its host, generic over the engine's own command type `C`. */
+export interface MatchHost<C extends { t: string }> {
+	send(command: C): void;
 	/** Ask the match to stop; force it after a grace period. Idempotent. */
 	stop(): void;
 	/**
@@ -440,12 +349,12 @@ export interface JvmRecord {
  * matches (an idle JVM); `attachPlay`'s `close()` calls it. `orphans`/`attach` are the re-attach
  * seam — a factory whose JVMs cannot outlive the process has neither.
  */
-export type MatchHostFactory = ((matchId: string, spec: MatchSpec, events: HostEvents) => MatchHost) & {
+export type MatchHostFactory<L extends { t: string }, C extends { t: string }> = ((matchId: string, spec: MatchSpec, events: HostEvents<L, C>) => MatchHost<C>) & {
 	close?(): void;
 	/** Matches still running from an earlier server, oldest first. Asked once, at boot. */
 	orphans?(): Promise<MatchRecord[]>;
 	/** Take one back: replay its stream into `events` before returning, then hand it live lines. */
-	attach?(record: MatchRecord, events: HostEvents): MatchHost;
+	attach?(record: MatchRecord, events: HostEvents<L, C>): MatchHost<C>;
 	/** Leave every live match running for the next process (SIGTERM). */
 	handOverAll?(): void;
 	/**
@@ -569,11 +478,11 @@ function refusedStart(command: unknown): string | null {
 /* ── The coordinator ─────────────────────────────────────────────────── */
 
 /** One match in a JVM. */
-interface Hosted {
+interface Hosted<L extends { t: string }, C extends { t: string }> {
 	readonly id: string;
-	readonly jvm: Jvm;
+	readonly jvm: Jvm<L, C>;
 	/** Null while it is an orphan nobody has claimed: its lines are kept, not delivered. */
-	events: HostEvents | null;
+	events: HostEvents<L, C> | null;
 	entry: JvmRecord['matches'][number];
 	/** The entry as `jvm.json` last held it, so a failed rewrite knows whose change it lost. */
 	onDisk: string | null;
@@ -590,7 +499,7 @@ interface Hosted {
 }
 
 /** One `--host` JVM. */
-interface Jvm {
+interface Jvm<L extends { t: string }, C extends { t: string }> {
 	readonly hostId: string;
 	/** Where its record and its matches' streams live: `<workDir>/<hostId>`. */
 	readonly dir: string;
@@ -605,7 +514,7 @@ interface Jvm {
 	/** Taken back from an earlier server (`adopt`), not launched by this one. */
 	readonly adopted: boolean;
 	released: boolean;
-	readonly matches: Map<string, Hosted>;
+	readonly matches: Map<string, Hosted<L, C>>;
 	lastHeard: number;
 	lastCheck: number;
 	/** Watched for silence from launch; an attached JVM from its first line. */
@@ -646,13 +555,13 @@ export interface AiCutoff {
 }
 
 /** The JVM factory. `room()` and friends are for `start-queue.ts`, diagnostics and the benchmark. */
-export type JvmHostFactory = MatchHostFactory & {
+export type JvmHostFactory<L extends { t: string }, C extends { t: string }> = MatchHostFactory<L, C> & {
 	close(): void;
 	room(): 'warm' | 'booting' | 'none';
 	booting(): number;
 	watchRoom(listener: () => void): void;
 	orphans(): Promise<MatchRecord[]>;
-	attach(record: MatchRecord, events: HostEvents): MatchHost;
+	attach(record: MatchRecord, events: HostEvents<L, C>): MatchHost<C>;
 	handOverAll(): string[];
 	reapOnExit(): ReapResult;
 	/** JVMs this pool holds, with their matches: for diagnostics and tests. */
@@ -670,7 +579,7 @@ export type JvmHostFactory = MatchHostFactory & {
  * Matches placed into shared `--host` JVMs. A match's own `HostEvents.log` receives what is about
  * that match; what is about a JVM goes to `options.log`.
  */
-export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = {}): JvmHostFactory {
+export function jvmHostFactory<L extends { t: string }, C extends { t: string }>(config: JvmHostConfig, options: JvmPoolOptions = {}): JvmHostFactory<L, C> {
 	const warmWanted = options.warm ?? config.warmJvm;
 	const maxJvmsOption = options.maxJvms ?? MAX_CONCURRENT_MATCHES;
 	const maxJvms = (): number => (typeof maxJvmsOption === 'number' ? maxJvmsOption : maxJvmsOption());
@@ -680,9 +589,9 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	const unresponsiveMs = config.unresponsiveMs ?? UNRESPONSIVE_MS;
 	const poolLog = options.log ?? jsonLogger('cardtable-play');
 	const launcher = options.launcher ?? localJvmLauncher(config, { sweep: options.sweep ?? true, log: poolLog });
-	const jvms = new Set<Jvm>();
+	const jvms = new Set<Jvm<L, C>>();
 	/** Orphans from an earlier server, not yet claimed. */
-	const pending = new Map<string, Hosted>();
+	const pending = new Map<string, Hosted<L, C>>();
 	const roomWatchers: (() => void)[] = [];
 	let bootFailures = 0;
 	let retry: NodeJS.Timeout | null = null;
@@ -694,12 +603,12 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	const notifyRoom = (): void => {
 		for (const listener of roomWatchers) listener();
 	};
-	const liveJvms = (): Jvm[] => [...jvms].filter((j) => !j.exited && !j.retiring && !j.released);
-	const hasRoom = (jvm: Jvm): boolean => jvm.matches.size < perJvm && !jvm.draining;
+	const liveJvms = (): Jvm<L, C>[] => [...jvms].filter((j) => !j.exited && !j.retiring && !j.released);
+	const hasRoom = (jvm: Jvm<L, C>): boolean => jvm.matches.size < perJvm && !jvm.draining;
 
 	/* ── The record and the streams ── */
 
-	function writeRecord(jvm: Jvm): void {
+	function writeRecord(jvm: Jvm<L, C>): void {
 		if (jvm.released || jvm.exited) return;
 		// A match being stopped is not one a later server should take back: it would replay into a
 		// new `Match` only to meet its `stopped`.
@@ -725,7 +634,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	 * Keep one entry — a bridge line as it came, or `{ c: command }` — in the match's stream. An
 	 * entry that cannot be kept degrades the match.
 	 */
-	function persist(h: Hosted, json: string): void {
+	function persist(h: Hosted<L, C>, json: string): void {
 		if (h.degraded !== null) return;
 		try {
 			h.stream ??= openSync(streamFile(h.jvm.dir, h.id), 'a');
@@ -736,7 +645,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	}
 
 	/** Let go of the match's stream descriptor: it has ended, degraded, or been handed over. */
-	function closeStream(h: Hosted): void {
+	function closeStream(h: Hosted<L, C>): void {
 		if (h.stream === null) return;
 		const fd = h.stream;
 		h.stream = null;
@@ -748,7 +657,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	}
 
 	/** The match has a hole now, so it can never be replayed: it plays on here, but cannot outlive us. */
-	function degrade(h: Hosted, cause: string): void {
+	function degrade(h: Hosted<L, C>, cause: string): void {
 		if (h.degraded !== null) return;
 		h.degraded = `${cause}, so a replay would give the seats a board Forge does not have`;
 		const log = h.events?.log ?? poolLog;
@@ -763,7 +672,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	}
 
 	/** Feed a match's stream back to it. Returns how many entries it had. */
-	function replay(h: Hosted, events: HostEvents): number {
+	function replay(h: Hosted<L, C>, events: HostEvents<L, C>): number {
 		let text: string;
 		try {
 			text = readFileSync(streamFile(h.jvm.dir, h.id), 'utf8');
@@ -786,14 +695,14 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			if (typeof entry !== 'object' || entry === null) continue;
 			const sent = (entry as { c?: unknown }).c;
 			if (typeof sent === 'object' && sent !== null) {
-				events.replayed?.(sent as BridgeCommand);
+				events.replayed?.(sent as unknown as C);
 				replayed += 1;
 				continue;
 			}
 			if (!LINE_TYPES.has(String((entry as { t?: unknown }).t))) continue;
 			// Kept with the bridge's `match` stamp, which `onText` takes off a live line.
 			const { match: _stamp, ...line } = entry as { match?: unknown };
-			events.line(line as BridgeLine);
+			events.line(line as unknown as L);
 			replayed += 1;
 		}
 		return replayed;
@@ -801,8 +710,8 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 
 	/* ── JVMs ── */
 
-	function track(hostId: string, dir: string, transport: JvmTransport, from: { warm: boolean; startedAt: string; orphanedAt: string | null; adopted?: boolean }): Jvm {
-		const jvm: Jvm = {
+	function track(hostId: string, dir: string, transport: JvmTransport, from: { warm: boolean; startedAt: string; orphanedAt: string | null; adopted?: boolean }): Jvm<L, C> {
+		const jvm: Jvm<L, C> = {
 			hostId,
 			dir,
 			transport,
@@ -830,7 +739,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	}
 
 	/** Boot a new JVM. Throws what the launcher throws. */
-	function launch(): Jvm {
+	function launch(): Jvm<L, C> {
 		const hostId = `h-${randomBytes(6).toString('hex')}`;
 		const transport = launcher.launch(hostId, { xmxMb: config.xmxMb ?? JVM_HEAP_MB });
 		const dir = join(config.workDir, hostId);
@@ -847,7 +756,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	 * THIS process was not reading — its event loop stalled — so the clock restarts rather than
 	 * blaming the JVM.
 	 */
-	function watchLiveness(jvm: Jvm): void {
+	function watchLiveness(jvm: Jvm<L, C>): void {
 		const timer = setInterval(() => {
 			const now = Date.now();
 			if (now - jvm.lastCheck > 3 * LIVENESS_CHECK_MS) jvm.lastHeard = now;
@@ -865,7 +774,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		jvm.liveness = timer;
 	}
 
-	function onText(jvm: Jvm, text: string): void {
+	function onText(jvm: Jvm<L, C>, text: string): void {
 		jvm.lastHeard = Date.now();
 		jvm.livenessArmed = true;
 		// Liveness only: never kept, never forwarded. The bridge writes `t` first (`PlayBridge.line`).
@@ -909,17 +818,17 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		if (jvm.unresponsive !== null) return;
 		if (line.t === 'fatal') h.fatal = String(line.message);
 		persist(h, text);
-		if (h.events !== null && !h.handed) h.events.line(line as BridgeLine);
+		if (h.events !== null && !h.handed) h.events.line(line as unknown as L);
 	}
 
-	function aiCutoff(jvm: Jvm, matchId: string | null, where: string | null): void {
+	function aiCutoff(jvm: Jvm<L, C>, matchId: string | null, where: string | null): void {
 		const h = matchId === null ? undefined : jvm.matches.get(matchId);
 		(h?.events?.log ?? poolLog)({ evt: 'ai-cutoff', id: jvm.hostId, matchId, where });
 		options.onCutoff?.({ hostId: jvm.hostId, matchId, where });
 	}
 
 	/** A line about the JVM itself: `warm`, or a `start` it refused. */
-	function onHostLine(jvm: Jvm, line: { t: string } & Record<string, unknown>): void {
+	function onHostLine(jvm: Jvm<L, C>, line: { t: string } & Record<string, unknown>): void {
 		if (line.t === 'warm') {
 			jvm.warm = true;
 			bootFailures = 0;
@@ -934,7 +843,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			// A one-match JVM said `fatal` and exited for this; here the JVM goes on and only the match ends.
 			const message = `Forge refused the match: ${String(line.message)}`;
 			h.fatal = message;
-			h.events?.line({ t: 'fatal', message });
+			h.events?.line({ t: 'fatal', message } as unknown as L);
 			matchEnded(h);
 			return;
 		}
@@ -942,7 +851,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	}
 
 	/** The match is over in Forge: its `stopped` came, or nobody is waiting for it any more. */
-	function matchEnded(h: Hosted): void {
+	function matchEnded(h: Hosted<L, C>): void {
 		if (h.ended) return;
 		h.ended = true;
 		if (h.stopTimer !== null) clearTimeout(h.stopTimer);
@@ -967,7 +876,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		replenish();
 	}
 
-	function onJvmExit(jvm: Jvm, reason: string): void {
+	function onJvmExit(jvm: Jvm<L, C>, reason: string): void {
 		if (jvm.exited) return;
 		jvm.exited = true;
 		jvms.delete(jvm);
@@ -1004,7 +913,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	}
 
 	/** Ask the JVM to go, and make sure it does. Its exit is not a failure of anything. */
-	function retire(jvm: Jvm, why: string): void {
+	function retire(jvm: Jvm<L, C>, why: string): void {
 		if (jvm.retiring || jvm.exited || jvm.released) return;
 		jvm.retiring = true;
 		if (jvm.idle !== null) clearTimeout(jvm.idle);
@@ -1016,7 +925,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	}
 
 	/** The JVM has no matches: retire it now, or after `idleMs` unless it is the warm one then. */
-	function idle(jvm: Jvm): void {
+	function idle(jvm: Jvm<L, C>): void {
 		if (jvm.matches.size > 0 || jvm.exited || jvm.retiring || jvm.released) return;
 		if (closed || !warmWanted || jvm.draining) {
 			retire(jvm, closed ? 'closing' : jvm.draining ? 'drained' : 'no match left, and no JVM is kept warm');
@@ -1064,7 +973,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 
 	/* ── Matches ── */
 
-	function stopMatch(h: Hosted): void {
+	function stopMatch(h: Hosted<L, C>): void {
 		if (h.stopping || h.ended) return;
 		h.stopping = true;
 		// Out of the record now, not at its `stopped`: a JVM killed before that (remote, unconfirmed)
@@ -1078,9 +987,9 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		h.stopTimer.unref();
 	}
 
-	function hostFace(h: Hosted): MatchHost {
+	function hostFace(h: Hosted<L, C>): MatchHost<C> {
 		return {
-			send: (command: BridgeCommand) => {
+			send: (command: C) => {
 				if (command.t === 'stop') {
 					stopMatch(h);
 					return;
@@ -1127,7 +1036,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	 * keeps its id (`MatchRegistry.restore`), and a JVM routes its lines by id, so the new game must
 	 * not land beside the old one in the moment before the old one is gone.
 	 */
-	function placeFor(matchId?: string): Jvm | null {
+	function placeFor(matchId?: string): Jvm<L, C> | null {
 		const open = liveJvms().filter((j) => hasRoom(j) && (matchId === undefined || !j.matches.has(matchId)));
 		const warm = open.filter((j) => j.warm).sort((a, b) => b.matches.size - a.matches.size);
 		return warm[0] ?? open[0] ?? null;
@@ -1137,7 +1046,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	 * Throws when the match cannot be given a JVM (every JVM full at `maxJvms`, or a launch that
 	 * throws), and leaves nothing behind. The caller fails the match (`Match.start`).
 	 */
-	const factory = ((matchId: string, spec: MatchSpec, events: HostEvents): MatchHost => {
+	const factory = ((matchId: string, spec: MatchSpec, events: HostEvents<L, C>): MatchHost<C> => {
 		let jvm = placeFor(matchId);
 		if (jvm === null) {
 			if (jvms.size >= maxJvms()) throw new Error(`every Forge JVM is full (${jvms.size} of ${maxJvms()}, ${perJvm} matches each)`);
@@ -1145,7 +1054,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		}
 		if (jvm.idle !== null) clearTimeout(jvm.idle);
 		jvm.idle = null;
-		const h: Hosted = {
+		const h: Hosted<L, C> = {
 			id: matchId,
 			jvm,
 			events,
@@ -1166,7 +1075,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		notifyRoom();
 		replenish();
 		return hostFace(h);
-	}) as JvmHostFactory;
+	}) as JvmHostFactory<L, C>;
 
 	factory.room = () => {
 		const at = placeFor();
@@ -1220,7 +1129,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		}
 		jvm.orphanedAt = record.orphanedAt ?? null;
 		for (const entry of record.matches) {
-			const h: Hosted = {
+			const h: Hosted<L, C> = {
 				id: entry.matchId,
 				jvm,
 				events: null,
@@ -1288,7 +1197,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			.sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
 	};
 
-	factory.attach = (record: MatchRecord, events: HostEvents): MatchHost => {
+	factory.attach = (record: MatchRecord, events: HostEvents<L, C>): MatchHost<C> => {
 		const h = pending.get(record.matchId);
 		if (h === undefined) throw new Error(`there is no orphan match ${record.matchId} to attach to`);
 		pending.delete(record.matchId);
@@ -1304,7 +1213,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	/* ── Going down ── */
 
 	/** Let go of a JVM with a handed-over match: stamped, released, its matches left to the next server. */
-	function release(jvm: Jvm): void {
+	function release(jvm: Jvm<L, C>): void {
 		jvm.orphanedAt = new Date().toISOString();
 		writeRecord(jvm);
 		jvm.released = true;

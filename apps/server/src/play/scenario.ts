@@ -19,7 +19,8 @@ import { ClientFrameSchema, coreTypes, currentFace, deltaKey, DELTA_TYPE, idsOf,
 import { afterEach } from 'vitest';
 
 import { playWorkDir } from '../config.js';
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type BridgeCommand, type BridgeLine, type JvmHostConfig, type MatchHost } from './host.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type JvmHostConfig, type MatchHost } from './host.js';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import { createMatchRegistry, type Match } from './match.js';
 import type { Restored } from './match/registry.js';
@@ -380,8 +381,8 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 	const logs: Record<string, unknown>[] = [];
 	const seats: Scenario['seats'] = [];
 	const pressed = new Set<number>();
-	const jvm = jvmHostFactory(config, { warm: false, log: (e) => logs.push(e) });
-	let host: MatchHost | null = null;
+	const jvm = jvmHostFactory<BridgeLine, BridgeCommand>(config, { warm: false, log: (e) => logs.push(e) });
+	let host: MatchHost<BridgeCommand> | null = null;
 	const registry = createMatchRegistry({
 		seatsChanged: (_m, told) => seats.push({ t: performance.now(), seats: told }),
 		host: (id, spec, events) =>

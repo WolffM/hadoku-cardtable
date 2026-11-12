@@ -5,14 +5,16 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { jvmHostConfig, jvmHostFactory, type JvmHostFactory } from '../host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, type JvmHostFactory } from '../host.js';
+import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
+const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { frameCanary } from './coordinator.js';
 
 const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 const title = available.ok ? 'the quarantine canary on a real bridge' : `the quarantine canary on a real bridge — SKIPPED: ${available.reason}`;
 
 describe.skipIf(!available.ok)(title, () => {
-	let pool: JvmHostFactory | null = null;
+	let pool: JvmHostFactory<BridgeLine, BridgeCommand> | null = null;
 	afterEach(() => {
 		pool?.close();
 		pool = null;
