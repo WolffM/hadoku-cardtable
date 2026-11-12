@@ -73,6 +73,15 @@ async function seatFor(browser: Browser, name: string): Promise<Seat> {
 }
 
 const framesOf = (page: Page): Promise<{ at: number; sig: string }[]> => page.evaluate(() => (window as unknown as { arrival: { at: number; sig: string }[] }).arrival);
+/**
+ * The frames once the recorder has drawn the settled choose screen. The recorder samples on
+ * `requestAnimationFrame`, so the DOM can show the settled screen before the next frame has
+ * recorded it — most of all on a page whose animations run at a tenth of their speed.
+ */
+const settledFramesOf = async (page: Page, who: string): Promise<{ at: number; sig: string }[]> => {
+  await expect.poll(async () => (await framesOf(page)).at(-1)?.sig, { timeout: 5_000, message: `${who}: the recorder draws the choose screen alone` }).toBe('||titles=1|pools=0');
+  return framesOf(page);
+};
 
 test('the Gauntlet’s last pick: both screens arrive at the choice together, through the transition, and a press mid-flight is a choice made', async ({ browser }) => {
   test.setTimeout(2 * 60_000);
@@ -135,7 +144,7 @@ test('the Gauntlet’s last pick: both screens arrive at the choice together, th
     // Bob's screen, at full speed, is the one timed: it arrives, and then is the choose screen alone.
     await expect(bob.page.locator('[data-testid="gauntlet-choose"]:not([data-arriving])')).toBeVisible({ timeout: 10_000 });
     await expect(alice.page.locator('[data-testid="gauntlet-choose"]:not([data-arriving])')).toBeVisible({ timeout: 30_000 });
-    const [a, b] = [await framesOf(alice.page), await framesOf(bob.page)];
+    const [a, b] = [await settledFramesOf(alice.page, 'alice'), await settledFramesOf(bob.page, 'bob')];
     console.log(`[gauntlet-arrive] alice frames: ${JSON.stringify(a)}`);
     console.log(`[gauntlet-arrive] bob frames: ${JSON.stringify(b)}`);
     for (const [who, frames] of [
