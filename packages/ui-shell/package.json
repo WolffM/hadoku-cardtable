@@ -26,7 +26,7 @@
     "react-dom": "19.2.8"
   },
   "dependencies": {
-    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.25",
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.26",
     "@wolffm/themes": "npm:@hadoku/themes@5.14.2",
     "zod": "4.5.4"
   },
