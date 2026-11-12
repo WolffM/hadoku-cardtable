@@ -7223,28 +7223,21 @@ public final class PlayBridge {
          * started on; see {@code wave33-evidence/s1-harness.md}.
          *
          * <p><b>Why {@link #refreshActionable} runs after the scenario applies.</b>
-         * Wave 33 §S, the "empty actionable set at MAIN1" finding
-         * (measured in {@code wave33-evidence/s3-blockers.md}): the FIRST
+         * Wave 33 §S, the "empty actionable set at MAIN1" finding: the FIRST
          * {@code chooseSpellAbilityToPlay()} of the match runs during the natural
          * UNTAP step, before this hook has replaced anyone's hand, and caches its
          * (correctly empty, for UNTAP) result in {@code PlayerControllerHuman}'s
-         * {@code cachedActionableCards}. {@code InputPassPriority.showNormalPrompt()}
-         * — what actually SENDS {@code setWeaklySelectable} for an ordinary priority
-         * window — calls {@code pushActionableCards(false)} directly, which reuses
-         * that cached set verbatim rather than rescanning
-         * ({@code PlayerControllerHuman.java:1550-1590}: only recomputes when the
-         * cache is {@code null}). A scenario that replaces the hand AFTER that first
-         * cache fill therefore ships a stale, empty set to the very first priority
-         * window it opens — confirmed directly: {@code AvailableActions.collectActionable}
-         * called fresh, by hand, at the moment {@code setWeaklySelectable} sends {@code []},
-         * finds the scripted card correctly. Forcing one more
-         * {@code pushActionableCards(false)} per human seat right after the scenario
-         * applies — before the game thread ever reaches a real priority window —
-         * overwrites the stale cache with a fresh scan of the FINAL, scripted zones.
+         * {@code cachedActionableCards}, which a later non-payment scan reuses
+         * ({@code PlayerControllerHuman.getActionableCards}). Emptying that cache once the
+         * scenario applies makes the first window's own scan read the scripted zones.
+         * Nothing is sent from here: a seat's set goes out with the input it is for
+         * ({@code syncActionable}), and a set sent now is for no input at all — the server
+         * would forward it as the seat's offer while the other seat holds priority, and a
+         * click on it is refused (ei-end-turn-interrupt).
          *
-         * <p>That push still lost intermittently, and so did the real first window's:
-         * Wave 37 §A found the scan was right and the CLIENT dropped its cards on decode.
-         * {@link #resyncSeats} runs first for that; its doc is the cause.
+         * <p>The first window's set still lost intermittently: Wave 37 §A found the scan
+         * was right and the CLIENT dropped its cards on decode. {@link #resyncSeats} runs
+         * first for that; its doc is the cause.
          */
         @Override public HostedMatch hostMatch() {
             final MatchContext m = MatchContext.STARTING.get();
@@ -8497,40 +8490,10 @@ public final class PlayBridge {
         }
 
         /**
-         * Force a fresh {@code setWeaklySelectable} push for every human seat, so a
-         * scenario's scripted hand/battlefield is what the first priority window
-         * offers — see {@link #hostMatch}'s doc for why the default push is stale.
-         *
-         * <p><b>Why {@code pushActionableCards(false)} alone is not enough</b> —
-         * found by the manager re-running this exact test twice (1 fail, 1 pass).
-         * {@code pushActionableCards} ({@code PlayerControllerHuman.java:1550-1590})
-         * does NOT recompute the actionable set itself when not paying a cost:
-         * {@code :1572-1574}, {@code else if (cachedActionableCards != null) {
-         * actionable.addAll(cachedActionableCards); }}. That field
-         * ({@code :1539}, {@code private Set<CardView> cachedActionableCards})
-         * is only ever (re)computed by {@code chooseSpellAbilityToPlay()}
-         * ({@code :1664}/{@code :1668}/{@code :1672}) — and THIS method runs from
-         * the START-GAME HOOK, before the main loop has called
-         * {@code chooseSpellAbilityToPlay()} even once, so whatever the field holds
-         * is leftover from BEFORE the scenario applied (sometimes still {@code null}
-         * from construction, sometimes non-null — empirically, from the mulligan
-         * step's own input, timing-dependent — which is exactly why the failure was
-         * intermittent rather than constant). Calling {@code pushActionableCards(false)}
-         * while that stale value is non-null resends IT, not a fresh scan.
-         *
-         * <p>The fix: null the field directly (reflection on a {@code private} Forge
-         * field — no Forge file is changed, and this bridge already reads Forge
-         * internals this way for {@link SeatGui#liveMulliganFlag()}) immediately
-         * before calling {@code pushActionableCards(false)}. With the field null,
-         * {@code pushActionableCards}'s OWN {@code else} branch ({@code :1575-1578})
-         * runs a fresh {@code AvailableActions.collectActionable} scan instead of
-         * reusing anything — and since {@code pushActionableCards} never WRITES this
-         * field (only reads it), it is still null afterward, so
-         * {@code chooseSpellAbilityToPlay}'s own first real call (once the main loop
-         * starts) is guaranteed to take its own fresh-scan branch too
-         * ({@code :1659-1661}, unconditional whenever {@code cachedActionableCards}
-         * is null), rather than finding a non-null value some other caller already
-         * wrote.
+         * Empty each human seat's {@code cachedActionableCards} (by reflection on Forge's
+         * {@code private} field; no Forge file changes), so the first priority window's scan
+         * ({@code getActionableCards}) reads the scenario's scripted zones instead of reusing the
+         * UNTAP step's empty set. See {@link #hostMatch}'s doc. It sends nothing.
          */
         private static void refreshActionable(final Game game) {
             if (game == null) { return; }
@@ -8541,11 +8504,10 @@ public final class PlayBridge {
                         cache.setAccessible(true);
                         cache.set(human, null);
                     } catch (final ReflectiveOperationException e) {
-                        // Forge's own field renamed under us: fall through and push
+                        // Forge's own field renamed under us: the first window reuses
                         // whatever's cached rather than fail the match over a highlight.
                         System.err.println("[bridge] refreshActionable: cachedActionableCards reflection failed: " + e);
                     }
-                    human.getGui().setSelection(Selection.NONE.withActionable(human.getActionableCards(false, null)));
                 }
             }
         }

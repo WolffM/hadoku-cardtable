@@ -3028,6 +3028,50 @@ describe('hold-decide-forward', () => {
 		});
 
 		/*
+		 * ei-end-turn-interrupt (run 43248489753): bob was shown a window, then a wait, and the next
+		 * input's offer came with no clear between. Taken for a refresh of the window shown, it went
+		 * out before its window was decided; the server passed that window, the clear came 9 ms later,
+		 * and bob's click on his Bolt in that gap was refused.
+		 */
+		it('of the next input never reaches the seat when the server answers its window, though the last window was shown', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: clear },
+				{ t: 'frame', seat: SEAT1_ID, input: 4, frame: offer },
+				{ t: 'frame', seat: SEAT1_ID, input: 4, frame: promptFrame(1, MAIN) },
+				{ t: 'frame', seat: SEAT1_ID, input: 4, frame: buttonsFrame(1) },
+			);
+			expect(h.logs.filter((l) => l.evt === 'prompt-forwarded').at(-1)).toMatchObject({ why: 'kept', input: 4 });
+			h.host.push({ t: 'frame', seat: SEAT1_ID, input: 4, frame: { ...offer, cards: [] } });
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Waiting for Seat 1...') });
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, input: 5, frame: offer },
+				{ t: 'frame', seat: SEAT1_ID, input: 5, frame: promptFrame(1, UPKEEP) },
+				{ t: 'frame', seat: SEAT1_ID, input: 5, frame: buttonsFrame(1) },
+			);
+			expect(h.logs.filter((l) => l.evt === 'prompt-withheld').at(-1)).toMatchObject({ why: 'auto-pass', input: 5 });
+			expect(methodsSent(h, SEAT1_ID, before)).not.toContain('setWeaklySelectable');
+		});
+
+		it('refreshes at once only for the input whose window was shown: an offer of no input after it waits', () => {
+			const h = openedHarness();
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: clear },
+				{ t: 'frame', seat: SEAT1_ID, input: 4, frame: offer },
+				{ t: 'frame', seat: SEAT1_ID, input: 4, frame: promptFrame(1, MAIN) },
+				{ t: 'frame', seat: SEAT1_ID, input: 4, frame: buttonsFrame(1) },
+			);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push({ t: 'frame', seat: SEAT1_ID, input: 4, frame: { ...offer, cards: [] } });
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
+			// Its own frame: the bridge tags each frame it sends, and this one it tagged with none.
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: { ...offer } });
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
+		});
+
+		/*
 		 * Monkey run 42354564385 (Warlock Class cast at Main 1): Forge asks the cast's
 		 * `getAbilityToPlay` a second time between two inputs, and its payment pushes its offer
 		 * before its bar (`InputPayMana.showMessage`). The ask's flush, with nothing held, marked the

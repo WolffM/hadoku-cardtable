@@ -499,6 +499,11 @@ export interface SeatState extends ShellSeat {
 	 */
 	offerInput: 'fresh' | 'shown' | 'answered';
 	/**
+	 * The input whose window this seat was last shown, as the bridge tags it (null for a window of
+	 * none). An offer refreshes what the seat sees only when it is of that same input.
+	 */
+	offerFor: number | null;
+	/**
 	 * What this seat is sent from a state delta that newly lets it look at a library card until the
 	 * decision that shows that card: Forge grants the look (`tempShowCard`, as in
 	 * `PlayerControllerHuman.willPutCardOnTop`) a packet before it asks, and the browser draws a
@@ -713,6 +718,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			passedAt: null,
 			heldClick: null,
 			offerInput: 'fresh',
+			offerFor: null,
 			lookHold: null,
 			wireButtonsLive: false,
 			answeredWindow: null,
@@ -2093,7 +2099,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			this.clearPendingTimer(s);
 			if (held === null) {
 				this.disarmStuckWindow(s);
-				this.releaseOffer(s);
+				this.releaseOffer(s, this.inputOf(frame));
 				this.send(s, frame);
 				this.releaseHeldClick(s, 'other', frame);
 			} else this.forwardUnpaired(s, frame, held, 'buttons-first');
@@ -2116,7 +2122,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		}
 		s.pendingButtons = null;
 		this.clearPendingTimer(s);
-		this.releaseOffer(s);
+		this.releaseOffer(s, this.inputOf(frame));
 		this.send(s, frame);
 	}
 
@@ -2190,7 +2196,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			const bar = buttons ?? (s.buttons?.method === 'updateButtons' ? s.buttons : null);
 			if (s.wireButtonsLive && bar !== null) this.send(s, this.disabledBar(bar));
 		} else {
-			this.releaseOffer(s);
+			this.releaseOffer(s, input);
 			if (buttons === null) this.send(s, prompt);
 			else if (order === 'buttons-first') this.sendWindow(s, buttons, prompt);
 			else this.sendWindow(s, prompt, buttons);
@@ -2243,7 +2249,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		const kind = readPromptFacts(this.notesOf(s)).window;
 		this.deps.log({ evt: 'stuck-window', matchId: this.id, seat: s.seat, kind, withheld: w.why, ...(w.input === null ? {} : { input: w.input }), ms: STUCK_WINDOW_MS });
 		if (w.offer !== null) s.heldOffer = w.offer;
-		this.releaseOffer(s);
+		this.releaseOffer(s, w.input);
 		if (w.buttons === null) this.send(s, w.prompt);
 		else if (w.order === 'buttons-first') this.sendWindow(s, w.buttons, w.prompt);
 		else this.sendWindow(s, w.prompt, w.buttons);
@@ -2326,7 +2332,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		this.clearPendingTimer(s);
 		if (prompt === null && buttons === null) {
 			// Only an offer that waited: an ask between two inputs shows the next one nothing.
-			if (s.heldOffer !== null) this.releaseOffer(s);
+			if (s.heldOffer !== null) this.releaseOffer(s, this.inputOf(s.heldOffer));
 			return;
 		}
 		this.forwardUnpaired(s, prompt, buttons);
@@ -2342,21 +2348,25 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 * Forge (`ActGate`) for the next input, which turned it away (monkey run 42337878389, Takenuma
 	 * clicked at an auto-passed upkeep and refused at the draw step). So an offer that arrives
 	 * before its input has shown a window, or while a window half is held, is held with that
-	 * window ({@link decideWindow}). One that arrives after the input's window went out is a
-	 * refresh of what the seat already sees (`InputAttack`'s re-push after every toggle), and goes
-	 * out at once. Nothing held is lost: the window's own flush sends it.
+	 * window ({@link decideWindow}). One of the very input whose window went out is a refresh of
+	 * what the seat already sees (`InputAttack`'s re-push after every toggle), and goes out at
+	 * once. One of any other input is the next window's, whatever came between: a seat shown a
+	 * window and then a wait gets the next input's offer before its prompt, and that window may be
+	 * the server's to pass (ei-end-turn-interrupt: bob's auto-passed Main 1 lit his Bolt for 9 ms,
+	 * and his click on it was refused). Nothing held is lost: the window's own flush sends it.
 	 */
 	private holdOffer(s: SeatState, frame: ServerFrame): boolean {
 		const windowHeld = s.pendingPrompt !== null || s.pendingButtons !== null;
-		if (!windowHeld && s.offerInput === 'shown') return false;
+		if (!windowHeld && s.offerInput === 'shown' && this.inputOf(frame) === s.offerFor) return false;
 		s.heldOffer = frame;
 		if (!windowHeld) this.armPendingTimer(s);
 		return true;
 	}
 
-	/** The held offer, sent ahead of the window it belongs to: that window is going to the seat. */
-	private releaseOffer(s: SeatState): void {
+	/** The held offer, sent ahead of the window it belongs to: that window, of `input`, is going to the seat. */
+	private releaseOffer(s: SeatState, input: number | null): void {
 		s.offerInput = 'shown';
+		s.offerFor = input;
 		const offer = s.heldOffer;
 		if (offer === null) return;
 		s.heldOffer = null;
@@ -2364,9 +2374,14 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		this.tellWatchers(s, offer);
 	}
 
+	/** The input the bridge tagged `frame` with (`inputOfFrame`), null for a frame of none. */
+	private inputOf(frame: object): number | null {
+		return this.inputOfFrame.get(frame) ?? null;
+	}
+
 	private forwardUnpaired(s: SeatState, prompt: PromptFrame | null, buttons: ButtonsFrame | null, order: 'prompt-first' | 'buttons-first' = 'prompt-first'): void {
 		this.disarmStuckWindow(s);
-		this.releaseOffer(s);
+		this.releaseOffer(s, (prompt === null ? null : this.inputOf(prompt)) ?? (buttons === null ? null : this.inputOf(buttons)));
 		if (prompt !== null && buttons !== null) {
 			if (order === 'buttons-first') this.sendWindow(s, buttons, prompt);
 			else this.sendWindow(s, prompt, buttons);
