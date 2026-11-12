@@ -44,7 +44,7 @@ describe('a reloaded match link', () => {
     });
 
     const page = renderHook(() => useMatchRoomId('m-reloaded'));
-    await waitFor(() => expect(page.result.current.room?.roomId).toBe(SERVER_BODIES.constructed.id));
+    await waitFor(() => expect(page.result.current.roomId).toBe(SERVER_BODIES.constructed.id));
     render(createElement(MatchScreen, { matchId: 'm-reloaded', makeTransport: quiet }));
     await waitFor(() => expect(screen.getByTestId('board-room').textContent).toBe(SERVER_BODIES.constructed.id));
 
@@ -61,7 +61,7 @@ describe('a reloaded match link', () => {
 
     const page = renderHook(() => useMatchRoomId('m-unlucky'));
     await waitFor(() => expect(page.result.current.pending).toBe(false));
-    expect(page.result.current.room).toBeNull();
+    expect(page.result.current.roomId).toBeNull();
     render(createElement(MatchScreen, { matchId: 'm-unlucky', makeTransport: quiet }));
     await waitFor(() => expect(screen.getByTestId('board-room').textContent).toBe(SERVER_BODIES.constructed.id));
     expect(answers).toBe(2);

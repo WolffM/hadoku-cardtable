@@ -98,7 +98,7 @@ vi.mock('@wolffm/themes', async (importOriginal) => ({
 import { THEMES } from '@wolffm/themes';
 
 import { RoomShell, cardtableOrigin, roomKeyFor, watchpartyTheme } from './RoomShell.tsx';
-import { roomIdFor, tableChatId } from '../App.tsx';
+import { roomIdFor } from '../App.tsx';
 import { parseRoute } from '../screens/route.ts';
 
 afterEach(() => {
@@ -303,7 +303,7 @@ describe('a host theme outside the chrome union still reaches the chrome', () =>
 /*
  * Wave 71 §G: the room this screen puts the chat in, for a `#/match/<id>`
  * route. `App.tsx`'s own `roomIdFor` is the function `RoomShell`'s `roomId`
- * and `chatId` props are built from; testing it here rather than rendering
+ * prop is built from; testing it here rather than rendering
  * the whole app keeps this a pure-function test.
  *
  * `matchRoom` is `App.tsx`'s own name for the match's resolved room
@@ -330,9 +330,7 @@ describe('the room a match route puts the chat in', () => {
     // the match's own. Reverting wave 71 §G's step 1 (`return route.matchId`
     // for the `match` case) makes this assertion fail: the function would
     // answer the match id instead of the room id below.
-    const place = { roomId: 'r-cube-night', chatId: 'r-cube-night-t-11111111' };
-    expect(roomIdFor(route, place)).toEqual(place);
-    expect(roomIdFor(route, place)?.roomId).not.toBe('m-090bf01ba811');
+    expect(roomIdFor(route, 'r-cube-night')).toBe('r-cube-night');
   });
 
   it('falls back to the match’s OWN key while unresolved, and permanently for a match with no room — never a bare null (wave 72 §R)', () => {
@@ -343,32 +341,25 @@ describe('the room a match route puts the chat in', () => {
     // own `cardtable-m-<id>` chat, exactly as it did before wave 71 §G.
     // Reverting this fallback (`return matchRoomId;`) makes this fail: the
     // function would answer `null` instead.
-    expect(roomIdFor(route, null)).toEqual({ roomId: 'm-090bf01ba811', chatId: 'm-090bf01ba811' });
-    expect(roomKeyFor(roomIdFor(route, null)!.chatId)).toBe('cardtable-m-090bf01ba811');
+    expect(roomIdFor(route, null)).toBe('m-090bf01ba811');
+    expect(roomKeyFor(roomIdFor(route, null)!)).toBe('cardtable-m-090bf01ba811');
   });
 
   it('every other route is unchanged by the new parameter', () => {
-    const ignored = { roomId: 'r-should-be-ignored', chatId: 'r-should-be-ignored-t-1' };
-    expect(roomIdFor(parseRoute('#/room/r-cube-night'), null)).toEqual({ roomId: 'r-cube-night', chatId: 'r-cube-night' });
-    expect(roomIdFor(parseRoute('#/draft/pod-1'), ignored)).toEqual({ roomId: 'pod-1', chatId: 'pod-1' });
-    expect(roomIdFor(parseRoute('#/deck/pod-1'), ignored)).toEqual({ roomId: 'pod-1', chatId: 'pod-1' });
+    const ignored = 'r-should-be-ignored';
+    expect(roomIdFor(parseRoute('#/room/r-cube-night'), null)).toBe('r-cube-night');
+    expect(roomIdFor(parseRoute('#/draft/pod-1'), ignored)).toBe('pod-1');
+    expect(roomIdFor(parseRoute('#/deck/pod-1'), ignored)).toBe('pod-1');
     expect(roomIdFor(parseRoute('#/'), ignored)).toBeNull();
   });
 });
 
-// The operator, 2026-10-19: "can we make sure the game-chat is seperate from the lobby chat?"
-describe('a game’s chat', () => {
-  const room = {
-    id: 'r-cube-night',
-    tables: [
-      { id: 't-11111111', matchId: 'm-000000000002', series: { games: [{ matchId: 'm-000000000001' }] } },
-      { id: 't-22222222', matchId: null, series: { games: [] } },
-    ],
-  };
-  it('is its table’s, apart from the room’s lobby chat, and the same across the games of one series', () => {
-    expect(tableChatId(room, 'm-000000000002')).toBe('r-cube-night-t-11111111');
-    expect(tableChatId(room, 'm-000000000001')).toBe('r-cube-night-t-11111111');
-    expect(tableChatId(room, 'm-000000000002')).not.toBe(room.id);
-    expect(roomKeyFor(tableChatId(room, 'm-000000000002'))).not.toBeNull();
+// The operator, 2026-11-11: "lets persist the chat between lobby and game. rooms should maintain their chat"
+describe('a room’s chat', () => {
+  it('is one key from the lobby through every game at every table', () => {
+    const lobby = roomIdFor(parseRoute('#/room/r-cube-night'), null);
+    expect(roomIdFor(parseRoute('#/match/m-000000000001'), 'r-cube-night')).toBe(lobby);
+    expect(roomIdFor(parseRoute('#/match/m-000000000002'), 'r-cube-night')).toBe(lobby);
+    expect(roomKeyFor(lobby!)).toBe('cardtable-r-cube-night');
   });
 });

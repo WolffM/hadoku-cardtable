@@ -43,7 +43,6 @@ import { RoomShell } from './room/RoomShell.tsx';
 import { SessionPrompt, sessionBlocks, useRoomSession } from './room/SessionPrompt.tsx';
 import { useWhoami } from './room/whoami.ts';
 import { knownRoomOfMatch, roomOfMatch } from './play/live/matchStart.ts';
-import type { RoomView } from './rooms/api.ts';
 import { useJoined } from './rooms/joined.ts';
 import { CARDTABLE_SETTINGS_TABS, HostDrawsSettingsProvider, useUiScale } from './settings/Settings.tsx';
 import { useTrim } from './settings/siteTrim.ts';
@@ -52,26 +51,6 @@ import { composeGame } from './composition.tsx';
 composeGame();
 
 export type AppProps = ScreenProps;
-
-/**
- * A game's own chat: its room AND its table, so the lobby's conversation and
- * the game's are two rooms (the operator, 2026-10-19: *"can we make sure the
- * game-chat is separate from the lobby chat?"*), while the games of one series
- * — one table — keep one chat between them. A match no table names (it has
- * since been let go) is its own.
- */
-export function tableChatId(room: { id: string; tables: readonly { id: string; matchId: string | null; series: { games: readonly { matchId: string }[] } }[] }, matchId: string): string {
-  const table = room.tables.find((t) => t.matchId === matchId || t.series.games.some((g) => g.matchId === matchId));
-  return `${room.id}-${table?.id ?? matchId}`;
-}
-
-/** Where a route's viewer is: the room they are a member of, and the chat they talk in. */
-export interface RoomPlace {
-  /** The room the viewer's identity (their avatar) is asserted to — a room id, or a match id the server resolves to its room. */
-  roomId: string;
-  /** The watchparty chat the chrome joins: the room's own, or a game's table chat (`tableChatId`). */
-  chatId: string;
-}
 
 /**
  * The room a live match belongs to, resolved once per match id — the page's
@@ -121,75 +100,63 @@ export interface RoomPlace {
  * room" by itself — which is why this is its own piece of state, set
  * alongside `roomId` in the very same update, rather than computed from it.
  */
-function placeOfMatch(room: RoomView | null, matchId: string): RoomPlace | null {
-  return room === null ? null : { roomId: room.id, chatId: tableChatId(room, matchId) };
-}
-
-export function useMatchRoomId(matchId: string | null): { room: RoomPlace | null; pending: boolean } {
-  const [state, setState] = useState<{ room: RoomPlace | null; everAnswered: boolean }>({ room: null, everAnswered: false });
+export function useMatchRoomId(matchId: string | null): { roomId: string | null; pending: boolean } {
+  const [state, setState] = useState<{ roomId: string | null; everAnswered: boolean }>({ roomId: null, everAnswered: false });
   // A match entered from its room had its room asked before the route changed (`matchStart.ts`):
   // the board then draws in the route's first frame, with no empty one while this asks again.
   const known = matchId === null ? undefined : knownRoomOfMatch(matchId);
   useEffect(() => {
     if (matchId === null) return;
     if (known !== undefined) {
-      setState({ room: placeOfMatch(known, matchId), everAnswered: true });
+      setState({ roomId: known?.id ?? null, everAnswered: true });
       return;
     }
     let live = true;
     roomOfMatch(matchId).then(
       (room) => {
-        if (live) setState({ room: placeOfMatch(room, matchId), everAnswered: true });
+        if (live) setState({ roomId: room?.id ?? null, everAnswered: true });
       },
       () => {
-        if (live) setState({ room: null, everAnswered: true });
+        if (live) setState({ roomId: null, everAnswered: true });
       },
     );
     return () => {
       live = false;
     };
   }, [matchId, known]);
-  if (matchId !== null && known !== undefined) return { room: placeOfMatch(known, matchId), pending: false };
-  return { room: state.room, pending: matchId !== null && !state.everAnswered };
+  if (matchId !== null && known !== undefined) return { roomId: known?.id ?? null, pending: false };
+  return { roomId: state.roomId, pending: matchId !== null && !state.everAnswered };
 }
 
 /**
- * The room and chat this route belongs in, or null for the routes that are
- * not a shared place: the lobby and the format picker.
+ * The room this route belongs in — its chat and its roster — or null for the
+ * routes that are not a shared place: the lobby and the format picker.
  *
- * A draft room and its deck screen share one watchparty room on purpose — it is
- * the same people either side of the draft finishing, and making them rejoin a
- * new room to build a deck would drop the conversation they were having about
- * it. The legacy `draft` route maps to the same id the `room` route does, so
- * redirecting one to the other does not tear down and rebuild the chrome.
+ * A room has ONE chat, from its lobby through its draft, deck and every game
+ * at every table (the operator, 2026-11-11: *"lets persist the chat between
+ * lobby and game. rooms should maintain their chat"*, reversing 2026-10-19's
+ * separate table chat). Because the key never changes while the viewer stays
+ * in the room, `RoomShell` keeps the one chrome, and the conversation, across
+ * every screen in it. The legacy `draft` route maps to the same id the `room`
+ * route does, so redirecting one to the other does not rebuild the chrome.
  *
- * **A `match` route has two answers** (`RoomPlace`): its TABLE's chat
- * (`tableChatId`, above) — separate from the room's own lobby chat, the same
- * across the games of one series — and the ROOM itself, which is where the
- * viewer is a member and so where their avatar is asserted. The table chat id
- * names no room the server knows, so an avatar asserted to it is refused and a
- * pick made mid-match never reaches either board (Q6). `matchRoom` is the
- * answer this function returns for a `match` route, but **falls back to the
- * match's own id for both when `matchRoom` is `null`** (wave 72 §R) — a
- * SETTLED answer: the
- * fetch came back with no room for this match (a scenario, a direct vs-AI
- * game), which before wave 71 §G kept its own `cardtable-m-<id>` chat and
- * without this fallback had none. `App` (below) never calls this with
- * `'pending'` — it holds the board back until `useMatchRoomId` settles one
- * way or the other, which is what keeps the chrome's presence (and, for a
- * roomless match, which key it joins) decided BEFORE the board's first
- * paint rather than flipped after it. `RoomShell.test.ts` pins the fallback.
+ * A `match` route's room is `matchRoom`, `useMatchRoomId`'s settled answer,
+ * and **falls back to the match's own id when that is `null`** (wave 72 §R):
+ * a match no room holds (a scenario, a direct vs-AI game) keeps its own
+ * `cardtable-m-<id>` chat. `App` (below) never calls this while that answer is
+ * pending — it holds the board back until it settles, which keeps the
+ * chrome's presence and key decided BEFORE the board's first paint.
+ * `RoomShell.test.ts` pins the fallback.
  */
-export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoom: RoomPlace | null): RoomPlace | null {
-  const same = (id: string): RoomPlace => ({ roomId: id, chatId: id });
+export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoom: string | null): string | null {
   switch (route.kind) {
     case 'draft':
     case 'deck':
-      return same(route.draftId);
+      return route.draftId;
     case 'match':
-      return matchRoom ?? same(route.matchId);
+      return matchRoom ?? route.matchId;
     case 'room':
-      return same(route.roomId);
+      return route.roomId;
     default:
       return null;
   }
@@ -203,7 +170,7 @@ export function App({ transport }: AppProps) {
   useUiScale(documentRoot);
   useTrim(documentRoot);
   useSoundPrefs();
-  const { room: matchRoom, pending: matchPending } = useMatchRoomId(route.kind === 'match' ? route.matchId : null);
+  const { roomId: matchRoom, pending: matchPending } = useMatchRoomId(route.kind === 'match' ? route.matchId : null);
   // `pending` is only ever true for a `match` route (see the hook's own
   // comment); read here as a single flag because it gates TWO things below
   // together — the board itself, and the room id handed to `RoomShell` —
@@ -298,7 +265,7 @@ export function App({ transport }: AppProps) {
   // One live tab per player per room (`room/session.ts`): claimed as soon as the route names its room,
   // joined or not (a watcher's claim holds nothing). While it asks, or after another tab took the room,
   // the screen is not drawn — none of its sockets join — and the page behind the question is inert.
-  const session = useRoomSession(route.kind === 'rally-embed' ? null : (place?.roomId ?? null), route.kind);
+  const session = useRoomSession(route.kind === 'rally-embed' ? null : place, route.kind);
   const blocked = sessionBlocks(session.state);
   // A Rally pick option, in Rally's frame (cardtable#24): the theme root and the page, with no
   // header and no room. `rally/RallyEmbed.tsx` says why.
@@ -315,7 +282,7 @@ export function App({ transport }: AppProps) {
           in the lobby screen"*. A room's lobby keeps it open; the draft, deck
           and match screens still let a viewer hide it. */}
       <HostDrawsSettingsProvider value>
-        <RoomShell roomId={gatedPlace?.roomId ?? null} chatId={gatedPlace?.chatId ?? null} collapsible={route.kind !== 'room'} inert={blocked}>
+        <RoomShell roomId={gatedPlace} collapsible={route.kind !== 'room'} inert={blocked}>
           {matchPending || blocked ? null : <Screen transport={transport} />}
         </RoomShell>
       </HostDrawsSettingsProvider>

@@ -4,8 +4,8 @@
  *   A room gets a second table. Alice plays the AI at table 1 and Bob plays
  *   the AI at table 2. Carol, unseated, is carried to table 1's board once,
  *   goes back to the room and stays there, then opens table 2's. Since
- *   2026-10-19 there is no strip over the board, and each table's board has a
- *   chat of its own, apart from the room's lobby chat.
+ *   2026-10-19 there is no strip over the board; since 2026-11-11 the room
+ *   keeps one chat, its lobby's, on every table's board.
  *
  * This lane (G) owns the board strip and the chat key; lane D owns the
  * tables themselves (`apps/server/src/room/lobby.ts`, `http/routes.ts`) and
@@ -91,21 +91,6 @@ async function sendJson(page: Page, method: 'POST' | 'PUT', url: string, body: u
   );
 }
 
-/** Which of a room's tables carries `matchId` — the add-table response only ever hands back the NEW table's id, so table 1's own id is read off the room the same raw way `MatchScreen.tsx` reads `tables`. */
-async function tableIdFor(page: Page, origin: string, roomId: string, matchId: string): Promise<string> {
-  const body = await page.evaluate(
-    async ({ origin, roomId }) => {
-      const res = await fetch(`${origin}/cardtable/api/rooms/${roomId}`, { credentials: 'same-origin' });
-      return (await res.json()) as unknown;
-    },
-    { origin, roomId },
-  );
-  const tables = (body as { tables?: { id: string; matchId: string | null }[] }).tables ?? [];
-  const found = tables.find((t) => t.matchId === matchId);
-  if (found === undefined) throw new Error(`no table in room ${roomId} has matchId ${matchId} (tables: ${JSON.stringify(tables)})`);
-  return found.id;
-}
-
 /** `@wolffm/watchparty-ui`'s chat compose box — no `data-testid`, but a stable accessible placeholder. */
 const chatBoxOf = (page: Page) => page.getByPlaceholder('Send a message');
 
@@ -134,7 +119,7 @@ async function watchRoomChromeJoins(page: Page): Promise<string[]> {
   return keys;
 }
 
-test('a room with two live tables: a watcher is carried in once, stays in the room by choice, and each table’s board has its own chat, apart from the room’s', async ({ browser }) => {
+test('a room with two live tables: a watcher is carried in once, stays in the room by choice, and every board keeps the room’s one chat', async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(5 * 60_000);
@@ -168,7 +153,6 @@ test('a room with two live tables: a watcher is carried in once, stays in the ro
     const matchId1 = matchRe1.exec(alice.page.url())?.[1];
     if (matchId1 === undefined) throw new Error(`no match id in ${alice.page.url()}`);
     await expect(alice.page.locator('[aria-label="Game board"]'), 'alice’s own board came up at table 1').toBeVisible({ timeout: 30_000 });
-    const table1 = await tableIdFor(alice.page, stack.origin, roomId, matchId1);
 
     // ── table 2: bob vs the AI, through the API — no UI offers table 2 yet
     // (wave 72's multi-table lobby), so this is the same bypass
@@ -198,7 +182,7 @@ test('a room with two live tables: a watcher is carried in once, stays in the ro
     await bob.page.goto(`${stack.origin}${PREFIX}/#/match/${matchId2}`);
     await expect(bob.page.locator('[aria-label="Game board"]'), 'bob’s own board came up at table 2').toBeVisible({ timeout: 30_000 });
 
-    // ── carol: unseated, carried to table 1 once, and each board its own chat ──
+    // ── carol: unseated, carried to table 1 once, the room's chat beside the board ──
     const carol = await openFriend(browser, 'carol');
     await resizeWindow(carol.page, { width: 1280, height: 800 });
     const roomChromeJoins = await watchRoomChromeJoins(carol.page);
@@ -235,11 +219,11 @@ test('a room with two live tables: a watcher is carried in once, stays in the ro
     await expect(alice.page.locator('.live[data-role="watcher"]'), 'her own seat, not a watcher’s').toHaveCount(0);
     await expect(alice.page.getByTestId('live-concede'), 'her seat’s own controls are back').toBeVisible({ timeout: 30_000 });
 
-    // ── the game's chat is apart from the lobby's: one per table ────────
-    // The operator, 2026-10-19: "can we make sure the game-chat is seperate from the lobby chat?"
+    // ── one chat for the room, lobby and both tables ────────────────────
+    // The operator, 2026-11-11: "lets persist the chat between lobby and game. rooms should maintain their chat"
     // See the header: watchparty's own debug log is read, not the wire.
-    const wanted = [`cardtable-${roomId}-${table1}`, `cardtable-${roomId}`, `cardtable-${roomId}-${table2}`];
-    await expect.poll(() => wanted.every((k) => roomChromeJoins.includes(k)), { timeout: 15_000, message: `carol’s chat joins: ${JSON.stringify(roomChromeJoins)}` }).toBe(true);
+    expect(roomChromeJoins.length, 'carol’s chat joined at all').toBeGreaterThan(0);
+    expect(new Set(roomChromeJoins), `carol’s chat joins: ${JSON.stringify(roomChromeJoins)}`).toEqual(new Set([`cardtable-${roomId}`]));
     console.log(`[w71-boards] carol’s RoomChrome join log: ${JSON.stringify(roomChromeJoins)}`);
   } finally {
     await stack.stop();
