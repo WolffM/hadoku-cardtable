@@ -41,6 +41,13 @@
  * screen (`relay:ended`), and this slot shows the winners under the game: the room's result,
  * not the bundle's. `winners` are seat numbers in `match.seats`' numbering above — the one the
  * bundle itself was handed — so they name the same people on every screen.
+ *
+ * ## The next match
+ *
+ * A relay room plays one match after another. On the end, the channel has already joined the
+ * room's next match (`./relay-channel.ts`), and this slot mounts the bundle afresh on the same
+ * channel: a bundle treats `over` as final for the match it was mounted for, so the next match
+ * is a fresh mount, exactly as on first entering the room.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -105,6 +112,8 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
   const [channel, setChannel] = useState<RelayChannel | null>(null);
   /** The relay match's winners once it ended on an `over`; null until then. */
   const [winners, setWinners] = useState<readonly number[] | null>(null);
+  /** How many of this room's relay matches have ended on this screen: each one remounts the bundle. */
+  const [matchesEnded, setMatchesEnded] = useState(0);
 
   // One channel per room, never rebuilt on a theme/identity/seat change — disposed the moment
   // this slot no longer needs one (a different room, or this one turning out not to be relay).
@@ -112,12 +121,16 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
     if (!isRelay || view === null) return;
     const ch = openRelayChannel(view.id);
     setChannel(ch);
-    const offEnded = ch.onEnded((ended) => setWinners(ended));
+    const offEnded = ch.onEnded((ended) => {
+      setWinners(ended);
+      setMatchesEnded((n) => n + 1);
+    });
     return () => {
       offEnded();
       ch.close();
       setChannel(null);
       setWinners(null);
+      setMatchesEnded(0);
     };
   }, [isRelay, view?.id]);
 
@@ -136,8 +149,9 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
 
   const ready = ctx !== null;
 
-  // Mount once the context first becomes available; a later context change goes through
-  // update() below, never a remount (a seat change is not a new game).
+  // Mount once the context first becomes available, and afresh for each relay match after the
+  // first; any other context change goes through update() below, never a remount (a seat change
+  // is not a new game).
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
@@ -157,8 +171,8 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
       handle.dispose();
       handleRef.current = null;
     };
-    // Deliberately [src, ready], not ctx: mounts on readiness, not on every later ctx change.
-  }, [src, ready]);
+    // Deliberately not ctx: mounts on readiness and on a new match, not on every later ctx change.
+  }, [src, ready, matchesEnded]);
 
   useEffect(() => {
     if (ctx !== null) handleRef.current?.update(ctx);

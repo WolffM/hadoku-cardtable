@@ -233,27 +233,34 @@ export interface RelayMatchRegistry {
 	/**
 	 * Builds one `RelayMatch` under `id` — a room's own id, since a relay room IS its own match:
 	 * there is no separate "start" a non-Magic room's UI ever presses (`rooms/BundleSlot.tsx`'s own
-	 * doc). Replaces whatever was already registered under `id`.
+	 * doc). Replaces whatever was already registered under `id`. When that match ends, the room's
+	 * next one is registered in its place with the same `deps` (so the same seats, by
+	 * `roomSeatOf`): a room plays as many matches as its players start, one after another.
 	 */
 	register(id: string, seatCount: number, deps: RelayMatchDeps): RelayMatch;
 	get(id: string): RelayMatch | undefined;
 }
 
-/** A registry of `RelayMatch`es, keyed by match (room) id — its own `ended` hook forgets one once it is told its match ended. */
+/**
+ * A registry of `RelayMatch`es, keyed by match (room) id. A match that ends is replaced by the
+ * room's next one at once, before `relay-socket.ts` tells any screen it ended, so every screen's
+ * rejoin (`relay-channel.ts` sends its join again on `relay:ended`) finds the new match.
+ */
 export function createRelayMatchRegistry(): RelayMatchRegistry {
 	const matches = new Map<string, RelayMatch>();
+	function register(id: string, seatCount: number, deps: RelayMatchDeps): RelayMatch {
+		const match = createRelayMatch(id, seatCount, {
+			...deps,
+			ended: () => {
+				if (matches.get(id) === match) register(id, seatCount, deps);
+				deps.ended?.();
+			},
+		});
+		matches.set(id, match);
+		return match;
+	}
 	return {
-		register(id, seatCount, deps) {
-			const match = createRelayMatch(id, seatCount, {
-				...deps,
-				ended: () => {
-					matches.delete(id);
-					deps.ended?.();
-				},
-			});
-			matches.set(id, match);
-			return match;
-		},
+		register,
 		get(id) {
 			return matches.get(id);
 		},

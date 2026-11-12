@@ -11,7 +11,7 @@
  *
  * Ordering and at-most-once delivery are `runtimes/relay.ts`'s `RelaySession`'s own guarantees;
  * this file adds nothing to either — it only opens the connection, joins, rejoins on every
- * reconnect, and relays `relay:message` both ways. A watcher's own `send` is a silent no-op from
+ * reconnect and after every match's end, and relays `relay:message` both ways. A watcher's own `send` is a silent no-op from
  * out here too, but only because the SERVER drops it without an error — nothing here tracks
  * whether this socket holds a seat.
  */
@@ -33,7 +33,9 @@ const RELAY_EVENTS = { join: 'relay:join', message: 'relay:message', ended: 'rel
 /**
  * A `MatchChannel` plus the host's own word that the match ended — the room's, never the
  * bundle's: `winners` are the seat numbers of the `{ t: 'over', winners }` that ended it (the
- * bundle's own `ctx.match` numbering), or null when every seat left.
+ * bundle's own `ctx.match` numbering), or null when every seat left. By the time a handler
+ * hears it, this channel has already sent its join again: the room's next match is the one it
+ * speaks in from then on (`relay-socket.ts`, "A room's next match").
  */
 export interface RelayChannel extends MatchChannel {
   onEnded(handler: (winners: readonly number[] | null) => void): () => void;
@@ -78,6 +80,9 @@ export function openRelayChannel(matchId: string, options: RelayChannelOptions =
     if (closed) return;
     const raw = word?.winners;
     const winners = Array.isArray(raw) && raw.every((w) => typeof w === 'number') ? (raw as number[]) : null;
+    // The room's next match is already registered under the same id: join it on this socket,
+    // before anyone is told, so nothing the bundle sends after hearing the end is lost.
+    join();
     for (const handler of [...endedHandlers]) handler(winners);
   });
 

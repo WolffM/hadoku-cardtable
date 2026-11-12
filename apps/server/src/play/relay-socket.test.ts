@@ -12,6 +12,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import { identityFromHeaders } from '../room/identity.ts';
+import { createRelayMatchRegistry } from './runtimes/relay-match.ts';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 
@@ -88,16 +89,23 @@ function rosterOf(roster: Roster): import('./relay-socket.ts').RelayRoster {
 }
 
 async function boot(rosters: Record<string, Roster>, options: { joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } | null } = {}): Promise<Harness> {
+	return bootWith((matchId) => {
+		const r = rosters[matchId];
+		return r === undefined ? undefined : rosterOf(r);
+	}, options);
+}
+
+async function bootWith(
+	rosterFor: (matchId: string) => import('./relay-socket.ts').RelayRoster | undefined,
+	options: { joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } | null } = {},
+): Promise<Harness> {
 	const logs: Record<string, unknown>[] = [];
 	const ended: { matchId: string; outcome: unknown }[] = [];
 	const http: HttpServer = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
 	const handle = socketMod.attachRelay(io, {
 		minTier: 'friend',
-		rosterOf: (matchId) => {
-			const r = rosters[matchId];
-			return r === undefined ? undefined : rosterOf(r);
-		},
+		rosterOf: rosterFor,
 		onEnded: (matchId, outcome) => ended.push({ matchId, outcome }),
 		log: (e) => logs.push(e),
 		joinRateLimit: options.joinRateLimit,
@@ -269,6 +277,36 @@ describe('relay:message', () => {
 		await waitUntil(() => a.length === 1 && b.length === 1 && c.length === 1, 'every screen to hear the end');
 		expect([a, b, c]).toEqual([[{ winners: [1] }], [{ winners: [1] }], [{ winners: [1] }]]);
 		expect(h.logs).toContainEqual({ evt: 'relay-ended', matchId: 'm1', winners: [1] });
+	});
+
+	it("a rematch in the same room: every screen joins the room's next match with the same relay:join, its messages are delivered and its over recorded", async () => {
+		const reg = createRelayMatchRegistry();
+		const roomSeats = [participantOf('alice'), participantOf('bob')];
+		reg.register('m1', 2, { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null) });
+		const h = await bootWith((matchId) => reg.get(matchId));
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		for (const p of [alice, bob, carol]) await p.join('m1');
+		alice.send({ t: 'over', winners: [0] });
+		await waitUntil(() => h.ended.length === 1, 'the first match to end');
+
+		// Until it rejoins, a screen speaks for nothing, even once the room's next match is live:
+		// bob's send goes nowhere after alice is already in the second match.
+		expect(await alice.join('m1')).toEqual({ ok: true, seat: 0 });
+		bob.send('into the void');
+		expect(await bob.join('m1')).toEqual({ ok: true, seat: 1 });
+		alice.send('second match');
+		bob.send('bob in the second match');
+		await waitUntil(() => bob.messages.includes('second match'), 'bob to hear the second match');
+		await waitUntil(() => alice.messages.includes('bob in the second match'), 'alice to hear bob in the second match');
+		expect(alice.messages).not.toContain('into the void');
+		// Carol has not rejoined: the second match's message does not reach her.
+		expect(carol.messages).not.toContain('second match');
+
+		bob.send({ t: 'over', winners: [1] });
+		await waitUntil(() => h.ended.length === 2, 'the second match to end');
+		expect(h.ended[1]).toEqual({ matchId: 'm1', outcome: { winners: [1] } });
 	});
 
 	it('answers 429 once a caller has spent their joins, and only for that caller', async () => {

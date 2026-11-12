@@ -146,6 +146,24 @@ describe('openRelayChannel', () => {
 		}
 	});
 
+	it("rejoins on the same socket when the match ends, before its handlers hear it: the room's next match is the one it speaks in", async () => {
+		const server = await fakeRelayServer();
+		try {
+			const alice = openRelayChannel('room-a', { url: server.url, path: '/socket.io/' });
+			const bob = openRelayChannel('room-a', { url: server.url, path: '/socket.io/' });
+			openChannels.push(alice, bob);
+			await waitUntil(() => server.joins.length === 2, 'both to join');
+			const joinsWhenTold: number[] = [];
+			bob.onEnded(() => joinsWhenTold.push(server.joins.length));
+			alice.send({ t: 'over', winners: [0] });
+			await waitUntil(() => server.joins.length === 4, 'both to join the next match');
+			expect(server.joins.slice(2)).toEqual([{ matchId: 'room-a' }, { matchId: 'room-a' }]);
+			expect(joinsWhenTold).toHaveLength(1);
+		} finally {
+			await server.close();
+		}
+	});
+
 	it('on() returns an unsubscribe function; after calling it, that handler hears nothing more', async () => {
 		const server = await fakeRelayServer();
 		try {

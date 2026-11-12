@@ -25,6 +25,14 @@
  *
  * A `RelaySession` has nothing to do until somebody joins it, so there is
  * no reason to build one earlier. It is dropped from `live` once it ends.
+ *
+ * ## A room's next match is joined with the same `relay:join`
+ *
+ * When a match ends, its roster's owner has already put the room's next match under the same id
+ * (`runtimes/relay-match.ts`'s registry), and every live socket is told `relay:ended`. A screen
+ * rejoins by sending `relay:join` again on the socket it already has (`relay-channel.ts` does on
+ * every `relay:ended`): no new event and no reconnect. Until it does, that socket speaks for
+ * nothing — its sends and its disconnect belong to the match it joined, which is over.
  */
 
 import type { Server as SocketIOServer, Socket } from 'socket.io';
@@ -164,7 +172,9 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 
 	io.on('connection', (socket: Socket) => {
 		const participantId = identityFromHeaders(socket.request.headers, socket.id);
-		let joined: { matchId: string; seat: number | null } | null = null;
+		// The match this socket joined, by its live entry rather than its id: a room's next match
+		// lives under the same id, and a socket that has not rejoined it speaks for nothing there.
+		let joined: { matchId: string; match: LiveMatch; seat: number | null } | null = null;
 
 		socket.on(RELAY_EVENTS.join, (payload: unknown, ack?: (res: RelayJoinAck) => void) => {
 			const reply = ack ?? ((): void => {});
@@ -199,15 +209,15 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 				// itself is: harmless to tell twice, and cheaper than tracking "was it already zero".
 				match.roster.seatConnected?.(role);
 			}
-			joined = { matchId, seat: role };
+			joined = { matchId, match, seat: role };
 			log({ evt: 'relay-joined', matchId, seat: role });
 			reply({ ok: true, seat: role });
 		});
 
 		socket.on(RELAY_EVENTS.message, (msg: RelayMessage) => {
 			if (joined === null) return;
-			const match = live.get(joined.matchId);
-			if (match === undefined) return;
+			const { match } = joined;
+			if (live.get(joined.matchId) !== match) return;
 			if (joined.seat === null) {
 				// A watcher's own send is refused, always — `RelaySession.fromWatcher`
 				// is the no-op behind this, but the refusal belongs here: this is
@@ -220,8 +230,8 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 
 		socket.on('disconnect', () => {
 			if (joined === null) return;
-			const match = live.get(joined.matchId);
-			if (match === undefined) return;
+			const { match } = joined;
+			if (live.get(joined.matchId) !== match) return;
 			if (joined.seat === null) {
 				match.watcherSockets.delete(socket);
 			} else {

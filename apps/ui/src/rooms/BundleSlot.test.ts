@@ -239,6 +239,24 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
     expect(result.getAttribute('data-winners')).toBe('1');
   });
 
+  it('mounts the bundle afresh, on the same channel, for the next match once one ends', async () => {
+    const members = [{ id: 'u1', name: 'Ann' }, { id: 'u2', name: 'Bob' }];
+    renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true } });
+    await waitFor(() => expect(relayChannelCalls[0]?.ended.size).toBe(1));
+    await waitFor(() => expect(fixture.calls.filter((c) => c[0] === 'mount')).toHaveLength(1));
+
+    act(() => {
+      for (const handler of relayChannelCalls[0]!.ended) handler([0]);
+    });
+    await waitFor(() => expect(fixture.calls.filter((c) => c[0] === 'mount')).toHaveLength(2));
+    expect(fixture.calls.filter((c) => c[0] === 'unmount')).toHaveLength(1);
+    const mounts = fixture.calls.filter((c): c is ['mount', GameBundleContext] => c[0] === 'mount');
+    expect(mounts[1]![1].channel).toBeDefined();
+    expect(relayChannelCalls).toHaveLength(1);
+    expect(relayChannelCalls[0]!.closed).toBe(false);
+    expect(screen.getByTestId('room-bundle-result').textContent).toBe('Ann won');
+  });
+
   it('closes the channel on unmount', async () => {
     const { unmount } = renderSlot({ view: aView([{ id: 'u1', name: 'u1' }], { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: false } });
     await waitFor(() => expect(relayChannelCalls).toHaveLength(1));

@@ -17,14 +17,18 @@
  * reason `createRoomByApi` exists for a streamed room), Bob joins it (seat 1), Carol joins third
  * (a watcher — the room is already full at two seats). Alice's message reaches Bob and Carol,
  * never back to herself; Carol's own send is refused (nothing is relayed to anyone); Alice, the
- * leader, ends the match, and Bob and Carol's panels both show it ended too.
+ * leader, ends the match, and every screen shows the room's result. Then the same room plays a
+ * second match: every screen rejoins the room's next match on its own, the bundle is mounted
+ * afresh, the second match's messages are delivered and its result replaces the first's.
+ *
+ * `[relay-fixture]` lines are the evidence.
  */
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { expect, test, type BrowserContext } from '@playwright/test';
 
-import { makeTitled, roomIdFromAddress } from './play/board.ts';
+import { makeTitled, roomIdFromAddress, serverLog } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -71,9 +75,9 @@ async function createRelayTestRoom(friend: Friend, origin: string, name: string)
 
 const panel = (f: Friend) => f.page.getByTestId('relay-fixture');
 const messages = (f: Friend) => f.page.getByTestId('relay-fixture-received').getByTestId('relay-fixture-message');
-const ended = (f: Friend) => f.page.getByTestId('relay-fixture-ended');
+const result = (f: Friend) => f.page.getByTestId('room-bundle-result');
 
-test(titled('a relay-test room: two seats and a watcher talk over ctx.channel — the leader\'s message skips her own screen, the watcher cannot send, and ending it shows on every screen'), async ({ browser }) => {
+test(titled('a relay-test room: two seats and a watcher talk over ctx.channel — the leader\'s message skips her own screen, the watcher cannot send, ending it shows on every screen, and the room plays a second match'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -114,11 +118,35 @@ test(titled('a relay-test room: two seats and a watcher talk over ctx.channel �
     await expect(messages(bob), "bob hears nothing more from carol's refused send").toHaveCount(1);
     await expect(messages(alice)).toHaveCount(0);
 
-    // The leader ends it; every screen shows it ended.
+    // The leader ends it; every screen shows the room's result (the fixture's End names its own seat).
+    const relayLog = () => serverLog(stack).filter((r) => r.matchId === roomId && typeof r.evt === 'string' && r.evt.startsWith('relay-'));
+    const joins = () => relayLog().filter((r) => r.evt === 'relay-joined').length;
+    const joinsBefore = joins();
     await alice.page.getByTestId('relay-fixture-end').click();
-    await expect(ended(alice), "alice's own screen shows it ended").toBeVisible({ timeout: 15_000 });
-    await expect(ended(bob), "bob's screen shows it ended too").toBeVisible({ timeout: 15_000 });
-    await expect(ended(carol), "carol's screen shows it ended too").toBeVisible({ timeout: 15_000 });
+    for (const f of [alice, bob, carol]) await expect(result(f), `${f.name} sees the first match's result`).toHaveText('e2e-alice won', { timeout: 15_000 });
+
+    // A second match in the same room: every screen rejoins the room's next match by itself, and
+    // its bundle is mounted afresh for it.
+    await expect.poll(joins, { timeout: 15_000 }).toBe(joinsBefore + 3);
+    for (const f of [alice, bob, carol]) {
+      await expect.poll(() => f.page.evaluate(() => (window as unknown as { __relayFixture: { mounts: number } }).__relayFixture.mounts), { timeout: 15_000 }).toBe(2);
+    }
+    await alice.page.getByTestId('relay-fixture-send').click();
+    await expect(messages(bob), 'bob hears alice in the second match').toHaveCount(1, { timeout: 15_000 });
+    await expect(messages(carol), 'carol hears alice in the second match').toHaveCount(1, { timeout: 15_000 });
+    await expect(messages(alice)).toHaveCount(0);
+    await bob.page.getByTestId('relay-fixture-send').click();
+    await expect(messages(alice), 'alice hears bob in the second match').toHaveCount(1, { timeout: 15_000 });
+
+    // The leader ends the second match with bob the winner: its result replaces the first's.
+    await alice.page.evaluate(() => {
+      (window as unknown as { __relayFixture: { overWinners: number[] } }).__relayFixture.overWinners = [1];
+    });
+    await alice.page.getByTestId('relay-fixture-end').click();
+    for (const f of [alice, bob, carol]) await expect(result(f), `${f.name} sees the second match's result`).toHaveText('e2e-bob won', { timeout: 15_000 });
+    const endings = relayLog().filter((r) => r.evt === 'relay-ended');
+    console.log(`[relay-fixture] room=${roomId} ended=${JSON.stringify(endings)} joins=${String(joins())}`);
+    expect(endings.map((r) => r.winners)).toEqual([[0], [1]]);
   } finally {
     await stack.stop();
   }

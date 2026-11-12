@@ -4,13 +4,14 @@
  * (`apps/ui/src/rooms/relay-channel.ts`'s own contract): a button sends a message over it, every
  * message `on()` delivers is shown, and a `{ t: 'over' }` — sent or received — marks the match
  * ended, same as `bomberman-embed.fixture.js` echoes `ctx` itself for BundleSlot's own proof.
+ * End's winners are `window.__relayFixture.overWinners` when set, else the sender's own seat.
  *
  * Served same-origin by intercepting `/relay-fixture/relay-test-embed.js` with Playwright's
  * `context.route` — no server or harness change needed, `BundleSlot.tsx` loads its bundle by a
  * plain `import(src)` the browser resolves as an ordinary same-origin request.
  */
 
-window.__relayFixture = { mounts: 0, updates: 0, unmounts: 0, received: [], ended: false };
+window.__relayFixture = { mounts: 0, updates: 0, unmounts: 0, received: [], ended: false, overWinners: null };
 
 function render(el, ctx) {
   el.innerHTML = '';
@@ -35,7 +36,7 @@ function render(el, ctx) {
   endBtn.setAttribute('data-testid', 'relay-fixture-end');
   endBtn.textContent = 'End';
   endBtn.addEventListener('click', () => {
-    ctx.channel?.send({ t: 'over', winners: [ctx.match.seat ?? 0] });
+    ctx.channel?.send({ t: 'over', winners: window.__relayFixture.overWinners ?? [ctx.match.seat ?? 0] });
     // The sender never hears its own send echoed back (the host's own rule) — this fixture's
     // leader tracks ending the match locally, exactly as a real bundle driving the game's own
     // end condition on both sides would.

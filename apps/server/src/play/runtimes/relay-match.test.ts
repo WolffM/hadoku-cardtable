@@ -209,15 +209,43 @@ describe('createRelayMatchRegistry', () => {
 		expect(reg.get('m1')).not.toBe(first);
 	});
 
-	it('forgets a match once it ends, and still tells the caller\'s own `ended` hook', () => {
+	it("registers the room's next match the moment one ends, with the same seats, and still tells the caller's own `ended` hook", () => {
 		const reg = createRelayMatchRegistry();
 		const ended = vi.fn();
-		const match = reg.register('m1', 2, deps({ ended }));
-		const session = match.attach(sink(), () => {});
-		session.seatLeft(0);
-		session.seatLeft(1);
-		expect(reg.get('m1')).toBeUndefined();
+		const first = reg.register('m1', 2, deps({ ended }));
+		first.attach(sink(), () => {}).fromSeat(0, { t: 'over', winners: [0] });
+		const next = reg.get('m1');
+		expect(next).toBeDefined();
+		expect(next).not.toBe(first);
+		expect(next?.status).toBe('starting');
+		expect(next?.roleOf(ALICE)).toBe(0);
+		expect(next?.roleOf(BOB)).toBe(1);
 		expect(ended).toHaveBeenCalledTimes(1);
+	});
+
+	it('two matches back to back in one room: the second relays and records its own over', () => {
+		const reg = createRelayMatchRegistry();
+		const ended = vi.fn();
+		reg.register('m1', 2, deps({ ended }));
+		for (const winners of [[0], [1]]) {
+			const match = reg.get('m1');
+			if (match === undefined) throw new Error('no match for the room');
+			const s = sink();
+			const session = match.attach(s, () => {});
+			session.fromSeat(0, { t: 'hello' });
+			expect(s.toSeat).toHaveBeenCalledWith(1, { t: 'hello' });
+			session.fromSeat(0, { t: 'over', winners });
+			expect(match.result).toEqual({ winners });
+		}
+		expect(ended).toHaveBeenCalledTimes(2);
+	});
+
+	it('a match the room has already replaced does not replace its replacement when it ends', () => {
+		const reg = createRelayMatchRegistry();
+		const stale = reg.register('m1', 2, deps());
+		const current = reg.register('m1', 2, deps());
+		stale.attach(sink(), () => {}).fromSeat(0, { t: 'over', winners: [0] });
+		expect(reg.get('m1')).toBe(current);
 	});
 
 	it('get() of an unregistered id is undefined', () => {
