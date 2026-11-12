@@ -264,6 +264,8 @@ public final class PlayBridge {
      * applies it, as a loaded host does, so what reads the seat's view mid-update can be seen.
      * {@code slow-scan}: a seat's actionable scan for a live input waits 1 s before it starts, as a loaded
      * host does, so the input is open in Forge well before any of its frames reach the seat.
+     * {@code slow-apply}: the same update is sent to Node first and then held 2 s before the seat's
+     * client applies it, so what Node does with a card it was just shown meets a view without it.
      */
     static final String FAULT = System.getProperty("cardtable.fault", "");
 
@@ -3186,6 +3188,13 @@ public final class PlayBridge {
                 effectsSince(payload, true);
                 drawn = liveGame();
                 sendState(f, payload, packet);
+            }
+            if ("slow-apply".equals(FAULT) && packet != null && !packet.getNewObjects().isEmpty()) {
+                try {
+                    Thread.sleep(2_000);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
             super.applyDelta(packet);
             // And also here: an ordinary applyDelta is every bit as good a moment as a
@@ -6286,7 +6295,38 @@ public final class PlayBridge {
             if (input > 0) { match.actInputs(seat).add(new Object[] { method, id, input }); }
         }
 
-        void act(final JsonObject frame, final int input) {
+        /**
+         * Run an act from Node on this seat's own {@code ui} thread, after every update the seat was sent
+         * before it, so the act finds the cards it names and reads the seat's view as the seat applies it.
+         *
+         * <p>An act names cards by id, and {@link #card}/{@link #player} look them up in the client's
+         * tracker; Forge's client then encodes the act against the same tracker ({@code FGameClient.trySend}).
+         * Read from {@code bridge-stdin} those reads raced the seat's thread: {@link #applyDelta} sends Node a
+         * frame before Forge's client applies it, and the client registers a frame's new objects only in that
+         * apply ({@code NetworkGuiGame.createObjectOnly}), so an act naming a card Node had just been shown
+         * found {@code no card} and was rejected; and the tracker is a plain hash table
+         * ({@code Tracker.objLookups}) the seat's thread writes while it applies. The stock client never had
+         * either: its clicks come from the thread that applies its updates.
+         *
+         * <p>Acts stay in the order Node sent them (one executor). A concede goes at once: it names nothing,
+         * and must reach Forge while the seat's thread is parked on an ask ({@link #await}). A failed act
+         * says so as {@code rejected}, as it did from {@code bridge-stdin}.
+         */
+        void actOnUi(final JsonObject frame, final int input, final String raw) {
+            if ("concede".equals(frame.get("method").getAsString())) {
+                act(frame, input);
+                return;
+            }
+            ui.execute(() -> {
+                try {
+                    act(frame, input);
+                } catch (final RuntimeException e) {
+                    rejected(match, raw, e);
+                }
+            });
+        }
+
+        private void act(final JsonObject frame, final int input) {
             final IGameController c = getGameController();
             if (c == null) {
                 throw new IllegalStateException("seat " + seat + " has no game controller yet");
@@ -9246,13 +9286,9 @@ public final class PlayBridge {
                 JsonObject cmd = null;
                 try {
                     cmd = JsonParser.parseString(raw).getAsJsonObject();
-                    handle(cmd);
+                    handle(cmd, raw);
                 } catch (final RuntimeException e) {
-                    final JsonObject o = line("rejected");
-                    o.addProperty("message", e.toString());
-                    o.addProperty("command", raw.length() > 200 ? raw.substring(0, 200) : raw);
-                    final MatchContext about = cmd == null ? null : addressed(cmd);
-                    emit(about == null ? processId : about.matchId, o);
+                    rejected(cmd == null ? null : addressed(cmd), raw, e);
                 }
             }
         } catch (final IOException e) {
@@ -9260,6 +9296,14 @@ public final class PlayBridge {
         }
         // Stdin closed: the Node side is gone, and a match nobody can reach is not worth a JVM.
         for (final MatchContext m : MATCHES.values()) { m.stop.countDown(); }
+    }
+
+    /** Node's command {@code raw} was refused: what it was told, under the match it named ({@code null}: none). */
+    static void rejected(final MatchContext about, final String raw, final RuntimeException e) {
+        final JsonObject o = line("rejected");
+        o.addProperty("message", e.toString());
+        o.addProperty("command", raw.length() > 200 ? raw.substring(0, 200) : raw);
+        emit(about == null ? processId : about.matchId, o);
     }
 
     /** The hosted match {@code cmd} names, or {@code null}. */
@@ -9275,7 +9319,7 @@ public final class PlayBridge {
         return gui;
     }
 
-    static void handle(final JsonObject cmd) {
+    static void handle(final JsonObject cmd, final String raw) {
         if (hostMode && cmd.has("match") && processId.equals(cmd.get("match").getAsString())) {
             switch (cmd.get("t").getAsString()) {
                 case "start" -> startHosted(cmd.getAsJsonObject("config"));
@@ -9293,7 +9337,7 @@ public final class PlayBridge {
         switch (cmd.get("t").getAsString()) {
             case "reply" -> seat(match, cmd).resolve(cmd.get("callId").getAsString(), cmd.get("result"));
             case "abort" -> seat(match, cmd).resolve(cmd.get("callId").getAsString(), ABORTED);
-            case "act" -> seat(match, cmd).act(cmd.getAsJsonObject("frame"), cmd.has("input") ? cmd.get("input").getAsInt() : 0);
+            case "act" -> seat(match, cmd).actOnUi(cmd.getAsJsonObject("frame"), cmd.has("input") ? cmd.get("input").getAsInt() : 0, raw);
             case "cancel-payment" -> seat(match, cmd).cancelPayment();
             case "rewind" -> seat(match, cmd).rewind(cmd.get("version").getAsLong());
             case "resend-pending" -> seat(match, cmd).resendPending();
