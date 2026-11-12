@@ -1,13 +1,19 @@
 /*
  * A table's game, resolved from its card (`TableCard.tsx`): the server's
  * `POST /api/rooms/:roomId/tables/:tableId/{concede,abandon,drop,reset}` and the leader's
- * `POST /api/rooms/:roomId/pod/dq` (`apps/server/src/http/table-actions.ts`).
+ * `POST /api/rooms/:roomId/tables/reset` and `POST /api/rooms/:roomId/pod/dq`
+ * (`apps/server/src/http/table-actions.ts`).
  */
 import { apiBase, bodyOf, sendJson, serverMessage, type Fetch } from '../http.ts';
 
 /** Resolve a game at this table — concede it, abandon its series, drop its match, or (the leader) reset it: null once the server has it, else its sentence. */
 export function resolveTable(action: 'concede' | 'abandon' | 'drop' | 'reset', roomId: string, tableId: string, fetchImpl?: Fetch): Promise<string | null> {
   return post(`rooms/${encodeURIComponent(roomId)}/tables/${encodeURIComponent(tableId)}/${action}`, {}, fetchImpl);
+}
+
+/** The leader starts every table of the room over (`Lobby.resetRoom`): null once the server has it, else its sentence. */
+export function resetRoom(roomId: string, fetchImpl?: Fetch): Promise<string | null> {
+  return post(`rooms/${encodeURIComponent(roomId)}/tables/reset`, {}, fetchImpl);
 }
 
 /** The leader disqualifies a pod entrant: null once the server has it, else its sentence. */

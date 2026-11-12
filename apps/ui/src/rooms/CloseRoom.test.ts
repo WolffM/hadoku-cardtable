@@ -38,3 +38,38 @@ describe('the room owner’s Close', () => {
     expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-cube' });
   });
 });
+
+describe('the room owner’s Reset, beside Close', () => {
+  it('asks once more, and resetting keeps the room open', async () => {
+    globalThis.location.hash = '#/room/r-cube';
+    const close = vi.fn(async () => ({ ok: true as const }));
+    const reset = vi.fn(async () => null);
+    render(createElement(CloseRoom, { roomId: 'r-cube', rooms: { close }, reset }));
+
+    fireEvent.click(screen.getByTestId('room-reset'));
+    expect(reset).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('room-close'), 'one question at a time').toBeNull();
+    fireEvent.click(screen.getByTestId('room-reset-no'));
+
+    fireEvent.click(screen.getByTestId('room-reset'));
+    fireEvent.click(screen.getByTestId('room-reset-yes'));
+    expect(reset).toHaveBeenCalledWith('r-cube');
+    await waitFor(() => expect(screen.getByTestId('room-reset')).toBeTruthy());
+    expect(close).not.toHaveBeenCalled();
+    expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-cube' });
+  });
+
+  it('shows the server’s refusal and stays asked', async () => {
+    const reset = vi.fn(async () => 'a draft or tournament under way can only be closed');
+    render(createElement(CloseRoom, { roomId: 'r-cube', rooms: { close: vi.fn() }, reset }));
+    fireEvent.click(screen.getByTestId('room-reset'));
+    fireEvent.click(screen.getByTestId('room-reset-yes'));
+    await waitFor(() => expect(screen.getByTestId('room-reset-error').textContent).toContain('under way'));
+  });
+
+  it('is not offered where a room cannot be reset', () => {
+    render(createElement(CloseRoom, { roomId: 'r-cube', rooms: { close: vi.fn() }, resettable: false }));
+    expect(screen.queryByTestId('room-reset')).toBeNull();
+    expect(screen.getByTestId('room-close')).toBeTruthy();
+  });
+});

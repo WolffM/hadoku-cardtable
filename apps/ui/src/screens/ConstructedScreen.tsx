@@ -2813,7 +2813,7 @@ function RoomTableScreen({
               clock={{ on: clock, onToggle: toggleClock }}
             />
           )}
-          {!streamed && iAmLeader && <CloseRoom roomId={roomId} rooms={rooms} />}
+          {!streamed && iAmLeader && <CloseRoom roomId={roomId} rooms={rooms} resettable={draftStartedAt === null} />}
           <SettingsGear />
         </div>
         {/* A streamed room says so under its name: it is not our table. Ours

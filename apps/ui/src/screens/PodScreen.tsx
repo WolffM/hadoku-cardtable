@@ -232,7 +232,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
         />
       </div>
 
-      {ctx?.leader === true && <CloseRoom roomId={draftId} rooms={closeClient} />}
+      {ctx?.leader === true && <CloseRoom roomId={draftId} rooms={closeClient} resettable={false} />}
       <SettingsGear />
     </>
   );

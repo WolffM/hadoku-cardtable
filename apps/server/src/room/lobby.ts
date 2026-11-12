@@ -518,6 +518,9 @@ type DqPlayerResult = { ok: true; tableId: string | null; matchIds: string[] } |
 
 type ResetGameResult = { ok: true; matchId: string } | { ok: false; reason: 'no-room' | 'not-leader' | 'no-such-table' | 'no-game' };
 
+/** `Lobby.resetRoom`: the tables it started over, and the games they were playing, for the caller to stop. */
+type ResetRoomResult = { ok: true; tableIds: string[]; matchIds: string[] } | { ok: false; reason: 'no-room' | 'not-leader' | 'pod-under-way' };
+
 type RecordGameResultResult =
 	| { ok: true; room: RoomView; phase: SeriesPhase }
 	| { ok: false; reason: 'no-room' | 'no-such-table' };
@@ -823,6 +826,15 @@ export interface Lobby {
 	 * `playing`, and the table's next start is the same game again with the decks its seats hold.
 	 */
 	resetGame(roomId: string, leaderId: string, tableId: string): ResetGameResult;
+	/**
+	 * The leader cleans up the room without closing it (the operator, 2026-11-11: *"we shouldn't close
+	 * it automatically but leader needs a way to clean up a room"*): every table starts over as a mode
+	 * change starts it (`#interruptSeries` — what was played is recorded, the decks held are dropped,
+	 * nobody is ready), the Gauntlets and locked decks go, and the games in play are let go of without
+	 * a result, returned for the caller to stop. Who is here, who sits where, the settings and the
+	 * link stay. A draft or tournament under way is refused: its rounds end with Close.
+	 */
+	resetRoom(roomId: string, leaderId: string): ResetRoomResult;
 	/**
 	 * Rematch: `http/routes.ts`'s `POST …/ready` calls this UNCONDITIONALLY
 	 * every time a `ready: true` leaves every seat of a table ready, and the
@@ -1955,6 +1967,22 @@ class FileLobby implements Lobby {
 		this.#persist(room);
 		this.#log({ event: 'game-reset', roomId, tableId, by: leaderId, matchId, wins: table.series.wins });
 		return { ok: true, matchId };
+	}
+
+	resetRoom(roomId: string, leaderId: string): ResetRoomResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
+		if (room.pod !== null || room.draftStartedAt !== null) return { ok: false, reason: 'pod-under-way' };
+		const matchIds = room.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId]));
+		// Let go of first, so a stopped game's end finds no table naming it and records nothing.
+		for (const table of room.tables) table.matchId = null;
+		this.#interruptSeries(room, false);
+		room.gauntlets = {};
+		room.lockedDecks = {};
+		this.#persist(room);
+		this.#log({ event: 'room-reset', roomId, by: leaderId, matches: matchIds.length });
+		return { ok: true, tableIds: room.tables.map((t) => t.id), matchIds };
 	}
 
 	/**

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 
 import { openLobby, type GameHooks, type Lobby } from '../room/lobby.js';
+import { newGauntlet } from '../room/gauntlet.ts';
 import { attachRooms } from './rooms.js';
 import { attachTableActions } from './table-actions.js';
 
@@ -188,6 +189,45 @@ describe('POST /api/rooms/:roomId/tables/:tableId/reset', () => {
 		expect((await leader(h, ALICE, `tables/${h.tableId}/reset`)).status).toBe(200);
 		expect((await leader(h, ALICE, `tables/${h.tableId}/reset`)).status, 'nothing left in play').toBe(409);
 		expect(h.stopped).toEqual([MATCH]);
+	});
+});
+
+describe('POST /api/rooms/:roomId/tables/reset', () => {
+	it('the leader starts a room over after its opponent left: the series and Gauntlet go, the room and who sits stay', async () => {
+		const h = await open();
+		expect(h.lobby.recordGameResult(h.roomId, h.tableId, { matchId: MATCH, winner: 0 }).ok).toBe(true);
+		expect(h.lobby.setGauntlet(h.roomId, newGauntlet(), h.tableId)).toBe(true);
+		expect(h.lobby.leave(h.roomId, BOB).ok).toBe(true);
+		expect(h.lobby.get(h.roomId)!.tables[0]!.series, 'left behind: one game played, nobody to finish it').toMatchObject({ wins: [1, 0], games: [{ matchId: MATCH }] });
+		const res = await leader(h, ALICE, 'tables/reset');
+		expect(res.status).toBe(200);
+		expect(h.stopped, 'no game was in play').toEqual([]);
+		expect(h.ended).toEqual([h.tableId]);
+		const room = h.lobby.get(h.roomId)!;
+		expect(room.tables[0]).toMatchObject({ players: [{ memberId: ALICE }], matchId: null, series: { phase: 'seating', wins: [0, 0], games: [] } });
+		expect(h.lobby.gauntlet(h.roomId, h.tableId)).toBeNull();
+		expect(room.members.map((m) => m.id)).toEqual([ALICE, CAROL]);
+		expect(room.name).toBe('tonight');
+	});
+
+	it('lets go of the game in play without a result and stops it', async () => {
+		const h = await open();
+		expect((await leader(h, ALICE, 'tables/reset')).status).toBe(200);
+		expect(h.stopped).toEqual([MATCH]);
+		expect(h.acts, 'a reset concedes nothing').toEqual([]);
+		expect(h.lobby.get(h.roomId)!.tables[0]).toMatchObject({ players: [{ memberId: ALICE }, { memberId: BOB }], matchId: null, series: { phase: 'seating', games: [] } });
+	});
+
+	it('is the leader’s alone, a non-member hears of no room, and a tournament under way is closed instead', async () => {
+		const h = await open();
+		expect((await leader(h, BOB, 'tables/reset')).status).toBe(403);
+		expect((await leader(h, 'fk:dddddddddddddddd', 'tables/reset')).status).toBe(404);
+		expect(h.stopped).toEqual([]);
+		const pod = await open({ pod: true });
+		const refused = await leader(pod, ALICE, 'tables/reset');
+		expect(refused.status).toBe(409);
+		expect(await refused.json()).toEqual({ error: 'a draft or tournament under way can only be closed' });
+		expect(pod.stopped).toEqual([]);
 	});
 });
 

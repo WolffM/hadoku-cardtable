@@ -7,11 +7,12 @@
  *   POST /api/rooms/:roomId/tables/:tableId/abandon   a constructed table's series ends with no result
  *   POST /api/rooms/:roomId/tables/:tableId/drop      a pod's (draft or tournament) match is forfeited
  *   POST /api/rooms/:roomId/tables/:tableId/reset     the leader restarts the table's game in play
+ *   POST /api/rooms/:roomId/tables/reset              the leader starts every table of the room over
  *   POST /api/rooms/:roomId/pod/dq { memberId }       the leader disqualifies a pod entrant
  *
- * The last two are the room leader's, seated or watching (the operator, 2026-10-30: *"there is no
- * concept of an admin for now. the room leader is the admin"*): `Lobby.resetGame`, `Lobby.dqPlayer`.
- * A reset's game is stopped, with no result; a DQ'd entrant's game is conceded for them
+ * The last three are the room leader's, seated or watching (the operator, 2026-10-30: *"there is no
+ * concept of an admin for now. the room leader is the admin"*): `Lobby.resetGame`, `Lobby.resetRoom`,
+ * `Lobby.dqPlayer`. A reset's games are stopped, with no result; a DQ'd entrant's game is conceded for them
  * (`endForfeitedGame`), so the other screen ends on its win.
  *
  * A concede here is the board's own (`Match.fromClient`'s `concede` act, Forge's concede): the other seat
@@ -30,7 +31,7 @@ import { jsonLogger } from '@hadoku/service-kernel/log';
 import { httpCaller } from './request.js';
 
 export interface TableActionsDeps {
-	lobby: Pick<Lobby, 'get' | 'isMember' | 'abandonTable' | 'dropTableMatch' | 'resetGame' | 'dqPlayer'>;
+	lobby: Pick<Lobby, 'get' | 'isMember' | 'abandonTable' | 'dropTableMatch' | 'resetGame' | 'resetRoom' | 'dqPlayer'>;
 	/** A live match by id, or undefined. */
 	match(matchId: string): Pick<Match, 'seatOf' | 'fromClient' | 'stop'> | undefined;
 	/** The series ended here: its seats go back to their registered decks (`TablesHandle.seriesEnded`). */
@@ -61,6 +62,7 @@ const LEADER_REFUSED: Record<string, [number, string]> = {
 	'no-pod': [409, 'there are no rounds under way'],
 	'not-entrant': [404, 'that player is not in this tournament'],
 	'already-dropped': [409, 'that player is already out'],
+	'pod-under-way': [409, 'a draft or tournament under way can only be closed'],
 };
 
 /** Each refusal of `Lobby.abandonTable` / `dropTableMatch`, as a status and the words the card shows. */
@@ -127,6 +129,21 @@ export function attachTableActions(api: Router, deps: TableActionsDeps): void {
 			return res.status(status).json({ error });
 		}
 		deps.match(done.matchId)?.stop();
+		res.json({ ok: true });
+	});
+
+	router.post('/:roomId/tables/reset', (req: Request, res: Response) => {
+		const roomId = String(req.params.roomId);
+		const me = callerOf(req);
+		if (deps.lobby.get(roomId) === undefined || !deps.lobby.isMember(roomId, me)) return res.status(404).json(NO_ROOM);
+		const done = deps.lobby.resetRoom(roomId, me);
+		log({ evt: 'room-reset', room: roomId, by: me, ok: done.ok, ...(done.ok ? { matchIds: done.matchIds } : { reason: done.reason }) });
+		if (!done.ok) {
+			const [status, error] = LEADER_REFUSED[done.reason] ?? [409, done.reason];
+			return res.status(status).json({ error });
+		}
+		for (const matchId of done.matchIds) deps.match(matchId)?.stop();
+		for (const tableId of done.tableIds) deps.seriesEnded(roomId, tableId);
 		res.json({ ok: true });
 	});
 

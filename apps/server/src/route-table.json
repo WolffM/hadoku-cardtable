@@ -90,6 +90,7 @@
     "POST /api/rooms/:roomId/tables/:tableId/concede",
     "POST /api/rooms/:roomId/tables/:tableId/drop",
     "POST /api/rooms/:roomId/tables/:tableId/reset",
+    "POST /api/rooms/:roomId/tables/reset",
     "POST /api/rooms/challenge",
     "POST /api/rooms/watchparty",
     "POST /api/sounds/music-review",
