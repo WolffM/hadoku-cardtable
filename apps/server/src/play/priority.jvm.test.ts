@@ -18,6 +18,29 @@ const title = available.ok
 	? 'what the caster is shown after casting, against real Forge'
 	: `what the caster is shown after casting, against real Forge — SKIPPED: ${available.reason}`;
 
+/**
+ * `passUntil`'s own cleanup-discard handling (`scenario.ts`), repeated here because the cast-and-
+ * resolve wait below does not go through `passUntil`: a seat over the hand-size maximum can be
+ * asked to discard at any point this test waits, not only between `passUntil`'s own stops. A half
+ * answered discard (a card selected, never confirmed with OK) leaves Forge's one game thread
+ * blocked on it — observed locally: a wait that outgrew `passUntil`'s own window left seat 1's
+ * cleanup discard stuck mid-pick, and seat 0 (casting, on a LATER turn) never got anything back.
+ * `discarding` is shared across both seats' calls, exactly as `passUntil` shares one set.
+ */
+function handleCleanupDiscard(s: Scenario, seat: number, discarding: Set<number>): void {
+	const at = s.sent.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1)).filter((i) => i >= 0).pop();
+	if (at === undefined || s.pressed.has(at)) return;
+	const msg = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
+	if (!/^Cleanup Phase\nSelect \d+ card\(s\) to discard/.test(msg)) return;
+	if (discarding.has(at)) {
+		if (s.buttons(seat)?.enable1 === true) s.ok(seat);
+		return;
+	}
+	discarding.add(at);
+	const card = s.zone(seat, 'Hand')[0];
+	if (card !== undefined) s.select(seat, card.id);
+}
+
 function dump(s: Scenario, from: number, seats: number[], t0: number): string[] {
 	const out: string[] = [];
 	for (const x of s.sent.slice(from)) {
@@ -47,6 +70,7 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => { s.keepHands(); s.answerAsks(); return [0, 1].some((n) => inOwnMain(s, n, 1)); }, 'turn 1 main', 90_000);
 				const x = [0, 1].find((n) => inOwnMain(s, n, 1)) as number;
 				const y = 1 - x;
+				const discarding = new Set<number>();
 				const playLand = async (): Promise<void> => {
 					const have = s.zone(x, 'Battlefield').filter((c) => c.land).length;
 					const land = s.zone(x, 'Hand').find((c) => c.land);
@@ -58,6 +82,23 @@ describe.skipIf(!available.ok)(title, () => {
 				// Through turn 2 and into this seat's turn 3 main phase.
 				await passUntil(s, () => inOwnMain(s, x, 3), `seat ${x}'s turn 3 main`, 90_000);
 				await playLand();
+				// `playLand`'s own wait only sees the land's count go up; Forge still clears and
+				// re-sets its priority window right after (ACTIONABLE cleared, then re-set a beat
+				// later), and a click sent into that gap is dropped — the repo rule "jar casts wait
+				// for priority". CI run 43154489573 cast the bolt into exactly that gap: targeted
+				// stayed false, the bolt stayed in hand, the stack stayed empty. Gate on the seat
+				// being back in its own main phase, with priority, before selecting it.
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						handleCleanupDiscard(s, x, discarding);
+						handleCleanupDiscard(s, y, discarding);
+						return inOwnMain(s, x, 3);
+					},
+					`seat ${x} back at its own main after the second land`,
+					20_000,
+					s,
+				);
 				const bolt = s.zone(x, 'Hand').find((c) => c.name === 'Lightning Bolt');
 				if (bolt === undefined) throw new Error('no Lightning Bolt in hand');
 				const spare = s.zone(x, 'Hand').filter((c) => c.name === 'Lightning Bolt').length;
@@ -67,17 +108,36 @@ describe.skipIf(!available.ok)(title, () => {
 				const t0 = performance.now();
 				const logsBefore = s.logs.length;
 				s.select(x, bolt.id);
-				// Target: the other player, once Forge asks for one.
+				// Target: the other player, once Forge asks for one. Waits until the spell is fully
+				// resolved (the stack is empty again) rather than a fixed count of polls: a fixed
+				// 100 × 50 ms budget cannot tell "Forge is genuinely stuck" from "this claw is loaded
+				// and needed more than 5 s" (run 43148120313 — the mechanism itself proved sound
+				// under a 15% CPU quota locally, just slower). `waitUntil`'s own dump, on a real
+				// timeout, carries the seat's open asks and the server's last decisions, so a future
+				// red says which it was.
 				const oppId = s.match.seats[y]?.playerId as number;
 				let targeted = false;
-				for (let i = 0; i < 100; i++) {
-					s.answerAsks();
-					if (!targeted && /target/i.test(s.prompt(x))) {
-						targeted = true;
-						s.match.fromClient(x, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: oppId }, triggerEvent: null } as never);
-					}
-					await new Promise((r) => setTimeout(r, 50));
-				}
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						// Seat y can cross the hand-size maximum while this waits (it draws every turn
+						// and plays no land of its own in this test) — a half-answered discard would
+						// block Forge's one game thread on an unrelated window forever.
+						handleCleanupDiscard(s, x, discarding);
+						handleCleanupDiscard(s, y, discarding);
+						if (!targeted && /target/i.test(s.prompt(x))) {
+							targeted = true;
+							s.match.fromClient(x, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: oppId }, triggerEvent: null } as never);
+						}
+						// The bolt left the hand (it was cast) AND the stack is empty again (it
+						// resolved) — not just "the stack is empty", which is already true before the
+						// cast even starts and would exit the wait on its very first tick.
+						return !s.zone(x, 'Hand').some((c) => c.id === bolt.id) && /^Stack: Empty$/m.test(s.prompt(x));
+					},
+					`${bolt.name} to resolve and give the caster back priority`,
+					30_000,
+					s,
+				);
 				const lines = dump(s, mark, [x, y], t0);
 				lines.push('--- server decisions after the cast');
 				for (const l of s.logs.slice(logsBefore)) if (/auto|ask/.test(String(l.evt))) lines.push(JSON.stringify(l));
