@@ -3803,3 +3803,39 @@ The operator ruled 2026-11-11 that the tracker chains the platform waves through
   - `secretsFor` (`apps/server/src/play/fixtures/transcript.ts`) now counts any card on the Stack as shown, face down or not, as it already did for the Battlefield. So a face-down spell's (morph's) name reaching the opponent would not go red end to end.
   - The projection handles it (`visibility.ts:283`, Stack in `PEEKABLE_FACE_DOWN_ZONES`), but no unit test pins a face-down spell on the stack. `visibility.test.ts` covers face-down permanents only (`:633`, `:1027`, `:1463`).
   - Fix: the oracle skips face-down cards in every public zone. Add a `visibility.test.ts` case where a face-down stack item reaches the opponent as its face only. Mutation: drop the Stack entry from `PEEKABLE_FACE_DOWN_ZONES` → red.
+
+## w104b, wavatar and w103 verified by the tracker 2026-11-11, and w105 dispatched
+
+- **w104b is landed:**
+  - bomberman rooms 3c2f0ca5f and ecbd82117 (ci.yml `bomberman.spec` green, including the leave through the header);
+  - the room shell out of `ConstructedScreen` 471561515: the HTML of all 177 test states is identical;
+  - PPE e33724e8e carries both.
+- **wavatar is landed (b0c8a4c71):** `OpenLobbyOptions.avatarDraw` makes tests independent of rooms-server 0.45.82's random `pickAvatar`.
+- **Release:** the operator was told PPE e33724e8e is ready for `/cutrelease`. After it is live, the operator tests bomberman on prod.
+- **w103 is landed.** One note per lane is in `~/.cache/cardtable-manager/w103-{H,G,R,A}-closing.md`, and the wave file's own closing section has them too.
+  - **H:** b813cda9b and e308cdf9b.
+    - `baseline.json` `edgeCounts {}`, so **platform→magic is 0**, the plan's fence goal for the server.
+    - Mutation: dropping a `readJvmRecord` field → 1 failed / 3; restored, 3 pass.
+  - **G:** ccf8957c8.
+    - `HostedMatch` runs over any `GameSession`; there is an in-process runtime, and a toy game plays a whole match.
+    - The new `restart-replay-auto-pass` spec kills w102's surviving mutation in real Forge (17 vs 20 life), red twice.
+  - **R:** 3d0663062, the relay's server half, 25/25. Dropping the watcher guard → 1 failed / 11.
+  - **A:**
+    - claw-10 runs agent 36a9fccd46ae and passed prod's canary.
+    - claw-9 and claw-8 are **held** on a74385c73200. The cause is a found agent bug: `+memory` on the unit cgroup's root `subtree_control` with a live JVM leaf makes systemd refuse to restart the agent ("Device or resource busy").
+    - One quarantine alert was raised on claw-10; no match was affected.
+- **w103's full Forge run (43144801512 on ccf8957c8) is red, and every red is carried into w105 by name:**
+  - `chosen-sets` "Shard Convergence": already red before G. The likely cause is 6572346a0 (a library search is not a reveal).
+  - `priority.jvm`: Q7 failed, and on a re-run a different test failed. Both passed at e308cdf9b. **Not explained.** The A/B below settles it.
+  - `scenario-start.jvm` lone-spell seed 1009: new, and the manager's note missed it.
+  - `draft.spec.ts:1112` "the AI wears its character".
+- **The tracker's A/B, both on the same claws at the same time:**
+  - priority + scenario-start at c408d9445 (before G): 43156159135;
+  - the same at ccf8957c8 (G): 43156161461.
+- **w105 is dispatched** (`docs/planning/wave105-2026-11-11.md`, 5 lanes):
+  - **K:** checkpoint parking, the notice hook, `HostedMatch` out of `match.ts`, and the G fix if the A/B says G;
+  - **S:** the streamed runtime under the host;
+  - **C:** the relay's client half;
+  - **A:** the agent cgroup fix, then the manager's rollout to claw-9, claw-8 and claw-10, then the flat-field drop;
+  - **Q:** the reds that are not G's, the oracle's face-down blind spot, and three CI items.
+  - Not in w105: forge.yml's selector skipping non-Forge specs (ci.yml covers them), and `isSameOriginPath` (watchparty's to dedupe).
