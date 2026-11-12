@@ -1294,6 +1294,24 @@ function gauntletWithoutNames(g: GauntletState): GauntletState {
 	return { ...g, players: [a!, b!] };
 }
 
+/**
+ * Each table's Gauntlet that one of its member players has left the room, with no game in play: gone,
+ * as Abandon drops one. Its series was recorded when they left (`#settleSeries`); kept, it would hold
+ * the table for good (`gauntletHoldsTable`) — nobody could sit or stand, and the one still seated
+ * could never get their seat back on a disconnect (`releaseAbandonedSeats`).
+ */
+function dropDesertedGauntlets(room: RoomRecord): void {
+	const present = new Set(room.members.map((m) => m.id));
+	const deserted = room.tables.filter((t) => {
+		const g = room.gauntlets[t.id];
+		return t.matchId === null && g !== undefined && g.players?.some((p) => p.memberId !== null && !present.has(p.memberId)) === true;
+	});
+	if (deserted.length === 0) return;
+	const next = { ...room.gauntlets };
+	for (const t of deserted) delete next[t.id];
+	room.gauntlets = next;
+}
+
 /** A Gauntlet's member players named as the room knows them now; a leaver keeps what the state said. */
 function gauntletNamed(g: GauntletState, members: readonly MemberRecord[]): GauntletState {
 	if (g.players === null) return g;
@@ -1420,6 +1438,7 @@ class FileLobby implements Lobby {
 		// again rather than trusting it — including a snapshot written mid-check,
 		// which still has `planVerdict: null`.
 		if (room.gameType === 'draft') room.planVerdict = null;
+		dropDesertedGauntlets(room);
 		this.#ensurePlanChecked(room);
 	}
 
@@ -1434,6 +1453,7 @@ class FileLobby implements Lobby {
 
 	#persist(room: RoomRecord): void {
 		for (const table of room.tables) this.#settleSeries(room, table, false);
+		dropDesertedGauntlets(room);
 		const now = this.#now();
 		room.updatedAt = now;
 		const members: SerializedMember[] = room.members.map((m) => {

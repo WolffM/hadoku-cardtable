@@ -1491,10 +1491,10 @@ describe('Lobby.releaseTableMatch', () => {
 
 describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its result is recorded once', () => {
 	/** A room with Alice and Bob seated at the first table and game 1 under way; `ended` collects every series result. */
-	async function playingTable(opts: { checks?: GameHooks } = {}) {
+	async function playingTable(opts: { checks?: GameHooks; dir?: string } = {}) {
 		const ended: SeriesEnd[] = [];
 		const logged: Record<string, unknown>[] = [];
-		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end), log: (e) => void logged.push(e) });
+		const lobby = await openLobby({ dir: opts.dir ?? (await tempDir()), onSeriesEnd: (end) => ended.push(end), log: (e) => void logged.push(e) });
 		if (opts.checks !== undefined) wireChecks(lobby, opts.checks);
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -1802,6 +1802,36 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			expect(lobby.recordGameResult(id, tableId, { matchId: 'm-gauntlet-1', winner: 1 })).toMatchObject({ phase: 'between' });
 			expect(lobby.leave(id, ALICE.id).ok).toBe(true);
 			expect(ended).toEqual([{ ...bo1(id, tableId, 'm-gauntlet-1', 1), mode: 'gauntlet' }]);
+		});
+
+		it('a Gauntlet one of its players left no longer holds the table: the one still seated gets their seat back on a disconnect, now and after a restart', async () => {
+			const dir = await tempDir();
+			const { lobby, id, tableId } = await playingTable({ dir });
+			lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
+			expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+			const players = [
+				{ memberId: ALICE.id, name: '' },
+				{ memberId: BOB.id, name: '' },
+			] as [GauntletPlayer, GauntletPlayer];
+			const choosing = { ...newGauntlet(), phase: 'choose' as const, players };
+			expect(lobby.setGauntlet(id, choosing, tableId)).toBe(true);
+			expect(lobby.releaseAbandonedSeats(ALICE.id), 'a Gauntlet both still play holds its seats').toEqual([]);
+
+			// What a build before this one saved when Bob left: Bob gone, the Gauntlet still holding the table.
+			const store = new FileRoomStore(dir);
+			const saved = (await store.load(id))!;
+			const app = saved.app as { tables: { seats: (string | null)[] }[]; game: { gauntlets: Record<string, unknown> } };
+			saved.members = saved.members.filter((m) => m.participantId !== BOB.id);
+			app.tables[0]!.seats = [ALICE.id, null];
+			app.game.gauntlets = { [tableId]: choosing };
+			store.saveSync(saved);
+			const restored = await openLobby({ avatarDraw: () => 0, dir });
+			expect(restored.gauntlet(id, tableId)).toBeNull();
+			expect(restored.releaseAbandonedSeats(ALICE.id)).toEqual([{ roomId: id, tableId }]);
+
+			expect(lobby.leave(id, BOB.id).ok).toBe(true);
+			expect(lobby.gauntlet(id, tableId)).toBeNull();
+			expect(lobby.releaseAbandonedSeats(ALICE.id)).toEqual([{ roomId: id, tableId }]);
 		});
 
 		it('the room is swept mid-series at 1-1: a drawn Bo3 — between games, never with one in play', async () => {
