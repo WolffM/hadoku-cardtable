@@ -1159,6 +1159,22 @@ describe('a member\'s avatar', () => {
 		expect(avatarOf(lobby.list()[0], ALICE.id)?.avatarId).toBe('wanderer');
 	});
 
+	it('is drawn at random from the free characters, by Math.random unless a draw is injected', async () => {
+		const handed = async (avatarDraw?: () => number) => {
+			const lobby = await openLobby({ dir: await tempDir(), ...(avatarDraw === undefined ? {} : { avatarDraw }) });
+			const made = lobby.create(ALICE, { name: 'Draw', gameType: 'constructed-1v1', clientMode: 'builtin' });
+			return made.ok ? made.room.members[0]?.avatarId : undefined;
+		};
+		expect(await handed(() => 0)).toBe(AVATAR_POOL[0]);
+		expect(await handed(() => 0.99)).toBe(AVATAR_POOL[AVATAR_POOL.length - 1]);
+		const spy = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+		try {
+			expect(await handed()).toBe(AVATAR_POOL[AVATAR_POOL.length - 1]);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
 	it('tells a subscriber when it CHANGES, and stays quiet for a re-assert (Q6)', async () => {
 		const lobby = await openLobby({ avatarDraw: () => 0, dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Live', gameType: 'constructed-1v1', clientMode: 'builtin' });
