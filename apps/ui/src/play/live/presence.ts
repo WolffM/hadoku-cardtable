@@ -82,7 +82,7 @@ import { OFFERED_EVENT, OfferedEchoSchema,
 } from '@hadoku/shared';
 
 import { newArrow, positionArrow } from './gestures/arrow.ts';
-import { endPlacement, expectPlacement, pendingPlacementFor, renewPlacement, type PlayEnd } from '../Board.tsx';
+import { endPlacement, expectPlacement, holdPlacementOf, pendingPlacementFor, renewPlacement, type PlayEnd } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import type { EntryWeight } from './entries.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
@@ -1227,11 +1227,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /**
    * `stackBound`: fly `card` from `from()` the moment the board draws it in their battlefield —
    * in the commit's own microtask, so the card is never painted in its slot before its copy
-   * covers it. `from()` returning null means the play ended some other way: nothing flies.
+   * covers it. `from()` returning null means the play ended some other way: nothing flies. It flies
+   * only while the card's placement holds, renewed for as long as this waits: a card no placement
+   * holds any more is the board's own arrival to draw (`numbers.ts`), and is never drawn twice.
    */
   function flyWhenDrawn(card: number, from: () => Point | null): void {
     stackBound?.disconnect();
-    boundUntil = Date.now() + PLACEMENT_WAIT_MS;
+    boundUntil = holdPlacementOf(card) ? Date.now() + PLACEMENT_WAIT_MS : Date.now();
     const watch = new MutationObserver(() => {
       if (Date.now() < boundUntil && !onTheirBattlefield(card)) return;
       watch.disconnect();

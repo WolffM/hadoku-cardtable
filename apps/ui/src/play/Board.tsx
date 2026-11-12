@@ -1786,6 +1786,17 @@ export function renewPlacement(playerId: number, cardId: number): void {
   if (p !== undefined && p.cardId === cardId && p.expiresAt >= Date.now()) PENDING_PLACEMENTS.set(playerId, { ...p, expiresAt: Date.now() + PLACEMENT_WAIT_MS });
 }
 
+/** The placement waiting for `cardId`, whoever's it is, waits `PLACEMENT_WAIT_MS` from now: false when none does. */
+export function holdPlacementOf(cardId: number): boolean {
+  const now = Date.now();
+  for (const [playerId, p] of PENDING_PLACEMENTS) {
+    if (p.cardId !== cardId || p.expiresAt < now) continue;
+    PENDING_PLACEMENTS.set(playerId, { ...p, expiresAt: now + PLACEMENT_WAIT_MS });
+    return true;
+  }
+  return false;
+}
+
 /** The ends of a play that leave nothing to arrive in the column its release reserved. */
 const ENDS_WITHOUT_CARD = [
   // Home to the hand: a cancel, a park Forge never answered, a question about the card itself, Forge giving it back.
@@ -1818,6 +1829,37 @@ export function endPlacement(playerId: number, cardId: number, how: PlayEnd): vo
 function dropPlacement(playerId: number): void {
   PENDING_PLACEMENTS.delete(playerId);
   for (const wake of MOUNTED_BOARDS) wake();
+}
+
+/**
+ * The card this screen's own play lands itself (`live/gestures/install.ts`'s park, ended `'landed'`), for as long
+ * as the board has not yet seen it arrive: the board's own arrivals (`live/numbers.ts`) leave it to that
+ * landing. A pending placement (above) says the same for a while; this outlives
+ * it, as the park does, however long the card sat on the stack.
+ */
+let ownLanding: number | null = null;
+
+/** This screen's play now lands `id` itself (null: none does). */
+export function claimOwnLanding(id: number | null): void {
+  ownLanding = id;
+}
+
+/** True, once, when this screen's own play lands `id` itself: the board is drawing the view that brings it. */
+function takeOwnLanding(id: number): boolean {
+  if (ownLanding !== id) return false;
+  ownLanding = null;
+  return true;
+}
+
+/**
+ * A card whose arrival a seat's play draws itself (`live/gestures/cast.ts`'s `landCastGhost`): a placement
+ * still waiting for it — this screen's own release or the other seat's echo — or this screen's own play
+ * landing it after its placement stopped waiting. `live/numbers.ts` draws every other arrival.
+ */
+export function landingDrawnByPlay(cardId: number): boolean {
+  const own = takeOwnLanding(cardId);
+  const now = Date.now();
+  return own || [...PENDING_PLACEMENTS.values()].some((p) => p.cardId === cardId && p.expiresAt >= now);
 }
 
 /** The placement waiting for a player, if one is (tests, and the stand-ins' clean-up). */
@@ -5205,6 +5247,7 @@ export function Board({
       releaseDamage: (cardId) => holds.damage.release(cardId),
       holdPT: (cardId, pt) => holds.pt.hold(cardId, pt),
       releasePT: (cardId) => holds.pt.release(cardId),
+      landingDrawn: landingDrawnByPlay,
     });
     numbers.current = handle;
     return () => {

@@ -245,7 +245,7 @@ import {
 } from '../match.ts';
 // Where a cast lands on the battlefield — a plain function, not a component,
 // read across the lane boundary.
-import { carryCastOffStack, endPlacement, notePlayedTo, placementAt, previewPlayedTo, type PlayEnd } from '../../Board.tsx';
+import { carryCastOffStack, claimOwnLanding, endPlacement, notePlayedTo, placementAt, previewPlayedTo, type PlayEnd } from '../../Board.tsx';
 // §S's seam: the park registers the point every stack item draws at
 // (`placeSpell`); a drag of any stack item moves it (`gripStackItem`), which
 // is also what tells lane W to relay it; `onSpellDrawn` is the ghost's own
@@ -1102,6 +1102,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // The one placement call, at the release — the same column the act carries.
       notePlayedTo(source, over, typeLine);
       carryCastOffStack(source);
+      claimOwnLanding(source);
     }
     // A played card is drawn by its stand-in from here on; a cast being aimed
     // is drawn by its own element for as long as the board has one.
@@ -1233,6 +1234,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function endPark(how: ParkEnd, cause: Record<string, string> = {}): Parked | null {
     const p = parked;
     parked = null;
+    // Landed, its landing is drawn here and the board leaves its arrival alone; ended any other way, nothing here lands it.
+    if (p !== null && how !== 'landed') claimOwnLanding(null);
     const me = viewerOf(match.view)?.id;
     if (p !== null && me !== undefined) endPlacement(me, p.source, how);
     if (p !== null) options.report?.('park', { how, card: p.source, ms: Date.now() - p.releasedAt, played: p.played, ask: match.asks[0]?.method ?? '-', selection: match.selectables !== null, paying: payingMana(match), ...cause });

@@ -244,18 +244,21 @@ export interface DamageChange {
  * A permanent on a battlefield now that was not on one before. `origin` is where it came from:
  * `'graveyard'`/`'exile'` for a permanent rising or blinking back in, `'token'` for one Forge made
  * (`entries.ts`'s `entryMotionFor`'s `release` — it materialises over its own slot rather than
- * travelling from its maker), `'other'` for a card out of a library, which still travels from its
- * maker as before. A cast permanent's own arrival never reaches here at all: it is drawn by
- * `gestures/cast.ts`'s `landCastGhost` directly, on either screen, so it is never drawn twice
- * (`live/placed.ts`'s AC8 reservation).
+ * travelling from its maker), `'hand'` for a card something put there out of a hand (Show and
+ * Tell), `'stack'` for a permanent spell resolving (cascade's, the AI's), `'other'` for a card out
+ * of a library, which still travels from its maker as before. A card a seat PLAYED is drawn by
+ * `gestures/cast.ts`'s `landCastGhost` instead, on either screen, so the board skips it here
+ * (`NumbersHost.landingDrawn`, the AC8 reservation): never drawn twice.
  */
 export interface Arrival {
   readonly cardId: number;
   /** The card that made it (`BoardCard.createdBy`), when Forge keeps one. */
   readonly source: number | null;
-  readonly origin: 'graveyard' | 'exile' | 'token' | 'other';
-  /** Whose graveyard or exile it left, when `origin` names one — the pile it rises or blinks from. */
+  readonly origin: 'graveyard' | 'exile' | 'token' | 'hand' | 'stack' | 'other';
+  /** Whose graveyard, exile or hand it left, when `origin` names one — where it travels from. */
   readonly fromPlayerId?: number;
+  /** The stack item it resolved from, for `'stack'`: where the stack drew it is where it travels from. */
+  readonly stackItemId?: number;
   /** What its landing weighs by (`entries.ts`'s `entryHeft`): a creature's power, any other permanent's mana value. */
   readonly heft: number;
 }
@@ -418,31 +421,58 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
   // or blinked out of, for `entries.ts`'s `rise`/`blink` motion to travel from.
   const graveyardOf = new Map<number, number>();
   const exileOf = new Map<number, number>();
+  const handOf = new Map<number, number>();
+  const libraryTopOf = new Map<number, number>();
   for (const player of prev.players) {
     for (const card of player.graveyard) graveyardOf.set(card.id, player.id);
     for (const card of player.exile) exileOf.set(card.id, player.id);
+    for (const card of player.hand ?? []) handOf.set(card.id, player.id);
+    for (const card of player.libraryTop ?? []) libraryTopOf.set(card.id, player.id);
   }
+  // A permanent spell that left the stack this view: the card it resolves into.
+  const spellOff = new Map<number, StackEntry>();
+  for (const item of resolved) if (!item.isAbility && item.sourceCardId !== null) spellOff.set(item.sourceCardId, item);
+  // A hand the viewer cannot see that a resolution took a card out of: Show and Tell, Sneak Attack.
+  const hiddenHandShrank = (id: number): boolean => {
+    const before = prev.players.find((p) => p.id === id);
+    const now = next.players.find((p) => p.id === id);
+    return before !== undefined && now !== undefined && before.hand == null && now.handCount < before.handCount;
+  };
   const arrivals: Arrival[] = [];
+  // Every permanent that reaches a battlefield arrives, however it got there (the operator,
+  // 2026-11-11: "if they ever hit the board, all the effect should always happen consistently").
   // Something made it: a maker Forge names (Kalitas's Zombie in combat damage), or a resolution in
   // this same view. Never a board being set up — a match's opening state, a scenario putting its
   // permanents in place as its libraries fill — which no resolution or maker explains: drawn as
   // arrivals, every card on the table was hidden until its beat and could not be hovered or dragged.
+  // A card someone played (a drag, the other seat's echo) is an arrival here too; the board drops
+  // the ones that play draws itself (`installNumbers`'s `host.landingDrawn`, AC8: never twice).
   for (const player of next.players) {
     const before = prev.players.find((p) => p.id === player.id);
     const fromLibrary = before !== undefined && player.libraryCount < before.libraryCount;
     for (const card of player.battlefield) {
+      const heft = entryHeft(card.card);
+      const source = card.createdBy ?? null;
       if (seen.has(card.id)) {
-        // A move off the stack is drawn by `gestures/cast.ts` directly (never twice, AC8), but a
-        // permanent raised out of a graveyard or blinked back from exile has nothing else to draw
-        // it: always an arrival, with its origin, the pile it left and its landing's own heft.
         const gy = graveyardOf.get(card.id);
         const ex = gy === undefined ? exileOf.get(card.id) : undefined;
-        if (gy !== undefined) arrivals.push({ cardId: card.id, source: card.createdBy ?? null, origin: 'graveyard', fromPlayerId: gy, heft: entryHeft(card.card) });
-        else if (ex !== undefined) arrivals.push({ cardId: card.id, source: card.createdBy ?? null, origin: 'exile', fromPlayerId: ex, heft: entryHeft(card.card) });
+        const hand = handOf.get(card.id);
+        if (gy !== undefined) arrivals.push({ cardId: card.id, source, origin: 'graveyard', fromPlayerId: gy, heft });
+        else if (ex !== undefined) arrivals.push({ cardId: card.id, source, origin: 'exile', fromPlayerId: ex, heft });
+        else if (spellOff.has(card.id)) arrivals.push({ cardId: card.id, source, origin: 'stack', stackItemId: spellOff.get(card.id)!.id, heft });
+        // Put there out of a hand by something resolving (a land played from one resolves nothing).
+        else if (hand !== undefined && resolved.length > 0) arrivals.push({ cardId: card.id, source, origin: 'hand', fromPlayerId: hand, heft });
+        // Off a library's revealed top, by something resolving (Oath of Druids under Courser of Kruphix).
+        else if (libraryTopOf.has(card.id) && resolved.length > 0) arrivals.push({ cardId: card.id, source, origin: 'other', heft });
         continue;
       }
-      const made = card.createdBy !== undefined || (resolved.length > 0 && (card.token || fromLibrary));
-      if (made) arrivals.push({ cardId: card.id, source: card.createdBy ?? null, origin: card.token ? 'token' : 'other', heft: entryHeft(card.card) });
+      if (card.createdBy === undefined && resolved.length === 0) continue;
+      if (card.token) arrivals.push({ cardId: card.id, source, origin: 'token', heft });
+      else if (fromLibrary || card.createdBy !== undefined) arrivals.push({ cardId: card.id, source, origin: 'other', heft });
+      else {
+        const hand = [player.id, ...next.players.map((p) => p.id)].find(hiddenHandShrank);
+        if (hand !== undefined) arrivals.push({ cardId: card.id, source, origin: 'hand', fromPlayerId: hand, heft });
+      }
     }
   }
   const lastHit = Math.max(0, ...(prev.hits ?? []).map((h) => h.seq));
@@ -539,6 +569,12 @@ export interface NumbersHost {
   readonly holdPT?: (cardId: number, pt: PT) => void;
   /** That change has landed: draw the creature's numbers as Forge has them. */
   readonly releasePT?: (cardId: number) => void;
+  /**
+   * True when a seat's play draws this card's arrival itself (`gestures/cast.ts`'s `landCastGhost`: this
+   * screen's own drag, the other seat's echo): the board draws no second one. Asked once, as the view that
+   * brings the card is drawn. Without it every arrival is the board's.
+   */
+  readonly landingDrawn?: (cardId: number) => boolean;
 }
 
 export interface NumbersHandle {
@@ -781,8 +817,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   function sourceOf(item: StackEntry | undefined): Boxed | null {
     if (item === undefined) return null;
     const onField = item.sourceCardId === null ? null : battlefieldCard(canvas, item.sourceCardId);
-    if (onField !== null) return onField;
-    const drawn = stackCards.get(item.id);
+    return onField ?? stackBox(item.id);
+  }
+
+  /** Where the stack drew an item as of the last commit, as a box: null once it is no longer drawn. */
+  function stackBox(itemId: number): Boxed | null {
+    const drawn = stackCards.get(itemId);
     return drawn?.isConnected === true ? drawn.getBoundingClientRect() : null;
   }
 
@@ -948,10 +988,32 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
 
   /**
+   * Where an entry's stand-in starts: the graveyard pile it left; a card's size at the middle of the hand
+   * it left (the hand is a whole row of cards, and the stand-in starts the size of what it starts from);
+   * where the stack drew it. Null for exile and tokens, which appear over their slot.
+   */
+  function entryFrom(origin: Arrival['origin'], from: Boxed | null, pileOwner: 'you' | 'them' | null, card: Element): Pick<Element, 'getBoundingClientRect'> | null {
+    if (origin === 'graveyard') return pileOwner === null ? null : zoneOf(canvas, pileOwner, origin);
+    let box: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'> | null = null;
+    if (origin === 'stack' && from !== null) box = boxOf(from);
+    const hand = origin === 'hand' && pileOwner !== null ? zoneOf(canvas, pileOwner, 'hand') : null;
+    if (hand !== null) {
+      const h = hand.getBoundingClientRect();
+      const c = card.getBoundingClientRect();
+      box = { left: h.left + h.width / 2 - c.width / 2, top: h.top + h.height / 2 - c.height / 2, width: c.width, height: c.height };
+    }
+    if (box === null) return null;
+    const at = box;
+    return { getBoundingClientRect: () => DOMRect.fromRect(at) };
+  }
+
+  /**
    * A permanent from nowhere visible (a card out of a library) travels from `from` into its slot and
    * lands as heavy as its `heft`, as a played card lands; in place when there is nowhere to come
-   * from. A creature raised out of a graveyard or blinked back from exile (`origin`) plays its own
-   * motion instead (`entries.ts`) — Fast Mode: the landing alone, no climb to the hang point.
+   * from. Every other origin plays its own motion as one stand-in (`entries.ts`): raised out of a
+   * graveyard, blinked back from exile, released as a token, and off the stack (`from`, where the
+   * stack drew it) or out of a hand (its owner's hand) as a cast card lands — Fast Mode: the landing
+   * alone, no climb to the hang point.
    */
   function arrive(
     cardId: number,
@@ -966,7 +1028,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     const el = battlefieldCard(canvas, cardId);
     if (el === null) return;
     const root = overlay();
-    if ((origin === 'graveyard' || origin === 'exile' || origin === 'token') && root !== null && !reduced()) {
+    if (origin !== 'other' && root !== null && !reduced()) {
       const weight = entryWeight(heft);
       el.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
       markTempo(el, tempo);
@@ -988,7 +1050,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
               board: canvas,
               overlay: root,
               card: now,
-              from: origin === 'graveyard' && pileOwner !== null ? zoneOf(canvas, pileOwner, 'graveyard') : null,
+              from: entryFrom(origin, from, pileOwner, now),
               motion: entryMotionFor(origin),
               weight,
               key,
@@ -1339,7 +1401,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       endMs = Math.max(endMs, delay + entryMs);
       const pileOwner: 'you' | 'them' | null =
         arrival.fromPlayerId === undefined ? null : before?.players.find((p) => p.id === arrival.fromPlayerId)?.isViewer === true ? 'you' : 'them';
-      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay, arrival.origin, arrival.heft, pileOwner, tempo);
+      // Off the stack: from where the stack drew its spell, read now — `placed.ts` takes that card away in this same commit.
+      const from = arrival.stackItemId !== undefined ? stackBox(arrival.stackItemId) : (maker ?? sourceOf(item));
+      arrive(arrival.cardId, arrival.source, from, delay, arrival.origin, arrival.heft, pileOwner, tempo);
     }
     /*
      * Cards milled fly from their library to their graveyard as the effects start. The spell waits for them on the
@@ -1528,7 +1592,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     notify(view: BoardView, revealed?: Revealed) {
       if (!live) return;
       const before = prevView;
-      const diff = diffViews(before, view);
+      const all = diffViews(before, view);
+      // A card a seat played lands by its play's own trip (`gestures/cast.ts`'s `landCastGhost`), never twice.
+      const diff = host.landingDrawn === undefined ? all : { ...all, arrivals: all.arrivals.filter((a) => !host.landingDrawn!(a.cardId)) };
       prevView = view;
       const mills = millsOf(before, view, setAside);
       setAside = setAsideAfter(before, view, setAside);

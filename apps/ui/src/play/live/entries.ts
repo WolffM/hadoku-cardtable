@@ -4,8 +4,8 @@
  *
  * Two independent parts, mirroring `departures.ts`'s `EXIT_MOTIONS`:
  *
- *  - an ENTRY MOTION, chosen by where the card came from (`entryMotionFor`): cast off the stack,
- *    raised out of a graveyard, returned from exile. A new origin or a per-card motion is an entry
+ *  - an ENTRY MOTION, chosen by where the card came from (`entryMotionFor`): cast off the stack or
+ *    put there out of a hand, raised out of a graveyard, returned from exile. A new origin or a per-card motion is an entry
  *    in `ENTRY_MOTIONS` plus its keyframes; nothing else knows a motion's name. The operator did not
  *    pick between the preview's two reanimate styles (a shadowed rise out of the pile, or a rift
  *    opening in the slot): shipped is `rise`; the other, `unearth`, is not ported — no dead code;
@@ -37,7 +37,7 @@ import './entries.css';
 import { markTempo } from './tempo.ts';
 
 /** Where a permanent came from, picking its entry motion. */
-export type EntryOrigin = 'stack' | 'graveyard' | 'exile' | 'token';
+export type EntryOrigin = 'stack' | 'hand' | 'graveyard' | 'exile' | 'token';
 
 /** How the table cracks under a landing, continuous with power — see {@link entryWeight}. */
 export interface CrackLook {
@@ -137,7 +137,7 @@ export function landingWeight(heft: number): EntryWeight | null {
 }
 
 export const ENTRY_MOTIONS = {
-  /** Off the stack, or from its maker: from where it is drawn when it starts, up over its slot, then it drops. */
+  /** Off the stack, out of a hand, or from its maker: from where it is drawn when it starts, up over its slot, then it drops. */
   cast: { ms: 420 },
   /** Out of a graveyard: drained of colour, it flies up from the pile in a pall of shadow, then takes its colour back. */
   rise: { ms: 640 },
@@ -175,8 +175,8 @@ export interface EntryRun {
   overlay: HTMLElement;
   /** The creature's row card, already rendered; hidden until the stand-in lands. */
   card: HTMLElement;
-  /** Where it came from — a graveyard pile, or whatever draws the card when a `cast` starts (its stand-in, the stack's card); null when it has nowhere to travel from (exile). Read once, as `playEntry` starts. */
-  from: HTMLElement | null;
+  /** Where it came from — a graveyard pile, a hand, or whatever draws the card when a `cast` starts (its stand-in, the stack's card, or the box it was last drawn in); null when it has nowhere to travel from (exile). Read once, as `playEntry` starts. */
+  from: Pick<Element, 'getBoundingClientRect'> | null;
   motion: EntryMotion;
   /** Null: a weightless landing (a land, a 0-power creature) — it glides into its slot, nothing more. */
   weight: EntryWeight | null;

@@ -468,6 +468,43 @@ describe('diffViews: what a resolution did', () => {
     expect(diffViews(before, after).arrivals).toEqual([]);
   });
 
+  it('a card a resolution put onto a battlefield out of the viewer’s own hand arrives from that hand (Show and Tell)', () => {
+    const elf = card(9, 0);
+    const before = withStack(view([{ ...player(0, 20, { isViewer: true }), hand: [elf], handCount: 1 }, player(1, 20)]), [{ ...item(41, 3), isAbility: false }]);
+    const after = view([{ ...player(0, 20, { isViewer: true, battlefield: [elf] }), hand: [], handCount: 0 }, player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'hand', fromPlayerId: 0, heft: 0 }]);
+  });
+
+  it('a card a resolution put onto a battlefield out of a hand the viewer cannot see arrives from that hand', () => {
+    const before = withStack(view([player(0, 20), { ...player(1, 20), handCount: 3, libraryCount: 30 }]), [item(41, 3)]);
+    const after = view([player(0, 20), { ...player(1, 20, { battlefield: [card(9, 0)] }), handCount: 2, libraryCount: 30 }]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'hand', fromPlayerId: 1, heft: 0 }]);
+  });
+
+  it('a land played from the viewer’s own hand resolves nothing and is not an arrival — the play draws it', () => {
+    const land = card(9, 0);
+    const before = view([{ ...player(0, 20, { isViewer: true }), hand: [land], handCount: 1 }, player(1, 20)]);
+    const after = view([{ ...player(0, 20, { isViewer: true, battlefield: [land] }), hand: [], handCount: 0 }, player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([]);
+  });
+
+  it('a permanent spell resolving off the stack arrives from its stack item; an ability of the same card does not make one', () => {
+    const bears = card(9, 0);
+    const spell = { ...item(41, 9), isAbility: false };
+    const before = withStack(view([player(0, 20), player(1, 20)]), [spell]);
+    const after = view([player(0, 20, { battlefield: [bears] }), player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'stack', stackItemId: 41, heft: 0 }]);
+    const ability = withStack(view([player(0, 20, { battlefield: [bears] }), player(1, 20)]), [item(42, 9)]);
+    expect(diffViews(ability, after).arrivals, 'already on the battlefield').toEqual([]);
+  });
+
+  it('a card a resolution put onto a battlefield off a library’s revealed top is an arrival', () => {
+    const top = card(9, 0);
+    const before = withStack(view([{ ...player(0, 20), libraryTop: [top], libraryCount: 30 }, player(1, 20)]), [item(41, null)]);
+    const after = view([{ ...player(0, 20, { battlefield: [top] }), libraryCount: 29 }, player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'other', heft: 0 }]);
+  });
+
   it('a card a resolution put onto a battlefield out of a library is an arrival, maker unknown', () => {
     const before = withStack(view([{ ...player(0, 20), libraryCount: 30 }, player(1, 20)]), [item(41, null)]);
     const after = view([{ ...player(0, 20, { battlefield: [card(9, 0)] }), libraryCount: 29 }, player(1, 20)]);
@@ -763,6 +800,46 @@ describe('installNumbers: a resolution’s hits', () => {
     await vi.advanceTimersByTimeAsync(GLIDE_MS);
     expect(token.hasAttribute('data-arriving-from')).toBe(false);
     expect(token.style.visibility, 'shown again once the stand-in is done').toBe('');
+    handle.dispose();
+  });
+
+  /** A creature spell (item 41, card 9) on the stack, drawn there by `placed.ts`, resolving onto the viewer's battlefield. */
+  function resolveBears(landingDrawn?: (cardId: number) => boolean): { overlay: HTMLElement; bears: HTMLElement; handle: ReturnType<typeof installNumbers> } {
+    const { canvas, overlay } = sorinBoard();
+    overlay.getBoundingClientRect = () => rect({ left: 0, top: 0, width: 1200, height: 800 });
+    overlay.insertAdjacentHTML('beforeend', '<div data-placed-spell="41"></div>');
+    overlay.querySelector<HTMLElement>('[data-placed-spell="41"]')!.getBoundingClientRect = () => rect({ left: 900, top: 300, width: 60, height: 84 });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, ...(landingDrawn === undefined ? {} : { landingDrawn }) });
+    const bearsCard = { ...card(9, 0), card: { ...card(9, 0).card, power: '2', toughness: '2' } };
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [{ ...item(41, 9), isAbility: false }]));
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9"></li>');
+    const bears = canvas.querySelector<HTMLElement>('[data-board-card="9"]')!;
+    bears.getBoundingClientRect = () => rect({ left: 700, top: 500, width: 60, height: 84 });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0), bearsCard] }), player(1, 20)]));
+    return { overlay, bears, handle };
+  }
+
+  it('a creature spell nobody played resolving (cascade’s, the AI’s) lands from where the stack drew it', async () => {
+    vi.useFakeTimers();
+    const { overlay, bears, handle } = resolveBears();
+    const entry = overlay.querySelector<HTMLElement>('.board-entry[data-entry="cast"]');
+    expect(entry, 'a cast stand-in').not.toBeNull();
+    expect(bears.style.visibility, 'the row card hidden behind it').toBe('hidden');
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(bears.style.visibility, 'shown once it has landed').toBe('');
+    handle.dispose();
+  });
+
+  it('a card a seat’s play lands itself is left to that play: no second entry', () => {
+    vi.useFakeTimers();
+    const asked: number[] = [];
+    const { overlay, bears, handle } = resolveBears((id) => {
+      asked.push(id);
+      return true;
+    });
+    expect(asked).toEqual([9]);
+    expect(overlay.querySelector('.board-entry'), 'nothing drawn here').toBeNull();
+    expect(bears.hasAttribute('data-arriving-from')).toBe(false);
     handle.dispose();
   });
 
