@@ -56,6 +56,7 @@ interface Harness {
 	/** An open room, and a password-locked one, both owned by `owner`. */
 	roomId: string;
 	tableKey: string;
+	lockedRoomId: string;
 	lockedTableKey: string;
 	presence: ReturnType<typeof import('./socket.ts').createSeatPresence>;
 	/** The served room's account lookup, whose cache a test can fill as a resumed match would. */
@@ -115,6 +116,7 @@ async function boot(): Promise<Harness> {
 		lobby,
 		roomId: made.room.id,
 		tableKey: `cardtable-${made.room.id}-${made.room.tables[0]!.id}`,
+		lockedRoomId: locked.room.id,
 		lockedTableKey: `cardtable-${locked.room.id}-${locked.room.tables[0]!.id}`,
 		presence,
 		people,
@@ -247,12 +249,11 @@ describe('attachServedRoom', () => {
 		}
 	});
 
-	it('a non-member at the floor is refused: no snapshot, no history, and their line reaches nobody', async () => {
+	it('a non-member at the floor is refused a locked room: no snapshot, no history, and their line reaches nobody', async () => {
 		const h = await boot();
 		try {
-			h.lobby.join(h.roomId, { id: participantIdFor('alice'), name: 'alice', userId: null });
-			const key = `cardtable-${h.roomId}`;
-			const alice = await joinRoom(h.port, edgeHeaders('alice'), key);
+			const key = `cardtable-${h.lockedRoomId}`;
+			const alice = await joinRoom(h.port, edgeHeaders('owner'), key);
 			await vi.waitFor(() => expect(alice.historyEvents).toBe(1));
 			const bob = await joinRoom(h.port, edgeHeaders('bob'), key);
 			await vi.waitFor(() => expect(bob.errors[0]?.code).toBe('auth/forbidden'));
@@ -260,7 +261,7 @@ describe('attachServedRoom', () => {
 			await vi.waitFor(() => expect(bob.errors.length).toBeGreaterThan(1));
 			expect([bob.snapshots, bob.historyEvents, alice.broadcasts]).toEqual([0, 0, []]);
 			expect(h.events.find((e) => e.event === 'room.refused')?.fields).toMatchObject({ room_key: key, gate: 'not-member' });
-			expect((await h.served.chat.store.recentMessages(h.roomId)).some((m) => m.text === 'bob should never be heard')).toBe(false);
+			expect((await h.served.chat.store.recentMessages(h.lockedRoomId)).some((m) => m.text === 'bob should never be heard')).toBe(false);
 		} finally {
 			await h.close();
 		}
@@ -282,15 +283,17 @@ describe('attachServedRoom', () => {
 		}
 	});
 
-	it('a table of an open room and a match no room holds admit anyone at the floor, since anyone may watch the match; a locked room’s table admits nobody outside it', async () => {
+	it('an open room’s chat, a table of it, and a match no room holds admit anyone at the floor, since anyone may watch the match; a locked room and its table admit nobody outside it', async () => {
 		const h = await boot();
 		try {
+			const passerby = await joinRoom(h.port, edgeHeaders('gale'), `cardtable-${h.roomId}`);
 			const watcher = await joinRoom(h.port, edgeHeaders('dana'), h.tableKey);
 			const crowd = await joinRoom(h.port, edgeHeaders('frank'), `cardtable-${LIVE_MATCH}`);
 			const outsider = await joinRoom(h.port, edgeHeaders('erin'), h.lockedTableKey);
-			await vi.waitFor(() => expect([watcher.snapshots, crowd.snapshots]).toEqual([1, 1]));
-			await vi.waitFor(() => expect(outsider.errors[0]?.code).toBe('auth/forbidden'));
-			expect(outsider.snapshots).toBe(0);
+			const knocker = await joinRoom(h.port, edgeHeaders('hal'), `cardtable-${h.lockedRoomId}`);
+			await vi.waitFor(() => expect([passerby.snapshots, watcher.snapshots, crowd.snapshots]).toEqual([1, 1, 1]));
+			await vi.waitFor(() => expect([outsider.errors[0]?.code, knocker.errors[0]?.code]).toEqual(['auth/forbidden', 'auth/forbidden']));
+			expect([outsider.snapshots, knocker.snapshots]).toEqual([0, 0]);
 		} finally {
 			await h.close();
 		}

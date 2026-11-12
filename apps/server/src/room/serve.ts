@@ -26,11 +26,14 @@
  * ## Who may join
  *
  * `admit` is the gate: the tier floor (the same one every cardtable socket applies), a key this app
- * minted (`cardtable-<id>`, `RoomShell.tsx`'s `roomKeyFor`), and a place the lobby knows. A room's
- * own key admits its members only. A table's key (`<roomId>-<tableId>`, `App.tsx`'s `tableChatId`)
- * admits the room's members, and anyone at all while the room has no password, since anyone may
- * watch an open room's match; so does a match no room holds (a game against the AI, a scenario),
- * keyed by the match's own id. A refusal sends nothing of the room.
+ * minted (`cardtable-<id>`, `RoomShell.tsx`'s `roomKeyFor`), and a place the lobby knows. A room
+ * has one chat, its own key, on its lobby and on every game at its tables (the operator,
+ * 2026-11-11). It admits the room's members, and anyone at all while the room has no password,
+ * since anyone may watch an open room's match (the operator, 2026-11-11: *"let non-members into
+ * unlocked rooms' chat"*); a locked room admits its members only. A match no room holds (a game
+ * against the AI, a scenario) admits anyone, keyed by the match's own id. A table's key
+ * (`<roomId>-<tableId>`) is what screens built before 2026-11-11 joined during a game, and is
+ * gated as its room is. A refusal sends nothing of the room.
  *
  * `APP_ID` must agree with `apps/ui/app-name.ts`'s `APP_ID`; it is restated rather than imported,
  * since a server importing UI source is the wrong direction for this app's layering.
@@ -69,8 +72,9 @@ type RoomPlace = { served: string; roomId: string; kind: 'room' | 'table' } | { 
 /**
  * `cardtable-<id>` → the place it names, or null when it is not one of ours or names nothing live.
  * A table's key is `<roomId>-<tableId>`, or `<roomId>-<matchId>` when the screen's copy of the room
- * no longer names the table its match was played at (`App.tsx`'s `tableChatId`); either is the
- * room's table chat, the match found through the lobby's own memory of it (`roomOfMatch`).
+ * no longer names the table its match was played at; either is the room's table chat, the match
+ * found through the lobby's own memory of it (`roomOfMatch`). Screens since 2026-11-11 join the
+ * room's own key on every screen; a page loaded before that still joins a table's.
  */
 export function placeOfKey(lobby: Pick<Lobby, 'get' | 'roomOfMatch'>, isMatch: (id: string) => boolean, roomKey: string): RoomPlace | null {
 	const prefix = `${APP_ID}-`;
@@ -87,11 +91,11 @@ export function placeOfKey(lobby: Pick<Lobby, 'get' | 'roomOfMatch'>, isMatch: (
 	return isMatch(id) ? { served: id, roomId: null, kind: 'match' } : null;
 }
 
-/** Whether `participantId` may be in `place`: a room's members; a table's too, or anyone while its room has no password; anyone at a match. */
+/** Whether `participantId` may be in `place`: a room's (or its table's) members, or anyone while the room has no password; anyone at a match. */
 function mayJoin(lobby: Lobby, place: RoomPlace, participantId: string): boolean {
 	if (place.roomId === null) return true;
 	if (lobby.isMember(place.roomId, participantId)) return true;
-	return place.kind === 'table' && lobby.get(place.roomId)?.locked === false;
+	return lobby.get(place.roomId)?.locked === false;
 }
 
 function accountOfHeaders(headers: IncomingHttpHeaders): string | undefined {
