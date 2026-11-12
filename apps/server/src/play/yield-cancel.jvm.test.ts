@@ -19,7 +19,7 @@
 import { describe, expect, it } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 
-import { available, deck, scenarioText, startScenario, waitUntil } from './scenario.js';
+import { available, deck, dumpOnTimeout, scenarioText, startScenario, waitUntil } from './scenario.js';
 
 const title = available.ok
 	? 'Cancel on the yield bar, pressed again and again, against real Forge'
@@ -61,8 +61,9 @@ describe.skipIf(!available.ok)(title, () => {
 					await new Promise((r) => setTimeout(r, 50));
 				}
 				console.log(`[yield] ${presses} Cancel press(es) on ${bars()} yield bar(s)`);
-				// The first press ended the yield, so no bar re-armed for another.
-				expect(presses).toBe(1);
+				// The first press ended the yield, so no bar re-armed for another. A red keeps its evidence: the match's run
+				// dir, stderr included, is reaped by stop() (run 43232520122: 4 presses on 4 bars, nothing left to read).
+				expect(presses, presses === 1 ? undefined : dumpOnTimeout(s, 'yield-cancel presses')).toBe(1);
 
 				const conceded = Date.now();
 				expect(s.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'concede' }))).toEqual({ ok: true });
