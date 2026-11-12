@@ -183,4 +183,18 @@ export class RelaySession implements GameSession<RelayLine, RelayCommand> {
 	ended(_reason: string | null): void {
 		this.finish(null);
 	}
+
+	/**
+	 * `GameSession.notice` (`game-adapter.ts`): the shell's own hook for words with no game state
+	 * behind them. `Match.serverStopping` moves behind the same hook on Forge's side; here the
+	 * server is going down and this match cannot outlive it, so every SEAT (never a watcher — the
+	 * same "seats only" rule Forge's own `endNotice` follows) is told in words, as a relayed
+	 * message shaped like any other: `{ t: 'notice', message }`. A match already ended has nothing
+	 * left to tell.
+	 */
+	notice(_kind: 'server-stopping', message: string): void {
+		if (this.closed) return;
+		const msg: RelayMessage = { t: 'notice', message };
+		for (let seat = 0; seat < this.seatCount; seat += 1) this.sink.toSeat(seat, msg);
+	}
 }

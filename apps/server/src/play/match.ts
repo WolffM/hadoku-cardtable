@@ -320,7 +320,7 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	 */
 	serverStopping(message: string): void {
 		this.deps.log({ evt: 'match-ending-with-server', matchId: this.id, status: this.status });
-		this.game.notice?.('server-stopping', message);
+		this.game.notice('server-stopping', message);
 	}
 
 	/**

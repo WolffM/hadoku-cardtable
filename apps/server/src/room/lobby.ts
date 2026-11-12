@@ -961,6 +961,17 @@ export interface Lobby {
 	 */
 	useGameType(type: string, hooks: GameHooks): void;
 	/**
+	 * Told once, at boot, the way a room creates a `RelayMatch` for a `runtime: 'relay'`
+	 * game type — `hook(roomId, seatCount)`, called the moment such a room is created
+	 * (`#insert`). `plugins/relay.ts` wires `hook` to `runtimes/relay-match.ts`'s shared registry;
+	 * this file never imports that module itself, which would close an import cycle back to
+	 * `match.ts`'s `HostedMatch` (`match.ts` → `match/forge-session.ts` → `names.ts` →
+	 * `room/lobby.ts` → `runtimes/relay-match.ts` → `match.ts`). Unset (a unit suite, or before
+	 * the plugin wires it): such a room is simply created with no relay match behind it — the same
+	 * as any game type nothing has wired a runtime for.
+	 */
+	onRelayRoomOpened(hook: (roomId: string, seatCount: number) => void): void;
+	/**
 	 * How the pod's draft is dealt (`draftRooms.ts`'s pod lookup, wired the same
 	 * way as `useGameType`), read off `podTable`: the seats not closed, each
 	 * member who sat at the seat they chose, and the AI seats' names in seat
@@ -1372,6 +1383,9 @@ class FileLobby implements Lobby {
 	#hooksByType = new Map<string, GameHooks>();
 	/** Bot games being played now, by room, round and players: one game per pairing, however often it is asked. */
 	readonly #botGamesPlaying = new Set<string>();
+
+	/** See {@link Lobby.onRelayRoomOpened}'s doc for why this file never imports `runtimes/relay-match.ts` to call it directly. */
+	#relayRoomOpened: (roomId: string, seatCount: number) => void = () => {};
 
 	#onTournament: (t: Tournament) => void;
 
@@ -2493,6 +2507,15 @@ class FileLobby implements Lobby {
 		};
 		if (room.historical === true && input.historicalField !== undefined) seatHistoricalField(room, input.historicalField);
 		this.#rooms.set(id, room);
+		// A `runtime: 'relay'` room IS its own match — there is no separate "start" a
+		// non-Magic room's UI ever presses (`rooms/BundleSlot.tsx`'s own doc) — so its `RelayMatch`
+		// is registered the moment the room exists, under the room's own id, from its game type's
+		// own seat count. `#relayRoomOpened` is `onRelayRoomOpened`'s hook, wired by
+		// `plugins/relay.ts` (see that method's own doc for why this file calls a hook rather than
+		// importing `runtimes/relay-match.ts` directly).
+		if (gameTypeSpec(room.gameType)?.runtime === 'relay') {
+			this.#relayRoomOpened(id, gameTypeSpec(room.gameType)?.table?.seats ?? gameTypeSpec(room.gameType)?.seats.max ?? 2);
+		}
 		this.#autoSeat(room, caller.id);
 		if (input.password !== undefined && input.password !== '') {
 			this.#secrets.set(id, makeSecret(input.password));
@@ -2978,6 +3001,10 @@ class FileLobby implements Lobby {
 	useGameType(type: string, hooks: GameHooks): void {
 		this.#hooksByType.set(type, hooks);
 		for (const room of this.#rooms.values()) if (room.gameType === type && (room.pod?.botGames ?? []).length > 0) this.#playPairedBots(room);
+	}
+
+	onRelayRoomOpened(hook: (roomId: string, seatCount: number) => void): void {
+		this.#relayRoomOpened = hook;
 	}
 
 	/**

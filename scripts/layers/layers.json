@@ -75,6 +75,7 @@
     "packages/shared/src/game-type-spec.ts",
     "apps/ui/src/rooms/game-setup.ts",
     "apps/ui/src/rooms/BundleSlot.tsx",
+    "apps/ui/src/rooms/relay-channel.ts",
     "apps/ui/src/rooms/bundle-slot.fixture.ts",
     "apps/ui/src/rooms/screen/**"
   ],

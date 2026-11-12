@@ -63,6 +63,9 @@ interface Roster {
 	seatCount: number;
 	seats: Record<number, string>; // seat -> username
 	watchers: string[];
+	/** Spies for the lifecycle-owner hooks: optional, read fresh by `rosterOf` every call. */
+	onSeatConnected?(seat: number): void;
+	onSeatDisconnected?(seat: number): void;
 }
 
 function rosterOf(roster: Roster): import('./relay-socket.ts').RelayRoster {
@@ -75,6 +78,12 @@ function rosterOf(roster: Roster): import('./relay-socket.ts').RelayRoster {
 			if (roster.watchers.some((w) => participantOf(w) === participantId)) return null;
 			return undefined;
 		},
+		// This file's own `matchOf` no longer builds the session itself, so a fixture roster —
+		// this one plays the lifecycle owner's part — has to build it on `attach`, exactly as
+		// `relay-socket.ts`'s own header now describes.
+		attach: (sink, onEnded) => new sessionMod.RelaySession(roster.seatCount, sink, onEnded),
+		seatConnected: roster.onSeatConnected,
+		seatDisconnected: roster.onSeatDisconnected,
 	};
 }
 
@@ -257,6 +266,44 @@ describe('relay:message', () => {
 		expect(await alice.join('m1')).toEqual({ ok: false, error: 'rate-limited' });
 		const bob = await connect(h.port, edgeHeaders('bob'));
 		expect(await bob.join('m1')).toEqual({ ok: true, seat: 1 });
+	});
+});
+
+describe('roster lifecycle hooks', () => {
+	it("tells the roster a seat connected on its first join, and disconnected only once its LAST socket is gone", async () => {
+		const connected: number[] = [];
+		const disconnected: number[] = [];
+		const h = await boot({
+			m1: { seatCount: 2, seats: { 0: 'alice', 1: 'bob' }, watchers: [], onSeatConnected: (s) => connected.push(s), onSeatDisconnected: (s) => disconnected.push(s) },
+		});
+		const alice1 = await connect(h.port, edgeHeaders('alice'));
+		await alice1.join('m1');
+		expect(connected).toEqual([0]);
+		// A second tab on the SAME seat: connected again (harmless — `MatchShell.seatConnected`
+		// is idempotent), but disconnecting it must NOT yet say the seat left.
+		const alice2 = await connect(h.port, edgeHeaders('alice'));
+		await alice2.join('m1');
+		expect(connected).toEqual([0, 0]);
+		alice1.socket.disconnect();
+		await waitUntil(() => h.logs.some((l) => l.evt === 'relay-disconnected' && l.seat === 0), 'the first tab to be cleared');
+		expect(disconnected).toEqual([]);
+		alice2.socket.disconnect();
+		await waitUntil(() => disconnected.length === 1, "the seat's last socket to be told gone");
+		expect(disconnected).toEqual([0]);
+	});
+
+	it("never tells the roster a watcher connected or disconnected", async () => {
+		const connected: number[] = [];
+		const disconnected: number[] = [];
+		const h = await boot({
+			m1: { seatCount: 2, seats: { 0: 'alice', 1: 'bob' }, watchers: ['carol'], onSeatConnected: (s) => connected.push(s), onSeatDisconnected: (s) => disconnected.push(s) },
+		});
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		await carol.join('m1');
+		carol.socket.disconnect();
+		await waitUntil(() => h.logs.some((l) => l.evt === 'relay-disconnected' && l.seat === null), "carol's disconnect to be logged");
+		expect(connected).toEqual([]);
+		expect(disconnected).toEqual([]);
 	});
 });
 

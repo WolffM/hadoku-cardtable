@@ -112,6 +112,27 @@ describe('RelaySession', () => {
 		expect(onEnded).toHaveBeenCalledWith(null);
 	});
 
+	it("notice() forwards a { t: 'notice', message } to every seat, never to watchers", () => {
+		const s = sink();
+		const session = new RelaySession(3, s);
+		session.notice('server-stopping', 'The server is restarting for a deploy.');
+		expect(s.toSeat).toHaveBeenCalledTimes(3);
+		expect(s.toSeat).toHaveBeenCalledWith(0, { t: 'notice', message: 'The server is restarting for a deploy.' });
+		expect(s.toSeat).toHaveBeenCalledWith(1, { t: 'notice', message: 'The server is restarting for a deploy.' });
+		expect(s.toSeat).toHaveBeenCalledWith(2, { t: 'notice', message: 'The server is restarting for a deploy.' });
+		expect(s.toWatchers).not.toHaveBeenCalled();
+	});
+
+	it('notice() on an ended match is a no-op', () => {
+		const s = sink();
+		const session = new RelaySession(2, s);
+		session.seatLeft(0);
+		session.seatLeft(1);
+		s.toSeat.mockClear();
+		session.notice('server-stopping', 'too late');
+		expect(s.toSeat).not.toHaveBeenCalled();
+	});
+
 	it('the rest of GameSession is inert for a relay match: no turn, no active seat, no open asks, no wait', () => {
 		const session = new RelaySession(2, sink());
 		expect(session.turn()).toBeNull();

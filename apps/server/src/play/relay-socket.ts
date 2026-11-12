@@ -1,11 +1,11 @@
 /**
  * The relay's socket path: joins a seat's or a watcher's connection to a
  * match's `RelaySession` (`runtimes/relay.ts`), and fans each relayed
- * message out to the right live sockets. There is no client for this yet —
- * a native game is the first — so the path is proven
- * with a directly-injected roster rather than a real match registry; see
- * `plugins/relay.ts` for the one line that wires it into the running
- * server, refusing every join until something real registers one.
+ * message out to the right live sockets. A real roster
+ * (`runtimes/relay-match.ts`'s `RelayMatch`, registered from a room's seats
+ * by `room/lobby.ts`'s one hook and read back by `plugins/relay.ts`'s
+ * `rosterOf`) now backs it — before that this file was proven only with a
+ * directly-injected test roster, refusing every join for lack of one.
  *
  * ## The gate is the play socket's, re-applied
  *
@@ -34,7 +34,7 @@ import type { RateLimitConfig } from '@wolffm/rooms-server';
 import { gateSocketIo } from '../gate.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { costlyActLimit } from '../http/request.js';
-import { RelaySession, type RelayMessage, type RelayOutcome } from './runtimes/relay.js';
+import { type RelayMessage, type RelayOutcome, type RelaySession, type RelaySink } from './runtimes/relay.js';
 
 export const RELAY_EVENTS = {
 	join: 'relay:join',
@@ -53,16 +53,31 @@ export const RELAY_JOIN_RATE_LIMIT: RateLimitConfig = {
 /**
  * A match's own roster, read fresh on every join: how many seats it has,
  * and which one (if any) a participant holds. Supplied by whoever owns the
- * match's lifecycle — today nobody; `HostedMatch` will, once a relay
- * adapter exists to build one.
+ * match's lifecycle — `runtimes/relay-match.ts`'s `RelayMatch`.
  *
  * `roleOf` answers `undefined` for a participant the match does not
  * recognise at all — refused the same way `forge:join` refuses an unknown
  * one — and `null` for a recognised watcher.
+ *
+ * **This file no longer builds the session itself.** `attach` is called at
+ * most once per roster, the first time anybody joins, and hands the
+ * lifecycle owner this file's own live-socket sink — the owner builds (or
+ * finishes building) its `RelaySession` AT THAT POINT, wired to sockets that
+ * did not exist a moment earlier, and returns it for this file to relay
+ * through. `seatConnected`/`seatDisconnected` are the same two hooks
+ * `play/match/shell.ts`'s `MatchShell` already exposes by those names; a
+ * roster backed by one simply forwards them, so its own rejoin-grace timers
+ * (RelaySession.seatLeft, past the grace) see the same socket transitions
+ * this file does.
  */
 export interface RelayRoster {
 	seatCount: number;
 	roleOf(participantId: ParticipantId): number | null | undefined;
+	/** This match's own session, wired to `sink`; `onEnded` is this file's own cleanup, called once. */
+	attach(sink: RelaySink, onEnded: (outcome: RelayOutcome | null) => void): RelaySession;
+	/** A seat's first live socket joined, or its last one went. Absent: nothing is told. */
+	seatConnected?(seat: number): void;
+	seatDisconnected?(seat: number): void;
 }
 
 export type RelayJoinAck = { ok: true; seat: number | null } | { ok: false; error: 'bad-request' | 'unknown-match' | 'not-joined' | 'rate-limited' };
@@ -88,6 +103,7 @@ export interface RelayHandle {
 
 interface LiveMatch {
 	session: RelaySession;
+	roster: RelayRoster;
 	seatSockets: Map<number, Set<Socket>>;
 	watcherSockets: Set<Socket>;
 }
@@ -118,8 +134,7 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 		if (found !== undefined) return found;
 		const seatSockets = new Map<number, Set<Socket>>();
 		const watcherSockets = new Set<Socket>();
-		const session = new RelaySession(
-			roster.seatCount,
+		const session = roster.attach(
 			{
 				toSeat: (seat, msg) => {
 					for (const s of seatSockets.get(seat) ?? []) s.emit(RELAY_EVENTS.message, msg);
@@ -133,7 +148,7 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 				deps.onEnded?.(matchId, outcome);
 			},
 		);
-		const entry: LiveMatch = { session, seatSockets, watcherSockets };
+		const entry: LiveMatch = { session, roster, seatSockets, watcherSockets };
 		live.set(matchId, entry);
 		return entry;
 	}
@@ -170,6 +185,10 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 				const set = match.seatSockets.get(role) ?? new Set<Socket>();
 				set.add(socket);
 				match.seatSockets.set(role, set);
+				// This seat had no live socket a moment ago (a fresh join, or a rejoin after every
+				// earlier one dropped) — told every time regardless, same as `MatchShell.seatConnected`
+				// itself is: harmless to tell twice, and cheaper than tracking "was it already zero".
+				match.roster.seatConnected?.(role);
 			}
 			joined = { matchId, seat: role };
 			log({ evt: 'relay-joined', matchId, seat: role });
@@ -194,13 +213,18 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 			if (joined === null) return;
 			const match = live.get(joined.matchId);
 			if (match === undefined) return;
-			if (joined.seat === null) match.watcherSockets.delete(socket);
-			else match.seatSockets.get(joined.seat)?.delete(socket);
+			if (joined.seat === null) {
+				match.watcherSockets.delete(socket);
+			} else {
+				const set = match.seatSockets.get(joined.seat);
+				set?.delete(socket);
+				// A plain disconnect is not a leave: rejoining is `relay:join` again on a new socket,
+				// which simply re-adds it to the same seat's set above. Whether THIS is a leave for
+				// good is the roster's own rejoin-grace timer's call — told only once the
+				// seat's last live socket is actually gone, never on an earlier one among several tabs.
+				if (set === undefined || set.size === 0) match.roster.seatDisconnected?.(joined.seat);
+			}
 			log({ evt: 'relay-disconnected', matchId: joined.matchId, seat: joined.seat });
-			// A plain disconnect is not a leave: rejoining is `relay:join` again
-			// on a new socket, which simply re-adds it to the same seat's set
-			// above. Nothing here calls `session.seatLeft` — that is a rejoin-
-			// grace timer's job, and nothing drives one for a relay match yet.
 		});
 	});
 

@@ -27,15 +27,35 @@
  * one (`apps/server/src/room/lobby.ts`, nobody's this wave), so gating on `underway` would simply
  * never show the game. `view === null`, or identity not yet settled, both render an empty slot
  * rather than mount with a guess.
+ *
+ * ## `ctx.channel`
+ *
+ * A room whose game type says `runtime: 'relay'` (`packages/shared/src/game-type-spec.ts`) gets a
+ * `MatchChannel` built from a relay socket (`./relay-channel.ts`), the host's own transport for a
+ * game with no server of its own — never both a channel AND the game's own server; today only
+ * bomberman registers at all, and it does not set `runtime` yet (phase 6's own step). The channel
+ * is opened once per room (`view.id`), not rebuilt on every `ctx` change, and disposed the moment
+ * this slot stops needing it — a room that is no longer relay-typed, or unmounts.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { mountGameBundle, type GameBundleHandle } from '@wolffm/rooms-client';
-import type { GameBundleContext, MatchInfo, SeatInfo } from '@wolffm/rooms-protocol';
+import type { GameBundleContext, MatchChannel, MatchInfo, SeatInfo } from '@wolffm/rooms-protocol';
 import { useHadokuTheme } from '@wolffm/themes';
+// A relative cross-package import, not `@hadoku/shared`'s own barrel: the layer ratchet
+// (`scripts/layers/scan.ts`) resolves a bare `@hadoku/shared` specifier to the PACKAGE's overall
+// layer, which is `magic` (most of its files are) — a platform file importing `@hadoku/shared`
+// at all is a `platform→magic` violation regardless of which symbol it names. `game-type-spec.ts`
+// is explicitly carved out as `platform` in `layers.json`, and a relative path resolves to that
+// ONE file's own classification instead — the same technique `apps/ui/src/play/art.testing.ts`
+// already uses to reach `apps/server/src/http/card-art.ts`. Still one module and one registry:
+// `@hadoku/shared`'s package.json exports only `.` → `./src/index.ts`, which re-exports this same
+// file, so Vite and vitest resolve both paths to the identical module.
+import { gameTypeSpec, registerGameType } from '../../../../packages/shared/src/game-type-spec.ts';
 
 import { useWhoami } from '../room/whoami.ts';
-import type { RoomViewBase } from './game-setup.ts';
+import { registerGameRoomUi, type RoomViewBase } from './game-setup.ts';
+import { openRelayChannel } from './relay-channel.ts';
 import './BundleSlot.css';
 
 export interface BundleSlotProps {
@@ -63,6 +83,21 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
   const { theme } = useHadokuTheme();
   const who = useWhoami();
 
+  const isRelay = view !== null && gameTypeSpec(view.gameType)?.runtime === 'relay';
+  const [channel, setChannel] = useState<MatchChannel | null>(null);
+
+  // One channel per room, never rebuilt on a theme/identity/seat change — disposed the moment
+  // this slot no longer needs one (a different room, or this one turning out not to be relay).
+  useEffect(() => {
+    if (!isRelay || view === null) return;
+    const ch = openRelayChannel(view.id);
+    setChannel(ch);
+    return () => {
+      ch.close();
+      setChannel(null);
+    };
+  }, [isRelay, view?.id]);
+
   const ctx = useMemo<GameBundleContext | null>(() => {
     if (view === null || who === 'pending' || who === null) return null;
     return {
@@ -72,8 +107,9 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
       isLeader: me.isLeader,
       close: () => onClose?.(),
       match: matchOf(view, me.userId),
+      ...(channel !== null ? { channel } : {}),
     };
-  }, [view, who, theme, me.isLeader, me.userId, onClose]);
+  }, [view, who, theme, me.isLeader, me.userId, onClose, channel]);
 
   const ready = ctx !== null;
 
@@ -117,4 +153,33 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
       )}
     </div>
   );
+}
+
+/**
+ * The relay channel's own e2e fixture, and only it. `relay-test` is never a real room type a player can
+ * pick — the server's own `relay-test` (`apps/server/src/plugins/relay.ts`) is registered only
+ * behind `CARDTABLE_PLAY_PROBE=1`, never in production — so this client-side registration needs
+ * the same kind of fence, but a browser bundle has no env var to read. `e2e/relay-fixture.spec.ts`
+ * sets `window.__CARDTABLE_E2E_RELAY_TEST__` with Playwright's `addInitScript`, BEFORE this
+ * module (already reachable from `rooms/games/bomberman.tsx` → `composition.tsx`, eagerly
+ * imported at boot) ever evaluates, so the flag is in place the moment this line runs. Never set
+ * outside that one spec: dead code for every real player and every other test.
+ */
+declare global {
+  interface Window {
+    __CARDTABLE_E2E_RELAY_TEST__?: boolean;
+  }
+}
+if (typeof window !== 'undefined' && window.__CARDTABLE_E2E_RELAY_TEST__ === true) {
+  registerGameType({
+    id: 'relay-test',
+    runtime: 'relay',
+    seats: { min: 2, max: 2 },
+    ready: false,
+    series: { length: 1 },
+    canStart: (seated) => (seated >= 2 ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
+  });
+  registerGameRoomUi('relay-test', {
+    game: (p) => <BundleSlot src="/relay-fixture/relay-test-embed.js" view={p.view} me={p.me} />,
+  });
 }

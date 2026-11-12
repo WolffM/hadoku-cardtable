@@ -127,5 +127,5 @@ export interface GameSession<Line, Cmd> {
 	 * tells every seat the same message as a relayed line; the toy game implements it trivially,
 	 * to prove it fits a session with nothing of its own to say.
 	 */
-	notice?(kind: 'server-stopping', message: string): void;
+	notice(kind: 'server-stopping', message: string): void;
 }

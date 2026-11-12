@@ -63,6 +63,15 @@ export interface GameTypeSpec {
    * plays its rounds two at a table).
    */
   table?: { seats: number };
+  /**
+   * This game type's match runs on the relay runtime — the host has no engine of its own for it,
+   * only seats, watchers and a channel each seat's bundle speaks over
+   * (`apps/server/src/play/runtimes/relay.ts`'s `RelaySession`, `apps/ui/src/rooms/relay-channel.ts`
+   * on the client). Absent (every game type before this) is today's behaviour: no channel, same
+   * as before this field existed. Bomberman's own registration does not set this yet — its bundle
+   * still runs its own server until a later step wires it to the relay.
+   */
+  runtime?: 'relay';
   /** Whether the room waits on a ready step before it may start (a countdown with none, say). */
   ready: boolean;
   bots?: BotFill;
