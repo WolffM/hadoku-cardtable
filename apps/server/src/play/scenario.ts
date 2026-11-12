@@ -176,8 +176,9 @@ export function dumpTimeoutReport(input: TimeoutDump): string {
  * This file's own call: a `Scenario`'s frames, its server log and stderr path. The whole log: a press
  * can come from any decider (`auto-confirmed`, `auto-paid`, …), a re-sent window (`window-resent`) or
  * the test itself (`forge-command`), and a filter to three events hid which one passed Q10's window.
+ * A suite that fails on what it read rather than on a timeout calls it too, before `stop()`.
  */
-function dumpOnTimeout(s: Scenario, label: string): string {
+export function dumpOnTimeout(s: Scenario, label: string): string {
 	return dumpTimeoutReport({
 		label,
 		frames: s.sent.slice(-DUMP_FRAMES).map(frameSummary),

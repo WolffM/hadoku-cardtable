@@ -25,7 +25,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, inOwnMain, nightly, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, dumpOnTimeout, finishMulligan, inOwnMain, nightly, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'a scenario start, against real Forge'
@@ -85,11 +85,16 @@ async function startOnce(c: Case, seed: number): Promise<Outcome> {
 			.filter((x) => x.seat === c.seat && x.envelope.frame.method === 'setWeaklySelectable')
 			.map((x) => (x.envelope.frame as unknown as { cards: { id: number }[] }).cards.map((r) => r.id));
 		const names = (ids: number[]): boolean => ids.includes(card.id);
+		const allOk = pushes.length > 0 && pushes.every(names);
+		// A lost push leaves only its card lists in the log; the JVM's stderr (Forge's decode and
+		// apply lines) is reaped with the match, so it is kept here, before `stop()`.
+		const error = allOk ? undefined : dumpOnTimeout(s, label);
 		return {
 			label,
 			pushes,
 			windowOk: pushes.length > 0 && names(pushes[pushes.length - 1] ?? []),
-			allOk: pushes.length > 0 && pushes.every(names),
+			allOk,
+			...(error === undefined ? {} : { error: `${pushes.map((p) => `[${p.join(',')}]`).join(' ')} ${error}` }),
 		};
 	} finally {
 		await s.stop();
