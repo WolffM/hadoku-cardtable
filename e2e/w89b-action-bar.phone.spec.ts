@@ -190,12 +190,13 @@ test(titled('the menu holds Game log, End turn, Full control, Restart turn and C
     // (the fleet header's gear is hidden in portrait; this is the standalone app's real header, so it's
     // expected here): one `SettingsGear` instance, not two.
     const order = await items.evaluate((el) => [...el.querySelectorAll('[data-testid]')].map((n) => n.getAttribute('data-testid')));
-    expect(order, 'Game log, Settings, then the cluster (End turn, Full control, Restart turn, Concede)').toEqual([
+    expect(order, 'Game log, Settings, then the cluster (End turn, Full control, Undo | Restart turn, Concede)').toEqual([
       'live-log-toggle',
       'settings-gear',
       'live-buttons',
       'live-button-end-turn',
       'live-full-control',
+      'live-undo',
       'live-restart-turn',
       'live-concede',
     ]);

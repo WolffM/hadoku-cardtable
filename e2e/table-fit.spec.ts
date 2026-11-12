@@ -353,7 +353,7 @@ function installSampler(): void {
         else {
           barBox = bar.getBoundingClientRect();
           if (!inside(barBox)) breach('button bar not wholly inside the window');
-          // Wave 75 dropped Next Phase: the same four buttons every frame, in their own words.
+          // Wave 75 dropped Next Phase: the same buttons every frame, in their own words.
           // The first slot reads End Turn on the viewer's own turn and Auto
           // Yield/Cancel Yield on the other seat's — same testid, same place,
           // so this sampler (installed on BOTH pages, across a whole real
@@ -361,10 +361,10 @@ function installSampler(): void {
           const four = Array.from(bar.querySelectorAll('button'), (b) => `${b.dataset.testid}=${b.textContent}`).join(' ');
           const endTurnLabels = ['End Turn', 'Auto Yield', 'Cancel Yield'];
           const fourOk = endTurnLabels.some(
-            (label) => four === `live-button-end-turn=${label} live-full-control=Full control live-restart-turn=Restart turn live-concede=Concede`,
+            (label) => four === `live-button-end-turn=${label} live-full-control=Full control live-undo=↶Undo live-restart-turn=Restart turn live-concede=Concede`,
           );
           if (!fourOk) {
-            breach(`the control box is not its four buttons: ${four}`);
+            breach(`the control box is not its own buttons: ${four}`);
           }
           /*
            * Wave 25 §C: *"i mostly hate all the text in the bottom right it's
