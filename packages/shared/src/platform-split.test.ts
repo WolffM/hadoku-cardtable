@@ -47,7 +47,8 @@ const EVENT = {
 
 describe('Magic on platform-wire round trip', () => {
   it('a presence row', () => {
-    expect(PresenceEchoSchema.parse(PRESENCE_ECHO)).toEqual(PRESENCE_ECHO);
+    // Recorded before `fromAnchor` existed: it parses, defaulted to null, like every field added since.
+    expect(PresenceEchoSchema.parse(PRESENCE_ECHO)).toEqual({ ...PRESENCE_ECHO, fromAnchor: null });
   });
 
   it('a seat telemetry post', () => {

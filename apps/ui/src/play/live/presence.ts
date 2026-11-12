@@ -368,7 +368,21 @@ export function placeSpot(canvas: HTMLElement, spot: PresenceSpot, mirrored = tr
   return { x: board.left + spot.x * board.width, y: board.top + (mirrored ? 1 - spot.y : spot.y) * board.height };
 }
 
-/** What this seat's hands are doing, off the gesture layer's own marks. */
+/** A point the other board sent: on the twin of what it is anchored to, or by the board fraction where it is anchored to nothing drawn here. */
+function placePoint(canvas: HTMLElement, spot: PresenceSpot, anchor: PresenceAnchor, mirrored: boolean): Point | null {
+  return placeAnchor(canvas, anchor, mirrored) ?? placeSpot(canvas, spot, mirrored);
+}
+
+/**
+ * The arrow's tail as the wire carries it: the board fraction, and the anchor the pointer gets too —
+ * except a parked card's point, which the receiver places by the board fraction, as it does that
+ * card's back (`placing.at`), so the tail leaves from the back it draws.
+ */
+function tailOf(canvas: HTMLElement, hands: ReturnType<typeof handsOf>): Pick<PresenceMessage, 'from' | 'fromAnchor'> {
+  if (hands.from === null) return { from: null, fromAnchor: null };
+  return { from: spotOf(canvas, hands.from), fromAnchor: hands.parked === null ? anchorOf(canvas, hands.from) : null };
+}
+
 /**
  * A battlefield card of this seat's being rearranged (`Board.tsx`'s own drag:
  * the pressed card carries `data-arrange-dragging`, its ghost follows the
@@ -501,14 +515,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const spot = pointer === null ? null : spotOf(canvas, pointer);
     const anchor = pointer === null ? null : anchorOf(canvas, pointer);
     const hands = handsOf(canvas, host.aiming?.() ?? false);
-    const from = hands.from === null ? null : spotOf(canvas, hands.from);
     const message: PresenceMessage = {
       matchId: host.matchId,
       type: 'presence',
       pointer: spot,
       anchor,
       held: hands.held,
-      from,
+      ...tailOf(canvas, hands),
       arranging: arrangingOf(canvas),
       placing: placingOf(hands.parked),
       handMove: null,
@@ -585,14 +598,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const spot = lastPointer === null ? null : spotOf(canvas, lastPointer);
     const anchor = lastPointer === null ? null : anchorOf(canvas, lastPointer);
     const hands = handsOf(canvas, host.aiming?.() ?? false);
-    const handFrom = hands.from === null ? null : spotOf(canvas, hands.from);
     const message: PresenceMessage = {
       matchId: host.matchId,
       type: 'presence',
       pointer: spot,
       anchor,
       held: hands.held,
-      from: handFrom,
+      ...tailOf(canvas, hands),
       arranging: null,
       placing: placingOf(hands.parked),
       handMove: { from, to },
@@ -647,6 +659,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       anchor,
       held: false,
       from: null,
+      fromAnchor: null,
       arranging: null,
       placing: spot === null || cancelled ? null : { at: spot },
       handMove: null,
@@ -1026,7 +1039,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (echo.placing !== null) renewWait();
     // Anchored to the twin of what their pointer is in (`anchorOf`) — the board fraction drifts off
     // a card the moment the two screens size a row differently; it is the fallback outside every zone.
-    const at = echo.pointer === null ? null : placeAnchor(canvas, echo.anchor, mirrored) ?? placeSpot(canvas, echo.pointer, mirrored);
+    const at = echo.pointer === null ? null : placePoint(canvas, echo.pointer, echo.anchor, mirrored);
     if (at === null) {
       takeDown();
       return;
@@ -1105,7 +1118,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
     // The arrow is the tail of an active aim — `from` is sent for nothing else (a parked card
     // being aimed from, or the targeter's own start), so it is drawn whenever it is there.
-    const from = echo.from === null ? null : placeSpot(canvas, echo.from, mirrored);
+    // Its tail, anchored like the tip: the board fraction alone put it over the card to its left.
+    const from = echo.from === null ? null : placePoint(canvas, echo.from, echo.fromAnchor, mirrored);
     if (from !== null) {
       if (arrow === null) {
         arrow = newArrow({ className: 'arrow--theirs presence__arrow', ghost: true });

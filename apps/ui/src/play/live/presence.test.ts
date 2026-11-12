@@ -287,7 +287,7 @@ describe('sending', () => {
     expect(t.sent, 'two moves inside one window: one message, the latest').toHaveLength(1);
     expect(t.sent[0]).toEqual({
       event: PRESENCE_EVENT,
-      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, anchor: { zone: 'battlefield', own: true, row: null, card: null, item: null, x: 0.275, y: 0.5 }, held: false, from: null, arranging: null, placing: null, handMove: null },
+      payload: { matchId: 'm-1', type: 'presence', pointer: { zone: 'battlefield', x: 0.32, y: 0.625 }, anchor: { zone: 'battlefield', own: true, row: null, card: null, item: null, x: 0.275, y: 0.5 }, held: false, from: null, fromAnchor: null, arranging: null, placing: null, handMove: null },
     });
 
     // The gesture layer lifts a card and aims an arrow from it: read off its own marks.
@@ -303,9 +303,10 @@ describe('sending', () => {
     canvas.querySelector('[data-board-overlay]')!.append(svg);
     canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
     vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
-    const second = t.sent[1]!.payload as { held: boolean; from: unknown };
+    const second = t.sent[1]!.payload as { held: boolean; from: unknown; fromAnchor: unknown };
     expect(second.held).toBe(true);
     expect(second.from, 'the arrow’s tail, as a board fraction').toEqual({ zone: 'hand', x: 0.5, y: 0.875 });
+    expect(second.fromAnchor, 'and anchored, as the pointer is').toEqual({ zone: 'hand', own: true, row: null, card: null, item: null, x: 0.5, y: 0.5 });
     expect(JSON.stringify(second), 'no card id anywhere in it').not.toContain('31');
 
     canvas.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }));
@@ -345,6 +346,24 @@ describe('sending', () => {
     expect(second.pointer.x).toBe(0.8);
     expect(second.held).toBe(false);
     expect(second.placing, 'the same stand, pointer or no pointer').toEqual({ at: { zone: 'battlefield', x: 0.3, y: 0.515 } });
+    handle.dispose();
+  });
+
+  it('aiming from a parked card: the tail is its stand, unanchored, so the other screen draws it from the back it stands there', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const parked = document.createElement('li');
+    parked.setAttribute('data-cast-lift', 'parked');
+    parked.getBoundingClientRect = () => rect({ left: 270, top: 370, width: 60, height: 84 }); // centre (300, 412)
+    canvas.querySelector('.board')!.append(parked);
+    canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, clientY: 500, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    const sent = t.sent[0]!.payload as { from: unknown; fromAnchor: unknown; placing: { at: unknown } };
+    expect(sent.from).toEqual(sent.placing.at);
+    expect(sent.fromAnchor).toBeNull();
     handle.dispose();
   });
 
@@ -479,6 +498,7 @@ describe('sending', () => {
         anchor: { zone: 'battlefield', own: true, row: null, card: null, item: null, x: 0.25, y: 0.5 },
         held: false,
         from: null,
+        fromAnchor: null,
         arranging: null,
         placing: { at: { zone: 'battlefield', x: 0.3, y: 0.625 } },
         handMove: null,

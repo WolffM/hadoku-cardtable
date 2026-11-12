@@ -150,6 +150,13 @@ export const PresenceSchema = z
      * Never where a back stands (that is `placing`). Null otherwise.
      */
     from: PresenceSpotSchema.nullable(),
+    /**
+     * Where `from` is, anchored as `anchor` anchors `pointer`: the arrow's tip lands on the twin card,
+     * and its tail must too, or a row laid out at another width puts it over a neighbour. Null when
+     * `from` is a parked card's point (placed, like its back, by the board fraction), outside every
+     * zone, or from a pre-deploy sender.
+     */
+    fromAnchor: PresenceAnchorSchema.default(null),
     /** A pre-deploy sender's own hand row count: accepted so an old tab still parses, and dropped — each screen lays every hand out by its own room. */
     handRows: z.unknown().transform(() => undefined).optional(),
     /**

@@ -270,6 +270,7 @@ describe('createRecorder', () => {
 			anchor: null,
 			held,
 			from: null,
+			fromAnchor: null,
 			arranging: null,
 			placing: null,
 			handMove: null,
@@ -315,6 +316,7 @@ describe('createRecorder', () => {
 			anchor: null,
 			held,
 			from: null,
+			fromAnchor: null,
 			arranging: null,
 			placing: null,
 			handMove: null,
@@ -355,7 +357,7 @@ describe('createRecorder', () => {
 		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, now: () => Date.now() });
 		recorder.host(inner)('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
 		const events = inner.calls[0]!.events;
-		const at = (x: number): PresenceMessage => ({ matchId: 'm-1', type: 'presence', pointer: { zone: 'hand', x, y: 0.5 }, anchor: null, held: false, from: null, arranging: null, placing: null, handMove: null });
+		const at = (x: number): PresenceMessage => ({ matchId: 'm-1', type: 'presence', pointer: { zone: 'hand', x, y: 0.5 }, anchor: null, held: false, from: null, fromAnchor: null, arranging: null, placing: null, handMove: null });
 
 		recorder.onPresence('m-1', 0, 1, at(0.1)); // kept: seat 0 is active
 		vi.advanceTimersByTime(40);
@@ -395,6 +397,7 @@ describe('createRecorder', () => {
 				anchor: null,
 				held: s.held ?? false,
 				from: null,
+				fromAnchor: null,
 				arranging: null,
 				placing: null,
 				handMove: null,
