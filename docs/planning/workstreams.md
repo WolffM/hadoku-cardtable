@@ -3885,3 +3885,36 @@ The operator ruled 2026-11-11 that the tracker chains the platform waves through
   - **F:** Forge parks through its `Checkpoint`, one restore path;
   - **R:** the carried reds.
 - **Then:** w107 moves Magic → `games/magic/`; w108 does `templates/game` plus the devkit; then the operator's code analysis.
+
+## w106 and w107n verified by the tracker 2026-11-12: bomberman plays through cardtable's relay
+
+- **w106** (notes in `~/.cache/cardtable-manager/w106-{N,M,F,R}-closing.md`; the lanes' own reports are in `w106-{F,M}-lane-report.md`):
+  - **M** d10c55c49: Magic's room UI registers once, from `screens/magic-room-ui.tsx`, and reads its clients from the platform `rooms/game-clients.tsx`.
+    - `ConstructedScreen.tsx` went 3,132 → 93 lines and is off the tangled list, which is now **10**.
+    - DOM: 16/181 states differ before vs after, against a noise floor of 18/181 between two runs of the same code.
+  - **F** 0c1da2f02: Forge parks and restores through its `Checkpoint`, with one restore path.
+    - Mutation: 4 tests red.
+    - The 13 park/restart specs are green on a claw.
+  - **R** 8b87c1b8b: an AI never wears a member's character before that member's look resolves (release note pending), and `scenario.ts` owns the cleanup-discard helper.
+  - **N** was carried. It lost 4.5 h to symlinked bomberman node_modules (memory `bomberman-worktree-install`), and the manager left a guarded `rm` prompt unanswered.
+- **The b2 session's fixes during w106:**
+  - 1be892c08: the priority.jvm "stuck seat" was a test wait, not the product;
+  - play.spec:658: the test's quiet check counted heartbeats, plus a real SeatGui wait-text thread race (8382088c0 et al.);
+  - ada98ba7f: a parked.test race.
+- **w107n is landed. Bomberman native on the relay is on PPE.**
+  - bomberman 00b3ddc (deployed; the served chunk carries `start-request`) and cardtable bce885d65 (PPE).
+  - Its proofs:
+    - bomberman's two-page channel e2e;
+    - cardtable's `bomberman.spec` on a claw;
+    - mutations red on both sides.
+  - **Players get it at the next `/cutrelease`**, and the operator's live check is the first lines of `~/.cache/cardtable-manager/w107n-closing.md`.
+  - **Known limits:**
+    - one match per room;
+    - a screen that loads after the end shows no result;
+    - the real WASM over the channel has only been proven by the stub game, and the operator's check is the first real run.
+- **w107b (PlayBridge races) is still running.** Its first two items have fixes on its branch, and its third is named: a CME in Forge's input stop, already fixed by show-latch a817eb50d, with 0 recurrences since.
+- **Next:** w108 moves Magic → `games/magic/` once main is quiet after w107b; then `templates/game`; then the operator's code analysis.
+- **Open, not in a lane:**
+  - hadoku-fleet-manager#88;
+  - a streamed room's argv on prod;
+  - the main checkout's `forge` submodule sits at a6d4830a (`cardtable/alt-cost-met`), away from its pin. Some session checked it out there; the main checkout is never served, so it's harmless, but it isn't clean.
