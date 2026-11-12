@@ -159,6 +159,25 @@
  * holder is named when it was shown that card too. So a seat learns nothing about anyone's
  * knowledge but of cards it holds or knows — and nothing it could not have watched happen.
  *
+ * ## What a restore goes back to, it keeps
+ *
+ * A restart of the turn (and a failover) opens a new game on the snapshot of the turn's start, and
+ * Forge gives every card in it a new id (`restore.jvm.test.ts`), so all of the above would start
+ * again from nothing: a hand a Thoughtseize showed went face down at the restart. The operator,
+ * 2026-11-11: *"restart turn removes information like revealed cards."* At a real table, a player
+ * who watched the turn still knows what it showed them after it is taken back.
+ *
+ * So the projector marks each turn's start as the snapshot holds it ({@link SeatProjector.carried}):
+ * the turn, and the place of every card in a hand or a library. From then on it keeps, per player,
+ * every card that player came to know (or already knew) while the card was still where the turn
+ * began with it — in that hand, or in that library before any shuffle that player saw since. That
+ * is exactly what the restored game shows again: the same card, in the same place. A card known
+ * only after it moved (drawn this turn and then shown in the hand), or in a library after it was
+ * shuffled, is not: the restored game has it somewhere the player never saw it. The new game's
+ * projector takes the list ({@link SeatProjector.inherit}) and finds each card by its place and
+ * name in the restored state, carrying nothing when that game is not on the same turn or a place
+ * holds a different card.
+ *
  * ## What it cannot fix
  *
  * A shuffle is read off the order of the cards the player did not just look
@@ -650,6 +669,22 @@ export interface SeatProjector {
 	 * construction: a life total is on the table, and a hand's size is, though its cards are not.
 	 */
 	playerCounts(): ReadonlyMap<number, { life: number | null; hand: number }>;
+	/**
+	 * What each player knows that a restore to this turn's start shows again — the header's "What a
+	 * restore goes back to, it keeps". Null before the state has a turn, and when nobody knows anything.
+	 */
+	carried(): CarriedKnowledge | null;
+	/** Before the first frame of a restored game: the {@link carried} of the projector it replaces. */
+	inherit(carried: CarriedKnowledge | null): void;
+}
+
+/**
+ * Who knows which card in a hand or a library at a turn's start, said without the game's ids: players
+ * by their place in the game's `Players`, a card by its holder, zone, place in that zone and name.
+ */
+export interface CarriedKnowledge {
+	readonly turn: number;
+	readonly cards: readonly { readonly knower: number; readonly holder: number; readonly zone: string; readonly index: number; readonly name: string }[];
 }
 
 export function createProjector(viewer: number | null | typeof EVERY_PLAYER = null, art?: ArtIds): SeatProjector {
@@ -677,6 +712,14 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 	let zonesNow: ZoneIndex | null = null;
 	/** Every player the raw state holds, as last folded. */
 	let playersNow: number[] = [];
+	/** This turn's start: the game's players in order, and where each hand and library card stood — see the header. */
+	let mark: { turn: number; players: number[]; at: Map<number, { holder: number; zone: string; index: number; name: string }> } | null = null;
+	/** Per player, the cards it has known since {@link mark} while they stood where the turn began with them. */
+	const sinceMark = new Map<number, Set<number>>();
+	/** Per player, the libraries it has seen shuffled since {@link mark}. */
+	const shuffledSinceMark = new Map<number, Set<number>>();
+	/** The replaced projector's {@link SeatProjector.carried}, until the first state with a turn takes it. */
+	let inherited: CarriedKnowledge | null = null;
 
 	/** The players this projection sees as: this seat's, or {@link EVERY_PLAYER}'s all of them. */
 	function viewers(): readonly number[] {
@@ -730,6 +773,11 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 			const place = libraryPlaces.get(cardId);
 			return at.zone === 'Library' && place?.holder === at.holder && nowOf.get(at.holder)?.indexOf(cardId) === place.index;
 		};
+		if (mark !== null) {
+			for (const player of nowOf.keys()) {
+				for (const holder of nowOf.keys()) if (shuffledFor(player, holder)) setOf(shuffledSinceMark, player).add(holder);
+			}
+		}
 		for (const [player, cards] of known) {
 			const shuffled = new Map<number, boolean>();
 			for (const [cardId, was] of cards) {
@@ -861,12 +909,85 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 		const zones = indexZones(raw);
 		const zonesBefore = zonesNow;
 		zonesNow = zones;
+		takeInherited();
 		settleKnown(zones, replaced, zonesBefore);
 		noteTopLooks(zones);
 		noteOthersShown(zones);
 		const out = new Map<number, Visibility>();
 		for (const cardId of cardsAndFaces().keys()) out.set(cardId, seen(zones, cardId));
+		markTurn();
+		keepSinceMark();
 		return out;
+	}
+
+	function setOf(map: Map<number, Set<number>>, player: number): Set<number> {
+		let set = map.get(player);
+		if (set === undefined) {
+			set = new Set();
+			map.set(player, set);
+		}
+		return set;
+	}
+
+	/** The game's players in its own order, and its turn — what a restored game is matched by. */
+	function gameNow(): { turn: number | null; players: number[] } {
+		const game = [...raw.values()].find((o) => o._type === DELTA_TYPE.game);
+		return { turn: intOf(game, 'Turn'), players: idsOf(game, 'Players') };
+	}
+
+	/** A card's current name off the raw state, null when it has none. */
+	function nameOf(cardId: number): string | null {
+		const name = tagOf(currentFace(raw, cardId), 'Name') ?? tagOf(raw.get(deltaKey(DELTA_TYPE.card, cardId)), 'Name');
+		return name?.t === 'str' && typeof name.v === 'string' && name.v !== '' ? name.v : null;
+	}
+
+	/** On the first state of a new turn: where every hand and library card stands, as the turn's snapshot has it. */
+	function markTurn(): void {
+		const { turn, players } = gameNow();
+		if (turn === null || turn === mark?.turn) return;
+		const at = new Map<number, { holder: number; zone: string; index: number; name: string }>();
+		for (const holder of players) {
+			const player = raw.get(deltaKey(DELTA_TYPE.player, holder));
+			for (const zone of STICKY_ZONES) {
+				idsOf(player, zone).forEach((cardId, index) => {
+					const name = nameOf(cardId);
+					if (name !== null) at.set(cardId, { holder, zone, index, name });
+				});
+			}
+		}
+		mark = { turn, players, at };
+		sinceMark.clear();
+		shuffledSinceMark.clear();
+	}
+
+	/** What each player knows now of a card still where the turn began with it, kept for a restore to that start. */
+	function keepSinceMark(): void {
+		if (mark === null) return;
+		for (const [player, cards] of known) {
+			for (const [cardId, at] of cards) {
+				const was = mark.at.get(cardId);
+				if (was === undefined || was.holder !== at.holder || was.zone !== at.zone) continue;
+				if (at.zone === 'Library' && shuffledSinceMark.get(player)?.has(at.holder) === true) continue;
+				setOf(sinceMark, player).add(cardId);
+			}
+		}
+	}
+
+	/** The replaced projector's knowledge, found in this game's first state with a turn by place and name. */
+	function takeInherited(): void {
+		if (inherited === null) return;
+		const { turn, players } = gameNow();
+		if (turn === null) return;
+		const from = inherited;
+		inherited = null;
+		if (turn !== from.turn) return;
+		for (const { knower, holder, zone, index, name } of from.cards) {
+			const knowerId = players[knower];
+			const holderId = players[holder];
+			if (knowerId === undefined || holderId === undefined) continue;
+			const cardId = idsOf(raw.get(deltaKey(DELTA_TYPE.player, holderId)), zone)[index];
+			if (cardId !== undefined && nameOf(cardId) === name) knownTo(knowerId).set(cardId, { zone, holder: holderId });
+		}
 	}
 
 	/**
@@ -1266,6 +1387,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 				if (at.zone === 'Library' && searched.has(at.holder)) continue;
 				knownTo(shownTo).set(cardId, at);
 			}
+			keepSinceMark();
 			const packet = projectPacket({ seq: lastSeq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] });
 			return Object.keys(packet.newObjects).length === 0 && Object.keys(packet.objectDeltas).length === 0
 				? null
@@ -1288,12 +1410,24 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 			return source === null ? null : coreTypes(raw, source);
 		},
 		cardAt(cardId: number): { name: string | null; zone: string | null } {
-			const face = currentFace(raw, cardId);
-			const name = tagOf(face, 'Name') ?? tagOf(raw.get(deltaKey(DELTA_TYPE.card, cardId)), 'Name');
-			return {
-				name: name?.t === 'str' && typeof name.v === 'string' && name.v !== '' ? name.v : null,
-				zone: indexZones(raw).byCard.get(cardId)?.zone ?? null,
-			};
+			return { name: nameOf(cardId), zone: indexZones(raw).byCard.get(cardId)?.zone ?? null };
+		},
+		carried(): CarriedKnowledge | null {
+			if (mark === null) return null;
+			const { turn, players, at } = mark;
+			const cards: CarriedKnowledge['cards'][number][] = [];
+			for (const [player, ids] of sinceMark) {
+				const knower = players.indexOf(player);
+				for (const cardId of ids) {
+					const was = at.get(cardId);
+					const holder = was === undefined ? -1 : players.indexOf(was.holder);
+					if (was !== undefined && knower >= 0 && holder >= 0) cards.push({ knower, holder, zone: was.zone, index: was.index, name: was.name });
+				}
+			}
+			return cards.length === 0 ? null : { turn, cards };
+		},
+		inherit(carried: CarriedKnowledge | null): void {
+			inherited = carried;
 		},
 		creatureCount(): number | null {
 			if (who === null) return null;
