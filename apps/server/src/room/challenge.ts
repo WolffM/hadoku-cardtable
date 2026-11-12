@@ -155,7 +155,10 @@ function roomInput(event: Loaded, seats: readonly string[], mine: number, field:
 		gameType: 'constructed-1v1',
 		clientMode: 'builtin',
 		historical: true,
-		historicalFormat: `${familyOf(event.record.event.format)}-${event.record.event.date}`,
+		// Standard-family era ids are the BARE date (`formatIdOf`); only Modern and
+		// Legacy prefix. A block format (ALICE) freezes under Standard's date-keyed
+		// fixture name, so its era id is the unprefixed date too.
+		historicalFormat: familyOf(event.record.event.format) === 'standard' ? event.record.event.date : `${familyOf(event.record.event.format)}-${event.record.event.date}`,
 		historicalField: seats.length,
 		// A Challenge plays the Swiss rounds its field needs to find one undefeated player, then cuts.
 		historicalStructure: field === 'full' ? { swiss: Math.ceil(Math.log2(seats.length)), cut: CUT } : { swiss: 0, cut: CUT },
@@ -169,5 +172,10 @@ function roomInput(event: Loaded, seats: readonly string[], mine: number, field:
 function familyOf(format: string): string {
 	if (format.startsWith('Legacy')) return 'legacy';
 	if (format.startsWith('Modern')) return 'modern';
+	// A block format (ALICE — Ice Age + Alliances) freezes under the Standard
+	// family's date-keyed fixture name (`standard-<date>`), the pool its own
+	// collection carries. It is not a Standard snapshot; the era id is just
+	// where the fixture lives.
+	if (format.startsWith('ALICE')) return 'standard';
 	throw new Error(`a Challenge in ${format} has no era family`);
 }
