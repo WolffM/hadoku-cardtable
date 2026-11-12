@@ -52,6 +52,7 @@ const relayNullHost: MatchHostFactory<RelayLine, RelayCommand> = inProcessHost<M
 interface RelayMatchInternalDeps extends HostedMatchDeps<RelayLine, RelayCommand> {
 	seatRejoinGraceMs?: number;
 	roomSeatOf: (participantId: ParticipantId) => number | null;
+	leaderSeat: () => number | null;
 	previous?: RelayEnded;
 }
 
@@ -78,6 +79,12 @@ export interface RelayMatchDeps extends Omit<HostedMatchDeps<RelayLine, RelayCom
 	 * every screen's `RoomView.seats` shows its owner — never by which socket arrived first.
 	 */
 	roomSeatOf: (participantId: ParticipantId) => number | null;
+	/**
+	 * The seat the room's leader holds now, or null when the leader holds none. Only that seat's
+	 * `{ t: 'over' }` ends the match: the protocol's host is the room's leader. Read fresh on every
+	 * `over`, so it follows leadership when the leader leaves the room (`Lobby.leave`).
+	 */
+	leaderSeat: () => number | null;
 }
 
 /**
@@ -153,10 +160,15 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 	 */
 	attach(sink: RelaySink, onEnded: (outcome: RelayOutcome | null) => void): RelaySession {
 		if (this.sessionRef !== null) return this.sessionRef;
-		const session = new RelaySession(this.seats.length, sink, (outcome) => {
-			this.applyEnded(outcome);
-			onEnded(outcome);
-		});
+		const session = new RelaySession(
+			this.seats.length,
+			sink,
+			(outcome) => {
+				this.applyEnded(outcome);
+				onEnded(outcome);
+			},
+			(seat) => this.mayEnd(seat),
+		);
 		this.sessionRef = session;
 		this.game = session;
 		// A relay match has no engine underneath it to wait for: it is `running` from the instant
@@ -166,6 +178,14 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 		for (const done of this.runningWaiters.splice(0)) done({ ok: true });
 		this.armRejoinGrace();
 		return session;
+	}
+
+	/** Only the leader's seat ends the match; anyone else's `over` is refused and logged. */
+	private mayEnd(seat: number): boolean {
+		const leaderSeat = this.deps.leaderSeat();
+		if (seat === leaderSeat) return true;
+		this.deps.log({ evt: 'relay-over-refused', matchId: this.id, seat, leaderSeat });
+		return false;
 	}
 
 	private applyEnded(outcome: RelayOutcome | null): void {

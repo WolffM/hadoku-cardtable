@@ -15,10 +15,10 @@ const ALICE = 'fk:aaaaaaaaaaaaaaaa';
 const BOB = 'fk:bbbbbbbbbbbbbbbb';
 const CAROL = 'fk:cccccccccccccccc';
 
-/** The room seats alice at 0 and bob at 1; anyone else watches. */
+/** The room seats alice at 0 and bob at 1, alice leads; anyone else watches. */
 function deps(overrides: Partial<RelayMatchDeps> = {}): RelayMatchDeps {
 	const roomSeats = [ALICE, BOB];
-	return { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null), ...overrides };
+	return { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null), leaderSeat: () => 0, ...overrides };
 }
 
 function sink(): { toSeat: ReturnType<typeof vi.fn>; toWatchers: ReturnType<typeof vi.fn> } {
@@ -102,6 +102,35 @@ describe('RelayMatch: the end recorded by the shell', () => {
 		session.seatLeft(1);
 		expect(m.status).toBe('over');
 		expect(m.result).toBeNull();
+	});
+});
+
+describe('RelayMatch: only the leader ends it', () => {
+	it("a seat that isn't the leader's sends over: refused and logged, relayed to nobody, and the match goes on", () => {
+		const logs: Record<string, unknown>[] = [];
+		const m = createRelayMatch('m1', 2, deps({ log: (e) => logs.push(e) }));
+		const s = sink();
+		const session = m.attach(s, () => {});
+		session.fromSeat(1, { t: 'over', winners: [1] });
+		expect(m.status).toBe('running');
+		expect(session.isEnded).toBe(false);
+		expect(s.toSeat).not.toHaveBeenCalled();
+		expect(s.toWatchers).not.toHaveBeenCalled();
+		expect(logs).toContainEqual({ evt: 'relay-over-refused', matchId: 'm1', seat: 1, leaderSeat: 0 });
+		// A refused over does not start the match either: the last result is still told.
+		session.fromSeat(0, { t: 'over', winners: [0] });
+		expect(m.status).toBe('over');
+		expect(m.result).toEqual({ winners: [0] });
+	});
+
+	it('a leader who holds no seat: nobody ends it with over; every seat leaving still does', () => {
+		const m = createRelayMatch('m1', 2, deps({ leaderSeat: () => null }));
+		const session = m.attach(sink(), () => {});
+		session.fromSeat(0, { t: 'over', winners: [0] });
+		expect(m.status).toBe('running');
+		session.seatLeft(0);
+		session.seatLeft(1);
+		expect(m.status).toBe('over');
 	});
 });
 
@@ -313,7 +342,14 @@ describe("room/lobby.ts's own hook (the ≤30-line start call site)", () => {
 	 *  (the import cycle back to `match.ts`'s `HostedMatch` it would otherwise close). */
 	function wireRelay(lobby: Awaited<ReturnType<typeof openLobby>>): void {
 		lobby.onRelayRoomOpened((roomId, seatCount) => {
-			relayMatches.register(roomId, seatCount, { log: () => {}, roomSeatOf: (p) => lobby.gameSeatOf(roomId, p) });
+			relayMatches.register(roomId, seatCount, {
+				log: () => {},
+				roomSeatOf: (p) => lobby.gameSeatOf(roomId, p),
+				leaderSeat: () => {
+					const leader = lobby.get(roomId)?.leader;
+					return leader === undefined ? null : lobby.gameSeatOf(roomId, leader);
+				},
+			});
 		});
 	}
 
@@ -369,6 +405,31 @@ describe("room/lobby.ts's own hook (the ≤30-line start call site)", () => {
 		expect(match.roleOf(carol.id)).toBeNull();
 		expect(match.roleOf(bob.id)).toBe(1);
 		expect(match.roleOf(ALICE_MEMBER.id)).toBe(0);
+	});
+
+	it("the leader leaves mid-match: leadership passes on (ruling 6), the new leader's over ends the match and the old one's is refused", async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		wireRelay(lobby);
+		const bob = { id: 'fk:2222222222222222', name: 'bob', userId: 'uid-bob' };
+		const made = lobby.create(ALICE_MEMBER, { name: 'relay leader leaves test', gameType: RELAY_LOBBY_TEST_TYPE.id, clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		const roomId = made.room.id;
+		expect(lobby.join(roomId, bob).ok).toBe(true);
+		const match = relayMatches.get(roomId);
+		if (match === undefined) throw new Error('no match registered');
+		expect(match.roleOf(ALICE_MEMBER.id)).toBe(0);
+		expect(match.roleOf(bob.id)).toBe(1);
+		const session = match.attach(sink(), () => {});
+		session.fromSeat(1, { t: 'over', winners: [1] });
+		expect(match.status).toBe('running');
+
+		expect(lobby.leave(roomId, ALICE_MEMBER.id).ok).toBe(true);
+		expect(lobby.get(roomId)?.leader).toBe(bob.id);
+		session.fromSeat(0, { t: 'over', winners: [0] });
+		expect(match.status).toBe('running');
+		session.fromSeat(1, { t: 'over', winners: [1] });
+		expect(match.status).toBe('over');
+		expect(match.result).toEqual({ winners: [1] });
 	});
 
 	it('an ordinary (non-relay) room registers no `RelayMatch` at all', async () => {

@@ -69,6 +69,12 @@ export class RelaySession implements GameSession<RelayLine, RelayCommand> {
 		private readonly sink: RelaySink,
 		/** Called once, the first time the match ends — by `{ t: 'over', winners }` or by every seat leaving. */
 		private readonly onEnded?: (outcome: RelayOutcome | null) => void,
+		/**
+		 * Whether `seat` may end the match with `{ t: 'over' }` — the protocol's host, the room's
+		 * leader. An `over` it refuses is not relayed at all (every other seat would take it as
+		 * final) and ends nothing. Absent: any seat may.
+		 */
+		private readonly mayEnd?: (seat: number) => boolean,
 	) {}
 
 	get isEnded(): boolean {
@@ -93,12 +99,14 @@ export class RelaySession implements GameSession<RelayLine, RelayCommand> {
 	 */
 	fromSeat(seat: number, msg: RelayMessage): void {
 		if (this.closed || this.left.has(seat)) return;
+		const over = isOverMessage(msg);
+		if (over && this.mayEnd !== undefined && !this.mayEnd(seat)) return;
 		this.relayedAny = true;
 		for (let other = 0; other < this.seatCount; other += 1) {
 			if (other !== seat) this.sink.toSeat(other, msg);
 		}
 		this.sink.toWatchers(msg);
-		if (isOverMessage(msg)) this.finish({ winners: msg.winners });
+		if (over) this.finish({ winners: msg.winners });
 	}
 
 	/**

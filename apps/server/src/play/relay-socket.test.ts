@@ -282,7 +282,7 @@ describe('relay:message', () => {
 	it("a rematch in the same room: every screen joins the room's next match with the same relay:join, its messages are delivered and its over recorded", async () => {
 		const reg = createRelayMatchRegistry();
 		const roomSeats = [participantOf('alice'), participantOf('bob')];
-		reg.register('m1', 2, { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null) });
+		reg.register('m1', 2, { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null), leaderSeat: () => 0 });
 		const h = await bootWith((matchId) => reg.get(matchId));
 		const alice = await connect(h.port, edgeHeaders('alice'));
 		const bob = await connect(h.port, edgeHeaders('bob'));
@@ -304,7 +304,7 @@ describe('relay:message', () => {
 		// Carol has not rejoined: the second match's message does not reach her.
 		expect(carol.messages).not.toContain('second match');
 
-		bob.send({ t: 'over', winners: [1] });
+		alice.send({ t: 'over', winners: [1] });
 		await waitUntil(() => h.ended.length === 2, 'the second match to end');
 		expect(h.ended[1]).toEqual({ matchId: 'm1', outcome: { winners: [1] } });
 	});
@@ -312,7 +312,7 @@ describe('relay:message', () => {
 	it("the result on reload: a screen that joins after the end is answered with it, until the room's next match is under way", async () => {
 		const reg = createRelayMatchRegistry();
 		const roomSeats = [participantOf('alice'), participantOf('bob')];
-		reg.register('m1', 2, { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null) });
+		reg.register('m1', 2, { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null), leaderSeat: () => 0 });
 		const h = await bootWith((matchId) => reg.get(matchId));
 		const alice = await connect(h.port, edgeHeaders('alice'));
 		const bob = await connect(h.port, edgeHeaders('bob'));

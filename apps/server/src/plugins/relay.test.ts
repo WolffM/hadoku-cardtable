@@ -62,7 +62,7 @@ describe('relayPlugin', () => {
 
 	it("rosterOf reads runtimes/relay-match.ts's own registry: a registered match answers a join, an unregistered id refuses it", async () => {
 		const { relayMatches } = await import('../play/runtimes/relay-match.ts');
-		const match = relayMatches.register('m-plugin-test', 2, { log: () => {}, roomSeatOf: () => null });
+		const match = relayMatches.register('m-plugin-test', 2, { log: () => {}, roomSeatOf: () => null, leaderSeat: () => null });
 		const ctx = fakeCtx();
 		await relayPlugin.setup(ctx);
 		expect(match.roleOf('fk:zzzzzzzzzzzzzzzz')).not.toBeUndefined();
@@ -86,6 +86,26 @@ describe('relayPlugin', () => {
 		match.seatDisconnected(0);
 		expect(logged.filter((e) => e.evt === 'relay-seat-held')).toEqual([{ evt: 'relay-seat-held', matchId: 'm-grace-test', seat: 0, graceMs: 120_000 }]);
 		match.seatConnected(0);
+	});
+
+	it("a relay room's match ends only on the over of the seat the room's leader holds", async () => {
+		const { relayMatches } = await import('../play/runtimes/relay-match.ts');
+		const ctx = fakeCtx();
+		const leader = 'fk:llllllllllllllll';
+		Object.assign(ctx.state.lobby, {
+			get: (roomId: string) => (roomId === 'm-leader-test' ? { leader } : undefined),
+			gameSeatOf: (_roomId: string, memberId: string) => (memberId === leader ? 1 : 0),
+		});
+		await relayPlugin.setup(ctx);
+		const hook = vi.mocked(ctx.state.lobby.onRelayRoomOpened).mock.calls[0]![0];
+		hook('m-leader-test', 2, 'relay-plugin-leader-test');
+		const match = relayMatches.get('m-leader-test');
+		if (match === undefined) throw new Error('no match registered');
+		const session = match.attach({ toSeat: () => {}, toWatchers: () => {} }, () => {});
+		session.fromSeat(0, { t: 'over', winners: [0] });
+		expect(match.status).toBe('running');
+		session.fromSeat(1, { t: 'over', winners: [1] });
+		expect(match.result).toEqual({ winners: [1] });
 	});
 });
 
