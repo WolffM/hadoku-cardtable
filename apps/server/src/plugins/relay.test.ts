@@ -67,6 +67,26 @@ describe('relayPlugin', () => {
 		await relayPlugin.setup(ctx);
 		expect(match.roleOf('fk:zzzzzzzzzzzzzzzz')).not.toBeUndefined();
 	});
+
+	it("a relay room's match gets its game type's own seat rejoin grace: bomberman's seat hold reaches the match", async () => {
+		const { relayMatches } = await import('../play/runtimes/relay-match.ts');
+		const { BOMBERMAN_GAME_TYPE_SPEC, registerGameType } = await import('@hadoku/shared');
+		registerGameType(BOMBERMAN_GAME_TYPE_SPEC);
+		const ctx = fakeCtx();
+		const logged: Record<string, unknown>[] = [];
+		(ctx.state as unknown as { roomsLog: (e: Record<string, unknown>) => void }).roomsLog = (e) => logged.push(e);
+		await relayPlugin.setup(ctx);
+		const hook = vi.mocked(ctx.state.lobby.onRelayRoomOpened).mock.calls[0]![0];
+		hook('m-grace-test', 10, BOMBERMAN_GAME_TYPE_SPEC.id);
+		const match = relayMatches.get('m-grace-test');
+		if (match === undefined) throw new Error('no match registered');
+		match.attach({ toSeat: () => {}, toWatchers: () => {} }, () => {});
+		match.roleOf('fk:gggggggggggggggg');
+		match.seatConnected(0);
+		match.seatDisconnected(0);
+		expect(logged.filter((e) => e.evt === 'relay-seat-held')).toEqual([{ evt: 'relay-seat-held', matchId: 'm-grace-test', seat: 0, graceMs: 120_000 }]);
+		match.seatConnected(0);
+	});
 });
 
 describe("relayPlugin, CARDTABLE_PLAY_PROBE=1 (e2e/play/harness.ts's own posture)", () => {

@@ -256,6 +256,21 @@ describe('relay:message', () => {
 		expect(h.handle.sessionOf('m1')).toBeUndefined();
 	});
 
+	it("the end reaches every screen as relay:ended — the sender of over and the watcher too — so the room can show it", async () => {
+		const h = await boot({ m1: { seatCount: 2, seats: { 0: 'alice', 1: 'bob' }, watchers: ['carol'] } });
+		const { alice, bob, carol } = await seated(h);
+		const heard = (p: Peer): unknown[] => {
+			const got: unknown[] = [];
+			p.socket.on('relay:ended', (w: unknown) => got.push(w));
+			return got;
+		};
+		const [a, b, c] = [heard(alice), heard(bob), heard(carol)];
+		alice.send({ t: 'over', winners: [1] });
+		await waitUntil(() => a.length === 1 && b.length === 1 && c.length === 1, 'every screen to hear the end');
+		expect([a, b, c]).toEqual([[{ winners: [1] }], [{ winners: [1] }], [{ winners: [1] }]]);
+		expect(h.logs).toContainEqual({ evt: 'relay-ended', matchId: 'm1', winners: [1] });
+	});
+
 	it('answers 429 once a caller has spent their joins, and only for that caller', async () => {
 		const h = await boot(
 			{ m1: { seatCount: 2, seats: { 0: 'alice', 1: 'bob' }, watchers: [] } },

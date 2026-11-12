@@ -11,7 +11,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { HadokuThemeProvider, type HadokuThemeValue } from '@wolffm/themes';
 import { registerGameType } from '@hadoku/shared';
 
@@ -23,14 +23,18 @@ vi.mock('../room/whoami.ts', () => ({ useWhoami: () => who }));
 /** `relayChannelCalls`: every `openRelayChannel`/`close()` call, so a test can assert on the
  *  room this file opened a channel for and that unmounting disposed it — a real socket is
  *  `relay-channel.test.ts`'s own job, not this component's. */
-const relayChannelCalls: { matchId: string; closed: boolean }[] = [];
+const relayChannelCalls: { matchId: string; closed: boolean; ended: Set<(winners: readonly number[] | null) => void> }[] = [];
 vi.mock('./relay-channel.ts', () => ({
   openRelayChannel: (matchId: string) => {
-    const entry = { matchId, closed: false };
+    const entry = { matchId, closed: false, ended: new Set<(winners: readonly number[] | null) => void>() };
     relayChannelCalls.push(entry);
     return {
       send: vi.fn(),
       on: () => () => {},
+      onEnded: (handler: (winners: readonly number[] | null) => void) => {
+        entry.ended.add(handler);
+        return () => entry.ended.delete(handler);
+      },
       close: () => {
         entry.closed = true;
       },
@@ -75,7 +79,7 @@ function themeValue(theme: string): HadokuThemeValue {
 }
 
 function aView(members: RoomViewBase['members'], overrides: Partial<RoomViewBase> = {}): RoomViewBase {
-  return { id: 'room-a', name: 'Test room', gameType: 'bomberman', members, you: { id: 'u1', leader: false }, ...overrides };
+  return { id: 'room-a', name: 'Test room', gameType: 'plain-bundle-test', members, you: { id: 'u1', leader: false }, ...overrides };
 }
 
 function renderSlot(props: { view: RoomViewBase | null; me: { userId: string; isLeader: boolean } }) {
@@ -180,7 +184,7 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
     const members = [{ id: 'u1', name: 'u1' }, { id: 'u2', name: 'u2' }];
     renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true } });
 
-    await waitFor(() => expect(relayChannelCalls).toEqual([{ matchId: 'room-relay', closed: false }]));
+    await waitFor(() => expect(relayChannelCalls).toMatchObject([{ matchId: 'room-relay', closed: false }]));
     // Whichever call carries it first: `mountGameBundle` applies any `update()` that lands while
     // its dynamic `import()` is still in flight to the mount itself (`@hadoku/rooms-client`'s own
     // `mountedCtx`/`latest`), so the channel — attached moments after the first render — often
@@ -190,13 +194,27 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
     expect(withChannel[1].channel).toBeDefined();
   });
 
+  it("shows the host's result under the game, naming the winners by the bundle's own seat numbers", async () => {
+    const members = [{ id: 'u1', name: 'Ann' }, { id: 'u2', name: 'Bob' }];
+    renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true } });
+    await waitFor(() => expect(relayChannelCalls[0]?.ended.size).toBe(1));
+    expect(screen.queryByTestId('room-bundle-result')).toBeNull();
+
+    act(() => {
+      for (const handler of relayChannelCalls[0]!.ended) handler([1]);
+    });
+    const result = await screen.findByTestId('room-bundle-result');
+    expect(result.textContent).toBe('Bob won');
+    expect(result.getAttribute('data-winners')).toBe('1');
+  });
+
   it('closes the channel on unmount', async () => {
     const { unmount } = renderSlot({ view: aView([{ id: 'u1', name: 'u1' }], { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: false } });
     await waitFor(() => expect(relayChannelCalls).toHaveLength(1));
 
     unmount();
 
-    expect(relayChannelCalls[0]).toEqual({ matchId: 'room-relay', closed: true });
+    expect(relayChannelCalls[0]).toMatchObject({ matchId: 'room-relay', closed: true });
   });
 
   it('never opens a channel for an ordinary (non-relay) game type', async () => {
@@ -211,7 +229,7 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
   it("at most one channel is ever live: moving to a different relay room closes the first BEFORE the second opens, never both at once", async () => {
     const { rerender } = renderSlot({ view: aView([{ id: 'u1', name: 'u1' }], { id: 'room-relay-1', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: false } });
     await waitFor(() => expect(relayChannelCalls).toHaveLength(1));
-    expect(relayChannelCalls[0]).toEqual({ matchId: 'room-relay-1', closed: false });
+    expect(relayChannelCalls[0]).toMatchObject({ matchId: 'room-relay-1', closed: false });
 
     rerender(
       createElement(HadokuThemeProvider, {
@@ -226,7 +244,7 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
 
     await waitFor(() => expect(relayChannelCalls).toHaveLength(2));
     // The FIRST room's channel is closed; never two live channels for one slot at once.
-    expect(relayChannelCalls[0]).toEqual({ matchId: 'room-relay-1', closed: true });
-    expect(relayChannelCalls[1]).toEqual({ matchId: 'room-relay-2', closed: false });
+    expect(relayChannelCalls[0]).toMatchObject({ matchId: 'room-relay-1', closed: true });
+    expect(relayChannelCalls[1]).toMatchObject({ matchId: 'room-relay-2', closed: false });
   });
 });

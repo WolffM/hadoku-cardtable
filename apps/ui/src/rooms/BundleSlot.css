@@ -22,6 +22,11 @@
   background: var(--bg-raised);
 }
 
+.room-bundle-slot__result {
+  margin: 0;
+  font-weight: 600;
+}
+
 .room-bundle-slot__error {
   margin: 0;
   color: var(--danger);

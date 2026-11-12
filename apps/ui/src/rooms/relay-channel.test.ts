@@ -60,6 +60,9 @@ async function fakeRelayServer(): Promise<FakeRelay> {
 		socket.on('relay:message', (msg) => {
 			messages.push({ from: socket.id, msg });
 			for (const other of sockets) if (other !== socket) other.emit('relay:message', msg);
+			// The host's end, as `relay-socket.ts` sends it: to every socket, the sender's too.
+			const over = msg as { t?: unknown; winners?: unknown };
+			if (over.t === 'over') for (const any of sockets) any.emit('relay:ended', { winners: over.winners });
 		});
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
@@ -119,6 +122,25 @@ describe('openRelayChannel', () => {
 			await waitUntil(() => bobHeard.length === 1, 'bob to hear alice');
 			expect(bobHeard).toEqual([{ hi: 1 }]);
 			expect(aliceHeard).toEqual([]);
+		} finally {
+			await server.close();
+		}
+	});
+
+	it("onEnded() hears the host's relay:ended on every channel, the over's own sender included", async () => {
+		const server = await fakeRelayServer();
+		try {
+			const alice = openRelayChannel('room-a', { url: server.url, path: '/socket.io/' });
+			const bob = openRelayChannel('room-a', { url: server.url, path: '/socket.io/' });
+			openChannels.push(alice, bob);
+			await waitUntil(() => server.joins.length === 2, 'both to join');
+			const aliceEnded: unknown[] = [];
+			const bobEnded: unknown[] = [];
+			alice.onEnded((w) => aliceEnded.push(w));
+			bob.onEnded((w) => bobEnded.push(w));
+			alice.send({ t: 'over', winners: [1] });
+			await waitUntil(() => aliceEnded.length === 1 && bobEnded.length === 1, 'both to hear the end');
+			expect([aliceEnded, bobEnded]).toEqual([[[1]], [[1]]]);
 		} finally {
 			await server.close();
 		}

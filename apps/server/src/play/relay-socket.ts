@@ -39,6 +39,10 @@ import { type RelayMessage, type RelayOutcome, type RelaySession, type RelaySink
 export const RELAY_EVENTS = {
 	join: 'relay:join',
 	message: 'relay:message',
+	/** The host's own word that the match ended: `{ winners }` (the `over` message's seat
+	 *  numbers), or `{ winners: null }` when every seat left. To every live socket of the match,
+	 *  the sender of `over` and every watcher included, so the room can show the result. */
+	ended: 'relay:ended',
 } as const;
 
 /** Joins per caller: a burst of 10, then one every 10 s. A seat opens one
@@ -144,7 +148,12 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 				},
 			},
 			(outcome) => {
+				const ending = live.get(matchId);
+				const word = { winners: outcome?.winners ?? null };
+				for (const set of ending?.seatSockets.values() ?? []) for (const s of set) s.emit(RELAY_EVENTS.ended, word);
+				for (const s of ending?.watcherSockets ?? []) s.emit(RELAY_EVENTS.ended, word);
 				live.delete(matchId);
+				log({ evt: 'relay-ended', matchId, winners: word.winners });
 				deps.onEnded?.(matchId, outcome);
 			},
 		);

@@ -168,6 +168,7 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 		if (timer !== undefined) {
 			clearTimeout(timer);
 			this.seatGrace.delete(seat);
+			this.deps.log({ evt: 'relay-seat-back', matchId: this.id, seat });
 		}
 	}
 
@@ -179,10 +180,12 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 			this.seatGrace.delete(seat);
 			const s = this.seats[seat];
 			if (s === undefined || s.here) return;
+			this.deps.log({ evt: 'relay-seat-left', matchId: this.id, seat });
 			this.game.command(this.concedeCommand(seat));
 		}, grace);
 		timer.unref();
 		this.seatGrace.set(seat, timer);
+		this.deps.log({ evt: 'relay-seat-held', matchId: this.id, seat, graceMs: grace });
 	}
 
 	protected onLine(_line: RelayLine): void {

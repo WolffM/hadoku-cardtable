@@ -28,7 +28,16 @@ import { defaultSocketPath, socketOptions } from '../room/socket-options.ts';
  * `relay:join` the server answers would simply go unrecognised at the join ack's own shape,
  * which `relay-fixture.spec.ts` (e2e) exercises end to end.
  */
-const RELAY_EVENTS = { join: 'relay:join', message: 'relay:message' } as const;
+const RELAY_EVENTS = { join: 'relay:join', message: 'relay:message', ended: 'relay:ended' } as const;
+
+/**
+ * A `MatchChannel` plus the host's own word that the match ended — the room's, never the
+ * bundle's: `winners` are the seat numbers of the `{ t: 'over', winners }` that ended it (the
+ * bundle's own `ctx.match` numbering), or null when every seat left.
+ */
+export interface RelayChannel extends MatchChannel {
+  onEnded(handler: (winners: readonly number[] | null) => void): () => void;
+}
 
 export interface RelayChannelOptions {
   /** The server's origin, e.g. `http://localhost:9008`. Omitted: same origin (production). */
@@ -42,11 +51,12 @@ export interface RelayChannelOptions {
  * match id for this kind of room; see `rooms/BundleSlot.tsx`'s own doc) and returns it as a
  * `MatchChannel`. `close()` disconnects the socket for good; call it once, on unmount.
  */
-export function openRelayChannel(matchId: string, options: RelayChannelOptions = {}): MatchChannel {
+export function openRelayChannel(matchId: string, options: RelayChannelOptions = {}): RelayChannel {
   const path = options.path ?? defaultSocketPath();
   const settings = socketOptions(path);
   const socket: Socket = options.url === undefined ? io(settings) : io(options.url, settings);
   const handlers = new Set<(msg: unknown) => void>();
+  const endedHandlers = new Set<(winners: readonly number[] | null) => void>();
   let closed = false;
 
   const join = (): void => {
@@ -64,7 +74,19 @@ export function openRelayChannel(matchId: string, options: RelayChannelOptions =
     for (const handler of [...handlers]) handler(msg);
   });
 
+  socket.on(RELAY_EVENTS.ended, (word: { winners?: unknown } | null) => {
+    if (closed) return;
+    const raw = word?.winners;
+    const winners = Array.isArray(raw) && raw.every((w) => typeof w === 'number') ? (raw as number[]) : null;
+    for (const handler of [...endedHandlers]) handler(winners);
+  });
+
   return {
+    onEnded(handler) {
+      if (closed) return () => {};
+      endedHandlers.add(handler);
+      return () => endedHandlers.delete(handler);
+    },
     send(msg) {
       if (closed) return;
       socket.emit(RELAY_EVENTS.message, msg);
@@ -78,6 +100,7 @@ export function openRelayChannel(matchId: string, options: RelayChannelOptions =
       if (closed) return;
       closed = true;
       handlers.clear();
+      endedHandlers.clear();
       socket.disconnect();
     },
   };

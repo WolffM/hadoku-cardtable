@@ -138,6 +138,36 @@ describe('RelayMatch: a seat past its own rejoin grace', () => {
 		expect(m.status).toBe('running');
 	});
 
+	it('logs the hold with its grace, the return, and a leave past it', () => {
+		const logged: Record<string, unknown>[] = [];
+		const m = createRelayMatch('m1', 2, deps({ seatRejoinGraceMs: 1000, log: (e) => logged.push(e) }));
+		m.attach(sink(), () => {});
+		m.roleOf(ALICE);
+		m.roleOf(BOB);
+		m.seatConnected(0);
+		m.seatConnected(1);
+		m.seatDisconnected(1);
+		m.seatConnected(1);
+		m.seatDisconnected(0);
+		vi.advanceTimersByTime(1001);
+		const relay = logged.filter((e) => String(e.evt).startsWith('relay-seat-'));
+		expect(relay).toEqual([
+			{ evt: 'relay-seat-held', matchId: 'm1', seat: 1, graceMs: 1000 },
+			{ evt: 'relay-seat-back', matchId: 'm1', seat: 1 },
+			{ evt: 'relay-seat-held', matchId: 'm1', seat: 0, graceMs: 1000 },
+			{ evt: 'relay-seat-left', matchId: 'm1', seat: 0 },
+		]);
+	});
+
+	it('with no grace, a drop logs no hold', () => {
+		const logged: Record<string, unknown>[] = [];
+		const m = createRelayMatch('m1', 2, deps({ log: (e) => logged.push(e) }));
+		m.attach(sink(), () => {});
+		m.roleOf(ALICE);
+		m.seatConnected(0);
+		m.seatDisconnected(0);
+		expect(logged.filter((e) => String(e.evt).startsWith('relay-seat-'))).toEqual([]);
+	});
 });
 
 describe('RelayMatch.serverStopping', () => {
@@ -223,6 +253,29 @@ describe("room/lobby.ts's own hook (the ≤30-line start call site)", () => {
 			relayMatches.register(roomId, seatCount, { log: () => {} });
 		});
 	}
+
+	it("the hook is told the room's game type, so the plugin can read that type's own spec", async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const told: unknown[][] = [];
+		lobby.onRelayRoomOpened((...args) => told.push(args));
+		const made = lobby.create(ALICE_MEMBER, { name: 'relay type test', gameType: RELAY_LOBBY_TEST_TYPE.id, clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		expect(told).toEqual([[made.room.id, 2, RELAY_LOBBY_TEST_TYPE.id]]);
+	});
+
+	it('a relay room restored from disk gets a fresh RelayMatch the moment the hook is wired: no match outlives a restart, the room does', async () => {
+		const dir = await tempDir();
+		const before = await openLobby({ dir });
+		const made = before.create(ALICE_MEMBER, { name: 'relay restart test', gameType: RELAY_LOBBY_TEST_TYPE.id, clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		const ordinary = before.create(ALICE_MEMBER, { name: 'ordinary restart test', gameType: NON_RELAY_TEST_TYPE.id, clientMode: 'builtin' });
+		if (!ordinary.ok) throw new Error(ordinary.reason);
+
+		const after = await openLobby({ dir });
+		const told: unknown[][] = [];
+		after.onRelayRoomOpened((...args) => told.push(args));
+		expect(told).toEqual([[made.room.id, 2, RELAY_LOBBY_TEST_TYPE.id]]);
+	});
 
 	it("a `runtime: 'relay'` room registers a `RelayMatch` under its own room id, sized from the game type's seats, the moment it is created", async () => {
 		const lobby = await openLobby({ dir: await tempDir() });

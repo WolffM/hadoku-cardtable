@@ -32,15 +32,22 @@
  *
  * A room whose game type says `runtime: 'relay'` (`packages/shared/src/game-type-spec.ts`) gets a
  * `MatchChannel` built from a relay socket (`./relay-channel.ts`), the host's own transport for a
- * game with no server of its own — never both a channel AND the game's own server; today only
- * bomberman registers at all, and it does not set `runtime` yet (phase 6's own step). The channel
- * is opened once per room (`view.id`), not rebuilt on every `ctx` change, and disposed the moment
- * this slot stops needing it — a room that is no longer relay-typed, or unmounts.
+ * game with no server of its own — never both a channel AND the game's own server (bomberman is
+ * one). The channel is opened once per room (`view.id`), not rebuilt on every `ctx` change, and
+ * disposed the moment this slot stops needing it — a room that is no longer relay-typed, or
+ * unmounts.
+ *
+ * ## The result
+ *
+ * When the relay match ends on the leader's `{ t: 'over', winners }`, the host says so to every
+ * screen (`relay:ended`), and this slot shows the winners under the game: the room's result,
+ * not the bundle's. `winners` are seat numbers in `match.seats`' numbering above — the one the
+ * bundle itself was handed — so they name the same people on every screen.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { mountGameBundle, type GameBundleHandle } from '@wolffm/rooms-client';
-import type { GameBundleContext, MatchChannel, MatchInfo, SeatInfo } from '@wolffm/rooms-protocol';
+import type { GameBundleContext, MatchInfo, SeatInfo } from '@wolffm/rooms-protocol';
 import { useHadokuTheme } from '@wolffm/themes';
 // A relative cross-package import, not `@hadoku/shared`'s own barrel: the layer ratchet
 // (`scripts/layers/scan.ts`) resolves a bare `@hadoku/shared` specifier to the PACKAGE's overall
@@ -55,7 +62,7 @@ import { gameTypeSpec } from '../../../../packages/shared/src/game-type-spec.ts'
 
 import { useWhoami } from '../room/whoami.ts';
 import type { RoomViewBase } from './game-setup.ts';
-import { openRelayChannel } from './relay-channel.ts';
+import { openRelayChannel, type RelayChannel } from './relay-channel.ts';
 // The relay channel's own e2e fixture (`relay-test`), never a real room type: a side-effect
 // import, exactly as `composition.tsx` imports `rooms/games/bomberman.tsx` — see that module's
 // own doc for the flag it reads before registering anything.
@@ -88,7 +95,9 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
   const who = useWhoami();
 
   const isRelay = view !== null && gameTypeSpec(view.gameType)?.runtime === 'relay';
-  const [channel, setChannel] = useState<MatchChannel | null>(null);
+  const [channel, setChannel] = useState<RelayChannel | null>(null);
+  /** The relay match's winners once it ended on an `over`; null until then. */
+  const [winners, setWinners] = useState<readonly number[] | null>(null);
 
   // One channel per room, never rebuilt on a theme/identity/seat change — disposed the moment
   // this slot no longer needs one (a different room, or this one turning out not to be relay).
@@ -96,9 +105,12 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
     if (!isRelay || view === null) return;
     const ch = openRelayChannel(view.id);
     setChannel(ch);
+    const offEnded = ch.onEnded((ended) => setWinners(ended));
     return () => {
+      offEnded();
       ch.close();
       setChannel(null);
+      setWinners(null);
     };
   }, [isRelay, view?.id]);
 
@@ -150,6 +162,11 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
   return (
     <div className="room-bundle-slot" data-testid="room-bundle-slot">
       <div ref={hostRef} className="room-bundle-slot__host" />
+      {winners !== null && winners.length > 0 && view !== null && (
+        <p className="room-bundle-slot__result" data-testid="room-bundle-result" data-winners={winners.join(',')}>
+          {winners.map((w) => view.members[w]?.name ?? `Seat ${w + 1}`).join(', ')} won
+        </p>
+      )}
       {error !== null && (
         <div role="alert" className="room-bundle-slot__error" data-testid="room-bundle-slot-error">
           {error}

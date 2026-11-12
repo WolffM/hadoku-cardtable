@@ -67,11 +67,15 @@ export interface GameTypeSpec {
    * This game type's match runs on the relay runtime — the host has no engine of its own for it,
    * only seats, watchers and a channel each seat's bundle speaks over
    * (`apps/server/src/play/runtimes/relay.ts`'s `RelaySession`, `apps/ui/src/rooms/relay-channel.ts`
-   * on the client). Absent (every game type before this) is today's behaviour: no channel, same
-   * as before this field existed. Bomberman's own registration does not set this yet — its bundle
-   * still runs its own server until a later step wires it to the relay.
+   * on the client). Absent is a game with an engine or server of its own: no channel.
    */
   runtime?: 'relay';
+  /**
+   * A relay match's seat that drops is held this long for its player to come back; past it the
+   * seat leaves the match (`runtimes/relay-match.ts`'s `seatRejoinGraceMs`). Absent or 0: a seat
+   * that drops is held for as long as the match lasts. Read only for `runtime: 'relay'`.
+   */
+  seatRejoinGraceMs?: number;
   /** Whether the room waits on a ready step before it may start (a countdown with none, say). */
   ready: boolean;
   bots?: BotFill;

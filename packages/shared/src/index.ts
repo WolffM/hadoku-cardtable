@@ -499,6 +499,7 @@ export {
   type BotFill,
   type GameCodec,
 } from './game-type-spec.ts';
+export { BOMBERMAN_GAME_TYPE, BOMBERMAN_GAME_TYPE_SPEC } from './bomberman-game-type.ts';
 export {
   AVATAR_ID_MAX,
   CLIENT_MODES,

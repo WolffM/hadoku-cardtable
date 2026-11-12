@@ -21,7 +21,7 @@
  * the same gate `MatchSpec.scenario` already uses for the same reason
  * (`host.ts`'s own doc on that field).
  */
-import { registerGameType } from '@hadoku/shared';
+import { gameTypeSpec, registerGameType } from '@hadoku/shared';
 import { CONFIG } from '../config.js';
 import { attachRelay } from '../play/relay-socket.js';
 import { relayMatches } from '../play/runtimes/relay-match.js';
@@ -44,12 +44,17 @@ export const relayPlugin: CardtablePlugin = {
 				canStart: (seated) => (seated >= 2 ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
 			});
 		}
-		ctx.state.lobby.onRelayRoomOpened((roomId, seatCount) => {
-			relayMatches.register(roomId, seatCount, { log: (entry) => ctx.state.roomsLog(entry) });
+		const log = (entry: Record<string, unknown>): void => ctx.state.roomsLog(entry);
+		// The game type's own rejoin grace reaches the match here: a seat that drops is held that
+		// long (bomberman's is its own server's seat hold), then leaves the match.
+		ctx.state.lobby.onRelayRoomOpened((roomId, seatCount, gameType) => {
+			const seatRejoinGraceMs = gameTypeSpec(gameType)?.seatRejoinGraceMs;
+			relayMatches.register(roomId, seatCount, { log, ...(seatRejoinGraceMs === undefined ? {} : { seatRejoinGraceMs }) });
 		});
 		const relay = attachRelay(ctx.io, {
 			minTier: CONFIG.minTier,
 			rosterOf: (matchId) => relayMatches.get(matchId),
+			log,
 		});
 		return {
 			shutdown: () => {

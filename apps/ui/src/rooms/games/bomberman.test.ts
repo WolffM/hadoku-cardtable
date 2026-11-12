@@ -5,6 +5,7 @@
  */
 import { isValidElement } from 'react';
 import { describe, expect, it } from 'vitest';
+import { gameTypeSpec } from '@hadoku/shared';
 
 import { BundleSlot } from '../BundleSlot.tsx';
 import { gameRoomUiFor } from '../game-setup.ts';
@@ -12,6 +13,10 @@ import type { GameSetupProps } from '../game-setup.ts';
 import { BOMBERMAN_EMBED_SRC } from './bomberman.tsx';
 
 describe('rooms/games/bomberman.tsx', () => {
+  it("registers bomberman's spec on the client too, relay runtime and all, so its room gets a channel", () => {
+    expect(gameTypeSpec('bomberman')).toMatchObject({ runtime: 'relay', seatRejoinGraceMs: 120_000, seats: { min: 2, max: 10 } });
+  });
+
   it('registers "bomberman" with no setup (nothing above the seats) and a game that is a BundleSlot at the embed path', () => {
     const ui = gameRoomUiFor('bomberman');
     expect(ui).not.toBeNull();
