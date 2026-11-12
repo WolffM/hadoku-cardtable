@@ -616,13 +616,19 @@ export const WATCHER_SEAT = -1;
 /** The shell's members a Forge game reads or moves: its status, its clock, the replay gag, the host its acts go out on. */
 type ShellView = Pick<
 	MatchShell<BridgeLine, BridgeCommand>,
-	'status' | 'failure' | 'replaying' | 'host' | 'concededBy' | 'clock' | 'runningWaiters' | 'syncClock' | 'watchConcede' | 'noteActivity' | 'tellRestart' | 'armRejoinGrace' | 'fail'
+	'status' | 'failure' | 'replaying' | 'host' | 'concededBy' | 'clock' | 'runningWaiters' | 'syncClock' | 'watchConcede' | 'noteActivity' | 'tellRestart' | 'undoMoved' | 'armRejoinGrace' | 'fail'
 >;
 
 export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	readonly id: string;
 	readonly epoch: string;
 	readonly seats: SeatState[];
+	/** How many of the game's log lines have come from the bridge: the next one's `n` (`GameLogLine.n`). */
+	private logLines = 0;
+	/** Each seat's last `undo` line from the bridge: whether it can take an action back, and the history it would rewind. */
+	private readonly undo = new Map<number, { can: boolean; version: number }>();
+	/** The heap the game's undo history pinned at its last `undo` line, in bytes. */
+	private undoHeld = 0;
 	private readonly deps: MatchDeps;
 	private readonly now: () => number;
 	private readonly spec: MatchSpec;
@@ -2607,12 +2613,13 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 * told is not the watchers' either.
 	 */
 	private onGameLog(line: Extract<BridgeLine, { t: 'log' }>): void {
-		this.holdWatcherLog(line);
+		const n = this.logLines++;
+		this.holdWatcherLog(line, n);
 		for (const s of this.seats) {
 			if (s.ai || s.playerId === null) continue;
 			const mine = line.players.find((p) => p.player === s.playerId);
 			if (mine === undefined || mine.text === null || mine.text === '') continue;
-			s.heldLog.push({ text: mine.text, log: { type: line.type, cards: mine.cards, ...line.meta } });
+			s.heldLog.push({ text: mine.text, log: { type: line.type, cards: mine.cards, ...line.meta, n } });
 			this.releaseLog(s, false);
 			if (s.heldLog.length > 0 && s.heldLogTimer === null) {
 				const timer = setTimeout(() => {
@@ -2651,12 +2658,12 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	}
 
 	/** {@link Match.onGameLog}'s watcher half: the line in the active player's words, held for {@link Match.releaseWatcherLog}. */
-	private holdWatcherLog(line: Extract<BridgeLine, { t: 'log' }>): void {
+	private holdWatcherLog(line: Extract<BridgeLine, { t: 'log' }>, n: number): void {
 		const w = this.watcher;
 		const active = w.projector.activePlayer() ?? this.watcherSource()?.playerId ?? null;
 		const theirs = line.players.find((p) => p.player === active);
 		if (theirs === undefined || theirs.text === null || theirs.text === '') return;
-		w.heldLog.push({ text: theirs.text, log: { type: line.type, cards: theirs.cards, ...line.meta } });
+		w.heldLog.push({ text: theirs.text, log: { type: line.type, cards: theirs.cards, ...line.meta, n } });
 		this.releaseWatcherLog(false);
 		if (w.heldLog.length > 0 && w.heldLogTimer === null) {
 			const timer = setTimeout(() => {
@@ -2684,6 +2691,39 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			clearTimeout(w.heldLogTimer);
 			w.heldLogTimer = null;
 		}
+	}
+
+	/**
+	 * An undo took back the game's log lines from `keep` on (the bridge's `log-truncated`): they go from every seat's
+	 * held and kept lines, so a resync agrees, and every screen is told to drop them (`logCut`).
+	 */
+	private cutLog(keep: number): void {
+		this.logLines = keep;
+		const cut = { kind: 'notify', method: 'message', message: '', title: '', logCut: keep } as unknown as ServerFrame;
+		const kept = (log: GameLogLine | undefined): boolean => log?.n === undefined || log.n < keep;
+		for (const s of this.seats) {
+			if (s.ai || s.playerId === null) continue;
+			s.heldLog = s.heldLog.filter((h) => kept(h.log));
+			s.says = s.says.filter((f) => kept((f as { log?: GameLogLine }).log));
+			this.send(s, cut);
+		}
+		this.watcher.heldLog = this.watcher.heldLog.filter((h) => kept(h.log));
+		this.sendWatcher(cut);
+	}
+
+	/** The heap this game's undo history pins, as the bridge last said (capacity's `undoMb`). */
+	undoBytes(): number {
+		return this.undoHeld;
+	}
+
+	/** What this seat could take back now: its last `undo` line. */
+	takeBack(seat: number): { can: boolean; version: number } | null {
+		return this.undo.get(seat) ?? null;
+	}
+
+	/** Take back this seat's last action, at the history the other seat allowed (`PlayBridge.java`'s `rewind`). */
+	rewind(seat: number, version: number): void {
+		this.command({ t: 'rewind', seat, version });
 	}
 
 	/** What this seat was last told, as the stop decisions read it (`auto.ts`). */
@@ -3616,6 +3656,23 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			}
 			case 'log':
 				this.onGameLog(line);
+				return;
+			case 'log-truncated':
+				this.cutLog(line.keep);
+				return;
+			case 'undo': {
+				const was = this.undo.get(line.seat);
+				this.undo.set(line.seat, { can: line.can, version: line.version });
+				if (line.bytes !== undefined) this.undoHeld = line.bytes;
+				if (was?.can !== line.can || was.version !== line.version) this.shell.undoMoved(line.seat);
+				return;
+			}
+			case 'rewind':
+				this.deps.log({ evt: 'undo-done', matchId: this.id, seat: line.seat, ok: line.ok });
+				if (!line.ok) this.shell.undoMoved(line.seat);
+				return;
+			case 'rewound':
+				this.deps.log({ evt: 'rewound', matchId: this.id });
 				return;
 			case 'dropped':
 				// An act made on an input Forge had moved past: never applied, and the seat's bar is its again.

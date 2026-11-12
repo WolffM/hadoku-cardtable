@@ -258,7 +258,7 @@
 
 import { Component, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import { CLIENT_EVENT, magicGame, selfAnswer, type ClientEvent, type DraftCard, type RestartState } from '@hadoku/shared';
+import { CLIENT_EVENT, magicGame, selfAnswer, type ClientEvent, type DraftCard, type RestartState, type TakeBackKind } from '@hadoku/shared';
 import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
 import { YIELDING, type EndedBy } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
@@ -1593,12 +1593,13 @@ function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: 
 /* ── Restart turn, the other seat's answer ──────────────────────────── */
 
 /**
- * The other seat's answer to a restart ask (`docs/planning/restart-turn-plan.md`).
- * Decline is the default, as Concede's Cancel is: Enter on a sheet nobody read
- * must not undo a turn. Escape declines. Answerable with a Forge decision open:
- * it is not an answer to Forge.
+ * The other seat's answer to a take-back ask: a restart of the turn
+ * (`docs/planning/restart-turn-plan.md`) or an undo of the asker's last action
+ * (`docs/planning/undo-plan.md`), one sheet for both. Decline is the default, as
+ * Concede's Cancel is: Enter on a sheet nobody read must not undo a turn.
+ * Escape declines. Answerable with a Forge decision open: it is not an answer to Forge.
  */
-function RestartAsk({ who, turn, onAllow, onDecline }: { who: string; turn: number; onAllow: () => void; onDecline: () => void }) {
+function RestartAsk({ who, turn, kind, onAllow, onDecline }: { who: string; turn: number; kind: TakeBackKind; onAllow: () => void; onDecline: () => void }) {
   return (
     <div
       className="live__ask"
@@ -1610,8 +1611,8 @@ function RestartAsk({ who, turn, onAllow, onDecline }: { who: string; turn: numb
       <ConfirmPrompt
         testId="live-restart-sheet"
         role="alertdialog"
-        title="Restart turn"
-        message={`${who} asks to restart turn ${turn}.`}
+        title={kind === 'undo' ? 'Undo?' : 'Restart turn'}
+        message={kind === 'undo' ? who : `${who} asks to restart turn ${turn}.`}
         button1={{ label: 'Allow', enabled: true, testId: 'live-restart-allow', onClick: onAllow }}
         button2={{ label: 'Decline', enabled: true, testId: 'live-restart-decline', isDefault: true, onClick: onDecline }}
       />
@@ -1626,8 +1627,20 @@ function RestartAsk({ who, turn, onAllow, onDecline }: { who: string; turn: numb
  */
 export function restartPress(restart: RestartState | null, seat: number | null, turn: number | null, myTurn: boolean): 'ask' | 'cancel' | null {
   if (restart === null || seat === null || turn === null || restart.turn !== turn || !myTurn) return null;
-  if (restart.ask !== null) return restart.ask.from === seat ? 'cancel' : null;
+  if (restart.ask !== null) return restart.ask.from === seat && restart.ask.kind === 'restart' ? 'cancel' : null;
   return restart.restorable && !restart.declined ? 'ask' : null;
+}
+
+/**
+ * What the Undo button does now (`docs/planning/undo-plan.md`), off the server's
+ * word: `ask` when Forge has an action of this seat's to take back and no ask is
+ * open, `cancel` while its own undo ask is open, null otherwise (nothing to take
+ * back, a decline not yet outgrown, another ask open).
+ */
+export function undoPress(restart: RestartState | null, seat: number | null): 'ask' | 'cancel' | null {
+  if (restart === null || seat === null) return null;
+  if (restart.ask !== null) return restart.ask.from === seat && restart.ask.kind === 'undo' ? 'cancel' : null;
+  return restart.undoable.includes(seat) ? 'ask' : null;
 }
 
 /* ── A payment is a question (wave 25 §C.2) ──────────────────────────── */
@@ -3104,7 +3117,9 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
   const decisionOk = !yielding && ((route !== 'none' && bar !== null && bar.enable1) || mulliganPick);
   // No second button during the bottom pick (the operator: "remove the 'auto' button") — Forge's own `Auto`
   // would otherwise draw beside OK the same way it does for every other decision-area bar.
-  const decisionCancel = !yielding && (route === 'decision' || route === 'resolve') && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
+  // Forge's `Undo (N)` is never drawn: a land's tap is taken back by clicking the land, and the
+  // take-back of an action is the Undo button's (`docs/planning/undo-plan.md`).
+  const decisionCancel = !yielding && (route === 'decision' || route === 'resolve') && bar !== null && bar.enable2 && !offersEndTurn(bar) && !offersUndo(bar) && offersSecondButton(match) && !mulliganPick;
   const decision = decisionOk || decisionCancel;
   const combatDone = combatDoneLabel(match, route);
   /** Null while there is nobody left for "All" to declare, or outside declare-attackers — {@link attackAllTarget}. */
@@ -3517,8 +3532,10 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    */
   const yieldMode = whoseTurnNow === 'theirs';
   const restartAction = restartPress(match.restart, match.seat, match.view?.turn ?? null, whoseTurnNow === 'yours');
-  const restartAsked =
-    !spectator && !over && match.restart !== null && match.restart.ask !== null && match.restart.ask.from !== match.seat && match.restart.turn === (match.view?.turn ?? null);
+  const undoAction = undoPress(match.restart, match.seat);
+  const takeBackAsked = !spectator && !over && match.restart !== null && match.restart.ask !== null && match.restart.ask.from !== match.seat
+    ? (match.restart.ask.kind === 'undo' || match.restart.turn === (match.view?.turn ?? null) ? match.restart.ask.kind : null)
+    : null;
   const autoYieldOn = isAutoYieldOn(match);
   const endTurnHighlighted = !yieldMode && highlightEndTurn;
   /*
@@ -4140,22 +4157,41 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
             Full control
           </ActionButton>
           {/*
-           * Restart turn, just above Concede (`docs/planning/restart-turn-plan.md`):
-           * on my own turn it asks the other seat; while my ask is open it is
-           * pressed, and pressing it again takes the ask back.
+           * Undo | Restart turn, one slot just above Concede (`docs/planning/undo-plan.md`,
+           * `docs/planning/restart-turn-plan.md`). Each asks the other seat: Undo my last
+           * action, when Forge has one of mine to take back; Restart turn, on my own turn.
+           * While my ask is open its button is pressed, and pressing it again takes the ask
+           * back. The cluster is too narrow for both words, so Undo is its arrow there.
            */}
-          <ActionButton
-            action={restartAction === 'cancel' ? 'restart-cancel' : 'restart-ask'}
-            className="live__toggle"
-            data-testid="live-restart-turn"
-            aria-pressed={restartAction === 'cancel'}
-            disabled={spectator || over || restartAction === null}
-            onPress={() => {
-              if (restartAction !== null) restartTurn(match, restartAction);
-            }}
-          >
-            Restart turn
-          </ActionButton>
+          <div className="live__take-back">
+            <ActionButton
+              action={undoAction === 'cancel' ? 'undo-cancel' : 'undo-ask'}
+              className="live__toggle live__undo"
+              data-testid="live-undo"
+              aria-label="Undo"
+              title="Undo"
+              aria-pressed={undoAction === 'cancel'}
+              disabled={spectator || over || undoAction === null}
+              onPress={() => {
+                if (undoAction !== null) restartTurn(match, undoAction, 'undo');
+              }}
+            >
+              <span aria-hidden="true">↶</span>
+              <span className="live__undo-word" aria-hidden="true">Undo</span>
+            </ActionButton>
+            <ActionButton
+              action={restartAction === 'cancel' ? 'restart-cancel' : 'restart-ask'}
+              className="live__toggle"
+              data-testid="live-restart-turn"
+              aria-pressed={restartAction === 'cancel'}
+              disabled={spectator || over || restartAction === null}
+              onPress={() => {
+                if (restartAction !== null) restartTurn(match, restartAction);
+              }}
+            >
+              Restart turn
+            </ActionButton>
+          </div>
           {/*
            * Concede (§C.4), last. It sends NOTHING: it opens the confirmation,
            * and only that dialog's own yes reaches `concede`. Pressable with a
@@ -4450,12 +4486,13 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
       {manaAsk && !spectator && !over && (
         <ManaFloatingAsk canUntap={offersUndo(bar)} onUntap={() => passWithMana('untap')} onPass={() => passWithMana('pass')} onStay={() => passWithMana('stay')} />
       )}
-      {restartAsked && (
+      {takeBackAsked !== null && (
         <RestartAsk
           who={theirName ?? 'The other player'}
           turn={match.restart?.turn ?? 0}
-          onAllow={() => restartTurn(match, 'allow')}
-          onDecline={() => restartTurn(match, 'decline')}
+          kind={takeBackAsked}
+          onAllow={() => restartTurn(match, 'allow', takeBackAsked)}
+          onDecline={() => restartTurn(match, 'decline', takeBackAsked)}
         />
       )}
       {conceding && !spectator && !over && (

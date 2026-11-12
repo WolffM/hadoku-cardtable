@@ -319,6 +319,10 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	// at all. Waiting for this instead of sending into the gap means `ActGate` never has anything
 	// to hold or drop for an act this file sends.
 	const seatOpen: [boolean, boolean] = [false, false];
+	// Each seat's last `undo` line and how many rewinds Forge has done for it: a logged rewind is sent at the
+	// rebuilt run's own history (its `version` is the live run's), once the seat can take an action back.
+	const undoAt: [{ can: boolean; version: number } | null, { can: boolean; version: number } | null] = [null, null];
+	const rewound: [number, number] = [0, 0];
 	let lastLineAt = Date.now();
 	let exited: string | null = null;
 	const t0 = Date.now();
@@ -331,6 +335,8 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 				timeline.push({ line: l, at: Date.now() - t0 });
 				if (l.t === 'applied') appliedCount[l.seat]!++;
 				if (l.t === 'input') seatOpen[l.seat] = l.open;
+				if (l.t === 'undo') undoAt[l.seat] = { can: l.can, version: l.version };
+				if (l.t === 'rewind' && l.ok) rewound[l.seat]!++;
 				lastLineAt = Date.now();
 			},
 			exit: (reason) => {
@@ -371,6 +377,25 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 				diverged = exited !== null
 					? `the rebuild's JVM exited before seat ${seat}'s act #${k} (command ${i}) was ever applied: ${exited}`
 					: `command ${i} (act, seat ${seat}) was sent with an open input but never applied within the budget`;
+				break;
+			}
+			i++;
+			continue;
+		}
+
+		if (cmd.t === 'rewind') {
+			const deadline = Date.now() + budget;
+			const done = rewound[cmd.seat]!;
+			while (exited === null && Date.now() < deadline && undoAt[cmd.seat]?.can !== true) await sleep(10);
+			const at = undoAt[cmd.seat];
+			if (exited !== null || at?.can !== true) {
+				diverged = `command ${i}: seat ${cmd.seat} never had an action to take back for its rewind`;
+				break;
+			}
+			host.send({ t: 'rewind', seat: cmd.seat, version: at.version });
+			while (exited === null && Date.now() < deadline && rewound[cmd.seat]! <= done) await sleep(10);
+			if (exited !== null || rewound[cmd.seat]! <= done) {
+				diverged = `command ${i}: seat ${cmd.seat}'s rewind was never done`;
 				break;
 			}
 			i++;

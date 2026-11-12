@@ -285,6 +285,8 @@ export {
   parsePhaseStop,
   parseRestartTurn,
   RESTART_ACTS,
+  TAKE_BACK_KINDS,
+  type TakeBackKind,
   RestartTurnRequestSchema,
   RestartStateSchema,
   restartTurnFrame,

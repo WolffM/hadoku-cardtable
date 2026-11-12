@@ -472,6 +472,25 @@
   border-color: var(--accent);
 }
 
+/*
+ * Undo | Restart turn share the cluster's slot above Concede (`docs/planning/undo-plan.md`):
+ * Undo is its arrow alone here, Restart turn keeps its words in the rest of the row.
+ */
+.live__take-back {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 4px;
+  min-width: 0;
+}
+
+.live__buttons .live__undo {
+  padding: 0;
+}
+
+.live__undo-word {
+  display: none;
+}
+
 .live__buttons button:disabled {
   opacity: 0.45;
   cursor: default;
@@ -1877,6 +1896,20 @@
   width: 100%;
   min-height: 44px;
   font-size: 13px;
+}
+
+/* In the menu each has its own row's width to share, so Undo says its word too. */
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__take-back {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+}
+
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__undo {
+  gap: 6px;
+}
+
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__undo-word {
+  display: inline;
 }
 
 :root[data-layout='portrait'] .live__menu-items[data-open] .live__log-button,

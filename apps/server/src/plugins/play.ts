@@ -82,7 +82,7 @@ export const playPlugin: CardtablePlugin = {
 			coldStarts: coldStartsFrom(),
 			// Diagnostics for a live check only. Never set in production (see play/socket.ts).
 			probe: CONFIG.playProbe,
-			...(CONFIG.testNoRateLimits ? { startRateLimit: null, restartRateLimit: null } : {}),
+			...(CONFIG.testNoRateLimits ? { startRateLimit: null, restartRateLimit: null, undoRateLimit: null } : {}),
 			devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 			// The stats report, the room's own series ledger (recorded at once rather than on the next
 			// `/api/tables` read), the recorder's winner for the stream's `end` line, and the parked
@@ -156,6 +156,9 @@ export const playPlugin: CardtablePlugin = {
 		}
 
 		ctx.gauge('matches', () => play.matches.active().filter((m) => m.status === 'starting' || m.status === 'running').length);
+		// The heap Forge's undo histories pin, summed over live matches (`docs/planning/undo-plan.md`): each game's
+		// share is capped by the bridge (`PlayBridge.UNDO_BUDGET_BYTES`), and this shows how much of it play uses.
+		ctx.gauge('undoMb', () => Math.round(play.matches.active().reduce((n, m) => n + (m.undoBytes?.() ?? 0), 0) / (1 << 20)));
 		ctx.gauge('jvms', () => clawHosts?.hosts().hosts.reduce((n, h) => n + h.jvms.length, 0) ?? localHost?.jvms().length ?? 0);
 		if (CONFIG.playHosts === 'claws') ctx.gauge('forgeFree', () => clawHosts?.hosts().hosts.filter((h) => h.eligible).reduce((n, h) => n + h.free, 0) ?? 0);
 

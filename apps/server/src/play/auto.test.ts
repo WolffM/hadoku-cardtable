@@ -1408,8 +1408,8 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(says(h, 1), 'a line the bridge could not word for this player is not sent').toEqual(['Seat 1 cast Opt']);
 		const sent = frames(h, 0).filter((f) => f.method === 'message');
 		expect(sent.map((f) => (f as { log?: unknown }).log)).toEqual([
-			{ type: 'STACK_ADD', cards: [{ id: 4070, name: 'Opt' }] },
-			{ type: 'DISCARD', cards: [{ id: 4071, name: 'Island' }] },
+			{ type: 'STACK_ADD', cards: [{ id: 4070, name: 'Opt' }], n: 0 },
+			{ type: 'DISCARD', cards: [{ id: 4071, name: 'Island' }], n: 1 },
 		]);
 	});
 
@@ -1487,8 +1487,8 @@ describe('the watchers are told what the active player is told', () => {
 		expect(watchedSays(h)).toEqual(['Seat 1 cast Lightning Bolt', 'Turn 2 (Seat 2)']);
 		const sent = watched(h).filter((f) => f.method === 'message');
 		expect(sent.map((f) => (f as { log?: unknown }).log)).toEqual([
-			{ type: 'STACK_ADD', cards: [{ id: 4072, name: 'Lightning Bolt' }] },
-			{ type: 'TURN', cards: [] },
+			{ type: 'STACK_ADD', cards: [{ id: 4072, name: 'Lightning Bolt' }], n: 0 },
+			{ type: 'TURN', cards: [], n: 1 },
 		]);
 		expect(h.match.watcherSnapshot(), 'a late watcher gets the log too').toMatchObject({ frames: expect.arrayContaining(sent) });
 	});

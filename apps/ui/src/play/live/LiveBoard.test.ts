@@ -1384,11 +1384,12 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     const bar = getByTestId('live-buttons');
     expect(concede.tagName).toBe('BUTTON');
     expect(bar.contains(concede)).toBe(true);
-    // Not adjacent to End Turn: Full control and Restart turn stand between, so a
-    // reach for Concede is never a misclick on Forge's button. Restart turn is
-    // directly above Concede, where the operator asked for it.
-    const order = [...bar.children].map((el) => (el as HTMLElement).dataset.testid);
-    expect(order.indexOf('live-restart-turn'), 'Restart turn sits directly above Concede').toBe(order.indexOf('live-concede') - 1);
+    // Not adjacent to End Turn: Full control and the take-back slot stand between, so a
+    // reach for Concede is never a misclick on Forge's button. Undo | Restart turn share
+    // the slot directly above Concede, where the operator asked for them.
+    const order = [...bar.children].map((el) => (el as HTMLElement).dataset.testid ?? el.className);
+    expect(order.indexOf('live__take-back'), 'Undo | Restart turn sit directly above Concede').toBe(order.indexOf('live-concede') - 1);
+    expect(bar.querySelector('.live__take-back')!.querySelectorAll('button')).toHaveLength(2);
     expect(order.indexOf('live-full-control'), 'Full control stands between Forge’s answers and Concede').toBe(order.indexOf('live-concede') - 2);
     expect(container.querySelector('.board')!.contains(concede)).toBe(false);
     // The cluster still holds five children — item 7 put `Settings` in the
@@ -1418,7 +1419,7 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
       'action-bar',
       'live__prompt',
     ]);
-    expect(bar.querySelectorAll('button')).toHaveLength(4);
+    expect(bar.querySelectorAll('button')).toHaveLength(5);
   });
 
   /*
@@ -1717,7 +1718,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // The spec queries `live-buttons` and then looks INSIDE it, so a second
     // container, or one of these drawn as a sibling, is a red e2e.
     expect(container.querySelectorAll('[data-testid="live-buttons"]')).toHaveLength(1);
-    for (const id of ['live-button-end-turn', 'live-full-control', 'live-restart-turn', 'live-concede']) {
+    for (const id of ['live-button-end-turn', 'live-full-control', 'live-undo', 'live-restart-turn', 'live-concede']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
     // Passing priority is the decision pop-up's: the cluster has no Next Phase.
@@ -1734,6 +1735,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect([...cluster.querySelectorAll('button')].map((b) => b.dataset.testid)).toEqual([
       'live-button-end-turn',
       'live-full-control',
+      'live-undo',
       'live-restart-turn',
       'live-concede',
     ]);
@@ -1764,10 +1766,11 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     for (const id of ['live-says', 'live-log']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `${id} is out of the corner`).toBeNull();
     }
-    // Every child of the cluster is a button now: nothing in it can be text that
-    // grows, which is the other half of "one box at one window size". Still
-    // five: item 7 put `Settings` where item 5's deletion of `Leave` left a gap.
-    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON', 'BUTTON']);
+    // Every row of the cluster is a button, or the one slot Undo | Restart turn share:
+    // nothing in it can be text that grows, which is the other half of "one box at one
+    // window size".
+    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'DIV', 'BUTTON']);
+    expect([...cluster.children[2]!.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON']);
     // And both moved into the logbook, which is not inside the cluster.
     const logbook = getByTestId('live-logbook');
     expect(cluster.contains(logbook)).toBe(false);
@@ -2664,6 +2667,7 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     expect([...getByTestId('live-buttons').querySelectorAll('button')].map((b) => b.textContent)).toEqual([
       'End Turn',
       'Full control',
+      '↶Undo',
       'Restart turn',
       'Concede',
     ]);
@@ -5649,7 +5653,7 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     for (const f of buttonFrames('Keep this hand of seven?', 'Keep', 'Mulligan')) s.send(f);
 
     await waitFor(() => getByTestId('live-confirm-host'));
-    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull controlRestart turnConcede');
+    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull control↶UndoRestart turnConcede');
   });
 
   it('T4, finished: the box never says "Play" while the coin-toss pop-up is up', async () => {
@@ -5657,7 +5661,7 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     for (const f of buttonFrames('You have won the coin toss.\n\nPlay or draw?', 'Play', 'Draw')) s.send(f);
 
     await waitFor(() => getByTestId('live-play-or-draw-host'));
-    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull controlRestart turnConcede');
+    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull control↶UndoRestart turnConcede');
   });
 
   /*
@@ -5701,7 +5705,7 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
     labels: [...getByTestId('live-buttons').querySelectorAll('button')].map((el) => el.textContent),
     endTurn: !(getByTestId('live-button-end-turn') as HTMLButtonElement).disabled,
   });
-  const FOUR = ['End Turn', 'Full control', 'Restart turn', 'Concede'];
+  const FOUR = ['End Turn', 'Full control', '↶Undo', 'Restart turn', 'Concede'];
   const acts = (s: ReplayServer) =>
     s.clientFrames().flatMap((f) => (f.ok && f.value.kind === 'act' ? [f.value.method] : []));
   const ok = (queryByTestId: (id: string) => HTMLElement | null) => queryByTestId('live-decision-ok')?.textContent ?? null;
@@ -5794,6 +5798,14 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
     await waitFor(() => expect(getByTestId('live-decision-ok').textContent).toBe('Next Phase'));
     expect(queryByTestId('live-decision-cancel')).toBeNull();
     expect(box(getByTestId)).toEqual({ labels: FOUR, endTurn: false });
+  });
+
+  it('OK + Undo (N) with spells on the stack: Resolve, and Forge’s Undo is not drawn beside it either', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    expect(m.view!.stack.length, 'the fixture has spells on the stack').toBeGreaterThan(0);
+    for (const f of [prompt('Priority: you\nStack: Direct Current'), bar('OK', 'Undo (1)')]) s.send(f);
+    await waitFor(() => expect(getByTestId('live-decision-ok').textContent).toBe('Resolve'));
+    expect(queryByTestId('live-decision-cancel')).toBeNull();
   });
 
   it('the payment window and a selection pop-up keep their inputs: no decision pop-up beside them', async () => {
@@ -6476,7 +6488,7 @@ describe('the waiting pop steps clear of the stack', () => {
 describe('Restart turn (docs/planning/restart-turn-plan.md)', () => {
   const restartSent = (s: ReplayServer) => s.received.filter((r) => r.event === 'forge:restart-turn').map((r) => (r.payload as { act: string }).act);
   const button = (getByTestId: (id: string) => HTMLElement) => getByTestId('live-restart-turn') as HTMLButtonElement;
-  const open = { ask: null, declined: false, restorable: true };
+  const open = { ask: null, declined: false, restorable: true, undoable: [] as number[] };
 
   it('waits for the server’s word, then on my own turn asks, and pressed again takes the ask back', async () => {
     const { s, m, getByTestId } = await liveBoard();
@@ -6485,7 +6497,7 @@ describe('Restart turn (docs/planning/restart-turn-plan.md)', () => {
     await waitFor(() => expect(button(getByTestId).disabled).toBe(false));
     fireEvent.click(button(getByTestId));
     await waitFor(() => expect(restartSent(s)).toEqual(['ask']));
-    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 0 } });
+    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 0, kind: 'restart' as const } });
     await waitFor(() => expect(button(getByTestId).getAttribute('aria-pressed')).toBe('true'));
     expect(button(getByTestId).textContent).toBe('Restart turn');
     fireEvent.click(button(getByTestId));
@@ -6524,7 +6536,7 @@ describe('Restart turn (docs/planning/restart-turn-plan.md)', () => {
     s.send(turnDelta(m, them.id, m.view!.turn + 1));
     await untilMatch(m, () => expect(m.view!.activePlayerId).toBe(them.id));
     expect(queryByTestId('live-restart-ask')).toBeNull();
-    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 1 } });
+    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 1, kind: 'restart' as const } });
     await waitFor(() => expect(getByTestId('live-restart-sheet').textContent).toContain(`${them.name} asks to restart turn ${m.view!.turn}.`));
     expect(document.activeElement).toBe(getByTestId('live-restart-decline'));
     fireEvent.click(getByTestId('live-restart-allow'));
@@ -6537,8 +6549,64 @@ describe('Restart turn (docs/planning/restart-turn-plan.md)', () => {
 
   it('my own ask draws no sheet for me', async () => {
     const { s, m, queryByTestId } = await liveBoard();
-    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 0 } });
-    await untilMatch(m, () => expect(m.restart?.ask).toEqual({ from: 0 }));
+    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 0, kind: 'restart' as const } });
+    await untilMatch(m, () => expect(m.restart?.ask).toEqual({ from: 0, kind: 'restart' }));
     expect(queryByTestId('live-restart-ask')).toBeNull();
   });
 });
+
+describe('Undo (docs/planning/undo-plan.md)', () => {
+  const sent = (s: ReplayServer) =>
+    s.received.filter((r) => r.event === 'forge:restart-turn').map((r) => r.payload as { act: string; kind: string });
+  const button = (getByTestId: (id: string) => HTMLElement) => getByTestId('live-undo') as HTMLButtonElement;
+  const open = { ask: null, declined: false, restorable: false, undoable: [] as number[] };
+
+  it('is enabled only while the server says my rewind is there and no ask is open; pressed again it takes my ask back', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    expect(button(getByTestId).disabled, 'no word from the server yet').toBe(true);
+    s.sendRestartState({ turn: m.view!.turn, ...open, undoable: [1] });
+    await untilMatch(m, () => expect(m.restart?.undoable).toEqual([1]));
+    expect(button(getByTestId).disabled, 'the other seat’s undo is not mine').toBe(true);
+    s.sendRestartState({ turn: m.view!.turn, ...open, undoable: [0] });
+    await waitFor(() => expect(button(getByTestId).disabled).toBe(false));
+    expect(button(getByTestId).getAttribute('aria-label')).toBe('Undo');
+    fireEvent.click(button(getByTestId));
+    await waitFor(() => expect(sent(s)).toEqual([{ matchId: m.matchId, act: 'ask', kind: 'undo' }]));
+    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 0, kind: 'undo' } });
+    await waitFor(() => expect(button(getByTestId).getAttribute('aria-pressed')).toBe('true'));
+    expect((getByTestId('live-restart-turn') as HTMLButtonElement).disabled, 'one ask at a time').toBe(true);
+    fireEvent.click(button(getByTestId));
+    await waitFor(() => expect(sent(s).map((x) => x.act)).toEqual(['ask', 'cancel']));
+    s.sendRestartState({ turn: m.view!.turn, ...open, undoable: [0], ask: { from: 1, kind: 'restart' } });
+    await waitFor(() => expect(button(getByTestId).disabled, 'another ask is open').toBe(true));
+    expect(await s.framesFrom(m), 'nothing of it is an answer to Forge').toEqual([]);
+  });
+
+  it('the other seat’s undo ask is the restart sheet, titled Undo?, on either seat’s turn', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 1, kind: 'undo' } });
+    await waitFor(() => getByTestId('live-restart-sheet'));
+    expect(getByTestId('live-restart-sheet').textContent).toContain('Undo?');
+    expect(getByTestId('live-restart-sheet').textContent).toContain(them.name);
+    expect(getByTestId('live-restart-sheet').textContent).not.toContain('restart');
+    expect(document.activeElement).toBe(getByTestId('live-restart-decline'));
+    fireEvent.click(getByTestId('live-restart-allow'));
+    fireEvent.click(getByTestId('live-restart-decline'));
+    await waitFor(() => expect(sent(s).map((x) => `${x.act}:${x.kind}`)).toEqual(['allow:undo', 'decline:undo']));
+    s.sendRestartState({ turn: m.view!.turn, ...open });
+    await waitFor(() => expect(queryByTestId('live-restart-ask')).toBeNull());
+  });
+
+  it('an undo drops the log lines it took back', async () => {
+    const { s, m } = await liveBoard();
+    const said = (n: number, text: string) => s.send(parseServerFrame({ kind: 'notify', method: 'message', message: text, title: '', log: { type: 'STACK_ADD', cards: [], n } }) as never);
+    said(0, 'one');
+    said(1, 'two');
+    said(2, 'three');
+    await untilMatch(m, () => expect(m.says.map((x) => x.text).slice(-3)).toEqual(['one', 'two', 'three']));
+    s.send(parseServerFrame({ kind: 'notify', method: 'message', message: '', title: '', logCut: 1 }) as never);
+    await untilMatch(m, () => expect(m.says.map((x) => x.text).filter((t) => ['one', 'two', 'three'].includes(t))).toEqual(['one']));
+  });
+});
+

@@ -5171,7 +5171,7 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	});
 });
 
-describe('restart turn', () => {
+describe('take back: restart turn and undo', () => {
 	/** Both seats claimed and opened, this turn's snapshot taken; every `restartChanged` kept. */
 	function table(opts: { ai?: boolean; lossy?: string[]; snapshotTurn?: (turn: number) => number } = {}) {
 		const { factory, hosts } = replayFactory();
@@ -5216,7 +5216,7 @@ describe('restart turn', () => {
 		const t = table();
 		expect(t.match.status).toBe('running');
 		expect(t.turn).toBeGreaterThan(0);
-		const state = { matchId: t.match.id, turn: t.turn, ask: null, declined: false, restorable: true };
+		const state = { matchId: t.match.id, turn: t.turn, ask: null, declined: false, restorable: true, undoable: [] };
 		expect(t.match.restartState()).toEqual(state);
 		expect(t.told.at(-1)).toEqual(state);
 	});
@@ -5295,5 +5295,100 @@ describe('restart turn', () => {
 		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: true });
 		expect(t.registry.get(t.match.id)).not.toBe(t.match);
 		expect(t.logs.find((l) => l.evt === 'restart-turn')).toMatchObject({ allowedBy: 'ai' });
+	});
+	/** The seat's game says it can take an action back, at history `version`: the bridge's `undo` line. */
+	function canUndo(t: ReturnType<typeof table>, seat: number, version: number, can = true): void {
+		(t.hosts[0] as ReplayHost).push({ t: 'undo', seat, can, version });
+	}
+	const rewinds = (t: ReturnType<typeof table>) => (t.hosts[0] as ReplayHost).commands.filter((c) => c.t === 'rewind');
+
+	it('undo: a seat with an action to take back is told to the table, and only that seat may ask', () => {
+		const t = table();
+		expect(t.match.restartAct(t.other, 'ask', 'undo')).toEqual({ ok: false, error: 'nothing-to-undo' });
+		canUndo(t, t.other, 4);
+		expect(t.told.at(-1)).toMatchObject({ undoable: [t.other] });
+		expect(t.match.restartAct(t.active, 'ask', 'undo')).toEqual({ ok: false, error: 'nothing-to-undo' });
+		expect(t.match.restartAct(t.other, 'ask', 'undo')).toEqual({ ok: true });
+		expect(t.told.at(-1)).toMatchObject({ ask: { from: t.other, kind: 'undo' } });
+		expect(t.logs.find((l) => l.evt === 'undo-asked')).toMatchObject({ seat: t.other, version: 4, ai: false });
+		expect(rewinds(t)).toEqual([]);
+	});
+
+	it('undo allowed: the bridge rewinds the asker at the history it asked about', () => {
+		const t = table();
+		canUndo(t, t.other, 4);
+		t.match.restartAct(t.other, 'ask', 'undo');
+		expect(t.match.restartAct(t.other, 'allow')).toEqual({ ok: false, error: 'no-ask' });
+		expect(t.match.restartAct(t.active, 'allow')).toEqual({ ok: true });
+		expect(rewinds(t)).toEqual([{ t: 'rewind', seat: t.other, version: 4 }]);
+		expect(t.logs.find((l) => l.evt === 'undo-answered')).toMatchObject({ seat: t.active, allow: true, why: 'player' });
+		expect(t.logs.find((l) => l.evt === 'undo')).toMatchObject({ seat: t.other, version: 4, allowedBy: 'opponent' });
+		expect(t.registry.get(t.match.id), 'an undo is no restart').toBe(t.match);
+	});
+
+	it('undo declined greys it until the history moves', () => {
+		const t = table();
+		canUndo(t, t.other, 4);
+		t.match.restartAct(t.other, 'ask', 'undo');
+		expect(t.match.restartAct(t.active, 'decline')).toEqual({ ok: true });
+		expect(rewinds(t)).toEqual([]);
+		expect(t.match.restartState()).toMatchObject({ ask: null, undoable: [] });
+		expect(t.match.restartAct(t.other, 'ask', 'undo')).toEqual({ ok: false, error: 'nothing-to-undo' });
+		canUndo(t, t.other, 5);
+		expect(t.match.restartState().undoable).toEqual([t.other]);
+	});
+
+	it('an undo ask lapses when the asker acts or a barrier falls', () => {
+		const t = table();
+		canUndo(t, t.other, 4);
+		t.match.restartAct(t.other, 'ask', 'undo');
+		canUndo(t, t.other, 4, false);
+		expect(t.match.restartState().ask).toBeNull();
+		expect(t.logs.find((l) => l.evt === 'undo-cancelled')).toMatchObject({ seat: t.other, why: 'history-moved' });
+		expect(t.match.restartAct(t.active, 'allow')).toEqual({ ok: false, error: 'no-ask' });
+		expect(rewinds(t)).toEqual([]);
+	});
+
+	it('an unanswered undo ask counts as declined', () => {
+		vi.useFakeTimers();
+		onTestFinished(() => void vi.useRealTimers());
+		const t = table();
+		canUndo(t, t.other, 4);
+		t.match.restartAct(t.other, 'ask', 'undo');
+		vi.advanceTimersByTime(RESTART_ASK_MS);
+		expect(t.match.restartState()).toMatchObject({ ask: null, undoable: [] });
+		expect(t.logs.find((l) => l.evt === 'undo-answered')).toMatchObject({ allow: false, why: 'timeout' });
+		expect(rewinds(t)).toEqual([]);
+	});
+
+	it('one take-back ask at a time, of either kind', () => {
+		const t = table();
+		canUndo(t, t.active, 2);
+		expect(t.match.restartAct(t.active, 'ask', 'undo')).toEqual({ ok: true });
+		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: false, error: 'already-asked' });
+		expect(t.match.restartAct(t.active, 'cancel')).toEqual({ ok: true });
+		expect(t.logs.find((l) => l.evt === 'undo-cancelled')).toMatchObject({ seat: t.active });
+		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: true });
+		expect(t.match.restartAct(t.active, 'ask', 'undo')).toEqual({ ok: false, error: 'already-asked' });
+	});
+
+	it('against the AI, the undo ask is the rewind', () => {
+		const t = table({ ai: true });
+		canUndo(t, t.active, 9);
+		expect(t.match.restartAct(t.active, 'ask', 'undo')).toEqual({ ok: true });
+		expect(rewinds(t)).toEqual([{ t: 'rewind', seat: t.active, version: 9 }]);
+		expect(t.logs.find((l) => l.evt === 'undo')).toMatchObject({ allowedBy: 'ai' });
+	});
+
+	it('an undo takes back the log lines it cut, on every screen and from what a resync re-sends', () => {
+		const t = table();
+		const host = t.hosts[0] as ReplayHost;
+		const line = (text: string): BridgeLine => ({ t: 'log', type: 'STACK_ADD', meta: {}, players: [0, 1].map((i) => ({ player: t.match.seats[i]!.playerId!, text, cards: [] })) });
+		host.push(line('one'), line('two'), line('three'));
+		host.push({ t: 'log-truncated', keep: 1 });
+		const says = (t.match as unknown as { session: { seats: { says: { message: string; logCut?: number }[] }[] } }).session.seats[0]!.says;
+		expect(says.map((f) => f.message).filter((m) => ['one', 'two', 'three'].includes(m))).toEqual(['one']);
+		host.push(line('four'));
+		expect(says.filter((f) => ['one', 'four'].includes(f.message)).map((f) => (f as { log?: { n?: number } }).log?.n)).toEqual([0, 1]);
 	});
 });

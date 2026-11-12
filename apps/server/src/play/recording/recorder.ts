@@ -15,7 +15,8 @@
  * `PlayBridge.java`'s `SeatController` now echoes an `applied` bridge line
  * only for an act Forge actually consumed, in the order it consumed them, so
  * logging THAT — never the send — is what makes the log a log of what the
- * game did. A `reply`/`abort` has no such echo (it answers an already-open
+ * game did. A rewind (an undo the other seat allowed) is logged the same way, from the bridge's
+ * `rewind` answer when Forge took the action back, so a rebuild goes through it. A `reply`/`abort` has no such echo (it answers an already-open
  * ask; Forge's own ask/reply plumbing, not an `IGameController` act), so it
  * is still logged at `host.send`, carrying its `ask` ordinal exactly as
  * before. Every other command kind (`stop`, `resend-pending`,
@@ -300,6 +301,10 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 							// this, never `host.send`, is where an `act` is logged.
 							guarded(log, matchId, 'applied', () => {
 								writer.actionCmd({ seat: line.seat, cmd: { t: 'act', seat: line.seat, frame: line.act } as BridgeCommand });
+							});
+						} else if (line.t === 'rewind' && line.ok) {
+							guarded(log, matchId, 'rewind', () => {
+								writer.actionCmd({ seat: line.seat, cmd: { t: 'rewind', seat: line.seat, version: line.version } });
 							});
 						}
 						events.line(line);

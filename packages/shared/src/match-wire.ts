@@ -255,35 +255,44 @@ export function autoYieldFrame(matchId: string, on: boolean): AutoYieldRequest {
 }
 
 /**
- * `forge:restart-turn` — the active seat asks to play its turn again from its
- * start (`ask`), the other seat answers (`allow` / `decline`), the asker takes
- * the ask back (`cancel`). The seat is the one the socket claimed, never a
+ * `forge:restart-turn` — a take-back between the two seats: the asker wants its
+ * turn played again from its start (`kind: 'restart'`, the active seat only) or
+ * its last action taken back (`kind: 'undo'`); `ask`, the other seat answers
+ * (`allow` / `decline`), the asker takes the ask back (`cancel`). One ask at a
+ * time, of either kind. The seat is the one the socket claimed, never a
  * payload's; the server decides who may send which (`Match.restartAct`).
  */
 export const RESTART_ACTS = ['ask', 'allow', 'decline', 'cancel'] as const;
 export type RestartAct = (typeof RESTART_ACTS)[number];
-export const RestartTurnRequestSchema = z.object({ matchId: z.string().min(1), act: z.enum(RESTART_ACTS) }).strict();
+export const TAKE_BACK_KINDS = ['restart', 'undo'] as const;
+export type TakeBackKind = (typeof TAKE_BACK_KINDS)[number];
+export const RestartTurnRequestSchema = z
+  .object({ matchId: z.string().min(1), act: z.enum(RESTART_ACTS), kind: z.enum(TAKE_BACK_KINDS).optional() })
+  .strict();
 export type RestartTurnRequest = z.infer<typeof RestartTurnRequestSchema>;
 
 /** The payload of a `forge:restart-turn` emit, parsed through its own schema. */
-export function restartTurnFrame(matchId: string, act: RestartAct): RestartTurnRequest {
-  return RestartTurnRequestSchema.parse({ matchId, act });
+export function restartTurnFrame(matchId: string, act: RestartAct, kind: TakeBackKind = 'restart'): RestartTurnRequest {
+  return RestartTurnRequestSchema.parse({ matchId, act, kind });
 }
 
 /**
  * `forge:restart-state` — the same for every socket of the match: the turn it
- * is about, the open ask (`from`: the asking seat) or null, whether an ask was
- * declined this turn (no second ask until the next), and whether this turn's
- * start can be restored at all (`restorable`: the server holds its snapshot,
- * and the snapshot holds the whole game).
+ * is about, the open take-back ask (`from`: the asking seat, `kind`: a restart
+ * or an undo) or null, whether a restart ask was declined this turn (no second
+ * ask until the next), whether this turn's start can be restored at all
+ * (`restorable`: the server holds its snapshot, and the snapshot holds the
+ * whole game), and the seats that may ask to undo now (`undoable`: Forge has
+ * an action of theirs to take back, and no undo of it was declined).
  */
 export const RestartStateSchema = z
   .object({
     matchId: z.string().min(1),
     turn: z.number().int().nonnegative(),
-    ask: z.object({ from: z.number().int().nonnegative() }).strict().nullable(),
+    ask: z.object({ from: z.number().int().nonnegative(), kind: z.enum(TAKE_BACK_KINDS) }).strict().nullable(),
     declined: z.boolean(),
     restorable: z.boolean(),
+    undoable: z.array(z.number().int().nonnegative()),
   })
   .strict();
 export type RestartState = z.infer<typeof RestartStateSchema>;

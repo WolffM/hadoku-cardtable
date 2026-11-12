@@ -163,6 +163,16 @@ export const RESTART_RATE_LIMIT: RateLimitConfig = {
 	refillIntervalMs: 60_000,
 };
 
+/**
+ * Undo asks per caller: a burst of 20, then one every 10 s. Cheaper than a restart: an undo
+ * rewinds the game in its own JVM and starts nothing.
+ */
+export const UNDO_RATE_LIMIT: RateLimitConfig = {
+	capacity: 20,
+	refillAmount: 1,
+	refillIntervalMs: 10_000,
+};
+
 export interface PlayDeps {
 	/** The tier floor. `CONFIG.minTier` in production. */
 	minTier: string;
@@ -197,6 +207,8 @@ export interface PlayDeps {
 	startRateLimit?: RateLimitConfig | null;
 	/** Overrides `RESTART_RATE_LIMIT`; `null` is none. */
 	restartRateLimit?: RateLimitConfig | null;
+	/** {@link UNDO_RATE_LIMIT} unless given; `null` is no limit. */
+	undoRateLimit?: RateLimitConfig | null;
 	/**
 	 * How long a seat with no connection keeps its open asks before they are
 	 * aborted as `disconnected`. Default 30 s: a browser refresh closes the old
@@ -680,6 +692,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const restartLimit = costlyActLimit(deps.restartRateLimit === undefined ? RESTART_RATE_LIMIT : deps.restartRateLimit, {
 		act: 'restart-turn',
 		onRefused: () => log({ evt: 'restart-refused', reason: 'rate-limited' }),
+	});
+	const undoLimit = costlyActLimit(deps.undoRateLimit === undefined ? UNDO_RATE_LIMIT : deps.undoRateLimit, {
+		act: 'undo',
+		onRefused: () => log({ evt: 'undo-refused', reason: 'rate-limited' }),
 	});
 	const startLimit = perCallerLimit(deps.startRateLimit === undefined ? MATCH_START_RATE_LIMIT : deps.startRateLimit, 'too many match starts; wait a little and try again', {
 		act: 'match-start',
@@ -1211,8 +1227,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			if (!outcome.ok) log({ evt: 'auto-yield-refused', participantId, matchId: match.id, seat, error: outcome.error });
 		});
 
-		// Restart turn (`docs/planning/restart-turn-plan.md`), same shape again: the seat is the claimed
-		// one, and `Match.restartAct` decides who may send which act. An ask is the costly one.
+		// A take-back, Restart turn (`docs/planning/restart-turn-plan.md`) or Undo (`docs/planning/undo-plan.md`),
+		// same shape again: the seat is the claimed one, and `Match.restartAct` decides who may send which act.
+		// An ask is the costly one.
 		socket.on(MATCH_EVENTS.restartTurn, (raw: unknown) => {
 			const parsed = parseRestartTurn(raw);
 			if (!parsed.ok) {
@@ -1229,14 +1246,14 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				log({ evt: refusedInput(seat), participantId, matchId: match.id, seat, input: 'restart-turn' });
 				return;
 			}
-			const act = parsed.value.act;
-			if (act === 'ask' && !restartLimit(participantId, socket.handshake.headers)) {
+			const { act, kind = 'restart' } = parsed.value;
+			if (act === 'ask' && !(kind === 'undo' ? undoLimit : restartLimit)(participantId, socket.handshake.headers)) {
 				socket.emit(MATCH_EVENTS.restartState, match.restartState());
 				return;
 			}
-			const outcome = match.restartAct(seat, act);
+			const outcome = match.restartAct(seat, act, kind);
 			if (!outcome.ok) {
-				log({ evt: 'restart-refused', participantId, matchId: match.id, seat, act, error: outcome.error });
+				log({ evt: `${kind}-refused`, participantId, matchId: match.id, seat, act, error: outcome.error });
 				// Whatever this socket drew on its own, the server's answer stands.
 				socket.emit(MATCH_EVENTS.restartState, match.restartState());
 			}

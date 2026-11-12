@@ -133,7 +133,7 @@ export abstract class HostedMatch<Line extends { t: string }, Cmd extends { t: s
 		if (this.status !== 'starting' && this.status !== 'running' && this.status !== 'over') return;
 		this.status = 'stopped';
 		this.stopClock();
-		this.closeRestartAsk();
+		this.closeTakeBack();
 		this.game.ended(null);
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: 'stopped' });
 		this.host?.stop();

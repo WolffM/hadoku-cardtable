@@ -165,6 +165,8 @@ export const GameLogLineSchema = z.strictObject({
   mana: z.string().optional(),
   life: z.strictObject({ player: z.number().int(), from: z.number().int(), to: z.number().int() }).optional(),
   phase: z.string().optional(),
+  /** The line's place in the game's log, from 0: what a take-back cuts the log at ({@link MessageSchema}'s `logCut`). */
+  n: z.number().int().nonnegative().optional(),
 });
 export type GameLogLine = z.infer<typeof GameLogLineSchema>;
 /** The public half of a log line: what the bridge sends once for every player. */
@@ -200,7 +202,11 @@ export const CoinFlipSchema = z.strictObject({
 });
 export type CoinFlip = z.infer<typeof CoinFlipSchema>;
 
-/** `void message(String message, String title)` — IGuiGame.java:157. `log`, `roll` and `flip` are ours: see {@link GameLogLineSchema}, {@link DieRollSchema}, {@link CoinFlipSchema}. */
+/**
+ * `void message(String message, String title)` — IGuiGame.java:157. `log`, `roll` and `flip` are ours: see
+ * {@link GameLogLineSchema}, {@link DieRollSchema}, {@link CoinFlipSchema}. So is `logCut`, with an empty message:
+ * an undo took back every log line from that `n` on, and the log drops them.
+ */
 export const MessageSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('message'),
@@ -209,6 +215,7 @@ export const MessageSchema = z.strictObject({
   log: GameLogLineSchema.optional(),
   roll: DieRollSchema.optional(),
   flip: CoinFlipSchema.optional(),
+  logCut: z.number().int().nonnegative().optional(),
 });
 
 /**

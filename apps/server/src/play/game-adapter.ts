@@ -128,4 +128,12 @@ export interface GameSession<Line, Cmd> {
 	 * to prove it fits a session with nothing of its own to say.
 	 */
 	notice(kind: 'server-stopping', message: string): void;
+	/**
+	 * What this seat could take back now (`docs/planning/undo-plan.md`): `can`, its last action, and `version`, the
+	 * history that would rewind, which moves with every action and with whatever ends the history. Null or absent:
+	 * the game has no undo.
+	 */
+	takeBack?(seat: number): { can: boolean; version: number } | null;
+	/** Take back this seat's last action, if its history is still at `version`: what the other seat allowed. */
+	rewind?(seat: number, version: number): void;
 }

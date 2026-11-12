@@ -236,7 +236,7 @@
  */
 
 import { POOL_COLORS } from '@hadoku/deck';
-import type { ClientEvent, Look, ManaColor, MatchReportKind, Placement, RememberedTrigger, RestartAct, RestartState } from '@hadoku/shared';
+import type { ClientEvent, Look, ManaColor, MatchReportKind, Placement, RememberedTrigger, RestartAct, RestartState, TakeBackKind } from '@hadoku/shared';
 import { ART_EVENT, asSeqCursor, CLIENT_EVENT, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, lookOrNone, RestartStateSchema, restartTurnFrame, selfAnswer, ServerBuildSchema } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
@@ -2570,12 +2570,13 @@ export function concede(match: LiveMatch): boolean {
 }
 
 /**
- * A restart act (`docs/planning/restart-turn-plan.md`): the active seat's ask
- * and take-back, the other seat's allow or decline. Not optimistic: the server
- * decides who may send which and tells the whole table on `forge:restart-state`.
+ * A take-back act: Restart turn (`docs/planning/restart-turn-plan.md`) or Undo
+ * (`docs/planning/undo-plan.md`). The asker's ask and take-back, the other
+ * seat's allow or decline. Not optimistic: the server decides who may send
+ * which and tells the whole table on `forge:restart-state`.
  */
-export function restartTurn(match: LiveMatch, act: RestartAct): void {
-  match.transport.emit(MATCH_EVENTS.restartTurn, restartTurnFrame(match.matchId, act));
+export function restartTurn(match: LiveMatch, act: RestartAct, kind: TakeBackKind = 'restart'): void {
+  match.transport.emit(MATCH_EVENTS.restartTurn, restartTurnFrame(match.matchId, act, kind));
 }
 
 /* ── Combat, read off Forge's own state ──────────────────────────────── */
@@ -4209,6 +4210,11 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   } else if (frame.kind === 'notify' && frame.method === 'message') {
     // Display only — see the module header. Not an input frame, not an answer:
     // nothing below this line reads it back, on purpose.
+    if (frame.logCut !== undefined) {
+      // An undo took back what Forge logged since the moment it rewound to.
+      const cut = frame.logCut;
+      match.says = match.says.filter((said) => said.log?.n === undefined || said.log.n < cut);
+    }
     if (frame.message !== '') {
       match.says.push({ text: frame.message, log: frame.log ?? null });
       if (match.says.length > SAYS_KEPT) match.says.shift();

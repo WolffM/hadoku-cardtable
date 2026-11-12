@@ -3,7 +3,7 @@
  * its lifecycle and its seats' holders, never what the game in it is. Who holds which seat and whether
  * they are here, the grace a match nobody comes back to gets, the chess clock, the concede that
  * always ends a game, the start queue's waiters, the record a restart re-attaches from, and the
- * restart-turn ask between the two seats. Every fact about the game itself — is a seat's own decision
+ * take-back ask between the two seats (restart the turn, or undo the last action). Every fact about the game itself — is a seat's own decision
  * open, whose turn it is, what a seat's asks are — is asked of {@link MatchShell.game}.
  *
  * Nothing here imports Magic: a game that is not Forge runs under the same shell.
@@ -23,7 +23,7 @@ export type ClientOutcome = { ok: true } | { ok: false; error: string };
 /** How far back {@link MatchShell.activity} counts the seconds in which the table changed. */
 export const ACTIVITY_WINDOW_MS = 120_000;
 
-/** How long a restart ask waits for the other seat before it counts as declined. */
+/** How long a take-back ask (restart or undo) waits for the other seat before it counts as declined. */
 export const RESTART_ASK_MS = 30_000;
 
 /**
@@ -37,13 +37,26 @@ export const CONCEDE_ANSWER_MS = 10_000;
 /** A seat's restart act: `@hadoku/shared`'s `RESTART_ACTS`, the four the wire carries. */
 export type RestartAct = 'ask' | 'allow' | 'decline' | 'cancel';
 
-/** Where a restart of the current turn stands: `@hadoku/shared`'s `RestartState`, the payload the wire carries. */
+/** What a take-back ask takes back: the turn from its start, or the asker's last action (`docs/planning/undo-plan.md`). */
+export type TakeBackKind = 'restart' | 'undo';
+
+/** One take-back asked for: its kind, the asking seat, the turn it was asked in, and for an undo the history it rewinds. */
+interface TakeBack {
+	kind: TakeBackKind;
+	from: number;
+	turn: number;
+	version: number;
+}
+
+/** Where a take-back stands: `@hadoku/shared`'s `RestartState`, the payload the wire carries. */
 export interface RestartState {
 	matchId: string;
 	turn: number;
-	ask: { from: number } | null;
+	ask: { from: number; kind: TakeBackKind } | null;
 	declined: boolean;
 	restorable: boolean;
+	/** The seats that may ask to undo now: their game says so ({@link GameSession.takeBack}), and no undo of theirs was declined since. */
+	undoable: number[];
 }
 
 /** What the shell keeps of a seat: who holds it and whether they are here. The game's own seat state extends it. */
@@ -178,10 +191,15 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 	 */
 	latestCheckpoint: unknown | null;
 
-	/** The open restart ask: the asking seat, the turn it is about, and its {@link RESTART_ASK_MS} expiry. */
-	protected restartAsk: { from: number; turn: number; timer: ReturnType<typeof setTimeout> } | null = null;
+	/**
+	 * The open take-back ask: what it takes back, the asking seat, the turn it is about, for an undo the history it
+	 * would rewind ({@link GameSession.takeBack}'s `version`), and its {@link RESTART_ASK_MS} expiry. One at a time.
+	 */
+	protected takeBackAsk: (TakeBack & { timer: ReturnType<typeof setTimeout> }) | null = null;
 	/** The turn a restart ask was declined in: no second ask until the next. */
 	protected restartDeclined: number | null = null;
+	/** Each seat's history an undo was declined at: no second ask until it moves. */
+	protected undoDeclined = new Map<number, number>();
 	/** What {@link Match.restartState} last told, so a turn or snapshot that changes nothing tells no one. */
 	protected restartKey = '';
 
@@ -503,17 +521,24 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 		this.activity();
 	}
 
-	/** Where a restart of the current turn stands, the same for every socket of the match. */
+	/** Where a take-back stands, the same for every socket of the match. */
 	restartState(): RestartState {
 		const turn = this.game.turn() ?? 0;
-		const ask = this.restartAsk;
+		const ask = this.openAsk(turn);
 		return {
 			matchId: this.id,
 			turn,
-			ask: ask !== null && ask.turn === turn ? { from: ask.from } : null,
+			ask: ask === null ? null : { from: ask.from, kind: ask.kind },
 			declined: this.restartDeclined === turn,
 			restorable: this.restorable(turn),
+			undoable: this.seats.filter((s) => this.undoable(s.seat) !== null).map((s) => s.seat),
 		};
+	}
+
+	/** The open ask, if it still stands: a restart ask is about one turn only. */
+	protected openAsk(turn: number | null): (TakeBack & { timer: ReturnType<typeof setTimeout> }) | null {
+		const ask = this.takeBackAsk;
+		return ask !== null && (ask.kind === 'undo' || ask.turn === turn) ? ask : null;
 	}
 
 	/** Whether `turn` can be played again from its start: the match holds that turn's snapshot, and it holds the whole game. */
@@ -522,73 +547,116 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 		return this.status === 'running' && snap !== null && snap.turn === turn && (snap.lossy?.length ?? 0) === 0;
 	}
 
+	/** The history `seat` may ask to undo, or null: its game says it can take an action back, and no undo of it was declined. */
+	protected undoable(seat: number): number | null {
+		if (this.status !== 'running') return null;
+		const at = this.game.takeBack?.(seat);
+		if (at === undefined || at === null || !at.can || this.undoDeclined.get(seat) === at.version) return null;
+		return at.version;
+	}
+
 	/**
-	 * A seat's restart act (`docs/planning/restart-turn-plan.md`). `ask`: the seat whose turn it is
-	 * wants the turn played again from its start; an AI opponent allows at once, a human one is asked,
-	 * and no answer in {@link RESTART_ASK_MS} is a decline. `allow` / `decline`: the other seat's
-	 * answer. `cancel`: the asker takes the ask back. The game is not paused while an ask is open:
-	 * an allow undoes everything since the turn began anyway.
+	 * A seat's take-back act (`docs/planning/restart-turn-plan.md`, `docs/planning/undo-plan.md`). `ask`: the seat
+	 * wants its turn played again from its start (`restart`, only the seat whose turn it is) or its last action
+	 * taken back (`undo`, when its game has one to take back); an AI opponent allows at once, a human one is asked,
+	 * and no answer in {@link RESTART_ASK_MS} is a decline. `allow` / `decline`: the other seat's answer. `cancel`:
+	 * the asker takes the ask back. One ask at a time, of either kind. The game is not paused while an ask is open:
+	 * a restart undoes everything since the turn began anyway, and an undo ask lapses once the asker's history moves
+	 * ({@link undoMoved}).
 	 */
-	restartAct(seat: number, act: RestartAct): ClientOutcome {
+	restartAct(seat: number, act: RestartAct, kind: TakeBackKind = 'restart'): ClientOutcome {
 		const s = this.seats[seat];
 		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
 		const turn = this.game.turn();
-		const open = this.restartAsk !== null && this.restartAsk.turn === turn ? this.restartAsk : null;
+		const open = this.openAsk(turn);
 		if (act === 'cancel') {
 			if (open === null || open.from !== seat) return { ok: false, error: 'no-ask' };
-			this.deps.log({ evt: 'restart-cancelled', matchId: this.id, seat, turn });
-			this.closeRestartAsk();
+			this.deps.log({ evt: `${open.kind}-cancelled`, matchId: this.id, seat, turn });
+			this.closeTakeBack();
 			this.tellRestart(true);
 			return { ok: true };
 		}
 		if (act === 'allow' || act === 'decline') {
 			if (open === null || open.from === seat) return { ok: false, error: 'no-ask' };
-			return this.answerRestart(seat, act === 'allow', 'player');
+			return this.answerTakeBack(seat, act === 'allow', 'player');
 		}
 		if (this.status !== 'running' || turn === null) return { ok: false, error: 'not-running' };
-		if (this.game.activeSeat()?.seat !== seat) return { ok: false, error: 'not-your-turn' };
-		if (!this.restorable(turn)) return { ok: false, error: 'not-restorable' };
 		if (open !== null) return { ok: false, error: 'already-asked' };
-		if (this.restartDeclined === turn) return { ok: false, error: 'declined-this-turn' };
+		let version = 0;
+		if (kind === 'restart') {
+			if (this.game.activeSeat()?.seat !== seat) return { ok: false, error: 'not-your-turn' };
+			if (!this.restorable(turn)) return { ok: false, error: 'not-restorable' };
+			if (this.restartDeclined === turn) return { ok: false, error: 'declined-this-turn' };
+		} else {
+			const at = this.undoable(seat);
+			if (at === null) return { ok: false, error: 'nothing-to-undo' };
+			version = at;
+		}
 		const other = this.seats.find((x) => x.seat !== seat);
 		if (other === undefined) return { ok: false, error: 'no-opponent' };
-		this.deps.log({ evt: 'restart-asked', matchId: this.id, seat, turn, ai: other.ai });
-		if (other.ai) return this.restartNow(seat, turn, 'ai');
-		this.closeRestartAsk();
-		const timer = setTimeout(() => this.answerRestart(other.seat, false, 'timeout'), RESTART_ASK_MS);
+		this.deps.log({ evt: `${kind}-asked`, matchId: this.id, seat, turn, ai: other.ai, ...(kind === 'undo' ? { version } : {}) });
+		const ask: TakeBack = { kind, from: seat, turn, version };
+		if (other.ai) return this.takeBackNow(ask, 'ai');
+		this.closeTakeBack();
+		const timer = setTimeout(() => this.answerTakeBack(other.seat, false, 'timeout'), RESTART_ASK_MS);
 		timer.unref();
-		this.restartAsk = { from: seat, turn, timer };
+		this.takeBackAsk = { ...ask, timer };
 		this.tellRestart(true);
 		return { ok: true };
 	}
 
-	protected answerRestart(seat: number, allow: boolean, why: 'player' | 'timeout'): ClientOutcome {
-		const ask = this.restartAsk;
+	protected answerTakeBack(seat: number, allow: boolean, why: 'player' | 'timeout'): ClientOutcome {
+		const ask = this.takeBackAsk;
 		if (ask === null) return { ok: false, error: 'no-ask' };
-		this.closeRestartAsk();
-		this.deps.log({ evt: 'restart-answered', matchId: this.id, seat, turn: ask.turn, allow, why });
+		this.closeTakeBack();
+		this.deps.log({ evt: `${ask.kind}-answered`, matchId: this.id, seat, turn: ask.turn, allow, why });
 		if (!allow) {
-			this.restartDeclined = ask.turn;
+			if (ask.kind === 'restart') this.restartDeclined = ask.turn;
+			else this.undoDeclined.set(ask.from, ask.version);
 			this.tellRestart(true);
 			return { ok: true };
 		}
-		if (this.game.turn() !== ask.turn || !this.restorable(ask.turn)) {
+		const stands = ask.kind === 'restart' ? this.game.turn() === ask.turn && this.restorable(ask.turn) : this.undoable(ask.from) === ask.version;
+		if (!stands) {
 			this.tellRestart(true);
-			return { ok: false, error: 'turn-moved-on' };
+			return { ok: false, error: ask.kind === 'restart' ? 'turn-moved-on' : 'history-moved' };
 		}
-		return this.restartNow(ask.from, ask.turn, 'opponent');
+		return this.takeBackNow(ask, 'opponent');
 	}
 
-	protected restartNow(seat: number, turn: number, allowedBy: 'ai' | 'opponent'): ClientOutcome {
+	protected takeBackNow(ask: TakeBack, allowedBy: 'ai' | 'opponent'): ClientOutcome {
+		if (ask.kind === 'undo') {
+			if (this.game.rewind === undefined) return { ok: false, error: 'cannot-undo' };
+			this.deps.log({ evt: 'undo', matchId: this.id, seat: ask.from, turn: ask.turn, version: ask.version, allowedBy });
+			this.game.rewind(ask.from, ask.version);
+			this.tellRestart(true);
+			return { ok: true };
+		}
 		if (this.deps.restartTurn === undefined) return { ok: false, error: 'cannot-restart' };
-		this.deps.log({ evt: 'restart-turn', matchId: this.id, seat, turn, allowedBy });
+		this.deps.log({ evt: 'restart-turn', matchId: this.id, seat: ask.from, turn: ask.turn, allowedBy });
 		this.deps.restartTurn();
 		return { ok: true };
 	}
 
-	protected closeRestartAsk(): void {
-		if (this.restartAsk !== null) clearTimeout(this.restartAsk.timer);
-		this.restartAsk = null;
+	/**
+	 * What `seat` could take back moved ({@link GameSession.takeBack}): it acted, or a barrier fell. Its open undo
+	 * ask lapses, and a decline no longer holds once the history it was about is gone.
+	 */
+	undoMoved(seat: number): void {
+		const at = this.game.takeBack?.(seat) ?? null;
+		const ask = this.takeBackAsk;
+		if (ask !== null && ask.kind === 'undo' && ask.from === seat && (at === null || !at.can || at.version !== ask.version)) {
+			this.deps.log({ evt: 'undo-cancelled', matchId: this.id, seat, turn: ask.turn, why: 'history-moved' });
+			this.closeTakeBack();
+		}
+		const declined = this.undoDeclined.get(seat);
+		if (declined !== undefined && declined !== at?.version) this.undoDeclined.delete(seat);
+		this.tellRestart();
+	}
+
+	protected closeTakeBack(): void {
+		if (this.takeBackAsk !== null) clearTimeout(this.takeBackAsk.timer);
+		this.takeBackAsk = null;
 	}
 
 	/** Tell every socket where a restart stands, when it changed (or always, `force`: an act's own answer). */

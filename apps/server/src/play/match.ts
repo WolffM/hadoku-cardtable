@@ -403,7 +403,7 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 				this.latestSnapshot = snapshot;
 				this.deps.log({ evt: 'turn-snapshot', matchId: this.id, turn: line.turn, bytes: Buffer.byteLength(line.state), ms: line.ms });
 				if (line.lossy !== undefined && line.lossy.length > 0) this.deps.log({ evt: 'snapshot-lossy', matchId: this.id, turn: line.turn, kinds: line.lossy });
-				if (this.restartAsk !== null && this.restartAsk.turn !== line.turn) this.closeRestartAsk();
+				if (this.takeBackAsk?.kind === 'restart' && this.takeBackAsk.turn !== line.turn) this.closeTakeBack();
 				this.tellRestart();
 				this.noteCheckpoint(snapshot);
 				return;
@@ -438,6 +438,11 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 
 	stopPolicy(seat: number): StopPolicy {
 		return this.session.stopPolicy(seat);
+	}
+
+	/** The heap the game's undo history pins, in bytes (capacity's `undoMb`). */
+	undoBytes(): number {
+		return this.session.undoBytes();
 	}
 
 	resendAfterSnapshot(seat: number): void {

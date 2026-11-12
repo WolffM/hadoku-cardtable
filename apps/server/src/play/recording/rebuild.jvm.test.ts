@@ -184,6 +184,43 @@ describe('rebuild: one at a time per server', () => {
 	});
 });
 
+describe('rebuild: a rewind in the log', () => {
+	it('is sent at the rebuilt run\'s own history once the seat can take an action back, and waits for Forge to do it', async () => {
+		const dir = join(recordingsDir, 'rewind');
+		mkdirSync(dir, { recursive: true });
+		const matchId = 'rewind-1';
+		const writer = createMatchRecordingWriter({
+			dir,
+			matchId,
+			actionsHeader: { matchId, roomId: 'r', pin: 'p', bridge: 'b', server: 'test', startedAt: new Date().toISOString(), spec: { seed: 1, seats: [{ name: 'A', ai: false, deck: null }, { name: 'B', ai: false, deck: null }] } },
+			publicHeader: { matchId, roomId: 'r', players: ['A', 'B'], ai: [false, false], decks: [null, null], art: [], startedAt: new Date().toISOString() },
+			log: () => {},
+		});
+		// The live run's history was at 3; the rebuilt run's is its own.
+		writer.actionCmd({ seat: 0, cmd: { t: 'rewind', seat: 0, version: 3 } });
+		await writer.finish({ endedAt: new Date().toISOString(), reason: 'test' }, { endedAt: new Date().toISOString(), winner: null });
+		rmSync(publicStreamPath(dir, matchId));
+
+		const sent: BridgeCommand[] = [];
+		const host = (_id: string, _spec: MatchSpec, events: { line(l: BridgeLine): void }) => {
+			setTimeout(() => events.line({ t: 'undo', seat: 0, can: false, version: 6 }), 5);
+			setTimeout(() => events.line({ t: 'undo', seat: 0, can: true, version: 7 }), 20);
+			return {
+				send: (c: BridgeCommand) => {
+					sent.push(c);
+					if (c.t === 'rewind') setTimeout(() => events.line({ t: 'rewind', seat: c.seat, ok: c.version === 7, version: c.version }), 5);
+				},
+				stop: () => {},
+			};
+		};
+		const r = await rebuild(matchId, { recordingsDir: dir, host, log: () => {}, deckCosts, positionBudgetMs: 2_000, running: { pin: 'p', bridge: 'b' } });
+		expect(sent.filter((c) => c.t === 'rewind')).toEqual([{ t: 'rewind', seat: 0, version: 7 }]);
+		// The stub plays no game, so its boards are not the recording's: refused, never a different game.
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.reason).not.toMatch(/rewind/);
+	});
+});
+
 /* ── a real match, rebuilt on a second JVM ──────────────────────────────────────────────────── */
 
 describe.skipIf(!available.ok || !nightly)(title, () => {

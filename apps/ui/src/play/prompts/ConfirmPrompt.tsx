@@ -198,8 +198,9 @@ const END_TURN_LABEL = 'End Turn';
  *    manual mana tap): a click on the land tapped last already untaps it, so
  *    Forge's `Undo (N)` button is not drawn at all.
  *  - `resolve`: the same priority pass with something on the stack. Button one
- *    lets the top resolve, so the pop-up's button says `Resolve` (with an
- *    `Undo (N)` beside it after a mana tap).
+ *    lets the top resolve, so the pop-up's button says `Resolve`. Forge's
+ *    `Undo (N)` is not drawn here either: the land click untaps, and taking an
+ *    action back is the control box's Undo (`docs/planning/undo-plan.md`).
  *  - `decision`: any other bar with an enabled button that is not `End Turn`
  *    (the control box's own second button): declare
  *    attackers or blockers done, a target's `Cancel`, the London mulligan's

@@ -66,7 +66,7 @@ export interface ActionsHeader {
  * its own ask (`ask`, below), a separate channel from board/prompt that can read a different stage
  * of the game depending on how Forge batches the two.
  *
- * Only `act`/`reply`/`abort` are ever logged: `stop`, `resend-pending`, `cancel-payment` and
+ * Only `act`/`reply`/`abort`/`rewind` are ever logged: `stop`, `resend-pending`, `cancel-payment` and
  * `probe` are connection/UI housekeeping, never part of the deterministic move sequence a rebuild
  * replays, and `seat` is always a real seat, never null, for exactly that reason.
  */
