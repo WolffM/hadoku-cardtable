@@ -60,6 +60,14 @@ export function playMessagesOf(captures: readonly RawCapture[]): PlayMessage[] {
   return captures.flatMap(playMessagesIn);
 }
 
+/**
+ * How much of a match a capture holds: a count that moves when the match does and holds still
+ * when it does not, which is what "the match went quiet" waits on.
+ */
+export function matchTraffic(captures: readonly RawCapture[]): number {
+  return captures.length;
+}
+
 /** Is this ack a match snapshot (and not a draft ack or an `{ error }`)? */
 export function isSnapshot(msg: unknown): msg is Snapshot {
   return typeof msg === 'object' && msg !== null && 'frames' in msg && 'playerId' in msg && 'seat' in msg;

@@ -128,7 +128,7 @@ import type { WireObject } from '../apps/ui/src/play/wire.ts';
 import { E2E_ERA, createRoom, enabledCancel, enabledOk, says, serverLog } from './play/board.ts';
 import { messages, openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
-import { isSnapshot, type Frame, type PlayMessage, type ServerEnvelope } from './play/frames.ts';
+import { isSnapshot, matchTraffic, type Frame, type PlayMessage, type ServerEnvelope } from './play/frames.ts';
 import { connectHands, type Hands } from './play/hands.ts';
 import { answerPrompt, SELF_ANSWERING } from './play/prompts.ts';
 import {
@@ -449,12 +449,12 @@ async function dragLanded(f: Friend, before: number, cardId: number, name: strin
 
 async function quiet(friends: Friend[], ms: number, budget = 60_000): Promise<void> {
   const deadline = Date.now() + budget;
-  let last = friends.map((f) => f.captures.length).join();
+  let last = friends.map((f) => matchTraffic(f.captures)).join();
   let since = Date.now();
   while (Date.now() - since < ms) {
     if (Date.now() > deadline) throw new Error(`the match never went quiet for ${ms} ms`);
     await new Promise((r) => setTimeout(r, 100));
-    const now = friends.map((f) => f.captures.length).join();
+    const now = friends.map((f) => matchTraffic(f.captures)).join();
     if (now !== last) {
       last = now;
       since = Date.now();
