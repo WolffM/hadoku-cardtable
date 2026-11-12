@@ -673,6 +673,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 				})(),
 			});
 			matches.set(id, match);
+			if (snapshot !== null) match.session.inheritKnowledge(old.session);
 			old.stop();
 			for (const s of old.seats) {
 				const to = match.seats[s.seat];

@@ -2556,6 +2556,15 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		return { ok: true };
 	}
 
+	/**
+	 * A restore's new game takes what every seat and the watchers were shown in the game it replaces
+	 * (`visibility.ts`, "What a restore goes back to, it keeps"), before its first frame.
+	 */
+	inheritKnowledge(from: ForgeSession): void {
+		for (const s of from.seats) this.seats[s.seat]?.projector.inherit(s.projector.carried());
+		this.watcher.projector.inherit(from.watcher.projector.carried());
+	}
+
 	/** This seat's stop preferences, as the shortcut decisions read them. */
 	stopPolicy(seat: number): StopPolicy {
 		return this.seats[seat]?.policy ?? DEFAULT_STOP_POLICY;
