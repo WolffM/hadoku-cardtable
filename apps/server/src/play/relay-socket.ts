@@ -85,6 +85,11 @@ export const RELAY_JOIN_RATE_LIMIT: RateLimitConfig = {
 export interface RelayRoster {
 	seatCount: number;
 	roleOf(participantId: ParticipantId): number | null | undefined;
+	/**
+	 * How the room's previous match ended, while this one has not started: a join answers with it,
+	 * so a screen that loads the room after an end still shows the result. Absent: nothing to tell.
+	 */
+	lastEnded?(): { winners: readonly number[] | null } | undefined;
 	/** This match's own session, wired to `sink`; `onEnded` is this file's own cleanup, called once. */
 	attach(sink: RelaySink, onEnded: (outcome: RelayOutcome | null) => void): RelaySession;
 	/** A seat's first live socket joined, or its last one went. Absent: nothing is told. */
@@ -92,7 +97,9 @@ export interface RelayRoster {
 	seatDisconnected?(seat: number): void;
 }
 
-export type RelayJoinAck = { ok: true; seat: number | null } | { ok: false; error: 'bad-request' | 'unknown-match' | 'not-joined' | 'rate-limited' };
+export type RelayJoinAck =
+	| { ok: true; seat: number | null; ended?: { winners: readonly number[] | null } }
+	| { ok: false; error: 'bad-request' | 'unknown-match' | 'not-joined' | 'rate-limited' };
 
 export interface RelayDeps {
 	/** The tier floor; `CONFIG.minTier` in production. */
@@ -211,7 +218,8 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 			}
 			joined = { matchId, match, seat: role };
 			log({ evt: 'relay-joined', matchId, seat: role });
-			reply({ ok: true, seat: role });
+			const ended = match.roster.lastEnded?.();
+			reply(ended === undefined ? { ok: true, seat: role } : { ok: true, seat: role, ended });
 		});
 
 		socket.on(RELAY_EVENTS.message, (msg: RelayMessage) => {

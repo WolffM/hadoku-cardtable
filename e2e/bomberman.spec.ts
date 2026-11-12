@@ -2,8 +2,8 @@
  * A bomberman room end to end through the real UI and the real relay: make it, two seats join,
  * the room's own `game` slot mounts a stub bundle with the room's own context and a
  * `ctx.channel`, the seats talk over it, one drops and comes back inside bomberman's seat hold,
- * the leader's `{ t: 'over', winners }` shows as the room's result, and leaving the room unmounts
- * the bundle.
+ * the leader's `{ t: 'over', winners }` shows as the room's result (on a page reloaded after the
+ * end too), and leaving the room unmounts the bundle.
  *
  * Bomberman is `runtime: 'relay'` (`@hadoku/shared`'s `BOMBERMAN_GAME_TYPE_SPEC`), so its room's
  * match is a `RelayMatch` and this runs on `play/harness.ts`'s stack, as `relay-fixture.spec.ts`
@@ -115,6 +115,10 @@ test(titled('a bomberman room plays over the relay: both seats get a channel and
       await expect(page.getByTestId('room-bundle-result')).toHaveText('e2e-bob won', { timeout: 15_000 });
       await expect(page.getByTestId('room-bundle-result')).toHaveAttribute('data-winners', '1');
     }
+    // The result on reload: bob's page loads again after the end and still shows it.
+    await bobPage.reload();
+    await expect(fixturePanel(bobPage)).toHaveAttribute('data-has-channel', 'true', { timeout: 15_000 });
+    await expect(bobPage.getByTestId('room-bundle-result'), 'bob, reloaded after the end, sees the result').toHaveText('e2e-bob won', { timeout: 15_000 });
     console.log(`[bomberman] room=${roomId} relay=${JSON.stringify(relay())} ended=${JSON.stringify(serverLog(stack).filter((r) => r.evt === 'relay-ended' && r.matchId === roomId))}`);
 
     // Leaving the room the way a player does, by the header's way home (an in-page navigation,

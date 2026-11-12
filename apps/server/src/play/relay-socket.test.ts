@@ -293,9 +293,9 @@ describe('relay:message', () => {
 
 		// Until it rejoins, a screen speaks for nothing, even once the room's next match is live:
 		// bob's send goes nowhere after alice is already in the second match.
-		expect(await alice.join('m1')).toEqual({ ok: true, seat: 0 });
+		expect(await alice.join('m1')).toEqual({ ok: true, seat: 0, ended: { winners: [0] } });
 		bob.send('into the void');
-		expect(await bob.join('m1')).toEqual({ ok: true, seat: 1 });
+		expect(await bob.join('m1')).toEqual({ ok: true, seat: 1, ended: { winners: [0] } });
 		alice.send('second match');
 		bob.send('bob in the second match');
 		await waitUntil(() => bob.messages.includes('second match'), 'bob to hear the second match');
@@ -307,6 +307,31 @@ describe('relay:message', () => {
 		bob.send({ t: 'over', winners: [1] });
 		await waitUntil(() => h.ended.length === 2, 'the second match to end');
 		expect(h.ended[1]).toEqual({ matchId: 'm1', outcome: { winners: [1] } });
+	});
+
+	it("the result on reload: a screen that joins after the end is answered with it, until the room's next match is under way", async () => {
+		const reg = createRelayMatchRegistry();
+		const roomSeats = [participantOf('alice'), participantOf('bob')];
+		reg.register('m1', 2, { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null) });
+		const h = await bootWith((matchId) => reg.get(matchId));
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		// A room's first match has no result to tell.
+		expect(await alice.join('m1')).toEqual({ ok: true, seat: 0 });
+		await bob.join('m1');
+		alice.send({ t: 'over', winners: [1] });
+		await waitUntil(() => h.ended.length === 1, 'the match to end');
+
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		expect(await carol.join('m1')).toEqual({ ok: true, seat: null, ended: { winners: [1] } });
+
+		// The next match is under way from its first message: a later screen is told nothing.
+		await alice.join('m1');
+		await bob.join('m1');
+		alice.send({ t: 'start' });
+		await waitUntil(() => bob.messages.length === 1, 'bob to hear the start');
+		const dave = await connect(h.port, edgeHeaders('dave'));
+		expect(await dave.join('m1')).toEqual({ ok: true, seat: null });
 	});
 
 	it('answers 429 once a caller has spent their joins, and only for that caller', async () => {

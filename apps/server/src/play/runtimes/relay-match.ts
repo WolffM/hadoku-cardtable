@@ -52,6 +52,12 @@ const relayNullHost: MatchHostFactory<RelayLine, RelayCommand> = inProcessHost<M
 interface RelayMatchInternalDeps extends HostedMatchDeps<RelayLine, RelayCommand> {
 	seatRejoinGraceMs?: number;
 	roomSeatOf: (participantId: ParticipantId) => number | null;
+	previous?: RelayEnded;
+}
+
+/** How the room's previous match ended: its winners' seat numbers, or null when every seat left. */
+export interface RelayEnded {
+	winners: readonly number[] | null;
 }
 
 /** What a `RelayMatch` needs beyond {@link HostedMatchDeps}: `host` is optional here (unlike the
@@ -103,6 +109,15 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 			const s = this.seats[seat];
 			if (s !== undefined && owner !== null) s.owner = owner as ParticipantId;
 		}
+	}
+
+	/**
+	 * `RelayRoster.lastEnded`: how the room's previous match ended, until this one is under way
+	 * (its first message), so a screen that loads the room in between still shows the result.
+	 * Undefined for a room's first match, and once this one has started.
+	 */
+	lastEnded(): RelayEnded | undefined {
+		return this.sessionRef?.started === true ? undefined : this.deps.previous;
 	}
 
 	/** `RelayRoster.seatCount`. */
@@ -225,8 +240,8 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 }
 
 /** Builds one `RelayMatch`, filling {@link relayNullHost} in when `deps.host` is left out. */
-export function createRelayMatch(id: string, seatCount: number, deps: RelayMatchDeps): RelayMatch {
-	return new RelayMatch(id, seatCount, { ...deps, host: deps.host ?? relayNullHost });
+export function createRelayMatch(id: string, seatCount: number, deps: RelayMatchDeps, previous?: RelayEnded): RelayMatch {
+	return new RelayMatch(id, seatCount, { ...deps, host: deps.host ?? relayNullHost, ...(previous === undefined ? {} : { previous }) });
 }
 
 export interface RelayMatchRegistry {
@@ -244,23 +259,29 @@ export interface RelayMatchRegistry {
 /**
  * A registry of `RelayMatch`es, keyed by match (room) id. A match that ends is replaced by the
  * room's next one at once, before `relay-socket.ts` tells any screen it ended, so every screen's
- * rejoin (`relay-channel.ts` sends its join again on `relay:ended`) finds the new match.
+ * rejoin (`relay-channel.ts` sends its join again on `relay:ended`) finds the new match. The next
+ * match carries how the last one ended (`RelayMatch.lastEnded`) until it is under way.
  */
 export function createRelayMatchRegistry(): RelayMatchRegistry {
 	const matches = new Map<string, RelayMatch>();
-	function register(id: string, seatCount: number, deps: RelayMatchDeps): RelayMatch {
-		const match = createRelayMatch(id, seatCount, {
-			...deps,
-			ended: () => {
-				if (matches.get(id) === match) register(id, seatCount, deps);
-				deps.ended?.();
+	function register(id: string, seatCount: number, deps: RelayMatchDeps, previous?: RelayEnded): RelayMatch {
+		const match = createRelayMatch(
+			id,
+			seatCount,
+			{
+				...deps,
+				ended: () => {
+					if (matches.get(id) === match) register(id, seatCount, deps, { winners: match.result?.winners ?? null });
+					deps.ended?.();
+				},
 			},
-		});
+			previous,
+		);
 		matches.set(id, match);
 		return match;
 	}
 	return {
-		register,
+		register: (id, seatCount, deps) => register(id, seatCount, deps),
 		get(id) {
 			return matches.get(id);
 		},

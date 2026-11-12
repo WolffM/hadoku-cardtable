@@ -39,6 +39,16 @@ const RELAY_EVENTS = { join: 'relay:join', message: 'relay:message', ended: 'rel
  */
 export interface RelayChannel extends MatchChannel {
   onEnded(handler: (winners: readonly number[] | null) => void): () => void;
+  /**
+   * The room's last result, for the room to show: the winners when a match ends (live, or the
+   * join answering for a match that ended before this screen loaded), then null once the next
+   * match is under way (the first message this channel sends or hears after that).
+   */
+  onResult(handler: (winners: readonly number[] | null) => void): () => void;
+}
+
+function winnersOf(raw: unknown): readonly number[] | null {
+  return Array.isArray(raw) && raw.every((w) => typeof w === 'number') ? (raw as number[]) : null;
 }
 
 export interface RelayChannelOptions {
@@ -59,11 +69,26 @@ export function openRelayChannel(matchId: string, options: RelayChannelOptions =
   const socket: Socket = options.url === undefined ? io(settings) : io(options.url, settings);
   const handlers = new Set<(msg: unknown) => void>();
   const endedHandlers = new Set<(winners: readonly number[] | null) => void>();
+  const resultHandlers = new Set<(winners: readonly number[] | null) => void>();
   let closed = false;
+  /** A result is shown: the next message sent or heard clears it. */
+  let showing = false;
+
+  const tellResult = (winners: readonly number[] | null): void => {
+    showing = winners !== null;
+    for (const handler of [...resultHandlers]) handler(winners);
+  };
+  const underway = (): void => {
+    if (showing) tellResult(null);
+  };
 
   const join = (): void => {
     if (closed) return;
-    socket.emit(RELAY_EVENTS.join, { matchId });
+    // A match that ended before this join answers with its result (`relay-socket.ts`'s ack).
+    socket.emit(RELAY_EVENTS.join, { matchId }, (ack: { ok?: unknown; ended?: { winners?: unknown } } | undefined) => {
+      if (closed || ack?.ok !== true || ack.ended === undefined) return;
+      tellResult(winnersOf(ack.ended.winners));
+    });
   };
   // A fresh connection joins once it opens; a later reconnect (a dropped network, a deploy) joins
   // again on the new one — `relay-socket.ts` treats that exactly like a brand new peer.
@@ -71,6 +96,7 @@ export function openRelayChannel(matchId: string, options: RelayChannelOptions =
 
   socket.on(RELAY_EVENTS.message, (msg: unknown) => {
     if (closed) return;
+    underway();
     // Snapshotted first: a handler that subscribes or unsubscribes while running must not change
     // who else receives THIS message — the same rule `createInMemoryMatchChannels` documents.
     for (const handler of [...handlers]) handler(msg);
@@ -78,12 +104,12 @@ export function openRelayChannel(matchId: string, options: RelayChannelOptions =
 
   socket.on(RELAY_EVENTS.ended, (word: { winners?: unknown } | null) => {
     if (closed) return;
-    const raw = word?.winners;
-    const winners = Array.isArray(raw) && raw.every((w) => typeof w === 'number') ? (raw as number[]) : null;
+    const winners = winnersOf(word?.winners);
     // The room's next match is already registered under the same id: join it on this socket,
     // before anyone is told, so nothing the bundle sends after hearing the end is lost.
     join();
     for (const handler of [...endedHandlers]) handler(winners);
+    tellResult(winners);
   });
 
   return {
@@ -92,8 +118,14 @@ export function openRelayChannel(matchId: string, options: RelayChannelOptions =
       endedHandlers.add(handler);
       return () => endedHandlers.delete(handler);
     },
+    onResult(handler) {
+      if (closed) return () => {};
+      resultHandlers.add(handler);
+      return () => resultHandlers.delete(handler);
+    },
     send(msg) {
       if (closed) return;
+      underway();
       socket.emit(RELAY_EVENTS.message, msg);
     },
     on(handler) {
@@ -106,6 +138,7 @@ export function openRelayChannel(matchId: string, options: RelayChannelOptions =
       closed = true;
       handlers.clear();
       endedHandlers.clear();
+      resultHandlers.clear();
       socket.disconnect();
     },
   };

@@ -19,7 +19,8 @@
  * never back to herself; Carol's own send is refused (nothing is relayed to anyone); Alice, the
  * leader, ends the match, and every screen shows the room's result. Then the same room plays a
  * second match: every screen rejoins the room's next match on its own, the bundle is mounted
- * afresh, the second match's messages are delivered and its result replaces the first's.
+ * afresh, the second match's messages are delivered and its result replaces the first's. Erin,
+ * loading the room after that end, sees its result too.
  *
  * `[relay-fixture]` lines are the evidence.
  */
@@ -92,14 +93,15 @@ test(titled('a relay-test room: two seats and a watcher talk over ctx.channel â€
     }
 
     const roomId = await createRelayTestRoom(alice, stack.origin, `e2e relay-test ${Date.now()}`);
+    // Bob is seated before carol loads the room: whoever joins second takes the second seat.
     await bob.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
+    await expect(panel(bob), "bob's own fixture mounts, seated").toHaveAttribute('data-room-key', roomId, { timeout: 15_000 });
+    await expect(panel(bob)).toHaveAttribute('data-my-seat', '1', { timeout: 15_000 });
     await carol.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
 
     await expect(panel(alice), "alice's own fixture mounts, seated").toHaveAttribute('data-room-key', roomId, { timeout: 15_000 });
     await expect(panel(alice)).toHaveAttribute('data-is-leader', 'true');
     await expect(panel(alice)).toHaveAttribute('data-my-seat', '0');
-    await expect(panel(bob), "bob's own fixture mounts, seated").toHaveAttribute('data-room-key', roomId, { timeout: 15_000 });
-    await expect(panel(bob)).toHaveAttribute('data-my-seat', '1');
     await expect(panel(carol), "carol's own fixture mounts, a watcher").toHaveAttribute('data-room-key', roomId, { timeout: 15_000 });
     await expect(panel(carol)).toHaveAttribute('data-my-seat', '');
 
@@ -147,6 +149,14 @@ test(titled('a relay-test room: two seats and a watcher talk over ctx.channel â€
     const endings = relayLog().filter((r) => r.evt === 'relay-ended');
     console.log(`[relay-fixture] room=${roomId} ended=${JSON.stringify(endings)} joins=${String(joins())}`);
     expect(endings.map((r) => r.winners)).toEqual([[0], [1]]);
+
+    // A screen that loads the room after the end shows the result: its join is answered with it.
+    const erin = await openFriend(browser, 'erin');
+    await stubRelayTestEmbed(erin.context);
+    await flagRelayTestFixture(erin.context);
+    await erin.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
+    await expect(panel(erin), "erin's fixture mounts, a watcher").toHaveAttribute('data-my-seat', '', { timeout: 15_000 });
+    await expect(result(erin), 'erin, loading after the end, sees its result').toHaveText('e2e-bob won', { timeout: 15_000 });
   } finally {
     await stack.stop();
   }

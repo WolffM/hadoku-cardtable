@@ -40,7 +40,9 @@
  * When the relay match ends on the leader's `{ t: 'over', winners }`, the host says so to every
  * screen (`relay:ended`), and this slot shows the winners under the game: the room's result,
  * not the bundle's. `winners` are seat numbers in `match.seats`' numbering above — the one the
- * bundle itself was handed — so they name the same people on every screen.
+ * bundle itself was handed — so they name the same people on every screen. A screen that loads
+ * the room after the end shows it too (the join answers with it), and it stays until the next
+ * match is under way.
  *
  * ## The next match
  *
@@ -110,7 +112,7 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
 
   const isRelay = view !== null && gameTypeSpec(view.gameType)?.runtime === 'relay';
   const [channel, setChannel] = useState<RelayChannel | null>(null);
-  /** The relay match's winners once it ended on an `over`; null until then. */
+  /** The room's last result (`RelayChannel.onResult`); null while none is shown. */
   const [winners, setWinners] = useState<readonly number[] | null>(null);
   /** How many of this room's relay matches have ended on this screen: each one remounts the bundle. */
   const [matchesEnded, setMatchesEnded] = useState(0);
@@ -121,12 +123,11 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
     if (!isRelay || view === null) return;
     const ch = openRelayChannel(view.id);
     setChannel(ch);
-    const offEnded = ch.onEnded((ended) => {
-      setWinners(ended);
-      setMatchesEnded((n) => n + 1);
-    });
+    const offEnded = ch.onEnded(() => setMatchesEnded((n) => n + 1));
+    const offResult = ch.onResult(setWinners);
     return () => {
       offEnded();
+      offResult();
       ch.close();
       setChannel(null);
       setWinners(null);

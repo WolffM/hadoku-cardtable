@@ -23,10 +23,11 @@ vi.mock('../room/whoami.ts', () => ({ useWhoami: () => who }));
 /** `relayChannelCalls`: every `openRelayChannel`/`close()` call, so a test can assert on the
  *  room this file opened a channel for and that unmounting disposed it — a real socket is
  *  `relay-channel.test.ts`'s own job, not this component's. */
-const relayChannelCalls: { matchId: string; closed: boolean; ended: Set<(winners: readonly number[] | null) => void> }[] = [];
+type WinnersHandler = (winners: readonly number[] | null) => void;
+const relayChannelCalls: { matchId: string; closed: boolean; ended: Set<WinnersHandler>; result: Set<WinnersHandler> }[] = [];
 vi.mock('./relay-channel.ts', () => ({
   openRelayChannel: (matchId: string) => {
-    const entry = { matchId, closed: false, ended: new Set<(winners: readonly number[] | null) => void>() };
+    const entry = { matchId, closed: false, ended: new Set<WinnersHandler>(), result: new Set<WinnersHandler>() };
     relayChannelCalls.push(entry);
     return {
       send: vi.fn(),
@@ -34,6 +35,10 @@ vi.mock('./relay-channel.ts', () => ({
       onEnded: (handler: (winners: readonly number[] | null) => void) => {
         entry.ended.add(handler);
         return () => entry.ended.delete(handler);
+      },
+      onResult: (handler: WinnersHandler) => {
+        entry.result.add(handler);
+        return () => entry.result.delete(handler);
       },
       close: () => {
         entry.closed = true;
@@ -228,15 +233,21 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
   it("shows the host's result under the game, naming the winners by the bundle's own seat numbers", async () => {
     const members = [{ id: 'u1', name: 'Ann' }, { id: 'u2', name: 'Bob' }];
     renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true } });
-    await waitFor(() => expect(relayChannelCalls[0]?.ended.size).toBe(1));
+    await waitFor(() => expect(relayChannelCalls[0]?.result.size).toBe(1));
     expect(screen.queryByTestId('room-bundle-result')).toBeNull();
 
     act(() => {
-      for (const handler of relayChannelCalls[0]!.ended) handler([1]);
+      for (const handler of relayChannelCalls[0]!.result) handler([1]);
     });
     const result = await screen.findByTestId('room-bundle-result');
     expect(result.textContent).toBe('Bob won');
     expect(result.getAttribute('data-winners')).toBe('1');
+
+    // The next match under way: the channel clears the result, and the slot drops it.
+    act(() => {
+      for (const handler of relayChannelCalls[0]!.result) handler(null);
+    });
+    expect(screen.queryByTestId('room-bundle-result')).toBeNull();
   });
 
   it('mounts the bundle afresh, on the same channel, for the next match once one ends', async () => {
@@ -247,6 +258,7 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
 
     act(() => {
       for (const handler of relayChannelCalls[0]!.ended) handler([0]);
+      for (const handler of relayChannelCalls[0]!.result) handler([0]);
     });
     await waitFor(() => expect(fixture.calls.filter((c) => c[0] === 'mount')).toHaveLength(2));
     expect(fixture.calls.filter((c) => c[0] === 'unmount')).toHaveLength(1);

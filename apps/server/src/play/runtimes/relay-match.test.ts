@@ -240,6 +240,28 @@ describe('createRelayMatchRegistry', () => {
 		expect(ended).toHaveBeenCalledTimes(2);
 	});
 
+	it("the room's next match carries how the last one ended until its own first message, and a first match carries nothing", () => {
+		const reg = createRelayMatchRegistry();
+		const first = reg.register('m1', 2, deps());
+		expect(first.lastEnded()).toBeUndefined();
+		first.attach(sink(), () => {}).fromSeat(0, { t: 'over', winners: [1] });
+		const next = reg.get('m1');
+		if (next === undefined) throw new Error('no next match');
+		expect(next.lastEnded()).toEqual({ winners: [1] });
+		const session = next.attach(sink(), () => {});
+		expect(next.lastEnded()).toEqual({ winners: [1] });
+		session.fromSeat(0, { t: 'start' });
+		expect(next.lastEnded()).toBeUndefined();
+	});
+
+	it('a match every seat left is remembered with no winners', () => {
+		const reg = createRelayMatchRegistry();
+		const session = reg.register('m1', 2, deps()).attach(sink(), () => {});
+		session.seatLeft(0);
+		session.seatLeft(1);
+		expect(reg.get('m1')?.lastEnded()).toEqual({ winners: null });
+	});
+
 	it('a match the room has already replaced does not replace its replacement when it ends', () => {
 		const reg = createRelayMatchRegistry();
 		const stale = reg.register('m1', 2, deps());

@@ -62,6 +62,7 @@ export class RelaySession implements GameSession<RelayLine, RelayCommand> {
 	private readonly left = new Set<number>();
 	private outcome: RelayOutcome | null = null;
 	private closed = false;
+	private relayedAny = false;
 
 	constructor(
 		private readonly seatCount: number,
@@ -78,6 +79,11 @@ export class RelaySession implements GameSession<RelayLine, RelayCommand> {
 		return this.outcome;
 	}
 
+	/** Whether any seat has said anything in this match yet: the match is under way from its first message. */
+	get started(): boolean {
+		return this.relayedAny;
+	}
+
 	/**
 	 * One seat's own connection sent `msg`: relay it to every OTHER seat and,
 	 * read-only, to every watcher — never back to the sender. A seat already
@@ -87,6 +93,7 @@ export class RelaySession implements GameSession<RelayLine, RelayCommand> {
 	 */
 	fromSeat(seat: number, msg: RelayMessage): void {
 		if (this.closed || this.left.has(seat)) return;
+		this.relayedAny = true;
 		for (let other = 0; other < this.seatCount; other += 1) {
 			if (other !== seat) this.sink.toSeat(other, msg);
 		}

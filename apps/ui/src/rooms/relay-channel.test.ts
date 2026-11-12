@@ -37,6 +37,8 @@ interface FakeIoServer {
 
 interface FakeRelay {
 	url: string;
+	/** What the next join is answered with as `ended`; undefined: nothing. */
+	lastEnded: { winners: number[] | null } | undefined;
 	joins: { matchId: string }[];
 	messages: { from: string; msg: unknown }[];
 	close(): Promise<void>;
@@ -48,14 +50,23 @@ interface FakeRelay {
 async function fakeRelayServer(): Promise<FakeRelay> {
 	const http: HttpServer = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
-	const joins: { matchId: string }[] = [];
-	const messages: { from: string; msg: unknown }[] = [];
 	const sockets = new Set<FakeIoSocket>();
+	const relay: FakeRelay = {
+		url: '',
+		lastEnded: undefined,
+		joins: [],
+		messages: [],
+		close: () => {
+			io.close();
+			return new Promise<void>((done) => http.close(() => done()));
+		},
+	};
+	const { joins, messages } = relay;
 	io.on('connection', (socket) => {
 		sockets.add(socket);
 		socket.on('relay:join', (payload, ack) => {
 			joins.push(payload as { matchId: string });
-			ack?.({ ok: true, seat: null });
+			ack?.(relay.lastEnded === undefined ? { ok: true, seat: null } : { ok: true, seat: null, ended: relay.lastEnded });
 		});
 		socket.on('relay:message', (msg) => {
 			messages.push({ from: socket.id, msg });
@@ -66,16 +77,8 @@ async function fakeRelayServer(): Promise<FakeRelay> {
 		});
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
-	const port = (http.address() as AddressInfo).port;
-	return {
-		url: `http://127.0.0.1:${port}`,
-		joins,
-		messages,
-		close: () => {
-			io.close();
-			return new Promise<void>((done) => http.close(() => done()));
-		},
-	};
+	relay.url = `http://127.0.0.1:${(http.address() as AddressInfo).port}`;
+	return relay;
 }
 
 const openChannels: { close(): void }[] = [];
@@ -159,6 +162,44 @@ describe('openRelayChannel', () => {
 			await waitUntil(() => server.joins.length === 4, 'both to join the next match');
 			expect(server.joins.slice(2)).toEqual([{ matchId: 'room-a' }, { matchId: 'room-a' }]);
 			expect(joinsWhenTold).toHaveLength(1);
+		} finally {
+			await server.close();
+		}
+	});
+
+	it("onResult() hears a result the join answers with (a screen loading after the end), and null once the next match is under way", async () => {
+		const server = await fakeRelayServer();
+		server.lastEnded = { winners: [1] };
+		try {
+			const carol = openRelayChannel('room-a', { url: server.url, path: '/socket.io/' });
+			const alice = openRelayChannel('room-a', { url: server.url, path: '/socket.io/' });
+			openChannels.push(carol, alice);
+			const results: unknown[] = [];
+			carol.onResult((w) => results.push(w));
+			await waitUntil(() => results.length === 1, "carol's join to answer with the result");
+			expect(results).toEqual([[1]]);
+			server.lastEnded = undefined;
+			await waitUntil(() => server.joins.length === 2, 'alice to join');
+			alice.send({ t: 'start' });
+			await waitUntil(() => results.length === 2, 'the result to clear');
+			expect(results).toEqual([[1], null]);
+		} finally {
+			await server.close();
+		}
+	});
+
+	it("onResult() hears a live end too, and the sender's own next send clears it", async () => {
+		const server = await fakeRelayServer();
+		try {
+			const alice = openRelayChannel('room-a', { url: server.url, path: '/socket.io/' });
+			openChannels.push(alice);
+			await waitUntil(() => server.joins.length === 1, 'alice to join');
+			const results: unknown[] = [];
+			alice.onResult((w) => results.push(w));
+			alice.send({ t: 'over', winners: [0] });
+			await waitUntil(() => results.length === 1, 'alice to hear the end');
+			alice.send({ t: 'start' });
+			expect(results).toEqual([[0], null]);
 		} finally {
 			await server.close();
 		}
