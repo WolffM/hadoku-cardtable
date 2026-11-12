@@ -29,8 +29,10 @@ export interface GameAdapter<Spec, Line, Cmd, Frame, Checkpoint = unknown> {
 	 *  - `'ready'`      ← Forge's `'ready'`: the bridge has a game; record each seat's deck.
 	 *  - `'seat'`       ← Forge's `'frame'`: a line addressed to one seat's game, forwarded
 	 *    to {@link GameSession.onLine}.
-	 *  - `'over'`       ← Forge's `'gameover'`: the game ended; `placements` is Forge's own
-	 *    `winnerSeatFromLosers` (`play/match/outcome.ts`) read back as a ranking.
+	 *  - `'over'`       ← Forge's `'gameover'`: the game ended. `winners`/`losers` name SEATS, not
+	 *    the engine's own ids (Forge's `winner`/`losers` read back through each seat's player id,
+	 *    `play/match/outcome.ts`'s `winnerSeatFromLosers`); `drawn` is true when the rules named no
+	 *    winner at all. A seat in neither array was simply not placed.
 	 *  - `'checkpoint'` ← Forge's `'snapshot'`: a mid-game save, kept as `latestSnapshot`
 	 *    for a later restart (`MatchRegistry.restore`).
 	 *  - `'fatal'`      ← Forge's `'fatal'`: the bridge or the JVM died; `Match.fail`
@@ -77,7 +79,7 @@ export interface GameAdapter<Spec, Line, Cmd, Frame, Checkpoint = unknown> {
 export type ClassifiedLine<Checkpoint> =
 	| { t: 'ready' }
 	| { t: 'seat'; seat: number; raw: unknown }
-	| { t: 'over'; placements: number[] }
+	| { t: 'over'; winners: number[]; losers: number[]; drawn: boolean }
 	| { t: 'checkpoint'; cp: Checkpoint }
 	| { t: 'fatal'; why: string }
 	| { t: 'info' };
@@ -103,4 +105,19 @@ export interface GameSession<Line, Cmd> {
 	activeSeat(): { seat: number; playerId: number } | null;
 	/** How many of this seat's questions are open: logged when its holder leaves and when they come back. */
 	openAsks(seat: number): number;
+	/**
+	 * A command the EARLIER server had already sent, met again during a replay (`MatchHost.attach`):
+	 * closes whatever open ask it was answering (Forge's `reply`/`abort`; `ForgeSession.replayed`).
+	 * Nothing the engine's own line stream says records that an ask was answered, so without this a
+	 * seat coming back after a restart would be re-shown a modal it had already dismissed. A session
+	 * with no asks of its own (the toy game's) still implements it, trivially, to prove the hook fits.
+	 */
+	replayed(command: Cmd): void;
+	/**
+	 * The match is ending for good — stopped on purpose, failed, or its host exited — and this is
+	 * the session's one chance to sweep: `ForgeSession.ended` is `logFrames`/`closeAllAsks`/
+	 * `tellSeatsItEnded`/`probes`. `reason` is the failure's or exit's message; null for a stop,
+	 * which has none.
+	 */
+	ended(reason: string | null): void;
 }

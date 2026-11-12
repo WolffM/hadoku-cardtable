@@ -15,14 +15,6 @@ import { report } from '../../telemetry.js';
 import { ChessClock } from '../clock.js';
 import type { GameSession } from '../game-adapter.js';
 import type { MatchHost, MatchSpec, TurnSnapshot } from '../host.js';
-
-/**
- * This shell's own `game`/`host` fields stay platform: a bare `{ t }` would reject the literal
- * commands and lines it still builds itself (a forced concede's `act`, a forced `gameover`) under
- * excess-property checking, so the index signature absorbs them without naming Forge's own
- * `BridgeLine`/`BridgeCommand` (`bridge-protocol.ts`, magic) here.
- */
-type EngineMsg = { t: string } & Record<string, unknown>;
 import type { MatchStatus } from './outcome.js';
 
 export type ClaimOutcome = { ok: true; seat: number; fresh: boolean } | { ok: false; error: string };
@@ -118,7 +110,7 @@ export interface ShellDeps {
 	now?: () => number;
 }
 
-export abstract class MatchShell {
+export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: string }> {
 	readonly id: string;
 	/** Minted per match-process start: a restart is a new epoch. */
 	readonly epoch: string;
@@ -144,7 +136,7 @@ export abstract class MatchShell {
 	 */
 	readonly startedAt: number;
 	readonly spec: MatchSpec;
-	host: MatchHost<EngineMsg> | null = null;
+	host: MatchHost<Cmd> | null = null;
 	protected readonly now: () => number;
 	readonly runningWaiters: ((outcome: ClientOutcome) => void)[] = [];
 	/** `whenRunning` timeouts not yet started, because the match is waiting for a boot slot. */
@@ -287,7 +279,7 @@ export abstract class MatchShell {
 		this.clock?.stop(this.now());
 		this.deps.log({ evt: 'clock-flag', matchId: this.id, seat, left: this.clockLeft() });
 		this.game.tellRoster();
-		this.game.command({ t: 'act', seat, frame: { kind: 'act', method: 'concede' } });
+		this.game.command(this.concedeCommand(seat));
 		this.watchConcede(seat);
 	}
 
@@ -305,7 +297,7 @@ export abstract class MatchShell {
 			if (this.status !== 'running') return;
 			if (!resent) {
 				this.deps.log({ evt: 'concede-unanswered', matchId: this.id, seat, waitedMs: this.now() - since });
-				this.game.command({ t: 'act', seat, frame: { kind: 'act', method: 'concede' } });
+				this.game.command(this.concedeCommand(seat));
 				this.watchConcede(seat, true);
 				return;
 			}
@@ -313,11 +305,7 @@ export abstract class MatchShell {
 			this.deps.log({ evt: 'concede-forced', matchId: this.id, seat, playerId: loser });
 			// A warning in telemetry, every time: how often Forge ignores a concede is the open question.
 			report('concede-forced', { matchId: this.id, seat, waitedMs: this.now() - since }, 'warn');
-			this.onLine({
-				t: 'gameover',
-				winner: this.spec.seats[seat === 0 ? 1 : 0]?.name ?? null,
-				...(loser === null ? {} : { losers: [loser], lost: [{ player: loser, reason: 'Conceded' }] }),
-			});
+			this.forceConcede(seat);
 		}, CONCEDE_ANSWER_MS);
 		this.concedeWatch.unref();
 	}
@@ -595,7 +583,7 @@ export abstract class MatchShell {
 		this.deps.restartChanged?.(state);
 	}
 	/** The game this match plays: every fact about it the shell needs is asked of it. Set by the composing match, before anything can reach it. */
-	protected game!: GameSession<EngineMsg, EngineMsg>;
+	protected game!: GameSession<Line, Cmd>;
 	abstract readonly seats: readonly ShellSeat[];
 	protected readonly deps: ShellDeps;
 
@@ -619,7 +607,15 @@ export abstract class MatchShell {
 	}
 
 	/** One line from the engine, as the composing match reads it: a concede the engine never ends ends here as its game-over would. */
-	protected abstract onLine(line: EngineMsg): void;
+	protected abstract onLine(line: Line): void;
+	/** `Match`'s literal `{t:'act',…method:'concede'}` / the toy's `toyAdapter.concede(seat)` — the shell asks for the command, never builds one itself. */
+	protected abstract concedeCommand(seat: number): Cmd;
+	/**
+	 * Forge did not confirm `watchConcede`'s concede in time: end the game now, as if it just had,
+	 * `seat` the loser. `Match`'s is its own literal `gameover` line, through the ordinary `onLine`
+	 * path; a generic `HostedMatch` applies the {@link GameAdapter.classify}-shaped outcome directly.
+	 */
+	protected abstract forceConcede(seat: number): void;
 	abstract fail(reason: string, frames?: string[]): void;
 	abstract stop(): void;
 }

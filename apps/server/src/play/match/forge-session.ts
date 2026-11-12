@@ -615,7 +615,7 @@ export const WATCHER_SEAT = -1;
 
 /** The shell's members a Forge game reads or moves: its status, its clock, the replay gag, the host its acts go out on. */
 type ShellView = Pick<
-	MatchShell,
+	MatchShell<BridgeLine, BridgeCommand>,
 	'status' | 'failure' | 'replaying' | 'host' | 'concededBy' | 'clock' | 'runningWaiters' | 'syncClock' | 'watchConcede' | 'noteActivity' | 'tellRestart' | 'armRejoinGrace' | 'fail'
 >;
 
@@ -3456,6 +3456,34 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			if (s.departure !== null) clearTimeout(s.departure);
 			s.departure = null;
 		}
+	}
+
+	/**
+	 * {@link GameSession.replayed}: a command the EARLIER server had already sent, met again during
+	 * a replay. Only the two that close an ask matter — without them a seat would be re-shown a
+	 * modal it has already answered, because nothing the bridge SAYS records that an ask was
+	 * answered. Moved here, unchanged, from `Match.onReplayedCommand`.
+	 */
+	replayed(command: BridgeCommand): void {
+		if (command.t !== 'reply' && command.t !== 'abort') return;
+		const s = this.seats[command.seat];
+		if (s === undefined) return;
+		this.closeAsk(s, command.callId);
+	}
+
+	/**
+	 * {@link GameSession.ended}: the match's one sweep at stop, fail or exit. `reason` is
+	 * null for a stop, which has nothing to tell a seat — `tellSeatsItEnded` only runs for a real
+	 * failure or exit. Idempotent in every piece (`logFrames`'s own guard, `endNotice`'s per-seat
+	 * `endNotices` check, an empty `probes`/`asks` map), so `HostedMatch` calling this more than once
+	 * for the same ending (`onExit` falling through to `fail`) is harmless.
+	 */
+	ended(reason: string | null): void {
+		this.logFrames();
+		this.closeAllAsks();
+		if (reason !== null) this.tellSeatsItEnded(reason);
+		for (const [, done] of this.probes) done({ error: 'the match ended' });
+		this.probes.clear();
 	}
 
 	/**
