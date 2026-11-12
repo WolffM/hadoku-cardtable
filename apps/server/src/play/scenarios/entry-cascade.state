@@ -1,0 +1,17 @@
+# Every permanent that reaches a battlefield plays its entry. Seat 0 (human) casts Bloodbraid Elf
+# ({2}{R}{G}, cascade): it exiles the Mountain on top and stops at Grizzly Bears, which alice casts
+# for free. Nobody let the Bears go anywhere, so no play draws its landing: the board does, from
+# where the stack drew it. `e2e/entry-everywhere.spec.ts` reads both creatures' entries.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Bloodbraid Elf
+humanbattlefield=Mountain;Mountain;Forest;Forest
+humanlibrary=Mountain;Grizzly Bears;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
