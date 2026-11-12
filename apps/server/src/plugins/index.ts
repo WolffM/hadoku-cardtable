@@ -10,6 +10,7 @@ import { listenPlugin, warmPlugin } from './listen.js';
 import { playPlugin } from './play.js';
 import { poolsPlugin } from './pools.js';
 import { recordingsPlugin } from './recordings.js';
+import { relayPlugin } from './relay.js';
 import { roomPlugin } from './room.js';
 import { roomsPlugin } from './rooms.js';
 import { routesPlugin } from './routes.js';
@@ -33,6 +34,7 @@ export const PLUGINS: CardtablePlugin[] = [
 	tablesPlugin,
 	recordingsPlugin,
 	playPlugin,
+	relayPlugin,
 	roomPlugin,
 	streamSocketPlugin,
 	erasePlugin,
