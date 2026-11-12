@@ -107,8 +107,8 @@ const CITATION = /^https:\/\/www\.mtgtop8\.com\/event\?e=\d+&d=\d+&f=(ST|MO|LE)$
  */
 const TOURNAMENT_COLLECTION = /^tournament-/;
 const isTournamentCollection = (c: LibraryCollection): boolean => TOURNAMENT_COLLECTION.test(c.id);
-/** mtgo.com (or another event host) deck-anchor URL, the cache's own pointer. */
-const TOURNAMENT_CITATION = /^https?:\/\/\S+#deck_\S+$/;
+/** An event host's deck-anchor URL (the cache's own pointer), or a page a hand transcription cites. */
+const TOURNAMENT_CITATION = /^https?:\/\/\S+(#deck_\S+)?$/;
 
 /* ── a deck to tamper with, picked once and reused by name ──────────────── */
 
@@ -141,7 +141,7 @@ describe('every collection: catalog, files and citations agree', () => {
       expect(deck.date).toBe(c.date);
       if (isTournamentCollection(c)) {
         expect(deck.citation).toMatch(TOURNAMENT_CITATION);
-        expect(deck.provenance).toMatch(/Transcribed from MTG_decklistcache \(/);
+        expect(deck.provenance).toMatch(/Transcribed from (MTG_decklistcache|mtg\.wiki) \(/);
       } else {
         expect(deck.citation).toMatch(CITATION);
         expect(deck.provenance).toMatch(/Transcribed from mtgtop8 deck \d+\.$/);
@@ -167,7 +167,7 @@ describe('every deck loads, with a citation, an archetype and a pilot', () => {
       expect(deck.name.length).toBeGreaterThan(0);
       if (isTournamentCollection(c)) {
         expect(deck.citation).toMatch(TOURNAMENT_CITATION);
-        expect(deck.provenance).toMatch(/Transcribed from MTG_decklistcache \(/);
+        expect(deck.provenance).toMatch(/Transcribed from (MTG_decklistcache|mtg\.wiki) \(/);
         // The pilot is the cache's own player string; the name carries it too.
         expect(deck.pilot.trim().length).toBeGreaterThan(0);
         expect(deck.name).toContain(deck.pilot);
@@ -190,6 +190,9 @@ describe('the committed pool fixtures', () => {
     // this is the one join that can be checked in CI, and it is the join that
     // would break if a fixture were regenerated for the wrong date or family.
     for (const { family, date } of POOL_FIXTURE_KEYS) {
+      // A hand-frozen BLOCK pool (ALICE, 1996) is not a rotation-table snapshot:
+      // the table answers 1996's Type 2, which is a different format entirely.
+      if (date === '1996-07-06' && family === 'standard') continue;
       const frozen = fixture(date, family);
       const live = formatAtFamily(family, date);
       const label = `${family} ${date}`;
@@ -422,9 +425,10 @@ describe('the library as a whole', () => {
   // the 27 new eras has 24. Every other era is 24. 2026-11-08: the first
   // tournament import (a whole MTGO field, not a selection) is the 68th —
   // 32 decks, the complete Modern Challenge 32 of 2026-02-07.
-  it('is sixty-nine eras across three families and 1523 decks, oldest first within each family', () => {
+  it('is seventy-three eras across three families and 1626 decks, oldest first within each family', () => {
     expect(LIBRARY.map((c) => [c.id, c.family, c.format, c.date, c.decks.length])).toEqual([
       ['power-summer-1995', 'standard', 'Type 2 (CHR)', '1995-07-01', 9],
+      ['tournament-alice-1996-07-06', 'standard', 'ALICE (Ice Age + Alliances)', '1996-07-06', 9],
       ['power-summer-1996', 'standard', 'Type 2 (ALL)', '1996-07-10', 12],
       ['power-summer-1997', 'standard', 'Standard (WTH)', '1997-07-01', 12],
       ['power-summer-1998', 'standard', 'Standard (EXO)', '1998-07-01', 6],
@@ -492,10 +496,13 @@ describe('the library as a whole', () => {
       ['power-summer-legacy-2023', 'legacy', 'Legacy (MAT)', '2023-05-29', 24],
       ['power-summer-legacy-2024', 'legacy', 'Legacy (OTJ)', '2024-04-19', 24],
       ['power-summer-legacy-2025', 'legacy', 'Legacy (FIN)', '2025-06-30', 24],
+      ['tournament-legacy-2026-02-01', 'legacy', 'Legacy (2026-01-26)', '2026-02-01', 31],
+      ['tournament-legacy-2026-02-04', 'legacy', 'Legacy (2026-01-26)', '2026-02-04', 32],
       ['tournament-legacy-2026-02-07', 'legacy', 'Legacy (2026-01-26)', '2026-02-07', 32],
+      ['tournament-legacy-2026-02-08', 'legacy', 'Legacy (2026-01-26)', '2026-02-08', 31],
     ]);
-    expect(ALL_DECKS).toHaveLength(1523);
-    expect(libraryDeckPaths()).toHaveLength(1523);
+    expect(ALL_DECKS).toHaveLength(1626);
+    expect(libraryDeckPaths()).toHaveLength(1626);
   });
 
   it('is oldest-first WITHIN each family, in Standard/Modern/Legacy order', () => {
