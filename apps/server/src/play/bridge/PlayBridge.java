@@ -7036,50 +7036,91 @@ public final class PlayBridge {
             return o;
         }
 
+        /**
+         * Run one of this seat's acts as Forge's server received it. Forge's handler
+         * ({@code GameProtocolHandler.channelRead}) logs a throw out of an act and swallows it: the
+         * seat's input stands, nothing more is ever shown for it, and the seat goes silent with no
+         * error (a {@code ConcurrentModificationException} in an act did exactly that before Forge's
+         * show-latch). The act's failure is this match's ({@link MatchContext#fail}), so both seats are
+         * told it ended. It is rethrown, so Forge's own handling of it is unchanged.
+         */
+        private <T> T acting(final String method, final java.util.function.Supplier<T> act) {
+            try {
+                if ("act-throw".equals(FAULT) && "selectButtonOk".equals(method)) {
+                    throw new IllegalStateException("cardtable.fault=act-throw: a test-only failure in a seat's act");
+                }
+                return act.get();
+            } catch (final RuntimeException | Error e) {
+                match.fail("seat " + seat + "'s " + method + " failed in Forge", e);
+                throw e;
+            }
+        }
+
+        private void acting(final String method, final Runnable act) {
+            acting(method, () -> {
+                act.run();
+                return null;
+            });
+        }
+
         @Override
         public void concede() {
-            applied(liveInput(), act("concede"));
-            super.concede();
+            acting("concede", () -> {
+                applied(liveInput(), act("concede"));
+                super.concede();
+            });
         }
 
         @Override
         public void useMana(final byte mana) {
-            final Object before = liveInput();
-            final JsonObject a = act("useMana");
-            a.addProperty("color", mana);
-            applied(before, a);
-            super.useMana(mana);
+            acting("useMana", () -> {
+                final Object before = liveInput();
+                final JsonObject a = act("useMana");
+                a.addProperty("color", mana);
+                applied(before, a);
+                super.useMana(mana);
+            });
         }
 
         @Override
         public void selectButtonOk() {
-            final Object before = liveInput();
-            if (madeOnAnother("selectButtonOk", -1, before)) { return; }
-            applied(before, act("selectButtonOk"));
-            super.selectButtonOk();
+            acting("selectButtonOk", () -> {
+                final Object before = liveInput();
+                if (madeOnAnother("selectButtonOk", -1, before)) { return; }
+                applied(before, act("selectButtonOk"));
+                super.selectButtonOk();
+            });
         }
 
         @Override
         public void selectButtonCancel() {
-            final Object before = liveInput();
-            if (madeOnAnother("selectButtonCancel", -1, before)) { return; }
-            applied(before, act("selectButtonCancel"));
-            super.selectButtonCancel();
+            acting("selectButtonCancel", () -> {
+                final Object before = liveInput();
+                if (madeOnAnother("selectButtonCancel", -1, before)) { return; }
+                applied(before, act("selectButtonCancel"));
+                super.selectButtonCancel();
+            });
         }
 
         @Override
         public void selectPlayer(final PlayerView playerView, final ITriggerEvent triggerEvent) {
-            final Object before = liveInput();
-            if (madeOnAnother("selectPlayer", playerView.getId(), before)) { return; }
-            final JsonObject a = act("selectPlayer");
-            a.add("player", ref("player", playerView.getId()));
-            a.add("triggerEvent", triggerEventJson(triggerEvent));
-            applied(before, a);
-            super.selectPlayer(playerView, triggerEvent);
+            acting("selectPlayer", () -> {
+                final Object before = liveInput();
+                if (madeOnAnother("selectPlayer", playerView.getId(), before)) { return; }
+                final JsonObject a = act("selectPlayer");
+                a.add("player", ref("player", playerView.getId()));
+                a.add("triggerEvent", triggerEventJson(triggerEvent));
+                applied(before, a);
+                super.selectPlayer(playerView, triggerEvent);
+            });
         }
 
         @Override
         public boolean selectCard(final CardView cardView, final List<CardView> otherCardViewsToSelect, final ITriggerEvent triggerEvent) {
+            return acting("selectCard", () -> clicked(cardView, otherCardViewsToSelect, triggerEvent));
+        }
+
+        private boolean clicked(final CardView cardView, final List<CardView> otherCardViewsToSelect, final ITriggerEvent triggerEvent) {
             final Object before = liveInput();
             if (madeOnAnother("selectCard", cardView.getId(), before)) {
                 takeSelectionClick(cardView.getId());
@@ -7104,11 +7145,23 @@ public final class PlayBridge {
 
         @Override
         public void selectAbility(final SpellAbilityView sa) {
-            final Object before = liveInput();
-            final JsonObject a = act("selectAbility");
-            a.add("ability", ref("spellAbility", sa.getId()));
-            applied(before, a);
-            super.selectAbility(sa);
+            acting("selectAbility", () -> {
+                final Object before = liveInput();
+                final JsonObject a = act("selectAbility");
+                a.add("ability", ref("spellAbility", sa.getId()));
+                applied(before, a);
+                super.selectAbility(sa);
+            });
+        }
+
+        @Override
+        public void undoLastAction() {
+            acting("undoLastAction", () -> super.undoLastAction());
+        }
+
+        @Override
+        public void alphaStrike() {
+            acting("alphaStrike", () -> super.alphaStrike());
         }
     }
 

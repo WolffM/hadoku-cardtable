@@ -12,6 +12,9 @@
  * - **H2**: a SIGSTOPped JVM. Its pid lived, so the match stayed `running` for good.
  * - **H7**: a JVM out of heap (`-Dcardtable.fault=oom`, on a thread of its own) limped on;
  *   with `-XX:+ExitOnOutOfMemoryError` it exits, and that exit is a crash the server reports.
+ * - **An act Forge throws on**: Forge's server handler (`GameProtocolHandler.channelRead`) logs a
+ *   throw out of a seat's act and swallows it, so the seat's input stood and nothing more came.
+ *   Provoked with `-Dcardtable.fault=act-throw`: the seat's OK throws inside Forge's handler.
  * - **[nightly] H3**: Forge's 45 s client timeout is raised, so clients that send no
  *   heartbeat for longer still answer.
  *
@@ -132,6 +135,21 @@ describe.skipIf(!available.ok)(title, () => {
 		const diagnostics = r.logs.find((l) => l.evt === 'bridge-diagnostics') as { lines?: { line: string }[] } | undefined;
 		expect(diagnostics?.lines?.some((l) => l.line.includes('cardtable.fault=game-throw'))).toBe(true);
 	}, 120_000);
+
+	it('an act Forge throws on fails its match, and the seat is told, instead of leaving it silent', async () => {
+		const r = start({ jvmOpts: ['-Dcardtable.fault=act-throw'] });
+		// The opening's first bar (play or draw, keep or mulligan): seat 0's to press.
+		const bar = (): boolean =>
+			r.sent.some((s) => s.seat === 0 && s.envelope.frame.method === 'updateButtons' && (s.envelope.frame as { enable1?: boolean }).enable1 === true);
+		await waitUntil(bar, "seat 0's first live bar", 90_000, status(r));
+		expect(r.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }))).toEqual({ ok: true });
+		await waitUntil(() => r.match.status === 'failed', 'the match to fail', 30_000, status(r));
+		console.log(`[jvm] act-throw: ${r.match.failure}`);
+		expect(r.match.failure).toBe("seat 0's selectButtonOk failed in Forge: java.lang.IllegalStateException: cardtable.fault=act-throw: a test-only failure in a seat's act");
+		const failed = r.logs.find((l) => l.evt === 'match-failed') as { frames?: string[] } | undefined;
+		expect(failed?.frames?.[0], 'its first frame is the throw site, in the bridge').toMatch(/PlayBridge/);
+		expect(r.told()).toBe(true);
+	}, 150_000);
 
 	it("H3: a seat's client dropped by Forge's own server fails the match instead of leaving it to wait for good", async () => {
 		const r = start({ jvmOpts: ['-Dforge.net.heartbeatTimeout=2'] });
