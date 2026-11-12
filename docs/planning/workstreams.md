@@ -3918,3 +3918,34 @@ The operator ruled 2026-11-11 that the tracker chains the platform waves through
   - hadoku-fleet-manager#88;
   - a streamed room's argv on prod;
   - the main checkout's `forge` submodule sits at a6d4830a (`cardtable/alt-cost-met`), away from its pin. Some session checked it out there; the main checkout is never served, so it's harmless, but it isn't clean.
+
+## w107b, w108r and w108l verified by the tracker 2026-11-12: main's Forge e2e is green; w109 (Magic moves home, stage 1) dispatched
+
+- **w107b** (the bridge's races):
+  - bc8c97e4e: a seat's composed wait is no input's prompt. Lost pushes went ~3/50 → 0/60, and the mutation reproduces CI's signature.
+  - 69aaeb39e: acts run on the seat's own ui thread. It came with an audit of all 9 tracker readers.
+  - The silent idle pass was real, but it was already fixed by show-latch a817eb50d; 0 recurrences since.
+- **w108r**:
+  - 795de052f: a seat's actionable set goes out only with its window. It fixes ei-end-turn-interrupt AND cascade-discover, which were the same leak.
+  - 72f2c10cd: an act that Forge throws on fails its match visibly, never silently. Mutation: red as a timeout.
+  - wresolve-chain is green on main; it was load-only.
+  - **The full run 43286902211 on 72f2c10cd has all forge-jvm and forge-e2e green**, apart from w69-chip-shape:95. That one is a claw-dependent art-wait race in `placed.ts`, red on main since 11-11 and queued.
+- **w108l** (0c6ca847e, dd4baf5e5, 69e65ceda, 312218d0a):
+  - a bomberman room plays a rematch;
+  - the result survives a reload;
+  - only the leader's `over` ends a match.
+  - Proven on claws, with each mutation red. The operator's live check is the first lines of `~/.cache/cardtable-manager/w108l-closing.md`.
+- **Release notes pending for the next `/cutrelease`:**
+  - bomberman through the room;
+  - rematch;
+  - result on reload;
+  - leader ends;
+  - no card flicker on passed windows;
+  - an engine error ends the game;
+  - the AI doesn't borrow your face;
+  - relay seats.
+- **w109 dispatched** (`docs/planning/wave109-2026-11-12.md`, one session):
+  - the four Magic packages move to `games/magic/packages/`;
+  - the corpus's host step. The tracker measured no runtime reader of the in-tree `cards.jsonl`.
+  - The layer map counts ~482k magic lines against ~41k platform, so the move is staged: packages (w109), then the server's Magic as a package, then the UI's.
+- **Queue for later:** `~/.cache/cardtable-manager/next-wave-queue.md` (w69-chip-shape's art race, wresolve-chain if it recurs, hadoku-fleet-manager#88).
