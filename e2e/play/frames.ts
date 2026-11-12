@@ -60,12 +60,27 @@ export function playMessagesOf(captures: readonly RawCapture[]): PlayMessage[] {
   return captures.flatMap(playMessagesIn);
 }
 
+/** A socket.io event's name, or an ack carrying a match snapshot, read off the packet's head alone. */
+const EVENT_HEAD = /^42(?:\/[^,]*,)?\d*\["([^"]+)"/;
+const SNAPSHOT_ACK = /^43(?:\/[^,]*,)?\d*\[\{"matchId"/;
+
 /**
- * How much of a match a capture holds: a count that moves when the match does and holds still
- * when it does not, which is what "the match went quiet" waits on.
+ * How much of a match a capture holds: every `forge:*` event either way and every snapshot ack,
+ * so a count that moves when the match does and holds still when it does not, which is what
+ * "the match went quiet" waits on. A page's own clocks run whatever the match does and are left
+ * out: engine.io's ping, the room's `time_ping`, `session:beat`, and `forge:client`, the board's
+ * reports about itself. Two pages of those leave no 2 s gap for minutes at a time.
  */
 export function matchTraffic(captures: readonly RawCapture[]): number {
-  return captures.length;
+  let n = 0;
+  for (const capture of captures) {
+    const packets = capture.via === 'polling' ? capture.text.split(RECORD_SEPARATOR) : [capture.text];
+    for (const packet of packets) {
+      const event = EVENT_HEAD.exec(packet)?.[1];
+      if (event === undefined ? SNAPSHOT_ACK.test(packet) : event.startsWith('forge:') && event !== 'forge:client') n++;
+    }
+  }
+  return n;
 }
 
 /** Is this ack a match snapshot (and not a draft ack or an `{ error }`)? */
