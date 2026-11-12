@@ -3790,3 +3790,16 @@ The operator ruled 2026-11-11 that the tracker chains the platform waves through
   - Failures of GitHub's artifact upload can eat a shard's 45-minute cap.
   - forge.yml's selector never picks non-Forge e2e specs (bomberman.spec runs only in ci.yml).
 - **Open (platform):** `room/pods.ts` `isStoredPodSeats` refuses a stored pod of fewer than 8 seats, so a registered type with `seats.max` < 8 quarantines on restart. w104b item 1 fixes it. `isSameOriginPath` is duplicated in rooms-client and watchparty's shared package (watchparty's).
+
+## wleak verified 2026-11-11, and the w105 queue
+
+**wleak is landed.** 7991ef606 (spec), 8fe1dd2eb (fix), 36a9fccd4 (art rows).
+- The prompts.jvm "Arc Lightning leak" (run 43111143068) was the oracle, not the product: `secretsFor` never counted the Stack as a shown zone. The red row was read in the ~2 s the spell sat on the stack.
+- Claw proof 43122276720: "seat 1: 4 secrets, 0 emitted".
+- Mutations: dropping the Stack read → 1 failed / 500 passed; a projection that really leaks hands → 4 red.
+
+**The w105 queue.** Items the tracker has already committed to w105, besides w103's deferrals (streamed under the host, checkpoint parking, the relay's client half, dropping the flat launch fields):
+- **The oracle's face-down blind spot** (operator: "put it in w105").
+  - `secretsFor` (`apps/server/src/play/fixtures/transcript.ts`) now counts any card on the Stack as shown, face down or not, as it already did for the Battlefield. So a face-down spell's (morph's) name reaching the opponent would not go red end to end.
+  - The projection handles it (`visibility.ts:283`, Stack in `PEEKABLE_FACE_DOWN_ZONES`), but no unit test pins a face-down spell on the stack. `visibility.test.ts` covers face-down permanents only (`:633`, `:1027`, `:1463`).
+  - Fix: the oracle skips face-down cards in every public zone. Add a `visibility.test.ts` case where a face-down stack item reaches the opponent as its face only. Mutation: drop the Stack entry from `PEEKABLE_FACE_DOWN_ZONES` → red.
