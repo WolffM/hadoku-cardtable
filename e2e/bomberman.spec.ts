@@ -83,6 +83,11 @@ test(titled('a bomberman room plays over the relay: both seats get a channel and
     await expect(fixturePanel(alice.page)).toHaveAttribute('data-my-seat', '0');
     await expect(fixturePanel(bobPage)).toHaveAttribute('data-my-seat', '1');
 
+    // A channel exists before its join is answered, and a message sent before a seat joined is not
+    // kept for it (at most once): wait for the server to have joined both.
+    const joined = () => serverLog(stack).filter((r) => r.matchId === roomId && r.evt === 'relay-joined').length;
+    await expect.poll(joined, { timeout: 15_000 }).toBe(2);
+
     // The two seats exchange a message, each way, never hearing their own.
     await alice.page.getByTestId('bomberman-fixture-send').click();
     await expect(messages(bobPage), 'bob hears alice').toHaveCount(1, { timeout: 15_000 });

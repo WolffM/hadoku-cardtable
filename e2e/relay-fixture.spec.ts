@@ -108,6 +108,11 @@ test(titled('a relay-test room: two seats and a watcher talk over ctx.channel â€
 
     // Every seat (never a watcher) gets a channel at all.
     for (const f of [alice, bob, carol]) await expect(panel(f)).toHaveAttribute('data-has-channel', 'true');
+    // A channel exists before its join is answered, and a message sent before a screen joined is
+    // not kept for it (at most once): wait for the server to have joined all three.
+    const relayLog = () => serverLog(stack).filter((r) => r.matchId === roomId && typeof r.evt === 'string' && r.evt.startsWith('relay-'));
+    const joins = () => relayLog().filter((r) => r.evt === 'relay-joined').length;
+    await expect.poll(joins, { timeout: 15_000 }).toBe(3);
 
     // Alice's message reaches bob and carol, never back to herself.
     await alice.page.getByTestId('relay-fixture-send').click();
@@ -122,8 +127,6 @@ test(titled('a relay-test room: two seats and a watcher talk over ctx.channel â€
     await expect(messages(alice)).toHaveCount(0);
 
     // The leader ends it; every screen shows the room's result (the fixture's End names its own seat).
-    const relayLog = () => serverLog(stack).filter((r) => r.matchId === roomId && typeof r.evt === 'string' && r.evt.startsWith('relay-'));
-    const joins = () => relayLog().filter((r) => r.evt === 'relay-joined').length;
     const joinsBefore = joins();
     await alice.page.getByTestId('relay-fixture-end').click();
     for (const f of [alice, bob, carol]) await expect(result(f), `${f.name} sees the first match's result`).toHaveText('e2e-alice won', { timeout: 15_000 });
