@@ -3839,3 +3839,49 @@ The operator ruled 2026-11-11 that the tracker chains the platform waves through
   - **A:** the agent cgroup fix, then the manager's rollout to claw-9, claw-8 and claw-10, then the flat-field drop;
   - **Q:** the reds that are not G's, the oracle's face-down blind spot, and three CI items.
   - Not in w105: forge.yml's selector skipping non-Forge specs (ci.yml covers them), and `isSameOriginPath` (watchparty's to dedupe).
+
+## w105 verified by the tracker 2026-11-12: phase 5 is done; w106 (phase 6, part 1) dispatched
+
+- **Release:** v0.67.0 is on prod at fadd8029b. It includes e33724e8e (bomberman rooms) and was cut by the cardtable manager session `hadoku-cardtable-b2` for the operator; prod `/health` confirms. The operator's bomberman check on prod is still open.
+- **w105 is landed.** All 11 commits are on main, PPE de9bbf0f7 has CI green, and `baseline.json` has `edgeCounts {}` with tangled 11. One note per lane is in `~/.cache/cardtable-manager/w105-{K,S,C,A,Q}-closing.md`.
+  - **K** (11888c5da, 2b266de6a):
+    - a game's checkpoint parks with its match, and the toy game parks at 2–1 and finishes from it on a fresh host;
+    - `HostedMatch` moved to `match/hosted.ts` (platform), so `match.ts` went 828 → 711;
+    - `GameSession.notice`;
+    - mutation: restoreSpec set to identity → 2 failed / 20.
+  - **S** (e955dac12):
+    - the streamed desktop runs under `runtimes/streamed.ts`, and `LocalJvm` spawns through `forgeEngineRuntime`;
+    - streamed-live passed 2/2 on hokon;
+    - mutation: skipping the teardown → 1 failed / 12.
+  - **C** (f76bd1439, 40ab556f9):
+    - the relay's client half: `RelayMatch` plus `ctx.channel`;
+    - the two-browser `relay-fixture.spec` passed on a claw;
+    - 3 mutations went red.
+  - **A** (d87623c6f, dc6eaacb3):
+    - the agent cgroup restart fix;
+    - **all claws run agent 40ab556f956b**;
+    - the flat launch fields are gone;
+    - the live restart with a JVM and the capped draft bot works on claw-9 and claw-8;
+    - a real JVM launched on claw-10 from the runtime-only spec.
+    - The crash path still needs fleet-manager's `DelegateSubgroup=`; the tracker filed it as hadoku-fleet-manager#88.
+  - **Q** (fda2b0838, 31525d141, 7f701ac1c, de9bbf0f7):
+    - CI: the e2e cap is 23 min (p99 × 1.5), upload steps are bounded, and a self-skip is not a red;
+    - the oracle treats a face-down card in a public zone as hidden (mutation: 1 failed / 95);
+    - Shard Convergence: the product is right and the test was fixed;
+    - fixed priority.jvm and auto.jvm test races.
+- **Tracker error, corrected by the wave:** the tracker's ×1 A/B blamed G for the priority and scenario-start reds, but both reds predate G (ecbd82117, d24d741e4). This cost lane K about an hour. A memory now says to search the run history before blaming a commit.
+- **Carried into w106 (lane R):**
+  - scenario-start "any push lost 1", about 4 losses in 26 starts; possibly a `resyncSeats` regression in PlayBridge;
+  - priority Q7 "turn 3";
+  - draft.spec's AI character collision (the `freeAiAvatar` hypothesis).
+- **Unverified, not in a lane:**
+  - a streamed room on prod: does the container's argv match `streamedEngineConfig()`?
+  - a full match on agent 40ab556f956b: settles with prod's next placed match;
+  - relay matches don't survive a server restart (by design for now).
+- **w105's full run (43172986362 on 40ab556f9):** the tracker judges it when it finishes.
+- **w106 dispatched** (`docs/planning/wave106-2026-11-12.md`, 4 lanes):
+  - **N:** bomberman native on the relay; it spans two repos, and bomberman deploys first;
+  - **M:** Magic's room UI registers from its own module through a game-clients context, aiming to take `ConstructedScreen.tsx` off the tangled list;
+  - **F:** Forge parks through its `Checkpoint`, one restore path;
+  - **R:** the carried reds.
+- **Then:** w107 moves Magic → `games/magic/`; w108 does `templates/game` plus the devkit; then the operator's code analysis.
