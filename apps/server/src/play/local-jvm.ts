@@ -74,7 +74,7 @@
  * (on the production host that is a JRE with no `javac`).
  */
 
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
 	closeSync,
@@ -119,6 +119,8 @@ import {
 	pruneCrashRecords,
 	runDirs,
 	sleepSync,
+	wrapChildProcess,
+	type EngineProcess,
 	type EngineRuntime,
 	type JvmIo,
 	type SweepResult,
@@ -693,7 +695,8 @@ function isHostStop(line: string, hostId: string): boolean {
  */
 class LocalJvm implements JvmTransport {
 	readonly pid: number;
-	private readonly child: ChildProcess | null = null;
+	/** Null only in `attach` mode: a re-attached JVM is nobody's child, watched by {@link watchPid} instead. */
+	private readonly engineProcess: EngineProcess | null = null;
 	private readonly io: JvmIo;
 	private lineListener: ((line: string) => void) | null = null;
 	private exitListener: ((reason: string) => void) | null = null;
@@ -725,32 +728,27 @@ class LocalJvm implements JvmTransport {
 		// The child gets its OWN fds on the fifos, closed here once it holds them.
 		const childIn = openSync(join(run, IN_FIFO), 'r+');
 		const childOut = openSync(join(run, OUT_FIFO), 'r+');
-		// `.how` alone, for the log below; the flags themselves come from `forgeEngineRuntime.argv`
-		// (L2: host.ts's launch path goes through `EngineRuntime`, not a second, hand-built copy of
-		// the same list — "--host hostId" is appended here because the sketch's `argv(dir, size)`
-		// carries no host id, Forge's own gap `forgeEngineRuntime`'s doc names).
+		// `.how` alone, for the log below; the flags and the actual `child_process.spawn` call both
+		// come from `forgeEngineRuntime`, not from a second, hand-built copy here — "--host hostId"
+		// is appended after it because the sketch's `argv(dir, size)` carries no host id,
+		// `forgeEngineRuntime`'s doc names that gap.
+		const runtime = forgeEngineRuntime(config, log);
 		const bridge = bridgeLaunch(config, log);
-		let child: ChildProcess;
+		const argv = [...runtime.argv(run, { memoryMb: source.xmxMb }), '--host', hostId];
+		let engineProcess: EngineProcess;
 		try {
-			child = spawn(
-				config.java,
-				[...forgeEngineRuntime(config, log).argv(run, { memoryMb: source.xmxMb }), '--host', hostId],
-				// `detached` puts it in its own process group, so a signal aimed at ours never
-				// reaches it; `unref` keeps it off our event loop.
-				{ cwd: run, stdio: [childIn, childOut, stderrFd], detached: true },
-			);
+			engineProcess = runtime.spawn(argv, run, { stdin: childIn, stdout: childOut, stderr: stderrFd });
 		} finally {
 			for (const fd of [childIn, childOut, stderrFd]) closeSync(fd);
 		}
-		child.unref();
-		this.child = child;
-		this.pid = child.pid ?? -1;
+		this.engineProcess = engineProcess;
+		this.pid = engineProcess.pid;
 		live.add(this);
 		log({ evt: 'jvm-spawned', id: hostId, pid: this.pid, run, bridge: bridge.how });
 		writeFileAtomic(join(run, LAUNCH_RECORD_FILE), `${JSON.stringify({ hostId, pid: this.pid, startedAt: new Date().toISOString() })}\n`);
 		this.read();
-		child.on('error', (err) => this.finish(`the JVM could not be started: ${err.message}`, { code: null, signal: null }));
-		child.on('exit', (code, signal) => {
+		engineProcess.onError((err) => this.finish(`the JVM could not be started: ${err.message}`, { code: null, signal: null }));
+		engineProcess.onExit((code, signal) => {
 			this.log({ evt: 'jvm-exited', id: hostId, pid: this.pid, code, signal });
 			this.finish(this.askedToStop ? 'stopped' : `the JVM exited (code ${code}, signal ${signal}); see ${run}/bridge.stderr.txt`, { code, signal });
 		});
@@ -836,8 +834,7 @@ class LocalJvm implements JvmTransport {
 	private detach(): void {
 		live.delete(this);
 		if (this.watch !== null) clearInterval(this.watch);
-		this.child?.removeAllListeners('exit');
-		this.child?.removeAllListeners('error');
+		this.engineProcess?.dispose();
 		this.io.close();
 	}
 
@@ -847,7 +844,7 @@ class LocalJvm implements JvmTransport {
 		this.detach();
 		// An attached JVM has no exit code to read — nobody waited on it — so a stop that was asked
 		// for is taken at its word.
-		const clean = this.askedToStop && (this.killedByUs || this.child === null || (how.code === 0 && how.signal === null));
+		const clean = this.askedToStop && (this.killedByUs || this.engineProcess === null || (how.code === 0 && how.signal === null));
 		this.exitListener?.(reason);
 		this.settle(clean ? 'clean' : { reason, ...how });
 	}
@@ -946,16 +943,20 @@ export function localJvmLauncher(config: JvmHostConfig, options: LocalLauncherOp
 
 /**
  * `EngineRuntime` (`engine-runtime.ts`) mapped onto Forge's own code. `LocalJvm`'s constructor
- * (above) launches through this `argv` (w103 §H step 2) rather than a second, hand-built copy of
- * the same flag list; `host.ts` itself still places matches through `localJvmLauncher`'s
+ * (below) launches through this `spawn` — the actual `child_process.spawn` call lives here, not
+ * in `LocalJvm`, which only builds the argv and hands it over — rather than building the child
+ * process itself; `host.ts` itself still places matches through `localJvmLauncher`'s
  * `JvmLauncher`, never `EngineRuntime` directly — lifting the POOL onto `EngineRuntime`, so a
- * non-Forge engine shares the same coordinator, is w105's.
+ * non-Forge engine shares the same coordinator, is still ahead of this.
  *
  * One honest gap, unchanged: the sketch's `argv(dir, size)` carries no host id, so Forge's real
  * spawn appends `'--host', hostId` itself, after exactly these flags — the interface doesn't carry
  * a host id to launch with.
  */
-export function forgeEngineRuntime(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void): EngineRuntime {
+export function forgeEngineRuntime(
+	config: JvmHostConfig,
+	log: (entry: Record<string, unknown>) => void,
+): EngineRuntime & { spawn: NonNullable<EngineRuntime['spawn']> } {
 	return {
 		artifacts: { jar: config.jar, res: config.res, bridgeSource: config.bridgeSource },
 		argv: (dir, size) => {
@@ -973,5 +974,13 @@ export function forgeEngineRuntime(config: JvmHostConfig, log: (entry: Record<st
 		overheadMb: 172,
 		perProcess: config.perJvm ?? MATCHES_PER_JVM,
 		health: () => ({ recycle: false }),
+		// `detached` puts it in its own process group, so a signal aimed at ours never reaches it;
+		// `unref` keeps it off our event loop — the same two reasons `LocalJvm`'s own spawn call
+		// used to carry, now exercised here instead of at the call site.
+		spawn: (argv, cwd, io) => {
+			const child = spawn(config.java, argv, { cwd, stdio: [io.stdin, io.stdout, io.stderr], detached: true });
+			child.unref();
+			return wrapChildProcess(child);
+		},
 	};
 }

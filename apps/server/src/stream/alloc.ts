@@ -141,6 +141,13 @@ export interface RoomStreamsOptions {
 	idleMs?: number;
 	namePrefix?: string;
 	log?: (entry: Record<string, unknown>) => void;
+	/**
+	 * A room's containers actually came down — through `release()`, the idle sweep, or `sweep()`
+	 * finding the room gone. The ONE place this fires from is `destroy()`, below, so a caller never
+	 * has to separately watch `release()` and `sweep()` to know when a room ended; `plugins/stream.ts`
+	 * uses it to tell the matching `StreamedMatchHost` (`runtimes/streamed.ts`) it is settled.
+	 */
+	onEnded?: (roomKey: string, reason: ReclaimReason) => void;
 }
 
 export interface SweepReport {
@@ -285,6 +292,7 @@ export function createRoomStreams(options: RoomStreamsOptions): RoomStreams {
 		live.delete(alloc.roomKey);
 		remember(alloc.roomKey, reason);
 		log({ evt: 'stream-reclaimed', room: alloc.roomKey, reason, seats: alloc.seats.length });
+		options.onEnded?.(alloc.roomKey, reason);
 	};
 
 	return {

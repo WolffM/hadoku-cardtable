@@ -28,6 +28,7 @@ import type { AnonymisableTournaments } from '../room/tournaments.js';
 import type { attachDraftSocket } from '../room/socket.js';
 import type { attachRoomFeed } from '../room/watching.js';
 import type { RoomStreams } from '../stream/alloc.js';
+import type { StreamedMatchHost } from '../play/runtimes/streamed.js';
 import type { KeyBook } from '../stats/keys.js';
 import type { MatchStats } from '../stats/index.js';
 import type { TablesHandle } from '../http/routes.js';
@@ -86,6 +87,8 @@ export interface Cardtable {
 	streamCount: number;
 	roomStreams: RoomStreams | null;
 	ensureRoomStreams: (roomKey: string) => void;
+	/** Every room-keyed streamed desktop `ensureRoomStreams` has started (`runtimes/streamed.ts`'s `StreamedMatchHost`), by room key. `plugins/stream.ts` only. */
+	streamedHosts: Map<string, StreamedMatchHost>;
 	people: ForgetfulPeople;
 	featured: Featured;
 	tables: TablesHandle;

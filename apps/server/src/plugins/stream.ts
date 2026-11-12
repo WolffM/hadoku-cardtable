@@ -7,6 +7,7 @@ import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '../config.js';
 import { attachStream, attachStreamRoutes, streamLayout } from '../stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from '../stream/alloc.js';
+import { streamedContainerEnv, streamedEngineConfig, streamedHost } from '../play/runtimes/streamed.js';
 import type { CardtablePlugin } from './state.js';
 
 /** How often the room streams are reclaimed: far finer than the 30-minute idle window it enforces, and one `docker ps`. */
@@ -29,14 +30,35 @@ export const streamRoutesPlugin: CardtablePlugin = {
 		if (script === null) {
 			console.warn('[cardtable] no scripts/stream/container.sh — room-keyed streams are OFF (the static bench is unaffected)');
 		}
+		// The Magic config (which Forge jar/res a container mounts) is resolved and validated HERE,
+		// once, rather than left to `container.sh`'s own bash fallback: `scriptRunner`'s `env` then
+		// carries exactly what this process checked, so a provision failure names the jar/res this
+		// log already named, never a different one the script's own default happened to find.
+		// A reason here is NOT "every container will fail": `container.sh`'s own bash defaulting
+		// (a fixed `~/.local/share/cardtable/forge.jar`) still runs underneath, unoverridden — this
+		// just means THIS process could not confirm or name which jar/res that will turn out to be.
+		const magic = script === null ? null : streamedEngineConfig();
+		if (magic !== null && !magic.ok) {
+			console.warn(`[cardtable] cannot confirm a Forge for the streamed desktop (${magic.reason}) — container.sh's own default decides what a container mounts`);
+		}
+		// Every room-keyed streamed desktop `ensureRoomStreams` starts, tracked by room key: how a
+		// seat's container going up, a failed provision, and a container coming down (asked for, or
+		// the allocator's own idle/room-gone sweep below, through `onEnded`) all reach ONE place in
+		// this vocabulary (`runtimes/streamed.ts`'s `StreamedMatchHost`) instead of three separate,
+		// ad hoc call sites.
+		state.streamedHosts = new Map();
 		state.roomStreams =
 			script === null
 				? null
 				: createRoomStreams({
 						// A lobby room or a draft pod: can anyone still reach this room?
 						roomExists: (roomKey) => state.lobby.get(roomKey) !== undefined || state.draftRooms?.find(roomKey) !== undefined,
-						script: scriptRunner(script),
+						script: scriptRunner(script, magic?.ok === true ? streamedContainerEnv(magic.config) : {}),
 						log: state.streamLog,
+						onEnded: (roomKey, reason) => {
+							state.streamedHosts.get(roomKey)?.settled(reason);
+							state.streamedHosts.delete(roomKey);
+						},
 					});
 
 		/** Seats to provision for a room, or null for one that wants none: `clientMode` is the room's own, fixed at create (D19). */
@@ -47,15 +69,26 @@ export const streamRoutesPlugin: CardtablePlugin = {
 			return Math.min(seats, MAX_ROOM_SEATS);
 		};
 		// Fire-and-forget: a cold container is ~18 s to a usable window, so the request is answered
-		// "not up yet" rather than held. `allocate` is idempotent, so a reloading browser stacks nothing.
+		// "not up yet" rather than held. `streamedHost`'s own `allocate` is idempotent, so a reloading
+		// browser stacks nothing; `state.streamedHosts` guards against starting a SECOND host for a
+		// room already tracked, which `allocate`'s own idempotency does not by itself prevent while
+		// the first one is still mid-provision.
 		state.ensureRoomStreams = (roomKey) => {
 			const streams = state.roomStreams;
-			if (streams === null || streams.find(roomKey) !== undefined) return;
+			if (streams === null || state.streamedHosts.has(roomKey) || streams.find(roomKey) !== undefined) return;
 			const seats = streamedSeats(roomKey);
 			if (seats === null) return;
-			void streams.allocate(roomKey, seats).then((result) => {
-				if (!result.ok) state.streamLog({ evt: 'stream-allocate-refused', room: roomKey, reason: result.reason, detail: result.detail });
-			});
+			state.streamedHosts.set(
+				roomKey,
+				streamedHost(streams, roomKey, seats, {
+					fatal: (message) => state.streamLog({ evt: 'stream-allocate-refused', room: roomKey, message }),
+					exit: (reason) => {
+						state.streamedHosts.delete(roomKey);
+						state.streamLog({ evt: 'streamed-host-exit', room: roomKey, reason });
+					},
+					log: (entry) => state.streamLog(entry),
+				}),
+			);
 		};
 		attachStreamRoutes(ctx.app, {
 			minTier: CONFIG.minTier,

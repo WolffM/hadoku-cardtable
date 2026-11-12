@@ -10,18 +10,36 @@
  * the run directory's on-disk shape and why a JVM outlives its server.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type ChildProcess } from 'node:child_process';
 import { closeSync, constants as fsConstants, existsSync, lstatSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeSync } from 'node:fs';
 import { Socket } from 'node:net';
 import { delimiter, join, sep } from 'node:path';
 
 /**
+ * A process `EngineRuntime.spawn` handed back: just the pid and the two edges `local-jvm.ts`'s
+ * `LocalJvm` needs to watch — nothing of `node:child_process`'s own shape leaks past this, so an
+ * engine that is not a `child_process` at all (a streamed desktop's "process" is a docker
+ * container `scripts/stream/container.sh` starts, not a pid this server forks) can still describe
+ * itself this way without pretending to BE a `ChildProcess`.
+ */
+export interface EngineProcess {
+	readonly pid: number;
+	/** The process ended on its own — exited, or never started (`onError` instead). */
+	onExit(cb: (code: number | null, signal: NodeJS.Signals | null) => void): void;
+	/** The process could not be started at all. */
+	onError(cb: (err: Error) => void): void;
+	/** Stop listening: called once `onExit`/`onError` has fired, so nothing later touches a settled match. */
+	dispose(): void;
+}
+
+/**
  * What the host asks of any engine it runs matches through: the process it spawns and what that
- * process costs. `local-jvm.ts`'s `LocalJvm` launches through `forgeEngineRuntime`'s `argv` (w103
- * §H step 2) instead of a second, hand-built copy of the same flags. The coordinator itself
+ * process costs. `local-jvm.ts`'s `LocalJvm` launches through `forgeEngineRuntime`'s `spawn`
+ * (the actual `child_process.spawn` call lives there, not in `LocalJvm`, which only builds the
+ * argv and hands it over) instead of building the child process itself. The coordinator itself
  * (`host.ts`) still places matches through `localJvmLauncher`'s `JvmLauncher`, never through
  * `EngineRuntime` directly — lifting the POOL onto this seam, so a non-JVM engine shares the same
- * coordinator, is w105's.
+ * coordinator, is still ahead of this.
  */
 export interface EngineRuntime {
 	/** Paths (or other identifiers) of what the process needs, keyed for logging. */
@@ -34,6 +52,31 @@ export interface EngineRuntime {
 	perProcess: number;
 	/** Is the process in `dir` still healthy, or due for a recycle? */
 	health?(dir: string): { recycle: boolean };
+	/**
+	 * Launch `argv` (after the executable) with `cwd` and these three stdio fds — never a Node
+	 * pipe; `local-jvm.ts`'s header says why a JVM's stdio has to be fds on named pipes, not
+	 * something that dies with this process. Optional: an engine whose "process" is not one this
+	 * server forks at all (a container another script starts) leaves it unset and is launched some
+	 * other way.
+	 */
+	spawn?(argv: string[], cwd: string, io: { stdin: number; stdout: number; stderr: number }): EngineProcess;
+}
+
+/** An `EngineProcess` over a real `child_process` — what every `spawn` implementation here wraps. */
+export function wrapChildProcess(child: ChildProcess): EngineProcess {
+	return {
+		pid: child.pid ?? -1,
+		onExit(cb) {
+			child.on('exit', cb);
+		},
+		onError(cb) {
+			child.on('error', cb);
+		},
+		dispose() {
+			child.removeAllListeners('exit');
+			child.removeAllListeners('error');
+		},
+	};
 }
 
 /* ── A whole number from an environment variable ────────────────────── */
