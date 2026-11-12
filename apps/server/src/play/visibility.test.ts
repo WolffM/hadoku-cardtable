@@ -1680,3 +1680,139 @@ describe("a face's art id", () => {
 		expect(tapped.objectDeltas[faceKey]).not.toHaveProperty('ScryfallId');
 	});
 });
+
+describe('a restore to the turn\'s start keeps what each player was shown since it began', () => {
+	const int = (v: number) => ({ t: 'int', v });
+	const list = (ids: readonly number[]) => ({ t: 'list', v: ids.map(int) });
+	const NAMES = ['Goblin Guide', 'Lightning Bolt', 'Shock', 'Mountain', 'Grizzly Bears', 'Hill Giant'];
+	/** Seat 1 (player 1) holds `hand`, its library `library`, by index into NAMES; ids are `base` + index. */
+	type Zones = { hand: number[]; library: number[]; graveyard?: number[] };
+	const view = (base: number, turn: number, zones: Zones, look: Record<number, number[]> = {}): StateFrame => {
+		const id = (i: number) => base + i;
+		const card = (i: number): WireObj => ({
+			_type: DELTA_TYPE.card,
+			_id: id(i),
+			Owner: int(1),
+			Controller: int(1),
+			Name: { t: 'str', v: NAMES[i] },
+			...(look[i] === undefined ? {} : { PlayerMayLook: list(look[i]) }),
+		});
+		const player = (p: number, z: Zones): WireObj => ({
+			_type: DELTA_TYPE.player,
+			_id: p,
+			Hand: list(z.hand.map(id)),
+			Library: list(z.library.map(id)),
+			Graveyard: list((z.graveyard ?? []).map(id)),
+			Battlefield: list([]),
+			Exile: list([]),
+		});
+		const objs: WireObj[] = [
+			{ _type: DELTA_TYPE.game, _id: 1, Players: list([0, 1]), Turn: int(turn) },
+			player(0, { hand: [], library: [] }),
+			player(1, zones),
+			...NAMES.map((_n, i) => card(i)),
+		];
+		return { kind: 'notify', method: 'setGameView', payload: { sequenceNumber: 1, gameView: Object.fromEntries(objs.map((o) => [deltaKey(o._type, o._id), o])) } };
+	};
+	let seq = 1;
+	/** The same state as a delta on top of what came before: a game going on, where a reorder reads as a shuffle. */
+	const delta = (base: number, turn: number, zones: Zones, look: Record<number, number[]> = {}): StateFrame => {
+		const whole = (view(base, turn, zones, look) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+		const objectDeltas = Object.fromEntries(
+			Object.entries(whole).map(([k, o]) => [k, o._type === DELTA_TYPE.card && o.PlayerMayLook === undefined ? { ...o, PlayerMayLook: null } : o]),
+		) as Record<string, WireObj>;
+		return { kind: 'notify', method: 'applyDelta', payload: { packet: { seq: ++seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] } } };
+	};
+	const START: Zones = { hand: [0, 1], library: [2, 3, 4, 5] };
+	/** A new game opened on the turn's start, as a restore opens it: the same cards under ids from 100. */
+	const restored = (from: ReturnType<typeof createProjector>, viewer = 0, turn = 3, zones: Zones = START) => {
+		const p = createProjector(viewer);
+		p.inherit(from.carried());
+		p.project(view(100, turn, zones));
+		return p;
+	};
+
+	it("keeps an opponent's hand card it was shown, under the new game's id, and not the one beside it", () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, START, { 0: [0] }));
+		p.project(delta(0, 3, START));
+		const q = restored(p);
+		expect(q.visibilityOf(100)).toBe('full');
+		expect(q.visibilityOf(101)).toBe('hidden');
+	});
+
+	it('keeps a hand card it was shown that left the hand before the restart (the card a Thoughtseize took)', () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, START, { 0: [0], 1: [0] }));
+		p.project(delta(0, 3, { hand: [1], library: [2, 3, 4, 5], graveyard: [0] }));
+		const q = restored(p);
+		expect([q.visibilityOf(100), q.visibilityOf(101)]).toEqual(['full', 'full']);
+	});
+
+	it("keeps a library card it was shown in its place (Goblin Guide's reveal), and the owner's own scry", () => {
+		const alice = createProjector(0);
+		alice.project(view(0, 3, START));
+		alice.learn([2]);
+		const bob = createProjector(1);
+		bob.project(view(0, 3, START));
+		bob.project(delta(0, 3, START, { 2: [1], 3: [1] }));
+		bob.project(delta(0, 3, { hand: [0, 1], library: [2, 4, 5, 3] }));
+		expect(restored(alice).visibilityOf(102)).toBe('full');
+		expect(restored(alice).visibilityOf(103)).toBe('hidden');
+		const back = restored(bob, 1);
+		expect([back.visibilityOf(102), back.visibilityOf(103), back.visibilityOf(104)]).toEqual(['full', 'full', 'hidden']);
+	});
+
+	it('tells the holder which of its cards the other player still knows after the restart', () => {
+		const bob = createProjector(1);
+		bob.project(view(0, 3, START));
+		bob.project(delta(0, 3, START, { 0: [0] }));
+		bob.project(delta(0, 3, START));
+		const after = createProjector(1);
+		after.inherit(bob.carried());
+		const out = after.project(view(100, 3, START));
+		const game = (out as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+		expect(idsOf(game[deltaKey(DELTA_TYPE.card, 100)], 'PlayerMayLook')).toEqual([0]);
+		expect(idsOf(game[deltaKey(DELTA_TYPE.card, 101)], 'PlayerMayLook')).toEqual([]);
+	});
+
+	it('keeps nothing it learned of a library after that library was shuffled this turn: the restored order is the one before', () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, { hand: [0, 1], library: [5, 3, 2, 4] }));
+		p.learn([5]);
+		expect(p.visibilityOf(5)).toBe('full');
+		expect(restored(p).visibilityOf(105)).toBe('hidden');
+	});
+
+	it('keeps nothing of a card it learned somewhere other than where the turn began with it (drawn this turn, then shown in the hand)', () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, { hand: [0, 1, 2], library: [3, 4, 5] }, { 2: [0] }));
+		p.project(delta(0, 3, { hand: [0, 1, 2], library: [3, 4, 5] }));
+		expect(p.visibilityOf(2)).toBe('full');
+		const q = restored(p);
+		expect([q.visibilityOf(100), q.visibilityOf(101), q.visibilityOf(102)]).toEqual(['hidden', 'hidden', 'hidden']);
+	});
+
+	it('keeps knowledge from before the turn began, and carries it through a second restart', () => {
+		const p = createProjector(0);
+		p.project(view(0, 2, START, { 1: [0] }));
+		p.project(delta(0, 2, START));
+		p.project(delta(0, 3, START));
+		const once = restored(p);
+		expect(once.visibilityOf(101)).toBe('full');
+		expect(restored(once).visibilityOf(101)).toBe('full');
+	});
+
+	it('carries nothing into a game that does not open on the turn it was taken at, or whose card there is not the one it knew', () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, START, { 0: [0] }));
+		expect(restored(p, 0, 4).visibilityOf(100)).toBe('hidden');
+		expect(restored(p, 0, 3, { hand: [1, 0], library: [2, 3, 4, 5] }).visibilityOf(100)).toBe('hidden');
+		expect(createProjector(0).carried(), 'nothing seen, nothing carried').toBeNull();
+	});
+});
