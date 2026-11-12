@@ -2,6 +2,8 @@
  * `HostedMatch<ToyLine, ToyCmd>` with `toyAdapter` wired in — the composing class the whole-match
  * test (`whole-match.test.ts`) drives, proving `HostedMatch` + the in-process runtime play a
  * non-Forge game to an end exactly the way `Match` (`play/match.ts`) plays Forge's.
+ * `park-restore.test.ts` drives the same class through a checkpoint instead: parking and
+ * restarting a non-Forge game, generically, the way `parked.ts` parks Forge's.
  */
 
 import { type ParticipantId } from '@wolffm/rooms-protocol';
@@ -33,7 +35,7 @@ export class ToyMatch extends HostedMatch<ToyLine, ToyCmd> {
 		id: string,
 		spec: MatchSpec,
 		deps: ToyMatchDeps,
-		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number; clockMs?: [number, number] },
+		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number; checkpoint?: unknown; clockMs?: [number, number] },
 	) {
 		super(id, spec, deps, restore);
 		this.seats = toyAdapter.seats(spec).map((s, seat) => ({ seat, ai: s.ai, owner: null, playerId: seat, departure: null, here: false, away: false }));
@@ -69,7 +71,11 @@ export class ToyMatch extends HostedMatch<ToyLine, ToyCmd> {
 				this.game.onLine(line);
 				return;
 			case 'checkpoint':
-				// Parking a toy match is not yet wired up; nothing here acts on a checkpoint yet.
+				// Kept exactly as `MatchShell.remember` keeps Forge's own `latestSnapshot`: a later park
+				// (this toy never actually parks to disk — `ParkedStore` is Forge's — but a restart that
+				// builds a fresh `ToyMatch` with this as its `restore.checkpoint` resumes from it).
+				this.latestCheckpoint = c.cp;
+				this.remember();
 				return;
 			case 'fatal':
 				this.fail(c.why);

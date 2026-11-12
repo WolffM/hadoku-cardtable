@@ -5,12 +5,14 @@
  * fits these lines and commands to the shell's seam; this file is only the rules, run through
  * `runtimes/in-process.ts`.
  *
- * Configured with `host.ts`'s own `MatchSpec` — `.deck`/`.clockMs`/`.scenario` and the rest simply
- * go unread — rather than a toy-shaped spec of its own: a match's CONFIG is generic
- * over the engine's line/command vocabulary only, never over `Spec` itself (`MatchHostFactory<L,
- * C>`'s own pinned shape hardcodes `MatchSpec` the same way), so there is nothing a toy `Spec`
- * would buy here. Parking/restoring a toy match from a checkpoint is not yet wired up (an opaque
- * checkpoint is a later step): these rules always start a fresh game at 0–0.
+ * Configured with `host.ts`'s own `MatchSpec` — `.deck`/`.clockMs` and the rest simply go unread —
+ * rather than a toy-shaped spec of its own: a match's CONFIG is generic over the engine's
+ * line/command vocabulary only, never over `Spec` itself (`MatchHostFactory<L, C>`'s own pinned
+ * shape hardcodes `MatchSpec` the same way), so there is nothing a toy `Spec` would buy here.
+ * `.scenario` is the one field this toy repurposes: `adapter.ts`'s `restoreSpec` writes a
+ * JSON-encoded {@link ToyCheckpoint} into it, and {@link playToy} reads it back as where the score
+ * starts — the toy's own, deliberately un-Forge-like stand-in for Forge's own puzzle-state text in
+ * the same field. A spec with no `.scenario` starts fresh at 0–0, same as ever.
  */
 
 import type { MatchSpec } from '../../host.js';
@@ -34,10 +36,10 @@ export type ToyLine =
 	| { t: 'scored'; seat: 0 | 1; score: [number, number] }
 	/** The game ended. */
 	| { t: 'over'; winner: 0 | 1; conceded: boolean; score: [number, number] }
-	/** The score at a point where the game could be restarted from — Forge's `snapshot`, toy-sized. Not yet acted on by anything. */
+	/** The score at a point where the game could be restarted from — Forge's `snapshot`, toy-sized. */
 	| { t: 'checkpoint'; score: [number, number] };
 
-/** A toy match's mid-game save: the running score is the whole state there is. Not yet used. */
+/** A toy match's mid-game save: the running score is the whole state there is. */
 export interface ToyCheckpoint {
 	score: [number, number];
 }
@@ -55,8 +57,10 @@ export interface ToyRun {
  * once the game is over. Matches `runtimes/in-process.ts`'s `InProcessEngine.start` exactly, so
  * {@link toyEngine} is a one-line wrap.
  */
-export function playToy(_spec: MatchSpec, line: (l: ToyLine) => void): ToyRun {
-	const score: [number, number] = [0, 0];
+export function playToy(spec: MatchSpec, line: (l: ToyLine) => void): ToyRun {
+	// `adapter.ts`'s `restoreSpec` wrote a checkpoint here; see this file's header.
+	const restored = typeof spec.scenario === 'string' ? (JSON.parse(spec.scenario) as ToyCheckpoint) : null;
+	const score: [number, number] = restored === null ? [0, 0] : [...restored.score];
 	let over = false;
 	line({ t: 'ready' });
 	return {

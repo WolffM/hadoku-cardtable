@@ -167,6 +167,17 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 	 */
 	latestSnapshot: TurnSnapshot | null;
 
+	/**
+	 * The newest `{ t: 'checkpoint' }` line `GameAdapter.classify` read, opaque to the shell —
+	 * w105's generic twin of {@link latestSnapshot}, which stays Forge's own. Set by the composing
+	 * match whenever its own `onLine` sees one (`fixtures/toy-game/match.ts`'s `ToyMatch` is the
+	 * first caller; a generic `HostedMatch` reading `classify` directly is a later step), and
+	 * written down with the record exactly like {@link latestSnapshot} ({@link remember}). A spec
+	 * restored through `GameAdapter.restoreSpec` is what actually resumes the game from it; this
+	 * field is only the shell's bookkeeping of what the last one was.
+	 */
+	latestCheckpoint: unknown | null;
+
 	/** The open restart ask: the asking seat, the turn it is about, and its {@link RESTART_ASK_MS} expiry. */
 	protected restartAsk: { from: number; turn: number; timer: ReturnType<typeof setTimeout> } | null = null;
 	/** The turn a restart ask was declined in: no second ask until the next. */
@@ -225,7 +236,13 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 	 */
 	protected remember(): void {
 		const clockMs = this.clockLeft();
-		this.host?.remember?.({ epoch: this.epoch, owners: this.owners(), snapshot: this.latestSnapshot, ...(clockMs === null ? {} : { clockMs }) });
+		this.host?.remember?.({
+			epoch: this.epoch,
+			owners: this.owners(),
+			checkpoint: this.latestCheckpoint,
+			snapshot: this.latestSnapshot,
+			...(clockMs === null ? {} : { clockMs }),
+		});
 	}
 
 	/** Each seat's chess-clock time left, or null in a game without one. */
@@ -591,7 +608,7 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 		id: string,
 		spec: MatchSpec,
 		deps: ShellDeps,
-		restore?: { epoch: string | null; startedAt: number; snapshot?: TurnSnapshot | null; clockMs?: [number, number] },
+		restore?: { epoch: string | null; startedAt: number; snapshot?: TurnSnapshot | null; checkpoint?: unknown; clockMs?: [number, number] },
 	) {
 		this.id = id;
 		this.spec = spec;
@@ -604,6 +621,7 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 		this.startedAt = restore?.startedAt ?? this.now();
 		this.epoch = restore?.epoch ?? `${id}:${this.startedAt}`;
 		this.latestSnapshot = restore?.snapshot ?? null;
+		this.latestCheckpoint = restore?.checkpoint ?? null;
 	}
 
 	/** One line from the engine, as the composing match reads it: a concede the engine never ends ends here as its game-over would. */

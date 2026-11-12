@@ -49,9 +49,10 @@ const toyAdapter: GameAdapter<ToySpec, ToyLine, ToyCmd, ToyFrame, ToyCheckpoint>
 		activeSeat: () => null,
 		openAsks: () => 0,
 		// Trivial here (this toy has no asks and nothing of its own to sweep) but still implemented,
-		// to prove the two hooks fit a non-Forge session.
+		// to prove the hooks fit a non-Forge session.
 		replayed: () => {},
 		ended: () => {},
+		notice: () => {},
 	}),
 	restoreSpec: (spec, _cp) => spec,
 	concede: (seat) => ({ t: 'act', seat, method: 'concede' }),

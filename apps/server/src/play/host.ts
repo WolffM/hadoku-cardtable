@@ -316,17 +316,16 @@ export interface MatchHost<C extends { t: string }> {
  * What a restart needs to resume a match, independent of the engine (w103 §H's pinned shape):
  * its epoch, so a re-attached client resyncs on the cursor it holds, and which participant owns
  * each seat, so a re-attach cannot seat someone at the wrong hand. `checkpoint` is w105's: a
- * per-engine mid-game save, opaque to the host, in place of Forge's own {@link TurnSnapshot}
- * (kept as `MatchRecord.snapshot` below, unchanged, until that lands). Refined from the pinned
- * `checkpoint: null` to `checkpoint?: null` — optional, not required — so this stays additive: a
- * caller written against `MatchHost.remember` before this step (`match/shell.ts`, a live call
- * site this step does not touch) keeps compiling with no `checkpoint` of its own, and
- * `readJvmRecord`/`hostFace`'s `remember` always record it as `null` regardless.
+ * per-engine mid-game save, opaque to the host — whatever `GameAdapter.classify`'s `{ t:
+ * 'checkpoint' }` line carried last (`match/shell.ts`'s `latestCheckpoint`), written down beside
+ * Forge's own {@link TurnSnapshot} (`MatchRecord.snapshot`, kept unchanged this wave) rather than
+ * replacing it. Absent before a match's first checkpoint. `readJvmRecord`/`hostFace`'s `remember`
+ * pass through whatever the caller sent, never forcing it to `null` themselves.
  */
 export interface Durable {
 	epoch: string;
 	owners: (string | null)[];
-	checkpoint?: null;
+	checkpoint?: unknown;
 }
 
 /**
@@ -452,6 +451,10 @@ export function matchStderrPath(workDir: string, log: readonly Record<string, un
 
 const isClockMs = (v: unknown): v is [number, number] => Array.isArray(v) && v.length === 2 && v.every((ms) => Number.isInteger(ms) && ms >= 0);
 
+/** A record's `snapshot` as a server actually wrote it — H's gap (w103): this was never checked, so it was never decoded either. */
+const isTurnSnapshot = (v: unknown): v is TurnSnapshot =>
+	typeof v === 'object' && v !== null && typeof (v as TurnSnapshot).turn === 'number' && typeof (v as TurnSnapshot).state === 'string';
+
 /** `<dir>/jvm.json`, or null when it is missing, unreadable or not a record. */
 export function readJvmRecord(dir: string): JvmRecord | null {
 	let parsed: unknown;
@@ -475,8 +478,12 @@ export function readJvmRecord(dir: string): JvmRecord | null {
 			startedAt: typeof m.startedAt === 'string' ? m.startedAt : new Date(0).toISOString(),
 			epoch: typeof m.epoch === 'string' ? m.epoch : null,
 			owners: Array.isArray(m.owners) ? m.owners.map((o) => (typeof o === 'string' ? o : null)) : [],
-			// Durable's own field: always null this wave (w105's), whatever an older or newer file holds.
-			checkpoint: null,
+			// Durable's own field: opaque to this file, so it is passed through as whatever the
+			// record holds — absent (every file older than w105) decodes as null, never dropped.
+			checkpoint: m.checkpoint ?? null,
+			// H's gap (w103): `remember` has written this since e308cdf9b, but nothing read it back
+			// until now — an orphan re-attached after a restart lost its turn-start snapshot.
+			...(isTurnSnapshot(m.snapshot) ? { snapshot: m.snapshot } : {}),
 			spec: m.spec,
 			...(isClockMs(m.clockMs) ? { clockMs: m.clockMs } : {}),
 		})),
@@ -1025,8 +1032,8 @@ export function jvmHostFactory<L extends { t: string }, C extends { t: string }>
 					...h.entry,
 					epoch: state.epoch,
 					owners: state.owners,
-					// Always null this wave (w105's), whatever the caller sent — see `Durable`'s own doc.
-					checkpoint: null,
+					// Whatever the caller's own game last had of its `{ t: 'checkpoint' }` line — see `Durable`'s own doc.
+					checkpoint: state.checkpoint ?? null,
 					...(state.snapshot === undefined ? {} : { snapshot: state.snapshot }),
 					...(state.clockMs === undefined ? {} : { clockMs: state.clockMs }),
 				};

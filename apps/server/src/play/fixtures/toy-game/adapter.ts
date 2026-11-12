@@ -61,11 +61,13 @@ export const toyAdapter: GameAdapter<MatchSpec, ToyLine, ToyCmd, ToyFrame, ToyCh
 		replayed: () => {},
 		// Nothing per-seat to sweep at the end: implemented anyway, for the same reason.
 		ended: () => {},
+		// Nothing of its own to say either; implemented anyway, to prove the hook fits.
+		notice: () => {},
 	}),
 
-	// Parking/restoring a toy match from a checkpoint is not yet wired up (`rules.ts`'s header);
-	// these rules always start fresh, so there is nothing yet for a restored spec to carry.
-	restoreSpec: (spec) => spec,
+	// `cp` is `rules.ts`'s whole state (the running score): write it into `.scenario` as JSON, the
+	// field `playToy` reads it back from. `skipOpening`/`chooser` etc. are Forge's own and go unread.
+	restoreSpec: (spec, cp) => ({ ...spec, scenario: JSON.stringify(cp) }),
 	// `GameAdapter.concede`'s `seat` is a plain `number` (any game's shell may have more than two
 	// seats); `seats()` above always answers exactly two, so the shell never calls this with
 	// anything but 0 or 1.

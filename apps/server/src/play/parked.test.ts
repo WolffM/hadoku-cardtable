@@ -9,7 +9,8 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
@@ -23,6 +24,14 @@ import { openParkedStore, type ParkedStore, type ParkedStoreDeps } from './parke
 import { identityFromHeaders } from '../room/identity.js';
 import type { Lobby } from '../room/lobby.js';
 
+/**
+ * A real parked file, sanitized (`fixtures/parked.sample.json`'s own header note at the point it
+ * is read, below, says what changed): `michael` → `A`, the real owner id → the fixture convention's
+ * `fk:aaaa…`, the room's junk name → `Test game`. The decks' own `Pilot=`/`Comment=` credits
+ * (`Patxi`, `ATmagic`) are public mtgtop8.com handles the deck data already carries everywhere
+ * else in this repo, not this app's own users, so nothing there needed scrubbing.
+ */
+const PARKED_SAMPLE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'parked.sample.json');
 const EDGE_SECRET = 'test-edge-auth-secret';
 const TRANSCRIPT = loadTranscript();
 const OPENING = TRANSCRIPT.slice(0, TRANSCRIPT.findIndex((l) => l.t === 'frame' && (l.frame as { kind: string }).kind === 'ask'));
@@ -239,6 +248,34 @@ describe('the parked store', () => {
 
 		const reopened = store(dir).s;
 		expect(reopened.get(match.id)).toEqual(record);
+	});
+
+	/**
+	 * w105 §K: "Persisted records decode old files" — this file decodes a real, sanitized parked
+	 * record (`fixtures/parked.sample.json`, above `PARKED_SAMPLE`'s own doc), written by a server
+	 * before this wave's checkpoint work, exactly as it is on disk — never hand-typed.
+	 */
+	it('decodes a real parked file written before this wave', () => {
+		const dir = tempDir();
+		const matchId = 'm-cdb6dd6c983a';
+		writeFileSync(join(dir, `${matchId}.json`), readFileSync(PARKED_SAMPLE, 'utf8'));
+		const { s } = store(dir);
+		const record = s.get(matchId);
+		expect(record).toMatchObject({
+			matchId,
+			room: { id: 'r-d15770389b2d', name: 'Test game', format: '2025-06-30' },
+			seats: [
+				{ ai: false, owner: 'fk:aaaaaaaaaaaaaaaa', name: 'A', deckName: 'Dimir Aggro (Patxi)' },
+				{ ai: true, owner: null, name: 'Recluse', deckName: 'Mono Green Aggro (ATmagic)' },
+			],
+			format: '2025-06-30',
+			formatName: 'Standard (2025-06-30)',
+			turn: 8,
+			pin: '47dd04f8608f05144aa32d2524a29aedb8a2bd62',
+		});
+		expect(record?.snapshot).toMatchObject({ turn: 8 });
+		expect(record?.spec.seats).toHaveLength(2);
+		expect(s.listFor('fk:aaaaaaaaaaaaaaaa')).toEqual([expect.objectContaining({ matchId, turn: 8 })]);
 	});
 
 	it('does not park a game with nothing to go back to, or one a resume would report differently', () => {

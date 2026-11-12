@@ -16,8 +16,8 @@ describe('toyAdapter.seats / .concede / .notice', () => {
 		expect(toyAdapter.notice('the match ended')).toEqual({ kind: 'notify', text: 'the match ended' });
 	});
 
-	it('restoreSpec() is the identity — parking a toy match is not yet wired up', () => {
-		expect(toyAdapter.restoreSpec(SPEC, { score: [2, 1] })).toBe(SPEC);
+	it('restoreSpec() writes the checkpoint into .scenario as JSON, for playToy to read back', () => {
+		expect(toyAdapter.restoreSpec(SPEC, { score: [2, 1] })).toEqual({ ...SPEC, scenario: '{"score":[2,1]}' });
 	});
 });
 
@@ -89,10 +89,11 @@ describe('toyAdapter.session', () => {
 		expect(session.openAsks(1)).toBe(0);
 	});
 
-	it('replayed() and ended() exist and do nothing — proving the optional GameSession hooks fit a game with neither asks nor per-seat state to sweep', () => {
+	it('replayed(), ended() and notice() exist and do nothing — proving the optional GameSession hooks fit a game with neither asks nor per-seat state to sweep nor words of its own', () => {
 		const session = toyAdapter.session({ toSeat: () => {}, toWatchers: () => {}, command: () => {} });
 		expect(() => session.replayed?.({ t: 'concede', seat: 0 })).not.toThrow();
 		expect(() => session.ended?.(null)).not.toThrow();
 		expect(() => session.ended?.('the host exited')).not.toThrow();
+		expect(() => session.notice?.('server-stopping', 'the server is restarting')).not.toThrow();
 	});
 });
