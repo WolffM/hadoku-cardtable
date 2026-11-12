@@ -1253,9 +1253,18 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 			const shownTo = learner ?? who;
 			if (viewers().length === 0 || shownTo === null) return null;
 			const zones = indexZones(raw);
-			for (const cardId of cardIds) {
+			const shown = new Set(cardIds);
+			// A whole library shown is a search (a fetchland's `delayedReveal` lists every card in it), not
+			// a reveal: it is shuffled when it ends, as {@link noteTopLooks} has it. Kept, the shuffle that
+			// follows is unreadable — every card in it was looked at — and the seat went on knowing its whole
+			// library, which the board reads as a search still open and draws no top (Oracle of Mul Daya).
+			const searched = new Set<number>();
+			for (const [holder, library] of libraries) if (library.length > 1 && library.every((id) => shown.has(id))) searched.add(holder);
+			for (const cardId of shown) {
 				const at = zones.byCard.get(cardId);
-				if (at !== undefined && STICKY_ZONES.has(at.zone)) knownTo(shownTo).set(cardId, at);
+				if (at === undefined || !STICKY_ZONES.has(at.zone)) continue;
+				if (at.zone === 'Library' && searched.has(at.holder)) continue;
+				knownTo(shownTo).set(cardId, at);
 			}
 			const packet = projectPacket({ seq: lastSeq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] });
 			return Object.keys(packet.newObjects).length === 0 && Object.keys(packet.objectDeltas).length === 0

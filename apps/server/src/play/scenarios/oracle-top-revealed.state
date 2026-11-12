@@ -1,0 +1,17 @@
+# The operator, 2026-11-11: "oracle of mul daya - opponent can see revealed top of deck, but i can't see it."
+# Alice (seat 0) holds her main phase with Oracle of Mul Daya ("Play with the top card of your library
+# revealed", `MayLookAt$ Player`) and Misty Rainforest; the fetch searches her library for its one Forest,
+# then shuffles it. Opt keeps her turn from passing on its own. Bob has no plays.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Opt
+humanbattlefield=Oracle of Mul Daya;Misty Rainforest;Forest
+humanlibrary=Forest;Lightning Bolt;Shock;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
