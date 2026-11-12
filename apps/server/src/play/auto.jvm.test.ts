@@ -76,7 +76,7 @@ import {
 import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount } from './host.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
-import { createMatchRegistry } from './match.js';
+import { createMatchRegistry, type Match } from './match.js';
 import { finishMulligan, scenarioText, startScenario, waitUntil as waitUntilScenario } from './scenario.js';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
@@ -212,7 +212,7 @@ describe.skipIf(!available.ok)(title, () => {
 			/** What each seat was last told, and what happened at each priority stop. */
 			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null }));
 			/** One row per priority window this seat was shown: was Forge's set empty, was it passed. */
-			const stops: { seat: number; phase: string; stackEmpty: boolean; idle: boolean; ownMain: boolean; passed: boolean }[] = [];
+			const stops: { seat: number; phase: string; stackEmpty: boolean; idle: boolean; ownMain: boolean; passed: boolean; unsettled: boolean }[] = [];
 			const says: { seat: number; message: string; type: string | null; mana: string | null }[] = [];
 
 			const registry = createMatchRegistry({
@@ -241,6 +241,13 @@ describe.skipIf(!available.ok)(title, () => {
 										phase: /^Phase: (.+)$/m.exec(message)?.[1] ?? '?',
 										stackEmpty: /^Stack: Empty$/m.test(message),
 										idle: notes[l.seat]!.actionable !== null && notes[l.seat]!.actionable!.length === 0,
+										// `actionable` reads `null` between a `clearWeaklySelectable` and the NEXT
+										// `setWeaklySelectable` — routine, not an error (every dump in this
+										// suite shows a clear right after a window closes). A stop whose Priority
+										// prompt happened to land in exactly that gap captures `idle: false` with
+										// no information behind it, not a confirmed "Forge named something" — see
+										// the "busy" sweep below, which must not assert on it either way.
+										unsettled: notes[l.seat]!.actionable === null,
 										ownMain:
 											isOwnMainPhaseEntry(message) &&
 											!(DEFAULT_STOP_POLICY.attackStopIsTheDeclaration && /^Phase: Declare Attackers Step$/m.test(message)),
@@ -289,7 +296,13 @@ describe.skipIf(!available.ok)(title, () => {
 			// target first — Forge parks in target selection and this driver has no
 			// hands for that. The payment path it would then take is the same one.)
 			const cards = ['24 Volcanic Island', '36 Preordain'];
-			const match = registry.create({
+			let match!: Match;
+			// A red anywhere below must still stop this match and reap its JVM: without this, a
+			// failed assertion skips the `match.stop()` at the bottom, the JVM leaks, and every
+			// LATER test in this file times out waiting for `liveJvmCount() === 0` instead of
+			// reporting its own failure (`auto.jvm.test.ts:919`, the cascade this guards against).
+			try {
+			match = registry.create({
 				seed: 20260924,
 				seats: [
 					{ name: 'A', ai: false, deck: deck('Lane C A', cards) },
@@ -465,7 +478,12 @@ describe.skipIf(!available.ok)(title, () => {
 
 			const population = {
 				idleNotOwnMain: closed.filter((s) => s.idle && !s.ownMain).length,
-				busy: stops.filter((s) => !s.idle).length,
+				// Confirmed busy: Forge's own `setWeaklySelectable` named something, not merely
+				// "this stop's actionable set was unread because it landed between a clear and
+				// the next set" (`unsettled`, below) — a stop this suite has no real information
+				// about is not evidence for OR against the rule it is swept into.
+				busy: stops.filter((s) => !s.idle && !s.unsettled).length,
+				unsettled: stops.filter((s) => s.unsettled).length,
 				ownMain: stops.filter((s) => s.ownMain).length,
 				stackLoadedIdle: stops.filter((s) => !s.stackEmpty && s.idle).length,
 				asksCarryingCards: asks.filter((a) => a.method === 'manipulateCardList' || a.method === 'order').length,
@@ -489,7 +507,7 @@ describe.skipIf(!available.ok)(title, () => {
 			// beside it: a stop where FORGE named something is never passed. With no
 			// busy stop in the run there is nothing for that rule to have got wrong.
 			expect(population.busy, `Forge named something actionable at no stop at all: ${JSON.stringify(population)}`).toBeGreaterThan(0);
-			expect(stops.filter((s) => !s.idle && s.passed)).toEqual([]);
+			expect(stops.filter((s) => !s.idle && !s.unsettled && s.passed)).toEqual([]);
 			expect(passed.length).toBeGreaterThan(4);
 
 			// #7, wave 20 — and no seat's own main phase with an empty stack was
@@ -544,8 +562,10 @@ describe.skipIf(!available.ok)(title, () => {
 			}
 
 			expect(match.invalidFrames).toBe(0);
-			match.stop();
-			jvm.reapOnExit();
+			} finally {
+				match.stop();
+				jvm.reapOnExit();
+			}
 			await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
 			expect(liveJvmCount()).toBe(0);
 		},
@@ -603,7 +623,11 @@ describe.skipIf(!available.ok)(title, () => {
 			});
 
 			const cards = ['14 Evolving Wilds', '14 Plains', '12 Stoneforge Mystic'];
-			const match = registry.create({
+			let match!: Match;
+			// See the first test's identical comment: a red below must still stop this
+			// match and reap its JVM, or the cascade in auto.jvm.test.ts:919 repeats.
+			try {
+			match = registry.create({
 				seed: 20260926,
 				seats: [
 					{ name: 'A', ai: false, deck: deck('Lane E A', cards) },
@@ -914,8 +938,10 @@ describe.skipIf(!available.ok)(title, () => {
 			}
 
 			expect(match.invalidFrames).toBe(0);
-			match.stop();
-			jvm.reapOnExit();
+			} finally {
+				match.stop();
+				jvm.reapOnExit();
+			}
 			await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
 			expect(liveJvmCount()).toBe(0);
 		},
@@ -975,7 +1001,11 @@ describe.skipIf(!available.ok)(title, () => {
 			});
 
 			const cards = ['20 Mountain', '20 Island', '20 Galvanic Blast'];
-			const match = registry.create({
+			let match!: Match;
+			// See the first test's identical comment: a red below must still stop this
+			// match and reap its JVM, or the cascade in auto.jvm.test.ts:919 repeats.
+			try {
+			match = registry.create({
 				seed: 20260927,
 				seats: [
 					{ name: 'A', ai: false, deck: deck('Lane D A', cards) },
@@ -1234,8 +1264,10 @@ describe.skipIf(!available.ok)(title, () => {
 			}
 
 			expect(match.invalidFrames).toBe(0);
-			match.stop();
-			jvm.reapOnExit();
+			} finally {
+				match.stop();
+				jvm.reapOnExit();
+			}
 			await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
 			expect(liveJvmCount()).toBe(0);
 		},
