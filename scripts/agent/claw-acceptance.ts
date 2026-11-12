@@ -20,6 +20,14 @@
  *   D3  the agent back (systemd restarts it): a canary before the claw hosts again, ✅ alert
  *   D4  the coordinator SIGTERMed with matches on the claw: the agent holds them past the fencing
  *       window, and the next coordinator re-attaches the same JVM
+ *   cgroup-restart  a graceful restart (`sudo systemctl restart`, what `deploy.sh install`
+ *       triggers) with a live JVM AND the draft bot capped and running must still succeed, and the
+ *       JVM must be adopted, not fenced — the opposite of what a canary restart found on claw-10 (the
+ *       agent left `+memory` on the unit root's `subtree_control` forever once the draft bot had
+ *       ever run, so systemd could never again place the agent's own restarted process there:
+ *       "Device or resource busy"; `apps/agent/src/cgroups.ts`'s fix moves the draft bot's leaf
+ *       under `caps/`). Runs on `claws[0]` only, outside `clawPlacement` — one raw JVM via
+ *       `connectRemoteHost`, not a full match.
  */
 
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
@@ -32,7 +40,7 @@ import { DEFAULT_STOP_POLICY } from '../../apps/server/src/play/auto.js';
 import { jvmHostConfig, type MatchSpec } from '../../apps/server/src/play/host.js';
 import { createMatchRegistry, type Match } from '../../apps/server/src/play/match.js';
 import { clawPlacement, registryRestorer } from '../../apps/server/src/play/placement/index.js';
-import { AGENT_KEY_ENV } from '../../apps/server/src/play/remote/index.js';
+import { AGENT_KEY_ENV, connectRemoteHost } from '../../apps/server/src/play/remote/index.js';
 
 const claws = (process.argv[2] ?? '').split(',').filter((c) => c !== '');
 const role = process.env.ACCEPT_ROLE ?? 'driver';
@@ -200,11 +208,18 @@ async function driver(): Promise<void> {
 	};
 	const live = (s: Status): Status['matches'] => s.matches.filter((m) => m.status === 'starting' || m.status === 'running');
 
+	// ACCEPT_ONLY=cgroup-restart runs only that one case, skipping D1/D3/D4 entirely — no
+	// coordinator subprocess, no SIGKILL of anything. Unset (the default) runs the full battery.
+	const only = process.env.ACCEPT_ONLY ?? null;
+	if (only !== null && only !== 'cgroup-restart') throw new Error(`ACCEPT_ONLY: 'cgroup-restart' or unset, not '${only}'`);
+
 	let c1: Coord | null = null;
 	let c2: Coord | null = null;
+	let cgClient: Awaited<ReturnType<typeof connectRemoteHost>>['client'] | null = null;
 	try {
 		const jvmsOnClaws = (): string => claws.map((c) => `${c} ${JSON.stringify(clawProcs(c).filter((p) => p.comm === 'java'))}`).join(', ');
 		for (const claw of claws) say(`claw ${claw} before: ${JSON.stringify(clawProcs(claw))}`);
+		if (only === null) {
 		c1 = start(false);
 		for (const claw of claws) {
 			await c1.until(`${claw} connected`, (e) => e.evt === 'claw-connected' && e.host === claw, 300_000);
@@ -298,6 +313,75 @@ async function driver(): Promise<void> {
 		await sleep(10_000);
 		const after = await c2.status();
 		say(`D4 10 s on: ${table(after)}; JVMs ${jvmsOnClaws()}`);
+		}
+
+		if (only === null || only === 'cgroup-restart') {
+		/* cgroup-restart: see the header comment. One claw, one raw JVM, outside placement. */
+		const cgClaw = claws[0]!;
+		say(`cgroup-restart: a direct JVM + draft bot on ${cgClaw}, outside placement`);
+		const cfg = jvmHostConfig();
+		if (!cfg.ok) throw new Error(cfg.reason);
+		const cgLog: Record<string, unknown>[] = [];
+		const beforePid = clawProcs(cgClaw).find((p) => p.comm === 'run')?.pid ?? null;
+		const host = await connectRemoteHost(cgClaw, cfg.config, env, { log: (e) => cgLog.push(e) });
+		cgClient = host.client;
+		await host.runtime;
+		const draftbotSha = await host.draftbot;
+		host.client.send({ op: 'draftbot', sha: draftbotSha });
+		const upAt = Date.now();
+		for (;;) {
+			if (host.client.health?.draftbot?.state === 'up') break;
+			if (Date.now() - upAt > 30_000) throw new Error(`cgroup-restart: the draft bot never came up: ${JSON.stringify(host.client.health?.draftbot)}`);
+			await sleep(200);
+		}
+		const jvm = host.launcher.launch('cgrestart-h1', { xmxMb: 512 });
+		const warm: string[] = [];
+		jvm.onLine((l) => warm.push(l));
+		const warmAt = Date.now();
+		for (; warm.length === 0; ) {
+			if (Date.now() - warmAt > 60_000) throw new Error(`cgroup-restart: the JVM never warmed: ${JSON.stringify(cgLog.slice(-5))}`);
+			await sleep(200);
+		}
+		say(`cgroup-restart: JVM warm (agent pid ${beforePid ?? '?'}), draft bot up; restarting cardtable-agent.service`);
+		const restartedAt = Date.now();
+		onClaw(cgClaw, 'sudo systemctl restart cardtable-agent.service');
+		for (;;) {
+			const st = onClaw(cgClaw, 'systemctl is-active cardtable-agent.service || true');
+			if (st === 'active') break;
+			if (Date.now() - restartedAt > 60_000) throw new Error(`cgroup-restart: cardtable-agent.service never became active again: ${st}`);
+			await sleep(500);
+		}
+		say(`cgroup-restart: ${secs(restartedAt, Date.now())} after the restart, the unit is active; reconnecting`);
+		host.client.close();
+		cgClient = null;
+		let reconnected: Awaited<ReturnType<typeof connectRemoteHost>> | null = null;
+		for (;;) {
+			try {
+				reconnected = await connectRemoteHost(cgClaw, cfg.config, env, { log: (e) => cgLog.push(e) });
+				break;
+			} catch (e) {
+				if (Date.now() - restartedAt > 60_000) throw new Error(`cgroup-restart: could not reconnect to the new agent: ${(e as Error).message}`, { cause: e });
+				await sleep(500);
+			}
+		}
+		cgClient = reconnected.client;
+		const afterPid = clawProcs(cgClaw).find((p) => p.comm === 'run')?.pid ?? null;
+		let adoptedAt = 0;
+		for (;;) {
+			if (reconnected.client.health?.jvms.some((j) => j.hostId === 'cgrestart-h1')) {
+				adoptedAt = Date.now();
+				break;
+			}
+			if (Date.now() - restartedAt > 15_000) throw new Error(`cgroup-restart: the JVM was not adopted: health ${JSON.stringify(reconnected.client.health)}`);
+			await sleep(300);
+		}
+		say(`cgroup-restart: PASS — ${secs(restartedAt, Date.now())} after the restart (agent pid ${beforePid ?? '?'} → ${afterPid ?? '?'}), cgrestart-h1 was adopted ${secs(restartedAt, adoptedAt)} in, not fenced`);
+		reconnected.client.send({ op: 'draftbot', sha: null });
+		reconnected.launcher.attach('cgrestart-h1').kill();
+		await sleep(500);
+		reconnected.client.close();
+		cgClient = null;
+		}
 	} finally {
 		for (const c of [c2, c1]) {
 			if (c === null || c.proc.exitCode !== null) continue;
@@ -306,6 +390,7 @@ async function driver(): Promise<void> {
 			c.proc.kill('SIGTERM');
 			await new Promise((r) => c.proc.once('exit', r));
 		}
+		cgClient?.close();
 		await sleep(5000);
 		for (const claw of claws) say(`cleanup: ${claw} now ${JSON.stringify(clawProcs(claw))}`);
 		hook.close();

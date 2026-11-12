@@ -203,6 +203,20 @@ export class Agent {
 	}
 
 	/**
+	 * A graceful stop: `SIGTERM`/`SIGINT`, what every planned restart sends (`deploy.sh install`,
+	 * `systemctl restart`). `close()` already stops the draft bot (`draftbot.stop()` → `killLeaf` →
+	 * the cgroup's own retraction once nothing is capped any more), so by the time this returns the
+	 * unit's own `subtree_control` is back to empty and the next restart's main-process placement is
+	 * never refused the way a canary restart found claw-10's was — `cgroups.ts` has the full
+	 * reasoning. Never touches a `run-*` JVM leaf: those outlive the agent on purpose, same as any
+	 * other `close()`.
+	 */
+	shutdown(signal: string): void {
+		this.log('shutdown', { signal });
+		this.close();
+	}
+
+	/**
 	 * Fencing: past the window with no word from the coordinator, every JVM dies.
 	 * Called every second; exported for the fake-clock test.
 	 */

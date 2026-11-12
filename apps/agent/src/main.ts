@@ -40,4 +40,13 @@ const agent = new Agent({
 	memoryMaxMb: env.CARDTABLE_AGENT_MEMORY_MB ? Number(env.CARDTABLE_AGENT_MEMORY_MB) : null,
 	extra: (cgroups, log, now) => new DraftbotService(home, cgroups, log, now),
 });
+// `KillMode=process` sends this only to this process; systemd then starts the next one straight
+// into the unit's own cgroup, so the draft bot's leaf (and the memory grant it needed) must already
+// be gone by the time this returns (`agent.ts` `shutdown`). A `run-*` JVM leaf is never touched.
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+	process.on(signal, () => {
+		agent.shutdown(signal);
+		process.exit(0);
+	});
+}
 await agent.listen();

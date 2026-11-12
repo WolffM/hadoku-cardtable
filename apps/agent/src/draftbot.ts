@@ -6,8 +6,10 @@
  *   it fetches nothing, and the claw has no egress), with the agent's node first on `PATH`, on a free
  *   loopback port, with a fresh shared secret: the service answers nothing but `/healthcheck`
  *   without it, so CI on the same claw cannot use it.
- * - **Capped** in its own leaf, `draftbot/`, at `DRAFTBOT_MB` (`cgroups.ts` `placeCapped`), never
- *   inside a JVM's. The leaf is in the slice, so it ends with the slice.
+ * - **Capped** in its own leaf, `caps/draftbot/`, at `DRAFTBOT_MB` (`cgroups.ts` `placeCapped`),
+ *   never inside a JVM's. The leaf is in the slice, so it ends with the slice; `killLeaf` also
+ *   retracts the memory grant once nothing is capped any more, so a later agent restart is never
+ *   blocked by a grant this process left behind (`cgroups.ts`'s own doc comment).
  * - **Supervised**: `up` once `/healthcheck` answers; if it dies while wanted it starts again, after
  *   a delay that doubles with each death in a row. It is stateless, so fencing leaves it alone, and
  *   a restarted agent kills whatever an earlier one left and waits to be asked again.

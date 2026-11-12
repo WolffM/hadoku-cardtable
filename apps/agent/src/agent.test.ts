@@ -91,8 +91,14 @@ createServer((req, res) => {
 	return tgz(src, 'draftbot');
 }
 
-/** A cgroup tree as fleet-manager delegates it, in a plain directory. */
-function fakeCgroups(sliceMb = 4096): { root: string; ownCgroupFile: string; service: string } {
+/**
+ * A cgroup tree as fleet-manager delegates it, in a plain directory. `startedInAgentSubgroup`
+ * simulates `DelegateSubgroup=agent` (asked for,
+ * docs/requests/2026-11-12-fleet-manager-agent-delegate-subgroup.md): systemd itself has already
+ * placed this process's main pid into `<unit>/agent/` by the time `Cgroups` reads `/proc/self/cgroup`,
+ * rather than this code finding it there and moving itself in.
+ */
+function fakeCgroups(sliceMb = 4096, opts: { startedInAgentSubgroup?: boolean } = {}): { root: string; ownCgroupFile: string; service: string } {
 	const root = scratch();
 	const unit = '/hosting.slice/hosting-cardtable.slice/cardtable-agent.service';
 	mkdirSync(join(root, unit), { recursive: true });
@@ -100,8 +106,33 @@ function fakeCgroups(sliceMb = 4096): { root: string; ownCgroupFile: string; ser
 	writeFileSync(join(root, unit, '..', 'cpu.max'), '400000 100000');
 	writeFileSync(join(root, unit, '..', 'memory.events'), 'low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\n');
 	const ownCgroupFile = join(root, 'self-cgroup');
-	writeFileSync(ownCgroupFile, `0::${unit}\n`);
+	if (opts.startedInAgentSubgroup) {
+		mkdirSync(join(root, unit, 'agent'), { recursive: true });
+		writeFileSync(ownCgroupFile, `0::${unit}/agent\n`);
+	} else {
+		writeFileSync(ownCgroupFile, `0::${unit}\n`);
+	}
 	return { root, ownCgroupFile, service: join(root, unit) };
+}
+
+/**
+ * cgroup v2's "no internal process" rule, exactly as far as systemd's placement of a unit's new
+ * main process cares: it can only succeed while the unit's OWN `subtree_control` is empty. Reads
+ * either representation the tests ever write there — a real kernel's bare controller name
+ * ("memory") or this fake tree's own literal echo of the last write ("+memory"/"-memory") — as
+ * "something is granted" unless every token is a `-`-prefixed retraction.
+ */
+function systemdCanPlaceMain(unit: string): boolean {
+	let raw: string;
+	try {
+		raw = readFileSync(join(unit, 'cgroup.subtree_control'), 'utf8').trim();
+	} catch {
+		return true; // never written: nothing granted.
+	}
+	return raw
+		.split(' ')
+		.filter(Boolean)
+		.every((t) => t.startsWith('-'));
 }
 
 const clock = { t: Date.now() };
@@ -372,17 +403,18 @@ describe('host agent', () => {
 	});
 });
 
+/** Module scope: used by both the draft bot describe below and the graceful-shutdown test. */
+async function withDraftbot(cg = fakeCgroups(), log: Log = () => {}): Promise<{ agent: Agent; client: AgentClient; launcher: RemoteJvmLauncher; sha: string; cg: typeof cg }> {
+	const { agent, port } = await startAgent(scratch(), cg, undefined, log);
+	const { client, launcher } = await coordinator(port, fakeRuntime());
+	// The clock stands still in these tests, and a second `GET /status` at the same instant is a replay.
+	clock.t += 1;
+	const sha = await pushDraftbot(client, fakeDraftbot());
+	return { agent, client, launcher, sha, cg };
+}
+
 describe('the draft bot service on the agent', () => {
 	const draftbotOf = (client: AgentClient): DraftbotHealth | null => client.health?.draftbot ?? null;
-
-	async function withDraftbot(cg = fakeCgroups(), log: Log = () => {}): Promise<{ agent: Agent; client: AgentClient; launcher: RemoteJvmLauncher; sha: string; cg: typeof cg }> {
-		const { agent, port } = await startAgent(scratch(), cg, undefined, log);
-		const { client, launcher } = await coordinator(port, fakeRuntime());
-		// The clock stands still in these tests, and a second `GET /status` at the same instant is a replay.
-		clock.t += 1;
-		const sha = await pushDraftbot(client, fakeDraftbot());
-		return { agent, client, launcher, sha, cg };
-	}
 
 	it('runs it in its own capped leaf when asked, and proxies a signed call to it with its secret', async () => {
 		const logged: { what: string; data?: Record<string, unknown> }[] = [];
@@ -391,8 +423,13 @@ describe('the draft bot service on the agent', () => {
 		client.send({ op: 'draftbot', sha });
 		await until('up', () => draftbotOf(client)?.state === 'up', 10_000);
 		const pid = draftbotOf(client)!.pid!;
-		expect(Number(readFileSync(join(cg.service, 'draftbot', 'cgroup.procs'), 'utf8'))).toBe(pid);
-		expect(Number(readFileSync(join(cg.service, 'draftbot', 'memory.max'), 'utf8'))).toBe(DRAFTBOT_MB * 1024 * 1024);
+		// Under `caps/`, not directly under the unit: a leaf the unit's own subtree_control grants
+		// to forever, never retracted, is exactly what a canary restart found refused claw-10.
+		expect(Number(readFileSync(join(cg.service, 'caps', 'draftbot', 'cgroup.procs'), 'utf8'))).toBe(pid);
+		expect(Number(readFileSync(join(cg.service, 'caps', 'draftbot', 'memory.max'), 'utf8'))).toBe(DRAFTBOT_MB * 1024 * 1024);
+		expect(readFileSync(join(cg.service, 'caps', 'cgroup.subtree_control'), 'utf8')).toBe('+memory');
+		// The unit's own subtree_control holds the grant only one level — just enough for `caps/` to
+		// use it — and stays otherwise so a restart is never refused while the draft bot is up.
 		expect(readFileSync(join(cg.service, 'cgroup.subtree_control'), 'utf8')).toBe('+memory');
 		// Up only after one pod's call, from the model's own vocabulary, warmed it.
 		expect(logged.find((l) => l.what === 'draftbot-up')?.data).toMatchObject({ sha, warmMs: expect.any(Number) });
@@ -401,7 +438,7 @@ describe('the draft bot service on the agent', () => {
 	});
 
 	it('starts it again when it dies, and stops it when asked for none', async () => {
-		const { client, sha } = await withDraftbot();
+		const { client, sha, cg } = await withDraftbot();
 		client.send({ op: 'draftbot', sha });
 		await until('up', () => draftbotOf(client)?.state === 'up', 10_000);
 		const first = draftbotOf(client)!.pid!;
@@ -412,6 +449,11 @@ describe('the draft bot service on the agent', () => {
 		const second = draftbotOf(client)!.pid!;
 		client.send({ op: 'draftbot', sha: null });
 		await until('stopped', () => draftbotOf(client) === null && !pidAlive(second));
+		// Nothing is capped any more, so the grant the draft bot needed is retracted all the way back
+		// to the unit's own subtree_control — the exact state a restart must find to succeed (a
+		// canary restart on claw-10 found it stuck at "+memory" forever instead).
+		expect(readFileSync(join(cg.service, 'caps', 'cgroup.subtree_control'), 'utf8')).toBe('-memory');
+		expect(readFileSync(join(cg.service, 'cgroup.subtree_control'), 'utf8')).toBe('-memory');
 	});
 
 	it('refuses one it does not hold, and one the slice has no room for beside its JVMs', async () => {
@@ -449,5 +491,80 @@ describe('the draft bot service on the agent', () => {
 		await until('killed', () => !pidAlive(left.pid!));
 		expect(logged).toEqual(['draftbot-leftover']);
 		expect(existsSync(join(home, 'draftbot.pid'))).toBe(false);
+	});
+});
+
+describe("the unit's cgroup cleanup and retraction", () => {
+	/**
+	 * claw-8/9's exact shape, measured 2026-11-12: the unit's own `subtree_control` stuck at
+	 * "+memory" (an earlier agent enabled it for the draft bot and never retracted it), a live JVM
+	 * leaf beside it, and the draft bot's leaf directly under the unit — before `caps/` existed. A
+	 * canary restart found this refuses every later restart ("Device or resource busy"), old build
+	 * included.
+	 */
+	it('kills the legacy capped leaf and clears the stuck grant on start, without touching a live JVM leaf', async () => {
+		const cg = fakeCgroups();
+		writeFileSync(join(cg.service, 'cgroup.subtree_control'), '+memory');
+		const jvm = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+		cleanup.push(() => jvm.kill('SIGKILL'));
+		mkdirSync(join(cg.service, 'run-h1'), { recursive: true });
+		writeFileSync(join(cg.service, 'run-h1', 'cgroup.procs'), String(jvm.pid!));
+		const bot = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+		cleanup.push(() => bot.kill('SIGKILL'));
+		mkdirSync(join(cg.service, 'draftbot'), { recursive: true });
+		writeFileSync(join(cg.service, 'draftbot', 'memory.max'), String(DRAFTBOT_MB * 1024 * 1024));
+		writeFileSync(join(cg.service, 'draftbot', 'cgroup.procs'), String(bot.pid!));
+
+		const logged: { what: string; data?: Record<string, unknown> }[] = [];
+		const cgroups = new Cgroups(cg.root, cg.ownCgroupFile, (what, data) => void logged.push({ what, data }));
+
+		expect(logged.find((l) => l.what === 'cgroup-migrated')).toBeDefined();
+		await until('the legacy draft bot killed', () => !pidAlive(bot.pid!));
+		expect(pidAlive(jvm.pid!)).toBe(true);
+		expect(cgroups.liveLeaves().get('h1')).toEqual([jvm.pid!]);
+		expect(readFileSync(join(cg.service, 'cgroup.subtree_control'), 'utf8')).toBe('-memory');
+	});
+
+	it("starts clean when there is nothing to migrate (claw-10's shape today)", () => {
+		const cg = fakeCgroups();
+		const logged: string[] = [];
+		new Cgroups(cg.root, cg.ownCgroupFile, (what) => void logged.push(what));
+		expect(logged).not.toContain('cgroup-migrated');
+		expect(readFileSync(join(cg.service, 'cgroup.subtree_control'), 'utf8')).toBe('-memory');
+	});
+
+	it('resolves the unit correctly when it starts already inside the agent subgroup (DelegateSubgroup=agent)', async () => {
+		const cg = fakeCgroups(4096, { startedInAgentSubgroup: true });
+		const { agent, client, launcher, sha } = await withDraftbot(cg);
+		expect(agent.cgroups.service).toBe(cg.service);
+		const jvm = collect(launcher.launch('h1', { xmxMb: 1000 }));
+		await until('warm', () => jvm.lines.length === 1);
+		client.send({ op: 'draftbot', sha });
+		await until('up', () => client.health?.draftbot?.state === 'up', 10_000);
+		expect(readFileSync(join(cg.service, 'caps', 'draftbot', 'cgroup.procs'), 'utf8')).toBe(String(client.health!.draftbot!.pid));
+		expect(agent.cgroups.liveLeaves().get('h1')).toEqual([agent.jvms.get('h1')!.pid]);
+	});
+
+	/**
+	 * The precondition the real bug needs: the draft bot capped AND up, so the unit's own
+	 * `subtree_control` is necessarily non-empty (every ancestor must carry the grant for `caps/` to
+	 * offer `memory` downward — see this file's own doc comment). `caps/` alone never clears this
+	 * while the draft bot runs; only a graceful shutdown does, by stopping it first.
+	 */
+	it('a graceful shutdown clears the grant before exit, so the next restart is never refused — and never touches a live JVM leaf', async () => {
+		const { agent, client, launcher, sha, cg } = await withDraftbot();
+		client.send({ op: 'draftbot', sha });
+		await until('up', () => client.health?.draftbot?.state === 'up', 10_000);
+		const jvm = collect(launcher.launch('h1', { xmxMb: 1000 }));
+		await until('warm', () => jvm.lines.length === 1);
+		const jvmPid = agent.jvms.get('h1')!.pid;
+		// The exact precondition a canary restart hit: the draft bot is capped and up.
+		expect(systemdCanPlaceMain(cg.service)).toBe(false);
+
+		agent.shutdown('SIGTERM');
+
+		expect(systemdCanPlaceMain(cg.service)).toBe(true);
+		expect(pidAlive(jvmPid)).toBe(true);
+		expect(agent.cgroups.liveLeaves().get('h1')).toEqual([jvmPid]);
 	});
 });
