@@ -9,7 +9,11 @@
  * the in-JVM Forge client resolves a frame's card references on its netty thread at
  * DECODE time, while the delta that creates the scenario's new cards is applied later on
  * the seat's `seat-N-ui` thread. A `setWeaklySelectable` decoded before that delta is
- * applied arrives with its cards dropped — the empty first window CI kept failing on.
+ * applied arrives with its cards dropped — the empty first window CI kept failing on. Forge's fork
+ * now resolves a host message's cards only once the deltas before it are applied
+ * (`GameClientHandler.decodeArgs`), and the starts that still lost a push lost it elsewhere: a
+ * seat's composed wait read the seat's next input before that input was shown, and sent its
+ * actionable set empty. The `slow-scan` case below makes that order every time.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=… \
  *   pnpm exec vitest run apps/server/src/play/scenario-start.jvm.test.ts \
@@ -57,10 +61,11 @@ interface Outcome {
 	readonly error?: string;
 }
 
-async function startOnce(c: Case, seed: number): Promise<Outcome> {
+async function startOnce(c: Case, seed: number, fault?: string): Promise<Outcome> {
 	if (!available.ok) throw new Error('unreachable: caller checks available.ok');
-	const label = `${c.scenario} seed ${seed}`;
-	const s: Scenario = await startScenario(available.config, { seed, decks: DECKS, scenario: scenarioText(c.scenario) });
+	const label = `${c.scenario} seed ${seed}${fault === undefined ? '' : ` (${fault})`}`;
+	const config = fault === undefined ? available.config : { ...available.config, jvmOpts: [...available.config.jvmOpts, `-Dcardtable.fault=${fault}`] };
+	const s: Scenario = await startScenario(config, { seed, decks: DECKS, scenario: scenarioText(c.scenario) });
 	try {
 		await finishMulligan(s);
 		try {
@@ -126,4 +131,16 @@ describe.skipIf(!available.ok)(title, () => {
 			RUNS * 120_000,
 		);
 	}
+
+	// The race those starts lose about once in 30 (CI runs 43185575454, 43103204289, 43224527540), every time:
+	// seat 1's wait comes due ("Waiting for A...", 250 ms after its keep) while its first window is open in Forge
+	// but not yet shown — `slow-scan` holds that window's scan 1 s. A wait is no input's prompt, so it sends no
+	// actionable set; read for the live input, whose scan was not made yet, it sent `[]`.
+	it('lone-spell: a wait composed while the first window is open but not yet shown sends no actionable set', async () => {
+		const c = CASES[0]!;
+		const r = await startOnce(c, 1016, 'slow-scan');
+		console.log(`[scenario-start] ${r.label}: ${r.error ?? r.pushes.map((p) => `[${p.join(',')}]`).join(' ')}`);
+		expect(r.windowOk, r.error).toBe(true);
+		expect(r.allOk, r.error).toBe(true);
+	}, 120_000);
 });

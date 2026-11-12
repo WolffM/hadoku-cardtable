@@ -262,6 +262,8 @@ public final class PlayBridge {
      * {@code match-throw}: the match's own thread throws an {@code Error} once the match is ready.
      * {@code slow-view}: a seat's thread holds each update that brings new objects 400 ms before it
      * applies it, as a loaded host does, so what reads the seat's view mid-update can be seen.
+     * {@code slow-scan}: a seat's actionable scan for a live input waits 1 s before it starts, as a loaded
+     * host does, so the input is open in Forge well before any of its frames reach the seat.
      */
     static final String FAULT = System.getProperty("cardtable.fault", "");
 
@@ -2954,9 +2956,11 @@ public final class PlayBridge {
             final JsonObject o = line("frame");
             o.addProperty("seat", seat);
             o.add("frame", frame);
-            // The input this frame was shown for: what an act made on it names (MatchContext#actInputs).
+            // The input this frame was shown for: what an act made on it names (MatchContext#actInputs). A
+            // composed wait's frames were shown for none, whatever input is live as it is composed.
             final SeatController own = match.seatControllers.get(seat);
-            final int input = own == null ? 0 : match.inputId(own.openInput());
+            final boolean waits = composingWait && Thread.currentThread() == uiThread;
+            final int input = own == null || waits ? 0 : match.inputId(own.openInput());
             if (input > 0) { o.addProperty("input", input); }
             emit(o);
         }
@@ -3349,8 +3353,8 @@ public final class PlayBridge {
         private final Object waitLock = new Object();
         /** Bumped by each {@code awaitNextInput} and by each prompt or bar the seat's input sends. */
         private long heard;
-        /** True while this seat composes its wait, whose own prompt and bar are not an input's. */
-        private boolean composingWait;
+        /** True while this seat composes its wait (on its {@link #ui} thread), whose own prompt and bar are not an input's. */
+        private volatile boolean composingWait;
 
         /**
          * The host's notice that this seat waits on someone else. The seat composes "Waiting for …"
@@ -3425,9 +3429,19 @@ public final class PlayBridge {
             }
         }
 
+        /**
+         * A prompt: the input's own, or this seat's composed wait ({@link #composeWait}). A wait belongs to
+         * no input, so nothing of the input that is live when it is composed goes with it — no actionable
+         * set, no payment, no selection, no reads of the input's ability. The seat's next input can already be
+         * live in Forge while its own frames are still on their way: the wait came due first, read that
+         * input, found no scan made for it yet, and sent its actionable set as empty, ahead of the window that
+         * named the card (scenario-start, CI runs 43185575454 and 43103204289: {@code [] [91]}). The input's
+         * own frames say all of it.
+         */
         @Override public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {
             heardInput();
-            syncActionable(true);
+            final boolean ofInput = !composingWait;
+            syncActionable(ofInput);
             // See `syncMulliganFlag`: this is one of the two calls
             // `InputLondonMulligan.showMessage()` makes that Forge's OWN
             // `RemoteClientGuiGame` never syncs the trackable graph for.
@@ -3436,13 +3450,20 @@ public final class PlayBridge {
             // A priority window the SEAT is shown is a real input: no yield is running, so
             // an End Turn's pacing exemption is over (it is only ever armed by the click).
             if (phaseDelayOff && message != null && message.startsWith("Priority:")) { setPhaseDelayOff(false); }
+            final JsonObject f = notify("showPromptMessage");
+            f.add("player", ref("player", playerView.getId()));
+            f.addProperty("message", str(message));
+            if (!ofInput) {
+                openPayment = null;
+                f.add("card", refOrNull(card));
+                frame(f);
+                promptShown();
+                return;
+            }
             syncConvokeSelectables();
             // The payment this prompt shows, or none: Forge's "which ability?" inside a payment is asked
             // from the payment's own click, when the input queue may not report it (payInput).
             openPayment = myInput() instanceof InputPayMana pay ? pay : null;
-            final JsonObject f = notify("showPromptMessage");
-            f.add("player", ref("player", playerView.getId()));
-            f.addProperty("message", str(message));
             f.add("card", refOrNull(card != null ? card : decoration("confirmCard", this::confirmCard)));
             // What the bridge adds to Forge's prompt is reads of Forge's own objects, and one that throws
             // is left off: the prompt itself always goes out. An optional replacement's confirm (a dredge)
@@ -3471,6 +3492,11 @@ public final class PlayBridge {
                 if (Boolean.TRUE.equals(decoration("poolChoice", this::poolHasChoice))) { f.add("poolChoice", pays); }
             }
             frame(f);
+            promptShown();
+        }
+
+        /** After any prompt this seat is sent: the game's waiting triggers and every seat's life payment. */
+        private void promptShown() {
             broadcastIfWaiting(match);
             // A press of a payment's life button re-shows its prompt and changes nothing else, and
             // a cancelled payment may move nothing either: every seat hears it from here.
@@ -4028,7 +4054,8 @@ public final class PlayBridge {
             if (owner == null) { return; }
             lastLabel2 = label2 == null ? "" : label2;
             lastEnable2 = enable2;
-            syncConvokeSelectables();
+            // A composed wait's bar is no input's: the convoke offer belongs to the input's own bar.
+            if (!composingWait) { syncConvokeSelectables(); }
             final JsonObject f = notify("updateButtons");
             f.add("owner", ref("player", owner.getId()));
             f.addProperty("label1", str(label1));
@@ -6858,6 +6885,13 @@ public final class PlayBridge {
             // input that finished meanwhile let the game thread ask that player for its next decision under the
             // swap — the suspect in yield.jvm's run 42403314200 (#40's follow-up). Said when it happens.
             final Object shown = liveInput();
+            if ("slow-scan".equals(FAULT) && shown != null) {
+                try {
+                    Thread.sleep(1_000);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             if (!paymentMode) { unaffordable = new Object[] { shown, heldBackByCost() }; }
             final List<CardView> actionable = super.getActionableCards(paymentMode, emphasized);
             if (shown != null) { lastActionable = new Object[] { shown, List.copyOf(actionable) }; }
