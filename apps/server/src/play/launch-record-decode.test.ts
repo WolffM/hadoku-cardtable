@@ -17,7 +17,7 @@
  * fixture is copied into a fresh temp dir under that name before the decoder runs: this exercises
  * the decoder's own file read, not just `JSON.parse` on the fixture's text.
  */
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,5 +61,35 @@ describe('readJvmRecord decodes a real jvm.json', () => {
 		expect(match?.matchId).toBe('m-3fdac6ff0bb1');
 		expect(match?.owners).toEqual([null, null]);
 		expect(match?.spec.seats.map((s: { name: string }) => s.name)).toEqual(['A', 'B']);
+		// w103 §H step 2: `checkpoint` (Durable's own field) is always null this wave, whether or
+		// not a file predates it — this real fixture, written before `Durable` existed, has none.
+		expect(match?.checkpoint).toBeNull();
+	});
+
+	/**
+	 * w103 §H step 2 — the field-drop mutation w101-R couldn't run: `epoch` and `owners` absent
+	 * entirely, as a file older than either field (or one `JSON.stringify` dropped them from —
+	 * `undefined` never survives a round trip) would read back. Dropped from a COPY of the real
+	 * fixture, never hand-typed, so the rest of the match (its spec, its seats) is still real.
+	 * `readJvmRecord`'s own fallbacks (`epoch: typeof m.epoch === 'string' ? m.epoch : null`,
+	 * `owners: Array.isArray(m.owners) ? … : []`) are what this proves: break either — require the
+	 * field instead of falling back — and this goes red; restore it and it is green again. Counts
+	 * from that check (§H step 2's report): 1 test, 1 assertion red on the mutation (`owners`
+	 * required), the same on `epoch`'s; both green restored, with the other 66 `host.test.ts` cases
+	 * (¬ this file) untouched either way.
+	 */
+	it('decodes a match with no epoch and no owners — a file older than Durable — as unremembered, not dropped', () => {
+		const dir = stageFixture('jvm.sample.json', 'jvm.json');
+		const raw = JSON.parse(readFileSync(join(dir, 'jvm.json'), 'utf8')) as { matches: Record<string, unknown>[] };
+		delete raw.matches[0]!.epoch;
+		delete raw.matches[0]!.owners;
+		writeFileSync(join(dir, 'jvm.json'), JSON.stringify(raw));
+		const record = readJvmRecord(dir);
+		expect(record?.matches).toHaveLength(1);
+		const match = record?.matches[0];
+		expect(match?.matchId).toBe('m-3fdac6ff0bb1');
+		expect(match?.epoch).toBeNull();
+		expect(match?.owners).toEqual([]);
+		expect(match?.checkpoint).toBeNull();
 	});
 });

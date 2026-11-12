@@ -300,7 +300,7 @@ export interface MatchHost<C extends { t: string }> {
 	 * turn-start snapshot. Absent on a host that cannot outlive the process (the
 	 * replay host in the tests).
 	 */
-	remember?(state: { epoch: string; owners: (string | null)[]; snapshot?: TurnSnapshot | null; clockMs?: [number, number] }): void;
+	remember?(state: Durable & { snapshot?: TurnSnapshot | null; clockMs?: [number, number] }): void;
 	/**
 	 * The server is going down and this match is being LEFT RUNNING. Let go of
 	 * the transport without killing anything and without settling the run
@@ -313,19 +313,36 @@ export interface MatchHost<C extends { t: string }> {
 
 
 /**
+ * What a restart needs to resume a match, independent of the engine (w103 §H's pinned shape):
+ * its epoch, so a re-attached client resyncs on the cursor it holds, and which participant owns
+ * each seat, so a re-attach cannot seat someone at the wrong hand. `checkpoint` is w105's: a
+ * per-engine mid-game save, opaque to the host, in place of Forge's own {@link TurnSnapshot}
+ * (kept as `MatchRecord.snapshot` below, unchanged, until that lands). Refined from the pinned
+ * `checkpoint: null` to `checkpoint?: null` — optional, not required — so this stays additive: a
+ * caller written against `MatchHost.remember` before this step (`match/shell.ts`, a live call
+ * site this step does not touch) keeps compiling with no `checkpoint` of its own, and
+ * `readJvmRecord`/`hostFace`'s `remember` always record it as `null` regardless.
+ */
+export interface Durable {
+	epoch: string;
+	owners: (string | null)[];
+	checkpoint?: null;
+}
+
+/**
  * A match an earlier server left running, as `orphans()` offers it: everything a re-attach needs
  * and nothing a seat could not already see (`owners` are participant ids, which never leave this
- * host).
+ * host). `epoch`/`owners`/`checkpoint` are {@link Durable}'s; `epoch` widens to `null` here (unlike
+ * `Durable`'s own, always-set `epoch`) because a freshly placed match has none yet — before its
+ * first `remember()`, it has no durable identity to resume by.
  */
-export interface MatchRecord {
+export interface MatchRecord extends Pick<Durable, 'owners' | 'checkpoint'> {
 	matchId: string;
 	/** The JVM it runs in. */
 	hostId: string;
 	startedAt: string;
-	/** The match's epoch, so a re-attached client resyncs on the cursor it holds. */
+	/** The match's epoch, so a re-attached client resyncs on the cursor it holds. Null before its first `remember()`. */
 	epoch: string | null;
-	/** seat → participant id, so a re-attach cannot seat someone at the wrong hand. */
-	owners: (string | null)[];
 	spec: MatchSpec;
 	/** The match's latest turn-start snapshot, absent before its first turn. */
 	snapshot?: TurnSnapshot | null;
@@ -458,6 +475,8 @@ export function readJvmRecord(dir: string): JvmRecord | null {
 			startedAt: typeof m.startedAt === 'string' ? m.startedAt : new Date(0).toISOString(),
 			epoch: typeof m.epoch === 'string' ? m.epoch : null,
 			owners: Array.isArray(m.owners) ? m.owners.map((o) => (typeof o === 'string' ? o : null)) : [],
+			// Durable's own field: always null this wave (w105's), whatever an older or newer file holds.
+			checkpoint: null,
 			spec: m.spec,
 			...(isClockMs(m.clockMs) ? { clockMs: m.clockMs } : {}),
 		})),
@@ -1006,6 +1025,8 @@ export function jvmHostFactory<L extends { t: string }, C extends { t: string }>
 					...h.entry,
 					epoch: state.epoch,
 					owners: state.owners,
+					// Always null this wave (w105's), whatever the caller sent — see `Durable`'s own doc.
+					checkpoint: null,
 					...(state.snapshot === undefined ? {} : { snapshot: state.snapshot }),
 					...(state.clockMs === undefined ? {} : { clockMs: state.clockMs }),
 				};
@@ -1058,7 +1079,7 @@ export function jvmHostFactory<L extends { t: string }, C extends { t: string }>
 			id: matchId,
 			jvm,
 			events,
-			entry: { matchId, startedAt: new Date().toISOString(), epoch: null, owners: [], spec },
+			entry: { matchId, startedAt: new Date().toISOString(), epoch: null, owners: [], checkpoint: null, spec },
 			onDisk: null,
 			stopping: false,
 			ended: false,

@@ -7,8 +7,11 @@
  * What is generic to any process hosted this way — the fifo transport, pid liveness, the run-dir
  * and crash-record bookkeeping — lives in `engine-runtime.ts`; what is here is Forge's own:
  * compiling and launching the bridge, its preferences, and `stageRunDir`'s Forge-specific profile
- * layout. `forgeEngineRuntime` at the bottom of this file is `EngineRuntime` mapped onto that —
- * not yet consumed by `host.ts`, which still calls this file's functions directly.
+ * layout. `forgeEngineRuntime` at the bottom of this file is `EngineRuntime` mapped onto that, and
+ * `LocalJvm`'s own spawn (below) launches through its `argv`, appending only the host id `argv`'s
+ * sketch has no room for — `host.ts` itself still places matches through `localJvmLauncher`'s
+ * `JvmLauncher`, not `EngineRuntime` directly; lifting the pool itself onto `EngineRuntime`, so a
+ * non-Forge engine shares the same coordinator, is w105's.
  *
  * ## The run directory
  *
@@ -722,22 +725,16 @@ class LocalJvm implements JvmTransport {
 		// The child gets its OWN fds on the fifos, closed here once it holds them.
 		const childIn = openSync(join(run, IN_FIFO), 'r+');
 		const childOut = openSync(join(run, OUT_FIFO), 'r+');
+		// `.how` alone, for the log below; the flags themselves come from `forgeEngineRuntime.argv`
+		// (L2: host.ts's launch path goes through `EngineRuntime`, not a second, hand-built copy of
+		// the same list — "--host hostId" is appended here because the sketch's `argv(dir, size)`
+		// carries no host id, Forge's own gap `forgeEngineRuntime`'s doc names).
 		const bridge = bridgeLaunch(config, log);
 		let child: ChildProcess;
 		try {
 			child = spawn(
 				config.java,
-				[
-					'-Djava.awt.headless=true',
-					`-Djava.io.tmpdir=${join(run, JVM_TMP_DIR)}`,
-					...BRIDGE_JVM_FLAGS,
-					// Before the operator's flags, so an `-Xmx` of theirs wins.
-					`-Xmx${source.xmxMb}m`,
-					...config.jvmOpts,
-					...bridge.args,
-					'--host',
-					hostId,
-				],
+				[...forgeEngineRuntime(config, log).argv(run, { memoryMb: source.xmxMb }), '--host', hostId],
 				// `detached` puts it in its own process group, so a signal aimed at ours never
 				// reaches it; `unref` keeps it off our event loop.
 				{ cwd: run, stdio: [childIn, childOut, stderrFd], detached: true },
@@ -948,14 +945,15 @@ export function localJvmLauncher(config: JvmHostConfig, options: LocalLauncherOp
 /* ── EngineRuntime: Forge's bridge JVM as the first implementation ──── */
 
 /**
- * `EngineRuntime` (`engine-runtime.ts`) mapped onto Forge's own code: what `host.ts` would ask of
- * any engine it ran matches through, if it asked through the interface instead of calling
- * `bridgeLaunch`/`localJvmLauncher` directly, which is still what it does today (L2, rewiring the
- * coordinator through this, is a later lane). This is the proof the shape fits, not a live path.
+ * `EngineRuntime` (`engine-runtime.ts`) mapped onto Forge's own code. `LocalJvm`'s constructor
+ * (above) launches through this `argv` (w103 §H step 2) rather than a second, hand-built copy of
+ * the same flag list; `host.ts` itself still places matches through `localJvmLauncher`'s
+ * `JvmLauncher`, never `EngineRuntime` directly — lifting the POOL onto `EngineRuntime`, so a
+ * non-Forge engine shares the same coordinator, is w105's.
  *
- * One honest gap: the sketch's `argv(dir, size)` carries no host id, but Forge's real spawn
- * (`LocalJvm`'s constructor, above) appends `'--host', hostId` after exactly these flags — the
- * interface doesn't yet carry a host id to launch with, which is also why nothing calls this.
+ * One honest gap, unchanged: the sketch's `argv(dir, size)` carries no host id, so Forge's real
+ * spawn appends `'--host', hostId` itself, after exactly these flags — the interface doesn't carry
+ * a host id to launch with.
  */
 export function forgeEngineRuntime(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void): EngineRuntime {
 	return {

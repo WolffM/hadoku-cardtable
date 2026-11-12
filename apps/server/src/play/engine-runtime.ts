@@ -17,9 +17,11 @@ import { delimiter, join, sep } from 'node:path';
 
 /**
  * What the host asks of any engine it runs matches through: the process it spawns and what that
- * process costs. Not wired into `host.ts` yet — the coordinator still calls `localJvmLauncher`
- * and `bridgeLaunch` directly — this only proves the shape fits Forge's own code
- * (`forgeEngineRuntime` in `local-jvm.ts`) before a later lane rewires the coordinator through it.
+ * process costs. `local-jvm.ts`'s `LocalJvm` launches through `forgeEngineRuntime`'s `argv` (w103
+ * §H step 2) instead of a second, hand-built copy of the same flags. The coordinator itself
+ * (`host.ts`) still places matches through `localJvmLauncher`'s `JvmLauncher`, never through
+ * `EngineRuntime` directly — lifting the POOL onto this seam, so a non-JVM engine shares the same
+ * coordinator, is w105's.
  */
 export interface EngineRuntime {
 	/** Paths (or other identifiers) of what the process needs, keyed for logging. */
