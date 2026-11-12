@@ -260,6 +260,8 @@ public final class PlayBridge {
      * thread throws an {@code Error} from inside the game, as an engine bug would.
      * {@code oom}: a thread of its own runs out of heap once the match is ready.
      * {@code match-throw}: the match's own thread throws an {@code Error} once the match is ready.
+     * {@code slow-view}: a seat's thread holds each update that brings new objects 400 ms before it
+     * applies it, as a loaded host does, so what reads the seat's view mid-update can be seen.
      */
     static final String FAULT = System.getProperty("cardtable.fault", "");
 
@@ -3153,6 +3155,13 @@ public final class PlayBridge {
 
         @Override
         public void applyDelta(final DeltaPacket packet) {
+            if ("slow-view".equals(FAULT) && packet != null && !packet.getNewObjects().isEmpty()) {
+                try {
+                    Thread.sleep(400);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             // Wave 33 §S item 4 — before anything else: see `maybeEmitGameOverFirst`'s doc.
             guarded("gameover", match::maybeEmitGameOverFirst);
             // A REAL packet that happens to carry Mulligan (every normal input syncs
