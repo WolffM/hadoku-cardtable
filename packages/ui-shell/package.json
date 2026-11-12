@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.25",
-    "@wolffm/themes": "npm:@hadoku/themes@5.14.0",
+    "@wolffm/themes": "npm:@hadoku/themes@5.14.1",
     "zod": "4.5.4"
   },
   "devDependencies": {
