@@ -20,7 +20,7 @@ import { describe, expect, it } from 'vitest';
 
 import { deltaKey, DELTA_TYPE, idsOf as zoneIds, searchRuleProblems, strOf, tickPick, type SearchRule } from '@hadoku/forge-wire';
 
-import { available, deck, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, castResolved, deck, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok ? 'sets chosen at once, against real Forge' : `sets chosen at once, against real Forge — SKIPPED: ${available.reason}`;
 
@@ -72,6 +72,7 @@ async function castAndResolve(s: Scenario, name: string, target?: number): Promi
 		s,
 	);
 	const card = s.zone(0, 'Hand').find((c) => c.name === name)!;
+	const from = s.sent.length;
 	s.select(0, card.id);
 	const pay = landPayer(s, 0);
 	const passed = new Set<number>();
@@ -92,7 +93,7 @@ async function castAndResolve(s: Scenario, name: string, target?: number): Promi
 					s.ok(seat);
 				}
 			}
-			return !s.zone(0, 'Hand').some((c) => c.id === card.id) && /^Stack: Empty$/m.test(s.prompt(0)) && s.buttons(0)?.enable1 === true;
+			return castResolved(s, 0, card.id, from);
 		},
 		`${name} to resolve`,
 		90_000,

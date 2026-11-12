@@ -857,6 +857,18 @@ export function timeline(s: Scenario, seat: number, from = 0, sentFrom = 0): str
 	return [...rows.map((r) => `+${Math.round(r.t - t0)}ms ${r.text}`), '--- decisions', ...decided].join('\n');
 }
 
+/**
+ * The card the seat clicked when `s.sent` was `from` long has been cast and resolved: it is out of
+ * the hand, and a priority window with an empty stack reached the seat after the click, OK live.
+ * Out of the hand alone holds mid-cast: Forge moves the card to the stack before it asks for a
+ * target or payment, while the seat's last prompt is still the "Stack: Empty" it clicked from.
+ */
+export function castResolved(s: Scenario, seat: number, cardId: number, from: number): boolean {
+	if (s.zone(seat, 'Hand').some((c) => c.id === cardId)) return false;
+	const at = s.sent.findLastIndex((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage');
+	return at >= from && /^Stack: Empty$/m.test(s.prompt(seat)) && s.buttons(seat)?.enable1 === true;
+}
+
 /** Click `name` in the seat's hand and wait until it is on the battlefield with the stack empty again. */
 export async function castNamed(s: Scenario, seat: number, name: string): Promise<void> {
 	await waitUntil(() => {
@@ -865,10 +877,11 @@ export async function castNamed(s: Scenario, seat: number, name: string): Promis
 	}, `seat ${seat} to hold a ${name}`, 20_000, s);
 	const card = s.zone(seat, 'Hand').find((c) => c.name === name);
 	if (card === undefined) throw new Error(`no ${name}`);
+	const from = s.sent.length;
 	s.select(seat, card.id);
 	await waitUntil(() => {
 		s.answerAsks();
-		return !s.zone(seat, 'Hand').some((c) => c.id === card.id) && /^Stack: Empty$/m.test(s.prompt(seat)) && s.buttons(seat)?.enable1 === true;
+		return castResolved(s, seat, card.id, from);
 	}, `seat ${seat}'s ${name} to resolve`, 30_000, s);
 }
 

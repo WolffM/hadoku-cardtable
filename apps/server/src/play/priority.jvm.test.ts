@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import type { ServerFrame } from '@hadoku/forge-wire';
 
 import { onlyAnswer } from './auto.js';
-import { available, cleanupDiscard, deck, forgeFrames, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, castResolved, cleanupDiscard, deck, forgeFrames, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'what the caster is shown after casting, against real Forge'
@@ -106,10 +106,7 @@ describe.skipIf(!available.ok)(title, () => {
 							targeted = true;
 							s.match.fromClient(x, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: oppId }, triggerEvent: null } as never);
 						}
-						// The bolt left the hand (it was cast) AND the stack is empty again (it
-						// resolved) — not just "the stack is empty", which is already true before the
-						// cast even starts and would exit the wait on its very first tick.
-						return !s.zone(x, 'Hand').some((c) => c.id === bolt.id) && /^Stack: Empty$/m.test(s.prompt(x));
+						return castResolved(s, x, bolt.id, mark);
 					},
 					`${bolt.name} to resolve and give the caster back priority`,
 					30_000,
