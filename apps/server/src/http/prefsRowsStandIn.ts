@@ -12,7 +12,10 @@
  *
  * And people, as `workers/prefs-api/src/routes/avatar.ts` resolves them for a server:
  *   POST /api/v1/_avatar/resolve  { userIds } → { avatars: { [userId]: ResolvedPerson } }
- * every id answered, an unknown one `{ source: 'sprite', name }` with the name `nameOf` gives (null without it). What a person looks like is
+ * every id answered, an unknown one `{ source: 'sprite', name }` with the name `nameOf` gives (null without it). An account
+ * (an id `nameOf` names, as the real one deals only to live registry accounts) with no character is dealt one from
+ * `@wolffm/rooms-protocol`'s `AVATAR_POOL` and keeps it (`workers/prefs-api/src/avatar/store.ts`'s `dealCharacters`, which
+ * saves only the sprite and never touches `choice`); any other id gets none. What a person looks like is
  * set by a spec through a route the real one does not have, by their key, as their own popout would:
  *   PUT  /api/v1/_stand-in/avatar { userKey, avatar } → { ok: true }
  *
@@ -20,7 +23,7 @@
  * reads it directly from the BROWSER (the room chrome's own read of the viewer's character):
  *   GET /api/v1/_avatar → AvatarSettings, keyed by `headers.key` the same way `_stand-in/avatar`'s
  *   PUT is keyed by `userKey` — both resolve through `userOfKey`. No session (`key` null or unknown):
- *   403. Nothing picked: the same `{ source: 'sprite', name: null }` fallback as resolve, `sprite: null`.
+ *   403. Nothing picked: `choice: null`, wearing the character dealt to them (a session is always an account).
  * And the fleet settings popout's own write (`@wolffm/task-ui-components`' AvatarPicker, a character pressed):
  *   PUT /api/v1/_avatar { source?, sprite? } → AvatarSettings, the same person `_stand-in/avatar` dresses.
  * Nothing is linked or uploaded, and nothing is worn: the popout draws the character tab and no more.
@@ -28,6 +31,7 @@
 
 import type { AvatarSettings } from '@wolffm/prefs-client/avatar';
 import { emptyLoadout } from '@wolffm/prefs-client/cosmetics';
+import { AVATAR_POOL } from '@wolffm/rooms-protocol';
 
 export interface PrefsRowsStandIn {
 	/** Answer one request; null when the path is not a `_service/:app/rows` route. */
@@ -54,6 +58,8 @@ export function createPrefsRowsStandIn(opts: {
 	userOfKey: (key: string) => string | null;
 	/** A person's display name by userId, as the real one answers it from the registry. */
 	nameOf?: (userId: string) => string | null;
+	/** The draw behind the character an account with none is dealt. `Math.random` otherwise. */
+	draw?: () => number;
 }): PrefsRowsStandIn {
 	const store = new Map<string, Map<string, { blob: Record<string, unknown>; version: number; updatedAt: number }>>();
 	const rowsOf = (appId: string) => {
@@ -63,6 +69,16 @@ export function createPrefsRowsStandIn(opts: {
 	};
 	const route = new RegExp(`^/api/v1/_service/${opts.app}/rows/([a-z0-9-]+)(/read)?$`);
 	const people = new Map<string, unknown>();
+	const draw = opts.draw ?? Math.random;
+	const dealt = new Map<string, string>();
+	/** `avatar` wearing its own character, else the one dealt to `userId` (dealt once, then kept). */
+	const dressed = (userId: string, avatar: unknown): StoredAvatar => {
+		const a = (typeof avatar === 'object' && avatar !== null ? avatar : {}) as StoredAvatar;
+		if (typeof a.sprite === 'string') return a;
+		let sprite = dealt.get(userId);
+		if (sprite === undefined) dealt.set(userId, (sprite = AVATAR_POOL[Math.floor(draw() * AVATAR_POOL.length)]!));
+		return { ...a, sprite };
+	};
 	return {
 		rows: rowsOf,
 		handle(method, path, headers, body) {
@@ -70,19 +86,27 @@ export function createPrefsRowsStandIn(opts: {
 			if (path === AVATAR_RESOLVE && method === 'POST') {
 				if (headers.key !== opts.serviceKey) return { status: 403, json: { error: 'forbidden', required: 'service' } };
 				const ids = Array.isArray(b0.userIds) ? b0.userIds.filter((id): id is string => typeof id === 'string') : [];
-				return { status: 200, json: { avatars: Object.fromEntries(ids.map((id) => [id, people.get(id) ?? { source: 'sprite', name: opts.nameOf?.(id) ?? null }])) } };
+				const isAccount = (id: string) => (opts.nameOf?.(id) ?? null) !== null;
+				const answer = (id: string) => {
+					const own = people.get(id) ?? { source: 'sprite', name: opts.nameOf?.(id) ?? null };
+					return isAccount(id) ? dressed(id, own) : own;
+				};
+				return { status: 200, json: { avatars: Object.fromEntries(ids.map((id) => [id, answer(id)])) } };
 			}
 			if (path === AVATAR_OWN && (method === 'GET' || method === 'PUT')) {
 				const userId = headers.key !== null ? opts.userOfKey(headers.key) : null;
 				if (userId === null) return { status: 403, json: { error: 'Forbidden', message: 'No session' } };
 				const prev = (people.get(userId) ?? { source: 'sprite', name: null }) as StoredAvatar;
-				const stored = method === 'PUT' ? { ...prev, ...b0 } : prev;
-				if (method === 'PUT') people.set(userId, stored);
+				if (method === 'PUT') people.set(userId, { ...prev, ...b0 });
+				const own = (people.get(userId) ?? prev) as StoredAvatar;
+				// Dealing saves only the sprite: `choice` is what they chose, null for a dealt character.
+				const chosen = typeof own.sprite === 'string' || (own.source !== undefined && own.source !== 'sprite');
+				const stored = dressed(userId, own);
 				const sprite = typeof stored.sprite === 'string' ? stored.sprite : null;
 				const source = (stored.source ?? 'sprite') as AvatarSettings['avatar']['source'];
 				const settings: AvatarSettings = {
 					avatar: { source, ...(typeof stored.url === 'string' ? { url: stored.url } : {}), ...(sprite !== null ? { sprite } : {}) },
-					choice: sprite !== null ? source : null,
+					choice: chosen ? source : null,
 					sprite,
 					linked: {},
 					upload: null,

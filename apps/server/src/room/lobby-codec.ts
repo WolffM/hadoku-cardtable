@@ -78,15 +78,11 @@ export interface MemberRecord {
 	name: string;
 	joinedAt: number;
 	state: unknown;
-	/** Normalised by `avatarIdOf` on the way in, so this is never `''` and never `null`. */
-	avatarId?: string;
 	/**
-	 * The room handed `avatarId` out (`newMember`) rather than the member picking
-	 * it, so a member who picks the same character takes it over. In memory only:
-	 * after a restart a handed-out avatar counts as picked, which costs at most a
-	 * shared face until somebody picks again.
+	 * In memory only: their account's character (`people.ts`'s `applyPerson`), absent until it has
+	 * been read. Normalised by `avatarIdOf` on the way in, so this is never `''` and never `null`.
 	 */
-	avatarGiven?: true;
+	avatarId?: string;
 	/** In memory only (`Lobby.setLook`): their picture and cosmetics. */
 	look?: Look;
 }

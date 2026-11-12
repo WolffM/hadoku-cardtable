@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { emptyLoadout } from '@wolffm/prefs-client/cosmetics';
+import { AVATAR_POOL } from '@wolffm/rooms-protocol';
 
 import { createPrefsRowsStandIn } from './prefsRowsStandIn.js';
 
@@ -13,15 +14,40 @@ const NOTHING_ELSE = {
 	limits: { maxBytes: 0, minDimension: 0, maxDimension: 0, acceptedTypes: [], perDay: 0, outputSize: 0 },
 	cosmetics: { owned: [], loadout: emptyLoadout() },
 };
-const standIn = () => createPrefsRowsStandIn({ app: 'cardtable', serviceKey: 's-key', userOfKey: (k) => USER_OF_KEY[k] ?? null });
+/** The registry's accounts, by userId: the ids the real one deals a character to. */
+const NAME_OF: Record<string, string> = { 'u-alice': 'Alice', 'u-bob': 'Bob' };
+const standIn = (draw: () => number = () => 0) => createPrefsRowsStandIn({ app: 'cardtable', serviceKey: 's-key', userOfKey: (k) => USER_OF_KEY[k] ?? null, nameOf: (id) => NAME_OF[id] ?? null, draw });
 
 describe('GET /api/v1/_avatar', () => {
-	it('answers nobody picked, before anything is set', () => {
+	it('deals a character from the pool to an account that never picked and keeps it — the same one resolve answers — leaving choice null', () => {
+		const s = standIn(() => 0.99);
+		const own = { status: 200, json: { avatar: { source: 'sprite', sprite: AVATAR_POOL.at(-1) }, choice: null, sprite: AVATAR_POOL.at(-1), ...NOTHING_ELSE } };
+		expect(s.handle('GET', '/api/v1/_avatar', { key: 'k-alice' }, null)).toEqual(own);
+		expect(s.handle('GET', '/api/v1/_avatar', { key: 'k-alice' }, null)).toEqual(own);
+		expect(s.handle('POST', '/api/v1/_avatar/resolve', { key: 's-key' }, { userIds: ['u-alice'] })).toEqual({ status: 200, json: { avatars: { 'u-alice': { source: 'sprite', name: 'Alice', sprite: AVATAR_POOL.at(-1) } } } });
+	});
+
+	it('deals nothing to an id that is no account: resolve answers it with no character', () => {
 		const s = standIn();
-		expect(s.handle('GET', '/api/v1/_avatar', { key: 'k-alice' }, null)).toEqual({
+		expect(s.handle('POST', '/api/v1/_avatar/resolve', { key: 's-key' }, { userIds: ['u-closed', 'u-alice'] })).toEqual({
 			status: 200,
-			json: { avatar: { source: 'sprite' }, choice: null, sprite: null, ...NOTHING_ELSE },
+			json: { avatars: { 'u-closed': { source: 'sprite', name: null }, 'u-alice': { source: 'sprite', name: 'Alice', sprite: AVATAR_POOL[0] } } },
 		});
+	});
+
+	it('deals once per account, by Math.random unless a draw is injected, and a resolve that comes first deals it too', () => {
+		let next = 0;
+		const s = standIn(() => [0, 0.99][next++]!);
+		expect(s.handle('POST', '/api/v1/_avatar/resolve', { key: 's-key' }, { userIds: ['u-bob'] })).toMatchObject({ json: { avatars: { 'u-bob': { sprite: AVATAR_POOL[0] } } } });
+		expect(s.handle('GET', '/api/v1/_avatar', { key: 'k-bob' }, null)).toMatchObject({ json: { sprite: AVATAR_POOL[0] } });
+		expect(s.handle('GET', '/api/v1/_avatar', { key: 'k-alice' }, null)).toMatchObject({ json: { sprite: AVATAR_POOL.at(-1) } });
+		const spy = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+		try {
+			const real = createPrefsRowsStandIn({ app: 'cardtable', serviceKey: 's-key', userOfKey: (k) => USER_OF_KEY[k] ?? null });
+			expect(real.handle('GET', '/api/v1/_avatar', { key: 'k-alice' }, null)).toMatchObject({ json: { sprite: AVATAR_POOL.at(-1) } });
+		} finally {
+			spy.mockRestore();
+		}
 	});
 
 	it('answers the character the key’s person was dressed in, by _stand-in/avatar, as their own account would', () => {
@@ -42,7 +68,7 @@ describe('GET /api/v1/_avatar', () => {
 		});
 		expect(s.handle('GET', '/api/v1/_avatar', { key: 'k-bob' }, null)).toEqual({
 			status: 200,
-			json: { avatar: { source: 'sprite' }, choice: null, sprite: null, ...NOTHING_ELSE },
+			json: { avatar: { source: 'sprite', sprite: AVATAR_POOL[0] }, choice: null, sprite: AVATAR_POOL[0], ...NOTHING_ELSE },
 		});
 	});
 

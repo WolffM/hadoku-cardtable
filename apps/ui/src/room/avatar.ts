@@ -11,9 +11,8 @@
  *
  * This file is the client half: "what URL draws it", the ONLY place that is
  * spelled. Which character a member wears is their account's, resolved by the
- * server (`apps/server/src/people.ts`'s `applyPerson`); a member whose account
- * has nothing picked wears whatever the room handed them on joining
- * (`room/lobby.ts`'s `AVATAR_POOL`).
+ * server (`apps/server/src/people.ts`'s `applyPerson`); prefs-api draws and
+ * keeps one for an account that never picked, so it is the same in every app.
  */
 
 import { AVATAR_ID_MAX } from '@hadoku/platform-wire/look';
@@ -35,7 +34,7 @@ export function watchpartyOrigin(): string {
  * The image that draws one avatar, or null when there is nothing to draw.
  *
  * `square_<id>.png` under the chrome's own `serverOrigin` is watchparty's own
- * media convention, not ours: every id in `room/lobby.ts`'s `AVATAR_POOL` has
+ * media convention, not ours: every id in `@wolffm/rooms-protocol`'s `AVATAR_POOL` has
  * one (checked 2026-11-01), and `@wolffm/prefs-client/avatar`'s `ResolvedAvatar`
  * carries no URL for a `sprite` source by design — "the app that owns the art
  * … owns its URL and revision" (its own `.d.ts`). So this stays the one place

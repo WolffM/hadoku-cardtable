@@ -66,7 +66,7 @@ import {
 	type RoomSnapshot,
 	type SerializedMember,
 } from '@wolffm/rooms-server/store';
-import { AVATAR_POOL, createSeatTable, isDurableParticipantId, pickAvatar } from '@wolffm/rooms-protocol';
+import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { addMember, clearReady, createMembershipLedger, isReady, memberLeft, setReady as ledgerSetReady } from '@wolffm/rooms-server';
 import {
 	AVATAR_ID_MAX,
@@ -333,38 +333,13 @@ function avatarIdOf(v: unknown): string | undefined {
 }
 
 /**
- * The characters a room hands out to a member who has not picked one, and its
- * AI seats wear, in the order it hands them out: `@wolffm/rooms-protocol`'s
- * `AVATAR_POOL` (`docs/requests/ROOMS_AVATAR_POOL.md`, resolved — fleet
- * protocol now, not a copy of watchparty's `CHARACTER_ORDER`). A picked
- * avatar is never checked against this list. Re-exported so `lobby.test.ts`
- * still reads it off this module.
+ * A new member, wearing no character yet. Their character is their account's
+ * (`people.ts`'s `applyPerson`, as they arrive): prefs-api answers one for
+ * every account, drawing and keeping one for an account that never picked, so
+ * a room hands nobody a character of its own.
  */
-export { AVATAR_POOL };
-
-
-/**
- * A character in the pool no current member wears — `rooms-protocol`'s
- * `pickAvatar`, asked with no `preferred`, which draws one of the free ones at
- * random (`draw`) so a newcomer is not always handed the same first character.
- * Undefined when all are taken: that member goes without.
- */
-function freeAvatar(members: readonly MemberRecord[], draw: () => number): string | undefined {
-	return pickAvatar(members.map((m) => m.avatarId), undefined, AVATAR_POOL, draw);
-}
-
-
-/** A new member, wearing the room's next free character. */
-function newMember(room: readonly MemberRecord[], caller: Caller, joinedAt: number, draw: () => number): MemberRecord {
-	const avatarId = freeAvatar(room, draw);
-	return {
-		id: caller.id,
-		userId: caller.userId,
-		name: caller.name,
-		joinedAt,
-		state: undefined,
-		...(avatarId === undefined ? {} : { avatarId, avatarGiven: true }),
-	};
+function newMember(caller: Caller, joinedAt: number): MemberRecord {
+	return { id: caller.id, userId: caller.userId, name: caller.name, joinedAt, state: undefined };
 }
 
 /**
@@ -1081,8 +1056,6 @@ interface OpenLobbyOptions {
 	defaultFormat?: FormatId;
 	/** Injected for tests: the draw behind a new room's random format. `Math.random` otherwise. */
 	random?: () => number;
-	/** Injected for tests: the draw behind the free character a member is handed (`() => 0`, the first free one). `Math.random` otherwise. */
-	avatarDraw?: () => number;
 	/**
 	 * The eras a new room's format is drawn from: the `formats` of the library the
 	 * server loaded at boot (`index.ts`), so a room only ever opens on an era the
@@ -1414,11 +1387,9 @@ class FileLobby implements Lobby {
 	 * starts a fresh one.
 	 */
 	readonly #planChecks = new Map<string, Promise<PoolVerdict>>();
-	readonly #avatarDraw: () => number;
 
-	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, newRoomFormat: () => FormatId, onTournament: (t: Tournament) => void, onSeriesEnd: (end: SeriesEnd) => void, checkPlan: ((plan: DraftPlan) => Promise<PoolVerdict>) | null, avatarDraw: () => number) {
+	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, newRoomFormat: () => FormatId, onTournament: (t: Tournament) => void, onSeriesEnd: (end: SeriesEnd) => void, checkPlan: ((plan: DraftPlan) => Promise<PoolVerdict>) | null) {
 		this.#store = store;
-		this.#avatarDraw = avatarDraw;
 		this.#checkPlan = checkPlan;
 		this.#now = now;
 		this.#log = log;
@@ -2517,7 +2488,7 @@ class FileLobby implements Lobby {
 			...(input.historical === true && input.seatDecks !== undefined ? { seatDecks: { ...input.seatDecks } } : {}),
 			createdAt: now,
 			updatedAt: now,
-			members: [newMember([], caller, now, this.#avatarDraw)],
+			members: [newMember(caller, now)],
 			ledger,
 		};
 		if (room.historical === true && input.historicalField !== undefined) seatHistoricalField(room, input.historicalField);
@@ -2555,7 +2526,7 @@ class FileLobby implements Lobby {
 		// An empty ledger's first member becomes its leader (an emptied room's new arrival leads it).
 		addMember(room.ledger, caller.id, now);
 		room.leader = room.ledger.leaderId ?? room.leader;
-		room.members.push(newMember(room.members, caller, now, this.#avatarDraw));
+		room.members.push(newMember(caller, now));
 		this.#autoSeat(room, caller.id);
 		this.#persist(room);
 		this.#log({ event: 'room-joined', roomId, members: room.members.length });
@@ -2599,30 +2570,16 @@ class FileLobby implements Lobby {
 		const member = room?.members.find((m) => m.id === memberId);
 		if (room === undefined || member === undefined) return false;
 		const next = avatarIdOf(avatarId);
-		// Idempotent, and it does not WRITE when nothing changed. The browser
-		// asserts its avatar on every page load (`apps/ui/src/room/RoomShell.tsx`),
-		// which for a room somebody leaves open all evening would otherwise be a
-		// snapshot write per reload for a value that never moved. `true` either
-		// way: the caller asked for a state and the room is in it.
-		// A pick of the character the room handed out makes it picked, which
-		// changes nothing anybody sees.
-		delete member.avatarGiven;
+		// Idempotent, and it does not WRITE when nothing changed. A member's account
+		// is written onto the room on every arrival and every change to the room
+		// (`people.ts`'s `attachPeople`), which for a room somebody leaves open all
+		// evening would otherwise be a snapshot write per change for a value that
+		// never moved. `true` either way: the caller asked for a state and the room is in it.
 		if (next === member.avatarId) return true;
 		if (next === undefined) delete member.avatarId;
 		else member.avatarId = next;
-		// A pick wins over a character the room handed somebody else: they are
-		// given the next free one, as watchparty's join gives a taken sprite's
-		// asker the next free one. Their own pick, when they have one, is never moved.
-		const moved = room.members.filter((m) => m !== member && m.avatarGiven === true && m.avatarId === next);
-		for (const m of moved) {
-			const free = freeAvatar(room.members, this.#avatarDraw);
-			if (free === undefined) {
-				delete m.avatarId;
-				delete m.avatarGiven;
-			} else m.avatarId = free;
-		}
 		this.#persist(room);
-		for (const m of [member, ...moved]) this.#announceAvatar(roomId, m.id, m.avatarId ?? null);
+		this.#announceAvatar(roomId, member.id, member.avatarId ?? null);
 		return true;
 	}
 
@@ -3282,7 +3239,6 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 	const log = opts.log ?? (() => {});
 	const fixed = opts.defaultFormat;
 	const random = opts.random ?? Math.random;
-	const avatarDraw = opts.avatarDraw ?? Math.random;
 	const formats = opts.formats ?? [];
 	const lobby = new FileLobby(
 		store,
@@ -3292,7 +3248,6 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 		opts.onTournament ?? (() => {}),
 		opts.onSeriesEnd ?? (() => {}),
 		opts.checkPlan ?? null,
-		avatarDraw,
 	);
 
 	for (const roomId of await store.list()) {
@@ -3335,10 +3290,8 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 			// Rebuilt, not persisted; `leaderId` is set explicitly below, from disk.
 			const ledger = createMembershipLedger();
 			for (const m of decoded.members) {
-				// Nothing names a member on disk (R12): they are `UNNAMED` until their next
-				// request renames them, and wear the room's next free character until their
-				// screen asserts their own, exactly as on a first join.
-				const avatarId = freeAvatar(members, avatarDraw);
+				// Nothing names or dresses a member on disk (R12): they are `UNNAMED` and wear
+				// no character until their account is read again (`people.ts`, the boot's sweep).
 				// Kept across the restart, unlike the draft itself: the room comes
 				// back in its lobby phase with everybody still ready, which is one
 				// click from starting again rather than four.
@@ -3351,7 +3304,6 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					name: UNNAMED,
 					joinedAt: m.joinedAt,
 					state: offPod ? undefined : unboxState(m.app),
-					...(avatarId === undefined ? {} : { avatarId, avatarGiven: true as const }),
 				});
 			}
 			ledger.leaderId = app.leader;

@@ -43,7 +43,7 @@ function asV2(snapshot: RoomSnapshot): RoomSnapshot {
 
 async function restore(snapshots: readonly RoomSnapshot[]) {
 	const events: Record<string, unknown>[] = [];
-	const lobby = await openLobby({ avatarDraw: () => 0, dir: await storeOf(snapshots), log: (e) => events.push(e), defaultFormat: 'fixed-format' });
+	const lobby = await openLobby({ dir: await storeOf(snapshots), log: (e) => events.push(e), defaultFormat: 'fixed-format' });
 	return { lobby, events };
 }
 

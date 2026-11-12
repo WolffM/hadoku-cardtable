@@ -111,7 +111,7 @@ describe('a room and its match across a restart', () => {
 	async function beforeTheDeploy() {
 		const dir = await mkdtemp(join(tmpdir(), 'cardtable-restart-test-'));
 		dirs.push(dir);
-		const first = await openLobby({ avatarDraw: () => 0, dir, log: () => undefined });
+		const first = await openLobby({ dir, log: () => undefined });
 		const rooms: string[] = [];
 		for (const matchId of ['m-adopted0001', 'm-died0000001']) {
 			const made = first.create(ALICE, { name: matchId, gameType: 'constructed-1v1', clientMode: 'builtin' });
@@ -132,7 +132,13 @@ describe('a room and its match across a restart', () => {
 	/** The next process: the lobby reopened, play adopting only the first match, tables over both. */
 	async function afterTheDeploy() {
 		const before = await beforeTheDeploy();
-		const lobby = await openLobby({ avatarDraw: () => 0, dir: before.dir, log: () => undefined });
+		const lobby = await openLobby({ dir: before.dir, log: () => undefined });
+		// The boot's sweep writes each member's account back onto the room (`people.ts`): a room keeps no character.
+		for (const roomId of [before.adoptedRoom, before.diedRoom]) {
+			expect(lobby.get(roomId)?.members.some((m) => m.avatarId !== undefined)).toBe(false);
+			lobby.setAvatar(roomId, ALICE.id, 'sage');
+			lobby.setAvatar(roomId, BOB.id, 'herald');
+		}
 		const matches = registry({ 'm-adopted0001': { owners: [ALICE.id, BOB.id] } });
 		const tables = attachTables(express.Router(), {
 			library,

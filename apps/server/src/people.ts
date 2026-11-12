@@ -24,7 +24,10 @@ import { AVATAR_ID_MAX, LOOK_PICTURE_MAX, lookOrNone, type Look, type PersonFace
 export interface Person {
 	/** Their display name now; null for an unknown or closed account. */
 	name: string | null;
-	/** Their watchparty character; null when they never picked one. A room hands its own out; a record of the past has only this. */
+	/**
+	 * Their watchparty character. prefs-api answers one for every account, drawing and keeping one for an
+	 * account that never picked, so null only when an answer carried none.
+	 */
 	sprite: string | null;
 	look: Look | undefined;
 }

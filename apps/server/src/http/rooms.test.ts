@@ -364,7 +364,8 @@ describe('POST /api/rooms', () => {
 			'testing',
 			'you',
 		]);
-		expect(Object.keys(room.members[0]).sort()).toEqual(['avatarId', 'id', 'joinedAt', 'name', 'ready']);
+		// No `avatarId` yet: a member's character is their account's, written when it is read (`people.ts`).
+		expect(Object.keys(room.members[0]).sort()).toEqual(['id', 'joinedAt', 'name', 'ready']);
 		// Magic's blob: the only place the view carries its fields.
 		expect(Object.keys(room.game).sort()).toEqual(['clientMode', 'draftStartedAt', 'format', 'mode', 'modeOptions', 'pod']);
 

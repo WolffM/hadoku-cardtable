@@ -70,7 +70,7 @@ const VERDICT = { ok: true, cards: 1 } as const;
 /** The server's own boot, over `roomsDir`/`draftsDir`. */
 async function boot(roomsDir: string, draftsDir: string, cube: CubePool): Promise<RestoredRooms> {
 	const restored = await restoreRooms({
-		lobby: { dir: roomsDir, avatarDraw: () => 0, checkPlan: async () => VERDICT },
+		lobby: { dir: roomsDir, checkPlan: async () => VERDICT },
 		drafts: { ...singlePoolResolver(cube), storeDir: draftsDir, presence: testPresence },
 		log: () => undefined,
 	});
@@ -350,7 +350,7 @@ describe('the sweep calls a game a draw once it has run eight hours', () => {
 		const dir = await mkdtemp(join(tmpdir(), 'cardtable-boot-draw-'));
 		dirs.push(dir);
 		const now = 6_000_000_000_000;
-		const lobby = await openLobby({ avatarDraw: () => 0, dir, now: () => now });
+		const lobby = await openLobby({ dir, now: () => now });
 		const asked: string[] = [];
 		const match = (id: string, status: SweptMatch['status'], age: number): SweptMatch => ({
 			id,

@@ -23,6 +23,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { EDGE_ORIGIN, FRIENDS, PREFIX } from './identities.ts';
+import { PREFS_MOUNT } from './edge.ts';
 import { dress } from './looks.ts';
 import { twoLegalDecks } from './play/enter.ts';
 import { makeTitled } from './play/board.ts';
@@ -221,19 +222,20 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     // bob arriving does not take it away; the room's member count says he came.
     await expect(a.getByTestId('constructed'), 'alice sees bob join').toHaveAttribute('data-members', '2', { timeout: 30_000 });
 
-    // Each member wears their watchparty character in OUR room: alice the one
-    // she saved, bob (nothing saved) the pool's pick — never alice's, never none
-    // (2026-10-12: "cardtable did not properly load avatars, it assigned default ones").
+    // Each member wears their account's character in OUR room: alice the one she
+    // saved, bob (nothing saved) the one prefs-api drew and keeps for his account —
+    // never none (2026-10-12: "cardtable did not properly load avatars, it assigned default ones").
     const members = async (): Promise<{ name: string; avatarId?: string }[]> => {
       const res = await alice.request.get(`${EDGE_ORIGIN}${PREFIX}/api/rooms/${roomId}`);
       return res.ok() ? ((await res.json()) as { members: { name: string; avatarId?: string }[] }).members : [];
     };
     await expect.poll(async () => (await members()).find((m) => m.name === 'e2e-alice')?.avatarId, { timeout: 15_000, message: 'alice wears her saved watchparty character' }).toBe(ALICE_SPRITE);
-    const worn = await members();
-    console.log(`[embed] avatars: ${worn.map((m) => `${m.name}=${m.avatarId ?? '(none)'}`).join(' ')}`);
-    const bobWears = worn.find((m) => m.name === 'e2e-bob')?.avatarId;
-    expect(bobWears, 'bob, with nothing saved, keeps the room’s pick').toBeTruthy();
-    expect(bobWears).not.toBe(ALICE_SPRITE);
+    const bobsAccount = await bob.request.get(`${EDGE_ORIGIN}${PREFS_MOUNT}/api/v1/_avatar`, { headers: { 'x-user-key': FRIENDS.bob.key } });
+    expect(bobsAccount.ok(), `bob's account answers (${bobsAccount.status()})`).toBe(true);
+    const bobsSprite = ((await bobsAccount.json()) as { sprite: string | null }).sprite;
+    expect(bobsSprite, 'bob, with nothing saved, was given a character by his account').toBeTruthy();
+    await expect.poll(async () => (await members()).find((m) => m.name === 'e2e-bob')?.avatarId, { timeout: 15_000, message: 'bob wears his account’s character' }).toBe(bobsSprite);
+    console.log(`[embed] avatars: ${(await members()).map((m) => `${m.name}=${m.avatarId ?? '(none)'}`).join(' ')}`);
 
     // An in-table hash link routes the TABLE, never the host page — and a
     // route that is not a table (here the stats page, which the standalone

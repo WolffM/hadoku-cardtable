@@ -10,9 +10,11 @@
  *     reaches the board (Q6).** The operator, 2026-10-11: *"just had a game with
  *     'rhomancer' and they had no avatar selected. in watchparty there is logic to
  *     auto-select an avatar we should probably port that into the generic
- *     functionality as well."* Alice and bob are fresh browsers with no saved avatar
- *     anywhere; the room gives each a character on joining, not the same one, and
- *     both boards draw both faces with it (`[w32 avatar]` lines). Then alice picks a
+ *     functionality as well."* Since 2026-11-11 that choice is prefs-api's, not the
+ *     room's: an account that never picked is given a character, drawn and kept, so
+ *     it is the same in every app. Alice and bob are fresh browsers with nothing
+ *     picked; each wears their account's character, and both boards draw both faces
+ *     with it (`[w32 avatar]` lines). Then alice picks a
  *     character in the fleet's own settings popout (its AvatarPicker, pressed as a
  *     player presses it: `pickSprite`); BOTH boards must redraw that seat's face
  *     within a few seconds, with no reload.
@@ -42,6 +44,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { PREFS_MOUNT } from './edge.ts';
 import { FRIENDS } from './identities.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
@@ -270,7 +273,7 @@ async function aliceWears(alice: Friend, bob: Friend, sprite: string, when: stri
 }
 
 
-test(titled('a player with no saved avatar is given one on joining a room, two such players get different ones, and changing the saved avatar mid-match redraws that seat\'s face on both boards, with no reload (Q6)'), async ({ browser }) => {
+test(titled('a player who never picked wears the character their account was given, and changing the saved avatar mid-match redraws that seat\'s face on both boards, with no reload (Q6)'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -288,14 +291,20 @@ test(titled('a player with no saved avatar is given one on joining a room, two s
     const members = ((await res.json()) as { members: { name: string; avatarId?: string }[] }).members;
     for (const m of members) console.log(`[w32 avatar] room ${roomId} member ${m.name} avatarId=${m.avatarId ?? '(none)'}`);
     expect(members, 'both players are in the room').toHaveLength(2);
-    for (const m of members) expect(m.avatarId, `${m.name} was given an avatar on joining`).toBeTruthy();
-    expect(members[0]!.avatarId, 'the two players were given different avatars').not.toBe(members[1]!.avatarId);
+    // Each account's character, as prefs-api answers its own person (it draws and keeps one for an account that never picked).
+    const accountSprite = async (f: Friend): Promise<string> => {
+      const own = await f.context.request.get(`${stack.origin}${PREFS_MOUNT}/api/v1/_avatar`);
+      expect(own.ok(), `${f.name}'s account answers (${own.status()})`).toBe(true);
+      const { sprite } = (await own.json()) as { sprite: string | null };
+      if (sprite === null) throw new Error(`${f.name}'s account has no character`);
+      return sprite;
+    };
+    const theirs = { alice: await accountSprite(alice), bob: await accountSprite(bob) };
+    console.log(`[w32 avatar] accounts: alice=${theirs.alice} bob=${theirs.bob}`);
+    // Member names are the edge's user ids, not the friends' names, so the room's characters are checked as a set.
+    expect(members.map((m) => m.avatarId ?? '(none)').sort(), 'each member wears their account’s character').toEqual([theirs.alice, theirs.bob].sort());
 
-    // Member names are the edge's user ids, not the friends' names, so each face
-    // is checked against the room's set and against the other screen's drawing of it.
-    const given = new Set(members.map((m) => m.avatarId));
     const drawn = async (face: Locator): Promise<string | null> => face.getAttribute('data-avatar', { timeout: 30_000 }).catch(() => null);
-    const faces: string[] = [];
     for (const [f, other] of [
       [alice, bob],
       [bob, alice],
@@ -304,14 +313,12 @@ test(titled('a player with no saved avatar is given one on joining a room, two s
       const seen = await drawn(theirFace(other));
       console.log(`[w32 avatar] ${f.name}'s face: on their screen data-avatar=${own ?? '(none)'}, on ${other.name}'s data-avatar=${seen ?? '(none)'}`);
       if (own === null) throw new Error(`${f.name}'s own screen draws no avatar on their face`);
-      expect(given.has(own), `${f.name}'s face is one the room gave (${[...given].join(', ')})`).toBe(true);
+      expect(own, `${f.name}'s face is their account's character`).toBe(f === alice ? theirs.alice : theirs.bob);
       await expect(theirFace(other), `${other.name}'s screen draws ${f.name}'s face with the same avatar`).toHaveAttribute('data-avatar', own);
       for (const face of [ownFace(f), theirFace(other)]) {
         await expect(face.getByTestId('seat-avatar'), `${f.name}'s face is that character's image`).toHaveAttribute('src', new RegExp(`square_${own}\\.png$`));
       }
-      faces.push(own);
     }
-    expect(faces[0], "alice's and bob's faces differ").not.toBe(faces[1]);
 
     const navigations: string[] = [];
     for (const f of [alice, bob]) f.page.on('framenavigated', (fr) => fr === f.page.mainFrame() && navigations.push(`${f.name}: ${fr.url()}`));
