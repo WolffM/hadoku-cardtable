@@ -115,7 +115,7 @@
   border-radius: 50%;
 }
 
-/* A year with no decks: still on the ruler, never chosen. */
+/* A year with no decks: still on the ruler, never chosen. The only label drawn dim. */
 .year-slider__tick[data-muted] {
   opacity: 0.35;
 }
@@ -125,15 +125,15 @@
   inset-block-start: calc(var(--ys-tick-decade) + 3px);
   inset-inline-start: 50%;
   translate: -50% 0;
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   white-space: nowrap;
 }
 
+/* Every label is one colour, so none reads as unavailable; the tens are told apart by weight. */
 .year-slider__tick[data-rank='decade'] > .year-slider__label {
-  color: var(--color-text-secondary);
   font-weight: 600;
 }
 
