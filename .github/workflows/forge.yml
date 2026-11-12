@@ -575,6 +575,13 @@ jobs:
         # evidence matters most, and failure() alone uploaded nothing for it.
         # A flaky test's first failure too: a flake is fixed from what it left.
         if: failure() || cancelled() || steps.e2e.outputs.flaky != ''
+        # Its own cap, well under the shard's 45/75: the retry action's own
+        # 30 s sleep plus a second attempt must still fail fast rather than
+        # eat the shard's remaining test-time budget on a hung upload (seen
+        # again as this step's name in 43144801512's logs, even on a run
+        # whose first attempt actually succeeded — the risk is the step
+        # having no bound of its own, not any one observed hang).
+        timeout-minutes: 8
         uses: ./.github/actions/upload-artifact-retry
         with:
           name: forge-e2e-evidence-${{ github.run_attempt }}-${{ matrix.shard }}
@@ -603,6 +610,9 @@ jobs:
       # SUCCESS too — a green run is the one whose video gets watched.
       - name: E2E videos (when asked)
         if: always() && inputs.video == true
+        # Its own cap (see "E2E evidence" above) — larger, since videos are the biggest artifact this
+        # workflow uploads.
+        timeout-minutes: 15
         uses: ./.github/actions/upload-artifact-retry
         with:
           name: forge-e2e-videos-${{ github.run_attempt }}-${{ matrix.shard }}
@@ -715,6 +725,8 @@ jobs:
       # a failing test's screenshots (`e2e/playwright.config.ts`) and the harness logs.
       - name: E2E evidence (on failure)
         if: failure() || cancelled()
+        # Its own cap — see forge-e2e's "E2E evidence" step above.
+        timeout-minutes: 8
         uses: ./.github/actions/upload-artifact-retry
         with:
           name: e2e-nightly-evidence-${{ github.run_attempt }}
@@ -836,6 +848,9 @@ jobs:
 
       - name: Keep this shard's report for the whole-run judge
         if: always()
+        # Its own cap — see forge-e2e's "E2E evidence" step above. This step runs on EVERY shard
+        # (`forge-jvm-judge` needs every report), so a hung upload here must not eat the shard's budget.
+        timeout-minutes: 5
         uses: ./.github/actions/upload-artifact-retry
         with:
           name: forge-jvm-report-${{ matrix.shard }}-${{ github.run_attempt }}
@@ -854,6 +869,8 @@ jobs:
       # judge just before this is what makes the job red.
       - name: Keep the jvm dumps and bridge logs
         if: failure() || cancelled()
+        # Its own cap — see forge-e2e's "E2E evidence" step above.
+        timeout-minutes: 8
         uses: ./.github/actions/upload-artifact-retry
         with:
           name: forge-jvm-evidence-${{ matrix.shard }}-${{ github.run_attempt }}
@@ -997,6 +1014,8 @@ jobs:
 
       - uses: ./.github/actions/upload-artifact-retry
         if: always()
+        # Its own cap — see forge-e2e's "E2E evidence" step above.
+        timeout-minutes: 5
         with:
           name: monkey-report-${{ github.run_attempt }}
           path: ${{ runner.temp }}/monkey-report.json

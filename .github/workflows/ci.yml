@@ -188,7 +188,12 @@ jobs:
     name: e2e
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-ci"]') || fromJSON(vars.CI_RUNNER) }}
-    timeout-minutes: 15
+    # 23, not 15: run 43108363941's attempt 1 was CANCELLED at 15 min25s (22:23:41Z..22:39:06Z) on a
+    # loaded runner with nothing red, and its re-run (attempt 2) passed in 12m16s — the job itself was
+    # fine, the cap was too tight. Measured over the 30 green runs before this change (p50 745s, p95
+    # 883s, p99 896s, max 898s): p99 × 1.5 = 1344s = 22.4 min, so 23 clears it with headroom while
+    # still failing a real hang well under the job's own budget.
+    timeout-minutes: 23
     steps:
       - uses: actions/checkout@v6
       # As in `static`: setup-pnpm asserts the registry credential, and the token
@@ -289,8 +294,12 @@ jobs:
       # keeps its own: the failing test's trace and error context, and the
       # harness's server logs. `e2e/.run/` is a dot-directory, which the action
       # skips by default.
+      # Its own cap, well under the job's: a hung upload (seen as the retry action's
+      # own "trying once more in 30 s" step in forge.yml's runs) must fail fast
+      # rather than eat the rest of the job's budget.
       - name: E2E evidence (on failure)
         if: failure() || cancelled()
+        timeout-minutes: 5
         uses: actions/upload-artifact@v6
         with:
           name: e2e-evidence-${{ github.run_attempt }}

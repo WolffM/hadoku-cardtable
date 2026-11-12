@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { MAX_RERUN, type PwReport, describeTarget, fileArg, isolationSpecs, judge, locationArg, plan, serialSpecs } from './e2e-rerun.ts';
+import { MAX_RERUN, type PwReport, describeTarget, fileArg, isolationSpecs, judge, locationArg, plan, selfSkipSpecs, serialSpecs } from './e2e-rerun.ts';
 import { Repo } from './select-forge-tests.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -46,6 +46,17 @@ describe('which specs are isolation specs', () => {
   });
 });
 
+describe('which specs are self-skip specs', () => {
+  it('streamed-live.spec.ts (its own docker check), and no Forge-gated spec (the universal !forge.ok guard)', () => {
+    const self = selfSkipSpecs(new Repo(ROOT));
+    expect(self).toContain('streamed-live.spec.ts');
+    // Every Forge-gated spec's test.skip(!forge.ok, ...) is the guard forge-e2e already asserts
+    // before any spec runs — that one stays red if it ever fires, so it is never a self-skip.
+    expect(self).not.toContain('draft.spec.ts');
+    expect(self).not.toContain('play.spec.ts');
+  });
+});
+
 describe('the re-run plan', () => {
   it('re-runs each failed test once, by file, line and project', () => {
     const p = plan(report(spec('a.spec.ts', 3, 'expected'), spec('a.spec.ts', 9, 'unexpected', { project: 'firefox' })), []);
@@ -79,13 +90,34 @@ describe('the re-run plan', () => {
   });
 
   it('a missing report, a run-level error, a skip or an empty run is red with no re-run', () => {
-    expect(plan(null, [])).toEqual({ rerun: [], files: [], red: [{ target: null, why: expect.stringContaining('no Playwright report') }] });
+    expect(plan(null, [])).toEqual({ rerun: [], files: [], red: [{ target: null, why: expect.stringContaining('no Playwright report') }], selfSkipped: [] });
     expect(plan({ ...report(spec('a.spec.ts', 1, 'expected')), errors: [{ message: 'Error: Timed out waiting 60000ms from config.webServer.' }] }, []).red[0].why).toContain('the run itself failed');
     const skip = plan(report(spec('a.spec.ts', 1, 'expected'), spec('a.spec.ts', 2, 'skipped'), spec('a.spec.ts', 3, 'unexpected')), []);
     expect(skip).toMatchObject({ rerun: [], red: [{ why: 'skipped — a skip is not a pass' }] });
     expect(plan(report(), [])).toMatchObject({ rerun: [], red: [{ why: expect.stringContaining('names no failed test') }] });
     // One test, failed: still re-run (a one-spec dispatch).
     expect(plan(report(spec('a.spec.ts', 3, 'unexpected')), []).rerun).toHaveLength(1);
+  });
+
+  it('a self-skip is never red, never re-run, and does not fail an otherwise-clean run', () => {
+    // A claw dispatch that picked up streamed-live.spec.ts: docker is unusable there, both tests self-skip,
+    // nothing failed. Before this fix the whole run was red: "skipped — a skip is not a pass".
+    const clean = plan(report(spec('streamed-live.spec.ts', 10, 'skipped'), spec('streamed-live.spec.ts', 20, 'skipped')), [], [], ['streamed-live.spec.ts']);
+    expect(clean.red).toEqual([]);
+    expect(clean.rerun).toEqual([]);
+    expect(clean.selfSkipped.map((t) => t.line)).toEqual([10, 20]);
+  });
+
+  it('a self-skip beside a real failure: the skip is dropped, the failure is still re-run', () => {
+    const p = plan(report(spec('streamed-live.spec.ts', 10, 'skipped'), spec('a.spec.ts', 3, 'unexpected')), [], [], ['streamed-live.spec.ts']);
+    expect(p.red).toEqual([]);
+    expect(p.rerun.map((t) => t.line)).toEqual([3]);
+    expect(p.selfSkipped.map((t) => t.line)).toEqual([10]);
+  });
+
+  it('a skip in a file NOT on the self-skip list is still red, even when some self-skip list is given', () => {
+    const p = plan(report(spec('a.spec.ts', 1, 'expected'), spec('a.spec.ts', 2, 'skipped')), [], [], ['streamed-live.spec.ts']);
+    expect(p.red).toEqual([{ target: expect.objectContaining({ line: 2 }), why: 'skipped — a skip is not a pass' }]);
   });
 });
 

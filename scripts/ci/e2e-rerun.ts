@@ -21,13 +21,26 @@
  *   - a report that is missing, unreadable, or has run-level errors (a server
  *     that never started, a config error);
  *   - a report with a skipped test (a skip is not a pass), other than one that
- *     did not run after a red in its serial file, or none failed (an empty run);
+ *     did not run after a red in its serial file, one a spec chose for itself
+ *     (below), or none failed (an empty run);
  *   - more than `MAX_RERUN` failed tests (many reds is a regression, not luck);
  *   - a test in an isolation spec — one whose imports reach an e2e
  *     `isolation.ts` (the hidden-information verdict), or tagged `@isolation`
  *     or `@no-retry`. A leak that shows one time in two is a leak.
  * A shard cut off by its timeout or cancelled never gets here: the step is
  * killed with the job, and the job is red.
+ *
+ * A SELF-SKIP is never red, flaky, or re-run: a spec whose own `test.skip(cond,
+ * reason)` decided, at runtime, that THIS environment cannot run it at all —
+ * `streamed-live.spec.ts`'s `test.skip(why !== null, ...)` when docker is not
+ * usable on a claw, as opposed to `!forge.ok` (every Forge-gated spec), which
+ * stays red: forge-e2e's own "Forge is present, or fail" step already asserts
+ * the jar exists before any spec runs, so a `!forge.ok` skip there means THAT
+ * guard itself failed, not a deliberate choice (`e2e-rerun-counts-self-skip-red`,
+ * workstreams.md: "a claw dispatch that picks up streamed-live.spec.ts is
+ * always red" before this fix). `selfSkipSpecs` finds every spec with a
+ * `test.skip(` call that is not the universal Forge guard, so a future spec's
+ * own environment check is covered without naming it here.
  *
  * The re-run writes its own report per project, and its own test results
  * (`e2e/.run/test-results-rerun-<project>/`), so the first run's screenshots
@@ -105,6 +118,8 @@ export interface Plan {
   files: FileRerun[];
   /** Red without a re-run, each with why. */
   red: { target: Target | null; why: string }[];
+  /** Skipped on its own terms (`selfSkipSpecs`) — never red, never re-run, just noted. */
+  selfSkipped: Target[];
 }
 
 export interface Verdict {
@@ -172,12 +187,28 @@ export function serialSpecs(repo: Repo): string[] {
 }
 
 /**
- * What to re-run from a shard's first report. `isolation` and `serial` hold spec paths relative to `e2e/`.
+ * The specs, relative to `e2e/`, with a `test.skip(cond, reason)` call that is NOT the universal
+ * `!forge.ok` guard every Forge-gated spec carries. Each is a spec deciding, on its own, that this
+ * runner cannot run it at all (docker, an OS, a feature this host lacks) — a choice, not a failure.
+ * `!forge.ok` is excluded on purpose: forge-e2e asserts the jar is present before any spec runs, so
+ * that skip firing anyway means the guard itself broke, and stays red.
  */
-export function plan(report: PwReport | null, isolation: string[], serial: string[] = []): Plan {
-  const out: Plan = { rerun: [], files: [], red: [] };
-  if (report === null || !report.stats) return { rerun: [], files: [], red: [{ target: null, why: 'no Playwright report: the run died before it wrote one' }] };
-  if (report.errors?.length) return { rerun: [], files: [], red: [{ target: null, why: `the run itself failed: ${firstLine(report.errors[0].message)}` }] };
+export function selfSkipSpecs(repo: Repo): string[] {
+  return repo
+    .list('e2e')
+    .filter((p) => /\.spec\.ts$/.test(p))
+    .filter((p) => [...(repo.read(p) ?? '').matchAll(/\btest\.skip\([^()]*\)/g)].some((m) => !/forge\.ok/.test(m[0])))
+    .map((p) => p.slice('e2e/'.length));
+}
+
+/**
+ * What to re-run from a shard's first report. `isolation` and `serial` hold spec paths relative to
+ * `e2e/`; so does `selfSkip` (see `selfSkipSpecs`).
+ */
+export function plan(report: PwReport | null, isolation: string[], serial: string[] = [], selfSkip: string[] = []): Plan {
+  const out: Plan = { rerun: [], files: [], red: [], selfSkipped: [] };
+  if (report === null || !report.stats) return { rerun: [], files: [], red: [{ target: null, why: 'no Playwright report: the run died before it wrote one' }], selfSkipped: [] };
+  if (report.errors?.length) return { rerun: [], files: [], red: [{ target: null, why: `the run itself failed: ${firstLine(report.errors[0].message)}` }], selfSkipped: [] };
   const all = [...tests(report)];
   const failed = all.filter(({ test }) => test.status === 'unexpected');
   // A serial file's test after a red, with no `test.skip()` of its own, did not run: it is the red's, not a skip.
@@ -187,16 +218,25 @@ export function plan(report: PwReport | null, isolation: string[], serial: strin
     failed.some((f) => f.spec.file === spec.file && f.test.projectName === test.projectName && f.spec.line < spec.line);
   const skipped = all.filter((x) => x.test.status === 'skipped');
   const notRun = skipped.filter(dependsOnRed);
-  const skips = skipped.filter((x) => !dependsOnRed(x));
+  const rest = skipped.filter((x) => !dependsOnRed(x));
+  // A self-skip is dropped from consideration entirely: not red, not re-run, just noted below.
+  const selfSkipped = rest.filter((x) => selfSkip.includes(x.spec.file));
+  out.selfSkipped = selfSkipped.map(({ spec, test, path }) => targetOf(spec, test, path));
+  const skips = rest.filter((x) => !selfSkip.includes(x.spec.file));
   if (skips.length) {
-    return { rerun: [], files: [], red: skips.map(({ spec, test, path }) => ({ target: targetOf(spec, test, path), why: 'skipped — a skip is not a pass' })) };
+    return { rerun: [], files: [], red: skips.map(({ spec, test, path }) => ({ target: targetOf(spec, test, path), why: 'skipped — a skip is not a pass' })), selfSkipped: out.selfSkipped };
   }
-  if (failed.length === 0) return { rerun: [], files: [], red: [{ target: null, why: `the report is not clean but names no failed test: ${JSON.stringify(report.stats)}` }] };
+  if (failed.length === 0) {
+    // Every skip in the run was a self-skip (and nothing failed): the spec worked as designed, not a red.
+    if (selfSkipped.length) return out;
+    return { rerun: [], files: [], red: [{ target: null, why: `the report is not clean but names no failed test: ${JSON.stringify(report.stats)}` }], selfSkipped: out.selfSkipped };
+  }
   if (failed.length > MAX_RERUN) {
     return {
       rerun: [],
       files: [],
       red: failed.map(({ spec, test, path }) => ({ target: targetOf(spec, test, path), why: `one of ${failed.length} failed tests — past ${MAX_RERUN}, none is re-run` })),
+      selfSkipped: out.selfSkipped,
     };
   }
   for (const { spec, test, path } of failed) {
@@ -270,7 +310,10 @@ function main(argv: string[]): number {
   const isolation = isolationSpecs(new Repo(root));
   console.log(`isolation specs, never re-run (${isolation.length}): ${isolation.join(' ')}`);
   const serial = serialSpecs(new Repo(root));
-  const p = plan(readReport(positionals[0]), isolation, serial);
+  const selfSkip = selfSkipSpecs(new Repo(root));
+  console.log(`self-skip specs, never red (${selfSkip.length}): ${selfSkip.join(' ')}`);
+  const p = plan(readReport(positionals[0]), isolation, serial, selfSkip);
+  for (const t of p.selfSkipped) console.log(`self-skip: ${describeTarget(t)} — this environment chose to skip it; not a failure`);
 
   const reruns: PwReport[] = [];
   if (p.rerun.length || p.files.length) {
@@ -319,7 +362,7 @@ function main(argv: string[]): number {
   }
   if (process.env.GITHUB_OUTPUT && v.flaky.length) appendFileSync(process.env.GITHUB_OUTPUT, `flaky=${v.flaky.length}\n`);
   if (process.env.GITHUB_STEP_SUMMARY && summary.length) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### forge-e2e re-run\n${summary.join('\n')}\n`);
-  console.log(`e2e re-run verdict: ${v.flaky.length} flaky, ${v.red.length} red`);
+  console.log(`e2e re-run verdict: ${v.flaky.length} flaky, ${v.red.length} red, ${p.selfSkipped.length} self-skipped`);
   return v.red.length ? 1 : 0;
 }
 
