@@ -48,6 +48,7 @@ describe('the walk from the room to the board (w79d, item 5)', () => {
       view: null,
       lastError: null,
       asks: [],
+      askClock: new Map(),
       connected: false,
       revision: 0,
       listeners: new Set<() => void>(),

@@ -13,7 +13,9 @@ export const CLIENT_EVENT = 'forge:client';
  * version of the bundle the tab is running, so a report of behaviour a
  * deploy had already replaced is read as a stale tab or a regression
  * from the log; `what: 'pick-drawn'` is a selection's pop-up, and every
- * fact that decides it, as the pick opens and 3 s later. `handover`: a
+ * fact that decides it, as the pick opens and 3 s later; `what: 'ask-timing'`
+ * is each ask the seat closed, how long it took from the socket to the board
+ * and on the board (`live/match.ts`'s `reportAskTiming`). `handover`: a
  * played card's stand-in giving way to its stack card; `landing`: to the
  * card in its row — on either screen. `sound`: what the table raised to
  * play and why — a view's derived events, a decision's chime, a button's

@@ -388,6 +388,18 @@ export interface Say {
   log: GameLogLine | null;
 }
 
+/**
+ * When each `forge:s2c` payload came off the socket, before the pacer (`./pace.ts`) or a resync's
+ * buffer held it: the start of an ask's `ask-timing` report. Keyed by the payload itself, which every
+ * wrapper hands on unchanged.
+ */
+const received = new WeakMap<object, number>();
+
+/** When the socket handed this payload over, or null for one that did not come off a socket (a test's, a replay's). */
+function receivedAt(raw: unknown): number | null {
+  return typeof raw === 'object' && raw !== null ? (received.get(raw) ?? null) : null;
+}
+
 export function socketIoMatchTransport(options: SocketIoMatchOptions = {}): MatchTransport {
   const path = options.path ?? defaultSocketPath();
   const settings = options.transports === undefined ? socketOptions(path) : { path, transports: options.transports };
@@ -409,6 +421,7 @@ export function socketIoMatchTransport(options: SocketIoMatchOptions = {}): Matc
   return {
     on: (event, handler) => {
       raw.on(event, (payload) => {
+        if (event === MATCH_EVENTS.serverToClient && typeof payload === 'object' && payload !== null) received.set(payload, Date.now());
         handler(payload);
       });
     },
@@ -556,6 +569,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * process numbers its asks afresh).
    */
   settled: Set<string>;
+  /** When each open ask came off the socket and onto the board, for its `ask-timing` report ({@link reportAskTiming}). */
+  askClock: Map<string, AskClock>;
   /**
    * The last reveal Forge was already answered for (an envelope marked
    * `displayOnly`, `@hadoku/shared`'s `ServerEnvelope`) that shows a card the
@@ -1280,6 +1295,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     view: null,
     asks: [],
     settled: new Set(),
+    askClock: new Map(),
     reveal: null,
     revealed: null,
     damagePreview: null,
@@ -1518,14 +1534,72 @@ export function currentAsk(match: LiveMatch): LiveAsk | null {
   return match.asks[0] ?? null;
 }
 
-/** Take `callId` off the open list. False when it was not on it. */
-function closeAsk(match: LiveMatch, callId: string): boolean {
+/** Take `callId` off the open list, as this seat `how` closed it. False when it was not on it. */
+function closeAsk(match: LiveMatch, callId: string, how: 'answered' | 'aborted'): boolean {
   const i = match.asks.findIndex((a) => a.callId === callId);
   if (i < 0) return false;
   const before = askedKey(match);
-  match.asks.splice(i, 1);
+  const [ask] = match.asks.splice(i, 1);
   if (askedKey(match) !== before) redraw(match);
+  reportAskTiming(match, ask!, how);
   return true;
+}
+
+/** One open ask's clock: when its frame came off the socket and when the board took it. */
+export interface AskClock {
+  /** `Date.now()` as the socket handed the frame over; null when it did not come off one. */
+  rx: number | null;
+  /** `Date.now()` as the ask joined {@link LiveMatch.asks}. */
+  applied: number;
+  /** Asks already open ahead of it then. */
+  behind: number;
+  /** How many times the server sent it again (a resync re-sends every open ask). */
+  resent: number;
+}
+
+/** More open clocks than any board holds asks: the oldest goes, so an ask closed elsewhere cannot grow the map. */
+const ASK_CLOCKS_KEPT = 32;
+
+/** Start, or keep, `frame`'s clock as it joins the open asks. */
+function startAskClock(match: LiveMatch, callId: string, rx: number | null): void {
+  const known = match.askClock.get(callId);
+  if (known !== undefined) {
+    known.resent += 1;
+    return;
+  }
+  match.askClock.set(callId, { rx, applied: Date.now(), behind: match.asks.length, resent: 0 });
+  if (match.askClock.size > ASK_CLOCKS_KEPT) match.askClock.delete(match.askClock.keys().next().value!);
+}
+
+/**
+ * The 2026-11-12 Lotus Cobra report (`m-c359d9fbf8b9`): a one-ability "Play land" the browser answers
+ * itself took 2.9 s, and nothing could say where — the server sent it at once, the pacer reported no
+ * hold, the frame rate was steady. So every ask this seat closes says: `paceMs`, from the socket to the
+ * board (the pacer, a resync's buffer); `openMs`, on the board until it closed; `agoMs`, since the
+ * socket handed it over — the event's server log time less `agoMs` is when it arrived, on the server's
+ * clock, to read against its `ask-forwarded`. `-1` where the frame did not come off a socket.
+ */
+function reportAskTiming(match: LiveMatch, ask: LiveAsk, how: 'answered' | 'aborted'): void {
+  const clock = match.askClock.get(ask.callId);
+  match.askClock.delete(ask.callId);
+  if (clock === undefined || match.watcher) return;
+  const now = Date.now();
+  match.transport.emit(CLIENT_EVENT, {
+    matchId: match.matchId,
+    kind: 'info',
+    data: {
+      what: 'ask-timing',
+      callId: ask.callId,
+      method: ask.method,
+      how,
+      auto: selfAnswer(ask) !== null,
+      paceMs: clock.rx === null ? -1 : clock.applied - clock.rx,
+      openMs: now - clock.applied,
+      agoMs: clock.rx === null ? -1 : now - clock.rx,
+      behind: clock.behind,
+      resent: clock.resent,
+    },
+  } satisfies ClientEvent);
 }
 
 /** Every card id a frame names as `{ kind: 'card', id }`, at any depth. */
@@ -1549,6 +1623,8 @@ interface HeldFrame {
   revealOver?: string;
   /** The input Forge showed this frame for (the envelope's `input`), when the server named one. */
   input?: number;
+  /** When it came off the socket ({@link receivedAt}). */
+  rx?: number | null;
 }
 
 /**
@@ -1571,6 +1647,7 @@ function deliverFrame(match: LiveMatch, h: HeldFrame): void {
   // server named no input for leaves none: an act on it names none and is judged as Forge
   // judges it, never as made on the window before.
   if (WINDOW_FRAMES.has(h.frame.method)) match.inputId = h.input ?? null;
+  if (h.frame.kind === 'ask' && !match.settled.has(h.frame.callId)) startAskClock(match, h.frame.callId, h.rx ?? null);
   applyFrame(match, h.frame);
 }
 
@@ -1606,7 +1683,7 @@ export function answerAsk(match: LiveMatch, callId: string, method: BlockingMeth
     notify(match);
     return false;
   }
-  closeAsk(match, callId);
+  closeAsk(match, callId, 'answered');
   send(match, replyFrame(callId, method, parsed.data));
   match.stats.replies += 1;
   notify(match);
@@ -3335,7 +3412,7 @@ export function answerConfirm(match: LiveMatch, callId: string, yes: boolean): b
  * answer. False when `callId` is not open.
  */
 export function abortAsk(match: LiveMatch, callId: string, reason: ClientAbort['reason'], detail: string): boolean {
-  if (!closeAsk(match, callId)) return false;
+  if (!closeAsk(match, callId, 'aborted')) return false;
   sendAbort(match, callId, reason, detail);
   notify(match);
   return true;
@@ -3350,6 +3427,7 @@ export function closeMatch(match: LiveMatch): void {
   hiddenWatches.get(match)?.stop();
   for (const ask of match.asks) sendAbort(match, ask.callId, 'cancelled', 'the player closed the board');
   match.asks = [];
+  match.askClock.clear();
   match.transport.disconnect();
   match.connected = false;
   notify(match);
@@ -3835,7 +3913,7 @@ function ingestNow(match: LiveMatch, raw: unknown): void {
   match.stats.applied += 1;
   match.resyncsWithoutProgress = 0;
   const { displayOnly, forceNotice, revealOver, input } = envelope.value;
-  const held: HeldFrame = { frame: parsed.value, displayOnly, forceNotice, revealOver, input };
+  const held: HeldFrame = { frame: parsed.value, displayOnly, forceNotice, revealOver, input, rx: receivedAt(raw) };
   if (envelope.value.pairsWithNext === true) match.windowHalf.push(held);
   else {
     const chain = [...match.windowHalf, held];

@@ -1561,6 +1561,28 @@ describe('the offer through a click’s turnaround', () => {
     expect(await selects(), 'nor goes out later, once dropped').toBe(1);
   });
 
+  it('every ask this seat closes reports its clock: off the socket, onto the board, closed', async () => {
+    const timings = (s: { received: { event: string; payload: unknown }[] }): { data: Record<string, unknown> }[] =>
+      s.received
+        .filter((r) => r.event === 'forge:client' && (r.payload as { data?: { what?: string } }).data?.what === 'ask-timing')
+        .map((r) => r.payload as { data: Record<string, unknown> });
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    await sendAndApply(s, m, [oneAbility('s0-1', mine[0]!), anotherAsk('s0-2', theirs[0]!)]);
+    expect(answerAsk(m, 's0-1', 'getAbilityToPlay', { kind: 'spellAbility', id: 9001 })).toBe(true);
+    expect(abortAsk(m, 's0-2', 'unsupported', 'not drawn')).toBe(true);
+    await until('both clocks at the server', () => timings(s).length === 2);
+    const [answered, aborted] = timings(s);
+    expect(answered!.data).toMatchObject({ callId: 's0-1', method: 'getAbilityToPlay', how: 'answered', auto: true, behind: 0, resent: 0 });
+    expect(aborted!.data).toMatchObject({ callId: 's0-2', how: 'aborted', behind: 1 });
+    for (const t of [answered!, aborted!]) {
+      // Off a real socket: every span is measured, and the board took it no earlier than the socket gave it.
+      expect(t.data.paceMs as number).toBeGreaterThanOrEqual(0);
+      expect(t.data.agoMs as number).toBeGreaterThanOrEqual((t.data.paceMs as number) + (t.data.openMs as number));
+      expect(ClientEventSchema.safeParse(s.received.find((r) => r.payload === t)?.payload).success, 'the match log keeps it').toBe(true);
+    }
+  });
+
   /*
    * e2e/w59-stack.spec.ts's chain reaction, red three times on 2026-10-17: alice cast, her outlines
    * were held through the turnaround, bob responded inside the server's 150 ms grace on telling her
