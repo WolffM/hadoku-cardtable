@@ -13,7 +13,8 @@
  * relay to — there is no boot to wait for.
  *
  * `RelayMatch` also implements `relay-socket.ts`'s own `RelayRoster`: it is both the match AND the
- * roster a relay socket joins against, so `plugins/relay.ts`'s `rosterOf` can simply read one back
+ * roster a relay socket joins against (seating each socket where the room seats its owner), so
+ * `plugins/relay.ts`'s `rosterOf` can simply read one back
  * out of {@link relayMatches} — the module singleton `plugins/relay.ts` registers into, from
  * `room/lobby.ts`'s `onRelayRoomOpened` hook (kept out of this file's own importers; see
  * {@link relayMatches}'s own doc).
@@ -50,6 +51,7 @@ const relayNullHost: MatchHostFactory<RelayLine, RelayCommand> = inProcessHost<M
  *  filled in (by {@link createRelayMatch}, below) plus this file's own grace. */
 interface RelayMatchInternalDeps extends HostedMatchDeps<RelayLine, RelayCommand> {
 	seatRejoinGraceMs?: number;
+	roomSeatOf: (participantId: ParticipantId) => number | null;
 }
 
 /** What a `RelayMatch` needs beyond {@link HostedMatchDeps}: `host` is optional here (unlike the
@@ -64,14 +66,20 @@ export interface RelayMatchDeps extends Omit<HostedMatchDeps<RelayLine, RelayCom
 	 * its own — only the whole match's `rejoinGraceMs` (NOBODY here at all) ever stops anything.
 	 */
 	seatRejoinGraceMs?: number;
+	/**
+	 * The seat the room has this participant in (`Lobby.gameSeatOf`), or null for one it seats
+	 * nowhere: the room's seating is the one seat list, so the relay seats a socket exactly where
+	 * every screen's `RoomView.seats` shows its owner — never by which socket arrived first.
+	 */
+	roomSeatOf: (participantId: ParticipantId) => number | null;
 }
 
 /**
  * `RelaySession` composed with `HostedMatch`'s seat/rejoin-grace/watcher machinery — see this
  * file's own header. A `RelayMatch` is also the `RelayRoster` `relay-socket.ts` joins against:
- * `roleOf` auto-seats a new participant (every room auto-sits every joiner, the 2026-11-02
- * ruling) and `attach` is where its `RelaySession` is actually built, the moment it has live
- * sockets to relay through.
+ * `roleOf` seats a participant where the room seats them (every room auto-sits every joiner, the
+ * 2026-11-02 ruling, and the room's seats are the one record of who sat where) and `attach` is
+ * where its `RelaySession` is actually built, the moment it has live sockets to relay through.
  */
 export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements RelayRoster {
 	readonly seats: ShellSeat[];
@@ -103,16 +111,24 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 	}
 
 	/**
-	 * `RelayRoster.roleOf`: a participant already seated keeps their seat; a free seat is claimed
-	 * for a new one on the spot (every room auto-sits every joiner); a full table leaves them a
-	 * watcher. Never `undefined` — this match keeps no membership list to refuse a stranger by,
-	 * because the room's own join already settled that before any socket reached here.
+	 * `RelayRoster.roleOf`: the seat the room has this participant in (`deps.roomSeatOf`), read
+	 * fresh on every join, or null — a watcher — for one the room seats nowhere. The seat's owner
+	 * follows the room: a member who moved seats, or a match restored with no owners, is seated
+	 * where the room says, whichever socket reaches here first. Never `undefined` — this match
+	 * keeps no membership list to refuse a stranger by, because the room's own join already settled
+	 * that before any socket reached here.
 	 */
 	roleOf(participantId: ParticipantId): number | null {
-		const held = this.seatOf(participantId);
-		if (held !== null) return held;
-		const outcome = this.claim(participantId);
-		return outcome.ok ? outcome.seat : null;
+		const roomSeat = this.deps.roomSeatOf(participantId);
+		const seat = roomSeat === null ? undefined : this.seats[roomSeat];
+		if (seat === undefined) return null;
+		if (seat.owner !== participantId) {
+			for (const s of this.seats) if (s.owner === participantId) s.owner = null;
+			seat.owner = participantId;
+			this.remember();
+			this.deps.log({ evt: 'seat-claimed', matchId: this.id, seat: seat.seat, participantId });
+		}
+		return seat.seat;
 	}
 
 	/**

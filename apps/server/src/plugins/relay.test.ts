@@ -31,7 +31,7 @@ function fakeCtx(): Parameters<typeof relayPlugin.setup>[0] {
 	io = new SocketIOServer(http, { serveClient: false });
 	return {
 		io,
-		state: { lobby: { onRelayRoomOpened: vi.fn() }, roomsLog: () => {} },
+		state: { lobby: { onRelayRoomOpened: vi.fn(), gameSeatOf: () => 0 }, roomsLog: () => {} },
 	} as unknown as Parameters<typeof relayPlugin.setup>[0];
 }
 
@@ -62,7 +62,7 @@ describe('relayPlugin', () => {
 
 	it("rosterOf reads runtimes/relay-match.ts's own registry: a registered match answers a join, an unregistered id refuses it", async () => {
 		const { relayMatches } = await import('../play/runtimes/relay-match.ts');
-		const match = relayMatches.register('m-plugin-test', 2, { log: () => {} });
+		const match = relayMatches.register('m-plugin-test', 2, { log: () => {}, roomSeatOf: () => null });
 		const ctx = fakeCtx();
 		await relayPlugin.setup(ctx);
 		expect(match.roleOf('fk:zzzzzzzzzzzzzzzz')).not.toBeUndefined();

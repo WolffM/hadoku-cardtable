@@ -11,14 +11,12 @@
  *
  * ## Where `match.seats` comes from
  *
- * There is no generic seat table to read here: a non-Magic room's pod seats are Magic's own
- * stored field (`magicGame()` hides them for any other game type), so nothing server-side names
- * who holds a seat versus who is merely watching, for a game type like this one. But every room
- * auto-seats every joiner (the 2026-11-02 ruling, `seats-and-watchers-contract`), and
- * `RoomViewBase.members` carries no spectator flag of its own — so `view.members` IS the seat
- * list, in the room's own order. `match.seats[i]` is `view.members[i]`; `match.seat` is the
- * caller's own index in it (by `me.userId`, which is `view.you.id`), or null on the (should not
- * happen) case that the caller is not among its own room's members.
+ * The room's own seats, `view.seats` (`RoomView.seats`): every joiner is sat while a seat is open
+ * (the 2026-11-02 ruling, `seats-and-watchers-contract`), and everyone else watches. The relay
+ * seats each socket by the same list (`Lobby.gameSeatOf`), so the seat a bundle is told is the
+ * seat its channel speaks for. `match.seats` names each held seat by its own number (an open
+ * seat is left out, so a pod's eight places do not read as eight players); `match.seat` is the
+ * caller's own seat (by `me.userId`, which is `view.you.id`), or null for a watcher.
  *
  * ## When it mounts
  *
@@ -81,9 +79,18 @@ export interface BundleSlotProps {
   onClose?: () => void;
 }
 
+/** The name of the member holding seat `seat`, or null for an open seat. */
+function seatHolderName(view: RoomViewBase, seat: number): string | null {
+  const holder = view.seats[seat];
+  return view.members.find((m) => m.id === holder)?.name ?? null;
+}
+
 function matchOf(view: RoomViewBase, myId: string): MatchInfo {
-  const seats: SeatInfo[] = view.members.map((m, i) => ({ seat: i, userId: m.name, name: m.name }));
-  const seat = view.members.findIndex((m) => m.id === myId);
+  const seats: SeatInfo[] = view.seats.flatMap((_, seat) => {
+    const name = seatHolderName(view, seat);
+    return name === null ? [] : [{ seat, userId: name, name }];
+  });
+  const seat = view.seats.indexOf(myId);
   return { id: view.id, seat: seat === -1 ? null : seat, seats };
 }
 
@@ -164,7 +171,7 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
       <div ref={hostRef} className="room-bundle-slot__host" />
       {winners !== null && winners.length > 0 && view !== null && (
         <p className="room-bundle-slot__result" data-testid="room-bundle-result" data-winners={winners.join(',')}>
-          {winners.map((w) => view.members[w]?.name ?? `Seat ${w + 1}`).join(', ')} won
+          {winners.map((w) => seatHolderName(view, w) ?? `Seat ${w + 1}`).join(', ')} won
         </p>
       )}
       {error !== null && (

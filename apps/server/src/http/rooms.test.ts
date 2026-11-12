@@ -359,11 +359,14 @@ describe('POST /api/rooms', () => {
 			'members',
 			'name',
 			'scheduledFor',
+			'seats',
 			'settings',
 			'tables',
 			'testing',
 			'you',
 		]);
+		// The room's game seats: its creator is sat in the first, the other is open.
+		expect(room.seats).toEqual([room.creator, null]);
 		// No `avatarId` yet: a member's character is their account's, written when it is read (`people.ts`).
 		expect(Object.keys(room.members[0]).sort()).toEqual(['id', 'joinedAt', 'name', 'ready']);
 		// Magic's blob: the only place the view carries its fields.

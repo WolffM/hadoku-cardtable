@@ -133,6 +133,7 @@ import {
 	memberDraftId,
 	NO_GAME_HOOKS,
 	personaOf,
+	gameSeatsOf,
 	playersOf,
 	podDraftId,
 	podEntrants,
@@ -879,6 +880,12 @@ export interface Lobby {
 	 * Null once they are open, for a room no event made, and for no such room.
 	 */
 	seatsShutUntil(roomId: string): number | null;
+	/**
+	 * The seat this member holds in the room's game (`RoomView.seats`), or null: watching, not a
+	 * member, or no such room. What a relay match seats a socket by (`plugins/relay.ts`), so the
+	 * relay and every screen's `RoomView.seats` name the same seat holders.
+	 */
+	gameSeatOf(roomId: string, memberId: string): number | null;
 	create(caller: Caller, input: CreateRoomInput): CreateResult;
 	/**
 	 * The room a watchparty room's game slot binds to (D21): `wp-` plus a digest
@@ -1165,6 +1172,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView 
 			...(m.avatarId === undefined ? {} : { avatarId: m.avatarId }),
 			...(m.look === undefined ? {} : { look: m.look }),
 		})),
+		seats: gameSeatsOf(room),
 		tables: room.tables.map((t) => tableView(t, room.members, room)),
 		// The FIRST table's live match — unchanged, so every existing reader
 		// keeps working (`docs/planning/wave71-2026-10-17.md`'s wire contract).
@@ -1721,6 +1729,12 @@ class FileLobby implements Lobby {
 	seatsShutUntil(roomId: string): number | null {
 		const room = this.#rooms.get(roomId);
 		return room === undefined ? null : this.#seatsShut(room);
+	}
+
+	gameSeatOf(roomId: string, memberId: string): number | null {
+		const room = this.#rooms.get(roomId);
+		const seat = room === undefined ? -1 : gameSeatsOf(room).indexOf(memberId);
+		return seat === -1 ? null : seat;
 	}
 
 	#tookSeat(roomId: string, tableId: string, memberId: string): void {

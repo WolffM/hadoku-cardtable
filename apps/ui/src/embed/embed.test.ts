@@ -39,6 +39,7 @@ const ROOM: RoomView = {
   you: { id: 'http-a', leader: true, ready: false },
   locked: false,
   members: [],
+  seats: [],
   matchId: null,
   createdAt: '',
   tables: [],

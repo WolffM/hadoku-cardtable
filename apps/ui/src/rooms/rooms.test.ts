@@ -62,6 +62,7 @@ const room = ({ format = '2011-02-13', mode = null, modeOptions = null, clientMo
     you: { id: 'http-a', leader: true, ready: false },
     locked: false,
     members: [{ id: 'http-a', name: 'alice', joinedAt: '2026-09-19T00:00:00.000Z', ready: false }],
+    seats: [],
     matchId: null,
     createdAt: '2026-09-19T00:00:00.000Z',
     tables: [],

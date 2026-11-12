@@ -78,8 +78,9 @@ function themeValue(theme: string): HadokuThemeValue {
   };
 }
 
+/** Every member seated, in join order, unless `overrides.seats` says otherwise. */
 function aView(members: RoomViewBase['members'], overrides: Partial<RoomViewBase> = {}): RoomViewBase {
-  return { id: 'room-a', name: 'Test room', gameType: 'plain-bundle-test', members, you: { id: 'u1', leader: false }, ...overrides };
+  return { id: 'room-a', name: 'Test room', gameType: 'plain-bundle-test', members, seats: members.map((m) => m.id), you: { id: 'u1', leader: false }, ...overrides };
 }
 
 function renderSlot(props: { view: RoomViewBase | null; me: { userId: string; isLeader: boolean } }) {
@@ -121,6 +122,36 @@ describe('BundleSlot', () => {
         { seat: 0, userId: 'u1', name: 'u1' },
         { seat: 1, userId: 'u2', name: 'u2' },
       ],
+    });
+  });
+
+  it("tells a member the room seats nowhere that they watch: a third member of a two-seat room is no seat, and the seats are the room's", async () => {
+    who = { userId: 'u3', tier: 'friend', name: 'Cat' };
+    const members = [{ id: 'u1', name: 'Ann' }, { id: 'u2', name: 'Bob' }, { id: 'u3', name: 'Cat' }];
+    renderSlot({ view: aView(members, { seats: ['u1', 'u2'], you: { id: 'u3', leader: false } }), me: { userId: 'u3', isLeader: false } });
+
+    await waitFor(() => expect(fixture.calls.some((c) => c[0] === 'mount')).toBe(true));
+    const mounted = fixture.calls.find((c) => c[0] === 'mount') as ['mount', GameBundleContext];
+    expect(mounted[1].match).toEqual({
+      id: 'room-a',
+      seat: null,
+      seats: [
+        { seat: 0, userId: 'Ann', name: 'Ann' },
+        { seat: 1, userId: 'Bob', name: 'Bob' },
+      ],
+    });
+  });
+
+  it('numbers seats by the room, not by join order: a member keeps the seat they hold, and an open seat is left out', async () => {
+    const members = [{ id: 'u1', name: 'Ann' }, { id: 'u2', name: 'Bob' }];
+    renderSlot({ view: aView(members, { seats: [null, 'u1'] }), me: { userId: 'u1', isLeader: false } });
+
+    await waitFor(() => expect(fixture.calls.some((c) => c[0] === 'mount')).toBe(true));
+    const mounted = fixture.calls.find((c) => c[0] === 'mount') as ['mount', GameBundleContext];
+    expect(mounted[1].match).toEqual({
+      id: 'room-a',
+      seat: 1,
+      seats: [{ seat: 1, userId: 'Ann', name: 'Ann' }],
     });
   });
 

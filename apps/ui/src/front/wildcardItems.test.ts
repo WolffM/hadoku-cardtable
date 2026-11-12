@@ -46,6 +46,7 @@ const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clien
     locks: { ...OPEN_ROOM_LOCKS },
     locked: false,
     members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],
+    seats: [],
     tables: [table()],
     matchId: null,
     createdAt: '',

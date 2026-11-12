@@ -30,6 +30,8 @@ export interface RoomViewBase {
   name: string;
   gameType: string;
   members: readonly { id: string; name: string; avatarId?: string }[];
+  /** Who holds each of the room's game seats, by seat number (a member id, or null when open); a member not in it watches. */
+  seats: readonly (string | null)[];
   you: { id: string; leader: boolean };
 }
 

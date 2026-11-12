@@ -23,6 +23,7 @@ const view = (gameType: string): RoomView => ({
   locks: { ...OPEN_ROOM_LOCKS },
   locked: false,
   members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],
+  seats: [],
   tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'seating' } }],
   matchId: null,
   createdAt: '',

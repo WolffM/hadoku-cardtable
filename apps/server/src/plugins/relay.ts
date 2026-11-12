@@ -47,9 +47,15 @@ export const relayPlugin: CardtablePlugin = {
 		const log = (entry: Record<string, unknown>): void => ctx.state.roomsLog(entry);
 		// The game type's own rejoin grace reaches the match here: a seat that drops is held that
 		// long (bomberman's is its own server's seat hold), then leaves the match.
-		ctx.state.lobby.onRelayRoomOpened((roomId, seatCount, gameType) => {
+		// Each socket is seated where the room seats its owner (`Lobby.gameSeatOf`).
+		const { lobby } = ctx.state;
+		lobby.onRelayRoomOpened((roomId, seatCount, gameType) => {
 			const seatRejoinGraceMs = gameTypeSpec(gameType)?.seatRejoinGraceMs;
-			relayMatches.register(roomId, seatCount, { log, ...(seatRejoinGraceMs === undefined ? {} : { seatRejoinGraceMs }) });
+			relayMatches.register(roomId, seatCount, {
+				log,
+				roomSeatOf: (participantId) => lobby.gameSeatOf(roomId, participantId),
+				...(seatRejoinGraceMs === undefined ? {} : { seatRejoinGraceMs }),
+			});
 		});
 		const relay = attachRelay(ctx.io, {
 			minTier: CONFIG.minTier,

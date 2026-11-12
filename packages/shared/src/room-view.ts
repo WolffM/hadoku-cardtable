@@ -117,6 +117,13 @@ export const roomBaseFields = {
   /** Whether a password is set: never the password, never any hash of it. */
   locked: z.boolean(),
   members: membersSchema,
+  /**
+   * Who holds each of the room's game seats, by seat number: a member id, or null for an open
+   * seat. Every joiner is sat while a seat is open; a member not in this list is watching. One
+   * list whatever the game plays: a pod's seats, else the first table's. Read back empty from a
+   * server that sends none, so nobody is seated by guesswork.
+   */
+  seats: z.array(z.string().nullable()).catch(() => []),
   /** The first table's live match, restated for readers that only know one table. */
   matchId: z.string().nullable().catch(null),
   createdAt: z.string().catch(''),

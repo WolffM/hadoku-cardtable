@@ -28,6 +28,7 @@ const FIXTURE_VIEW = {
     { id: 'alice-id', name: 'alice', joinedAt: '2026-11-01T00:00:00.000Z', ready: true, avatarId: 'pepper', look: { picture: 'https://cdn.discordapp.com/x.png' } },
     { id: 'bob-id', name: 'bob', joinedAt: '2026-11-01T00:05:00.000Z', ready: false },
   ],
+  seats: ['alice-id', 'bob-id'],
   tables: [
     { id: 't-0000abcd', players: [{ memberId: 'alice-id', name: 'alice' }, { memberId: 'bob-id', name: 'bob' }], matchId: null, series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-1', winner: 0 }], phase: 'between' } },
   ],
@@ -53,6 +54,7 @@ const EXPECTED_VIEW = {
     { id: 'alice-id', name: 'alice', joinedAt: '2026-11-01T00:00:00.000Z', ready: true, avatarId: 'pepper', look: { picture: 'https://cdn.discordapp.com/x.png' } },
     { id: 'bob-id', name: 'bob', joinedAt: '2026-11-01T00:05:00.000Z', ready: false },
   ],
+  seats: ['alice-id', 'bob-id'],
   tables: [
     { id: 't-0000abcd', players: [{ memberId: 'alice-id', name: 'alice' }, { memberId: 'bob-id', name: 'bob' }], matchId: null, series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-1', winner: 0 }], phase: 'between' } },
   ],

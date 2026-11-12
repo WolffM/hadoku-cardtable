@@ -1341,6 +1341,7 @@ describe('a room’s table', () => {
                   clientMode: 'builtin' as const,
                   locked: false,
                   members: [],
+                  seats: [],
                   matchId: null,
                   draftStartedAt: null,
                   createdAt: '2026-09-19T00:00:00.000Z',

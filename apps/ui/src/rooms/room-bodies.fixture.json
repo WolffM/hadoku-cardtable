@@ -48,6 +48,10 @@
         "avatarId": "herald"
       }
     ],
+    "seats": [
+      null,
+      null
+    ],
     "tables": [
       {
         "id": "t-d11d02eb",
@@ -162,6 +166,16 @@
         "ready": false,
         "avatarId": "sage"
       }
+    ],
+    "seats": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
     ],
     "tables": [
       {

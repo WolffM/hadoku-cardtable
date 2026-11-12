@@ -23,7 +23,7 @@ describe('rooms/games/bomberman.tsx', () => {
     expect(ui?.setup).toBeUndefined();
 
     const props: GameSetupProps = {
-      view: { id: 'r-1', name: 'Boom room', gameType: 'bomberman', members: [{ id: 'm1', name: 'alice' }], you: { id: 'm1', leader: true } },
+      view: { id: 'r-1', name: 'Boom room', gameType: 'bomberman', members: [{ id: 'm1', name: 'alice' }], seats: ['m1'], you: { id: 'm1', leader: true } },
       me: { userId: 'm1', seat: null, isLeader: true },
       underway: true,
     };

@@ -11,17 +11,19 @@ import { registerGameType, type GameTypeSpec } from '@hadoku/shared';
 import { openLobby } from '../../room/lobby.ts';
 import { createRelayMatch, createRelayMatchRegistry, relayMatches, type RelayMatchDeps } from './relay-match.ts';
 
+const ALICE = 'fk:aaaaaaaaaaaaaaaa';
+const BOB = 'fk:bbbbbbbbbbbbbbbb';
+const CAROL = 'fk:cccccccccccccccc';
+
+/** The room seats alice at 0 and bob at 1; anyone else watches. */
 function deps(overrides: Partial<RelayMatchDeps> = {}): RelayMatchDeps {
-	return { log: () => {}, ...overrides };
+	const roomSeats = [ALICE, BOB];
+	return { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null), ...overrides };
 }
 
 function sink(): { toSeat: ReturnType<typeof vi.fn>; toWatchers: ReturnType<typeof vi.fn> } {
 	return { toSeat: vi.fn(), toWatchers: vi.fn() };
 }
-
-const ALICE = 'fk:aaaaaaaaaaaaaaaa';
-const BOB = 'fk:bbbbbbbbbbbbbbbb';
-const CAROL = 'fk:cccccccccccccccc';
 
 beforeEach(() => {
 	vi.useFakeTimers();
@@ -32,14 +34,25 @@ afterEach(() => {
 });
 
 describe('RelayMatch.roleOf', () => {
-	it('claims a free seat for a new participant, keeps it for the same one, and leaves a full table a watcher', () => {
+	it("seats each participant where the room seats them, whichever socket joins first, and leaves anyone the room seats nowhere a watcher", () => {
 		const m = createRelayMatch('m1', 2, deps());
-		expect(m.roleOf(ALICE)).toBe(0);
-		expect(m.roleOf(ALICE)).toBe(0);
-		expect(m.roleOf(BOB)).toBe(1);
+		// Carol, a watcher in the room, reaches the relay before bob: she still holds no seat.
 		expect(m.roleOf(CAROL)).toBeNull();
+		expect(m.roleOf(BOB)).toBe(1);
+		expect(m.roleOf(ALICE)).toBe(0);
+		expect(m.roleOf(ALICE)).toBe(0);
 		// Never `undefined`: this match has no membership of its own to refuse a stranger by.
 		expect(m.roleOf(CAROL)).not.toBeUndefined();
+	});
+
+	it("follows the room when a member moves seats: the new seat is theirs and the old one is nobody's", () => {
+		const roomSeats: (string | null)[] = [ALICE, BOB];
+		const m = createRelayMatch('m1', 2, deps({ roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null) }));
+		expect(m.roleOf(ALICE)).toBe(0);
+		roomSeats.splice(0, 2, null, ALICE);
+		expect(m.roleOf(ALICE)).toBe(1);
+		expect(m.seatOf(ALICE)).toBe(1);
+		expect(m.seats[0]?.owner).toBeNull();
 	});
 });
 
@@ -250,7 +263,7 @@ describe("room/lobby.ts's own hook (the ≤30-line start call site)", () => {
 	 *  (the import cycle back to `match.ts`'s `HostedMatch` it would otherwise close). */
 	function wireRelay(lobby: Awaited<ReturnType<typeof openLobby>>): void {
 		lobby.onRelayRoomOpened((roomId, seatCount) => {
-			relayMatches.register(roomId, seatCount, { log: () => {} });
+			relayMatches.register(roomId, seatCount, { log: () => {}, roomSeatOf: (p) => lobby.gameSeatOf(roomId, p) });
 		});
 	}
 
@@ -286,6 +299,26 @@ describe("room/lobby.ts's own hook (the ≤30-line start call site)", () => {
 		const match = relayMatches.get(made.room.id);
 		expect(match).toBeDefined();
 		expect(match?.seatCount).toBe(2);
+	});
+
+	it("a third member of a two-seat room watches, in the room's view and on the relay, even when her socket joins before the second seat's", async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		wireRelay(lobby);
+		const bob = { id: 'fk:2222222222222222', name: 'bob', userId: 'uid-bob' };
+		const carol = { id: 'fk:3333333333333333', name: 'carol', userId: 'uid-carol' };
+		const made = lobby.create(ALICE_MEMBER, { name: 'relay watcher test', gameType: RELAY_LOBBY_TEST_TYPE.id, clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		const roomId = made.room.id;
+		expect(lobby.join(roomId, bob).ok).toBe(true);
+		const joined = lobby.join(roomId, carol);
+		if (!joined.ok) throw new Error(joined.reason);
+		expect(joined.room.members.map((m) => m.id)).toEqual([ALICE_MEMBER.id, bob.id, carol.id]);
+		expect(joined.room.seats).toEqual([ALICE_MEMBER.id, bob.id]);
+		const match = relayMatches.get(roomId);
+		if (match === undefined) throw new Error('no match registered');
+		expect(match.roleOf(carol.id)).toBeNull();
+		expect(match.roleOf(bob.id)).toBe(1);
+		expect(match.roleOf(ALICE_MEMBER.id)).toBe(0);
 	});
 
 	it('an ordinary (non-relay) room registers no `RelayMatch` at all', async () => {

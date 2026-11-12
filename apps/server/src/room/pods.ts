@@ -168,10 +168,25 @@ export function initialPodSize(gameType: string): number {
 	return Math.min(POD_SEATS, gameTypeSpec(gameType)?.seats.max ?? POD_SEATS);
 }
 
+/** A pod seat a member of the room holds: not open, not the AI's, not closed, not someone gone. */
+function podHuman(room: RoomRecord, s: string | null): s is string {
+	return s !== null && s !== POD_AI && s !== POD_CLOSED && room.members.some((m) => m.id === s);
+}
+
 /** The members who hold a seat: the pod's humans in a pod room, else the tables'. In seat order. */
 export function playersOf(room: RoomRecord): string[] {
-	if (usesPod(room)) return room.podSeats.filter((s): s is string => s !== null && s !== POD_AI && s !== POD_CLOSED && room.members.some((m) => m.id === s));
+	if (usesPod(room)) return room.podSeats.filter((s) => podHuman(room, s));
 	return room.tables.flatMap((t) => t.seats.filter((s): s is string => s !== null));
+}
+
+/**
+ * The room's game seats by seat number (`RoomView.seats`): the member holding each, or null for
+ * a seat no member holds. A pod room's are its pod's; any other room's are its first table's, the
+ * one table a room plays as a single game.
+ */
+export function gameSeatsOf(room: RoomRecord): (string | null)[] {
+	if (usesPod(room)) return room.podSeats.map((s) => (podHuman(room, s) ? s : null));
+	return [...(room.tables[0]?.seats ?? [])];
 }
 
 /**
