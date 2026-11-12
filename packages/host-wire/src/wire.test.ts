@@ -2,7 +2,7 @@ import { generateKeyPairSync, sign, verify } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { AGENT_PORT, DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, RELAY_PROTOCOL, ReplayGuard, SKEW_MS, checkRequest, openFrame, privateKeyFrom, publicPemOf, sha256Hex, signFrame, signRequest, sliceNeedMb } from './wire.js';
+import { AGENT_PORT, DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, RELAY_PROTOCOL, ReplayGuard, SKEW_MS, checkRequest, openFrame, privateKeyFrom, publicPemOf, sha256Hex, signFrame, signRequest, sliceNeedMb, type ToAgent } from './wire.js';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 const other = generateKeyPairSync('ed25519');
@@ -116,5 +116,25 @@ describe('what a deployed agent speaks', () => {
 		const body = JSON.stringify(m);
 		const sig = sign(null, Buffer.from(`relay\nn-1\n1\n${body}`), privateKey).toString('base64');
 		expect(openFrame(publicKey, 'n-1', 1, `{"seq":1,"sig":"${sig}","m":${body}}`)).toEqual({ m });
+	});
+
+	/**
+	 * `LaunchSpec` dropped its flat `xmxMb`/`main`/`jvmFlags`/`forgePreferences` fields after this
+	 * pin test already existed, so nothing above needed a new literal: none of the facts this
+	 * describe block pins (the port, the relay's upgrade name, the draft bot's path, either signed
+	 * string format) named those fields at all. What is pinned here instead is that a `launch` frame
+	 * still opens to exactly the object a coordinator built it from — `hostId`, `artifacts` and
+	 * `runtime`, nothing else — over the real signer and verifier, so a future edit to `LaunchSpec`
+	 * that quietly reintroduces a flat field (or drops `runtime` itself) fails this, not silently.
+	 */
+	it('a launch frame carries only hostId, artifacts and runtime', () => {
+		const m: ToAgent = {
+			op: 'launch',
+			hostId: 'h-1',
+			artifacts: { jdk: 'jdk-sha', jar: 'jar-sha', res: 'res-sha', bridge: 'bridge-sha' },
+			runtime: { kind: 'jvm', xmxMb: 1024, main: 'PlayBridge', jvmFlags: [], forgePreferences: {} },
+		};
+		const line = signFrame(privateKey, 'n-launch', 1, m);
+		expect(openFrame(publicKey, 'n-launch', 1, line)).toEqual({ m });
 	});
 });

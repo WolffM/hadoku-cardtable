@@ -78,7 +78,8 @@ describe('RemoteJvmLauncher', () => {
 		expect(sent.map((m) => m.op)).toEqual(['attach']);
 		arrive(RUNTIME);
 		await new Promise((r) => setImmediate(r));
-		expect(sent).toMatchObject([{ op: 'attach' }, { op: 'launch', hostId: 'h-new', artifacts: RUNTIME.artifacts, main: 'Main' }]);
+		// `wire.ts` `LaunchSpec`: no flat fields any more — `main` lives under `runtime` now.
+		expect(sent).toMatchObject([{ op: 'attach' }, { op: 'launch', hostId: 'h-new', artifacts: RUNTIME.artifacts, runtime: { main: 'Main' } }]);
 	});
 
 	it('a line sent in the tick of its launch reaches the agent after the launch, never before it', async () => {

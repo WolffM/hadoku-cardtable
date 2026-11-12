@@ -245,32 +245,27 @@ export interface JvmRuntimeSpec {
 
 export interface LaunchSpec {
 	hostId: string;
-	xmxMb: number;
 	artifacts: ArtifactSet;
-	/** The bridge's main class inside the `bridge` artifact. */
-	main: string;
-	/** `BRIDGE_JVM_FLAGS` from `host.ts`: the coordinator's, so the agent never keeps a copy. */
-	jvmFlags: string[];
-	/** Written to `user/preferences/forge.preferences` (`host.ts` `FORGE_PREFERENCES`). */
-	forgePreferences: Record<string, string>;
 	/**
-	 * The same four fields above, named instead of flattened. Additive: a server built after this
-	 * field existed sends both this and the flat fields, so an agent built before it (reading only
-	 * the flat fields) still launches; `runtimeOf` is the one place that picks between them. Once
-	 * every agent in the fleet reads `runtime`, a later rollout drops the flat fields from here and
-	 * from `runtimeOf`'s fallback.
+	 * What the JVM needs to launch, named by `kind` rather than flattened onto `LaunchSpec` itself —
+	 * the only shape a `launch` carries. It was additive for one rollout: a server sent both this
+	 * and four flat fields (`xmxMb`, `main`, `jvmFlags`, `forgePreferences`) so an agent built before
+	 * `runtime` existed could still launch off the flat ones, with `runtimeOf` picking between them.
+	 * Every agent in the fleet reads `runtime` now (confirmed per-claw before this dropped), so the
+	 * flat fields and `runtimeOf`'s fallback both went with them — in either order, safely: the old
+	 * agent's own `runtimeOf` already preferred `runtime` whenever one was sent, flat fields or not,
+	 * and a new agent (built after the drop) only ever meets a server that still sends `runtime`.
 	 */
-	runtime?: JvmRuntimeSpec;
+	runtime: JvmRuntimeSpec;
 }
 
 /**
- * `spec.runtime` when the server sent one, else the same four fields read from `LaunchSpec`'s own
- * top level — the fallback an agent built before `runtime` existed needs, and the only place that
- * branch lives. A test removing this fallback is `agent.compat.test.ts`'s old→new case; one
- * removing `runtime` from a `LaunchSpec` a new server builds is its new→old case.
+ * `spec.runtime`, named for the callers that read a JVM's shape through a `LaunchSpec` rather than
+ * holding a `JvmRuntimeSpec` directly (`jvm.ts`, `agent.ts`). No fallback any more — the flat fields
+ * it used to fall back to no longer exist on `LaunchSpec` at all.
  */
 export function runtimeOf(spec: LaunchSpec): JvmRuntimeSpec {
-	return spec.runtime ?? { kind: 'jvm', xmxMb: spec.xmxMb, main: spec.main, jvmFlags: spec.jvmFlags, forgePreferences: spec.forgePreferences };
+	return spec.runtime;
 }
 
 export type ToAgent =

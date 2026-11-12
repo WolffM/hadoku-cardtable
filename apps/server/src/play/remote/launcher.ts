@@ -105,13 +105,9 @@ export class RemoteJvmLauncher implements JvmLauncher {
 				this.client.send({
 					op: 'launch',
 					hostId,
-					xmxMb: opts.xmxMb,
 					artifacts: runtime.artifacts,
-					main: runtime.main,
-					jvmFlags: [...BRIDGE_JVM_FLAGS],
-					forgePreferences: { ...FORGE_PREFERENCES },
-					// Additive (`wire.ts` `runtimeOf`): an agent built before this field existed still
-					// launches off the flat fields above; this is only for one built after.
+					// `wire.ts` `LaunchSpec`: no flat fields any more, now that every agent in the
+					// fleet reads `runtime` (confirmed per-claw before this dropped).
 					runtime: { kind: 'jvm', xmxMb: opts.xmxMb, main: runtime.main, jvmFlags: [...BRIDGE_JVM_FLAGS], forgePreferences: { ...FORGE_PREFERENCES } },
 				});
 				t.launched();

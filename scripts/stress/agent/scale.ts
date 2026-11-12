@@ -58,11 +58,17 @@ const decks = existsSync(join(stage, 'decks')) ? ['-Dstress.deckDir=bridge/decks
 client.send({
 	op: 'launch',
 	hostId,
-	xmxMb: Number(xmx),
 	artifacts: runtime.artifacts,
-	main: runtime.main,
-	jvmFlags: ['-Dstress.series=series.tsv', '-Dstress.cubeNames=bridge/cube-names.txt', ...decks, ...props],
-	forgePreferences: {},
+	// `wire.ts` `LaunchSpec`: no flat fields any more (w105 A's drop) — this site missed that
+	// wave's own blast-radius grep, since it talks to the agent directly rather than through
+	// `remote/launcher.ts`.
+	runtime: {
+		kind: 'jvm',
+		xmxMb: Number(xmx),
+		main: runtime.main,
+		jvmFlags: ['-Dstress.series=series.tsv', '-Dstress.cubeNames=bridge/cube-names.txt', ...decks, ...props],
+		forgePreferences: {},
+	},
 });
 console.error(`launched ${hostId} on ${node}`);
 console.error(`exit: ${await done}`);
