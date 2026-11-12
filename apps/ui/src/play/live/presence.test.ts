@@ -825,6 +825,75 @@ describe('receiving: anchored', () => {
     handle.dispose();
   });
 
+  /**
+   * The operator, 2026-11-11: *"the targeter arrow doesn't accurately show on the opponent's side
+   * from the originating target. It often seems to originate from the card on the left."* The arrow's
+   * tip is their pointer, anchored to the twin card; its tail must be anchored the same way. Two
+   * windows that lay a row out at different widths put the same board fraction over different cards:
+   * here the sender's 0.25 is the middle of card 7, and on the receiver 0.25 is inside card 6.
+   */
+  it('their targeter leaves from the TWIN of the card it leaves from on their screen, however differently this board lays the row out', () => {
+    vi.useFakeTimers();
+    document.elementFromPoint = () => null;
+    const row = (owner: 'you' | 'them', lefts: readonly number[]): string =>
+      `<div data-zone="battlefield" data-owner="${owner}"><ul>${lefts
+        .map((_, i) => `<li class="board-card" data-board-card="${6 + i}" data-card-id="${6 + i}"></li>`)
+        .join('')}</ul></div>`;
+    const build = (overlay: Box, zones: Record<'them' | 'you', Box>, cards: { owner: 'you' | 'them'; w: number; h: number; top: number; lefts: readonly number[] }): HTMLElement => {
+      const canvas = document.createElement('div');
+      canvas.innerHTML = `<div class="board">${row('them', cards.owner === 'them' ? cards.lefts : [])}${row('you', cards.owner === 'you' ? cards.lefts : [])}<div class="board__overlay" data-board-overlay=""></div></div>`;
+      document.body.append(canvas);
+      canvas.querySelector<HTMLElement>('[data-board-overlay]')!.getBoundingClientRect = () => rect(overlay);
+      for (const owner of ['them', 'you'] as const) {
+        canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="${owner}"]`)!.getBoundingClientRect = () => rect(zones[owner]);
+      }
+      cards.lefts.forEach((left, i) => {
+        canvas.querySelector<HTMLElement>(`[data-card-id="${6 + i}"]`)!.getBoundingClientRect = () => rect({ left, top: cards.top, width: cards.w, height: cards.h });
+      });
+      return canvas;
+    };
+
+    // Their screen: 1400 wide, cards 6, 7, 8 on their own battlefield at 120 px; 7 spans 290..410.
+    const sender = build(
+      { left: 0, top: 0, width: 1400, height: 1000 },
+      { them: { left: 100, top: 100, width: 1200, height: 300 }, you: { left: 100, top: 600, width: 1200, height: 300 } },
+      { owner: 'you', w: 120, h: 168, top: 700, lefts: [160, 290, 420] },
+    );
+    const t = fakeTransport();
+    const sending = installPresence({ canvas: sender, host: host(t, 1) });
+    // Their targeter, aimed from card 7's centre (350, 784) at card 8.
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('data-testid', 'targeter');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M 350 784 Q 1 1 480 784');
+    svg.append(path);
+    sender.querySelector('[data-board-overlay]')!.append(svg);
+    sender.dispatchEvent(new PointerEvent('pointermove', { clientX: 480, clientY: 784, bubbles: true }));
+    vi.advanceTimersByTime(PRESENCE_SEND_MS + 1);
+    const sent = t.sent.at(-1)!.payload as Record<string, unknown>;
+    sending.dispose();
+    sender.remove();
+
+    // This screen: 1000 wide, the same three cards of theirs at 80 px from 200; 7 spans 286..366.
+    const receiver = build(
+      { left: 0, top: 0, width: 1000, height: 800 },
+      { them: { left: 150, top: 80, width: 800, height: 240 }, you: { left: 150, top: 480, width: 800, height: 240 } },
+      { owner: 'them', w: 80, h: 112, top: 120, lefts: [200, 286, 372] },
+    );
+    const r = fakeTransport();
+    const receiving = installPresence({ canvas: receiver, host: host(r, 0) });
+    r.receive({ ...sent, seat: 1 });
+    const d = receiver.querySelector('.presence__arrow path')?.getAttribute('d') ?? '';
+    const m = /^M (-?[\d.]+) (-?[\d.]+)/.exec(d);
+    expect(m, 'an arrow is drawn').not.toBeNull();
+    const [x, y] = [Number(m![1]), Number(m![2])];
+    expect(x, 'the tail is over card 7 here (286..366), not card 6 (200..280)').toBeGreaterThanOrEqual(286);
+    expect(x).toBeLessThanOrEqual(366);
+    expect(Math.abs(x - 326), 'at its centre, as on their screen').toBeLessThan(1);
+    expect(Math.abs(y - 176), 'at its centre, as on their screen').toBeLessThan(1);
+    receiving.dispose();
+  });
+
   it('is continuous across a card’s edge on differently sized boards — the cursor never jumps onto the card', () => {
     // Sender: the card is (120,200)-(180,284). Receiver: the twin is twice the size, elsewhere.
     const sender = board().canvas;
