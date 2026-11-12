@@ -27,6 +27,11 @@ export type BridgeCommand =
 	| { t: 'resend-pending'; seat: number }
 	/** Forge's Cancel on the seat's open mana payment only, never on an input opened after it (`PlayBridge.java`'s `cancelPayment`). */
 	| { t: 'cancel-payment'; seat: number }
+	/**
+	 * Take back the seat's last action (`PlayBridge.java`'s `rewind`, Forge's `UndoManager`), if its history is
+	 * still at `version` (the `undo` line's): what the opponent allowed. Answered by a `rewind` line.
+	 */
+	| { t: 'rewind'; seat: number; version: number }
 	| { t: 'probe'; seat: number; probeId: string; message: string }
 	/** End the game as a draw, Forge's `GameEndReason.Draw` (`PlayBridge.java`'s `forceDraw`; `Match.forceDraw`). */
 	| { t: 'draw' }
@@ -117,4 +122,17 @@ export type BridgeLine =
 	 * `ms` is how long the bridge took to write it. `lossy` names what the game held that the text
 	 * cannot (`docs/planning/restart-turn-plan.md` part 2); absent or empty is the whole game.
 	 */
-	| { t: 'snapshot'; turn: number; state: string; ms: number; lossy?: string[] };
+	| { t: 'snapshot'; turn: number; state: string; ms: number; lossy?: string[] }
+	/**
+	 * What the seat could take back changed (`SeatController.emitUndoState`): `can`, its priority prompt is open
+	 * with a step of its own to rewind to; `version`, the game's undo history count, which moves with every step
+	 * and every barrier (`UndoManager.version`); `bytes`, the heap the game's whole undo history pins now
+	 * (`UndoManager.retainedBytes`), for capacity.
+	 */
+	| { t: 'undo'; seat: number; can: boolean; version: number; bytes?: number }
+	/** The answer to a `rewind` command: whether Forge took the action back, and the history it was asked to rewind. */
+	| { t: 'rewind'; seat: number; ok: boolean; version: number }
+	/** A rewind put the game back, and every seat has been sent the whole state again (`PlayBridge.java`'s `Rewound`). */
+	| { t: 'rewound' }
+	/** A rewind took back the log lines sent since: the first `keep` stay (`GameLogForward.truncated`). */
+	| { t: 'log-truncated'; keep: number };

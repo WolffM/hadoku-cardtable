@@ -272,6 +272,15 @@ public final class PlayBridge {
     static final int AI_TIMEOUT_SEC = Integer.getInteger("cardtable.aiTimeoutSec", -1);
 
     /**
+     * The heap one game's undo history may pin ({@code UndoManager.setRetainedBudget}), in bytes. Forge's own cap is a
+     * seventh of the heap for its one game; a JVM here hosts up to {@code MATCHES_PER_JVM} (25), so each game gets a
+     * seventh of the heap shared out among them, unless {@code -Dcardtable.undoBudgetMb} says otherwise. The oldest
+     * steps go first when a history outgrows it, and a history that reaches back only to the opponent's last
+     * priority is a few steps long.
+     */
+    static final long UNDO_BUDGET_BYTES = Long.getLong("cardtable.undoBudgetMb", Runtime.getRuntime().maxMemory() / 7 / 25 >> 20) << 20;
+
+    /**
      * Each match's game thread while its game runs, set by its start-game hook and cleared by its
      * end-game hook ({@link BridgeGui#hostMatch}): Forge's game threads are pooled and unnamed per
      * match, so this is how {@link CutoffWatch} knows whose game printed.
@@ -540,6 +549,8 @@ public final class PlayBridge {
          * then read no input, went untagged, and the seat's next act named the window before it.
          */
         final Map<Integer, SeatController> seatControllers = new ConcurrentHashMap<>();
+        /** The current game's log forward, which a rewind truncates ({@link GameLogForward#mark}). */
+        volatile BridgeGui.GameLogForward logForward;
 
         /**
          * The human controller deciding for {@code p}: its own, or, while a scan has swapped an AI's in
@@ -6204,6 +6215,24 @@ public final class PlayBridge {
             return true;
         }
 
+        /**
+         * Takes back this seat's last action ({@code PlayerControllerHuman.rewindLastAction}), if its history is still
+         * at {@code version}: what the opponent allowed. The game thread restores the previous checkpoint, then
+         * {@link Rewound} resyncs every seat. Answers {@code {"t":"rewind","seat":n,"ok":bool}}.
+         */
+        void rewind(final long version) {
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
+            final boolean ok = mine != null && match.humanOf(mine) instanceof PlayerControllerHuman human
+                    && game.getUndoManager().version() == version && human.rewindLastAction();
+            if (!ok && match.seatControllers.get(seat) instanceof SeatController mineNow) { mineNow.refreshUndoState(); }
+            final JsonObject o = line("rewind");
+            o.addProperty("seat", seat);
+            o.addProperty("ok", ok);
+            o.addProperty("version", version);
+            emit(o);
+        }
+
         // ------------------------------------------------ acts, browser → Forge
 
         /** An act made on input {@code input} (0: the act names none, and is judged as Forge judges it): see {@link MatchContext#actInputs}. */
@@ -6599,6 +6628,40 @@ public final class PlayBridge {
             o.addProperty("seat", seat);
             o.addProperty("open", open);
             if (open) { o.addProperty("input", actual.getClass().getSimpleName()); }
+            emit(match.matchId, o);
+            final boolean atPriority = open && actual instanceof forge.gamemodes.match.input.InputPassPriority;
+            final var log = match.logForward;
+            if (atPriority && log != null) { log.mark(); }
+            emitUndoState(atPriority);
+        }
+
+        /** {@link #emitUndoState} off the seat's open input: a barrier can fall while the input stays (a mana ability that mills). */
+        void refreshUndoState() {
+            emitUndoState(getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputPassPriority);
+        }
+
+        private boolean lastCanRewind;
+        private long lastUndoVersion = -1;
+
+        /**
+         * {@code {"t":"undo","seat":n,"can":bool,"version":v}} when what this seat could take back changed: {@code can}
+         * whether its priority prompt is open with a step of its own to rewind to ({@code canRewind}), {@code version}
+         * the game's undo history count ({@code UndoManager.version}), which moves with every step and barrier. Told
+         * on the input queue's every change, which every step and barrier of the seat's own history goes with.
+         */
+        private synchronized void emitUndoState(final boolean atPriority) {
+            final Game game = getGame();
+            if (game == null) { return; }
+            final boolean can = atPriority && canRewind();
+            final long version = game.getUndoManager().version();
+            if (can == lastCanRewind && version == lastUndoVersion) { return; }
+            lastCanRewind = can;
+            lastUndoVersion = version;
+            final JsonObject o = line("undo");
+            o.addProperty("seat", seat);
+            o.addProperty("can", can);
+            o.addProperty("version", version);
+            o.addProperty("bytes", game.getUndoManager().retainedBytes());
             emit(match.matchId, o);
         }
 
@@ -7172,6 +7235,9 @@ public final class PlayBridge {
                 hm.getGame().AI_FLAT_MONTE_CARLO = !"off".equals(m.aiFlatMc);
                 hm.getGame().AI_FLAT_MONTE_CARLO_MAX = "max".equals(m.aiFlatMc);
                 hm.getGame().AI_FLAT_MONTE_CARLO_LITE = "lite".equals(m.aiFlatMc);
+                // Undo (docs/planning/undo-plan.md): the host decides it per game, not the JVM's preference.
+                hm.getGame().getUndoManager().setHostMode(forge.game.undo.UndoManager.Mode.FREE);
+                hm.getGame().getUndoManager().setRetainedBudget(UNDO_BUDGET_BYTES);
                 if ("game-throw".equals(FAULT)) {
                     throw new Error("cardtable.fault=game-throw: a test-only failure on the game thread");
                 }
@@ -7179,7 +7245,9 @@ public final class PlayBridge {
                 hm.getGame().subscribeToEvents(new TurnSnapshot(hm.getGame(), m));
                 hm.getGame().subscribeToEvents(m.effects.reset());
                 hm.getGame().subscribeToEvents(new Impersonation(m));
+                hm.getGame().subscribeToEvents(new Rewound(hm.getGame(), m));
                 final GameLogForward log = GameLogForward.install(hm.getGame(), m);
+                m.logForward = log;
                 ModeCounts.install(hm.getGame(), m.modesPending);
                 if (state == null) {
                     log.listen();
@@ -7572,6 +7640,35 @@ public final class PlayBridge {
          * <p>{@code PHASE} entries are not sent: one per step, and the phase rail says it.
          */
         @SuppressWarnings("deprecation")
+        /**
+         * After a rewind ({@code UndoManager.undo}) has put the game back: the views were refreshed in place, under
+         * the delta sync's feet, so every seat is sent the whole state again ({@link #resyncSeats}), and the server
+         * hears {@code {"t":"rewound"}}. The log's own lines went with {@code GameLog.truncateTo}
+         * ({@link GameLogForward}'s {@code log-truncated}).
+         */
+        static final class Rewound {
+            private final Game game;
+            private final MatchContext match;
+
+            Rewound(final Game game, final MatchContext match) {
+                this.game = game;
+                this.match = match;
+            }
+
+            @Subscribe
+            public void restored(final forge.game.event.GameEventSnapshotRestored e) {
+                if (e.start()) { return; }
+                resyncSeats(game);
+                match.emit(line("rewound"));
+            }
+
+            /** Whatever the game did may have ended a seat's history (a draw, a mill, a reveal): each seat's undo line follows. */
+            @Subscribe
+            public void any(final forge.game.event.GameEvent e) {
+                for (final SeatController seat : match.seatControllers.values()) { seat.refreshUndoState(); }
+            }
+        }
+
         static final class GameLogForward implements java.util.Observer {
             private static final java.util.regex.Pattern CARD_ID = java.util.regex.Pattern.compile(" \\((\\d+)\\)");
             private static final java.util.regex.Pattern HIDDEN_RUN = java.util.regex.Pattern.compile("\\ba card((?:, a card)*,? and a card)");
@@ -7631,10 +7728,23 @@ public final class PlayBridge {
                 game.subscribeToEvents(this);
             }
 
+            /** How many {@code log} lines had gone out when Forge's log held each count of entries, at its last count. */
+            private final java.util.TreeMap<Integer, Integer> linesAt = new java.util.TreeMap<>();
+            private int lines;
+
+            /** A seat's priority prompt opened: what a rewind to here keeps of the log is what has gone out now. */
+            synchronized void mark() {
+                linesAt.put(game.getGameLog().size(), lines);
+            }
+
             @Override
             public synchronized void update(final java.util.Observable o, final Object arg) {
                 // Newest first, as Forge returns it.
                 final List<forge.game.GameLogEntry> entries = game.getGameLog().getLogEntries(null);
+                if (entries.size() < sent) {
+                    truncated(entries.size());
+                    return;
+                }
                 for (int i = entries.size() - 1 - sent; i >= 0; i--) {
                     final forge.game.GameLogEntry entry = entries.get(i);
                     sent++;
@@ -8058,6 +8168,26 @@ public final class PlayBridge {
                     players.add(worded(message, source, p.getView(), shown, revealOnly));
                 }
                 o.add("players", players);
+                match.emit(o);
+                lines++;
+            }
+
+            /**
+             * Forge's log went back to {@code size} entries (a rewind, {@code GameLog.truncateTo}): the lines sent since
+             * the prompt at that size go too, {@code {"t":"log-truncated","keep":n}}, and what waited to be told with a
+             * later entry is dropped, since it did not happen.
+             */
+            private void truncated(final int size) {
+                sent = size;
+                pending.clear();
+                payment.clear();
+                final Map.Entry<Integer, Integer> at = linesAt.floorEntry(size);
+                linesAt.tailMap(size, false).clear();
+                final int keep = at == null ? 0 : at.getValue();
+                if (keep >= lines) { return; }
+                lines = keep;
+                final JsonObject o = line("log-truncated");
+                o.addProperty("keep", keep);
                 match.emit(o);
             }
 
@@ -8596,9 +8726,8 @@ public final class PlayBridge {
             // deliberately left off: it only raises a card's WEIGHT inside the same set
             // (:1580-1589), and our board reads the set, not the weights.
             prefs.setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, true);
-            // Undo is the stack's mana-ability undo (the fork's PlayerControllerHuman.tryUndoLastAction).
-            // Forge's UndoManager would store a whole-game memento at every priority, for every match this
-            // JVM hosts; it is never what a seat's Undo performs, so it records nothing.
+            // Off for any game this JVM does not host itself; a hosted game's undo is set per game in the
+            // start-game hook (UndoManager.setHostMode), where the bridge also gives it its share of the heap.
             prefs.setPref(FPref.UI_UNDO_MODE, ForgeConstants.UNDO_MODE_OFF);
             // Forge's Flat Monte Carlo AI is set per match (MatchContext.aiFlatMc, applied in the start-game
             // hook). The JVM-wide preference stays off: Forge also reads it to keep AI-only cards in the decks
@@ -9113,6 +9242,7 @@ public final class PlayBridge {
             case "abort" -> seat(match, cmd).resolve(cmd.get("callId").getAsString(), ABORTED);
             case "act" -> seat(match, cmd).act(cmd.getAsJsonObject("frame"), cmd.has("input") ? cmd.get("input").getAsInt() : 0);
             case "cancel-payment" -> seat(match, cmd).cancelPayment();
+            case "rewind" -> seat(match, cmd).rewind(cmd.get("version").getAsLong());
             case "resend-pending" -> seat(match, cmd).resendPending();
             case "probe" -> probe(match, cmd);
             case "draw" -> forceDraw(match);

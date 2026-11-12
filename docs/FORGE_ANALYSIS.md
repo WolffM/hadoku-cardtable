@@ -1085,7 +1085,27 @@ in that tree (paths under `forge/`):
 - **VERIFIED — undo.** `forge-game/src/main/java/forge/game/undo/UndoManager.java` rewinds whole-game
   mementos, checkpointed at every priority (`PlayerControllerHuman.chooseSpellAbilityToPlay`), in the
   mode `FPref.UI_UNDO_MODE` names (default `Free`). The fork keeps the stack's mana undo
-  (`MagicStack.undo`) behind the Undo button; the bridge sets the mode to `Off`.
+  (`MagicStack.undo`) for the land click; the JVM-wide preference is `Off`, and the bridge turns each
+  hosted game's undo on itself (`docs/planning/undo-plan.md`, fork branch `cardtable/undo`):
+  - `UndoManager.setHostMode(FREE)` and `setRetainedBudget` (fork `86392f09da`): the host's mode wins
+    over the preference, and each game gets `maxMemory / 7 / 25` (the bridge's `UNDO_BUDGET_BYTES`,
+    `-Dcardtable.undoBudgetMb`), not Forge's one-game `maxMemory / 7`.
+  - The reach (fork `PhaseHandler.mainLoopStep`): the history ends when a player who is not its owner
+    RECEIVES priority, AI or human, acting or not. Upstream ended it only when the opponent acted.
+    Forge's other barriers stand: phase begin, turn end, a draw and a mill (`Player.drawCard`, `mill`),
+    a reveal, scry and surveil (`PlayerControllerHuman`), any draw from the game's random
+    (`MyRandom.callCount`, which since fork `0c448f3502` counts a game's own bound random, not only the
+    JVM-wide one; fork `af9c446d04` makes the counting wrapper call the delegate's own draw methods, so the
+    bridge's `RiggedCoinToss.nextInt(2)` override still decides who is asked play-or-draw), and another human's priority prompt.
+  - `PlayerControllerHuman.canRewind` / `rewindLastAction` (fork `86392f09da`): the rewind, beside the
+    stack undo (`canUndoLastAction` / `tryUndoLastAction` / `tryUndo(Card)`, unchanged). A mana ability
+    activated at priority is an action of its own: it gets a checkpoint, so a press after "tap Mana
+    Confluence, cast Bears" takes back the cast and a second press the tap and its life
+    (`undo.jvm.test.ts`).
+  - Measured 2026-11-11 (one game, two 60-card libraries, ~20 permanents, hokon at load ~65): the
+    history's baseline is 4.7 MB and each step adds 0.4–0.6 MB (`UndoManager.retainedBytes`); a
+    baseline capture took 102 ms and a step 26–37 ms (`-Dforge.undo.debug=true`). Not measured: a JVM
+    holding 25 such games at once.
 - **VERIFIED — AI.** `forge-core/src/main/java/forge/util/AITimeoutTracker.java` gives every AI decision
   one deadline (`Game.getAITimeout`); `FPref.MATCH_AI_FLAT_MONTE_CARLO` (default `true`, Max on
   desktop, `HostedMatch.java:165`) turns on Flat Monte Carlo rollouts. The bridge sets it `false`
