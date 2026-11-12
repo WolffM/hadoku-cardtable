@@ -51,7 +51,7 @@ here is testing one card's specific behaviour.
 | `click-refused` | the server (Forge's `flashIncorrectAction`) or this client's own guard refused an answer — not the server's `cause: 'unpayable'` flash, which is it cancelling a cost nothing can pay (e2d49c260), a handled case (`isRefusal`) | the wire tap on `forge:s2c`, and `selectCard`/`selectPlayer`/`pressButton`/`answerAsk`'s own return value |
 | `loop` | a DECLINED optional ask came back with the same method and the same offered shape three times running, AT THE SAME turn and phase, with no act of this seat's own in between (a click on the same card again opens a new question, not the old one coming back; a `tempShowZones` that recurs every cleanup step by design is excluded outright) | `declineStreak` in `seat-driver.ts` |
 | `server-unclassified` | the server logged `ask-unclassified` for this match — a question `answerability` has no rule for. Not `ask-unanswerable`: that is the server answering, by its own rule (7f343ec90), a question no seat could (`serverFlagsOf`) | the running stack's own JSON log file, tailed per match |
-| `no-finish` | the match never started (`POST /api/play/matches` refused it for a reason other than a 503), the connection broke (`report`'s `disconnected`, `snapshot-failed`, `no-snapshot` or `stale-build-reload`; a `slow-connect` or one `connect-error` is a board noting its connect while it keeps trying, and ends nothing), one turn went on past `--turn-stall-ms` (default 300000), or the match ran past `--match-timeout-ms` (a backstop, default 30 s per turn of the turn cap). Reaching `--turn-cap` (default 60) ends a match as `turn-capped` and a run's `--budget-ms` running out ends one as `cut-short`; neither is flagged, since a long game is not a finding | `run-match.ts` |
+| `no-finish` | the match never started (`POST /api/play/matches` refused it for a reason other than a 503), the connection broke (`report`'s `disconnected`, `snapshot-failed`, `no-snapshot` or `stale-build-reload`; a `slow-connect` or one `connect-error` is a board noting its connect while it keeps trying, and ends nothing), one turn went on past `--turn-stall-ms` (default 300000), the server ended the match itself (its `ended` notice, as `Match.fail` sends when Forge stops: the flag quotes it, and the match's outcome is `crashed`), or the match ran past `--match-timeout-ms` (a backstop, default 30 s per turn of the turn cap). Reaching `--turn-cap` (default 60) ends a match as `turn-capped` and a run's `--budget-ms` running out ends one as `cut-short`; neither is flagged, since a long game is not a finding | `run-match.ts` |
 
 ### Reading a report
 
@@ -161,10 +161,11 @@ few nights for real.
 ## What it does not do yet
 
 - **Human-vs-human (two monkeys, one per seat)** — see "Decks covered" above.
-- A flagged run's `bridge.stderr.txt`/raw frames are not attached to the
-  report; today a run's own stdout (which `cli.ts` already prints per match)
-  and the stack's `workDir` are what a flagged run's `matchId` is looked up
-  against by hand.
+- A flag carries the lines of the match's `bridge.stderr.txt` that name it or
+  say concede, exception, error or timed out (`jvmStderrLines`; a highlight scan
+  out of budget is `AvailableActions: heuristic timed out`), not the whole file.
+  The JVM's stdout, where Forge reports an AI decision cut short at its deadline,
+  is the bridge's frame pipe and is not attached.
 - `makeLogTail` re-reads its WHOLE file from byte 0 on construction (once per
   match) rather than seeking to the file's size at that moment — correct
   (each match's own `matchId` filter drops every other match's lines), but

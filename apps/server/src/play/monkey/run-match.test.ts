@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MATCH_REPORT_KINDS } from '@hadoku/shared';
 
-import { stopFor, troubleEndsMatch } from './run-match.ts';
+import { serverEndedDetail, stopFor, troubleEndsMatch } from './run-match.ts';
 
 describe('troubleEndsMatch', () => {
   it('a board noting a slow or failed connect attempt plays on; everything else ends the match', () => {
@@ -33,5 +33,14 @@ describe('stopFor', () => {
   it('the wall is only a backstop, and the run’s budget stops a match before either', () => {
     expect(stopFor(at(40, 1_000, 1_800_001).state, opts, 10_000_000)).toBe('wall');
     expect(stopFor(at(40, 1_000, 1_800_001).state, { ...opts, stopAt: 9_000_000 }, 10_000_000)).toBe('budget');
+  });
+});
+
+describe('serverEndedDetail', () => {
+  it('a match the server ended carries its notice, so a crash is never reported without a reason', () => {
+    expect(serverEndedDetail({ title: 'Match ended', message: 'Forge stopped, and this match cannot continue: the JVM exited.' })).toBe(
+      'the server ended the match: Match ended: Forge stopped, and this match cannot continue: the JVM exited.',
+    );
+    expect(serverEndedDetail(null)).toBeNull();
   });
 });

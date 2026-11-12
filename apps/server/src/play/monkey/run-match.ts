@@ -136,8 +136,10 @@ export function lastServerRows(path: string, matchId: string, n = 40): string[] 
 
 /**
  * The last `n` lines of the `bridge.stderr.txt` of the JVM that played `matchId` (its `match-placed`
- * row names the host) that mention the match, a concede or an exception: what Forge did with an act
- * the server's own log only shows being sent.
+ * row names the host) that mention the match, a concede, an exception or a time-out: what Forge did
+ * with an act the server's own log only shows being sent. A time-out is the highlight's scan running
+ * out of budget (`AvailableActions: heuristic timed out`), which offers every card it did not reach,
+ * so a click on one is refused; the line names no match, and the JVM may host others.
  */
 export function jvmStderrLines(serverLogFile: string, workDir: string, matchId: string, n = 30): string[] {
   const placed = makeLogTail(serverLogFile)().find((row) => row.evt === 'match-placed' && row.matchId === matchId);
@@ -151,9 +153,14 @@ export function jvmStderrLines(serverLogFile: string, workDir: string, matchId: 
   }
   return text
     .split('\n')
-    .filter((line) => line.includes(matchId) || /concede|exception|error/i.test(line))
+    .filter((line) => line.includes(matchId) || /concede|exception|error|timed out/i.test(line))
     .slice(-n)
     .map((line) => `stderr: ${line.slice(0, 400)}`);
+}
+
+/** What a `no-finish` flag says of a match the server ended itself: its `ended` notice, or null for none. */
+export function serverEndedDetail(ended: { title: string; message: string } | null): string | null {
+  return ended === null ? null : `the server ended the match: ${ended.title}: ${ended.message}`;
 }
 
 /** How many of the seat's last socket frames a flag carries. */
@@ -317,7 +324,11 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
       stuckMs: opts.stuckMs,
       refusals: () => refusals,
       drainServerFlags,
-      serverRows: () => [...lastServerRows(opts.serverLogFile, matchId), ...wire.map((w) => `wire: ${w}`)],
+      serverRows: () => [
+        ...lastServerRows(opts.serverLogFile, matchId),
+        ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId),
+        ...wire.map((w) => `wire: ${w}`),
+      ],
     },
     isOver,
   );
@@ -361,6 +372,17 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     );
   }
   if (crashed !== null) extra.push(noFinishFlag(`${troubleDetail(crashed)}${notEnded}`, evidence));
+  // The server ended the match itself, as it does when Forge stops (`Match.fail`): its notice says why.
+  const serverEnd = crashed === null && !match.over ? serverEndedDetail(match.ended) : null;
+  if (serverEnd !== null) {
+    extra.push(
+      noFinishFlag(serverEnd, [
+        ...lastServerRows(opts.serverLogFile, matchId),
+        ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId),
+        ...wire.map((w) => `wire: ${w}`),
+      ]),
+    );
+  }
   // A long game or the run's own budget is no finding, but a concede that did not end it still is.
   if (crashed === null && unfinished && !timedOut && !ended) extra.push(noFinishFlag(`stopped (${reason})${notEnded}`, evidence));
 
