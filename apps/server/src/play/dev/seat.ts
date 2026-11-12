@@ -37,6 +37,13 @@ const answer = arg('answer');
 const socket = io(server, {
 	path: '/socket.io/',
 	transports: ['polling'],
+	// identity-model-disable-next-line G5: LEGITIMATE — R8's dev carve-out, same grounds as pygmalion's
+	// `local-dev`. A CLI harness that seats a fake player against a LOCAL server (default
+	// http://127.0.0.1:9008), stamping `x-user-id: cli-seat-<name>`. It is not on any server path and
+	// only ever talks to a LOCAL dev server, so the ids it names land in that dev server's own room
+	// store and never in production storage. (Production cardtable DOES persist participant ids —
+	// FileRoomStore snapshots carry members, creator and leader — which is the separate open violation
+	// cardtable#2, not this file's.)
 	extraHeaders: { 'x-user-id': `cli-seat-${user}` },
 	reconnection: false,
 });

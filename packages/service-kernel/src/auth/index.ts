@@ -122,8 +122,22 @@ export function createEdgeAuth(config: EdgeAuthConfig): EdgeAuth {
 				// the app's own index.html. The hatch would be a flag that changes
 				// nothing observable, which is worse than not having one.
 				if (typeof headers['x-hadoku-tier'] !== 'string' || headers['x-hadoku-tier'] === '') {
+					// identity-model-disable-next-line G5: LEGITIMATE: R8's dev carve-out, the game template's old
+					// apps/server/src/edge-auth.ts, moved into cardtable's service-kernel package (templates/game and
+					// bomberman import it, 880bf59b6; templates/tunnel-* and hadoku-wiki since 2026-11-11, which
+					// retired their three template entries) on 2026-11-07 (cardtable 9bcdd8c82, 0d01c363e).
+					// createEdgeAuth's sanitizeHeaders bare-local branch writes x-hadoku-tier = config.devTier() and
+					// x-user-id/x-user-name ??= 'local-dev' only when config.edgeAuthSecret() === '' AND
+					// config.allowUnverifiedEdge() (CARDTABLE_INSECURE_NO_EDGE_AUTH=1, a tunnel app's
+					// <APP>_INSECURE_NO_EDGE_AUTH=1), warned at boot. Production injects EDGE_AUTH_SECRET through
+					// services/pm2/cardtable*-wrapper.mjs and every hydrated tunnel wrapper
+					// (scripts/test/template-edge-auth.test.mjs pins that), and nothing outside a dev script sets the
+					// insecure flag, so the branch is unreachable there. The function's other writes downgrade an
+					// unproven request and do not match G5.
 					headers['x-hadoku-tier'] = config.devTier();
+					// identity-model-disable-next-line G5: same reason as the waiver above
 					headers['x-user-id'] ??= 'local-dev';
+					// identity-model-disable-next-line G5: same reason as the waiver above
 					headers['x-user-name'] ??= 'local-dev';
 				}
 				return;

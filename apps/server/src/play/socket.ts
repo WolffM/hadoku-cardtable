@@ -887,6 +887,13 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const fromQuery = socket.handshake.query.devUser;
 			const devUser = fromAuth ?? (typeof fromQuery === 'string' ? fromQuery : undefined);
 			if (devUser !== undefined && DEV_USER.test(devUser)) {
+				// identity-model-disable-next-line G5: LEGITIMATE — R8's dev carve-out. The `local-dev-seat-<user>`
+				// identity is gated on `devIdentity = CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === ''`,
+				// re-checked defensively at the use site (socket.ts:171-172, which refuses the flag when either
+				// condition fails) and validated against /^[a-z0-9-]{1,32}$/. Production sets edgeAuthSecret, so
+				// the branch is unreachable there — condition (a) of the carve-out — and a dev identity only ever
+				// reaches a local server's room store, never production storage, which is condition (b).
+				// (Production room snapshots DO persist participant ids; that is cardtable#2.)
 				return identityFromHeaders({ ...headers, 'x-user-id': `local-dev-seat-${devUser}` }, socket.id);
 			}
 		}
