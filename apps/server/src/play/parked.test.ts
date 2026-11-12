@@ -490,6 +490,9 @@ describe('the parked games’ routes', () => {
 		const { matchId: thirdId } = (await again).body as { matchId: string };
 		const sockets = [await joinMatch(s, 'alice', thirdId)];
 		(s.hosts[2] as ReplayHost).push({ t: 'gameover', winner: 'alice' });
+		// The host's line is handled asynchronously: read the list only once the game's end has
+		// reached the parked store, or a loaded runner reads it a moment before.
+		await waitUntil(() => s.logs.some((l) => l.evt === 'parked-finished'), 'the finished game to leave the parked list');
 		expect(sockets).toHaveLength(1);
 		expect((await send(s, 'alice', 'GET', '/play/parked')).body.games).toEqual([]);
 		expect(s.logs.find((l) => l.evt === 'parked-finished')).toMatchObject({ matchId: secondId, as: thirdId });
