@@ -392,22 +392,38 @@ export function importsOf(repo: Repo, file: string): string[] {
   return out;
 }
 
+/** The games under `games/`, read once per tree: a whole-tree walk per import resolved was most of a replay's time. */
+const gamesCache = new WeakMap<Repo, string[]>();
+function gamesOf(repo: Repo): string[] {
+  let games = gamesCache.get(repo);
+  if (games === undefined) {
+    games = [...new Set(repo.list('games').map((f) => f.split('/')[1]))];
+    gamesCache.set(repo, games);
+  }
+  return games;
+}
+
 /**
  * Where workspace package `@hadoku/<name>` lives: `packages/<name>`, a game's `games/<game>/packages/<name>`,
  * or a game's server `games/<game>/server`, whose directory is not its name (`@hadoku/magic-server`).
  */
+const packageDirs = new WeakMap<Repo, Map<string, string | null>>();
 function packageDir(repo: Repo, name: string): string | null {
-  const games = [...new Set(repo.list('games').map((f) => f.split('/')[1]))];
-  const byDir = ['packages', ...games.map((g) => `games/${g}/packages`)].map((d) => `${d}/${name}`).find((d) => repo.read(`${d}/package.json`) !== null);
-  if (byDir !== undefined) return byDir;
-  return (
+  let known = packageDirs.get(repo);
+  if (known === undefined) packageDirs.set(repo, (known = new Map()));
+  if (known.has(name)) return known.get(name)!;
+  const games = gamesOf(repo);
+  const dir =
+    ['packages', ...games.map((g) => `games/${g}/packages`)].map((d) => `${d}/${name}`).find((d) => repo.read(`${d}/package.json`) !== null) ??
     games
       .map((g) => `games/${g}/server`)
       .find((d) => {
         const manifest = repo.read(`${d}/package.json`);
         return manifest !== null && (JSON.parse(manifest) as { name?: string }).name === `@hadoku/${name}`;
-      }) ?? null
-  );
+      }) ??
+    null;
+  known.set(name, dir);
+  return dir;
 }
 
 /** What a package's `exports` map gives for `key` (`./library`): the exact entry, else a `./*` pattern's, with `*` filled in. */
@@ -1226,7 +1242,8 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
         continue;
       }
       for (const s of specsUsing(c)) addSpec(s, 2, `uses ${f}`, W.importer);
-      uiImporters ??= importersIn(repo, 'apps/ui', 'packages', 'games');
+      // The UI and the packages it can import; a game's server is server code, as apps/server was.
+      uiImporters ??= importersIn(repo, 'apps/ui', 'packages', ...gamesOf(repo).map((g) => `games/${g}/packages`));
       const r = f.endsWith('.css') ? cssChangeKeys(repo, f, c.patch) : reachedKeys(repo, uiImporters, f, c.patch);
       if (keyCount(r.direct) + keyCount(r.reached) === 0) {
         if (r.typesOnly) reasons.push(`${f}: type declarations only — tsc covers them`);
