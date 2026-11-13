@@ -1,10 +1,6 @@
 {
 	"edgeCounts": {},
 	"edgeKeys": {},
-	"tangled": [
-		"apps/server/src/http/routes.ts",
-		"apps/server/src/http/rooms.ts",
-		"apps/server/src/http/index.ts"
-	],
+	"tangled": [],
 	"pendingLicence": []
 }

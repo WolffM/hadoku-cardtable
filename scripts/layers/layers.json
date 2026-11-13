@@ -13,6 +13,7 @@
     "apps/server/src/http/page.ts",
     "apps/server/src/http/prepared.ts",
     "apps/server/src/http/request.ts",
+    "apps/server/src/http/room-core.ts",
     "apps/server/src/http/trim.ts",
     "apps/server/src/http/usage.ts",
     "apps/server/src/room/watching.ts",
@@ -148,9 +149,6 @@
     "apps/ui/src/rooms/games/bomberman.test.ts"
   ],
   "tangled": [
-    "apps/server/src/http/routes.ts",
-    "apps/server/src/http/rooms.ts",
-    "apps/server/src/http/index.ts"
   ],
   "testSupport": [
     "apps/ui/src/test-setup.ts",

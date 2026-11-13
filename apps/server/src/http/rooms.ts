@@ -1,192 +1,107 @@
 /**
- * `/api/rooms` — the room list, create, join, and the leader's game-type switch.
+ * `/api/rooms`'s MAGIC surface: Challenge rooms (the catalogued real events),
+ * a draft pod's own lobby (`/pod/*`), starting a draft (`/start`), and the
+ * `format`/`settings`/`mode` arms of `PATCH /:id` — everything about `/api/rooms`
+ * that is Magic's own, never another game's. The generic routes (list, create,
+ * join, ready, leave, close, reset, watchparty, of-match, and `PATCH { gameType
+ * }`) are `http/room-core.ts`'s, mounted first by `attachRooms` below, on the
+ * SAME router this file then adds its own routes to — same "mount order is
+ * load-bearing" pattern `http/routes.ts`'s header documents for `attachTables`
+ * before `attachPlay`.
  *
- * Mounted on the `api` router AFTER `requireMinTier`, so every caller here is
- * already member tier. Every member sees every room (the operator's rule); a
- * room password is privacy between players, not authentication — see
- * `room/lobby.ts`'s header.
- *
- *   GET   /api/rooms            → 200 { rooms: RoomView[] }
- *   POST  /api/rooms            { name, gameType?, clientMode?, password?, mode?, modeOptions? } → 201 RoomView
- *   GET   /api/rooms/:id        → 200 RoomView | 404
- *   GET   /api/rooms/of-match/:matchId → 200 RoomView (the room that started it, members only) | 404
- *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
- *   POST  /api/rooms/:id/ready  { ready }                       → 200 RoomView | 400 | 403 | 404
- *   POST  /api/rooms/:id/leave  {} or no body                   → 200 RoomView | 403 | 404
- *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
- *   PATCH /api/rooms/:id        { gameType } | { format } | { settings } | { mode, modeOptions? } → 200 RoomView | 403 | 404 | 409
- *   POST  /api/rooms/:id/pod/sit    {} or { seat }               → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
- *   POST  /api/rooms/:id/pod/stand  {} or no body                → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
- *   POST  /api/rooms/:id/pod/play   {} or no body                → 200 RoomView | 403 | 404 | 409 (done building; the last drafter's press deals round 1)
- *   PUT   /api/rooms/:id/pod/plan   { plan }                      → 200 RoomView | 400 | 403 | 404 | 409 { verdict } (wave 73 §A, leader only, lobby phase only)
+ *   GET   /api/rooms/challenges            → 200 { challenges: Challenge[] }
+ *   POST  /api/rooms/challenge             { collection, player } → 201 RoomBody | 400 | 403
+ *   POST  /api/rooms/:id/start             {} or no body         → 200 RoomBody | 404 | 409
+ *   POST  /api/rooms/:id/pod/split         {} or no body         → 200 RoomBody | 404 | 409
+ *   POST  /api/rooms/:id/pod/sit           {} or { seat }        → 200 RoomBody | 404 | 409
+ *   POST  /api/rooms/:id/pod/stand         {} or no body         → 200 RoomBody | 404 | 409
+ *   POST  /api/rooms/:id/pod/ai            { seat, on }          → 200 RoomBody | 404 | 409
+ *   POST  /api/rooms/:id/pod/close         { seat, closed }      → 200 RoomBody | 403 | 404 | 409
+ *   POST  /api/rooms/:id/pod/play          {} or no body         → 200 RoomBody | 403 | 404 | 409
+ *   PUT   /api/rooms/:id/pod/plan          { plan }               → 200 RoomBody | 400 | 403 | 404 | 409 { verdict }
+ *   PATCH /api/rooms/:id { format } | { settings } | { mode, modeOptions? } → 200 RoomBody | 403 | 404 | 409
  *
  * `format` is a frozen era's id or Free pick — never `draft:<podId>`. A drafted
  * deck is played on Free pick ("My decks"); a pod's own tables play its pool by
  * being a `draft` room (`http/routes.ts`'s `effectivePoolOf`), not by a format.
  *
- * Every body that carries a room is `RoomView` plus a caller-scoped
- * `you: { leader, ready }` — see "`you` is the caller's own row" below.
- *
  * ## `ready` and `start` are the room's own, not the table's
  *
  * `/api/tables/rooms/:id/ready` (`http/routes.ts`) is the CONSTRUCTED table's
  * ready: it means "my deck is loaded and legal" and is refused without a deck.
- * This one is the ROOM's, it needs no deck, and it is what a draft starts on.
- * A draft room never touches the tables API at all.
+ * `room-core.ts`'s `/:id/ready` is the ROOM's, it needs no deck, and it is what
+ * a draft starts on. A draft room never touches the tables API at all.
  *
- * `start` may be called by any member, not only the leader — like constructed,
- * where either browser asks and the server answers one start to both — and it is
- * idempotent, so two browsers racing is one draft. A PATCH of the game type is
- * refused with 409 once a draft is running: the pod is dealt against this room's
- * id and is already being played.
- *
- * ## `you` is the caller's own row, and the only caller-scoped thing here
- *
- * `RoomView.leader` is a hashed ParticipantId and `RoomMember.id` is another
- * one; nothing told a client WHICH of them was theirs, so the room screen could
- * not tell that it was the leader and could not tell whether the ready flag it
- * was drawing was its own. `RoomView` cannot answer that — it has no caller — so
- * the answer is added here, where the request is: `you.leader` and `you.ready`,
- * derived from `identityFromHeaders` exactly as every other route derives the
- * caller. A non-member gets `{ leader: false, ready: false }`, which is the
- * truth for them, and the list carries one `you` per room for the same reason.
- *
- * ## The PATCH takes one field at a time
- *
- * `{ gameType }`, `{ format }` and `{ settings }` are separate lobby mutations
- * with separate refusals, so a body carrying both is a 400 rather than a write that
- * half-lands. That is the same discipline as the allow-list itself: this file
- * refuses what it will not honour whole (see `clientMode` below).
- *
- * ## `clientMode` is a create-only field
- *
- * A room's client mode decides what the server provisions for it, so it is
- * chosen once and never changed. POST takes it (defaulting to `builtin`); every
- * other route refuses it, because each one allow-lists its own body keys and
- * `clientMode` is on none of those lists — so a PATCH carrying it is a 400
- * `unknown field(s): clientMode`, not an accepted-and-ignored write. If an
- * update path is ever wanted it has to be added deliberately; it cannot arrive
- * by a field quietly passing through.
- *
- * ## A wrong password and a missing room are the same answer
- *
- * Both are `404` with the byte-identical `NO_MATCH` body, as is a room id that is
- * not even well-formed, and so is a caller who is not a member of the room they
- * are trying to ready up in. A 404-vs-403 split would tell an enumerator which
- * ids exist. (The list shows every room to every friend anyway — this is about not
- * building an oracle, not about hiding the list.)
+ * `start` (below) may be called by any member, not only the leader — like
+ * constructed, where either browser asks and the server answers one start to
+ * both — and it is idempotent, so two browsers racing is one draft. A PATCH of
+ * the game type is refused with 409 once a draft is running: the pod is dealt
+ * against this room's id and is already being played.
  *
  * ## Ephemeral callers can look but not create or join
  *
  * A caller the edge did not name gets an `eph:` identity minted per request, so
- * they could never be recognised as the same member twice. `create` and `join`
- * answer 403 for them; list and get are open. Behind the edge every friend has a
- * friend key, so this is a dev/direct-hit case, not a production one.
- *
- * ## Nothing here logs a request body
- *
- * The body may carry a password. The only log lines are the lobby's structured
- * events and this file's refusals, all of which are built from ids and enums.
- * A malformed JSON body is caught here too: `JSON.parse`'s message QUOTES the
- * input, and Express's default error handler would print it to stderr.
+ * they could never be recognised as the same member twice. `create` (challenge
+ * among them) and `join` answer 403 for them. Behind the edge every friend has
+ * a friend key, so this is a dev/direct-hit case, not a production one.
  */
 
-import { Router, type NextFunction, type Request, type Response } from 'express';
-import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
+import { Router, type Request, type Response } from 'express';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
-import { isAdmin } from '../edge-auth.js';
-import { bodyErrors, callerOf, parseBody, perCallerLimit } from './request.js';
+import { callerOf, parseBody } from './request.js';
 import {
-	CreateRoomBodySchema,
 	ChallengeCreateBodySchema,
+	CreateRoomBodySchema,
 	EmptyBodySchema,
 	JoinRoomBodySchema,
 	PatchRoomBodySchema,
 	PodAiBodySchema,
 	PodCloseBodySchema,
 	POD_SEATS,
-	ROOM_ID_RE,
 	ReadyBodySchema,
+	ROOM_ID_RE,
 	SetDraftPlanBodySchema,
 	SitBodySchema,
 	WatchpartyBindBodySchema,
+	type CreateRoomBody,
 	type DraftCard,
 	type DraftPlan,
+	type PatchRoomBody,
 	type PoolVerdict,
-	type RoomYou,
 	type TableGame,
 } from '@hadoku/shared';
-import { type Lobby, type RoomView } from '../room/lobby.js';
 import { POD_MIN_OPEN, SEATS_SHUT } from '../room/pods.js';
-import { watchpartyRoomId } from '../room/watchparty-link.js';
 import type { Challenges } from '../room/challenge.js';
 import type { DraftRooms } from '../room/draftRooms.js';
-import { jsonLogger } from '../log.js';
+import type { Lobby, RoomView } from '../room/lobby.js';
+import {
+	attachRoomCore,
+	badRequest,
+	bodyErrors,
+	noMatch,
+	notDurable,
+	JOIN_RATE_LIMIT,
+	ROOM_CREATE_RATE_LIMIT,
+	NO_MATCH,
+	type RoomCoreDeps,
+	type RoomBody,
+} from './room-core.js';
 
-/** The single answer for "no such room" and "wrong password". Byte-identical by construction. */
-export const NO_MATCH = { error: 'no room with that id and password' } as const;
-
-/**
- * Join attempts per caller: a burst of 10, then one more every 30 s (120 an
- * hour). A friend mistyping a password a few times never notices; a script
- * guessing even a four-letter lowercase password (≈457k candidates) needs
- * over five months. Only NON-member attempts spend a token — a member
- * re-entering their own room (every page load) needs no password and costs
- * nothing.
- */
-export const JOIN_RATE_LIMIT: RateLimitConfig = {
-	capacity: 10,
-	refillAmount: 1,
-	refillIntervalMs: 30_000,
-};
+export { JOIN_RATE_LIMIT, ROOM_CREATE_RATE_LIMIT, NO_MATCH };
+export type { RoomBody };
 
 /**
- * Rooms made per caller: a burst of 10, then one a minute. Every room is a file
- * on disk and a row on everyone's front page, so a script cannot paper the
- * lobby; a friend setting up a night's tables never meets it.
+ * The public deps `plugins/routes.ts` passes — `wire` (the schemas `room-core.ts`
+ * needs but may not import) is NOT part of it: `attachRooms` builds that itself,
+ * below, from the real `@hadoku/shared` schemas, so the one real call site needs
+ * no edit for this wave's split. `lobby` is re-declared at its real, fuller type
+ * (`room-core.ts`'s own `LobbyCore<RoomView, CreateRoomBody>` is the narrower
+ * structural slice `attachRoomCore` itself calls through).
  */
-export const ROOM_CREATE_RATE_LIMIT: RateLimitConfig = {
-	capacity: 10,
-	refillAmount: 1,
-	refillIntervalMs: 60_000,
-};
-
-export interface RoomsDeps {
+export interface RoomsDeps extends Omit<RoomCoreDeps<RoomView, CreateRoomBody, PatchRoomBody, TableGame>, 'wire' | 'lobby'> {
 	lobby: Lobby;
 	/** The catalogued Challenges (`room/challenge.ts`). Absent (a unit suite) offers none. */
 	challenges?: Challenges;
-	/** Structured log lines. Never carries a password, hash or salt. */
-	log?: (entry: Record<string, unknown>) => void;
-	/** A room its owner closed: stop the matches it was playing and drop its draft if unfinished. */
-	closed?: (roomId: string, matches: readonly string[]) => void;
-	/**
-	 * A tournament entrant left mid-round, which is a drop (`Lobby.leave`): their match at `tableId` was
-	 * forfeited, and these are its games to end (`table-actions.ts`'s `endForfeitedGame`), and its seats' decks to restore.
-	 */
-	forfeited?: (roomId: string, tableId: string, loser: string, matches: readonly string[]) => void;
-	/**
-	 * "Reset = Close" (the operator's testing-room spec): when the room
-	 * `/:id/close` just forgot was a testing room, this runs AFTER `closed`
-	 * — the same `seedTestingRooms` call `index.ts` makes at boot, which is
-	 * idempotent by name, so it recreates exactly the one room that is now
-	 * missing and nothing else. No separate reset path.
-	 */
-	reseedTesting?: () => void;
-	/** The caller came into a room (made, joined, bound): their account is read again, fresh (`people.ts`'s `attachPeople`). */
-	arrived?: (roomId: string, caller: { id: string; userId: string | null }) => void;
-	/**
-	 * Each table's game as the table card draws it (`play/table-game.ts`), by table id: the room body
-	 * carries it as `tableGames`. Absent (a unit suite) is none.
-	 */
-	tableGames?(room: RoomView): Record<string, TableGame>;
-	/** The front page's featured match for this caller (`play/featured.ts`), sent with the list: never one they hold a seat in. Absent (a unit suite) is none. */
-	featured?(caller: string): { matchId: string; roomId: string } | null;
-	/** Overrides `JOIN_RATE_LIMIT`. */
-	joinRateLimit?: RateLimitConfig;
-	/** Overrides `ROOM_CREATE_RATE_LIMIT`; `null` is none (`perCallerLimit`). */
-	createRateLimit?: RateLimitConfig | null;
-	/** Injected for tests; the limiter's clock. */
-	now?: () => number;
 	/**
 	 * The verdict for a plan (`room/plan.ts`'s `checkPlan`, bound to the
 	 * server's cube lookup and Forge checker) — `PUT …/pod/plan` runs this
@@ -258,103 +173,75 @@ export function resolveBoosterCard(catalog: RealisticCatalog, card: { name: stri
 	return card.foil === true ? { ...resolved, foil: true } : resolved;
 }
 
-
-/**
- * The room, as this caller is told it: the public `RoomView` plus their own row.
- *
- * `you.leader` is the flag the room screen could not compute for itself, and
- * `you.ready` is the ROOM's ready flag for this caller — the one wave 23's room
- * screen had to guess at after a reload, which is why a reload while ready
- * relabelled the button and could not stand down in one click.
- */
-export interface RoomBody extends RoomView {
-	you: RoomYou;
-	/** Each table's game, by table id (`RoomsDeps.tableGames`). */
-	tableGames?: Record<string, TableGame>;
-}
-
-function badRequest(res: Response, error: string): void {
-	res.status(400).json({ error });
-}
-
-function noMatch(res: Response): void {
-	res.status(404).json(NO_MATCH);
-}
-
-/**
- * The verb is the caller's, because the sentence is read by a person. Create and
- * join keep the wording they have always had; `ready` and `start` are not
- * creating anything, so they say what they actually are.
- */
-function notDurable(res: Response, verb = 'create or join'): void {
-	res.status(403).json({ error: `the edge did not name you, so you cannot ${verb} a room` });
-}
+/** `PatchRoomBody` minus the `{ gameType }` arm `room-core.ts` already answers itself — `onPatch`'s own body. */
+type MagicRoomPatch = Exclude<PatchRoomBody, { gameType: unknown }>;
 
 export function attachRooms(api: Router, deps: RoomsDeps): void {
 	const { lobby } = deps;
-	const log =
-		deps.log ?? jsonLogger('cardtable-rooms');
-	const now = deps.now ?? Date.now;
-	const joinLimiter = new MultiRateLimiter<string>(deps.joinRateLimit ?? JOIN_RATE_LIMIT);
-
-	const roomBody = (room: RoomView, callerId: string): RoomBody => {
-		const mine = room.members.find((m) => m.id === callerId);
-		const games = deps.tableGames?.(room);
-		return { ...room, you: { id: callerId, leader: room.leader === callerId, ready: mine?.ready === true }, ...(games === undefined ? {} : { tableGames: games }) };
+	// The real schemas, injected into `room-core.ts`'s generic `wire` — it may not
+	// import `@hadoku/shared` itself (the ratchet resolves the whole package, even
+	// through `/platform`, as one — this file is Magic and imports it freely).
+	const wire = {
+		roomIdRe: ROOM_ID_RE,
+		createRoomBody: CreateRoomBodySchema,
+		joinRoomBody: JoinRoomBodySchema,
+		readyBody: ReadyBodySchema,
+		emptyBody: EmptyBodySchema,
+		watchpartyBindBody: WatchpartyBindBodySchema,
+		patchRoomBody: PatchRoomBodySchema,
 	};
 
-	const rooms = Router();
-
 	/**
-	 * A testing room, to a non-admin, is as if it did not exist: one guard for
-	 * every `/:id…` route on this router, rather than a repeated check in each
-	 * handler. `ROOM_ID_RE` is NOT re-checked here — a malformed id finds no
-	 * room either way, so the existing `undefined` branch already answers it
-	 * (and the specific handler still runs its own `ROOM_ID_RE` test for the
-	 * sentence it gives a caller who IS allowed to see this room).
+	 * `{ format }`/`{ settings }`/`{ mode }` — the one PATCH registration's
+	 * Magic arm, called by `room-core.ts`'s own `PATCH /:id` (never a second
+	 * route: `route-table.json`, the frozen-route guard, admits each
+	 * method+path once). `core.roomBody` is referenced before `core` exists
+	 * below — safe, since `onPatch` only ever runs on a later request, by
+	 * which time `attachRoomCore` has returned.
 	 */
-	rooms.param('id', (req: Request, res: Response, next: NextFunction, id: string) => {
-		const room = lobby.get(id);
-		if (room !== undefined && room.testing && !isAdmin(req)) return noMatch(res);
-		next();
-	});
+	function onPatch(req: Request, res: Response, body: MagicRoomPatch, caller: ReturnType<typeof callerOf>, id: string): void {
+		const me = caller.id;
+		const what = 'format' in body ? 'format' : 'settings' in body ? 'settings' : 'mode';
+		const result = 'format' in body ? lobby.setFormat(id, me, body.format) : 'settings' in body ? lobby.setSettings(id, me, body.settings) : lobby.setMode(id, me, body.mode);
+		if (!result.ok) {
+			if (result.reason === 'no-room') return noMatch(res);
+			if (result.reason === 'draft-started') {
+				res.status(409).json({ error: `this room is drafting; the ${what} cannot change now` });
+				return;
+			}
+			if (result.reason === 'not-constructed') {
+				res.status(409).json({ error: 'only a constructed room has a mode', reason: result.reason });
+				return;
+			}
+			if (result.reason === 'mode-locked') {
+				res.status(409).json({ error: `a game is under way or a seated player is ready; the ${what} cannot change now`, reason: result.reason });
+				return;
+			}
+			res.status(403).json({ error: `only the room leader can change the ${what}` });
+			return;
+		}
+		res.json(core.roomBody(result.room, me));
+	}
 
-	rooms.get('/', (req: Request, res: Response) => {
-		// One `you` per room: the front page says which rooms you lead and which
-		// you have already readied in, without a second request per room.
-		const me = callerOf(req).id;
-		const admin = isAdmin(req);
-		// `offered`, not `list`: a room nobody has touched for
-		// `ROOM_STALE_MS` is a dead table and is not advertised (wave 31). A
-		// testing room is never offered to a non-admin at all — not hidden in
-		// the UI, never on the wire for them to begin with.
-		const offered = lobby.offered().filter((room) => admin || !room.testing);
-		// Only a room this caller was just sent: the pick is a pointer into the list, never a room of its own.
-		const pick = deps.featured?.(me) ?? null;
-		const featured = pick !== null && offered.some((room) => room.id === pick.roomId) ? pick : null;
-		res.json({ rooms: offered.map((room) => roomBody(room, me)), featured });
+	// `/challenges` registers through `beforeWildcard`, BEFORE `room-core.ts`'s own
+	// `GET /:id` — a bare `:id` would otherwise swallow it (see that file's header).
+	// This is the SAME router `room-core.ts` built (and already ran its own
+	// `.param('id', …)` guard on), not a second one at the same prefix.
+	const core = attachRoomCore(api, { ...deps, wire }, {
+		beforeWildcard: (router) => {
+			// Challenge rooms (`room/challenge.ts`): the catalogued real events, and a room
+			// replaying one with the caller in the seat of the player they chose.
+			router.get('/challenges', (_req: Request, res: Response) => {
+				res.json({ challenges: deps.challenges?.list() ?? [] });
+			});
+		},
+		onPatch,
 	});
+	const { router: rooms, roomBody, createLimit } = core;
 
-	const createLimit = perCallerLimit(deps.createRateLimit === undefined ? ROOM_CREATE_RATE_LIMIT : deps.createRateLimit, 'too many new rooms; wait a little and try again', {
-		act: 'room-create',
-		now,
-		onRefused: () => log({ event: 'room-create-refused', reason: 'rate-limited' }),
-	});
-	rooms.post('/', (req: Request, res: Response) => {
-		const body = parseBody(CreateRoomBodySchema, req, res);
-		if (body === null || !createLimit(req, res)) return;
-		const caller = callerOf(req);
-		const result = lobby.create(caller, body);
-		if (!result.ok) return notDurable(res);
-		deps.arrived?.(result.room.id, caller);
-		res.status(201).json(roomBody(result.room, caller.id));
-	});
-
-	// Challenge rooms (`room/challenge.ts`): the catalogued real events, and a room replaying one with
-	// the caller in the seat of the player they chose. A new room each time, counted as any room made is.
-	rooms.get('/challenges', (_req: Request, res: Response) => {
-		res.json({ challenges: deps.challenges?.list() ?? [] });
-	});
+	// A new room each time, counted as any room made is (`createLimit` — the SAME
+	// limiter `POST /` spends from, not a second budget). Order-safe after `GET
+	// /:id`: a POST with no second path segment never collides with it.
 	rooms.post('/challenge', (req: Request, res: Response) => {
 		const body = parseBody(ChallengeCreateBodySchema, req, res);
 		if (body === null) return;
@@ -368,161 +255,6 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		}
 		if (made.reason === 'not-durable') return notDurable(res);
 		res.status(400).json({ error: made.reason === 'no-challenge' ? `no Challenge ${body.collection}` : `${body.player} did not play in that field` });
-	});
-
-	// The embed's front door (D21): the cardtable room bound to the watchparty
-	// room whose game slot this is, made on first use. Joining it spends a join
-	// token exactly as `/:id/join` does for a newcomer, so binding is no cheaper
-	// a way to probe or flood than joining is. The watchparty name is never
-	// logged (see `watchpartyRoomId`).
-	rooms.post('/watchparty', (req: Request, res: Response) => {
-		const body = parseBody(WatchpartyBindBodySchema, req, res);
-		if (body === null) return;
-		const caller = callerOf(req);
-		if (!lobby.isMember(watchpartyRoomId(body.room), caller.id) && !joinLimiter.allow(caller.id, 1, now())) {
-			log({ event: 'room-join-refused', reason: 'rate-limited' });
-			res.setHeader('Retry-After', String(Math.ceil((deps.joinRateLimit ?? JOIN_RATE_LIMIT).refillIntervalMs / 1000)));
-			return res.status(429).json({ error: 'too many join attempts; wait a little and try again' });
-		}
-		const result = lobby.bindWatchparty(caller, body.room);
-		if (!result.ok) return notDurable(res);
-		deps.arrived?.(result.room.id, caller);
-		res.json(roomBody(result.room, caller.id));
-	});
-
-	// The room a match was started from, for its own members: a match screen's
-	// route carries only the match, and its result screen readies at the room's
-	// table for a Rematch. A finished or restarted-over match still answers
-	// (`Lobby.roomOfMatch`). Anyone else is the same 404 as a room that is not there.
-	rooms.get('/of-match/:matchId', (req: Request, res: Response) => {
-		const matchId = String(req.params.matchId);
-		const room = ROOM_ID_RE.test(matchId) ? lobby.roomOfMatch(matchId) : undefined;
-		const me = callerOf(req).id;
-		if (room === undefined || !lobby.isMember(room.id, me)) return noMatch(res);
-		res.json(roomBody(room, me));
-	});
-
-	rooms.get('/:id', (req: Request, res: Response) => {
-		const id = String(req.params.id);
-		const room = ROOM_ID_RE.test(id) ? lobby.get(id) : undefined;
-		if (room === undefined) return noMatch(res);
-		const me = callerOf(req).id;
-		// The room screen reads this; a member's read (or open watch, `room/watching.ts`) keeps a room offered.
-		lobby.touch(id, me);
-		res.json(roomBody(room, me));
-	});
-
-	rooms.post('/:id/join', (req: Request, res: Response) => {
-		const body = parseBody(JoinRoomBodySchema, req, res);
-		if (body === null) return;
-		const caller = callerOf(req);
-		const id = String(req.params.id);
-		// A member re-entering needs no password and spends no token.
-		if (ROOM_ID_RE.test(id) && lobby.isMember(id, caller.id)) {
-			const again = lobby.join(id, caller);
-			if (again.ok) {
-				deps.arrived?.(id, caller);
-				return res.json(roomBody(again.room, caller.id));
-			}
-		}
-		// Spent BEFORE the room is looked up, so a 429 says nothing about whether
-		// the room exists either.
-		if (!joinLimiter.allow(caller.id, 1, now())) {
-			log({ event: 'room-join-refused', reason: 'rate-limited' });
-			res.setHeader('Retry-After', String(Math.ceil((deps.joinRateLimit ?? JOIN_RATE_LIMIT).refillIntervalMs / 1000)));
-			return res.status(429).json({ error: 'too many join attempts; wait a little and try again' });
-		}
-		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.join(id, caller, body.password);
-		if (!result.ok) {
-			if (result.reason === 'not-durable') return notDurable(res);
-			log({ event: 'room-join-refused', reason: 'no-match' });
-			return noMatch(res);
-		}
-		deps.arrived?.(id, caller);
-		res.json(roomBody(result.room, caller.id));
-	});
-
-	rooms.post('/:id/ready', (req: Request, res: Response) => {
-		const body = parseBody(ReadyBodySchema, req, res);
-		if (body === null) return;
-		const caller = callerOf(req);
-		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
-		const id = String(req.params.id);
-		// A non-member is the same 404 as a room that does not exist. There is no
-		// join-by-readying: entering a room is what makes someone a member.
-		if (!ROOM_ID_RE.test(id) || !lobby.setReady(id, caller.id, body.ready)) return noMatch(res);
-		const room = lobby.get(id);
-		if (room === undefined) return noMatch(res);
-		res.json(roomBody(room, caller.id));
-	});
-
-	/**
-	 * A member steps out of their own room (R16). No body (`EmptyBodySchema`).
-	 *
-	 * If the leader leaves, leadership passes to whoever remaining joined
-	 * earliest — `lobby.leave`'s own ruling, not this file's. A tournament
-	 * entrant who leaves mid-round has dropped out: their game in play is
-	 * conceded for them (`forfeited`), so the other board ends on its win. A non-member and
-	 * a room that does not exist are the server's usual single 404, same as
-	 * `ready` and `start`: there is no sentence someone who was never in a room
-	 * needs that differs from "no such room".
-	 *
-	 * This is the "Main menu" half of the result screen's two buttons (L's
-	 * seam): leave, then navigate to the lobby list. "Rematch" does not call
-	 * this at all — it stays a member and readies at the room's table
-	 * (`POST /api/tables/rooms/:id/ready`).
-	 */
-	rooms.post('/:id/leave', (req: Request, res: Response) => {
-		if (parseBody(EmptyBodySchema, req, res) === null) return;
-		const caller = callerOf(req);
-		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'leave');
-		const id = String(req.params.id);
-		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.leave(id, caller.id);
-		if (!result.ok) return noMatch(res);
-		if (result.forfeited !== undefined) deps.forfeited?.(id, result.forfeited.tableId, caller.id, result.forfeited.matchIds);
-		res.json(roomBody(result.room, caller.id));
-	});
-
-	/**
-	 * The owner ends the room for everyone (the operator, 2026-10-19: *"lobby
-	 * owner needs to be able to 'close' a tournament"*). A non-member gets the
-	 * usual 404; a member who is not the owner, a 403.
-	 */
-	rooms.post('/:id/close', (req: Request, res: Response) => {
-		if (parseBody(EmptyBodySchema, req, res) === null) return;
-		const caller = callerOf(req);
-		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'close');
-		const id = String(req.params.id);
-		if (!ROOM_ID_RE.test(id) || !lobby.isMember(id, caller.id)) return noMatch(res);
-		// Read before `close` forgets the room — there is nothing left to ask afterwards.
-		const wasTesting = lobby.get(id)?.testing === true;
-		const result = lobby.close(id, caller.id);
-		if (!result.ok) {
-			if (result.reason === 'no-room') return noMatch(res);
-			return res.status(403).json({ error: 'only the room owner can close it' });
-		}
-		deps.closed?.(id, result.matches);
-		if (wasTesting) deps.reseedTesting?.();
-		res.json({ ok: true });
-	});
-
-	/**
-	 * An admin resets a testing room from the list, without joining it (the operator, 2026-10-23:
-	 * *"a 'reset' button next to the enter button on just the testing rooms"*): the room closes as
-	 * `/:id/close` would, and the seed recreates it fresh. Anything else 404s, as if it did not exist.
-	 */
-	rooms.post('/:id/reset', (req: Request, res: Response) => {
-		if (parseBody(EmptyBodySchema, req, res) === null) return;
-		const caller = callerOf(req);
-		const id = String(req.params.id);
-		if (!ROOM_ID_RE.test(id) || !isAdmin(req) || lobby.get(id)?.testing !== true) return noMatch(res);
-		const result = lobby.close(id, caller.id);
-		if (!result.ok) return noMatch(res);
-		deps.closed?.(id, result.matches);
-		deps.reseedTesting?.();
-		res.json({ ok: true });
 	});
 
 	rooms.post('/:id/start', async (req: Request, res: Response) => {
@@ -584,9 +316,9 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 								? 'a room of more than 8 drafts once the leader has split it into pods'
 								: result.reason === 'not-leader'
 									? 'only the room owner starts the draft of a split room'
-								: result.reason === 'not-open'
-									? SEATS_SHUT
-								: 'every seat needs a player or the AI, and every player ready, before the draft starts',
+									: result.reason === 'not-open'
+										? SEATS_SHUT
+										: 'every seat needs a player or the AI, and every player ready, before the draft starts',
 			});
 		}
 		res.json(roomBody(result.room, caller.id));
@@ -643,11 +375,11 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 						? 'seats are fixed once the room is split or its draft has started'
 						: result.reason === 'not-open'
 							? SEATS_SHUT
-						: result.reason === 'bad-seat'
-							? 'that seat is past the last one'
-							: result.reason === 'seat-taken'
-								? 'that seat is already taken'
-								: 'the pod is full';
+							: result.reason === 'bad-seat'
+								? 'that seat is past the last one'
+								: result.reason === 'seat-taken'
+									? 'that seat is already taken'
+									: 'the pod is full';
 			return res.status(409).json({ error });
 		}
 		res.json(roomBody(result.room, caller.id));
@@ -773,40 +505,5 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		res.json(roomBody(result.room, caller.id));
 	});
 
-	rooms.patch('/:id', (req: Request, res: Response) => {
-		const v = parseBody(PatchRoomBodySchema, req, res);
-		if (v === null) return;
-		const id = String(req.params.id);
-		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const me = callerOf(req).id;
-		// Two settings, one leader, one refusal shape. The noun in each sentence is
-		// the setting the caller asked for, because the room screen shows it.
-		const what = 'format' in v ? 'format' : 'settings' in v ? 'settings' : 'mode' in v ? 'mode' : 'game type';
-		const result =
-			'format' in v
-				? lobby.setFormat(id, me, v.format)
-				: 'settings' in v
-					? lobby.setSettings(id, me, v.settings)
-					: 'mode' in v
-						? lobby.setMode(id, me, v.mode)
-						: lobby.setGameType(id, me, v.gameType);
-		if (!result.ok) {
-			if (result.reason === 'no-room') return noMatch(res);
-			if (result.reason === 'draft-started') {
-				return res.status(409).json({ error: `this room is drafting; the ${what} cannot change now` });
-			}
-			if (result.reason === 'not-constructed') {
-				return res.status(409).json({ error: 'only a constructed room has a mode', reason: result.reason });
-			}
-			if (result.reason === 'mode-locked') {
-				return res.status(409).json({ error: `a game is under way or a seated player is ready; the ${what} cannot change now`, reason: result.reason });
-			}
-			return res.status(403).json({ error: `only the room leader can change the ${what}` });
-		}
-		res.json(roomBody(result.room, me));
-	});
-
-	api.use('/rooms', rooms);
-
-	api.use('/rooms', bodyErrors((name) => log({ event: 'rooms-error', name })));
+	api.use('/rooms', bodyErrors((name) => (deps.log ?? (() => {}))({ event: 'rooms-error', name })));
 }
