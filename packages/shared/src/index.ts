@@ -1,5 +1,6 @@
 /*
- * @hadoku/shared — the wire contract.
+ * @hadoku/shared — Magic's wire contract, the package's default entry. `@hadoku/shared/platform`
+ * (`platform.ts`) is the other entry; see its own header.
  *
  * Zod schemas for the draft envelope, plus the types inferred from them. Both
  * the engine (`@hadoku/draft`) and the UI (`@hadoku/ui`) bind here, so this is

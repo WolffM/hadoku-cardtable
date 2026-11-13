@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { AVATAR_ID_MAX } from '@hadoku/shared';
+import { AVATAR_ID_MAX } from '@hadoku/shared/platform';
 import { avatarSquareUrl, normalizeAvatarId } from './avatar.ts';
 
 const ORIGIN = 'http://127.0.0.1:19008/watchparty';

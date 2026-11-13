@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 
-import { SEATS_OPEN_BEFORE_MS } from '@hadoku/shared';
+import { SEATS_OPEN_BEFORE_MS } from '@hadoku/shared/platform';
 import { PodSeats } from '../screens/pod/PodSeats.tsx';
 import { POD_SEATS } from '../screens/pod/wire.ts';
 import { SeatsOpenNote, seatsShutUntil } from './seatsOpen.tsx';

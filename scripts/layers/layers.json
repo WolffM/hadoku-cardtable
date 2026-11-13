@@ -77,6 +77,7 @@
     "packages/shared/src/room-view.ts",
     "packages/shared/src/room-feed.ts",
     "packages/shared/src/game-type-spec.ts",
+    "packages/shared/src/platform.ts",
     "apps/ui/src/rooms/game-setup.ts",
     "apps/ui/src/rooms/BundleSlot.tsx",
     "apps/ui/src/rooms/game-clients.tsx",
@@ -146,12 +147,8 @@
   ],
   "tangled": [
     "apps/server/src/http/routes.ts",
-    "apps/server/src/play/match.ts",
-    "apps/server/src/room/draftRooms.ts",
     "apps/server/src/http/rooms.ts",
-    "apps/server/src/http/index.ts",
-    "apps/server/src/play/index.ts",
-    "packages/shared/src/index.ts"
+    "apps/server/src/http/index.ts"
   ],
   "testSupport": [
     "apps/ui/src/test-setup.ts",
