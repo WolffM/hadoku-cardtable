@@ -5,10 +5,11 @@
  */
 
 import type { Lobby } from './lobby.ts';
+import { magicView } from './magic-view.ts';
 
 export function standAll(lobby: Lobby, roomId: string): void {
-	const room = lobby.get(roomId);
-	if (room === undefined) throw new Error(`no room ${roomId}`);
+	const room = magicView(lobby.get(roomId));
+	if (room === undefined) throw new Error(`no Magic room ${roomId}`);
 	for (const member of room.members) {
 		lobby.standSeat(roomId, member.id);
 		for (const table of room.tables) lobby.stand(roomId, table.id, member.id);

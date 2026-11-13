@@ -35,6 +35,7 @@ import type { Request, Response, Router } from "express";
 import { ROOM_ID_RE, type RoomMember } from "@hadoku/shared";
 
 import type { People, Person } from "@hadoku/game-server/people";
+import { magicView } from "../room/magic-view.js";
 import { POD_AI } from "../room/pods.js";
 import { ASSETS_DIR } from "../root.js";
 import { UNNAMED } from "@hadoku/game-server/room/constants";
@@ -208,7 +209,8 @@ export function seatsOf(room: PreviewRoom): {
   other: string | null;
 } {
   const host = room.leader || room.creator;
-  const table = room.gameType === "draft" ? undefined : room.tables?.[0];
+  // A room of a game Magic does not play has no tables.
+  const table = room.gameType === "draft" ? undefined : magicView(room)?.tables[0];
   const other =
     table?.players.find((p) => p.memberId !== host)?.memberId ?? null;
   return { host, other };

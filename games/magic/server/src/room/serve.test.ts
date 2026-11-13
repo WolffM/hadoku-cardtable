@@ -13,7 +13,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
-import type { Lobby } from './lobby.js';
+import type { Lobby, MagicRoomView } from './lobby.js';
 import { placeOfKey } from './serve.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -172,7 +172,7 @@ afterAll(async () => {
 /* ── placeOfKey ──────────────────────────────────────────────────────── */
 
 describe('placeOfKey', () => {
-	const room = { id: 'r-abc', tables: [{ id: 't-1' }] } as unknown as NonNullable<ReturnType<Lobby['get']>>;
+	const room = { id: 'r-abc', gameType: 'constructed-1v1', tables: [{ id: 't-1' }] } as unknown as MagicRoomView;
 	const lobby = {
 		get: (id: string) => (id === 'r-abc' ? room : undefined),
 		// The room remembers a match its table has moved on from.

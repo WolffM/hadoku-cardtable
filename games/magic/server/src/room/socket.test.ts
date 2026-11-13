@@ -69,6 +69,7 @@ import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { attachSessions, playsIn } from '@hadoku/game-server/room/session';
 import type { Lobby } from './lobby.js';
 import type { CubePool } from './pool.js';
+import { magicView } from './magic-view.js';
 
 const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../apps/ui/src/draft/pool.json');
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -1269,7 +1270,7 @@ describe('a seat with nobody connected to it, for the window', () => {
 	async function seatedAt(userKey: string): Promise<{ tableId: string; memberId: string }> {
 		const memberId = participantIdFor(userKey);
 		expect(live().lobby.join(constructedRoomId, { id: memberId, name: `user-${userKey}`, userId: null }).ok).toBe(true);
-		const tableId = live().lobby.get(constructedRoomId)!.tables[0]!.id;
+		const tableId = magicView(live().lobby.get(constructedRoomId))!.tables[0]!.id;
 		expect(live().lobby.sit(constructedRoomId, tableId, memberId)).toBe(true);
 		return { tableId, memberId };
 	}

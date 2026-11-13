@@ -22,6 +22,7 @@ import { attachRoomFeed } from '@hadoku/game-server/room/watching';
 import { deriveParticipantId } from '@hadoku/game-server/room/identity';
 import { openLobby, type Lobby } from './lobby.ts';
 import { ROOM_STALE_MS } from '@hadoku/game-server/room/constants';
+import { magicView } from './magic-view.js';
 
 interface Person {
 	key: string;
@@ -140,7 +141,7 @@ describe('the room feed', () => {
 		const id = room(lobby, ALICE);
 		const alice = await connect(port, ALICE);
 		await watch(alice, [id]);
-		lobby.setTableMatch(id, lobby.get(id)!.tables[0]!.id, 'm-000000000001');
+		lobby.setTableMatch(id, magicView(lobby.get(id))!.tables[0]!.id, 'm-000000000001');
 		lobby.setPlayerState(id, ALICE.id, { ready: false });
 		lobby.setReady(id, ALICE.id, false);
 		await settle();

@@ -17,6 +17,5 @@ export {
 export { coldStartsFrom } from '@hadoku/game-server/play/start-queue';
 export { roomFormatNames } from './names.js';
 export { roomDeckCosts } from './deck-colors.js';
-export { tableGame } from './table-game.js';
 export { createFeatured, featuredCandidates } from './featured.js';
 export { spellCopierLookup } from './spell-copiers.js';

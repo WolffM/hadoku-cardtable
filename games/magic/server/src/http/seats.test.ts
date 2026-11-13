@@ -22,6 +22,7 @@ import { openLobby, type Lobby } from '../room/lobby.js';
 import { loadTablesLibrary } from './library.js';
 import { attachTables } from './routes.js';
 import { REPO_ROOT } from '../root.js';
+import { magicView } from '../room/magic-view.js';
 
 // @reads decks/
 const library = loadTablesLibrary(REPO_ROOT);
@@ -103,7 +104,7 @@ async function seats(s: Stack, user = 'carol', table?: string): Promise<{ player
 }
 
 /** The room's own view of who sits at each table. */
-const roomSeats = (s: Stack): string[][] => s.lobby.get(s.roomId)!.tables.map((t) => t.players.map((p) => p.name));
+const roomSeats = (s: Stack): string[][] => magicView(s.lobby.get(s.roomId))!.tables.map((t) => t.players.map((p) => p.name));
 
 describe('a constructed table', () => {
 	it('seats by sitting or by loading a deck, two at most, in the order people sat', async () => {

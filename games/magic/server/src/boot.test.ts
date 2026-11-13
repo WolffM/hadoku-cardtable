@@ -33,6 +33,7 @@ import type { GameHooks } from './room/pods.ts';
 import { participantHandle } from '@hadoku/game-server/room/identity';
 import { loadPool, type CubePool } from './room/pool.ts';
 import { attachDraftSocket, createSeatPresence, SEAT_RELEASE_MS } from './room/socket.js';
+import { magicView } from './room/magic-view.js';
 
 /** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
 const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
@@ -154,7 +155,7 @@ function readyDraft(lobby: Lobby, name: string, sit: boolean): string {
 }
 
 function firstTable(lobby: Lobby, roomId: string): string {
-	return lobby.get(roomId)!.tables[0]!.id;
+	return magicView(lobby.get(roomId))!.tables[0]!.id;
 }
 
 /** A Constructed tournament, mid-round: its round dealt and a game live at its first table. */
@@ -266,7 +267,7 @@ describe('a restart gives every room in flight back the way it was left', () => 
 			}).ok,
 		).toBe(true);
 		expect(lobby.beginSideboarding(rooms.bo3Sideboarding, bo3Table)).toBe(true);
-		expect(lobby.get(rooms.bo3Sideboarding)!.tables[0]!.series.phase).toBe('sideboarding');
+		expect(magicView(lobby.get(rooms.bo3Sideboarding))!.tables[0]!.series.phase).toBe('sideboarding');
 
 		// A live match, handed over to the next process.
 		rooms.liveMatch = created(lobby, 'live-match', {

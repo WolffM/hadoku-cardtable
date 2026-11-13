@@ -4,10 +4,25 @@
  * and wires this one for Magic's own two types; a room of any other type carries none of it.
  */
 
-import type { MagicRoomGame } from '@hadoku/shared';
+import { isMagicGameType, type MagicRoomGame, type RoomView as PublicRoomView } from '@hadoku/shared';
 
 import type { RoomRecord } from './lobby-codec.ts';
 import { podViewOf, roomAi, usesPod, type AiPersona, type GameHooks } from './pods.ts';
+
+/** The public view's fields only a room Magic plays has: a hosted room of another game has none of them. */
+export type MagicRoomKeys = 'tables' | 'settings' | 'locks' | 'matchId';
+
+/** Those fields, as a room Magic plays always has them. */
+export type MagicRoomFields = Pick<PublicRoomView, MagicRoomKeys>;
+
+/**
+ * The room as Magic's, or undefined for no room or a room of a game Magic does not play: the one
+ * door every Magic reader of an any-room view goes through. Magic's view part (`lobby.ts`'s
+ * `magicRoomPart`) gives every room Magic plays these fields, and only those rooms.
+ */
+export function magicView<V extends { gameType: string }>(view: V | undefined): (V & MagicRoomFields) | undefined {
+	return view !== undefined && isMagicGameType(view.gameType) ? (view as V & MagicRoomFields) : undefined;
+}
 
 /** Magic's `game`, which `@hadoku/shared`'s `MagicRoomGameSchema` reads; this server always sends `ai`. */
 export type MagicViewGame = MagicRoomGame & { ai: AiPersona };

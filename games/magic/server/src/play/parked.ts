@@ -30,7 +30,7 @@ import type { RoomMode, RoomSettings } from '@hadoku/shared';
 
 import type { MatchSpec, TurnSnapshot } from '@hadoku/game-server/play/host';
 import type { Match } from './match.js';
-import type { RoomView } from '../room/lobby.js';
+import type { MagicRoomView, RoomView } from '../room/lobby.js';
 import type { MagicViewGame } from '../room/magic-view.js';
 
 /** A parked record's file name is its match id; nothing else is ever read or written here. */
@@ -120,7 +120,7 @@ export interface ParkedStoreDeps {
 	dir: string;
 	log(entry: Record<string, unknown>): void;
 	/** The room that started a match, or undefined (`Lobby.roomOfMatch`). */
-	roomOf(matchId: string): Pick<RoomView, 'id' | 'name' | 'gameType' | 'game' | 'settings' | 'testing' | 'members'> | undefined;
+	roomOf(matchId: string): Pick<MagicRoomView, 'id' | 'name' | 'gameType' | 'game' | 'settings' | 'testing' | 'members'> | undefined;
 	/** A pool's name in words. */
 	formatName(pool: string): string;
 	/** The Forge build this server runs. */

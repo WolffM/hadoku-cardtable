@@ -23,6 +23,7 @@ import { ENDED_KEPT, restoredSpec } from './match/registry.js';
 import { openParkedStore, type ParkedStore, type ParkedStoreDeps } from './parked.js';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import type { Lobby } from '../room/lobby.js';
+import { magicView } from '../room/magic-view.js';
 
 /**
  * A real parked file, sanitized (`fixtures/parked.sample.json`'s own header note at the point it
@@ -444,7 +445,7 @@ describe('the parked games’ routes', () => {
 		// Bob is at the table, so the game is not parked again under the assertions.
 		await joinMatch(s, 'bob', newId);
 		expect(s.lobby.list()).toHaveLength(rooms + 1);
-		const room = s.lobby.get(roomId)!;
+		const room = magicView(s.lobby.get(roomId))!;
 		expect(room).toMatchObject({ name: 'Friday night', leader: idOf('bob') });
 		expect(room.members.map((m) => m.id).sort()).toEqual([idOf('alice'), idOf('bob')].sort());
 		expect(s.lobby.seats(roomId, tableId).map((seat) => seat.memberId)).toEqual([idOf('alice'), idOf('bob')]);

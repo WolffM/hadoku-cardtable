@@ -14,6 +14,8 @@ import type { TableGame, TableGameLive, TableSeatDeck } from '@hadoku/shared';
 
 import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import type { MatchSpec } from '@hadoku/game-server/play/host';
+import type { RoomView } from '../room/lobby.js';
+import { magicView } from '../room/magic-view.js';
 
 /**
  * The card whose art stands for a deck: its most-played spell, the dearer one
@@ -58,4 +60,19 @@ export interface TableGameSource {
 
 export function tableGame(match: TableGameSource, costs: DeckCosts): TableGame {
 	return { decks: [seatDeck(match.spec, 0, costs), seatDeck(match.spec, 1, costs)], live: match.live() };
+}
+
+/**
+ * Each table's game for the table card, by table id: the decks its latest match was started with and,
+ * while it runs, where it stands. A finished match still answers for its decks. A room of a game Magic
+ * does not play has no tables, so it has none.
+ */
+export function tableGamesOf(room: RoomView, find: (matchId: string) => TableGameSource | undefined, costs: DeckCosts): Record<string, TableGame> {
+	const games: Record<string, TableGame> = {};
+	for (const table of magicView(room)?.tables ?? []) {
+		const matchId = table.matchId ?? table.series.games.at(-1)?.matchId;
+		const match = matchId === undefined ? undefined : find(matchId);
+		if (match !== undefined) games[table.id] = tableGame(match, costs);
+	}
+	return games;
 }

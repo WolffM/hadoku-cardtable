@@ -188,6 +188,7 @@ import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { handshakeTier } from '@hadoku/game-server/room/socket-auth';
 import type { SessionHandle } from '@hadoku/game-server/room/session';
 import type { Lobby } from './lobby.js';
+import { magicView } from './magic-view.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 
 /**
@@ -445,7 +446,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			return;
 		}
 		const ask = new AbortController();
-		const modelSeats = modelSeatsOf(deps.lobby.get(draftId)?.settings.draftBots);
+		const modelSeats = modelSeatsOf(magicView(deps.lobby.get(draftId))?.settings.draftBots);
 		let answer: DraftbotAnswer = { failed: deps.draftbot === undefined ? 'unset' : 'timeout' };
 		if (deps.draftbot !== undefined) {
 			void askDraftbot(deps.draftbot, stateOf(room), ask.signal, modelSeats).then((a) => {
@@ -477,7 +478,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 
 	/** The room's pick-timer speed, or null when its draft has no rope. */
 	const ropeSpeed = (room: DraftRoom): number | null => {
-		const timer = deps.lobby.get(room.roomId)?.settings.pickTimer;
+		const timer = magicView(deps.lobby.get(room.roomId))?.settings.pickTimer;
 		return timer?.on === true ? timer.speed : null;
 	};
 

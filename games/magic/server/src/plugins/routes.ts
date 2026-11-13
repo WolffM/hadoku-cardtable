@@ -5,7 +5,6 @@
 import { resolve } from 'node:path';
 import type { Request, Response } from 'express';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { isMagicGameType, type TableGame } from '@hadoku/shared';
 import { CONFIG, INDEX_HTML } from '@hadoku/game-server/config';
 import { serveCover } from '../cover.js';
 import { attachCardArt } from '../http/card-art.js';
@@ -22,7 +21,7 @@ import { attachTrim } from '@hadoku/game-server/http/trim';
 import { attachUsage } from '@hadoku/game-server/http/usage';
 import { attachPeople, createPeople } from '@hadoku/game-server/people';
 import { createArtIds } from '../play/art-ids.js';
-import { tableGame } from '../play/index.js';
+import { tableGamesOf } from '../play/table-game.js';
 import type { CardtablePlugin } from './state.js';
 
 export const routesPlugin: CardtablePlugin = {
@@ -77,19 +76,8 @@ export const routesPlugin: CardtablePlugin = {
 			arrived: (roomId, caller) => {
 				if (caller.userId !== null) void accounts.arrived(roomId, caller.id, caller.userId);
 			},
-			// Each table's game for the table card: the decks its latest match was started with and, while
-			// it runs, where it stands (`play/table-game.ts`). A finished match still answers for its decks.
-			tableGames: (room) => {
-				const games: Record<string, TableGame> = {};
-				// A room of a game Magic does not play has no tables.
-				if (!isMagicGameType(room.gameType)) return games;
-				for (const table of room.tables) {
-					const matchId = table.matchId ?? table.series.games.at(-1)?.matchId;
-					const match = matchId === undefined ? undefined : state.play?.matches.find(matchId);
-					if (match !== undefined) games[table.id] = tableGame(match, state.deckCosts);
-				}
-				return games;
-			},
+			// Each table's game for the table card (`play/table-game.ts`).
+			tableGames: (room) => tableGamesOf(room, (matchId) => state.play?.matches.find(matchId), state.deckCosts),
 			// `POST …/start` fetches a realistic round's boosters and caches them on `draftRooms` BEFORE
 			// `lobby.startDraft` runs, so the first socket `join`'s `draftRooms.open()` stays synchronous.
 			realistic: {

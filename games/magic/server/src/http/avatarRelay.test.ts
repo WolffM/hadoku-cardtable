@@ -19,6 +19,7 @@ import { openLobby } from '../room/lobby.js';
 import { loadTablesLibrary } from './library.js';
 import { attachTables, relayAvatarToMatch, type TablesMatches, type TablesRooms } from './routes.js';
 import { REPO_ROOT } from '../root.js';
+import { magicView } from '../room/magic-view.js';
 
 const library = loadTablesLibrary(REPO_ROOT);
 
@@ -54,6 +55,7 @@ function fixture(opts: { matchId?: string | null; owners?: string[]; status?: st
 	const rooms = {
 		get: () => ({
 			id: 'r-1',
+			gameType: 'constructed-1v1',
 			tables: [
 				{ id: 't-1', players: [], matchId, series: { length: 1, wins: [0, 0], games: [], phase: matchId !== null ? 'playing' : 'seating' } },
 			],
@@ -153,7 +155,7 @@ describe('a room and its match across a restart', () => {
 
 	it("still knows the match it was playing, so a member's avatar change reaches their seat", async () => {
 		const t = await afterTheDeploy();
-		expect(t.lobby.get(t.adoptedRoom)?.matchId).toBe('m-adopted0001');
+		expect(magicView(t.lobby.get(t.adoptedRoom))?.matchId).toBe('m-adopted0001');
 		t.lobby.setAvatar(t.adoptedRoom, BOB.id, 'rogue');
 		expect(t.matches.calls).toEqual([['m-adopted0001', 1]]);
 	});
@@ -171,7 +173,7 @@ describe('a room and its match across a restart', () => {
 
 	it('lets go of a match that did not come back, so the room is not "playing" for ever', async () => {
 		const t = await afterTheDeploy();
-		const died = t.lobby.get(t.diedRoom);
+		const died = magicView(t.lobby.get(t.diedRoom));
 		expect(died?.matchId).toBeNull();
 		expect(t.lobby.seats(t.diedRoom, died!.tables[0]!.id).map((s) => s.ready), 'the start that made it spent the Readys').toEqual([false, false]);
 		expect(t.lobby.list().find((r) => r.id === t.diedRoom)?.matchId).toBeNull();

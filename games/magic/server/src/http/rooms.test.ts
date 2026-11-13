@@ -35,6 +35,7 @@ import { challenges } from '../room/challenge.ts';
 import { seedTestingRooms, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME, TESTING_TOURNAMENT_DONE_NAME, TESTING_TOURNAMENT_MID_NAME, TESTING_SEED_CALLER } from '../room/testing-rooms.ts';
 import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
 import { REPO_ROOT } from '../root.ts';
+import { magicView } from '../room/magic-view.js';
 
 /** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
 const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
@@ -298,7 +299,7 @@ describe('a member is named by their display name, never their id', () => {
 				headers: { 'x-user-name': 'Carol' },
 				body: { name: 'Named' },
 			})
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(named.members.map((m) => m.name)).toEqual(['Carol']);
 
 		// The regression this pins: the name used to be `userIdOf(req)`, so the
@@ -310,7 +311,7 @@ describe('a member is named by their display name, never their id', () => {
 				headers: { 'x-user-name': '' },
 				body: { name: 'Unnamed' },
 			})
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(unnamed.members.map((m) => m.name)).toEqual(['friend']);
 		expect(unnamed.members.map((m) => m.name).join()).not.toContain('user-bob');
 	});
@@ -321,7 +322,7 @@ describe('POST /api/rooms', () => {
 		const h = await openApp(await tempDir(), { random: () => 0.999999 });
 		const res = await call(h, 'POST', '/api/rooms', { body: { name: 'Kitchen table' } });
 		expect(res.status).toBe(201);
-		const room = res.json() as import('../room/lobby.ts').RoomView;
+		const room = res.json() as import('../room/lobby.ts').MagicRoomView;
 		expect(room.id).toMatch(/^r-[0-9a-f]{12}$/);
 		expect(room.id).toMatch(/^[a-z0-9-]{1,40}$/);
 		expect(room.name).toBe('Kitchen table');
@@ -402,12 +403,12 @@ describe('POST /api/rooms', () => {
 			body: { name: 'Forge night', gameType: 'draft', clientMode: 'streamed' },
 		});
 		expect(res.status).toBe(201);
-		const created = res.json() as import('../room/lobby.ts').RoomView;
+		const created = res.json() as import('../room/lobby.ts').MagicRoomView;
 		expect(created.game!.clientMode).toBe('streamed');
 
 		// The list and the single-room read agree, before anyone joins.
 		const listed = ((await call(h, 'GET', '/api/rooms', { as: 'bob' })).json() as {
-			rooms: import('../room/lobby.ts').RoomView[];
+			rooms: import('../room/lobby.ts').MagicRoomView[];
 		}).rooms;
 		expect(listed.map((r) => r.game!.clientMode)).toEqual(['streamed']);
 		expect(
@@ -476,7 +477,7 @@ describe('POST /api/rooms', () => {
 describe('a room body’s table games', () => {
 	it('carries each table’s game by table id, for the table card, on every read', async () => {
 		const game: import('@hadoku/shared').TableGame = { decks: [{ name: 'Goblins', colors: ['R'], art: 'Goblin Matron' }, null], live: { turn: 3, active: 0, life: [20, 17], hand: [5, 6] } };
-		const h = await openApp(await tempDir(), { tableGames: (room) => ({ [room.tables[0]!.id]: game }) });
+		const h = await openApp(await tempDir(), { tableGames: (room) => ({ [magicView(room)!.tables[0]!.id]: game }) });
 		const made = (await call(h, 'POST', '/api/rooms', { body: { name: 'Kitchen table' } })).json() as { id: string; tables: { id: string }[]; tableGames?: unknown };
 		expect(made.tableGames).toEqual({ [made.tables[0]!.id]: game });
 		const read = (await call(h, 'GET', `/api/rooms/${made.id}`)).json() as { tableGames?: unknown };
@@ -517,7 +518,7 @@ describe('GET /api/rooms', () => {
 		});
 		const res = await call(h, 'GET', '/api/rooms', { as: 'bob' });
 		expect(res.status).toBe(200);
-		const { rooms } = res.json() as { rooms: import('../room/lobby.ts').RoomView[] };
+		const { rooms } = res.json() as { rooms: import('../room/lobby.ts').MagicRoomView[] };
 		expect(rooms.map((r) => r.name)).toEqual(['Open', 'Locked']);
 		expect(rooms.map((r) => r.locked)).toEqual([false, true]);
 		// The listing says WHETHER a room is locked and nothing more.
@@ -538,7 +539,7 @@ describe('GET /api/rooms', () => {
 				as: 'alice',
 				body: { name: 'Survivor', gameType: 'draft', password: PASSWORD },
 			})
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('../room/lobby.ts').MagicRoomView;
 		await call(first, 'POST', `/api/rooms/${created.id}/join`, {
 			as: 'bob',
 			body: { password: PASSWORD },
@@ -549,7 +550,7 @@ describe('GET /api/rooms', () => {
 		// A second lobby over the same directory — the restart, in one process.
 		const second = await openApp(dir);
 		const { rooms } = (await call(second, 'GET', '/api/rooms', { as: 'carol' })).json() as {
-			rooms: import('../room/lobby.ts').RoomView[];
+			rooms: import('../room/lobby.ts').MagicRoomView[];
 		};
 		expect(rooms).toHaveLength(1);
 		expect(rooms[0].id).toBe(created.id);
@@ -601,7 +602,7 @@ describe('POST /api/rooms/:id/join', () => {
 	it('joins an open room and is idempotent for a member', async () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		const first = await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 		expect(first.status).toBe(200);
 		expect((first.json() as { members: unknown[] }).members).toHaveLength(2);
@@ -614,7 +615,7 @@ describe('POST /api/rooms/:id/join', () => {
 		const h = await openApp(await tempDir());
 		const created = (
 			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Locked', password: PASSWORD } })
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob', body: { password: PASSWORD } });
 		const back = await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 		expect(back.status).toBe(200);
@@ -625,7 +626,7 @@ describe('POST /api/rooms/:id/join', () => {
 		const h = await openApp(await tempDir());
 		const created = (
 			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Locked', password: PASSWORD } })
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('../room/lobby.ts').MagicRoomView;
 
 		const wrong = await call(h, 'POST', `/api/rooms/${created.id}/join`, {
 			as: 'bob',
@@ -656,7 +657,7 @@ describe('POST /api/rooms/:id/join', () => {
 		const h = await openApp(await tempDir());
 		const created = (
 			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Locked', password: PASSWORD } })
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('../room/lobby.ts').MagicRoomView;
 
 		const statuses: number[] = [];
 		for (let i = 0; i < roomsMod.JOIN_RATE_LIMIT.capacity + 2; i++) {
@@ -762,7 +763,7 @@ describe('PATCH /api/rooms/:id', () => {
 	it('lets the leader change the game type and nobody else', async () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 
 		const byMember = await call(h, 'PATCH', `/api/rooms/${created.id}`, {
@@ -800,7 +801,7 @@ describe('PATCH /api/rooms/:id', () => {
 /* ── the room's pool, and who may move it (wave 25 §A) ───────────────── */
 
 describe('PATCH /api/rooms/:id { settings }', () => {
-	type View = import('../room/lobby.ts').RoomView;
+	type View = import('../room/lobby.ts').MagicRoomView;
 
 	it('lets the leader turn hand smoothing off, refuses anyone else, and keeps it across a restart', async () => {
 		const dir = await tempDir();
@@ -857,7 +858,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 });
 
 describe('a room always has at least one table', () => {
-	type View = import('../room/lobby.ts').RoomView;
+	type View = import('../room/lobby.ts').MagicRoomView;
 
 	it("gives a new room one table, its creator seated, 'seating', with the first table's id stable across a restart", async () => {
 		const dir = await tempDir();
@@ -879,7 +880,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 	it('refuses a non-leader with not-leader and changes nothing', async () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 
 		const byMember = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'bob', body: { format: OLDEST_POOL } });
@@ -903,9 +904,9 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		const dir = await tempDir();
 		const h = await openApp(dir);
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
-		const bob = ((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView)
+		const bob = ((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').MagicRoomView)
 			.members[1].id;
 		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'alice', body: { ready: true } });
 		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'bob', body: { ready: true } });
@@ -916,7 +917,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 
 		const patched = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format: OLDEST_POOL } });
 		expect(patched.status).toBe(200);
-		const after = patched.json() as import('../room/lobby.ts').RoomView;
+		const after = patched.json() as import('../room/lobby.ts').MagicRoomView;
 		expect(after.game!.format).toBe(OLDEST_POOL);
 		// The room's flag, for everybody including the leader who changed it.
 		expect(after.members.map((m) => m.ready)).toEqual([false, false]);
@@ -926,7 +927,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		expect(h.lobby.playerState(created.id, bob)).toBeUndefined();
 		// Cleared on disk too, and the new pool came back with the room.
 		const second = await openApp(dir);
-		const restored = (await call(second, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
+		const restored = (await call(second, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(restored.game!.format).toBe(OLDEST_POOL);
 		expect(restored.members.map((m) => m.ready)).toEqual([false, false]);
 		expect(second.lobby.playerState(created.id, created.creator)).toBeUndefined();
@@ -935,18 +936,18 @@ describe('PATCH /api/rooms/:id { format }', () => {
 	it('changes nothing when the pool it is set to is the one it is on', async () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'alice', body: { ready: true } });
 		// Selecting the option that is already selected must not un-ready the table.
 		const same = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format: NEWEST_POOL } });
 		expect(same.status).toBe(200);
-		expect((same.json() as import('../room/lobby.ts').RoomView).members.map((m) => m.ready)).toEqual([true]);
+		expect((same.json() as import('../room/lobby.ts').MagicRoomView).members.map((m) => m.ready)).toEqual([true]);
 	});
 
 	it('refuses both fields in one body, a blank format, and lands neither half', async () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		const cases: Array<[unknown, string]> = [
 			[{ gameType: 'draft', format: OLDEST_POOL }, 'patch one field at a time: gameType, format, settings or mode'],
 			[{ format: '' }, 'format must be a format id'],
@@ -961,7 +962,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 			expect(res.json()).toEqual({ error });
 		}
 		// Neither half of the two-field body landed.
-		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
+		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').MagicRoomView;
 		expect([after.gameType, after.game!.format]).toEqual(['constructed-1v1', NEWEST_POOL]);
 	});
 
@@ -974,14 +975,14 @@ describe('PATCH /api/rooms/:id { format }', () => {
 	it('refuses every draft: format, a real pod id included', async () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 
 		for (const format of ['draft:amber-lantern-k7q4', 'draft:', 'draft:../../etc/passwd', 'draft:Amber-Lantern']) {
 			const res = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format } });
 			expect(res.status, format).toBe(400);
 			expect((res.json() as { error: string }).error).toBe('format must be a format id: a drafted deck is played on Free pick');
 		}
-		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
+		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(after.game!.format).toBe(created.game!.format);
 		expect(after.game!.format.startsWith('draft:')).toBe(false);
 	});
@@ -989,7 +990,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 	it('refuses to move the pool while a draft is running', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 		for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
 		await approvePlan(h, room.id);
@@ -998,7 +999,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		const patched = await call(h, 'PATCH', `/api/rooms/${room.id}`, { as: 'alice', body: { format: OLDEST_POOL } });
 		expect(patched.status).toBe(409);
 		expect((patched.json() as { error: string }).error).toBe('this room is drafting; the format cannot change now');
-		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
+		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(after.game!.format).toBe(NEWEST_POOL);
 		expect(after.members.map((m) => m.ready)).toEqual([true]);
 	});
@@ -1018,7 +1019,7 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 	it('is the leader\'s, lobby phase only: a non-leader gets 403, a stranger 404, and the leader\'s choice reads back', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 
 		expect((await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'carol', body: { plan: PLAN } })).status).toBe(404);
@@ -1026,10 +1027,10 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 
 		const ok = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
 		expect(ok.status).toBe(200);
-		expect((ok.json() as import('../room/lobby.ts').RoomView).game!.pod?.plan).toEqual(PLAN);
-		expect((ok.json() as import('../room/lobby.ts').RoomView).game!.pod?.roundNames).toEqual(['legacy', 'legacy', 'legacy']);
+		expect((ok.json() as import('../room/lobby.ts').MagicRoomView).game!.pod?.plan).toEqual(PLAN);
+		expect((ok.json() as import('../room/lobby.ts').MagicRoomView).game!.pod?.roundNames).toEqual(['legacy', 'legacy', 'legacy']);
 
-		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
+		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(after.game!.pod?.plan).toEqual(PLAN);
 	});
 
@@ -1043,17 +1044,17 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 	it('accepts a kind: \'set\' source — the 400 refusal this wave removes — and a mixed plan names each round, which the display name joins', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Set night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 
 		const allSetCube = { rounds: [{ kind: 'set', code: 'ISD', style: 'set-cube' }, { kind: 'set', code: 'ISD', style: 'set-cube' }, { kind: 'set', code: 'ISD', style: 'set-cube' }] };
 		const allRes = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: allSetCube } });
 		expect(allRes.status).toBe(200);
-		expect((allRes.json() as import('../room/lobby.ts').RoomView).game!.pod?.plan).toEqual(allSetCube);
+		expect((allRes.json() as import('../room/lobby.ts').MagicRoomView).game!.pod?.plan).toEqual(allSetCube);
 
 		const mixed: DraftPlan = { rounds: [{ kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ARB', style: 'realistic' }] };
 		const mixedRes = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: mixed } });
 		expect(mixedRes.status).toBe(200);
-		const roundNames = (mixedRes.json() as import('../room/lobby.ts').RoomView).game!.pod?.roundNames ?? null;
+		const roundNames = (mixedRes.json() as import('../room/lobby.ts').MagicRoomView).game!.pod?.roundNames ?? null;
 		expect(roundNames).toEqual(['ALA', 'ALA', 'ARB']);
 		expect(planDisplayName(mixed, roundNames!)).toBe(['ALA · Realistic', 'ALA · Realistic', 'ARB · Realistic'].join(' / '));
 	});
@@ -1062,21 +1063,21 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 		const refusal: PoolVerdict = { ok: false, unplayable: ['Not A Real Card'], missingText: [] };
 		const h = await openApp(await tempDir(), { checkPlan: async () => refusal });
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		const before = room.game!.pod?.plan;
 
 		const res = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
 		expect(res.status).toBe(409);
 		expect(res.json()).toEqual({ verdict: refusal });
 
-		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
+		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(after.game!.pod?.plan).toEqual(before);
 	});
 
 	it('refuses once the draft has started — the pool is fixed', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 		for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
 		await approvePlan(h, room.id);
@@ -1128,7 +1129,7 @@ describe('PUT /api/rooms/:id/pod/plan — a set source, through the REAL verdict
 		const forge: ForgeChecker = { check: async (names) => names.filter((n) => n === 'Bad Card') };
 		const h = await openRealVerdictApp(sets, forge);
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Set night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 
 		const plan: PoolSource[] = [{ kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ISD', style: 'realistic' }];
 		const res = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: { rounds: plan } } });
@@ -1151,7 +1152,7 @@ describe('PUT /api/rooms/:id/pod/plan — a set source, through the REAL verdict
 		};
 		const h = await openRealVerdictApp(sets, forge);
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Set night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 
 		const plan: PoolSource[] = [{ kind: 'set', code: 'ALA', style: 'set-cube' }, { kind: 'set', code: 'ALA', style: 'set-cube' }, { kind: 'set', code: 'ALA', style: 'set-cube' }];
 		const res = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: { rounds: plan } } });
@@ -1168,7 +1169,7 @@ describe('POST /api/rooms/:id/pod/close', () => {
 	it('is the owner’s, before the draft: a member who is not gets 403, a stranger 404, a bad body 400, and the seat reads closed', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 		const close = (as: string, body: unknown) => call(h, 'POST', `/api/rooms/${room.id}/pod/close`, { as, body });
 
@@ -1178,7 +1179,7 @@ describe('POST /api/rooms/:id/pod/close', () => {
 		expect((await close('alice', { seat: 7, closed: 'yes' })).status).toBe(400);
 		const ok = await close('alice', { seat: 7, closed: true });
 		expect(ok.status).toBe(200);
-		expect((ok.json() as import('../room/lobby.ts').RoomView).game!.pod?.seats[7]).toEqual({ memberId: 'closed', name: '' });
+		expect((ok.json() as import('../room/lobby.ts').MagicRoomView).game!.pod?.seats[7]).toEqual({ memberId: 'closed', name: '' });
 		expect((await close('alice', { seat: 7, closed: false })).status).toBe(200);
 	});
 });
@@ -1190,7 +1191,7 @@ describe('POST /api/rooms/:id/close', () => {
 		const closed: string[] = [];
 		const h = await openApp(await tempDir(), { closed: (id) => void closed.push(id) });
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/close`, { as: 'carol' })).status).toBe(404);
@@ -1212,10 +1213,10 @@ describe('you', () => {
 	it('is true for exactly one member, in the list and in the room', async () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 
-		type Body = import('../room/lobby.ts').RoomView & { you: { id: string; leader: boolean; ready: boolean } };
+		type Body = import('../room/lobby.ts').MagicRoomView & { you: { id: string; leader: boolean; ready: boolean } };
 		const asUser = async (who: string): Promise<Body> =>
 			(await call(h, 'GET', `/api/rooms/${created.id}`, { as: who })).json() as Body;
 
@@ -1242,7 +1243,7 @@ describe('you', () => {
 		// stand down in one click.
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 
 		type You = { leader: boolean; ready: boolean };
@@ -1274,7 +1275,7 @@ describe('a room’s clientMode', () => {
 				as: 'alice',
 				body: { name: 'Forge night', clientMode: 'streamed' },
 			})
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(created.game!.clientMode).toBe('streamed');
 
 		// No route other than POST /api/rooms takes the field. Each of these
@@ -1342,7 +1343,7 @@ describe('the password', () => {
 				as: 'alice',
 				body: { name: 'Locked', password: PASSWORD },
 			}),
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('../room/lobby.ts').MagicRoomView;
 		record(await call(h, 'GET', '/api/rooms', { as: 'bob' }));
 		record(await call(h, 'GET', `/api/rooms/${created.id}`, { as: 'bob' }));
 		record(
@@ -1411,7 +1412,7 @@ describe('the lobby', () => {
 		const dir = await tempDir();
 		const h = await openApp(dir);
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 
 		expect(h.lobby.playerState(created.id, created.creator)).toBeUndefined();
 		expect(h.lobby.setPlayerState(created.id, 'fk:nobody', { deck: 'x' })).toBe(false);
@@ -1426,9 +1427,9 @@ describe('the lobby', () => {
 		const firstTable = created.tables[0]!.id;
 		expect(h.lobby.setTableMatch('r-000000000000', firstTable, 'm1')).toBe(false);
 		expect(h.lobby.setTableMatch(created.id, firstTable, 'm1')).toBe(true);
-		expect(h.lobby.get(created.id)?.matchId).toBe('m1');
+		expect(magicView(h.lobby.get(created.id))?.matchId).toBe('m1');
 		expect(h.lobby.releaseTableMatch(created.id, firstTable)).toBe(true);
-		expect(h.lobby.get(created.id)?.matchId).toBeNull();
+		expect(magicView(h.lobby.get(created.id))?.matchId).toBeNull();
 
 		expect(h.lobby.isMember(created.id, created.creator)).toBe(true);
 		expect(h.lobby.isMember(created.id, 'fk:nobody')).toBe(false);
@@ -1484,25 +1485,25 @@ describe('POST /api/rooms/:id/ready', () => {
 	it('sets a member’s flag and returns the whole room', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 
 		const res = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
 		expect(res.status).toBe(200);
-		const after = res.json() as import('../room/lobby.ts').RoomView;
+		const after = res.json() as import('../room/lobby.ts').MagicRoomView;
 		expect(after.members.map((m) => [m.name, m.ready])).toEqual([
 			['user-alice', false],
 			['user-bob', true],
 		]);
 		// Standing down again is the same route.
 		const down = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: false } });
-		expect((down.json() as import('../room/lobby.ts').RoomView).members.map((m) => m.ready)).toEqual([false, false]);
+		expect((down.json() as import('../room/lobby.ts').MagicRoomView).members.map((m) => m.ready)).toEqual([false, false]);
 	});
 
 	it('answers a non-member with the SAME 404 as a missing room and a malformed id', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 
 		// carol is friend tier and can SEE the room in the list. She is not a
 		// member of it, and the answer must not tell her the difference between
@@ -1517,14 +1518,14 @@ describe('POST /api/rooms/:id/ready', () => {
 		expect(nonMember.json()).toEqual(roomsMod.NO_MATCH);
 		// And nothing was written: alice is still the only member, still not ready.
 		expect(
-			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members,
+			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView).members,
 		).toHaveLength(1);
 	});
 
 	it('allow-lists its body, and refuses a caller the edge could not name', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		const cases: Array<[unknown, string]> = [
 			[{}, 'ready must be a boolean'],
 			[{ ready: 'yes' }, 'ready must be a boolean'],
@@ -1538,7 +1539,7 @@ describe('POST /api/rooms/:id/ready', () => {
 			expect(res.status, JSON.stringify(body)).toBe(400);
 			expect(res.json()).toEqual({ error });
 		}
-		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members[0].ready).toBe(false);
+		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView).members[0].ready).toBe(false);
 
 		const ghost = await call(h, 'POST', `/api/rooms/${room.id}/ready`, {
 			headers: anonymousHeaders(),
@@ -1556,12 +1557,12 @@ describe('POST /api/rooms/:id/leave', () => {
 		const dir = await tempDir();
 		const h = await openApp(dir);
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 
 		const res = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'bob' });
 		expect(res.status).toBe(200);
-		const after = res.json() as import('../room/lobby.ts').RoomView;
+		const after = res.json() as import('../room/lobby.ts').MagicRoomView;
 		expect(after.members.map((m) => m.name)).toEqual(['user-alice']);
 		// Bob's own row says he is no longer the leader and no longer ready —
 		// true either way, since he is not a member any more.
@@ -1573,14 +1574,14 @@ describe('POST /api/rooms/:id/leave', () => {
 		// And it is persisted: still gone after a restart, over the SAME dir.
 		const reopened = await openApp(dir);
 		expect(
-			(reopened.lobby.get(room.id) as import('../room/lobby.ts').RoomView | undefined)?.members.map((m) => m.id),
+			(reopened.lobby.get(room.id) as import('../room/lobby.ts').MagicRoomView | undefined)?.members.map((m) => m.id),
 		).toEqual([room.creator]);
 	});
 
 	it('a tournament entrant who leaves mid-round has dropped out: their forfeited game is handed on to end, theirs to lose', async () => {
 		const forfeits: { roomId: string; tableId: string; loser: string; matches: readonly string[] }[] = [];
 		const h = await openApp(await tempDir(), { forfeited: (roomId, tableId, loser, matches) => void forfeits.push({ roomId, tableId, loser, matches }) });
-		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Leave night', gameType: 'constructed-1v1', mode: 'classic', modeOptions: {} } })).json() as import('../room/lobby.ts').RoomView;
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Leave night', gameType: 'constructed-1v1', mode: 'classic', modeOptions: {} } })).json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 		const ids = h.lobby.get(room.id)!.members.map((m) => m.id);
 		expect(h.lobby.setSettings(room.id, ids[0]!, { tournament: true }).ok).toBe(true);
@@ -1603,13 +1604,13 @@ describe('POST /api/rooms/:id/leave', () => {
 	it('hands leadership to whoever remains and joined earliest when the leader leaves', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night' } })).json() as
-			import('../room/lobby.ts').RoomView;
+			import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'carol' });
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 
 		const left = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'alice' });
 		expect(left.status).toBe(200);
-		const after = left.json() as import('../room/lobby.ts').RoomView;
+		const after = left.json() as import('../room/lobby.ts').MagicRoomView;
 		// Carol joined before Bob, so Carol leads.
 		expect(after.leader).toBe(after.members.find((m) => m.name === 'user-carol')?.id);
 		expect(after.members.map((m) => m.name)).toEqual(['user-carol', 'user-bob']);
@@ -1623,7 +1624,7 @@ describe('POST /api/rooms/:id/leave', () => {
 	it('answers a non-member with the SAME 404 as a missing room and a malformed id', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night' } })).json() as
-			import('../room/lobby.ts').RoomView;
+			import('../room/lobby.ts').MagicRoomView;
 
 		const nonMember = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'carol' });
 		const missing = await call(h, 'POST', '/api/rooms/r-000000000000/leave', { as: 'carol' });
@@ -1634,14 +1635,14 @@ describe('POST /api/rooms/:id/leave', () => {
 		expect(nonMember.json()).toEqual(roomsMod.NO_MATCH);
 		// Nothing was written: alice is still the only member.
 		expect(
-			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members,
+			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView).members,
 		).toHaveLength(1);
 	});
 
 	it('refuses an unexpected body field, and a caller the edge could not name', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night' } })).json() as
-			import('../room/lobby.ts').RoomView;
+			import('../room/lobby.ts').MagicRoomView;
 
 		const sneaky = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'alice', body: { sneaky: 1 } });
 		expect(sneaky.status).toBe(400);
@@ -1652,14 +1653,14 @@ describe('POST /api/rooms/:id/leave', () => {
 		expect((ghost.json() as { error: string }).error).toContain('the edge did not name you');
 		// Neither refusal removed alice.
 		expect(
-			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).members,
+			((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView).members,
 		).toHaveLength(1);
 	});
 
 	it('hides a room from the list the instant its last member leaves — no stale wait', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night' } })).json() as
-			import('../room/lobby.ts').RoomView;
+			import('../room/lobby.ts').MagicRoomView;
 		expect(
 			((await call(h, 'GET', '/api/rooms', { as: 'bob' })).json() as { rooms: { id: string }[] }).rooms.map((r) => r.id),
 		).toEqual([room.id]);
@@ -1679,7 +1680,7 @@ describe('POST /api/rooms/:id/pod/split', () => {
 	it('splits a ready room of 9 into 5 + 4 for its leader alone, and the draft waits for it', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		const people = ['alice', 'bob', 'carol', 'dan', 'erin', 'finn', 'gus', 'hal', 'ivy'];
 		for (const p of people.slice(1)) expect((await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: p })).status).toBe(200);
 		for (const p of people) expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/sit`, { as: p })).status).toBe(200);
@@ -1699,9 +1700,9 @@ describe('POST /api/rooms/:id/pod/split', () => {
 
 		const split = await call(h, 'POST', `/api/rooms/${room.id}/pod/split`, { as: 'alice' });
 		expect(split.status).toBe(200);
-		const pods = (split.json() as import('../room/lobby.ts').RoomView).game!.pod?.pods;
+		const pods = (split.json() as import('../room/lobby.ts').MagicRoomView).game!.pod?.pods;
 		expect(pods?.map((p) => p.length)).toEqual([5, 4]);
-		expect(((await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'ivy' })).json() as import('../room/lobby.ts').RoomView).game!.pod?.pods).toEqual(pods);
+		expect(((await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'ivy' })).json() as import('../room/lobby.ts').MagicRoomView).game!.pod?.pods).toEqual(pods);
 		// Locked: Bob cannot stand, and only Alice's Start draft deals.
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/stand`, { as: 'bob' })).status).toBe(409);
 		const bobStarts = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'bob' });
@@ -1715,7 +1716,7 @@ describe('POST /api/rooms/:id/start', () => {
 	it('starts the draft once no seat is open and every seated player is ready, for either of them, idempotently', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
@@ -1724,7 +1725,7 @@ describe('POST /api/rooms/:id/start', () => {
 		const early = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' });
 		expect(early.status).toBe(409);
 		expect((early.json() as { error: string }).error).toContain('the AI');
-		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).game!.draftStartedAt).toBeNull();
+		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView).game!.draftStartedAt).toBeNull();
 
 		// The AI button, on every open seat.
 		for (let seat = 2; seat < 8; seat++) expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat, on: true } })).status).toBe(200);
@@ -1734,19 +1735,19 @@ describe('POST /api/rooms/:id/start', () => {
 		// Bob is not the leader, and starts it anyway: any member may ask.
 		const started = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'bob' });
 		expect(started.status).toBe(200);
-		const at = (started.json() as import('../room/lobby.ts').RoomView).game!.draftStartedAt;
+		const at = (started.json() as import('../room/lobby.ts').MagicRoomView).game!.draftStartedAt;
 		expect(typeof at).toBe('string');
 
 		// Both browsers ask; the server answers one draft to both.
 		const again = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' });
 		expect(again.status).toBe(200);
-		expect((again.json() as import('../room/lobby.ts').RoomView).game!.draftStartedAt).toBe(at);
+		expect((again.json() as import('../room/lobby.ts').MagicRoomView).game!.draftStartedAt).toBe(at);
 	});
 
 	it('refuses a constructed room with 409, a non-member with 404, and a body it did not ask for', async () => {
 		const h = await openApp(await tempDir());
 		const table = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${table.id}/ready`, { as: 'alice', body: { ready: true } });
 
 		const wrongGame = await call(h, 'POST', `/api/rooms/${table.id}/start`, { as: 'alice' });
@@ -1777,7 +1778,7 @@ describe('POST /api/rooms/:id/start', () => {
 
 		async function fullPod(h: Harness, plan: unknown): Promise<string> {
 			const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Realistic night', gameType: 'draft' } }))
-				.json() as import('../room/lobby.ts').RoomView;
+				.json() as import('../room/lobby.ts').MagicRoomView;
 			await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 			for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
 			expect((await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan } })).status).toBe(200);
@@ -1894,7 +1895,7 @@ describe('POST /api/rooms/:id/start', () => {
 			const res = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
 			expect(res.status).toBe(409);
 			expect((res.json() as { error: string }).error).toContain('the pool JVM is gone');
-			const after = (await call(h, 'GET', `/api/rooms/${id}`)).json() as import('../room/lobby.ts').RoomView;
+			const after = (await call(h, 'GET', `/api/rooms/${id}`)).json() as import('../room/lobby.ts').MagicRoomView;
 			expect(after.game!.draftStartedAt).toBeNull();
 		});
 
@@ -1989,7 +1990,7 @@ describe('POST /api/rooms/:id/start', () => {
 				draftRooms.setPodLookup((id) => h.lobby.podDraft(id));
 
 				const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Mixed night', gameType: 'draft' } }))
-					.json() as import('../room/lobby.ts').RoomView;
+					.json() as import('../room/lobby.ts').MagicRoomView;
 				await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 				for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
 				expect((await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: MIXED_PLAN } })).status).toBe(200);
@@ -2021,7 +2022,7 @@ describe('PATCH /api/rooms/:id while a draft is running', () => {
 	it('answers 409 and changes nothing — the pod is dealt against this room’s id', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 		for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
 		await approvePlan(h, room.id);
@@ -2033,7 +2034,7 @@ describe('PATCH /api/rooms/:id while a draft is running', () => {
 		});
 		expect(patched.status).toBe(409);
 		expect((patched.json() as { error: string }).error).toContain('drafting');
-		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
+		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(after.gameType).toBe('draft');
 		expect(after.game!.draftStartedAt).not.toBeNull();
 	});
@@ -2041,7 +2042,7 @@ describe('PATCH /api/rooms/:id while a draft is running', () => {
 	it('clears every ready flag when the game type does change', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
-			.json() as import('../room/lobby.ts').RoomView;
+			.json() as import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
@@ -2051,7 +2052,7 @@ describe('PATCH /api/rooms/:id while a draft is running', () => {
 			body: { gameType: 'constructed-1v1' },
 		});
 		expect(patched.status).toBe(200);
-		expect((patched.json() as import('../room/lobby.ts').RoomView).members.map((m) => m.ready)).toEqual([false, false]);
+		expect((patched.json() as import('../room/lobby.ts').MagicRoomView).members.map((m) => m.ready)).toEqual([false, false]);
 	});
 });
 
@@ -2068,7 +2069,7 @@ describe('GET /api/rooms and stale rooms', () => {
 		let clock = 5_000_000_000_000;
 		const h = await openApp(await tempDir(), { now: () => clock });
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'hi there' } })).json() as
-			import('../room/lobby.ts').RoomView;
+			import('../room/lobby.ts').MagicRoomView;
 		expect(await ids(h, 'bob')).toEqual([room.id]);
 
 		clock += constantsMod.ROOM_STALE_MS - 1;
@@ -2092,7 +2093,7 @@ describe('GET /api/rooms and stale rooms', () => {
 		let clock = 6_000_000_000_000;
 		const h = await openApp(await tempDir(), { now: () => clock });
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'playing' } })).json() as
-			import('../room/lobby.ts').RoomView;
+			import('../room/lobby.ts').MagicRoomView;
 		h.lobby.setTableMatch(room.id, room.tables[0]!.id, 'a1b2c3d4-0000-4000-8000-000000000002');
 		clock += constantsMod.ROOM_STALE_MS * 3;
 		expect(await ids(h, 'bob')).toEqual([room.id]);
@@ -2104,7 +2105,7 @@ describe('POST /api/rooms/watchparty', () => {
 		const h = await openApp(await tempDir());
 		const first = await call(h, 'POST', '/api/rooms/watchparty', { as: 'alice', body: { room: 'movie-night' } });
 		expect(first.status).toBe(200);
-		const made = first.json() as import('../room/lobby.ts').RoomView & { you: { leader: boolean } };
+		const made = first.json() as import('../room/lobby.ts').MagicRoomView & { you: { leader: boolean } };
 		expect(made.id).toBe(watchpartyLinkMod.watchpartyRoomId('movie-night'));
 		expect(made.id).toMatch(/^wp-[0-9a-f]{20}$/);
 		expect(made.you.leader).toBe(true);
@@ -2162,7 +2163,7 @@ describe('GET /api/rooms/of-match/:matchId', () => {
 	it("answers the room a match was started from — to its members, during and after the match — and 404 to anyone else", async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
-			import('../room/lobby.ts').RoomView;
+			import('../room/lobby.ts').MagicRoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob', body: {} });
 		h.lobby.setTableMatch(room.id, room.tables[0]!.id, 'm-3f3db8ae2945');
 
@@ -2326,7 +2327,7 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		// a successful lock answers.
 		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
 		expect(started.status, started.text).toBe(200);
-		const startedRoom = started.json() as import('../room/lobby.ts').RoomView;
+		const startedRoom = started.json() as import('../room/lobby.ts').MagicRoomView;
 		expect(startedRoom.game!.pod?.phase).toBe('rounds');
 		expect(startedRoom.game!.pod?.pairings).toHaveLength(1);
 		const tableId = startedRoom.game!.pod!.pairings[0]!.tableId;
@@ -2356,7 +2357,7 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		const h = await openFullApp(await tempDir());
 		const made = await call(h, 'POST', '/api/rooms/challenge', { as: 'alice', body: { collection: 'tournament-legacy-2026-02-07', player: 'Ozymandias17', field: 'top8' } });
 		expect(made.status, made.text).toBe(201);
-		const room = made.json() as import('../room/lobby.ts').RoomView & { you: { id: string } };
+		const room = made.json() as import('../room/lobby.ts').MagicRoomView & { you: { id: string } };
 		expect(room.game!.pod!.seats.findIndex((s) => s?.memberId === room.you.id)).toBe(4);
 		// Each AI seat is named for its real player, read from the library's list (never stored).
 		expect(room.game!.pod!.seats.map((s) => s?.name)).toEqual(['TeaW1thRum', 'romariovidal', 'Matiuzzzo', 'Stanshine', 'user-alice', 'TheGrimLavamancer', 'wonderPreaux', 'SiL3nTGoaT']);
@@ -2391,7 +2392,7 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		for (const who of ['alice', 'bob']) expect((await call(h, 'POST', `/api/rooms/${id}/ready`, { as: who, body: { ready: true } })).status).toBe(200);
 		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
 		expect(started.status, started.text).toBe(200);
-		const tableId = (started.json() as import('../room/lobby.ts').RoomView).game!.pod!.pairings[0]!.tableId;
+		const tableId = (started.json() as import('../room/lobby.ts').MagicRoomView).game!.pod!.pairings[0]!.tableId;
 
 		// What each seat HOLDS: the view hides an All Random deck until it is played.
 		const held = () => h.lobby.get(id)!.members.map((m) => (h.lobby.playerState(id, m.id) as { deck: { text: string } | null } | null)?.deck?.text ?? null);
@@ -2417,7 +2418,7 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		for (const who of ['alice', 'bob']) expect((await call(h, 'POST', `/api/rooms/${id}/ready`, { as: who, body: { ready: true } })).status).toBe(200);
 		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
 		expect(started.status, started.text).toBe(200);
-		const tableId = (started.json() as import('../room/lobby.ts').RoomView).game!.pod!.pairings[0]!.tableId;
+		const tableId = (started.json() as import('../room/lobby.ts').MagicRoomView).game!.pod!.pairings[0]!.tableId;
 		const myDeck = async () =>
 			((await call(h, 'GET', `/api/tables/rooms/${id}?table=${tableId}`, { as: 'alice' })).json() as { players: { you: boolean; deck?: { name: string } | null }[] }).players.find((p) => p.you)
 				?.deck;
@@ -2441,7 +2442,7 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 
 		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
 		expect(started.status, started.text).toBe(200);
-		const startedRoom = started.json() as import('../room/lobby.ts').RoomView & { you: { id: string } };
+		const startedRoom = started.json() as import('../room/lobby.ts').MagicRoomView & { you: { id: string } };
 		expect(startedRoom.game!.pod?.phase).toBe('rounds');
 		expect(startedRoom.game!.pod?.pairings).toEqual([{ tableId: startedRoom.game!.pod!.pairings[0]!.tableId, players: [startedRoom.you.id, 'ai:1'] }]);
 
@@ -2501,7 +2502,7 @@ describe('Gauntlet tournaments over HTTP, with the real routes.ts adapter', () =
 		expect((await call(h, 'POST', `/api/rooms/${id}/ready`, { as: 'alice', body: { ready: true } })).status).toBe(200);
 		const locked = await call(h, 'POST', `/api/rooms/${id}/ready`, { as: 'bob', body: { ready: true } });
 		expect(locked.status, locked.text).toBe(200);
-		const pod1 = (locked.json() as import('../room/lobby.ts').RoomView).game!.pod!;
+		const pod1 = (locked.json() as import('../room/lobby.ts').MagicRoomView).game!.pod!;
 		expect(pod1.phase, 'the field locked itself on Bob’s own Ready').toBe('rounds');
 		expect(pod1.round).toBe(1);
 
@@ -2587,7 +2588,7 @@ describe('Gauntlet tournaments over HTTP, with the real routes.ts adapter', () =
 		for (const matchId of ['m-r1-alice-1', 'm-r1-alice-2']) expect(h.lobby.recordGameResult(id, t1Alice, { matchId, winner: 0 }).ok).toBe(true);
 		for (const matchId of ['m-r1-bob-1', 'm-r1-bob-2']) expect(h.lobby.recordGameResult(id, t1Bob, { matchId, winner: 0 }).ok).toBe(true);
 
-		const pod2 = (await call(h, 'GET', `/api/rooms/${id}`, { as: 'alice' })).json() as import('../room/lobby.ts').RoomView;
+		const pod2 = (await call(h, 'GET', `/api/rooms/${id}`, { as: 'alice' })).json() as import('../room/lobby.ts').MagicRoomView;
 		expect(pod2.game!.pod?.round, 'round 2 begins').toBe(2);
 
 		// Round 2 (by score) pairs the two winners together — alice vs bob
@@ -2994,7 +2995,7 @@ describe("an event's room before its seats open", () => {
 		const shut = { error: podsMod.SEATS_SHUT };
 		for (const id of [pod.room.id, table.room.id]) expect((await call(h, 'POST', `/api/rooms/${id}/join`)).status).toBe(200);
 		expect(h.lobby.get(pod.room.id)?.game!.pod?.seats.every((s) => s === null), 'coming in seats nobody').toBe(true);
-		expect(h.lobby.get(table.room.id)?.tables[0]?.players, 'at a table either').toEqual([]);
+		expect(magicView(h.lobby.get(table.room.id))?.tables[0]?.players, 'at a table either').toEqual([]);
 
 		const sat = await call(h, 'POST', `/api/rooms/${pod.room.id}/pod/sit`, { body: { seat: 0 } });
 		expect([sat.status, sat.json()]).toEqual([409, shut]);

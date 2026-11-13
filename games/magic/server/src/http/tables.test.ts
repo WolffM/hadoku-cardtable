@@ -55,6 +55,7 @@ import { LIBRARY, formatIdOf, type LibraryCollection } from '@hadoku/deck/librar
 import { loadTablesLibrary } from './library.js';
 import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
 import { REPO_ROOT } from '../root.js';
+import { magicView } from '../room/magic-view.js';
 
 /** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
 const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
@@ -2304,7 +2305,7 @@ describe('a room table', () => {
 		// exactly as `index.ts` wires it) is what has to have already recorded
 		// the game and cleared the table's match id, from the `gameover` push
 		// above alone.
-		const table = h.lobby.get(ROOM)?.tables[0];
+		const table = magicView(h.lobby.get(ROOM))?.tables[0];
 		expect(table?.matchId).toBeNull();
 		expect(table?.series.games).toEqual([{ matchId, winner: null }]);
 		expect(table?.series.phase).toBe('done');
@@ -2326,13 +2327,13 @@ describe('a room table', () => {
 		const started = await startRoom(h, 'alice');
 		expect(started.status).toBe(201);
 		const matchId = started.body.matchId as string;
-		expect(h.lobby.get(ROOM)?.tables[0]?.matchId).toBe(matchId);
+		expect(magicView(h.lobby.get(ROOM))?.tables[0]?.matchId).toBe(matchId);
 
 		// Nobody came back (or its host failed): stopped with no game called, and let go of.
 		h.matches.get(matchId)?.stop();
 		await vi.waitFor(() => expect(h.matches.get(matchId)).toBeUndefined());
 
-		const table = h.lobby.get(ROOM)?.tables[0];
+		const table = magicView(h.lobby.get(ROOM))?.tables[0];
 		expect(table?.matchId, 'the room no longer offers a match the server does not have').toBeNull();
 		expect(table?.series.games, 'no game was called, so none is recorded').toEqual([]);
 	});
@@ -2347,7 +2348,7 @@ describe('a room table', () => {
 		const started = await startRoom(h, 'alice');
 		expect(started.status).toBe(201);
 		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: null });
-		expect(h.lobby.get(ROOM)?.tables[0]?.series.phase).toBe('done');
+		expect(magicView(h.lobby.get(ROOM))?.tables[0]?.series.phase).toBe('done');
 		const read = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
 		expect(read.body.room, 'a decided series leaves the table unlocked').toMatchObject({ locked: false, matchId: null });
 		for (const user of ['alice', 'bob']) expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/stand`, {}, edgeHeaders(user))).status).toBe(200);

@@ -45,7 +45,8 @@ import {
 import type { EventRecord, Events, FormRecord } from '@hadoku/game-server/room/events';
 import { callerOf, httpCaller, parseBody, perCallerLimit } from '@hadoku/game-server/http/request';
 import type { People, Person } from '@hadoku/game-server/people';
-import { type Lobby, type RoomView } from '../room/lobby.js';
+import { type Lobby, type MagicRoomView } from '../room/lobby.js';
+import { magicView } from '../room/magic-view.js';
 import { UNNAMED } from '@hadoku/game-server/room/constants';
 
 type RallyFetch = (input: string, init?: RequestInit) => Promise<globalThis.Response>;
@@ -158,12 +159,12 @@ function rallySummaries(deps: RallyDeps, now: () => number, log: (entry: Record<
 }
 
 /** What the room plays now: the event's kind is the room's, never a copy. */
-function kindOf(room: RoomView): EventKind {
+function kindOf(room: MagicRoomView): EventKind {
 	if (room.gameType === 'draft') return 'draft-pod';
 	return room.settings.tournament ? 'constructed-tournament' : 'room';
 }
 
-function roomState(room: RoomView): EventRoom {
+function roomState(room: MagicRoomView): EventRoom {
 	const pod = room.game?.pod ?? null;
 	const entrants = pod === null ? 0 : pod.phase === 'lobby' ? pod.seats.filter((s) => s !== null && !isPodAi(s.memberId)).length : pod.drafters.length;
 	return {
@@ -207,7 +208,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		return availability.starts.find((s) => Date.parse(s.at) === e.startsAt)?.free ?? 0;
 	};
 
-	const view = (e: EventRecord, room: RoomView, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string, signedUp: number | null): EventView => ({
+	const view = (e: EventRecord, room: MagicRoomView, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string, signedUp: number | null): EventView => ({
 		id: e.id,
 		kind: kindOf(room),
 		title: room.name,
@@ -284,7 +285,8 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 	api.get('/events', async (req: Request, res: Response) => {
 		const me = httpCaller(req);
 		const upcoming = events.upcoming(now()).flatMap((e) => {
-			const room = lobby.get(e.roomId);
+			// An event's room is one Magic's lobby made (`POST /events`).
+			const room = magicView(lobby.get(e.roomId));
 			return room === undefined ? [] : [{ e, room }];
 		});
 		const [nameOf, signedUp] = await Promise.all([namesOf(upcoming.map(({ e }) => e.organizerUserId)), Promise.all(upcoming.map(({ e }) => signedUpOf(e)))]);
@@ -324,7 +326,8 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (body.plan !== undefined && verdict !== null) lobby.setPodPlan(roomId, caller.id, body.plan, verdict);
 
 		const event = events.create({ roomId, startsAt, organizerId: caller.id, organizerUserId: caller.userId, ...(body.formId === undefined ? {} : { formId: body.formId }) }, now());
-		res.status(201).json(view(event, lobby.get(roomId)!, caller.id, () => caller.name, await signedUpOf(event)));
+		// The create body takes only Magic's game types (`CreateRoomBodySchema`).
+		res.status(201).json(view(event, magicView(lobby.get(roomId))!, caller.id, () => caller.name, await signedUpOf(event)));
 	});
 
 	api.patch('/events/:id', async (req: Request, res: Response) => {
@@ -334,7 +337,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		const existing = events.get(String(req.params.id));
 		if (existing === undefined) return refuse(res, 'no-event');
 		if (existing.organizerId !== me) return refuse(res, 'not-organizer');
-		const room = lobby.get(existing.roomId);
+		const room = magicView(lobby.get(existing.roomId));
 		if (room === undefined) return res.status(404).json({ error: 'this event’s room has closed' });
 		if (body.title !== undefined && body.title !== room.name) return res.status(400).json({ error: 'an event is named after its room' });
 		const startsAt = Date.parse(body.startsAt);
@@ -343,14 +346,14 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (!result.ok) return refuse(res, result.reason);
 		lobby.reschedule(room.id, startsAt);
 		const [nameOf, signedUp] = await Promise.all([namesOf([result.event.organizerUserId]), signedUpOf(result.event)]);
-		res.json(view(result.event, lobby.get(room.id) ?? room, me, nameOf, signedUp));
+		res.json(view(result.event, magicView(lobby.get(room.id)) ?? room, me, nameOf, signedUp));
 	});
 
 	api.delete('/events/:id', (req: Request, res: Response) => {
 		const me = httpCaller(req);
 		const result = events.cancel(String(req.params.id), me);
 		if (!result.ok) return refuse(res, result.reason);
-		const room = lobby.get(result.event.roomId);
+		const room = magicView(lobby.get(result.event.roomId));
 		// A room people have started playing in outlives its event; one still waiting goes with it.
 		if (room !== undefined && (room.game?.draftStartedAt ?? null) === null && room.tables.every((t) => t.matchId === null)) {
 			const closed = lobby.close(room.id, me);

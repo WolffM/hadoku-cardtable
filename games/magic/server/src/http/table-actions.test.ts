@@ -14,6 +14,7 @@ import type { GameHooks } from '../room/pods.js';
 import { newGauntlet } from '../room/gauntlet.ts';
 import { attachRooms } from './rooms.js';
 import { attachTableActions } from './table-actions.js';
+import { magicView } from '../room/magic-view.js';
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa' as ParticipantId;
 const BOB = 'fk:bbbbbbbbbbbbbbbb' as ParticipantId;
@@ -46,7 +47,7 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 	expect(lobby.join(roomId, { id: CAROL, name: 'carol', userId: null }).ok).toBe(true);
 	// A pod: Bob and Carol play the tournament's one pairing, Alice leads it watching.
 	const players = opts.pod === true ? [BOB, CAROL] : [ALICE, BOB];
-	let tableId = lobby.get(roomId)!.tables[0]!.id;
+	let tableId = magicView(lobby.get(roomId))!.tables[0]!.id;
 	if (opts.pod === true) {
 		expect(lobby.setSettings(roomId, ALICE, { tournament: true }).ok).toBe(true);
 		standAll(lobby, roomId);
@@ -148,7 +149,7 @@ describe('POST /api/rooms/:roomId/tables/:tableId/abandon', () => {
 		expect(res.status).toBe(200);
 		expect(h.stopped).toEqual([MATCH]);
 		expect(h.ended, 'its seats go back to their registered decks').toEqual([h.tableId]);
-		expect(h.lobby.get(h.roomId)!.tables[0]).toMatchObject({ matchId: null, series: { phase: 'seating', games: [] } });
+		expect(magicView(h.lobby.get(h.roomId))!.tables[0]).toMatchObject({ matchId: null, series: { phase: 'seating', games: [] } });
 	});
 
 	it('refuses a member with no seat at it, a non-member, and a table that is not there', async () => {
@@ -179,7 +180,7 @@ describe('POST /api/rooms/:roomId/tables/:tableId/reset', () => {
 		expect(res.status).toBe(200);
 		expect(h.stopped).toEqual([MATCH]);
 		expect(h.acts, 'a reset concedes nothing').toEqual([]);
-		expect(h.lobby.get(h.roomId)!.tables.find((t) => t.id === h.tableId)).toMatchObject({ matchId: null, series: { phase: 'playing', wins: [0, 0] } });
+		expect(magicView(h.lobby.get(h.roomId))!.tables.find((t) => t.id === h.tableId)).toMatchObject({ matchId: null, series: { phase: 'playing', wins: [0, 0] } });
 	});
 
 	it('a seated leader may too; a player who is not the leader may not, and a non-member hears of no room', async () => {
@@ -199,12 +200,12 @@ describe('POST /api/rooms/:roomId/tables/reset', () => {
 		expect(h.lobby.recordGameResult(h.roomId, h.tableId, { matchId: MATCH, winner: 0 }).ok).toBe(true);
 		expect(h.lobby.setGauntlet(h.roomId, newGauntlet(), h.tableId)).toBe(true);
 		expect(h.lobby.leave(h.roomId, BOB).ok).toBe(true);
-		expect(h.lobby.get(h.roomId)!.tables[0]!.series, 'left behind: one game played, nobody to finish it').toMatchObject({ wins: [1, 0], games: [{ matchId: MATCH }] });
+		expect(magicView(h.lobby.get(h.roomId))!.tables[0]!.series, 'left behind: one game played, nobody to finish it').toMatchObject({ wins: [1, 0], games: [{ matchId: MATCH }] });
 		const res = await leader(h, ALICE, 'tables/reset');
 		expect(res.status).toBe(200);
 		expect(h.stopped, 'no game was in play').toEqual([]);
 		expect(h.ended).toEqual([h.tableId]);
-		const room = h.lobby.get(h.roomId)!;
+		const room = magicView(h.lobby.get(h.roomId))!;
 		expect(room.tables[0]).toMatchObject({ players: [{ memberId: ALICE }], matchId: null, series: { phase: 'seating', wins: [0, 0], games: [] } });
 		expect(h.lobby.gauntlet(h.roomId, h.tableId)).toBeNull();
 		expect(room.members.map((m) => m.id)).toEqual([ALICE, CAROL]);
@@ -216,7 +217,7 @@ describe('POST /api/rooms/:roomId/tables/reset', () => {
 		expect((await leader(h, ALICE, 'tables/reset')).status).toBe(200);
 		expect(h.stopped).toEqual([MATCH]);
 		expect(h.acts, 'a reset concedes nothing').toEqual([]);
-		expect(h.lobby.get(h.roomId)!.tables[0]).toMatchObject({ players: [{ memberId: ALICE }, { memberId: BOB }], matchId: null, series: { phase: 'seating', games: [] } });
+		expect(magicView(h.lobby.get(h.roomId))!.tables[0]).toMatchObject({ players: [{ memberId: ALICE }, { memberId: BOB }], matchId: null, series: { phase: 'seating', games: [] } });
 	});
 
 	it('is the leader’s alone, a non-member hears of no room, and a tournament under way is closed instead', async () => {

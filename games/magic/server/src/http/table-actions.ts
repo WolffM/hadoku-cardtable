@@ -24,9 +24,9 @@
  */
 import { Router, type Request, type Response } from 'express';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
-import { isMagicGameType } from '@hadoku/shared';
 
 import type { Lobby } from '../room/lobby.js';
+import { magicView } from '../room/magic-view.js';
 import type { Match } from '../play/match.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { httpCaller } from '@hadoku/game-server/http/request';
@@ -86,9 +86,9 @@ export function attachTableActions(api: Router, deps: TableActionsDeps): void {
 		const roomId = String(req.params.roomId);
 		const tableId = String(req.params.tableId);
 		const me = callerOf(req);
-		const room = deps.lobby.get(roomId);
 		// A room of a game Magic does not play has no tables: no room here.
-		if (room === undefined || !isMagicGameType(room.gameType) || !deps.lobby.isMember(roomId, me)) return res.status(404).json(NO_ROOM);
+		const room = magicView(deps.lobby.get(roomId));
+		if (room === undefined || !deps.lobby.isMember(roomId, me)) return res.status(404).json(NO_ROOM);
 		const table = room.tables.find((t) => t.id === tableId);
 		if (table === undefined) return res.status(404).json({ error: 'no such table' });
 		const match = table.matchId === null ? undefined : deps.match(table.matchId);

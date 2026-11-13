@@ -174,7 +174,7 @@ import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
-import { clockOn, FREE_PICK, GAME_CLOCK_MS, gameTypeSpec, isMagicGameType, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
+import { clockOn, FREE_PICK, GAME_CLOCK_MS, gameTypeSpec, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
 
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, botPoolAt, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
@@ -183,6 +183,7 @@ import { httpCaller } from '@hadoku/game-server/http/request';
 import { prepareJson, sendPrepared, type PreparedJson } from '@hadoku/game-server/http/prepared';
 import { isAdmin } from '@hadoku/game-server/edge-auth';
 import { draftIdOfPool, draftPoolId, type Lobby } from '../room/lobby.js';
+import { magicView } from '../room/magic-view.js';
 import { aiEntrantSeat, isAiEntrant, SEATS_SHUT, type BotDeckSource, type GameHooks } from '../room/pods.js';
 import type { BotGameInput, BotGameOutcome } from '../play/botgames.js';
 import { roundNamesOf } from '../room/plan.js';
@@ -273,11 +274,15 @@ export interface RoomViewLike {
 	testing?: boolean;
 }
 
+/** A room of any game as `TablesRooms` answers it: `RoomViewLike` without Magic's tables and settings, which `magicView` restores for a room Magic plays. */
+export type AnyRoomLike = Omit<RoomViewLike, 'tables' | 'settings'> & Partial<Pick<RoomViewLike, 'tables' | 'settings'>>;
+
 /** The subset of `room/lobby.ts`'s `Lobby` a table uses. */
 export interface TablesRooms {
-	get(roomId: string): RoomViewLike | undefined;
-	/** Every room. Read once, at boot, by `releaseGoneMatches`. */
-	list(): RoomViewLike[];
+	/** Any room: one of a game Magic does not play has no tables or settings, so a reader here goes through `magicView`. */
+	get(roomId: string): AnyRoomLike | undefined;
+	/** Every room, read the same way. Read once, at boot, by `releaseGoneMatches`. */
+	list(): AnyRoomLike[];
 	/** The room that started `matchId` (its current or a recent match, on any table), or undefined. */
 	roomOfMatch(matchId: string): RoomViewLike | undefined;
 	/** The per-member state this file owns (`TablePlayerState`), and the table's seats, match and series — each as `room/lobby.ts`'s `Lobby` documents it. */
@@ -734,7 +739,7 @@ function playersOf(rooms: TablesRooms, room: RoomViewLike, tableId: string = roo
  */
 export function relayAvatarToMatch(rooms: TablesRooms, registry: TablesMatches | null, change: { roomId: string; memberId: string }): void {
 	if (registry === null) return;
-	const room = rooms.get(change.roomId);
+	const room = magicView(rooms.get(change.roomId));
 	if (room === undefined) return;
 	// Every table with a live match, not only the first (wave 71): a member
 	// holds at most one seat at a time, but checking every table is cheap and
@@ -877,7 +882,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * param name.
 	 */
 	tables.param('roomId', (req: Request, res: Response, next: NextFunction, roomId: string) => {
-		const room = rooms?.get(roomId);
+		const room = magicView(rooms?.get(roomId));
 		if (room !== undefined && room.testing === true && !isAdmin(req)) return notFound(res);
 		next();
 	});
@@ -898,8 +903,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			? null
 			: attachGauntlet(tables, {
 					rooms: {
-						get: (id) => gauntletRooms.get(id),
-						list: () => gauntletRooms.list(),
+						get: (id) => magicView(gauntletRooms.get(id)),
+						list: () => gauntletRooms.list().flatMap((r) => magicView(r) ?? []),
 						gauntlet: (id, tableId) => gauntletRooms.gauntlet!(id, tableId),
 						setGauntlet: (id, g, tableId) => gauntletRooms.setGauntlet!(id, g, tableId),
 						tournamentPairingOf: (id, tableId) => gauntletRooms.tournamentPairingOf?.(id, tableId) ?? null,
@@ -911,7 +916,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					seated: (room, tableId = room.tables[0]!.id) => playersOf(gauntletRooms, room as RoomViewLike, tableId).map((p) => ({ memberId: p.member.id, name: p.member.name, ready: p.ready })),
 					setReady: (room, memberId, ready, tableId = room.tables[0]!.id) => void gauntletRooms.setSeatReady(room.id, tableId, memberId, ready),
 					dealGame: (dealt, decks, players, era, tableId) => {
-						const room = gauntletRooms.get(dealt.id);
+						const room = magicView(gauntletRooms.get(dealt.id));
 						if (room === undefined) return;
 						const table = tableId === undefined ? room.tables[0] : room.tables.find((t) => t.id === tableId);
 						if (table === undefined) return;
@@ -947,7 +952,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	/** `GameHooks.currentTournamentDeck`'s own doc: this entrant's deck right now, for a lock's snapshot or a bot game's deal. */
 	function currentTournamentDeck(roomId: string, entrant: string): TableDeck | null {
 		if (rooms === null) return null;
-		const room = rooms.get(roomId);
+		const room = magicView(rooms.get(roomId));
 		if (room === undefined) return null;
 		const pool = randomPoolOf(room);
 		// All Random: one fresh deal per entrant (human or AI), never a held one —
@@ -1026,7 +1031,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return state;
 		},
 		hasLegalSeatDeck(roomId, memberId) {
-			const room = rooms?.get(roomId);
+			const room = magicView(rooms?.get(roomId));
 			if (room === undefined) return false;
 			const deck = readPlayerState(rooms?.playerState(roomId, memberId))?.deck;
 			return deck !== null && deck !== undefined && deck.verdict.legal;
@@ -1035,7 +1040,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		pilotOf: (deckId) => library.deck(deckId)?.deck.pilot,
 		seatTournamentDeck(roomId, tableId, entrant, deck) {
 			if (rooms === null) return;
-			const room = rooms.get(roomId);
+			const room = magicView(rooms.get(roomId));
 			const table = room?.tables.find((t) => t.id === tableId);
 			if (room === undefined || table === undefined) return;
 			const locked = deck === null ? null : readDeck(deck);
@@ -1108,10 +1113,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * would say which rooms exist to someone who is in none of them.
 	 */
 	function tableFor(req: Request, res: Response, roomId: string): { room: RoomViewLike; me: string } | null {
-		const room = rooms?.get(roomId);
-		const me = httpCaller(req);
 		// A room of a game Magic does not play has no table: it is no room here.
-		if (room === undefined || !isMagicGameType(room.gameType) || !room.members.some((m) => m.id === me)) {
+		const room = magicView(rooms?.get(roomId));
+		const me = httpCaller(req);
+		if (room === undefined || !room.members.some((m) => m.id === me)) {
 			notFound(res);
 			return null;
 		}
@@ -1142,7 +1147,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * when the registry cannot be read again.
 	 */
 	function answerTable(res: Response, me: string, room: RoomViewLike, table: RoomTable): void {
-		const after = rooms?.get(room.id) ?? room;
+		const after = magicView(rooms?.get(room.id)) ?? room;
 		res.json(tableView(after, me, after.tables.find((t) => t.id === table.id) ?? table));
 	}
 
@@ -1158,7 +1163,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// The clock's last reading is the log's alone: every game starts from the whole clock (`clockOf`).
 		rooms.recordGameResult(room.id, table.id, { matchId, winner });
 		log({ evt: 'table-game-over', room: room.id, table: table.id, matchId, winner, ...clock });
-		const after = rooms.get(room.id);
+		const after = magicView(rooms.get(room.id));
 		gauntlets?.afterGame(room.id, { seriesOver: after?.tables.find((t) => t.id === table.id)?.series.phase === 'done', winner }, table.id);
 		if (after?.tables.find((t) => t.id === table.id)?.series.phase !== 'done') return;
 		restoreSeriesDecks(room.id, table.id);
@@ -1176,7 +1181,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	/** The table's series is over: every seat goes back to its registered deck (see `recordGame`). */
 	function restoreSeriesDecks(roomId: string, tableId: string): void {
-		const after = rooms?.get(roomId);
+		const after = magicView(rooms?.get(roomId));
 		if (rooms === null || after === undefined) return;
 		for (const p of playersOf(rooms, after, tableId)) {
 			const registered = p.state.seriesDeck;
@@ -1348,7 +1353,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// screen that follows the table learns of a move into `sideboarding`
 				// here even when nobody's ready flag changed: the agreement that
 				// begins it spends both Readys, so the flags read as they did before.
-				phase: rooms?.get(room.id)?.tables.find((t) => t.id === table.id)?.series.phase ?? table.series.phase,
+				phase: magicView(rooms?.get(room.id))?.tables.find((t) => t.id === table.id)?.series.phase ?? table.series.phase,
 			},
 			// `player` is "I have a deck at this table"; `leader` is "this room's
 			// settings are mine to change". A member can be either, both or neither,
@@ -1540,7 +1545,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const pool = randomPoolOf(room);
 		if (pool === null || rooms === null) return { ok: true, players };
 		const held = players.every((p) => p.state.deck !== null) && (!vsBot || players[0]?.state.aiDeck !== undefined);
-		const phase = rooms.get(room.id)?.tables.find((t) => t.id === tableId)?.series.phase;
+		const phase = magicView(rooms.get(room.id))?.tables.find((t) => t.id === tableId)?.series.phase;
 		const midSeries = phase === 'sideboarding' || phase === 'between';
 		if (held && (midSeries || rematch || randomLocked(room) || room.settings.tournament === true)) return { ok: true, players };
 		const draw = drawRandomDecks(random, pool, library);
@@ -1925,7 +1930,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return;
 		}
 		const roomId = String(req.params.roomId);
-		const room = rooms.get(roomId);
+		const room = magicView(rooms.get(roomId));
 		const me = httpCaller(req);
 		if (room === undefined || !room.members.some((m) => m.id === me)) {
 			notFound(res);
@@ -1951,7 +1956,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 		const roomId = String(req.params.roomId);
 		const tableId = String(req.params.tableId);
-		const room = rooms.get(roomId);
+		const room = magicView(rooms.get(roomId));
 		const me = httpCaller(req);
 		if (room === undefined || !room.members.some((m) => m.id === me)) {
 			notFound(res);
@@ -2494,7 +2499,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		},
 		releaseGoneMatches() {
 			// A room of a game Magic does not play has no tables.
-			for (const room of rooms?.list() ?? []) if (isMagicGameType(room.gameType)) for (const table of room.tables) liveMatchId(room, table);
+			for (const room of (rooms?.list() ?? []).flatMap((r) => magicView(r) ?? [])) for (const table of room.tables) liveMatchId(room, table);
 		},
 		gameOver: endMatchOfTable,
 		matchFreed: endMatchOfTable,

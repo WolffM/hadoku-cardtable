@@ -44,14 +44,15 @@ import { pairRound, roundsFor, roundsOf, structureOk, type MatchResult, type Pod
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { gauntletHoldsTable, type GauntletState } from './gauntlet.ts';
 import { leaveSeat, readySeat, seatList, seatOrder, sitAt, type TableSeat } from '@hadoku/game-server/room/seats';
-import { magicViewPart, type MagicViewPart } from './magic-view.ts';
+import { magicViewPart, type MagicRoomFields, type MagicRoomKeys, type MagicViewPart } from './magic-view.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, type SeriesRecord } from './series.ts';
 
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
+import type { Caller } from '@hadoku/game-server/room/caller';
 import { mintTableId } from '@hadoku/game-server/room/provisioning';
-import { RoomLobby, type LobbyLog, type LobbyMember, type LobbyRoom, type PlatformRoomView, type RoomCreateInput, type RoomTypeHooks } from '@hadoku/game-server/room/lobby';
+import { RoomLobby, type CreateResult, type LobbyLog, type LobbyMember, type LobbyRoom, type PlatformRoomView, type RoomCreateInput, type RoomTypeHooks } from '@hadoku/game-server/room/lobby';
 import type { RoomBusyHook } from '@hadoku/game-server/room/room-list';
 import { isMemberReady } from '@hadoku/game-server/room/membership';
 import { setGameSeat } from '@hadoku/game-server/room/record';
@@ -232,15 +233,21 @@ export function randomFormat(random: () => number, formats: readonly CatalogForm
 /**
  * The PUBLIC shape. Every response body that carries a room uses exactly this:
  * `@hadoku/shared`'s `RoomView`, which the browser parses with, plus the part
- * the room's game type adds (`useGameView`). Magic's part (`magic-view.ts`) is
- * every optional key below; a room of a type with no part of its own has none
- * of them, so a reader here reaches Magic's fields only after asking
- * whether the room has them.
+ * the room's game type adds (`useGameView`). Magic's part (`magic-view.ts`) and
+ * its tables, settings, locks and matchId are every optional key below; a room
+ * of a type with no part of its own has none of them, so a reader reaches
+ * them through `magicView`, which answers only for a room Magic plays.
  */
-export interface RoomView extends Omit<PublicRoomView, 'game'>, Partial<MagicViewPart> {
+export interface RoomView extends Omit<PublicRoomView, 'game' | MagicRoomKeys>, Partial<Pick<PublicRoomView, MagicRoomKeys>>, Partial<MagicViewPart> {
 	/** This server hosts only Magic's game types: its codec quarantines a saved room of any other. */
 	gameType: GameType;
 }
+
+/** A room Magic plays, as its view: every field `RoomView` leaves optional for a room of another game is there. */
+export type MagicRoomView = RoomView & MagicRoomFields;
+
+/** One of the game types Magic plays (`isMagicGameType`). */
+type MagicGameType = (typeof GAME_TYPES)[number];
 
 /** A game type's own part of a room's view: every key it answers is spread over the room's platform view. */
 export type GameViewPart = (room: RoomRecord, checks: GameHooks) => Partial<MagicViewPart>;
@@ -301,29 +308,29 @@ interface CreateRoomInput extends RoomCreateInput {
 }
 
 type SetGameTypeResult =
-	| { ok: true; room: RoomView }
+	| { ok: true; room: MagicRoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' | 'historical' };
 
 /** `setFormat`'s refusals, plus a draft room (which has no mode). */
 type SetModeResult =
-	| { ok: true; room: RoomView }
+	| { ok: true; room: MagicRoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'draft-started' | 'mode-locked' | 'historical' };
 
 /** Deliberately the same refusals as `SetGameTypeResult`: one leader, one shape. */
 type SetFormatResult =
-	| { ok: true; room: RoomView }
+	| { ok: true; room: MagicRoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' | 'historical' };
 
 
 /** `SetFormatResult`'s three refusals (one leader, one shape). */
 type SetSettingsResult =
-	| { ok: true; room: RoomView }
+	| { ok: true; room: MagicRoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' | 'historical' };
 
-type AddTableResult = | { ok: true; room: RoomView; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
+type AddTableResult = | { ok: true; room: MagicRoomView; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
 
 type RemoveTableResult =
-	| { ok: true; room: RoomView }
+	| { ok: true; room: MagicRoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'no-such-table' | 'first-table' | 'not-idle' };
 
 /** A table's series resolved from its card: the game it let go of, if one was in play, for the caller to stop. */
@@ -340,25 +347,25 @@ type ResetGameResult = { ok: true; matchId: string } | { ok: false; reason: 'no-
 type ResetRoomResult = { ok: true; tableIds: string[]; matchIds: string[] } | { ok: false; reason: 'no-room' | 'not-leader' | 'pod-under-way' };
 
 type RecordGameResultResult =
-	| { ok: true; room: RoomView; phase: SeriesPhase }
+	| { ok: true; room: MagicRoomView; phase: SeriesPhase }
 	| { ok: false; reason: 'no-room' | 'no-such-table' };
 
 type StartDraftResult =
-	| { ok: true; room: RoomView }
+	| { ok: true; room: MagicRoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' | 'plan-not-ready' | 'not-split' | 'not-leader' | 'not-open' };
 
 type SplitPodResult =
-	| { ok: true; room: RoomView }
+	| { ok: true; room: MagicRoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'one-pod' | 'not-ready' | 'plan-not-ready' };
 
 
 export type SetPodPlanResult =
-	| { ok: true; room: RoomView }
+	| { ok: true; room: MagicRoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'not-leader' }
 	| { ok: false; reason: 'refused'; verdict: PoolVerdict };
 
 type PlayPodResult =
-	| { ok: true; room: RoomView }
+	| { ok: true; room: MagicRoomView }
 	| { ok: false; reason: 'no-room' | 'not-drafter' | 'not-built' };
 
 
@@ -403,7 +410,7 @@ export interface Lobby
 		RoomLobby<RoomView, CreateRoomInput>,
 		| 'list' | 'offered' | 'touch' | 'get' | 'isMember' | 'playerState' | 'setPlayerState' | 'setReady' | 'setAvatar' | 'onAvatarChange'
 		| 'usersOf' | 'setLook' | 'onChange' | 'leave' | 'close' | 'anonymise' | 'removed' | 'reschedule' | 'seatsShutUntil' | 'gameSeatOf'
-		| 'create' | 'bindWatchparty' | 'join' | 'rename' | 'sweep' | 'onRelayRoomOpened' | 'sitSeat' | 'standSeat' | 'aiSeat' | 'closeSeat'
+		| 'bindWatchparty' | 'join' | 'rename' | 'sweep' | 'onRelayRoomOpened' | 'sitSeat' | 'standSeat' | 'aiSeat' | 'closeSeat'
 	> {
 	/**
 	 * The room that started `matchId`, or undefined. A match id is never a room id.
@@ -413,7 +420,10 @@ export interface Lobby
 	 * still needs its room for a Rematch. So the room remembers its last
 	 * `ROOM_MATCHES_KEPT` matches, on disk.
 	 */
-	roomOfMatch(matchId: string): RoomView | undefined;
+	roomOfMatch(matchId: string): MagicRoomView | undefined;
+	/** The core's `create`. A room of one of Magic's own types comes back as Magic's view. */
+	create(caller: Caller, input: CreateRoomInput & { gameType: MagicGameType }): CreateResult<MagicRoomView>;
+	create(caller: Caller, input: CreateRoomInput): CreateResult<RoomView>;
 	/**
 	 * Whether `memberId` played `matchId` in a series that is not settled yet: one that may still go
 	 * on, so that game's hands are still hidden from them. Its replay is the watcher channel's
@@ -775,7 +785,7 @@ function tournamentDecksOf(room: RoomRecord): RoomSettings['tournamentDecks'] {
 }
 
 /** Magic's part of a room's view (`RoomTypeHooks.view`): its settings, locks and tables, and its game type's own part (`useGameView`). */
-function magicView(room: RoomRecord, checks: GameHooks, part: GameViewPart | undefined): Omit<RoomView, keyof PlatformRoomView> {
+function magicRoomPart(room: RoomRecord, checks: GameHooks, part: GameViewPart | undefined): Omit<RoomView, keyof PlatformRoomView> {
 	return {
 		settings: { ...room.game.settings, tournamentDecks: tournamentDecksOf(room) },
 		locks: roomLocks(room),
@@ -1055,6 +1065,17 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		for (const room of this.rooms()) if (isMagicRoom(room)) yield room;
 	}
 
+	override create(caller: Caller, input: CreateRoomInput & { gameType: MagicGameType }): CreateResult<MagicRoomView>;
+	override create(caller: Caller, input: CreateRoomInput): CreateResult<RoomView>;
+	override create(caller: Caller, input: CreateRoomInput): CreateResult<RoomView> {
+		return super.create(caller, input);
+	}
+
+	/** A Magic room's view: `magicRoomPart` gave it every field a room of another game lacks. */
+	#view(room: RoomRecord): MagicRoomView {
+		return this.view(room) as MagicRoomView;
+	}
+
 	/** Magic's room type: what the core asks of every Magic room. */
 	#magicType(): RoomTypeHooks<MagicRoomGame, CreateRoomInput> {
 		return {
@@ -1094,7 +1115,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 				for (const table of room.game.tables) this.#settleSeries(room, table, false);
 				dropDesertedGauntlets(room);
 			},
-			view: (room) => magicView(room, this.#hooksFor(room.gameType), this.#viewParts.get(room.gameType)),
+			view: (room) => magicRoomPart(room, this.#hooksFor(room.gameType), this.#viewParts.get(room.gameType)),
 			seatsView: gameSeatsOf,
 			players: playersOf,
 			autoSeat: (room, memberId) => {
@@ -1342,9 +1363,9 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		);
 	}
 
-	roomOfMatch(matchId: string): RoomView | undefined {
+	roomOfMatch(matchId: string): MagicRoomView | undefined {
 		for (const room of this.#rooms()) {
-			if (room.game.tables.some((t) => t.matchId === matchId) || room.game.matches.includes(matchId)) return this.view(room);
+			if (room.game.tables.some((t) => t.matchId === matchId) || room.game.matches.includes(matchId)) return this.#view(room);
 		}
 		return undefined;
 	}
@@ -1508,7 +1529,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		if (table.series.phase === 'done' && room.game.pod !== null) this.#finishPodTable(room, table);
 		this.persist(room);
 		this.log({ event: 'table-game-recorded', roomId, tableId, matchId: result.matchId, winner: result.winner, phase: table.series.phase });
-		return { ok: true, room: this.view(room), phase: table.series.phase };
+		return { ok: true, room: this.#view(room), phase: table.series.phase };
 	}
 
 	abandonTable(roomId: string, callerId: string, tableId: string): ResolveTableResult {
@@ -2016,7 +2037,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		room.game.tables = [...room.game.tables, table];
 		this.persist(room);
 		this.log({ event: 'table-added', roomId, tableId: table.id });
-		return { ok: true, room: this.view(room), table: tableView(table, room.members, room) };
+		return { ok: true, room: this.#view(room), table: tableView(table, room.members, room) };
 	}
 
 	removeTable(roomId: string, callerId: string, tableId: string): RemoveTableResult {
@@ -2033,7 +2054,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		room.game.tables = room.game.tables.filter((_, i) => i !== index);
 		this.persist(room);
 		this.log({ event: 'table-removed', roomId, tableId });
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	/**
@@ -2052,7 +2073,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		// Idempotent, and checked BEFORE readiness: the two browsers both ask, and
 		// the second one arrives after the first member's flags may already have
 		// been cleared by a leave. A room that has started has started.
-		if (room.game.draftStartedAt !== null) return { ok: true, room: this.view(room) };
+		if (room.game.draftStartedAt !== null) return { ok: true, room: this.#view(room) };
 		if (this.seatsShut(room) !== null) return { ok: false, reason: 'not-open' };
 		if (isTournamentRoom(room)) return this.#lockTournament(room);
 		if (!isDraftRoom(room)) return { ok: false, reason: 'not-draft' };
@@ -2069,7 +2090,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		room.game.podSplit = null;
 		this.persist(room);
 		this.log({ event: 'room-draft-started', roomId, members: room.members.length, seated: seated.length, pods: room.game.podDrafts?.map((p) => p.length) ?? [seated.length] });
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	splitPod(roomId: string, callerId: string): SplitPodResult {
@@ -2088,7 +2109,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			this.persist(room);
 			this.log({ event: 'room-pods-split', roomId, seed, pods: room.game.podSplit.pods.map((p) => p.length) });
 		}
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	/**
@@ -2192,14 +2213,14 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		this.#dealPodRounds(room, entrants);
 		this.persist(room);
 		this.log({ event: 'tournament-locked', roomId: room.id, entrants: entrants.length, humans: entrants.filter((id) => !isAiEntrant(id)).length });
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	setGameType(roomId: string, callerId: string, gameType: GameType): SetGameTypeResult {
 		const room = this.#room(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-		if (room.gameType === gameType) return { ok: true, room: this.view(room) };
+		if (room.gameType === gameType) return { ok: true, room: this.#view(room) };
 		// The type is the room's shape, the mode a part of it: what freezes the mode freezes the type
 		// (`roomLocks`). Once the draft is dealt, switching the game under it would leave a live pod in
 		// a room that says it is playing constructed, and nothing would ever close the pod.
@@ -2218,7 +2239,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		clearReady(room.ledger);
 		this.persist(room);
 		this.log({ event: 'room-game-type', roomId, gameType });
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	setFormat(roomId: string, callerId: string, format: FormatId): SetFormatResult {
@@ -2228,14 +2249,14 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		// Setting the pool a room is already on changes nothing and clears nothing:
 		// a leader clicking the option that is already selected must not un-ready
 		// the table under everybody.
-		if (room.game.format === format) return { ok: true, room: this.view(room) };
+		if (room.game.format === format) return { ok: true, room: this.#view(room) };
 		const locked = roomLocks(room).format;
 		if (locked !== null) return { ok: false, reason: locked };
 		room.game.format = format;
 		this.#interruptSeries(room, false);
 		this.persist(room);
 		this.log({ event: 'room-format', roomId, format });
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	setMode(roomId: string, callerId: string, mode: RoomMode): SetModeResult {
@@ -2244,7 +2265,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
 		if (!isConstructedRoom(room)) return { ok: false, reason: 'not-constructed' };
 		if (room.game.mode === mode.mode && room.game.modeOptions !== null && sameOptions(room.game.modeOptions, mode.modeOptions)) {
-			return { ok: true, room: this.view(room) };
+			return { ok: true, room: this.#view(room) };
 		}
 		const locked = roomLocks(room).mode;
 		if (locked !== null) return { ok: false, reason: locked };
@@ -2256,7 +2277,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		this.#interruptSeries(room, false);
 		this.persist(room);
 		this.log({ event: 'room-mode', roomId, mode: mode.mode, modeOptions: mode.modeOptions });
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	setSettings(roomId: string, callerId: string, settings: Partial<RoomSettings>): SetSettingsResult {
@@ -2265,7 +2286,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
 		const next = { ...room.game.settings, ...settings };
 		const changed = SETTING_KEYS.filter((k) => next[k] !== room.game.settings[k]);
-		if (changed.length === 0) return { ok: true, room: this.view(room) };
+		if (changed.length === 0) return { ok: true, room: this.#view(room) };
 		const locks = roomLocks(room);
 		// The event's lock holds whenever the rules' does (a game in play froze both), so it answers for a change to either.
 		const locked = changed.some((k) => EVENT_SETTING_KEYS.includes(k)) ? locks.event : locks.rules;
@@ -2276,7 +2297,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		if (usesPod(room) !== podBefore) this.#carryPlayers(room, players);
 		this.persist(room);
 		this.log({ event: 'room-settings', roomId, settings: next });
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	/** A pod that finished a match goes to the tournaments: finished, or ended early by a close or the sweep. Never a testing room's. */
@@ -2428,14 +2449,14 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		room.game.planVerdict = verdict;
 		this.persist(room);
 		this.log({ event: 'pod-plan-set', roomId, memberId, planName: planDisplayName(plan, this.#hooksFor(room.gameType).roundNamesOf(plan)) });
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	playPod(roomId: string, memberId: string): PlayPodResult {
 		const room = this.#room(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		const phase = isDraftRoom(room) ? podPhaseOf(room, this.#hooksFor(room.gameType)) : 'lobby';
-		if (phase === 'rounds' || phase === 'done') return { ok: true, room: this.view(room) };
+		if (phase === 'rounds' || phase === 'done') return { ok: true, room: this.#view(room) };
 		const humans = seatedHumans(room);
 		if (phase !== 'building' || !humans.includes(memberId)) return { ok: false, reason: 'not-drafter' };
 		if (!this.#hooksFor(room.gameType).built(memberDraftId(room, memberId), memberId)) return { ok: false, reason: 'not-built' };
@@ -2443,7 +2464,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		this.log({ event: 'pod-play', roomId, memberId });
 		if (humans.every((id) => room.game.podPlaying.includes(id) && this.#hooksFor(room.gameType).built(memberDraftId(room, id), id))) this.#dealPodRounds(room, draftEntrants(room, humans));
 		this.persist(room);
-		return { ok: true, room: this.view(room) };
+		return { ok: true, room: this.#view(room) };
 	}
 
 	/**

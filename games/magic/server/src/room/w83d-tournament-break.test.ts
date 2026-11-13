@@ -21,8 +21,9 @@ import { pairRound, roundsFor, standings, type MatchResult } from '@hadoku/draft
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { roundNamesOf } from './plan.ts';
-import { openLobby, type Lobby, type RoomView } from './lobby.ts';
+import { openLobby, type Lobby, type MagicRoomView } from './lobby.ts';
 import type { GameHooks, SeriesEnd } from './pods.ts';
+import { magicView } from './magic-view.js';
 
 const dirs: string[] = [];
 
@@ -97,8 +98,8 @@ async function tournament(n: number, opts: { watchingLeader?: boolean; dir?: str
 	return { lobby, dir, id, players, ended, leader };
 }
 
-function view(pod: Pod): RoomView {
-	const v = pod.lobby.get(pod.id);
+function view(pod: Pod): MagicRoomView {
+	const v = magicView(pod.lobby.get(pod.id));
 	if (v === undefined) throw new Error('room gone');
 	return v;
 }
@@ -445,6 +446,6 @@ describe('a restart mid-tournament', () => {
 		const tableId = view(pod).game!.pod!.pairings[0]!.tableId;
 		expect(pod.lobby.setTableMatch(pod.id, tableId, 'm-0123456789ab')).toBe(true);
 		const reopened = await openLobby({ dir: pod.dir, now });
-		expect(reopened.get(pod.id)!.tables.find((t) => t.id === tableId)!.matchId).toBe('m-0123456789ab');
+		expect(magicView(reopened.get(pod.id))!.tables.find((t) => t.id === tableId)!.matchId).toBe('m-0123456789ab');
 	});
 });
