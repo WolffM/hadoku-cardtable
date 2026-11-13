@@ -76,6 +76,8 @@ import { appendFileSync, existsSync, readFileSync, readdirSync, statSync } from 
 import { dirname, join, normalize } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { exportOf, hadokuSubpath } from '../layers/exports.ts';
+
 export interface Change {
   filename: string;
   status: string;
@@ -426,25 +428,13 @@ function packageDir(repo: Repo, name: string): string | null {
   return dir;
 }
 
-/** What a package's `exports` map gives for `key` (`./library`): the exact entry, else a `./*` pattern's, with `*` filled in. */
-function exportOf(exports: Record<string, string> | undefined, key: string): string | undefined {
-  if (exports === undefined) return undefined;
-  if (typeof exports[key] === 'string') return exports[key];
-  for (const [pattern, target] of Object.entries(exports)) {
-    const [head, tail, extra] = pattern.split('*');
-    if (tail === undefined || extra !== undefined || typeof target !== 'string') continue;
-    if (key.length >= head.length + tail.length && key.startsWith(head) && key.endsWith(tail)) return target.replace('*', key.slice(head.length, key.length - tail.length));
-  }
-  return undefined;
-}
-
 /** The repo path a specifier in `from` names (`./x.js` may be `x.ts`; `@hadoku/deck/library` is what that package exports as `./library`), or null. */
 export function resolveImport(repo: Repo, from: string, spec: string): string | null {
-  const pkg = /^@hadoku\/([\w-]+)(\/.+)?$/.exec(spec);
+  const pkg = hadokuSubpath(spec);
   if (pkg) {
-    const dir = packageDir(repo, pkg[1]);
+    const dir = packageDir(repo, pkg.pkg);
     const manifest = dir === null ? null : repo.read(`${dir}/package.json`);
-    const exported = manifest === null ? undefined : exportOf((JSON.parse(manifest) as { exports?: Record<string, string> }).exports, `.${pkg[2] ?? ''}`);
+    const exported = manifest === null ? undefined : exportOf((JSON.parse(manifest) as { exports?: Record<string, string> }).exports, pkg.key);
     return exported === undefined ? null : normalize(join(dir!, exported));
   }
   if (!spec.startsWith('.')) return null;

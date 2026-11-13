@@ -8,7 +8,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import ts from 'typescript';
 
-import { type Layer, type Resolver, REPO_ROOT, packageLayerFor, packageNameOf, packageOf } from './classify.ts';
+import { type Layer, type Resolver, REPO_ROOT, packageDirOf, packageLayerFor, packageNameOf, packageOf } from './classify.ts';
+import { exportOf, hadokuSubpath } from './exports.ts';
 
 // Every .ts/.tsx file git tracks under an app's or a package's src dir (`packages/*`, a game's
 // `games/*/packages/*` or its `games/*/server`), repo-relative, /-joined.
@@ -85,6 +86,72 @@ function resolveRelative(fromAbsFile: string, spec: string): string | null {
 }
 
 /**
+ * Every module a file names, with the offset of its specifier: `import`/`import type`, every
+ * `export … from` (`export * as ns from` included, which `ts.preProcessFile` does not report),
+ * `import x = require(…)`, and a dynamic `import(…)`/`require(…)` or `import('…')` type with a literal.
+ */
+export function moduleSpecifiers(relPath: string, src: string): { fileName: string; pos: number }[] {
+	const file = ts.createSourceFile(relPath, src, ts.ScriptTarget.Latest, /* setParentNodes */ false, relPath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+	const out: { fileName: string; pos: number }[] = [];
+	const add = (node: ts.Node | undefined): void => {
+		if (node !== undefined && ts.isStringLiteralLike(node)) out.push({ fileName: node.text, pos: node.getStart(file) });
+	};
+	const visit = (node: ts.Node): void => {
+		if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) add(node.moduleSpecifier);
+		else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) add(node.moduleReference.expression);
+		else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require')) && node.arguments.length === 1) add(node.arguments[0]);
+		else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) add(node.argument.literal);
+		ts.forEachChild(node, visit);
+	};
+	visit(file);
+	return out;
+}
+
+/**
+ * The repo-relative file an `@hadoku/<pkg>[/<sub>]` specifier names: the package's own `exports`
+ * entry for that subpath (`@hadoku/shared/platform` is `packages/shared/src/platform.ts`, `@hadoku/shared`
+ * its `.` barrel), or null when the package or the entry is not found.
+ */
+export function resolvePackageImport(spec: string, allFiles: string[]): string | null {
+	const sub = hadokuSubpath(spec);
+	if (sub === null) return null;
+	const dir = packageDirsByName(allFiles).get(sub.pkg);
+	if (dir === undefined) return null;
+	const manifest = join(REPO_ROOT, dir, 'package.json');
+	if (!existsSync(manifest)) return null;
+	const target = exportOf((JSON.parse(readFileSync(manifest, 'utf8')) as { exports?: Record<string, string> }).exports, sub.key);
+	if (target === undefined) return null;
+	const file = posix.join(dir, target);
+	return existsSync(join(REPO_ROOT, file)) ? file : null;
+}
+
+const packageDirsCache = new WeakMap<string[], Map<string, string>>();
+function packageDirsByName(allFiles: string[]): Map<string, string> {
+	let dirs = packageDirsCache.get(allFiles);
+	if (dirs === undefined) {
+		dirs = new Map();
+		for (const f of allFiles) {
+			const dir = packageDirOf(f);
+			if (dir !== null && !dirs.has(packageNameOf(dir))) dirs.set(packageNameOf(dir), dir);
+		}
+		packageDirsCache.set(allFiles, dirs);
+	}
+	return dirs;
+}
+
+/**
+ * The layer an `@hadoku/*` import lands in: the layer of the file the package exports at that
+ * subpath, so a platform file may import a mixed package's platform entry and not its Magic barrel.
+ * A specifier no `exports` entry resolves falls back to the whole package's layer
+ * (`packageLayerFor`), the stricter side for a package with any Magic file.
+ */
+export function packageImportLayer(spec: string, resolver: Resolver, allFiles: string[]): Layer | 'testSupport' | null {
+	const file = resolvePackageImport(spec, allFiles);
+	const layer = file === null ? null : resolver.layerOf(file);
+	return layer ?? packageLayerFor(hadokuSubpath(spec)!.pkg, resolver, allFiles);
+}
+
+/**
  * Every import/re-export/dynamic-import edge out of the repo's non-test source files, whichever
  * direction it points. `@wolffm/*` and other external packages are skipped (rule: "not counted").
  */
@@ -96,8 +163,7 @@ export function collectEdges(resolver: Resolver, allFiles: string[]): Edge[] {
 		if (fromLayer === 'testSupport' || fromLayer === null) continue;
 		const abs = join(REPO_ROOT, relPath);
 		const src = readFileSync(abs, 'utf8');
-		const info = ts.preProcessFile(src, /* readImportFiles */ true, /* detectJavaScriptImports */ true);
-		for (const imp of info.importedFiles) {
+		for (const imp of moduleSpecifiers(relPath, src)) {
 			const spec = imp.fileName;
 			let toLayer: Layer | 'testSupport' | null;
 			if (spec.startsWith('.')) {
@@ -106,9 +172,8 @@ export function collectEdges(resolver: Resolver, allFiles: string[]): Edge[] {
 				if (!target || !/\.(ts|tsx)$/.test(target)) continue;
 				const targetRel = posix.relative(REPO_ROOT.split('\\').join('/'), target.split('\\').join('/'));
 				toLayer = resolver.layerOf(targetRel);
-			} else if (spec.startsWith('@hadoku/')) {
-				const pkg = spec.slice('@hadoku/'.length).split('/')[0];
-				toLayer = packageLayerFor(pkg, resolver, allFiles);
+			} else if (hadokuSubpath(spec) !== null) {
+				toLayer = packageImportLayer(spec, resolver, allFiles);
 			} else {
 				continue; // external: node builtins, @wolffm/*, npm deps — not counted
 			}

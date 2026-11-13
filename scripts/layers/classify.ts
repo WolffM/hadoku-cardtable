@@ -142,10 +142,15 @@ export function packageNameOf(pkgDir: string): string {
 	return name;
 }
 
+/** The directory of the workspace package a source path belongs to (`packages/shared`), or `null` outside them. */
+export function packageDirOf(relPath: string): string | null {
+	return PACKAGE_DIR.exec(relPath)?.[0] ?? null;
+}
+
 /** The name of the workspace package a source path belongs to (see `packageNameOf`), or `null` outside them. */
 export function packageOf(relPath: string): string | null {
-	const m = PACKAGE_DIR.exec(relPath);
-	return m ? packageNameOf(m[0]) : null;
+	const dir = packageDirOf(relPath);
+	return dir === null ? null : packageNameOf(dir);
 }
 
 /**

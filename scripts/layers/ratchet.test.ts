@@ -27,6 +27,9 @@ import {
 	edgeKey,
 	isViolation,
 	listSourceFiles,
+	moduleSpecifiers,
+	packageImportLayer,
+	resolvePackageImport,
 	type Edge,
 } from './scan.ts';
 
@@ -125,6 +128,47 @@ describe('layer fence — imports', () => {
 			);
 		}
 		expect(true).toBe(true);
+	});
+});
+
+describe('layer fence — an @hadoku import lands in the file its package exports there', () => {
+	it("a platform file may import a mixed package's platform entry, and not its Magic barrel", () => {
+		expect(resolvePackageImport('@hadoku/shared/platform', allFiles)).toBe('packages/shared/src/platform.ts');
+		expect(resolvePackageImport('@hadoku/shared', allFiles)).toBe('packages/shared/src/index.ts');
+		expect(packageImportLayer('@hadoku/shared/platform', resolver, allFiles)).toBe('platform');
+		expect(packageImportLayer('@hadoku/shared', resolver, allFiles)).toBe('magic');
+		expect(isViolation('platform', 'platform')).toBe(false);
+		expect(isViolation('platform', 'magic')).toBe(true);
+	});
+
+	it("follows a `./*` pattern export to the one file it names, in each package's own layer", () => {
+		expect(resolvePackageImport('@hadoku/game-server/room/session', allFiles)).toBe('packages/game-server/src/room/session.ts');
+		expect(packageImportLayer('@hadoku/game-server/room/session', resolver, allFiles)).toBe('platform');
+		expect(resolvePackageImport('@hadoku/magic-server/room/lobby', allFiles)).toBe('games/magic/server/src/room/lobby.ts');
+		expect(packageImportLayer('@hadoku/magic-server/room/lobby', resolver, allFiles)).toBe('magic');
+	});
+
+	it('reads every form a file names a module in, a namespace re-export included', () => {
+		const src = [
+			"import a from '@x/default';",
+			"import type { B } from '@x/type';",
+			"import '@x/side-effect';",
+			"export * from '@x/star';",
+			"export * as ns from '@x/namespace';",
+			"export { c } from '@x/named';",
+			"import d = require('@x/equals');",
+			"const e = await import('@x/dynamic');",
+			"const f = require('@x/require');",
+			"type G = typeof import('@x/import-type');",
+		].join('\n');
+		expect(moduleSpecifiers('x.ts', src).map((m) => m.fileName)).toEqual([
+			'@x/default', '@x/type', '@x/side-effect', '@x/star', '@x/namespace', '@x/named', '@x/equals', '@x/dynamic', '@x/require', '@x/import-type',
+		]);
+	});
+
+	it('a subpath no export names falls back to the whole package, the stricter side', () => {
+		expect(resolvePackageImport('@hadoku/shared/room-view', allFiles)).toBeNull();
+		expect(packageImportLayer('@hadoku/shared/room-view', resolver, allFiles)).toBe('magic');
 	});
 });
 
