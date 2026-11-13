@@ -2922,6 +2922,8 @@ public final class PlayBridge {
         /** Button 2 as Forge last labelled it, to know that a cancel click IS an End Turn. */
         private volatile String lastLabel2 = "";
         private volatile boolean lastEnable2;
+        /** Whether this seat's last bar was its composed wait's, not an input's: a Cancel under it can only be the yield's. */
+        private volatile boolean waitBar;
         /** Forge's own label of the End Turn button ({@code InputPassPriority}, {@code lblEndTurn}). */
         private static final String END_TURN_LABEL = "End Turn";
 
@@ -4063,6 +4065,7 @@ public final class PlayBridge {
             if (owner == null) { return; }
             lastLabel2 = label2 == null ? "" : label2;
             lastEnable2 = enable2;
+            waitBar = composingWait;
             // A composed wait's bar is no input's: the convoke offer belongs to the input's own bar.
             if (!composingWait) { syncConvokeSelectables(); }
             final JsonObject f = notify("updateButtons");
@@ -6344,6 +6347,13 @@ public final class PlayBridge {
                     // click over the network, so this ordering is real rather than assumed.
                     if (lastEnable2 && END_TURN_LABEL.equals(lastLabel2)) { setPhaseDelayOff(true); }
                     if (cancelYield()) { return; }
+                    // A wait's bar, whose one live button is the yield's Cancel, composed while an earlier press was on its
+                    // way and pressed after that press ended the yield. Sent on, Forge's ActGate would hold it for the
+                    // seat's next input and answer that priority window as End Turn, yielding again.
+                    if (waitBar) {
+                        dropped(match, seat, method, -1, "its yield had already ended");
+                        return;
+                    }
                     madeOn(input, method, -1);
                     c.selectButtonCancel();
                 }

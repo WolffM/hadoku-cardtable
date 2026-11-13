@@ -105,8 +105,9 @@ export type BridgeLine =
 	/**
 	 * An act the bridge kept from Forge: a click sent to answer a selection that closed before Forge
 	 * reached it (`MatchContext.selectionClicks`), or an act made on an input that was no longer the
-	 * open one when Forge applied it (`MatchContext.actInputs`, `card` -1 for a button). Either would
-	 * have landed in whatever input came next. Never applied, so never an `applied` line.
+	 * open one when Forge applied it (`MatchContext.actInputs`, `card` -1 for a button), or a Cancel on
+	 * the yield's bar after the yield had ended. Each would have landed in whatever input came next.
+	 * Never applied, so never an `applied` line.
 	 */
 	| { t: 'dropped'; seat: number; method: string; card: number; why: string }
 	/**
