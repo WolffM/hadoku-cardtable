@@ -50,6 +50,9 @@ export const MAGIC_ROOM_STORED_KEYS = [
   'lockedDecks',
 ] as const;
 
+/** A room AI's character: its name and the avatar it wears. */
+const AiPersonaSchema = z.object({ name: z.string(), avatarId: z.string().max(AVATAR_ID_MAX) });
+
 /** Magic's fields as a view carries them, each with the fallback a body that lacks it reads back. */
 export const magicRoomFields = {
   /**
@@ -79,6 +82,12 @@ export const magicRoomFields = {
    * already see the room it belongs to.
    */
   scenario: z.string().optional(),
+  /**
+   * The room's AI, the character an AI seat plays as (`room/pods.ts`'s `roomAi`). Absent from a
+   * server built before 2026-11-13, which sent it only as the body's top-level `ai`: read it
+   * through `roomAiOf`, which falls back to that.
+   */
+  ai: AiPersonaSchema.optional().catch(undefined),
 };
 
 /**
@@ -138,8 +147,19 @@ export const RoomBodySchema = z
     you: RoomYouSchema,
     /** Each table's game for the table card, by table id; none from a server that does not send it. */
     tableGames: TableGamesSchema.optional().catch(undefined),
-    /** The room's AI, the character an AI seat plays as (`room/lobby.ts`'s `roomAi`). */
-    ai: z.object({ name: z.string(), avatarId: z.string().max(AVATAR_ID_MAX) }).optional().catch(undefined),
+    /**
+     * The room's AI as a server built before 2026-11-13 sent it, beside `game`. Read
+     * `roomAiOf`, never this: a newer server sends it as `game.ai`, and stops sending this copy.
+     */
+    ai: AiPersonaSchema.optional().catch(undefined),
   })
   .transform(withGame);
 export type RoomBody = z.infer<typeof RoomBodySchema>;
+
+/**
+ * The room's AI: Magic's `game.ai`, or the top-level copy a server built before 2026-11-13 sent
+ * instead. Undefined for a room of another game, and for a body that carries neither.
+ */
+export function roomAiOf(room: { gameType: string; game?: unknown; ai?: { name: string; avatarId: string } }): { name: string; avatarId: string } | undefined {
+  return magicGame(room).ai ?? room.ai;
+}

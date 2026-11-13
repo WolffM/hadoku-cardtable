@@ -272,12 +272,12 @@ function playSeedSeries(
 	lobby.sitPod(roomId, TESTING_SEED_CALLER.id, 0);
 	for (let seat = 1; seat <= field.aiEntrants; seat++) lobby.aiPod(roomId, TESTING_SEED_CALLER.id, seat, true);
 	makeEntrantReady();
-	if (lobby.get(roomId)?.game.pod?.pairings.length !== 1) {
+	if (lobby.get(roomId)?.game?.pod?.pairings.length !== 1) {
 		log({ event: 'testing-room-seed-failed', name, reason: 'tournament-did-not-lock' });
 		return null;
 	}
 	for (const [r, games] of field.series.entries()) {
-		const pod = lobby.get(roomId)?.game.pod;
+		const pod = lobby.get(roomId)?.game?.pod;
 		const tableId = pod?.round === r + 1 ? pod.pairings[0]?.tableId : undefined;
 		if (tableId === undefined) {
 			log({ event: 'testing-room-seed-failed', name, reason: `round-${r + 1}-did-not-open` });
@@ -290,7 +290,7 @@ function playSeedSeries(
 			}
 		}
 	}
-	const after = lobby.get(roomId)?.game.pod;
+	const after = lobby.get(roomId)?.game?.pod;
 	if (after?.phase === 'done') return '';
 	const next = after?.round === field.series.length + 1 ? after.pairings[0]?.tableId : undefined;
 	if (next === undefined) {
@@ -337,9 +337,9 @@ async function seedTournamentRound2Classic(deps: TestingRoomsDeps, log: (entry: 
 		log({ event: 'testing-room-settings-failed', name: TESTING_CLASSIC_ROUND2_NAME, reason: settled.reason });
 		return;
 	}
-	const deckState = legalClassicDeckState(deps.library, created.room.game.format);
+	const deckState = legalClassicDeckState(deps.library, created.room.game?.format ?? '');
 	if (deckState === null) {
-		log({ event: 'testing-room-seed-skipped', name: TESTING_CLASSIC_ROUND2_NAME, reason: 'no legal deck for this format', format: created.room.game.format });
+		log({ event: 'testing-room-seed-skipped', name: TESTING_CLASSIC_ROUND2_NAME, reason: 'no legal deck for this format', format: created.room.game?.format ?? '' });
 		return;
 	}
 	const makeEntrantReady = (): void => {

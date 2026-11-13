@@ -327,11 +327,11 @@ describe('POST /api/rooms', () => {
 		expect(room.name).toBe('Kitchen table');
 		expect(room.gameType).toBe('constructed-1v1');
 		// No mode asked for: the default is our own table, stated not implied.
-		expect(room.game.clientMode).toBe('builtin');
+		expect(room.game!.clientMode).toBe('builtin');
 		expect(room.locked).toBe(false);
 		expect(room.matchId).toBeNull();
 		// A new room is in its lobby phase and nobody has readied.
-		expect(room.game.draftStartedAt).toBeNull();
+		expect(room.game!.draftStartedAt).toBeNull();
 		expect(room.members.map((m) => m.ready)).toEqual([false]);
 		expect(room.leader).toBe(room.creator);
 		// Nothing is locked in a new room: every control is the leader's.
@@ -339,8 +339,8 @@ describe('POST /api/rooms', () => {
 		// A drawn era (`room/lobby.ts`'s `randomFormat`): the top of [0, 1) is the
 		// newest era of the catalog's last family, never the oldest pool.
 		const lastFamily = [...new Set(LIBRARY_FORMATS.map((f) => f.family))].at(-1);
-		expect(room.game.format).toBe(LIBRARY_FORMATS.filter((f) => f.family === lastFamily).at(-1)!.id);
-		expect(room.game.format).not.toBe(OLDEST_POOL);
+		expect(room.game!.format).toBe(LIBRARY_FORMATS.filter((f) => f.family === lastFamily).at(-1)!.id);
+		expect(room.game!.format).not.toBe(OLDEST_POOL);
 		expect(POOLS.length).toBeGreaterThan(1);
 		// And the creator is told, in their own row, that the room is theirs to set.
 		expect(res.json()).toMatchObject({ you: { leader: true, ready: false } });
@@ -374,8 +374,10 @@ describe('POST /api/rooms', () => {
 		expect(room.seats).toEqual([room.creator, null]);
 		// No `avatarId` yet: a member's character is their account's, written when it is read (`people.ts`).
 		expect(Object.keys(room.members[0]).sort()).toEqual(['id', 'joinedAt', 'name', 'ready']);
-		// Magic's blob: the only place the view carries its fields.
-		expect(Object.keys(room.game).sort()).toEqual(['clientMode', 'draftStartedAt', 'format', 'mode', 'modeOptions', 'pod']);
+		// Magic's blob: the only place the view carries its fields, the room's AI among them.
+		expect(Object.keys(room.game!).sort()).toEqual(['ai', 'clientMode', 'draftStartedAt', 'format', 'mode', 'modeOptions', 'pod']);
+		// The top-level `ai` is the same character, restated for a UI built before it moved into `game`.
+		expect(room.game!.ai).toEqual(room.ai);
 
 		// The verbatim body, for the lanes coding against it.
 		if (process.env.CARDTABLE_ROOMVIEW_OUT) {
@@ -401,13 +403,13 @@ describe('POST /api/rooms', () => {
 		});
 		expect(res.status).toBe(201);
 		const created = res.json() as import('../room/lobby.ts').RoomView;
-		expect(created.game.clientMode).toBe('streamed');
+		expect(created.game!.clientMode).toBe('streamed');
 
 		// The list and the single-room read agree, before anyone joins.
 		const listed = ((await call(h, 'GET', '/api/rooms', { as: 'bob' })).json() as {
 			rooms: import('../room/lobby.ts').RoomView[];
 		}).rooms;
-		expect(listed.map((r) => r.game.clientMode)).toEqual(['streamed']);
+		expect(listed.map((r) => r.game!.clientMode)).toEqual(['streamed']);
 		expect(
 			((await call(h, 'GET', `/api/rooms/${created.id}`, { as: 'bob' })).json() as { game: { clientMode: string } })
 				.game.clientMode,
@@ -841,7 +843,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 			expect(res.json()).toEqual({ error });
 		}
 		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as View;
-		expect([after.settings, after.game.format]).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' }, NEWEST_POOL]);
+		expect([after.settings, after.game!.format]).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' }, NEWEST_POOL]);
 	});
 
 	it('sizes a Constructed room’s series Bo1 and a draft room’s Bo3', async () => {
@@ -915,7 +917,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		const patched = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format: OLDEST_POOL } });
 		expect(patched.status).toBe(200);
 		const after = patched.json() as import('../room/lobby.ts').RoomView;
-		expect(after.game.format).toBe(OLDEST_POOL);
+		expect(after.game!.format).toBe(OLDEST_POOL);
 		// The room's flag, for everybody including the leader who changed it.
 		expect(after.members.map((m) => m.ready)).toEqual([false, false]);
 		// And the table's, which is the whole hold: a verdict is a verdict in one
@@ -925,7 +927,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		// Cleared on disk too, and the new pool came back with the room.
 		const second = await openApp(dir);
 		const restored = (await call(second, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
-		expect(restored.game.format).toBe(OLDEST_POOL);
+		expect(restored.game!.format).toBe(OLDEST_POOL);
 		expect(restored.members.map((m) => m.ready)).toEqual([false, false]);
 		expect(second.lobby.playerState(created.id, created.creator)).toBeUndefined();
 	});
@@ -960,7 +962,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		}
 		// Neither half of the two-field body landed.
 		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
-		expect([after.gameType, after.game.format]).toEqual(['constructed-1v1', NEWEST_POOL]);
+		expect([after.gameType, after.game!.format]).toEqual(['constructed-1v1', NEWEST_POOL]);
 	});
 
 	/**
@@ -980,8 +982,8 @@ describe('PATCH /api/rooms/:id { format }', () => {
 			expect((res.json() as { error: string }).error).toBe('format must be a format id: a drafted deck is played on Free pick');
 		}
 		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
-		expect(after.game.format).toBe(created.game.format);
-		expect(after.game.format.startsWith('draft:')).toBe(false);
+		expect(after.game!.format).toBe(created.game!.format);
+		expect(after.game!.format.startsWith('draft:')).toBe(false);
 	});
 
 	it('refuses to move the pool while a draft is running', async () => {
@@ -997,7 +999,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		expect(patched.status).toBe(409);
 		expect((patched.json() as { error: string }).error).toBe('this room is drafting; the format cannot change now');
 		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
-		expect(after.game.format).toBe(NEWEST_POOL);
+		expect(after.game!.format).toBe(NEWEST_POOL);
 		expect(after.members.map((m) => m.ready)).toEqual([true]);
 	});
 });
@@ -1024,11 +1026,11 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 
 		const ok = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
 		expect(ok.status).toBe(200);
-		expect((ok.json() as import('../room/lobby.ts').RoomView).game.pod?.plan).toEqual(PLAN);
-		expect((ok.json() as import('../room/lobby.ts').RoomView).game.pod?.roundNames).toEqual(['legacy', 'legacy', 'legacy']);
+		expect((ok.json() as import('../room/lobby.ts').RoomView).game!.pod?.plan).toEqual(PLAN);
+		expect((ok.json() as import('../room/lobby.ts').RoomView).game!.pod?.roundNames).toEqual(['legacy', 'legacy', 'legacy']);
 
 		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
-		expect(after.game.pod?.plan).toEqual(PLAN);
+		expect(after.game!.pod?.plan).toEqual(PLAN);
 	});
 
 	/*
@@ -1046,12 +1048,12 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 		const allSetCube = { rounds: [{ kind: 'set', code: 'ISD', style: 'set-cube' }, { kind: 'set', code: 'ISD', style: 'set-cube' }, { kind: 'set', code: 'ISD', style: 'set-cube' }] };
 		const allRes = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: allSetCube } });
 		expect(allRes.status).toBe(200);
-		expect((allRes.json() as import('../room/lobby.ts').RoomView).game.pod?.plan).toEqual(allSetCube);
+		expect((allRes.json() as import('../room/lobby.ts').RoomView).game!.pod?.plan).toEqual(allSetCube);
 
 		const mixed: DraftPlan = { rounds: [{ kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ARB', style: 'realistic' }] };
 		const mixedRes = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: mixed } });
 		expect(mixedRes.status).toBe(200);
-		const roundNames = (mixedRes.json() as import('../room/lobby.ts').RoomView).game.pod?.roundNames ?? null;
+		const roundNames = (mixedRes.json() as import('../room/lobby.ts').RoomView).game!.pod?.roundNames ?? null;
 		expect(roundNames).toEqual(['ALA', 'ALA', 'ARB']);
 		expect(planDisplayName(mixed, roundNames!)).toBe(['ALA · Realistic', 'ALA · Realistic', 'ARB · Realistic'].join(' / '));
 	});
@@ -1061,14 +1063,14 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 		const h = await openApp(await tempDir(), { checkPlan: async () => refusal });
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
 			.json() as import('../room/lobby.ts').RoomView;
-		const before = room.game.pod?.plan;
+		const before = room.game!.pod?.plan;
 
 		const res = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
 		expect(res.status).toBe(409);
 		expect(res.json()).toEqual({ verdict: refusal });
 
 		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
-		expect(after.game.pod?.plan).toEqual(before);
+		expect(after.game!.pod?.plan).toEqual(before);
 	});
 
 	it('refuses once the draft has started — the pool is fixed', async () => {
@@ -1176,7 +1178,7 @@ describe('POST /api/rooms/:id/pod/close', () => {
 		expect((await close('alice', { seat: 7, closed: 'yes' })).status).toBe(400);
 		const ok = await close('alice', { seat: 7, closed: true });
 		expect(ok.status).toBe(200);
-		expect((ok.json() as import('../room/lobby.ts').RoomView).game.pod?.seats[7]).toEqual({ memberId: 'closed', name: '' });
+		expect((ok.json() as import('../room/lobby.ts').RoomView).game!.pod?.seats[7]).toEqual({ memberId: 'closed', name: '' });
 		expect((await close('alice', { seat: 7, closed: false })).status).toBe(200);
 	});
 });
@@ -1273,7 +1275,7 @@ describe('a room’s clientMode', () => {
 				body: { name: 'Forge night', clientMode: 'streamed' },
 			})
 		).json() as import('../room/lobby.ts').RoomView;
-		expect(created.game.clientMode).toBe('streamed');
+		expect(created.game!.clientMode).toBe('streamed');
 
 		// No route other than POST /api/rooms takes the field. Each of these
 		// allow-lists its own body keys, so the answer is a stated 400 rather
@@ -1588,12 +1590,12 @@ describe('POST /api/rooms/:id/leave', () => {
 		h.lobby.useGameType('draft', checks);
 		const started = h.lobby.startDraft(room.id, ids[0]!);
 		if (!started.ok) throw new Error(started.reason);
-		const tableId = started.room.game.pod!.pairings[0]!.tableId;
+		const tableId = started.room.game!.pod!.pairings[0]!.tableId;
 		expect(h.lobby.setTableMatch(room.id, tableId, 'm-0000000000a1')).toBe(true);
 
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'bob' })).status).toBe(200);
 		expect(forfeits).toEqual([{ roomId: room.id, tableId, loser: ids[1], matches: ['m-0000000000a1'] }]);
-		expect(h.lobby.get(room.id)!.game.pod).toMatchObject({ dropped: [ids[1]], phase: 'done' });
+		expect(h.lobby.get(room.id)!.game!.pod).toMatchObject({ dropped: [ids[1]], phase: 'done' });
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'alice' })).status).toBe(200);
 		expect(forfeits, 'the pod is over: nothing more to forfeit').toHaveLength(1);
 	});
@@ -1697,9 +1699,9 @@ describe('POST /api/rooms/:id/pod/split', () => {
 
 		const split = await call(h, 'POST', `/api/rooms/${room.id}/pod/split`, { as: 'alice' });
 		expect(split.status).toBe(200);
-		const pods = (split.json() as import('../room/lobby.ts').RoomView).game.pod?.pods;
+		const pods = (split.json() as import('../room/lobby.ts').RoomView).game!.pod?.pods;
 		expect(pods?.map((p) => p.length)).toEqual([5, 4]);
-		expect(((await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'ivy' })).json() as import('../room/lobby.ts').RoomView).game.pod?.pods).toEqual(pods);
+		expect(((await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'ivy' })).json() as import('../room/lobby.ts').RoomView).game!.pod?.pods).toEqual(pods);
 		// Locked: Bob cannot stand, and only Alice's Start draft deals.
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/stand`, { as: 'bob' })).status).toBe(409);
 		const bobStarts = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'bob' });
@@ -1722,7 +1724,7 @@ describe('POST /api/rooms/:id/start', () => {
 		const early = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' });
 		expect(early.status).toBe(409);
 		expect((early.json() as { error: string }).error).toContain('the AI');
-		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).game.draftStartedAt).toBeNull();
+		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).game!.draftStartedAt).toBeNull();
 
 		// The AI button, on every open seat.
 		for (let seat = 2; seat < 8; seat++) expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat, on: true } })).status).toBe(200);
@@ -1732,13 +1734,13 @@ describe('POST /api/rooms/:id/start', () => {
 		// Bob is not the leader, and starts it anyway: any member may ask.
 		const started = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'bob' });
 		expect(started.status).toBe(200);
-		const at = (started.json() as import('../room/lobby.ts').RoomView).game.draftStartedAt;
+		const at = (started.json() as import('../room/lobby.ts').RoomView).game!.draftStartedAt;
 		expect(typeof at).toBe('string');
 
 		// Both browsers ask; the server answers one draft to both.
 		const again = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' });
 		expect(again.status).toBe(200);
-		expect((again.json() as import('../room/lobby.ts').RoomView).game.draftStartedAt).toBe(at);
+		expect((again.json() as import('../room/lobby.ts').RoomView).game!.draftStartedAt).toBe(at);
 	});
 
 	it('refuses a constructed room with 409, a non-member with 404, and a body it did not ask for', async () => {
@@ -1893,7 +1895,7 @@ describe('POST /api/rooms/:id/start', () => {
 			expect(res.status).toBe(409);
 			expect((res.json() as { error: string }).error).toContain('the pool JVM is gone');
 			const after = (await call(h, 'GET', `/api/rooms/${id}`)).json() as import('../room/lobby.ts').RoomView;
-			expect(after.game.draftStartedAt).toBeNull();
+			expect(after.game!.draftStartedAt).toBeNull();
 		});
 
 		it('a second /start (idempotent) never re-fetches — the pod is already past its lobby', async () => {
@@ -2033,7 +2035,7 @@ describe('PATCH /api/rooms/:id while a draft is running', () => {
 		expect((patched.json() as { error: string }).error).toContain('drafting');
 		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
 		expect(after.gameType).toBe('draft');
-		expect(after.game.draftStartedAt).not.toBeNull();
+		expect(after.game!.draftStartedAt).not.toBeNull();
 	});
 
 	it('clears every ready flag when the game type does change', async () => {
@@ -2325,9 +2327,9 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
 		expect(started.status, started.text).toBe(200);
 		const startedRoom = started.json() as import('../room/lobby.ts').RoomView;
-		expect(startedRoom.game.pod?.phase).toBe('rounds');
-		expect(startedRoom.game.pod?.pairings).toHaveLength(1);
-		const tableId = startedRoom.game.pod!.pairings[0]!.tableId;
+		expect(startedRoom.game!.pod?.phase).toBe('rounds');
+		expect(startedRoom.game!.pod?.pairings).toHaveLength(1);
+		const tableId = startedRoom.game!.pod!.pairings[0]!.tableId;
 
 		// Every LATER read must still answer too — the bug left the room
 		// permanently broken, not just the lock's own response.
@@ -2355,9 +2357,9 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		const made = await call(h, 'POST', '/api/rooms/challenge', { as: 'alice', body: { collection: 'tournament-legacy-2026-02-07', player: 'Ozymandias17', field: 'top8' } });
 		expect(made.status, made.text).toBe(201);
 		const room = made.json() as import('../room/lobby.ts').RoomView & { you: { id: string } };
-		expect(room.game.pod!.seats.findIndex((s) => s?.memberId === room.you.id)).toBe(4);
+		expect(room.game!.pod!.seats.findIndex((s) => s?.memberId === room.you.id)).toBe(4);
 		// Each AI seat is named for its real player, read from the library's list (never stored).
-		expect(room.game.pod!.seats.map((s) => s?.name)).toEqual(['TeaW1thRum', 'romariovidal', 'Matiuzzzo', 'Stanshine', 'user-alice', 'TheGrimLavamancer', 'wonderPreaux', 'SiL3nTGoaT']);
+		expect(room.game!.pod!.seats.map((s) => s?.name)).toEqual(['TeaW1thRum', 'romariovidal', 'Matiuzzzo', 'Stanshine', 'user-alice', 'TheGrimLavamancer', 'wonderPreaux', 'SiL3nTGoaT']);
 		expect(room.seatDecks, 'the open seat plays its player’s list').toEqual({ '4': 'tourney-leg-2026-02-07-1-ozymandias17' });
 		// Another legal list loaded first changes nothing: the seat's list is what the lock deals.
 		const other = await call(h, 'PUT', `/api/tables/rooms/${room.id}/deck`, { as: 'alice', body: { deck: { library: 'tourney-leg-2026-02-07-2-stanshine' } } });
@@ -2365,8 +2367,8 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } })).status).toBe(200);
 
 		const locked = h.lobby.get(room.id)!;
-		expect(locked.game.pod?.phase).toBe('rounds');
-		const pairing = locked.game.pod!.pairings.find((p) => p.players.includes(room.you.id))!;
+		expect(locked.game!.pod?.phase).toBe('rounds');
+		const pairing = locked.game!.pod!.pairings.find((p) => p.players.includes(room.you.id))!;
 		expect(pairing.players).toEqual(['ai:0', room.you.id]);
 		expect(h.lobby.tournamentPairingOf(room.id, pairing.tableId)?.ai?.name, 'the match names its AI as the real player').toBe('TeaW1thRum');
 		const held = h.lobby.playerState(room.id, room.you.id) as { aiDeck?: string; deck?: { choice: { deck: { library: string } } } };
@@ -2389,7 +2391,7 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		for (const who of ['alice', 'bob']) expect((await call(h, 'POST', `/api/rooms/${id}/ready`, { as: who, body: { ready: true } })).status).toBe(200);
 		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
 		expect(started.status, started.text).toBe(200);
-		const tableId = (started.json() as import('../room/lobby.ts').RoomView).game.pod!.pairings[0]!.tableId;
+		const tableId = (started.json() as import('../room/lobby.ts').RoomView).game!.pod!.pairings[0]!.tableId;
 
 		// What each seat HOLDS: the view hides an All Random deck until it is played.
 		const held = () => h.lobby.get(id)!.members.map((m) => (h.lobby.playerState(id, m.id) as { deck: { text: string } | null } | null)?.deck?.text ?? null);
@@ -2415,14 +2417,14 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		for (const who of ['alice', 'bob']) expect((await call(h, 'POST', `/api/rooms/${id}/ready`, { as: who, body: { ready: true } })).status).toBe(200);
 		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
 		expect(started.status, started.text).toBe(200);
-		const tableId = (started.json() as import('../room/lobby.ts').RoomView).game.pod!.pairings[0]!.tableId;
+		const tableId = (started.json() as import('../room/lobby.ts').RoomView).game!.pod!.pairings[0]!.tableId;
 		const myDeck = async () =>
 			((await call(h, 'GET', `/api/tables/rooms/${id}?table=${tableId}`, { as: 'alice' })).json() as { players: { you: boolean; deck?: { name: string } | null }[] }).players.find((p) => p.you)
 				?.deck;
 
 		expect(await myDeck(), 'round 1: not yet played, not named').toBeNull();
 		for (const matchId of ['m-1', 'm-2']) h.lobby.recordGameResult(id, tableId, { matchId, winner: 0 });
-		expect(h.lobby.get(id)?.game.pod?.results.length, 'the round-1 match is recorded').toBeGreaterThan(0);
+		expect(h.lobby.get(id)?.game!.pod?.results.length, 'the round-1 match is recorded').toBeGreaterThan(0);
 		expect((await myDeck())?.name, 'played: named from here on').toEqual(expect.any(String));
 	});
 
@@ -2440,8 +2442,8 @@ describe('a tournament locks over HTTP, with real GameHooks (regression: the loc
 		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
 		expect(started.status, started.text).toBe(200);
 		const startedRoom = started.json() as import('../room/lobby.ts').RoomView & { you: { id: string } };
-		expect(startedRoom.game.pod?.phase).toBe('rounds');
-		expect(startedRoom.game.pod?.pairings).toEqual([{ tableId: startedRoom.game.pod!.pairings[0]!.tableId, players: [startedRoom.you.id, 'ai:1'] }]);
+		expect(startedRoom.game!.pod?.phase).toBe('rounds');
+		expect(startedRoom.game!.pod?.pairings).toEqual([{ tableId: startedRoom.game!.pod!.pairings[0]!.tableId, players: [startedRoom.you.id, 'ai:1'] }]);
 
 		const after = await call(h, 'GET', `/api/rooms/${id}`);
 		expect(after.status, after.text).toBe(200);
@@ -2499,7 +2501,7 @@ describe('Gauntlet tournaments over HTTP, with the real routes.ts adapter', () =
 		expect((await call(h, 'POST', `/api/rooms/${id}/ready`, { as: 'alice', body: { ready: true } })).status).toBe(200);
 		const locked = await call(h, 'POST', `/api/rooms/${id}/ready`, { as: 'bob', body: { ready: true } });
 		expect(locked.status, locked.text).toBe(200);
-		const pod1 = (locked.json() as import('../room/lobby.ts').RoomView).game.pod!;
+		const pod1 = (locked.json() as import('../room/lobby.ts').RoomView).game!.pod!;
 		expect(pod1.phase, 'the field locked itself on Bob’s own Ready').toBe('rounds');
 		expect(pod1.round).toBe(1);
 
@@ -2586,7 +2588,7 @@ describe('Gauntlet tournaments over HTTP, with the real routes.ts adapter', () =
 		for (const matchId of ['m-r1-bob-1', 'm-r1-bob-2']) expect(h.lobby.recordGameResult(id, t1Bob, { matchId, winner: 0 }).ok).toBe(true);
 
 		const pod2 = (await call(h, 'GET', `/api/rooms/${id}`, { as: 'alice' })).json() as import('../room/lobby.ts').RoomView;
-		expect(pod2.game.pod?.round, 'round 2 begins').toBe(2);
+		expect(pod2.game!.pod?.round, 'round 2 begins').toBe(2);
 
 		// Round 2 (by score) pairs the two winners together — alice vs bob
 		// directly — so this is ONE table, not two.
@@ -2699,7 +2701,7 @@ describe('testing rooms (admin only, seeded)', () => {
 		const admin = { headers: { 'x-hadoku-tier': 'admin' } };
 		const before = (await call(h, 'GET', '/api/rooms', admin)).json() as { rooms: { id: string; name: string }[] };
 		const room = before.rooms.find((r) => r.name === 'Testing: Board — Stack')!;
-		const originalScenario = h.lobby.get(room.id)?.game.scenario;
+		const originalScenario = h.lobby.get(room.id)?.game!.scenario;
 		expect(originalScenario).toBeDefined();
 
 		// `/:id/reset` fires `deps.reseedTesting` without awaiting it (`http/rooms.ts`'s
@@ -2713,7 +2715,7 @@ describe('testing rooms (admin only, seeded)', () => {
 		const after = (await call(h, 'GET', '/api/rooms', admin)).json() as { rooms: { id: string; name: string }[] };
 		const recreated = after.rooms.find((r) => r.name === 'Testing: Board — Stack')!;
 		expect(recreated.id).not.toBe(room.id);
-		expect(h.lobby.get(recreated.id)?.game.scenario).toBe(originalScenario);
+		expect(h.lobby.get(recreated.id)?.game!.scenario).toBe(originalScenario);
 	});
 
 	it('is the admin’s to run: the seeding account is not a member, and the first to join leads it', async () => {
@@ -2965,7 +2967,7 @@ describe('the eight-player tournament rooms (admin only, seeded finished and mid
 		const archived: unknown[] = [];
 		const lobby = await openLobby({ dir: await tempDir(), onTournament: (t) => void archived.push(t) });
 		await seedTestingRooms({ lobby, log: () => {} });
-		expect(lobby.list().find((r) => r.name === TESTING_TOURNAMENT_DONE_NAME)?.game.pod?.phase).toBe('done');
+		expect(lobby.list().find((r) => r.name === TESTING_TOURNAMENT_DONE_NAME)?.game!.pod?.phase).toBe('done');
 		expect(archived).toEqual([]);
 	});
 
@@ -2991,7 +2993,7 @@ describe("an event's room before its seats open", () => {
 		if (!pod.ok || !table.ok) throw new Error('create failed');
 		const shut = { error: podsMod.SEATS_SHUT };
 		for (const id of [pod.room.id, table.room.id]) expect((await call(h, 'POST', `/api/rooms/${id}/join`)).status).toBe(200);
-		expect(h.lobby.get(pod.room.id)?.game.pod?.seats.every((s) => s === null), 'coming in seats nobody').toBe(true);
+		expect(h.lobby.get(pod.room.id)?.game!.pod?.seats.every((s) => s === null), 'coming in seats nobody').toBe(true);
 		expect(h.lobby.get(table.room.id)?.tables[0]?.players, 'at a table either').toEqual([]);
 
 		const sat = await call(h, 'POST', `/api/rooms/${pod.room.id}/pod/sit`, { body: { seat: 0 } });

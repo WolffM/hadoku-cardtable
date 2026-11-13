@@ -73,6 +73,7 @@ import {
 	DEFAULT_GAME_TYPE,
 	DEFAULT_ROOM_SETTINGS,
 	DRAFT_POOL_PREFIX,
+	GAME_TYPES,
 	gameTypeSpec,
 	isPodAi,
 	newestStandardEra,
@@ -81,7 +82,6 @@ import {
 	type ClientMode,
 	type DraftPlan,
 	type GameType,
-	type MagicRoomGame,
 	planDisplayName,
 	type ModeOptions,
 	type PoolSource,
@@ -104,6 +104,7 @@ import { pairRound, roundsFor, roundsOf, structureOk, type MatchResult, type Pod
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { gauntletHoldsTable, type GauntletState } from './gauntlet.ts';
 import { leaveSeat, readySeat, seatList, seatOrder, sitAt, type TableSeat } from '@hadoku/game-server/room/seats';
+import { magicViewPart, type MagicViewPart } from './magic-view.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, type SeriesRecord } from './series.ts';
 
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
@@ -145,7 +146,6 @@ import {
 	podSize,
 	podStandings,
 	podTable,
-	podViewOf,
 	POD_AI,
 	POD_CLOSED,
 	POD_MIN_OPEN,
@@ -160,7 +160,6 @@ import {
 	tournamentId,
 	trimmedSeats,
 	usesPod,
-	type AiPersona,
 	type BotDeckSource,
 	type BotGameAsk,
 	type GameHooks,
@@ -305,21 +304,19 @@ function newMember(caller: Caller, joinedAt: number): MemberRecord {
 
 /**
  * The PUBLIC shape. Every response body that carries a room uses exactly this:
- * `@hadoku/shared`'s `RoomView`, which the browser parses with, and the AI this
- * room plays as (`roomAi`), which only the pod screen reads.
+ * `@hadoku/shared`'s `RoomView`, which the browser parses with, plus the part
+ * the room's game type adds (`useGameView`). Magic's part (`magic-view.ts`) is
+ * every optional key below; a room of a type with no part of its own has none
+ * of them, so a reader here reaches Magic's fields only after asking
+ * whether the room has them.
  */
-export interface RoomView extends PublicRoomView {
+export interface RoomView extends Omit<PublicRoomView, 'game'>, Partial<MagicViewPart> {
 	/** This server hosts only Magic's game types: its codec quarantines a saved room of any other. */
 	gameType: GameType;
-	game: MagicRoomGame;
-	/** A Challenge room (`RoomRecord.historical`): born whole, its field the event's. */
-	historical?: true;
-	/** A Challenge's entrant → its real player's library deck id (`RoomRecord.aiDeckAssignments`). */
-	aiDeckAssignments?: Record<string, string>;
-	/** A Challenge's open seat → the list its player plays (`RoomRecord.seatDecks`). */
-	seatDecks?: Record<string, string>;
-	ai: AiPersona;
 }
+
+/** A game type's own part of a room's view: every key it answers is spread over the room's platform view. */
+export type GameViewPart = (room: RoomRecord, checks: GameHooks) => Partial<MagicViewPart>;
 
 interface CreateRoomInput {
 	name: string;
@@ -912,6 +909,12 @@ export interface Lobby {
 	 */
 	useGameType(type: string, hooks: GameHooks): void;
 	/**
+	 * Wires `type`'s own part of its rooms' views (`GameViewPart`), replacing any it had. Magic's
+	 * own two types come wired with Magic's (`magic-view.ts`); a type nothing wires adds nothing,
+	 * so its view is the platform's fields alone.
+	 */
+	useGameView(type: string, part: GameViewPart): void;
+	/**
 	 * Told once, at boot, the way a room creates a `RelayMatch` for a `runtime: 'relay'`
 	 * game type — `hook(roomId, seatCount, gameType)`, called the moment such a room is created
 	 * (`#insert`), and at once for every such room already open when the hook is wired (rooms
@@ -1079,27 +1082,13 @@ function tournamentDecksOf(room: RoomRecord): RoomSettings['tournamentDecks'] {
 	return room.mode === 'gauntlet' ? 'per-round' : room.settings.tournamentDecks;
 }
 
-/** Magic's part of a room's view, its `game` (`MagicRoomGameSchema`). */
-function magicGameOf(room: RoomRecord, checks: GameHooks): MagicRoomGame {
-	return {
-		format: room.format,
-		mode: room.mode,
-		modeOptions: room.modeOptions === null ? null : { ...room.modeOptions },
-		clientMode: room.clientMode,
-		draftStartedAt: room.draftStartedAt === null ? null : new Date(room.draftStartedAt).toISOString(),
-		pod: usesPod(room) ? podViewOf(room, checks) : null,
-		...(room.scenario === undefined ? {} : { scenario: room.scenario }),
-	};
-}
-
-function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView {
+function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks, part: GameViewPart | undefined): RoomView {
 	return {
 		id: room.id,
 		name: room.name,
 		creator: room.creator,
 		leader: room.leader,
 		gameType: room.gameType,
-		game: magicGameOf(room, checks),
 		settings: { ...room.settings, tournamentDecks: tournamentDecksOf(room) },
 		locks: roomLocks(room),
 		locked,
@@ -1121,15 +1110,10 @@ function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView 
 		// The FIRST table's live match — unchanged, so every existing reader
 		// keeps working (`docs/planning/wave71-2026-10-17.md`'s wire contract).
 		matchId: room.tables[0]?.matchId ?? null,
-		ai: roomAi(room),
 		createdAt: new Date(room.createdAt).toISOString(),
 		testing: room.testing,
 		scheduledFor: room.scheduledFor === undefined ? null : new Date(room.scheduledFor).toISOString(),
-		...(room.historical === true ? { historical: true } : {}),
-		// Public like the seats' own `deckId`s, and what the lock deals each AI entrant (`GameHooks.currentTournamentDeck`).
-		...(room.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.aiDeckAssignments } }),
-		// Which list each open seat plays: the room draws it in place of a deck picker.
-		...(room.seatDecks === undefined ? {} : { seatDecks: { ...room.seatDecks } }),
+		...part?.(room, checks),
 	};
 }
 
@@ -1332,6 +1316,8 @@ class FileLobby implements Lobby {
 	 * for, keyed by `RoomRecord.gameType`. `#hooksFor` is the one reader.
 	 */
 	#hooksByType = new Map<string, GameHooks>();
+	/** Each game type's own part of its rooms' views (`useGameView`): Magic's for Magic's two types from the start, none for any other until wired. */
+	#viewParts = new Map<string, GameViewPart>(GAME_TYPES.map((type) => [type, magicViewPart]));
 	/** Bot games being played now, by room, round and players: one game per pairing, however often it is asked. */
 	readonly #botGamesPlaying = new Set<string>();
 
@@ -1384,7 +1370,7 @@ class FileLobby implements Lobby {
 	}
 
 	#view(room: RoomRecord): RoomView {
-		return viewOf(room, this.#secrets.has(room.id), this.#hooksFor(room.gameType));
+		return viewOf(room, this.#secrets.has(room.id), this.#hooksFor(room.gameType), this.#viewParts.get(room.gameType));
 	}
 
 	#persist(room: RoomRecord): void {
@@ -2921,6 +2907,10 @@ class FileLobby implements Lobby {
 	useGameType(type: string, hooks: GameHooks): void {
 		this.#hooksByType.set(type, hooks);
 		for (const room of this.#rooms.values()) if (room.gameType === type && (room.pod?.botGames ?? []).length > 0) this.#playPairedBots(room);
+	}
+
+	useGameView(type: string, part: GameViewPart): void {
+		this.#viewParts.set(type, part);
 	}
 
 	onRelayRoomOpened(hook: (roomId: string, seatCount: number, gameType: string) => void): void {

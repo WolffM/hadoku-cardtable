@@ -28,6 +28,7 @@ import type { TablesLibrary } from '../http/library.ts';
 import { attachTables } from '../http/routes.ts';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { openLobby, type Lobby } from './lobby.ts';
+import { magicViewPart } from './magic-view.ts';
 
 /** This game's own bot marker — opaque to the registry, which never reads it; only this spec's own `bots.fill` and the test assign it meaning. */
 const BOMBERMAN_BOT = 'bomberman-bot';
@@ -63,9 +64,18 @@ afterAll(async () => {
 	for (const dir of dirs) await rm(dir, { recursive: true, force: true });
 });
 
+/**
+ * A type Magic never wrote wires no view part, so its rooms' views carry no pod. These tests read
+ * the lobby's pod seats, bots included, through Magic's own part, wired for the type here.
+ */
+function withPodView(lobby: Lobby, type: string): void {
+	lobby.useGameView(type, magicViewPart);
+}
+
 describe('a registered game type Magic never wrote', () => {
 	it('opens, seats at an index no 1v1 table could ever hold, fills its own open seats with its own bot, and answers its own canStart', async () => {
 		const lobby: Lobby = await openLobby({ dir: await tempDir() });
+		withPodView(lobby, BOMBERMAN.id);
 
 		// open — no `GAME_TYPES` entry for 'bomberman', and no code change: the room registry asks
 		// the spec registry, not a closed enum (`room-modes.ts`'s `GameTypeSchema`).
@@ -77,15 +87,15 @@ describe('a registered game type Magic never wrote', () => {
 
 		// seat 7 — past index 1, which is as far as a plain 1v1 table ever reaches.
 		expect(lobby.sitPod(roomId, ALICE.id, 7).ok).toBe(true);
-		expect(lobby.get(roomId)?.game.pod?.seats[7]?.memberId).toBe(ALICE.id);
+		expect(lobby.get(roomId)?.game!.pod?.seats[7]?.memberId).toBe(ALICE.id);
 
 		// fill bots — this game's OWN spec decides the marker; the lobby only ever sees a member id string.
-		const seated = lobby.get(roomId)!.game.pod!.seats.map((s) => s?.memberId ?? null);
+		const seated = lobby.get(roomId)!.game!.pod!.seats.map((s) => s?.memberId ?? null);
 		const filled = BOMBERMAN.bots!.fill(seated);
 		filled.forEach((occupant, seat) => {
 			if (occupant === BOMBERMAN_BOT && seated[seat] === null) expect(lobby.aiPod(roomId, ALICE.id, seat, true).ok).toBe(true);
 		});
-		const afterFill = lobby.get(roomId)!.game.pod!.seats;
+		const afterFill = lobby.get(roomId)!.game!.pod!.seats;
 		const filledCount = afterFill.filter((s) => s !== null).length;
 		expect(filledCount).toBeGreaterThan(1);
 		expect(filledCount).toBeLessThanOrEqual(BOMBERMAN.seats.max);
@@ -111,21 +121,24 @@ describe('a registered game type Magic never wrote', () => {
 		registerGameType({ id: 'four-seat', seats: { min: 2, max: 4 }, ready: false, series: { length: 1 }, canStart: () => ({ ok: true }) });
 		const dir = await tempDir();
 		const lobby = await openLobby({ dir });
+		withPodView(lobby, 'four-seat');
 		const made = lobby.create(ALICE, { name: 'Four of us', gameType: 'four-seat', clientMode: 'builtin' });
 		if (!made.ok) throw new Error(made.reason);
 		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
-		const seats = lobby.get(made.room.id)?.game.pod?.seats.map((s) => s?.memberId ?? null);
+		const seats = lobby.get(made.room.id)?.game!.pod?.seats.map((s) => s?.memberId ?? null);
 		expect(seats).toEqual([ALICE.id, BOB.id, null, null]);
 
 		const logged: Record<string, unknown>[] = [];
 		const reopened = await openLobby({ dir, log: (entry) => logged.push(entry) });
+		withPodView(reopened, 'four-seat');
 		expect(logged.filter((e) => e.event === 'room-quarantined')).toEqual([]);
 		expect(reopened.get(made.room.id)?.gameType).toBe('four-seat');
-		expect(reopened.get(made.room.id)?.game.pod?.seats.map((s) => s?.memberId ?? null)).toEqual(seats);
+		expect(reopened.get(made.room.id)?.game!.pod?.seats.map((s) => s?.memberId ?? null)).toEqual(seats);
 	});
 
 	it('seats 10, and refuses an 11th', async () => {
 		const lobby: Lobby = await openLobby({ dir: await tempDir() });
+		withPodView(lobby, BOMBERMAN.id);
 		const made = lobby.create(ALICE, { name: 'Bomberman match', gameType: BOMBERMAN.id, clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) throw new Error(made.reason);
@@ -133,7 +146,7 @@ describe('a registered game type Magic never wrote', () => {
 
 		// Alice auto-seats at 0 on create; nine bots fill the rest of this game's own ceiling.
 		for (let seat = 1; seat < 10; seat++) expect(lobby.aiPod(roomId, ALICE.id, seat, true).ok, `seat ${seat}`).toBe(true);
-		expect(lobby.get(roomId)?.game.pod?.seats.filter((s) => s !== null)).toHaveLength(10);
+		expect(lobby.get(roomId)?.game!.pod?.seats.filter((s) => s !== null)).toHaveLength(10);
 
 		// An 11th, by an explicit seat index past the ceiling (`seatInReach`/`podSeatCeiling`, `lobby.ts`) …
 		expect(lobby.aiPod(roomId, ALICE.id, 10, true)).toEqual({ ok: false, reason: 'bad-seat' });

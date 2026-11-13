@@ -179,7 +179,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
-import { DEFAULT_ROOM_SETTINGS, magicGame, OPEN_ROOM_LOCKS } from '@hadoku/shared';
+import { DEFAULT_ROOM_SETTINGS, magicGame, OPEN_ROOM_LOCKS, roomAiOf } from '@hadoku/shared';
 import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodView, type RoomMode, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
@@ -1541,9 +1541,10 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
    * else the room's `ai`), never as an open seat. A decided Gauntlet or a table between games offers
    * the seat again.
    */
+  const roomAi = view === null ? undefined : roomAiOf(view);
   const gauntletAi = gauntlet?.players?.find((p) => p.memberId === null);
   const aiHolds = !tournament && players.length === 1 && (matchId !== null || (gauntletAi !== undefined && gauntlet?.phase !== 'done'));
-  const aiSeat = aiHolds && botSeats.length === 1 ? { seat: botSeats[0]!, name: gauntletAi?.name ?? view?.ai?.name ?? 'AI', avatarId: gauntletAi?.avatarId ?? view?.ai?.avatarId } : null;
+  const aiSeat = aiHolds && botSeats.length === 1 ? { seat: botSeats[0]!, name: gauntletAi?.name ?? roomAi?.name ?? 'AI', avatarId: gauntletAi?.avatarId ?? roomAi?.avatarId } : null;
   /** Nothing of the room's own to draw yet: its skeleton instead. */
   const pending = !streamed && !settled && (!resolved || (!draftRoom && table === null));
   /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
@@ -2680,8 +2681,8 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
               testId="room-table-card"
               tableId={myTable.id}
               players={[myTable.players[0]?.memberId ?? '', myTable.players[1]?.memberId ?? POD_AI]}
-              nameOf={(id) => (id === POD_AI ? (view?.ai?.name ?? tNameOf(id)) : tNameOf(id))}
-              avatarOf={(id) => (id === POD_AI ? { id: view?.ai?.avatarId ?? null } : tAvatarOf(id))}
+              nameOf={(id) => (id === POD_AI ? (roomAi?.name ?? tNameOf(id)) : tNameOf(id))}
+              avatarOf={(id) => (id === POD_AI ? { id: roomAi?.avatarId ?? null } : tAvatarOf(id))}
               myMemberId={view?.you.id ?? null}
               series={{ length: myTable.series.length, wins: myTable.series.wins, played: myTable.series.games.length, phase: myTable.series.phase }}
               matchId={myTable.matchId}

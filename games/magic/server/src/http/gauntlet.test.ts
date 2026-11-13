@@ -35,7 +35,7 @@ afterEach(async () => {
 	open = null;
 });
 
-async function boot(seated: string[], modeOptions: GauntletRoom['game']['modeOptions'] = { family: 'modern' }): Promise<Harness> {
+async function boot(seated: string[], modeOptions: NonNullable<GauntletRoom['game']>['modeOptions'] = { family: 'modern' }): Promise<Harness> {
 	return bootRoom({
 		members: [
 			{ id: 'alice', name: 'Alice' },
@@ -58,7 +58,7 @@ async function boot(seated: string[], modeOptions: GauntletRoom['game']['modeOpt
  */
 async function bootRoom(input: {
 	members: { id: string; name: string }[];
-	modeOptions?: GauntletRoom['game']['modeOptions'];
+	modeOptions?: NonNullable<GauntletRoom['game']>['modeOptions'];
 	tables: { id: string; seated: string[] }[];
 }): Promise<Harness> {
 	const gauntlets = new Map<string, GauntletState>();
@@ -69,9 +69,8 @@ async function bootRoom(input: {
 	const room: GauntletRoom & { game: { format: string } } = {
 		id: 'r-1',
 		gameType: 'constructed-1v1',
-		game: { mode: 'gauntlet', modeOptions: input.modeOptions ?? { family: 'modern' }, format: '2016-07-22' },
+		game: { mode: 'gauntlet', modeOptions: input.modeOptions ?? { family: 'modern' }, format: '2016-07-22', ai: { name: 'Sage' } },
 		members: input.members,
-		ai: { name: 'Sage' },
 		tables: input.tables.map((t) => ({ id: t.id, matchId: null })),
 	};
 	const timers: Harness['timers'] = [];

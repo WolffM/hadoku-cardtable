@@ -135,10 +135,10 @@ interface RoomWire {
   id: string;
   gameType: string;
   members: { id: string; name: string; ready: boolean }[];
-  /** Who the room's AI plays as. */
-  ai: { name: string; avatarId: string };
   /** Magic's part of the room. */
   game: {
+    /** Who the room's AI plays as. */
+    ai: { name: string; avatarId: string };
     draftStartedAt: string | null;
     /** The pod past its lobby: the round's pairings, each bot entrant's character, and the results. */
     pod: { pairings: { players: [string, string] }[]; personas: Record<string, { name: string; avatarId: string }> } | null;
@@ -1132,7 +1132,7 @@ test(
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.locator('[data-testid="seat-bar"] [data-testid^="seat-"][data-occupant]'), 'a draft of three').toHaveCount(3);
       // The AI plays as one of the room's characters, by name and face (the operator, 2026-10-19).
-      const ai = (await roomState(alice, roomId, stack.origin)).ai;
+      const ai = (await roomState(alice, roomId, stack.origin)).game.ai;
       expect(ai.name, 'a character, not "AI"').toMatch(/^[A-Z][a-z]+$/);
       await expect(alice.page.getByTestId('seat-bar'), 'the draft’s bots are the characters').toContainText(ai.name);
 

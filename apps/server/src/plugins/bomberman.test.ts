@@ -125,8 +125,8 @@ describe('bomberman is a registered game type', () => {
 		).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 		expect(created.gameType).toBe('bomberman');
 		// `seats.max` (10) is above 2, so `room/pods.ts`'s `usesPod` routes this room through
-		// `podSeats`/`game.pod`, never the Magic table's hard-two `tables[0].players`.
-		expect(created.game.pod?.seats.map((s) => s?.memberId ?? null)[0]).toBe(created.creator);
+		// its own pod seats, read as the room's `seats`, never the Magic table's hard-two `tables[0].players`.
+		expect(created.seats[0]).toBe(created.creator);
 		expect(created.tables[0]?.players).toEqual([]);
 		// The registered spec's own series length (`series.ts`'s `seriesFormatOf`), not
 		// Magic's `CONSTRUCTED` default — this is the one thing a registered `GameTypeSpec`
@@ -135,13 +135,26 @@ describe('bomberman is a registered game type', () => {
 
 		const joined = (await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' })).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 		expect(joined.members.map((m) => m.id)).toEqual([created.creator, joined.members[1]!.id]);
-		expect(joined.game.pod?.seats.filter((s) => s !== null)).toHaveLength(2);
+		expect(joined.seats.filter((s) => s !== null)).toHaveLength(2);
 
 		// A THIRD member still gets a seat — the load-bearing difference from a Magic 1v1
 		// table, which would make them a spectator at exactly this point.
 		const third = (await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'carol' })).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 		expect(third.members).toHaveLength(3);
-		expect(third.game.pod?.seats.filter((s) => s !== null)).toHaveLength(3);
+		expect(third.seats.filter((s) => s !== null)).toHaveLength(3);
+	});
+
+	it('answers a view with no Magic field: its game type wires no part of its own', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Boom room', gameType: BOMBERMAN_GAME_TYPE } })).json() as Record<string, unknown>;
+		const reread = (await call(h, 'GET', `/api/rooms/${String(created.id)}`, { as: 'alice' })).json() as Record<string, unknown>;
+		const listed = ((await call(h, 'GET', '/api/rooms', { as: 'alice' })).json() as { rooms: Record<string, unknown>[] }).rooms.find((r) => r.id === created.id);
+		// `room/magic-view.ts`'s `MagicViewPart`: what Magic's two types add, and only theirs.
+		const magicKeys = ['game', 'ai', 'historical', 'aiDeckAssignments', 'seatDecks'];
+		for (const view of [created, reread, listed]) {
+			expect(view).toBeDefined();
+			expect(Object.keys(view!).filter((key) => magicKeys.includes(key))).toEqual([]);
+		}
 	});
 
 	it('refuses a constructed room\'s mode on a bomberman room, at creation', async () => {

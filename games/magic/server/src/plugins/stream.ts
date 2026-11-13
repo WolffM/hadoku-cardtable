@@ -64,7 +64,7 @@ export const streamRoutesPlugin: CardtablePlugin = {
 		/** Seats to provision for a room, or null for one that wants none: `clientMode` is the room's own, fixed at create (D19). */
 		const streamedSeats = (roomKey: string): number | null => {
 			const room = state.lobby.get(roomKey);
-			if (room === undefined || room.game.clientMode !== 'streamed') return null;
+			if (room === undefined || room.game?.clientMode !== 'streamed') return null;
 			const seats = room.gameType === 'draft' ? (state.draftRooms?.params.seatCount ?? MAX_ROOM_SEATS) : 2;
 			return Math.min(seats, MAX_ROOM_SEATS);
 		};

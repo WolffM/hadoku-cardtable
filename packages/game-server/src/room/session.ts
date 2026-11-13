@@ -169,13 +169,17 @@ export function attachSessions(io: SocketIOServer, deps: SessionDeps): SessionHa
 /** The parts of a room view `playsIn` reads. */
 export interface PlayedRoom {
 	tables: readonly { players: readonly { memberId: string }[] }[];
-	game: { pod: { seats: readonly ({ memberId: string } | null)[]; drafters: readonly string[]; dropped?: readonly string[] } | null };
+	/** The room's game seats (`RoomView.seats`), whatever game it plays. */
+	seats: readonly (string | null)[];
+	/** A game part with a pod (Magic's): absent for a room whose game has none. */
+	game?: { pod: { seats: readonly ({ memberId: string } | null)[]; drafters: readonly string[]; dropped?: readonly string[] } | null };
 }
 
-/** Whether `participantId` plays in the room: a table seat, a pod seat, or a place in its draft and rounds. */
+/** Whether `participantId` plays in the room: a game seat, a table seat, a pod seat, or a place in its draft and rounds. */
 export function playsIn(room: PlayedRoom, participantId: string): boolean {
+	if (room.seats.includes(participantId)) return true;
 	if (room.tables.some((t) => t.players.some((p) => p.memberId === participantId))) return true;
-	const pod = room.game.pod;
+	const pod = room.game?.pod ?? null;
 	if (pod === null) return false;
 	if (pod.seats.some((s) => s?.memberId === participantId)) return true;
 	return pod.drafters.includes(participantId) && !(pod.dropped ?? []).includes(participantId);

@@ -288,14 +288,19 @@ describe('playsIn', () => {
 	});
 
 	it('a seat at a table', () => {
-		expect(playsIn({ tables: [table('a', 'b')], game: { pod: null } }, 'b')).toBe(true);
-		expect(playsIn({ tables: [table('a', 'b')], game: { pod: null } }, 'c')).toBe(false);
+		expect(playsIn({ seats: [], tables: [table('a', 'b')], game: { pod: null } }, 'b')).toBe(true);
+		expect(playsIn({ seats: [], tables: [table('a', 'b')], game: { pod: null } }, 'c')).toBe(false);
+	});
+
+	it('a game seat, whatever the game: a room with no pod of its own', () => {
+		expect(playsIn({ seats: ['a', null], tables: [table()] }, 'a')).toBe(true);
+		expect(playsIn({ seats: ['a', null], tables: [table()] }, 'b')).toBe(false);
 	});
 
 	it('a seat in the pod, or a place in its draft and rounds', () => {
-		expect(playsIn({ tables: [table()], game: { pod: pod({ seats: [null, 'a'] }) } }, 'a')).toBe(true);
-		expect(playsIn({ tables: [table()], game: { pod: pod({ drafters: ['a'] }) } }, 'a')).toBe(true);
-		expect(playsIn({ tables: [table()], game: { pod: pod({ drafters: ['a'], dropped: ['a'] }) } }, 'a')).toBe(false);
-		expect(playsIn({ tables: [table()], game: { pod: pod({ seats: [null], drafters: ['b'] }) } }, 'a')).toBe(false);
+		expect(playsIn({ seats: [], tables: [table()], game: { pod: pod({ seats: [null, 'a'] }) } }, 'a')).toBe(true);
+		expect(playsIn({ seats: [], tables: [table()], game: { pod: pod({ drafters: ['a'] }) } }, 'a')).toBe(true);
+		expect(playsIn({ seats: [], tables: [table()], game: { pod: pod({ drafters: ['a'], dropped: ['a'] }) } }, 'a')).toBe(false);
+		expect(playsIn({ seats: [], tables: [table()], game: { pod: pod({ seats: [null], drafters: ['b'] }) } }, 'a')).toBe(false);
 	});
 });

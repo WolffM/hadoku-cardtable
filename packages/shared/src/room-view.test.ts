@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { magicGame, magicRoomFields, RoomBodySchema, RoomViewSchema } from './magic-room.ts';
+import { magicGame, magicRoomFields, roomAiOf, RoomBodySchema, RoomViewSchema } from './magic-room.ts';
 import { roomBaseFields } from './room-view.ts';
 
 const FIXTURE_VIEW = {
@@ -80,7 +80,8 @@ describe('RoomView/RoomBody: platform base + magic composition parse to the same
     for (const schema of [RoomViewSchema, RoomBodySchema]) {
       const parsed = schema.parse(body) as Record<string, unknown> & { gameType: string };
       const game = magicGame(parsed) as Record<string, unknown>;
-      for (const key of Object.keys(magicRoomFields)) expect([game[key], parsed[key]], key).toStrictEqual([magic[key as keyof typeof magic], undefined]);
+      // `ai` is the one field a body carries at both levels for now: `roomAiOf`'s own test, below.
+      for (const key of Object.keys(magicRoomFields).filter((k) => k !== 'ai')) expect([game[key], parsed[key]], key).toStrictEqual([magic[key as keyof typeof magic], undefined]);
     }
     // And a draft room's, its pod and its draft's start with it.
     const draft = RoomViewSchema.parse({ ...FIXTURE_VIEW, game: { ...FIXTURE_VIEW.game, draftStartedAt: '2026-11-01T00:10:00.000Z' } });
@@ -102,5 +103,18 @@ describe('RoomView/RoomBody: platform base + magic composition parse to the same
     for (const key of magicKeys) expect(Object.keys(roomBaseFields)).not.toContain(key);
     expect(magicKeys).toContain('format');
     expect(magicKeys).toContain('pod');
+  });
+
+  it("reads the room's AI from `game` first, else from the top level a server built before 2026-11-13 sent", () => {
+    const lia = { name: 'Lia', avatarId: 'npc-lia' };
+    const sage = { name: 'Sage', avatarId: 'npc-sage' };
+    const older = RoomBodySchema.parse(FIXTURE_BODY);
+    expect(roomAiOf(older)).toStrictEqual(lia);
+    const both = RoomBodySchema.parse({ ...FIXTURE_BODY, ai: lia, game: { ...FIXTURE_BODY.game, ai: sage } });
+    expect(roomAiOf(both)).toStrictEqual(sage);
+    const { ai: _gone, ...newest } = FIXTURE_BODY;
+    expect(roomAiOf(RoomBodySchema.parse({ ...newest, game: { ...FIXTURE_BODY.game, ai: sage } }))).toStrictEqual(sage);
+    // Another game's blob is never read as Magic's: its `ai`, if any, is not the room's.
+    expect(roomAiOf(RoomBodySchema.parse({ ...newest, gameType: 'bomberman', game: { ai: sage } }))).toBeUndefined();
   });
 });

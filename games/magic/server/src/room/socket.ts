@@ -582,7 +582,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		const room = deps.lobby.get(draftId);
 		if (room === undefined) return 'no-room';
 		if (room.gameType !== 'draft') return 'not-draft';
-		if (room.game.draftStartedAt === null) return 'not-started';
+		if ((room.game?.draftStartedAt ?? null) === null) return 'not-started';
 		return null;
 	}
 

@@ -8,7 +8,7 @@ import type { PodView, RoomTable } from '@hadoku/shared';
 import type { MagicRoomGame } from '@hadoku/shared';
 import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 
-import type { RoomView } from '../rooms/api.ts';
+import { parseRoomView, type RoomView } from '../rooms/api.ts';
 import { roomCardView, roomFamily } from './roomCard.ts';
 
 const table = (over: Partial<RoomTable> = {}): RoomTable => ({
@@ -257,6 +257,42 @@ describe('roomCardView — the seats it draws', () => {
   it('the AI holding a seat is drawn as the room’s AI', () => {
     const v = roomCardView(room({ leader: 'm1', ai: { name: 'Cleric', avatarId: 'cleric' }, tables: [table({ players: [{ memberId: 'm1', name: 'alice' }, { memberId: 'ai', name: 'AI' }] })] }), false);
     expect(v.seats[1]).toMatchObject({ kind: 'taken', name: 'Cleric', avatarId: 'cleric' });
+  });
+
+  describe('the room’s AI, read from the wire', () => {
+    // A body as `/api/rooms` answers it, a 1v1 table with alice against the AI. A server built before
+    // 2026-11-13 sends the room's AI only at the top level; a newer one sends it inside `game`, and for
+    // one release at the top level too. Parsed exactly as the room screen parses it (`parseRoomView`).
+    const body = (ai: { top?: boolean; game?: boolean }) => ({
+      id: 'r-0123456789ab',
+      name: 'Table',
+      creator: 'm1',
+      leader: 'm1',
+      gameType: 'constructed-1v1',
+      game: { format: '2026-01-01', mode: 'classic', modeOptions: {}, clientMode: 'builtin', draftStartedAt: null, pod: null, ...(ai.game === true ? { ai: { name: 'Cleric', avatarId: 'cleric' } } : {}) },
+      settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' },
+      locks: { ...OPEN_ROOM_LOCKS },
+      locked: false,
+      members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],
+      seats: ['m1', null],
+      tables: [{ id: 't-00000001', players: [{ memberId: 'm1', name: 'alice' }, { memberId: 'ai', name: 'AI' }], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'seating' } }],
+      matchId: null,
+      createdAt: '',
+      testing: false,
+      scheduledFor: null,
+      you: { id: 'm1', leader: true, ready: false },
+      ...(ai.top === true ? { ai: { name: 'Cleric', avatarId: 'cleric' } } : {}),
+    });
+
+    it.each([
+      ['an older server: the top level only', { top: true }],
+      ['a newer server: game.ai, and the top-level copy', { top: true, game: true }],
+      ['a server past the copy: game.ai only', { game: true }],
+    ])('%s', (_, ai) => {
+      const view = parseRoomView(body(ai));
+      expect(view).not.toBeNull();
+      expect(roomCardView(view!, false).seats[1]).toMatchObject({ kind: 'taken', name: 'Cleric', avatarId: 'cleric' });
+    });
   });
 
   it('a pod in its lobby draws its own seat order; past 8, the pod now filling and a count of the rest', () => {

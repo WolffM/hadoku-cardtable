@@ -71,12 +71,11 @@ export interface PreviewRoom {
   testing: boolean;
   leader: string;
   creator: string;
-  /** Magic's part of the room, the fields of it the card draws. */
-  game: { format: string; mode?: unknown; modeOptions?: unknown };
+  /** Magic's part of the room, the fields of it the card draws: absent for a room of another game. */
+  game?: { format: string; mode?: unknown; modeOptions?: unknown; ai?: { name: string; avatarId: string } };
   members: readonly RoomMember[];
   /** Each table's seated players: the first table's other player is the host's opponent. */
   tables: readonly { players: readonly { memberId: string }[] }[];
-  ai?: { name: string; avatarId: string };
 }
 
 export interface PreviewDeps {
@@ -119,7 +118,7 @@ function eraParts(era: unknown): {
 }
 
 function options(room: PreviewRoom): Record<string, unknown> {
-  return typeof room.game.modeOptions === "object" && room.game.modeOptions !== null
+  return typeof room.game?.modeOptions === "object" && room.game.modeOptions !== null
     ? (room.game.modeOptions as Record<string, unknown>)
     : {};
 }
@@ -143,7 +142,7 @@ function formatOf(
           : null,
       year: null,
     };
-  return eraParts(room.game.format);
+  return eraParts(room.game?.format);
 }
 
 /**
@@ -152,7 +151,7 @@ function formatOf(
  */
 export function describeRoom(room: PreviewRoom): string {
   if (room.gameType === "draft") return "Cube Draft";
-  const mode = typeof room.game.mode === "string" ? room.game.mode : null;
+  const mode = typeof room.game?.mode === "string" ? room.game.mode : null;
   const { family, year } = formatOf(room, mode);
   return [
     family === null ? null : (FAMILY_NAMES[family] ?? null),
@@ -241,11 +240,12 @@ export async function facesOf(
   const face = (memberId: string): CardFace | null => {
     const member = room.members.find((m) => m.id === memberId);
     if (member === undefined) {
-      if (room.ai !== undefined && memberId === POD_AI)
+      const ai = room.game?.ai;
+      if (ai !== undefined && memberId === POD_AI)
         return faceOf(
-          room.ai.name,
+          ai.name,
           undefined,
-          room.ai.avatarId,
+          ai.avatarId,
           deps.watchpartyBase,
         );
       return null;

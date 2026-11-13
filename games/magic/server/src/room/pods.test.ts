@@ -44,7 +44,7 @@ describe('an AI seat drawn before its drafter’s own look resolves', () => {
 		// join leaves a member in before `people.ts`'s `applyPerson` ever runs.
 		expect(lobby.get(id)!.members.find((m) => m.id === alice.id)?.avatarId).toBeUndefined();
 		expect(lobby.aiPod(id, alice.id, 1, true).ok).toBe(true);
-		const drawnForAi = lobby.get(id)!.ai.avatarId;
+		const drawnForAi = lobby.get(id)!.game!.ai.avatarId;
 
 		// The lazy lookup lands moments later and happens to give alice the very face the AI already
 		// drew (the collision the race makes possible, forced here to isolate the mechanism).
@@ -52,8 +52,8 @@ describe('an AI seat drawn before its drafter’s own look resolves', () => {
 		expect(lobby.get(id)!.members.find((m) => m.id === alice.id)?.avatarId).toBe(drawnForAi);
 
 		// The AI's shown face must no longer be the one its own drafter now wears.
-		expect(lobby.get(id)!.ai.avatarId, 'the AI wears its character, not alice’s').not.toBe(drawnForAi);
+		expect(lobby.get(id)!.game!.ai.avatarId, 'the AI wears its character, not alice’s').not.toBe(drawnForAi);
 		// And the redraw is stable: reading it again gives the same answer, not a fresh roll each time.
-		expect(lobby.get(id)!.ai.avatarId).toBe(lobby.get(id)!.ai.avatarId);
+		expect(lobby.get(id)!.game!.ai.avatarId).toBe(lobby.get(id)!.game!.ai.avatarId);
 	});
 });

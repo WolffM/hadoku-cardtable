@@ -274,8 +274,8 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const room = lobby.get(id);
 		// A constructed tournament's pod also reaches `lobby`, but drafts no
 		// pool (`PodView.plan` is `null` there) — nothing here is its business.
-		const plan = room?.gameType === 'draft' ? (room.game.pod?.plan ?? null) : null;
-		if (room?.game.pod?.phase === 'lobby' && plan !== null) {
+		const plan = room?.gameType === 'draft' ? (room.game?.pod?.plan ?? null) : null;
+		if (room?.game?.pod?.phase === 'lobby' && plan !== null) {
 			const realisticRounds: number[] = [];
 			plan.rounds.forEach((src, round) => {
 				if (src.kind === 'set' && src.style === 'realistic') realisticRounds.push(round);

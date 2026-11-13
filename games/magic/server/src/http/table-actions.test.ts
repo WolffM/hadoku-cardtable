@@ -65,7 +65,7 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 		lobby.useGameType('draft', checks);
 		const started = lobby.startDraft(roomId, ALICE);
 		if (!started.ok) throw new Error(started.reason);
-		tableId = started.room.game.pod!.pairings[0]!.tableId;
+		tableId = started.room.game!.pod!.pairings[0]!.tableId;
 	} else {
 		expect(lobby.sit(roomId, tableId, ALICE) && lobby.sit(roomId, tableId, BOB)).toBe(true);
 	}
@@ -240,7 +240,7 @@ describe('POST /api/rooms/:roomId/pod/dq', () => {
 		expect(h.acts).toEqual([{ seat: 1, frame: { kind: 'act', method: 'concede' } }]);
 		expect(h.stopped).toEqual([]);
 		expect(h.ended).toEqual([h.tableId]);
-		const pod = h.lobby.get(h.roomId)!.game.pod!;
+		const pod = h.lobby.get(h.roomId)!.game!.pod!;
 		expect(pod.dropped).toEqual([CAROL]);
 		expect(pod.results).toEqual([{ round: 1, playerA: BOB, playerB: CAROL, gamesA: 2, gamesB: 0 }]);
 	});
@@ -251,7 +251,7 @@ describe('POST /api/rooms/:roomId/pod/dq', () => {
 		expect((await leader(h, ALICE, 'pod/dq', {})).status).toBe(400);
 		expect((await leader(h, ALICE, 'pod/dq', { memberId: CAROL, extra: 1 })).status).toBe(400);
 		expect((await leader(h, ALICE, 'pod/dq', { memberId: ALICE })).status).toBe(404);
-		expect(h.lobby.get(h.roomId)!.game.pod!.dropped).toEqual([]);
+		expect(h.lobby.get(h.roomId)!.game!.pod!.dropped).toEqual([]);
 		const plain = await open();
 		expect((await leader(plain, ALICE, 'pod/dq', { memberId: BOB })).status).toBe(409);
 		expect(h.acts).toEqual([]);

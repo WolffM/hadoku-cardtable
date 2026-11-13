@@ -31,6 +31,7 @@ import type { RoomMode, RoomSettings } from '@hadoku/shared';
 import type { MatchSpec, TurnSnapshot } from '@hadoku/game-server/play/host';
 import type { Match } from './match.js';
 import type { RoomView } from '../room/lobby.js';
+import type { MagicViewGame } from '../room/magic-view.js';
 
 /** A parked record's file name is its match id; nothing else is ever read or written here. */
 const MATCH_ID = /^m-[0-9a-f]{12}$/;
@@ -51,7 +52,7 @@ export interface ParkedSeat {
 export interface ParkedRoom {
 	id: string;
 	name: string;
-	clientMode: RoomView['game']['clientMode'];
+	clientMode: MagicViewGame['clientMode'];
 	gameType: RoomView['gameType'];
 	format: string;
 	settings: RoomSettings;
@@ -190,6 +191,8 @@ export function openParkedStore(deps: ParkedStoreDeps): ParkedStore {
 			const room = deps.roomOf(match.id);
 			if (room === undefined) return notParked('no room started it');
 			if (room.testing) return notParked('a testing room started it');
+			const game = room.game;
+			if (game === undefined) return notParked('its room is not one Magic plays');
 			const seat = (i: 0 | 1): ParkedSeat => {
 				const spec = match.spec.seats[i];
 				const owner = match.seats[i]?.owner ?? null;
@@ -200,18 +203,18 @@ export function openParkedStore(deps: ParkedStoreDeps): ParkedStore {
 			// The opening a resume adds back (`restoredSpec`), and the board of the game this one was resumed from, go.
 			const { scenario: _scenario, skipOpening: _skipOpening, restore: _restore, ...spec } = match.spec;
 			const clockMs = match.clockLeft();
-			const format = match.spec.format ?? room.game.format;
+			const format = match.spec.format ?? game.format;
 			const record: ParkedRecord = {
 				v: VERSION,
 				matchId: match.id,
 				room: {
 					id: room.id,
 					name: room.name,
-					clientMode: room.game.clientMode,
+					clientMode: game.clientMode,
 					gameType: room.gameType,
-					format: room.game.format,
+					format: game.format,
 					settings: { ...room.settings },
-					mode: room.game.mode === null || room.game.modeOptions === null ? null : ({ mode: room.game.mode, modeOptions: room.game.modeOptions } as RoomMode),
+					mode: game.mode === null || game.modeOptions === null ? null : ({ mode: game.mode, modeOptions: game.modeOptions } as RoomMode),
 				},
 				seats: [seat(0), seat(1)],
 				format,

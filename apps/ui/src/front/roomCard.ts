@@ -15,7 +15,7 @@
  * the name itself, and `RoomList.tsx` reads that straight off `room.name`.
  */
 
-import { FREE_PICK, POD_MAX_SEATS, POD_SEATS, isPodAi, magicGame, planDisplayName, type Look } from '@hadoku/shared';
+import { FREE_PICK, POD_MAX_SEATS, POD_SEATS, isPodAi, magicGame, planDisplayName, roomAiOf, type Look } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
 import { countdown } from './countdown.ts';
@@ -234,8 +234,9 @@ function seatsCapacity(room: RoomView): number {
  * window the pod is filling now (its last 8 of `capacity`), and the taken seats before it as a count.
  */
 function cardSeats(room: RoomView, capacity: number): { seats: RoomCardSeat[]; seatsMore: number } {
+  const ai = roomAiOf(room);
   const member = (id: string, name: string, avatarId?: string): RoomCardSeat => {
-    if (isPodAi(id)) return { kind: 'taken', id, name: room.ai?.name ?? name, avatarId: avatarId ?? room.ai?.avatarId, look: undefined };
+    if (isPodAi(id)) return { kind: 'taken', id, name: ai?.name ?? name, avatarId: avatarId ?? ai?.avatarId, look: undefined };
     const m = room.members.find((x) => x.id === id);
     return { kind: 'taken', id, name: m?.name ?? name, avatarId: m?.avatarId ?? avatarId, look: m?.look };
   };

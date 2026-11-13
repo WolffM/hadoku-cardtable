@@ -64,10 +64,9 @@ export const GAUNTLET_AI_BEAT_MS = 600;
 export interface GauntletRoom {
 	id: string;
 	gameType: string;
-	/** Magic's part of the room: its mode and that mode's options, absent or null until chosen. */
-	game: { mode?: RoomModeState['mode']; modeOptions?: RoomModeState['modeOptions'] };
+	/** Magic's part of the room: its mode and that mode's options, absent or null until chosen, and its AI. Absent for a room of another game. */
+	game?: { mode?: RoomModeState['mode']; modeOptions?: RoomModeState['modeOptions']; ai?: { name: string; avatarId?: string } };
 	members: { id: string; name: string }[];
-	ai?: { name: string; avatarId?: string };
 	tables: { id: string; matchId: string | null }[];
 }
 
@@ -126,7 +125,7 @@ export interface GauntletHandle {
 }
 
 function isGauntlet(room: GauntletRoom): boolean {
-	return room.gameType === 'constructed-1v1' && room.game.mode === 'gauntlet';
+	return room.gameType === 'constructed-1v1' && room.game?.mode === 'gauntlet';
 }
 
 const REFUSALS: Record<string, [number, string]> = {
@@ -306,7 +305,7 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 		const players: GauntletPlayer[] = seated.map((p) => ({ memberId: p.memberId, name: p.name }));
 		const vsAi = (body.ai === true || tournamentAi) && body.ready;
 		// A tournament table's AI is this round's entrant, by its own character — not the room's.
-		const ai = pairing?.ai ?? room.ai;
+		const ai = pairing?.ai ?? room.game?.ai;
 		if (vsAi) players.push({ memberId: null, name: ai?.name ?? 'AI', ...(ai?.avatarId === undefined ? {} : { avatarId: ai.avatarId }) });
 		const everyone = vsAi || (seated.length === 2 && body.ready && seated.every((p) => p.memberId === me || p.ready));
 		if (!everyone) {
@@ -316,7 +315,7 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 			answer(res, room, tableId, me);
 			return;
 		}
-		const options = GauntletOptionsSchema.safeParse(room.game.modeOptions ?? {});
+		const options = GauntletOptionsSchema.safeParse(room.game?.modeOptions ?? {});
 		const opts = options.success ? options.data : {};
 		const drawn = drawGauntlet(readied.state, { players: players as [GauntletPlayer, GauntletPlayer], eras, options: opts, random: deps.random, now: now() });
 		if (!drawn.ok) {

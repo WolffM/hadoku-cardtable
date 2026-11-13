@@ -164,12 +164,12 @@ function kindOf(room: RoomView): EventKind {
 }
 
 function roomState(room: RoomView): EventRoom {
-	const pod = room.game.pod;
+	const pod = room.game?.pod ?? null;
 	const entrants = pod === null ? 0 : pod.phase === 'lobby' ? pod.seats.filter((s) => s !== null && !isPodAi(s.memberId)).length : pod.drafters.length;
 	return {
 		gameType: room.gameType,
-		mode: room.game.mode,
-		format: room.game.format,
+		mode: room.game?.mode ?? null,
+		format: room.game?.format ?? '',
 		settings: room.settings,
 		pool: pod?.roundNames ?? null,
 		locked: room.locked,
@@ -352,7 +352,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (!result.ok) return refuse(res, result.reason);
 		const room = lobby.get(result.event.roomId);
 		// A room people have started playing in outlives its event; one still waiting goes with it.
-		if (room !== undefined && room.game.draftStartedAt === null && room.tables.every((t) => t.matchId === null)) {
+		if (room !== undefined && (room.game?.draftStartedAt ?? null) === null && room.tables.every((t) => t.matchId === null)) {
 			const closed = lobby.close(room.id, me);
 			if (closed.ok) deps.closed?.(room.id, closed.matches);
 		}

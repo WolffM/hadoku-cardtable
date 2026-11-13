@@ -86,8 +86,9 @@ describe('app codec v2 reads v1 rooms from disk', () => {
 			const view = fromV1.lobby.get(snapshot.roomId);
 			expect(view).toBeDefined();
 			expect(fromV2.lobby.get(snapshot.roomId)).toEqual(view);
-			// The view's `game` is Magic's blob, and the top level carries none of it.
-			expect(Object.keys(view!).filter((key) => key in view!.game)).toEqual([]);
+			// The view's `game` is Magic's blob, and the top level carries none of it but `ai`, the copy a UI
+			// built before 2026-11-13 reads (`magic-view.ts`'s `MagicViewPart.ai`).
+			expect(Object.keys(view!).filter((key) => key in view!.game!)).toEqual(['ai']);
 		});
 	});
 });
