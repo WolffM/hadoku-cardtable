@@ -280,19 +280,33 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 		const running = this.status === 'running' && this.timedOut === null;
 		const moved = this.clock.set([running && this.game.waitedOn(0), running && this.game.waitedOn(1)], now);
 		if (!moved) return;
+		this.armFlag(now);
+		this.game.tellRoster();
+	}
+
+	/**
+	 * Time the next flag: a timer for the running seat with the least time left. When it fires with time
+	 * still on that seat's clock, it is armed again for what is left. Node fires a timer by the event
+	 * loop's own clock, cut to the millisecond, and `now` reads the wall clock, so a timer armed for the
+	 * 20 000 ms left can fire when the wall clock has moved 19 999: that seat then has 1 ms left, nothing
+	 * about who runs has changed, and without the re-arm the seat sat at 0:00 and never lost.
+	 */
+	private armFlag(now: number): void {
 		if (this.flagTimer !== null) clearTimeout(this.flagTimer);
 		this.flagTimer = null;
-		const next = this.clock.nextFlag(now);
-		if (next !== null) {
-			this.flagTimer = setTimeout(() => {
-				this.flagTimer = null;
-				const flagged = this.clock?.flagged(this.now()) ?? null;
-				if (flagged !== null) this.flag(flagged);
-				else this.syncClock();
-			}, next.inMs);
-			this.flagTimer.unref();
-		}
-		this.game.tellRoster();
+		const next = this.clock?.nextFlag(now) ?? null;
+		if (next === null) return;
+		this.flagTimer = setTimeout(() => {
+			this.flagTimer = null;
+			const flagged = this.clock?.flagged(this.now()) ?? null;
+			if (flagged !== null) {
+				this.flag(flagged);
+				return;
+			}
+			this.syncClock();
+			if (this.flagTimer === null && !this.replaying) this.armFlag(this.now());
+		}, next.inMs);
+		this.flagTimer.unref();
 	}
 
 	/** Nobody's time runs any more: the match is letting go of its game. */

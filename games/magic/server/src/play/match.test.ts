@@ -5188,6 +5188,19 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 		expect(h.match.clockLeft()).toEqual([0, 60_000]);
 	});
 
+	it('flags at zero even when its timer fires a millisecond before the wall clock reaches zero', () => {
+		vi.useFakeTimers();
+		const h = clocked([20_000, 60_000]);
+		waitingOnSeat0(h);
+		// Node's timers run on the event loop's own clock, truncated to the millisecond, and `now()` reads
+		// `Date.now()`: a timer armed for the 20 000 ms left can fire when the wall clock has moved 19 999.
+		vi.setSystemTime(Date.now() - 1);
+		vi.advanceTimersByTime(20_000);
+		expect(h.match.clockLeft()![0], 'the timer fired with a millisecond still on the clock').toBe(1);
+		vi.advanceTimersByTime(5_000);
+		expect(h.logs.find((l) => l.evt === 'clock-flag'), 'the seat still flags').toMatchObject({ seat: 0 });
+	});
+
 	it("keeps running for a seat that disconnected: being away answers nothing", () => {
 		vi.useFakeTimers();
 		const h = clocked([60_000, 60_000]);
