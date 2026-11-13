@@ -16,7 +16,6 @@
   "games/magic/server/src/play/auto-pass-land.jvm.test.ts": 8.1,
   "games/magic/server/src/play/auto.jvm.test.ts": 35.7,
   "games/magic/server/src/play/blockers.jvm.test.ts": 12.7,
-  "apps/server/src/play/browser/browser.jvm.test.ts": 11.7,
   "games/magic/server/src/play/calibrated-blast.jvm.test.ts": 9.8,
   "games/magic/server/src/play/cancel-payment.jvm.test.ts": 7.9,
   "games/magic/server/src/play/cant-block.jvm.test.ts": 6.3,

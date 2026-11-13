@@ -12,7 +12,7 @@
 # TgtPrompt$ Choose target creature to haunt`) fires and asks for a target
 # creature — Memnite is the only legal one, so the haunt pairing this test
 # needs is reached by ordinary play, never scripted directly: `GameState`
-# (`apps/server/src/play/scenarios/README.md`) has no key for a haunt
+# (`games/magic/server/src/play/scenarios/README.md`) has no key for a haunt
 # relation, because Forge's own state has none either until the ability
 # actually resolves.
 turn=1

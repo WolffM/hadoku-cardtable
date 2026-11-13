@@ -1,4 +1,4 @@
-# apps/server/src/play/rooms.jvm.test.ts and e2e/rm-rooms.spec.ts — the operator, 2026-10-19: "cards like
+# games/magic/server/src/play/rooms.jvm.test.ts and e2e/rm-rooms.spec.ts — the operator, 2026-10-19: "cards like
 # 'Walk-In Closet' it's hard to tell whats actually going on. which room was played, which room is active?
 # has the door been unlocked?" Alice holds one Room, has another on the battlefield that was never cast (both
 # its doors locked), and eleven Forests: both doors of the one she casts, and the cheaper door of the other.
