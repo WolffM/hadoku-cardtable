@@ -1,7 +1,7 @@
 /**
  * A Gauntlet room readied over the API never asks for a match during its ban/pick.
  *
- * A Gauntlet seat's Ready is its table seat's (`apps/server/src/http/routes.ts`'s `seated`), so the
+ * A Gauntlet seat's Ready is its table seat's (`games/magic/server/src/http/routes.ts`'s `seated`), so the
  * table reads both players ready from the moment both seats ready, long before the Gauntlet deals.
  * The room screen starts a match off that readiness in every mode but the Gauntlet, and until its
  * room record lands it knew no mode at all: a page whose table read came back first asked

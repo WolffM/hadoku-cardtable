@@ -1139,7 +1139,7 @@ export function clickRecords(stack: { serverLogFile: string }, card: number): st
 
 /**
  * A Rematch of a finished Bo1 converts it to Bo3 and opens the sideboard step
- * (`apps/server/src/room/series.ts`): on the result screen Next opens it, and
+ * (`games/magic/server/src/room/series.ts`): on the result screen Next opens it, and
  * Ready with the 75 unchanged is this seat's agreement to the next game. A
  * seat in the room gets the same step in place of its deck card, so it only
  * presses Ready.

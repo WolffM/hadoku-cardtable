@@ -2,7 +2,7 @@
  * The isolation check, over what each browser context actually received.
  *
  * The engine tests assert this over payloads the server BUILT
- * (`apps/server/src/room/socket.test.ts`, `apps/ui/src/draft/hiddenInfo.ts`).
+ * (`games/magic/server/src/room/socket.test.ts`, `apps/ui/src/draft/hiddenInfo.ts`).
  * This asserts it over payloads two real browsers RECEIVED, whole and
  * serialised, which is the claim nobody had watched hold with two people.
  *

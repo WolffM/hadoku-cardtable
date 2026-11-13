@@ -3,7 +3,7 @@
  * event's field already seated, each AI named for its real player and none of them movable, the
  * creator's seat holding its player's own list, and the creator's Ready locks it and opens round 1
  * — the event's own quarterfinal — as a live match against the real player it paired. Which list
- * that AI plays is pinned over HTTP with the real PodChecks (`apps/server/src/http/rooms.test.ts`);
+ * that AI plays is pinned over HTTP with the real PodChecks (`games/magic/server/src/http/rooms.test.ts`);
  * this proves the page and the match.
  */
 import { expect, test } from '@playwright/test';

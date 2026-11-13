@@ -71,9 +71,24 @@ class MemRepo extends Repo {
 }
 
 /**
+ * Where a path a frozen fixture names is today. The fixtures record their commits as they were, when
+ * Magic's server was `apps/server`; it is `games/magic/server` now, and only the site's own files
+ * stayed. A replay asks what the same change selects in today's tree.
+ */
+const MAGIC_SERVER = 'games/magic/server/';
+const OLD_SERVER = 'apps/server/';
+function today(path: string): string {
+  return path.startsWith(OLD_SERVER) && !existsSync(join(ROOT, path)) ? MAGIC_SERVER + path.slice(OLD_SERVER.length) : path;
+}
+function todayChanges(files: Change[]): Change[] {
+  return files.map((c) => ({ ...c, filename: today(c.filename), ...(c.previous_filename ? { previous_filename: today(c.previous_filename) } : {}) }));
+}
+
+/**
  * This checkout's tree with the given history in place of git's: the same on every machine. Given a
  * commit, the files a fixture carries for it (`fixtures/at/<sha>/`) are read as they stood there, so a
- * historical diff is replayed against the file it was cut from, not today's.
+ * historical diff is replayed against the file it was cut from, not today's (found under the path it
+ * had then, `today`'s inverse).
  */
 class Tree extends Repo {
   private readonly history: History;
@@ -88,8 +103,9 @@ class Tree extends Repo {
   override read(path: string): string | null {
     if (this.at === undefined) return super.read(path);
     if (!this.snaps.has(path)) {
-      const snap = snapshotPath(this.at, path);
-      this.snaps.set(path, snap !== null && existsSync(snap) ? readFileSync(snap, 'utf8') : null);
+      const then = path.startsWith(MAGIC_SERVER) ? OLD_SERVER + path.slice(MAGIC_SERVER.length) : path;
+      const snap = [snapshotPath(this.at, path), snapshotPath(this.at, then)].find((f) => existsSync(f));
+      this.snaps.set(path, snap === undefined ? null : readFileSync(snap, 'utf8'));
     }
     return this.snaps.get(path) ?? super.read(path);
   }
@@ -104,7 +120,7 @@ class Tree extends Repo {
 const FORGE_SPEC = (body: string): string => `import { startPlayStack } from './play/harness.ts';\nconst forge = { ok: true };\n${body}\n`;
 
 /** The fixture repo's one hot path. */
-const FIXTURE_GUARDS: Guard[] = [{ name: 'the match', paths: /^apps\/server\/src\/play\/match\.ts$/, specs: ['coin.spec.ts'], jvm: ['apps/server/src/play/bolt.jvm.test.ts'] }];
+const FIXTURE_GUARDS: Guard[] = [{ name: 'the match', paths: /^games\/magic\/server\/src\/play\/match\.ts$/, specs: ['coin.spec.ts'], jvm: ['games/magic/server/src/play/bolt.jvm.test.ts'] }];
 
 /** Two smoke specs, three narrow ones, a helper, a scenario, a component tree, a server, a jvm suite, and filler specs. */
 function fixtureRepo(extra: Record<string, string> = {}, history: History = NO_HISTORY): MemRepo {
@@ -119,13 +135,13 @@ function fixtureRepo(extra: Record<string, string> = {}, history: History = NO_H
       'e2e/pile.spec.ts': FORGE_SPEC("import { pile } from './play/board.ts';\npile(page); startScenarioMatch(browser, { scenario: 'bolt-player' });"),
       'e2e/bars.spec.ts': FORGE_SPEC("page.locator('.mana-bar'); fetch('/api/sounds/catalogue');"),
       'e2e/draft.spec.ts': "test('draft', () => {});\n",
-      'apps/server/src/play/scenarios/bolt-player.state': '[state]\n',
-      'apps/server/src/play/match.ts': "import { rule } from './rules.ts';\nexport const m = rule;\n",
-      'apps/server/src/play/rules.ts': 'export const rule = 1;\n',
-      'apps/server/src/play/host.ts': "import { m } from './match.ts';\nexport const h = m;\n",
-      'apps/server/src/http/sounds.ts':
+      'games/magic/server/src/play/scenarios/bolt-player.state': '[state]\n',
+      'games/magic/server/src/play/match.ts': "import { rule } from './rules.ts';\nexport const m = rule;\n",
+      'games/magic/server/src/play/rules.ts': 'export const rule = 1;\n',
+      'games/magic/server/src/play/host.ts': "import { m } from './match.ts';\nexport const h = m;\n",
+      'games/magic/server/src/http/sounds.ts':
         "export function catalogue(router) {\n  router.get('/api/sounds/catalogue', list);\n}\nexport function upload(router) {\n  router.post('/api/sounds/upload', put);\n}\n",
-      'apps/server/src/play/bolt.jvm.test.ts': "import { h } from './host.ts';\nstartScenario('bolt-player', h);\n",
+      'games/magic/server/src/play/bolt.jvm.test.ts': "import { h } from './host.ts';\nstartScenario('bolt-player', h);\n",
       'apps/ui/src/play/live/CoinToss.tsx':
         "import { flip } from './coin.ts';\nimport './coin.css';\nexport function CoinToss() {\n  return <div data-testid=\"coin-toss\" className=\"coin\">{flip()}</div>;\n}\n",
       'apps/ui/src/play/live/coin.ts': 'export interface Coin {\n  side: string;\n}\nexport function flip(): string {\n  return "heads";\n}\n',
@@ -168,8 +184,8 @@ const WIRE: Record<string, string> = {
 
 /** A server module with one export the jvm suite's chain uses and one nothing uses. */
 const UTIL: Record<string, string> = {
-  'apps/server/src/play/util.ts': 'export const used = 1;\nexport const unused = 2;\n',
-  'apps/server/src/play/host.ts': "import { m } from './match.ts';\nimport { used } from './util.ts';\nexport const h = m + used;\n",
+  'games/magic/server/src/play/util.ts': 'export const used = 1;\nexport const unused = 2;\n',
+  'games/magic/server/src/play/host.ts': "import { m } from './match.ts';\nimport { used } from './util.ts';\nexport const h = m + used;\n",
 };
 
 const modified = (filename: string, patch?: string): Change => ({ filename, status: 'modified', patch });
@@ -203,7 +219,7 @@ describe('the per-file rules', () => {
   it('a spec runs itself; a non-Forge spec runs nothing here; a jvm suite runs itself', () => {
     expect(select(fixtureRepo(), [modified('e2e/coin.spec.ts')]).specs).toEqual(['coin.spec.ts']);
     expect(select(fixtureRepo(), [modified('e2e/draft.spec.ts')])).toMatchObject({ e2e: false });
-    expect(select(fixtureRepo(), [modified('apps/server/src/play/bolt.jvm.test.ts')])).toMatchObject({ e2e: false, jvmFiles: ['apps/server/src/play/bolt.jvm.test.ts'] });
+    expect(select(fixtureRepo(), [modified('games/magic/server/src/play/bolt.jvm.test.ts')])).toMatchObject({ e2e: false, jvmFiles: ['games/magic/server/src/play/bolt.jvm.test.ts'] });
   });
 
   it('an e2e helper runs the specs that import it', () => {
@@ -211,46 +227,46 @@ describe('the per-file rules', () => {
   });
 
   it('a scenario runs the specs and suites that name it', () => {
-    const sel = select(fixtureRepo(), [modified('apps/server/src/play/scenarios/bolt-player.state')]);
-    expect(sel).toMatchObject({ specs: ['pile.spec.ts'], jvmFiles: ['apps/server/src/play/bolt.jvm.test.ts'] });
+    const sel = select(fixtureRepo(), [modified('games/magic/server/src/play/scenarios/bolt-player.state')]);
+    expect(sel).toMatchObject({ specs: ['pile.spec.ts'], jvmFiles: ['games/magic/server/src/play/bolt.jvm.test.ts'] });
   });
 
   it('a hot-path module runs its guard family and the smoke set, on a dispatch and on a push alike', () => {
     for (const deferFull of [false, true]) {
-      const sel = select(fixtureRepo(), [modified('apps/server/src/play/match.ts')], { ...guarded, deferFull });
+      const sel = select(fixtureRepo(), [modified('games/magic/server/src/play/match.ts')], { ...guarded, deferFull });
       expect(sel.specs, String(deferFull)).toEqual(['coin.spec.ts', ...SMOKE].sort());
-      expect(sel.jvmFiles, String(deferFull)).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
-      expect(sel.reasons).toContain('e2e: coin.spec.ts — guards the match (apps/server/src/play/match.ts)');
+      expect(sel.jvmFiles, String(deferFull)).toEqual(['games/magic/server/src/play/bolt.jvm.test.ts']);
+      expect(sel.reasons).toContain('e2e: coin.spec.ts — guards the match (games/magic/server/src/play/match.ts)');
     }
   });
 
   it('a bridge change runs everything on a dispatch, like the engine pin, and the engine guards on a push', () => {
-    const f = 'apps/server/src/play/bridge/PlayBridge.java';
+    const f = 'games/magic/server/src/play/bridge/PlayBridge.java';
     const dispatch = select(fixtureRepo(), [modified(f)]);
     expect(dispatch).toMatchObject({ specs: null, jvmFiles: null });
     expect(dispatch.reasons).toContain(`jvm: every suite — ${f}: the engine's own layer, which every match runs through`);
-    const push = select(fixtureRepo({ 'apps/server/src/play/match-frames.jvm.test.ts': '' }), [modified(f)], { deferFull: true });
-    expect(push.jvmFiles).toEqual(['apps/server/src/play/match-frames.jvm.test.ts']);
+    const push = select(fixtureRepo({ 'games/magic/server/src/play/match-frames.jvm.test.ts': '' }), [modified(f)], { deferFull: true });
+    expect(push.jvmFiles).toEqual(['games/magic/server/src/play/match-frames.jvm.test.ts']);
   });
 
   it('a server play module one import below a hot module inherits its guard family; one above it does not', () => {
-    const below = select(fixtureRepo(), [modified('apps/server/src/play/rules.ts')], guarded);
+    const below = select(fixtureRepo(), [modified('games/magic/server/src/play/rules.ts')], guarded);
     expect(below.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
-    expect(below.reasons).toContain('e2e: coin.spec.ts — guards the match (apps/server/src/play/rules.ts, imported by apps/server/src/play/match.ts)');
-    const above = select(fixtureRepo(), [modified('apps/server/src/play/host.ts')], guarded);
-    expect(above).toMatchObject({ specs: [...SMOKE].sort(), jvmFiles: ['apps/server/src/play/bolt.jvm.test.ts'] });
+    expect(below.reasons).toContain('e2e: coin.spec.ts — guards the match (games/magic/server/src/play/rules.ts, imported by games/magic/server/src/play/match.ts)');
+    const above = select(fixtureRepo(), [modified('games/magic/server/src/play/host.ts')], guarded);
+    expect(above).toMatchObject({ specs: [...SMOKE].sort(), jvmFiles: ['games/magic/server/src/play/bolt.jvm.test.ts'] });
   });
 
   it('server scaffolding runs the smoke set and the specs that call its routes', () => {
-    const sel = select(fixtureRepo(), [modified('apps/server/src/http/sounds.ts')]);
+    const sel = select(fixtureRepo(), [modified('games/magic/server/src/http/sounds.ts')]);
     expect(sel.specs).toEqual(['bars.spec.ts', ...SMOKE].sort());
   });
 
   it('server scaffolding runs the specs calling a route the diff registers, not every path the module names', () => {
-    const other = select(fixtureRepo(), [modified('apps/server/src/http/sounds.ts', diff(5, ["  router.post('/api/sounds/put', put);"], ["  router.post('/api/sounds/upload', put);"]))]);
+    const other = select(fixtureRepo(), [modified('games/magic/server/src/http/sounds.ts', diff(5, ["  router.post('/api/sounds/put', put);"], ["  router.post('/api/sounds/upload', put);"]))]);
     expect(other.specs).toEqual([...SMOKE].sort());
-    const named = select(fixtureRepo({ 'apps/server/src/play/log.ts': "export function where(): string {\n  return '/api/sounds/catalogue';\n}\n" }), [
-      modified('apps/server/src/play/log.ts', diff(2, ["  return '/api/sounds';"], ["  return '/api/sounds/catalogue';"])),
+    const named = select(fixtureRepo({ 'games/magic/server/src/play/log.ts': "export function where(): string {\n  return '/api/sounds/catalogue';\n}\n" }), [
+      modified('games/magic/server/src/play/log.ts', diff(2, ["  return '/api/sounds';"], ["  return '/api/sounds/catalogue';"])),
     ]);
     expect(named.specs).toEqual([...SMOKE].sort());
   });
@@ -282,20 +298,20 @@ describe('the per-file rules', () => {
 
   it('a jvm suite runs when it uses what the diff touched, not because it imports the file', () => {
     const repo = fixtureRepo(UTIL);
-    const unused = select(repo, [modified('apps/server/src/play/util.ts', diff(2, ['export const unused = 3;'], ['export const unused = 2;']))]);
+    const unused = select(repo, [modified('games/magic/server/src/play/util.ts', diff(2, ['export const unused = 3;'], ['export const unused = 2;']))]);
     expect(unused.jvmFiles).toEqual([]);
-    const used = select(repo, [modified('apps/server/src/play/util.ts', diff(1, ['export const used = 0;'], ['export const used = 1;']))]);
-    expect(used.jvmFiles).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
+    const used = select(repo, [modified('games/magic/server/src/play/util.ts', diff(1, ['export const used = 0;'], ['export const used = 1;']))]);
+    expect(used.jvmFiles).toEqual(['games/magic/server/src/play/bolt.jvm.test.ts']);
   });
 
   it('a jvm suite reaches a module through a re-export', () => {
     const repo = fixtureRepo({
       ...UTIL,
-      'apps/server/src/play/index.ts': "export { used as usedHere } from './util.ts';\n",
-      'apps/server/src/play/host.ts': "import { usedHere } from './index.ts';\nexport const h = usedHere;\n",
+      'games/magic/server/src/play/index.ts': "export { used as usedHere } from './util.ts';\n",
+      'games/magic/server/src/play/host.ts': "import { usedHere } from './index.ts';\nexport const h = usedHere;\n",
     });
-    const used = select(repo, [modified('apps/server/src/play/util.ts', diff(1, ['export const used = 0;'], ['export const used = 1;']))]);
-    expect(used.jvmFiles).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
+    const used = select(repo, [modified('games/magic/server/src/play/util.ts', diff(1, ['export const used = 0;'], ['export const used = 1;']))]);
+    expect(used.jvmFiles).toEqual(['games/magic/server/src/play/bolt.jvm.test.ts']);
   });
 
   it('a workspace package edit runs what uses the edited export, through the package name', () => {
@@ -316,12 +332,12 @@ describe('the per-file rules', () => {
   it("the server's platform package is server code: reached by subpath through a `./*` export, its routes run their callers", () => {
     const repo = fixtureRepo({
       'packages/game-server/package.json': '{ "name": "@hadoku/game-server", "exports": { "./*": "./src/*.ts" } }\n',
-      'packages/game-server/src/play/util.ts': UTIL['apps/server/src/play/util.ts'],
-      'packages/game-server/src/http/sounds.ts': fixtureRepo().read('apps/server/src/http/sounds.ts')!,
-      'apps/server/src/play/host.ts': "import { m } from './match.ts';\nimport { used } from '@hadoku/game-server/play/util';\nexport const h = m + used;\n",
+      'packages/game-server/src/play/util.ts': UTIL['games/magic/server/src/play/util.ts'],
+      'packages/game-server/src/http/sounds.ts': fixtureRepo().read('games/magic/server/src/http/sounds.ts')!,
+      'games/magic/server/src/play/host.ts': "import { m } from './match.ts';\nimport { used } from '@hadoku/game-server/play/util';\nexport const h = m + used;\n",
     });
     const used = select(repo, [modified('packages/game-server/src/play/util.ts', diff(1, ['export const used = 0;'], ['export const used = 1;']))]);
-    expect(used.jvmFiles).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
+    expect(used.jvmFiles).toEqual(['games/magic/server/src/play/bolt.jvm.test.ts']);
     expect(select(repo, [modified('packages/game-server/src/http/sounds.ts')]).specs).toEqual(['bars.spec.ts', ...SMOKE].sort());
   });
 
@@ -426,7 +442,7 @@ describe('on a push to main (--defer-full)', () => {
     const ids = Array.from({ length: 9 }, (_, i) => `<b data-testid="pill-${i}" />`).join('');
     const pill = `export function Pill() {\n  return <i data-testid="pill-top">${ids}</i>;\n}\n`;
     const repo = fixtureRepo({ ...many, 'apps/ui/src/play/live/Pill.tsx': pill });
-    const sel = select(repo, [modified('apps/ui/src/play/live/Pill.tsx'), modified('e2e/pile.spec.ts'), modified('apps/server/src/play/match.ts')], { ...guarded, deferFull: true });
+    const sel = select(repo, [modified('apps/ui/src/play/live/Pill.tsx'), modified('e2e/pile.spec.ts'), modified('games/magic/server/src/play/match.ts')], { ...guarded, deferFull: true });
     // pile (itself), coin (guard), the smoke set: 4; then the three pills with a second key, then the rest by name.
     expect(sel.specs).toEqual(['coin.spec.ts', 'pile.spec.ts', 'pill-0.spec.ts', 'pill-1.spec.ts', 'pill-2.spec.ts', 'pill-3.spec.ts', 'pill-4.spec.ts', 'pill-5.spec.ts', ...SMOKE].sort());
     expect(sel.specs).toHaveLength(PUSH_BUDGET);
@@ -450,20 +466,20 @@ describe('on a push to main (--defer-full)', () => {
 
   it('runs every spec, even on a push, when most specs import what changed', () => {
     const repo = fixtureRepo({
-      'e2e/play/harness.ts': "import { rows } from '../../apps/server/src/http/standIn.ts';\nexport function startPlayStack() { return rows; }\n",
-      'apps/server/src/http/standIn.ts': 'export const rows = 1;\n',
+      'e2e/play/harness.ts': "import { rows } from '../../games/magic/server/src/http/standIn.ts';\nexport function startPlayStack() { return rows; }\n",
+      'games/magic/server/src/http/standIn.ts': 'export const rows = 1;\n',
     });
-    const sel = select(repo, [modified('apps/server/src/http/standIn.ts')], { deferFull: true });
+    const sel = select(repo, [modified('games/magic/server/src/http/standIn.ts')], { deferFull: true });
     expect(sel).toMatchObject({ specs: null, deferred: false });
     expect(sel.reasons).toContain(`every spec runs on this push: ${universe(repo).specs.length} of ${universe(repo).specs.length} specs import what changed`);
   });
 
   it('runs a jvm suite that uses a changed module directly, not one that uses it from afar', () => {
-    const sel = select(fixtureRepo(), [modified('apps/server/src/play/host.ts')], { deferFull: true });
-    expect(sel.jvmFiles).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
-    const far = select(fixtureRepo(), [modified('apps/server/src/play/rules.ts')], { deferFull: true });
+    const sel = select(fixtureRepo(), [modified('games/magic/server/src/play/host.ts')], { deferFull: true });
+    expect(sel.jvmFiles).toEqual(['games/magic/server/src/play/bolt.jvm.test.ts']);
+    const far = select(fixtureRepo(), [modified('games/magic/server/src/play/rules.ts')], { deferFull: true });
     expect(far.jvmFiles).toEqual([]);
-    expect(far.reasons).toContain('apps/server/src/play/bolt.jvm.test.ts: deferred to the batched full run (uses apps/server/src/play/rules.ts (3 deep); score 0.3)');
+    expect(far.reasons).toContain('games/magic/server/src/play/bolt.jvm.test.ts: deferred to the batched full run (uses games/magic/server/src/play/rules.ts (3 deep); score 0.3)');
   });
 });
 
@@ -540,7 +556,7 @@ describe('real landed ranges', { timeout: SLOW_TIMEOUT }, () => {
     if (!ranges.has(name)) ranges.set(name, JSON.parse(readFileSync(join(ROOT, 'scripts/ci/fixtures', `${name}.json`), 'utf8')) as { range: string; files: Change[] });
     return ranges.get(name)!;
   };
-  const fixture = (name: string): Change[] => read(name).files;
+  const fixture = (name: string): Change[] => todayChanges(read(name).files);
   /** The tree as it stood at the end of the named range, for the files that range changed. */
   const treeOf = (name: string): Tree => new Tree(NO_HISTORY, fixtureSha(read(name)));
 
@@ -559,7 +575,7 @@ describe('real landed ranges', { timeout: SLOW_TIMEOUT }, () => {
   it('modal spell arrows through PlayBridge (da8026aa): the new spec, its scenarios\' suite and the engine guards on a push', () => {
     const sel = select(treeOf('modal-arrows-bridge'), fixture('modal-arrows-bridge'), { deferFull: true });
     expect(sel.specs).toEqual(expect.arrayContaining(['modal-arrows.spec.ts', 'w68-untap.spec.ts', ...SMOKE]));
-    expect(sel.jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/modal-targets.jvm.test.ts', 'apps/server/src/play/match-frames.jvm.test.ts']));
+    expect(sel.jvmFiles).toEqual(expect.arrayContaining(['games/magic/server/src/play/modal-targets.jvm.test.ts', 'games/magic/server/src/play/match-frames.jvm.test.ts']));
   });
 
   it('the prompt sheet as one column (da8026aa..ff959d3f): the prompt specs, not every spec; the version bumps and comment edit are ignored', () => {
@@ -599,10 +615,10 @@ describe('historical misses, replayed as a push', { timeout: SLOW_TIMEOUT }, () 
     const m = JSON.parse(readFileSync(join(ROOT, 'scripts/ci/fixtures', `miss-${sha}.json`), 'utf8')) as Miss;
     const commits = m.land?.commits ?? [];
     const history: History = {
-      lands: m.land ? [{ commits: commits.map(({ sha: s, files }) => ({ sha: s, files })) }] : [],
-      touched: Object.fromEntries(commits.flatMap((c) => Object.entries(c.touched).map(([f, names]) => [`${c.sha}:${f}`, names]))),
+      lands: m.land ? [{ commits: commits.map(({ sha: s, files }) => ({ sha: s, files: files.map(today) })) }] : [],
+      touched: Object.fromEntries(commits.flatMap((c) => Object.entries(c.touched).map(([f, names]) => [`${c.sha}:${today(f)}`, names]))),
     };
-    return select(new Tree(history, sha), m.files, { deferFull: true });
+    return select(new Tree(history, sha), todayChanges(m.files), { deferFull: true });
   };
 
   it.each([
@@ -622,12 +638,12 @@ describe('historical misses, replayed as a push', { timeout: SLOW_TIMEOUT }, () 
   });
 
   it('the Signet regression also runs the jvm suites that pin auto-pay', () => {
-    expect(replay('44497be5').jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/mana-sources.jvm.test.ts', 'apps/server/src/play/auto.jvm.test.ts']));
+    expect(replay('44497be5').jvmFiles).toEqual(expect.arrayContaining(['games/magic/server/src/play/mana-sources.jvm.test.ts', 'games/magic/server/src/play/auto.jvm.test.ts']));
   });
 
   it("the engine pin runs the new scenario's suite and the engine's guard suites, and leaves the rest to the full run", () => {
     const sel = replay('112836fe');
-    expect(sel.jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/scenario-nykthos.jvm.test.ts', 'apps/server/src/play/match-frames.jvm.test.ts']));
+    expect(sel.jvmFiles).toEqual(expect.arrayContaining(['games/magic/server/src/play/scenario-nykthos.jvm.test.ts', 'games/magic/server/src/play/match-frames.jvm.test.ts']));
     expect(sel.deferred).toBe(true);
   });
 });

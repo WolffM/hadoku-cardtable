@@ -985,7 +985,7 @@ describe('the says, the toggle, and the ability label', () => {
  * sends and F drove the bare `{ error }` shape.
  *
  * A copy of lane E's sentence. `@hadoku/ui` does not depend on the server
- * package, so `MATCH_GONE_WORDS` (`apps/server/src/play/socket.ts`) cannot be
+ * package, so `MATCH_GONE_WORDS` (`games/magic/server/src/play/socket.ts`) cannot be
  * imported here; nothing below asserts its TEXT — only that a refusal shaped
  * like E's parses, and reaches `match-gone`.
  */

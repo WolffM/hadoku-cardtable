@@ -14,7 +14,7 @@
  * `/cardtable/room/<roomId>`. A link pasted into Discord unfurls from what the
  * edge can see, and a browser never sends the hash (the operator, 2026-11-08:
  * the address bar is the invite link). So the edge reads the room from the path
- * and shows its preview (`apps/server/src/http/preview.ts`). `#/room/<id>` still
+ * and shows its preview (`games/magic/server/src/http/preview.ts`). `#/room/<id>` still
  * opens it, and is moved to the path (`canonicalAddress`). Its tables, and every
  * other route, stay in the hash.
  *

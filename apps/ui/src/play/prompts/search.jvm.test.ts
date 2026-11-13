@@ -153,7 +153,7 @@ describe.skipIf(!available.ok)(title, () => {
 
       // #9, measured rather than assumed: the seat is told the names of the
       // cards Forge revealed to it (`tempShow` → `PlayerMayLook`, honoured by
-      // `apps/server/src/play/visibility.ts`), so a tile is never "card #id",
+      // `games/magic/server/src/play/visibility.ts`), so a tile is never "card #id",
       // and the art-id table resolves them.
       expect(drawn.length, 'a search sheet was drawn and observed').toBeGreaterThan(0);
       expect(anyUnnamed, 'no tile drew as "card #id"').toBe(false);

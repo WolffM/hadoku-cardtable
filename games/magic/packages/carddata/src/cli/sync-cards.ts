@@ -15,7 +15,7 @@
  *
  * `main` is exported as `runSyncCards(argv)` — same argv parsing, same
  * console output, same exit codes — so the server's catalog-refresh job
- * (`apps/server/src/pools/refresh.ts`, wave 74 §G) could run it as a CHILD
+ * (`games/magic/server/src/pools/refresh.ts`, wave 74 §G) could run it as a CHILD
  * process if it ever needs that (this file's own CLI behaviour untouched
  * either way). Running it IN-PROCESS instead calls `sync()` from
  * `../scryfall/bulk.ts` directly — already exported, already side-effect

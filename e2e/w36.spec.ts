@@ -163,7 +163,7 @@ test(titled('T4 — the opening Keep/Mulligan is a yes/no pop-up, and the contro
  * Yes/No pair, verified against Forge's source in
  * `apps/ui/src/play/prompts/ConfirmPrompt.tsx`'s own module header).
  *
- * **Blocked on a fixture outside lane E's ownership.** `apps/server/src/play/scenarios/**`
+ * **Blocked on a fixture outside lane E's ownership.** `games/magic/server/src/play/scenarios/**`
  * is `apps/server/**`, which wave 36's file lists as "owned by nobody" this
  * wave — lane E does not create files there (the same boundary
  * `play/scenario.ts`'s `readScenario` already enforces with its own named

@@ -26,7 +26,7 @@
  * strictly less lead time than warming the whole cube during the lobby used
  * to give, but is everything the contract makes available this wave. A
  * dedicated "list a cube's cards" route is the natural next step and is not
- * this lane's to add (`apps/server/src/pools/cubes.ts` is C's; the route
+ * this lane's to add (`games/magic/server/src/pools/cubes.ts` is C's; the route
  * table is A's `index.ts`).
  */
 import { ArtPreloadSchema, type DraftCard, type DraftView } from '@hadoku/shared';

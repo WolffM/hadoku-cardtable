@@ -57,7 +57,7 @@ export default [
 
   // ── Server + shared packages (node) ─────────────────────────────────
   {
-    files: ['apps/server/src/**/*.ts', 'packages/*/src/**/*.ts', 'games/*/packages/*/src/**/*.ts'],
+    files: ['apps/server/src/**/*.ts', 'packages/*/src/**/*.ts', 'games/*/packages/*/src/**/*.ts', 'games/*/server/src/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
@@ -233,17 +233,17 @@ export default [
 
   // ── Unit tests: wait on state, assert behaviour ──────────────────────
   {
-    files: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'games/*/packages/*/src/**/*.test.ts'],
+    files: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'games/*/packages/*/src/**/*.test.ts', 'games/*/server/src/**/*.test.ts'],
     ignores: [
       '**/*.jvm.test.ts',
       // Files that still sleep on a wall clock, to be emptied rather than grown.
       'apps/server/src/index.test.ts',
-      'apps/server/src/http/tables.test.ts',
-      'apps/server/src/play/host.test.ts',
-      'apps/server/src/play/socket.test.ts',
-      'apps/server/src/room/watching.test.ts',
-      'apps/server/src/room/lobby.test.ts',
-      'apps/server/src/room/socket.test.ts',
+      'games/magic/server/src/http/tables.test.ts',
+      'games/magic/server/src/play/host.test.ts',
+      'games/magic/server/src/play/socket.test.ts',
+      'games/magic/server/src/room/watching.test.ts',
+      'games/magic/server/src/room/lobby.test.ts',
+      'games/magic/server/src/room/socket.test.ts',
       'apps/ui/src/play/live/LiveBoard.test.ts',
       'apps/ui/src/play/live/art-preload.test.ts',
       'apps/ui/src/play/live/gestures/gestures.test.ts',

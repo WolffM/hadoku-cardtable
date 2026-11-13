@@ -1,15 +1,15 @@
 /*
- * The art ids the server lays on every face a seat may see (`apps/server/src/play/visibility.ts`'s
+ * The art ids the server lays on every face a seat may see (`games/magic/server/src/play/visibility.ts`'s
  * `withArt`, deciding with `art-ids.ts`), for a test that adapts Forge's raw stream or a state it
  * built by hand: the board draws the id a face carries and looks nothing up itself. The resolver is
  * the server's own, from the committed tables and no catalog — as a host without one runs it.
  */
 import { DELTA_TYPE } from '@hadoku/forge-wire';
 
-import { namedArt } from '../../../server/src/http/card-art.ts';
-import { createArtIds, type ArtIds } from '../../../server/src/play/art-ids.ts';
+import { namedArt } from '../../../../games/magic/server/src/http/card-art.ts';
+import { createArtIds, type ArtIds } from '../../../../games/magic/server/src/play/art-ids.ts';
 import { resetNamedArtForTests } from '../screens/libraryPeek.ts';
-import { withArt, type WireObj } from '../../../server/src/play/visibility.ts';
+import { withArt, type WireObj } from '../../../../games/magic/server/src/play/visibility.ts';
 import type { WireState } from './fold.ts';
 import type { WireObject } from './wire.ts';
 

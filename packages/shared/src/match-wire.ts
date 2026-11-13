@@ -191,7 +191,7 @@ export type { WireCursor };
  * without a close reaching the server (a proxy, a sleeping laptop) stays the seat's controller
  * until its ping times out, so the same tab's reconnect used to be told it was a second window.
  * A join whose tab id matches one of the seat's sockets of the SAME participant replaces that
- * socket in place (`apps/server/src/play/socket.ts`). It is a hint between one person's own
+ * socket in place (`games/magic/server/src/play/socket.ts`). It is a hint between one person's own
  * sockets and never a credential: the seat is still the edge identity's. Optional, so a tab still
  * running an older bundle across a deploy keeps the old behaviour.
  */
@@ -220,7 +220,7 @@ export interface ClientEnvelope {
 
 /**
  * `forge:full-control` — this seat wants every question and every stop, or
- * wants the shortcuts back (`apps/server/src/play/auto.ts`). Nothing about
+ * wants the shortcuts back (`games/magic/server/src/play/auto.ts`). Nothing about
  * the game crosses here: it is a preference of the person sitting in the
  * seat, and the server binds it to the seat the socket claimed, never to a
  * payload field.
@@ -360,7 +360,7 @@ export function phaseStopFrame(matchId: string, phase: StopPhase | null): PhaseS
  * stop if something can be used. on by default"* (the operator, 2026-10-13;
  * wave 30's unconditional, default-off stop before it). This is that one
  * preference, travelling from the settings panel to the seat's own
- * `StopPolicy` (`apps/server/src/play/auto.ts`) through the ALREADY-EXISTING
+ * `StopPolicy` (`games/magic/server/src/play/auto.ts`) through the ALREADY-EXISTING
  * per-seat setter, `Match.setStopPolicy` (wave 26 §E) — nothing here is a
  * second mechanism.
  *
@@ -448,7 +448,7 @@ const ServerEnvelopeShapeSchema = ServerEnvelopeSchema.extend({ frame: z.unknown
 
 export interface ServerEnvelope extends PlatformServerEnvelope<ServerFrame> {
   /**
-   * The frame is a reveal Forge has ALREADY been answered for (`apps/server/src/play/match.ts`'s
+   * The frame is a reveal Forge has ALREADY been answered for (`games/magic/server/src/play/match.ts`'s
    * `showReveal`): something to show, never a question. Nothing replies to it. On the envelope, not
    * the frame, because the frame is Forge's own and stays byte-for-byte what Forge sent; whether
    * anyone still waits on it is the server's fact. Absent on every other frame.
@@ -456,7 +456,7 @@ export interface ServerEnvelope extends PlatformServerEnvelope<ServerFrame> {
   displayOnly?: true;
   /**
    * The frame is a `displayOnly` reveal whose cards will NOT still be visible on the board once
-   * the frames already queued behind it are applied (`apps/server/src/play/match.ts`'s
+   * the frames already queued behind it are applied (`games/magic/server/src/play/match.ts`'s
    * `revealMustForceNotice`, AF403) — a reveal that repositions its own cards within the same
    * resolution (`DigUntilEffect`'s move to the bottom: Calibrated Blast). The client's
    * `drawsFaceUp`/`knownTop` (`apps/ui/src/play/adapter.ts`) would otherwise read the cards' still,
@@ -468,7 +468,7 @@ export interface ServerEnvelope extends PlatformServerEnvelope<ServerFrame> {
   forceNotice?: true;
   /**
    * The `displayOnly` reveal with this callId is over: whoever it was shown to has moved on to their
-   * next decision (`apps/server/src/play/match.ts`'s `emit`). On a seat's wire it rides on the frame
+   * next decision (`games/magic/server/src/play/match.ts`'s `emit`). On a seat's wire it rides on the frame
    * that opens that decision. On the watcher channel, which is shown no decision, it rides on the
    * reveal's own frame sent again — that frame is a carrier, not a reveal to show. One rule for every
    * board, live or replayed: a reveal stays until its OK, or until this names it.
@@ -477,7 +477,7 @@ export interface ServerEnvelope extends PlatformServerEnvelope<ServerFrame> {
   /**
    * The frame is one half of a Forge window (`showPromptMessage` and `updateButtons`, which Forge
    * sends as two notifies in an order of each input's own) and its other half is the very next
-   * frame on this seat's wire (`apps/server/src/play/match.ts`'s `sendWindow`). The browser applies
+   * frame on this seat's wire (`games/magic/server/src/play/match.ts`'s `sendWindow`). The browser applies
    * the two together, so a prompt is never drawn under another input's buttons, nor buttons under
    * another input's prompt. Absent on every other frame.
    */
@@ -490,7 +490,7 @@ export interface ServerEnvelope extends PlatformServerEnvelope<ServerFrame> {
  * The answer to `forge:join` and `forge:resync`. `frames` is this seat's
  * state-channel history (`setGameView` / `openView` / `applyDelta`, already
  * projected for the seat), compacted at the start of each turn into one
- * `setGameView` of the board it folds to (`apps/server/src/play/history.ts`):
+ * `setGameView` of the board it folds to (`games/magic/server/src/play/history.ts`):
  * folded, it is the board the whole history gives. A pending ask is re-sent
  * after it as an ordinary `forge:s2c` frame.
  *
@@ -527,7 +527,7 @@ export interface MatchSnapshot {
  * `outcome` and `message` are optional because **exactly one refusal sends
  * them**: a match that is gone answers `{ error: 'unknown-match', outcome:
  * 'match-gone', message: '<a sentence>' }` (wave 22 lane E — `matchGone` /
- * `MATCH_GONE_WORDS` in `apps/server/src/play/socket.ts`), while
+ * `MATCH_GONE_WORDS` in `games/magic/server/src/play/socket.ts`), while
  * `match-full`, `not-joined`, `match-starting` and `malformed: …` keep the
  * bare `{ error }` they always had. Requiring the two fields would make every
  * OTHER refusal malformed.

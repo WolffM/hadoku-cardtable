@@ -608,7 +608,7 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
 
 - **VERIFIED (W22 lane E, re-derived here)** — **our bridge exits on stdin EOF,
   and an `O_RDWR` fifo fd is what stops it.** `PlayBridge.readCommands`
-  (`apps/server/src/play/bridge/PlayBridge.java:1617-1636`) loops on
+  (`games/magic/server/src/play/bridge/PlayBridge.java:1617-1636`) loops on
   `IN.readLine()` and, when that returns null, counts down `STOP` (`:1634-1635`);
   `main` is parked on `STOP.await()` and then `Runtime.getRuntime().halt(0)`
   (`:1587-1593`). A spare does the same before its `start` line (`:1392-1395`).
@@ -750,7 +750,7 @@ checker. `PlayBridge.java`'s `ConditionsOn` asks each with Forge's own method.
   comparators (`EQ0`, `LT1`) missed (2026-10-16, lane CF). A lone comparison
   met at 0 is not a default: Bloodghast's `LE10` on the opponent's life is a
   bonus (`res/cardsfolder/b/bloodghast.txt`).
-- **VERIFIED (measured, `apps/server/src/play/condition-met.jvm.test.ts` on
+- **VERIFIED (measured, `games/magic/server/src/play/condition-met.jvm.test.ts` on
   the claws, run 38860570475)** — a card with only a keyword (Ornithopter's
   Flying) carries traits with no condition parameter, and a checker that reads
   none answers `true`: "has a condition" must be asked apart from "is it met".
@@ -775,7 +775,7 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   candidates, each kept with odds `1 / (1 + distance)`. For a 40-card, 17-land
   deck the expected distance of a hand is 0.92 lands unsmoothed, 0.77 weighted
   and 0.51 strict (computed, not measured).
-- **VERIFIED (measured, `apps/server/src/play/hand-smoothing.jvm.test.ts` on the
+- **VERIFIED (measured, `games/magic/server/src/play/hand-smoothing.jvm.test.ts` on the
   claws, run 38947333469)** — on one seed the smoothed opening hand is never
   further from the ratio than the unsmoothed deal (seed 7 seat 0: 0 lands → 3),
   and from an identical opening the smoothed mulligan redraws differ while two
@@ -800,7 +800,7 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   are not reversed, so the first card is the highest of them; a scry's or
   surveil's top group is reversed and put on top, so the first is the top card.
 - The bridge (`PlayBridge.java`'s `orderDestination`) sends the real zone, end and
-  first-card direction on the `order` ask; `apps/server/src/play/order-destination.jvm.test.ts`
+  first-card direction on the `order` ask; `games/magic/server/src/play/order-destination.jvm.test.ts`
   checks it against real Forge.
 
 ## A look at a library's top, and what moves it — 2026-10-19 (lane FS)
@@ -817,7 +817,7 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   `GameAction.java:154`) into a hidden zone (`:171-174`). So a scry's top card, a fate seal's kept
   card or Sensei's Divining Top's rearrangement reaches the wire as a reordered `Library` list, never
   as a new `CardView`; a card from the hand put on top (Brainstorm) is a new one.
-- **VERIFIED (measured, `apps/server/src/play/fs-top-known.jvm.test.ts` on the claws, run
+- **VERIFIED (measured, `games/magic/server/src/play/fs-top-known.jvm.test.ts` on the claws, run
   39328402310)** — on main `abe771cb`'s server, the fate seal's card stays named in the looking seat's
   state at every one of the 13 state frames until its holder draws it; a scry of the seat's own
   library (Serum Visions keeping two) is missing from all 17 state frames after its look ends.
@@ -860,7 +860,7 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   per door (`Card.getUnlockAbility`, `:8060`; `CardFactoryUtil.abilityUnlockRoom`, "Unlock <door>"),
   offered for each locked door (`Card.java:7408-7414`). It is on no state's ability list, so a reader that
   finds an ability's face by walking `getStates()` finds none for it.
-- **VERIFIED (measured, `apps/server/src/play/rooms.jvm.test.ts` on the claws, run 39343606183)** —
+- **VERIFIED (measured, `games/magic/server/src/play/rooms.jvm.test.ts` on the claws, run 39343606183)** —
   both seats' state: a never-cast Room is `CurrentState` 9 and its whole face (ordinal 0) is never sent;
   cast Walk-In Closet is 5; after "Unlock Forgotten Cellar" it is 0. The offer leaves out an unlock the
   seat cannot pay for: with three Forests left only "Unlock Walk-In Closet" was offered (run 39343167782).

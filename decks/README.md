@@ -262,7 +262,7 @@ rule does not ask for.
 this library. These two were found by a SEPARATE check that nothing else in
 this repo runs by hand: every `(name, set)` pair the library plays, resolved
 against **Forge's own card database** at the pinned jar
-(`apps/server/src/http/library-resolve.jvm.test.ts`), which catches a set code
+(`games/magic/server/src/http/library-resolve.jvm.test.ts`), which catches a set code
 the corpus is indifferent to but Forge itself is not.
 
 - **mtgtop8 spells Coldsnap `[CS]`**; the corpus and every other code in this

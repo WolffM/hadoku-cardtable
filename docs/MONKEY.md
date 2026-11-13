@@ -8,9 +8,9 @@ otherwise (land, spell, attacker, blocker, mana payment, pass). The goal
 (the operator, 2026-10-26): find the next soft lock — a card or an ask shape
 the UI cannot answer — before a player does.
 
-Code: `apps/server/src/play/monkey/`. It lives under `apps/server/src/` rather
+Code: `games/magic/server/src/play/monkey/`. It lives under `games/magic/server/src/` rather
 than `scripts/` because its wire transport needs `socket.io-client`, which is
-a real dependency of `@hadoku/server` and not resolvable from a bare script;
+a real dependency of `@hadoku/magic-server` and not resolvable from a bare script;
 the rest of it reaches into `apps/ui/src/play/live/match.ts` and
 `apps/ui/src/play/prompts/rules.ts` for the exact same functions the real
 board and prompt components call, so "legal" is never a second model of
@@ -24,12 +24,12 @@ export CARDTABLE_FORGE_JAR="$HOME/.local/share/cardtable/jars/<THIS WORKTREE'S P
 export CARDTABLE_FORGE_RES="<a forge-gui/res with cardsfolder/>"                            # see the warning below
 pnpm --filter @hadoku/ui build && pnpm --filter @hadoku/server build
 
-apps/server/node_modules/.bin/tsx apps/server/src/play/monkey/cli.ts \
+apps/server/node_modules/.bin/tsx games/magic/server/src/play/monkey/cli.ts \
   --seed 1 --sample 8 --matches-per-deck 1 --out /tmp/monkey-report.json
 ```
 
 **The jar must be built from THIS checkout's own forge pin.** The bridge
-(`apps/server/src/play/bridge/PlayBridge.java`) is compiled fresh against
+(`games/magic/server/src/play/bridge/PlayBridge.java`) is compiled fresh against
 whatever jar `CARDTABLE_FORGE_JAR` names, against the bridge SOURCE in this
 checkout — so a jar built from a different Forge pin than the one this
 checkout's `PlayBridge.java` was written for fails with a Java compile error
@@ -82,7 +82,7 @@ Every top-level `--seed` derives, per deck, a PER-MATCH seed
 flag (`Flag.seed`). To replay exactly one reported match:
 
 ```sh
-apps/server/node_modules/.bin/tsx apps/server/src/play/monkey/cli.ts \
+apps/server/node_modules/.bin/tsx games/magic/server/src/play/monkey/cli.ts \
   --deck <the deck id from the match's log line or report> \
   --seed <the TOP-LEVEL seed the run printed, not the per-match one> \
   --matches-per-deck 1
@@ -134,7 +134,7 @@ Mutation evidence, each reverted before landing:
 - **`no-legal-answer`**, **`loop`**, **`server-unclassified`** — proved by a
   direct unit test of the pure function each flag is built on
   (`seat-driver.test.ts`, 13 cases, `CI=1 vitest run
-  apps/server/src/play/monkey/seat-driver.test.ts`): the exact shape each
+  games/magic/server/src/play/monkey/seat-driver.test.ts`): the exact shape each
   flag is designed to catch (an ask demanding more than it offered; the same
   declined ask shape recurring three times at the same turn/phase; a fresh
   `ask-unclassified` log line for this match's id), and the exact shape

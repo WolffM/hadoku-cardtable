@@ -5,7 +5,7 @@
  * 2026-10-30: "the room is the source of truth").
  *
  * Forms are not driven here: attaching one asks hadoku.me's Rally, which this harness never
- * reaches. `apps/server/src/http/events.test.ts` covers them against a stand-in summary endpoint.
+ * reaches. `games/magic/server/src/http/events.test.ts` covers them against a stand-in summary endpoint.
  */
 
 import { expect, test, type Page } from '@playwright/test';

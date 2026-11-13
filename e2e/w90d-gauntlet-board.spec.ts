@@ -11,7 +11,7 @@
  *  - the coin overlay still covers the pool exactly, during the reveal;
  *  - a ban and a pick are each still one click, on the board a player presses.
  *
- * No Forge: `drawGauntlet`/`act` are pure server-side logic (`apps/server/src/room/gauntlet.ts`),
+ * No Forge: `drawGauntlet`/`act` are pure server-side logic (`games/magic/server/src/room/gauntlet.ts`),
  * and the AI's own bans and picks run off a server timer, not a match. The era is pinned
  * (`modern-2012-07-13`) to a pool whose longest archetype name is 13 characters and longest
  * pilot 17 — representative deck text, not the single worst case the 15-era modern library can deal

@@ -8,7 +8,7 @@
  *
  * Rally is never reached from this harness (`events.spec.ts`), so the test answers the events and
  * polls reads, and answers the create as Rally being down after reading what the dialog sent.
- * `apps/server/src/http/events.test.ts` covers the server's side against a stand-in Rally.
+ * `games/magic/server/src/http/events.test.ts` covers the server's side against a stand-in Rally.
  */
 import { expect, test } from '@playwright/test';
 

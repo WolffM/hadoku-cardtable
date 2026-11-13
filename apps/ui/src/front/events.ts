@@ -1,5 +1,5 @@
 /*
- * The front page's events (`/api/events`, `apps/server/src/http/events.ts`): one client, one store
+ * The front page's events (`/api/events`, `games/magic/server/src/http/events.ts`): one client, one store
  * the Upcoming card's calendar and the Create event dialog share, so an event made in one shows in
  * the other at once, and the pure pieces the calendar draws with.
  */

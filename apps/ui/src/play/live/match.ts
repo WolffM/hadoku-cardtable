@@ -44,7 +44,7 @@
  * `envelope.ts` header):
  *
  *  - **Open asks are a queue, keyed by `callId`, never a single slot.** The
- *    server holds a seat's asks by `callId` (`apps/server/src/play/match.ts`)
+ *    server holds a seat's asks by `callId` (`games/magic/server/src/play/match.ts`)
  *    because a diagnostic probe can open one beside the game's. A second ask
  *    that REPLACED the first would leave the first waiting on an answer
  *    nobody can give any more. `LiveBoard` draws the oldest; the rest wait
@@ -208,7 +208,7 @@
  *
  * **The event travels both ways, and the server has the last word.** After
  * every snapshot the server emits the seat's CURRENT state back on the same
- * event with the same payload (`apps/server/src/play/socket.ts`, right after
+ * event with the same payload (`games/magic/server/src/play/socket.ts`, right after
  * `resendAfterSnapshot`), and this client adopts it. That is what makes a
  * refresh keep full control: a fresh page starts with the flag off, joins, and
  * is told. It is not in `MatchSnapshot` because the snapshot's schema is
@@ -343,7 +343,7 @@ export interface SocketIoMatchOptions {
 const DEFAULT_ACK_TIMEOUT_MS = 10_000;
 /** Joins sent again on a live socket after one went unanswered: a minute, at the default ack timeout. */
 const MAX_JOIN_RETRIES = 5;
-/** What the server answers a resync from a socket that has not joined (`apps/server/src/play/socket.ts` `snapshotFor`). */
+/** What the server answers a resync from a socket that has not joined (`games/magic/server/src/play/socket.ts` `snapshotFor`). */
 const NOT_JOINED = 'not-joined';
 
 /**
@@ -364,7 +364,7 @@ export const DISCONNECT_GRACE_MS = 100;
  * How many `message` lines this client holds — a log of the whole game,
  * bounded only so the CLIENT's own memory stays finite over a long one.
  *
- * This used to equal the server's own per-seat cap (`apps/server/src/play/match.ts`'s
+ * This used to equal the server's own per-seat cap (`games/magic/server/src/play/match.ts`'s
  * `SAYS_KEPT`) on purpose, so a snapshot's clear-and-re-send reproduced the log
  * it cleared exactly. That coupling is gone: the two numbers answer different
  * questions now (how much the server re-sends on a resync vs. how much the
@@ -687,7 +687,7 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * a selection's question before its bar), so applying each as it came drew one input's line
    * under another's buttons for a frame. A chain is held whole: the server also marks a state
    * delta that lets the seat look at a library card, and what follows it, up to the decision that
-   * shows the card (`apps/server/src/play/match.ts`'s `lookHold`).
+   * shows the card (`games/magic/server/src/play/match.ts`'s `lookHold`).
    */
   windowHalf: HeldFrame[];
   /** Forge's current selection, from `setSelectables`. Null: none is open. */
@@ -977,7 +977,7 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * Every seat's own open ask or mana payment, keyed by SEAT (0/1, not a
    * Forge player id — unlike {@link LiveMatch.avatarByPlayerId}), from
    * `forge:seats`' `waitingOn`
-   * (`apps/server/src/play/match.ts`'s `waitingOnFor`). Same three-state rule
+   * (`games/magic/server/src/play/match.ts`'s `waitingOnFor`). Same three-state rule
    * as {@link LiveMatch.avatarByPlayerId}: `null` until the seat table has
    * arrived, then a real Map holding only the seats that have one right now.
    * `LiveBoard.tsx`'s banner reads the OTHER seat's entry and owns turning
@@ -1812,7 +1812,7 @@ export function setTriggerDecision(match: LiveMatch, key: string, decision: 'ACC
 /**
  * Flip this seat's End step checkbox and tell the server. The settings
  * panel's own sender, and the only one: `forge:stop-preference` folds into
- * the seat's `StopPolicy` (`apps/server/src/play/socket.ts`'s handler),
+ * the seat's `StopPolicy` (`games/magic/server/src/play/socket.ts`'s handler),
  * toggling `END_OF_TURN` in or out of `stopWithPlayOnTheirTurn` without
  * touching any other field of it.
  *
@@ -3974,7 +3974,7 @@ function dropDeferredSelect(match: LiveMatch, why: 'bar-pressed' | 'hold-ended' 
 /**
  * A frame the server marked `displayOnly`: a reveal Forge has already been
  * answered for. Only a `getChoices` reveal is ever sent that way
- * (`apps/server/src/play/match.ts`'s `showReveal`); anything else so marked is
+ * (`games/magic/server/src/play/match.ts`'s `showReveal`); anything else so marked is
  * counted invalid and dropped — there is no reply to owe it either way.
  *
  * A reveal of cards the board already draws face up in their own zones (a

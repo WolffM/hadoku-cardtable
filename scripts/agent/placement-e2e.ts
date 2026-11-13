@@ -28,6 +28,7 @@ import { Alerts, discordSink } from '../../packages/game-server/src/play/placeme
 import { placement, type Placement } from '../../packages/game-server/src/play/placement/coordinator.js';
 import type { FleetNode } from '../../packages/game-server/src/play/placement/fleet.js';
 import { AGENT_KEY_ENV, connectRemoteHost } from '../../packages/game-server/src/play/remote/index.js';
+import { BRIDGE_SOURCE } from '../../games/magic/server/src/root.js';
 
 const dir = process.env.AGENT_DIR ?? '';
 if (dir === '') throw new Error('AGENT_DIR is not set');
@@ -42,7 +43,7 @@ function emit(o: Record<string, unknown>): void {
 }
 
 async function coordinator(adopt: boolean): Promise<void> {
-	const available = jvmHostConfig();
+	const available = jvmHostConfig(BRIDGE_SOURCE);
 	if (!available.ok) throw new Error(available.reason);
 	const config = { ...available.config, xmxMb: 1200 };
 	const env = { [AGENT_KEY_ENV]: readFileSync(join(dir, 'keys', 'signing.key'), 'utf8') };

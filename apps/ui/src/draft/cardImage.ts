@@ -5,7 +5,7 @@
  *
  * Every card image a browser draws is `/api/art/<scryfallId>` (`<id>/back` for a back face), and
  * the server answers with a redirect to the bytes: our own copy on `cdn.hadoku.me` when the art
- * mirror holds one, Scryfall's image otherwise (`apps/server/src/http/card-art.ts`). The server is
+ * mirror holds one, Scryfall's image otherwise (`games/magic/server/src/http/card-art.ts`). The server is
  * the one place that knows which ids are mirrored and which are repointed, so this module holds no
  * host, no manifest and no table: a card's art is still a lookup, not a URL, and the lookup is the
  * server's. Repointing a card stays a one-line data edit there, with no browser rebuild.

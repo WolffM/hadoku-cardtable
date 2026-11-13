@@ -1,6 +1,6 @@
 /*
  * The relay channel's own e2e fixture, and only it. `relay-test` is never a real room type a player can
- * pick — the server's own `relay-test` (`apps/server/src/plugins/relay.ts`) is registered only
+ * pick — the server's own `relay-test` (`games/magic/server/src/plugins/relay.ts`) is registered only
  * behind `CARDTABLE_PLAY_PROBE=1`, never in production — so this client-side registration needs
  * the same kind of fence, but a browser bundle has no env var to read. `e2e/relay-fixture.spec.ts`
  * sets `window.__CARDTABLE_E2E_RELAY_TEST__` with Playwright's `addInitScript`, BEFORE this

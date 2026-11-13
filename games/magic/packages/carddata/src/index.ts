@@ -33,7 +33,7 @@
  *   emits none, and `build-pool.ts` refuses at runtime to write a pool
  *   containing an image field or a URL that looks like one.
  * - **Art is an indirection keyed by `scryfallId`**, held in
- *   `apps/server/src/play/art-manifest.json` and resolved by `src/art/`. It is
+ *   `games/magic/server/src/play/art-manifest.json` and resolved by `src/art/`. It is
  *   deliberately NOT in `pool.json`, because `build-pool` regenerates the pool
  *   wholesale and would discard it.
  * - **Image bytes never enter this repo.** They go from Scryfall to the CDN
@@ -116,7 +116,7 @@ export {
   type SyncResult,
 } from './scryfall/bulk.ts';
 
-// Re-exported so the server's catalog-refresh job (`apps/server/src/pools/refresh.ts`,
+// Re-exported so the server's catalog-refresh job (`games/magic/server/src/pools/refresh.ts`,
 // wave 74 §G) can rebuild in-process without a deep import — `@hadoku/carddata`'s
 // own `exports` map only publishes this entry point.
 //

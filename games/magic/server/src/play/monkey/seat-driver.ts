@@ -1,0 +1,239 @@
+/*
+ * One seat's whole game: tick, answer an open ask or take a board action, tick
+ * again, until the match ends or a cap is hit. This is the loop every flag in
+ * `docs/MONKEY.md` comes out of.
+ */
+
+import { choiceBounds } from '../../../../../../apps/ui/src/play/prompts/rules.ts';
+import { currentAsk, type LiveMatch } from '../../../../../../apps/ui/src/play/live/match.ts';
+import { answerAsk, answerConfirm } from '../../../../../../apps/ui/src/play/live/match.ts';
+
+import { takeRandomBoardAction } from './board-action.ts';
+import { randomAnswer, type LiveAsk } from './random-answer.ts';
+import type { Rng } from './rng.ts';
+import type { Flag, FlagKind } from './report.ts';
+
+export interface SeatDriverOptions {
+  matchId: string;
+  seed: number;
+  deck: { seat0: string; seat1: string };
+  seat: number;
+  /** How long this seat may be blocked (an ask open, or holding priority) with no progress before it is flagged `stuck`. */
+  stuckMs: number;
+  /** Server-side `flashIncorrectAction` / click-refused signals, fed in from the wire tap. */
+  refusals: () => number;
+  /** Server log lines this match's `ask-unanswerable`/`ask-unclassified` landed as, since the last read. */
+  drainServerFlags: () => { evt: string; detail: string }[];
+  /** This match's latest server log rows, appended to a flag whose cause is on the server's side of the wire. */
+  serverRows?: () => string[];
+}
+
+export interface SeatDriverResult {
+  flags: Flag[];
+  decisions: number;
+  /** What this seat did most since its turn last changed, commonest first: a match that never ends says which act it kept repeating. */
+  repeated: string[];
+}
+
+const now = (): string => new Date().toISOString();
+
+/** A compact signature of what is currently asked/offered — unchanged means no progress. */
+function signatureOf(match: LiveMatch): string {
+  const ask = currentAsk(match);
+  if (ask !== null) return `ask:${ask.callId}`;
+  return `bar:${match.prompt ?? ''}:${match.buttons?.label1 ?? ''}:${match.buttons?.enable1 ?? ''}:${match.selectables?.cards.size ?? -1}`;
+}
+
+/**
+ * What this seat's client holds that decides whether it can act: the input, the bar and its hold, and
+ * what is offered. A `stuck` flag carries it, so a seat with nothing to press says why.
+ */
+export function stateOf(match: LiveMatch): string {
+  const ids = (set: ReadonlySet<number> | null | undefined): number[] | null => (set === null || set === undefined ? null : [...set]);
+  return JSON.stringify({
+    client: 'state',
+    turn: match.view?.turn ?? null,
+    phase: match.view?.phase ?? null,
+    inputLive: match.inputLive,
+    connected: match.connected,
+    prompt: match.prompt,
+    promptCard: match.promptCard,
+    buttons: match.buttons,
+    barHold: match.barHold,
+    asks: match.asks.map((a) => a.method),
+    selectables: match.selectables === null ? null : { cards: ids(match.selectables.cards), min: match.selectables.min, max: match.selectables.max },
+    weaklySelectable: ids(match.weaklySelectable),
+    highlighted: ids(match.highlighted),
+    spent: ids(match.spent.cards),
+    offerHold: match.offerHold !== null,
+    poolPays: match.promptPoolPays,
+    manaIntent: match.manaIntent,
+  });
+}
+
+/** One logged act with its seat, turn and phase taken off, so the same act counts as one across a turn. */
+function actOf(line: string): string {
+  return line.replace(/^seat \d+ t\S+ \S+: /, '');
+}
+
+/** A shape fingerprint for loop detection: the ask's method and what it offered, NOT its callId. */
+function askFingerprint(ask: LiveAsk): string {
+  const { callId, source: _source, ...rest } = ask as unknown as Record<string, unknown> & { callId: string };
+  void callId;
+  return JSON.stringify(rest);
+}
+
+export type DeclinedStreaks = Map<string, { count: number; turn: number; phase: string }>;
+
+/**
+ * Track one more decline of `fp` (an ask's method + offered shape) at `(turn, phase)`, mutating
+ * `streaks` in place, and say whether this is the THIRD time in a row at the SAME turn and phase —
+ * the loop flag. A turn or phase change resets the count to 1: the same question shape recurring
+ * turn after turn is normal, never a loop.
+ */
+export function declineStreak(streaks: DeclinedStreaks, fp: string, turn: number, phase: string): { looping: boolean; count: number } {
+  const before = streaks.get(fp);
+  const count = before !== undefined && before.turn === turn && before.phase === phase ? before.count + 1 : 1;
+  streaks.set(fp, { count, turn, phase });
+  return { looping: count >= 3, count };
+}
+
+/** `fp` answered (not declined), or exempt: no longer part of any streak. */
+export function clearDeclineStreak(streaks: DeclinedStreaks, fp: string): void {
+  streaks.delete(fp);
+}
+
+/** Whether `ask` demands more answers than it offered — the client-side mirror of `auto.ts`'s `answerability`. */
+export function hasNoLegalAnswer(ask: LiveAsk): string | null {
+  if (ask.method === 'getChoices') {
+    const keys = ask.names ?? ask.choices.map((c) => c.key);
+    const { min } = choiceBounds(ask.min, ask.max);
+    if (min > keys.length) return `getChoices wants at least ${min} of ${keys.length} offered`;
+  }
+  if (ask.method === 'chooseEntitiesForEffect') {
+    const { min } = choiceBounds(ask.min, ask.max);
+    if (min > ask.optionList.length) return `chooseEntitiesForEffect wants at least ${min} of ${ask.optionList.length} offered`;
+  }
+  if (ask.method === 'chooseSingleEntityForEffect' && !ask.isOptional && ask.optionList.length === 0) {
+    return 'chooseSingleEntityForEffect is required but offers nothing';
+  }
+  return null;
+}
+
+export async function driveSeat(
+  match: LiveMatch,
+  rng: Rng,
+  opts: SeatDriverOptions,
+  isOver: () => boolean,
+  tickMs = 60,
+): Promise<SeatDriverResult> {
+  const flags: Flag[] = [];
+  const log: string[] = [];
+  const tally = new Map<string, number>();
+  let tallyTurn: number | null = null;
+  const push = (s: string): void => {
+    log.push(s);
+    if (log.length > 40) log.shift();
+    const turn = match.view?.turn ?? null;
+    if (turn !== tallyTurn) {
+      tally.clear();
+      tallyTurn = turn;
+    }
+    const act = actOf(s);
+    tally.set(act, (tally.get(act) ?? 0) + 1);
+  };
+  const flag = (kind: FlagKind, detail: string, ask?: { method: string; prompt?: string }, rows: readonly string[] = []): void => {
+    flags.push({
+      kind,
+      matchId: opts.matchId,
+      seed: opts.seed,
+      deck: opts.deck,
+      seat: opts.seat,
+      turn: match.view?.turn ?? null,
+      phase: match.view?.phase ?? null,
+      ask,
+      detail,
+      context: [...log, ...rows],
+      at: now(),
+    });
+  };
+
+  let decisions = 0;
+  let lastSignature = '';
+  let blockedSince = Date.now();
+  const flaggedStuckSignatures = new Set<string>();
+  const declined: DeclinedStreaks = new Map();
+  let seenRefusals = opts.refusals();
+
+  while (!isOver()) {
+    for (const line of opts.drainServerFlags()) {
+      flag('server-unclassified', `server log ${line.evt}: ${line.detail}`, undefined, opts.serverRows?.() ?? []);
+    }
+    const refusedNow = opts.refusals();
+    if (refusedNow > seenRefusals) {
+      flag(
+        'click-refused',
+        `the server (or this client) refused ${refusedNow - seenRefusals} answer(s) since the last tick; window "${match.prompt ?? ''}"`,
+        undefined,
+        opts.serverRows?.() ?? [],
+      );
+      seenRefusals = refusedNow;
+    }
+
+    const signature = signatureOf(match);
+    const blocked = match.asks.length > 0 || match.inputLive;
+    if (signature !== lastSignature) {
+      blockedSince = Date.now();
+      lastSignature = signature;
+    } else if (blocked && Date.now() - blockedSince > opts.stuckMs && !flaggedStuckSignatures.has(signature)) {
+      flaggedStuckSignatures.add(signature);
+      const ask = currentAsk(match);
+      flag(
+        'stuck',
+        `no progress for over ${opts.stuckMs} ms while ${ask !== null ? `an ask (${ask.method}) was open` : 'holding priority'}`,
+        ask === null ? undefined : { method: ask.method, prompt: match.prompt ?? undefined },
+        [stateOf(match), ...(opts.serverRows?.() ?? [])],
+      );
+    }
+
+    const ask = currentAsk(match);
+    if (ask !== null) {
+      const noLegal = hasNoLegalAnswer(ask);
+      if (noLegal !== null) flag('no-legal-answer', noLegal, { method: ask.method, prompt: match.prompt ?? undefined });
+
+      const fp = `${ask.method}:${askFingerprint(ask)}`;
+      const answer = randomAnswer(rng, ask);
+      const turn = match.view?.turn ?? -1;
+      const phase = match.view?.phase ?? '';
+      if (answer.declined) {
+        const { looping, count } = declineStreak(declined, fp, turn, phase);
+        // With the server's rows and the wire, as a stuck flag carries: the client's acts alone cannot say why Forge asks again.
+        if (looping) flag('loop', `declined ${ask.method} came back unchanged ${count} times in a row at the same turn/phase`, { method: ask.method }, [stateOf(match), ...(opts.serverRows?.() ?? [])]);
+      } else {
+        clearDeclineStreak(declined, fp);
+      }
+      const sent = ask.method === 'showConfirmDialog' ? answerConfirm(match, ask.callId, answer.result as boolean) : answerAsk(match, ask.callId, ask.method, answer.result);
+      push(`seat ${opts.seat} t${match.view?.turn ?? '-'} ${match.view?.phase ?? '-'}: answer ${ask.method}${answer.declined ? ' (declined)' : ''} ok=${sent}`);
+      if (!sent) flag('click-refused', `this client's own schema check refused its ${ask.method} answer`, { method: ask.method });
+      decisions += 1;
+    } else {
+      const action = takeRandomBoardAction(rng, match);
+      if (action !== null) {
+        // What the seat's own act opens next is a new question, not the last one coming back: a loop is
+        // Forge asking again with nothing done in between, never the monkey clicking the same card again.
+        declined.clear();
+        push(`seat ${opts.seat} t${match.view?.turn ?? '-'} ${match.view?.phase ?? '-'}: ${action.kind} ${action.detail} ok=${action.ok}`);
+        if (!action.ok) flag('click-refused', `board action ${action.kind} ${action.detail} was refused`);
+        decisions += 1;
+      }
+    }
+
+    await new Promise((r) => setTimeout(r, tickMs));
+  }
+
+  const repeated = [...tally.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([act, n]) => `${n}× ${act}`);
+  return { flags, decisions, repeated };
+}

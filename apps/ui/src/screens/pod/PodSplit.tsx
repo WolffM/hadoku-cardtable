@@ -6,7 +6,7 @@
  * anymore. their position is locked."*).
  *
  * Once every seated drafter is ready, the leader's `PodSplitAction` is Split & randomize; the server splits
- * the field at random (`apps/server/src/room/lobby.ts`'s `splitPod`, seeded and logged) and locks every seat
+ * the field at random (`games/magic/server/src/room/lobby.ts`'s `splitPod`, seeded and logged) and locks every seat
  * and Ready. `PodSplit` then draws every pod in the seats' place, the viewer's own marked, and the leader's
  * action becomes Start draft, which deals each pod its own draft.
  *

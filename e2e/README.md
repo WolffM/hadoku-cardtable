@@ -205,7 +205,7 @@ is not a failure; the other three are worth an owner's attention.
    the isolation counts (below) and the 45-picks-each pool assertions.
 2. **Every round used to be a gap followed by a resync — FIXED, and this run is
    the proof.** A human pick that completes a round lets the bots pick at once
-   (`runBots` in `apps/server/src/room/socket.ts`). That advances `seq` once per
+   (`runBots` in `games/magic/server/src/room/socket.ts`). That advances `seq` once per
    bot pick while the room emits one update, so every browser used to classify
    that update as a `gap`, drop it, and request a snapshot. Measured then:
    `serverPicks: 90`, `serverResyncs: 90`, 45 resync requests from each browser.
@@ -265,6 +265,6 @@ states them:
   projects' browsers, no `--with-deps`, per D14). It is idempotent and a no-op once
   `~/.cache/ms-playwright` is warm.
 - Root `vitest` does not collect `isolation.test.ts`: it uses `node:test`, and
-  the vitest config includes only `apps/*/src`, `packages/*/src`, `games/*/packages/*/src`
+  the vitest config includes only `apps/*/src`, `packages/*/src`, `games/*/packages/*/src`, `games/*/server/src`
   and `scripts/`. The root
   `typecheck` does pick up `@hadoku/e2e`'s own `tsc --noEmit`.

@@ -7,7 +7,7 @@
  * there is nothing to choose, so the seat takes it at once.
  *
  * Pure, like the rest of the package: the deadline itself is the server's
- * (`apps/server/src/room/socket.ts`), which is the only thing that knows what
+ * (`games/magic/server/src/room/socket.ts`), which is the only thing that knows what
  * time it is. This file only says how long, and which card.
  */
 

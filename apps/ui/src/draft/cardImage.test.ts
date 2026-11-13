@@ -5,7 +5,7 @@
  * the fixtures it ran against carried no ids — the path that builds a URL was never entered. So
  * these build real URLs from real ids. Where the route sends a browser (our CDN copy or
  * Scryfall's, and never anywhere else) is the server's to decide and to test
- * (`apps/server/src/http/card-art.test.ts`); here:
+ * (`games/magic/server/src/http/card-art.test.ts`); here:
  *
  *   - a card id becomes the route, a back face its `/back`, a size other than `normal` a query;
  *   - the browser holds no host, no manifest and no table: nothing it builds names an art host;

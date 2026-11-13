@@ -1,0 +1,34 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    // nodenext (inherited): this package IS run by Node, unlike apps/ui which
+    // Vite serves. That is why the relative imports here carry a `.js`
+    // extension — nodenext ESM requires one, and tsc does not add it.
+    //
+    // `noEmit` because tsc does not produce this package's output any more:
+    // `@hadoku/draft` and `@hadoku/shared` export TypeScript SOURCE whose own
+    // imports carry `.ts` extensions, and tsc refuses to EMIT a program
+    // containing those — `allowImportingTsExtensions` below is only legal
+    // alongside `noEmit` (TS5096), and without it the program does not compile
+    // at all (TS5097). So `tsc` typechecks, and the site (`apps/server`) bundles
+    // this package into its own `dist/index.js` with esbuild (its `package.json`'s
+    // `build`), which is what runs in production.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "declaration": false,
+    "sourceMap": false,
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  // Tests are included so they are TYPECHECKED. They cannot reach the site's
+  // `dist/`: esbuild bundles from the site's `src/index.ts` and this package's
+  // catalog worker (`src/pools/catalog-build-worker.ts`) alone, so nothing a test
+  // defines is reachable from an entry point or emitted.
+  "include": ["src/**/*.ts"],
+  // `src/play/monkey/` (the monkey seat fuzzer, never imported by the site)
+  // reaches into `apps/ui/src` for its board/prompt rules, which need the DOM
+  // lib this package deliberately does not have. Its own `tsconfig.json`
+  // typechecks it with that lib added; excluded here so adding it does not
+  // reopen DOM globals for this package's real product code.
+  "exclude": ["src/play/monkey"]
+}

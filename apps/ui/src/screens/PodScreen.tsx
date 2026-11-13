@@ -14,7 +14,7 @@
  * So a draft is a room now. `ConstructedScreen` renders this only once the
  * ROOM's `draftStartedAt` is set, `draftId` IS the room's own id, and the
  * server refuses a `join` for a room whose draft has not started
- * (`apps/server/src/room/socket.ts`). Joining deals nothing; the room's
+ * (`games/magic/server/src/room/socket.ts`). Joining deals nothing; the room's
  * readiness gate is what deals, and the bots fill whatever seats are still
  * empty at that instant.
  *

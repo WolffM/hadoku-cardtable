@@ -6,9 +6,9 @@
  * question that broke in a real match (wave 19 §D, #9 *"some art missing"*):
  * **given the cards a match can actually contain, does an art URL come out?**
  * So nothing here is fabricated. It loads the files that ship —
- * `apps/server/src/play/art-ids.json`, `apps/ui/src/draft/pool.json` and
+ * `games/magic/server/src/play/art-ids.json`, `apps/ui/src/draft/pool.json` and
  * `art-manifest.json` — builds the index the way the server's art resolver
- * (`apps/server/src/play/art-ids.ts`) builds it, and puts the answer through
+ * (`games/magic/server/src/play/art-ids.ts`) builds it, and puts the answer through
  * `resolveArtUrl` itself. A stub anywhere in that chain would make the
  * test pass while the board stayed blank, which is exactly what happened.
  *
@@ -48,10 +48,10 @@ function readJson<T>(name: string): T {
   return JSON.parse(readFileSync(fileURLToPath(new URL(name, DRAFT_DIR)), 'utf8')) as T;
 }
 
-const TABLE_FILE = fileURLToPath(new URL('../../../../../../apps/server/src/play/art-ids.json', import.meta.url));
+const TABLE_FILE = fileURLToPath(new URL('../../../../server/src/play/art-ids.json', import.meta.url));
 const TABLE = JSON.parse(readFileSync(TABLE_FILE, 'utf8')) as ArtIdTableFile;
 const POOL = readJson<{ cards: ArtIdSource[] }>('pool.json');
-const MANIFEST = JSON.parse(readFileSync(fileURLToPath(new URL('../../../../../../apps/server/src/play/art-manifest.json', import.meta.url)), 'utf8')) as ArtManifestFile;
+const MANIFEST = JSON.parse(readFileSync(fileURLToPath(new URL('../../../../server/src/play/art-manifest.json', import.meta.url)), 'utf8')) as ArtManifestFile;
 
 /** Exactly how the server's `art-ids.ts` composes its table: the pool first. */
 const KNOWN: ArtIdIndex = mergeArtIdIndexes(artIdIndex(POOL.cards), artIdIndexFromTable(TABLE));

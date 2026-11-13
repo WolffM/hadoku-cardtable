@@ -36,11 +36,12 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 
-import { DEFAULT_STOP_POLICY } from '../../apps/server/src/play/auto.js';
+import { DEFAULT_STOP_POLICY } from '../../games/magic/server/src/play/auto.js';
 import { jvmHostConfig, type MatchSpec } from '../../packages/game-server/src/play/host.js';
-import { createMatchRegistry, type Match } from '../../apps/server/src/play/match.js';
+import { createMatchRegistry, type Match } from '../../games/magic/server/src/play/match.js';
 import { clawPlacement, registryRestorer } from '../../packages/game-server/src/play/placement/index.js';
 import { AGENT_KEY_ENV, connectRemoteHost } from '../../packages/game-server/src/play/remote/index.js';
+import { BRIDGE_SOURCE } from '../../games/magic/server/src/root.js';
 
 const claws = (process.argv[2] ?? '').split(',').filter((c) => c !== '');
 const role = process.env.ACCEPT_ROLE ?? 'driver';
@@ -60,7 +61,7 @@ function emit(o: Record<string, unknown>): void {
 /* ── The coordinator (a child process, so it can be SIGTERMed and replaced) ── */
 
 async function coordinator(adopt: boolean): Promise<void> {
-	const available = jvmHostConfig();
+	const available = jvmHostConfig(BRIDGE_SOURCE);
 	if (!available.ok) throw new Error(available.reason);
 	const config = available.config;
 	const deck = readFileSync(join(config.res, 'quest', 'precons', 'Spirit Flames.dck'), 'utf8');
@@ -319,7 +320,7 @@ async function driver(): Promise<void> {
 		/* cgroup-restart: see the header comment. One claw, one raw JVM, outside placement. */
 		const cgClaw = claws[0]!;
 		say(`cgroup-restart: a direct JVM + draft bot on ${cgClaw}, outside placement`);
-		const cfg = jvmHostConfig();
+		const cfg = jvmHostConfig(BRIDGE_SOURCE);
 		if (!cfg.ok) throw new Error(cfg.reason);
 		const cgLog: Record<string, unknown>[] = [];
 		const beforePid = clawProcs(cgClaw).find((p) => p.comm === 'run')?.pid ?? null;

@@ -1,7 +1,7 @@
 /**
  * Breaking tournament mode against the real built server and real Forge — wave 83 §D, the cases that need
  * a live match. The room's own bookkeeping (counts, byes, ties, drops, simultaneous results, restarts of the
- * lobby alone) is `apps/server/src/room/w83d-tournament-break.test.ts`.
+ * lobby alone) is `games/magic/server/src/room/w83d-tournament-break.test.ts`.
  *
  * Each test: Alice leads a Classic tournament with locked decks, she and Bob sit, pick and ready, the field
  * locks, and round 1 carries both into their match. Then something goes wrong mid-round:

@@ -17,7 +17,7 @@
  *  1. Turn 1: click a Mountain in hand (Forge's `InputPassPriority` plays
  *     it), then click Raging Goblin. With ONE Mountain in play there is exactly
  *     one way to pay for it, so wave 20 §B has the server press Forge's own
- *     Auto (`apps/server/src/play/auto.ts`, `autoPayReason`) and the payment is
+ *     Auto (`games/magic/server/src/play/auto.ts`, `autoPayReason`) and the payment is
  *     over before a land could be clicked. **This driver does not click to pay
  *     in this phase at all** — see "Nothing here is granted by the shuffle".
  *  2. Then the card Forge's input IGNORES — a second land the same turn. There
@@ -119,7 +119,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { createElement } from 'react';
 
-import { STRICT_PAYMENT_POLICY } from '../../../../server/src/play/auto.ts';
+import { STRICT_PAYMENT_POLICY } from '../../../../../games/magic/server/src/play/auto.ts';
 import type { BoardCard, BoardPlayer } from '../adapter.ts';
 import { forgeAvailability, liveJvmCount, startLiveMatch, waitUntil, type LiveHarness, type SeatClient } from './jvm-harness.ts';
 import { LiveBoard } from './LiveBoard.tsx';

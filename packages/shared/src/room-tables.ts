@@ -1,7 +1,7 @@
 /*
  * Room tables, Magic's part (the tables are `@hadoku/platform-wire/tables`): a series' phases, and
  * each table's game. Each game of a series is its own fresh Forge match, never `forge/`'s own
- * `gamesPerMatch` (`docs/planning/draft-pods-plan.md`); its length is `apps/server/src/room/series.ts`'s.
+ * `gamesPerMatch` (`docs/planning/draft-pods-plan.md`); its length is `games/magic/server/src/room/series.ts`'s.
  */
 
 import { roomTableSchemas } from '@hadoku/platform-wire/tables';
@@ -28,7 +28,7 @@ export type RoomTable = z.infer<typeof RoomTableSchema>;
  * A table's game, as the table card draws it (`docs/planning/table-card-plan.md`): each seat's deck,
  * and while a game runs, where it stands. Not part of `RoomTable`, which is the room's own ledger:
  * the room body carries it beside `tables` as `tableGames`, by table id, read from the table's
- * latest match (`apps/server/src/play/table-game.ts`). A table that has never started a match has none.
+ * latest match (`games/magic/server/src/play/table-game.ts`). A table that has never started a match has none.
  */
 
 /** One seat's deck: its name, its colours, and the card whose art stands for it — a card ref (`Name|SET`), looked up for its art. */

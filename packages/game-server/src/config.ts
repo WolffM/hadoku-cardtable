@@ -12,7 +12,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 /**
- * The server app's own directory (`apps/server`), whatever the process's working directory — PM2
+ * The site's own directory (`apps/server`, whose `dist/` PM2 runs), whatever the process's working directory — PM2
  * starts us from the repo root, `pnpm start` from the package dir, and the two must agree. Bundled,
  * this module is part of `apps/server/dist/*.js`, so it is `dist/`'s parent; run as source (tests,
  * tsx) it is `packages/game-server/src/`, and the app it configures is `apps/server` beside it.

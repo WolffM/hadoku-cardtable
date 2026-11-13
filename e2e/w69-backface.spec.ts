@@ -20,7 +20,7 @@ const titled = makeTitled(forge);
 
 /** A card-sized image, as text (never image bytes). */
 const ART_STAND_IN = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><rect width="488" height="680" fill="#2a4a7a"/></svg>';
-/** Every card image a page asks for: the art route (`apps/server/src/http/card-art.ts`), answered here with the stand-in. */
+/** Every card image a page asks for: the art route (`games/magic/server/src/http/card-art.ts`), answered here with the stand-in. */
 const ART_ROUTE = /\/api\/art\//;
 const BACK_FACES = ['Insectile Aberration', 'Awoken Horror'];
 

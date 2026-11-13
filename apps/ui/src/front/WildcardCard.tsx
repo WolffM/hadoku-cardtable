@@ -9,7 +9,7 @@
  * what it opened on goes away (the room filled). The kinds:
  *
  *   - **Tournament results** — the finished tournament holding the front page's seat
- *     (`/api/tournaments/featured`, `apps/server/src/room/featured-tournament.ts`): its top three on a
+ *     (`/api/tournaments/featured`, `games/magic/server/src/room/featured-tournament.ts`): its top three on a
  *     small podium (`./FrontPodium.tsx`), ported from the pod's own (`../screens/pod/PodPodium.tsx`).
  *   - **Open seats now** — the room closest to starting that the viewer could sit down in, from
  *     the list the room list below already reads (`../rooms/api.ts`'s `onRoomList`): no read of

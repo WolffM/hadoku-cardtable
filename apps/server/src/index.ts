@@ -14,13 +14,14 @@
  * everything else is refused below the tier floor, independently of the edge; and a bundle that
  * would render blank is replaced by a page that says why.
  *
- * This file is cardtable's config and its plugin list. `@hadoku/service-kernel/server` boots
- * them: it owns the express app, the HTTP and socket.io servers, the floor, `/health` and the
+ * This package is the site: this file (cardtable's config) and the plugin list (`./plugins/`), which
+ * is Magic's server's plugins (`@hadoku/magic-server`, `games/magic/server`) plus bomberman's room
+ * type. `@hadoku/service-kernel/server` boots them: it owns the express app, the HTTP and socket.io servers, the floor, `/health` and the
  * busy probe, telemetry and capacity, the erase route, listen and the shutdown, and runs each
  * plugin in its phase (`config → bundle → stores → routes → sockets → listen → warm`), in the
- * order listed. The plugins (`./plugins/`) stamp the boot clock with cardtable's own phase names.
- * The draft and play sockets re-apply the floor at the handshake, since engine.io takes it off
- * the raw HTTP server where no express middleware runs (`src/room/socket.ts`).
+ * order listed. The plugins stamp the boot clock with cardtable's own phase names. The draft and
+ * play sockets re-apply the floor at the handshake, since engine.io takes it off the raw HTTP server
+ * where no express middleware runs (magic-server's `room/socket.ts`).
  *
  * ## Why this is not built with `tsc`
  *
@@ -29,7 +30,9 @@
  * esbuild are this package's own `dependencies` minus the `@hadoku/*` ones; anything a workspace
  * package pulls in transitively must be BUNDLED, because pnpm's strict layout does not expose it
  * next to `dist/`. `dist/index.js` is still a plain file that plain `node` runs. The one other
- * entry is the catalog build's worker thread, `dist/catalog-build-worker.js` (`pools/refresh.ts`).
+ * entry is Magic's catalog build worker thread, `dist/catalog-build-worker.js` (magic-server's
+ * `pools/refresh.ts`). Magic finds its own tree from here through its `root.ts`, never through
+ * `import.meta.url`, which in the bundle is this package's `dist/`.
  */
 
 import { dirname, resolve } from 'node:path';
@@ -44,7 +47,7 @@ import { fkOf } from '@hadoku/game-server/erase/index';
 import { edgeAuth, gate } from '@hadoku/game-server/kernel';
 import { monitoringSink, siteOf } from '@hadoku/game-server/telemetry';
 import { PLUGINS } from './plugins/index.js';
-import type { Cardtable, CardtableEvents } from './plugins/state.js';
+import type { Cardtable, CardtableEvents } from '@hadoku/magic-server/plugins/state';
 
 // `dist/index.js` and `src/index.ts` are both exactly one directory below the package root, which
 // makes one expression right for the bundle and for `tsx`; a plugin a level deeper could not do

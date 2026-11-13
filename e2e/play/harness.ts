@@ -16,7 +16,7 @@
  *    because the edge says so, not because a dev hatch was opened;
  *  - `CARDTABLE_FORGE_JAR` / `CARDTABLE_FORGE_RES`, passed through;
  *  - `CARDTABLE_PLAY_PROBE=1`. A dev diagnostic, never on in production
- *    (`apps/server/src/play/socket.ts`). It is what lets the spec read the
+ *    (`games/magic/server/src/play/socket.ts`). It is what lets the spec read the
  *    SERVER's fold of each seat (`GET …/seats/:seat/state`) to compare with
  *    what the browser drew, and ask Forge's own `showConfirmDialog` of a seat.
  *
@@ -108,7 +108,7 @@ import { basename, join, resolve, sep } from 'node:path';
 import { PREFS_MOUNT, startEdge } from '../edge.ts';
 import { FRIENDS } from '../identities.ts';
 import { PLAY_EDGE_PORT, PLAY_SERVER_PORT } from '../ports.ts';
-import { createPrefsRowsStandIn } from '../../apps/server/src/http/prefsRowsStandIn.ts';
+import { createPrefsRowsStandIn } from '../../games/magic/server/src/http/prefsRowsStandIn.ts';
 import { PLAY_SEED } from '../playSeed.ts';
 import { closeStaleFriends } from './open-friends.ts';
 
@@ -137,8 +137,8 @@ export const PLAY_RECORDINGS_DIR = resolve(RUN_DIR, 'play-recordings');
 /** This stack's parked games (`play/parked.ts`), wiped per stack for the same reason: the default is production's own `data/parked`. */
 export const PLAY_PARKED_DIR = resolve(RUN_DIR, 'play-parked');
 /**
- * This stack's imported-cube store (`apps/server/src/pools/cubes.ts`'s
- * `importDir` — the shortlist itself is `apps/server/pools/cubes/`, a
+ * This stack's imported-cube store (`games/magic/server/src/pools/cubes.ts`'s
+ * `importDir` — the shortlist itself is `games/magic/server/pools/cubes/`, a
  * committed path, never this). Unlike `PLAY_ROOMS_DIR`/`PLAY_DRAFTS_DIR`,
  * `startPlayStack` does NOT wipe this one: `createCubeStore` reads it once,
  * at the spawned server's own boot, so a spec that needs a specific cube

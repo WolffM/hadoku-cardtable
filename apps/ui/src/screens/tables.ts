@@ -4,7 +4,7 @@
  *
  * The server is the authority on every one of them — which formats exist,
  * which decks exist, whether a deck is legal, who is ready — and this file only
- * asks and reads the answer (`apps/server/src/http/routes.ts` has the
+ * asks and reads the answer (`games/magic/server/src/http/routes.ts` has the
  * contract). In particular there is no legality check here: the verdict a
  * screen shows is the server's (`POST /api/tables/check`, or the verdict stored
  * when a deck is loaded into a room), and the one that refuses a match is the
@@ -45,7 +45,7 @@ import { apiBase, getJson, pageFetch, readOnce, sendJson, type Fetch } from '../
 
 /**
  * Which ruleset family an era belongs to (wave 48). Mirrors the server's own
- * `FormatFamily` (`apps/server/src/http/library.ts`) over the wire.
+ * `FormatFamily` (`games/magic/server/src/http/library.ts`) over the wire.
  */
 export type FormatFamily = 'standard' | 'modern' | 'legacy';
 
@@ -272,7 +272,7 @@ export interface TablesClient {
   /**
    * Start a match against Forge's AI from a room where you are the only
    * member — the server picks a random library deck legal in the room's pool
-   * for the bot's seat (`apps/server/src/http/routes.ts`'s `startFromRoom`,
+   * for the bot's seat (`games/magic/server/src/http/routes.ts`'s `startFromRoom`,
    * `vsBot` arm). Refused with a second member in the room, before a deck is
    * loaded, or for a drafted pool (no library deck is legal in one).
    * `rematch` says the start is a finished game's Rematch, so the bot plays

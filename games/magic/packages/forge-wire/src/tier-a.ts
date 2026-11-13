@@ -137,7 +137,7 @@ export const FlashIncorrectActionSchema = z.strictObject({
  * A line of Forge's own game log (`forge-game/.../game/GameLog.java`), as one
  * player may read it: its `GameLogEntryType`, and the cards it names that this
  * player may see, by id, so a name can show that exact card. Ours, not Forge's:
- * the server sends Forge's log through `message` (`apps/server/src/play/match.ts`'s
+ * the server sends Forge's log through `message` (`games/magic/server/src/play/match.ts`'s
  * `onGameLog`; the bridge's `GameLogForward` words it per player).
  *
  * The rest is what the log panel groups and draws the line by, and every field is

@@ -103,8 +103,9 @@ least restrictive."*
 - **GPL-3.0-or-later stays wherever Forge requires it**: the `forge/` submodule itself, every file
   the layer map classifies `magic`, `tangled` or `site`, and — because a package's licence is
   declared once for the whole package — any package that still holds one such file. Today that is
-  `apps/server`, `apps/ui`, `apps/agent`, `packages/shared`, and the four Magic packages under
-  `games/magic/packages/` (`forge-wire`, `carddata`, `deck` and `draft`). A package becomes MIT only
+  `apps/server` (the site), `apps/ui`, `apps/agent`, `packages/shared`, Magic's server
+  `games/magic/server` and the four Magic packages under `games/magic/packages/` (`forge-wire`,
+  `carddata`, `deck` and `draft`). A package becomes MIT only
   once *every* file inside it is `platform`.
 - **The record of which file is in which layer is `scripts/layers/layers.json`** (wave 91 §A):
   four layers (`platform`, `magic`, `tangled`, `site`), kept honest by
@@ -124,9 +125,13 @@ least restrictive."*
   its Forge headers, and the ratchet's licence check reads `games/*/packages/*` as it reads
   `packages/*`. Since 2026-11-13 the server's platform code is out of `apps/server` too: every file
   the map called `platform` there moved, at the same path under `src/`, to
-  `packages/game-server` (`@hadoku/game-server`, MIT). The rest of the Magic layer (the server's play and draft code, the board UI, the
-  bridge) still lives in `apps/server` and `apps/ui`, where the layer map is its boundary, and moves
-  under `games/magic/` in later stages. Once `apps/` holds only the site, its packages can turn MIT.
+  `packages/game-server` (`@hadoku/game-server`, MIT). Since 2026-11-13 the rest of the server is
+  home as well: `games/magic/server` (`@hadoku/magic-server`, GPL-3.0-or-later; the bridge, the match
+  and draft code, rooms, pools, Magic's routes), and `apps/server` keeps only the site (`index.ts`,
+  the plugin list, bomberman's room type and their tests). The site is still GPL: the map calls it
+  `site`, not `platform`, and it imports Magic, so the ratchet expects GPL of it. The board UI is
+  still in `apps/ui`, where the layer map is its boundary, and moves under `games/magic/` in a later
+  stage.
 
 ### Checklist
 
@@ -215,7 +220,7 @@ pasted into Discord to unfurl as *"my avatar vs ?"*, and chose (2026-11-08) to
 show the host's name and avatar in it. So `hadoku.me/cardtable/room/<id>`
 unfurls as the room's name, a line like "Modern Gauntlet 1v1", and a picture of
 the seated players' faces and names, with a dashed "You?" for an open seat
-(`apps/server/src/http/preview.ts`).
+(`games/magic/server/src/http/preview.ts`).
 
 - **What is reachable.** Only `/cardtable/preview/room/<id>.png`, which the edge
   serves publicly because a crawler fetches `og:image` with no cookies
@@ -230,7 +235,7 @@ the seated players' faces and names, with a dashed "You?" for an open seat
   only. A preview is a picture of an invite, and the invite still needs a login.
 
 The card's VS is set in **Cinzel** (SIL OFL 1.1, © The Cinzel Project Authors),
-shipped as `apps/server/assets/fonts/Cinzel.ttf` with its licence beside it in
+shipped as `games/magic/server/assets/fonts/Cinzel.ttf` with its licence beside it in
 `Cinzel-OFL.txt`. The front page's "Open seats now" card sets its VS in the same file,
 which the UI bundles from that path. It is never renamed (OFL's reserved-font-name clause).
 
@@ -252,7 +257,7 @@ which the UI bundles from that path. It is never renamed (OFL's reserved-font-na
      card's art is a lookup, not a URL: every image is `/api/art/<id>`, which the
      server redirects to our `cdn.hadoku.me` copy (the art mirror, every printing
      since 2026-11-07) or to Scryfall's CDN for a card without one, under
-     `apps/server/src/play/art-manifest.json`'s hand-made rows. Repointing
+     `games/magic/server/src/play/art-manifest.json`'s hand-made rows. Repointing
      one card is a one-line data edit. Keep it that way — a component that
      hardcodes an image host has broken this rule even if every URL it emits is
      legal.

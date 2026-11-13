@@ -3,7 +3,7 @@
  * you make sure the decks are sorted by winrate?"*
  *
  * The record is everyone's, from the shared stats service: the `deckId` every
- * room match reports per seat (`apps/server/src/stats/report.ts`) is the
+ * room match reports per seat (`games/magic/server/src/stats/report.ts`) is the
  * library deck's own id, which is exactly a picker option's `value`.
  *
  * Played decks come first, by win rate, then by games played (a 3-0 deck

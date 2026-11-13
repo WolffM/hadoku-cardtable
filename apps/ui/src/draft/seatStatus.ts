@@ -8,7 +8,7 @@
  * disconnecting drafter's seat is released with `unseatParticipant(table, pid,
  * { hold: true })` and held against everyone else for a TTL, so a refresh
  * returns you to the seat you were in rather than appending you to the end of
- * the pod (`apps/server/src/room/draftRooms.ts`, `releaseSeat` and the
+ * the pod (`games/magic/server/src/room/draftRooms.ts`, `releaseSeat` and the
  * reconnect guard in `leaveDraftRoom`).
  *
  * The payload carries none of that. `DraftSeatView` is `{ id, occupant,

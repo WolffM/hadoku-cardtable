@@ -1,6 +1,6 @@
 /*
  * The viewer's unfinished games, on Your profile: every game they walked away from that the
- * server parked (`apps/server/src/play/parked.ts`), newest first, each one picked up again from
+ * server parked (`games/magic/server/src/play/parked.ts`), newest first, each one picked up again from
  * here. The operator, 2026-11-02: *"resuming parked games, i would expect that to happen from a
  * player's match history. resuming then means creating a new room and reconstructing the game from
  * snapshot."* Resume makes that room and goes into it; a game the other player already picked up

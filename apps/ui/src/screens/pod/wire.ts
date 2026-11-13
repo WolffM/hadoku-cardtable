@@ -18,7 +18,7 @@ import { isPodAi, POD_MAX_SEATS, POD_SEATS, RoomPodSchema, type PodMember, type 
 export { isPodAi, POD_MAX_SEATS, POD_SEATS };
 export type { PodMember, PodSeats, PodStandingsRow, PodView };
 
-/** The AI's seat occupant (`apps/server/src/room/lobby.ts`'s `POD_AI`). */
+/** The AI's seat occupant (`games/magic/server/src/room/lobby.ts`'s `POD_AI`). */
 export const POD_AI = 'ai';
 
 /** A seat the owner closed (`lobby.ts`'s `POD_CLOSED`): nobody sits there, and the draft deals one fewer. */

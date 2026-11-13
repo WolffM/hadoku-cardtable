@@ -11,8 +11,8 @@
  * that would otherwise also match it. `tangled` and `testSupport` are exact file lists, checked
  * before any glob, so a file on either never falls through to a glob guess.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export type Layer = 'platform' | 'magic' | 'tangled' | 'site';
@@ -121,10 +121,31 @@ export function buildResolver(map: LayersMap): Resolver {
 	};
 }
 
-/** The `apps/<name>`, `packages/<name>` or `games/<game>/packages/<name>` a source path belongs to, or `null` outside them. */
+/** A workspace package's directory: `apps/<x>`, `packages/<x>`, `games/<game>/packages/<x>` or `games/<game>/server`. */
+const PACKAGE_DIR = /^(?:apps\/[^/]+|packages\/[^/]+|games\/[^/]+\/packages\/[^/]+|games\/[^/]+\/server)(?=\/)/;
+
+const packageNames = new Map<string, string>();
+
+/**
+ * The package a directory holds, as an `@hadoku/<name>` specifier names it: its `package.json` name
+ * without the scope, never the directory's basename (`apps/server` is `server`, `games/magic/server`
+ * is `magic-server`).
+ */
+export function packageNameOf(pkgDir: string): string {
+	let name = packageNames.get(pkgDir);
+	if (name === undefined) {
+		const manifest = join(REPO_ROOT, pkgDir, 'package.json');
+		const declared = existsSync(manifest) ? (JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string }).name : undefined;
+		name = declared?.replace(/^@hadoku\//, '') ?? basename(pkgDir);
+		packageNames.set(pkgDir, name);
+	}
+	return name;
+}
+
+/** The name of the workspace package a source path belongs to (see `packageNameOf`), or `null` outside them. */
 export function packageOf(relPath: string): string | null {
-	const m = /^(?:apps|packages|games\/[^/]+\/packages)\/([^/]+)\//.exec(relPath);
-	return m ? m[1] : null;
+	const m = PACKAGE_DIR.exec(relPath);
+	return m ? packageNameOf(m[0]) : null;
 }
 
 /**

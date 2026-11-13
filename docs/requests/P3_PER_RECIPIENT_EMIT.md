@@ -519,7 +519,7 @@ a socket whose participant holds no seat in a full match no longer gets
 `match-full`. It joins as a **watcher** (`forge:role` = `watcher`; wave 31's
 `spectator` keeps its meaning, a second socket on your own seat) and receives
 ONE shared public projection — `createProjector(null)` in
-`apps/server/src/play/visibility.ts`, where a null viewer now means the table:
+`games/magic/server/src/play/visibility.ts`, where a null viewer now means the table:
 public zones and face-up exile whole, a face-down permanent as its face, every
 hand, library and sideboard as ids only. The channel is built once per match
 off the first human seat's state stream, emitted on `WATCHER_SEAT` (`match.ts`)

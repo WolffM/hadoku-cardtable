@@ -16,7 +16,7 @@ import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import type { DraftCard } from '@hadoku/shared';
 
-import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
+import { createProjector, type StateFrame } from '../../../../games/magic/server/src/play/visibility.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR } from './live/departures.ts';
 import { HIT_MS, UNLOCK_BEAT_MS } from './motion.ts';
 import { forgetCardWidths } from './card-size.ts';

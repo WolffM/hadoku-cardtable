@@ -31,7 +31,7 @@
  * `CARDTABLE_CUBES_DIR` (its import store); this spec writes a fixture
  * cube — one card holding a name Forge's card DB does not know — directly
  * into it, in `importDir/<id>.json`'s own on-disk shape
- * (`apps/server/src/pools/cubes.ts`, landed §C, `ffc26caf`): `{ id, name,
+ * (`games/magic/server/src/pools/cubes.ts`, landed §C, `ffc26caf`): `{ id, name,
  * cubeCobraId, importedBy, importedAt, refreshedAt, verdict, cards }`, `cards`
  * the trimmed `{ name, scryfallId }` Cube Cobra projection — BEFORE
  * `startPlayStack` spawns the server, because `createCubeStore` reads that
@@ -57,7 +57,7 @@ const titled = makeTitled(forge);
 const UI_TIMEOUT = 30_000;
 
 /** A shortlisted cube's `{cube,size,cards}` file — A's `build-pool` output, read by its DISPLAY NAME rather than a guessed file stem. */
-const CUBES_DIR = resolve(import.meta.dirname, '..', 'apps', 'server', 'pools', 'cubes');
+const CUBES_DIR = resolve(import.meta.dirname, '..', 'games', 'magic', 'server', 'pools', 'cubes');
 
 interface CubeFile {
   cube: string;
@@ -91,7 +91,7 @@ const LEGACY_CUBE = 'MTGO Legacy Cube 2021-08';
 
 /**
  * `PLAY_CUBES_DIR/<id>.json` — `importDir`'s own on-disk shape, per
- * `apps/server/src/pools/cubes.ts`'s `parseImportFile`: `id`/`name`/
+ * `games/magic/server/src/pools/cubes.ts`'s `parseImportFile`: `id`/`name`/
  * `cubeCobraId`/`importedBy`/`importedAt` all strings (`cubeCobraId: null`
  * parses as "malformed" — confirmed by reading `parseImportFile` after it
  * rejected a first draft of this fixture), `cards` the TRIMMED Cube Cobra

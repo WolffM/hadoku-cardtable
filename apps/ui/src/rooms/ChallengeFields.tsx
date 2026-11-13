@@ -1,7 +1,7 @@
 /*
  * Create a room's Challenge fields: which real event, the field it replays (its top 8 as a
  * bracket, or everyone, Swiss then the cut), and whose seat the creator takes. The server seats
- * every other player as an AI on their own list (`apps/server/src/room/challenge.ts`).
+ * every other player as an AI on their own list (`games/magic/server/src/room/challenge.ts`).
  */
 
 import type { ChallengeEvent, ChallengeField } from '@hadoku/shared';

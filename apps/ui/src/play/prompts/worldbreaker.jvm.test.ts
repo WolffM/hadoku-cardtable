@@ -37,7 +37,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
+import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../../games/magic/server/src/play/scenario.ts';
 import { classifySelection } from './SelectionPrompt.tsx';
 
 const title = available.ok

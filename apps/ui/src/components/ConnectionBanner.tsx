@@ -6,7 +6,7 @@
  * A drafter's socket drops. The server holds their seat for the reservation
  * TTL, the client re-joins on reconnect, the server answers with a full
  * snapshot and the draft carries on — every part of that works and is tested
- * (`draft/socket.test.ts`, `apps/server/src/room/draftRooms.ts`). What the
+ * (`draft/socket.test.ts`, `games/magic/server/src/room/draftRooms.ts`). What the
  * player sees is a table that stops moving for thirty seconds and then jumps.
  * They refresh, or they say it is broken, and both are reasonable responses to
  * a screen that said nothing.

@@ -50,24 +50,12 @@ importers:
 
   apps/server:
     dependencies:
-      '@hadoku/carddata':
-        specifier: workspace:*
-        version: link:../../games/magic/packages/carddata
-      '@hadoku/deck':
-        specifier: workspace:*
-        version: link:../../games/magic/packages/deck
-      '@hadoku/draft':
-        specifier: workspace:*
-        version: link:../../games/magic/packages/draft
-      '@hadoku/forge-wire':
-        specifier: workspace:*
-        version: link:../../games/magic/packages/forge-wire
       '@hadoku/game-server':
         specifier: workspace:*
         version: link:../../packages/game-server
-      '@hadoku/host-wire':
+      '@hadoku/magic-server':
         specifier: workspace:*
-        version: link:../../packages/host-wire
+        version: link:../../games/magic/server
       '@hadoku/service-kernel':
         specifier: workspace:*
         version: link:../../packages/service-kernel
@@ -77,9 +65,6 @@ importers:
       '@resvg/resvg-js':
         specifier: ^2.6.2
         version: 2.6.2
-      '@wolffm/prefs-client':
-        specifier: npm:@hadoku/prefs-client@1.1.27
-        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.91
         version: '@hadoku/rooms-protocol@0.45.91'
@@ -92,10 +77,10 @@ importers:
       socket.io:
         specifier: ^4.8.3
         version: 4.8.3
-      zod:
-        specifier: 4.5.4
-        version: 4.5.4
     devDependencies:
+      '@hadoku/deck':
+        specifier: workspace:*
+        version: link:../../games/magic/packages/deck
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -232,6 +217,64 @@ importers:
       zod:
         specifier: 4.5.4
         version: 4.5.4
+
+  games/magic/server:
+    dependencies:
+      '@hadoku/carddata':
+        specifier: workspace:*
+        version: link:../packages/carddata
+      '@hadoku/deck':
+        specifier: workspace:*
+        version: link:../packages/deck
+      '@hadoku/draft':
+        specifier: workspace:*
+        version: link:../packages/draft
+      '@hadoku/forge-wire':
+        specifier: workspace:*
+        version: link:../packages/forge-wire
+      '@hadoku/game-server':
+        specifier: workspace:*
+        version: link:../../../packages/game-server
+      '@hadoku/host-wire':
+        specifier: workspace:*
+        version: link:../../../packages/host-wire
+      '@hadoku/service-kernel':
+        specifier: workspace:*
+        version: link:../../../packages/service-kernel
+      '@hadoku/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      '@resvg/resvg-js':
+        specifier: ^2.6.2
+        version: 2.6.2
+      '@wolffm/prefs-client':
+        specifier: npm:@hadoku/prefs-client@1.1.27
+        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
+      '@wolffm/rooms-protocol':
+        specifier: npm:@hadoku/rooms-protocol@0.45.91
+        version: '@hadoku/rooms-protocol@0.45.91'
+      '@wolffm/rooms-server':
+        specifier: npm:@hadoku/rooms-server@0.45.91
+        version: '@hadoku/rooms-server@0.45.91(socket.io@4.8.3)'
+      express:
+        specifier: ^5.1.0
+        version: 5.2.1
+      socket.io:
+        specifier: ^4.8.3
+        version: 4.8.3
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      socket.io-client:
+        specifier: ^4.8.3
+        version: 4.8.3
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.13
 
   packages/game-server:
     dependencies:

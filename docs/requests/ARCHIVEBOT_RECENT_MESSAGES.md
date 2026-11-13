@@ -1,6 +1,6 @@
 # Request to ArchiveBot: a read-only feed of recent #general messages
 
-**From:** hadoku-cardtable, 2026-10-28. **Done:** WolffM/ArchiveBot#37, shipped in ArchiveBot 891263c; the contract is the issue's last comment, and cardtable reads it in `apps/server/src/http/discord.ts`. **Amended 2026-10-28** by the operator ("all that data should come from archivebot"): each message also carries the author's `avatar` as a 64px `data:` URI and their name's role `color`, in ArchiveBot d381964. **Re:** `ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md`.
+**From:** hadoku-cardtable, 2026-10-28. **Done:** WolffM/ArchiveBot#37, shipped in ArchiveBot 891263c; the contract is the issue's last comment, and cardtable reads it in `games/magic/server/src/http/discord.ts`. **Amended 2026-10-28** by the operator ("all that data should come from archivebot"): each message also carries the author's `avatar` as a 64px `data:` URI and their name's role `color`, in ArchiveBot d381964. **Re:** `ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md`.
 
 ## What for
 

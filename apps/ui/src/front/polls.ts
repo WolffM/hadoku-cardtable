@@ -1,6 +1,6 @@
 /*
  * The Upcoming card's Polls page: the open Rally forms attached to events (`GET /api/events/forms`,
- * `apps/server/src/http/events.ts`), each Rally's own summary of it plus who attached it
+ * `games/magic/server/src/http/events.ts`), each Rally's own summary of it plus who attached it
  * (`AttachedForm`). Its Open button goes to the form on Rally.
  */
 

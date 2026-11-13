@@ -39,7 +39,7 @@ import type { ServerFrame } from '@hadoku/forge-wire';
 import { afterAll, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent } from '@testing-library/react';
 
-import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
+import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../../games/magic/server/src/play/scenario.ts';
 import { numericChoiceRange } from './rules.ts';
 import { mountPrompt } from './testing.ts';
 import type { AskOf } from './types.ts';

@@ -37,7 +37,7 @@ Art for cards' effects (B) does not depend on the board layout and can start at 
 - **An events channel.** Forge's game events are fully modelled (`games/magic/packages/forge-wire/src/events/`: 41
   classes, validated against 330,942 real events: `GameEventCardTapped`, `AttackersDeclared`,
   `CardDamaged`, `CardChangeZone`, `SpellAbilityCast`, `SpellResolved`, `PlayerLivesChanged`…), but
-  **the server sends every browser `events: []`** (`apps/server/src/play/visibility.ts:478,501`).
+  **the server sends every browser `events: []`** (`games/magic/server/src/play/visibility.ts:478,501`).
   Events can carry hidden information (a draw names the card), so each needs per-seat redaction, the way
   state already has it. Every animation in the art brief hangs off one of these events.
 - **A render layer for High mode**, over the DOM board: effects play in a canvas/WebGL layer positioned

@@ -96,7 +96,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
-import { APP_ROOT, playWorkDir } from '../config.js';
+import { playWorkDir } from '../config.js';
 import { bridgeDiagnostics } from './diagnostics.js';
 import {
 	CRASH_MARKER,
@@ -217,18 +217,16 @@ export const JVM_HEAP_MB = 2048;
 
 export type JvmAvailability = { ok: true; config: JvmHostConfig } | { ok: false; reason: string };
 
-/** The server app's `src/play/bridge/PlayBridge.java`, from source or from the bundle (`APP_ROOT`). */
-export function defaultBridgeSource(): string {
-	return join(APP_ROOT, 'src', 'play', 'bridge', 'PlayBridge.java');
-}
-
 /** Where compiled bridges are kept, shared by every tree on the host (keyed by `bridgeVersion`). */
 export function defaultBridgeCache(env: NodeJS.ProcessEnv = process.env): string {
 	return resolve(env.CARDTABLE_PLAY_BRIDGE_CACHE ?? join(env.XDG_CACHE_HOME ?? join(homedir(), '.cache'), 'cardtable', 'bridge'));
 }
 
-/** Resolve the JVM host's configuration, or say exactly what is missing. */
-export function jvmHostConfig(env: NodeJS.ProcessEnv = process.env): JvmAvailability {
+/**
+ * Resolve the JVM host's configuration, or say exactly what is missing. `bridgeSource` is the game's
+ * own bridge (Magic's is `@hadoku/magic-server/root`'s `BRIDGE_SOURCE`): the platform knows no game's tree.
+ */
+export function jvmHostConfig(bridgeSource: string, env: NodeJS.ProcessEnv = process.env): JvmAvailability {
 	const jar = env.CARDTABLE_FORGE_JAR ?? '';
 	const res = env.CARDTABLE_FORGE_RES ?? '';
 	if (jar === '') return { ok: false, reason: 'CARDTABLE_FORGE_JAR is not set' };
@@ -237,7 +235,6 @@ export function jvmHostConfig(env: NodeJS.ProcessEnv = process.env): JvmAvailabi
 	if (!existsSync(join(res, 'cardsfolder'))) {
 		return { ok: false, reason: `CARDTABLE_FORGE_RES is not Forge's res/ (no cardsfolder): ${res}` };
 	}
-	const bridgeSource = defaultBridgeSource();
 	if (!existsSync(bridgeSource)) return { ok: false, reason: `bridge source not found: ${bridgeSource}` };
 	return {
 		ok: true,

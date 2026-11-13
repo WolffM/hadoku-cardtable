@@ -10,7 +10,7 @@
  */
 
 import { BOMBERMAN_GAME_TYPE_SPEC, registerGameType } from '@hadoku/shared';
-import type { CardtablePlugin } from './state.js';
+import type { CardtablePlugin } from '@hadoku/magic-server/plugins/state';
 
 export { BOMBERMAN_GAME_TYPE } from '@hadoku/shared';
 

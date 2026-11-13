@@ -86,7 +86,7 @@
  *
  * **This suite does not test the stop set.** It exists to prove that an attack
  * and a block can be declared BY DRAGGING, and that Forge agrees. The stop set is
- * asserted directly, and now in several places, by `apps/server/src/play/auto.test.ts`
+ * asserted directly, and now in several places, by `games/magic/server/src/play/auto.test.ts`
  * and `auto.jvm.test.ts`. So the seats here are pinned to
  * {@link EVERY_PRIORITY_POLICY} — the stop behaviour that WAS the default until
  * 2026-09-28 — which restores the timing this driver was written in and changes
@@ -108,7 +108,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { ClientFrame } from '@hadoku/forge-wire';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
-import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
+import { EVERY_PRIORITY_POLICY } from '../../../../../games/magic/server/src/play/auto.ts';
 import { forgeAvailability, liveJvmCount, startLiveScenario, waitUntil, type LiveHarness, type SeatClient } from './jvm-harness.ts';
 import { LiveBoard } from './LiveBoard.tsx';
 import { boardInteraction, currentAsk, liveBar } from './match.ts';

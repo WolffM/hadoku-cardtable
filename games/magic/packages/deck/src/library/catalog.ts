@@ -78,7 +78,7 @@ export interface LibraryCollection {
 }
 
 /**
- * The id a collection's era answers to over the wire — `apps/server/src/http/
+ * The id a collection's era answers to over the wire — `games/magic/server/src/http/
  * library.ts` keys a format by this today for Standard (the bare date, so a
  * stored room or an e2e spec that pins `2016-07-22` keeps working unchanged),
  * and now needs one for Modern and Legacy too, which cannot be the bare date

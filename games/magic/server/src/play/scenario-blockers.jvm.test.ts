@@ -1,0 +1,276 @@
+/**
+ * Wave 33 §S, item 3 — Q10 and Q12, against a REAL Forge match, set up by a
+ * scenario instead of played through two seats' first three turns
+ * (`blockers.jvm.test.ts`'s `setUp`/`attack` helpers did that; these two
+ * scenarios land in Declare ATTACKERS Step with the attack already declared,
+ * one step short of Declare Blockers).
+ *
+ * **Why not land straight on Declare Blockers.** It was the first design, and
+ * it is wrong: `GameState.applyGameOnThread` (the deploy tree's forge-build
+ * cache; `forge/` is not initialised in this worktree) calls the combat setup
+ * (`handleCombat`) BEFORE its own unconditional `checkStateEffects(true)` —
+ * but landing the `activephase` key straight on `COMBAT_DECLARE_BLOCKERS`
+ * makes `handleCombat` itself walk there (`devAdvanceToPhase`, which opens the
+ * real block input and computes who may block) before that check ever runs.
+ * Measured against a real match: a scripted, untapped, non-sick creature on
+ * the defender's battlefield was offered as a blocker ZERO times —
+ * `pushBlockerCandidates` sent `setWeaklySelectable` with an EMPTY list, and
+ * the window closed itself (an `auto-passed` log line for the ATTACKER'S side
+ * only, same as a defender with no creature at all). See
+ * `wave33-evidence/s3-blockers.md` for the full repro and the fix below.
+ *
+ * **The fix.** Land one step earlier, at Declare Attackers Step, and drive
+ * the one remaining step — the attacker's own priority stop there — through
+ * the NORMAL game loop (`attackerPassesDeclareAttackers` below), not through
+ * `GameState`'s shortcut. By the time Forge opens the REAL Declare Blockers
+ * window this way, `checkStateEffects` has run at least once already (the
+ * scenario's own unconditional call) and the normal main loop runs it again
+ * on every priority pass, so the defender's creature's characteristics are
+ * never stale when Forge decides who may block.
+ *
+ * `scenario.ts`'s `finishMulligan` answers the coin toss and the keep-or-
+ * mulligan question for both seats and then stops. From there this file uses
+ * `answerAsks()` and its own minimal press — never `keepHands()`/`passUntil`
+ * again, both of which press OK on ANY enabled, non-`Priority:` prompt and
+ * would therefore answer the Declare Blockers window itself.
+ *
+ *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=/tmp/claude-1000/w33-S \
+ *   pnpm exec vitest run games/magic/server/src/play/scenario-blockers.jvm.test.ts \
+ *     --pool=forks --poolOptions.forks.singleFork=true
+ */
+
+import { describe, expect, it } from 'vitest';
+
+import { available, deck, finishMulligan, forgeFrames, scenarioText, startScenario, timeline, waitUntil, type Card, type Scenario } from './scenario.js';
+
+const title = available.ok
+	? 'Declare Blockers, set up by a scenario, against real Forge'
+	: `Declare Blockers, set up by a scenario, against real Forge — SKIPPED: ${available.reason}`;
+
+const DECKS: [string, string] = [deck('Any A', ['40 Mountain']), deck('Any B', ['40 Mountain'])];
+
+/**
+ * Press OK once for the ATTACKER's own priority stop at Declare Attackers
+ * Step — the one press `isStop`/the server's own policy expect from the
+ * active player there — so the game advances into the REAL Declare Blockers
+ * window through the normal main loop. Never touches the defender's prompt.
+ */
+async function passDeclareAttackers(s: Scenario, attacker: number): Promise<void> {
+	let pressed = false;
+	await waitUntil(
+		() => {
+			s.answerAsks();
+			const msg = s.prompt(attacker);
+			if (!pressed && /^Priority:/.test(msg) && /Declare Attackers Step/.test(msg) && s.buttons(attacker)?.enable1 === true) {
+				pressed = true;
+				s.ok(attacker);
+			}
+			return s.phase(attacker) !== 'Declare Attackers Step';
+		},
+		"the attacker's own Declare Attackers Step priority window to pass",
+		30_000,
+		s,
+	);
+}
+
+describe.skipIf(!available.ok)(title, () => {
+	it(
+		'Q10: a defender with no creature is passed through Declare Blockers, with nothing to assign',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 10, decks: DECKS, scenario: scenarioText('no-creatures') });
+			try {
+				await finishMulligan(s);
+				// The precondition, so "no stop" below is not vacuous because the
+				// attack never happened: the attacker really holds its attacker.
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return s.zone(0, 'Battlefield').some((c) => c.creature);
+					},
+					"the attacker's board to reflect the scripted creature",
+					20_000,
+					s,
+				);
+				await passDeclareAttackers(s, 0);
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return s.logs.some((l) => l.evt === 'auto-passed' && l.seat === 1 && l.phase === 'Declare Blockers Step');
+					},
+					'the defender to be auto-passed through Declare Blockers with nothing to assign',
+					30_000,
+					s,
+				);
+				expect(
+					s.sent.some(
+						(x) =>
+							x.seat === 1 &&
+							x.envelope.frame.method === 'setWeaklySelectable' &&
+							(x.envelope.frame as unknown as { cards: unknown[] }).cards.length > 0,
+					),
+					'the defender was never offered a blocker — there was none to offer',
+				).toBe(false);
+			} finally {
+				await s.stop();
+			}
+		},
+		180_000,
+	);
+
+	it(
+		'Q12: a defender with one creature is NOT auto-passed through Declare Blockers, and can assign the block',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 12, decks: DECKS, scenario: scenarioText('one-creature') });
+			try {
+				await finishMulligan(s);
+				const blocker = await waitUntil(
+					() => {
+						s.answerAsks();
+						return s.zone(1, 'Battlefield').some((c) => c.creature);
+					},
+					"the defender's board to reflect the scripted creature",
+					20_000,
+					s,
+				).then(() => s.zone(1, 'Battlefield').find((c) => c.creature));
+				if (blocker === undefined) throw new Error("no creature on seat 1's battlefield");
+				await passDeclareAttackers(s, 0);
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return /^Select creatures to block/.test(s.prompt(1));
+					},
+					'the block-assignment input to open for the defender',
+					30_000,
+					s,
+				);
+				expect(s.buttons(1)?.enable1).toBe(true);
+				expect(s.logs.some((l) => l.evt === 'auto-passed' && l.seat === 1 && l.phase === 'Declare Blockers Step')).toBe(false);
+
+				// The precondition, read off the SAME wire property the defender's
+				// client would draw a blue highlight from: Forge really offered a
+				// blocker, not an empty set (which would make "can assign the block"
+				// below vacuous).
+				const offered = s.sent
+					.filter((x) => x.seat === 1 && x.envelope.frame.method === 'setWeaklySelectable')
+					.map((x) => (x.envelope.frame as unknown as { cards: { id: number }[] }).cards.map((c) => c.id))
+					.filter((ids) => ids.length > 0)
+					.at(-1);
+				expect(offered, 'the defender was never offered a blocker').toContain(blocker.id);
+
+				// The block can actually be made.
+				s.select(1, blocker.id);
+				await waitUntil(() => {
+					const view = [...s.state(1).values()].find((o) => o._type === 0 && o._id === blocker.id);
+					return (view?.Blocking as { v?: boolean } | undefined)?.v === true;
+				}, 'the creature to be declared blocking', 10_000, s);
+				const linesBeforeOk = s.lines.length;
+				s.ok(1);
+				// Forge took the block and moved on to the step's priority, which the
+				// server passes for an idle defender before the seat sees it.
+				await waitUntil(
+					() => forgeFrames(s, 1, linesBeforeOk).some((f) => f.method === 'showPromptMessage' && /Declare Blockers Step/.test(f.message ?? '')),
+					'the priority window after the block',
+					10_000,
+					s,
+				);
+			} catch (err) {
+				console.log(`[q12-timeline]\n${timeline(s, 1)}`);
+				throw err;
+			} finally {
+				await s.stop();
+			}
+		},
+		180_000,
+	);
+
+	it(
+		"a menace attacker with one blocker: the defender's OK carries Forge's refusal until a second blocker joins or the one leaves, and Forge takes it then",
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 13, decks: DECKS, scenario: scenarioText('menace-block') });
+			const refusal = (): string | undefined => s.buttons(0)?.refusal1;
+			const blocking = (id: number): boolean => {
+				const view = [...s.state(0).values()].find((o) => o._type === 0 && o._id === id);
+				return (view?.Blocking as { v?: boolean } | undefined)?.v === true;
+			};
+			try {
+				await finishMulligan(s);
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return s.zone(0, 'Battlefield').filter((c) => c.creature).length === 2;
+					},
+					"the defender's two walls on the board",
+					20_000,
+					s,
+				);
+				const [x, y] = s.zone(0, 'Battlefield').filter((c) => c.creature) as [Card, Card];
+				await passDeclareAttackers(s, 1);
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return /^Select creatures to block/.test(s.prompt(0));
+					},
+					'the block-assignment input to open for the defender',
+					30_000,
+					s,
+				);
+				const say = (step: string): void => console.log(`[menace-block] ${step} | ${JSON.stringify(s.buttons(0))}`);
+				say('opened');
+				expect(s.buttons(0)?.enable1, 'Forge enables its OK').toBe(true);
+				expect(refusal(), 'no block is a legal block').toBeUndefined();
+
+				s.select(0, x.id);
+				await waitUntil(() => blocking(x.id), 'the wall to be assigned', 10_000, s);
+				// What Forge does with the press: refuses it with a message, and keeps the block window open.
+				const linesBeforeRefusedOk = s.lines.length;
+				s.ok(0);
+				await waitUntil(
+					() => forgeFrames(s, 0, linesBeforeRefusedOk).some((f) => f.method === 'message'),
+					"Forge's answer to OK with one blocker on the menace attacker",
+					10_000,
+					s,
+				);
+				const answer = forgeFrames(s, 0, linesBeforeRefusedOk).map((f) => `${f.method}${f.method === 'message' ? ` "${String(f.message)}"` : ''}`);
+				console.log(`[menace-block] OK with one blocker: ${JSON.stringify(answer)} | prompt ${JSON.stringify(s.prompt(0))}`);
+				expect(answer.find((a) => a.startsWith('message'))).toMatch(/Boggart Brute \(\d+\) cannot be blocked with 1 creatures/);
+				expect(s.prompt(0), 'the block window stays open').toMatch(/^Select creatures to block/);
+				expect(blocking(x.id), 'with the wall still assigned').toBe(true);
+				await waitUntil(() => refusal() !== undefined, 'one blocker on the menace attacker to be refused', 10_000, s);
+				say('one blocker');
+				expect(refusal()).toMatch(/^Boggart Brute \(\d+\) cannot be blocked with 1 creatures/);
+
+				s.select(0, y.id);
+				await waitUntil(() => blocking(y.id) && refusal() === undefined, 'a second blocker to make the block legal', 10_000, s);
+				say('two blockers');
+
+				s.select(0, y.id);
+				await waitUntil(() => !blocking(y.id) && refusal() !== undefined, 'the block to be refused again with one blocker', 10_000, s);
+				s.select(0, x.id);
+				await waitUntil(() => !blocking(x.id) && refusal() === undefined, 'no blocker to be legal again', 10_000, s);
+				say('none');
+
+				s.select(0, x.id);
+				s.select(0, y.id);
+				await waitUntil(() => blocking(x.id) && blocking(y.id) && refusal() === undefined, 'both walls blocking', 10_000, s);
+				const linesBeforeOk = s.lines.length;
+				s.ok(0);
+				await waitUntil(
+					() => forgeFrames(s, 0, linesBeforeOk).some((f) => f.method === 'showPromptMessage' && /^Priority:[\s\S]*Declare Blockers Step/.test(f.message ?? '')),
+					'Forge to take the double block and move on to priority',
+					10_000,
+					s,
+				);
+				expect(blocking(x.id) && blocking(y.id), 'both walls block the Brute').toBe(true);
+			} catch (err) {
+				console.log(`[menace-block-timeline]\n${timeline(s, 0)}`);
+				throw err;
+			} finally {
+				await s.stop();
+			}
+		},
+		180_000,
+	);
+});

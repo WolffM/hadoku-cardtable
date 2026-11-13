@@ -2,7 +2,7 @@
 # Prove a lane on the claws on the latest main, and land it only if that proof is green.
 #
 #   scripts/lanes/prove-and-land.sh [--dry-run] <worktree> -f only=e2e -f specs="stacking --repeat-each=3"
-#   scripts/lanes/prove-and-land.sh <worktree> -f only=jvm -f jvm=apps/server/src/play/priority.jvm.test.ts
+#   scripts/lanes/prove-and-land.sh <worktree> -f only=jvm -f jvm=games/magic/server/src/play/priority.jvm.test.ts
 #
 # Every `-f` is passed to the forge.yml dispatch as given (only, specs, jvm, full, video).
 # The retro of 2026-10-20 found 64% of lands rebuilt three or more times because the proof ran

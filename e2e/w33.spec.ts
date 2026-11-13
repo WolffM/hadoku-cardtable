@@ -1,7 +1,7 @@
 /**
  * Wave 33: a game a test can SET UP, so these claims are proven rather than
  * hoped for — every match here is seeded by a scripted Forge opening (shape
- * 1, `play/scenario.ts`, reading `apps/server/src/play/scenarios/*.state` —
+ * 1, `play/scenario.ts`, reading `games/magic/server/src/play/scenarios/*.state` —
  * lane S's files, and their README describes exactly what each sets up).
  * Wave 32's own closing notes admitted Q7 and Q10 passed their e2e vacuously
  * (the random game never reached the situation) and that Q14 and Q8 were

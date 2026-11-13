@@ -413,7 +413,7 @@ full:
 - **The art is a PLACEHOLDER, and that is the load-bearing part.** The operator
   expects to source the art elsewhere later and asked that pointing a card at a
   new image stay easy. So a card's art is an indirection, never a URL in a component:
-  `apps/ui/src/draft/art-manifest.json` (since 2026-11-07 `apps/server/src/play/art-manifest.json`,
+  `apps/ui/src/draft/art-manifest.json` (since 2026-11-07 `games/magic/server/src/play/art-manifest.json`,
   over the art mirror, served by `/api/art/<id>`) maps `scryfallId → { source, key }` and
   `games/magic/packages/carddata/src/art/index.ts` resolves it, with an absent or unusable row
   falling back to Scryfall and then to the text tile. Repointing one card is a
@@ -718,7 +718,7 @@ this repo when any one of these becomes true:
 
 **What is NOT a death condition: having no consumer.** That has been true since
 the day it was written and is the state it was specified in — P4 was specified
-for watchparty, and `apps/server/src/play/match.ts` shipped its own asks by
+for watchparty, and `games/magic/server/src/play/match.ts` shipped its own asks by
 `callId` instead. Re-verified 2026-09-26: nothing under `apps/` or `packages/`
 imports `@hadoku/room-ask` except two doc comments in `games/magic/packages/forge-wire`
 (`envelope.ts:52`, `index.ts:30`). Carrying a clean-room package costs this

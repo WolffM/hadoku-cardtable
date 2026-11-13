@@ -1,7 +1,7 @@
 /**
  * (2026-10-26, the operator: "you can ship it"): the seat's own character says what it got
  * wrong, on the seat's own screen only — never the opponent's, never a watcher's. Scenario
- * `af409-second-land` (`apps/server/src/play/scenarios/af409-second-land.state`): seat 0 holds a
+ * `af409-second-land` (`games/magic/server/src/play/scenarios/af409-second-land.state`): seat 0 holds a
  * Forest and a Mountain in hand, an uncontested turn-1 Main Phase 1.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one this SKIPS and

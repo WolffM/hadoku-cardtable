@@ -1,7 +1,7 @@
 /*
  * A room's seats, on the banner's "Open seats now" page (`./WildcardCard.tsx`).
  *
- * A 1v1 room ports its link preview's card (`apps/server/src/http/preview.ts`, the operator's
+ * A 1v1 room ports its link preview's card (`games/magic/server/src/http/preview.ts`, the operator's
  * approved design): the host's face, VS, the other seat's face — or a dashed "?" over "You?". A pod
  * draws its seats four to a row, an open one dashed with a plus, as the room's own seats do
  * (`../screens/pod/PodSeats.tsx`). An open seat that is a way in is a button, the same press as the

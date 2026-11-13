@@ -41,7 +41,7 @@
  * were eight mid-season collections and a deliberate FAILURE pool
  * (`2011-07-01`, the two-week Jace/Stoneforge ban row with no collection
  * filed under it) — real data, but a demonstration fixture rather than an
- * era anyone played a season in, and `apps/server/src/http/library.ts` used to
+ * era anyone played a season in, and `games/magic/server/src/http/library.ts` used to
  * leak it into the picker as a ninth "era" because it read every file in
  * `decks/pools/` rather than the catalogue. The loader now reads exactly the
  * catalogued eras' own dates, so a fixture of this kind can exist again

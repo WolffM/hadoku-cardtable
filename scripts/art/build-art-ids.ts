@@ -1,6 +1,6 @@
 /*
- * Build `apps/server/src/play/art-ids.json` — the committed `Name|SET → Scryfall id`
- * table the server's art resolver (`apps/server/src/play/art-ids.ts`) reads beside the card
+ * Build `games/magic/server/src/play/art-ids.json` — the committed `Name|SET → Scryfall id`
+ * table the server's art resolver (`games/magic/server/src/play/art-ids.ts`) reads beside the card
  * catalog: the token rows, the basics under every Forge set code, and the rows a test scenario or
  * a committed deck needs on a host with no full catalog (a CI runner has the e2e fixture's).
  *
@@ -56,7 +56,7 @@
  *   - **a bare-name row per card**, which is the documented fallback: another
  *     printing's art is still that card's art.
  *   - **a bare-name row per card a test scenario places**
- *     (`apps/server/src/play/scenarios/*.state`): the e2e suite plays those
+ *     (`games/magic/server/src/play/scenarios/*.state`): the e2e suite plays those
  *     matches on camera, and a scenario's Grizzly Bears had no row at all.
  *   - **every other face of every card above**, under each key its front has.
  *     Forge names the face it is showing, and a `.dck` only ever names the
@@ -89,16 +89,16 @@ import type { GameplayCard } from '../../games/magic/packages/carddata/src/scryf
 import { ART_ID_TABLE_VERSION, BACK_FACE } from '../../games/magic/packages/carddata/src/art/ids.ts';
 import { otherFaces } from '../../games/magic/packages/carddata/src/faces.ts';
 import { corpusDir } from '../../games/magic/packages/carddata/src/corpus-dir.ts';
-import { scenarioCardNames } from '../../apps/server/src/play/art.ts';
+import { scenarioCardNames } from '../../games/magic/server/src/play/art.ts';
 
 const REPO_ROOT = resolvePath(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const DEFAULT_CACHE = corpusDir();
-const DEFAULT_OUT = join(REPO_ROOT, 'apps', 'server', 'src', 'play', 'art-ids.json');
+const DEFAULT_OUT = join(REPO_ROOT, 'games', 'magic', 'server', 'src', 'play', 'art-ids.json');
 const DECKS_DIR = join(REPO_ROOT, 'decks');
 const POOL_FILE = join(REPO_ROOT, 'apps', 'ui', 'src', 'draft', 'pool.json');
-const SCENARIOS_DIR = join(REPO_ROOT, 'apps', 'server', 'src', 'play', 'scenarios');
+const SCENARIOS_DIR = join(REPO_ROOT, 'games', 'magic', 'server', 'src', 'play', 'scenarios');
 
-/** Every card a test scenario (`apps/server/src/play/scenarios/*.state`) places — a match the e2e suite plays shows them. */
+/** Every card a test scenario (`games/magic/server/src/play/scenarios/*.state`) places — a match the e2e suite plays shows them. */
 export function scenarioNames(dir = SCENARIOS_DIR): string[] {
   const names = new Set<string>();
   for (const file of readdirSync(dir).filter((f) => f.endsWith('.state')).sort()) {
@@ -924,7 +924,7 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
       'games/magic/packages/carddata/src/art/index.ts can resolve a URL. Ids only — no URL, no host, no image metadata (D15). ' +
       'Scope: every basic land under every Forge set code, every card in the committed decks/ lists, the cube pool’s ' +
       'Forge-code aliases (pool.json already carries the Scryfall-code keys), one bare-name fallback row per name (and per ' +
-      'card a test scenario under apps/server/src/play/scenarios/ places), every other face of each of those cards ' +
+      'card a test scenario under games/magic/server/src/play/scenarios/ places), every other face of each of those cards ' +
       '(a transform or modal back face as "<id>#back", its back image), and ' +
       'every Forge edition token under its tokenscript, "t:<script>" and, where its printing differs, "t:<script>|<SET>" — what a token\'s ' +
       'ImageKey names — and ' +

@@ -27,7 +27,7 @@
  * ## What "a lasting arrow" means here, and how it is proven without a
  * second channel to read the wire from
  *
- * `e2e` has no bridge-line capture (`apps/server/src/play/scenario.ts`'s jvm
+ * `e2e` has no bridge-line capture (`games/magic/server/src/play/scenario.ts`'s jvm
  * tests do; the e2e stack's own `serverLogFile` is the SERVER's structured
  * log, not Forge's raw frames) — so this proves Forge's own `CombatView`
  * said "Jace" the same way `arrow.spec.ts` proves every other arrow: by

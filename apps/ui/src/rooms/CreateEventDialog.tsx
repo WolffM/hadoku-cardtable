@@ -2,7 +2,7 @@
  * Create event, beside Create room: a Tournament or a Form (the operator, 2026-10-30).
  *
  * A tournament takes its title, its start and every setting its room has (`RoomFields.tsx`), and
- * makes that room at once with you as its leader (`apps/server/src/http/events.ts`), so it opens
+ * makes that room at once with you as its leader (`games/magic/server/src/http/events.ts`), so it opens
  * there. The room is the source of truth from then on: what you change in it is what the calendar
  * shows.
  *

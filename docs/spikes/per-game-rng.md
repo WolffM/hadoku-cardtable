@@ -55,7 +55,7 @@ Where the bindings are made (all in the fork):
 | `SpellAbilityPicker.evaluateSa` | binds a fresh `Random(seedFromGameStream)` per simulation instead of swapping the JVM-wide one (which would no longer reach a bound thread, and raced other games before). |
 | `AiCache` | per game (`Cache<Game, …>` with weak keys); `getCached(Game, key, …)`, `clear(Game)`. **Leaks every game** (its values hold the key; found 2026-11-09, `docs/planning/flat-mc-ai.md`); fix on fork `cardtable/aicache-per-game` moves the cache onto `Game`. |
 
-The bridge (`apps/server/src/play/bridge/PlayBridge.java`, `startMatch`): the seed
+The bridge (`games/magic/server/src/play/bridge/PlayBridge.java`, `startMatch`): the seed
 block builds `seeded = seed == null ? new SecureRandom() : new Random(seed)`, wraps it
 in `RiggedCoinToss` when a `chooser` is set, and **binds it to the starting thread**
 from where it used to call `setRandom` until `start.run()` returns. Everything that
@@ -185,7 +185,7 @@ At pin `9e5f5b75`. "Fixed" means in `rng-per-game`.
 | same | `ServerGameLobby.java:270` | draft seats, not a game | left |
 | same | ~20 more in `forge-gui` limited/quest/deck generation | no | left |
 | `MyRandom` in lobby/GUI code | `GamePlayerUtil.java:52` (AI avatar/sleeve), `MusicPlaylist.java:62` | before the game, on the starting thread | bridge: drawn from the match's random (bound from the old `setRandom` point), as before |
-| `PoolService` seeds the JVM-wide random | `apps/server/src/play/bridge/PoolService.java:327` | no (draft pools) | correct while one request runs at a time; two concurrent pool requests in one JVM would share it — a pool-service concern, not a game's |
+| `PoolService` seeds the JVM-wide random | `games/magic/server/src/play/bridge/PoolService.java:327` | no (draft pools) | correct while one request runs at a time; two concurrent pool requests in one JVM would share it — a pool-service concern, not a game's |
 | `SimulateMatch` seeds the JVM-wide random | `forge-gui-desktop/.../view/SimulateMatch.java:89` | its matches | still reproducible: an unbound `Match` seeds itself from the global |
 | Ability id counters (non-atomic `++maxId`) | `SpellAbility.java:79`, `Trigger.java:55`, `ReplacementEffect.java:50`, `StaticAbility.java:54`, `SpellAbilityStackInstance.java:41`, `Game.java:67` | yes | **measured harmless** to determinism (above). Non-atomic increments across games can hand two games the same id; ids compare only within a game. Left. |
 | Identity-hash ordering | `Objects.hash(X.class, id)` hashCodes | yes | see "Hash order"; left, not observed |

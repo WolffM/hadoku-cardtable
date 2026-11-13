@@ -49,7 +49,7 @@ python3 scripts/sfx/import.py --from <finished dir> --seed <assignments.json> --
   overwrites it. An admin's own assignments, made through the builder, must never be clobbered by a
   re-import.
 - The `.ogg` files are copied into `<to>/takes/<folder>/<file>`, with the folder segment lowercased
-  (`BG.land` → `bg.land`) — `apps/server/src/http/sounds.ts`'s take-serving route and
+  (`BG.land` → `bg.land`) — `games/magic/server/src/http/sounds.ts`'s take-serving route and
   `@hadoku/shared`'s `TAKE_FILE_RE` are lowercase-only, but a source folder carries the colour code's
   own case.
 - Colour-identity names/families match `packages/shared/src/sounds.ts`'s `SOUND_MATRIX` (duplicated

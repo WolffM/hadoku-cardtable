@@ -7,7 +7,7 @@
  * do — including the two refusals that matter: an illegal deck cannot ready up,
  * and there is no call that names another member's deck. The real routes are
  * proven separately and end to end, against the real play route and the
- * committed library, in `apps/server/src/http/tables.test.ts`; this file proves
+ * committed library, in `games/magic/server/src/http/tables.test.ts`; this file proves
  * the other half — that what the server says reaches the person, and that what
  * the person chose reaches the server.
  *
@@ -163,7 +163,7 @@ function pillBorders(css: (el: Element, property: string) => string): Map<string
 }
 
 /**
- * Real cross-era history, the way `apps/server/src/http/tables.test.ts` and
+ * Real cross-era history, the way `games/magic/server/src/http/tables.test.ts` and
  * `games/magic/packages/deck/src/library/library.test.ts` both use it: 2010's UG Polymorph
  * (Antoine Ruel) plays four Jace, the Mind Sculptor, legal in its own era
  * (`Standard (M11)`, 2010-07-16) and banned the moment `Standard (M12)`

@@ -6,17 +6,17 @@
  * `humanhand=`, `humanbattlefield=`, `activephase=`, …). `human…` keys land
  * on seat 0, `ai…` keys on seat 1 — regardless of who is actually sitting
  * there, because this harness always seats two real browsers. S (lane S,
- * `apps/server/src/play/socket.ts`'s `parseStartBody`) is who reads the
+ * `games/magic/server/src/play/socket.ts`'s `parseStartBody`) is who reads the
  * field; this file only sends it.
  *
  * ## Why the request carries no `room`
  *
  * A match against a person normally starts from a room (`POST { room }`),
- * gated by `apps/server/src/http/routes.ts` — unowned this wave, and that
+ * gated by `games/magic/server/src/http/routes.ts` — unowned this wave, and that
  * gate's `startFromRoom` does not know about `scenario`. The gate's OWN code
  * only inspects `room` and `seats`; a body with neither (and `decks` null or
  * absent) falls through untouched to play's own router
- * (`apps/server/src/play/socket.ts`'s `POST /matches`, owned by lane S),
+ * (`games/magic/server/src/play/socket.ts`'s `POST /matches`, owned by lane S),
  * which is where `parseStartBody` lives and where the `scenario` field is
  * read. So `{ opponent: 'human', decks: [null, null], scenario }` reaches
  * lane S's code directly, with no change needed to the unowned gate. If that
@@ -52,10 +52,10 @@ import { TURN_TEXT } from './turn.ts';
 const PREFIX = '/cardtable';
 
 /**
- * `apps/server/src/play/scenarios/*.state` — the directory shape 1 commits S
+ * `games/magic/server/src/play/scenarios/*.state` — the directory shape 1 commits S
  * to writing into, one file per named scenario these specs ask for.
  */
-export const SCENARIOS_DIR = resolve(import.meta.dirname, '..', '..', 'apps/server/src/play/scenarios');
+export const SCENARIOS_DIR = resolve(import.meta.dirname, '..', '..', 'games/magic/server/src/play/scenarios');
 
 /** The named scenario's `[state]` text, verbatim, read fresh for every call. */
 export function readScenario(name: string): string {

@@ -3,7 +3,7 @@
  * one statement, read by both sides of the wire:
  *
  * - the browser (`apps/ui/src/play/live/LiveBoard.tsx`) sends the reply instead of drawing a prompt;
- * - the server (`apps/server/src/play/match.ts`'s `waitingOnFor`) never tells the OTHER seat that
+ * - the server (`games/magic/server/src/play/match.ts`'s `waitingOnFor`) never tells the OTHER seat that
  *   this one is deciding while such an ask is open. A loaded browser takes 139–371 ms to reply, longer
  *   than any grace, and the other screen read "Waiting for Alice to decide…" for a land she had
  *   already played (`e2e/w62-bounce.spec.ts`). Two copies of this rule had drifted: the server's
@@ -12,7 +12,7 @@
  * Both callers read it under full control too: full control brings back every stop and every real
  * choice, never a question with one answer (the operator, 2026-10-19).
  *
- * The rule is the server's (`apps/server/src/play/auto.ts`): a shortcut may remove a question,
+ * The rule is the server's (`games/magic/server/src/play/auto.ts`): a shortcut may remove a question,
  * never information, and it never decides anything about the GAME — only that Forge left one
  * possibility. Everything else with one legal reply is answered a hop earlier, by `onlyAnswer` in
  * `auto.ts`, and never reaches a browser.

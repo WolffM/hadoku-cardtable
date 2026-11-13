@@ -2,7 +2,7 @@
 /*
  * The front page's room list, driven through a stubbed `fetch`.
  *
- * The stub answers the way lane A's `apps/server/src/http/rooms.ts` is
+ * The stub answers the way lane A's `games/magic/server/src/http/rooms.ts` is
  * specified to: `GET /rooms` → `{ rooms }`, `POST /rooms` → 201 RoomView,
  * `POST /rooms/:id/join` → 200 RoomView, and the SAME 404 for a wrong password
  * as for a missing room. What the real server does is its own test's job; this
@@ -343,7 +343,7 @@ describe('the list', () => {
     expect(parseRoomView(OPEN)).toEqual(OPEN);
   });
 
-  // Captured from `apps/server/src/http/rooms.test.ts`'s harness: a constructed
+  // Captured from `games/magic/server/src/http/rooms.test.ts`'s harness: a constructed
   // room with two members and a mode, and a locked draft room with its pod.
   it('reads the server’s own GET /api/rooms/:id bodies as themselves, the room’s AI with them (a table card draws it)', () => {
     for (const [kind, body] of Object.entries(SERVER_BODIES)) {

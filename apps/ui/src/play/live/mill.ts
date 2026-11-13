@@ -10,7 +10,7 @@
  * the opponent's library as well as their own, live or in a replay. Nothing here knows a card's name.
  *
  * A card a player looks at can leave every zone list for a frame before it goes anywhere: Forge takes it out
- * of the library and puts it down a packet later (`apps/server/src/play/visibility.ts`'s `heldLibrary`, which
+ * of the library and puts it down a packet later (`games/magic/server/src/play/visibility.ts`'s `heldLibrary`, which
  * keeps it listed for a seat that knows it, and only for one). On the other seat's screen a surveil's card was
  * then in no zone before the frame that put it in the graveyard (measured: Notion Rain, one of its two cards
  * missed there). {@link setAsideAfter} remembers such a card, one that left a library list for no zone while

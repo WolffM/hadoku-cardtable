@@ -1,11 +1,11 @@
 /**
  * The server compacts each seat's and the watcher's history at the start of every turn
- * (`apps/server/src/play/history.ts`), and a page joins, reconnects and resyncs on what is left. It
+ * (`games/magic/server/src/play/history.ts`), and a page joins, reconnects and resyncs on what is left. It
  * must leave the page exactly where the whole history would: the same board and the same state
  * facts, read by this client's own fold — `match.ts`'s `adoptSnapshot`, fed through its real
  * transport handlers — not by a server re-implementation of it.
  *
- * The stream is the recorded REAL transcript (`apps/server/src/play/fixtures/
+ * The stream is the recorded REAL transcript (`games/magic/server/src/play/fixtures/
  * bridge-two-seats.ndjson`), one seat's state frames as Forge sent them, carried on by hand-written
  * frames in the bridge's own shapes for what that transcript (recorded before the bridge sent them)
  * has none of: every state fact beside a packet, deaths, a counter, damage, a face emptied the way
@@ -17,12 +17,12 @@ import { describe, expect, it } from 'vitest';
 import { DELTA_TYPE, cardStateKey, deltaKey, parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
 import { MatchSnapshotSchema, type MatchSnapshot, type ServerEnvelope } from '@hadoku/shared';
 
-import { loadTranscript, replayFactory, type ReplayHost } from '../../../../server/src/play/fixtures/transcript.ts';
-import type { BridgeLine } from '../../../../server/src/play/bridge-protocol.ts';
-import { createStateHistory } from '../../../../server/src/play/history.ts';
-import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
-import { WATCHER_SEAT } from '../../../../server/src/play/match/forge-session.ts';
-import { foldFrames, type StateFrame } from '../../../../server/src/play/visibility.ts';
+import { loadTranscript, replayFactory, type ReplayHost } from '../../../../../games/magic/server/src/play/fixtures/transcript.ts';
+import type { BridgeLine } from '../../../../../games/magic/server/src/play/bridge-protocol.ts';
+import { createStateHistory } from '../../../../../games/magic/server/src/play/history.ts';
+import { createMatchRegistry, type Match } from '../../../../../games/magic/server/src/play/match.ts';
+import { WATCHER_SEAT } from '../../../../../games/magic/server/src/play/match/forge-session.ts';
+import { foldFrames, type StateFrame } from '../../../../../games/magic/server/src/play/visibility.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from './match.ts';
 
 const TRANSCRIPT = loadTranscript();

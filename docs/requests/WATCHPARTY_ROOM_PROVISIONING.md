@@ -38,7 +38,7 @@ How cardtable uses them, for the shape of the API:
 
 - The password is never stored in plaintext and never leaves the server. A room's view says only `locked: boolean`.
   The lobby keeps a `Secret` per locked room beside the room, and the saved-room codec
-  (`apps/server/src/room/lobby-codec.ts`) writes it as `{ salt, hash }` and refuses a malformed one on load.
+  (`games/magic/server/src/room/lobby-codec.ts`) writes it as `{ salt, hash }` and refuses a malformed one on load.
 - `create` calls `makeSecret` once. `join` by a non-member calls `passwordMatches`, and the HTTP route rate-limits
   those attempts per caller. Hashing is synchronous because the lobby is a synchronous in-memory structure.
 - `r-`/`t-` prefixes keep a room id apart from a draft id or a match id. They match the wire's `ROOM_ID_RE`
@@ -58,7 +58,7 @@ How cardtable uses them, for the shape of the API:
 
 - `packages/game-server/src/room/provisioning.ts`, the whole file (58 lines), and its row in
   `scripts/layers/layers.json`;
-- the local `Secret` type import in `apps/server/src/room/lobby.ts` and `apps/server/src/room/lobby-codec.ts`,
+- the local `Secret` type import in `games/magic/server/src/room/lobby.ts` and `games/magic/server/src/room/lobby-codec.ts`,
   which then import it from `@wolffm/rooms-server`;
 - the seven call sites in `room/lobby.ts` (`makeSecret`, `passwordMatches`, `mintRoomId` ×2 in `create`,
   `mintTableId` ×3) keep their names and change only their import.

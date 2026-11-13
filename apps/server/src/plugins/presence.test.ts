@@ -14,8 +14,8 @@ import { Server as SocketIOServer } from 'socket.io';
 
 const handed = vi.hoisted(() => ({ drafts: [] as unknown[], served: [] as unknown[] }));
 
-vi.mock('../room/draftRooms.js', async (importOriginal) => {
-	const real = await importOriginal<typeof import('../room/draftRooms.js')>();
+vi.mock('@hadoku/magic-server/room/draftRooms', async (importOriginal) => {
+	const real = await importOriginal<typeof import('@hadoku/magic-server/room/draftRooms')>();
 	return {
 		...real,
 		createDraftRooms: (options: Parameters<typeof real.createDraftRooms>[0]) => {
@@ -61,7 +61,7 @@ it('the draft pods and the served room run on the one tracker the state keeps', 
 		matchStats: { seriesEnd: () => undefined },
 		checkDraftPlan: async () => ({ ok: true }),
 		people: createPeople({ baseUrl: 'https://prefs.test', serviceKey: '', log: () => undefined }),
-	} as unknown as import('./state.ts').Cardtable;
+	} as unknown as import('@hadoku/magic-server/plugins/state').Cardtable;
 	const ctx = { io, state, bootPhase: () => undefined, gauge: () => undefined, counts: () => undefined, busy: () => undefined } as unknown as Parameters<(typeof PLUGINS)[number]['setup']>[0];
 	try {
 		const names = ['rooms', 'room'];

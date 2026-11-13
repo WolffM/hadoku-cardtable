@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { createServer, request, type IncomingHttpHeaders, type Server } from 'node:http';
 import { connect } from 'node:net';
 
-import type { PrefsRowsStandIn } from '../apps/server/src/http/prefsRowsStandIn.ts';
+import type { PrefsRowsStandIn } from '../games/magic/server/src/http/prefsRowsStandIn.ts';
 import { FRIENDS, PREFIX, SESSION_COOKIE } from './identities.ts';
 
 /** Where `embed-host.html` is served: a watchparty-shaped path, outside `/cardtable/`. */

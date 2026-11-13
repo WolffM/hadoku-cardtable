@@ -3,7 +3,7 @@
  *
  * Every wire shape — `SoundTake`, the catalogue, the assignment map, `CellId`
  * — comes from `@hadoku/shared` (`packages/shared/src/sounds.ts`), which the
- * server's `/api/sounds` router (`apps/server/src/http/sounds.ts`) builds its
+ * server's `/api/sounds` router (`games/magic/server/src/http/sounds.ts`) builds its
  * own answers from. Nothing here writes a parallel definition of any of that;
  * this file is parse-and-call, the same shape `rooms/api.ts` uses for the
  * room list.

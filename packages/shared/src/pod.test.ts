@@ -1,6 +1,6 @@
 /**
  * The wire shape of `RoomView.pod` (wave 72 §P), checked at the schema — the
- * one thing `apps/server/src/room/lobby.ts` and the pod screen both have to
+ * one thing `games/magic/server/src/room/lobby.ts` and the pod screen both have to
  * agree on without `@hadoku/shared` importing `@hadoku/draft` (the
  * dependency only runs the other way).
  */

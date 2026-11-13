@@ -1,6 +1,6 @@
 /*
  * When a following screen reads. The socket under it is the rooms core's (`@wolffm/rooms-client`,
- * tested there); the server half is `apps/server/src/room/watching.test.ts`.
+ * tested there); the server half is `games/magic/server/src/room/watching.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest';

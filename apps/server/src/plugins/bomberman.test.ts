@@ -1,6 +1,6 @@
 /**
  * Bomberman as a cardtable room type, end to end through a REAL express app — the same shape
- * `apps/server/src/http/rooms.test.ts` proves Magic's two types with (that file is not this
+ * `games/magic/server/src/http/rooms.test.ts` proves Magic's two types with (that file is not this
  * lane's to edit, so this one builds its own small harness rather than importing its helpers).
  *
  * Covers the wave's own ask: create, join, auto-seat and a restart round-trip through the room
@@ -22,8 +22,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 
-let roomsMod: typeof import('../http/rooms.ts');
-let lobbyMod: typeof import('../room/lobby.ts');
+let roomsMod: typeof import('@hadoku/magic-server/http/rooms');
+let lobbyMod: typeof import('@hadoku/magic-server/room/lobby');
 let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 let BOMBERMAN_GAME_TYPE: string;
 
@@ -31,8 +31,8 @@ beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
-	roomsMod = await import('../http/rooms.ts');
-	lobbyMod = await import('../room/lobby.ts');
+	roomsMod = await import('@hadoku/magic-server/http/rooms');
+	lobbyMod = await import('@hadoku/magic-server/room/lobby');
 	edgeMod = await import('@hadoku/game-server/edge-auth');
 	// `bomberman.ts` imported fresh, in the SAME `resetModules` graph as the above: a module
 	// imported before `resetModules` (a static top-level import) would register into a `@hadoku/shared`
@@ -122,7 +122,7 @@ describe('bomberman is a registered game type', () => {
 		const h = await openApp(await tempDir());
 		const created = (
 			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Boom room', gameType: BOMBERMAN_GAME_TYPE } })
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 		expect(created.gameType).toBe('bomberman');
 		// `seats.max` (10) is above 2, so `room/pods.ts`'s `usesPod` routes this room through
 		// `podSeats`/`game.pod`, never the Magic table's hard-two `tables[0].players`.
@@ -133,13 +133,13 @@ describe('bomberman is a registered game type', () => {
 		// already wires generically, with no bomberman-specific code in `lobby.ts`.
 		expect(created.tables[0]?.series.length).toBe(1);
 
-		const joined = (await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' })).json() as import('../room/lobby.ts').RoomView;
+		const joined = (await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' })).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 		expect(joined.members.map((m) => m.id)).toEqual([created.creator, joined.members[1]!.id]);
 		expect(joined.game.pod?.seats.filter((s) => s !== null)).toHaveLength(2);
 
 		// A THIRD member still gets a seat — the load-bearing difference from a Magic 1v1
 		// table, which would make them a spectator at exactly this point.
-		const third = (await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'carol' })).json() as import('../room/lobby.ts').RoomView;
+		const third = (await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'carol' })).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 		expect(third.members).toHaveLength(3);
 		expect(third.game.pod?.seats.filter((s) => s !== null)).toHaveLength(3);
 	});
@@ -158,7 +158,7 @@ describe('bomberman is a registered game type', () => {
 		const h = await openApp(dir);
 		const created = (
 			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Boom room', gameType: BOMBERMAN_GAME_TYPE } })
-		).json() as import('../room/lobby.ts').RoomView;
+		).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 
 		// A fresh `openLobby` on the SAME dir — `index.ts`'s own restart. An unreadable record
 		// would quarantine (`room-quarantined` in `logged`).
@@ -180,7 +180,7 @@ describe('bomberman is a registered game type', () => {
 			const h = await openApp(await tempDir());
 			const created = (
 				await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Boom room', gameType: BOMBERMAN_GAME_TYPE } })
-			).json() as import('../room/lobby.ts').RoomView;
+			).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 			await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 			const res = await call(h, 'POST', `/api/rooms/${created.id}/start`, { as: 'alice' });
 			expect(res.status).toBe(409);
@@ -198,7 +198,7 @@ describe('bomberman is a registered game type', () => {
 
 		// A plain constructed room, PATCHed toward bomberman: refused at the body, same 400 and
 		// same message a wholly unknown id always got — the room never sees the attempt.
-		const constructed = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Friday night' } })).json() as import('../room/lobby.ts').RoomView;
+		const constructed = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Friday night' } })).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 		const patch = await call(h, 'PATCH', `/api/rooms/${constructed.id}`, { as: 'alice', body: { gameType: BOMBERMAN_GAME_TYPE } });
 		expect(patch.status).toBe(400);
 		expect(patch.json()).toEqual({ error: 'gameType must be one of: constructed-1v1, draft' });

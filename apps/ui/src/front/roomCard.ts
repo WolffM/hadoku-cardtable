@@ -250,7 +250,7 @@ function cardSeats(room: RoomView, capacity: number): { seats: RoomCardSeat[]; s
   const { pod } = magicGame(room);
   let all: RoomCardSeat[];
   if (pod === null) {
-    // The host first, as the room's link preview draws it (`apps/server/src/http/preview.ts`): host vs the other seat.
+    // The host first, as the room's link preview draws it (`games/magic/server/src/http/preview.ts`): host vs the other seat.
     const host = room.leader || room.creator;
     const players = [...(room.tables[0]?.players ?? [])].sort((a, b) => Number(b.memberId === host) - Number(a.memberId === host));
     all = Array.from({ length: capacity }, (_, i) => {

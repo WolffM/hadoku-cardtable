@@ -8,7 +8,7 @@
  * BOTH decks, to both seats: the operator's call, the same day — "if people
  * really wanted to cheat in this way i'd be fine with it. i care much more about
  * pre-loading art so that things load smoothly." Art ids, as the server decides
- * them for every card it sends (`apps/server/src/play/art-ids.ts`); never a URL,
+ * them for every card it sends (`games/magic/server/src/play/art-ids.ts`); never a URL,
  * which stays the client's to build (`apps/ui/src/draft/cardImage.ts`).
  *
  * Its own event, not a field on the join ack: the snapshot schema is mirrored

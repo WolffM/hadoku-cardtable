@@ -25,9 +25,9 @@ The first public release opens with a big tournament, and that tournament is the
 ## Where things stand
 
 - **Tournaments never reach the store.** Cardtable reports each finished *match* through
-  `recordMatch` (`apps/server/src/stats/reporter.ts`, a `MatchReport` from `@wolffm/prefs-client/games`).
+  `recordMatch` (`games/magic/server/src/stats/reporter.ts`, a `MatchReport` from `@wolffm/prefs-client/games`).
   A tournament, meaning a pod or a constructed Swiss with its final standings, is kept only in
-  cardtable's own JSON file, capped at 500 (`apps/server/src/room/tournaments.ts`). That file feeds the
+  cardtable's own JSON file, capped at 500 (`games/magic/server/src/room/tournaments.ts`). That file feeds the
   stats popout's Tournaments tab (`apps/ui/src/stats/Tournaments.tsx`). Nothing in hadoku_site knows a
   tournament happened.
 - **Nothing anywhere has a Major, podium or medal concept.** I searched cardtable, hadoku_site,

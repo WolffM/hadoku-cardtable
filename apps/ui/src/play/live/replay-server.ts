@@ -21,7 +21,7 @@
  *   pending ask re-sent after the snapshot would always arrive as a gap.
  * - Every open ask is re-sent after the snapshot as an ordinary frame. Asks
  *   are held by `callId`, as the real server holds them
- *   (`apps/server/src/play/match.ts`), so two can be open at once.
+ *   (`games/magic/server/src/play/match.ts`), so two can be open at once.
  *
  * ## Why `socket.io` is loaded through `createRequire`
  *
@@ -380,7 +380,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       server.received.push({ event: MATCH_EVENTS.fullControl, payload });
     });
     // Item 2/6 (wave 30): same shape as full control — recorded, no ack, no
-    // state held here. The REAL handler (`apps/server/src/play/socket.ts`)
+    // state held here. The REAL handler (`games/magic/server/src/play/socket.ts`)
     // folds it into the seat's `StopPolicy`; this double only has to prove
     // what the CLIENT sent.
     socket.on(MATCH_EVENTS.stopPreference, (payload) => {
@@ -410,7 +410,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       markers.delete(id as number);
     });
     // Client telemetry: the real handler writes it to the log, and only a joined socket's
-    // (`apps/server/src/play/socket.ts`): a report sent before its join is dropped there unlogged,
+    // (`games/magic/server/src/play/socket.ts`): a report sent before its join is dropped there unlogged,
     // so this double drops it too, and records what the log would have kept.
     socket.on(CLIENT_EVENT, (payload) => {
       if (!joined.has(socket)) return;

@@ -2,7 +2,7 @@
  * A table's game, resolved from its card (`TableCard.tsx`): the server's
  * `POST /api/rooms/:roomId/tables/:tableId/{concede,abandon,drop,reset}` and the leader's
  * `POST /api/rooms/:roomId/tables/reset` and `POST /api/rooms/:roomId/pod/dq`
- * (`apps/server/src/http/table-actions.ts`).
+ * (`games/magic/server/src/http/table-actions.ts`).
  */
 import { apiBase, bodyOf, sendJson, serverMessage, type Fetch } from '../http.ts';
 

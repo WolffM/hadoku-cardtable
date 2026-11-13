@@ -1,7 +1,7 @@
 /**
  * Cardtable's rooms are served by cardtable. `RoomShell.tsx` hands `RoomChrome` a `roomOrigin`
  * (this app's own origin), so the chrome's whole room socket — join, roster, identity, chat — goes
- * to `apps/server/src/room/serve.ts` (`@wolffm/rooms-server/room`'s `serveRoom`, namespace `/room`)
+ * to `games/magic/server/src/room/serve.ts` (`@wolffm/rooms-server/room`'s `serveRoom`, namespace `/room`)
  * and none of it to watchparty. Presence is the server's one tracker, and a member's name comes
  * from their account (`people.ts`), so:
  *

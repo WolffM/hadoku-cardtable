@@ -1,6 +1,6 @@
 /**
  * Clips for the trailer's closing montage: one short moment each, from its own scenario
- * (`apps/server/src/play/scenarios/promo-m-<name>.state`), filmed as `m-<name>`. The operator asked for
+ * (`games/magic/server/src/play/scenarios/promo-m-<name>.state`), filmed as `m-<name>`. The operator asked for
  * "fresh moments in different situations", so each is a different kind of play: a removal spell, a wipe,
  * a burn finish, a big landing, tokens, a drain, a discard, an Emrakul swing; and (cut 4: "some kind of chain
  * reaction or some powerful spells like world fire or time spiral") Worldfire, Time Spiral and an Impact

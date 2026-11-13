@@ -1,11 +1,11 @@
 /*
  * Where the stats page's numbers come from: the game-stats store in prefs-api, which this server
- * reports every finished room match to (`apps/server/src/stats/`), read through one guarded client
+ * reports every finished room match to (`games/magic/server/src/stats/`), read through one guarded client
  * into one cache, so a read the lobby made ahead of the page draws it at once.
  *
  * **Rated matches only** — the operator, 2026-10-20: *"let's hide all bot results/stats … noone
  * should have their rating affected by bot data"*. The server reports a match unrated when Forge's
- * AI, a guest or a test account sat in it (`apps/server/src/stats/report.ts`), and every read here
+ * AI, a guest or a test account sat in it (`games/magic/server/src/stats/report.ts`), and every read here
  * asks for rated matches only, so the record, the history, every breakdown and the picker's deck
  * order count none of them. The boards rank nothing else to begin with. The store keeps them (the
  * operator, 2026-10-16: *"we should keep the logs"*).

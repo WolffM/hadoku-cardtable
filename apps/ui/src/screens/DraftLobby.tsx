@@ -10,7 +10,7 @@
  *
  * ## Seats are additive, not a new gate (wave 72 §R.1)
  *
- * `apps/server/src/room/lobby.ts`'s `startDraft`: "the pod's ready gate
+ * `games/magic/server/src/room/lobby.ts`'s `startDraft`: "the pod's ready gate
  * counts SEATED members only… nobody having sat yet… falls back to 'every
  * member' — the exact gate this had before the pod lobby existed, byte for
  * byte." So `ready-toggle` keeps its exact current meaning (the CALLER's own

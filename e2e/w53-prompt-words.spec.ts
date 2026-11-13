@@ -24,7 +24,7 @@
  *
  * ## The scenario
  *
- * No existing `apps/server/src/play/scenarios/*.state` deals Venser to
+ * No existing `games/magic/server/src/play/scenarios/*.state` deals Venser to
  * either hand — only this exact card hits the bug (this file's own module
  * header), and lane P does not own a new `.state` file (`docs/planning/
  * wave53-2026-10-06.md` §P). `w53-p-venser.state` was written by the wave

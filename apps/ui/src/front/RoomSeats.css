@@ -4,7 +4,7 @@
  */
 @font-face {
   font-family: 'Cinzel';
-  src: url('../../../server/assets/fonts/Cinzel.ttf') format('truetype');
+  src: url('../../../../games/magic/server/assets/fonts/Cinzel.ttf') format('truetype');
   font-display: swap;
 }
 

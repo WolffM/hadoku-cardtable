@@ -9,7 +9,7 @@
  * (argv parsing, console output, the `pnpm build-catalog` entry point) —
  * everything here is a plain function with no top-level side effect, safe to
  * import from `index.ts` and therefore safe to end up inside the SERVER's
- * bundle (`apps/server/src/pools/refresh.ts` calls `runBuildCatalog`
+ * bundle (`games/magic/server/src/pools/refresh.ts` calls `runBuildCatalog`
  * in-process to rebuild without shelling out).
  *
  * ## Why this is its own file and not still under `cli/` (incident, 2026-10-22)
@@ -45,7 +45,7 @@
  * already produced, whether that key is a card's OWN top-level name
  * (canonical: the full card is stored under it) or reached the card through a
  * weaker variant (alias: the key points at the canonical one instead of
- * duplicating the card). `apps/server/src/pools/catalog.ts`'s `byName` then
+ * duplicating the card). `games/magic/server/src/pools/catalog.ts`'s `byName` then
  * tries exactly the two keys `resolve.ts`'s own `requestKeys` tries — nothing
  * about the fold or the ranking is reimplemented there either.
  *
@@ -72,7 +72,7 @@
  * landing in the same bucket string) is another printing of the chosen
  * card — a reprint, a digital-only edition, whatever `cards.jsonl` carries —
  * even when it was NOT the one `toDraftCard` was called on.
- * `apps/server/src/pools/catalog.ts`'s `byPrinting(set, collectorNumber)`
+ * `games/magic/server/src/pools/catalog.ts`'s `byPrinting(set, collectorNumber)`
  * reads this to answer a specific printing's own `scryfallId` while still
  * serving the canonical card's text, which is the entire reason it exists
  * (wave 74 §E: a realistic booster's pack should draw the SET'S OWN art, not

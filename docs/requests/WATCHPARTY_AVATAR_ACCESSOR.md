@@ -117,7 +117,7 @@ reaches our seats instead of being dropped by a list we forgot to update.
 ## What we are not asking you to worry about
 
 - **Our own wire.** We carry the id from our room member to our table view
-  ourselves (`apps/server/src/room/lobby.ts`, `apps/server/src/http/routes.ts`),
+  ourselves (`games/magic/server/src/room/lobby.ts`, `games/magic/server/src/http/routes.ts`),
   and we normalise the three states of `avatarId?: string | null` to two before
   anything draws. That is ours and it is done.
 - **Whether the value is trustworthy.** We accept it from the browser, and the

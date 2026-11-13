@@ -1,6 +1,6 @@
 /**
  * The wire shape of `RoomView.tables`, checked at the schema — the one thing
- * lane G's board strip and `apps/server/src/room/lobby.ts` both have to agree
+ * lane G's board strip and `games/magic/server/src/room/lobby.ts` both have to agree
  * on without importing each other.
  */
 

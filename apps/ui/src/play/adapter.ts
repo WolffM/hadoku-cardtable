@@ -49,7 +49,7 @@
  *
  * - **No Scryfall id from Forge.** A card's print is Forge's `ImageKey`
  *   (`c:Mountain|MRD|1` — name, set, art index), not a Scryfall id. The server
- *   decides which id each face is (`apps/server/src/play/art-ids.ts`) and lays
+ *   decides which id each face is (`games/magic/server/src/play/art-ids.ts`) and lays
  *   it on every face this seat may see whole as `ScryfallId`; the adapter puts
  *   it on the `DraftCard`, and `CardTile` resolves the art exactly as the draft
  *   screen does. The browser looks nothing up by name: a face the server sent
@@ -68,7 +68,7 @@
  *
  * Both arrive (`TrackableProperty.java:16, 90`; mapped by
  * `games/magic/packages/forge-wire/src/tier-c.ts` and let through by
- * `apps/server/src/play/visibility.ts`'s `FACE_ONLY_KEEP`), and they say the
+ * `games/magic/server/src/play/visibility.ts`'s `FACE_ONLY_KEEP`), and they say the
  * same thing from opposite ends — which of them the board may BUILD a stack
  * from is not a matter of taste:
  *
@@ -199,7 +199,7 @@ export interface BoardCard {
   /**
    * A card the viewer holds — in its hand, or its library's revealed top — that another player was
    * shown and still knows: the server's projection names that player in the card's `PlayerMayLook`
-   * for the card's holder only (`apps/server/src/play/visibility.ts`, "What the other seats were
+   * for the card's holder only (`games/magic/server/src/play/visibility.ts`, "What the other seats were
    * shown"), and stops the moment that player forgets it. Absent otherwise.
    */
   seenByOpponent?: boolean;
@@ -449,7 +449,7 @@ export interface BoardPlayer {
    * `PlayerView.NumLandThisTurn` / `.MaxLandPlay` (`tier-c.ts:449,451`) — a land already played this
    * turn, and how many this player may play. "I already played a land this turn." is exact
    * only when `numLandThisTurn >= maxLandPlay` (`./live/mistakes.ts`'s `mistakeOfClick`); the server
-   * reads the same property for its own facts (`apps/server/src/stats/facts.ts:163`). OPTIONAL like
+   * reads the same property for its own facts (`games/magic/server/src/stats/facts.ts:163`). OPTIONAL like
    * `BoardCard`'s late fields — `toBoardView` always sets both, a `BoardPlayer` typed out by hand in
    * another suite need not.
    */
@@ -459,7 +459,7 @@ export interface BoardPlayer {
   hand: BoardCard[] | null;
   /**
    * Someone else's hand in Forge's order, a card this seat was shown and still knows (the server's
-   * projection keeps it and names the seat in its `PlayerMayLook` — `apps/server/src/play/
+   * projection keeps it and names the seat in its `PlayerMayLook` — `games/magic/server/src/play/
    * visibility.ts`, "What a seat was shown") in its place and `null` for every other. Absent when
    * the seat knows none of it, and for the viewer's own hand. A watcher's: every card its wire names.
    */
@@ -1386,7 +1386,7 @@ export const HIDDEN_CARD_NAME = 'Hidden card';
 /**
  * A card's own current name, off its face first and its view second — or
  * `null` when this seat's wire carries none (or a blank one): the server's
- * visibility layer (`apps/server/src/play/visibility.ts`) withholds every
+ * visibility layer (`games/magic/server/src/play/visibility.ts`) withholds every
  * name of a card this seat may not see — a face-down exile, an opponent's
  * hand — and an id it was never sent anything for is the same case.
  */
@@ -1771,7 +1771,7 @@ const ORIGINAL_STATE = 0;
  * current state — neither is `EmptyRoom`, one is that door's split state, both are `Original` — and
  * `CardView` sends it as `CurrentState` beside `Room` and both halves (`LeftSplitState`,
  * `RightSplitState`). So a door is unlocked when the current state is its own or the whole card's.
- * Measured against real Forge in `apps/server/src/play/rooms.jvm.test.ts`. Null for a card that is not
+ * Measured against real Forge in `games/magic/server/src/play/rooms.jvm.test.ts`. Null for a card that is not
  * a Room, or one whose halves this seat was not sent.
  */
 function readDoors(state: WireState, id: number, view: WireObject): [BoardDoor, BoardDoor] | null {
@@ -1839,7 +1839,7 @@ function known(card: BoardCard | null): BoardCard | null {
 
 /**
  * The library's top cards this seat knows, top first: the run from the top of the cards the server's
- * projection sends with a face (`apps/server/src/play/visibility.ts`, "What a seat was shown" — a look
+ * projection sends with a face (`games/magic/server/src/play/visibility.ts`, "What a seat was shown" — a look
  * at the top of a library, a reveal, a card put back from the hand, a static's `MayLookAt`), up to the
  * first it does not know. A card put on top that the seat does not know hides every one under it.
  *

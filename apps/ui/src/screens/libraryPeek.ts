@@ -1,6 +1,6 @@
 /*
  * A card known only by its name: its cost from the committed slice the colours fold, its art as the
- * server decides it (`GET /api/cards/art`, `apps/server/src/http/card-art.ts`). What the room's deck
+ * server decides it (`GET /api/cards/art`, `games/magic/server/src/http/card-art.ts`). What the room's deck
  * chooser, the Gauntlet's tiles, a table card, the deck editor's library pool and basics
  * (`deck/build.ts`) and the board's own deck peek (`play/live/own-deck.tsx`) all draw. A module of
  * its own so the board reads it without the room screen, whose chunk carries the deck library's

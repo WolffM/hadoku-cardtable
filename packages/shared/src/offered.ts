@@ -7,7 +7,7 @@
  *
  * What crosses: battlefield card ids, and nothing about why they can be clicked (a target,
  * an ability, an attacker). The server keeps only ids that every other seat sees face up
- * on a battlefield (`apps/server/src/play/visibility.ts`'s `faceUpOnBattlefield`), so a
+ * on a battlefield (`games/magic/server/src/play/visibility.ts`'s `faceUpOnBattlefield`), so a
  * hand card or a face-down permanent never crosses: a manifested card that may be turned
  * face up would say it is a creature card.
  */

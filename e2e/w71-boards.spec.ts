@@ -8,7 +8,7 @@
  *   keeps one chat, its lobby's, on every table's board.
  *
  * This lane (G) owns the board strip and the chat key; lane D owns the
- * tables themselves (`apps/server/src/room/lobby.ts`, `http/routes.ts`) and
+ * tables themselves (`games/magic/server/src/room/lobby.ts`, `http/routes.ts`) and
  * had not landed when this spec was written — the wave file says to write it
  * now and run it after D lands. Two pieces below are therefore D's CONTRACT,
  * not its code, and are the one thing to re-check if this spec reds on a run

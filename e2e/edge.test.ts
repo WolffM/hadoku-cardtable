@@ -117,8 +117,8 @@ test('a client that resets an upgrade the edge refuses throws nothing in the pro
 });
 
 test('the edge serves the prefs stand-in to the server’s own review store: a person’s row, by their key, read by userId', async () => {
-  const { createPrefsRowsStandIn } = await import('../apps/server/src/http/prefsRowsStandIn.ts');
-  const { createMusicReviewStore } = await import('../apps/server/src/http/musicReviewStore.ts');
+  const { createPrefsRowsStandIn } = await import('../games/magic/server/src/http/prefsRowsStandIn.ts');
+  const { createMusicReviewStore } = await import('../games/magic/server/src/http/musicReviewStore.ts');
   const prefs = createPrefsRowsStandIn({ app: 'cardtable', serviceKey: '', userOfKey: (k) => (k === 'bob-key' ? 'bob-id' : null) });
   const probe = await listen(createServer());
   const port = portOf(probe);

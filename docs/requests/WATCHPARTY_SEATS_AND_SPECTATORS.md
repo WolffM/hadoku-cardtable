@@ -41,7 +41,7 @@ new view once a spectator view lands (§7).
 ## 3. How it works today
 
 **A seat is a deck.** `PUT /rooms/:roomId/deck` writes the member's
-`TablePlayerState`, stamped `seatedAt` (`apps/server/src/http/routes.ts:763-802`).
+`TablePlayerState`, stamped `seatedAt` (`games/magic/server/src/http/routes.ts:763-802`).
 `playersOf` (`:377-385`) treats any member who has that state as a player,
 ordered earliest first. A third member gets **409 "this table already has two
 players"** (`:784-785`, `TABLE_SEATS = 2` at `:311`). So the seat goes to

@@ -7,7 +7,7 @@
  * unify as many of them as we can"*.
  *
  * It answers `order` — Forge's dual list (`DualListBox.java`) and what the server folds
- * into one (a scry, a surveil, a dig: `apps/server/src/play/arrange.ts`) — and
+ * into one (a scry, a surveil, a dig: `games/magic/server/src/play/arrange.ts`) — and
  * `manipulateCardList`, read as the same two ends of a library.
  *
  * ## The zones

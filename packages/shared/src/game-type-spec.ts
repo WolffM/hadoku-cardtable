@@ -12,7 +12,7 @@
  * game's DEEPER rules (deck legality, a draft's own completion, a
  * tournament's locked decks, who may seat a bot mid-round, …) stay that
  * game's own business: Magic's are `GameHooks`
- * (`apps/server/src/room/lobby.ts`, wired in per game type through
+ * (`games/magic/server/src/room/lobby.ts`, wired in per game type through
  * `Lobby.useGameType`), because they need a running server's
  * `draftRooms`/gate to answer — this file never reaches for them.
  *

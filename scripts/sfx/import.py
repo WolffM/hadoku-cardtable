@@ -3,7 +3,7 @@
 
 Reads a `finished/` snapshot — a per-folder `manifest.json` whose entries carry
 `{file, prompt, seconds, ...}`, the shape `scripts/sfx/finish.py` writes — and
-produces the three things `apps/server/src/http/sounds.ts` serves:
+produces the three things `games/magic/server/src/http/sounds.ts` serves:
 
   <to>/catalogue.json          { takes: SoundTake[] }
   <to>/takes/<folder>/<file>   the copied .ogg bytes

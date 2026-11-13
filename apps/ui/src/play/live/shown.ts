@@ -5,7 +5,7 @@
  * They live apart from the drawings on purpose. `match.ts` is the match's state, and the server's
  * monkey runs it under plain Node, where a drawing's `import './dice.css'` is an
  * ERR_UNKNOWN_FILE_EXTENSION (hadoku-cardtable#17). So this module imports no component and no
- * stylesheet; `apps/server/src/no-css.test.ts` keeps everything the server runs that way.
+ * stylesheet; `games/magic/server/src/no-css.test.ts` keeps everything the server runs that way.
  */
 
 import type { CoinFlip, DieRoll } from '@hadoku/forge-wire';

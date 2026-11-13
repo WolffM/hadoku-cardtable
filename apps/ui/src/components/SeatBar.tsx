@@ -52,7 +52,7 @@
  *
  * A seat whose player dropped is released with `{ hold: true }` and reserved
  * against everyone else for a TTL, so they come back to the same chair
- * (`apps/server/src/room/draftRooms.ts`). `draft/seatStatus.ts` derives the
+ * (`games/magic/server/src/room/draftRooms.ts`). `draft/seatStatus.ts` derives the
  * difference from an empty chair and says plainly what it is derived FROM,
  * because the envelope carries no reservation field.
  */

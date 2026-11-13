@@ -1,6 +1,6 @@
 # Request to `hadoku-watchparty`: publish the character pool and a pool-only pick
 
-**Filed 2026-10-11 by cardtable lane YY.** **Status: ANSWERED 2026-11-07** — `@hadoku/rooms-protocol@0.45.55` (watchparty 4030a40d) exports `AVATAR_POOL`, `isAvatarId` and a pure `pickAvatar(worn, preferred?, pool?)`. Cardtable has not adopted it yet: `apps/server/src/room/lobby.ts` still carries its copy, which goes when the room core lands (plan phase 4).
+**Filed 2026-10-11 by cardtable lane YY.** **Status: ANSWERED 2026-11-07** — `@hadoku/rooms-protocol@0.45.55` (watchparty 4030a40d) exports `AVATAR_POOL`, `isAvatarId` and a pure `pickAvatar(worn, preferred?, pool?)`. Cardtable has not adopted it yet: `games/magic/server/src/room/lobby.ts` still carries its copy, which goes when the room core lands (plan phase 4).
 
 ## What the operator saw
 
@@ -14,7 +14,7 @@ Cardtable's room server now hands a member who has picked nothing the first
 character no current member wears, on joining — watchparty's own join rule
 (`apps/server/src/ws/join.ts`: `getAvailableSprites(room)[0]`). A pick replaces
 it; a pick of a handed-out character moves its holder to the next free one.
-`apps/server/src/room/lobby.ts` (`AVATAR_POOL`, `freeAvatar`, `newMember`).
+`games/magic/server/src/room/lobby.ts` (`AVATAR_POOL`, `freeAvatar`, `newMember`).
 
 Two parts of that are copies, because the shared versions cannot be reached:
 
@@ -39,4 +39,4 @@ Two parts of that are copies, because the shared versions cannot be reached:
 ## Done when
 
 Both are published; cardtable then deletes `AVATAR_POOL` and `freeAvatar` from
-`apps/server/src/room/lobby.ts` and imports them.
+`games/magic/server/src/room/lobby.ts` and imports them.

@@ -183,7 +183,7 @@ describe('buildCatalog printings', () => {
 
 /**
  * `runBuildCatalog` — the same build, driven end to end from a `cards.jsonl`
- * on disk rather than an in-memory `CardIndex`, so `apps/server/src/pools/refresh.ts`
+ * on disk rather than an in-memory `CardIndex`, so `games/magic/server/src/pools/refresh.ts`
  * (wave 74 §G) has a function it can call in-process instead of shelling out.
  * No CLI argv here on purpose: `cli/build-catalog.ts`'s own argv parsing is
  * untouched and unexercised by this file — these tests are for the

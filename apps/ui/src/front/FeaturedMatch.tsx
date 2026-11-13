@@ -4,10 +4,10 @@
  * `docs/planning/front-page-and-replay-plan.md` R4).
  *
  * Lane A feeds this `pick`, straight off `GET /api/rooms`'s own `featured`
- * (`apps/server/src/play/featured.ts`'s `FeaturedPick`). With a pick, this
+ * (`games/magic/server/src/play/featured.ts`'s `FeaturedPick`). With a pick, this
  * joins that match exactly the way opening `#/match/<id>` does — the same
  * transport, the same `LiveMatch` — and a socket with no seat lands on
- * `WATCHER_SEAT` by construction (`apps/server/src/play/socket.ts`), so there
+ * `WATCHER_SEAT` by construction (`games/magic/server/src/play/socket.ts`), so there
  * is nothing here that claims one. With no pick, and only while `REPLAYS_ON`,
  * it falls back to a random recent replay, looping, with a REPLAY tag in place of
  * LIVE. With neither, it renders nothing and lane A's grid closes the gap.

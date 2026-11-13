@@ -22,7 +22,7 @@
  *
  * As soon as `view` and the viewer's identity have both resolved — there is no server-side
  * "start" for a pod game type outside Magic's own draft deal, and the lobby's start route refuses
- * one (`apps/server/src/room/lobby.ts`, nobody's this wave), so gating on `underway` would simply
+ * one (`games/magic/server/src/room/lobby.ts`, nobody's this wave), so gating on `underway` would simply
  * never show the game. `view === null`, or identity not yet settled, both render an empty slot
  * rather than mount with a guess.
  *
@@ -62,7 +62,7 @@ import { useHadokuTheme } from '@wolffm/themes';
 // at all is a `platform→magic` violation regardless of which symbol it names. `game-type-spec.ts`
 // is explicitly carved out as `platform` in `layers.json`, and a relative path resolves to that
 // ONE file's own classification instead — the same technique `apps/ui/src/play/art.testing.ts`
-// already uses to reach `apps/server/src/http/card-art.ts`. Still one module and one registry:
+// already uses to reach `games/magic/server/src/http/card-art.ts`. Still one module and one registry:
 // `@hadoku/shared`'s package.json exports only `.` → `./src/index.ts`, which re-exports this same
 // file, so Vite and vitest resolve both paths to the identical module.
 import { gameTypeSpec } from '../../../../packages/shared/src/game-type-spec.ts';

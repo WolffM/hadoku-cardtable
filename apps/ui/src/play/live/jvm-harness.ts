@@ -4,7 +4,7 @@
  *
  * `./replay-server.ts` replays a captured match; this runs one. It starts a
  * match through the server's own exported API (`createMatchRegistry` over
- * `jvmHostFactory`, exactly as `apps/server/src/play/match.jvm.test.ts` does), and
+ * `jvmHostFactory`, exactly as `games/magic/server/src/play/match.jvm.test.ts` does), and
  * connects one `LiveMatch` per seat to it. Everything on the client side is
  * the product path: `ingest`, the fold, `LiveBoard`, the prompt components,
  * `answerAsk`. Every answer a component gives travels `answerAsk` →
@@ -21,7 +21,7 @@
  * `safeParseClientFrame` → `Match.fromClient`), and delivery is asynchronous
  * in both directions, one macrotask per message, as a socket's would be. The
  * socket hop itself is proven elsewhere: `./match.test.ts` (client over a real
- * socket.io server) and `apps/server/src/play/socket.test.ts` (server over
+ * socket.io server) and `games/magic/server/src/play/socket.test.ts` (server over
  * real clients). Going through `attachPlay` here would need the edge-auth
  * environment `CONFIG` reads at import time, which a test cannot set per case.
  *
@@ -40,21 +40,22 @@ import { isTierC, safeParseClientFrame, type ClientFrame, type ServerFrame } fro
 import { ARRANGEMENT_EVENT, CLIENT_EVENT, OFFERED_EVENT, PLACED_EVENT, PRESENCE_EVENT } from '@hadoku/shared';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type MatchSpec } from '@hadoku/game-server/play/host';
-import type { BridgeCommand, BridgeLine } from '../../../../server/src/play/bridge-protocol.ts';
-import { withEndStepStop } from '../../../../server/src/play/auto.ts';
-import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
-import { WATCHER_SEAT } from '../../../../server/src/play/match/forge-session.ts';
-import { dumpTimeoutReport, scenarioText, summarizeFrame } from '../../../../server/src/play/scenario.ts';
+import type { BridgeCommand, BridgeLine } from '../../../../../games/magic/server/src/play/bridge-protocol.ts';
+import { withEndStepStop } from '../../../../../games/magic/server/src/play/auto.ts';
+import { createMatchRegistry, type Match } from '../../../../../games/magic/server/src/play/match.ts';
+import { WATCHER_SEAT } from '../../../../../games/magic/server/src/play/match/forge-session.ts';
+import { dumpTimeoutReport, scenarioText, summarizeFrame } from '../../../../../games/magic/server/src/play/scenario.ts';
 import type { BoardView, DamageHit, FaceHit } from '../adapter.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from './match.ts';
 import { MATCH_EVENTS, type MatchSnapshot, type ServerEnvelope, type WireCursor } from './transport.ts';
+import { BRIDGE_SOURCE } from '../../../../../games/magic/server/src/root.ts';
 
 export type { BridgeLine, MatchSpec };
 export { liveJvmCount };
 
 /** Is a Forge build configured? The same check the server's JVM test skips on. Warm spare off: one JVM per test match, nothing left behind. */
 export function forgeAvailability() {
-  return jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
+  return jvmHostConfig(BRIDGE_SOURCE, { ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 }
 
 type Notify<M extends string> = Extract<ServerFrame, { method: M }>;
@@ -136,7 +137,7 @@ function later(fn: () => void): void {
 }
 
 /**
- * `dump`, when given, is captured on a timeout — `apps/server/src/play/
+ * `dump`, when given, is captured on a timeout — `games/magic/server/src/play/
  * scenario.ts`'s `dumpTimeoutReport`, the ONE function both jvm harnesses
  * call (S11, wave 64): before this fold this file kept no bridge stderr and
  * removed the run dir on `stop()`, so a timeout here had nothing to
@@ -177,7 +178,7 @@ export interface DesyncSource {
 /**
  * What `seat` should hold at `cursor`, two ways. `whole`: every state frame the server sent the seat
  * by then, in order — the snapshot as it was before the server compacted it. `served`: the snapshot
- * the server answers a join with now (its history's base and the turn since, `apps/server/src/play/
+ * the server answers a join with now (its history's base and the turn since, `games/magic/server/src/play/
  * history.ts`), when the server is still at that cursor, and null once it has moved on: a frame sent
  * after `cursor` is the seat's next fold, not a desync. Throws when the server never sent that seat
  * that cursor.
@@ -286,7 +287,7 @@ function expectHitsDealt(seat: number, held: Pick<BoardView, 'hits' | 'faceHits'
 }
 
 /**
- * A match that starts where a question is asked: `apps/server/src/play/
+ * A match that starts where a question is asked: `games/magic/server/src/play/
  * scenarios/<name>.state` applied after the mulligan, both seats human.
  * `human…` keys are seat 0's, `ai…` keys seat 1's.
  *

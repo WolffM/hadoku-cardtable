@@ -1,6 +1,6 @@
 /**
  * Builds the e2e stack's own card catalog fixture — a small, committed
- * subset of the real catalog (`apps/server/src/pools/catalog.ts`'s own
+ * subset of the real catalog (`games/magic/server/src/pools/catalog.ts`'s own
  * `{cards, aliases, printings}` shape), covering exactly the sets
  * `draft-sets.spec.ts` deals: ISD, ALA, ARB.
  *

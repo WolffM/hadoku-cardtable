@@ -137,8 +137,8 @@ ART_CACHE="${CARDTABLE_SCRYFALL_DIR:-$HOME/.local/share/cardtable/scryfall}"
 if [ -f "$ART_CACHE/cards.jsonl" ]; then
   PATH="$NODE_BIN:$PATH" node --max-old-space-size=6144 scripts/art/build-art-ids.ts --no-tokens --cache="$ART_CACHE" > "$TMP.art.log" 2>&1 \
     || { tail -20 "$TMP.art.log"; echo "land: art rows FAILED — nothing pushed (log $TMP.art.log)" >&2; exit 5; }
-  if ! git diff --quiet -- apps/server/src/play/art-ids.json; then
-    git commit -qm "art: rows for the cards this land's scenarios and decks place" -- apps/server/src/play/art-ids.json
+  if ! git diff --quiet -- games/magic/server/src/play/art-ids.json; then
+    git commit -qm "art: rows for the cards this land's scenarios and decks place" -- games/magic/server/src/play/art-ids.json
     echo "land: art rows — $(grep -oE 'added [0-9]+ new' "$TMP.art.log")"
   fi
 else
@@ -153,7 +153,8 @@ CHANGED=$(git diff --name-only origin/main..HEAD)
 # runs on: `scripts/ci/run-all.txt`'s config and dependencies, a package, the test setup — or a
 # deleted module, which `related` cannot follow to the suites that still import it. The server's
 # platform package's source is the exception: it is the server's own code, which `related` follows
-# through its `@hadoku/game-server/*` imports as it did when it lived in apps/server.
+# through its `@hadoku/game-server/*` imports as it did when it lived in apps/server. Magic's server
+# (`games/magic/server`) is not under a `packages/` directory, so its source is `related`'s too.
 TESTS="pnpm run test"
 GONE=$({ grep -E '\.tsx?$' <<<"$CHANGED" || true; } | while read -r f; do [ -f "$f" ] || echo "$f"; done)
 if [ -z "$GONE" ] && ! { grep -vE '^packages/game-server/src/' <<<"$CHANGED" || true; } | grep -qE -e '^(packages/|games/[^/]+/packages/|apps/ui/src/test-setup\.ts$)' -f <(grep -v '^#' scripts/ci/run-all.txt); then

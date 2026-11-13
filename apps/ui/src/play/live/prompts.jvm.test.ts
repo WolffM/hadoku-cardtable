@@ -5,7 +5,7 @@
  * One real match in a real child JVM per row of `ROWS` (`./jvm-harness.ts`),
  * two seats each, each seat a `LiveBoard` driven by `./game-driver.ts`. Each
  * row STARTS where Forge asks its question: a scenario
- * (`apps/server/src/play/scenarios/<name>.state`) puts alice at her own main
+ * (`games/magic/server/src/play/scenarios/<name>.state`) puts alice at her own main
  * phase holding the card that makes Forge ask, and the driver plays it.
  *
  * - Arc Lightning divides damage: the division is `assignGenericAmount`.
@@ -66,7 +66,7 @@
  *   `./LiveBoard.test.ts` prove that against the replay server.
  *
  * Hidden information is checked on the way: the server's leak oracle
- * (`apps/server/src/play/fixtures/transcript.ts`) over every envelope each seat
+ * (`games/magic/server/src/play/fixtures/transcript.ts`) over every envelope each seat
  * was sent. In the targets and combat rows each seat holds a card in hand the
  * other never sees and nobody casts, so there are secrets to leak.
  *
@@ -90,7 +90,7 @@
  *
  * **These scenarios do not test the stop set.** They exist to prove that fifteen
  * prompt shapes are asked, drawn, answered and accepted without a desync or a
- * leak. The stop set is asserted directly by `apps/server/src/play/auto.test.ts`
+ * leak. The stop set is asserted directly by `games/magic/server/src/play/auto.test.ts`
  * and `auto.jvm.test.ts`, which is where a change to it belongs. So every seat
  * here is pinned to {@link EVERY_PRIORITY_POLICY} — the stop behaviour that WAS
  * the default until 2026-09-28 — restoring the timing these scenarios were
@@ -109,8 +109,8 @@ import { cleanup } from '@testing-library/react';
 
 import type { ChoiceOption } from '@hadoku/forge-wire';
 
-import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
-import { leaked, rawStatesOf, secretsFor, shownByAsks } from '../../../../server/src/play/fixtures/transcript.ts';
+import { EVERY_PRIORITY_POLICY } from '../../../../../games/magic/server/src/play/auto.ts';
+import { leaked, rawStatesOf, secretsFor, shownByAsks } from '../../../../../games/magic/server/src/play/fixtures/transcript.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import { lookupFromState, type PromptCardFacts } from '../prompts/lookup.ts';
 import { nameFromForgeLabel } from '../prompts/PromptShell.tsx';
@@ -144,7 +144,7 @@ function answered(h: LiveHarness, method: string) {
  *
  * What every row asserts is the leak itself, and that every secret really was
  * in Forge's unprojected stream — so a projection that started leaking is
- * caught by the guarded rows (and by `apps/server/src/play/match.jvm.test.ts`,
+ * caught by the guarded rows (and by `games/magic/server/src/play/match.jvm.test.ts`,
  * which counts secrets in the hundreds) on the same run.
  */
 function expectNoLeak(h: LiveHarness, mustHaveSecrets = true): void {

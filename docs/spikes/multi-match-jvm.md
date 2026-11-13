@@ -171,8 +171,8 @@ All on the claws through `forge.yml`. Forge-side changes cannot be shown by a lo
 | [40297104081](https://github.com/WolffM/hadoku-cardtable/actions/runs/40297104081) | `005e8186`, branch rebased on main (`bbb6defd`) | shard 2's 3 unfinished suites (`ai-cards-warning`, `cant-block`, `match-frames`) + `multi-match` | **green**, 4/4 |
 
 The full run was on `4b71abcc`. The branch was then rebased onto main with lane-rng
-landed (`0f9c92d6`). The rebase changed nothing in `apps/server/src/play` or the
-`forge` gitlink: `git diff 4b71abcc bbb6defd -- apps/server/src/play forge` is
+landed (`0f9c92d6`). The rebase changed nothing in `games/magic/server/src/play` or the
+`forge` gitlink: `git diff 4b71abcc bbb6defd -- games/magic/server/src/play forge` is
 empty. What main added in between is UI sound and docs.
 
 Single-match behaviour unchanged: every existing jvm suite and e2e spec runs a

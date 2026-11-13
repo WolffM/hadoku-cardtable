@@ -15,8 +15,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_STOP_POLICY } from '../../../../server/src/play/auto.ts';
-import { available, deck, everySeat, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
+import { DEFAULT_STOP_POLICY } from '../../../../../games/magic/server/src/play/auto.ts';
+import { available, deck, everySeat, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../../games/magic/server/src/play/scenario.ts';
 import { toBoardView } from '../adapter.ts';
 
 const title = available.ok ? 'a ventured dungeon is drawn in its player’s Command zone, against real Forge' : `acererak-venture, against real Forge — SKIPPED: ${available.reason}`;

@@ -1,6 +1,6 @@
 /**
  * Splitting the room view into a platform base and Magic's composition must not move a single byte of what a browser already
- * reads, and Magic's fields reach it only as `game`. These fixtures are shaped like `apps/server/src/http/rooms.test.ts`'s "answers a room the
+ * reads, and Magic's fields reach it only as `game`. These fixtures are shaped like `games/magic/server/src/http/rooms.test.ts`'s "answers a room the
  * browser reads as itself" room — a real draft room's view and body — and the expected output below
  * was captured by running them through `RoomViewSchema`/`RoomBodySchema` BEFORE the split (the
  * monolithic schema that lived whole in `room-view.ts`). If the split ever changes what either

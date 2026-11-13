@@ -200,7 +200,7 @@ export function createRoomFields(req: Omit<CreateRequest, 'name'>): Record<strin
 }
 
 /**
- * `GET /api/rooms`'s own pick of a room with something going on (`apps/server/src/play/featured.ts`),
+ * `GET /api/rooms`'s own pick of a room with something going on (`games/magic/server/src/play/featured.ts`),
  * sent alongside the list so the front page's banner never needs a second route. `null` when nothing
  * is live, or the chosen match's room is not in THIS caller's list (a testing room, hidden from them).
  */

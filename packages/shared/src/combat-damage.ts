@@ -4,7 +4,7 @@
  *
  * - the browser (`apps/ui/src/play/prompts/AssignPrompts.tsx`) draws the window from
  *   {@link combatDamageRules} and checks an answer against it (`rules.ts`'s `combatDamageProblems`);
- * - the server (`apps/server/src/play/auto.ts`'s `onlyAnswer`) answers the ask itself when
+ * - the server (`games/magic/server/src/play/auto.ts`'s `onlyAnswer`) answers the ask itself when
  *   {@link onlyCombatDamage} finds one legal division, and it never reaches a browser.
  *
  * Every fact is Forge's: the bridge reads them off the views exactly as Forge's own dialog does

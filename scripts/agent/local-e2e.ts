@@ -33,11 +33,12 @@ import { join } from 'node:path';
 import { jvmHostConfig } from '../../packages/game-server/src/play/host.js';
 import type { JvmTransport } from '../../packages/game-server/src/play/jvm-transport.js';
 import { Alerts } from '../../packages/game-server/src/play/placement/alerts.js';
-import { ClawDraftbots, type DraftbotClaw } from '../../apps/server/src/play/placement/draftbot.js';
+import { ClawDraftbots, type DraftbotClaw } from '../../games/magic/server/src/play/placement/draftbot.js';
 import { DRAFTBOT_PIN, packDraftbot, pushDraftbot } from '../../packages/game-server/src/play/remote/artifacts.js';
 import { AgentClient } from '../../packages/game-server/src/play/remote/client.js';
 import { AGENT_KEY_ENV, connectRemoteHost, type RemoteHost } from '../../packages/game-server/src/play/remote/index.js';
 import { privateKeyFrom } from '../../packages/host-wire/src/wire.ts';
+import { BRIDGE_SOURCE } from '../../games/magic/server/src/root.js';
 
 const dir = process.env.AGENT_DIR ?? '';
 if (dir === '') throw new Error('AGENT_DIR is not set');
@@ -191,7 +192,7 @@ if (draftbotClaws.length > 0) {
 	process.exit(0);
 }
 
-const available = jvmHostConfig();
+const available = jvmHostConfig(BRIDGE_SOURCE);
 if (!available.ok) throw new Error(available.reason);
 const config = available.config;
 const env = { [AGENT_KEY_ENV]: readFileSync(join(dir, 'keys', 'signing.key'), 'utf8') };

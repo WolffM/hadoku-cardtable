@@ -11,7 +11,7 @@
  * (read back from the server, not assumed from the click).
  *
  * One browser, one leader: nobody else's control is exercised here (that is
- * `apps/server/src/http/rooms.test.ts`'s "a NON-leader" cases and
+ * `games/magic/server/src/http/rooms.test.ts`'s "a NON-leader" cases and
  * `constructed.test.ts`'s own leader/non-leader split), so this needs no
  * second friend.
  */

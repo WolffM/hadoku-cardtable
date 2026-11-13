@@ -1,6 +1,6 @@
 /*
  * The Decks page's client: `GET /api/decks`, `PATCH`/`DELETE /api/decks/:podId`
- * (`apps/server/src/http/decks.ts`, contract in `@hadoku/shared`'s draft.ts).
+ * (`games/magic/server/src/http/decks.ts`, contract in `@hadoku/shared`'s draft.ts).
  * A deck's build is still saved through `deckStore.ts` — the pod's one save
  * path — so this lists, renames and deletes, and nothing else.
  */

@@ -3,7 +3,7 @@
  *
  * The same shape as a pod: the URL IS the invite. Opening it joins the match
  * over the socket, and the server's first join by a participant claims the
- * first free human seat (`apps/server/src/play/socket.ts`). A match is reached
+ * first free human seat (`games/magic/server/src/play/socket.ts`). A match is reached
  * through its room now, so this screen draws no header and no invite box:
  * both were removed on 2026-09-19, and they must not come back — every row of
  * chrome here is height the table does not have.

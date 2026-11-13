@@ -12,7 +12,7 @@
  *   gauntlet  { family?, era? }           both left out = a random era
  *   random    { pool }                    `full` draws from every family
  *
- * The server (`apps/server/src/room/lobby.ts`) stores the pair and the UI
+ * The server (`games/magic/server/src/room/lobby.ts`) stores the pair and the UI
  * (`apps/ui/src/rooms/api.ts`) reads it; both bind to THIS file, so the shape
  * is stated once.
  */
@@ -47,7 +47,7 @@ export type GameType = string;
  * meaning across every registered type); `table.seats` is the smaller
  * group it actually plays a game WITH, when that differs from the room
  * (both of Magic's own types play a Forge match of two, however many sit
- * in the room). `canStart` mirrors `apps/server/src/room/lobby.ts`'s own
+ * in the room). `canStart` mirrors `games/magic/server/src/room/lobby.ts`'s own
  * `POD_MIN_OPEN` (2): the fewest seats either one is ever started with.
  * Magic's deeper rules (deck legality, a draft's own completion, locked
  * decks, bot play, …) are `GameHooks` in that same file, built in
@@ -64,7 +64,7 @@ registerGameType({
 registerGameType({
   id: 'draft',
   // The pod's own room-wide capacity: it opens at `POD_SEATS` and grows one
-  // seat at a time to `POD_MAX_SEATS` (`apps/server/src/room/lobby.ts`'s
+  // seat at a time to `POD_MAX_SEATS` (`games/magic/server/src/room/lobby.ts`'s
   // `grownSeats`) — Magic's own two types keep that growth unconditionally,
   // never capped by this `max`.
   seats: { min: 2, max: POD_MAX_SEATS },

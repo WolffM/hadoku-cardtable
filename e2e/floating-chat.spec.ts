@@ -8,7 +8,7 @@
  * shown twice.
  *
  * Scenario `af141-mox-opal`, for nothing but a board both seats share: a match no room holds admits
- * both players to its chat (`apps/server/src/room/serve.ts`).
+ * both players to its chat (`games/magic/server/src/room/serve.ts`).
  */
 import { expect, test, type Page } from '@playwright/test';
 

@@ -3,11 +3,11 @@
  * proof as the brief requires: the mulligan's Keep/Mulligan and a shockland's
  * "pay 2 life?" both satisfy it, and an ordinary priority pass does not.
  *
- * Uses the server's own scripted-scenario harness (`apps/server/src/play/
+ * Uses the server's own scripted-scenario harness (`games/magic/server/src/play/
  * scenario.ts`, already a test-support import for this directory —
  * `choose-x.jvm.test.ts` imports it the same way) so the shockland is
  * GUARANTEED in hand rather than hoped for from a shuffled deck: the inline
- * `[state]` text below (the same format `apps/server/src/play/scenarios/
+ * `[state]` text below (the same format `games/magic/server/src/play/scenarios/
  * *.state` uses, see that directory's README) hands seat 0 one Steam Vents
  * and nothing else, landing straight on an uncontested turn-1 Main Phase 1 —
  * the same shape `land-into-middle.state`/`secluded-glen.state` use. This
@@ -37,7 +37,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
+import { available, deck, finishMulligan, startScenario, waitUntil, type Scenario } from '../../../../../games/magic/server/src/play/scenario.ts';
 import { isConfirmPrompt } from './ConfirmPrompt.tsx';
 
 const title = available.ok

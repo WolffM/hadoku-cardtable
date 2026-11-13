@@ -20,7 +20,7 @@ export interface ConnectionState {
    * Whether the server is holding THIS client's seat right now.
    *
    * True only while offline with a seat: `releaseSeat` and the reconnect guard
-   * in `apps/server/src/room/draftRooms.ts` hold a seat against everyone else
+   * in `games/magic/server/src/room/draftRooms.ts` hold a seat against everyone else
    * for the reservation TTL, and a spectator has no seat to hold.
    */
   seatHeld: boolean;

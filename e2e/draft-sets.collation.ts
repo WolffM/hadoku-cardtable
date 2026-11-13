@@ -8,7 +8,7 @@
  * ISD's own recipe (`forge/forge-gui/res/editions/Innistrad.txt`):
  * `Booster=9 Common:!dfc, 3 Uncommon:!dfc, 1 RareMythic:!dfc, 1 dfc, 1 BasicLand`. Forge's
  * `BoosterGenerator.getBoosterPack` may also shrink a common slot for a foil of any rarity.
- * The pool service (`apps/server/src/play/bridge/PoolService.java`'s `draftPack`) leaves the
+ * The pool service (`games/magic/server/src/play/bridge/PoolService.java`'s `draftPack`) leaves the
  * basic land and the foil out and tops the pack up to 15 with the set's commons — the operator,
  * 2026-10-22: "i dont like the land/foil being in the packs. lets make sure all packs are 15
  * cards" — so a drafted ISD pack is 10 commons, 3 uncommons, 1 rare/mythic and 1 DFC.

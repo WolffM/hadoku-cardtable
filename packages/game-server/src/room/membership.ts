@@ -3,7 +3,7 @@
  * member is ready, and whether a password opens it. Every mutator here works
  * on a GENERIC member/room shape — no `gameType`, pod, draft, format or
  * tournament field appears anywhere in this file — so it stays behind in
- * `apps/server/src/room/` when stage 2b moves the rest of `lobby.ts`'s Magic
+ * `games/magic/server/src/room/` when stage 2b moves the rest of `lobby.ts`'s Magic
  * content to `games/magic/server` (wave 110 §L, phase 2).
  *
  * Split out of `room/lobby.ts`'s `join`/`leave`/`setReady`/`viewOf`/`#persist`.

@@ -137,7 +137,7 @@ export const DraftCardSchema = z.object({
   faces: z.array(CardFaceSchema).optional(),
   /**
    * A realistic booster's own foil, carried off Forge's `PaperCard.isFoil()`
-   * (`apps/server/src/play/bridge/PoolService.java`) — `getBoosterPack` can add one of any
+   * (`games/magic/server/src/play/bridge/PoolService.java`) — `getBoosterPack` can add one of any
    * rarity in place of a common slot card, same as a paper pack. Absent means not foil; a cube
    * or set-cube card never sets it.
    */
@@ -326,7 +326,7 @@ export function safeParseDraftView(
  * `GET /api/drafts/:podId/mine` and `PUT /api/drafts/:podId/deck` — the ONE
  * place a drafter's pool and built deck cross the wire outside the draft
  * socket itself. Stated here, matched by the server route
- * (`apps/server/src/http/drafts.ts`), so the UI and the server never drift on
+ * (`games/magic/server/src/http/drafts.ts`), so the UI and the server never drift on
  * the shape.
  *
  *   GET  …/mine   → 200 { pool, deck }            404 — caller drafted no seat
@@ -337,7 +337,7 @@ export function safeParseDraftView(
  *
  * `issues` is a flat `string[]` — refusal MESSAGES, not `WireIssue` objects.
  * The editor has nothing to do with a card-shaped issue object beyond
- * displaying its sentence, and `WireIssue` is `apps/server/src/http/gate.ts`'s
+ * displaying its sentence, and `WireIssue` is `games/magic/server/src/http/gate.ts`'s
  * own type, not this package's to mirror.
  */
 

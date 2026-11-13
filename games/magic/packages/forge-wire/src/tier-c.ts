@@ -567,7 +567,7 @@ const PROPERTY_SHAPE = Object.fromEntries(
 
 /**
  * What the server lays on a face beside Forge's own properties: which Scryfall id the card's art is
- * (`apps/server/src/play/art-ids.ts`), on a face the viewer may see whole and nowhere else. Not
+ * (`games/magic/server/src/play/art-ids.ts`), on a face the viewer may see whole and nowhere else. Not
  * Forge's, so not one of the 211 and never a checksum ordinal.
  */
 const SERVER_FACE_PROPERTIES = {

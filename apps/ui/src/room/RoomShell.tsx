@@ -19,7 +19,7 @@
  *
  * `roomOrigin` points the chrome's whole room socket — join, roster, identity,
  * chat — at `cardtableOrigin()`: this app's own `/room` namespace
- * (`apps/server/src/room/serve.ts`), behind cardtable's member gate, with the
+ * (`games/magic/server/src/room/serve.ts`), behind cardtable's member gate, with the
  * roster read from the same presence tracker our seats use. Watchparty never
  * hears of a cardtable room, so it neither counts one nor holds a deploy for
  * it. `serverOrigin` is still watchparty's, for the characters' names and art.

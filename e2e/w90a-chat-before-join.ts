@@ -82,7 +82,7 @@ export async function chatBeforeJoinScenario(browser: import('@playwright/test')
 
     /* ── bob, a non-member, opens the room directly — no chat, no join log ── */
     // ONE join attempt only, below: the server's own password-guess limiter (`JOIN_RATE_LIMIT`,
-    // `apps/server/src/http/rooms.ts`) spends a token per non-member attempt regardless of whether
+    // `games/magic/server/src/http/rooms.ts`) spends a token per non-member attempt regardless of whether
     // it is right or wrong, and this scenario runs several times over in one server boot under
     // `--repeat-each` — a wrong-then-right pair here cost bob's bucket two tokens a run and tripped
     // "Too many attempts" by the third repeat (observed live). The wrong-password UI itself is

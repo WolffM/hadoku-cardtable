@@ -20,13 +20,13 @@ done
 WT=$(realpath "$1")   # absolute: the @hadoku links are built from it, and a relative one dangles
 # A real install's own links live under the same names; repointing them would break it quietly.
 [ -d "$WT/node_modules/.pnpm" ] && [ ! -L "$WT/node_modules/.pnpm" ] && { echo "link: $WT has its own pnpm install — not linking" >&2; exit 2; }
-# Where each workspace package lives, by name: `packages/*` or `games/*/packages/*`. The source and the
+# Where each workspace package lives, by name: `apps/*`, `packages/*`, `games/*/packages/*` or a game's `games/*/server`. The source and the
 # worktree may differ in layout (a package moved since the source last deployed), so every link is placed
 # by the package's name, never by the source's path.
 declare -A SRC_DIR WT_DIR
 index() {   # index <root> <assoc name>
   local -n into=$2; local m d
-  for m in "$1"/package.json "$1"/{apps,packages,games/*/packages}/*/package.json "$1"/e2e/package.json; do
+  for m in "$1"/package.json "$1"/{apps,packages,games/*/packages}/*/package.json "$1"/games/*/server/package.json "$1"/e2e/package.json; do
     [ -f "$m" ] || continue; d=$(dirname "$m"); d=${d#"$1"}; d=${d#/}
     into[$(node -p "require(process.argv[1]).name" "$m")]=${d:-.}
   done

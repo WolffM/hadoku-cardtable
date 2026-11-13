@@ -13,8 +13,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_STOP_POLICY } from '../../../../server/src/play/auto.ts';
-import { available, deck, finishMulligan, inOwnMain, passUntil, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
+import { DEFAULT_STOP_POLICY } from '../../../../../games/magic/server/src/play/auto.ts';
+import { available, deck, finishMulligan, inOwnMain, passUntil, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../../games/magic/server/src/play/scenario.ts';
 import { toBoardView } from '../adapter.ts';
 
 const title = available.ok ? 'Nomads en-Kor’s effects stay off the board and leave at end of turn, against real Forge' : `en-Kor effects, against real Forge — SKIPPED: ${available.reason}`;

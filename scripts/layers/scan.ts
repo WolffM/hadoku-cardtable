@@ -5,13 +5,13 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { basename, dirname, join, posix } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import ts from 'typescript';
 
-import { type Layer, type Resolver, REPO_ROOT, packageLayerFor, packageOf } from './classify.ts';
+import { type Layer, type Resolver, REPO_ROOT, packageLayerFor, packageNameOf, packageOf } from './classify.ts';
 
-// Every .ts/.tsx file git tracks under an app's or a package's src dir (`packages/*` or a game's
-// `games/*/packages/*`), repo-relative, /-joined.
+// Every .ts/.tsx file git tracks under an app's or a package's src dir (`packages/*`, a game's
+// `games/*/packages/*` or its `games/*/server`), repo-relative, /-joined.
 export function listSourceFiles(): string[] {
 	const out = execFileSync(
 		'git',
@@ -29,6 +29,10 @@ export function listSourceFiles(): string[] {
 			'games/*/packages/*/src/**/*.ts',
 			'games/*/packages/*/src/*.tsx',
 			'games/*/packages/*/src/**/*.tsx',
+			'games/*/server/src/*.ts',
+			'games/*/server/src/**/*.ts',
+			'games/*/server/src/*.tsx',
+			'games/*/server/src/**/*.tsx',
 		],
 		{ cwd: REPO_ROOT, encoding: 'utf8' },
 	)
@@ -209,8 +213,7 @@ export interface LicenceMismatch {
 
 /** `platform` iff every one of a package's classified files is `platform`; else GPL-3.0-or-later. */
 export function expectedLicenceOf(pkgDir: string, resolver: Resolver, allFiles: string[]): string {
-	const name = basename(pkgDir);
-	return packageLayerFor(name, resolver, allFiles) === 'platform' ? 'MIT' : 'GPL-3.0-or-later';
+	return packageLayerFor(packageNameOf(pkgDir), resolver, allFiles) === 'platform' ? 'MIT' : 'GPL-3.0-or-later';
 }
 
 interface PackageLicenceRow {
@@ -221,15 +224,15 @@ interface PackageLicenceRow {
 }
 
 function allPackageLicenceRows(resolver: Resolver, allFiles: string[]): PackageLicenceRow[] {
-	const out = execFileSync('git', ['ls-files', 'apps/*/package.json', 'packages/*/package.json', 'games/*/packages/*/package.json'], {
+	const out = execFileSync('git', ['ls-files', 'apps/*/package.json', 'packages/*/package.json', 'games/*/packages/*/package.json', 'games/*/server/package.json'], {
 		cwd: REPO_ROOT,
 		encoding: 'utf8',
 	})
 		.split('\n')
 		.filter(Boolean);
 	return out.map((relPath) => {
-		const pkgDir = dirname(relPath); // e.g. apps/server, packages/shared or games/magic/packages/deck
-		const name = basename(pkgDir);
+		const pkgDir = dirname(relPath); // e.g. apps/server, packages/shared, games/magic/packages/deck or games/magic/server
+		const name = packageNameOf(pkgDir);
 		const pkgJson = JSON.parse(readFileSync(join(REPO_ROOT, relPath), 'utf8'));
 		return {
 			name,

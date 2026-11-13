@@ -31,7 +31,7 @@ JDK=${JDK:-$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")}
 JAR=${JAR:-$HOME/.local/share/cardtable/jars/c83701093637dda4bdd420c9457cdee821a54fd0.jar}
 RES=${RES:-/home/hadoku/srv/hadoku-cardtable/forge/forge-gui/res}
 STAGE=${STAGE:-$HOME/.cache/lane-stress/stage}
-CUBE=${CUBE:-$HERE/../../apps/server/pools/cubes/mtgo-vintage-cube-2025-04.json}
+CUBE=${CUBE:-$HERE/../../games/magic/server/pools/cubes/mtgo-vintage-cube-2025-04.json}
 DECKS=${DECKS:-$HERE/decks}
 REMOTE='.cache/cardtable-stress'
 

@@ -16,7 +16,7 @@
  * dependency can only run this direction — importing back would be a cycle.
  * The shapes are restated here, field for field, the same discipline
  * `room-tables.ts`'s `RoomTableGame`/`RoomTableSeries` already keep for
- * `apps/server/src/room/lobby.ts`'s own mirrors of THEM. `apps/server/src/room/lobby.ts`
+ * `games/magic/server/src/room/lobby.ts`'s own mirrors of THEM. `games/magic/server/src/room/lobby.ts`
  * (lane P) is the one place that holds both a `MatchResult`/`StandingsRow`
  * from `@hadoku/draft` and a `PodMatchResult`/`PodStandingsRow` for the wire,
  * and it is responsible for the two staying byte-for-byte the same shape.
@@ -216,7 +216,7 @@ export const PodViewSchema = z.strictObject({
   pairings: z.array(PodPairingSchema),
   /**
    * The CURRENT round's bot games still being played: two AI entrants paired together, playing it out in
-   * Forge with no table (`apps/server/src/play/botgames.ts`). Each leaves this list for `results` when it ends.
+   * Forge with no table (`games/magic/server/src/play/botgames.ts`). Each leaves this list for `results` when it ends.
    */
   botGames: z.array(z.strictObject({ players: z.tuple([z.string().min(1), z.string().min(1)]) })).optional(),
   /** The CURRENT round's bye, or `null` (an even round, or outside `rounds`). */

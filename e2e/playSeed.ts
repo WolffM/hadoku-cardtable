@@ -9,9 +9,9 @@
  * pick, so the e2e plays ONE game rather than a new one each run. The chain is
  * short and every link is checked: `play/harness.ts` puts it on the play
  * server's environment, `parseStartBody` reads it into `MatchSpec.seed`
- * (`apps/server/src/play/socket.ts`), `bridgeConfig` spreads the spec to the
+ * (`games/magic/server/src/play/socket.ts`), `bridgeConfig` spreads the spec to the
  * JVM, and `PlayBridge.startMatch` calls `MyRandom.setRandom(new Random(seed))`
- * before a card is dealt. `apps/server/src/play/seed.jvm.test.ts` measures the
+ * before a card is dealt. `games/magic/server/src/play/seed.jvm.test.ts` measures the
  * end of that chain against a real Forge: two cold matches on one seed, the
  * same library order both times.
  *

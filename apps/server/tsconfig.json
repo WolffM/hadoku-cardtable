@@ -1,18 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // nodenext (inherited): this package IS run by Node, unlike apps/ui which
-    // Vite serves. That is why the relative imports here carry a `.js`
-    // extension — nodenext ESM requires one, and tsc does not add it.
+    // nodenext (inherited): this package IS run by Node. Relative imports carry `.js`; Magic's
+    // files are imported through `@hadoku/magic-server/<path>` (its `./*` export).
     //
-    // `noEmit` because tsc does not produce this package's output any more:
-    // `@hadoku/draft` and `@hadoku/shared` export TypeScript SOURCE whose own
-    // imports carry `.ts` extensions, and tsc refuses to EMIT a program
-    // containing those — `allowImportingTsExtensions` below is only legal
-    // alongside `noEmit` (TS5096), and without it the program does not compile
-    // at all (TS5097). So `tsc` typechecks and esbuild bundles; see
-    // `package.json`'s `build` and `src/index.ts`'s header. `dist/index.js` is
-    // still what runs in production.
+    // `noEmit` because esbuild, not tsc, builds `dist/` (`package.json`'s `build`, and
+    // `src/index.ts`'s header): the workspace packages export TypeScript SOURCE with `.ts`
+    // imports, which needs `allowImportingTsExtensions`, which is only legal with `noEmit`.
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "declaration": false,
@@ -20,15 +14,7 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  // Tests are included so they are TYPECHECKED. They cannot reach `dist/`:
-  // esbuild bundles from `src/index.ts` and the catalog build's worker
-  // (`src/pools/catalog-build-worker.ts`) alone, so nothing a test defines is
-  // reachable from an entry point or emitted.
-  "include": ["src/**/*.ts"],
-  // `src/play/monkey/` (the monkey seat fuzzer, never imported by `src/index.ts`)
-  // reaches into `apps/ui/src` for its board/prompt rules, which need the DOM
-  // lib this package deliberately does not have. Its own `tsconfig.json`
-  // typechecks it with that lib added; excluded here so adding it does not
-  // reopen DOM globals for this package's real product code.
-  "exclude": ["src/play/monkey"]
+  // Tests are included so they are typechecked; esbuild bundles from `src/index.ts` and Magic's
+  // catalog worker alone, so nothing a test defines reaches `dist/`.
+  "include": ["src/**/*.ts"]
 }

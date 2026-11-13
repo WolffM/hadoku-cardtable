@@ -4,7 +4,7 @@
  * opponent about paying the cost. lets be careful and resolve these things
  * one at at time, i dont think it should be showing simultaneously."*
  *
- * `apps/server/src/play/w62-condescend.jvm.test.ts` already measured the
+ * `games/magic/server/src/play/w62-condescend.jvm.test.ts` already measured the
  * SERVER side of this against the real jar directly: Forge resolves
  * Condescend's two sub-effects strictly in sequence — bob's own "pay {X} or
  * be countered" is resolved before alice's scry `order` ask is even

@@ -1,5 +1,5 @@
 /*
- * `GET /api/replays` and `GET /api/replays/:matchId` (`apps/server/src/http/replays.ts`,
+ * `GET /api/replays` and `GET /api/replays/:matchId` (`games/magic/server/src/http/replays.ts`,
  * `docs/planning/wave77-2026-10-27.md` §C, contract 2). A replay is a finished match's public
  * stream, read back from `CARDTABLE_RECORDINGS_DIR` — the same `ServerEnvelope`s the watcher
  * channel sent while it was live, so the front page's `FeaturedMatch` and the `#/replay/<id>`

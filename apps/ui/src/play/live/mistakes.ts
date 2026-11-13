@@ -15,7 +15,7 @@
  *    attack aim at a creature the board already marks summoning sick (haste
  *    included — `BoardCard.summoningSick` is already haste-aware).
  *  - "mana" — the server's own `maybeCancelUnpayable`
- *    (`apps/server/src/play/match.ts`) pressing Cancel for a cost it can see
+ *    (`games/magic/server/src/play/match.ts`) pressing Cancel for a cost it can see
  *    nothing pays. It withholds that payment window, so this seat never sees
  *    the payment; the server says why on the `flashIncorrectAction` it sends
  *    instead (`cause: 'unpayable'`), and `match.ts` reads that. Forge's own

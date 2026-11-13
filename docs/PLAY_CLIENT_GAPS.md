@@ -37,7 +37,7 @@ list is what the waves after 17 work from.
   "actionable cards" set during priority (`PlayerControllerHuman.pushActionableCards`,
   gated on FPref `UI_SHOW_ACTIONABLE_HIGHLIGHTS`). Forwarding it would let the
   priority board offer only Forge's actionable cards instead of every card.
-- **Server side:** `apps/server/src/play/match.ts` does not keep a seat's
+- **Server side:** `games/magic/server/src/play/match.ts` does not keep a seat's
   latest `setSelectables` for `resendAfterSnapshot`, as it does prompt and
   buttons. A refresh mid-targeting drops the selection (the client clears it
   on snapshot, which is safe) until Forge's next one.

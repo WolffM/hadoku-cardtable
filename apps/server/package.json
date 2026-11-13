@@ -4,32 +4,27 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "Loopback tunnel server — serves the built @hadoku/ui SPA and the room/draft socket at hadoku.me/cardtable/, friend tier.",
+  "description": "The site: cardtable's loopback tunnel server. Boots the kernel with Magic's plugins (@hadoku/magic-server) and bomberman's room type, serves the built @hadoku/ui SPA, and is the bundle PM2 runs (dist/index.js).",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc --noEmit -p tsconfig.json && esbuild src/index.ts src/pools/catalog-build-worker.ts --bundle --platform=node --format=esm --target=node24 --outdir=dist --entry-names=[name] --external:express --external:socket.io --external:@wolffm/rooms-protocol --external:@wolffm/rooms-server --external:@resvg/resvg-js && node ../../scripts/release/print-build-version.ts > dist/version.txt && tsx src/cli/warm-bridges.ts",
+    "build": "tsc --noEmit -p tsconfig.json && esbuild src/index.ts ../../games/magic/server/src/pools/catalog-build-worker.ts --bundle --platform=node --format=esm --target=node24 --outdir=dist --entry-names=[name] --external:express --external:socket.io --external:@wolffm/rooms-protocol --external:@wolffm/rooms-server --external:@resvg/resvg-js && node ../../scripts/release/print-build-version.ts > dist/version.txt && tsx ../../games/magic/server/src/cli/warm-bridges.ts",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/play/monkey/tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@hadoku/carddata": "workspace:*",
-    "@hadoku/deck": "workspace:*",
-    "@hadoku/draft": "workspace:*",
-    "@hadoku/forge-wire": "workspace:*",
     "@hadoku/game-server": "workspace:*",
-    "@hadoku/host-wire": "workspace:*",
+    "@hadoku/magic-server": "workspace:*",
     "@hadoku/service-kernel": "workspace:*",
     "@hadoku/shared": "workspace:*",
     "@resvg/resvg-js": "^2.6.2",
-    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.27",
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.91",
     "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.91",
     "express": "^5.1.0",
-    "socket.io": "^4.8.3",
-    "zod": "4.5.4"
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "@hadoku/deck": "workspace:*",
     "@types/express": "^5.0.6",
     "esbuild": "0.28.2",
     "socket.io-client": "^4.8.3",

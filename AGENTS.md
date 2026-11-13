@@ -40,10 +40,10 @@ before planning cross-game work.
   the bundle** (a 5.85 MB inlined PNG is a performance bug) and **no copied
   Scryfall `image_uris` blob** (that is what keeps art swappable).
 - **A card's art is a lookup, not a URL.** The server decides every card's
-  Scryfall id (`apps/server/src/play/art-ids.ts`) and every image a browser draws
+  Scryfall id (`games/magic/server/src/play/art-ids.ts`) and every image a browser draws
   is `/api/art/<id>`, which redirects to our copy on `cdn.hadoku.me` (the art
   mirror, `upload-art` → `~/.local/share/cardtable/art/mirror.jsonl`) or else to
-  Scryfall (`apps/server/src/http/card-art.ts`). `apps/server/src/play/art-manifest.json`
+  Scryfall (`games/magic/server/src/http/card-art.ts`). `games/magic/server/src/play/art-manifest.json`
   maps `scryfallId → {source, key}` over the mirror. The art is a **placeholder**
   the operator expects to re-source, so repointing a card must stay a one-line
   data edit. A component that hardcodes an image host has broken this even if
@@ -98,11 +98,12 @@ before planning cross-game work.
 
 ```
 forge/           Forge, a git submodule of the public fork WolffM/forge
-apps/server/     Node room + draft server
+apps/server/     the site: boots Magic's server and bomberman's room type; its dist/ is what PM2 runs
 apps/ui/         React SPA
 packages/shared/ Zod wire schemas
 packages/*       the platform packages (MIT where every file is platform)
-games/magic/     Magic's own home (GPL, games/magic/LICENSE): packages/{carddata,deck,draft,forge-wire}
+games/magic/     Magic's own home (GPL, games/magic/LICENSE): packages/{carddata,deck,draft,forge-wire},
+                 and server/ (@hadoku/magic-server: the bridge, rooms, drafts, pools, Magic's routes)
 cubes/           cube lists
 docs/            architecture, Forge analysis, licensing
 docs/requests/   outbound asks to other repos
@@ -208,7 +209,7 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
   operator cuts a release with `/cutrelease`, which combines the pending files into
   that release's notes and runs it (`docs/RELEASE.md`).
 - **Correcting a past tournament** (a playoff, a mis-scored match, a rename) goes through
-  `npx tsx apps/server/src/cli/tournaments.ts <list|show|add|set|rm|rename|regenerate> --site prod`,
+  `npx tsx games/magic/server/src/cli/tournaments.ts <list|show|add|set|rm|rename|regenerate> --site prod`,
   never a hand edit of `~/srv-data/cardtable/tournaments.json`. It re-ranks the standings from the
   results with the live pods' own ranking, dry-runs unless `--write`, and backs the file up beside
   it first; the running server re-reads the file when it changes, so the tab shows it on the next

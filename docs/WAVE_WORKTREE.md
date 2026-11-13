@@ -66,7 +66,7 @@ hangs off it, and it is still never worked in, but nothing pulls it, so its `for
 moved with the deploy, and its shared copy is `~/.local/share/cardtable/scryfall`.
 
 What the server writes (rooms, drafts, recordings, parked games, sounds, `logs/`) moves out of the clone
-to a state dir once the wrapper sets `CARDTABLE_STATE_DIR` (`apps/server/src/state-dir.ts` moves it on that
+to a state dir once the wrapper sets `CARDTABLE_STATE_DIR` (`packages/service-kernel/src/state/state-dir.ts` moves it on that
 boot), so a deploy can build the next clone aside and swap it in. Unset, as in every worktree and e2e
 run, it stays in `apps/server/data`.
 
@@ -94,7 +94,7 @@ dir under `/tmp/claude-1000`, 8 of 8 green under `~/.cache`. This block said
 then may have been this. `rm -rf` the directory when the lane is done.
 
 **A `[nightly]` test skips with that block, on purpose.** A jar-gated test too slow for
-every push gates itself on `nightly` (`apps/server/src/play/scenario.ts`) and carries
+every push gates itself on `nightly` (`games/magic/server/src/play/scenario.ts`) and carries
 `[nightly]` in its title; `export CARDTABLE_JVM_NIGHTLY=1` runs it. CI sets that on
 every run that is not a push, and its judge accepts a `[nightly]` skip only on a push
 (`ci.yml`, `forge-jvm`). So the block above runs what a push to main runs, which is the

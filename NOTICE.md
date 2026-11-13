@@ -111,7 +111,7 @@ licence texts are in `apps/ui/src/symbols/LICENSE-keyrune.md` and
 
 A room's link preview, and the front page's "Open seats now" card, set their "VS" in **Cinzel** (<https://github.com/NDISCOVER/Cinzel>),
 copyright 2020 The Cinzel Project Authors, licensed under the SIL Open Font License 1.1. It is not
-renamed; the licence is `apps/server/assets/fonts/Cinzel-OFL.txt`.
+renamed; the licence is `games/magic/server/assets/fonts/Cinzel-OFL.txt`.
 
 ## Sound effects
 
@@ -128,7 +128,7 @@ The hand-rolled victory and defeat takes are this project's own.
 
 Audio bytes are never committed to this repository. They are served from the cardtable server's own
 data directory (`CARDTABLE_SOUNDS_DIR`) and never bundled into the UI — see
-`apps/server/src/http/sounds.ts` and `scripts/sfx/import.py`.
+`games/magic/server/src/http/sounds.ts` and `scripts/sfx/import.py`.
 
 ## Music
 

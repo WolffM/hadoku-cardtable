@@ -62,7 +62,7 @@
  * person naming both people's decks — is refused 422 by the deployed bundle
  * behind the edge, not only by a unit test. The `{ opponent: 'ai', seats }`
  * arm is deliberately NOT exercised here: it would boot a second JVM for a
- * claim `apps/server/src/http/tables.test.ts` already makes.
+ * claim `games/magic/server/src/http/tables.test.ts` already makes.
  *
  * Needs a Forge build: `CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`, exactly
  * as the server's `jvm.test.ts`. Without them the live test SKIPS, and its
@@ -1257,7 +1257,7 @@ test(LIVE_TITLE, async ({ browser }) => {
      * The operator, on a creature sitting on the stack while the opponent had no
      * response: *"ridiculous. just resolve it"*. What resolves it is the server
      * passing a priority window Forge itself said the seat can do nothing in
-     * (`apps/server/src/play/auto.ts`, `autoPassReason`).
+     * (`games/magic/server/src/play/auto.ts`, `autoPassReason`).
      *
      * It runs HERE, before `connectHands`, on purpose: the two browsers are the
      * only things in the world that can act at this point, so the ONLY presses
@@ -1506,7 +1506,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     // reddened a dependency-bump commit that could not have touched it.
     // Seeding narrows this but cannot close it: the seed fixes Forge's
     // shuffles and the coin toss, and explicitly NOT the AI or thread timing
-    // (`apps/server/src/play/README.md`), which is what decides how far this
+    // (`games/magic/server/src/play/README.md`), which is what decides how far this
     // game actually gets.
     //
     // So the assertion is split by what it can honestly claim:
@@ -1515,7 +1515,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     //   - nothing was ever castable, or only spells it had to back out of →
     //     the scenario never happened, reported loudly and not failed.
     //
-    // The BEHAVIOUR itself is not left to this test: `apps/server/src/play/
+    // The BEHAVIOUR itself is not left to this test: `games/magic/server/src/play/
     // auto.test.ts` decides every captured priority window against real Forge
     // frames, deterministically, and the tracker mutation-tested it (removing
     // the guard fails 2 of 76). This test is the end-to-end demonstration,
@@ -1533,7 +1533,7 @@ test(LIVE_TITLE, async ({ browser }) => {
       // guarantees** (`s7-play-spec-still-failing.md`, S's own diagnosis,
       // confirmed against real Forge facts, a bisection back to pre-wave
       // code AND a pre-R15 jar, and two new real-Forge tests proving the
-      // mechanism sound): `apps/server/src/play/auto.ts`'s `decideStop`
+      // mechanism sound): `games/magic/server/src/play/auto.ts`'s `decideStop`
       // correctly auto-passes the CASTER's own priority once her lands are
       // excluded from `facts.sources` — but bob's deck ("UB Faeries") holds
       // genuine instant-speed responses (Spellstutter Sprite, Slaughter
@@ -2100,7 +2100,7 @@ interface JvmFate {
  *  - and it is inside `ORPHAN_MAX_MS` of its `orphanedAt`, past which the next
  *    boot kills it rather than taking it back.
  *
- * Proving a re-attach END TO END is `apps/server/src/play/host.test.ts` and the
+ * Proving a re-attach END TO END is `games/magic/server/src/play/host.test.ts` and the
  * jar-gated `jvm.test.ts`; this is the e2e's claim that the real server, killed
  * for real, left the real match in a state those can pick up.
  *

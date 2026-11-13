@@ -12,7 +12,7 @@
  *     (`match.format`); the name search narrows the rows it answered.
  *   - **Room type is the format's other half.** A draft room's tables always
  *     play its pod's pool, reported as format `draft`, and a constructed room
- *     never does (`apps/server/src/http/routes.ts`, "A pod's tables play a
+ *     never does (`games/magic/server/src/http/routes.ts`, "A pod's tables play a
  *     DRAFTED pool") — so Constructed is the four constructed formats and Draft
  *     pod is `draft`, for every match ever recorded, with no attr to add.
  *   - **Each row draws the deck's colours** and opens its list on hover with

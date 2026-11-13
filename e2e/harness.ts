@@ -39,7 +39,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createPrefsRowsStandIn } from '../apps/server/src/http/prefsRowsStandIn.ts';
+import { createPrefsRowsStandIn } from '../games/magic/server/src/http/prefsRowsStandIn.ts';
 import { PREFS_MOUNT, startEdge } from './edge.ts';
 import { assertProductionBundle } from './fit-pages.ts';
 import { STREAM_BASE_PORT, STREAM_NAME_PREFIX, STREAM_PORT_MAX } from './streamNamespace.ts';

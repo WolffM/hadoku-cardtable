@@ -259,7 +259,7 @@ describe('a surveil: Top | Graveyard', () => {
 });
 
 /*
- * A dig, as the server folds it (`apps/server/src/play/arrange.ts`'s `digAsk`): every card looked
+ * A dig, as the server folds it (`games/magic/server/src/play/arrange.ts`'s `digAsk`): every card looked
  * at starts in the `rest` zone, and the answer is the chosen zone, `min`..`max` of them.
  */
 describe('a dig: a fateseal and Impulse', () => {

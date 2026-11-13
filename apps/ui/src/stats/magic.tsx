@@ -37,7 +37,7 @@ export const renderName: RenderName = (name) => (
 export const MATCH_META = ['attr:format', 'attr:pool', 'counter:turns', 'attr:endReason'] as const satisfies readonly MatchMeta[];
 export const COUNTER_LABELS = { turns: 'turns' } as const;
 
-/** How a won game ended (`apps/server/src/stats/facts.ts`'s `EndReason`); `other` says nothing worth a word. */
+/** How a won game ended (`games/magic/server/src/stats/facts.ts`'s `EndReason`); `other` says nothing worth a word. */
 const ENDED: Readonly<Record<string, string>> = { life: 'Life', poison: 'Poison', decking: 'Decked', concede: 'Concede' };
 
 /**

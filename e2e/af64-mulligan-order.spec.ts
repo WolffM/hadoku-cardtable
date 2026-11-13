@@ -9,7 +9,7 @@
  *
  * Alice mulligans twice and keeps, so she puts two cards back; she picks them on her hand, presses
  * OK, and the ordering window opens with exactly those two cards. She submits it and the match goes
- * on. Which card ends where is `apps/server/src/play/mulligan.jvm.test.ts`'s claim, read off the wire.
+ * on. Which card ends where is `games/magic/server/src/play/mulligan.jvm.test.ts`'s claim, read off the wire.
  *
  * The match is started like `startScenarioMatch` starts one, minus its keep-every-hand step: the
  * mulligan runs on the dealt hand before the scenario applies, which is all this needs.

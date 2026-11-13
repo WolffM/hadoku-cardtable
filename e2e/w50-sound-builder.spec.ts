@@ -47,7 +47,7 @@
  *
  * ## What is NOT proven here
  *
- * `apps/server/src/http/sounds.test.ts` (lane S) is the place for traversal
+ * `games/magic/server/src/http/sounds.test.ts` (lane S) is the place for traversal
  * attempts, a malformed cell, and the 403/400 shapes in detail; this spec
  * only needs the two outcomes a real browser sees — an editable grid, or
  * nothing.

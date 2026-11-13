@@ -257,7 +257,7 @@ claim about this package:
   `D13 control: N cards, no image field and no image URL.` —
   and `project.test.ts` and `resolve.test.ts` both still bite on it.
 - **Art lives in a separate file that `build-pool` never writes.**
-  `apps/server/src/play/art-manifest.json` maps `scryfallId → { source, key }`,
+  `games/magic/server/src/play/art-manifest.json` maps `scryfallId → { source, key }`,
   over the art mirror's log (`upload-art`); the server answers `/api/art/<id>` from both.
   That separation is deliberate and load-bearing: the pool is regenerated
   wholesale, so art assignments kept inside it would be silently discarded by

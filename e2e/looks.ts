@@ -2,7 +2,7 @@
  * Dressing a test person, and reading what a screen drew of them.
  *
  * The edge's prefs-api stand-in answers the server's `_avatar/resolve`
- * (`apps/server/src/http/prefsRowsStandIn.ts`); a spec sets what someone looks
+ * (`games/magic/server/src/http/prefsRowsStandIn.ts`); a spec sets what someone looks
  * like there, by their key, the way their own avatar popout would.
  */
 

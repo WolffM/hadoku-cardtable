@@ -6,10 +6,10 @@
  *   pnpm --filter @hadoku/carddata build-pool
  *   pnpm --filter @hadoku/carddata build-pool -- --cube="MTGO Vintage Cube 2025-12.dck"
  *
- *   # the 8-cube shortlist, written as apps/server/pools/cubes/<stem>.json:
+ *   # the 8-cube shortlist, written as games/magic/server/pools/cubes/<stem>.json:
  *   pnpm --filter @hadoku/carddata build-pool -- \
  *     --cube="MTGO Vintage Cube 2025-12.dck" --cube="MTGO Legacy Cube 2021-08.dck" … \
- *     --out-dir=../../../../apps/server/pools/cubes
+ *     --out-dir=../../server/pools/cubes
  *
  * `--cube=` may repeat; each one is resolved and written separately to
  * `--out-dir=` (one file per cube, named by `slug()` below) rather than all
@@ -24,7 +24,7 @@
  * over a wire later, so nothing about the UI changes when a server appears.
  * The server's shortlist files are the SAME shape (`{cube,size,cards}`), read
  * by the same `loadPool` the UI's bundled file always used
- * (`apps/server/src/room/pool.ts`).
+ * (`games/magic/server/src/room/pool.ts`).
  *
  * **A pool is gameplay text only — and that is now a separation, not a ban.**
  * The projection this reads from has no image field, and the writer below names

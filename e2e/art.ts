@@ -1,6 +1,6 @@
 /**
  * Every card image a page asks for is the server's art route, `/api/art/<id>`, which redirects to
- * the art host (`apps/server/src/http/card-art.ts`). A test that blocks or stands in for card art
+ * the art host (`games/magic/server/src/http/card-art.ts`). A test that blocks or stands in for card art
  * intercepts the route itself: Playwright does not route a redirect's follow-up request, so a
  * route on the art hosts no longer sees an image at all — the page would fetch the real one.
  */

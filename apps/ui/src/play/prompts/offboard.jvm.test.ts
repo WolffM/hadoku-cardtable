@@ -36,7 +36,7 @@
  * (`CMatchUI.getAbilityToPlay`, `MatchController.getAbilityToPlay`), so it is
  * no decline.
  *
- * This suite drives the SERVER/bridge directly (`apps/server/src/play/
+ * This suite drives the SERVER/bridge directly (`games/magic/server/src/play/
  * scenario.ts`'s `s.select`/`s.ok`, the same calls a UI click would
  * trigger) rather than through a browser, because this lane's files are
  * `apps/ui/src/play/prompts/**` and lane L (`LiveBoard.tsx`) is the one that
@@ -50,8 +50,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { paymentCost } from '../../../../server/src/play/auto.ts';
-import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
+import { paymentCost } from '../../../../../games/magic/server/src/play/auto.ts';
+import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../../games/magic/server/src/play/scenario.ts';
 
 const title = available.ok
   ? "the W18 soft-lock: Relentless Dead's graveyard target, against a real Forge match"

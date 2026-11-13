@@ -11,7 +11,7 @@
  * into an id first. That is this module, and it is deliberately the only place
  * that knows the shape of that key.
  *
- * The server's art resolver (`apps/server/src/play/art-ids.ts`) composes its
+ * The server's art resolver (`games/magic/server/src/play/art-ids.ts`) composes its
  * index here, beside the card catalog: a browser holds no index and looks
  * nothing up by name.
  *

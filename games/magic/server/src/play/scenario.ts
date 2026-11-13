@@ -1,0 +1,889 @@
+/**
+ * A scripted two-seat match against a REAL Forge JVM, for the wave-32 suites that
+ * have to see what Forge itself does (`endturn.jvm.test.ts`, `blockers.jvm.test.ts`,
+ * `priority.jvm.test.ts`).
+ *
+ * Not a test, and not a driver of good play: it keeps what each seat was last told,
+ * folds each seat's projected state, and exposes the few acts a scenario needs. What
+ * a scenario asserts is what FORGE offered and when, never the quality of a move.
+ *
+ * Every envelope and every bridge line is timestamped on arrival, because the Q5
+ * claim is about gaps in milliseconds.
+ */
+
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { ClientFrameSchema, coreTypes, currentFace, deltaKey, DELTA_TYPE, idsOf, strOf, type ServerFrame } from '@hadoku/forge-wire';
+import { afterEach } from 'vitest';
+
+import { playWorkDir } from '@hadoku/game-server/config';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type JvmHostConfig, type MatchHost } from '@hadoku/game-server/play/host';
+import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
+import type { SeatIdentity } from '@hadoku/shared';
+import { createMatchRegistry, type Match } from './match.js';
+import type { Restored } from './match/registry.js';
+import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
+import type { ServerEnvelope } from '@hadoku/shared';
+import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
+import { BRIDGE_SOURCE } from '../root.js';
+
+export const available = jvmHostConfig(BRIDGE_SOURCE, { ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
+
+/**
+ * A suite or case too slow to run on every push is gated on this and carries `[nightly]`
+ * in its title. CI's `forge-jvm` sets `CARDTABLE_JVM_NIGHTLY=1` on every run that is not
+ * a push (the nightly schedule, a manual run, a PR), and its judge accepts a `[nightly]`
+ * skip only on a push — so the marker and the gate go together, or the job reds.
+ */
+export const nightly = process.env.CARDTABLE_JVM_NIGHTLY === '1';
+
+/** Every scenario started and not yet stopped, by the function that ends it. */
+const running = new Set<() => void>();
+
+/**
+ * A scenario never outlives the test that started it.
+ *
+ * A test's own `finally { await s.stop() }` only covers what happens after it
+ * has the scenario in hand. A helper that starts one and then waits for
+ * something (`castThoughtseize`, and four more like it) throws before the
+ * caller's `try` begins, and its JVM was left running: a match JVM does not
+ * die with the process that started it, by design (`host.ts`). The next suites
+ * then found it at their own pool's boot sweep and counted it against the
+ * match cap, so one flaky cast turned `socket-two-mana-pass` red in 150 ms
+ * with "already running 2 matches" (measured 2026-10-06, two runs in two).
+ *
+ * Registered here, once, because this module is evaluated by every suite that
+ * can start a scenario, and a hook at a module's top level is that suite's own.
+ */
+afterEach(() => {
+	for (const end of [...running]) end();
+});
+
+export function deck(name: string, lines: readonly string[]): string {
+	return `[metadata]\nName=${name}\n[main]\n${lines.join('\n')}\n`;
+}
+
+/**
+ * Wave 33 §S, shape 1 — the text of `scenarios/<name>.state`, read fresh every
+ * call (these are tiny files read once per test, not a hot path). `name` is
+ * the file's basename without `.state`; see `scenarios/README.md` for the key
+ * format and what each one proves.
+ */
+export function scenarioText(name: string): string {
+	const here = dirname(fileURLToPath(import.meta.url));
+	return readFileSync(join(here, 'scenarios', `${name}.state`), 'utf8');
+}
+
+/**
+ * How many of `sent`'s most recent entries go into the dump file (not the inline error text — see
+ * `lastMethods`). Enough to reach back to the start of a minute's wait: 80 kept only the turn after
+ * blockers.jvm Q10's lost pass (run 40854445398), not the combat it was lost in.
+ */
+const DUMP_FRAMES = 1_000;
+
+function slug(label: string): string {
+	return label
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.slice(0, 80);
+}
+
+/**
+ * One sent frame, readably — the level of detail a timed-out wait needs to
+ * say what Forge offered and when. Shared with the UI's jvm harness (S11,
+ * wave 64): `t` is omitted when the caller has no timestamp for it.
+ */
+export function summarizeFrame(seat: number, frame: ServerFrame, t?: number): Record<string, unknown> {
+	const f = frame as unknown as Record<string, unknown>;
+	const out: Record<string, unknown> = { seat, kind: f.kind, method: f.method };
+	if (t !== undefined) out.t = Math.round(t);
+	if (f.callId !== undefined) out.callId = f.callId;
+	if (f.message !== undefined) out.message = f.message;
+	if (f.label1 !== undefined) out.buttons = { label1: f.label1, enable1: f.enable1, label2: f.label2, enable2: f.enable2 };
+	if (Array.isArray(f.cards)) out.cardIds = (f.cards as { id: number }[]).map((c) => c.id);
+	return out;
+}
+
+/** One `sent` entry, through {@link summarizeFrame}. */
+function frameSummary(x: Stamped): Record<string, unknown> {
+	return summarizeFrame(x.seat, x.envelope.frame, x.t);
+}
+
+export interface TimeoutDump {
+	label: string;
+	/** Already-summarized frames (`summarizeFrame`), most recent last. */
+	frames: Record<string, unknown>[];
+	/** Server log entries worth keeping — every one, from this file's own call; the caller's own choice otherwise. */
+	decisions: Record<string, unknown>[];
+	/** Where this match's `bridge.stderr.txt` lives (`matchStderrPath`); null before it was placed. */
+	stderrPath: string | null;
+}
+
+/**
+ * A timed-out `waitUntil` is otherwise a bare "timed out" with nothing to
+ * diagnose from, and CI's `forge-jvm` job uploads no artifact. Writes the
+ * seat's own last frames, the server's decisions, and the bridge's own
+ * stderr tail to one JSON file under `CARDTABLE_PLAY_WORK_DIR`, and returns a
+ * short line (the file's path plus the last 20 frame methods) to fold into
+ * the thrown error's message — the one place a CI log keeps it.
+ *
+ * **Wave 64 §S (S11): the one function both jvm harnesses call.** Until this
+ * fold, the UI's own `apps/ui/src/play/live/jvm-harness.ts` kept none of
+ * this — its `waitUntil` threw a bare message, no stderr, no frames — because
+ * it also removes the run dir on `stop()`, same as this file, so the ONE
+ * place either harness can still read `bridge.stderr.txt` is before that
+ * call, at the moment of the timeout itself. `flow.jvm.test.ts`'s three reds
+ * of 2026-10-08 timed out with nothing to diagnose from for exactly that
+ * reason. Call this at the timeout, never after `stop()`.
+ */
+export function dumpTimeoutReport(input: TimeoutDump): string {
+	const dir = playWorkDir();
+	const base = `${slug(input.label)}-${Date.now()}`;
+	const path = join(dir, `${base}.dump.json`);
+	// The WHOLE stderr goes into the dump (`stderr`), the tail stays for a quick
+	// read: `stop()` reaps the match's run dir before CI's evidence step, so
+	// `forge.yml`'s `*/bridge.stderr.txt` upload never finds it, and the tail was
+	// all a red ever kept. Twice on 2026-10-08 (`w52-s-signet`, runs 37762992480
+	// and 37813876142) it held 22 repeats of `Network encode error …
+	// ArrayIndexOutOfBoundsException` and the first occurrence — the only one
+	// that could carry a cause — was gone.
+	let stderr: string | null;
+	try {
+		stderr = input.stderrPath === null ? null : readFileSync(input.stderrPath, 'utf8');
+	} catch {
+		stderr = null;
+	}
+	const stderrTail = stderr === null ? null : stderr.slice(-8000);
+	try {
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			path,
+			JSON.stringify({ label: input.label, frames: input.frames, decisions: input.decisions, stderrPath: input.stderrPath, stderrTail, stderr }, null, 2),
+		);
+	} catch (err) {
+		return `(dump write failed: ${err instanceof Error ? err.message : String(err)})`;
+	}
+	const lastMethods = input.frames
+		.slice(-20)
+		.map((f) => `s${f.seat}:${(f.method as string | undefined) ?? (f.kind as string | undefined) ?? '?'}`)
+		.join(', ');
+	return `dump: ${path} — last 20 frame methods: ${lastMethods}`;
+}
+
+/**
+ * This file's own call: a `Scenario`'s frames, its server log and stderr path. The whole log: a press
+ * can come from any decider (`auto-confirmed`, `auto-paid`, …), a re-sent window (`window-resent`) or
+ * the test itself (`forge-command`), and a filter to three events hid which one passed Q10's window.
+ * A suite that fails on what it read rather than on a timeout calls it too, before `stop()`.
+ */
+export function dumpOnTimeout(s: Scenario, label: string): string {
+	return dumpTimeoutReport({
+		label,
+		frames: s.sent.slice(-DUMP_FRAMES).map(frameSummary),
+		decisions: s.logs,
+		stderrPath: s.stderrPath(),
+	});
+}
+
+/**
+ * Pay an open "Pay Mana Cost" with `seat`'s lands, ONE AT A TIME. Returns the
+ * step to call on every poll tick.
+ *
+ * Forge takes one mana ability at a time: `InputPayMana.activateManaAbility`
+ * returns false while the one before it is still being played ("Should wait
+ * till previous call to playAbility finishes", `InputPayMana.java:210-213`),
+ * and unlocks in `updateMessage`, which then shows the prompt with what is left
+ * to pay. So a click sent on the next 25 ms tick is DROPPED whenever Forge
+ * needed longer than that for the first — and a script that never clicks a land
+ * twice then has nothing left to click. CI run 37524669423 (2026-10-06, host
+ * load 19) lost two of three clicks that way and timed out a cast.
+ *
+ * The next land is therefore sent only once the payment prompt has CHANGED
+ * since the last click: Forge's own word that the tap before it was taken. And
+ * no land is ever clicked twice — a second click on one the local fold has not
+ * yet shown tapped would land on whatever window follows the payment.
+ */
+export function landPayer(s: Scenario, seat: number): () => void {
+	const clicked = new Set<number>();
+	let promptAtClick: string | null = null;
+	let last: { land: number; at: number } | null = null;
+	return () => {
+		const prompt = s.prompt(seat);
+		if (!/Pay Mana Cost/.test(prompt)) return;
+		if (prompt === promptAtClick) {
+			// A click Forge dropped (it landed on a payment Forge re-showed with no input open) leaves the
+			// land untapped and the words the same: click it again (qt-prompt-parts, runs 39726131463, 39776823060).
+			const dropped = last !== null && Date.now() - last.at > 1_500 && s.zone(seat, 'Battlefield').some((c) => c.id === last!.land && !c.tapped);
+			if (!dropped) return;
+			clicked.delete(last!.land);
+		}
+		const land = s.zone(seat, 'Battlefield').find((c) => c.land && !c.tapped && !clicked.has(c.id));
+		if (land === undefined) return;
+		clicked.add(land.id);
+		promptAtClick = prompt;
+		last = { land: land.id, at: Date.now() };
+		s.select(seat, land.id);
+	};
+}
+
+/**
+ * `dump`, when given, is the scenario to capture on a timeout — every direct
+ * caller inside this file already has one in scope. Never changes whether or
+ * how long this waits; it only enriches what the thrown error says.
+ */
+export async function waitUntil(p: () => boolean, label: string, ms: number, dump?: Scenario): Promise<void> {
+	const deadline = Date.now() + ms;
+	while (!p()) {
+		if (Date.now() > deadline) {
+			const detail = dump === undefined ? '' : ` (${dumpOnTimeout(dump, label)})`;
+			throw new Error(`timed out waiting for ${label}${detail}`);
+		}
+		await new Promise((r) => setTimeout(r, 25));
+	}
+}
+
+/**
+ * Waits until `see` holds for every seat. Each seat's frames arrive on their own stream, so
+ * a wait on one seat's prompt or state says nothing about what another seat has been sent
+ * yet: a test that then reads every seat's view waits here first.
+ */
+export async function everySeat(s: Scenario, see: (seat: number) => boolean, label: string, ms = 10_000): Promise<void> {
+	await waitUntil(() => (s.answerAsks(), s.match.seats.every((_, seat) => see(seat))), label, ms, s);
+}
+
+export interface Stamped {
+	seat: number;
+	envelope: ServerEnvelope;
+	/** `performance.now()` when the server handed it to a socket. */
+	t: number;
+}
+
+export interface Buttons {
+	label1: string;
+	label2: string;
+	enable1: boolean;
+	enable2: boolean;
+	refusal1?: string;
+}
+
+export interface Card {
+	id: number;
+	name: string;
+	tapped: boolean;
+	land: boolean;
+	creature: boolean;
+	sick: boolean;
+}
+
+export interface Scenario {
+	/** The registry's match for this scenario's id: after {@link Scenario.restore}, the restored one. */
+	readonly match: Match;
+	/** `JvmHostConfig.workDir` this match's JVM ran under. */
+	workDir: string;
+	/** The `bridge.stderr.txt` of the JVM hosting this match (it is the JVM's, shared with any other match on it); null before placement. */
+	stderrPath(): string | null;
+	/** That file's text. Throws when there is none to read, so a check for what is NOT in it cannot pass on an empty read. */
+	stderr(): string;
+	sent: Stamped[];
+	lines: (BridgeLine & { t: string; hostT: number })[];
+	logs: Record<string, unknown>[];
+	/** Every `seatsChanged` the match told (the `forge:seats` roster), stamped — the other seat's `waitingOn` fact, as sent. */
+	seats: { t: number; seats: SeatIdentity[] }[];
+	names: [string, string];
+	prompt(seat: number): string;
+	buttons(seat: number): Buttons | null;
+	state(seat: number): Map<string, WireObj>;
+	zone(seat: number, name: 'Hand' | 'Battlefield' | 'Graveyard' | 'Exile' | 'Command'): Card[];
+	/** `Turn: N (Owner)` off this seat's last prompt. */
+	turn(seat: number): { n: number; owner: string } | null;
+	phase(seat: number): string | null;
+	/**
+	 * Press OK for the seat. It records the seat's latest prompt in {@link Scenario.pressed}, so no
+	 * driver presses that prompt again. A press refused under the bar the seat's own act greyed goes
+	 * again on the seat's next live bar; so does {@link Scenario.cancel}.
+	 */
+	ok(seat: number): void;
+	/**
+	 * The `sent` index of every prompt OK was pressed on, whichever helper pressed it — or the
+	 * server's own auto-pass, which answered the seat's latest prompt here too. A driver
+	 * pressing on "the seat's latest prompt" checks this first: each helper's own record cannot see
+	 * another's, and an old prompt pressed by one reads as new to the next. When the next window's bar
+	 * arrives before its prompt (Forge's `InputBlock`), that bar's live OK skips the window
+	 * (blockers.jvm Q12, #18).
+	 */
+	readonly pressed: ReadonlySet<number>;
+	cancel(seat: number): void;
+	select(seat: number, id: number): void;
+	/** A bridge command sent as the server sends it, for one the browser has no act for (`cancel-payment`). */
+	command(command: BridgeCommand): void;
+	/** Answer every ask that reached a browser, plainly. Returns the asks answered this call. */
+	answerAsks(): ServerFrame[];
+	/**
+	 * Keep every hand: press OK once on each prompt that is not a priority window
+	 * (the keep-or-mulligan question), or only on prompts matching `only`. Call
+	 * it in the scenario's loop.
+	 */
+	keepHands(only?: RegExp): void;
+	asks: ServerFrame[];
+	/**
+	 * `MatchRegistry.restore`: start the match again on a new JVM, from its latest turn-start
+	 * snapshot or, with none, from its spec. Every read here (`prompt`, `state`, `zone`, …) follows
+	 * the restored match's epoch.
+	 */
+	restore(): Restored;
+	stop(): Promise<void>;
+}
+
+export interface ScenarioOptions {
+	seed: number;
+	decks: [string, string];
+	names?: [string, string];
+	/** Seat 1 is Forge's AI instead of a second human; seat 0 is always human. */
+	aiOpponent?: boolean;
+	policy?: StopPolicy;
+	/** Answers by method for asks `answerAsks` would otherwise answer plainly. */
+	reply?: (frame: ServerFrame & Record<string, unknown>) => unknown;
+	/**
+	 * Wave 33 §S, shape 1 — the text of a Forge puzzle file's `[state]` section
+	 * (`human…` keys for seat 0, `ai…` for seat 1). Built straight into the
+	 * `MatchSpec` this helper hands `registry.create`, bypassing `socket.ts`'s
+	 * probe gate entirely: that gate is an HTTP-layer concern and every caller of
+	 * this file already is a test. The mulligan still runs before it applies —
+	 * `keepHands`/`passUntil` answer it exactly as they do for any other match.
+	 */
+	scenario?: string;
+	/** `MatchSpec.skipOpening`: a board room's opening — no coin toss, no mulligan. */
+	skipOpening?: boolean;
+	/**
+	 * TEST-only: what reaches the match of each bridge line — the line, a
+	 * changed one, or `null` to lose it on the way, as a frame lost between the
+	 * bridge and the server is lost. `lines` still records what the bridge said.
+	 */
+	mapLine?: (line: BridgeLine) => BridgeLine | null;
+	/** Asks `answerAsks` leaves open, for the test to answer itself. */
+	hold?: (frame: ServerFrame & Record<string, unknown>) => boolean;
+	/** `MatchDeps.actSilenceMs`, so a lost-ask suite need not wait out production's. */
+	actSilenceMs?: number;
+}
+
+export async function startScenario(config: JvmHostConfig, options: ScenarioOptions): Promise<Scenario> {
+	const names = options.names ?? ['A', 'B'];
+	const sent: Stamped[] = [];
+	/**
+	 * A press the server refused under the bar this seat's own act greyed (`press-refused`,
+	 * `SeatState.staleBar`), sent again on the seat's next live bar — as a player presses a greyed
+	 * button again once it lights. An OK right after a select otherwise races Forge re-arming the
+	 * bar and is lost (blockers.jvm Q12, run 40841248727).
+	 */
+	const refused = new Map<number, 'selectButtonOk' | 'selectButtonCancel'>();
+	const lines: Scenario['lines'] = [];
+	const logs: Record<string, unknown>[] = [];
+	const seats: Scenario['seats'] = [];
+	const pressed = new Set<number>();
+	const jvm = jvmHostFactory<BridgeLine, BridgeCommand>(config, { warm: false, log: (e) => logs.push(e) });
+	let host: MatchHost<BridgeCommand> | null = null;
+	const registry = createMatchRegistry({
+		seatsChanged: (_m, told) => seats.push({ t: performance.now(), seats: told }),
+		host: (id, spec, events) =>
+			(host = jvm(id, spec, {
+				...events,
+				line: (l) => {
+					lines.push({ ...(l as BridgeLine & { t: string }), hostT: performance.now() });
+					const kept = options.mapLine === undefined ? l : options.mapLine(l);
+					if (kept !== null) events.line(kept);
+				},
+			})),
+		log: (e) => {
+			logs.push(e);
+			// The server passed this seat's stop itself and withheld that prompt, so the seat's latest
+			// prompt here is an older one: it is answered too, and no driver may press it again. A
+			// driver that did pressed OK while Forge already stood at the seat's NEXT window, and passed
+			// that one instead (blockers.jvm Q10, run 42218389099: the defender's stray OK passed its
+			// Declare Blockers priority before the server could, so no auto-pass was ever logged there).
+			if (e.evt === 'auto-passed' && typeof e.seat === 'number') {
+				const at = sent.findLastIndex((x) => x.seat === e.seat && x.envelope.frame.method === 'showPromptMessage');
+				if (at >= 0) pressed.add(at);
+			}
+		},
+		overGraceMs: 60_000,
+		...(options.actSilenceMs === undefined ? {} : { actSilenceMs: options.actSilenceMs }),
+		...(options.policy === undefined ? {} : { stopPolicy: options.policy }),
+		emit: (_m, seat, envelope) => {
+			sent.push({ seat, envelope, t: performance.now() });
+			const method = refused.get(seat);
+			const bar = envelope.frame as unknown as Partial<Buttons>;
+			if (method === undefined || envelope.frame.method !== 'updateButtons') return;
+			if ((method === 'selectButtonOk' ? bar.enable1 : bar.enable2) !== true) return;
+			refused.delete(seat);
+			setImmediate(() => press(seat, method));
+		},
+	});
+	const first = registry.create({
+		seed: options.seed,
+		seats: [
+			{ name: names[0], ai: false, deck: options.decks[0] },
+			{ name: names[1], ai: options.aiOpponent === true, deck: options.decks[1] },
+		],
+		...(options.scenario === undefined ? {} : { scenario: options.scenario }),
+		...(options.skipOpening === undefined ? {} : { skipOpening: options.skipOpening }),
+	});
+	const current = (): Match => registry.get(first.id) ?? first;
+	function press(seat: number, method: 'selectButtonOk' | 'selectButtonCancel'): void {
+		const outcome = current().fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method }));
+		if (!outcome.ok && outcome.error.startsWith('press-refused')) refused.set(seat, method);
+	}
+	/** What the server sent on the current match's epoch: a restore starts every seat's stream again. */
+	const live = (): Stamped[] => {
+		const epoch = current().epoch;
+		return sent.filter((x) => x.envelope.cursor.epoch === epoch);
+	};
+	// Killed, not waited out: the bridge's own clean stop takes 4.4 s on a real
+	// match (measured 2026-10-06; `host.ts`, "Going down") and nothing a scenario
+	// asserts is about how its JVM ends. `jvm.test.ts` keeps the clean stop covered.
+	const end = (): void => {
+		if (!running.delete(end)) return;
+		current().stop();
+		jvm.reapOnExit();
+	};
+	running.add(end);
+	const started = await first.whenRunning(120_000);
+	if (!started.ok) {
+		end();
+		throw new Error(`match did not start: ${started.error}`);
+	}
+
+	const answered = new Set<string>();
+	const handled = new Set<number>();
+	const asks: ServerFrame[] = [];
+
+	const last = <T>(seat: number, method: string): T | null =>
+		([...live()].reverse().find((s) => s.seat === seat && s.envelope.frame.method === method)?.envelope.frame as T | undefined) ?? null;
+
+	const self: Scenario = {
+		get match() {
+			return current();
+		},
+		workDir: config.workDir,
+		stderrPath: () => matchStderrPath(config.workDir, logs, first.id),
+		stderr: () => {
+			const path = matchStderrPath(config.workDir, logs, first.id);
+			if (path === null) throw new Error(`match ${first.id} was never placed in a JVM, so it has no bridge stderr`);
+			return readFileSync(path, 'utf8');
+		},
+		sent,
+		lines,
+		logs,
+		seats,
+		names,
+		asks,
+		prompt: (seat) => last<{ message: string }>(seat, 'showPromptMessage')?.message ?? '',
+		buttons: (seat) => last<Buttons>(seat, 'updateButtons'),
+		state: (seat) =>
+			foldFrames(
+				live()
+					.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify')
+					.map((x) => x.envelope.frame as unknown as StateFrame)
+					.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
+			),
+		zone(seat, name) {
+			const state = self.state(seat);
+			const player = state.get(deltaKey(DELTA_TYPE.player, current().seats[seat]?.playerId ?? -1));
+			return idsOf(player, name).map((id) => {
+				const view = state.get(deltaKey(DELTA_TYPE.card, id));
+				const face = currentFace(state, id);
+				const core = coreTypes(state, id) ?? [];
+				return {
+					id,
+					name: strOf(face, 'Name') ?? strOf(view, 'Name') ?? `#${id}`,
+					tapped: (view?.Tapped as { v?: boolean } | undefined)?.v === true,
+					land: core.includes('Land'),
+					creature: core.includes('Creature'),
+					sick: (view?.Sickness as { v?: boolean } | undefined)?.v === true,
+				};
+			});
+		},
+		turn(seat) {
+			const m = /Turn: (\d+) \(([^)]*)\)/.exec(self.prompt(seat));
+			return m === null ? null : { n: Number(m[1]), owner: m[2] as string };
+		},
+		phase: (seat) => /^Phase: (.+)$/m.exec(self.prompt(seat))?.[1] ?? null,
+		ok: (seat) => {
+			const at = sent.findLastIndex((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage');
+			if (at >= 0) pressed.add(at);
+			press(seat, 'selectButtonOk');
+		},
+		pressed,
+		cancel: (seat) => press(seat, 'selectButtonCancel'),
+		select: (seat, id) =>
+			void current().fromClient(
+				seat,
+				ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null }),
+			),
+		command(command) {
+			if (host === null) throw new Error('the match has no host yet');
+			host.send(command);
+		},
+		answerAsks() {
+			const now: ServerFrame[] = [];
+			for (const { seat, envelope } of live()) {
+				const f = envelope.frame as ServerFrame & Record<string, unknown>;
+				// By epoch too: a restored match's JVM numbers its asks from the start again.
+				const key = `${envelope.cursor.epoch}:${f.callId as string}`;
+				if (f.kind !== 'ask' || answered.has(key) || options.hold?.(f) === true) continue;
+				const callId = f.callId as string;
+				answered.add(key);
+				asks.push(f);
+				now.push(f);
+				let result: unknown = options.reply?.(f);
+				if (result === undefined) {
+					switch (f.method) {
+						case 'confirm':
+						case 'showConfirmDialog':
+							result = true;
+							break;
+						case 'showOptionDialog':
+							result = 0;
+							break;
+						case 'showInputDialog':
+							result = '0';
+							break;
+						case 'getChoices': {
+							const keys = (f.choices as { key: string }[]).map((c) => c.key);
+							result = (f.min as number) > 0 && keys[0] !== undefined ? [keys[0]] : [];
+							break;
+						}
+						case 'getAbilityToPlay':
+							result = (f.abilities as unknown[])[0] ?? null;
+							break;
+						case 'chooseSingleEntityForEffect':
+							result = (f.optionList as unknown[])[0] ?? null;
+							break;
+						case 'chooseEntitiesForEffect':
+							result = (f.min as number) > 0 ? [(f.optionList as unknown[])[0]] : [];
+							break;
+						case 'manipulateCardList':
+							result = f.cards;
+							break;
+						case 'order':
+							result = { ordered: (f.sourceChoices as { key: string }[]).map((c) => c.key), rememberDecision: false };
+							break;
+						case 'assignCombatDamage':
+						case 'assignGenericAmount':
+							result = [];
+							break;
+						default:
+							result = null;
+					}
+				}
+				const reply = ClientFrameSchema.parse({ kind: 'reply', callId, method: f.method, result });
+				current().fromClient(seat, reply);
+			}
+			return now;
+		},
+		keepHands(only) {
+			for (const seat of [0, 1]) {
+				const at = sent
+					.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1))
+					.filter((i) => i >= 0)
+					.pop();
+				if (at === undefined || handled.has(at)) continue;
+				const msg = (sent[at]?.envelope.frame as unknown as { message: string }).message;
+				if (msg.startsWith('Priority:')) {
+					// Not this seat's to press at all — never retried, so mark it now.
+					handled.add(at);
+					continue;
+				}
+				if (only !== undefined && !only.test(msg)) continue;
+				// `enable1` can lag the prompt text by one wire frame (Forge's two
+				// notifies are not atomic): only mark `at` handled once the press is
+				// actually sent, or a prompt seen one tick too early is marked
+				// "handled" forever without ever being clicked, and a scenario that
+				// lands straight on this question (no turns played first to let the
+				// race settle) hangs on it permanently. Retried on the next call.
+				if (self.buttons(seat)?.enable1 !== true) continue;
+				handled.add(at);
+				self.ok(seat);
+			}
+		},
+		restore() {
+			const restored = registry.restore(first.id);
+			if (restored === null) throw new Error(`match ${first.id} is not in the registry`);
+			return restored;
+		},
+		async stop() {
+			end();
+			await waitUntil(() => liveJvmCount() === 0, "this match's JVM to exit", 30_000);
+		},
+	};
+	return self;
+}
+
+/**
+ * Press through the coin toss and the keep-or-mulligan question for BOTH
+ * seats, then stop — so the caller can switch to `answerAsks()` alone and
+ * never call `keepHands()` again. That matters for a scenario that lands
+ * straight in a combat window: `keepHands()` presses OK on ANY enabled,
+ * non-`Priority:` prompt, so calling it once that window has arrived would
+ * decline a block it never got to look at (the same reason
+ * `blockers.jvm.test.ts`'s own `attack()` built a custom loop instead of
+ * reusing `passUntil`, which also calls `keepHands()` every tick).
+ *
+ * A scenario landing straight on the FIRST real prompt (no turns played to
+ * let a wire race settle first) makes a narrower race in `keepHands()`
+ * itself visible: `showPromptMessage` and its `updateButtons` are not sent
+ * atomically, and an EMPTY prompt (nothing sent to a seat yet) is not "done"
+ * — it is "not started", and would otherwise satisfy "not mulliganish" on
+ * the very first poll tick. The 90 s budget is deliberately generous: this
+ * step runs on a shared host alongside other lanes' own jar suites, and a
+ * contended host (swapping, several idle Forge JVMs from other waves) has
+ * been measured taking 10–70 s for the SAME two presses.
+ *
+ * Diagnosed under `taskset -c 0` load, NOT fixed here: see
+ * `docs/planning/wave40-evidence/B-thoughtseize.md`. Forge's own transient
+ * `"Waiting for {name}..."` (`AbstractGuiGame.java` `lblWaitingForPlayer`),
+ * sent to whichever seat decided first while the other is still mid coin-toss
+ * or mid keep-or-mulligan, matches neither `/keep your hand|play or draw/i`
+ * nor `Priority:` — so both seats showing one AT THE SAME POLL TICK (a
+ * harmless, few-millisecond overlap in the ordinary case) can satisfy the
+ * exit condition below before either seat's REAL keep-or-mulligan question
+ * has been pressed. This function then returns, nothing calls `keepHands()`
+ * again, and the still-open keep prompt sits unanswered for the rest of the
+ * match. A first fix (classifying `"Waiting for "` as still mulligan-ish)
+ * mutation-tested WORSE — 6/6 fresh hangs, because that message is also
+ * Forge's generic "the other seat hasn't acted yet" status during perfectly
+ * ordinary LATER gameplay, not just the coin-toss handoff, and treating it as
+ * "still not done" made this function hang on that too. A second design (does
+ * this seat's `s.sent` history hold a REAL `Priority:` prompt yet, rather than
+ * classifying the current message at all) was written but never validated
+ * against a single run — left for whoever picks this up next, in the
+ * evidence file, rather than shipped unverified.
+ */
+export async function finishMulligan(s: Scenario): Promise<void> {
+	const opening = /keep your hand|play or draw/i;
+	const isMulliganish = (msg: string): boolean => !msg.startsWith('Priority:') && opening.test(msg);
+	await waitUntil(
+		() => {
+			// Only the opening questions: the first window after them can be a block
+			// or a trigger's "may", and an OK there would answer it for the seat.
+			s.keepHands(opening);
+			s.answerAsks();
+			// Both seats can read "Waiting for …" at once while the real keep question is still
+			// on its way (wave40-evidence/B-thoughtseize.md), which passed the old test. So also
+			// require one seat to be asked something real: some seat always holds the input.
+			// Read off Forge's own prompts: the first priority window after the keep is
+			// often one the server answers, so the seat's wire can stay on the keep question.
+			const msgs = [0, 1].map((seat) => forgeFrames(s, seat).findLast((f) => f.method === 'showPromptMessage')?.message ?? '');
+			return msgs.every((msg) => msg !== '' && !isMulliganish(msg)) && msgs.some((msg) => !/^Waiting for /.test(msg));
+		},
+		'both seats to finish the coin toss and the keep-or-mulligan question',
+		90_000,
+		s,
+	);
+}
+
+const MAIN1 = /^Phase: Main phase, precombat$/m;
+
+/** The seat's own first-main priority window for turn `n`, with the button live. */
+export function inOwnMain(s: Scenario, seat: number, n: number): boolean {
+	const turn = s.turn(seat);
+	return (
+		turn !== null &&
+		turn.n === n &&
+		turn.owner === s.names[seat] &&
+		s.prompt(seat).startsWith(`Priority: ${s.names[seat]}`) &&
+		MAIN1.test(s.prompt(seat)) &&
+		/^Stack: Empty$/m.test(s.prompt(seat)) &&
+		s.buttons(seat)?.enable1 === true
+	);
+}
+
+/**
+ * The bar of the seat's CURRENT prompt: the last `updateButtons` its wire carried after its last
+ * `showPromptMessage`, or null while that bar is still on its way. A prompt and its bar are two
+ * frames, and `Scenario.buttons` is whatever bar came last — on a busy claw, the previous window's,
+ * read in the instant between them (scenario-combat's Juggernaut window read the priority bar's
+ * disabled OK). Only for a window whose bar follows its prompt, as every Forge input that rewrites
+ * its prompt sends them (`InputAttack.updateMessage`, `InputPassPriority.showNormalPrompt`).
+ */
+export function promptBar(s: Scenario, seat: number): Buttons | null {
+	for (let i = s.sent.length - 1; i >= 0; i--) {
+		const x = s.sent[i]!;
+		if (x.seat !== seat) continue;
+		if (x.envelope.frame.method === 'updateButtons') return x.envelope.frame as unknown as Buttons;
+		if (x.envelope.frame.method === 'showPromptMessage') return null;
+	}
+	return null;
+}
+
+/**
+ * Press the seat's own Main 1 stop once and wait for Forge's live declare-attackers window — its
+ * prompt and the bar `InputAttack` sends after it, both on the seat's wire. Never presses inside the
+ * window itself.
+ */
+export async function toDeclareAttackers(s: Scenario, seat: number): Promise<void> {
+	let pressedMain1 = false;
+	await waitUntil(
+		() => {
+			s.answerAsks();
+			const msg = s.prompt(seat);
+			if (/^Select creatures to attack/.test(msg)) return promptBar(s, seat) !== null;
+			if (!pressedMain1 && /^Priority:/.test(msg) && MAIN1.test(msg) && promptBar(s, seat)?.enable1 === true) {
+				pressedMain1 = true;
+				s.ok(seat);
+			}
+			return false;
+		},
+		"Forge's live declare-attackers window to open",
+		20_000,
+		s,
+	);
+}
+
+/**
+ * Whether the seat's own policy STOPS it at this window — the only windows a
+ * driver may press OK in, because every other one is passed by the server itself
+ * and a second press would skip the stop after it. A phase that stops only for a
+ * play (`stopWithPlayOnMyTurn`, `stopWithPlayOnTheirTurn`) counts: a window there that reached the wire
+ * was kept for one.
+ */
+export function isStop(msg: string, seat: number, s: Scenario): boolean {
+	if (!msg.startsWith('Priority:') || !/^Stack: Empty$/m.test(msg)) return false;
+	const owner = /Turn: \d+ \(([^)]*)\)/.exec(msg)?.[1];
+	const phase = PHASE_BY_UI_NAME[/^Phase: (.+)$/m.exec(msg)?.[1] ?? ''];
+	if (phase === undefined) return false;
+	const policy = s.match.stopPolicy(seat);
+	if (owner === s.names[seat]) return policy.stopOnMyTurn.includes(phase) || policy.stopWithPlayOnMyTurn.includes(phase);
+	return policy.stopOnTheirTurn.includes(phase) || policy.stopWithPlayOnTheirTurn.includes(phase);
+}
+
+/**
+ * The cleanup discard: a hand of eight is one over the maximum. A pick of the last card it asks for
+ * ends it, so OK is pressed only while it is still this seat's prompt with a live bar. A blind OK on a
+ * timer outlived it: Forge had moved on, and the press passed whatever window the seat stood at by then
+ * (blockers.jvm Q10: the defender's Declare Blockers). `discarding` is the caller's own set, shared
+ * across both seats' calls (and, for a wait that outgrows `passUntil`'s own window, across every call
+ * made while it waits — priority.jvm's cast-and-resolve wait does not go through `passUntil` at all, but
+ * a seat can still cross the hand-size maximum while it polls, and a half-answered discard blocks
+ * Forge's one game thread on it regardless of which wait is doing the polling).
+ */
+export function cleanupDiscard(s: Scenario, seat: number, discarding: Set<number>): void {
+	const at = s.sent.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1)).filter((i) => i >= 0).pop();
+	if (at === undefined || s.pressed.has(at)) return;
+	const msg = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
+	if (!/^Cleanup Phase\nSelect \d+ card\(s\) to discard/.test(msg)) return;
+	if (discarding.has(at)) {
+		if (s.buttons(seat)?.enable1 === true) s.ok(seat);
+		return;
+	}
+	discarding.add(at);
+	const card = s.zone(seat, 'Hand')[0];
+	if (card !== undefined) s.select(seat, card.id);
+}
+
+/** Press OK once on every NEW stop of either seat, until `done`. */
+export async function passUntil(s: Scenario, done: () => boolean, label: string, ms = 60_000): Promise<void> {
+	const discarding = new Set<number>();
+	await waitUntil(() => {
+		s.keepHands();
+		s.answerAsks();
+		if (done()) return true;
+		for (const seat of [0, 1]) {
+			cleanupDiscard(s, seat, discarding);
+			const at = s.sent
+				.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1))
+				.filter((i) => i >= 0)
+				.pop();
+			if (at === undefined || s.pressed.has(at)) continue;
+			const msg = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
+			if (!isStop(msg, seat, s) || s.buttons(seat)?.enable1 !== true) continue;
+			s.ok(seat);
+		}
+		return false;
+	}, label, ms, s);
+}
+
+/** One frame Forge itself sent a seat, with its index in `Scenario.lines`. */
+export interface ForgeFrame {
+	at: number;
+	method: string;
+	message?: string;
+	cards?: { id: number }[];
+}
+
+/**
+ * The frames Forge sent `seat` from line `from` on, before the server decided
+ * which of them reach the seat. A window the server answers is never on the
+ * seat's wire (`Scenario.sent`), so a precondition about what Forge offered is
+ * read here and a claim about what the seat saw is read there.
+ */
+export function forgeFrames(s: Scenario, seat: number, from = 0): ForgeFrame[] {
+	const out: ForgeFrame[] = [];
+	for (let at = from; at < s.lines.length; at++) {
+		const l = s.lines[at] as { t: string; seat?: number; frame?: { method?: unknown } & Omit<ForgeFrame, 'at' | 'method'> };
+		if (l.t !== 'frame' || l.seat !== seat || typeof l.frame?.method !== 'string') continue;
+		out.push({ ...l.frame, at, method: l.frame.method });
+	}
+	return out;
+}
+
+/**
+ * One seat's windows as text, for a failing scenario to print: what Forge
+ * sent (`forge`), what reached the seat (`wire`), in arrival order, from line
+ * `from` and send `sentFrom` on. Prompts, bars and asks only.
+ */
+export function timeline(s: Scenario, seat: number, from = 0, sentFrom = 0): string {
+	const describe = (f: { method?: unknown; message?: unknown; label1?: unknown; label2?: unknown; enable1?: unknown; enable2?: unknown; kind?: unknown }): string | null => {
+		if (f.method === 'showPromptMessage') return `PROMPT ${JSON.stringify(f.message)}`;
+		if (f.method === 'updateButtons') return `BAR [${String(f.label1)}${f.enable1 === true ? '' : '-'}] [${String(f.label2)}${f.enable2 === true ? '' : '-'}]`;
+		if (f.kind === 'ask') return `ASK ${String(f.method)}`;
+		return null;
+	};
+	const rows: { t: number; text: string }[] = [];
+	for (const l of s.lines.slice(from)) {
+		const line = l as { t: string; seat?: number; hostT: number; frame?: Record<string, unknown> };
+		if (line.t !== 'frame' || line.seat !== seat || line.frame === undefined) continue;
+		const text = describe(line.frame);
+		if (text !== null) rows.push({ t: line.hostT, text: `forge ${text}` });
+	}
+	for (const x of s.sent.slice(sentFrom)) {
+		if (x.seat !== seat) continue;
+		const text = describe(x.envelope.frame as unknown as Record<string, unknown>);
+		if (text !== null) rows.push({ t: x.t, text: `wire  ${text}` });
+	}
+	rows.sort((a, b) => a.t - b.t);
+	const t0 = rows[0]?.t ?? 0;
+	const decided = s.logs.filter((l) => l.seat === seat && /^(prompt-|auto-)/.test(String(l.evt))).map((l) => JSON.stringify(l));
+	return [...rows.map((r) => `+${Math.round(r.t - t0)}ms ${r.text}`), '--- decisions', ...decided].join('\n');
+}
+
+/**
+ * The card the seat clicked when `s.sent` was `from` long has been cast and resolved: it is out of
+ * the hand, and a priority window with an empty stack reached the seat after the click, OK live.
+ * Out of the hand alone holds mid-cast: Forge moves the card to the stack before it asks for a
+ * target or payment, while the seat's last prompt is still the "Stack: Empty" it clicked from.
+ */
+export function castResolved(s: Scenario, seat: number, cardId: number, from: number): boolean {
+	if (s.zone(seat, 'Hand').some((c) => c.id === cardId)) return false;
+	const at = s.sent.findLastIndex((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage');
+	return at >= from && /^Stack: Empty$/m.test(s.prompt(seat)) && s.buttons(seat)?.enable1 === true;
+}
+
+/** Click `name` in the seat's hand and wait until it is on the battlefield with the stack empty again. */
+export async function castNamed(s: Scenario, seat: number, name: string): Promise<void> {
+	await waitUntil(() => {
+		s.answerAsks();
+		return s.zone(seat, 'Hand').some((c) => c.name === name);
+	}, `seat ${seat} to hold a ${name}`, 20_000, s);
+	const card = s.zone(seat, 'Hand').find((c) => c.name === name);
+	if (card === undefined) throw new Error(`no ${name}`);
+	const from = s.sent.length;
+	s.select(seat, card.id);
+	await waitUntil(() => {
+		s.answerAsks();
+		return castResolved(s, seat, card.id, from);
+	}, `seat ${seat}'s ${name} to resolve`, 30_000, s);
+}
+

@@ -1,0 +1,1818 @@
+/**
+ * Hidden information, asserted over whole serialised payloads of REAL data.
+ *
+ * The stream is `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`: the
+ * first 27 `DeltaPacket`s a real Forge client received in a real two-player
+ * match (provenance in `apps/ui/src/play/fixtures.ts`). It is Forge's
+ * unfiltered stream — the opponent's hand arrives with names — which is what
+ * makes it the right input: it is exactly what this projector exists to cut.
+ *
+ * Both seats are projected from it. Forge builds every client's packets by
+ * walking the same shared `GameView` (`visibility.ts`'s header), so one
+ * client's stream carries both players' secrets and serves as the raw input
+ * for either viewer.
+ *
+ * ## The leak assertion is over bytes, not fields
+ *
+ * For each viewer, the "secrets" are every identifying string (card `Name`,
+ * `OracleName`, and every string property on the card's faces — `ImageKey`,
+ * `OracleText`, set code …) of every card that sat in the OTHER seat's hand at
+ * any point, minus any string that also appears on a card the viewer was
+ * allowed to see (both decks can hold a Mountain). Then `JSON.stringify` of
+ * every frame the viewer received — exactly what `emit` puts on the socket —
+ * must contain none of them. Two guards keep that from being vacuous: the
+ * secret set is non-empty, and the RAW stream contains every secret.
+ */
+
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { ApplyDeltaSchema, GameEventListSchema, safeParseServerFrame, type PrintedPT, type PrintedTypes, DELTA_TYPE, cardIdOfState, deltaKey, idsOf } from '@hadoku/forge-wire';
+
+import {
+	cardVisibility,
+	createProjector,
+	faceUpOnBattlefield,
+	EVERY_PLAYER,
+	foldFrames,
+	restampWatcherFrame,
+	type DeltaPacketJson,
+	type StateFrame,
+	type WireObj,
+} from './visibility.js';
+import { fixtureFrames, leaked } from './fixtures/transcript.js';
+import type { ArtIds } from './art-ids.js';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const EVENTS_FIXTURE = resolve(
+	HERE,
+	'../../../packages/forge-wire/src/events/fixtures/GameEventCardChangeZone.json',
+);
+
+/** Seat 0 is "Bob" (player id 0), seat 1 is "Alice" (player id 1) — `fixtures.ts`. */
+const PLAYERS = [0, 1] as const;
+
+/** Forge's apply rules, for reading states back in the test. */
+function fold(frames: readonly StateFrame[]): Map<string, WireObj> {
+	const state = new Map<string, WireObj>();
+	for (const frame of frames) {
+		if (frame.method !== 'applyDelta') continue;
+		const { newObjects, objectDeltas } = frame.payload.packet;
+		for (const [k, o] of Object.entries(newObjects)) {
+			const clean: WireObj = { _type: o._type, _id: o._id };
+			for (const [p, v] of Object.entries(o)) if (v !== null && p !== '_type' && p !== '_id') clean[p] = v;
+			state.set(k, clean);
+		}
+		for (const [k, d] of Object.entries(objectDeltas)) {
+			const cur = state.get(k);
+			if (cur === undefined) continue;
+			const next = { ...cur };
+			for (const [p, v] of Object.entries(d)) {
+				if (p === '_type' || p === '_id') continue;
+				if (v === null) delete next[p];
+				else next[p] = v;
+			}
+			state.set(k, next);
+		}
+	}
+	return state;
+}
+
+function handOf(state: ReadonlyMap<string, WireObj>, playerId: number): number[] {
+	const hand = state.get(deltaKey(DELTA_TYPE.player, playerId))?.Hand as { v: { v: number }[] } | undefined;
+	return hand === undefined ? [] : hand.v.map((x) => x.v);
+}
+
+/** Every string that says WHICH card this is: the card's names and all of its faces' strings. */
+function identifyingStrings(state: ReadonlyMap<string, WireObj>, cardId: number): string[] {
+	const out: string[] = [];
+	const card = state.get(deltaKey(DELTA_TYPE.card, cardId));
+	for (const prop of ['Name', 'OracleName']) {
+		const v = card?.[prop] as { t: string; v: unknown } | undefined;
+		if (v?.t === 'str' && typeof v.v === 'string' && v.v !== '') out.push(v.v);
+	}
+	for (const obj of state.values()) {
+		if (obj._type !== DELTA_TYPE.cardState || cardIdOfState(obj._id) !== cardId) continue;
+		for (const [prop, value] of Object.entries(obj)) {
+			const v = value as { t?: string; v?: unknown } | null;
+			// Only strings long enough to be a real signal: a one-letter set of
+			// colours or an empty rules text would match anything.
+			if (prop !== '_type' && prop !== '_id' && v?.t === 'str' && typeof v.v === 'string' && v.v.length >= 4) {
+				out.push(v.v);
+			}
+		}
+	}
+	return out;
+}
+
+interface Run {
+	emitted: StateFrame[];
+	/** Card ids that were in the opponent's hand at some step, and hidden from this viewer then. */
+	opponentHandCards: Set<number>;
+	/** Card ids the viewer was allowed to see in full at some step. */
+	everVisible: Set<number>;
+	/** Raw state after each packet. */
+	rawStates: Map<string, WireObj>[];
+}
+
+function runViewer(viewer: number, frames: readonly StateFrame[]): Run {
+	const projector = createProjector(viewer);
+	const opponent = PLAYERS.find((p) => p !== viewer) as number;
+	const emitted: StateFrame[] = [];
+	const opponentHandCards = new Set<number>();
+	const everVisible = new Set<number>();
+	const rawStates: Map<string, WireObj>[] = [];
+	for (let i = 0; i < frames.length; i++) {
+		emitted.push(projector.project(frames[i] as StateFrame));
+		const raw = fold(frames.slice(0, i + 1));
+		rawStates.push(raw);
+		for (const id of handOf(raw, opponent)) opponentHandCards.add(id);
+		for (const obj of raw.values()) {
+			if (obj._type === DELTA_TYPE.card && projector.visibilityOf(obj._id) === 'full') everVisible.add(obj._id);
+		}
+	}
+	return { emitted, opponentHandCards, everVisible, rawStates };
+}
+
+describe('the committed Tier C stream is real, unfiltered Forge output', () => {
+	const frames = fixtureFrames();
+
+	it('parses as forge-wire applyDelta frames, all 27', () => {
+		expect(frames).toHaveLength(27);
+		for (const frame of frames) expect(ApplyDeltaSchema.safeParse(frame).success).toBe(true);
+	});
+
+	it("carries the opponent's hand WITH names — the leak this module exists to cut", () => {
+		const raw = fold(frames);
+		const aliceHand = handOf(raw, 1);
+		expect(aliceHand.length).toBeGreaterThan(0);
+		const named = aliceHand.filter((id) => identifyingStrings(raw, id).length > 0);
+		expect(named.length).toBe(aliceHand.length);
+	});
+});
+
+describe.each(PLAYERS)('seat with Forge player %i', (viewer) => {
+	const frames = fixtureFrames();
+	const run = runViewer(viewer, frames);
+	const opponent = PLAYERS.find((p) => p !== viewer) as number;
+	const transcript = run.emitted.map((f) => JSON.stringify(f)).join('\n');
+	const rawTranscript = frames.map((f) => JSON.stringify(f)).join('\n');
+
+	const finalRaw = run.rawStates[run.rawStates.length - 1] as Map<string, WireObj>;
+	const allowed = new Set<string>();
+	for (const id of run.everVisible) for (const s of identifyingStrings(finalRaw, id)) allowed.add(s);
+	const secrets = new Set<string>();
+	for (const id of run.opponentHandCards) {
+		if (run.everVisible.has(id)) continue; // cast later, so it was shown to everyone
+		for (const s of identifyingStrings(finalRaw, id)) if (!allowed.has(s)) secrets.add(s);
+	}
+
+	it('has secrets to keep, and the raw stream really does carry every one of them', () => {
+		expect(secrets.size).toBeGreaterThan(0);
+		for (const secret of secrets) expect(rawTranscript.includes(JSON.stringify(secret))).toBe(true);
+	});
+
+	it("never puts one byte of the other seat's hand in this seat's serialised payloads", () => {
+		const leaked = [...secrets].filter((s) => transcript.includes(JSON.stringify(s)));
+		expect(leaked).toEqual([]);
+	});
+
+	it('sends a hidden card as existence and ownership only, and never one of its faces', () => {
+		const offences: string[] = [];
+		const projector = createProjector(viewer);
+		for (const frame of frames) {
+			const out = projector.project(frame);
+			if (out.method !== 'applyDelta') continue;
+			const { newObjects, objectDeltas } = out.payload.packet;
+			for (const [key, obj] of [...Object.entries(newObjects), ...Object.entries(objectDeltas)]) {
+				const cardId = obj._type === DELTA_TYPE.card ? obj._id : obj._type === DELTA_TYPE.cardState ? cardIdOfState(obj._id) : null;
+				if (cardId === null || projector.visibilityOf(cardId) !== 'hidden') continue;
+				if (obj._type === DELTA_TYPE.cardState) {
+					// Only a wipe (every property null) may name a hidden card's face.
+					const live = Object.entries(obj).filter(([p, v]) => p !== '_type' && p !== '_id' && v !== null);
+					if (live.length > 0) offences.push(`face ${key} of hidden card ${cardId}`);
+					continue;
+				}
+				const extra = Object.keys(obj).filter(
+					(p) => !['_type', '_id', 'Owner', 'Controller', 'Zone', 'HiddenId'].includes(p),
+				);
+				if (extra.length > 0) offences.push(`hidden card ${cardId}: ${extra.join(',')}`);
+			}
+		}
+		expect(offences).toEqual([]);
+	});
+
+	it('still tells the viewer how many cards the opponent holds', () => {
+		const projected = fold(run.emitted);
+		expect(handOf(projected, opponent)).toEqual(handOf(finalRaw, opponent));
+	});
+
+	it('shows the viewer every card of their own hand by name, including the ones drawn from a hidden library', () => {
+		const projected = fold(run.emitted);
+		const mine = handOf(finalRaw, viewer);
+		expect(mine.length).toBeGreaterThan(0);
+		for (const id of mine) {
+			expect(identifyingStrings(projected, id)).toEqual(identifyingStrings(finalRaw, id));
+		}
+	});
+
+	it('leaves every public card exactly as Forge sent it', () => {
+		const projected = fold(run.emitted);
+		for (const obj of finalRaw.values()) {
+			if (obj._type !== DELTA_TYPE.card) continue;
+			if (run.everVisible.has(obj._id) && cardVisibility(finalRaw, { byCard: new Map() }, obj._id, viewer) === 'full') {
+				expect(projected.get(deltaKey(DELTA_TYPE.card, obj._id))).toEqual(obj);
+			}
+		}
+	});
+
+	it('emits frames a browser accepts: every one parses as a forge-wire ServerFrame', () => {
+		for (const frame of run.emitted) {
+			const parsed = safeParseServerFrame(frame);
+			expect(parsed.ok ? [] : parsed.errors.slice(0, 3)).toEqual([]);
+		}
+	});
+
+	it('zeroes the checksum, which was computed over the unredacted state', () => {
+		for (const frame of run.emitted) {
+			if (frame.method !== 'applyDelta') continue;
+			expect(frame.payload.packet.checksum).toBe(0);
+			expect(frame.payload.packet.checksumProperties).toEqual([]);
+		}
+	});
+});
+
+describe('the events arm', () => {
+	it('is dropped whole — a real GameEventCardChangeZone names the card that was drawn', () => {
+		const events = JSON.parse(readFileSync(EVENTS_FIXTURE, 'utf8')) as unknown[];
+		expect(GameEventListSchema.safeParse(events).success).toBe(true);
+		const draw = JSON.stringify(events[0]);
+		expect(draw).toContain('"Library"');
+		expect(draw).toContain('"name":"Mountain"');
+
+		const frames = fixtureFrames();
+		const first = frames[0] as Extract<StateFrame, { method: 'applyDelta' }>;
+		const withEvents: StateFrame = {
+			...first,
+			payload: { packet: { ...first.payload.packet, events } },
+		};
+		const out = createProjector(0).project(withEvents) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(out.payload.packet.events).toEqual([]);
+	});
+});
+
+describe('setGameView', () => {
+	it('is projected as a whole table, with the same rules', () => {
+		const frames = fixtureFrames();
+		const raw = fold(frames);
+		const gameView = Object.fromEntries(raw);
+		const out = createProjector(0).project({
+			kind: 'notify',
+			method: 'setGameView',
+			payload: { gameView, sequenceNumber: 27 },
+		});
+		expect(out.method).toBe('setGameView');
+		const table = (out as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+		for (const id of handOf(raw, 1)) {
+			expect(Object.keys(table[deltaKey(DELTA_TYPE.card, id)] ?? {}).sort()).toEqual(
+				expect.not.arrayContaining(['Name', 'OracleName']),
+			);
+		}
+		const parsed = safeParseServerFrame(out);
+		expect(parsed.ok ? [] : parsed.errors.slice(0, 3)).toEqual([]);
+	});
+});
+
+/**
+ * Wave 49 §A — `stackTargetSpells`, `PlayBridge.java`'s own addition. Passed
+ * through UNREDACTED (`visibility.ts`'s own note on `project`): both ids
+ * name stack items, and the Stack zone is in `PUBLIC_ZONES`, so there is
+ * nothing a card redaction elsewhere in the same frame has not already hid.
+ */
+describe('stackTargetSpells (wave 49 §A)', () => {
+	it('setGameView: passed through exactly, present or absent', () => {
+		const frames = fixtureFrames();
+		const raw = fold(frames);
+		const gameView = Object.fromEntries(raw);
+		const withPairs = createProjector(0).project({
+			kind: 'notify',
+			method: 'setGameView',
+			payload: { gameView, sequenceNumber: 27, stackTargetSpells: [[50, 49]] },
+		}) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(withPairs.payload.stackTargetSpells).toEqual([[50, 49]]);
+
+		const without = createProjector(0).project({
+			kind: 'notify',
+			method: 'setGameView',
+			payload: { gameView, sequenceNumber: 27 },
+		}) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(without.payload.stackTargetSpells).toBeUndefined();
+	});
+
+	it('applyDelta: passed through exactly, present or absent', () => {
+		const frames = fixtureFrames();
+		const first = frames[0] as Extract<StateFrame, { method: 'applyDelta' }>;
+		const withPairs: StateFrame = { ...first, payload: { ...first.payload, stackTargetSpells: [[50, 49]] } };
+		const out = createProjector(0).project(withPairs) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(out.payload.stackTargetSpells).toEqual([[50, 49]]);
+
+		const without = createProjector(0).project(first) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(without.payload.stackTargetSpells).toBeUndefined();
+	});
+});
+
+/**
+ * AE27 — `counteredStackItems`, `PlayBridge.java`'s `EffectJournal` addition. Passed through
+ * UNREDACTED, the same reasoning as `stackTargetSpells` above: stack item ids, and the Stack zone
+ * is public. An event, like `damage`/`deaths`, on `applyDelta` and on a `setGameView` mid-game.
+ */
+describe('counteredStackItems (AE27)', () => {
+	it('applyDelta: passed through exactly, present or absent', () => {
+		const frames = fixtureFrames();
+		const first = frames[0] as Extract<StateFrame, { method: 'applyDelta' }>;
+		const withIds: StateFrame = { ...first, payload: { ...first.payload, counteredStackItems: [50] } };
+		const out = createProjector(0).project(withIds) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(out.payload.counteredStackItems).toEqual([50]);
+
+		const without = createProjector(0).project(first) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(without.payload.counteredStackItems).toBeUndefined();
+	});
+});
+
+describe('the journal on a whole view mid-game', () => {
+	it('carries the hits, deaths and counters it shows, a source this seat may not see named as none', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const payload = {
+			gameView,
+			sequenceNumber: 1,
+			damage: [[onField, onField, 2]] as [number, number, number][],
+			faceDamage: [
+				[0, onField, 3, true],
+				[0, inTheirHand, 1, false],
+			] as [number, number, number, boolean][],
+			deaths: [[onField, 'LETHAL_DAMAGE']] as [number, 'LETHAL_DAMAGE'][],
+			counteredStackItems: [50],
+		};
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(out.payload.damage).toEqual([[onField, onField, 2]]);
+		expect(out.payload.faceDamage).toEqual([
+			[0, onField, 3, true],
+			[0, -1, 1, false],
+		]);
+		expect(out.payload.deaths).toEqual([[onField, 'LETHAL_DAMAGE']]);
+		expect(out.payload.counteredStackItems).toEqual([50]);
+		const owner = createProjector(1).project({ kind: 'notify', method: 'setGameView', payload }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(owner.payload.faceDamage).toEqual(payload.faceDamage);
+	});
+});
+
+describe('pendingTriggers', () => {
+	it("keeps a waiting trigger of a card this seat sees, drops one of a card it may not see (its words name the card)", () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const pending = [
+			{ id: 900, hostCard: onField, controller: 1, key: 'seen' },
+			{ id: 901, hostCard: inTheirHand, controller: 1, key: 'hidden' },
+		];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, pendingTriggers: pending } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.pendingTriggers?.map((t) => t.key)).toEqual(['seen']);
+		const owner = createProjector(1).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, pendingTriggers: pending } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(owner.payload.pendingTriggers?.map((t) => t.key)).toEqual(['seen', 'hidden']);
+	});
+});
+
+describe('effectSources', () => {
+	it("keeps an effect's source this seat sees, drops one it may not see", () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const effectSources: [number, number][] = [
+			[900, onField],
+			[901, inTheirHand],
+		];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, effectSources } }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(out.payload.effectSources).toEqual([[900, onField]]);
+		const owner = createProjector(1).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, effectSources } }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(owner.payload.effectSources).toEqual(effectSources);
+	});
+});
+
+describe('stackTriggeredBy', () => {
+	it('keeps the cards this seat sees that set a trigger off, on a stack pair and a waiting trigger alike', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const payload = {
+			gameView,
+			sequenceNumber: 1,
+			stackTriggeredBy: [
+				[50, onField],
+				[51, inTheirHand],
+			] as [number, number][],
+			pendingTriggers: [{ id: 900, hostCard: onField, controller: 1, key: 'seen', triggeredBy: [onField, inTheirHand] }],
+		};
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(out.payload.stackTriggeredBy).toEqual([[50, onField]]);
+		expect(out.payload.pendingTriggers?.[0]?.triggeredBy).toEqual([onField]);
+		const owner = createProjector(1).project({ kind: 'notify', method: 'setGameView', payload }) as Extract<StateFrame, { method: 'setGameView' }>;
+		expect(owner.payload.stackTriggeredBy).toEqual(payload.stackTriggeredBy);
+	});
+});
+
+describe('waitingEffects', () => {
+	it('keeps an effect whose source this seat sees, drops one whose source it may not see, on both state frames', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const effects = [
+			{ source: ids(1, 'Battlefield')[0]!, kind: 'trigger' as const, text: 'seen' },
+			{ source: ids(1, 'Hand')[0]!, kind: 'effect' as const, text: 'hidden' },
+		];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, waitingEffects: effects } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.waitingEffects?.map((e) => e.text)).toEqual(['seen']);
+		const owner = createProjector(1);
+		owner.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = owner.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, waitingEffects: effects },
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.waitingEffects?.map((e) => e.text)).toEqual(['seen', 'hidden']);
+	});
+});
+
+describe('cantBlock', () => {
+	it('keeps the battlefield creatures every seat is sent, drops a card one seat may not see, on both state frames', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const cantBlock = [onField, inTheirHand];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, cantBlock } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.cantBlock).toEqual([onField]);
+		const owner = createProjector(1);
+		owner.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = owner.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, cantBlock },
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.cantBlock).toEqual([onField, inTheirHand]);
+	});
+
+	it('leaves the field off a frame that carried none', () => {
+		const gameView = Object.fromEntries(fold(fixtureFrames()));
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		expect('cantBlock' in out.payload).toBe(false);
+	});
+});
+
+describe('printedPT', () => {
+	it('keeps the rows for cards a seat is sent, drops a card that seat may not see', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const printedPT: PrintedPT = [[onField, 2, 2], [inTheirHand, 1, 1]];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, printedPT } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.printedPT).toEqual([[onField, 2, 2]]);
+	});
+});
+
+describe('printedTypes', () => {
+	it('keeps the pairs for cards a seat is sent, drops a card that seat may not see, on both state frames', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const land = { t: 'cardtype' as const, sup: [], core: ['Land'], sub: [], all: false, exc: [] };
+		const printedTypes: PrintedTypes = [[onField, land, false], [inTheirHand, land, false]];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, printedTypes } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.printedTypes).toEqual([[onField, land, false]]);
+		const owner = createProjector(1);
+		owner.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = owner.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, printedTypes },
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.printedTypes).toEqual(printedTypes);
+		expect('printedTypes' in createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } }).payload).toBe(false);
+	});
+});
+
+describe('conditionMet', () => {
+	it('keeps the cards a seat may read, and drops a card in the other seat’s hand, on both state frames', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const conditionMet = [onField, inTheirHand];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, conditionMet } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.conditionMet).toEqual([onField]);
+		const owner = createProjector(1);
+		owner.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = owner.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, conditionMet },
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.conditionMet).toEqual([onField, inTheirHand]);
+	});
+
+	it('leaves the field off a frame that carried none', () => {
+		const gameView = Object.fromEntries(fold(fixtureFrames()));
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		expect('conditionMet' in out.payload).toBe(false);
+	});
+});
+
+describe('deaths', () => {
+	it('keeps the deaths of cards this seat is sent, and rides applyDelta', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const seat0 = createProjector(0);
+		seat0.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = seat0.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] },
+				deaths: [
+					[onField, 'DESTROYED'],
+					[inTheirHand, 'SACRIFICED'],
+				],
+			},
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.deaths).toEqual([[onField, 'DESTROYED']]);
+	});
+});
+
+describe('damage', () => {
+	it('keeps the hits on a card this seat is sent, names a source it may not see as none, and rides applyDelta only', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const seat0 = createProjector(0);
+		seat0.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = seat0.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] },
+				damage: [
+					[onField, inTheirHand, 3],
+					[inTheirHand, onField, 1],
+					[onField, -1, 2],
+				],
+			},
+		}) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(delta.payload.damage).toEqual([
+			[onField, -1, 3],
+			[onField, -1, 2],
+		]);
+	});
+
+	it('leaves the field off a frame whose hits this seat sees none of', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const inTheirHand = ((raw.get(deltaKey(DELTA_TYPE.player, 1))?.Hand as { v: { v: number }[] }).v[0]!).v;
+		const seat0 = createProjector(0);
+		seat0.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		const delta = seat0.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, damage: [[inTheirHand, -1, 1]] },
+		});
+		expect('damage' in delta.payload).toBe(false);
+	});
+});
+
+describe('a face-down permanent (real battlefield card, turned face down)', () => {
+	it('shows the table its face-down face and nothing of the card underneath; its controller sees it all', () => {
+		const frames = fixtureFrames();
+		const raw = fold(frames);
+		// A real card on player 1's battlefield, with the one property that
+		// makes it a morph flipped on. Its faces are the real captured faces.
+		const bf = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Battlefield as { v: { v: number }[] }).v.map((x) => x.v);
+		const cardId = bf[0] as number;
+		const card = raw.get(deltaKey(DELTA_TYPE.card, cardId)) as WireObj;
+		const faceDown = { ...card, Facedown: { t: 'bool', v: true } };
+		const table = { ...Object.fromEntries(raw), [deltaKey(DELTA_TYPE.card, cardId)]: faceDown };
+		const frame: StateFrame = { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: 1 } };
+
+		const opp = createProjector(0);
+		const oppOut = (opp.project(frame) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+		expect(opp.visibilityOf(cardId)).toBe('faceOnly');
+		const seen = oppOut[deltaKey(DELTA_TYPE.card, cardId)] as WireObj;
+		expect(seen.Name).toBeUndefined();
+		expect(seen.Facedown).toEqual({ t: 'bool', v: true });
+		const faces = Object.values(oppOut).filter((o) => o._type === DELTA_TYPE.cardState && cardIdOfState(o._id) === cardId);
+		expect(faces.length).toBeLessThanOrEqual(1);
+
+		const own = createProjector(1);
+		own.project(frame);
+		expect(own.visibilityOf(cardId)).toBe('full');
+	});
+});
+
+/*
+ * The operator, 2026-10-11: "Courser of Kruphix should have something where both people can see the
+ * top card of the library at all times." Forge says who may see a library's top card the way it says
+ * it for any card: `PlayerMayLook` (Courser's `MayLookAt$ Player` names every player, Vizier of the
+ * Menagerie's `MayLookAt$ You` its controller only), and the projection follows it both ways.
+ */
+describe("a library's top card that Forge lets players look at", () => {
+	const mayLook = (ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
+	const idsIn = (raw: Map<string, WireObj>, owner: number, zone: string): number[] =>
+		(raw.get(deltaKey(DELTA_TYPE.player, owner))?.[zone] as { v: { v: number }[] }).v.map((x) => x.v);
+	/**
+	 * The fixture's state with one of player 1's hand cards (a card the capture carries whole, with its
+	 * faces) put on top of their library — the capture names no library card. Returns its id and the next.
+	 */
+	function onTop(): { raw: Map<string, WireObj>; top: number; next: number } {
+		const raw = fold(fixtureFrames());
+		const [top, ...hand] = idsIn(raw, 1, 'Hand') as [number, ...number[]];
+		const library = idsIn(raw, 1, 'Library');
+		const player = raw.get(deltaKey(DELTA_TYPE.player, 1)) as WireObj;
+		raw.set(deltaKey(DELTA_TYPE.player, 1), { ...player, Hand: mayLook(hand), Library: mayLook([top, ...library]) });
+		raw.set(deltaKey(DELTA_TYPE.card, top), { ...(raw.get(deltaKey(DELTA_TYPE.card, top)) as WireObj), Zone: { t: 'enum', v: 'Library' } });
+		return { raw, top, next: library[0]! };
+	}
+	function delta(objectDeltas: Record<string, WireObj>): StateFrame {
+		return { kind: 'notify', method: 'applyDelta', payload: { packet: { seq: 99, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] } } };
+	}
+	const names = (table: Record<string, WireObj>, cardId: number): unknown[] =>
+		Object.values(table)
+			.filter((o) => (o._type === DELTA_TYPE.card && o._id === cardId) || (o._type === DELTA_TYPE.cardState && cardIdOfState(o._id) === cardId))
+			.map((o) => o.Name)
+			.filter((n) => n !== undefined && n !== null);
+
+	it('is sent whole to every seat Forge names, and to no other; the card under it stays hidden', () => {
+		const { raw, top, next } = onTop();
+		const card = raw.get(deltaKey(DELTA_TYPE.card, top)) as WireObj;
+		const table = (who: number[]) => ({ ...Object.fromEntries(raw), [deltaKey(DELTA_TYPE.card, top)]: { ...card, PlayerMayLook: mayLook(who) } });
+		const frame = (who: number[]): StateFrame => ({ kind: 'notify', method: 'setGameView', payload: { gameView: table(who), sequenceNumber: 1 } });
+		const out = (viewer: number, who: number[]) => {
+			const p = createProjector(viewer);
+			const gameView = (p.project(frame(who)) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+			return { p, gameView };
+		};
+
+		// Courser: every player.
+		for (const viewer of PLAYERS) {
+			const { p, gameView } = out(viewer, [0, 1]);
+			expect(p.visibilityOf(top), `seat ${viewer} may see the top`).toBe('full');
+			expect(names(gameView, top).length, `seat ${viewer} is sent its name`).toBeGreaterThan(0);
+			expect(p.visibilityOf(next), `seat ${viewer} may not see the card under it`).toBe('hidden');
+			expect(names(gameView, next), `seat ${viewer} is sent nothing that names the card under it`).toEqual([]);
+		}
+		// Vizier of the Menagerie: its controller only.
+		const own = out(1, [1]);
+		expect(own.p.visibilityOf(top)).toBe('full');
+		const opp = out(0, [1]);
+		expect(opp.p.visibilityOf(top), 'the opponent may not see it').toBe('hidden');
+		expect(names(opp.gameView, top), 'and is sent nothing that names it').toEqual([]);
+	});
+
+	it('is sent when Forge lets the seat look, kept while it stays on top, and taken back when the library is shuffled', () => {
+		const { raw, top } = onTop();
+		const key = deltaKey(DELTA_TYPE.card, top);
+		const p = createProjector(0);
+		p.project({ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(raw), sequenceNumber: 1 } });
+		expect(p.visibilityOf(top)).toBe('hidden');
+
+		const shown = (p.project(delta({ [key]: { _type: DELTA_TYPE.card, _id: top, PlayerMayLook: mayLook([0, 1]) } })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(p.visibilityOf(top)).toBe('full');
+		expect(names(shown.newObjects, top).length, 'the card and its face are re-sent whole').toBeGreaterThan(0);
+
+		p.project(delta({ [key]: { _type: DELTA_TYPE.card, _id: top, PlayerMayLook: null } as unknown as WireObj }));
+		expect(p.visibilityOf(top), 'the seat still knows the card it was shown').toBe('full');
+
+		const [, ...under] = idsIn(raw, 1, 'Library');
+		const playerKey = deltaKey(DELTA_TYPE.player, 1);
+		const shuffled = { _type: DELTA_TYPE.player, _id: 1, Library: mayLook([...under.slice(0, 2), top, ...under.slice(2)]) };
+		const gone = (p.project(delta({ [playerKey]: shuffled })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(p.visibilityOf(top)).toBe('hidden');
+		expect((gone.newObjects[key] as WireObj).Name, 'the card is re-sent as existence only').toBeUndefined();
+		const wiped = Object.values(gone.newObjects).filter((o) => o._type === DELTA_TYPE.cardState && cardIdOfState(o._id) === top);
+		expect(wiped.length, 'its face is wiped').toBeGreaterThan(0);
+		for (const face of wiped) expect(face.Name).toBeNull();
+	});
+});
+
+/*
+ * Wave 32, Q10 — `creatureCount`, the fact behind *"no creatures, no block"*
+ * (`auto.ts` `skipEmptyBlockStop`). Over the REAL stream, packet by packet, against
+ * a count taken independently off the folded raw state.
+ */
+describe('creatureCount (Q10)', () => {
+	function expectedCreatures(state: ReadonlyMap<string, WireObj>, playerId: number): number {
+		const bf = state.get(deltaKey(DELTA_TYPE.player, playerId))?.Battlefield as { v: { v: number }[] } | undefined;
+		let n = 0;
+		for (const { v: id } of bf?.v ?? []) {
+			const card = state.get(deltaKey(DELTA_TYPE.card, id));
+			const ordinal = (card?.CurrentState as { v?: number } | undefined)?.v ?? 0;
+			const type = state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + ordinal))?.Type as { core?: string[] } | undefined;
+			if (type?.core?.includes('Creature') === true) n += 1;
+		}
+		return n;
+	}
+
+	it('is null before the viewer is named, and tracks the battlefield after every packet', () => {
+		const frames = fixtureFrames();
+		for (const viewer of PLAYERS) {
+			const projector = createProjector();
+			expect(projector.creatureCount()).toBeNull();
+			projector.setViewer(viewer);
+			const counts: number[] = [];
+			frames.forEach((frame, i) => {
+				projector.project(frame);
+				const expected = expectedCreatures(fold(frames.slice(0, i + 1)), viewer);
+				expect(projector.creatureCount(), `viewer ${viewer} after packet ${i}`).toBe(expected);
+				counts.push(expected);
+			});
+			// Not vacuous: the stream has the seat with no creature AND with one.
+			expect(counts.some((n) => n === 0), `viewer ${viewer} never had none`).toBe(true);
+			expect(counts.some((n) => n > 0), `viewer ${viewer} never had one`).toBe(true);
+		}
+	});
+
+	it('counts a card whose face is not known as a creature — when in doubt, the player is asked', () => {
+		const projector = createProjector(0);
+		projector.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: {
+					seq: 1,
+					checksum: 0,
+					checksumProperties: [],
+					newObjects: {
+						[deltaKey(DELTA_TYPE.player, 0)]: { _type: DELTA_TYPE.player, _id: 0, Battlefield: { t: 'list', v: [{ t: 'int', v: 77 }] } },
+					},
+					objectDeltas: {},
+					events: [],
+				},
+			},
+		} as StateFrame);
+		expect(projector.creatureCount()).toBe(1);
+	});
+});
+
+describe('stackTopSpellTypes and cardAt', () => {
+	it('names the top SPELL\u2019s core types, null for an ability on top; and a card\u2019s name and zone', () => {
+		const projector = createProjector(0);
+		const game = deltaKey(DELTA_TYPE.game, 1);
+		const frame = (ability: boolean): StateFrame =>
+			({
+				kind: 'notify',
+				method: 'applyDelta',
+				payload: {
+					packet: {
+						seq: 1,
+						checksum: 0,
+						checksumProperties: [],
+						newObjects: {
+							[game]: { _type: DELTA_TYPE.game, _id: 1 },
+							[deltaKey(DELTA_TYPE.player, 0)]: { _type: DELTA_TYPE.player, _id: 0, Hand: { t: 'list', v: [{ t: 'int', v: 67 }] } },
+							[deltaKey(DELTA_TYPE.card, 67)]: { _type: DELTA_TYPE.card, _id: 67, CurrentState: { t: 'int', v: 0 } },
+							[deltaKey(DELTA_TYPE.cardState, 67 * 16)]: { _type: DELTA_TYPE.cardState, _id: 67 * 16, Name: { t: 'str', v: 'Twincast' } },
+							[deltaKey(DELTA_TYPE.card, 70)]: { _type: DELTA_TYPE.card, _id: 70, CurrentState: { t: 'int', v: 0 } },
+							[deltaKey(DELTA_TYPE.cardState, 70 * 16)]: { _type: DELTA_TYPE.cardState, _id: 70 * 16, Type: { t: 'cardtype', core: ['Instant'] } },
+							[deltaKey(DELTA_TYPE.stackItem, 9)]: { _type: DELTA_TYPE.stackItem, _id: 9, SourceCard: { t: 'int', v: 70 }, Ability: { t: 'bool', v: ability } },
+						},
+						objectDeltas: { [game]: { _type: DELTA_TYPE.game, _id: 1, Stack: { t: 'list', v: [{ t: 'int', v: 9 }] } } },
+						events: [],
+					},
+				},
+			}) as StateFrame;
+		expect(projector.stackTopSpellTypes()).toBeNull();
+		projector.project(frame(false));
+		expect(projector.stackTopSpellTypes()).toEqual(['Instant']);
+		expect(projector.cardAt(67)).toEqual({ name: 'Twincast', zone: 'Hand' });
+		expect(projector.cardAt(99)).toEqual({ name: null, zone: null });
+		projector.project(frame(true));
+		expect(projector.stackTopSpellTypes()).toBeNull();
+	});
+});
+
+describe('stackTopActivator (Q17)', () => {
+	it('is the activating player of the TOP stack item, and null for an empty or unknown stack', () => {
+		const projector = createProjector(0);
+		expect(projector.stackTopActivator()).toBeNull();
+		const game = deltaKey(DELTA_TYPE.game, 1);
+		const item = (id: number, who: number) => ({ _type: DELTA_TYPE.stackItem, _id: id, ActivatingPlayer: { t: 'int', v: who } });
+		const frame = (stack: number[], items: Record<string, WireObj>): StateFrame =>
+			({
+				kind: 'notify',
+				method: 'applyDelta',
+				payload: {
+					packet: {
+						seq: 1,
+						checksum: 0,
+						checksumProperties: [],
+						newObjects: { [game]: { _type: DELTA_TYPE.game, _id: 1 }, ...items },
+						objectDeltas: { [game]: { _type: DELTA_TYPE.game, _id: 1, Stack: { t: 'list', v: stack.map((v) => ({ t: 'int', v })) } } },
+						events: [],
+					},
+				},
+			}) as StateFrame;
+		projector.project(frame([], {}));
+		expect(projector.stackTopActivator()).toBeNull();
+		// Top first: item 9 is on top, and it is player 1's.
+		projector.project(frame([9, 5], { [deltaKey(DELTA_TYPE.stackItem, 9)]: item(9, 1), [deltaKey(DELTA_TYPE.stackItem, 5)]: item(5, 0) }));
+		expect(projector.stackTopActivator()).toBe(1);
+		// An item the state does not know says nothing.
+		projector.project(frame([77], {}));
+		expect(projector.stackTopActivator()).toBeNull();
+	});
+});
+
+describe('turnNumber', () => {
+	it('is the Game object’s own Turn, off a delta either seat could have received — null until one arrives', () => {
+		const projector = createProjector(0);
+		expect(projector.turnNumber()).toBeNull();
+		const game = deltaKey(DELTA_TYPE.game, 1);
+		const frame = (turn: number): StateFrame =>
+			({
+				kind: 'notify',
+				method: 'applyDelta',
+				payload: {
+					packet: {
+						seq: 1,
+						checksum: 0,
+						checksumProperties: [],
+						newObjects: { [game]: { _type: DELTA_TYPE.game, _id: 1 } },
+						objectDeltas: { [game]: { _type: DELTA_TYPE.game, _id: 1, Turn: { t: 'int', v: turn } } },
+						events: [],
+					},
+				},
+			}) as StateFrame;
+		projector.project(frame(1));
+		expect(projector.turnNumber()).toBe(1);
+		// A later turn overwrites it — the same object, a newer delta.
+		projector.project(frame(14));
+		expect(projector.turnNumber()).toBe(14);
+	});
+});
+
+describe('activePlayer and playerCounts', () => {
+	it('read whose turn it is and each player’s life and hand size off the table — the same for a watcher as for a seat', () => {
+		const game = deltaKey(DELTA_TYPE.game, 1);
+		const p0 = deltaKey(DELTA_TYPE.player, 0);
+		const p1 = deltaKey(DELTA_TYPE.player, 1);
+		const ids = (v: number[]) => ({ t: 'list', v: v.map((n) => ({ t: 'int', v: n })) });
+		const frame = {
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: {
+					seq: 1,
+					checksum: 0,
+					checksumProperties: [],
+					newObjects: { [game]: { _type: DELTA_TYPE.game, _id: 1 }, [p0]: { _type: DELTA_TYPE.player, _id: 0 }, [p1]: { _type: DELTA_TYPE.player, _id: 1 } },
+					objectDeltas: {
+						[game]: { _type: DELTA_TYPE.game, _id: 1, PlayerTurn: { t: 'int', v: 1 } },
+						[p0]: { _type: DELTA_TYPE.player, _id: 0, Life: { t: 'int', v: 14 }, Hand: ids([10, 11]) },
+						[p1]: { _type: DELTA_TYPE.player, _id: 1, Life: { t: 'int', v: 9 }, Hand: ids([20, 21, 22, 23]) },
+					},
+					events: [],
+				},
+			},
+		} as StateFrame;
+		for (const viewer of [null, 0]) {
+			const projector = createProjector(viewer);
+			expect(projector.activePlayer()).toBeNull();
+			expect(projector.playerCounts().size).toBe(0);
+			projector.project(frame);
+			expect(projector.activePlayer()).toBe(1);
+			expect([...projector.playerCounts()]).toEqual([
+				[0, { life: 14, hand: 2 }],
+				[1, { life: 9, hand: 4 }],
+			]);
+		}
+	});
+});
+
+describe('phase', () => {
+	it('is the Game object’s own Phase constant — null until one arrives', () => {
+		const projector = createProjector(0);
+		expect(projector.phase()).toBeNull();
+		const game = deltaKey(DELTA_TYPE.game, 1);
+		projector.project({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: {
+					seq: 1,
+					checksum: 0,
+					checksumProperties: [],
+					newObjects: { [game]: { _type: DELTA_TYPE.game, _id: 1 } },
+					objectDeltas: { [game]: { _type: DELTA_TYPE.game, _id: 1, Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'END_OF_TURN' } } },
+					events: [],
+				},
+			},
+		} as StateFrame);
+		expect(projector.phase()).toBe('END_OF_TURN');
+	});
+});
+
+/**
+ * The watchers' viewer, `EVERY_PLAYER` (the operator, 2026-10-28: *"the spectator impersonates the
+ * view of the active player … with the small added benefit of seeing the hidden cards"*): every
+ * player at once. Public zones and every hand whole, a face-down permanent's face, and a library
+ * card only where a player was shown it. The watcher channel in `match.ts` is one of these.
+ */
+describe('EVERY_PLAYER: the watchers see as every player at once', () => {
+	const frames = fixtureFrames();
+	const raw = fold(frames);
+	const zoneIds = (playerId: number, zone: string): number[] => {
+		const list = raw.get(deltaKey(DELTA_TYPE.player, playerId))?.[zone] as { v: { v: number }[] } | undefined;
+		return list === undefined ? [] : list.v.map((x) => x.v);
+	};
+
+	it('shows every battlefield, graveyard and HAND card whole, and nothing from either library', () => {
+		const projector = createProjector(EVERY_PLAYER);
+		for (const frame of frames) projector.project(frame);
+		for (const playerId of PLAYERS) {
+			for (const id of zoneIds(playerId, 'Battlefield')) expect(projector.visibilityOf(id), `battlefield card ${id}`).toBe('full');
+			for (const id of zoneIds(playerId, 'Graveyard')) expect(projector.visibilityOf(id), `graveyard card ${id}`).toBe('full');
+			expect(zoneIds(playerId, 'Hand').length).toBeGreaterThan(0);
+			for (const id of zoneIds(playerId, 'Hand')) expect(projector.visibilityOf(id), `hand card ${id}`).toBe('full');
+			expect(zoneIds(playerId, 'Library').length).toBeGreaterThan(0);
+			for (const id of zoneIds(playerId, 'Library')) expect(projector.visibilityOf(id), `library card ${id}`).toBe('hidden');
+		}
+	});
+
+	it('puts every hand card into its serialised frames and no identifying string of a library card — the payload, not the screen', () => {
+		const all = createProjector(EVERY_PLAYER);
+		const text = frames.map((frame) => JSON.stringify(all.project(frame))).join('\n');
+		const hands = new Set<string>();
+		for (const playerId of PLAYERS) for (const id of zoneIds(playerId, 'Hand')) for (const s of identifyingStrings(raw, id)) hands.add(s);
+		expect(hands.size).toBeGreaterThan(10);
+		expect(leaked(hands, text).length, 'both hands are named').toBe(hands.size);
+		// The capture names no library card, so one of player 1's hand cards is put on top of their library.
+		const [top, ...hand] = zoneIds(1, 'Hand') as [number, ...number[]];
+		const ids = (list: readonly number[]) => ({ t: 'list', v: list.map((v) => ({ t: 'int', v })) });
+		const tucked = new Map(raw);
+		tucked.set(deltaKey(DELTA_TYPE.player, 1), { ...(raw.get(deltaKey(DELTA_TYPE.player, 1)) as WireObj), Hand: ids(hand), Library: ids([top, ...zoneIds(1, 'Library')]) });
+		tucked.set(deltaKey(DELTA_TYPE.card, top), { ...(raw.get(deltaKey(DELTA_TYPE.card, top)) as WireObj), Zone: { t: 'enum', v: 'Library' } });
+		const secret = new Set(identifyingStrings(raw, top));
+		for (const playerId of PLAYERS) {
+			for (const zone of ['Hand', 'Battlefield', 'Graveyard', 'Exile', 'Command']) {
+				for (const id of zoneIds(playerId, zone)) if (id !== top) for (const s of identifyingStrings(raw, id)) secret.delete(s);
+			}
+		}
+		expect(secret.size, 'the tucked card has strings of its own').toBeGreaterThan(0);
+		const out = JSON.stringify(createProjector(EVERY_PLAYER).project({ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(tucked), sequenceNumber: 1 } }));
+		expect(leaked(secret, JSON.stringify(Object.fromEntries(tucked))).length, 'not vacuous: the raw state names it').toBe(secret.size);
+		expect(leaked(secret, out)).toEqual([]);
+	});
+
+	it('still says how many cards each library holds — the ids stay, the cards do not', () => {
+		const projector = createProjector(EVERY_PLAYER);
+		const shown = fold(frames.map((frame) => projector.project(frame)));
+		for (const playerId of PLAYERS) {
+			for (const zone of ['Hand', 'Library']) {
+				const list = shown.get(deltaKey(DELTA_TYPE.player, playerId))?.[zone] as { v: { v: number }[] } | undefined;
+				expect(list?.v.map((x) => x.v), `${zone} of player ${playerId}`).toEqual(zoneIds(playerId, zone));
+			}
+			for (const id of zoneIds(playerId, 'Library')) expect(shown.get(deltaKey(DELTA_TYPE.card, id))?.Name).toBeUndefined();
+		}
+	});
+
+	it('shows a face-down permanent whole, as its controller sees it', () => {
+		const bf = zoneIds(1, 'Battlefield');
+		const cardId = bf[0] as number;
+		const card = raw.get(deltaKey(DELTA_TYPE.card, cardId)) as WireObj;
+		const table = { ...Object.fromEntries(raw), [deltaKey(DELTA_TYPE.card, cardId)]: { ...card, Facedown: { t: 'bool', v: true } } };
+		const frame: StateFrame = { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: 1 } };
+		const projector = createProjector(EVERY_PLAYER);
+		const out = (projector.project(frame) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+		expect(projector.visibilityOf(cardId)).toBe('full');
+		expect((out[deltaKey(DELTA_TYPE.card, cardId)] as WireObj).Name).toEqual(card.Name);
+		const opponent = createProjector(0);
+		opponent.project(frame);
+		expect(opponent.visibilityOf(cardId), 'its opponent sees a face-down card').toBe('faceOnly');
+	});
+});
+
+/**
+ * What a seat was shown, it keeps — while the card stays where it was shown. A small hand-built table:
+ * seat 0 watches player 1's hand (card 10) and library (20 on top of 21, 22). `PlayerMayLook` is how Forge
+ * grants a look; `learn` is a reveal the server answered.
+ */
+describe('a card the seat was shown stays shown while it stays put', () => {
+	const int = (v: number) => ({ t: 'int', v });
+	const list = (ids: readonly number[]) => ({ t: 'list', v: ids.map(int) });
+	const NAMES: Record<number, string> = { 10: 'Goblin Guide', 20: 'Lightning Bolt', 21: 'Shock', 22: 'Mountain', 30: 'Grizzly Bears' };
+	const card = (id: number, mayLook: readonly number[] = []): WireObj => ({
+		_type: DELTA_TYPE.card,
+		_id: id,
+		Owner: int(1),
+		Controller: int(1),
+		Name: { t: 'str', v: NAMES[id] },
+		...(mayLook.length === 0 ? {} : { PlayerMayLook: list(mayLook) }),
+	});
+	const player = (id: number, zones: { Hand?: number[]; Library?: number[]; Graveyard?: number[]; Battlefield?: number[]; Exile?: number[] } = {}): WireObj => ({
+		_type: DELTA_TYPE.player,
+		_id: id,
+		Hand: list(zones.Hand ?? []),
+		Library: list(zones.Library ?? []),
+		Graveyard: list(zones.Graveyard ?? []),
+		Battlefield: list(zones.Battlefield ?? []),
+		Exile: list(zones.Exile ?? []),
+	});
+	const opening = (mayLook: Record<number, number[]> = {}): StateFrame => ({
+		kind: 'notify',
+		method: 'setGameView',
+		payload: {
+			sequenceNumber: 1,
+			gameView: Object.fromEntries(
+				[player(0), player(1, { Hand: [10], Library: [20, 21, 22] }), ...[10, 20, 21, 22].map((id) => card(id, mayLook[id]))].map((o) => [deltaKey(o._type, o._id), o]),
+			),
+		},
+	});
+	let seq = 1;
+	const delta = (objectDeltas: WireObj[]): StateFrame => ({
+		kind: 'notify',
+		method: 'applyDelta',
+		payload: {
+			packet: { seq: ++seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: Object.fromEntries(objectDeltas.map((o) => [deltaKey(o._type, o._id), o])), events: [] },
+		},
+	});
+	/** Seat 0's client state after these projected frames: the name it holds for `id`, if any. */
+	const held = (emitted: readonly (StateFrame | null)[], id: number): unknown => foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(deltaKey(DELTA_TYPE.card, id))?.Name;
+
+	it("keeps a hand card Forge let it look at after Forge takes the look back (Thoughtseize's reveal)", () => {
+		const p = createProjector(0);
+		const out = [p.project(opening({ 10: [0] })), p.project(delta([{ _type: DELTA_TYPE.card, _id: 10, PlayerMayLook: null }]))];
+		expect(p.visibilityOf(10)).toBe('full');
+		expect(held(out, 10)).toEqual({ t: 'str', v: 'Goblin Guide' });
+	});
+
+	it('follows a revealed top card into its holder\'s hand, and never shows the card under it', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening())];
+		expect(held(out, 20)).toBeUndefined();
+		out.push(p.learn([20]));
+		expect(held(out, 20), 'the reveal itself sends the card').toEqual({ t: 'str', v: 'Lightning Bolt' });
+		out.push(p.project(delta([{ ...player(1, { Hand: [10, 20], Library: [21, 22] }) }])));
+		expect(p.visibilityOf(20)).toBe('full');
+		expect(held(out, 20), 'drawn, it is still known').toEqual({ t: 'str', v: 'Lightning Bolt' });
+		expect(held(out, 21)).toBeUndefined();
+		expect(p.learn([20]), 'a card already held needs nothing sent').toBeNull();
+	});
+
+	it('forgets a known library card when the library is shuffled', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([20])];
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [21, 22, 20] }) }])));
+		expect(p.visibilityOf(20)).toBe('hidden');
+		expect(held(out, 20), 'a shuffled card is wiped from the client').toBeUndefined();
+	});
+
+	it('keeps a known library card while cards are only drawn or put on top of it', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([21])];
+		out.push(p.project(delta([{ ...player(1, { Hand: [10, 20], Library: [21, 22] }) }])));
+		out.push(p.project(delta([{ ...player(1, { Hand: [20], Library: [10, 21, 22] }) }])));
+		expect(p.visibilityOf(21)).toBe('full');
+		expect(held(out, 21)).toEqual({ t: 'str', v: 'Shock' });
+		expect(p.visibilityOf(10), 'a known hand card put back into the library is forgotten').toBe('hidden');
+	});
+
+	it('forgets a known hand card that leaves the hand for a library, and does not know it drawn again', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([10])];
+		out.push(p.project(delta([{ ...player(1, { Hand: [], Library: [20, 21, 22, 10] }) }])));
+		expect(p.visibilityOf(10)).toBe('hidden');
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [20, 21, 22] }) }])));
+		expect(p.visibilityOf(10)).toBe('hidden');
+		expect(held(out, 10)).toBeUndefined();
+	});
+
+	it("keeps a look at the top of the seat's own library (a scry keeping its cards) after the look ends, and only those cards", () => {
+		const p = createProjector(1);
+		const out: (StateFrame | null)[] = [p.project(opening({ 20: [1], 21: [1] }))];
+		out.push(p.project(delta([{ _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null }, { _type: DELTA_TYPE.card, _id: 21, PlayerMayLook: null }])));
+		expect([20, 21, 22].map((id) => p.visibilityOf(id)), 'the two it looked at, not the one under them').toEqual(['full', 'full', 'hidden']);
+		expect(lookHeld(out, 20), 'said in Forge’s words: this seat may look at it').toEqual(list([1]));
+		out.push(p.project(delta([{ _type: DELTA_TYPE.game, _id: 0, Turn: int(3) } as WireObj, { ...player(0, { Graveyard: [] }) }])));
+		expect(held(out, 21), 'kept through packets that touch neither the card nor its library').toEqual({ t: 'str', v: 'Shock' });
+	});
+
+	it("does not keep a look at the seat's whole library: that is a search, and what it chose there is the decision's", () => {
+		const p = createProjector(1);
+		p.project(opening({ 20: [1], 21: [1], 22: [1] }));
+		p.project(delta([20, 21, 22].map((id) => ({ _type: DELTA_TYPE.card, _id: id, PlayerMayLook: null }) as unknown as WireObj)));
+		expect([20, 21, 22].map((id) => p.visibilityOf(id))).toEqual(['hidden', 'hidden', 'hidden']);
+	});
+
+	it('does not keep a look that is not the top of a library', () => {
+		const p = createProjector(1);
+		p.project(opening({ 21: [1] }));
+		p.project(delta([{ _type: DELTA_TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj]));
+		expect(p.visibilityOf(21)).toBe('hidden');
+	});
+
+	it("keeps the opponent's top card a fate seal looked at, and never sends it to that library's holder", () => {
+		const alice = createProjector(0);
+		const bob = createProjector(1);
+		const look = opening({ 20: [0] });
+		const ended = delta([{ _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj]);
+		const aliceOut = [alice.project(look), alice.project(ended)];
+		const bobOut = [bob.project(look), bob.project(ended)];
+		expect(alice.visibilityOf(20)).toBe('full');
+		expect(lookHeld(aliceOut, 20), 'alice alone: bob was not shown it').toEqual(list([0]));
+		expect(bob.visibilityOf(20)).toBe('hidden');
+		expect(held(bobOut, 20), 'bob is never sent his own top card').toBeUndefined();
+	});
+
+	it('keeps the top card a fate seal kept when Forge re-creates it on top of the same library — in the packet the look ends, one after it, or after a packet that holds it in no zone', () => {
+		const ended = { _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
+		const together = createProjector(0);
+		const togetherOut = [together.project(opening({ 20: [0] })), together.project(renewed([card(20)]))];
+		const after = createProjector(0);
+		const afterOut = [after.project(opening({ 20: [0] })), after.project(delta([ended])), after.project(renewed([card(20)]))];
+		// What Forge sent the fate seal in e2e/fs-known-top.spec.ts: the look ends with the card out of every zone list, and it comes back on top in the next packet as a new object.
+		const split = createProjector(0);
+		const splitOut = [
+			split.project(opening({ 20: [0] })),
+			split.project(delta([ended, player(1, { Hand: [10], Library: [21, 22] })])),
+			split.project(renewed([card(20)], [player(1, { Hand: [10], Library: [20, 21, 22] })])),
+		];
+		expect({ together: together.visibilityOf(20), after: after.visibilityOf(20), split: split.visibilityOf(20) }).toEqual({ together: 'full', after: 'full', split: 'full' });
+		expect([held(togetherOut, 20), held(afterOut, 20), held(splitOut, 20)]).toEqual(Array(3).fill({ t: 'str', v: 'Lightning Bolt' }));
+		expect(lookHeld(splitOut, 20), 'still said as alice’s look').toEqual(list([0]));
+	});
+
+	it('forgets a looked-at top card Forge re-creates anywhere but where it was, or in a library shuffled around it', () => {
+		const ended = { _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
+		const bottom = createProjector(0);
+		bottom.project(opening({ 20: [0] }));
+		bottom.project(delta([ended]));
+		bottom.project(renewed([card(20)], [player(1, { Hand: [10], Library: [21, 22, 20] })]));
+		const shuffled = createProjector(0);
+		shuffled.project(opening({ 20: [0] }));
+		shuffled.project(delta([ended, player(1, { Hand: [10], Library: [21, 22] })]));
+		shuffled.project(renewed([card(20)], [player(1, { Hand: [10], Library: [20, 22, 21] })]));
+		expect({ bottom: bottom.visibilityOf(20), shuffled: shuffled.visibilityOf(20) }).toEqual({ bottom: 'hidden', shuffled: 'hidden' });
+	});
+
+	describe('the library the seat is sent keeps a known top card while Forge has it in no zone list', () => {
+		const ended = { _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
+		/** Seat 0's client state after these projected frames: bob's library, top first. */
+		const library = (emitted: readonly (StateFrame | null)[]): number[] =>
+			idsOf(foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(deltaKey(DELTA_TYPE.player, 1)), 'Library');
+		const gap = (): { p: ReturnType<typeof createProjector>; out: (StateFrame | null)[] } => {
+			const p = createProjector(0);
+			const out = [p.project(opening({ 20: [0] })), p.project(delta([ended, player(1, { Hand: [10], Library: [21, 22] })]))];
+			return { p, out };
+		};
+
+		it('a fate seal keeping it on top: alice is never sent bob’s library without it (fs-known-top, run 39845586028)', () => {
+			const { p, out } = gap();
+			expect(library(out), 'between the two packets').toEqual([20, 21, 22]);
+			out.push(p.project(renewed([card(20)], [player(1, { Hand: [10], Library: [20, 21, 22] })])));
+			expect(library(out)).toEqual([20, 21, 22]);
+			expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
+		});
+
+		it('it lands elsewhere: the library is sent as Forge has it, though Forge sends no list of its own', () => {
+			const exiled = gap();
+			exiled.out.push(exiled.p.project(delta([{ _type: DELTA_TYPE.player, _id: 1, Exile: list([20]) } as WireObj])));
+			expect(library(exiled.out)).toEqual([21, 22]);
+			const bottom = gap();
+			bottom.out.push(bottom.p.project(renewed([card(20)], [player(1, { Hand: [10], Library: [21, 22, 20] })])));
+			expect(library(bottom.out)).toEqual([21, 22, 20]);
+		});
+
+		it('a card cast off the top is on the stack, not held in the library', () => {
+			const p = createProjector(0);
+			const out = [p.project(opening({ 20: [0] })), p.project(delta([{ ...card(20, [0]), Zone: { t: 'enum', v: 'Stack' } }, player(1, { Hand: [10], Library: [21, 22] })]))];
+			expect(library(out)).toEqual([21, 22]);
+		});
+
+		it('an unknown card between two lists is not held: the seat never learns where it was', () => {
+			const p = createProjector(0);
+			const out = [p.project(opening()), p.project(delta([player(1, { Hand: [10], Library: [21, 22] })]))];
+			expect(library(out)).toEqual([21, 22]);
+		});
+	});
+
+	it("names the holder too when it was shown its own top card as well (Goblin Guide's reveal)", () => {
+		const alice = createProjector(0);
+		const out: (StateFrame | null)[] = [alice.project(opening()), alice.learn([20]), alice.learn([20], 1)];
+		expect(lookHeld(out, 20)).toEqual(list([0, 1]));
+	});
+
+	it('keeps the top card a scry kept when the scry puts the card under it on the bottom', () => {
+		const p = createProjector(1);
+		const out: (StateFrame | null)[] = [p.project(opening({ 20: [1], 21: [1] }))];
+		out.push(p.project(delta([{ _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj, { _type: DELTA_TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj, player(1, { Hand: [10], Library: [20, 22, 21] })])));
+		expect(p.visibilityOf(20), 'kept on top').toBe('full');
+		expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
+	});
+
+	it('forgets every looked-at card once the library is shuffled, and a drawn one leaves the library', () => {
+		const p = createProjector(1);
+		const out: (StateFrame | null)[] = [p.project(opening({ 20: [1], 21: [1] }))];
+		const twelve = [20, 21, 22, 23, 24];
+		out.push(p.project(delta([{ _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj, { _type: DELTA_TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj, player(1, { Hand: [10], Library: twelve })])));
+		out.push(p.project(delta([player(1, { Hand: [10, 20], Library: [21, 22, 23, 24] })])));
+		expect(p.visibilityOf(21), 'the card under the drawn one is still known').toBe('full');
+		out.push(p.project(delta([player(1, { Hand: [10, 20], Library: [24, 22, 21, 23] })])));
+		expect(p.visibilityOf(21), 'shuffled').toBe('hidden');
+		expect(held(out, 21), 'and wiped from the client').toBeUndefined();
+	});
+
+	it("keeps what the seat put on top of its own library from its own hand (Brainstorm), and not what it shuffled in", () => {
+		const p = createProjector(1);
+		const out: (StateFrame | null)[] = [p.project(opening())];
+		out.push(p.project(renewed([card(10)], [player(1, { Hand: [], Library: [10, 20, 21, 22] })])));
+		expect(p.visibilityOf(10), 'put back on top').toBe('full');
+		expect(lookHeld(out, 10)).toEqual(list([1]));
+		const q = createProjector(1);
+		q.project(opening());
+		q.project(renewed([card(10)], [player(1, { Hand: [], Library: [10, 22, 20, 21] })]));
+		expect(q.visibilityOf(10), 'shuffled in with the library').toBe('hidden');
+	});
+
+	it('keeps a known card through a packet that has it in no zone (taken out and put back on top)', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([20])];
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [21, 22] }) }])));
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [20, 21, 22] }) }])));
+		expect(p.visibilityOf(20)).toBe('full');
+		expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
+	});
+
+	it("shows the watchers a library card some player was shown, and every hand card whether or not anyone was", () => {
+		const p = createProjector(EVERY_PLAYER);
+		const out: (StateFrame | null)[] = [p.project(opening())];
+		expect(p.visibilityOf(10), 'a hand card is the watchers’ from the start').toBe('full');
+		expect(held(out, 10)).toEqual({ t: 'str', v: 'Goblin Guide' });
+		expect(p.visibilityOf(20)).toBe('hidden');
+		out.push(p.learn([20], 0));
+		expect(held(out, 20), 'seat 0 was shown the top card: so are the watchers').toEqual({ t: 'str', v: 'Lightning Bolt' });
+		expect(held(out, 21)).toBeUndefined();
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [21, 22, 20] }) }])));
+		expect(p.visibilityOf(20), 'shuffled away: nobody knows it, nor do the watchers').toBe('hidden');
+		expect(held(out, 20)).toBeUndefined();
+	});
+
+	/** The `PlayerMayLook` seat `viewer`'s client holds for `id`, from these projected frames. */
+	const lookHeld = (emitted: readonly (StateFrame | null)[], id: number): unknown =>
+		foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(deltaKey(DELTA_TYPE.card, id))?.PlayerMayLook;
+
+	it('tells the owner which of its hand cards the other seat was shown, and keeps telling it after Forge takes the look back', () => {
+		const bob = createProjector(1);
+		const out = [bob.project(opening({ 10: [0] }))];
+		expect(lookHeld(out, 10), "Forge's own grant, passed through").toEqual(list([0]));
+		out.push(bob.project(delta([{ _type: DELTA_TYPE.card, _id: 10, PlayerMayLook: null }])));
+		expect(lookHeld(out, 10), 'the other seat still knows it').toEqual(list([0]));
+	});
+
+	it("tells the owner of a reveal the server answered for the other seat, as a delta of that one property", () => {
+		const bob = createProjector(1);
+		const out: (StateFrame | null)[] = [bob.project(opening())];
+		expect(lookHeld(out, 10)).toBeUndefined();
+		const told = bob.learn([10], 0);
+		out.push(told);
+		expect(lookHeld(out, 10)).toEqual(list([0]));
+		const packet = told?.method === 'applyDelta' ? told.payload.packet : null;
+		expect(packet?.newObjects, 'nothing re-sent whole').toEqual({});
+		expect(packet?.objectDeltas, 'one property of one card').toEqual({ [deltaKey(DELTA_TYPE.card, 10)]: { _type: DELTA_TYPE.card, _id: 10, PlayerMayLook: list([0]) } });
+		expect(bob.learn([10], 0), 'told once').toBeNull();
+	});
+
+	it('stops telling the owner once the other seat forgets: the card went back into the library and was drawn again', () => {
+		const bob = createProjector(1);
+		const out: (StateFrame | null)[] = [bob.project(opening()), bob.learn([10], 0)];
+		out.push(bob.project(delta([{ ...player(1, { Hand: [], Library: [10, 20, 21, 22] }) }])));
+		expect(lookHeld(out, 10), 'put on top of his library: bob knows it there, alice no longer does').toEqual(list([1]));
+		out.push(bob.project(delta([{ ...player(1, { Hand: [10], Library: [20, 21, 22] }) }])));
+		expect(bob.visibilityOf(10)).toBe('full');
+		expect(lookHeld(out, 10), 'back in the hand, and nobody else knows it').toBeUndefined();
+	});
+
+	it('stops telling the owner of a known top card once the library is shuffled', () => {
+		const bob = createProjector(1);
+		const out: (StateFrame | null)[] = [bob.project(opening()), bob.learn([20]), bob.learn([20], 0)];
+		expect(lookHeld(out, 20), 'both seats saw it').toEqual(list([1, 0]));
+		out.push(bob.project(delta([{ ...player(1, { Hand: [10], Library: [21, 22, 20] }) }])));
+		expect(lookHeld(out, 20)).toBeUndefined();
+	});
+
+	it("stops telling the owner the moment a card leaves the hand while still visible (cast, on the stack, in a graveyard)", () => {
+		const bob = createProjector(1);
+		const out: (StateFrame | null)[] = [bob.project(opening()), bob.learn([10], 0)];
+		out.push(bob.project(delta([{ ...player(1, { Hand: [], Library: [20, 21, 22], Graveyard: [10] }) }])));
+		expect(bob.visibilityOf(10)).toBe('full');
+		expect(lookHeld(out, 10), 'a public card carries no one-seat knowledge').toBeUndefined();
+	});
+
+	/** A packet that sends these cards as new objects: Forge made them anew (they changed zones). */
+	const renewed = (cards: WireObj[], players: WireObj[] = []): StateFrame => ({
+		kind: 'notify',
+		method: 'applyDelta',
+		payload: {
+			packet: {
+				seq: ++seq,
+				checksum: 0,
+				checksumProperties: [],
+				newObjects: Object.fromEntries(cards.map((o) => [deltaKey(o._type, o._id), o])),
+				objectDeltas: Object.fromEntries(players.map((o) => [deltaKey(o._type, o._id), o])),
+				events: [],
+			},
+		},
+	});
+
+	it('forgets a hand card that left and came back inside one packet (Timetwister): Forge sends it as a new object', () => {
+		const alice = createProjector(0);
+		const bob = createProjector(1);
+		const aliceOut: (StateFrame | null)[] = [alice.project(opening()), alice.learn([10])];
+		const bobOut: (StateFrame | null)[] = [bob.project(opening()), bob.learn([10], 0)];
+		expect(lookHeld(bobOut, 10)).toEqual(list([0]));
+		const twisted = renewed([card(10)], [player(1, { Hand: [10, 22], Library: [20, 21] })]);
+		aliceOut.push(alice.project(twisted));
+		bobOut.push(bob.project(twisted));
+		expect(alice.visibilityOf(10), 'alice was shown the old object, not this one').toBe('hidden');
+		expect(held(aliceOut, 10)).toBeUndefined();
+		expect(lookHeld(bobOut, 10), 'and bob is no longer told she knows it').toBeUndefined();
+	});
+
+	it('still follows a known top card drawn into the hand, which Forge also sends as a new object', () => {
+		const p = createProjector(0);
+		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([20])];
+		out.push(p.project(renewed([card(20)], [player(1, { Hand: [10, 20], Library: [21, 22] })])));
+		expect(p.visibilityOf(20)).toBe('full');
+		expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
+	});
+
+	it("never tells a seat about anyone's knowledge of a card it does not hold", () => {
+		const alice = createProjector(0);
+		const out: (StateFrame | null)[] = [alice.project(opening({ 10: [0] }))];
+		expect(alice.learn([10, 20], 1), "bob's own reveal of his cards changes nothing alice is sent").toBeNull();
+		out.push(alice.project(delta([{ _type: DELTA_TYPE.card, _id: 10, PlayerMayLook: null }])));
+		expect(lookHeld(out, 10), 'alice is named, as she knows it, and nobody else').toEqual(list([0]));
+		const everyLook = JSON.stringify(out).match(/"PlayerMayLook":\{[^}]*\}/g) ?? [];
+		expect(everyLook.filter((l) => l.includes('"v":1')), 'player 1 is in no look alice receives').toEqual([]);
+	});
+
+	/** Bob's side with Grizzly Bears (30) where `zones` puts it, and its card as it sits there. */
+	const table = (zones: Parameters<typeof player>[1], bears: WireObj = card(30)): StateFrame => ({
+		kind: 'notify',
+		method: 'setGameView',
+		payload: {
+			sequenceNumber: 1,
+			gameView: Object.fromEntries([player(0), player(1, zones), ...[10, 20, 21, 22].map((id) => card(id)), bears].map((o) => [deltaKey(o._type, o._id), o])),
+		},
+	});
+	/** Both seats, fed the same raw frames. */
+	const both = (...frames: StateFrame[]) => {
+		const alice = createProjector(0);
+		const bob = createProjector(1);
+		const aliceOut = frames.map((f) => alice.project(f));
+		const bobOut = frames.map((f) => bob.project(f));
+		return { alice, bob, aliceOut, bobOut };
+	};
+
+	it("keeps a creature bounced from the table known in its owner's hand (Jace's −1, Unsummon), for the other seat, with the eye on the owner's — across a turn and a draw", () => {
+		const { alice, aliceOut, bobOut } = both(
+			table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }),
+			renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+			delta([{ _type: DELTA_TYPE.game, _id: 0, Turn: int(4) } as WireObj]),
+			delta([player(1, { Hand: [10, 30, 20], Library: [21, 22] })]),
+		);
+		expect(alice.visibilityOf(30)).toBe('full');
+		expect(held(aliceOut, 30), "alice holds the bounced card's name").toEqual({ t: 'str', v: 'Grizzly Bears' });
+		expect(lookHeld(aliceOut, 30), 'said in Forge’s words: alice may look at it').toEqual(list([0]));
+		expect(lookHeld(bobOut, 30), "bob's eye: alice knows it").toEqual(list([0]));
+		expect(alice.visibilityOf(20), 'the card bob drew is his alone').toBe('hidden');
+		expect(alice.visibilityOf(10), 'nor any other card of that hand').toBe('hidden');
+	});
+
+	it('keeps a card returned to a hand from the graveyard (Regrowth, Eternal Witness) or from exile known', () => {
+		for (const from of ['Graveyard', 'Exile'] as const) {
+			const { alice, aliceOut, bobOut } = both(
+				table({ Hand: [10], Library: [20, 21, 22], [from]: [30] }),
+				renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+			);
+			expect(alice.visibilityOf(30), from).toBe('full');
+			expect(held(aliceOut, 30), from).toEqual({ t: 'str', v: 'Grizzly Bears' });
+			expect(lookHeld(bobOut, 30), from).toEqual(list([0]));
+		}
+	});
+
+	it('keeps a spell returned from the stack to its hand known (Remand)', () => {
+		const onStack = { ...card(30), Zone: { t: 'enum', v: 'Stack' } };
+		const { alice, aliceOut } = both(
+			table({ Hand: [10, 30], Library: [20, 21, 22] }),
+			renewed([onStack], [player(1, { Hand: [10], Library: [20, 21, 22] })]),
+			renewed([{ ...card(30), Zone: { t: 'enum', v: 'Hand' } }], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+		);
+		expect(alice.visibilityOf(30)).toBe('full');
+		expect(held(aliceOut, 30)).toEqual({ t: 'str', v: 'Grizzly Bears' });
+	});
+
+	it('a face-down spell on the stack reaches its controller whole and the opponent as its face only', () => {
+		// The stack is public (`PUBLIC_ZONES`), but a face-down card there still hides its name from
+		// everyone but its controller — `PEEKABLE_FACE_DOWN_ZONES` is what lets the controller (bob,
+		// `Controller: int(1)` from `card()`) peek at their own; the opponent (alice) never can.
+		const onStack = { ...card(30), Zone: { t: 'enum', v: 'Stack' }, Facedown: { t: 'bool', v: true } };
+		const { alice, bob } = both(table({ Hand: [10], Library: [20, 21, 22] }, onStack));
+		expect(bob.visibilityOf(30), 'its controller may peek at their own face-down spell on the stack').toBe('full');
+		expect(alice.visibilityOf(30), 'the opponent sees it, but not its face').toBe('faceOnly');
+	});
+
+	it('does not learn a card that sat in a hand before it was ever public, nor a face-down permanent bounced to a hand', () => {
+		const faceDown = { ...card(30), Facedown: { t: 'bool', v: true } };
+		const { alice, bob, aliceOut, bobOut } = both(
+			table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }, faceDown),
+			renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+		);
+		expect(alice.visibilityOf(30)).toBe('hidden');
+		expect(held(aliceOut, 30)).toBeUndefined();
+		expect(lookHeld(bobOut, 30)).toBeUndefined();
+		expect(bob.visibilityOf(30)).toBe('full');
+	});
+
+	it('faceUpOnBattlefield: a seat’s clickable cards reach the others only where every one of them sees the card face up on a battlefield', () => {
+		// Bob's Bears on his battlefield and a card in his hand: alice may hear the Bears were clickable, never the hand card.
+		const open = both(table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }));
+		expect(faceUpOnBattlefield([open.alice], [30, 10, 20, 99])).toEqual([30]);
+		// Face down, its being clickable says what it is (a manifest that may turn up is a creature card).
+		const faceDown = both(table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }, { ...card(30), Facedown: { t: 'bool', v: true } }));
+		expect(faceUpOnBattlefield([faceDown.alice], [30])).toEqual([]);
+		expect(faceUpOnBattlefield([], [30]), 'nobody to tell').toEqual([]);
+	});
+
+	it('forgets a bounced card once its hand is shuffled into the library, and does not know it drawn again', () => {
+		const { alice, aliceOut, bobOut } = both(
+			table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }),
+			renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+			renewed([card(30), card(10)], [player(1, { Hand: [], Library: [21, 30, 20, 10, 22] })]),
+			renewed([card(30)], [player(1, { Hand: [30], Library: [21, 20, 10, 22] })]),
+		);
+		expect(alice.visibilityOf(30)).toBe('hidden');
+		expect(held(aliceOut, 30), 'wiped from the client').toBeUndefined();
+		expect(lookHeld(bobOut, 30), "and bob's eye is gone").toBeUndefined();
+	});
+
+	it('does not learn a graveyard card Timetwister shuffles in and deals into the new hand inside one packet', () => {
+		const cases = [
+			{ hand: [10], library: [22, 10, 20], why: 'shuffled, the old hand in it' },
+			{ hand: [10], library: [20, 21, 22, 10], why: 'the old hand in it, the order saying nothing' },
+			{ hand: [], library: [22, 20], why: 'shuffled, nothing put in but the card dealt out' },
+		];
+		for (const { hand, library, why } of cases) {
+			const { alice, aliceOut, bobOut } = both(
+				table({ Hand: hand, Library: [20, 21, 22], Graveyard: [30] }),
+				renewed([card(30), ...hand.map((id) => card(id))], [player(1, { Hand: [30, 21], Graveyard: [], Library: library })]),
+			);
+			expect(alice.visibilityOf(30), why).toBe('hidden');
+			expect(held(aliceOut, 30), why).toBeUndefined();
+			expect(lookHeld(bobOut, 30), why).toBeUndefined();
+		}
+	});
+
+	it('keeps a bounced card known through a packet that has it in no zone, and not a public card that says it went to a library first', () => {
+		const bounced = both(
+			table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }),
+			renewed([card(30)], [player(1, { Hand: [10], Library: [20, 21, 22] })]),
+			delta([player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+		);
+		expect(bounced.alice.visibilityOf(30)).toBe('full');
+		const tucked = both(
+			table({ Hand: [10], Library: [20, 21, 22], Graveyard: [30] }),
+			renewed([{ ...card(30), Zone: { t: 'enum', v: 'Library' } }], [player(1, { Hand: [10], Library: [20, 21, 22] })]),
+			delta([player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+		);
+		expect(tucked.alice.visibilityOf(30)).toBe('hidden');
+	});
+
+	it('tells the watchers which player knows a bounced card: it is in every hand they see', () => {
+		const watcher = createProjector(EVERY_PLAYER);
+		const out = [watcher.project(table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }))];
+		out.push(watcher.project(renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })])));
+		expect(watcher.visibilityOf(30)).toBe('full');
+		expect(lookHeld(out, 30), 'alice watched it go back: the watchers see her eye on it').toEqual({ t: 'list', v: [{ t: 'int', v: 0 }] });
+		expect(lookHeld(out, 10), 'nobody but its holder knows the other').toBeUndefined();
+	});
+});
+
+/** A resolver that gives every named face an id of its own, so a test can tell which face an id came from. */
+function namedArt(): { art: ArtIds; idOf: (name: string) => string } {
+	const ids = new Map<string, string>();
+	const idOf = (name: string): string => {
+		if (!ids.has(name)) ids.set(name, `00000000-0000-0000-0000-${String(ids.size + 1).padStart(12, '0')}`);
+		return ids.get(name)!;
+	};
+	return { art: { face: ({ name }) => ({ scryfallId: idOf(name) }), card: () => undefined, images: () => [], backs: () => [] }, idOf };
+}
+
+const faceName = (face: WireObj | undefined): string | null => {
+	const v = face?.Name as { t?: string; v?: unknown } | undefined;
+	return v?.t === 'str' && typeof v.v === 'string' && v.v !== '' ? v.v : null;
+};
+
+describe("a face's art id", () => {
+	it.each(PLAYERS)('rides every face seat %i may see whole, and no face of a card it may not', (viewer) => {
+		const { art, idOf } = namedArt();
+		const projector = createProjector(viewer, art);
+		const emitted = fixtureFrames().map((frame) => projector.project(frame));
+		const projected = fold(emitted);
+		let stamped = 0;
+		for (const obj of projected.values()) {
+			if (obj._type !== DELTA_TYPE.cardState) continue;
+			const name = faceName(obj);
+			if (projector.visibilityOf(cardIdOfState(obj._id)) === 'full' && name !== null) {
+				expect(obj.ScryfallId, `face ${obj._id}`).toEqual({ t: 'str', v: idOf(name) });
+				stamped += 1;
+			} else {
+				expect(obj.ScryfallId, `face ${obj._id}`).toBeUndefined();
+			}
+		}
+		expect(stamped).toBeGreaterThan(0);
+		// And never in a payload: a hidden card's id would say which card it is.
+		const opponent = PLAYERS.find((p) => p !== viewer) as number;
+		const raw = fold(fixtureFrames());
+		const transcript = emitted.map((f) => JSON.stringify(f)).join('\n');
+		for (const id of handOf(raw, opponent)) {
+			if (projector.visibilityOf(id) === 'full') continue;
+			for (const obj of raw.values()) {
+				const name = obj._type === DELTA_TYPE.cardState && cardIdOfState(obj._id) === id ? faceName(obj) : null;
+				if (name !== null && ![...projected.values()].some((o) => faceName(o) === name)) expect(transcript).not.toContain(idOf(name));
+			}
+		}
+		for (const frame of emitted) expect(safeParseServerFrame(frame), 'a browser accepts the stamped frame').toMatchObject({ ok: true });
+	});
+
+	it('is taken back when the card turns face down, and is not on the face-down face the table sees', () => {
+		const raw = fold(fixtureFrames());
+		const cardId = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Battlefield as { v: { v: number }[] }).v[0]!.v;
+		const cardKey = deltaKey(DELTA_TYPE.card, cardId);
+		const current = (raw.get(cardKey)?.CurrentState as { v: number } | undefined)?.v ?? 0;
+		const faceKey = deltaKey(DELTA_TYPE.cardState, cardId * 16 + current);
+		const { art } = namedArt();
+		const opp = createProjector(0, art);
+		const up = opp.project({ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(raw), sequenceNumber: 1 } });
+		const upFace = (up as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView[faceKey];
+		expect(upFace?.ScryfallId, 'face up: the table sees which card it is').toBeDefined();
+
+		const down: StateFrame = {
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [cardKey]: { _type: DELTA_TYPE.card, _id: cardId, Facedown: { t: 'bool', v: true } } }, events: [] } },
+		};
+		const out = (opp.project(down) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(opp.visibilityOf(cardId)).toBe('faceOnly');
+		const sent = out.newObjects[faceKey];
+		expect(sent, 'the face is sent again, as a replace').toBeDefined();
+		expect(sent!.ScryfallId, 'and the replace carries no art id, so the fold drops the one it held').toBeUndefined();
+	});
+
+	it('is laid on a recorded watcher stream that lacks it exactly as the live watcher stamps it, and a stream that has it is left alone', () => {
+		const raw = fold(fixtureFrames());
+		const battlefield = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Battlefield as { v: { v: number }[] }).v.map((c) => c.v);
+		const graveyard = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Graveyard as { v: { v: number }[] } | undefined)?.v.map((c) => c.v) ?? [];
+		const [hidden, renamed] = battlefield as [number, number];
+		const faceIdOf = (cardId: number): number => cardId * 16 + ((raw.get(deltaKey(DELTA_TYPE.card, cardId))?.CurrentState as { v: number } | undefined)?.v ?? 0);
+		const faceKeyOf = (cardId: number): string => deltaKey(DELTA_TYPE.cardState, faceIdOf(cardId));
+		const ids = (list: number[]): { t: 'list'; v: { t: 'int'; v: number }[] } => ({ t: 'list', v: list.map((v) => ({ t: 'int', v })) });
+		const packet = (seq: number, newObjects: DeltaPacketJson['newObjects'], objectDeltas: DeltaPacketJson['objectDeltas']): StateFrame => ({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects, objectDeltas, events: [] } },
+		});
+		const later: StateFrame[] = [
+			// Face down in a public zone no controller may peek in: the watchers see the card, never which.
+			packet(100, { [deltaKey(DELTA_TYPE.card, hidden)]: { ...raw.get(deltaKey(DELTA_TYPE.card, hidden))!, Facedown: { t: 'bool', v: true }, Zone: { t: 'enum', v: 'Graveyard' } } }, {
+				[deltaKey(DELTA_TYPE.player, 1)]: { _type: DELTA_TYPE.player, _id: 1, Battlefield: ids(battlefield.filter((id) => id !== hidden)), Graveyard: ids([...graveyard, hidden]) },
+			}),
+			// A card becomes one this resolver has no art for: the delta clears the id it held.
+			packet(101, {}, { [faceKeyOf(renamed)]: { _type: DELTA_TYPE.cardState, _id: faceIdOf(renamed), Name: { t: 'str', v: 'Nameless' } } }),
+			// A resync: the whole table again.
+			{ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(raw), sequenceNumber: 102 } },
+		];
+		const { idOf } = namedArt();
+		// One name the resolver has no art for: a face of it sent whole carries none.
+		const hiddenName = faceName(raw.get(faceKeyOf(hidden)));
+		const artless = [...raw.values()].map((obj) => (obj._type === DELTA_TYPE.cardState ? faceName(obj) : null)).find((name) => name !== null && name !== hiddenName);
+		const art: ArtIds = { face: ({ name }) => (name === 'Nameless' || name === artless ? undefined : { scryfallId: idOf(name) }), card: () => undefined, images: () => [], backs: () => [] };
+		const watcher = createProjector(EVERY_PLAYER, art);
+		const live = [...fixtureFrames(), ...later].map((frame) => watcher.project(frame));
+		const text = JSON.stringify(live);
+		const stripped = JSON.parse(text, (key, value: unknown) => (key === 'ScryfallId' ? undefined : value)) as StateFrame[];
+		expect(text, 'the live stream holds both kinds of id: a stamp and a cleared one').toContain('"ScryfallId":{');
+		expect(text).toContain('"ScryfallId":null');
+		expect(JSON.stringify(stripped)).not.toContain('ScryfallId');
+		const downFace = (live.at(-3) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet.newObjects[faceKeyOf(hidden)];
+		expect(faceName(downFace), 'the face-down card\'s face is sent to the watchers, art and all left off').not.toBeNull();
+
+		const state = new Map<string, WireObj>();
+		expect(stripped.map((frame) => restampWatcherFrame(state, frame, art))).toEqual(live);
+		const again = new Map<string, WireObj>();
+		live.forEach((frame) => expect(restampWatcherFrame(again, frame, art), 'a stamped frame comes back as the same object').toBe(frame));
+	});
+
+	it("follows a face's name: a delta that renames it carries the new id, one that does not carries none", () => {
+		const raw = fold(fixtureFrames());
+		const cardId = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Battlefield as { v: { v: number }[] }).v[0]!.v;
+		const current = (raw.get(deltaKey(DELTA_TYPE.card, cardId))?.CurrentState as { v: number } | undefined)?.v ?? 0;
+		const faceKey = deltaKey(DELTA_TYPE.cardState, cardId * 16 + current);
+		const { art, idOf } = namedArt();
+		const seat = createProjector(1, art);
+		seat.project({ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(raw), sequenceNumber: 1 } });
+		const delta = (seq: number, props: Record<string, unknown>): StateFrame => ({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [faceKey]: { _type: DELTA_TYPE.cardState, _id: cardId * 16 + current, ...props } }, events: [] } },
+		});
+		const renamed = (seat.project(delta(2, { Name: { t: 'str', v: 'Clone' } })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(renamed.objectDeltas[faceKey]?.ScryfallId).toEqual({ t: 'str', v: idOf('Clone') });
+		const tapped = (seat.project(delta(3, { Power: { t: 'int', v: 9 } })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(tapped.objectDeltas[faceKey]).not.toHaveProperty('ScryfallId');
+	});
+});
+
+describe('a restore to the turn\'s start keeps what each player was shown since it began', () => {
+	const int = (v: number) => ({ t: 'int', v });
+	const list = (ids: readonly number[]) => ({ t: 'list', v: ids.map(int) });
+	const NAMES = ['Goblin Guide', 'Lightning Bolt', 'Shock', 'Mountain', 'Grizzly Bears', 'Hill Giant'];
+	/** Seat 1 (player 1) holds `hand`, its library `library`, by index into NAMES; ids are `base` + index. */
+	type Zones = { hand: number[]; library: number[]; graveyard?: number[] };
+	const view = (base: number, turn: number, zones: Zones, look: Record<number, number[]> = {}): StateFrame => {
+		const id = (i: number) => base + i;
+		const card = (i: number): WireObj => ({
+			_type: DELTA_TYPE.card,
+			_id: id(i),
+			Owner: int(1),
+			Controller: int(1),
+			Name: { t: 'str', v: NAMES[i] },
+			...(look[i] === undefined ? {} : { PlayerMayLook: list(look[i]) }),
+		});
+		const player = (p: number, z: Zones): WireObj => ({
+			_type: DELTA_TYPE.player,
+			_id: p,
+			Hand: list(z.hand.map(id)),
+			Library: list(z.library.map(id)),
+			Graveyard: list((z.graveyard ?? []).map(id)),
+			Battlefield: list([]),
+			Exile: list([]),
+		});
+		const objs: WireObj[] = [
+			{ _type: DELTA_TYPE.game, _id: 1, Players: list([0, 1]), Turn: int(turn) },
+			player(0, { hand: [], library: [] }),
+			player(1, zones),
+			...NAMES.map((_n, i) => card(i)),
+		];
+		return { kind: 'notify', method: 'setGameView', payload: { sequenceNumber: 1, gameView: Object.fromEntries(objs.map((o) => [deltaKey(o._type, o._id), o])) } };
+	};
+	let seq = 1;
+	/** The same state as a delta on top of what came before: a game going on, where a reorder reads as a shuffle. */
+	const delta = (base: number, turn: number, zones: Zones, look: Record<number, number[]> = {}): StateFrame => {
+		const whole = (view(base, turn, zones, look) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+		const objectDeltas = Object.fromEntries(
+			Object.entries(whole).map(([k, o]) => [k, o._type === DELTA_TYPE.card && o.PlayerMayLook === undefined ? { ...o, PlayerMayLook: null } : o]),
+		) as Record<string, WireObj>;
+		return { kind: 'notify', method: 'applyDelta', payload: { packet: { seq: ++seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] } } };
+	};
+	const START: Zones = { hand: [0, 1], library: [2, 3, 4, 5] };
+	/** A new game opened on the turn's start, as a restore opens it: the same cards under ids from 100. */
+	const restored = (from: ReturnType<typeof createProjector>, viewer = 0, turn = 3, zones: Zones = START) => {
+		const p = createProjector(viewer);
+		p.inherit(from.carried());
+		p.project(view(100, turn, zones));
+		return p;
+	};
+
+	it("keeps an opponent's hand card it was shown, under the new game's id, and not the one beside it", () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, START, { 0: [0] }));
+		p.project(delta(0, 3, START));
+		const q = restored(p);
+		expect(q.visibilityOf(100)).toBe('full');
+		expect(q.visibilityOf(101)).toBe('hidden');
+	});
+
+	it('keeps a hand card it was shown that left the hand before the restart (the card a Thoughtseize took)', () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, START, { 0: [0], 1: [0] }));
+		p.project(delta(0, 3, { hand: [1], library: [2, 3, 4, 5], graveyard: [0] }));
+		const q = restored(p);
+		expect([q.visibilityOf(100), q.visibilityOf(101)]).toEqual(['full', 'full']);
+	});
+
+	it("keeps a library card it was shown in its place (Goblin Guide's reveal), and the owner's own scry", () => {
+		const alice = createProjector(0);
+		alice.project(view(0, 3, START));
+		alice.learn([2]);
+		const bob = createProjector(1);
+		bob.project(view(0, 3, START));
+		bob.project(delta(0, 3, START, { 2: [1], 3: [1] }));
+		bob.project(delta(0, 3, { hand: [0, 1], library: [2, 4, 5, 3] }));
+		expect(restored(alice).visibilityOf(102)).toBe('full');
+		expect(restored(alice).visibilityOf(103)).toBe('hidden');
+		const back = restored(bob, 1);
+		expect([back.visibilityOf(102), back.visibilityOf(103), back.visibilityOf(104)]).toEqual(['full', 'full', 'hidden']);
+	});
+
+	it('tells the holder which of its cards the other player still knows after the restart', () => {
+		const bob = createProjector(1);
+		bob.project(view(0, 3, START));
+		bob.project(delta(0, 3, START, { 0: [0] }));
+		bob.project(delta(0, 3, START));
+		const after = createProjector(1);
+		after.inherit(bob.carried());
+		const out = after.project(view(100, 3, START));
+		const game = (out as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
+		expect(idsOf(game[deltaKey(DELTA_TYPE.card, 100)], 'PlayerMayLook')).toEqual([0]);
+		expect(idsOf(game[deltaKey(DELTA_TYPE.card, 101)], 'PlayerMayLook')).toEqual([]);
+	});
+
+	it('keeps nothing it learned of a library after that library was shuffled this turn: the restored order is the one before', () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, { hand: [0, 1], library: [5, 3, 2, 4] }));
+		p.learn([5]);
+		expect(p.visibilityOf(5)).toBe('full');
+		expect(restored(p).visibilityOf(105)).toBe('hidden');
+	});
+
+	it('keeps nothing of a card it learned somewhere other than where the turn began with it (drawn this turn, then shown in the hand)', () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, { hand: [0, 1, 2], library: [3, 4, 5] }, { 2: [0] }));
+		p.project(delta(0, 3, { hand: [0, 1, 2], library: [3, 4, 5] }));
+		expect(p.visibilityOf(2)).toBe('full');
+		const q = restored(p);
+		expect([q.visibilityOf(100), q.visibilityOf(101), q.visibilityOf(102)]).toEqual(['hidden', 'hidden', 'hidden']);
+	});
+
+	it('keeps knowledge from before the turn began, and carries it through a second restart', () => {
+		const p = createProjector(0);
+		p.project(view(0, 2, START, { 1: [0] }));
+		p.project(delta(0, 2, START));
+		p.project(delta(0, 3, START));
+		const once = restored(p);
+		expect(once.visibilityOf(101)).toBe('full');
+		expect(restored(once).visibilityOf(101)).toBe('full');
+	});
+
+	it('carries nothing into a game that does not open on the turn it was taken at, or whose card there is not the one it knew', () => {
+		const p = createProjector(0);
+		p.project(view(0, 3, START));
+		p.project(delta(0, 3, START, { 0: [0] }));
+		expect(restored(p, 0, 4).visibilityOf(100)).toBe('hidden');
+		expect(restored(p, 0, 3, { hand: [1, 0], library: [2, 3, 4, 5] }).visibilityOf(100)).toBe('hidden');
+		expect(createProjector(0).carried(), 'nothing seen, nothing carried').toBeNull();
+	});
+});

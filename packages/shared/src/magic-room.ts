@@ -10,7 +10,7 @@
  * - `MagicRoomGameSchema` is the blob a `RoomView` carries as `game`, and the only
  *   place a view carries Magic's fields; `magicGame` reads it.
  * - `MAGIC_ROOM_STORED_KEYS` names the fields a saved room nests under `game`
- *   (app version 2, `apps/server/src/room/lobby.ts`'s app codec). Several of
+ *   (app version 2, `games/magic/server/src/room/lobby.ts`'s app codec). Several of
  *   them never reach the wire: a Gauntlet's draw and a tournament's locked decks
  *   are hidden information, and the server validates their shapes itself.
  */

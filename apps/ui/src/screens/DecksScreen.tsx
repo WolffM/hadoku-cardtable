@@ -45,7 +45,7 @@ export interface DecksScreenProps {
   deckRecords?: () => Promise<DeckRecords>;
 }
 
-/** The stats id a drafted deck's games are reported under (`apps/server/src/http/routes.ts`'s `draftedDeckId`). */
+/** The stats id a drafted deck's games are reported under (`games/magic/server/src/http/routes.ts`'s `draftedDeckId`). */
 const draftedDeckStatsId = (podId: string): string => `draft:${podId}`;
 
 /**

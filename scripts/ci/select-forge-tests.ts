@@ -53,7 +53,7 @@
  *   a hot-path module, or a server play module one
  *   import below one                                    its guard family (the bridge's Java: and, like the
  *                                                       engine pin, everything on a dispatch)
- *   apps/server, packages/game-server                   history, route callers, the jvm suites using it
+ *   apps/server, games/<game>/server, packages/game-server   history, route callers, the jvm suites using it
  *   apps/ui source, a package's source                  history, what it renders, the specs and jvm suites
  *                                                       using it (a package: and the guards of a hot path using it)
  *   anything else                                       every spec + every jvm suite
@@ -147,21 +147,21 @@ export interface Guard {
 export const GUARDS: Guard[] = [
   {
     name: 'the engine',
-    paths: /^(forge|apps\/server\/src\/play\/bridge\/.*)$/,
+    paths: /^(forge|games\/magic\/server\/src\/play\/bridge\/.*)$/,
     specs: ['play.spec.ts', 'w68-untap.spec.ts', 'modal-arrows.spec.ts', 'w70-valakut.spec.ts', 'tt-cryptic.spec.ts', 'ee-thicket.spec.ts'],
-    jvm: ['apps/server/src/play/match-frames.jvm.test.ts', 'apps/server/src/play/mana-sources.jvm.test.ts'],
+    jvm: ['games/magic/server/src/play/match-frames.jvm.test.ts', 'games/magic/server/src/play/mana-sources.jvm.test.ts'],
   },
   {
     name: 'the server match',
-    paths: /^apps\/server\/src\/play\/match\.ts$/,
+    paths: /^games\/magic\/server\/src\/play\/match\.ts$/,
     specs: ['w68-untap.spec.ts', 'dead-bar.spec.ts', 'waiting.spec.ts', 'lg-gamelog.spec.ts', 'w62-bounce.spec.ts', 'played-card.spec.ts'],
-    jvm: ['apps/server/src/play/mana-sources.jvm.test.ts', 'apps/server/src/play/priority.jvm.test.ts'],
+    jvm: ['games/magic/server/src/play/mana-sources.jvm.test.ts', 'games/magic/server/src/play/priority.jvm.test.ts'],
   },
   {
     name: 'auto-pass and auto-pay',
-    paths: /^apps\/server\/src\/play\/auto\.ts$/,
+    paths: /^games\/magic\/server\/src\/play\/auto\.ts$/,
     specs: ['w68-untap.spec.ts', 'w52-mana.spec.ts', 'unless-cost.spec.ts', 'w67-reveal.spec.ts', 'land-abilities.spec.ts'],
-    jvm: ['apps/server/src/play/auto.jvm.test.ts', 'apps/server/src/play/auto-pass-land.jvm.test.ts', 'apps/server/src/play/mana-sources.jvm.test.ts'],
+    jvm: ['games/magic/server/src/play/auto.jvm.test.ts', 'games/magic/server/src/play/auto-pass-land.jvm.test.ts', 'games/magic/server/src/play/mana-sources.jvm.test.ts'],
   },
   {
     name: 'pacing',
@@ -392,10 +392,22 @@ export function importsOf(repo: Repo, file: string): string[] {
   return out;
 }
 
-/** Where workspace package `name` lives: `packages/<name>`, or a game's `games/<game>/packages/<name>`. */
+/**
+ * Where workspace package `@hadoku/<name>` lives: `packages/<name>`, a game's `games/<game>/packages/<name>`,
+ * or a game's server `games/<game>/server`, whose directory is not its name (`@hadoku/magic-server`).
+ */
 function packageDir(repo: Repo, name: string): string | null {
   const games = [...new Set(repo.list('games').map((f) => f.split('/')[1]))];
-  return ['packages', ...games.map((g) => `games/${g}/packages`)].map((d) => `${d}/${name}`).find((d) => repo.read(`${d}/package.json`) !== null) ?? null;
+  const byDir = ['packages', ...games.map((g) => `games/${g}/packages`)].map((d) => `${d}/${name}`).find((d) => repo.read(`${d}/package.json`) !== null);
+  if (byDir !== undefined) return byDir;
+  return (
+    games
+      .map((g) => `games/${g}/server`)
+      .find((d) => {
+        const manifest = repo.read(`${d}/package.json`);
+        return manifest !== null && (JSON.parse(manifest) as { name?: string }).name === `@hadoku/${name}`;
+      }) ?? null
+  );
 }
 
 /** What a package's `exports` map gives for `key` (`./library`): the exact entry, else a `./*` pattern's, with `*` filled in. */
@@ -1152,7 +1164,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       for (const s of users) addSpec(s, 2, `uses ${f}`, W.importer);
       continue;
     }
-    if (/^apps\/server\/src\/play\/scenarios\/[^/]+\.state$/.test(f)) {
+    if (/^games\/magic\/server\/src\/play\/scenarios\/[^/]+\.state$/.test(f)) {
       const name = f.replace(/^.*\//, '').replace(/\.state$/, '');
       const re = new RegExp(`['"\`]${escape(name)}(\\.state)?['"\`]`);
       const specUsers = all.specs.filter((s) => re.test(repo.read(`e2e/${s}`) ?? ''));
@@ -1165,13 +1177,13 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     if (!f.endsWith('.css') && guards.some((g) => paths.some((p) => g.paths.test(p)))) {
       // A hot path: its family above, and what history adds. A guarded stylesheet is still scored below by the classes it names.
       smoke(f);
-      if (/^apps\/server\/src\/play\/bridge\/.*\.java$/.test(f)) everything(`${f}: the engine's own layer, which every match runs through`);
+      if (/^games\/magic\/server\/src\/play\/bridge\/.*\.java$/.test(f)) everything(`${f}: the engine's own layer, which every match runs through`);
       history(f, namesOf(c));
       if (isSource(f)) jvmUsing(c);
       continue;
     }
-    // The server's platform package is server code that lives in a package: the same rule.
-    if (/^(apps\/server|packages\/game-server)\//.test(f)) {
+    // The site, Magic's server and the server's platform package: server code, one rule.
+    if (/^(apps\/server|games\/[^/]+\/server|packages\/game-server)\//.test(f)) {
       if (!isSource(f) || c.status === 'removed') {
         everything(`${f}: ${c.status === 'removed' ? 'removed' : 'not TypeScript'} — outside the import graph`);
         continue;
@@ -1181,7 +1193,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       history(f, namesOf(c));
       // One import below a hot module: what guards that module guards this.
       for (const g of guards) {
-        const hot = repo.list('apps/server/src/play').filter((h) => g.paths.test(h) && importsOf(repo, h).includes(f));
+        const hot = repo.list('games/magic/server/src/play').filter((h) => g.paths.test(h) && importsOf(repo, h).includes(f));
         if (hot.length) guard(g, `${f}, imported by ${hot[0]}`);
       }
       // Room, HTTP and stats scaffolding: the specs that call a route the diff registers.

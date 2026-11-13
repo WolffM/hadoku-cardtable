@@ -410,7 +410,7 @@ const MATCH_GONE_REFUSAL = 'unknown-match';
 
 /**
  * What a player is told when the match they asked for is not there any more —
- * the server's own sentence (`MATCH_GONE_WORDS`, `apps/server/src/play/socket.ts`,
+ * the server's own sentence (`MATCH_GONE_WORDS`, `games/magic/server/src/play/socket.ts`,
  * sent as `message` on the `match-gone` ack).
  *
  * It is held here and not read off the ack because `match.ts` folds a refused ack
@@ -550,7 +550,7 @@ export function decisionMessage(prompt: string, topStack: StackEntry | null, nex
 
 /**
  * The OTHER seat's own open ask or payment, as the
- * server reported it (`apps/server/src/play/match.ts`'s `waitingOnFor`,
+ * server reported it (`games/magic/server/src/play/match.ts`'s `waitingOnFor`,
  * carried onto `LiveMatch.waitingOn` by `match.ts`'s `adoptSeats`) — a FACT.
  *
  * **Made dead, deleted**: the client used to infer "the
@@ -1215,7 +1215,7 @@ export function nextStepName(view: BoardView): string | null {
  * for the full derivation. The short version:
  *
  *  - Pressing `End Turn` arms Forge's own `skipPhaseDelay` (`PlayBridge.java`'s
- *    `setPhaseDelayOff`), and `apps/server/src/play/endturn.jvm.test.ts` proves
+ *    `setPhaseDelayOff`), and `games/magic/server/src/play/endturn.jvm.test.ts` proves
  *    against a REAL match that the phases from that click to the end step then
  *    arrive **under 50 ms apart** — a crawl, not a sequence a person watches one
  *    step at a time.

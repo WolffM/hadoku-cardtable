@@ -2439,7 +2439,7 @@ test(CROWD_TITLE, async ({ browser }) => {
  * above: none of the three needs real play (turns, a crowd, a question), so
  * none should pay that test's ~6-minute budget. `w43-stack-lands`/
  * `w43-planeswalker` are lane A's own scenarios
- * (`apps/server/src/play/scenarios/`).
+ * (`games/magic/server/src/play/scenarios/`).
  */
 
 const W6_TITLE = forge.ok

@@ -15,7 +15,7 @@
  * being aimed starts. It names NO hidden card: `held` is a boolean, and the
  * only ids it carries are of BATTLEFIELD cards (the one nearest the pointer,
  * one being rearranged), which both seats already draw face up with their
- * ids. So the hidden-information rule (`apps/server/src/play/visibility.ts`;
+ * ids. So the hidden-information rule (`games/magic/server/src/play/visibility.ts`;
  * ledger V3, "a card being cast is not shown to the opponent until it is
  * actually on the stack") cannot be broken by this channel, by construction:
  * there is nothing in it to leak.

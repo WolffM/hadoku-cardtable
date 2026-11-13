@@ -45,7 +45,7 @@
  * resolved to its promo printing, `PISD`, not Innistrad's own) made the
  * pack look wrong when it was not. The wire's `rarity` is the field for
  * the EXACT printing `catalog.byPrinting` resolved for THIS pack
- * (`apps/server/src/http/rooms.ts`'s `resolveBoosterCard`), which is the
+ * (`games/magic/server/src/http/rooms.ts`'s `resolveBoosterCard`), which is the
  * only rarity this spec can trust — "the catalog's rarity", read off the
  * card the catalog itself produced, not a second, looser lookup by name.
  */

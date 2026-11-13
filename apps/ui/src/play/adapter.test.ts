@@ -557,7 +557,7 @@ describe('§A.2 #11 — the attachment properties the adapter used to ignore', (
    * relation is exercised by writing the documented encoding into the real
    * state. `AttachedCards` is a `CardViewCollectionType`, which crosses as a
    * `list` of `int` (`games/magic/packages/forge-wire/src/tier-c.ts`), and both properties
-   * are in `apps/server/src/play/visibility.ts`'s `FACE_ONLY_KEEP`, so a seat
+   * are in `games/magic/server/src/play/visibility.ts`'s `FACE_ONLY_KEEP`, so a seat
    * really does receive them.
    */
   it('the capture carries neither, which is why they had to be written in', () => {
@@ -917,7 +917,7 @@ describe('§A.3 #12/#18 — printed versus current power and toughness', () => {
 
 /**
  * What the server's visibility layer leaves of a card this seat may not see
- * (`apps/server/src/play/visibility.ts`, `HIDDEN_KEEP`): the view keeps who
+ * (`games/magic/server/src/play/visibility.ts`, `HIDDEN_KEEP`): the view keeps who
  * owns it and where it is, and no face reaches the seat at all.
  */
 function redact(state: Map<string, WireObject>, cardId: number): void {
@@ -1897,7 +1897,7 @@ describe('a card’s other faces', () => {
 /*
  * The operator, 2026-10-19: "cards like 'Walk-In Closet' it's hard to tell whats actually going on.
  * which room was played, which room is active? has the door been unlocked?" Forge shows a Room's
- * unlocked doors as its current state, measured in `apps/server/src/play/rooms.jvm.test.ts`: the cast
+ * unlocked doors as its current state, measured in `games/magic/server/src/play/rooms.jvm.test.ts`: the cast
  * door's split state (5 or 6), `Original` (0) for both, `EmptyRoom` (9, nameless) for neither. Card 21
  * is made Walk-In Closet // Forgotten Cellar on the viewer's battlefield, as that wire has it.
  */

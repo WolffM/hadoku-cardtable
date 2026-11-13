@@ -491,7 +491,7 @@ describe('the socket transport', () => {
     };
     const http = createServer();
     const io = new Server(http);
-    // The server's rule (`apps/server/src/play/socket.ts`): an act counts only from a socket that has joined.
+    // The server's rule (`games/magic/server/src/play/socket.ts`): an act counts only from a socket that has joined.
     const acts: { joined: boolean; payload: unknown }[] = [];
     const sockets: ServerSocket[] = [];
     let connections = 0;
@@ -2542,7 +2542,7 @@ describe('the auto-yield toggle (opponent’s-turn only, one turn)', () => {
  *
  * Stubbed, because the inbound direction is the SERVER's to send and
  * `./replay-server.ts` does not send it (it only records the client's emits).
- * The server's half is `apps/server/src/play/socket.test.ts`'s "full control
+ * The server's half is `games/magic/server/src/play/socket.test.ts`'s "full control
  * survives a refresh", over real sockets, which asserts the exact bytes these
  * cases feed in — and asserts they satisfy the same strict schema this handle
  * parses them with, so the two halves cannot drift apart silently.
@@ -2821,7 +2821,7 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
     expect(payingMana(m)).toBe(false);
   });
 
-  // the server's own auto-cancel of an unpayable cost (`apps/server/src/play/match.ts`'s
+  // the server's own auto-cancel of an unpayable cost (`games/magic/server/src/play/match.ts`'s
   // `maybeCancelUnpayable`) withholds the payment window, so the seat never sees a payment: the
   // frame's `cause` is the only thing that says "mana" (claw run 41170793426).
   it('an unpayable cancel is the "mana" mistake, with no payment ever shown', async () => {

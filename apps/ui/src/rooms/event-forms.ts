@@ -1,5 +1,5 @@
 /*
- * Create event's two network halves (`apps/server/src/http/events.ts`): making a tournament, and
+ * Create event's two network halves (`games/magic/server/src/http/events.ts`): making a tournament, and
  * attaching a Rally form, either loaded by its link or made on Rally with a return trip back here
  * (WolffM/hadoku-cardtable#22). The trip's `ref` is kept in this tab's session storage, so only a
  * return this tab started attaches a form.

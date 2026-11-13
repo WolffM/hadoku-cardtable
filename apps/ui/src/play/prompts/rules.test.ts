@@ -307,7 +307,7 @@ describe('selfAnswer', () => {
   });
 
   it('answers only getAbilityToPlay and a lone stack target: everything else with one legal reply is the server’s', () => {
-    // `apps/server/src/play/auto.ts`'s `onlyAnswer` owns the rest, and its own
+    // `games/magic/server/src/play/auto.ts`'s `onlyAnswer` owns the rest, and its own
     // suite holds it. Two statements of one policy is what this keeps out.
     for (const ask of [
       askFor('getChoices'),

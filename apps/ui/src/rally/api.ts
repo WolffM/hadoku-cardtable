@@ -1,6 +1,6 @@
 /*
  * The two reads behind a Rally view page: `GET /api/rally/views/{kind}/{id}/{cards|pack}`
- * (`apps/server/src/http/rally.ts`). Each answers Rally's `{ success, data }` wrapper; a refusal's
+ * (`games/magic/server/src/http/rally.ts`). Each answers Rally's `{ success, data }` wrapper; a refusal's
  * `error` is a sentence for the page to show as it is ("This draft preset has been deleted.").
  */
 

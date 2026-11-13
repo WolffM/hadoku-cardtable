@@ -18,7 +18,7 @@
  * Unlike a 1v1 seat, a pod seat carries no deck/legal state (drafting has
  * not happened yet) — just who is there, whether they are ready, and
  * whether they lead the room. Readiness itself is unaffected by seating
- * (`apps/server/src/room/lobby.ts`'s `startDraft`: the gate counts seated
+ * (`games/magic/server/src/room/lobby.ts`'s `startDraft`: the gate counts seated
  * members once anyone has sat, and every member before that), so this draws
  * a ready ring for whoever is seated but never toggles it — `ready-toggle`
  * stays the single, global control it already is.
@@ -27,7 +27,7 @@
  * *"several pods: we dont need to show this in the lobby screen"*): pods are
  * decided only by the leader's Split & randomize (`PodSplit.tsx`). A full room
  * offers someone who has not sat (and the owner, for an AI) one seat more,
- * which grows the room by that seat (`apps/server/src/room/lobby.ts`'s
+ * which grows the room by that seat (`games/magic/server/src/room/lobby.ts`'s
  * `sitPod`/`aiPod`).
  *
  * No Stand: giving a seat back is the spectators' open slot under the strip

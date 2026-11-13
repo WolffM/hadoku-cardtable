@@ -365,7 +365,7 @@ which this lane owns, so none were touched:
 | `apps/ui/src/App.tsx` | wrap the `draft`, `deck` and `match` routes in `<RoomChrome roomKey=… serverOrigin="https://hadoku.me/watchparty" …>` | ~20 lines |
 | `apps/ui/src/screens/route.ts` | one pure `roomKeyFor(route)` → `cardtable-<draftId>` / `cardtable-<matchId>`, unit-tested with the others | ~15 lines + tests |
 | `apps/ui/src/screens/PodScreen.tsx`, `MatchScreen.tsx` | nothing, if the chrome is a wrapper — that is the point of the seam | 0 |
-| `apps/server/src/http/**` | **nothing** if watchparty accepts unprovisioned `cardtable-*` keys (request §3, option 1). If they instead require `POST /api/rooms` (option 2), one route that provisions a key with a service credential from the vault broker, plus a secret-distribution request to hadoku_site in the shape of `HADOKU_SITE_SECRET_DISTRIBUTION.md` | 0, or ~80 lines + a cross-repo ask |
+| `games/magic/server/src/http/**` | **nothing** if watchparty accepts unprovisioned `cardtable-*` keys (request §3, option 1). If they instead require `POST /api/rooms` (option 2), one route that provisions a key with a service credential from the vault broker, plus a secret-distribution request to hadoku_site in the shape of `HADOKU_SITE_SECRET_DISTRIBUTION.md` | 0, or ~80 lines + a cross-repo ask |
 | `e2e/**` | one spec: chat panel present around a live draft; our seat bar still ours | ~60 lines |
 | `scripts/d13-gate.sh` | **nothing** — the chrome must pass it unmodified; that is a requirement in the request, not something we loosen | 0 |
 | `docs/DECISIONS.md` | D17's "known blocker" paragraph closes (tracker) | — |
@@ -389,7 +389,7 @@ watchparty can offer a `cdn.hadoku.me` sprite base if the answer is the latter.
 over watchparty's socket; it never asks a seat a question and waits. The one
 consumer `room-ask` was built for — correlating Forge's blocking prompts to a
 seat's reply, with timeout and reconnect — shipped without it:
-`apps/server/src/play/match.ts` keeps its own asks by `callId` (`:109-110`,
+`games/magic/server/src/play/match.ts` keeps its own asks by `callId` (`:109-110`,
 `:483`), re-sends them on reconnect (`:293`) and aborts them after a grace
 (`:334-363`), and nothing in `apps/` or `packages/` other than `room-ask` itself
 imports `@hadoku/room-ask` (grep over `*.ts`, `*.tsx`, `package.json`: only

@@ -27,7 +27,7 @@
  *     own column** at 1280×800 and 1366×768 (w33 shipped the counters with a
  *     screenshot only; w34 §B fixed a real clip under the opponent's column).
  *
- * Every scenario here is lane S's (`apps/server/src/play/scenarios/*.state`);
+ * Every scenario here is lane S's (`games/magic/server/src/play/scenarios/*.state`);
  * a name this file asks for that does not exist yet throws a named error
  * ("lane S writes these"), not a silent skip — the point of writing these
  * before the other lanes land is that re-running this file *as* they land is
@@ -271,7 +271,7 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
  * visibly sits at 2 for a client poll to catch (the same transient-stack
  * shape Q7's `lone-spell.state` hit in w33, and the fix there was the same —
  * stop chasing the stack, read the SERVER's own record of the decision).
- * `apps/server/src/play/match.ts` logs exactly this decision either way
+ * `games/magic/server/src/play/match.ts` logs exactly this decision either way
  * (`ask-auto-answered` or `ask-answered`, `method: 'order'`), so this reads
  * `stack.serverLogFile` directly rather than inferring it from UI timing.
  */

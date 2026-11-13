@@ -30,7 +30,7 @@
  *
  * It is gated on `FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS`, which defaults to
  * `"false"` (ForgePreferences.java:100) — our bridge turns it on
- * (`apps/server/src/play/bridge/PlayBridge.java`).
+ * (`games/magic/server/src/play/bridge/PlayBridge.java`).
  *
  * ## `setHighlighted` is the set an input has MARKED
  *
@@ -782,7 +782,7 @@ export const OrderDestinationSchema = z.strictObject({
  * and `max` are the modes it will take in all, as `CharmEffect.makeChoices`
  * counted them, and `card` is the spell's own card. The server shows the seat
  * one question picking `min`..`max` and answers Forge's later mode questions
- * from that reply (`apps/server/src/play/modes.ts`).
+ * from that reply (`games/magic/server/src/play/modes.ts`).
  *
  * `eachType` is ours too: the bridge sets it on the first card-type question of
  * a `RepeatEach` over card types whose every turn is one optional `ChooseCard`
@@ -790,7 +790,7 @@ export const OrderDestinationSchema = z.strictObject({
  * card a turn could offer, each with the types (of `choices`) it could be
  * picked for; `chosen` is where picked cards go, `rest` where the others go,
  * `text` the ability's own words. The server asks it as one `order`
- * (`apps/server/src/play/each-type.ts`) and answers Forge's later type and card
+ * (`games/magic/server/src/play/each-type.ts`) and answers Forge's later type and card
  * questions from that one reply.
  *
  * `affordable` is ours too: on a number ask for a mana X (`PlayBridge.java`'s
@@ -806,7 +806,7 @@ export const OrderDestinationSchema = z.strictObject({
  * these cards to), not off anything the wire has synced yet. `false` is how
  * Calibrated Blast's own reveal (`RevealedLibraryPosition$ -1`, the bottom)
  * is told apart from Courser of Kruphix's persistent "look at top" (AF403):
- * `apps/server/src/play/match.ts`'s `revealMustForceNotice` reads it to mark
+ * `games/magic/server/src/play/match.ts`'s `revealMustForceNotice` reads it to mark
  * the envelope `forceNotice` instead of trusting a reveal of cards about to
  * leave the board's only visible position for them. Absent when none of the
  * revealed cards sit in a library at all (a hand, a graveyard search) — the
@@ -865,17 +865,17 @@ export const GetChoicesReplySchema = z.array(z.string());
  * graveyard (a damage order, a trigger order).
  *
  * `rest` is ours too: the server sets it on a scry or a surveil
- * (`apps/server/src/play/arrange.ts`), whose items left in `sourceChoices`
+ * (`games/magic/server/src/play/arrange.ts`), whose items left in `sourceChoices`
  * stay on top of the library in an order Forge asks for in a second `order`.
  * It is where that group goes, and the reply's `rest` is its order — the
  * server answers Forge's second question with it, so the player is asked once. *
  * `locked` is ours too: keys of cards the seat may look at and order with the
  * `rest` group but not move into the answer — a `Dig`'s looked-at cards its
- * `ChangeValid` lets through no further (`apps/server/src/play/arrange.ts`).
+ * `ChangeValid` lets through no further (`games/magic/server/src/play/arrange.ts`).
  *
  * `oneEach` is ours too: the answer holds at most one card of each `type`, a
  * card filling one type it is listed under (`keys`) — "for each card type, you
- * may put a card of that type" (`apps/server/src/play/each-type.ts`).
+ * may put a card of that type" (`games/magic/server/src/play/each-type.ts`).
  *
  * `question` is ours too: the action the seat takes, in the card's own words,
  * for an order the server composed from another question (a `Dig`'s,
@@ -953,7 +953,7 @@ export const ChooseSingleEntityForEffectReplySchema = GameEntityRefSchema.nullab
  * `dig` is ours, never Forge's: set by the bridge (`PlayBridge.java`'s
  * `digZones`) when a `Dig` is asking which of the cards it looked at go to its
  * first zone (`chosen`); the others go to `rest`. The server shows the seat one
- * prompt with both groups (`apps/server/src/play/arrange.ts`). `text` is the
+ * prompt with both groups (`games/magic/server/src/play/arrange.ts`). `text` is the
  * `Dig`'s own written text (its `SpellDescription`, or its trigger's
  * description), absent when it has none.
  */

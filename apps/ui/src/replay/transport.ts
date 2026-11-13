@@ -1,7 +1,7 @@
 /*
  * The replay HTTP client — contract 2 of wave 77's plan
  * (`docs/planning/wave77-2026-10-27.md`), the server half lane C builds in
- * parallel (`apps/server/src/http/replays.ts`).
+ * parallel (`games/magic/server/src/http/replays.ts`).
  *
  *   GET /api/replays?limit=N       → { replays: [{ matchId, roomId, players,
  *                                      decks, startedAt, endedAt, winner, source }] }

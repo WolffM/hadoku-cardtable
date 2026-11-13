@@ -1,7 +1,7 @@
 /*
  * The stats page's Tournaments tab (`#/tournaments`): every pod that played a
  * round, newest first, each with its final standings — kept by the server past
- * its room (`apps/server/src/room/tournaments.ts`), so a closed room's results
+ * its room (`games/magic/server/src/room/tournaments.ts`), so a closed room's results
  * are still here (the operator, 2026-10-19: *"room results should be viewable
  * in the leaderboard page"*). Each draws its top three on the pod's podium beside
  * the standings, played as it is scrolled to (`PodPodium`'s `compact`). Only pods

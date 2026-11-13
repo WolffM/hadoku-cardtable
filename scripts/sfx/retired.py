@@ -2,7 +2,7 @@
 
 The sound picker's Delete (bad) and Shift+Delete (broken) retire a take and
 append a line to `<sounds dir>/retired.jsonl` with its whole catalogue entry,
-the reason, and the cells it had been placed in (`apps/server/src/http/sounds.ts`).
+the reason, and the cells it had been placed in (`games/magic/server/src/http/sounds.ts`).
 This folds that log into what a new batch needs: per prompt, how many of its
 takes are still in the catalogue and how many were retired, and why. A prompt
 whose takes are mostly broken points at generation or finishing (a cap, a gate);

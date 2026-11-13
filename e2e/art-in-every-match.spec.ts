@@ -4,7 +4,7 @@
  * The operator, 2026-11-06: a Ravnica set draft drew every card's art in the draft and only three
  * cards' in the match. Forge's wire names a card by name and Forge set code, and the browser looked
  * that up in tables that hold the cube, the basics and the committed decks — never a set draft's
- * cards. The server now decides each face's Scryfall id (`apps/server/src/play/art-ids.ts`) and
+ * cards. The server now decides each face's Scryfall id (`games/magic/server/src/play/art-ids.ts`) and
  * lays it on the face, from the deck's own printing and the card catalog.
  *
  * Alice's battlefield holds Shards of Alara's Akrasan Squire, named by its set as Forge names a drafted

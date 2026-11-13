@@ -1,0 +1,36 @@
+{
+  "name": "@hadoku/magic-server",
+  "version": "0.32.517",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "Magic's server: Forge's bridge and its match sessions, the draft pods, rooms, decks, pools, cubes, stats and every Magic HTTP route, as the plugins the site (apps/server) boots. GPL-3.0-or-later (games/magic/LICENSE).",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/play/monkey/tsconfig.json"
+  },
+  "dependencies": {
+    "@hadoku/carddata": "workspace:*",
+    "@hadoku/deck": "workspace:*",
+    "@hadoku/draft": "workspace:*",
+    "@hadoku/forge-wire": "workspace:*",
+    "@hadoku/game-server": "workspace:*",
+    "@hadoku/host-wire": "workspace:*",
+    "@hadoku/service-kernel": "workspace:*",
+    "@hadoku/shared": "workspace:*",
+    "@resvg/resvg-js": "^2.6.2",
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.27",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.91",
+    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.91",
+    "express": "^5.1.0",
+    "socket.io": "^4.8.3",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "socket.io-client": "^4.8.3",
+    "tsx": "^4.19.2"
+  }
+}

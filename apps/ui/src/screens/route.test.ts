@@ -102,7 +102,7 @@ describe('parseRoute', () => {
 describe('routeUrl', () => {
   it("builds a room invite link as the room's own path under the /cardtable/ prefix", () => {
     // The path, not the hash: a browser never sends the hash, so only the path lets the edge
-    // unfurl the room in Discord (`apps/server/src/http/preview.ts`).
+    // unfurl the room in Discord (`games/magic/server/src/http/preview.ts`).
     expect(
       routeUrl({ kind: 'room', roomId: 'r-1a2b3c4d5e6f' }, {
         origin: 'https://hadoku.me',
