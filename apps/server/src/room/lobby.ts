@@ -115,6 +115,7 @@ import { ROOM_STALE_MS, UNNAMED } from './constants.ts';
 import type { Caller } from './caller.ts';
 import { avatarIdOf } from './avatar.ts';
 import { addRoomMember, isMemberReady, isRoomMember, passwordAdmits, removeRoomMember, setMemberReady } from './membership.ts';
+import { isOfferedRoom, isSweepableRoom, sortRoomsByCreation, type RoomBusyHook } from './room-list.ts';
 import { watchpartyRoomId } from './watchparty-link.ts';
 // Pods, tournaments, AI seats and their view (`PodView`) — split out, wave 99 §L.
 import {
@@ -1138,6 +1139,18 @@ function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView 
 const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: DEFAULT_GAME_TYPE, clientMode: DEFAULT_CLIENT_MODE };
 
 /**
+ * `room/room-list.ts`'s `RoomBusyHook`, wired to Magic: a draft dealing is
+ * the one extra reason `offered()` keeps a room past staleness; a
+ * tournament's own idle window (`usesPod`) and its post-deal grace
+ * (`POD_SPARED_MS`) are what `sweep()` reads past the plain rule.
+ */
+const MAGIC_ROOM_BUSY: RoomBusyHook<RoomRecord> = {
+	extraOffered: (room) => room.draftStartedAt !== null,
+	defaultIdleMs: (room) => (usesPod(room) ? ROOM_IDLE_MS : CASUAL_ROOM_IDLE_MS),
+	sparedFromSweep: (room, now) => room.draftStartedAt !== null && room.draftStartedAt > now - POD_SPARED_MS,
+};
+
+/**
  * Every readiness flag and deck hold — what a change to the table's pool or
  * mode costs everybody. The per-member blob `http/routes.ts` owns — the
  * choice, the verdict, the checked `.dck` — was produced for the table that
@@ -1536,9 +1549,7 @@ class FileLobby implements Lobby {
 	}
 
 	list(): RoomView[] {
-		return [...this.#rooms.values()]
-			.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
-			.map((r) => this.#view(r));
+		return sortRoomsByCreation([...this.#rooms.values()]).map((r) => this.#view(r));
 	}
 
 	/** In memory only: a read is not a mutation and must not write a file. */
@@ -1549,26 +1560,10 @@ class FileLobby implements Lobby {
 	}
 
 	offered(staleMs: number = ROOM_STALE_MS): RoomView[] {
-		const cutoff = this.#now() - staleMs;
-		return [...this.#rooms.values()]
-			.filter(
-				(r) =>
-					// A seeded testing room is never empty-hidden and never stale: it is
-					// seeded with its system creator as its only member and nobody else
-					// ever has to touch it for an admin to keep seeing it offered.
-					r.testing ||
-					// An empty room is hidden AT ONCE (R16) — there is nobody left to read
-					// it, so waiting out `staleMs` would advertise it, untouched, for up to
-					// thirty more minutes after its last member walked out.
-					(r.members.length > 0 &&
-						(r.tables.some((t) => t.matchId !== null) ||
-							r.draftStartedAt !== null ||
-							// A room made for an event is advertised until it has been
-							// untouched for `staleMs` past its start, however far off that is.
-							Math.max(r.updatedAt, this.#touchedAt.get(r.id) ?? 0, r.scheduledFor ?? 0) > cutoff)),
-			)
-			.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
-			.map((r) => this.#view(r));
+		const now = this.#now();
+		return sortRoomsByCreation(
+			[...this.#rooms.values()].filter((r) => isOfferedRoom(r, MAGIC_ROOM_BUSY, now, staleMs, this.#touchedAt.get(r.id))),
+		).map((r) => this.#view(r));
 	}
 
 	roomOfMatch(matchId: string): RoomView | undefined {
@@ -2825,22 +2820,10 @@ class FileLobby implements Lobby {
 
 	sweep(idleMs?: number): string[] {
 		const dropped: string[] = [];
+		const now = this.#now();
 		for (const [id, room] of this.#rooms) {
-			// A seeded testing room is never idle-reaped — it is seeded with its
-			// system creator as its only member for its whole life, so "nobody has
-			// touched it" would otherwise be true of it the instant it is created.
-			if (room.testing) continue;
-			// A game in progress: its players are on the match's screen, not touching the lobby. A
-			// game that never ends is the sweep's other half, called a draw at `GAME_DRAWN_AFTER_MS`.
-			if (room.tables.some((t) => t.matchId !== null)) continue;
-			const idle = idleMs ?? (usesPod(room) ? ROOM_IDLE_MS : CASUAL_ROOM_IDLE_MS);
-			// A room made for an event ages from its start, not from when it was made.
-			if (Math.max(room.updatedAt, room.scheduledFor ?? 0) > this.#now() - idle) continue;
-			// A pod in progress. Nobody touches the lobby for the forty minutes a
-			// draft takes, and the room is the pod's container — reaping it would
-			// end the game. A pod survives restarts now, so the spare is bounded by
-			// its age, or an abandoned pod would keep its room forever.
-			if (room.draftStartedAt !== null && room.draftStartedAt > this.#now() - POD_SPARED_MS) continue;
+			if (!isSweepableRoom(room, MAGIC_ROOM_BUSY, now, idleMs)) continue;
+			const idle = idleMs ?? MAGIC_ROOM_BUSY.defaultIdleMs(room);
 			this.#archive(room);
 			this.#forget(id);
 			dropped.push(id);

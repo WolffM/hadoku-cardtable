@@ -27,6 +27,7 @@
     "apps/server/src/room/watchparty-link.ts",
     "apps/server/src/room/socket-auth.ts",
     "apps/server/src/room/membership.ts",
+    "apps/server/src/room/room-list.ts",
     "apps/server/src/play/placement/**",
     "apps/server/src/play/remote/**",
     "apps/server/src/play/recording/**",
