@@ -8,7 +8,7 @@
  * `playPod`).
  */
 
-import { StatusPill } from '../../components/StatusPill.tsx';
+import { StatusPill } from '@hadoku/game-ui/components/StatusPill.tsx';
 import type { PodView } from './wire.ts';
 import './PodBuilding.css';
 

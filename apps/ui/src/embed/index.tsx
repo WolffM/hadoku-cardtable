@@ -36,8 +36,8 @@ import { createRoot } from 'react-dom/client';
 import { cosmeticsCss } from '@wolffm/prefs-client/cosmetics';
 
 import { APP_ID } from '../../app-name.ts';
-import { setDocumentScope } from '../dom.ts';
-import { navigate, parseRoute, routeInMemory } from '../screens/route.ts';
+import { setDocumentScope } from '@hadoku/game-ui/dom.ts';
+import { navigate, parseRoute, routeInMemory } from '@hadoku/game-ui/screens/route.ts';
 import { preloadLikelyScreens } from '../screens/Screen.tsx';
 import { EmbedApp } from './EmbedApp.tsx';
 import { adoptStyles, fetchStyles } from '@hadoku/ui-shell/embed';

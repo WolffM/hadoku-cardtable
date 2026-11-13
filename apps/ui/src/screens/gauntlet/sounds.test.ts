@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FALLBACK_ROLES, GAUNTLET_DECKS, GAUNTLET_REVEAL_MS, SOUND_ROLES, type GauntletDeck, type GauntletView } from '@hadoku/shared';
 
 const played = vi.hoisted(() => [] as string[]);
-vi.mock('../../sound/index.ts', () => ({ playRole: (role: string) => played.push(role) }));
+vi.mock('@hadoku/game-ui/sound/index.ts', () => ({ playRole: (role: string) => played.push(role) }));
 
 import { GauntletScreen } from './GauntletScreen.tsx';
 import { DEAL_FROM_MS, DEAL_STAGGER_MS, TITLE_MS } from './reveal.ts';

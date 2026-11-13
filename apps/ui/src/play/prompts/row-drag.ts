@@ -55,7 +55,7 @@ import { centreOf, flip, liftGhost, pinFixed, type At, type Ghost } from '../lif
 import { GLIDE_MS } from '../motion.ts';
 import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { clickLatch, pastSlop } from '../live/gestures/types.ts';
-import { eventTarget, hitAt, scopeOf } from '../../dom.ts';
+import { eventTarget, hitAt, scopeOf } from '@hadoku/game-ui/dom.ts';
 
 export interface DropTargetSpec {
   testid: string;

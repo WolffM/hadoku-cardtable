@@ -45,9 +45,9 @@ import { HadokuThemeProvider, THEME_FAMILIES, type HadokuThemeValue } from '@wol
 
 import { roomsClient, type RoomBindClient } from '../rooms/api.ts';
 import { Screen } from '../screens/Screen.tsx';
-import { navigate, useRoute, type Route } from '../screens/route.ts';
-import { useUiScale } from '../settings/Settings.tsx';
-import { useTrim } from '../settings/siteTrim.ts';
+import { navigate, useRoute, type Route } from '@hadoku/game-ui/screens/route.ts';
+import { useUiScale } from '@hadoku/game-ui/settings/Settings.tsx';
+import { useTrim } from '@hadoku/game-ui/settings/siteTrim.ts';
 import { useSoundPrefs } from '@hadoku/ui-shell/sound';
 import { scaleRootOf } from '@hadoku/ui-shell/settings';
 import type { GameBundleContext } from './contract.ts';

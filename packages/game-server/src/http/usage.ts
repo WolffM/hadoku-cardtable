@@ -1,6 +1,6 @@
 /**
  * Adapter: cardtable's binding of `@hadoku/service-kernel/relays`'s `attachUsage` (w93-K3).
- * `POST /api/usage`: the browser's usage batches (`apps/ui/src/usage.ts`), counted here and posted
+ * `POST /api/usage`: the browser's usage batches (`packages/game-ui/src/usage.ts`), counted here and posted
  * to telemetry as one `usage` event per window — which screens were shown and which controls
  * pressed, how often, by how many people, by tier. Nothing per click is kept, and nothing is
  * answered but 204.

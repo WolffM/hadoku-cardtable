@@ -40,10 +40,10 @@
  * (`PodSeats.test.ts`) instead of a mocked server.
  */
 
-import { ActionButton } from '../../components/ActionButton.tsx';
-import { Avatar, type Face } from '../../components/Avatar.tsx';
-import { PlayerName } from '../../room/look.tsx';
-import { StatusPill } from '../../components/StatusPill.tsx';
+import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
+import { Avatar, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
+import { StatusPill } from '@hadoku/game-ui/components/StatusPill.tsx';
 import { CROWN } from '../ConstructedScreen.tsx';
 import { isPodAi, POD_CLOSED, POD_MAX_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
 import './PodSeats.css';

@@ -7,7 +7,7 @@
  * different cards or name them differently.
  */
 
-import { RadioCards } from '../components/RadioCards.tsx';
+import { RadioCards } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { GAME_TYPES, type GameType } from './api.ts';
 
 export function GameTypeRow({

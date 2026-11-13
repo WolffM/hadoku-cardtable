@@ -12,9 +12,9 @@ import { createElement } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
 import { toShadowSelector, withHostTheme } from '../../vite.embed.config.ts';
-import { eventTarget, hitAt, scopeOf } from '../dom.ts';
+import { eventTarget, hitAt, scopeOf } from '@hadoku/game-ui/dom.ts';
 import type { RoomBindClient, RoomOutcome, RoomView } from '../rooms/api.ts';
-import { appLocation, navigate, routeInMemory } from '../screens/route.ts';
+import { appLocation, navigate, routeInMemory } from '@hadoku/game-ui/screens/route.ts';
 import type { GameBundleContext } from './contract.ts';
 import { EmbedApp } from './EmbedApp.tsx';
 

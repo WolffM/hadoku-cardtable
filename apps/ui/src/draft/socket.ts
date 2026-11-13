@@ -73,8 +73,8 @@ import {
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 import { io } from 'socket.io-client';
 
-import { defaultSocketPath, socketOptions } from '../room/socket-options.ts';
-import { withSettledTabId } from '../room/tab-id.ts';
+import { defaultSocketPath, socketOptions } from '@hadoku/game-ui/room/socket-options.ts';
+import { withSettledTabId } from '@hadoku/game-ui/room/tab-id.ts';
 import type { ConnectionFacts } from './connection.ts';
 
 /**

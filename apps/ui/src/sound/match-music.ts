@@ -29,7 +29,7 @@ import { useEffect } from 'react';
 
 import { colourPair, matchMusicRole, MATCH_MUSIC_ROLES, type ManaColor } from '@hadoku/shared';
 
-import { setMatchMusic } from './index.ts';
+import { setMatchMusic } from '@hadoku/game-ui/sound/index.ts';
 
 /** `UB · 16-bit infiltration` → `16-bit infiltration`: a track's name without the slot it was made for. */
 export function trackName(name: string): string {

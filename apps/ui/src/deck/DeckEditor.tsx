@@ -83,7 +83,7 @@ import { deckFromPool, dckTextOf, draftBuild, savedBuild } from '../draft/deckFr
 import type { DraftCard, ManaColor } from '../draft/types.ts';
 import { DraggableCard, DropArea, useCardSplit, type Area } from './dragMove.tsx';
 import { CardPile, pileChrome } from '../components/CardPile.tsx';
-import { TopLayer } from '../topLayer.tsx';
+import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
 import { uiPx } from '@hadoku/ui-shell/settings';
 import { transformOf, usePanZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './pan.ts';
 import { cardHeightOf, cssPx, gridAt, largestCard, pilesAt, useBox } from '../components/cardFit.ts';

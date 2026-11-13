@@ -58,6 +58,8 @@ export default [
   // ── Server + shared packages (node) ─────────────────────────────────
   {
     files: ['apps/server/src/**/*.ts', 'packages/*/src/**/*.ts', 'games/*/packages/*/src/**/*.ts', 'games/*/server/src/**/*.ts'],
+    // The UI's own platform package runs in the browser: the UI block below.
+    ignores: ['packages/game-ui/**'],
     languageOptions: {
       parser: tsParser,
       parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
@@ -84,7 +86,7 @@ export default [
 
   // ── UI (browser) ────────────────────────────────────────────────────
   {
-    files: ['apps/ui/src/**/*.{ts,tsx}'],
+    files: ['apps/ui/src/**/*.{ts,tsx}', 'packages/game-ui/src/**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -185,7 +187,7 @@ export default [
   {
     // A `//` line between JSX tags is not a comment: it renders, as text, on the page. 7fdeea9d9
     // wrapped the stats popout's root in <OverPage> and its comment line became the popout's first line.
-    files: ['apps/ui/src/**/*.tsx'],
+    files: ['apps/ui/src/**/*.tsx', 'packages/game-ui/src/**/*.tsx'],
     rules: { 'no-restricted-syntax': ['error', JSX_COMMENT_TEXT] },
   },
   {

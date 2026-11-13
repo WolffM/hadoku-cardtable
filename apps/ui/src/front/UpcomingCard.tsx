@@ -23,15 +23,15 @@ import type { EventView } from '@hadoku/shared';
 import { Reveal } from '@hadoku/ui-shell/components';
 import { roomsClient } from '../rooms/api.ts';
 import { CreateEventDialog } from '../rooms/CreateEventDialog.tsx';
-import { navigate } from '../screens/route.ts';
-import { playRole } from '../sound/index.ts';
-import { countdown } from './countdown.ts';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
+import { countdown } from '@hadoku/game-ui/front/countdown.ts';
 import { EVENT_KIND_LABELS, eventsApi, fromLocalInput, refreshEvents, toLocalInput, upcoming, useEvents, whenLabel } from './events.ts';
 import { formatEraLabel } from './formatLabel.ts';
-import { ArrowGlyph, Gallery } from './Gallery.tsx';
-import { upcomingOpensOn } from './gallery.ts';
-import { FrontGateContext, usePartShown } from './gate.ts';
-import { usePolls, type Poll } from './polls.ts';
+import { ArrowGlyph, Gallery } from '@hadoku/game-ui/front/Gallery.tsx';
+import { upcomingOpensOn } from '@hadoku/game-ui/front/gallery.ts';
+import { FrontGateContext, usePartShown } from '@hadoku/game-ui/front/gate.ts';
+import { usePolls, type Poll } from '@hadoku/game-ui/front/polls.ts';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

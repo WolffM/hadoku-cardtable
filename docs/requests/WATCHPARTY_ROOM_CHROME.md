@@ -8,7 +8,7 @@
 It was overtaken before it went out: `RoomChrome` shipped in
 `@wolffm/watchparty-ui@0.39.0` (their `docs/requests/ROOM_CHROME_RESPONSE.md`,
 which answers this file by name) and we consume it at **0.39.5**
-(`apps/ui/src/room/RoomShell.tsx:44`). Sending it now would ask for something
+(`packages/game-ui/src/room/RoomShell.tsx:44`). Sending it now would ask for something
 already delivered and would re-open §6's offer of `@hadoku/room-ask`, which
 watchparty has already declined. The asks that came *out of* consuming the
 chrome went upstream instead, as

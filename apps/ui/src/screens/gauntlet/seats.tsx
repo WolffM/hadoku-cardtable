@@ -2,8 +2,8 @@
 import { createContext, useContext } from 'react';
 import type { GauntletSeatIndex, GauntletView } from '@hadoku/shared';
 
-import { faceOf, NO_FACE, type Face } from '../../components/Avatar.tsx';
-import { PlayerName as Name } from '../../room/look.tsx';
+import { faceOf, NO_FACE, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName as Name } from '@hadoku/game-ui/room/look.tsx';
 import type { RoomMember } from '../../rooms/api.ts';
 
 /** The table seats in P1, P2 order. */

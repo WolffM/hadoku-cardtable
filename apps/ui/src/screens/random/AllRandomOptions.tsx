@@ -6,7 +6,7 @@
 
 import { RANDOM_POOLS, type RandomPool } from '@hadoku/shared';
 
-import { RadioCards } from '../../components/RadioCards.tsx';
+import { RadioCards } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { FORMAT_TABS } from '../tables.ts';
 
 /** A pool's name: the format tab's own label, or Full. */

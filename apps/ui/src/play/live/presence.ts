@@ -92,7 +92,7 @@ import { afterGlide, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, writeDuration
 import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { battlefieldCard, overlayOf, zoneOf } from './board-dom.ts';
 import type { MatchTransport } from './match.ts';
-import { hitAt, scopeOf } from '../../dom.ts';
+import { hitAt, scopeOf } from '@hadoku/game-ui/dom.ts';
 import './presence.css';
 
 /** After this long without a message, the other seat's presence is taken down. */

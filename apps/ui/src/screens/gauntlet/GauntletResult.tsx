@@ -5,7 +5,7 @@ import type { GauntletGame, GauntletView } from '@hadoku/shared';
 import { CROWN, type DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
 import { useTilePeek, type TileBinding } from './peek.tsx';
-import { PlayerName as Name } from '../../room/look.tsx';
+import { PlayerName as Name } from '@hadoku/game-ui/room/look.tsx';
 import { PlayerName, SeatFaces, seatOrder } from './seats.tsx';
 
 /** One game's row: its two decks face to face, P1's first, the winner's ringed. Both are on record once it is over. */

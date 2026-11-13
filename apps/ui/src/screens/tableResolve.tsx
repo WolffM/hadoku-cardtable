@@ -12,7 +12,7 @@
  */
 import { useState, type ReactNode } from 'react';
 
-import { Modal } from '../components/Modal.tsx';
+import { Modal } from '@hadoku/game-ui/components/Modal.tsx';
 import type { TableCardSeries, TablePhase } from './TableCard.tsx';
 
 export interface TableResolveHandlers {

@@ -41,7 +41,7 @@ const titled = makeTitled(forge);
 
 /** Rooms bob opens; the shared stack may hold more from other specs, and the page draws them all. */
 const ROOMS = 7;
-/** The most room placeholders the skeleton draws (`apps/ui/src/front/shape.ts`'s `MAX_ROOM_GHOSTS`). */
+/** The most room placeholders the skeleton draws (`packages/game-ui/src/front/shape.ts`'s `MAX_ROOM_GHOSTS`). */
 const MAX_ROOM_GHOSTS = 12;
 
 type Box = { x: number; y: number; w: number; h: number };

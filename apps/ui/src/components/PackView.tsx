@@ -47,7 +47,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 
 import type { DraftCard } from '../draft/types.ts';
-import { playRole } from '../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import { relatedCards } from '../draft/related.ts';
 import { burnElapsedAt, burnMs, fuseFadeKeyframes, fuseKeyframes, ROPE_URGENT_MS, ropeClock, ropeState, type RopeState } from '../draft/rope.ts';
 import { prefersReducedMotion } from '@hadoku/ui-shell/motion';

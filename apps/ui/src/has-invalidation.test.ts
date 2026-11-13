@@ -16,21 +16,11 @@
  * A hovered element's later siblings are reached with `~` instead. Measured on `:hover`; the other
  * `:has()` rules that test a state (`:checked`, `:focus-visible`) changed nothing and stay.
  */
-// @reads apps/ui/src/
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// @reads apps/ui/src/ packages/ui-shell/src/ packages/game-ui/src/
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const SRC = dirname(fileURLToPath(import.meta.url));
-
-function sheets(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const path = join(dir, e.name);
-    if (e.isDirectory()) return sheets(path);
-    return e.name.endsWith('.css') ? [path] : [];
-  });
-}
+import { uiPath, uiSheets } from './ui-sources.testing.ts';
 
 /** Each `:has(...)` argument in a sheet, with its line, comments stripped and parentheses balanced. */
 function hasArguments(text: string): { line: number; arg: string }[] {
@@ -46,19 +36,19 @@ function hasArguments(text: string): { line: number; arg: string }[] {
 
 describe(':has() never counts children and never asks for a hover', () => {
   it('no stylesheet puts an :nth-* pseudo-class inside :has()', () => {
-    const offenders = sheets(SRC).flatMap((file) =>
+    const offenders = uiSheets().flatMap((file) =>
       hasArguments(readFileSync(file, 'utf8'))
         .filter(({ arg }) => /:nth-/.test(arg))
-        .map(({ line, arg }) => `${relative(SRC, file)}:${line} :has(${arg})`),
+        .map(({ line, arg }) => `${uiPath(file)}:${line} :has(${arg})`),
     );
     expect(offenders).toEqual([]);
   });
 
   it('no stylesheet puts :hover inside :has()', () => {
-    const offenders = sheets(SRC).flatMap((file) =>
+    const offenders = uiSheets().flatMap((file) =>
       hasArguments(readFileSync(file, 'utf8'))
         .filter(({ arg }) => /:hover\b/.test(arg))
-        .map(({ line, arg }) => `${relative(SRC, file)}:${line} :has(${arg})`),
+        .map(({ line, arg }) => `${uiPath(file)}:${line} :has(${arg})`),
     );
     expect(offenders).toEqual([]);
   });

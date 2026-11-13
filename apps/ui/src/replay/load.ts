@@ -14,7 +14,7 @@ import { preloadMatchArt } from '../play/live/art-preload.ts';
 import { subscribe } from '../play/live/match.ts';
 import { artReady, cardImageUrl } from '../draft/cardImage.ts';
 import { createReplayPlayer, type ReplayOptions, type ReplayPlayer } from './player.ts';
-import type { Fetch } from '../http.ts';
+import type { Fetch } from '@hadoku/game-ui/http.ts';
 import { fetchRandomReplay, fetchReplay, reportReplayTrouble, type ReplayData } from './transport.ts';
 
 /** Every face `view` draws: both hands, every zone, the stack's sources. */

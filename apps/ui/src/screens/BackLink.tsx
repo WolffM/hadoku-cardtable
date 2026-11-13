@@ -2,7 +2,7 @@
 
 import type { AnchorHTMLAttributes } from 'react';
 
-import { navigate, routeHash, type Route } from './route.ts';
+import { navigate, routeHash, type Route } from '@hadoku/game-ui/screens/route.ts';
 
 /**
  * A link to one of the app's routes. Pressing it navigates rather than leaving the browser to

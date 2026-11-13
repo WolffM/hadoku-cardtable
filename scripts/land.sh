@@ -151,13 +151,14 @@ CHANGED=$(git diff --name-only origin/main..HEAD)
 # (`vitest related`: the test files whose import graph holds a changed file) — CI's `check` on
 # the pushed commit runs every suite anyway. Whole when the change is to what every suite
 # runs on: `scripts/ci/run-all.txt`'s config and dependencies, a package, the test setup — or a
-# deleted module, which `related` cannot follow to the suites that still import it. The server's
-# platform package's source is the exception: it is the server's own code, which `related` follows
-# through its `@hadoku/game-server/*` imports as it did when it lived in apps/server. Magic's server
-# (`games/magic/server`) is not under a `packages/` directory, so its source is `related`'s too.
+# deleted module, which `related` cannot follow to the suites that still import it. The platform's
+# server and UI packages' source is the exception: it is the server's and the UI's own code, which
+# `related` follows through its `@hadoku/game-server/*` and `@hadoku/game-ui/*` imports as it did
+# when it lived in apps/server and apps/ui. Magic's server (`games/magic/server`) is not under a
+# `packages/` directory, so its source is `related`'s too.
 TESTS="pnpm run test"
 GONE=$({ grep -E '\.tsx?$' <<<"$CHANGED" || true; } | while read -r f; do [ -f "$f" ] || echo "$f"; done)
-if [ -z "$GONE" ] && ! { grep -vE '^packages/game-server/src/' <<<"$CHANGED" || true; } | grep -qE -e '^(packages/|games/[^/]+/packages/|apps/ui/src/test-setup\.ts$)' -f <(grep -v '^#' scripts/ci/run-all.txt); then
+if [ -z "$GONE" ] && ! { grep -vE '^packages/game-(server|ui)/src/' <<<"$CHANGED" || true; } | grep -qE -e '^(packages/|games/[^/]+/packages/|apps/ui/src/test-setup\.ts$)' -f <(grep -v '^#' scripts/ci/run-all.txt); then
   mapfile -t RELATED < <(grep -E '\.(tsx?|css|json)$' <<<"$CHANGED" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
   # Suites that read the tree from disk, not through an import, are out of `related`'s reach, so
   # they say what they read: a `// @reads <path>…` line (repo paths; `*` spans directories, a

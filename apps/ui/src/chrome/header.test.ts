@@ -43,8 +43,8 @@ vi.mock('@wolffm/prefs-client/react', () => ({
 }));
 
 import { App } from '../App.tsx';
-import { currentRoute } from '../screens/route.ts';
-import { DISCORD_INVITE_URL, GITHUB_REPO_URL } from './HeaderLinks.tsx';
+import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
+import { DISCORD_INVITE_URL, GITHUB_REPO_URL } from '@hadoku/game-ui/chrome/HeaderLinks.tsx';
 
 afterEach(() => {
   cleanup();

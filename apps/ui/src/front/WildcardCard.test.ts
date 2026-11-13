@@ -19,7 +19,7 @@ vi.mock('../rooms/api.ts', () => ({
     cubeArts: async () => [ART],
   }),
 }));
-vi.mock('../http.ts', async (real) => ({ ...(await real<object>()), getJson: () => Promise.reject(new Error('offline')) }));
+vi.mock('@hadoku/game-ui/http.ts', async (real) => ({ ...(await real<object>()), getJson: () => Promise.reject(new Error('offline')) }));
 vi.mock('../draft/useArtLoaded.ts', () => ({ useArtLoaded: () => true, usePicturesLoaded: () => true }));
 vi.mock('../draft/cardImage.ts', async (real) => ({
   ...(await real<object>()),

@@ -73,9 +73,9 @@ import {
 import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen, DraftSkeleton } from '../components/DraftScreen.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
-import { navigate, routeHash } from './route.ts';
-import { TopLayer } from '../topLayer.tsx';
-import { SettingsGear } from '../settings/Settings.tsx';
+import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
+import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
+import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
 import { livePodSource, useFollowMyTable, usePodContext, type PodSource } from './pod/client.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
@@ -86,7 +86,7 @@ import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { cubeIdsOf } from './DraftLobby.tsx';
 import { poolsClient, roomsClient } from '../rooms/api.ts';
 import { deckStoreClient } from '../deck/deckStore.ts';
-import { MemberFaces, NO_FACE, type Face } from '../components/Avatar.tsx';
+import { MemberFaces, NO_FACE, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
 import './PodScreen.css';
 
 const NO_FACES: Readonly<Record<string, Face>> = {};

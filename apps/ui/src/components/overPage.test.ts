@@ -10,8 +10,8 @@ import { createElement, type ReactElement } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { DeckPeek } from '../screens/DeckPeek.tsx';
-import { Modal } from './Modal.tsx';
-import { Popover } from './Popover.tsx';
+import { Modal } from '@hadoku/game-ui/components/Modal.tsx';
+import { Popover } from '@hadoku/game-ui/components/Popover.tsx';
 
 afterEach(() => {
   cleanup();

@@ -6,7 +6,7 @@
 
 import type { CubeSummary, Tournament } from '@hadoku/shared';
 
-import { faceOf, type Face } from '../components/Avatar.tsx';
+import { faceOf, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
 import { gameTypeLabel, type RoomView } from '../rooms/api.ts';
 import { records, recordText } from '../screens/pod/swiss.ts';
 import { roomCardView, type RoomCardView } from './roomCard.ts';

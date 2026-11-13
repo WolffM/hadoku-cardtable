@@ -62,7 +62,7 @@ operator's report was *"why are the watchparty components loaded with a
 different theme selection than the rest of the page? both use hadoku themes."*
 
 **Why it matters beyond us:** hadoku_site's `templates/game` —
-`apps/ui/src/room/RoomShell.tsx:67` — mounts `RoomChrome` with
+`packages/game-ui/src/room/RoomShell.tsx:67` — mounts `RoomChrome` with
 `roomKey`/`serverOrigin`/`userType`/`userId` and **no `theme`**. Every game
 hydrated from that template inherits this bug before anyone writes a line.
 
@@ -143,7 +143,7 @@ watchparty as **WolffM/hadoku_site#419**.
 
 ### 5. The template carries gap #1 forward — one line, before the next app
 
-`templates/game/apps/ui/src/room/RoomShell.tsx:67` mounts `RoomChrome` without
+`templates/game/packages/game-ui/src/room/RoomShell.tsx:67` mounts `RoomChrome` without
 a `theme`. Until watchparty fixes the default, the template should pass the
 host's resolved theme explicitly, exactly as we now do. Otherwise the next
 game is born with a chat panel on a different theme from its page, and finds

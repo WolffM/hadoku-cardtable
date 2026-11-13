@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FALLBACK_ROLES, SOUND_ROLES } from '@hadoku/shared';
 
 const played = vi.hoisted(() => [] as string[]);
-vi.mock('../sound/index.ts', () => ({ playRole: (role: string) => played.push(role) }));
+vi.mock('@hadoku/game-ui/sound/index.ts', () => ({ playRole: (role: string) => played.push(role) }));
 
 import { presenceRoles, useRoomSounds, type RoomPresence } from './roomSounds.ts';
 

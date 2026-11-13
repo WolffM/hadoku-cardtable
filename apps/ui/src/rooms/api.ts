@@ -56,7 +56,7 @@ import {
   type SetSummary,
 } from '@hadoku/shared';
 
-import { apiBase, appBase, bodyOf, forgetRead, getJson, isRecord, pageFetch, readOnce, sendJson, serverMessage, type Fetch } from '../http.ts';
+import { apiBase, appBase, bodyOf, forgetRead, getJson, isRecord, pageFetch, readOnce, sendJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
 import { clearJoined, markJoined } from './joined.ts';
 
 export type { ClientMode, Fetch, GameType, RoomSettings };

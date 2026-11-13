@@ -12,7 +12,7 @@ import {
   type RallyPackView,
 } from '@hadoku/shared';
 
-import { apiUrl, bodyOf, getJson, serverMessage, type Fetch } from '../http.ts';
+import { apiUrl, bodyOf, getJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
 
 export type RallyViewData = { view: 'cards'; data: RallyCardsView } | { view: 'pack'; data: RallyPackView };
 

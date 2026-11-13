@@ -13,7 +13,7 @@ import { createElement } from 'react';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { parseServerFrame } from '@hadoku/forge-wire';
 
-import { resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
+import { resetRolePlayerForTests, setRolePlayer } from '@hadoku/game-ui/sound/index.ts';
 import { ReplayScreen } from './ReplayScreen.tsx';
 
 afterEach(() => {

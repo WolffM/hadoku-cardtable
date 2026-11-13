@@ -9,7 +9,7 @@
  */
 import { magicGame } from '@hadoku/shared';
 import type { RoomView } from '../rooms/api.ts';
-import { Avatar } from '../components/Avatar.tsx';
+import { Avatar } from '@hadoku/game-ui/components/Avatar.tsx';
 import type { RoomCardSeat, RoomCardView } from './roomCard.ts';
 import './RoomSeats.css';
 

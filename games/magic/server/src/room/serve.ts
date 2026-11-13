@@ -1,7 +1,7 @@
 /**
  * Cardtable's rooms, served by cardtable: `@wolffm/rooms-server/room`'s `serveRoom` on this
  * server's own socket.io, at the `/room` namespace `RoomChrome`'s `roomOrigin` connects to
- * (`apps/ui/src/room/RoomShell.tsx`). The chrome's whole room socket comes here — join, roster,
+ * (`packages/game-ui/src/room/RoomShell.tsx`). The chrome's whole room socket comes here — join, roster,
  * identity, chat — and none of it goes to watchparty, so an open cardtable room neither counts on
  * watchparty's server nor holds its deploys.
  *

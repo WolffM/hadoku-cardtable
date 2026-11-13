@@ -2,7 +2,7 @@
 
 import { Icon } from '@wolffm/themes';
 
-import { routeHash } from './route.ts';
+import { routeHash } from '@hadoku/game-ui/screens/route.ts';
 import './DecksScreen.css';
 import { uiLength } from '@hadoku/ui-shell/settings';
 

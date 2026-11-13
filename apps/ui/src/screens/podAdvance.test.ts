@@ -21,7 +21,7 @@ import type { DraftTransport } from '../draft/socket.ts';
 import type { DeckStoreClient } from '../deck/deckStore.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DeckScreen } from './DeckScreen.tsx';
-import { currentRoute, navigate } from './route.ts';
+import { currentRoute, navigate } from '@hadoku/game-ui/screens/route.ts';
 import type { PodContext, PodSource } from './pod/client.ts';
 import { POD_SEATS, type PodView } from './pod/wire.ts';
 

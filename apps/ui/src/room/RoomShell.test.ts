@@ -97,9 +97,9 @@ vi.mock('@wolffm/themes', async (importOriginal) => ({
 // transform, so the mocked modules are in place before RoomShell loads them.
 import { THEMES } from '@wolffm/themes';
 
-import { RoomShell, cardtableOrigin, roomKeyFor, watchpartyTheme } from './RoomShell.tsx';
+import { RoomShell, cardtableOrigin, roomKeyFor, watchpartyTheme } from '@hadoku/game-ui/room/RoomShell.tsx';
 import { roomIdFor } from '../App.tsx';
-import { parseRoute } from '../screens/route.ts';
+import { parseRoute } from '@hadoku/game-ui/screens/route.ts';
 
 afterEach(() => {
   cleanup();

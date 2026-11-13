@@ -100,7 +100,7 @@ import { artScore, assignDeckArt, rankDeckArt, traitsOfDraftCard } from './deckA
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from './DeckPeek.tsx';
 import type { DeckRecords } from '../stats/deckOrder.ts';
-import { currentRoute } from './route.ts';
+import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
 import { TITLE_MS } from './gauntlet/reveal.ts';
 import { layOutYearSlider, pressYearSlider, yearSliderX } from '../components/YearSlider.testing.ts';
 import poolJson from '../draft/pool.json';
@@ -123,7 +123,7 @@ import {
   type TableFormat,
   type Verdict,
 } from './tables.ts';
-import { apiBase, type Fetch } from '../http.ts';
+import { apiBase, type Fetch } from '@hadoku/game-ui/http.ts';
 
 beforeEach(() => {
   serveNamedArt();

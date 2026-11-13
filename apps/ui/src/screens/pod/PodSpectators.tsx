@@ -10,8 +10,8 @@
  */
 
 import type { Look } from '@hadoku/shared';
-import { faceOf } from '../../components/Avatar.tsx';
-import { PlayerName } from '../../room/look.tsx';
+import { faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { CROWN } from '../ConstructedScreen.tsx';
 import { podPlayers, type PodView } from './wire.ts';
 

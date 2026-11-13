@@ -12,7 +12,7 @@ import { inMenu } from './phone.ts';
 /* ── cardtable's settings ────────────────────────────────────────────── */
 
 /**
- * Whichever popout holds them (`apps/ui/src/settings/Settings.tsx`): the fleet header's, standalone,
+ * Whichever popout holds them (`packages/game-ui/src/settings/Settings.tsx`): the fleet header's, standalone,
  * or our own gear's where no host draws them (inside a watchparty room).
  */
 export const settingsPopover = (page: Page): Locator => page.locator('.settings-popout__panel, [data-testid="settings"]');

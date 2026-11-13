@@ -9,8 +9,8 @@ import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const went = vi.hoisted(() => [] as unknown[]);
-vi.mock('../screens/route.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../screens/route.ts')>()),
+vi.mock('@hadoku/game-ui/screens/route.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@hadoku/game-ui/screens/route.ts')>()),
   navigate: (route: unknown) => went.push(route),
 }));
 vi.mock('@wolffm/prefs-client/react', () => ({ usePrefs: () => ({ prefs: null, save: () => Promise.resolve(), loading: false, error: null }) }));
@@ -19,9 +19,9 @@ vi.mock('../play/live/prefs.ts', async (importOriginal) => ({
   getPlayPrefsClient: () => ({}),
 }));
 
-import { SettingsGear } from './Settings.tsx';
-import { resetSiteTrimForTests, useTrim } from './siteTrim.ts';
-import { TrimScreen } from './TrimScreen.tsx';
+import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
+import { resetSiteTrimForTests, useTrim } from '@hadoku/game-ui/settings/siteTrim.ts';
+import { TrimScreen } from '@hadoku/game-ui/settings/TrimScreen.tsx';
 import { DEFAULT_TRIM } from '@hadoku/ui-shell/trim';
 
 let answer: { status: number; body: unknown } | 'never';

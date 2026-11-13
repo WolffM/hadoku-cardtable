@@ -14,10 +14,10 @@ import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 import type { GauntletChoice, GauntletSeatIndex, GauntletView } from '@hadoku/shared';
 
-import { StatusPill } from '../../components/StatusPill.tsx';
+import { StatusPill } from '@hadoku/game-ui/components/StatusPill.tsx';
 import type { DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
-import { playRole } from '../../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import { arrive } from './arrive.ts';
 import { useTilePeek, type TileBinding } from './peek.tsx';
 import { PlayerName, seatOrder } from './seats.tsx';

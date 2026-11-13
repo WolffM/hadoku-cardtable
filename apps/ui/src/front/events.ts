@@ -7,8 +7,8 @@
 import { useEffect, useState } from 'react';
 import { EventListSchema, EventViewSchema, type EventKind, type EventView } from '@hadoku/shared';
 
-import { apiUrl, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '../http.ts';
-import { rereadWhileVisible } from '../visible.ts';
+import { apiUrl, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
+import { rereadWhileVisible } from '@hadoku/game-ui/visible.ts';
 
 /** What each kind of event is called; the server sends only these (an event is always a room's). */
 export const EVENT_KIND_LABELS: Readonly<Partial<Record<EventKind, string>>> = {

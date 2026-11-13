@@ -1,6 +1,6 @@
 import { SERVER_RESTARTING_EVENT } from '@hadoku/shared';
 import { describe, expect, it } from 'vitest';
-import { NOTICE_FRESH_MS, QUIET_RECONNECT_MS, watchRestart, type RestartClock } from './restart-notice.ts';
+import { NOTICE_FRESH_MS, QUIET_RECONNECT_MS, watchRestart, type RestartClock } from '@hadoku/game-ui/restart-notice.ts';
 
 function harness() {
 	const handlers = new Map<string, (() => void)[]>();

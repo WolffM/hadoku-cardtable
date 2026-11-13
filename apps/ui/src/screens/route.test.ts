@@ -19,7 +19,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { canonicalAddress, parseRoute, routeUrl, routeHash, type Route } from './route.ts';
+import { canonicalAddress, parseRoute, routeUrl, routeHash, type Route } from '@hadoku/game-ui/screens/route.ts';
 
 describe('parseRoute', () => {
   it('reads the routes', () => {

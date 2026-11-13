@@ -129,10 +129,10 @@
  */
 
 import { pastSlop } from '../live/gestures/types.ts';
-import { scopeOf } from '../../dom.ts';
-import { clampSpan } from '../../popover.ts';
-import { topLayerIn } from '../../topLayer.tsx';
-import { playRole } from '../../sound/index.ts';
+import { scopeOf } from '@hadoku/game-ui/dom.ts';
+import { clampSpan } from '@hadoku/game-ui/popover.ts';
+import { topLayerIn } from '@hadoku/game-ui/topLayer.tsx';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import './inspect.css';
 
 /** A card's height over its width — the 488 × 680 proportion `card.css` draws. */

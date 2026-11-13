@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DraftCard } from '@hadoku/shared';
-import type { Fetch } from '../http.ts';
+import type { Fetch } from '@hadoku/game-ui/http.ts';
 import { poolsClient } from './api.ts';
 
 const CARD: DraftCard = {

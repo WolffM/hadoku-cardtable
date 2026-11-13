@@ -7,9 +7,9 @@
 
 import { Suspense, useEffect } from 'react';
 
-import { lazyComponent } from '../lazy.ts';
+import { lazyComponent } from '@hadoku/game-ui/lazy.ts';
 import { warmMatchesFrom } from '../play/live/matchStart.ts';
-import { navigate, useRoute } from './route.ts';
+import { navigate, useRoute } from '@hadoku/game-ui/screens/route.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 
 /*
@@ -35,7 +35,7 @@ const ReplayScreen = lazyComponent(() => import('../replay/ReplayScreen.tsx').th
 const RallyEmbed = lazyComponent(() => import('../rally/RallyEmbed.tsx').then((m) => m.RallyEmbed));
 const SoundBuilder = lazyComponent(() => import('./SoundBuilder.tsx').then((m) => m.SoundBuilder));
 const SoundSandbox = lazyComponent(() => import('./SoundSandbox.tsx').then((m) => m.SoundSandbox));
-const TrimScreen = lazyComponent(() => import('../settings/TrimScreen.tsx').then((m) => m.TrimScreen));
+const TrimScreen = lazyComponent(() => import('@hadoku/game-ui/settings/TrimScreen.tsx').then((m) => m.TrimScreen));
 import './screens.css';
 
 // A room opens its new match before it hands the page over, with the match screen's own opener.

@@ -8,7 +8,7 @@
 import { UsageBatchSchema, type UsageBatch } from '@hadoku/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { screenOf, startUsage } from './usage.ts';
+import { screenOf, startUsage } from '@hadoku/game-ui/usage.ts';
 
 describe('screenOf', () => {
   it('names a screen by its route, and a room table apart from its room', () => {

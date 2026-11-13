@@ -20,9 +20,9 @@
 
 import type { CSSProperties } from 'react';
 
-import { ActionButton } from '../../components/ActionButton.tsx';
-import { Avatar, faceOf } from '../../components/Avatar.tsx';
-import { PlayerName } from '../../room/look.tsx';
+import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
+import { Avatar, faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import type { Look } from '@hadoku/shared';
 import { podReady, POD_SEATS, seatedDrafters, type PodView } from './wire.ts';
 import './PodSplit.css';

@@ -28,8 +28,8 @@ import {
   type DraftView,
 } from '@hadoku/shared';
 
-import { settledTabId } from '../room/tab-id.ts';
-import { socketPath } from '../room/socket-options.ts';
+import { settledTabId } from '@hadoku/game-ui/room/tab-id.ts';
+import { socketPath } from '@hadoku/game-ui/room/socket-options.ts';
 import { loadFixtures } from './fixtures.ts';
 import {
   applyPick,

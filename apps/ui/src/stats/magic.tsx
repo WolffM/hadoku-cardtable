@@ -10,7 +10,7 @@ import type { StatAttr } from '@wolffm/prefs-client/games';
 import { FREE_PICK } from '@hadoku/shared';
 
 import { ManaPip } from '../components/ManaPip.tsx';
-import { routeHash } from '../screens/route.ts';
+import { routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { FORMAT_TABS } from '../screens/tables.ts';
 
 /** A set of colours as pips, in the order the seat reported them. */

@@ -12,7 +12,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { safeParseServerFrame } from '@hadoku/forge-wire';
 
-import { claimReload } from '../../stale-build.ts';
+import { claimReload } from '@hadoku/game-ui/stale-build.ts';
 import { fixtureFrames } from './replay-server.ts';
 import { closeMatch, MAX_RESYNCS_WITHOUT_PROGRESS, startMatch, type LiveMatch, type MatchTransport, type MatchTrouble } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';

@@ -10,7 +10,7 @@
 
 import { Icon } from '@wolffm/themes';
 
-import { routeHash } from './route.ts';
+import { routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { uiLength } from '@hadoku/ui-shell/settings';
 
 export function InventoryButton() {

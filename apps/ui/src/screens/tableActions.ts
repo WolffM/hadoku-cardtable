@@ -4,7 +4,7 @@
  * `POST /api/rooms/:roomId/tables/reset` and `POST /api/rooms/:roomId/pod/dq`
  * (`games/magic/server/src/http/table-actions.ts`).
  */
-import { apiBase, bodyOf, sendJson, serverMessage, type Fetch } from '../http.ts';
+import { apiBase, bodyOf, sendJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
 
 /** Resolve a game at this table — concede it, abandon its series, drop its match, or (the leader) reset it: null once the server has it, else its sentence. */
 export function resolveTable(action: 'concede' | 'abandon' | 'drop' | 'reset', roomId: string, tableId: string, fetchImpl?: Fetch): Promise<string | null> {

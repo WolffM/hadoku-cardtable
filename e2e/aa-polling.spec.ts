@@ -86,7 +86,7 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
   try {
     // Alice's room, open in two tabs (hers, and carol's, who takes the other seat); one goes to the
     // background. Not two of alice's: a player's second tab is asked whether to take over, and
-    // draws no room until it does (`apps/ui/src/room/session.ts`).
+    // draws no room until it does (`packages/game-ui/src/room/session.ts`).
     const room = await alice.newPage();
     await room.goto(`${EDGE_ORIGIN}${PREFIX}/`);
     await submitCreateRoom(room, { name: `aa poll ${Date.now()}` });

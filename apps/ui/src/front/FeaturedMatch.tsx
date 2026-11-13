@@ -52,13 +52,13 @@ import {
   type LiveMatch,
   type MatchTransport,
 } from '../play/live/match.ts';
-import type { Fetch } from '../http.ts';
-import { holdMatchQuiet } from '../sound/index.ts';
+import type { Fetch } from '@hadoku/game-ui/http.ts';
+import { holdMatchQuiet } from '@hadoku/game-ui/sound/index.ts';
 import { featuredReplay, readyPlayer } from '../replay/load.ts';
 import type { ReplayClock } from '../replay/player.ts';
 import { ReplayBoard } from '../replay/ReplayBoard.tsx';
 import { REPLAYS_ON } from '../replay/transport.ts';
-import { BOARD_HEIGHT, BOARD_WIDTH, cameraConfigFromHash, defaultRegion, initialCamera, stepCamera, type CameraConfig, type Point } from './camera.ts';
+import { BOARD_HEIGHT, BOARD_WIDTH, cameraConfigFromHash, defaultRegion, initialCamera, stepCamera, type CameraConfig, type Point } from '@hadoku/game-ui/front/camera.ts';
 import './FeaturedMatch.css';
 
 export interface FeaturedMatchProps {

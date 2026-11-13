@@ -11,8 +11,8 @@
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
-import { apiUrl, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '../http.ts';
-import { navigate } from '../screens/route.ts';
+import { apiUrl, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
 
 const ParkedGameSchema = z.object({
   matchId: z.string(),

@@ -4,7 +4,7 @@
  * Every sheet in the app is global (`src/css-ownership.test.ts`), so where a rule sits in the
  * stylesheet decides ties between sheets: a bundler lays the sheets out in the order the modules
  * that import them run. Splitting the code changes that order. A module only a lazy chunk reaches
- * (`src/lazy.ts`) runs after everything the entry loads, so its sheets would move after the
+ * (`@hadoku/game-ui/lazy.ts`) runs after everything the entry loads, so its sheets would move after the
  * entry's: after `screens/screens.css` and `chrome/chrome.css`, which used to follow them. A
  * screen's own rule would then win ties it used to lose — the deck screen's `overflow: hidden`
  * over `.shell--fit`'s scrolling, for one.

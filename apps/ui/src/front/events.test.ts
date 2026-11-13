@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EventView } from '@hadoku/shared';
 
-import { countdown } from './countdown.ts';
+import { countdown } from '@hadoku/game-ui/front/countdown.ts';
 import { fromLocalInput, toLocalInput, upcoming } from './events.ts';
 
 const at = (iso: string, title = iso): EventView => ({ id: title, kind: 'room', title, startsAt: iso, organizer: 'alice', mine: false, roomId: null, room: null });

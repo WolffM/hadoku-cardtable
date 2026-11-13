@@ -10,7 +10,7 @@
 import { useEffect } from 'react';
 import { HeadToHead, MatchFeed, ProfileHeader, RatingHistory, useStatsLoad } from '@wolffm/game-stats-ui';
 
-import { navigate } from '../screens/route.ts';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { Colours } from './Colours.tsx';
 import { renderAvatar } from './face.tsx';
 import { COUNTER_LABELS, MATCH_META, renderName, SEAT_ATTRS } from './magic.tsx';

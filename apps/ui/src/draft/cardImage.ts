@@ -38,8 +38,8 @@
  */
 
 import { BACK_FACE } from '@hadoku/carddata/art';
-import { apiUrl } from '../http.ts';
-import { whenIdle } from '../idle.ts';
+import { apiUrl } from '@hadoku/game-ui/http.ts';
+import { whenIdle } from '@hadoku/game-ui/idle.ts';
 
 /** The image sizes the resolver knows how to build. */
 export type CardImageSize = 'small' | 'normal' | 'large';

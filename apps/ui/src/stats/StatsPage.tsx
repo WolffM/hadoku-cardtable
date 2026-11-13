@@ -22,7 +22,7 @@ import '@wolffm/game-stats-ui/style.css';
 
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import { HomeHead } from '../screens/HomeHead.tsx';
-import { navigate, routeHash, type Route } from '../screens/route.ts';
+import { navigate, routeHash, type Route } from '@hadoku/game-ui/screens/route.ts';
 import { uiLength } from '@hadoku/ui-shell/settings';
 import { Leaderboard } from './Leaderboard.tsx';
 import { Profile } from './Profile.tsx';

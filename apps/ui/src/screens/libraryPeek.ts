@@ -22,7 +22,7 @@ import type { DraftCard } from '@hadoku/shared';
 import { manaTokensOf, manaValueOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
-import { apiBase, getJson, type Fetch } from '../http.ts';
+import { apiBase, getJson, type Fetch } from '@hadoku/game-ui/http.ts';
 import { namedFace, type PeekLine, type PeekList } from './DeckPeek.tsx';
 import type { DeckLine } from './tables.ts';
 

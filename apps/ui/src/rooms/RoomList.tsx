@@ -56,14 +56,14 @@ import { Icon } from '@wolffm/themes';
 import { usePrefs } from '@wolffm/prefs-client/react';
 import { magicGame, PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ChallengeEvent } from '@hadoku/shared';
 
-import { apiUrl, sendJson } from '../http.ts';
-import { navigate } from '../screens/route.ts';
+import { apiUrl, sendJson } from '@hadoku/game-ui/http.ts';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { tablesClient } from '../screens/tables.ts';
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { warmRoom } from './warm.ts';
 import { roomFeed, type RoomFeed } from './follow.ts';
 import { watchScroll } from './scroll-watch.ts';
-import { playRole } from '../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import {
   clientModeLabel,
@@ -76,24 +76,24 @@ import {
   type RoomView,
   type RoomsClient,
 } from './api.ts';
-import { Avatar, faceOf } from '../components/Avatar.tsx';
+import { Avatar, faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
 import { Reveal } from '@hadoku/ui-shell/components';
-import { FrontGateContext, usePartShown } from '../front/gate.ts';
-import { MAX_ROOM_GHOSTS } from '../front/shape.ts';
+import { FrontGateContext, usePartShown } from '@hadoku/game-ui/front/gate.ts';
+import { MAX_ROOM_GHOSTS } from '@hadoku/game-ui/front/shape.ts';
 import { NEW_ROOM_FIELDS, RoomFields, roomRequest, type RoomFieldValues } from './RoomFields.tsx';
 import { ChallengeFields, firstChoice, type ChallengeChoice } from './ChallengeFields.tsx';
-import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
+import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { CreateEventDialog } from './CreateEventDialog.tsx';
 import { latestReads } from './latest.ts';
 import { roomCardView } from '../front/roomCard.ts';
-import { ConstructedIcon, DecksFacingScene, DieIcon, DraftIcon, LockIcon, PersonIcon, PodScene, StaircaseIcon, SwordsIcon, TrophyIcon } from '../front/icons.tsx';
+import { ConstructedIcon, DecksFacingScene, DieIcon, DraftIcon, LockIcon, PersonIcon, PodScene, StaircaseIcon, SwordsIcon, TrophyIcon } from '@hadoku/game-ui/front/icons.tsx';
 import { loadRoomFilters, loadTestingFolded, matchesRoomFilters, orderByMatch, saveRoomFilters, saveTestingFolded, type RoomFilters } from '../front/roomFilters.ts';
 import { mountTips } from '../play/tip/index.ts';
-import { TopLayer } from '../topLayer.tsx';
-import { OverPage } from '../components/OverPage.tsx';
+import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
+import { OverPage } from '@hadoku/game-ui/components/OverPage.tsx';
 import './rooms.css';
 import { uiLength } from '@hadoku/ui-shell/settings';
-import { useWhoami } from '../room/whoami.ts';
+import { useWhoami } from '@hadoku/game-ui/room/whoami.ts';
 import { defaultRoomName } from './roomName.ts';
 
 type ListState =

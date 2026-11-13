@@ -7,8 +7,8 @@
 
 import { AttachedFormSchema, EventViewSchema, rallyCreateUrl, rallyReturnOf, type AttachedForm, type EventView } from '@hadoku/shared';
 
-import { pollAttached } from '../front/polls.ts';
-import { apiUrl, bodyOf, sendJson, serverMessage, type Fetch } from '../http.ts';
+import { pollAttached } from '@hadoku/game-ui/front/polls.ts';
+import { apiUrl, bodyOf, sendJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
 
 export type CreateTournamentOutcome = { ok: true; event: EventView } | { ok: false; message: string };
 export type AttachOutcome = { ok: true; form: AttachedForm } | { ok: false; message: string };

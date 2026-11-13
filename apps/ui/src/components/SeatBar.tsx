@@ -63,8 +63,8 @@ import { seatStatus, SEAT_HELD_NOTE } from '../draft/seatStatus.ts';
 import type { DraftView } from '../draft/types.ts';
 import { isWaiting } from '../draft/types.ts';
 import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
-import { Avatar, MemberFaces } from './Avatar.tsx';
-import { PlayerName } from '../room/look.tsx';
+import { Avatar, MemberFaces } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { DraftCounters } from './DraftCounters.tsx';
 import {
   CLEAR,

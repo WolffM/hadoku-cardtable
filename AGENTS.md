@@ -255,7 +255,7 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
   `costly-act` / `rate-limited` (every `perCallerLimit`, named by `act`).
   A new expensive step goes through `perCallerLimit` and is covered.
   Every 5 min: `usage` (screens shown and controls pressed, counted by
-  `data-testid` with ids stripped — `apps/ui/src/usage.ts`, so a control needs
+  `data-testid` with ids stripped — `packages/game-ui/src/usage.ts`, so a control needs
   a testid to be counted) and `capacity` (peak sockets, rooms, drafts, matches,
   JVMs, free Forge slots, request rate and p95, event-loop stall —
   `packages/game-server/src/capacity.ts`); `capacity-refused` when a start meets the

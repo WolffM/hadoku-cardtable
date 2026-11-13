@@ -17,9 +17,9 @@
 import { Suspense, useContext, useEffect, useState } from 'react';
 
 import { Reveal } from '@hadoku/ui-shell/components';
-import { lazyComponent } from '../lazy.ts';
+import { lazyComponent } from '@hadoku/game-ui/lazy.ts';
 import type { FeaturedPick } from '../rooms/api.ts';
-import { FrontGateContext, usePartShown } from './gate.ts';
+import { FrontGateContext, usePartShown } from '@hadoku/game-ui/front/gate.ts';
 
 /** The featured card's own chunk. A test preloads it to draw the lobby as the page does once it has landed. */
 export const FeaturedMatch = lazyComponent(() => import('./FeaturedMatch.tsx').then((m) => m.FeaturedMatch));

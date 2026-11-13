@@ -5,7 +5,7 @@
  *
  * What it says is set by the operator (cut 5): free forever, open source, the licence, the Discord and
  * GitHub links with their icons, and the not-affiliated-with-Wizards disclaimer in NOTICE.md's own words.
- * The icons are the site header's own paths (`apps/ui/src/chrome/HeaderLinks.tsx`), read from that file so
+ * The icons are the site header's own paths (`packages/game-ui/src/chrome/HeaderLinks.tsx`), read from that file so
  * the two never drift; the type is the C2 caption family (Noto Sans Black, letter-spaced SemiBold, the
  * accent rule). No WotC logo or wordmark, and nothing about money: "free forever" is a promise.
  */
@@ -20,7 +20,7 @@ if (out === undefined) {
   process.exit(2);
 }
 const root = resolve(import.meta.dirname, '..', '..');
-const header = readFileSync(resolve(root, 'apps/ui/src/chrome/HeaderLinks.tsx'), 'utf8');
+const header = readFileSync(resolve(root, 'packages/game-ui/src/chrome/HeaderLinks.tsx'), 'utf8');
 const constant = (name) => {
   const m = new RegExp(`${name}\\s*=\\s*\\n?\\s*'([^']+)'`).exec(header);
   if (m === null) throw new Error(`credits: no ${name} in HeaderLinks.tsx`);

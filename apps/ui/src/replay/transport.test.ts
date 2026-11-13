@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { parseServerFrame } from '@hadoku/forge-wire';
 import { REPLAY_BODY_VERSION } from '@hadoku/shared';
 
-import type { Fetch } from '../http.ts';
+import type { Fetch } from '@hadoku/game-ui/http.ts';
 import { fetchRandomReplay, fetchReplay, replayWeight, fetchReplays, parseReplayData, type ReplayListing } from './transport.ts';
 
 const json = (status: number, body: unknown): Response =>

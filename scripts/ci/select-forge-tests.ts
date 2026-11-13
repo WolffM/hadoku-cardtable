@@ -328,32 +328,65 @@ export class Repo {
   /**
    * Main's lands, newest first: first-parent history cut at the version-bump
    * commits `land.sh` closes each land with. A shallow clone has one commit of
-   * history and so, honestly, no lands.
+   * history and so, honestly, no lands. Each commit names its files as they are
+   * called today: a moved file keeps the lands it had under its old path.
    */
   lands(): Land[] {
     if (this.landCache) return this.landCache;
-    const lands: Land[] = [];
-    const log = this.git(['log', '--first-parent', '--no-renames', '--name-only', '--format=%x00%H %s', '-n', String(HISTORY), this.rev]);
-    let cur: Land = { commits: [] };
-    for (const chunk of (log ?? '').split('\0').slice(1)) {
-      const [head, ...files] = chunk.split('\n').filter(Boolean);
-      if (BUMP.test(head.slice(41))) {
-        if (cur.commits.length) lands.push(cur);
-        cur = { commits: [] };
-      } else cur.commits.push({ sha: head.slice(0, 40), files });
-    }
-    if (cur.commits.length) lands.push(cur);
+    const log = this.git(['log', '--first-parent', '-M', '--name-status', '--format=%x00%H %s', '-n', String(HISTORY), this.rev]);
+    const { lands, pathAt } = landsFromLog(log ?? '');
     this.landCache = lands;
+    this.pathAt = pathAt;
     return lands;
   }
+  private pathAt = new Map<string, string>();
 
-  /** The declarations or rules commit `sha` edited in `file`, by name (`touchedNames`). */
+  /** The declarations or rules commit `sha` edited in `file` (named as today), by name (`touchedNames`). */
   touchedAt(sha: string, file: string): string[] {
-    const show = this.git(['show', '--format=', '-U0', '--no-renames', sha, '--', file]);
-    const src = this.git(['show', `${sha}:${file}`]);
+    this.lands();
+    const then = this.pathAt.get(`${sha}:${file}`) ?? file;
+    const show = this.git(['show', '--format=', '-U0', '--no-renames', sha, '--', then]);
+    const src = this.git(['show', `${sha}:${then}`]);
     const at = show?.indexOf('\n@@') ?? -1;
     return src === null || at < 0 ? [] : touchedNames(file, src, show!.slice(at + 1));
   }
+}
+
+/**
+ * `git log --first-parent -M --name-status --format=%x00%H %s`, newest first, as lands: each commit's
+ * files under the names they carry today, following every rename back, and (`pathAt`, keyed
+ * `<sha>:<today's name>`) the name a file had in a commit where that differs.
+ */
+export function landsFromLog(log: string): { lands: Land[]; pathAt: Map<string, string> } {
+  const lands: Land[] = [];
+  const pathAt = new Map<string, string>();
+  /** An older name to the name it has today. */
+  const today = new Map<string, string>();
+  const now = (p: string): string => today.get(p) ?? p;
+  let cur: Land = { commits: [] };
+  for (const chunk of log.split('\0').slice(1)) {
+    const [head, ...lines] = chunk.split('\n').filter(Boolean);
+    const sha = head.slice(0, 40);
+    const files: string[] = [];
+    const renames: [string, string][] = [];
+    for (const line of lines) {
+      const [status, a, b] = line.split('\t');
+      // In this commit the file is `b` for a rename (or copy), else `a`.
+      const there = /^[RC]/.test(status) ? b : a;
+      const name = now(there);
+      files.push(name);
+      if (name !== there) pathAt.set(`${sha}:${name}`, there);
+      if (status.startsWith('R')) renames.push([a, name]);
+    }
+    // Older commits call the file by its name before this one.
+    for (const [from, to] of renames) today.set(from, to);
+    if (BUMP.test(head.slice(41))) {
+      if (cur.commits.length) lands.push(cur);
+      cur = { commits: [] };
+    } else cur.commits.push({ sha, files });
+  }
+  if (cur.commits.length) lands.push(cur);
+  return { lands, pathAt };
 }
 
 export interface Land {
@@ -648,7 +681,8 @@ export function cssChangeKeys(repo: Repo, file: string, patch: string | undefine
   const via: string[] = [];
   if (direct.classes.size === 0) return { direct, reached, via, typesOnly: false };
   const uses = [...direct.classes].map((c) => new RegExp(`['"\`][^'"\`\n]*(?<![\\w-])${escape(c)}(?![\\w-])`));
-  for (const f of repo.list('apps/ui')) {
+  // The app and the platform's UI packages: a package's sheet is drawn by its own components.
+  for (const f of [...repo.list('apps/ui'), ...repo.list('packages')]) {
     if (!f.endsWith('.tsx')) continue;
     const lines = (repo.read(f) ?? '').split('\n');
     const hits = lines.flatMap((l, i) => (uses.some((u) => u.test(l)) ? [i] : []));

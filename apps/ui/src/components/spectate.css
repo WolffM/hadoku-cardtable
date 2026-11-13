@@ -1,6 +1,7 @@
 /*
- * Styling for the draft surface's own components: the connection banner, the
- * spectator notice, the seat bar and the deck builder.
+ * Styling for the draft surface's own components: the spectator notice, the
+ * seat bar and the deck builder. (The connection banner's rules are its own,
+ * `ConnectionBanner.css`, beside it in the platform's UI package.)
  *
  * ## Why this file exists at all, instead of more rules in `styles.css`
  *
@@ -8,8 +9,8 @@
  * were editing the same app in parallel and a shared stylesheet is the one file
  * they would both have wanted; the resolution was that neither may touch it and
  * each writes its own, imported by its own modules. So this is co-located with
- * the components it dresses and is pulled in by `ConnectionBanner.tsx` and
- * `DeckView.tsx` rather than by the app shell.
+ * the components it dresses and is pulled in by `SpectatorNotice.tsx`,
+ * `SeatBar.tsx` and `DeckView.tsx` rather than by the app shell.
  *
  * It CONSUMES the palette on `:root` and redefines none of it. Every value
  * below is either a token from `styles.css` or a literal that only makes sense
@@ -21,80 +22,6 @@
  * the only `url()` in this file names the seat ring's own SVG markers, and
  * nothing draws a card frame, a set symbol or a mana symbol. Pips are `ManaPip`'s circles.
  */
-
-/* ── The connection banner ───────────────────────────────────────────── */
-
-.conn {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-left-width: 3px;
-  border-radius: var(--radius, 8px);
-  background: var(--bg-raised);
-  color: var(--ink);
-}
-
-/* The phase, as a colour. Never the only signal — the label says it in words. */
-.conn--connecting,
-.conn--reconnecting,
-.conn--resyncing {
-  border-left-color: var(--accent);
-}
-
-.conn--offline {
-  border-left-color: var(--warn);
-}
-
-.conn--recovered {
-  border-left-color: var(--c-green);
-}
-
-.conn__dot {
-  width: 9px;
-  height: 9px;
-  margin-top: 5px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.55;
-  flex: none;
-}
-
-/* A pulse only while something is genuinely in flight, and never for a person
-   who asked the browser not to animate. */
-.conn--connecting .conn__dot,
-.conn--reconnecting .conn__dot,
-.conn--resyncing .conn__dot {
-  animation: conn-pulse 1.4s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .conn__dot {
-    animation: none !important;
-  }
-}
-
-@keyframes conn-pulse {
-  50% {
-    opacity: 1;
-  }
-}
-
-.conn__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.conn__label {
-  font-weight: 600;
-}
-
-.conn__detail {
-  color: var(--ink-dim);
-}
 
 /* ── The spectator notice ────────────────────────────────────────────── */
 

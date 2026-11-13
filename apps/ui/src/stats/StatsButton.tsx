@@ -10,9 +10,9 @@
 import { useEffect } from 'react';
 import { Icon } from '@wolffm/themes';
 
-import { whenIdle } from '../idle.ts';
-import { lazyComponent } from '../lazy.ts';
-import { routeHash } from '../screens/route.ts';
+import { whenIdle } from '@hadoku/game-ui/idle.ts';
+import { lazyComponent } from '@hadoku/game-ui/lazy.ts';
+import { routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { uiLength } from '@hadoku/ui-shell/settings';
 import type { StatsSource } from './source.ts';
 

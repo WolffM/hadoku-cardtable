@@ -4,8 +4,8 @@ import { closeMatch, subscribe, type LiveMatch } from './match.ts';
 
 const played: string[] = [];
 const navigated: unknown[] = [];
-vi.mock('../../sound/index.ts', () => ({ playRole: (role: string) => played.push(role) }));
-vi.mock('../../screens/route.ts', () => ({ navigate: (route: unknown) => navigated.push(route) }));
+vi.mock('@hadoku/game-ui/sound/index.ts', () => ({ playRole: (role: string) => played.push(role) }));
+vi.mock('@hadoku/game-ui/screens/route.ts', () => ({ navigate: (route: unknown) => navigated.push(route) }));
 /** Each match's room, answered when the test resolves it. */
 const roomAnswers = new Map<string, (room: unknown) => void>();
 vi.mock('../../rooms/api.ts', () => ({

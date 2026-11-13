@@ -25,10 +25,10 @@ import { createElement, Fragment, type ComponentType, type ReactNode } from 'rea
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame, type GameLogLine, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import { ClientEventSchema, SERVER_RESTARTING_EVENT } from '@hadoku/shared';
-import { QUIET_RECONNECT_MS } from '../../restart-notice.ts';
+import { QUIET_RECONNECT_MS } from '@hadoku/game-ui/restart-notice.ts';
 import { parseDck } from '@hadoku/carddata/dck';
 import { deckFromDeckFile } from '@hadoku/deck';
-import { setRolePlayer } from '../../sound/index.ts';
+import { setRolePlayer } from '@hadoku/game-ui/sound/index.ts';
 import { withMagicGame } from '../../rooms/room-body.testing.ts';
 import type { SoundEvent } from '@hadoku/ui-shell/sound';
 
@@ -80,13 +80,13 @@ import {
 import { FLIP_MS } from './CoinToss.tsx';
 import { whenBoardStill } from '../motion.ts';
 import type { PlayPrefs } from './prefs.ts';
-import { CardtableSettings, HostDrawsSettingsProvider } from '../../settings/Settings.tsx';
+import { CardtableSettings, HostDrawsSettingsProvider } from '@hadoku/game-ui/settings/Settings.tsx';
 import { confirmAsk, fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from './replay-server.ts';
 import { HOLD_MAX_MS } from './timed-hold.ts';
 import { parseMatchAck } from './transport.ts';
 import { PHASE_SETTLE_MS } from './phase-sound.ts';
 import type { DeckRules, SeatChoice } from '../../screens/tables.ts';
-import { currentRoute } from '../../screens/route.ts';
+import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
 
 /** A constructed seat's rules, as the server sends them with every choice. */
 const CONSTRUCTED_RULES: DeckRules = { kind: 'standard', format: 'free' };

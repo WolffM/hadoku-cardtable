@@ -8,9 +8,9 @@
  * all", and "please unify all rooms. it's irrelevant what type of room it is").
  */
 
-import { ActionButton } from '../components/ActionButton.tsx';
-import { Avatar, faceOf } from '../components/Avatar.tsx';
-import { PlayerName } from '../room/look.tsx';
+import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
+import { Avatar, faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import type { Look } from '@hadoku/shared';
 import { CROWN } from './ConstructedScreen.tsx';
 

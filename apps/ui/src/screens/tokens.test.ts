@@ -4,12 +4,14 @@
  * which is cyan in ocean-light (2.6:1 on white; the e2e measured 2.77).
  * Reads the real theme stylesheet and the real `styles.css`; nothing is restated.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+
+import { uiPath, uiSheets } from '../ui-sources.testing.ts';
 
 type Rgb = [number, number, number];
 
-// @reads apps/ui/src/*.css apps/ui/src/components/*.css
+// @reads apps/ui/src/*.css packages/ui-shell/src/*.css packages/game-ui/src/*.css
 const themeCss = readFileSync(new URL('../../node_modules/@wolffm/themes/src/style.css', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const ownCss = readFileSync(new URL('../styles.css', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 /** The draft table's sheets: the global one, and the draft screen's and its cards' own. */
@@ -224,18 +226,9 @@ describe('the condition glow and its ink', () => {
   });
 });
 
-/** Every stylesheet the app owns, by path from `src/`; the vendored symbol fonts' sheets are third-party. */
-const root = new URL('../', import.meta.url);
-const sheets: string[] = [];
-const walk = (dir: URL, rel: string): void => {
-  for (const name of readdirSync(dir)) {
-    const url = new URL(name, dir);
-    if (statSync(url).isDirectory()) {
-      if (name !== 'symbols') walk(new URL(`${name}/`, dir), `${rel}${name}/`);
-    } else if (name.endsWith('.css')) sheets.push(`${rel}${name}`);
-  }
-};
-walk(root, '');
+/** Every stylesheet the UI owns, by path from the repo root; the vendored symbol fonts' sheets are third-party. */
+const root = new URL('../../../../', import.meta.url);
+const sheets: string[] = uiSheets(['symbols']).map(uiPath);
 
 describe('the stacking scale (wave 32 shape 2)', () => {
   it('declares the layers on :root, in order', () => {
@@ -267,8 +260,9 @@ describe('no hardcoded colours', () => {
   const PALETTE = /^\s*--(?:c-(?:white|blue|black|red|green|generic)|discord-[a-z0-9-]+):\s*#[0-9a-f]{6};\s*$/i;
 
   it('finds the app’s stylesheets', () => {
-    expect(sheets).toContain('styles.css');
-    expect(sheets).toContain('settings/settings.css');
+    expect(sheets).toContain('apps/ui/src/styles.css');
+    expect(sheets).toContain('packages/game-ui/src/settings/settings.css');
+    expect(sheets).toContain('packages/ui-shell/src/chrome/chrome.css');
   });
 
   it('no stylesheet writes a literal colour, outside the colour-pie and Discord palettes', () => {
@@ -276,7 +270,7 @@ describe('no hardcoded colours', () => {
     for (const rel of sheets) {
       const css = readFileSync(new URL(rel, root), 'utf8').replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
       css.split('\n').forEach((line, i) => {
-        if (LITERAL.test(line) && !(rel === 'styles.css' && PALETTE.test(line))) found.push(`${rel}:${String(i + 1)}: ${line.trim()}`);
+        if (LITERAL.test(line) && !(rel === 'apps/ui/src/styles.css' && PALETTE.test(line))) found.push(`${rel}:${String(i + 1)}: ${line.trim()}`);
       });
     }
     expect(found).toEqual([]);
@@ -285,7 +279,7 @@ describe('no hardcoded colours', () => {
   it('a state colour is read through its alias (`--success`, `--danger`, `--warn` and their pairings), never the theme’s own name, outside the two global sheets', () => {
     const found: string[] = [];
     for (const rel of sheets) {
-      if (rel === 'styles.css' || rel === 'chrome/chrome.css') continue;
+      if (rel === 'apps/ui/src/styles.css' || rel === 'packages/ui-shell/src/chrome/chrome.css') continue;
       for (const m of readFileSync(new URL(rel, root), 'utf8').matchAll(/var\(--color-(?:on-)?(?:success|danger|warning)[a-z-]*\)/g)) found.push(`${rel}: ${m[0]}`);
     }
     expect(found).toEqual([]);

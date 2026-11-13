@@ -26,8 +26,8 @@
  * and never steals focus; a press puts it away. Keyboard focus on an element
  * with `data-tip` shows it the same way.
  */
-import { scopeOf } from '../../dom.ts';
-import { topLayerIn } from '../../topLayer.tsx';
+import { scopeOf } from '@hadoku/game-ui/dom.ts';
+import { topLayerIn } from '@hadoku/game-ui/topLayer.tsx';
 
 import './tip.css';
 

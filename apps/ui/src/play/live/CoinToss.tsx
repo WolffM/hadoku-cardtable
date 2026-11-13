@@ -18,8 +18,8 @@
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 
-import { Avatar, type Face } from '../../components/Avatar.tsx';
-import { PlayerName } from '../../room/look.tsx';
+import { Avatar, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 
 import './coin-toss.css';
 

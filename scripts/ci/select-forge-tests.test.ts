@@ -25,6 +25,7 @@ import {
   changedSelectors,
   code,
   declarations,
+  landsFromLog,
   outputs,
   select,
   universe,
@@ -341,6 +342,21 @@ describe('the per-file rules', () => {
     expect(select(repo, [modified('packages/game-server/src/http/sounds.ts')]).specs).toEqual(['bars.spec.ts', ...SMOKE].sort());
   });
 
+  it("the UI's platform package is UI code: a component reached by subpath through a `./*` export, a sheet by the classes its own components draw", () => {
+    const repo = fixtureRepo({
+      'packages/game-ui/package.json': '{ "name": "@hadoku/game-ui", "exports": { "./*": "./src/*" } }\n',
+      'packages/game-ui/src/live/coin.ts': fixtureRepo().read('apps/ui/src/play/live/coin.ts')!,
+      'packages/game-ui/src/live/CoinToss.tsx': fixtureRepo().read('apps/ui/src/play/live/CoinToss.tsx')!,
+      'packages/game-ui/src/live/coin.css': fixtureRepo().read('apps/ui/src/play/live/coin.css')!,
+      'apps/ui/src/play/live/CoinToss.tsx': "export { CoinToss } from '@hadoku/game-ui/live/CoinToss.tsx';\n",
+      'apps/ui/src/play/live/Shown.tsx': "import { CoinToss } from '@hadoku/game-ui/live/CoinToss.tsx';\nexport function Shown() {\n  return <CoinToss />;\n}\n",
+    });
+    const flip = select(repo, [modified('packages/game-ui/src/live/coin.ts', diff(5, ['  return "tails";'], ['  return "heads";']))]);
+    expect(flip.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
+    const sheet = select(repo, [modified('packages/game-ui/src/live/coin.css', diff(3, ['  width: 9px;'], ['  width: 10px;']))]);
+    expect(sheet.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
+  });
+
   it("an edit to a barrel's re-exports alone selects nothing — what uses a new export changed with it", () => {
     const repo = fixtureRepo({ ...WIRE, 'packages/wire/src/index.ts': "export * from './coin.ts';\nexport * from './more.ts';\n", 'packages/wire/src/more.ts': 'export const more = 1;\n' });
     const sel = select(repo, [modified('packages/wire/src/index.ts', diff(1, [], ["export * from './more.ts';"], ["export * from './coin.ts';"]))]);
@@ -419,6 +435,26 @@ describe('history: the specs that landed with earlier edits', () => {
   it('a land that edited another rule of the file is weaker evidence, not enough alone', () => {
     const sel = select(fixtureRepo({ 'apps/ui/src/play/live/coin.css': css }, land(['pile.spec.ts'], '.coin')), [edit]);
     expect(sel.specs).toEqual([...SMOKE].sort());
+  });
+
+  it("follows a file back through its moves: a land before a rename counts under the file's name today", () => {
+    const sha = (c: string): string => c.repeat(40);
+    const commit = (c: string, subject: string, ...lines: string[]): string => `\0${sha(c)} ${subject}\n\n${lines.join('\n')}\n`;
+    const log = [
+      commit('e', 'ui 0.1.2'),
+      commit('d', 'the second move', 'R100\tpackages/b/x.css\tpackages/c/x.css', 'M\tapps/ui/src/y.ts'),
+      commit('c', 'ui 0.1.1'),
+      commit('b', 'the move', 'R097\tapps/ui/src/x.css\tpackages/b/x.css'),
+      commit('a', 'a fix', 'M\tapps/ui/src/x.css', 'A\te2e/pile.spec.ts'),
+    ].join('');
+    const { lands, pathAt } = landsFromLog(log);
+    expect(lands.map((l) => l.commits.map((c) => [c.sha[0], ...c.files]))).toEqual([
+      [['d', 'packages/c/x.css', 'apps/ui/src/y.ts']],
+      [['b', 'packages/c/x.css'], ['a', 'packages/c/x.css', 'e2e/pile.spec.ts']],
+    ]);
+    expect(pathAt.get(`${sha('a')}:packages/c/x.css`)).toBe('apps/ui/src/x.css');
+    expect(pathAt.get(`${sha('b')}:packages/c/x.css`)).toBe('packages/b/x.css');
+    expect(pathAt.has(`${sha('d')}:packages/c/x.css`)).toBe(false);
   });
 
   it('a land carrying a whole wave of specs says nothing about any one', () => {

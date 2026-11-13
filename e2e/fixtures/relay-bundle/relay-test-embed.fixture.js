@@ -1,7 +1,7 @@
 /**
  * A minimal `GameBundleModule` (`@wolffm/rooms-protocol`) standing in for a native relay game's
  * real embed, for `e2e/relay-fixture.spec.ts`. It exercises `ctx.channel`
- * (`apps/ui/src/rooms/relay-channel.ts`'s own contract): a button sends a message over it, every
+ * (`packages/game-ui/src/rooms/relay-channel.ts`'s own contract): a button sends a message over it, every
  * message `on()` delivers is shown, and a `{ t: 'over' }` — sent or received — marks the match
  * ended, same as `bomberman-embed.fixture.js` echoes `ctx` itself for BundleSlot's own proof.
  * End's winners are `window.__relayFixture.overWinners` when set, else the sender's own seat.

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 
-import { Avatar } from './Avatar.tsx';
+import { Avatar } from '@hadoku/game-ui/components/Avatar.tsx';
 
 afterEach(cleanup);
 

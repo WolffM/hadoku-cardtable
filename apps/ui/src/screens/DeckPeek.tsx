@@ -38,8 +38,8 @@ import type { DeckStyle } from '@hadoku/deck/library';
 import { sortCards } from '../deck/cardOrder.ts';
 import { uiPx } from '@hadoku/ui-shell/settings';
 import { DeckStyleTag } from './DeckStyleTag.tsx';
-import { TopLayer } from '../topLayer.tsx';
-import { OverPage } from '../components/OverPage.tsx';
+import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
+import { OverPage } from '@hadoku/game-ui/components/OverPage.tsx';
 
 /** One line of a list, with what the peek sorts and draws it by. */
 export interface PeekLine {

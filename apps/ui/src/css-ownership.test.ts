@@ -23,31 +23,51 @@
  * `styles.css` and, moved into `@hadoku/ui-shell/chrome` (wave 92 §A), `chrome/chrome.css` and
  * `chrome/trim.css` are the global sheets, one owner between them.
  *
- * `packages/ui-shell/src` is walked too, tagged with `PKG_PREFIX` so a file there has an id distinct
- * from any same-named app file: the shell's own sheets and modules (chrome, embed, trim today; more
- * as lanes B and D move theirs) still need rules A/B/C, read against the APP's modules that draw
- * them — a moved sheet's block is still drawn by `apps/ui/src/App.tsx`-reached files, just no longer
- * styled from a file under `SRC`. `idOf`/`absOf` are the only two places that know there are two
- * roots; everything below them works on ids, as it always did.
+ * The platform's UI packages, `packages/ui-shell/src` and `packages/game-ui/src`, are walked too,
+ * each tagged with its own prefix (`PACKAGES`) so a file there has an id distinct from any
+ * same-named app file: a package's sheets and modules still need rules A/B/C, read against the
+ * APP's modules that draw them — a moved sheet's block is still drawn by `apps/ui/src/App.tsx`-reached
+ * files, just no longer styled from a file under `SRC`. `idOf`/`absOf` are the only two places that
+ * know there are several roots; everything below them works on ids, as it always did.
  */
-// @reads apps/ui/src/ packages/ui-shell/src/ scripts/ci/select-forge-tests.ts
+// @reads apps/ui/src/ packages/ui-shell/src/ packages/game-ui/src/ scripts/ci/select-forge-tests.ts
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { GUARDS } from '../../../scripts/ci/select-forge-tests.ts';
+import { exportOf } from '../../../scripts/layers/exports.ts';
 
 const SRC = dirname(fileURLToPath(import.meta.url));
-const PKG_SRC = resolve(SRC, '../../../packages/ui-shell/src');
-const PKG_PREFIX = '@ui-shell/';
 
-/** Where `id` (an `SRC`-relative path, or `PKG_PREFIX`-prefixed for the package) lives on disk. */
-const absOf = (id: string): string => (id.startsWith(PKG_PREFIX) ? join(PKG_SRC, id.slice(PKG_PREFIX.length)) : join(SRC, id));
-/** The id for an absolute path under either root. */
-const idOf = (abs: string): string => (abs.startsWith(`${PKG_SRC}/`) ? `${PKG_PREFIX}${relative(PKG_SRC, abs)}` : relative(SRC, abs));
+/** A platform UI package this suite walks: its id prefix, its `src` on disk, its repo path and its `exports`. */
+interface Package {
+  prefix: string;
+  name: string;
+  src: string;
+  repo: string;
+  exports: Record<string, string>;
+}
+const PACKAGES: Package[] = ['ui-shell', 'game-ui'].map((dir) => {
+  const src = resolve(SRC, `../../../packages/${dir}/src`);
+  const manifest = JSON.parse(readFileSync(join(src, '../package.json'), 'utf8')) as { name: string; exports: Record<string, string> };
+  return { prefix: `@${dir}/`, name: manifest.name, src, repo: `packages/${dir}/src/`, exports: manifest.exports };
+});
+const UI_SHELL = PACKAGES[0]!.prefix;
 
-const GLOBAL_SHEETS = ['styles.css', `${PKG_PREFIX}chrome/chrome.css`, `${PKG_PREFIX}chrome/trim.css`];
+/** Where `id` (an `SRC`-relative path, or a package's prefix and its path) lives on disk. */
+const absOf = (id: string): string => {
+  const pkg = PACKAGES.find((p) => id.startsWith(p.prefix));
+  return pkg ? join(pkg.src, id.slice(pkg.prefix.length)) : join(SRC, id);
+};
+/** The id for an absolute path under any root. */
+const idOf = (abs: string): string => {
+  const pkg = PACKAGES.find((p) => abs.startsWith(`${p.src}/`));
+  return pkg ? `${pkg.prefix}${relative(pkg.src, abs)}` : relative(SRC, abs);
+};
+
+const GLOBAL_SHEETS = ['styles.css', `${UI_SHELL}chrome/chrome.css`, `${UI_SHELL}chrome/trim.css`];
 
 /** Blocks more than one tree draws or styles by design, with why. */
 const SHARED: Record<string, string> = {
@@ -56,7 +76,7 @@ const SHARED: Record<string, string> = {
   'ct-panel': 'the trim hook: every panel that takes the decoration chosen in Settings → Trim (`@ui-shell/chrome/trim.css`)',
   'cardtable-chrome': 'the chrome root: the app and the embed mount the same one, and the embed adds its modifier',
   'sound-builder': 'the sound tools (builder, sandbox, music review, queue) are one sheet’s screens',
-  'ct-settings': 'the settings shell (settings/Settings.tsx): the game’s own sections, handed in by composition.tsx, draw its rows',
+  'ct-settings': 'the settings shell (`@game-ui/settings/Settings.tsx`): the game’s own sections, handed in by composition.tsx, draw its rows',
 };
 
 /** Blocks (rules A, B) and classes (rule C) whose fix is in a sheet another lane holds. Each must still fail, or its entry goes. */
@@ -75,7 +95,7 @@ function walk(dir: string): string[] {
   });
 }
 
-const files = [...walk(SRC), ...walk(PKG_SRC)];
+const files = [...walk(SRC), ...PACKAGES.flatMap((p) => walk(p.src))];
 const sheets = files.filter((f) => f.endsWith('.css'));
 const modules = files.filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$|\.d\.ts$|^test-setup\.ts$/.test(f));
 const source = new Map([...sheets, ...modules].map((f) => [f, readFileSync(absOf(f), 'utf8')]));
@@ -87,16 +107,14 @@ const lineAt = (src: string, index: number): number => src.slice(0, index).split
 
 const IMPORT = /^\s*(?:import|export)\s+(type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/gm;
 
-// Read from the package's own `exports` map rather than assumed, so a subpath that is a file, not a
-// directory's `index.ts` (`./chrome/shell`), needs no matching change here.
-const PKG_EXPORTS: Record<string, string> = JSON.parse(readFileSync(join(PKG_SRC, '../package.json'), 'utf8')).exports;
-
 /**
  * A module's value imports, resolved to source ids: a type import draws nothing. A relative
- * specifier resolves across either root, same as always. A bare `@hadoku/ui-shell/<name>` resolves
- * to that subpath's own entry module, as the package's `exports` map says — the one edge this suite
- * follows across the package boundary, since nothing here walks into `node_modules` otherwise. Any
- * other bare specifier (`react`, `@wolffm/*`) draws nothing this suite tracks, as before.
+ * specifier resolves across any root, same as always. A bare `@hadoku/ui-shell/<name>` or
+ * `@hadoku/game-ui/<path>` resolves to the file that package's own `exports` map names for it (read,
+ * not assumed, so a subpath that is a file, not a directory's `index.ts`, or a `./*` pattern, needs
+ * no matching change here) — the one edge this suite follows across a package boundary, since
+ * nothing here walks into `node_modules` otherwise. Any other bare specifier (`react`, `@wolffm/*`)
+ * draws nothing this suite tracks, as before.
  */
 function importsOf(file: string): string[] {
   const out: string[] = [];
@@ -107,9 +125,10 @@ function importsOf(file: string): string[] {
       out.push(idOf(resolve(dirname(absOf(file)), spec)));
       continue;
     }
-    if (spec.startsWith('@hadoku/ui-shell/')) {
-      const rel = PKG_EXPORTS[`.${spec.slice('@hadoku/ui-shell'.length)}`];
-      if (rel !== undefined) out.push(idOf(resolve(PKG_SRC, '..', rel)));
+    const pkg = PACKAGES.find((p) => spec.startsWith(`${p.name}/`));
+    if (pkg !== undefined) {
+      const rel = exportOf(pkg.exports, `.${spec.slice(pkg.name.length)}`);
+      if (rel !== undefined) out.push(idOf(resolve(pkg.src, '..', rel)));
     }
   }
   return out;
@@ -368,8 +387,11 @@ describe('css ownership', () => {
     const guard = GUARDS.find((g) => g.name === 'the shared stylesheets');
     expect(guard, 'select-forge-tests.ts guards the shared stylesheets').toBeDefined();
     // The guard matches real repo paths, which differ by root: `apps/ui/src/…` for a sheet this
-    // suite walked under `SRC`, `packages/ui-shell/src/…` for one walked under `PKG_SRC`.
-    const repoPath = (s: string): string => (s.startsWith(PKG_PREFIX) ? `packages/ui-shell/src/${s.slice(PKG_PREFIX.length)}` : `apps/ui/src/${s}`);
+    // suite walked under `SRC`, `packages/<pkg>/src/…` for one walked under a package's root.
+    const repoPath = (s: string): string => {
+      const pkg = PACKAGES.find((p) => s.startsWith(p.prefix));
+      return pkg ? `${pkg.repo}${s.slice(pkg.prefix.length)}` : `apps/ui/src/${s}`;
+    };
     const shared = sheets.filter((s) => GLOBAL_SHEETS.includes(s) || s === 'screens/screens.css' || ownersOf(s).size > 1).map(repoPath);
     expect(shared.filter((s) => !guard!.paths.test(s))).toEqual([]);
     expect(sheets.map(repoPath).filter((s) => guard!.paths.test(s) && !shared.includes(s))).toEqual([]);

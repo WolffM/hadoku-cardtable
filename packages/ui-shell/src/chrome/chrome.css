@@ -103,7 +103,7 @@
 
    A screen drawn into a room is one level further in: RoomShell keeps it mounted
    while the chat comes and goes by drawing it into a node it moves between the
-   two (`apps/ui/src/room/RoomShell.tsx`). That node and the slot holding it are
+   two (`packages/game-ui/src/room/RoomShell.tsx`). That node and the slot holding it are
    `.chrome-slot`s, which take no box, and every rule here that addresses a
    content's own child reaches through exactly those two. */
 .chrome-slot {

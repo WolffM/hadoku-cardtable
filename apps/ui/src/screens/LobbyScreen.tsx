@@ -47,12 +47,12 @@
 import { useEffect, useState } from 'react';
 
 import { Banner } from '../front/Banner.tsx';
-import { FrontGateContext, useFrontGateState } from '../front/gate.ts';
+import { FrontGateContext, useFrontGateState } from '@hadoku/game-ui/front/gate.ts';
 import { RoomList } from '../rooms/RoomList.tsx';
 import type { FeaturedPick, RoomsClient } from '../rooms/api.ts';
 import type { RoomFeed } from '../rooms/follow.ts';
-import { SettingsGear } from '../settings/Settings.tsx';
-import { useSiteTrim } from '../settings/siteTrim.ts';
+import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
+import { useSiteTrim } from '@hadoku/game-ui/settings/siteTrim.ts';
 import { StatsButton } from '../stats/StatsButton.tsx';
 import type { StatsSource } from '../stats/source.ts';
 import { DecksButton } from './DecksButton.tsx';

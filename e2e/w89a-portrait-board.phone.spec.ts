@@ -213,7 +213,7 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
       const phonePage = await phoneContext.newPage();
       await phonePage.goto(matchUrl(stack.origin, matchId));
       // A second tab on alice's own identity while her desktop page still plays: one live tab per
-      // player per room (`apps/ui/src/room/session.ts`) asks first, and yes takes the game here.
+      // player per room (`packages/game-ui/src/room/session.ts`) asks first, and yes takes the game here.
       await phonePage.getByTestId('session-ask-yes').click({ timeout: 30_000 });
       await expect(phonePage.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
       await expect(phonePage.locator('html')).toHaveAttribute('data-layout', 'portrait', { timeout: 10_000 });

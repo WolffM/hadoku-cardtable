@@ -7,9 +7,9 @@ import { isValidElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { gameTypeSpec } from '@hadoku/shared';
 
-import { BundleSlot } from '../BundleSlot.tsx';
-import { gameRoomUiFor } from '../game-setup.ts';
-import type { GameSetupProps } from '../game-setup.ts';
+import { BundleSlot } from '@hadoku/game-ui/rooms/BundleSlot.tsx';
+import { gameRoomUiFor } from '@hadoku/game-ui/rooms/game-setup.ts';
+import type { GameSetupProps } from '@hadoku/game-ui/rooms/game-setup.ts';
 import { BOMBERMAN_EMBED_SRC } from './bomberman.tsx';
 
 describe('rooms/games/bomberman.tsx', () => {

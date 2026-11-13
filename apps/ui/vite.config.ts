@@ -37,7 +37,7 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     // One stylesheet, linked from index.html, in source order (`stylesheet.ts`). Every screen but
-    // the lobby is a lazy chunk (`src/lazy.ts`), and a split sheet would be linked as its chunk
+    // the lobby is a lazy chunk (`@hadoku/game-ui/lazy.ts`), and a split sheet would be linked as its chunk
     // loads: after the rest, in whatever order the player opened the screens.
     cssCodeSplit: false,
     chunkSizeWarningLimit: CHUNK_SIZE_WARNING_KB,

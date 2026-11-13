@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Served by Vite inside the app, never run by Node on its own: bundler resolution and the
+    // DOM, as apps/ui has. No build step; the `.ts`/`.tsx`/`.css` files in src/ are what
+    // consumers import, by their own path (`@hadoku/game-ui/rooms/BundleSlot.tsx`). `vite/client`
+    // for `import.meta.env.BASE_URL` and `import.meta.glob`, which the app's build fills in.
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

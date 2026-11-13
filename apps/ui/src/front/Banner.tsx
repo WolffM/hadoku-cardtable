@@ -6,7 +6,7 @@
 
 import type { FeaturedPick } from '../rooms/api.ts';
 import { LiveSlot } from './LiveSlot.tsx';
-import { PatchNotesCard } from './PatchNotesCard.tsx';
+import { PatchNotesCard } from '@hadoku/game-ui/front/PatchNotesCard.tsx';
 import { UpcomingCard } from './UpcomingCard.tsx';
 import { WildcardCard } from './WildcardCard.tsx';
 import './front.css';

@@ -27,9 +27,9 @@ import { TOURNAMENT_DECK_POLICIES } from '@hadoku/shared';
 import type { ReactNode } from 'react';
 import { Icon } from '@wolffm/themes';
 
-import { ActionButton } from '../components/ActionButton.tsx';
-import { Popover, usePopover } from '../components/Popover.tsx';
-import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
+import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
+import { Popover, usePopover } from '@hadoku/game-ui/components/Popover.tsx';
+import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { uiLength } from '@hadoku/ui-shell/settings';
 import './CloseRoom.css';
 

@@ -12,10 +12,10 @@ import { useEffect, useState } from 'react';
 
 import { TournamentSchema, type Tournament } from '@hadoku/shared';
 
-import { apiUrl, getJson, type Fetch } from '../http.ts';
+import { apiUrl, getJson, type Fetch } from '@hadoku/game-ui/http.ts';
 import { PodPodium } from '../screens/pod/PodPodium.tsx';
 import { PodStandings } from '../screens/pod/PodStandings.tsx';
-import { faceOf } from '../components/Avatar.tsx';
+import { faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
 
 export async function fetchTournaments(fetchImpl?: Fetch): Promise<Tournament[]> {
   const res = await getJson(apiUrl('tournaments'), fetchImpl);

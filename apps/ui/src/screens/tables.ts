@@ -41,7 +41,7 @@
 
 import { GauntletViewSchema, newestStandardEra, type GauntletAct, type GauntletView } from '@hadoku/shared';
 
-import { apiBase, getJson, pageFetch, readOnce, sendJson, type Fetch } from '../http.ts';
+import { apiBase, getJson, pageFetch, readOnce, sendJson, type Fetch } from '@hadoku/game-ui/http.ts';
 
 /**
  * Which ruleset family an era belongs to (wave 48). Mirrors the server's own

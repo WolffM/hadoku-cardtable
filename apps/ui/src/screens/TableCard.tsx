@@ -22,8 +22,8 @@
  */
 import type { SeriesPhase, TableGame, TableSeatDeck } from '@hadoku/shared';
 
-import { Avatar, type Face } from '../components/Avatar.tsx';
-import { PlayerName } from '../room/look.tsx';
+import { Avatar, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { DeckColors } from '../components/DeckView.tsx';
 import { DeckArt } from './ConstructedScreen.tsx';
 import { deckCardArtId, useNamedArt } from './libraryPeek.ts';

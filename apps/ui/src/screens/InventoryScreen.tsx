@@ -24,7 +24,7 @@ import { CubeArt } from '../draft/CubeArt.tsx';
 import { ImportCube } from '../draft/ImportCube.tsx';
 import { poolsClient, type PoolsClient } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
-import { useWhoami } from '../room/whoami.ts';
+import { useWhoami } from '@hadoku/game-ui/room/whoami.ts';
 import { HomeHead } from './HomeHead.tsx';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import './InventoryScreen.css';

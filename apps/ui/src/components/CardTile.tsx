@@ -60,8 +60,8 @@ import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
 import { stripeOf, wubrgKey } from './ColorSymbol.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { withRelatedFaces } from '../draft/related.ts';
-import { playRole, roleHandler } from '../sound/index.ts';
-import { documentScope } from '../dom.ts';
+import { playRole, roleHandler } from '@hadoku/game-ui/sound/index.ts';
+import { documentScope } from '@hadoku/game-ui/dom.ts';
 import './CardTile.css';
 
 const RARITY_LETTER: Record<string, string> = {

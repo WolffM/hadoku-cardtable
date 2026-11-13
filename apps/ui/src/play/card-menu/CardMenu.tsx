@@ -17,8 +17,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Keyboar
 
 import type { Arrangement, BoardLayout } from '../Board.tsx';
 import type { BoardCard } from '../adapter.ts';
-import { eventTarget, scopeOf } from '../../dom.ts';
-import { clampSpan, useDismiss } from '../../popover.ts';
+import { eventTarget, scopeOf } from '@hadoku/game-ui/dom.ts';
+import { clampSpan, useDismiss } from '@hadoku/game-ui/popover.ts';
 import { CARD_LONG_PRESS, type CardLongPress } from '../inspect/index.ts';
 import { actionsFor, pilesOf, withStacked, type CardAction, type CardActionContext } from './actions.ts';
 import './card-menu.css';

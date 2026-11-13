@@ -13,7 +13,7 @@ import { useNamedArt } from '../libraryPeek.ts';
 
 import type { GauntletView } from '@hadoku/shared';
 
-import { playRole } from '../../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import { boardToLeave } from './arrive.ts';
 import { GauntletBoard } from './GauntletBoard.tsx';
 import { GauntletChoose } from './GauntletChoose.tsx';
@@ -21,7 +21,7 @@ import { GauntletResult } from './GauntletResult.tsx';
 import { gauntletDeckOptions } from './decks.ts';
 import { poolChangeRoles } from './sounds.ts';
 import { SeatFaces } from './seats.tsx';
-import { NO_FACE, type Face } from '../../components/Avatar.tsx';
+import { NO_FACE, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
 import './gauntlet.css';
 
 export interface GauntletScreenProps {

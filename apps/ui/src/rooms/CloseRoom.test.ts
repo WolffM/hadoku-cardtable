@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { CloseRoom } from './CloseRoom.tsx';
-import { currentRoute } from '../screens/route.ts';
+import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
 
 afterEach(() => {
   cleanup();

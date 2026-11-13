@@ -40,24 +40,24 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DiscordRecentSchema, FeaturedTournamentSchema, type DiscordMessage, type Tournament } from '@hadoku/shared';
 
-import { apiUrl, bodyOf, getJson } from '../http.ts';
-import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
+import { apiUrl, bodyOf, getJson } from '@hadoku/game-ui/http.ts';
+import { DISCORD_INVITE_URL } from '@hadoku/game-ui/chrome/HeaderLinks.tsx';
 import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
 import { Reveal } from '@hadoku/ui-shell/components';
 import { cardImageUrl, warmArt } from '../draft/cardImage.ts';
 import { useArtLoaded, usePicturesLoaded } from '../draft/useArtLoaded.ts';
-import { facePictures } from '../components/Avatar.tsx';
+import { facePictures } from '@hadoku/game-ui/components/Avatar.tsx';
 import { onRoomList, poolsClient, roomsClient } from '../rooms/api.ts';
 import { warmRoom } from '../rooms/warm.ts';
-import { navigate, routeHash } from '../screens/route.ts';
-import { playRole } from '../sound/index.ts';
-import { avatarColour, avatarInitial, discordTime, groupMessages } from './discordChat.ts';
-import { usePartShown } from './gate.ts';
-import { ArrowGlyph, Gallery } from './Gallery.tsx';
+import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
+import { avatarColour, avatarInitial, discordTime, groupMessages } from '@hadoku/game-ui/front/discordChat.ts';
+import { usePartShown } from '@hadoku/game-ui/front/gate.ts';
+import { ArrowGlyph, Gallery } from '@hadoku/game-ui/front/Gallery.tsx';
 import { FrontPodium } from './FrontPodium.tsx';
 import { openSeats, pickWildcard, podiumOf, spotlightCube, wildcardPages, type OpenSeats, type WildcardKind } from './wildcardItems.ts';
 import { RoomSeats } from './RoomSeats.tsx';
-import { SwordsIcon, StaircaseIcon, DieIcon } from './icons.tsx';
+import { SwordsIcon, StaircaseIcon, DieIcon } from '@hadoku/game-ui/front/icons.tsx';
 
 interface WildcardItem {
   key: WildcardKind;

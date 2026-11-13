@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderHook } from '@testing-library/react';
 
-import { setRolePlayer } from '../sound/index.ts';
+import { setRolePlayer } from '@hadoku/game-ui/sound/index.ts';
 import type { SoundEvent } from '@hadoku/ui-shell/sound';
 import pick1 from './fixtures/seat0-pack1-pick1.json';
 import pick2 from './fixtures/seat0-pack1-pick2.json';

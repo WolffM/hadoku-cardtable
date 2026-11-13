@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 
 import { BackLink } from './BackLink.tsx';
-import { SettingsGear } from '../settings/Settings.tsx';
+import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
 
 export function HomeHead({ title, children, tools }: { title: string; children?: ReactNode; tools?: ReactNode }) {
   return (

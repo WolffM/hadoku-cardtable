@@ -739,7 +739,7 @@ first does not read a dead mechanism as live. Added above; no new decision.
 **Closed: deliberately not sent.** The ask it carries was answered without it —
 `RoomChrome` shipped in `@wolffm/watchparty-ui@0.39.0`
 (watchparty's `docs/requests/ROOM_CHROME_RESPONSE.md`) and we consume it at
-**0.39.5** (`apps/ui/src/room/RoomShell.tsx:44`,
+**0.39.5** (`packages/game-ui/src/room/RoomShell.tsx:44`,
 `apps/ui/package.json:24`). Sending it now would ask for something already
 delivered and would re-open its §6 offer of `room-ask`, which watchparty has
 already declined. The outstanding asks that came *out of* consuming the chrome
@@ -811,7 +811,7 @@ holds it until then): `mount(el, { roomKey, identity, theme, isLeader, close })`
   the host so it never paints the light default), fonts and `@property`
   lent to the document while mounted, routes in memory, document-wide lookups,
   hit tests and window-level event targets read through the shadow boundary
-  (`apps/ui/src/dom.ts`). `unmount()` leaves nothing; `e2e/embed.spec.ts`
+  (`packages/game-ui/src/dom.ts`). `unmount()` leaves nothing; `e2e/embed.spec.ts`
   counts it.
 - **Not used from the context:** `identity` (the server's identity is the
   edge's, and a second identity path is how this app shipped `anon` once),

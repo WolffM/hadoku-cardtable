@@ -7,7 +7,7 @@
 
 import type { ReactNode } from 'react';
 
-import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
+import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { GameTypeRow } from './GameTypeRow.tsx';
 import type { GameType } from './api.ts';
 

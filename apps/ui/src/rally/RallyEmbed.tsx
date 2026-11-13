@@ -33,7 +33,7 @@ import { FAN_MIN_WIDTH, MAX_CARD_H, PackView, type PackLayout } from '../compone
 import { GroupHead } from '../components/PoolView.tsx';
 import { CARD_RATIO, useBox } from '../components/cardFit.ts';
 import { mountInspector } from '../play/inspect/index.ts';
-import { TopLayer } from '../topLayer.tsx';
+import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
 import { fetchRallyView, type RallyViewData } from './api.ts';
 import './RallyEmbed.css';
 

@@ -182,14 +182,14 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
 import { DEFAULT_ROOM_SETTINGS, magicGame, OPEN_ROOM_LOCKS, roomAiOf } from '@hadoku/shared';
 import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodView, type RoomMode, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
-import { navigate, routeHash } from './route.ts';
+import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
-import { ActionButton } from '../components/ActionButton.tsx';
-import { Avatar, faceOf, NO_FACE, type Face } from '../components/Avatar.tsx';
-import { PlayerName } from '../room/look.tsx';
+import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
+import { Avatar, faceOf, NO_FACE, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { mainDeckColors } from '../components/DeckView.tsx';
 import { assignDeckArt, libraryDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
 import { artCredit, useArtist } from '../draft/artists.ts';
@@ -214,9 +214,9 @@ import {
 } from '../rooms/api.ts';
 import { MatchRules } from '../rooms/MatchRules.tsx';
 import { RoomHeader } from '../rooms/RoomHeader.tsx';
-import { gameRoomUiFor, registerGameRoomUi, type GameRoomUi, type GameSetupProps } from '../rooms/game-setup.ts';
-import { useGameClients } from '../rooms/game-clients.tsx';
-import { RoomShell } from '../rooms/screen/RoomShell.tsx';
+import { gameRoomUiFor, registerGameRoomUi, type GameRoomUi, type GameSetupProps } from '@hadoku/game-ui/rooms/game-setup.ts';
+import { useGameClients } from '@hadoku/game-ui/rooms/game-clients.tsx';
+import { RoomShell } from '@hadoku/game-ui/rooms/screen/RoomShell.tsx';
 import { ClassicOptions, toggledFreePick, type Browse } from './constructed-mode/ClassicOptions.tsx';
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
@@ -225,12 +225,12 @@ import { seatFaces } from './gauntlet/seats.tsx';
 import { RoomSpectators } from './RoomSpectators.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
-import { StatusPill, TICK } from '../components/StatusPill.tsx';
+import { StatusPill, TICK } from '@hadoku/game-ui/components/StatusPill.tsx';
 import { entrantLookup, heldFor, myCurrentTable, relayedPodSource, useFollowMyTable, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { useRoomSounds } from './roomSounds.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
-import { SeatsOpenNote, useSeatsShutUntil } from '../room/seatsOpen.tsx';
+import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
 import { POD_AI } from './pod/wire.ts';
 import { TableCard } from './TableCard.tsx';
@@ -251,7 +251,7 @@ import {
   type TableFormat,
   type TablesClient,
 } from './tables.ts';
-import { SettingsGear } from '../settings/Settings.tsx';
+import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
 import { DeckPeek, usePeekHover, useTouchPeek, type PeekLine, type PeekList } from './DeckPeek.tsx';
 import { libraryPeekList, namedPeekLine, useNamedArt } from './libraryPeek.ts';
 import { DeckTile } from './DeckTile.tsx';

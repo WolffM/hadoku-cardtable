@@ -1,8 +1,10 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+// @reads apps/ui/src/*.css packages/ui-shell/src/*.css packages/game-ui/src/*.css
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { uiPath, uiSheets } from '../ui-sources.testing.ts';
 import { CARD_RATIO, MIN_CARD_W, MIN_FIT, PILE_PEEK, columnsOf, fitGrid, fitPiles, fitScale, gridAt, largestCard, pilesAt } from './cardFit.ts';
 
 const H = (w: number): number => w / CARD_RATIO;
@@ -128,13 +130,9 @@ describe('a column of controls fits its box: its lengths scale down instead of s
 // A text tile (no art yet, or none at all, as on CI) at a small fit has more rules text than room: it is cut
 // off and faded in its own box, never a scroll bar inside a card (e2e/dr-draft-picks.spec.ts at 1366×768).
 describe("a card's rules text fits its tile at any size", () => {
-  const sheets = (dir: string): string[] =>
-    readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? sheets(join(dir, e.name)) : e.name.endsWith('.css') ? [join(dir, e.name)] : []));
-  const SRC = resolve(import.meta.dirname ?? 'apps/ui/src/components', '..');
-
   it('one rule clips it in every face, and no sheet lets it scroll', () => {
-    const rules = sheets(SRC).flatMap((file) =>
-      [...readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]*\.card__rules\b[^{}]*)\{([^}]*)\}/g)].map((m) => ({ file, selector: m[1]!.trim(), body: m[2]! })),
+    const rules = uiSheets().flatMap((file) =>
+      [...readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]*\.card__rules\b[^{}]*)\{([^}]*)\}/g)].map((m) => ({ file: uiPath(file), selector: m[1]!.trim(), body: m[2]! })),
     );
     expect(rules.filter((r) => /overflow(-[xy])?:\s*(auto|scroll)/.test(r.body)).map((r) => `${r.file}: ${r.selector}`)).toEqual([]);
     const base = rules.find((r) => r.selector === '.card__rules')!.body;

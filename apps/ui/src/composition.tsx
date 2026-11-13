@@ -4,16 +4,16 @@ import { RallyCatalogueSchema, RallyViewSchema } from '@hadoku/shared';
 // moment it is imported, unlike everything below, which `composeGame()` wires explicitly — so a
 // side-effect import is this file's whole job for it.
 import './rooms/games/bomberman.tsx';
-import { registerPlayerMark } from './components/Avatar.tsx';
+import { registerPlayerMark } from '@hadoku/game-ui/components/Avatar.tsx';
 import { forgetCardWidths } from './play/card-size.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from './play/live/prefs.ts';
 import { PlayerMark } from './play/marks.tsx';
-import { registerEmbedAddress } from './screens/route.ts';
+import { registerEmbedAddress } from '@hadoku/game-ui/screens/route.ts';
 import { ExperimentalSettings, GameSettings, MatchSettings } from './settings/GameSettings.tsx';
-import { registerSettings } from './settings/Settings.tsx';
+import { registerSettings } from '@hadoku/game-ui/settings/Settings.tsx';
 import { SoundSettings } from './settings/SoundSettings.tsx';
 import { soundsClient, type SoundsClient } from './sound/builderClient.ts';
-import { registerSound } from './sound/index.ts';
+import { registerSound } from '@hadoku/game-ui/sound/index.ts';
 import { SOUND_REGISTRY } from './sound/registry.ts';
 
 const GameTab = () => (<><GameSettings /><MatchSettings /><ExperimentalSettings /></>);

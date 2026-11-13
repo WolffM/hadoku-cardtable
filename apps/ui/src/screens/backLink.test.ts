@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 /* The site's one way back (`BackLink.tsx`): every page head draws it, and nothing else draws an arrow. */
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+// @reads apps/ui/src/*.tsx packages/ui-shell/src/*.tsx packages/game-ui/src/*.tsx
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+import { uiFiles, uiPath } from '../ui-sources.testing.ts';
 import { BackLink } from './BackLink.tsx';
-import { currentRoute } from './route.ts';
+import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
 
 afterEach(cleanup);
 
@@ -29,8 +30,7 @@ describe('BackLink', () => {
   });
 
   it('is the only arrow a page draws', () => {
-    const drawn = readdirSync('apps/ui/src', { recursive: true, encoding: 'utf8' })
-      .filter((file) => file.endsWith('.tsx') && readFileSync(join('apps/ui/src', file), 'utf8').includes('←'));
-    expect(drawn).toEqual([join('screens', 'BackLink.tsx')]);
+    const drawn = uiFiles((name) => name.endsWith('.tsx')).filter((file) => readFileSync(file, 'utf8').includes('←'));
+    expect(drawn.map(uiPath)).toEqual(['apps/ui/src/screens/BackLink.tsx']);
   });
 });

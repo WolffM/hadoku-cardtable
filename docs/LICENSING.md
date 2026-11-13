@@ -129,9 +129,11 @@ least restrictive."*
   home as well: `games/magic/server` (`@hadoku/magic-server`, GPL-3.0-or-later; the bridge, the match
   and draft code, rooms, pools, Magic's routes), and `apps/server` keeps only the site (`index.ts`,
   the plugin list, bomberman's room type and their tests). The site is still GPL: the map calls it
-  `site`, not `platform`, and it imports Magic, so the ratchet expects GPL of it. The board UI is
-  still in `apps/ui`, where the layer map is its boundary, and moves under `games/magic/` in a later
-  stage.
+  `site`, not `platform`, and it imports Magic, so the ratchet expects GPL of it. The UI followed the
+  same way: since 2026-11-13 every file the map called `platform` in `apps/ui` (with its sheets and
+  the tests that import only it) lives at the same path under `src/` in `packages/game-ui`
+  (`@hadoku/game-ui`, MIT). What is left in `apps/ui` is Magic's UI and the site that composes it;
+  it moves under `games/magic/` in a later stage.
 
 ### Checklist
 

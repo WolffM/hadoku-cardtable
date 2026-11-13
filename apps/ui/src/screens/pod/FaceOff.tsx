@@ -16,11 +16,11 @@
  */
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { Avatar, type Face } from '../../components/Avatar.tsx';
-import { PlayerName } from '../../room/look.tsx';
-import { StatusPill } from '../../components/StatusPill.tsx';
+import { Avatar, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
+import { StatusPill } from '@hadoku/game-ui/components/StatusPill.tsx';
 import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
-import { playRole } from '../../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import './FaceOff.css';
 
 /** The title's landing. */

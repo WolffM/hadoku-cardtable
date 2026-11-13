@@ -39,7 +39,7 @@
 import { ARRANGEMENT_EVENT, isRelayedEvent, lookOrNone, PLACED_EVENT, PRESENCE_EVENT, type Look, type PresenceEcho, type RelayedEvent } from '@hadoku/shared';
 
 import { replayMatch, viewerPlayerIdOf, type LiveMatch, type ReplayFaces, type ReplayFrame } from '../play/live/match.ts';
-import { normalizeAvatarId } from '../room/avatar.ts';
+import { normalizeAvatarId } from '@hadoku/game-ui/room/avatar.ts';
 import { PRESENCE_STALE_MS, REPLAY_HELD_EVENT } from '../play/live/presence.ts';
 import type { RecordedEnv, RecordedPresence, RecordedRelay, RecordedSeat, ReplayData } from './transport.ts';
 

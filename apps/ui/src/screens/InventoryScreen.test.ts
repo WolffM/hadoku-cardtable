@@ -12,7 +12,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type { CubeSummary } from '@hadoku/shared';
 
 import { InventoryScreen } from './InventoryScreen.tsx';
-import { currentRoute } from './route.ts';
+import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
 import type { PoolsClient } from '../rooms/api.ts';
 
 afterEach(() => {

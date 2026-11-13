@@ -6,30 +6,23 @@
  * operator, 2026-11-01, trailer cut 4: "the crack shouldn't appear until the death animation actually starts,
  * after the fireball animation from the card actually hits").
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+// @reads apps/ui/src/*.css packages/ui-shell/src/*.css packages/game-ui/src/*.css
+import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-const SRC = join(import.meta.dirname, '..', '..');
+import { uiPath, uiSheets } from '../../ui-sources.testing.ts';
 
-function stylesheets(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return stylesheets(path);
-    return name.endsWith('.css') ? [path] : [];
-  });
-}
 
 describe('a line drawn on by its dash', () => {
   it('never measures its dash on screen: no rule both dashes a stroke and keeps it from scaling', () => {
     const offending: string[] = [];
     let dashed = 0;
-    for (const file of stylesheets(SRC)) {
+    for (const file of uiSheets()) {
       const css = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
       for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
         if (/stroke-dasharray/.test(body!)) dashed += 1;
-        if (/stroke-dasharray/.test(body!) && /non-scaling-stroke/.test(body!)) offending.push(`${file.slice(SRC.length + 1)}: ${selector!.trim()}`);
+        if (/stroke-dasharray/.test(body!) && /non-scaling-stroke/.test(body!)) offending.push(`${uiPath(file)}: ${selector!.trim()}`);
       }
     }
     expect(dashed, 'the scan found the dashed lines: the departures\' crack, the countered stack card\'s, the gauntlet\'s cross').toBeGreaterThanOrEqual(3);

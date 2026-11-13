@@ -8,29 +8,21 @@
  * rgba stops reproduces it, opaque stops too; `in srgb` on the exact card CSS clears it; linear
  * gradients are unaffected; software rendering in Firefox and Chromium draws every variant clean.
  */
-// @reads apps/ui/src/
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// @reads apps/ui/src/ packages/ui-shell/src/ packages/game-ui/src/
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const SRC = dirname(fileURLToPath(import.meta.url));
+import { uiFiles, uiPath } from './ui-sources.testing.ts';
 
-function sources(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const path = join(dir, e.name);
-    if (e.isDirectory()) return sources(path);
-    return /\.(css|tsx?)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [path] : [];
-  });
-}
+const sources = (): string[] => uiFiles((name) => /\.(css|tsx?)$/.test(name) && !/\.test\.tsx?$/.test(name));
 
 describe('radial gradients', () => {
   it('every radial-gradient declares `in srgb`, so Firefox’s GPU path never draws a garbage centre', () => {
-    const missing = sources(SRC).flatMap((file) => {
+    const missing = sources().flatMap((file) => {
       const text = readFileSync(file, 'utf8');
       return [...text.matchAll(/radial-gradient\((?!in srgb[ ,])/g)].map((m) => {
         const line = text.slice(0, m.index).split('\n').length;
-        return `${relative(SRC, file)}:${line}`;
+        return `${uiPath(file)}:${line}`;
       });
     });
     expect(missing).toEqual([]);

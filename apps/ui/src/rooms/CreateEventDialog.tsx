@@ -18,13 +18,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { rallyFormIdOf, ROOM_NAME_MAX, type CubeSummary, type DraftPreset, type RallyWindow } from '@hadoku/shared';
 
-import { Modal } from '../components/Modal.tsx';
-import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
-import { navigate } from '../screens/route.ts';
+import { Modal } from '@hadoku/game-ui/components/Modal.tsx';
+import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { tablesClient, type TableFormat } from '../screens/tables.ts';
-import { playRole } from '../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import { fromLocalInput, refreshEvents, toLocalInput, whenLabel } from '../front/events.ts';
-import type { Poll } from '../front/polls.ts';
+import type { Poll } from '@hadoku/game-ui/front/polls.ts';
 import { poolsClient } from './api.ts';
 import { attachRallyForm, eventFormsClient, startRallyCreate } from './event-forms.ts';
 import { NEW_ROOM_FIELDS, NEW_TOURNAMENT, RoomFields, TournamentFields, tournamentRoom, type RoomFieldValues, type TournamentValues } from './RoomFields.tsx';

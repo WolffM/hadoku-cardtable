@@ -6,15 +6,15 @@
  * the count. A press on the count again, anywhere outside the list, or Escape closes it.
  */
 import { useCallback, useMemo } from 'react';
-import { documentScope } from '../../dom.ts';
-import { useDismiss } from '../../popover.ts';
+import { documentScope } from '@hadoku/game-ui/dom.ts';
+import { useDismiss } from '@hadoku/game-ui/popover.ts';
 
 import { deckColorsByName } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
 import { libraryPeekList, useNamedArt } from '../../screens/libraryPeek.ts';
 import { DeckPeek } from '../../screens/DeckPeek.tsx';
-import { apiBase, getJson, type Fetch } from '../../http.ts';
+import { apiBase, getJson, type Fetch } from '@hadoku/game-ui/http.ts';
 import type { DeckLine } from '../../screens/tables.ts';
 
 export interface OwnDeck {

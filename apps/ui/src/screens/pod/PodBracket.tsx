@@ -22,9 +22,9 @@
 import { useState, type CSSProperties, type FocusEvent } from 'react';
 import type { RoomTable, TableGame } from '@hadoku/shared';
 
-import { Avatar, type Face as AvatarFace } from '../../components/Avatar.tsx';
-import { PlayerName } from '../../room/look.tsx';
-import { routeHash } from '../route.ts';
+import { Avatar, type Face as AvatarFace } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
+import { routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { dqPlayer, resolveTable } from '../tableActions.ts';
 import { tablePhase } from '../TableCard.tsx';
 import { useTableResolve } from '../tableResolve.tsx';

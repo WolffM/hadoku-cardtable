@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Fetch } from '../http.ts';
+import type { Fetch } from '@hadoku/game-ui/http.ts';
 import { musicReviewClient, pickRandom, soundsClient } from './builderClient.ts';
 
 const TAKE = {

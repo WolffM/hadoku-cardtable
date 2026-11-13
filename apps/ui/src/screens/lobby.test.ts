@@ -30,7 +30,7 @@ import { createElement } from 'react';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 
 import { App } from '../App.tsx';
-import { currentRoute } from './route.ts';
+import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 
 /*

@@ -6,7 +6,7 @@
  */
 
 import { MyDeckSchema, MyDecksSchema, type MyDeck } from '@hadoku/shared';
-import { apiBase, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '../http.ts';
+import { apiBase, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
 
 export type { MyDeck };
 

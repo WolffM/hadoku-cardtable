@@ -38,7 +38,7 @@ import {
   type SoundTake,
 } from '@hadoku/shared';
 
-import { apiBase, bodyOf, getJson, isRecord, sendJson, type Fetch } from '../http.ts';
+import { apiBase, bodyOf, getJson, isRecord, sendJson, type Fetch } from '@hadoku/game-ui/http.ts';
 
 export interface Assignments {
   cells: Record<string, string[]>;

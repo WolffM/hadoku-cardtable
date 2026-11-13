@@ -25,7 +25,7 @@
  */
 
 import { isWorthShowing, type ConnectionState } from './connection-state.ts';
-import './spectate.css';
+import './ConnectionBanner.css';
 
 export interface ConnectionBannerProps {
   state: ConnectionState;

@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { battlefieldCardWidth } from './card-size.ts';
-import { clampSpan, useDismiss } from '../popover.ts';
+import { clampSpan, useDismiss } from '@hadoku/game-ui/popover.ts';
 import './pile-view.css';
 
 /** A card's height over its width — `card.css`'s 488 × 680. */

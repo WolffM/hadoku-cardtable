@@ -19,7 +19,7 @@ import { PodBracket } from './PodBracket.tsx';
 import { PodPodium } from './PodPodium.tsx';
 import { PodStandings } from './PodStandings.tsx';
 import type { PodView } from './wire.ts';
-import type { Face } from '../../components/Avatar.tsx';
+import type { Face } from '@hadoku/game-ui/components/Avatar.tsx';
 
 export interface RoomHubProps {
   roomId: string;

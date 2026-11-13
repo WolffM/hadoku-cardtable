@@ -13,7 +13,7 @@
 
 import { useState } from 'react';
 
-import { navigate } from '../screens/route.ts';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { resetRoom } from '../screens/tableActions.ts';
 import type { RoomsClient } from './api.ts';
 import './CloseRoom.css';

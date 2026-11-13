@@ -269,7 +269,7 @@ the component is then simply watchparty's room running in a div on our page.
   room (starfield, chat sidebar, media/games/tierlist controls) on a
   `/room/<key>` path — and our draft cannot be put *inside* it.
 - **To get the room at all we would hand it the path.** Our routes are hash
-  routes under `/cardtable/` (`apps/ui/src/screens/route.ts`); their router
+  routes under `/cardtable/` (`packages/game-ui/src/screens/route.ts`); their router
   only renders `Room` for `<basename>/room/<key>`. Two routers on one
   `window.history` is the thing D17's "we import their room UI, not a payload
   inside their router" excludes.
@@ -363,7 +363,7 @@ which this lane owns, so none were touched:
 | `apps/ui/package.json`, `pnpm-lock.yaml` | add `@wolffm/watchparty-ui@^0.39.0` | 1 line + lock |
 | `apps/ui/src/main.tsx` | import the chrome's scoped stylesheet | 1 line |
 | `apps/ui/src/App.tsx` | wrap the `draft`, `deck` and `match` routes in `<RoomChrome roomKey=… serverOrigin="https://hadoku.me/watchparty" …>` | ~20 lines |
-| `apps/ui/src/screens/route.ts` | one pure `roomKeyFor(route)` → `cardtable-<draftId>` / `cardtable-<matchId>`, unit-tested with the others | ~15 lines + tests |
+| `packages/game-ui/src/screens/route.ts` | one pure `roomKeyFor(route)` → `cardtable-<draftId>` / `cardtable-<matchId>`, unit-tested with the others | ~15 lines + tests |
 | `apps/ui/src/screens/PodScreen.tsx`, `MatchScreen.tsx` | nothing, if the chrome is a wrapper — that is the point of the seam | 0 |
 | `games/magic/server/src/http/**` | **nothing** if watchparty accepts unprovisioned `cardtable-*` keys (request §3, option 1). If they instead require `POST /api/rooms` (option 2), one route that provisions a key with a service credential from the vault broker, plus a secret-distribution request to hadoku_site in the shape of `HADOKU_SITE_SECRET_DISTRIBUTION.md` | 0, or ~80 lines + a cross-repo ask |
 | `e2e/**` | one spec: chat panel present around a live draft; our seat bar still ours | ~60 lines |

@@ -8,8 +8,8 @@
 
 import type { Tournament } from '@hadoku/shared';
 
-import { Avatar } from '../components/Avatar.tsx';
-import { PlayerName } from '../room/look.tsx';
+import { Avatar } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { podiumOf } from './wildcardItems.ts';
 
 /** Left to right: second, first, third. */

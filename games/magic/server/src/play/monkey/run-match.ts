@@ -10,7 +10,7 @@ import { join } from 'node:path';
 
 import { mintTabId } from '@wolffm/rooms-protocol';
 
-import { socketPath } from '../../../../../../apps/ui/src/room/socket-options.ts';
+import { socketPath } from '@hadoku/game-ui/room/socket-options.ts';
 import { CONCEDE_ANSWER_MS } from '@hadoku/game-server/play/match/shell';
 import { concede, startMatch, type LiveMatch, type MatchTrouble } from '../../../../../../apps/ui/src/play/live/match.ts';
 

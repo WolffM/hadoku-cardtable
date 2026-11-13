@@ -43,7 +43,7 @@ import {
   setScreenMusic,
   setTrackNames,
   takeUiTally,
-} from './index.ts';
+} from '@hadoku/game-ui/sound/index.ts';
 
 /**
  * The fleet's preference service, one row per app id, in memory. Every save is recorded with its

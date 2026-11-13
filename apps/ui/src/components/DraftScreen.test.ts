@@ -52,7 +52,7 @@ vi.mock('../play/live/prefs.ts', async (importOriginal) => ({
 
 import { FIXTURES, loadFixtures } from '../draft/fixtures.ts';
 import { applyPayload, initialState, type TableState } from '../draft/table.ts';
-import { TopLayer } from '../topLayer.tsx';
+import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
 import { DraftScreen } from './DraftScreen.tsx';
 import { POOL_ENTER_MS } from './PoolView.tsx';
 import { packRowHeight } from './PackView.tsx';

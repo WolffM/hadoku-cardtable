@@ -14,8 +14,8 @@
 
 import { BOMBERMAN_GAME_TYPE, BOMBERMAN_GAME_TYPE_SPEC, registerGameType } from '@hadoku/shared';
 
-import { BundleSlot } from '../BundleSlot.tsx';
-import { registerGameRoomUi } from '../game-setup.ts';
+import { BundleSlot } from '@hadoku/game-ui/rooms/BundleSlot.tsx';
+import { registerGameRoomUi } from '@hadoku/game-ui/rooms/game-setup.ts';
 
 /** Hadoku-bomberman's own embed, at the path watchparty loads it from too; it is never copied here. */
 export const BOMBERMAN_EMBED_SRC = '/bomberman/embed/bomberman-embed.js';

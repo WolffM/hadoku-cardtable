@@ -157,7 +157,7 @@ Each item names the artifact that proves it.
 - **Cardtable's side stays in cardtable** (tracked on its board for wave 31):
   - its `POST /<matchId>/identity` avatar assert 404s, because it is sent with
     the match id where the room id belongs;
-  - `apps/ui/src/room/avatar.ts` reads the chosen avatar only from this
+  - `packages/game-ui/src/room/avatar.ts` reads the chosen avatar only from this
     browser's prefs cache.
 
   Cardtable will bump to your new `watchparty-ui` version itself; do not edit

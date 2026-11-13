@@ -8,7 +8,7 @@
 
 import { DEFAULT_ROOM_SETTINGS, ROOM_PASSWORD_MAX, type ClockSetting, type ConstructedMode, type CubeSummary, type DraftPreset, type PickTimer, type TournamentDecks } from '@hadoku/shared';
 
-import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
+import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
 import type { TableFormat } from '../screens/tables.ts';
 import { createRoomFields, type CreateRequest, type GameType } from './api.ts';

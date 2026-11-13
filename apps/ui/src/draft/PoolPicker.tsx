@@ -71,8 +71,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { CubeSummary, DraftPreset, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
 
 import { SetSymbol } from '../components/ManaPip.tsx';
-import { Modal } from '../components/Modal.tsx';
-import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
+import { Modal } from '@hadoku/game-ui/components/Modal.tsx';
+import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { CubeArt } from './CubeArt.tsx';
 import { ImportCube } from './ImportCube.tsx';
 import './PoolPicker.css';

@@ -1,9 +1,6 @@
 /**
  * `openRelayChannel` against a REAL socket.io server on an ephemeral loopback port, with real
- * `socket.io-client` connections — `socket.io` (the server) is a dependency of `@hadoku/server`,
- * not of `@hadoku/ui`, and this lane does not edit manifests, so it is resolved from the server
- * package's own directory the same way `play/live/replay-server.ts`'s own header explains for the
- * same reason.
+ * `socket.io-client` connections (`socket.io` is this package's dev dependency).
  *
  * The fake server below echoes exactly `relay-socket.ts`'s own wire shape (`relay:join` with an
  * ack, `relay:message` relayed to every OTHER joined socket) rather than importing the real
@@ -12,28 +9,12 @@
  */
 
 import { createServer, type Server as HttpServer } from 'node:http';
-import { createRequire } from 'node:module';
 import type { AddressInfo } from 'node:net';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
+import { Server as SocketIOServer, type Socket as IoSocket } from 'socket.io';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { openRelayChannel } from './relay-channel.ts';
-
-const serverRequire = createRequire(resolve(dirname(fileURLToPath(import.meta.url)), '../../../server/package.json'));
-const { Server: SocketIOServer } = serverRequire('socket.io') as { Server: new (http: HttpServer, opts?: unknown) => FakeIoServer };
-
-interface FakeIoSocket {
-	id: string;
-	on(event: string, handler: (payload: unknown, ack?: (res: unknown) => void) => void): void;
-	emit(event: string, payload: unknown): void;
-}
-
-interface FakeIoServer {
-	on(event: 'connection', handler: (socket: FakeIoSocket) => void): void;
-	close(): void;
-}
 
 interface FakeRelay {
 	url: string;
@@ -50,7 +31,7 @@ interface FakeRelay {
 async function fakeRelayServer(): Promise<FakeRelay> {
 	const http: HttpServer = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
-	const sockets = new Set<FakeIoSocket>();
+	const sockets = new Set<IoSocket>();
 	const relay: FakeRelay = {
 		url: '',
 		lastEnded: undefined,
@@ -64,11 +45,11 @@ async function fakeRelayServer(): Promise<FakeRelay> {
 	const { joins, messages } = relay;
 	io.on('connection', (socket) => {
 		sockets.add(socket);
-		socket.on('relay:join', (payload, ack) => {
+		socket.on('relay:join', (payload: unknown, ack?: (res: unknown) => void) => {
 			joins.push(payload as { matchId: string });
 			ack?.(relay.lastEnded === undefined ? { ok: true, seat: null } : { ok: true, seat: null, ended: relay.lastEnded });
 		});
-		socket.on('relay:message', (msg) => {
+		socket.on('relay:message', (msg: unknown) => {
 			messages.push({ from: socket.id, msg });
 			for (const other of sockets) if (other !== socket) other.emit('relay:message', msg);
 			// The host's end, as `relay-socket.ts` sends it: to every socket, the sender's too.

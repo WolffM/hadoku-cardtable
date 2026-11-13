@@ -63,9 +63,9 @@ import {
   type MatchTrouble,
   type StaleBuildReload,
 } from '../play/live/match.ts';
-import { claimReload } from '../stale-build.ts';
-import { isEmbedded } from '../dom.ts';
-import { apiUrl, sendJson } from '../http.ts';
+import { claimReload } from '@hadoku/game-ui/stale-build.ts';
+import { isEmbedded } from '@hadoku/game-ui/dom.ts';
+import { apiUrl, sendJson } from '@hadoku/game-ui/http.ts';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import { useFollowReplacedGame } from './matchFollow.ts';
 

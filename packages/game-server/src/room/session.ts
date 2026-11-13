@@ -9,7 +9,7 @@
  *
  * ## Which sockets
  *
- * A tab's screen gate (`apps/ui/src/room/session.ts`) opens one socket per room and sends
+ * A tab's screen gate (`packages/game-ui/src/room/session.ts`) opens one socket per room and sends
  * `session:claim` on it: that is the claim the player is asked about. The tab's other sockets for the
  * room join the same claim when they join as a player (`attach`): the pod's draft socket
  * (`room/socket.ts`) and the match socket (`play/socket.ts`), each naming its tab. So a take retires

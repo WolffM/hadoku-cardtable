@@ -6,7 +6,7 @@
 
 import type { ReactNode } from 'react';
 
-import { ActionButton } from '../../components/ActionButton.tsx';
+import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
 
 export interface ReadyToggleProps {
   ready: boolean;

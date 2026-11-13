@@ -26,7 +26,7 @@ So there is one settings popout, `ConnectedSettings`. It holds the person (yours
 **Today:** the character ("sprite", the fleet's `avatarId`) is chosen in watchparty's chat
 column (`apps/ui/src/components/CharacterModal.tsx`) and saved in watchparty's own prefs row:
 `appId: 'watchparty'`, field `sprite`, user scope (`apps/ui/src/lib/store.ts:265-270`). Cardtable
-and bomberman both read it from there (`apps/ui/src/room/avatar.ts` in each repo). So a character
+and bomberman both read it from there (`packages/game-ui/src/room/avatar.ts` in each repo). So a character
 can only be chosen inside a watchparty room, even though three apps use it.
 
 **Ask:** make the character part of the person:
@@ -40,7 +40,7 @@ can only be chosen inside a watchparty room, even though three apps use it.
   `ConnectedSettings` takes it as a prop is your call.
 
 What cardtable does once it ships: read the platform-wide value instead of `appId: 'watchparty'`
-(one constant in `apps/ui/src/room/avatar.ts`).
+(one constant in `packages/game-ui/src/room/avatar.ts`).
 
 ## 2. A shared `games` prefs row
 

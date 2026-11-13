@@ -56,7 +56,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DeckEditor } from '../deck/DeckEditor.tsx';
 import { deckStoreClient, type DeckStoreClient, type Mine } from '../deck/deckStore.ts';
 import { BackLink } from './BackLink.tsx';
-import { navigate } from './route.ts';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { DeckManage } from './DeckManage.tsx';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { livePodSource, myCurrentTable, playPod, startMyTable, usePodContext, type PodSource } from './pod/client.ts';

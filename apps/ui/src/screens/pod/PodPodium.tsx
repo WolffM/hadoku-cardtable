@@ -17,8 +17,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import type { PodMatchResult } from '@hadoku/shared';
 
-import { Avatar, type Face } from '../../components/Avatar.tsx';
-import { PlayerName } from '../../room/look.tsx';
+import { Avatar, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { records, recordText } from './swiss.ts';
 import type { PodStandingsRowLike } from './PodStandings.tsx';
 import './PodPodium.css';

@@ -10,7 +10,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { RoomTable } from '@hadoku/shared';
 
 import { forgetMatchesFollowed } from '../../play/live/matchStart.ts';
-import { currentRoute, navigate } from '../route.ts';
+import { currentRoute, navigate } from '@hadoku/game-ui/screens/route.ts';
 import { RoomHub } from './RoomHub.tsx';
 import { forgetOpponentsRevealed, REVEAL_MS } from './FaceOff.tsx';
 import { TablePage, type TableReady } from './TablePage.tsx';

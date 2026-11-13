@@ -22,7 +22,7 @@ import { useEffect, type ReactNode } from 'react';
 import type { RoomTable, TableGame } from '@hadoku/shared';
 
 import { followMatchOnce } from '../../play/live/matchStart.ts';
-import { navigate, routeHash } from '../route.ts';
+import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { BackLink } from '../BackLink.tsx';
 import { TableCard } from '../TableCard.tsx';
 import { resolveTable } from '../tableActions.ts';
@@ -33,7 +33,7 @@ import { startingText } from '../queue-place.ts';
 import { ReadyToggle } from './ReadyToggle.tsx';
 import { FaceOff, useOpponentReveal, type FaceOffSeat } from './FaceOff.tsx';
 import { isPodAi, type PodView } from './wire.ts';
-import type { Face } from '../../components/Avatar.tsx';
+import type { Face } from '@hadoku/game-ui/components/Avatar.tsx';
 import './PodSeats.css';
 
 /** A table's start that waits on its seats' Ready, by table seat. */

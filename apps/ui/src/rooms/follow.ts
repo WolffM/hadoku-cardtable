@@ -24,8 +24,8 @@ import { io } from 'socket.io-client';
 import { ROOM_FEED_CHANNEL, parseRoomChanged } from '@wolffm/rooms-protocol';
 import { createFeedPings, type FeedSocket, type FeedTarget, type PingSource } from '@wolffm/rooms-client';
 
-import { socketOptions } from '../room/socket-options.ts';
-import { documentVisibility, rereadWhileVisible, type RereadDeps } from '../visible.ts';
+import { socketOptions } from '@hadoku/game-ui/room/socket-options.ts';
+import { documentVisibility, rereadWhileVisible, type RereadDeps } from '@hadoku/game-ui/visible.ts';
 
 export type { FeedTarget, PingReason, PingSource } from '@wolffm/rooms-client';
 

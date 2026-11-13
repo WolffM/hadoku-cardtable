@@ -10,7 +10,7 @@ import type { RenderAvatar } from '@wolffm/game-stats-ui';
 import type { ResolvedAvatar } from '@wolffm/prefs-client/avatar';
 import { LookSchema } from '@hadoku/shared';
 
-import { Avatar, type Face } from '../components/Avatar.tsx';
+import { Avatar, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
 
 /** The store's avatar as our face. Guarded like every look off the wire, so a bad field costs that field. */
 export function faceOfAvatar(avatar: ResolvedAvatar | undefined): Face {

@@ -6,20 +6,16 @@
  * `.ct-popover` rule, and that panel no longer sits in one. A per-component rule misses whatever container it was not
  * written for, so none is allowed.
  */
-// @reads apps/ui/src/ apps/ui/index.html
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+// @reads apps/ui/src/ packages/ui-shell/src/ packages/game-ui/src/ apps/ui/index.html
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { uiPath, uiSheets } from './ui-sources.testing.ts';
+
 const SRC = dirname(fileURLToPath(import.meta.url));
 const read = (path: string): string => readFileSync(join(SRC, path), 'utf8');
-
-function sheets(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-    e.isDirectory() ? sheets(join(dir, e.name)) : e.name.endsWith('.css') ? [join(dir, e.name)] : [],
-  );
-}
 
 describe('native controls take the theme’s accent from the fleet, at the root', () => {
   it('the page and the embed both load controls.css and carry hdk-controls on their root', () => {
@@ -31,7 +27,7 @@ describe('native controls take the theme’s accent from the fleet, at the root'
   });
 
   it('no stylesheet of ours sets accent-color', () => {
-    const setting = sheets(SRC).filter((f) => /(^|[\s;{])accent-color\s*:/m.test(readFileSync(f, 'utf8')));
-    expect(setting.map((f) => relative(SRC, f))).toEqual([]);
+    const setting = uiSheets().filter((f) => /(^|[\s;{])accent-color\s*:/m.test(readFileSync(f, 'utf8')));
+    expect(setting.map(uiPath)).toEqual([]);
   });
 });

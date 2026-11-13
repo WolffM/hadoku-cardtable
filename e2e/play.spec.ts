@@ -1846,7 +1846,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     //
     // (The remount itself is a product wart, not a test problem: every load of
     // a match page costs an extra join and a full snapshot resend. It is
-    // `apps/ui/src/room/RoomShell.tsx`, it predates this wave, and it belongs
+    // `packages/game-ui/src/room/RoomShell.tsx`, it predates this wave, and it belongs
     // to whoever owns that file.)
     expect(departing.length, 'the reload armed the reconnect grace').toBeGreaterThanOrEqual(1);
     expect(departing.map((l) => l.openAsks), 'every departure was armed with the question open').toEqual(

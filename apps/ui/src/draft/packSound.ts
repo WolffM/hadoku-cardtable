@@ -8,7 +8,7 @@
 
 import { useEffect, useRef } from 'react';
 
-import { playRole } from '../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import type { DraftView } from './types.ts';
 
 /** The pack in front of this seat while it still owes a pick from it, as a key that names it once; null otherwise. */

@@ -26,7 +26,7 @@ vi.mock('../play/live/prefs.ts', async (importOriginal) => ({
   getPlayPrefsClient: () => ({}),
 }));
 
-import { SettingsGear } from './Settings.tsx';
+import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
 import { UI_SCALE } from '@hadoku/ui-shell/settings';
 
 afterEach(() => {

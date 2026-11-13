@@ -5,13 +5,14 @@
  * cardtable's own: the scale is a valid preference, and the app's CSS plays along with the scaling
  * rewrite everywhere it matters.
  */
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+// @reads apps/ui/src/*.css packages/ui-shell/src/*.css packages/game-ui/src/*.css
+import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
 import { PlayPrefsSchema } from '../play/live/prefs.ts';
 import { scaleCssValue, UI_SCALE } from '@hadoku/ui-shell/settings';
+import { uiSheets } from '../ui-sources.testing.ts';
 
 describe('the scale as a saved preference', () => {
   it('is a saved preference within its range', () => {
@@ -25,10 +26,7 @@ describe('a property Chromium will not take as calc()', () => {
   // `overflow-clip-margin` written as calc() is dropped to 0px (measured), and the rewrite makes every
   // authored px a calc(): main's run on b98ddd62 clipped every combat-ready creature by its battlefield
   // (cr-combat-clip.spec.ts) once `--emphasis-room: 28px` became `calc(28 * var(--ui-px))`.
-  const src = resolve(import.meta.dirname ?? 'apps/ui/src/settings', '..');
-  const sheets = (dir: string): string[] =>
-    readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? sheets(join(dir, e.name)) : e.name.endsWith('.css') ? [join(dir, e.name)] : []));
-  const all = sheets(src)
+  const all = uiSheets()
     .map((file) => readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''))
     .join('\n');
 

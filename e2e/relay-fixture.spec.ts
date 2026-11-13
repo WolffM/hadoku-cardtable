@@ -9,7 +9,7 @@
  * (`fixtures/relay-bundle/relay-test-embed.fixture.js`) is served same-origin by intercepting
  * `/relay-fixture/relay-test-embed.js` with Playwright's own `context.route` — the same technique
  * `bomberman.spec.ts` uses for its own stub. The client-side `relay-test` registration
- * (`apps/ui/src/rooms/BundleSlot.tsx`'s own gated block) needs one more thing bomberman's does
+ * (`packages/game-ui/src/rooms/BundleSlot.tsx`'s own gated block) needs one more thing bomberman's does
  * not: `window.__CARDTABLE_E2E_RELAY_TEST__`, set with `context.addInitScript` before the app's
  * own bundle ever evaluates — see that file's own doc for why.
  *

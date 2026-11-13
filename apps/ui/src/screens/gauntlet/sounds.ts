@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react';
 
 import type { GauntletDeck } from '@hadoku/shared';
 
-import { playRole } from '../../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import type { RevealStage } from './reveal.ts';
 
 /** One role per deck whose status moved: newly banned or newly picked. A deck the pool did not have before sounds nothing. */

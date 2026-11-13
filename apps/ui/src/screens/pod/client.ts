@@ -22,11 +22,11 @@ import { followTableOnce } from '../../play/live/matchStart.ts';
 import { roomFeed } from '../../rooms/follow.ts';
 import { latestReads } from '../../rooms/latest.ts';
 import { roomsClient, type RoomsClient, type RoomView } from '../../rooms/api.ts';
-import { apiUrl, bodyOf, isRecord, sendJson } from '../../http.ts';
+import { apiUrl, bodyOf, isRecord, sendJson } from '@hadoku/game-ui/http.ts';
 import { tablesClient } from '../tables.ts';
 import { useQueuePlace } from '../queue-place.ts';
 import type { PodView } from './wire.ts';
-import { faceOf, type Face } from '../../components/Avatar.tsx';
+import { faceOf, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
 
 /**
  * Every entrant's display name and avatar, by entrant id: the room's members, and each AI entrant's own

@@ -33,7 +33,7 @@ at `:236`, the parse at `:380`). The protocol half of this is done and it is
 yours.
 
 What is missing is the one hop where the value would enter our app. We mount
-`RoomChrome` (`apps/ui/src/room/RoomShell.tsx`) and it owns the picker, the
+`RoomChrome` (`packages/game-ui/src/room/RoomShell.tsx`) and it owns the picker, the
 store and the socket — so it is the only thing on the page that knows the answer.
 And `@wolffm/watchparty-ui@0.39.8` ships exactly two `.d.ts` files, **neither of
 which contains the string `avatar` or `sprite`**:
@@ -52,7 +52,7 @@ answers "who is this person wearing".
 ## What we did instead, and why we would rather not have
 
 We shipped it anyway, by reading the values out of your bundle and restating them.
-`apps/ui/src/room/avatar.ts` is the whole of it, and every constant in it quotes
+`packages/game-ui/src/room/avatar.ts` is the whole of it, and every constant in it quotes
 the shipped 0.39.8 code it came from:
 
 | What we need | What we do today | Derived from |
@@ -130,7 +130,7 @@ reaches our seats instead of being dropped by a list we forgot to update.
 
 ## Until then
 
-`apps/ui/src/room/avatar.ts` and `avatar.test.ts` are the only two files that know
+`packages/game-ui/src/room/avatar.ts` and `avatar.test.ts` are the only two files that know
 any of this, on purpose: the tests assert the derivations as executable claims, so
 a package bump that moves the cache key or the sprite path fails there rather than
 quietly drawing nobody. When an accessor lands, both files shrink to an import and

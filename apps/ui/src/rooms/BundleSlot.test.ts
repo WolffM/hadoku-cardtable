@@ -15,17 +15,17 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { HadokuThemeProvider, type HadokuThemeValue } from '@wolffm/themes';
 import { registerGameType } from '@hadoku/shared';
 
-import type { Who } from '../room/whoami.ts';
+import type { Who } from '@hadoku/game-ui/room/whoami.ts';
 
 let who: Who | null | 'pending' = { userId: 'u1', tier: 'friend', name: 'Ann' };
-vi.mock('../room/whoami.ts', () => ({ useWhoami: () => who }));
+vi.mock('@hadoku/game-ui/room/whoami.ts', () => ({ useWhoami: () => who }));
 
 /** `relayChannelCalls`: every `openRelayChannel`/`close()` call, so a test can assert on the
  *  room this file opened a channel for and that unmounting disposed it — a real socket is
  *  `relay-channel.test.ts`'s own job, not this component's. */
 type WinnersHandler = (winners: readonly number[] | null) => void;
 const relayChannelCalls: { matchId: string; closed: boolean; ended: Set<WinnersHandler>; result: Set<WinnersHandler> }[] = [];
-vi.mock('./relay-channel.ts', () => ({
+vi.mock('@hadoku/game-ui/rooms/relay-channel.ts', () => ({
   openRelayChannel: (matchId: string) => {
     const entry = { matchId, closed: false, ended: new Set<WinnersHandler>(), result: new Set<WinnersHandler>() };
     relayChannelCalls.push(entry);
@@ -49,9 +49,9 @@ vi.mock('./relay-channel.ts', () => ({
 
 // Hoisted above the mocked imports above it resolves, so both mocks are in place before
 // BundleSlot (and its imports of `../room/whoami.ts` and `./relay-channel.ts`) load.
-import { BundleSlot } from './BundleSlot.tsx';
-import type { RoomViewBase } from './game-setup.ts';
-import { calls as fixtureCalls } from './bundle-slot.fixture.ts';
+import { BundleSlot } from '@hadoku/game-ui/rooms/BundleSlot.tsx';
+import type { RoomViewBase } from '@hadoku/game-ui/rooms/game-setup.ts';
+import { calls as fixtureCalls } from '@hadoku/game-ui/rooms/bundle-slot.fixture.ts';
 import type { GameBundleContext } from '@wolffm/rooms-protocol';
 
 registerGameType({
@@ -63,8 +63,8 @@ registerGameType({
   canStart: (seated) => (seated >= 2 ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
 });
 
-// `BundleSlot` resolves `src` by dynamic `import()` relative to ITS OWN file, the same directory
-// this fixture lives in — so a bare relative specifier here is what `BundleSlot` also receives:
+// `BundleSlot` resolves `src` by dynamic `import()` relative to ITS OWN file, the directory its
+// fixture lives in (`@hadoku/game-ui/rooms/`) — so a bare relative specifier is what `BundleSlot` receives:
 // no `import.meta.url`/URL wrapping, which this vitest config's module runner does not accept on
 // a dynamic `import()` (it is served over an internal http: origin, and Node's loader accepts
 // only file:/data: URLs there).

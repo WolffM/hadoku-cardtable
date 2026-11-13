@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { PageVisibility } from '../visible.ts';
+import type { PageVisibility } from '@hadoku/game-ui/visible.ts';
 import { createRoomFeed, FALLBACK_MS, type FeedTarget, type PingReason, type PingSource } from './follow.ts';
 
 /** A page whose visibility a test flips, telling every listener as a browser does. */

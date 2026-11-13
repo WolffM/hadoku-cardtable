@@ -10,8 +10,8 @@
  * screen's own answer and its follow of the room's `matchId` both arrive).
  */
 import { roomsClient, type RoomView } from '../../rooms/api.ts';
-import { navigate } from '../../screens/route.ts';
-import { playRole } from '../../sound/index.ts';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import type { LiveMatch } from './match.ts';
 
 const sounded = new Set<string>();

@@ -13,7 +13,7 @@ import type { DraftCard } from '@hadoku/shared';
 
 import { DecksScreen } from './DecksScreen.tsx';
 import { LobbyScreen } from './LobbyScreen.tsx';
-import { currentRoute } from './route.ts';
+import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
 import { DeckManage } from './DeckManage.tsx';
 import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
 import { draftedDeckOf } from './ConstructedScreen.tsx';

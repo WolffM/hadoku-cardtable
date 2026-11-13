@@ -5,7 +5,7 @@
  * in it does. Shared by the page build (`vite.config.ts`) and the embed's (`vite.embed.config.ts`).
  *
  * - **The data tables** (`src/draft/*.json`). Each is imported only by the screens that draw cards,
- *   which are chunks of their own (`src/lazy.ts`), and each lands in its own chunk beside them
+ *   which are chunks of their own (`@hadoku/game-ui/lazy.ts`), and each lands in its own chunk beside them
  *   rather than inside one of them.
  * - **Libraries** that move only when `package.json` does. Each group takes in what its package
  *   imports. JavaScript only: a stylesheet stays where its importer put it, since the order of the

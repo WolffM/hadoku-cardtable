@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CreateEventBodySchema } from '@hadoku/shared';
 
-import { refreshPolls, setPollsClient, subscribePolls } from '../front/polls.ts';
+import { refreshPolls, setPollsClient, subscribePolls } from '@hadoku/game-ui/front/polls.ts';
 import { attachRallyForm, finishRallyReturn } from './event-forms.ts';
 import { NEW_ROOM_FIELDS, NEW_TOURNAMENT, tournamentRoom } from './RoomFields.tsx';
 

@@ -296,7 +296,7 @@ import { MOVABLE_DIALOG } from '../movable.tsx';
 import { closeManaPress, openManaPress, pressRingFor, tapManaPress } from '../mana-press.ts';
 import { guardTextSelection } from './text-press.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
-import { playRole } from '../../../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import { centreOf } from '../../lift.ts';
 import { viewerOf } from '../../adapter.ts';
 import { battlefieldCard, cardBox, faceBox, overlayOf } from '../board-dom.ts';
@@ -316,7 +316,7 @@ import {
   type MarqueeState,
   type Point,
 } from './types.ts';
-import { eventTarget, hitAt, scopeOf } from '../../../dom.ts';
+import { eventTarget, hitAt, scopeOf } from '@hadoku/game-ui/dom.ts';
 import { timed } from '../work-meter.ts';
 import './gestures.css';
 

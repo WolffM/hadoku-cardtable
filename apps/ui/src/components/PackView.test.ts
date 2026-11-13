@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import type { DraftCard } from '../draft/types.ts';
-import { setRolePlayer } from '../sound/index.ts';
+import { setRolePlayer } from '@hadoku/game-ui/sound/index.ts';
 import type { SoundEvent } from '@hadoku/ui-shell/sound';
 import { PackView } from './PackView.tsx';
 

@@ -10,7 +10,7 @@
 import { useSyncExternalStore } from 'react';
 import { Icon } from '@wolffm/themes';
 
-import { getMusicTrack, playRole, subscribeMusicTrack } from '../sound/index.ts';
+import { getMusicTrack, playRole, subscribeMusicTrack } from '@hadoku/game-ui/sound/index.ts';
 import { LEVEL_DEFAULTS, getLevel, isMuted, setLevel, setMusicPick, setMuted, subscribeSound, type LevelName } from '@hadoku/ui-shell/sound';
 import { trackName } from '../sound/match-music.ts';
 import { uiLength } from '@hadoku/ui-shell/settings';

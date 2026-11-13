@@ -6,7 +6,7 @@
 
 import type { ChallengeEvent, ChallengeField } from '@hadoku/shared';
 
-import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
+import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
 
 export interface ChallengeChoice {
   collection: string;

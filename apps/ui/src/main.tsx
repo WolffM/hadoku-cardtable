@@ -66,11 +66,11 @@ import '@wolffm/task-ui-components/controls.css';
 import './styles.css';
 import { APP_ID } from '../app-name.ts';
 import { App } from './App.tsx';
-import { whenIdle } from './idle.ts';
+import { whenIdle } from '@hadoku/game-ui/idle.ts';
 import { finishRallyReturn } from './rooms/event-forms.ts';
-import { canonicalizeAddress } from './screens/route.ts';
+import { canonicalizeAddress } from '@hadoku/game-ui/screens/route.ts';
 import { preloadLikelyScreens } from './screens/Screen.tsx';
-import { startUsage } from './usage.ts';
+import { startUsage } from '@hadoku/game-ui/usage.ts';
 
 configureShell({ appId: APP_ID });
 canonicalizeAddress();

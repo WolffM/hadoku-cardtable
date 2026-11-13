@@ -17,7 +17,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ConstructedMode, RoomMode } from '@hadoku/shared';
 
-import { RadioCards, type RadioCard } from '../../components/RadioCards.tsx';
+import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { modeArtUrl } from './modeArt.ts';
 
 export const MODE_CARDS: readonly RadioCard<ConstructedMode>[] = [

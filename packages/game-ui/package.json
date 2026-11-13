@@ -1,0 +1,40 @@
+{
+  "name": "@hadoku/game-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The browser parts any hosted game shares, above ui-shell: the room shell and session, seats and looks, the room route, the front page's generic pieces (gate, polls, gallery, patch notes), the bundle slot and relay channel a game's client mounts in, settings and trim screens, the HTTP and socket helpers, and the generic components (modal, popover, avatar, action button, radio cards). Knows no game; Magic's UI plugs in from apps/ui. MIT; imports only react, react-dom, socket.io-client, @wolffm/* and the platform packages.",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "dependencies": {
+    "@hadoku/platform-wire": "workspace:*",
+    "@hadoku/ui-shell": "workspace:*",
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.27",
+    "@wolffm/rooms-client": "npm:@hadoku/rooms-client@0.45.91",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.91",
+    "@wolffm/task-ui-components": "npm:@hadoku/task-ui-components@4.23.35",
+    "@wolffm/themes": "npm:@hadoku/themes@5.14.4",
+    "@wolffm/watchparty-ui": "npm:@hadoku/watchparty-ui@0.45.91",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@hadoku/shared": "workspace:*",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "socket.io": "^4.8.3",
+    "vite": "8.2.2"
+  }
+}

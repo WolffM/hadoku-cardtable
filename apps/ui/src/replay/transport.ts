@@ -27,7 +27,7 @@ import { safeParseServerFrame } from '@hadoku/forge-wire';
 import { z } from 'zod';
 import { ArtIdSchema, REPLAY_BODY_VERSION, isRelayedEvent, PersonFaceSchema, PresenceSchema, RELAYED_ECHO_SCHEMAS, type PersonFace, type PresenceMessage, type RelayedEvent } from '@hadoku/shared';
 
-import { apiUrl, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
+import { apiUrl, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
 import { parseServerEnvelope, type ServerEnvelope } from '../play/live/transport.ts';
 
 /**

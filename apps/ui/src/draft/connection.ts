@@ -33,8 +33,8 @@
  */
 
 import type { SeqVerdict } from '@wolffm/rooms-protocol';
-import type { ConnectionState } from '../components/connection-state.ts';
-export { isWorthShowing, type ConnectionPhase, type ConnectionState } from '../components/connection-state.ts';
+import type { ConnectionState } from '@hadoku/game-ui/components/connection-state.ts';
+export { isWorthShowing, type ConnectionPhase, type ConnectionState } from '@hadoku/game-ui/components/connection-state.ts';
 
 /** Everything a phase is decided from. All of it already exists on the driver. */
 export interface ConnectionFacts {

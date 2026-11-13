@@ -8,13 +8,11 @@
  * So an `infinite` animation names keyframes that move only what the compositor moves (`transform`,
  * `translate`, `rotate`, `scale`, `opacity`), or it is listed below with why it is not yet.
  */
-// @reads apps/ui/src/
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// @reads apps/ui/src/ packages/ui-shell/src/ packages/game-ui/src/
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const SRC = dirname(fileURLToPath(import.meta.url));
+import { uiPath, uiSheets } from './ui-sources.testing.ts';
 
 /** What an endless animation may move: the compositor's own properties. */
 const COMPOSITED = new Set(['transform', 'translate', 'rotate', 'scale', 'opacity', 'offset', 'animation-timing-function']);
@@ -29,14 +27,6 @@ const NOT_YET: Record<string, string> = {
   'arrow-travel-core': 'a ghost arrow’s travelling dashes, only while someone aims',
   'arrow-travel-rim': 'a ghost arrow’s travelling dashes, only while someone aims',
 };
-
-function sheets(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const path = join(dir, e.name);
-    if (e.isDirectory()) return sheets(path);
-    return e.name.endsWith('.css') ? [path] : [];
-  });
-}
 
 /** Every `@keyframes` block's name and the properties its frames set, across the given sheets. */
 function keyframes(texts: readonly string[]): Map<string, Set<string>> {
@@ -54,7 +44,7 @@ function keyframes(texts: readonly string[]): Map<string, Set<string>> {
 }
 
 describe('endless animations move only what the compositor moves', () => {
-  const files = sheets(SRC);
+  const files = uiSheets();
   const texts = files.map((f) => readFileSync(f, 'utf8'));
   const frames = keyframes(texts);
 
@@ -69,7 +59,7 @@ describe('endless animations move only what the compositor moves', () => {
             const props = frames.get(name);
             if (props === undefined || name in NOT_YET) continue;
             const drawn = [...props].filter((p) => !COMPOSITED.has(p));
-            if (drawn.length > 0) offenders.push(`${relative(SRC, files[n]!)}: ${name} animates ${drawn.join(', ')}`);
+            if (drawn.length > 0) offenders.push(`${uiPath(files[n]!)}: ${name} animates ${drawn.join(', ')}`);
           }
         }
       }
@@ -85,7 +75,7 @@ describe('endless animations move only what the compositor moves', () => {
     const offenders: string[] = [];
     texts.forEach((text, n) => {
       for (const m of text.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/animation-composition\s*:\s*([^;}]*)/g)) {
-        if (m[1]!.split(',').some((v) => v.trim() !== 'replace')) offenders.push(`${relative(SRC, files[n]!)}: animation-composition: ${m[1]!.trim()}`);
+        if (m[1]!.split(',').some((v) => v.trim() !== 'replace')) offenders.push(`${uiPath(files[n]!)}: animation-composition: ${m[1]!.trim()}`);
       }
     });
     expect(offenders).toEqual([]);

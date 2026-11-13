@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /*
  * This package builds no `/<app>/api/…` path itself: `configureSiteTrim` is the one call an app
- * makes, once, to say where its trim endpoint is (`apps/ui/src/settings/siteTrim.ts` is cardtable's
+ * makes, once, to say where its trim endpoint is (`packages/game-ui/src/settings/siteTrim.ts` is cardtable's
  * own one-line wiring, at `apiUrl('trim')`). These pin that it throws until configured, then reads
  * and writes exactly the endpoint it was given — nothing derived, nothing cardtable-specific.
  */

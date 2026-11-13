@@ -22,9 +22,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { FeaturedMatch } from '../front/LiveSlot.tsx';
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { clearJoined, isJoined } from './joined.ts';
-import { currentRoute } from '../screens/route.ts';
+import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
 import { ROOM_WORDS } from './roomName.ts';
-import { resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
+import { resetRolePlayerForTests, setRolePlayer } from '@hadoku/game-ui/sound/index.ts';
 import { resetMutedForTests, setMuted } from '@hadoku/ui-shell/sound';
 import type { SoundEvent } from '@hadoku/ui-shell/sound';
 import {

@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { Fetch } from '../http.ts';
+import type { Fetch } from '@hadoku/game-ui/http.ts';
 import { tablesClient } from './tables.ts';
 
 interface Call {

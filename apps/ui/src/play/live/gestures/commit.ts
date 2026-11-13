@@ -26,7 +26,7 @@ import { viewerOf } from '../../adapter.ts';
 import { cardBox } from '../board-dom.ts';
 import { cardElements, cardIdUnder, targetUnder } from './targets.ts';
 import type { DragState, DropTarget } from './types.ts';
-import { playRole } from '../../../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 
 /**
  * What a release of `source` over `node` sends as its TARGET, or null — and so

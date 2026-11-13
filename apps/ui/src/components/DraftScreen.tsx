@@ -53,7 +53,7 @@ import {
   visiblePool,
   type TableState,
 } from '../draft/table.ts';
-import { ConnectionBanner } from './ConnectionBanner.tsx';
+import { ConnectionBanner } from '@hadoku/game-ui/components/ConnectionBanner.tsx';
 import { DeckView } from './DeckView.tsx';
 import { CARD_RATIO, cssPx, fitGrid, smallestFitHeight, useBox, useFitScale } from './cardFit.ts';
 import { useNewPackSound } from '../draft/packSound.ts';

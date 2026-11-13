@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef } from 'react';
 
-import { playRole } from '../sound/index.ts';
+import { playRole } from '@hadoku/game-ui/sound/index.ts';
 
 /** What the room looks like for its sounds: who is in it besides you, and who is ready. */
 export interface RoomPresence {

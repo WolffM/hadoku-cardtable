@@ -18,7 +18,7 @@
 import { FREE_PICK, POD_MAX_SEATS, POD_SEATS, isPodAi, magicGame, planDisplayName, roomAiOf, type Look } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
-import { countdown } from './countdown.ts';
+import { countdown } from '@hadoku/game-ui/front/countdown.ts';
 import { formatEraLabel } from './formatLabel.ts';
 
 export type RoomStateKey = 'lobby' | 'drafting' | 'building' | 'playing' | 'sideboarding' | 'rounds' | 'done';

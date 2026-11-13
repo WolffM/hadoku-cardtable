@@ -396,8 +396,8 @@ import { CardTile } from '../components/CardTile.tsx';
 import type { TileCard } from '../components/faceCrop.ts';
 import { colorWordToken, ManaPip } from '../components/ManaPip.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
-import { Avatar } from '../components/Avatar.tsx';
-import { PlayerName } from '../room/look.tsx';
+import { Avatar } from '@hadoku/game-ui/components/Avatar.tsx';
+import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import {
   boardPT,
   hasKeyword,
@@ -419,8 +419,8 @@ import {
 import { LONG_PRESS_MS, mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
 import { choiceTip, keywordTip, MARK_TIP, SEEN_TIP, stateTip, waitingTip } from './tip/words.ts';
-import { documentScope, eventTarget } from '../dom.ts';
-import { TopLayer } from '../topLayer.tsx';
+import { documentScope, eventTarget } from '@hadoku/game-ui/dom.ts';
+import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installDice } from './live/dice.ts';
 import type { ShownRoll } from './live/shown.ts';

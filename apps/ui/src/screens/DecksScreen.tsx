@@ -32,7 +32,7 @@ import { assignDeckArt } from './deckArt.ts';
 import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { DeleteConfirm } from './DeckManage.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
-import { navigate } from './route.ts';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import type { DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/source.ts';
 import { HomeHead } from './HomeHead.tsx';

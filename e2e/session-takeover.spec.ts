@@ -5,7 +5,7 @@
  * if they click yes, then we terminate their previous session."*
  *
  * The rule is the shared room layer's (`@wolffm/rooms-server`'s `SessionClaims`); the server's half is
- * `packages/game-server/src/room/session.ts`, the screen's `apps/ui/src/room/session.ts`. Here, in real
+ * `packages/game-server/src/room/session.ts`, the screen's `packages/game-ui/src/room/session.ts`. Here, in real
  * browsers against a real server and a real Forge: a second page of the same account is asked, takes
  * over and plays; the first page is told and takes it back the same way; and a reload never asks.
  *

@@ -17,8 +17,8 @@ import { createElement } from 'react';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { parseServerFrame } from '@hadoku/forge-wire';
 
-import type { Fetch } from '../http.ts';
-import { playRole, resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
+import type { Fetch } from '@hadoku/game-ui/http.ts';
+import { playRole, resetRolePlayerForTests, setRolePlayer } from '@hadoku/game-ui/sound/index.ts';
 import { isMuted, resetMutedForTests, setMuted } from '@hadoku/ui-shell/sound';
 import type { MatchTransport } from '../play/live/match.ts';
 import type { ReplayData } from '../replay/transport.ts';

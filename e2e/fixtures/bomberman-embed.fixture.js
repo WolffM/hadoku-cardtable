@@ -8,7 +8,7 @@
  * resolves as an ordinary same-origin request. It echoes the `GameBundleContext` it is handed
  * into the DOM, inside the host element `mountGameBundle` gives it, so the spec asserts the real
  * context a room produced (roomKey, seats, isLeader) rather than merely "something mounted" —
- * the same shape `apps/ui/src/rooms/bundle-slot.fixture.ts` proves at the unit level.
+ * the same shape `packages/game-ui/src/rooms/bundle-slot.fixture.ts` proves at the unit level.
  *
  * It reads `ctx.channel` the way the real embed does in a cardtable room: Send puts a message on
  * it, every message `on()` delivers is listed, and Over sends the leader's

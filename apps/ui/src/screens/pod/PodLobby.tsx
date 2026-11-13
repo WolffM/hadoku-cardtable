@@ -25,8 +25,8 @@ import { RoomSpectators } from '../RoomSpectators.tsx';
 import { PodSplit, PodSplitAction, standingPods } from './PodSplit.tsx';
 import { ReadyToggle } from './ReadyToggle.tsx';
 import { podPlayers, type PodView } from './wire.ts';
-import { faceOf } from '../../components/Avatar.tsx';
-import { SeatsOpenNote, useSeatsShutUntil } from '../../room/seatsOpen.tsx';
+import { faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
+import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
 
 export interface PodLobbyProps {
   testId: string;
