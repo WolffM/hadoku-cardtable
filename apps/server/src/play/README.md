@@ -20,6 +20,11 @@ directory**, not pipes inherited from this process, and the JVM is detached — 
 the match outlives the server that started it. See "The run directory" and "A
 match outlives its server" below.
 
+The match server's platform half — hosting, placement, the JVM launchers, the start queue,
+recording's writer and retention, the runtimes — is game-agnostic and lives in
+`packages/game-server/src/play/`, imported as `@hadoku/game-server/play/<file>`. The rows below
+marked **(game-server)** are there; the rest, Magic's, are here.
+
 | file | what |
 | --- | --- |
 | `index.ts` | the exports `src/index.ts` needs: `attachPlay`, `jvmHostConfig`, `jvmHostFactory` (plus `MAX_CONCURRENT_MATCHES`) |
@@ -27,24 +32,24 @@ match outlives its server" below.
 | `match.ts` | one match, socket-free: seat binding, per-seat projector/cursor/history, asks, lifecycle |
 | `visibility.ts` | the hidden-information projection (Forge's `canBeShownTo`, server side) |
 | `history.ts` | one channel's compacted state history — what a join/reconnect/resync snapshot sends, and the board those frames fold to |
-| `host.ts` | the `MatchHost` seam and the coordinator: matches placed into shared `--host` JVMs (`perJvm` each), the warm JVM, a JVM's death failing every match on it, the concurrency ceiling, and the re-attach seam a match survives a restart through (`orphans`/`attach`/`handOver`) |
-| `jvm-transport.ts` | `JvmTransport`/`JvmLauncher`, the seam between the coordinator and where a JVM runs (`remote/` is the claw side) |
-| `placement/` | `CARDTABLE_PLAY_HOSTS=claws`: one pool per hosting claw plus hokon as the backstop; eligibility, spread, failover (quarantine, canary), planned moves, the restart hold, Discord alerts, and `GET /api/play/hosts` (`coordinator.ts` header) |
-| `local-jvm.ts` | the local launcher: fifos, run directory, boot sweep, crash records, and the compiled bridge |
-| `start-queue.ts` | queues a match's start while JVMs are already booting, so a burst of cold starts does not all pay the full boot cost at once |
+| `host.ts` **(game-server)** | the `MatchHost` seam and the coordinator: matches placed into shared `--host` JVMs (`perJvm` each), the warm JVM, a JVM's death failing every match on it, the concurrency ceiling, and the re-attach seam a match survives a restart through (`orphans`/`attach`/`handOver`) |
+| `jvm-transport.ts` **(game-server)** | `JvmTransport`/`JvmLauncher`, the seam between the coordinator and where a JVM runs (`remote/` is the claw side) |
+| `placement/` **(game-server)** | `CARDTABLE_PLAY_HOSTS=claws`: one pool per hosting claw plus hokon as the backstop; eligibility, spread, failover (quarantine, canary), planned moves, the restart hold, Discord alerts, and `GET /api/play/hosts` (`coordinator.ts` header) |
+| `local-jvm.ts` **(game-server)** | the local launcher: fifos, run directory, boot sweep, crash records, and the compiled bridge |
+| `start-queue.ts` **(game-server)** | queues a match's start while JVMs are already booting, so a burst of cold starts does not all pay the full boot cost at once |
 | `parked.ts` | a game both seats walked away from: stopped, kept on disk past the rejoin grace so either player can resume it later |
-| `recording/` | the match recorder, its on-disk position/writer format, rebuild-from-recording, and retention |
-| `remote/` | the claw side of `jvm-transport.ts`: launching and talking to a bridge JVM that runs on a hosting claw, not this process |
+| `recording/` | the match recorder, its on-disk position format and rebuild-from-recording; its writer and retention are **(game-server)** |
+| `remote/` **(game-server)** | the claw side of `jvm-transport.ts`: launching and talking to a bridge JVM that runs on a hosting claw, not this process |
 | `monkey/` | the random-play fuzzer: a deck pool, a random-answer policy, a CLI driver and its report, for finding crashes a scripted scenario would not |
 | `scenario.ts`, `scenarios/` | `Scenario`, a scripted two-seat match against a real Forge JVM used by the wave-32+ suites that need to see what Forge itself does, and the committed `.state` fixtures it replays from |
 | `table-game.ts` | a table's game as the table card draws it (`@hadoku/shared`'s `TableGameSchema`): each seat's deck and, while the game runs, where it stands |
-| `diagnostics.ts` | reads what a bridge JVM said about itself on stderr; shared by this pool and the claw agent's failover alert, so it carries no imports of its own |
+| `diagnostics.ts` **(game-server)** | reads what a bridge JVM said about itself on stderr; shared by this pool and the claw agent's failover alert, so it carries no imports of its own |
 | `auto.ts` | pure decisions: an ask with one legal reply, a stop with nothing to do, a payment with one source. `match.ts` acts on them; a seat's `fullControl` turns the file off for that seat. Wave 32 added three policy values, all off under full control: `skipEmptyBlockStop` (no creatures, no Declare Blockers stop), `passOwnSpell` (priority is not held on the seat's own spell) and `orderSimultaneous` (Forge's own order for simultaneous abilities). `match.ts` presses OK once per prompt (`SeatState.passedOn`): Forge's block input says its buttons BEFORE its prompt, and a second press on the stale prompt ended it |
 | `names.ts` | a card-name ask narrowed to the match's format, built once per format: a frozen era's legal names, the cube for a drafted pool, the library's decks on Free pick — plus every name either deck plays; an unknown format keeps Forge's whole list |
 | `bridge/PlayBridge.java` | the Java side: one source file, no build step. `host.ts` compiles it once per version into `~/.cache/cardtable/bridge` and launches the classes (`bridgeLaunch`) |
 | `jvm/*.java` | small standalone checks run against a real Forge build (deck names, precon pick, a stranger probe), each its own `main`, no bridge involved |
 | `dev/seat.ts` | a command-line seat, for local testing (see "Two seats locally") |
-| `fixtures/` | a recorded real bridge transcript, its replay host, the leak oracle, and `w20-turn-flow.json` (real priority/payment windows off a live match; see its own header) |
+| `fixtures/` | a recorded real bridge transcript, its replay host, the leak oracle, and `w20-turn-flow.json` (real priority/payment windows off a live match; see its own header). The toy game that proves the platform hosts a non-Forge game is **(game-server)** `fixtures/toy-game/` |
 
 This table is not exhaustive — `art.ts`/`art-ids.ts`, `deck-colors.ts`, `each-type.ts`,
 `featured.ts`, `modes.ts`, `spell-copiers.ts`, `trigger-targets.ts` and `unparsed.ts` are smaller,
@@ -90,7 +95,9 @@ single-purpose helpers `match.ts`/`socket.ts` call into; read their own headers.
 Verified without touching `index.ts`: a scratch server wired exactly this way
 ran a two-seat match end to end (below), and `esbuild src/play/index.ts` with
 the `build` script's flags bundles (814.8 kB, exit 0). From `dist/`, the bridge
-source is found at `dist/../src/play/bridge/PlayBridge.java`.
+source is found at `dist/../src/play/bridge/PlayBridge.java` (`defaultBridgeSource()` in
+`@hadoku/game-server/play/local-jvm`: the app's `src/play/bridge/`, the app being `dist/`'s parent
+in the bundle and `apps/server` from source).
 
 That diff was the Wave 9 wiring, kept here as the smallest version of the
 attachment to read first. **It is no longer the whole of it** — `index.ts`'s

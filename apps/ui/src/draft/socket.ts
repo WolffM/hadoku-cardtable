@@ -18,7 +18,7 @@
  * `/socket.io/` — but the CLIENT must ask for `/cardtable/socket.io/` or the
  * edge routes the handshake somewhere that is not this app. A wrong path here
  * is a blank page and a 404 in a console nobody is looking at, which is exactly
- * what `apps/server/src/base-path.ts` was written about. `socketPath()` derives
+ * what `packages/game-server/src/base-path.ts` was written about. `socketPath()` derives
  * it from `import.meta.env.BASE_URL`, which `vite.config.ts` sets to
  * `/cardtable/`, so the prefix is declared once.
  *

@@ -14,10 +14,10 @@
 import type { Request, Response, Router } from 'express';
 import type { FeaturedTournament, Tournament } from '@hadoku/shared';
 
-import { faceOfPerson, type People, type Person } from '../people.js';
+import { faceOfPerson, type People, type Person } from '@hadoku/game-server/people';
 import { featuredTournament, playedByPeople } from '../room/featured-tournament.js';
 import type { Tournaments } from '../room/tournaments.js';
-import { UNNAMED } from '../room/constants.js';
+import { UNNAMED } from '@hadoku/game-server/room/constants';
 
 /** `t` as it is served: each person named and drawn as they are now, and no userIds. */
 function shown({ users = {}, ...t }: Tournament, found: ReadonlyMap<string, Person>): Tournament {

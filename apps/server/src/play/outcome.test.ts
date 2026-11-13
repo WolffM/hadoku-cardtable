@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { gameOutcome } from './match.ts';
-import { winnerSeatFromLosers } from './match/outcome.ts';
+import { winnerSeatFromLosers } from '@hadoku/game-server/play/match/outcome';
 
 const human = (seat: number, playerId: number | null) => ({ seat, playerId });
 

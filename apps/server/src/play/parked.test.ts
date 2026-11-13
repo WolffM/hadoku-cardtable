@@ -15,13 +15,13 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
-import type { MatchSpec } from './host.js';
+import type { MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeLine } from './bridge-protocol.js';
 import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/transcript.js';
 import { createMatchRegistry, type Match } from './match.js';
 import { ENDED_KEPT, restoredSpec } from './match/registry.js';
 import { openParkedStore, type ParkedStore, type ParkedStoreDeps } from './parked.js';
-import { identityFromHeaders } from '../room/identity.js';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import type { Lobby } from '../room/lobby.js';
 
 /**
@@ -40,7 +40,7 @@ const DECK = (name: string): string => `[metadata]\nName=${name}\n[main]\n20 Mou
 const TWO_HUMANS: MatchSpec = { seats: [{ name: 'alice', ai: false, deck: DECK('Burn') }, { name: 'bob', ai: false, deck: DECK('Ramp') }], format: 'free' };
 
 let socketMod: typeof import('./socket.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 let lobbyMod: typeof import('../room/lobby.ts');
 let parkedRoutesMod: typeof import('../http/parked.ts');
 
@@ -50,7 +50,7 @@ beforeAll(async () => {
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	socketMod = await import('./socket.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 	lobbyMod = await import('../room/lobby.ts');
 	parkedRoutesMod = await import('../http/parked.ts');
 });

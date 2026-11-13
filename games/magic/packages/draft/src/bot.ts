@@ -132,7 +132,7 @@ export function choosePick(
   return best;
 }
 
-/** A structured log line, same shape `apps/server/src/log.ts`'s `jsonLogger` callers already pass everywhere else — this package stays Node-and-server-agnostic, so the default just goes to `console.error`, loud on purpose. */
+/** A structured log line, same shape `packages/game-server/src/log.ts`'s `jsonLogger` callers already pass everywhere else — this package stays Node-and-server-agnostic, so the default just goes to `console.error`, loud on purpose. */
 export type BotLog = (entry: Record<string, unknown>) => void;
 
 const defaultBotLog: BotLog = (entry) => console.error(JSON.stringify(entry));

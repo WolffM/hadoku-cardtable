@@ -37,12 +37,12 @@ import { fileURLToPath } from 'node:url';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { createGameServer } from '@hadoku/service-kernel/server';
 import { SERVER_RESTARTING_EVENT } from '@hadoku/shared';
-import { EMBED_ENTRIES } from './base-path.js';
-import { ART_REDIRECTS } from './capacity.js';
-import { CONFIG, INDEX_HTML } from './config.js';
-import { fkOf } from './erase/index.js';
-import { edgeAuth, gate } from './kernel.js';
-import { monitoringSink, siteOf } from './telemetry.js';
+import { EMBED_ENTRIES } from '@hadoku/game-server/base-path';
+import { ART_REDIRECTS } from '@hadoku/game-server/capacity';
+import { CONFIG, INDEX_HTML } from '@hadoku/game-server/config';
+import { fkOf } from '@hadoku/game-server/erase/index';
+import { edgeAuth, gate } from '@hadoku/game-server/kernel';
+import { monitoringSink, siteOf } from '@hadoku/game-server/telemetry';
 import { PLUGINS } from './plugins/index.js';
 import type { Cardtable, CardtableEvents } from './plugins/state.js';
 

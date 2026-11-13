@@ -43,7 +43,7 @@ import {
 	type SeatNotes,
 	type StopPolicy,
 } from './auto.js';
-import { FORGE_PREFERENCES } from './host.js';
+import { FORGE_PREFERENCES } from '@hadoku/game-server/play/host';
 import { copyTargets, parseCardScript, type SpellCopy } from './spell-copiers.js';
 import { createMatchRegistry, type Match } from './match.js';
 import { WATCHER_SEAT } from './match/forge-session.js';

@@ -43,13 +43,13 @@ import { artOf } from '../art.js';
 import { createArtIds, type ArtCatalog } from '../art-ids.js';
 import type { DeckCosts } from '../deck-colors.js';
 import { seatDeckColors } from '../deck-colors.js';
-import type { MatchHost, MatchHostFactory, MatchSpec, SeatSpec } from '../host.js';
+import type { MatchHost, MatchHostFactory, MatchSpec, SeatSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { gameOutcome } from '../match.js';
 import { WATCHER_SEAT } from '../match/forge-session.js';
-import type { OutcomeFacts } from '../match/outcome.js';
+import type { OutcomeFacts } from '@hadoku/game-server/play/match/outcome';
 import { createSeatPosition, type SeatPosition } from './position.js';
-import { createMatchRecordingWriter, type MatchRecordingWriter, type RecordedSeat } from './writer.js';
+import { createMatchRecordingWriter, type MatchRecordingWriter, type RecordedSeat } from '@hadoku/game-server/play/recording/writer';
 
 const FORGE_PIN_RE = /^[0-9a-f]{40}$/;
 

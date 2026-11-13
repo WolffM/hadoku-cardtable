@@ -12,7 +12,7 @@ import { deckColorsByName, type DeckColor } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
 import { draftIdOfPool } from '../room/lobby.js';
-import type { MatchSpec } from './host.js';
+import type { MatchSpec } from '@hadoku/game-server/play/host';
 
 /** Scryfall cost strings by card name, for a match's format. */
 export type DeckCosts = (format: string | undefined) => Readonly<Record<string, string>>;

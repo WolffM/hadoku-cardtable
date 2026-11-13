@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The ONE thing in this repo that talks to docker.
 #
-# `apps/server/src/stream/alloc.ts` provisions a streamed room's containers by
+# `packages/game-server/src/stream/alloc.ts` provisions a streamed room's containers by
 # invoking this script — it never shells `docker` inline. That is the whole
 # point of the file: every container this product can create, destroy or list
 # is described here, in one place an operator can read before trusting it, and

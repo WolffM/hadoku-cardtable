@@ -19,18 +19,18 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import { parseStartBody, parseStopPolicyEnv, STOP_POLICY_ENV } from './socket.ts';
 import { DEFAULT_STOP_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
-import { MAX_CONCURRENT_MATCHES, type HostEvents, type MatchRecord, type MatchHostFactory, type MatchSpec } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type HostEvents, type MatchRecord, type MatchHostFactory, type MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, ReplayHost, secretsFor } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
 import { WATCHER_SEAT } from './match/forge-session.js';
-import { identityFromHeaders } from '../room/identity.js';
-import { attachSessions, IDLE_MS } from '../room/session.js';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
+import { attachSessions, IDLE_MS } from '@hadoku/game-server/room/session';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 
 let socketMod: typeof import('./socket.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 let transportMod: typeof import('@hadoku/shared');
 
 beforeAll(async () => {
@@ -39,7 +39,7 @@ beforeAll(async () => {
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	socketMod = await import('./socket.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 	transportMod = await import('@hadoku/shared');
 });
 

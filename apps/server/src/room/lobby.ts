@@ -103,20 +103,20 @@ import {
 import { pairRound, roundsFor, roundsOf, structureOk, type MatchResult, type PodPlayer, type PodStructure } from '@hadoku/draft';
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { gauntletHoldsTable, type GauntletState } from './gauntlet.ts';
-import { leaveSeat, readySeat, seatList, seatOrder, sitAt, type TableSeat } from './seats.ts';
+import { leaveSeat, readySeat, seatList, seatOrder, sitAt, type TableSeat } from '@hadoku/game-server/room/seats';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, type SeriesRecord } from './series.ts';
 
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
-import { replaceIds } from '../erase/anonymise.js';
-import { makeSecret, mintRoomId, mintTableId, type Secret } from './provisioning.ts';
-import { ROOM_STALE_MS, UNNAMED } from './constants.ts';
-import type { Caller } from './caller.ts';
-import { avatarIdOf } from './avatar.ts';
-import { addRoomMember, isMemberReady, isRoomMember, passwordAdmits, removeRoomMember, setMemberReady } from './membership.ts';
-import { isOfferedRoom, isSweepableRoom, sortRoomsByCreation, type RoomBusyHook } from './room-list.ts';
-import { watchpartyRoomId } from './watchparty-link.ts';
+import { replaceIds } from '@hadoku/game-server/erase/anonymise';
+import { makeSecret, mintRoomId, mintTableId, type Secret } from '@hadoku/game-server/room/provisioning';
+import { ROOM_STALE_MS, UNNAMED } from '@hadoku/game-server/room/constants';
+import type { Caller } from '@hadoku/game-server/room/caller';
+import { avatarIdOf } from '@hadoku/game-server/room/avatar';
+import { addRoomMember, isMemberReady, isRoomMember, passwordAdmits, removeRoomMember, setMemberReady } from '@hadoku/game-server/room/membership';
+import { isOfferedRoom, isSweepableRoom, sortRoomsByCreation, type RoomBusyHook } from '@hadoku/game-server/room/room-list';
+import { watchpartyRoomId } from '@hadoku/game-server/room/watchparty-link';
 // Pods, tournaments, AI seats and their view (`PodView`) — split out, wave 99 §L.
 import {
 	aiEntrantSeat,

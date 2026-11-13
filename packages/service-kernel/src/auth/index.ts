@@ -123,7 +123,7 @@ export function createEdgeAuth(config: EdgeAuthConfig): EdgeAuth {
 				// nothing observable, which is worse than not having one.
 				if (typeof headers['x-hadoku-tier'] !== 'string' || headers['x-hadoku-tier'] === '') {
 					// identity-model-disable-next-line G5: LEGITIMATE: R8's dev carve-out, the game template's old
-					// apps/server/src/edge-auth.ts, moved into cardtable's service-kernel package (templates/game and
+					// packages/game-server/src/edge-auth.ts, moved into cardtable's service-kernel package (templates/game and
 					// bomberman import it, 880bf59b6; templates/tunnel-* and hadoku-wiki since 2026-11-11, which
 					// retired their three template entries) on 2026-11-07 (cardtable 9bcdd8c82, 0d01c363e).
 					// createEdgeAuth's sanitizeHeaders bare-local branch writes x-hadoku-tier = config.devTier() and

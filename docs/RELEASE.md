@@ -116,7 +116,7 @@ one only if the merged bullet keeps every name. `/cutrelease` asks the operator 
 bullet credits before the notes land. Nothing else in the notes may start with `@`.
 
 In the notes file a credit is `@name`, because that is what the tooling counts. The post shows each
-one as ***__name__*** (`apps/server/src/announce.ts`, the kernel's `showCredits`) and sends no
+one as ***__name__*** (`packages/game-server/src/announce.ts`, the kernel's `showCredits`) and sends no
 `mentions`, so nobody is pinged.
 
 **Credits & attribution.** Under the newest notes stands one more post: everyone the release notes

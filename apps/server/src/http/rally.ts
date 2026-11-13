@@ -64,7 +64,7 @@ import type { PresetStore } from '../pools/presets.js';
 import type { SetsStore } from '../pools/sets.js';
 import { DEFAULT_PARAMS } from '../room/draftRooms.js';
 import { artLocation } from './card-art.js';
-import { perCallerLimit } from './request.js';
+import { perCallerLimit } from '@hadoku/game-server/http/request';
 import { resolveBoosterCard, type RealisticBoosterSource, type RealisticCatalog } from './rooms.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { RallySymbols } from './rally-symbols.js';

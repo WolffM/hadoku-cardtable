@@ -13,7 +13,7 @@ import { manaValueOf } from '@hadoku/deck';
 import type { TableGame, TableGameLive, TableSeatDeck } from '@hadoku/shared';
 
 import { seatDeckColors, type DeckCosts } from './deck-colors.js';
-import type { MatchSpec } from './host.js';
+import type { MatchSpec } from '@hadoku/game-server/play/host';
 
 /**
  * The card whose art stands for a deck: its most-played spell, the dearer one

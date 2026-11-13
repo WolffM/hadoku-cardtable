@@ -11,7 +11,7 @@
  *
  * This file is the client half: "what URL draws it", the ONLY place that is
  * spelled. Which character a member wears is their account's, resolved by the
- * server (`apps/server/src/people.ts`'s `applyPerson`); prefs-api draws and
+ * server (`packages/game-server/src/people.ts`'s `applyPerson`); prefs-api draws and
  * keeps one for an account that never picked, so it is the same in every app.
  */
 

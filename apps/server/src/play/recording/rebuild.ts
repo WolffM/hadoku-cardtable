@@ -60,15 +60,15 @@ import type { ServerEnvelope } from '@hadoku/shared';
 
 import { artOf } from '../art.js';
 import { seatDeckColors, type DeckCosts } from '../deck-colors.js';
-import { winnerSeatFromLosers } from '../match/outcome.js';
-import { jvmHostConfig, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
+import { winnerSeatFromLosers } from '@hadoku/game-server/play/match/outcome';
+import { jvmHostConfig, type MatchHost, type MatchHostFactory, type MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { createProjector, EVERY_PLAYER, type StateFrame } from '../visibility.js';
 import { createArtIds, type ArtCatalog, type ArtIds } from '../art-ids.js';
 import { bridgeDigest, forgePin } from './recorder.js';
-import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
+import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '@hadoku/game-server/play/recording/retention';
 import { boardDigest, isStateLine } from './position.js';
-import { PUBLIC_VERSION, type ActionsCmdLine, type ActionsEndLine, type ActionsHeader, type PublicEndLine, type PublicEnvLine, type PublicHeader } from './writer.js';
+import { PUBLIC_VERSION, type ActionsCmdLine, type ActionsEndLine, type ActionsHeader, type PublicEndLine, type PublicEnvLine, type PublicHeader } from '@hadoku/game-server/play/recording/writer';
 
 /* ── Contract 1: the two files on disk, narrowed to this file's own needs ──────────────────────
  *

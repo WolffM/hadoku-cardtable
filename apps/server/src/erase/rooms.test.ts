@@ -5,9 +5,9 @@ import type { ParticipantId } from '@wolffm/rooms-protocol';
 import { describe, expect, it } from 'vitest';
 import { openLobby } from '../room/lobby.ts';
 import { createAccountErase } from '@hadoku/service-kernel/erase';
-import { edgeSealed } from '../edge-auth.ts';
-import { fkOf, personOf } from './index.ts';
-import { roomsEraseSteps, type LiveMatch } from './rooms.ts';
+import { edgeSealed } from '@hadoku/game-server/edge-auth';
+import { fkOf, personOf } from '@hadoku/game-server/erase/index';
+import { roomsEraseSteps, type LiveMatch } from '@hadoku/game-server/erase/rooms';
 
 const ALICE_USER = 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03';
 const alicePerson = personOf(ALICE_USER);

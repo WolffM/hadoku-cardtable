@@ -30,7 +30,7 @@ import { SaveDraftDeckBodySchema, type DraftCard } from '@hadoku/shared';
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import { loadPool, type CubePool } from '../room/pool.ts';
 import { createDraftRooms, DEFAULT_PLAN, joinDraftRoom, releaseSeat, singlePoolResolver, stateOf, type DraftRoom, type DraftRooms } from '../room/draftRooms.ts';
-import { identityFromHeaders } from '../room/identity.ts';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { loadTablesLibrary } from './library.ts';
 import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
 
@@ -48,7 +48,7 @@ const library = loadTablesLibrary(resolve(dirname(fileURLToPath(import.meta.url)
 // reset-then-dynamic-import dance below.
 let draftsMod: typeof import('./drafts.ts');
 let routesMod: typeof import('./routes.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 
 let cube: CubePool;
 
@@ -58,7 +58,7 @@ beforeAll(async () => {
 	vi.resetModules();
 	draftsMod = await import('./drafts.ts');
 	routesMod = await import('./routes.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 
 	const load = loadPool(BUNDLED_POOL_FIXTURE);
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);

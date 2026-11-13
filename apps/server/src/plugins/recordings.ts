@@ -5,7 +5,7 @@
 import { join } from 'node:path';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { FREE_PICK } from '@hadoku/shared';
-import { CONFIG } from '../config.js';
+import { CONFIG } from '@hadoku/game-server/config';
 import { attachParked } from '../http/parked.js';
 import { attachReplays } from '../http/replays.js';
 import { createArtIds } from '../play/art-ids.js';
@@ -13,8 +13,8 @@ import { coldStartsFrom, jvmHostFactory, roomDeckCosts } from '../play/index.js'
 import { openParkedStore } from '../play/parked.js';
 import { bridgeDigest, createRecorder, forgePin, serverVersion } from '../play/recording/recorder.js';
 import { canRebuildBoolean, rebuildForReplays } from '../play/recording/rebuild.js';
-import { sweepRecordings } from '../play/recording/retention.js';
-import { queueColdStarts } from '../play/start-queue.js';
+import { sweepRecordings } from '@hadoku/game-server/play/recording/retention';
+import { queueColdStarts } from '@hadoku/game-server/play/start-queue';
 import { draftIdOfPool } from '../room/lobby.js';
 import type { CardtablePlugin } from './state.js';
 

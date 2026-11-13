@@ -1,7 +1,7 @@
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 import type { RestartState, SeatIdentity, ServerEnvelope, StopPhase } from '@hadoku/shared';
 
-import type { HostEvents, MatchHost, MatchRecord, MatchSpec, TurnSnapshot } from '../host.js';
+import type { HostEvents, MatchHost, MatchRecord, MatchSpec, TurnSnapshot } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import type { Match, MatchDeps } from '../match.js';
 import type { SeatState } from './forge-session.js';

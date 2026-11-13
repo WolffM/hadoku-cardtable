@@ -1,6 +1,6 @@
 /**
  * The boot verdict against real files on disk, served by real express.
- * A superset of the app-bound pin test (`apps/server/src/base-path.test.ts`):
+ * A superset of the app-bound pin test (`packages/game-server/src/base-path.test.ts`):
  * this one is generic over the app's own name and embed-entry filenames.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

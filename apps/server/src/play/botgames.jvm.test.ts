@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { botDeckText } from '../room/botDeck.js';
 import { loadPool } from '../room/pool.js';
 import { runBotGame } from './botgames.js';
-import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, type JvmHostFactory } from './host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, type JvmHostFactory } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 

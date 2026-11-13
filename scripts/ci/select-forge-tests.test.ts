@@ -313,6 +313,18 @@ describe('the per-file rules', () => {
     expect(used.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
   });
 
+  it("the server's platform package is server code: reached by subpath through a `./*` export, its routes run their callers", () => {
+    const repo = fixtureRepo({
+      'packages/game-server/package.json': '{ "name": "@hadoku/game-server", "exports": { "./*": "./src/*.ts" } }\n',
+      'packages/game-server/src/play/util.ts': UTIL['apps/server/src/play/util.ts'],
+      'packages/game-server/src/http/sounds.ts': fixtureRepo().read('apps/server/src/http/sounds.ts')!,
+      'apps/server/src/play/host.ts': "import { m } from './match.ts';\nimport { used } from '@hadoku/game-server/play/util';\nexport const h = m + used;\n",
+    });
+    const used = select(repo, [modified('packages/game-server/src/play/util.ts', diff(1, ['export const used = 0;'], ['export const used = 1;']))]);
+    expect(used.jvmFiles).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
+    expect(select(repo, [modified('packages/game-server/src/http/sounds.ts')]).specs).toEqual(['bars.spec.ts', ...SMOKE].sort());
+  });
+
   it("an edit to a barrel's re-exports alone selects nothing — what uses a new export changed with it", () => {
     const repo = fixtureRepo({ ...WIRE, 'packages/wire/src/index.ts': "export * from './coin.ts';\nexport * from './more.ts';\n", 'packages/wire/src/more.ts': 'export const more = 1;\n' });
     const sel = select(repo, [modified('packages/wire/src/index.ts', diff(1, [], ["export * from './more.ts';"], ["export * from './coin.ts';"]))]);

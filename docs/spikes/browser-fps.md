@@ -232,7 +232,7 @@ node scripts/fps/measure.mjs leak --minutes 10 --board crowded --out leak.tsv
 ## The front page's scroll, from real sessions (2026-10-28)
 
 The room list reports its own scroll smoothness (`apps/ui/src/rooms/scroll-watch.ts`): one `perf`
-event per scroll burst, POSTed to `/api/client-events` (`apps/server/src/http/client-events.ts`) and
+event per scroll burst, POSTed to `/api/client-events` (`packages/game-server/src/http/client-events.ts`) and
 written to the server's stdout as `svc: 'cardtable-client'`, `evt: 'client'`, `page: 'front'`,
 `what: 'scroll'`. Fields: `frames`, `ms`, `p50`, `p95`, `max` (gap, ms), `over25` and `over50`
 (frames over 25 ms, a dropped 60 Hz frame, and over 50 ms), `browser`, `version`, `dpr`, `vw`, `vh`,

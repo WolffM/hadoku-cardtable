@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@hadoku/game-server": "workspace:*",
     "@hadoku/host-wire": "workspace:*"
   }
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DeckColorsSchema } from '@hadoku/shared';
 
 import { roomDeckCosts, seatDeckColors } from './deck-colors.js';
-import type { MatchSpec } from './host.js';
+import type { MatchSpec } from '@hadoku/game-server/play/host';
 
 const costs: Record<string, string> = { 'Lightning Bolt': '{R}', 'Grizzly Bears': '{1}{G}', 'Gut Shot': '{R/P}', Naturalize: '{1}{G}' };
 const fixed = () => costs;

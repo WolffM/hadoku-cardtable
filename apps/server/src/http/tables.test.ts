@@ -30,7 +30,7 @@ import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import type { MatchReport } from '@wolffm/prefs-client/games';
 import type { ClientFrame } from '@hadoku/forge-wire';
 import { GAME_CLOCK_MS, type ClockSetting } from '@hadoku/shared';
-import type { MatchRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
+import type { MatchRecord, MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../play/bridge-protocol.js';
 import type { MatchRegistry } from '../play/match.js';
 import {
@@ -45,8 +45,8 @@ import { botDeckText } from '../room/botDeck.js';
 import { isBotSeat } from '@hadoku/draft';
 import { draftPoolId } from '../room/lobby.js';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, type SeriesRoom } from '../room/series.js';
-import { leaveSeat, readySeat, seatList, sitAt, type TableSeats } from '../room/seats.js';
-import { identityFromHeaders } from '../room/identity.js';
+import { leaveSeat, readySeat, seatList, sitAt, type TableSeats } from '@hadoku/game-server/room/seats';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { loadPool } from '../room/pool.js';
 import { act, choose, drawGauntlet, gameOver, gauntletEras, newGauntlet, startBanpick, viewOfGauntlet, type GauntletState } from '../room/gauntlet.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from '../stats/index.js';
@@ -107,7 +107,7 @@ const ALWAYS_LEGAL_DCK = '[metadata]\nName=Basics\nDeck Type=Constructed\n[Main]
 
 let routesMod: typeof import('./routes.ts');
 let playMod: typeof import('../play/socket.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 
 beforeAll(async () => {
 	// config.ts reads the environment once, at load — same dance as play/socket.test.ts.
@@ -116,7 +116,7 @@ beforeAll(async () => {
 	vi.resetModules();
 	routesMod = await import('./routes.ts');
 	playMod = await import('../play/socket.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 });
 
 function edgeHeaders(user: string, tier = 'friend'): Record<string, string> {

@@ -135,7 +135,7 @@ submodule is not.** It shows up in three ways:
   `forge/` is not a member. The two packages with a `build` script are
   `apps/server` (`tsc` + `esbuild src/index.ts`) and `apps/ui` (`vite build`).
   The server serves `CARDTABLE_WEB_DIR || '../ui/dist'`
-  (`apps/server/src/config.ts:49`). No source under `apps/` or `packages/`
+  (`packages/game-server/src/config.ts:49`). No source under `apps/` or `packages/`
   imports from `forge/`. The references that exist are doc comments and
   offline CLI generators whose output is committed.
 - **CI doesn't fetch it.** `.github/workflows/ci.yml:42` is a bare

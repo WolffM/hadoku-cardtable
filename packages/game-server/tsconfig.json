@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Run inside the app's server and never built on its own: esbuild bundles these `.ts` files
+    // into apps/server/dist, and tests and tsx run them as source. nodenext (inherited), so
+    // relative imports carry `.js`, as in apps/server; `allowImportingTsExtensions` because the
+    // platform packages it imports export `.ts` source.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "declaration": false,
+    "sourceMap": false,
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

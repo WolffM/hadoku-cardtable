@@ -213,7 +213,7 @@ Socket.prototype.emit = function (this: Socket, event: string | symbol, ...args:
 
 /*
  * The handles a later server re-attaches a JVM and its matches by, as
- * `apps/server/src/play/host.ts` and `local-jvm.ts` write them
+ * `packages/game-server/src/play/host.ts` and `local-jvm.ts` write them
  * (`JVM_RECORD_FILE`/`JvmRecord`, `LAUNCH_RECORD_FILE`, `ORPHAN_MAX_MS`). Read here
  * rather than imported: `host.ts` is not erasable-syntax-clean and this package
  * typechecks with `erasableSyntaxOnly` so Node can strip its types (`tsc` exits 2 on

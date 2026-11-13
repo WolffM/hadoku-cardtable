@@ -37,10 +37,10 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 import { DEFAULT_STOP_POLICY } from '../../apps/server/src/play/auto.js';
-import { jvmHostConfig, type MatchSpec } from '../../apps/server/src/play/host.js';
+import { jvmHostConfig, type MatchSpec } from '../../packages/game-server/src/play/host.js';
 import { createMatchRegistry, type Match } from '../../apps/server/src/play/match.js';
-import { clawPlacement, registryRestorer } from '../../apps/server/src/play/placement/index.js';
-import { AGENT_KEY_ENV, connectRemoteHost } from '../../apps/server/src/play/remote/index.js';
+import { clawPlacement, registryRestorer } from '../../packages/game-server/src/play/placement/index.js';
+import { AGENT_KEY_ENV, connectRemoteHost } from '../../packages/game-server/src/play/remote/index.js';
 
 const claws = (process.argv[2] ?? '').split(',').filter((c) => c !== '');
 const role = process.env.ACCEPT_ROLE ?? 'driver';

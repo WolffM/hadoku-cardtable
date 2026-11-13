@@ -28,7 +28,7 @@ import { join } from 'node:path';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { RoomMode, RoomSettings } from '@hadoku/shared';
 
-import type { MatchSpec, TurnSnapshot } from './host.js';
+import type { MatchSpec, TurnSnapshot } from '@hadoku/game-server/play/host';
 import type { Match } from './match.js';
 import type { RoomView } from '../room/lobby.js';
 

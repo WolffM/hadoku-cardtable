@@ -19,9 +19,9 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { packBase, packDir, pushRuntime } from '../../../apps/server/src/play/remote/artifacts.js';
-import { AgentClient } from '../../../apps/server/src/play/remote/client.js';
-import { defaultJava } from '../../../apps/server/src/play/local-jvm.js';
+import { packBase, packDir, pushRuntime } from '../../../packages/game-server/src/play/remote/artifacts.js';
+import { AgentClient } from '../../../packages/game-server/src/play/remote/client.js';
+import { defaultJava } from '../../../packages/game-server/src/play/local-jvm.js';
 import { AGENT_PORT, HOST_ID, privateKeyFrom } from '../../../packages/host-wire/src/wire.ts';
 
 const [node, label, xmx, ...props] = process.argv.slice(2);

@@ -1,6 +1,6 @@
 /**
  * The relay's client half, end to end, through the real UI and the real relay socket
- * (`apps/server/src/play/relay-socket.ts`, `apps/server/src/play/runtimes/relay-match.ts`):
+ * (`packages/game-server/src/play/relay-socket.ts`, `packages/game-server/src/play/runtimes/relay-match.ts`):
  * a test-only game type, `relay-test` (two seats, `runtime: 'relay'`), registered by
  * `plugins/relay.ts` behind `CARDTABLE_PLAY_PROBE=1` — never in production's registry — so this
  * runs on `play/harness.ts`'s stack, the one e2e posture that sets it.

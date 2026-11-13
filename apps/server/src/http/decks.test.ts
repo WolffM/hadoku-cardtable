@@ -19,7 +19,7 @@ import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 
 import { loadPool, type CubePool } from '../room/pool.ts';
 import { createDraftRooms, joinDraftRoom, singlePoolResolver, stateOf, type DraftRooms } from '../room/draftRooms.ts';
-import { identityFromHeaders } from '../room/identity.ts';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
 
 /** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
@@ -30,7 +30,7 @@ const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '.
 
 let decksMod: typeof import('./decks.ts');
 let draftsMod: typeof import('./drafts.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 let cube: CubePool;
 
 beforeAll(async () => {
@@ -39,7 +39,7 @@ beforeAll(async () => {
 	vi.resetModules();
 	decksMod = await import('./decks.ts');
 	draftsMod = await import('./drafts.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 	const load = loadPool(BUNDLED_POOL_FIXTURE);
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 	cube = load.pool;

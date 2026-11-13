@@ -26,7 +26,7 @@ beforeAll(async () => {
 	vi.resetModules();
 	const roomsMod = await import('./rooms.ts');
 	const lobbyMod = await import('../room/lobby.ts');
-	const edgeMod = await import('../edge-auth.ts');
+	const edgeMod = await import('@hadoku/game-server/edge-auth');
 	dir = await mkdtemp(join(tmpdir(), 'cardtable-rooms-bodies-'));
 	const lobby = await lobbyMod.openLobby({ dir, log: () => undefined });
 	const app = express();

@@ -29,7 +29,7 @@
  * unknown keys, which would make a client claiming an identity *parse clean*
  * and leave the server free to trust it. Identity comes from the edge headers
  * the friend gate sets; it is never a value the browser supplies. See
- * `apps/server/src/edge-auth.ts`.
+ * `packages/game-server/src/edge-auth.ts`.
  *
  * `clientMessageIssues` additionally names identity-shaped keys explicitly,
  * because "unrecognized key: participantId" is a true but uninformative way to
@@ -106,7 +106,7 @@ export const TabIdSchema = z.string().regex(TAB_ID_PATTERN);
  * A room id, and the tab joining. Which seat the joiner gets, and whether they
  * get one at all, is the server's answer — derived from the edge-authenticated
  * participant — not the client's request. `tabId` joins the socket to its tab's
- * claim on the room (`apps/server/src/room/session.ts`); optional, so a tab still
+ * claim on the room (`packages/game-server/src/room/session.ts`); optional, so a tab still
  * running an older bundle across a deploy keeps joining.
  */
 export const JoinDraftSchema = z.strictObject({
@@ -221,7 +221,7 @@ export const PICK_REJECTION_CODES = [
  * exist so it can reject without a cast, and a rejection needs a code to be a
  * value rather than a string. `session-elsewhere` refuses a seat's join from a
  * tab that does not hold the room: another live tab of the same account does,
- * and the player is asked there (`apps/server/src/room/session.ts`).
+ * and the player is asked there (`packages/game-server/src/room/session.ts`).
  */
 export const TRANSPORT_ERROR_CODES = [
   'not-seated',

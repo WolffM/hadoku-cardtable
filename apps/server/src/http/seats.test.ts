@@ -18,7 +18,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { identityFromHeaders } from '../room/identity.js';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { openLobby, type Lobby } from '../room/lobby.js';
 import { loadTablesLibrary } from './library.js';
 import { attachTables } from './routes.js';

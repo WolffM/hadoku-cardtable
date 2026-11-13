@@ -133,7 +133,7 @@
  *   seats through `MatchDeps.stopPolicy`. Unset in production, exactly like
  *   `CARDTABLE_PLAY_SEED`; it exists so a spec and a screenshot of a live
  *   payment can be taken from outside the process.
- * - `apps/server/src/play/host.ts` — `FORGE_PREFERENCES` does not set
+ * - `packages/game-server/src/play/host.ts` — `FORGE_PREFERENCES` does not set
  *   `UI_SHOW_AUTOTAP_PREVIEW`, so Forge's auto-tap PLAN never reaches us and
  *   {@link PromptFacts.plannedSources} is empty in production. Wave 25 §D
  *   measured that against a real Forge. Turning it on is a one-line edit there

@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 import express from 'express';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { decodeSoundPack, MUSIC_REVIEW_APP_ID } from '@hadoku/shared';
-import { TIER_ORDER } from '../edge-auth.ts';
+import { TIER_ORDER } from '@hadoku/game-server/edge-auth';
 import { createMusicReviewStore } from './musicReviewStore.ts';
 import { createPrefsRowsStandIn, standInFetch, type PrefsRowsStandIn } from './prefsRowsStandIn.ts';
 
@@ -32,14 +32,14 @@ import { rename } from 'node:fs/promises';
 const EDGE_SECRET = 'test-edge-auth-secret';
 
 let soundsMod: typeof import('./sounds.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	soundsMod = await import('./sounds.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 });
 
 /* ── harness ─────────────────────────────────────────────────────────── */
@@ -649,14 +649,14 @@ describe('every /api/sounds route is friend tier and above', () => {
 });
 
 describe('the music review is friend tier and above even when the app lets members in', () => {
-	let mods: { sounds: typeof import('./sounds.ts'); edge: typeof import('../edge-auth.ts') };
+	let mods: { sounds: typeof import('./sounds.ts'); edge: typeof import('@hadoku/game-server/edge-auth') };
 
 	beforeAll(async () => {
 		const saved = process.env.CARDTABLE_MIN_TIER;
 		process.env.CARDTABLE_MIN_TIER = 'member';
 		try {
 			vi.resetModules();
-			mods = { sounds: await import('./sounds.ts'), edge: await import('../edge-auth.ts') };
+			mods = { sounds: await import('./sounds.ts'), edge: await import('@hadoku/game-server/edge-auth') };
 		} finally {
 			if (saved === undefined) delete process.env.CARDTABLE_MIN_TIER;
 			else process.env.CARDTABLE_MIN_TIER = saved;

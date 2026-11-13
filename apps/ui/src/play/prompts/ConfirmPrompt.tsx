@@ -72,7 +72,7 @@
  * `OK` or `Auto`). It is gated on `YIELD_DECLINE_SCOPE_STACK_YIELD` and
  * `YIELD_DECLINE_SCOPE_NO_ACTIONS` both being something other than `NEVER`
  * (`InputPassPriority.java:102-106`); both default to `"NEVER"`
- * (`ForgePreferences.java:145-146`) and `apps/server/src/play/host.ts`'s
+ * (`ForgePreferences.java:145-146`) and `packages/game-server/src/play/host.ts`'s
  * `FORGE_PREFERENCES` never touches either key, so `showNormalPrompt` is
  * taken unconditionally today. If a future run directory ever sets one of
  * those two prefs, this would need a third label check — written down here so

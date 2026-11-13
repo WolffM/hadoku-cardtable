@@ -48,7 +48,7 @@ import {
 import { pick as enginePick } from '@hadoku/draft';
 import { safeParseServerMessage, stateMessage, type DraftCard, type DraftPlan, type PoolSource } from '@hadoku/shared';
 
-import { participantHandle } from './identity.js';
+import { participantHandle } from '@hadoku/game-server/room/identity';
 import {
 	builtDeckOf,
 	createDraftRooms,

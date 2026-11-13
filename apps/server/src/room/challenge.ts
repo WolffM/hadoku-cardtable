@@ -22,7 +22,7 @@ import { LIBRARY, type LibraryCollection } from '@hadoku/deck/library';
 import type { ChallengeEvent, ChallengeField } from '@hadoku/shared';
 
 import type { Lobby, RoomView } from './lobby.js';
-import type { Caller } from './caller.js';
+import type { Caller } from '@hadoku/game-server/room/caller';
 
 /** What `tournament.json` holds that a Challenge room reads. */
 interface TournamentRecord {

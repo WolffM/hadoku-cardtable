@@ -78,7 +78,7 @@ test(
 
       /*
        * `useWhoami()`'s real id is `fk:<hash of X-User-Key>`
-       * (`apps/server/src/room/identity.ts`) — NOT the `e2e-<name>-id` this
+       * (`packages/game-server/src/room/identity.ts`) — NOT the `e2e-<name>-id` this
        * harness's `X-User-Id` carries, which is the DEVICE tier's fallback
        * material and unused once a friend key is present. This reads each
        * member's REAL id off the room (already a member, by their joined

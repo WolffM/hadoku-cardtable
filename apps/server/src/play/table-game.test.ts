@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TableGameLive } from '@hadoku/shared';
 
-import type { MatchSpec } from './host.js';
+import type { MatchSpec } from '@hadoku/game-server/play/host';
 import { deckArtCard, seatDeck, tableGame, type TableGameSource } from './table-game.js';
 
 const COSTS: Record<string, string> = { 'Goblin Matron': '{2}{R}', 'Goblin Lackey': '{R}', 'Siege-Gang Commander': '{3}{R}{R}', Counterspell: '{U}{U}' };

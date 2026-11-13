@@ -21,7 +21,7 @@ import type { RateLimitConfig } from '@wolffm/rooms-server';
 import { draftIdOfPool, type Lobby } from '../room/lobby.js';
 import type { ParkedStore, ParkedSummary } from '../play/parked.js';
 import type { PlayHandle } from '../play/socket.js';
-import { callerOf, httpCaller, perCallerLimit } from './request.js';
+import { callerOf, httpCaller, perCallerLimit } from '@hadoku/game-server/http/request';
 import { ROOM_CREATE_RATE_LIMIT } from './rooms.js';
 import { MAX_MATCHES_PER_PERSON } from './routes.js';
 

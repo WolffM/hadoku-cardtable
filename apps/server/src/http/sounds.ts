@@ -80,10 +80,10 @@ import {
 	type Catalogue,
 	type SoundTake,
 } from '@hadoku/shared';
-import { isAdmin, rankOf, tierOf, userIdOf, userKeyOf } from '../edge-auth.js';
+import { isAdmin, rankOf, tierOf, userIdOf, userKeyOf } from '@hadoku/game-server/edge-auth';
 import { jsonLogger, type JsonLog } from '@hadoku/service-kernel/log';
 import type { MusicReviewStore } from './musicReviewStore.js';
-import { bodyErrors } from './request.js';
+import { bodyErrors } from '@hadoku/game-server/http/request';
 
 export interface SoundsDeps {
 	/** The sounds data directory (`CARDTABLE_SOUNDS_DIR`). Created on first write, never on a read. */

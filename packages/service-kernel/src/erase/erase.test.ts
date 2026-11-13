@@ -1,7 +1,7 @@
 /**
  * `createAccountErase` against fakes — `edgeSealed` and `deriveParticipantId` are both injected
  * here, never a real app's edge-auth or identity module (this module imports neither). The
- * adapter-level test (`apps/server/src/erase/index.test.ts`) proves the same route end to end
+ * adapter-level test (`packages/game-server/src/erase/index.test.ts`) proves the same route end to end
  * through cardtable's real bindings.
  */
 import type { Request, Response } from 'express';

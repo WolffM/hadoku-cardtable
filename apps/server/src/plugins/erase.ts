@@ -4,10 +4,10 @@
  * Last before listen, since it binds every store. `erase/` has the operator's rulings.
  */
 import { join } from 'node:path';
-import { CONFIG } from '../config.js';
-import { legacyIdsStep } from '../erase/legacy-ids.js';
-import { recordingsStep } from '../erase/recordings.js';
-import { roomsEraseSteps } from '../erase/rooms.js';
+import { CONFIG } from '@hadoku/game-server/config';
+import { legacyIdsStep } from '@hadoku/game-server/erase/legacy-ids';
+import { recordingsStep } from '@hadoku/game-server/erase/recordings';
+import { roomsEraseSteps } from '@hadoku/game-server/erase/rooms';
 import { endForfeitedGame } from '../http/table-actions.js';
 import type { Match } from '../play/match.js';
 import type { CardtablePlugin } from './state.js';

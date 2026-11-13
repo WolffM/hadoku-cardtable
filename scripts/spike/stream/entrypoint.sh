@@ -15,7 +15,7 @@ set -eu
 [ -d "$FORGE_RES" ] || { echo "no res at $FORGE_RES - bind-mount it" >&2; exit 2; }
 
 # Forge reads res/ and its profile relative to cwd (same staging the server's
-# jvmHost does, apps/server/src/play/host.ts stageRunDir).
+# jvmHost does, packages/game-server/src/play/host.ts stageRunDir).
 mkdir -p /run/forge/user/decks/constructed /run/forge/cache
 ln -sfn "$FORGE_RES" /run/forge/res
 cat > /run/forge/forge.profile.properties <<EOF

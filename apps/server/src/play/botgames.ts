@@ -13,8 +13,8 @@
  * kept across a restart (`host.ts`'s `handOver`, `MatchRegistry.adopt`): its room plays it again.
  */
 
-import { report } from '../telemetry.js';
-import type { MatchHostFactory, MatchSpec } from './host.js';
+import { report } from '@hadoku/game-server/telemetry';
+import type { MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeLine, BridgeCommand } from './bridge-protocol.js';
 
 /** A bot game's one game, in seconds of wall clock, before the bridge calls it a draw (Forge's own sim clock is 120). */

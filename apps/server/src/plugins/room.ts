@@ -4,7 +4,7 @@
  * (`rooms`, `stores` phase), `state.people` (`routes` phase) and `state.play` (`play`, before it).
  */
 import { join } from 'node:path';
-import { CONFIG } from '../config.js';
+import { CONFIG } from '@hadoku/game-server/config';
 import { attachServedRoom } from '../room/serve.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { CardtablePlugin } from './state.js';

@@ -25,17 +25,17 @@ import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 import type { DeckCosts } from '../deck-colors.js';
-import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type MatchSpec } from '../host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry } from '../match.js';
 import { WATCHER_SEAT } from '../match/forge-session.js';
 import { boardDigest } from './position.js';
 import { nightly } from '../scenario.js';
-import { COLD_STARTS, queueColdStarts } from '../start-queue.js';
+import { COLD_STARTS, queueColdStarts } from '@hadoku/game-server/play/start-queue';
 import { foldFrames, type StateFrame, type WireObj } from '../visibility.js';
 import { createRecorder, forgePin } from './recorder.js';
-import { createMatchRecordingWriter, type PublicEnvLine } from './writer.js';
+import { createMatchRecordingWriter, type PublicEnvLine } from '@hadoku/game-server/play/recording/writer';
 import {
 	actionLogPath,
 	canRebuild,

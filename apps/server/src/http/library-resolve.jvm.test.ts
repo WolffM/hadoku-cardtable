@@ -38,7 +38,7 @@ import { describe, expect, it } from 'vitest';
 import { parseDck } from '@hadoku/carddata/dck';
 import { LIBRARY, deckPath } from '@hadoku/deck/library';
 
-import { jvmHostConfig } from '../play/host.js';
+import { jvmHostConfig } from '@hadoku/game-server/play/host';
 
 const available = jvmHostConfig();
 const title = available.ok

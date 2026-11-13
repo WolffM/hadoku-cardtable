@@ -13,7 +13,7 @@
  * - `runtime: 'relay'`: the match runs on cardtable's relay. The bundle plays over `ctx.channel`
  *   (hadoku-bomberman `docs/NETCODE.md`, "Over a host's channel"), its leader hosts, and its
  *   `{ t: 'over', winners }` ends the match.
- * - `seatRejoinGraceMs: 120_000`: bomberman's own seat hold (`apps/server/src/config.ts`'s
+ * - `seatRejoinGraceMs: 120_000`: bomberman's own seat hold (`packages/game-server/src/config.ts`'s
  *   `seatHoldMs`, `BOMBERMAN_SEAT_HOLD_MS`, 120 000 ms by default), so a player who drops keeps
  *   their seat as long here as on bomberman's own server.
  * - `ready: false`, `series: {length:1}`, no `bots`: no ready step, one game, empty seats stay empty.

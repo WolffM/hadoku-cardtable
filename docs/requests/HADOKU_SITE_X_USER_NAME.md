@@ -59,7 +59,7 @@ omits the header — the consumer falls back to a word, not an identifier.
   `X-User-Id`; cardtable's participant ids are unchanged. We treat the header
   as exactly as forgeable as `X-User-Id` — stripped client-side unless the edge
   vouched — and sanitize it in the same class on receipt.
-- Our consumer half is ready and held: `apps/server/src/edge-auth.ts` gains
+- Our consumer half is ready and held: `packages/game-server/src/edge-auth.ts` gains
   `userNameOf()` with the same strip rule as `x-user-id`, and `callerOf` in
   `http/rooms.ts` uses it (fallback `'friend'`) instead of `userIdOf(req)`.
 

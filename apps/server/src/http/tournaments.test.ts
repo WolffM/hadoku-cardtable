@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { Tournament } from '@hadoku/shared';
 
-import type { People, Person } from '../people.ts';
+import type { People, Person } from '@hadoku/game-server/people';
 import { attachTournaments } from './tournaments.ts';
 
 const servers: Server[] = [];

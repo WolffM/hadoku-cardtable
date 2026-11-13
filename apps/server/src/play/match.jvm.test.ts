@@ -55,7 +55,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 
-import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type JvmHostFactory, type MatchSpec } from './host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type JvmHostFactory, type MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry, type Match } from './match.js';

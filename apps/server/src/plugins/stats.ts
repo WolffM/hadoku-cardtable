@@ -6,8 +6,8 @@
 import type { Request, Response } from 'express';
 import { recordMatch } from '@wolffm/prefs-client/games';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { CONFIG } from '../config.js';
-import { tierOf, userIdOf, verifiedOf } from '../edge-auth.js';
+import { CONFIG } from '@hadoku/game-server/config';
+import { tierOf, userIdOf, verifiedOf } from '@hadoku/game-server/edge-auth';
 import { createKeyBook, createMatchStats, createStatsReporter } from '../stats/index.js';
 import type { CardtablePlugin } from './state.js';
 

@@ -30,7 +30,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
 import { createPrefsRowsStandIn, standInFetch } from '../http/prefsRowsStandIn.ts';
-import { attachPeople, createPeople } from '../people.ts';
+import { attachPeople, createPeople } from '@hadoku/game-server/people';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import { loadPool } from './pool.ts';
 import { roundNamesOf } from './plan.ts';
@@ -49,7 +49,7 @@ import {
 	type Lobby,
 	type RoomView,
 } from './lobby.ts';
-import { UNNAMED, ROOM_STALE_MS } from './constants.ts';
+import { UNNAMED, ROOM_STALE_MS } from '@hadoku/game-server/room/constants';
 import { POD_AI, POD_CLOSED, type BotGameAsk, type GameHooks, type SeriesEnd } from './pods.ts';
 import { createSeatPresence, SEAT_RELEASE_MS } from './socket.js';
 

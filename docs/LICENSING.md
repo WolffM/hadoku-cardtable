@@ -122,7 +122,9 @@ least restrictive."*
   same text as the root `LICENSE`). Since 2026-11-12 it holds the four Magic packages
   (`games/magic/packages/{carddata,deck,draft,forge-wire}`); each keeps its own `license` field and
   its Forge headers, and the ratchet's licence check reads `games/*/packages/*` as it reads
-  `packages/*`. The rest of the Magic layer (the server's play and draft code, the board UI, the
+  `packages/*`. Since 2026-11-13 the server's platform code is out of `apps/server` too: every file
+  the map called `platform` there moved, at the same path under `src/`, to
+  `packages/game-server` (`@hadoku/game-server`, MIT). The rest of the Magic layer (the server's play and draft code, the board UI, the
   bridge) still lives in `apps/server` and `apps/ui`, where the layer map is its boundary, and moves
   under `games/magic/` in later stages. Once `apps/` holds only the site, its packages can turn MIT.
 
@@ -185,7 +187,7 @@ So, from here:
 - **Always free.** Rule 1 is unchanged and now has the operator's own words
   behind it: no money in any form, ever.
 - **Members only.** The app's floor moves from `friend` to `member`, the tier
-  below friend on hadoku's ladder (`apps/server/src/edge-auth.ts`'s
+  below friend on hadoku's ladder (`packages/game-server/src/edge-auth.ts`'s
   `TIER_ORDER`). There is still **no anonymous access and no public tier**:
   you sign in or you see nothing.
 - **Anyone can get member status.** Membership is not an invitation list. That is

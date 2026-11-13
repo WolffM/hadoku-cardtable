@@ -17,8 +17,8 @@
 
 import { batchDraftAnswer, type Draftbot, type DraftbotInput, type DraftbotRatings } from '../../room/draftbot.js';
 import { DRAFTBOT_PATH } from '@hadoku/host-wire';
-import type { Alerts } from './alerts.js';
-import type { DraftbotClaw, DraftbotPlacement } from './coordinator.js';
+import type { Alerts } from '@hadoku/game-server/play/placement/alerts';
+import type { DraftbotClaw, DraftbotPlacement } from '@hadoku/game-server/play/placement/coordinator';
 
 /** A primary and a backup. */
 export const DRAFTBOT_CLAWS = 2;

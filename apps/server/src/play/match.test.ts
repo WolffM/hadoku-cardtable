@@ -25,12 +25,12 @@ import {
 } from '@hadoku/shared';
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
-import type { HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
+import type { HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { createMatchRegistry, type Match, type MatchSpecWithIdentity } from './match.js';
 import { MATCH_ENDED_TITLE, PENDING_REVEAL_CHOICE_MS } from './match/forge-frames.js';
 import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, WATCHER_SEAT, frameGist } from './match/forge-session.js';
-import { ACTIVITY_WINDOW_MS, CONCEDE_ANSWER_MS, RESTART_ASK_MS } from './match/shell.js';
+import { ACTIVITY_WINDOW_MS, CONCEDE_ANSWER_MS, RESTART_ASK_MS } from '@hadoku/game-server/play/match/shell';
 import { restoredSpec, type Restored } from './match/registry.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
@@ -47,7 +47,7 @@ import {
 	type ReplayHost,
 } from './fixtures/transcript.js';
 import { createProjector, foldFrames, type StateFrame, type WireObj } from './visibility.js';
-import { installTelemetry } from '../telemetry.js';
+import { installTelemetry } from '@hadoku/game-server/telemetry';
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa';
 const BOB = 'fk:bbbbbbbbbbbbbbbb';

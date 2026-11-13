@@ -16,7 +16,7 @@ import type { MatchReport } from '@wolffm/prefs-client/games';
 import { DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
 import { loadTablesLibrary } from '../http/library.js';
-import { identityFromHeaders } from '../room/identity.js';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import type { BridgeLine } from '../play/bridge-protocol.js';
 import { createMatchRegistry, type Match } from '../play/match.js';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';

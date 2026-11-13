@@ -5,10 +5,10 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, type JvmHostFactory } from '../host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, type JvmHostFactory } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
-import { frameCanary } from './coordinator.js';
+import { frameCanary } from '@hadoku/game-server/play/placement/coordinator';
 
 const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 const title = available.ok ? 'the quarantine canary on a real bridge' : `the quarantine canary on a real bridge — SKIPPED: ${available.reason}`;

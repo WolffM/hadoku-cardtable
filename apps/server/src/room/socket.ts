@@ -161,7 +161,7 @@ import {
 	type WireErrorCode,
 } from '@hadoku/shared';
 
-import { gateSocketIo } from '../gate.js';
+import { gateSocketIo } from '@hadoku/game-server/gate';
 import {
 	cursorFor,
 	joinDraftRoom,
@@ -184,9 +184,9 @@ import {
 	type EmitLog,
 } from './emit.js';
 import { askDraftbot, chooseByRatings, draftbotTally, modelSeatsOf, type Draftbot, type DraftbotAnswer, type DraftbotOutcome } from './draftbot.js';
-import { identityFromHeaders } from './identity.js';
-import { handshakeTier } from './socket-auth.js';
-import type { SessionHandle } from './session.js';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
+import { handshakeTier } from '@hadoku/game-server/room/socket-auth';
+import type { SessionHandle } from '@hadoku/game-server/room/session';
 import type { Lobby } from './lobby.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 

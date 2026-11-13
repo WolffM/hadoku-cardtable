@@ -113,14 +113,14 @@ import {
 
 import { type StopPolicy } from './auto.js';
 import { type ArtCatalog, type ArtIds } from './art-ids.js';
-import { MAX_CONCURRENT_MATCHES, type MatchRecord, type MatchSpec, type TurnSnapshot } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type MatchRecord, type MatchSpec, type TurnSnapshot } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { runBotGame, type BotGameInput, type BotGameOutcome } from './botgames.js';
 import type { SpellCopy } from './spell-copiers.js';
-import { type OutcomeFacts, winnerSeatFromLosers } from './match/outcome.js';
+import { type OutcomeFacts, winnerSeatFromLosers } from '@hadoku/game-server/play/match/outcome';
 import { ForgeSession, type SeatState } from './match/forge-session.js';
-import { type ClientOutcome } from './match/shell.js';
-import { HostedMatch, type HostedMatchDeps } from './match/hosted.js';
+import { type ClientOutcome } from '@hadoku/game-server/play/match/shell';
+import { HostedMatch, type HostedMatchDeps } from '@hadoku/game-server/play/match/hosted';
 import { ENDED_KEPT, EndedMatch, restoredSpec, type RegistryDeps, type Restored, type ResumeFrom } from './match/registry.js';
 import { newMatchId, type ProbeResult } from './match/forge-frames.js';
 

@@ -247,7 +247,7 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
   where key rotation writes it): reports in `~/.local/state/cardtable/telemetry/`
   (`latest.txt`), and an `ALERTS` line for every day it exited non-zero. Read
   `latest.txt` and `ALERTS` at the start of a session.
-- **What the server reports** (`apps/server/src/telemetry.ts`, one post per
+- **What the server reports** (`packages/game-server/src/telemetry.ts`, one post per
   event and caller a minute, the rest counted as `suppressed`):
   `caller-first-seen` (once per account, ever), `seal-refused` (the server's
   own floor refused what the edge passed, on HTTP or any socket),
@@ -257,7 +257,7 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
   `data-testid` with ids stripped — `apps/ui/src/usage.ts`, so a control needs
   a testid to be counted) and `capacity` (peak sockets, rooms, drafts, matches,
   JVMs, free Forge slots, request rate and p95, event-loop stall —
-  `apps/server/src/capacity.ts`); `capacity-refused` when a start meets the
+  `packages/game-server/src/capacity.ts`); `capacity-refused` when a start meets the
   server's match ceiling.
 - Events your code posts go to `service_events`: `POST /health/api/telemetry`
   with `context.service: "cardtable"`, read back with

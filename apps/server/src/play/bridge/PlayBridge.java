@@ -157,7 +157,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * One Forge match, driven over stdin/stdout by the Node server
- * ({@code apps/server/src/play/host.ts}). Read {@code apps/server/src/play/README.md}
+ * ({@code packages/game-server/src/play/host.ts}). Read {@code apps/server/src/play/README.md}
  * first.
  *
  * <p><b>Shape: architecture (b) of {@code docs/spikes/itoclient.md}.</b> The match is

@@ -131,7 +131,7 @@ worth optimising for a spike; worth knowing it is not a floor.
 | host delta for six containers | 6,169 MiB → **1,028 MiB each** | `free -m` before and after |
 
 The JVM is 97% of it, and it is the same `-Xmx1g` cap the play server already
-puts on a match JVM (`apps/server/src/play/host.ts`). The X stack is ~108 MB on
+puts on a match JVM (`packages/game-server/src/play/host.ts`). The X stack is ~108 MB on
 top — cheap. **Budget 1.3 GiB per streamed desktop.**
 
 ### CPU
@@ -322,7 +322,7 @@ JVM that already exists (`docs/FORGE_JAR.md`; ~650–730 MB, capped at `-Xmx1g`)
   host the operator controls, or the ISP's stated upstream.
 
 **The practical answer: today's cap of 2 concurrent matches
-(`MAX_CONCURRENT_MATCHES` in `apps/server/src/play/host.ts`) costs ~6.4 GiB,
+(`MAX_CONCURRENT_MATCHES` in `packages/game-server/src/play/host.ts`) costs ~6.4 GiB,
 ~2 cores at full tilt and ~9 Mbit/s upstream. the host has the RAM and the CPU
 comfortably. The uplink is the open question.**
 

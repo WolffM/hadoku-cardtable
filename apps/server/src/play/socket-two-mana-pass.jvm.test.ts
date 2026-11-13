@@ -21,7 +21,7 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
-import { jvmHostConfig, jvmHostFactory } from './host.js';
+import { jvmHostConfig, jvmHostFactory } from '@hadoku/game-server/play/host';
 import { deck, scenarioText } from './scenario.js';
 import { foldFrames } from './visibility.js';
 
@@ -32,14 +32,14 @@ const title = available.ok
 	: `a 2-mana cast with lands left over, over the real socket path, against real Forge — SKIPPED: ${available.reason}`;
 
 let socketMod: typeof import('./socket.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	socketMod = await import('./socket.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 });
 
 interface Harness {

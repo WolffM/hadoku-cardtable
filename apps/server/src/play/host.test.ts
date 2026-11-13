@@ -7,6 +7,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, chmodSync, closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync, writeSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -36,11 +37,11 @@ import {
 	type MatchHost,
 	type MatchSpec,
 	type ReapResult,
-} from './host.js';
+} from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
-import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
-import { queueColdStarts } from './start-queue.js';
-import { LAUNCH_RECORD_FILE, readLaunchRecord } from './local-jvm.js';
+import type { JvmLauncher, JvmTransport } from '@hadoku/game-server/play/jvm-transport';
+import { queueColdStarts } from '@hadoku/game-server/play/start-queue';
+import { LAUNCH_RECORD_FILE, readLaunchRecord } from '@hadoku/game-server/play/local-jvm';
 
 /** Every test here proves against Forge's own line and command types. */
 function jvmHostFactory(config: JvmHostConfig, options?: Parameters<typeof jvmHostFactoryGeneric>[1]): JvmHostFactory<BridgeLine, BridgeCommand> {
@@ -724,7 +725,7 @@ describe('the boot sweep — against a fixture work dir, never the real one', ()
 describe('a JVM that outlives the process that started it', () => {
 	/** `tsx`, because `host.ts` uses parameter properties and node cannot strip those. */
 	const TSX = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'node_modules', '.bin', 'tsx');
-	const HOST = pathToFileURL(resolve(dirname(fileURLToPath(import.meta.url)), 'host.ts')).href;
+	const HOST = pathToFileURL(createRequire(import.meta.url).resolve('@hadoku/game-server/play/host')).href;
 
 	/**
 	 * A whole other server, in its own process: it starts two matches in one JVM, waits for both

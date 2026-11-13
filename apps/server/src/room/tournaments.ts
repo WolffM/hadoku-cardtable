@@ -22,7 +22,7 @@ import { dirname } from 'node:path';
 
 import { rankedStandings } from '@hadoku/draft';
 import { TournamentSchema, type Tournament } from '@hadoku/shared';
-import { replaceIds } from '../erase/anonymise.js';
+import { replaceIds } from '@hadoku/game-server/erase/anonymise';
 
 export interface Tournaments {
 	/** Keeps the first record for an id: a pod archived when it finished is not overwritten by its room's close. */

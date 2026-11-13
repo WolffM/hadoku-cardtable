@@ -2,7 +2,7 @@
  * This browser tab's identity, sent with every room claim (`room/session.ts`), match join
  * (`MatchRequest.tabId`) and pod join.
  *
- * The server holds one live tab per player per room (`apps/server/src/room/session.ts`): a reload or
+ * The server holds one live tab per player per room (`packages/game-server/src/room/session.ts`): a reload or
  * reconnect of the SAME tab is the same holder and never asks, and a socket cut without a close
  * reaching the server (match m-ca7bad04b715, 2026-10-28) is replaced by its own tab's reconnect at
  * once. A second tab is another holder, and is asked before it takes over.

@@ -1,6 +1,6 @@
 /*
  * The site's trim: one look for every player (the operator, 2026-10-21: "make it set the look for
- * every player"), kept by the server (`/api/trim`, `apps/server/src/http/trim.ts`) and written only
+ * every player"), kept by the server (`/api/trim`, `packages/game-server/src/http/trim.ts`) and written only
  * from `#/ui` by an admin.
  *
  * Read once per page into a module store every screen shares, so `#/ui` and the screens behind it

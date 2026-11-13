@@ -84,7 +84,7 @@ operator drops new tracks in `~/.local/share/cardtable/ingest/` (outside every c
 the clone leaves them where they are).
 
 `apps/server/data/sounds` below is a dev server's sounds dir. A deployed server keeps its sounds in its
-state dir instead (`$CARDTABLE_STATE_DIR/sounds`, `apps/server/src/config.ts`): pass that path to `--to`.
+state dir instead (`$CARDTABLE_STATE_DIR/sounds`, `packages/game-server/src/config.ts`): pass that path to `--to`.
 
 ```sh
 python3 scripts/sfx/add-track.py tavern.mp3 --name "Tavern loop" --credit "Tavern loop by …, CC-BY 4.0, https://…" --to apps/server/data/sounds

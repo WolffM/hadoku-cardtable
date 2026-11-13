@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { parseDck } from '@hadoku/carddata/dck';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { jvmHostConfig } from '../play/host.js';
+import { jvmHostConfig } from '@hadoku/game-server/play/host';
 import { createForgePools, type ForgePools } from './forge.js';
 
 const available = jvmHostConfig();

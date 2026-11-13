@@ -46,7 +46,7 @@ import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
-import { bridgeLaunch, type JvmHostConfig } from '../play/host.js';
+import { bridgeLaunch, type JvmHostConfig } from '@hadoku/game-server/play/host';
 
 export interface SetSummary {
 	code: string;

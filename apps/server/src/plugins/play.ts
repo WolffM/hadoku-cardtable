@@ -3,15 +3,15 @@
  * (this machine's pool or placement across the claws), play itself, and the room sweep.
  */
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { CONFIG } from '../config.js';
+import { CONFIG } from '@hadoku/game-server/config';
 import { sweepRooms } from '../boot.js';
 import { attachPlay, coldStartsFrom, jvmHostFactory, roomFormatNames, spellCopierLookup, type PlayHandle } from '../play/index.js';
-import { clawPlacement, registryRestorer } from '../play/placement/index.js';
+import { clawPlacement, registryRestorer } from '@hadoku/game-server/play/placement/index';
 import { ClawDraftbots } from '../play/placement/draftbot.js';
-import { reportingAlerts } from '../telemetry.js';
+import { reportingAlerts } from '@hadoku/game-server/telemetry';
 import { httpDraftbot, type Draftbot } from '../room/draftbot.js';
-import { attachRoomFeed } from '../room/watching.js';
-import { attachSessions, playsIn } from '../room/session.js';
+import { attachRoomFeed } from '@hadoku/game-server/room/watching';
+import { attachSessions, playsIn } from '@hadoku/game-server/room/session';
 import { attachDraftSocket } from '../room/socket.js';
 import type { CardtablePlugin } from './state.js';
 

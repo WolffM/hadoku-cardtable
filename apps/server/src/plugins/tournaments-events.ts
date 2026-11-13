@@ -1,7 +1,7 @@
 /** The pods kept past their rooms, and the front page's calendar. */
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { CONFIG } from '../config.js';
-import { openEvents } from '../room/events.js';
+import { CONFIG } from '@hadoku/game-server/config';
+import { openEvents } from '@hadoku/game-server/room/events';
 import { openTournaments } from '../room/tournaments.js';
 import type { CardtablePlugin } from './state.js';
 

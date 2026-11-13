@@ -25,14 +25,14 @@ import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount } from './host.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount } from '@hadoku/game-server/play/host';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const available = jvmHostConfig();
 const title = available.ok ? 'match slots, against real Forge' : `match slots, against real Forge — SKIPPED: ${available.reason}`;
 
 let socketMod: typeof import('./socket.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
@@ -40,7 +40,7 @@ beforeAll(async () => {
 	process.env.CARDTABLE_PLAY_SEED = '7';
 	vi.resetModules();
 	socketMod = await import('./socket.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 });
 
 const sockets: ClientSocket[] = [];

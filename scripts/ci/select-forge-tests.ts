@@ -53,7 +53,7 @@
  *   a hot-path module, or a server play module one
  *   import below one                                    its guard family (the bridge's Java: and, like the
  *                                                       engine pin, everything on a dispatch)
- *   apps/server                                         history, route callers, the jvm suites using it
+ *   apps/server, packages/game-server                   history, route callers, the jvm suites using it
  *   apps/ui source, a package's source                  history, what it renders, the specs and jvm suites
  *                                                       using it (a package: and the guards of a hot path using it)
  *   anything else                                       every spec + every jvm suite
@@ -398,14 +398,26 @@ function packageDir(repo: Repo, name: string): string | null {
   return ['packages', ...games.map((g) => `games/${g}/packages`)].map((d) => `${d}/${name}`).find((d) => repo.read(`${d}/package.json`) !== null) ?? null;
 }
 
+/** What a package's `exports` map gives for `key` (`./library`): the exact entry, else a `./*` pattern's, with `*` filled in. */
+function exportOf(exports: Record<string, string> | undefined, key: string): string | undefined {
+  if (exports === undefined) return undefined;
+  if (typeof exports[key] === 'string') return exports[key];
+  for (const [pattern, target] of Object.entries(exports)) {
+    const [head, tail, extra] = pattern.split('*');
+    if (tail === undefined || extra !== undefined || typeof target !== 'string') continue;
+    if (key.length >= head.length + tail.length && key.startsWith(head) && key.endsWith(tail)) return target.replace('*', key.slice(head.length, key.length - tail.length));
+  }
+  return undefined;
+}
+
 /** The repo path a specifier in `from` names (`./x.js` may be `x.ts`; `@hadoku/deck/library` is what that package exports as `./library`), or null. */
 export function resolveImport(repo: Repo, from: string, spec: string): string | null {
   const pkg = /^@hadoku\/([\w-]+)(\/.+)?$/.exec(spec);
   if (pkg) {
     const dir = packageDir(repo, pkg[1]);
     const manifest = dir === null ? null : repo.read(`${dir}/package.json`);
-    const exported = manifest === null ? undefined : (JSON.parse(manifest) as { exports?: Record<string, string> }).exports?.[`.${pkg[2] ?? ''}`];
-    return typeof exported === 'string' ? normalize(join(dir!, exported)) : null;
+    const exported = manifest === null ? undefined : exportOf((JSON.parse(manifest) as { exports?: Record<string, string> }).exports, `.${pkg[2] ?? ''}`);
+    return exported === undefined ? null : normalize(join(dir!, exported));
   }
   if (!spec.startsWith('.')) return null;
   const base = normalize(join(dirname(from), spec));
@@ -1158,7 +1170,8 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       if (isSource(f)) jvmUsing(c);
       continue;
     }
-    if (/^apps\/server\//.test(f)) {
+    // The server's platform package is server code that lives in a package: the same rule.
+    if (/^(apps\/server|packages\/game-server)\//.test(f)) {
       if (!isSource(f) || c.status === 'removed') {
         everything(`${f}: ${c.status === 'removed' ? 'removed' : 'not TypeScript'} — outside the import graph`);
         continue;

@@ -42,11 +42,11 @@ import {
 	type RallyFormSummary,
 } from '@hadoku/shared';
 
-import type { EventRecord, Events, FormRecord } from '../room/events.js';
-import { callerOf, httpCaller, parseBody, perCallerLimit } from './request.js';
-import type { People, Person } from '../people.js';
+import type { EventRecord, Events, FormRecord } from '@hadoku/game-server/room/events';
+import { callerOf, httpCaller, parseBody, perCallerLimit } from '@hadoku/game-server/http/request';
+import type { People, Person } from '@hadoku/game-server/people';
 import { type Lobby, type RoomView } from '../room/lobby.js';
-import { UNNAMED } from '../room/constants.js';
+import { UNNAMED } from '@hadoku/game-server/room/constants';
 
 type RallyFetch = (input: string, init?: RequestInit) => Promise<globalThis.Response>;
 

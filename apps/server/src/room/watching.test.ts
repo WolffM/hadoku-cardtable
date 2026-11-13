@@ -18,10 +18,10 @@ import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { ROOM_FEED_CHANNEL, type RoomChanged } from '@wolffm/rooms-protocol';
 
-import { attachRoomFeed } from './watching.ts';
-import { deriveParticipantId } from './identity.ts';
+import { attachRoomFeed } from '@hadoku/game-server/room/watching';
+import { deriveParticipantId } from '@hadoku/game-server/room/identity';
 import { openLobby, type Lobby } from './lobby.ts';
-import { ROOM_STALE_MS } from './constants.ts';
+import { ROOM_STALE_MS } from '@hadoku/game-server/room/constants';
 
 interface Person {
 	key: string;

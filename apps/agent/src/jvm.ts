@@ -24,7 +24,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { bridgeDiagnostics } from '../../server/src/play/diagnostics.ts';
+import { bridgeDiagnostics } from '@hadoku/game-server/play/diagnostics';
 import { RECYCLE_HEAP_SHARE, runtimeOf, type ArtifactSet, type FromAgent, type JvmHealth, type LaunchSpec } from '@hadoku/host-wire';
 import type { Cgroups } from './cgroups.ts';
 

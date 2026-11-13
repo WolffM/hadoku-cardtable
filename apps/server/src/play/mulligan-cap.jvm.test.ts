@@ -16,7 +16,7 @@
 import { describe, expect, it } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount } from './host.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount } from '@hadoku/game-server/play/host';
 import { createMatchRegistry } from './match.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 

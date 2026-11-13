@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 import { DELTA_TYPE, boolOf, cardIdOfState, deltaKey, intOf } from '@hadoku/forge-wire';
 
-import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
+import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { type DeltaPacketJson, type StateFrame, type WireObj } from '../visibility.js';
 

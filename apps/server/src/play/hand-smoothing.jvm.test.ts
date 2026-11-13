@@ -33,7 +33,7 @@
 import { describe, expect, it } from 'vitest';
 import { ClientFrameSchema, deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount } from './host.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount } from '@hadoku/game-server/play/host';
 import { createMatchRegistry } from './match.js';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';

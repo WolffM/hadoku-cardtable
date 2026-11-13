@@ -7,7 +7,7 @@
  * customizations everywhere."* So a look rides beside `avatarId` on every wire
  * that carries a face, and every face and name draws it.
  *
- * The server resolves it from prefs-api (`apps/server/src/people.ts`), which
+ * The server resolves it from prefs-api (`packages/game-server/src/people.ts`), which
  * only ever serves what a person owns. This schema guards the shape so one bad
  * field costs that field, never the face or the list it sits in; the browser
  * runs `cleanWorn` from `@wolffm/prefs-client/cosmetics` before drawing, which

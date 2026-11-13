@@ -41,6 +41,9 @@ importers:
 
   apps/agent:
     dependencies:
+      '@hadoku/game-server':
+        specifier: workspace:*
+        version: link:../../packages/game-server
       '@hadoku/host-wire':
         specifier: workspace:*
         version: link:../../packages/host-wire
@@ -59,12 +62,12 @@ importers:
       '@hadoku/forge-wire':
         specifier: workspace:*
         version: link:../../games/magic/packages/forge-wire
+      '@hadoku/game-server':
+        specifier: workspace:*
+        version: link:../../packages/game-server
       '@hadoku/host-wire':
         specifier: workspace:*
         version: link:../../packages/host-wire
-      '@hadoku/platform-wire':
-        specifier: workspace:*
-        version: link:../../packages/platform-wire
       '@hadoku/service-kernel':
         specifier: workspace:*
         version: link:../../packages/service-kernel
@@ -160,6 +163,9 @@ importers:
         specifier: 4.5.4
         version: 4.5.4
     devDependencies:
+      '@hadoku/game-server':
+        specifier: workspace:*
+        version: link:../../packages/game-server
       '@testing-library/dom':
         specifier: 10.4.1
         version: 10.4.1
@@ -226,6 +232,43 @@ importers:
       zod:
         specifier: 4.5.4
         version: 4.5.4
+
+  packages/game-server:
+    dependencies:
+      '@hadoku/host-wire':
+        specifier: workspace:*
+        version: link:../host-wire
+      '@hadoku/platform-wire':
+        specifier: workspace:*
+        version: link:../platform-wire
+      '@hadoku/service-kernel':
+        specifier: workspace:*
+        version: link:../service-kernel
+      '@wolffm/prefs-client':
+        specifier: npm:@hadoku/prefs-client@1.1.27
+        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
+      '@wolffm/rooms-protocol':
+        specifier: npm:@hadoku/rooms-protocol@0.45.91
+        version: '@hadoku/rooms-protocol@0.45.91'
+      '@wolffm/rooms-server':
+        specifier: npm:@hadoku/rooms-server@0.45.91
+        version: '@hadoku/rooms-server@0.45.91(socket.io@4.8.3)'
+      express:
+        specifier: ^5.1.0
+        version: 5.2.1
+      socket.io:
+        specifier: ^4.8.3
+        version: 4.8.3
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      socket.io-client:
+        specifier: ^4.8.3
+        version: 4.8.3
 
   packages/host-wire: {}
 

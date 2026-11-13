@@ -1,0 +1,29 @@
+{
+  "name": "@hadoku/game-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The server parts any hosted game shares, above the kernel: the app config and edge auth, the room core (identity, seats, sessions, membership, the room list, the generic room routes), match hosting (the host contract, local and remote JVMs, placement, the start queue, recordings, the in-process and relay runtimes), streams, erase, telemetry and usage. Knows no game; Magic plugs in from apps/server. MIT; imports only node built-ins, express, socket.io, @wolffm/* and the platform packages.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hadoku/host-wire": "workspace:*",
+    "@hadoku/platform-wire": "workspace:*",
+    "@hadoku/service-kernel": "workspace:*",
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.27",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.91",
+    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.91",
+    "express": "^5.1.0",
+    "socket.io": "^4.8.3",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "socket.io-client": "^4.8.3"
+  }
+}

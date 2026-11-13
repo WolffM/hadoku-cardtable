@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
+import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
-import { COLD_STARTS, coldStartsFrom, queueColdStarts, type StartEvents } from './start-queue.js';
+import { COLD_STARTS, coldStartsFrom, queueColdStarts, type StartEvents } from '@hadoku/game-server/play/start-queue';
 
 const SPEC = { seats: [] } as unknown as MatchSpec;
 

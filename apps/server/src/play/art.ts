@@ -9,7 +9,7 @@
 import { parseDck } from '@hadoku/carddata/dck';
 
 import type { ArtIds } from './art-ids.js';
-import type { MatchSpec } from './host.js';
+import type { MatchSpec } from '@hadoku/game-server/play/host';
 
 /**
  * A scenario key that lists cards in a zone (`humanhand=`, `aibattlefield=`, …; `scenarios/README.md` has the

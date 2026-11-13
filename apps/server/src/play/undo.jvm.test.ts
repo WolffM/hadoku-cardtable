@@ -15,7 +15,7 @@ import type { ServerFrame } from '@hadoku/forge-wire';
 
 import { DEFAULT_STOP_POLICY, type StopPolicy } from './auto.js';
 import type { BridgeLine } from './bridge-protocol.js';
-import { RESTART_ASK_MS } from './match/shell.js';
+import { RESTART_ASK_MS } from '@hadoku/game-server/play/match/shell';
 import { available, deck, inOwnMain, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok ? 'undo, against real Forge' : `undo, against real Forge — SKIPPED: ${available.reason}`;

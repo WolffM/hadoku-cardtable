@@ -95,9 +95,8 @@ import {
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { fileURLToPath } from 'node:url';
 
-import { playWorkDir } from '../config.js';
+import { APP_ROOT, playWorkDir } from '../config.js';
 import { bridgeDiagnostics } from './diagnostics.js';
 import {
 	CRASH_MARKER,
@@ -218,14 +217,9 @@ export const JVM_HEAP_MB = 2048;
 
 export type JvmAvailability = { ok: true; config: JvmHostConfig } | { ok: false; reason: string };
 
-/**
- * `src/play/bridge/PlayBridge.java` from here under `tsx`, or from `dist/` in
- * the bundle, where `import.meta.url` is `dist/index.js`.
- */
+/** The server app's `src/play/bridge/PlayBridge.java`, from source or from the bundle (`APP_ROOT`). */
 export function defaultBridgeSource(): string {
-	const here = dirname(fileURLToPath(import.meta.url));
-	const candidates = [join(here, 'bridge', 'PlayBridge.java'), resolve(here, '..', 'src', 'play', 'bridge', 'PlayBridge.java')];
-	return candidates.find((p) => existsSync(p)) ?? (candidates[0] as string);
+	return join(APP_ROOT, 'src', 'play', 'bridge', 'PlayBridge.java');
 }
 
 /** Where compiled bridges are kept, shared by every tree on the host (keyed by `bridgeVersion`). */
@@ -525,7 +519,7 @@ export const FORGE_PREFERENCES: Readonly<Record<string, string>> = {
 
 function forgePreferencesFile(): string {
 	return [
-		'# Written per run directory by apps/server/src/play/host.ts. See FORGE_PREFERENCES.',
+		'# Written per run directory by packages/game-server/src/play/host.ts. See FORGE_PREFERENCES.',
 		...Object.entries(FORGE_PREFERENCES).map(([key, value]) => `${key}=${value}`),
 		'',
 	].join('\n');

@@ -26,7 +26,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
-import { jvmHostConfig, jvmHostFactory } from './host.js';
+import { jvmHostConfig, jvmHostFactory } from '@hadoku/game-server/play/host';
 import { deck, scenarioText } from './scenario.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -36,14 +36,14 @@ const title = available.ok
 	: `R4 over the real socket path, against real Forge — SKIPPED: ${available.reason}`;
 
 let socketMod: typeof import('./socket.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	socketMod = await import('./socket.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 });
 
 interface Harness {

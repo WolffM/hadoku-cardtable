@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { Person } from "../people.js";
+import type { Person } from "@hadoku/game-server/people";
 import {
   attachPreview,
   facesOf,

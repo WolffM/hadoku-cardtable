@@ -38,7 +38,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { DraftCard, DraftPlan } from '@hadoku/shared';
 import { deal, type RealisticPacks } from '@hadoku/draft';
 
-import { jvmHostConfig } from '../play/host.js';
+import { jvmHostConfig } from '@hadoku/game-server/play/host';
 import { createForgePools, type ForgePools } from '../pools/forge.js';
 import { loadCardCatalog } from '../pools/catalog.js';
 

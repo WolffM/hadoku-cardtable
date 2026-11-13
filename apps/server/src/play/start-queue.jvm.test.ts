@@ -25,7 +25,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount } from './host.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount } from '@hadoku/game-server/play/host';
 import { nightly } from './scenario.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -41,14 +41,14 @@ const title = !available.ok
 		: 'a burst of starts, against real Forge [nightly]';
 
 let socketMod: typeof import('./socket.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	socketMod = await import('./socket.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 });
 
 let closeServer: (() => Promise<void>) | null = null;

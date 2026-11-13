@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { DeckCosts } from '../deck-colors.js';
-import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
+import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { anonymousSpec, bridgeDigest, createRecorder, forgePin, SEATS_RECORD_MS, serverVersion } from './recorder.js';
 

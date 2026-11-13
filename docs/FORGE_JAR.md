@@ -1,7 +1,7 @@
 # The Forge jar — build, install, rebuild
 
 `POST /api/play/matches` needs a Forge build. The server reads two paths at boot
-(`apps/server/src/play/host.ts`, `jvmHostConfig`):
+(`packages/game-server/src/play/host.ts`, `jvmHostConfig`):
 
 | env var | value | set by |
 | --- | --- | --- |

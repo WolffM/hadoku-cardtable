@@ -34,10 +34,10 @@ import type { RateLimitConfig } from "@wolffm/rooms-server";
 import type { Request, Response, Router } from "express";
 import { ROOM_ID_RE, type RoomMember } from "@hadoku/shared";
 
-import type { People, Person } from "../people.js";
+import type { People, Person } from "@hadoku/game-server/people";
 import { POD_AI } from "../room/pods.js";
-import { UNNAMED } from "../room/constants.js";
-import { perCallerLimit } from "./request.js";
+import { UNNAMED } from "@hadoku/game-server/room/constants";
+import { perCallerLimit } from "@hadoku/game-server/http/request";
 
 export const PREVIEW_WIDTH = 1200;
 export const PREVIEW_HEIGHT = 630;

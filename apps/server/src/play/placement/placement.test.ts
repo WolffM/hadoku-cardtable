@@ -9,18 +9,18 @@ import { join } from 'node:path';
 
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
-import type { HostEvents, JvmHostConfig, MatchSpec } from '../host.js';
+import type { HostEvents, JvmHostConfig, MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
-import { PLAYED_OUT } from '../host.js';
-import type { JvmLauncher, JvmTransport } from '../jvm-transport.js';
+import { PLAYED_OUT } from '@hadoku/game-server/play/host';
+import type { JvmLauncher, JvmTransport } from '@hadoku/game-server/play/jvm-transport';
 import type { JvmHealth, ToAgent } from '@hadoku/host-wire';
-import { Alerts, type AlertSink } from './alerts.js';
-import { contractViolations } from './audit.js';
-import { CONTRACT, contractOf } from './contract.js';
-import { CONTRACT_HOLD_MS, NOTICE_SLACK_MS, placement, type AgentLink, type Placement, type Restorer } from './coordinator.js';
+import { Alerts, type AlertSink } from '@hadoku/game-server/play/placement/alerts';
+import { contractViolations } from '@hadoku/game-server/play/placement/audit';
+import { CONTRACT, contractOf } from '@hadoku/game-server/play/placement/contract';
+import { CONTRACT_HOLD_MS, NOTICE_SLACK_MS, placement, type AgentLink, type Placement, type Restorer } from '@hadoku/game-server/play/placement/coordinator';
 import { ClawDraftbots } from './draftbot.js';
-import type { FleetDemand, FleetNode, FleetSource, FleetStatus } from './fleet.js';
-import { BOOT_STATUS_MAX_AGE_S, CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, PRIMED_MAX_AGE_MS, STATUS_MAX_AGE_S, fleetCli, fleetCliPath, parseDemand, parseNodeStatus, primeFleet } from './fleet.js';
+import type { FleetDemand, FleetNode, FleetSource, FleetStatus } from '@hadoku/game-server/play/placement/fleet';
+import { BOOT_STATUS_MAX_AGE_S, CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, PRIMED_MAX_AGE_MS, STATUS_MAX_AGE_S, fleetCli, fleetCliPath, parseDemand, parseNodeStatus, primeFleet } from '@hadoku/game-server/play/placement/fleet';
 import {
 	BACKSTOP_IDLE,
 	DEMAND_CALM_MS,
@@ -36,7 +36,7 @@ import {
 	type ClawState,
 	type DemandClaw,
 	type DemandState,
-} from './rules.js';
+} from '@hadoku/game-server/play/placement/rules';
 
 const scratch = mkdtempSync(join(tmpdir(), 'cardtable-placement-test-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));

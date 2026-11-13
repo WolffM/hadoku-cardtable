@@ -13,10 +13,10 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { pushDraftbot, pushRuntime, type PackedRuntime } from '../../server/src/play/remote/artifacts.ts';
-import { AgentClient } from '../../server/src/play/remote/client.ts';
-import { RemoteJvmLauncher } from '../../server/src/play/remote/launcher.ts';
-import type { JvmTransport } from '../../server/src/play/jvm-transport.ts';
+import { pushDraftbot, pushRuntime, type PackedRuntime } from '@hadoku/game-server/play/remote/artifacts';
+import { AgentClient } from '@hadoku/game-server/play/remote/client';
+import { RemoteJvmLauncher } from '@hadoku/game-server/play/remote/launcher';
+import type { JvmTransport } from '@hadoku/game-server/play/jvm-transport';
 import { DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, RELAY_PROTOCOL, sha256Hex, signRequest, type DraftbotHealth } from '@hadoku/host-wire';
 import { Agent } from './agent.ts';
 import { DraftbotService } from './draftbot.ts';

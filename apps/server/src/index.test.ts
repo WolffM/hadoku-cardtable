@@ -31,7 +31,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ORIGIN_HEADER } from '@hadoku/service-kernel/http';
 import { io as ioClient, type Socket } from 'socket.io-client';
 import { SERVER_RESTARTING_EVENT } from '@hadoku/shared';
-import { testPort } from './testPort.ts';
+import { testPort } from '@hadoku/game-server/testPort';
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // The server runs under node itself with tsx as a loader, as pm2 runs it under node: tsx's CLI relays

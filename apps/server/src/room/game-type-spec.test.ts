@@ -26,7 +26,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { registerGameType, type GameTypeSpec } from '@hadoku/shared';
 import type { TablesLibrary } from '../http/library.ts';
 import { attachTables } from '../http/routes.ts';
-import { identityFromHeaders } from './identity.ts';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { openLobby, type Lobby } from './lobby.ts';
 
 /** This game's own bot marker — opaque to the registry, which never reads it; only this spec's own `bots.fill` and the test assign it meaning. */

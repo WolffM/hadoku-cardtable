@@ -44,7 +44,7 @@ import { fileURLToPath } from 'node:url';
 import { checkSeat, legalLibraryDecks, publicVerdict } from '../http/gate.ts';
 import type { TablesLibrary } from '../http/library.ts';
 import type { Lobby } from './lobby.ts';
-import type { Caller } from './caller.ts';
+import type { Caller } from '@hadoku/game-server/room/caller';
 import type { DraftPlan, PoolVerdict, RoomMode } from '@hadoku/shared';
 
 /**

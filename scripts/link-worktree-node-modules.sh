@@ -50,3 +50,18 @@ for name in "${!SRC_DIR[@]}"; do
     elif [ ! -e "$dst/$e" ]; then ln -s "$src/$e" "$dst/$e"; fi
   done
 done
+# What the source has not deployed yet: a package new in this worktree, or a dependency a package
+# gained here. Each missing dependency is linked by name: a workspace package at the worktree's own,
+# anything else wherever one of the source's packages has it.
+for name in "${!WT_DIR[@]}"; do
+  dst="$WT/${WT_DIR[$name]}/node_modules"
+  for dep in $(node -p "const j=require(process.argv[1]); Object.keys({...j.dependencies, ...j.devDependencies}).join(' ')" "$WT/${WT_DIR[$name]}/package.json"); do
+    [ -e "$dst/$dep" ] && continue
+    tgt=""
+    if [ -n "${WT_DIR[$dep]:-}" ]; then tgt="$WT/${WT_DIR[$dep]}"
+    else for d in "${SRC_DIR[@]}"; do [ -e "$MAIN/$d/node_modules/$dep" ] && { tgt=$(readlink -f "$MAIN/$d/node_modules/$dep"); break; }; done
+    fi
+    [ -n "$tgt" ] || { echo "link: no source for $dep (${WT_DIR[$name]})" >&2; continue; }
+    mkdir -p "$(dirname "$dst/$dep")"; ln -s "$tgt" "$dst/$dep"
+  done
+done

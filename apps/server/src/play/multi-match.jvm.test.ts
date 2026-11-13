@@ -32,7 +32,7 @@ import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { bridgeLaunch, jvmHostConfig, stageRunDir } from './host.js';
+import { bridgeLaunch, jvmHostConfig, stageRunDir } from '@hadoku/game-server/play/host';
 
 const available = jvmHostConfig();
 const title = available.ok

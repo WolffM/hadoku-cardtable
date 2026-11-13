@@ -85,7 +85,7 @@ export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsC
   const shellRef = useChromeShell('fit');
   // Tests inject a fixed `myId`; production reads the fleet's own identity —
   // the same `X-User-Id` the server's `importLink` stamped `importedBy` with
-  // (`apps/server/src/http/request.ts`'s `httpCaller`), never a room-scoped
+  // (`packages/game-server/src/http/request.ts`'s `httpCaller`), never a room-scoped
   // member id (Inventory sits outside any room).
   const who = useWhoami();
   const resolvedMyId = myId ?? (who !== null && who !== 'pending' ? who.userId : '');

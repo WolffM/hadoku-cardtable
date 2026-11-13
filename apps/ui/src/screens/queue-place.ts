@@ -1,7 +1,7 @@
 /**
  * My place in the server's queue for a Forge JVM, while a start I am waiting on waits its turn.
  *
- * The server boots a few match JVMs at a time and queues the rest (`apps/server/src/play/start-queue.ts`):
+ * The server boots a few match JVMs at a time and queues the rest (`packages/game-server/src/play/start-queue.ts`):
  * a burst of starts all booting together took ~50 s each. A start's `POST /api/play/matches` is only
  * answered once Forge is up, so while it is pending the page asks `GET /api/play/queue` for the
  * place of any start the caller is waiting on — their own, or a room start that seats them.

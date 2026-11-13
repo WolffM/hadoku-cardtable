@@ -14,7 +14,7 @@ name: CI
 # A push that changes only docs (`docs/**`, `.claude/**`, any `*.md`) runs
 # nothing: no code moved, so there is nothing to check or deploy, and two such
 # pushes held the one-deep queue for 28 minutes on 2026-10-23. `docs/releases/`
-# is the exception, because the server reads it (`apps/server/src/announce.ts`)
+# is the exception, because the server reads it (`packages/game-server/src/announce.ts`)
 # and its test reads the real files. `release.yml` accepts a sha whose only
 # changes since a green ancestor are docs, by the same rule.
 on:
@@ -73,7 +73,7 @@ jobs:
     # job used to pin `/tmp/cardtable-ci-tmp` because the fleet's warm claws ran
     # jobs under `/home/hadoku/.hadoku/warm/…`, a dot-segment path, and three
     # suites refuse a temp root with a dot-segment by design
-    # (`apps/server/src/base-path.test.ts:39`). Fleet-manager 0.27.18 now ships
+    # (`packages/game-server/src/base-path.test.ts:39`). Fleet-manager 0.27.18 now ships
     # every claw's own `~/.hadoku/runner.env` with a dot-free, on-disk
     # `TMPDIR=/home/hadoku/runner-tmp` (confirmed on claw-1/2/3/4/5/6/8/9; hokon
     # is a guest, not part of the rollout), and this repo's own proof

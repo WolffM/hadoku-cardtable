@@ -17,13 +17,13 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 import type { ServerEnvelope } from '@hadoku/shared';
 
-import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type MatchSpec } from '../host.js';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry } from '../match.js';
 import { WATCHER_SEAT } from '../match/forge-session.js';
 import { bridgeDigest, createRecorder, forgePin, serverVersion } from './recorder.js';
-import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
+import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '@hadoku/game-server/play/recording/retention';
 
 const available = jvmHostConfig();
 const title = available.ok

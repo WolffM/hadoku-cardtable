@@ -47,10 +47,10 @@ import { createChatHistoryStore, type RoomChatMessage } from '@wolffm/rooms-serv
 import { serveRoom, type AccountIdentity, type ServedRoom } from '@wolffm/rooms-server/room';
 import { ROOM_ID_RE } from '@hadoku/shared';
 
-import { rankOf } from '../edge-auth.js';
-import { applyPerson, type People } from '../people.js';
-import { handshakeTier } from './socket-auth.js';
-import { identityFromHeaders } from './identity.js';
+import { rankOf } from '@hadoku/game-server/edge-auth';
+import { applyPerson, type People } from '@hadoku/game-server/people';
+import { handshakeTier } from '@hadoku/game-server/room/socket-auth';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import type { Lobby } from './lobby.js';
 
 const APP_ID = 'cardtable';

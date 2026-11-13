@@ -20,20 +20,20 @@ const HOUR = 60 * 60_000;
 const DAY = 24 * HOUR;
 
 let eventsHttp: typeof import('./events.ts');
-let eventsStore: typeof import('../room/events.ts');
+let eventsStore: typeof import('@hadoku/game-server/room/events');
 let lobbyMod: typeof import('../room/lobby.ts');
-let constantsMod: typeof import('../room/constants.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let constantsMod: typeof import('@hadoku/game-server/room/constants');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	eventsHttp = await import('./events.ts');
-	eventsStore = await import('../room/events.ts');
+	eventsStore = await import('@hadoku/game-server/room/events');
 	lobbyMod = await import('../room/lobby.ts');
-	constantsMod = await import('../room/constants.ts');
-	edgeMod = await import('../edge-auth.ts');
+	constantsMod = await import('@hadoku/game-server/room/constants');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 });
 
 const dirs: string[] = [];

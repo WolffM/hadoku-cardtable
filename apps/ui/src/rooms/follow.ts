@@ -1,7 +1,7 @@
 /*
  * Following a room, or the room list, without polling it.
  *
- * The server says when a room changed (`apps/server/src/room/watching.ts`) and a screen reads it
+ * The server says when a room changed (`packages/game-server/src/room/watching.ts`) and a screen reads it
  * then. The pings come from the rooms core's feed client (`@wolffm/rooms-client`'s
  * `createFeedPings`): one socket per page, shared by every follower, opened by the first and
  * closed once the commit that let go of the last is over (`e2e/embed.spec.ts` counts them), and a

@@ -1,5 +1,5 @@
 /** The deck library, and whether this server has a Forge build at all. */
-import { CONFIG } from '../config.js';
+import { CONFIG } from '@hadoku/game-server/config';
 import { loadTablesLibrary } from '../http/index.js';
 import { jvmHostConfig } from '../play/index.js';
 import type { CardtablePlugin } from './state.js';

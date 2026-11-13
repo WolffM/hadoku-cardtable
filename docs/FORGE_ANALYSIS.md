@@ -614,7 +614,7 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
   (`:1587-1593`). A spare does the same before its `start` line (`:1392-1395`).
   So a detached JVM reached over an inherited read-only pipe would end the match
   the moment the server let go. Both ends open the named pipes `O_RDWR`
-  (`apps/server/src/play/host.ts`, `openJvmIo`), which on Linux succeeds with no
+  (`packages/game-server/src/play/host.ts`, `openJvmIo`), which on Linux succeeds with no
   peer and means neither side ever reads EOF, because each is its own last
   writer.
 - **VERIFIED (W22 lane E, measured; not re-run here)** — **`fs.createReadStream`
@@ -624,7 +624,7 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
   waiting on a quiet Forge. Lane E's first version deadlocked `host.test.ts` into
   ~130 s of timeouts, 12 of 14 failing, and could not even `process.exit()`; with
   `net.Socket` the same suite ran in 888 ms, 14/14. The comment is on
-  `openJvmIo` in `apps/server/src/play/host.ts`. **This lane did not re-run
+  `openJvmIo` in `packages/game-server/src/play/host.ts`. **This lane did not re-run
   either measurement** (lane Q owns no code and no suite); the numbers are lane
   E's, the mechanism is checked in the source.
 

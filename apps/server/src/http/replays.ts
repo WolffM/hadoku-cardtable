@@ -28,13 +28,13 @@ import { createGunzip } from 'node:zlib';
 import type { Request, Response, Router } from 'express';
 import { Router as makeRouter } from 'express';
 
-import { isAdmin } from '../edge-auth.js';
-import { httpCaller } from './request.js';
+import { isAdmin } from '@hadoku/game-server/edge-auth';
+import { httpCaller } from '@hadoku/game-server/http/request';
 import type { JsonLog } from '@hadoku/service-kernel/log';
-import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
-import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine, type PublicRelayLine } from '../play/recording/writer.js';
+import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '@hadoku/game-server/play/recording/retention';
+import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine, type PublicRelayLine } from '@hadoku/game-server/play/recording/writer';
 import { REPLAY_BODY_VERSION, type PersonFace } from '@hadoku/shared';
-import { faceOfPerson, type People, type Person } from '../people.js';
+import { faceOfPerson, type People, type Person } from '@hadoku/game-server/people';
 import type { ArtIds } from '../play/art-ids.js';
 import { restampWatcherFrame, type StateFrame, type WireObj } from '../play/visibility.js';
 

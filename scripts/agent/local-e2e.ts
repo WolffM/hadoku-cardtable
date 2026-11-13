@@ -30,13 +30,13 @@ import { mkdirSync, openSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { jvmHostConfig } from '../../apps/server/src/play/host.js';
-import type { JvmTransport } from '../../apps/server/src/play/jvm-transport.js';
-import { Alerts } from '../../apps/server/src/play/placement/alerts.js';
+import { jvmHostConfig } from '../../packages/game-server/src/play/host.js';
+import type { JvmTransport } from '../../packages/game-server/src/play/jvm-transport.js';
+import { Alerts } from '../../packages/game-server/src/play/placement/alerts.js';
 import { ClawDraftbots, type DraftbotClaw } from '../../apps/server/src/play/placement/draftbot.js';
-import { DRAFTBOT_PIN, packDraftbot, pushDraftbot } from '../../apps/server/src/play/remote/artifacts.js';
-import { AgentClient } from '../../apps/server/src/play/remote/client.js';
-import { AGENT_KEY_ENV, connectRemoteHost, type RemoteHost } from '../../apps/server/src/play/remote/index.js';
+import { DRAFTBOT_PIN, packDraftbot, pushDraftbot } from '../../packages/game-server/src/play/remote/artifacts.js';
+import { AgentClient } from '../../packages/game-server/src/play/remote/client.js';
+import { AGENT_KEY_ENV, connectRemoteHost, type RemoteHost } from '../../packages/game-server/src/play/remote/index.js';
 import { privateKeyFrom } from '../../packages/host-wire/src/wire.ts';
 
 const dir = process.env.AGENT_DIR ?? '';

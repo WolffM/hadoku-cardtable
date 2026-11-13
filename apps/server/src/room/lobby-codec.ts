@@ -36,7 +36,7 @@ import {
 } from '@hadoku/shared';
 import type { PodStructure } from '@hadoku/draft';
 import { isGauntletState, type GauntletState } from './gauntlet.ts';
-import type { TableSeats } from './seats.ts';
+import type { TableSeats } from '@hadoku/game-server/room/seats';
 import { newSeries, statsModeOf, type SeriesGame, type SeriesRecord, type SeriesRoom } from './series.ts';
 import { DEFAULT_PLAN } from './draftRooms.ts';
 import {
@@ -50,7 +50,7 @@ import {
 	type PodRecord,
 	type PodSplit,
 } from './pods.ts';
-import type { Secret } from './provisioning.ts';
+import type { Secret } from '@hadoku/game-server/room/provisioning';
 import type { FormatId } from './lobby.ts';
 
 /** Every setting has a default, so a room stored before a setting existed reads back on it without a migration. */

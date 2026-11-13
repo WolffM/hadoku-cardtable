@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import type { ArtManifestFile } from '@hadoku/carddata/art';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { DraftPlan, PoolVerdict } from '@hadoku/shared';
-import { CONFIG } from '../config.js';
+import { CONFIG } from '@hadoku/game-server/config';
 import artManifest from '../play/art-manifest.json' with { type: 'json' };
 import { loadArtKeys } from '../pools/art-keys.js';
 import { loadCardCatalog } from '../pools/catalog.js';

@@ -179,16 +179,16 @@ import { clockOn, FREE_PICK, GAME_CLOCK_MS, gameTypeSpec, RandomOptionsSchema, s
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, botPoolAt, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
-import { httpCaller } from './request.js';
-import { prepareJson, sendPrepared, type PreparedJson } from './prepared.js';
-import { isAdmin } from '../edge-auth.js';
+import { httpCaller } from '@hadoku/game-server/http/request';
+import { prepareJson, sendPrepared, type PreparedJson } from '@hadoku/game-server/http/prepared';
+import { isAdmin } from '@hadoku/game-server/edge-auth';
 import { draftIdOfPool, draftPoolId, type Lobby } from '../room/lobby.js';
 import { aiEntrantSeat, isAiEntrant, SEATS_SHUT, type BotDeckSource, type GameHooks } from '../room/pods.js';
 import type { BotGameInput, BotGameOutcome } from '../play/botgames.js';
 import { roundNamesOf } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
 import { statsModeOf } from '../room/series.js';
-import type { MatchSpec } from '../play/host.js';
+import type { MatchSpec } from '@hadoku/game-server/play/host';
 import type { GameOutcome } from '../play/match.js';
 import { AI_SEAT_OWNER } from '../play/match/forge-session.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
@@ -210,7 +210,7 @@ import {
 import { attachGauntlet, type GauntletHandle } from './gauntlet.js';
 import { deckLines, type TablesLibrary } from './library.js';
 import type { GauntletState } from '../room/gauntlet.js';
-import { jsonLogger } from '../log.js';
+import { jsonLogger } from '@hadoku/game-server/log';
 
 export type TablesLog = (entry: Record<string, unknown>) => void;
 

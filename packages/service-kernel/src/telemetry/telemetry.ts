@@ -3,7 +3,7 @@
  * platform half. Knows no game: the service id, the deployment site and the refusal surface are
  * all parameters, so an app that posts under `service: 'cardtable'` and one that posts under a
  * second game's id read apart in the same monitoring store. See the app's own adapter (this
- * wave's `apps/server/src/telemetry.ts`) for the one place those values get bound.
+ * wave's `packages/game-server/src/telemetry.ts`) for the one place those values get bound.
  *
  * Everything here is fire-and-forget. A post that fails is logged on stdout (pm2 keeps it), never
  * retried, and never delays the request that caused it. One event per (name, caller, incident

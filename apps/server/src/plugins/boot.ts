@@ -5,9 +5,9 @@
 import { mkdirSync } from 'node:fs';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { moveLegacyState } from '@hadoku/service-kernel/state';
-import { CONFIG, LEGACY_STATE } from '../config.js';
-import { fleetCli, primeFleet } from '../play/placement/index.js';
-import { reportingAlerts } from '../telemetry.js';
+import { CONFIG, LEGACY_STATE } from '@hadoku/game-server/config';
+import { fleetCli, primeFleet } from '@hadoku/game-server/play/placement/index';
+import { reportingAlerts } from '@hadoku/game-server/telemetry';
 import type { CardtablePlugin } from './state.js';
 
 export const stateDirPlugin: CardtablePlugin = {

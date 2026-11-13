@@ -27,7 +27,7 @@ existing exact-sha behaviour applies to both. **cardtable will not flip its auto
   | Var | Value | Why |
   | --- | --- | --- |
   | `CARDTABLE_PORT` | `9009` | |
-  | `CARDTABLE_BASE_PREFIX` | `/cardtable-ppe` | the server's prefix arithmetic (`apps/server/src/config.ts:42`) |
+  | `CARDTABLE_BASE_PREFIX` | `/cardtable-ppe` | the server's prefix arithmetic (`packages/game-server/src/config.ts:42`) |
   | `CARDTABLE_PLAY_WORK_DIR` | `~/.cache/cardtable-ppe/play` | **required.** The play pool boot-sweeps its work dir; sharing prod's `/tmp/cardtable-play` would kill prod's live matches on every PPE restart |
   | `CARDTABLE_STREAM_PORT` / `CARDTABLE_ROOM_STREAM_PORT` | `6280` / `6300` | prod uses 6080+ / 6100+ |
   | `CARDTABLE_STREAM_NAME_PREFIX` | `cardtable-ppe-room` | docker container names must not collide with prod's |

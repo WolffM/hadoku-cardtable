@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { writeFileSync } from 'node:fs';
 import express from 'express';
-import { identityFromHeaders } from '../room/identity.ts';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DELTA_TYPE, deltaKeyType } from '@hadoku/forge-wire';
 import { REPLAY_BODY_VERSION } from '@hadoku/shared';
@@ -21,14 +21,14 @@ import { createProjector, EVERY_PLAYER, type StateFrame } from '../play/visibili
 const EDGE_SECRET = 'test-edge-auth-secret';
 
 let replaysMod: typeof import('./replays.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	replaysMod = await import('./replays.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 });
 
 const dirs: string[] = [];

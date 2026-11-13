@@ -175,7 +175,7 @@ export interface RoomStreams {
  * Where `scripts/stream/container.sh` is, found by walking up from this file.
  *
  * It cannot be a fixed relative path: in tests this module is
- * `apps/server/src/stream/alloc.ts`, and in production it is bundled into
+ * `packages/game-server/src/stream/alloc.ts`, and in production it is bundled into
  * `apps/server/dist/index.js`. Walking until the script is actually there is
  * the one form that is right in both.
  */

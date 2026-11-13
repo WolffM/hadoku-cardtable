@@ -6,10 +6,10 @@ them.
 **`hosting.json` (repo root) is the machine-readable half.** fleet-manager registers it as our
 request (`fleet hosting-request WolffM/hadoku-cardtable --register`; a change to the file needs a
 fresh registration). cardtable's placement reads its host order and slice limits from the same
-file (`apps/server/src/play/placement/contract.ts`), so the two can't disagree. A copy in
+file (`packages/game-server/src/play/placement/contract.ts`), so the two can't disagree. A copy in
 `rules.ts` did, and held CI red for 12 h on 2026-11-04. This page says what each field promises.
 
-**Checked continuously.** Every fleet poll, `apps/server/src/play/placement/audit.ts` reads
+**Checked continuously.** Every fleet poll, `packages/game-server/src/play/placement/audit.ts` reads
 fleet-manager's own reports (`node-status`, and `hosting-demand`'s last converger pass) against
 this contract. A violation that holds for 5 min posts one ⚠️ **Hosting contract** alert
 (`contract:<key>`), citing the section; it resolves when the contract is kept again. To check by

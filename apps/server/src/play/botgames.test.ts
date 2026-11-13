@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { BOT_GAME_S, botGameSpec, runBotGame, type BotGameInput } from './botgames.ts';
-import type { HostEvents, MatchHostFactory, MatchSpec } from './host.ts';
+import type { HostEvents, MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.ts';
 
 const INPUT: BotGameInput = { names: ['Knight', 'Wizard'], decks: ['[main]\n40 Island', '[main]\n40 Swamp'], bestOf: 3 };

@@ -33,7 +33,7 @@ A match was live (created 21:04:49, joined 21:05:00). A push redeployed cardtabl
 ```
 
 Cardtable's server did its part: Wave 22 built a hand-over (detached JVM, named
-pipes, stream replay, `orphans()` at boot; `apps/server/src/play/host.ts:120-200`).
+pipes, stream replay, `orphans()` at boot; `packages/game-server/src/play/host.ts:120-200`).
 Eight seconds later the new process found **no live JVM**: pid 1930104 was gone
 and its run directory was swept as dead.
 

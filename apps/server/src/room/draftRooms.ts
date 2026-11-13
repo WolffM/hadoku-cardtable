@@ -186,9 +186,9 @@ import {
 	type RoomSnapshot,
 } from '@wolffm/rooms-server/store';
 
-import { participantHandle } from './identity.js';
+import { participantHandle } from '@hadoku/game-server/room/identity';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { replaceIds } from '../erase/anonymise.js';
+import { replaceIds } from '@hadoku/game-server/erase/anonymise';
 
 /** The hosting app's room state: one draft. */
 export interface DraftApp {

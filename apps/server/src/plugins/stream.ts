@@ -4,10 +4,10 @@
  * names containers; stream/index.ts has the gate and the interim limits.
  */
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { CONFIG } from '../config.js';
-import { attachStream, attachStreamRoutes, streamLayout } from '../stream/index.js';
-import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from '../stream/alloc.js';
-import { streamedContainerEnv, streamedEngineConfig, streamedHost } from '../play/runtimes/streamed.js';
+import { CONFIG } from '@hadoku/game-server/config';
+import { attachStream, attachStreamRoutes, streamLayout } from '@hadoku/game-server/stream/index';
+import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from '@hadoku/game-server/stream/alloc';
+import { streamedContainerEnv, streamedEngineConfig, streamedHost } from '@hadoku/game-server/play/runtimes/streamed';
 import type { CardtablePlugin } from './state.js';
 
 /** How often the room streams are reclaimed: far finer than the 30-minute idle window it enforces, and one `docker ps`. */

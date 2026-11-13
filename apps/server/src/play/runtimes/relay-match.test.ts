@@ -9,7 +9,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { registerGameType, type GameTypeSpec } from '@hadoku/shared';
 
 import { openLobby } from '../../room/lobby.ts';
-import { createRelayMatch, createRelayMatchRegistry, relayMatches, type RelayMatchDeps } from './relay-match.ts';
+import { createRelayMatch, createRelayMatchRegistry, relayMatches, type RelayMatchDeps } from '@hadoku/game-server/play/runtimes/relay-match';
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa';
 const BOB = 'fk:bbbbbbbbbbbbbbbb';

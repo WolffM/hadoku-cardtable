@@ -26,7 +26,7 @@ import type { NextFunction, Request, Response } from 'express';
 
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 
-import { identityFromHeaders } from '../room/identity.js';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 
 export interface KeyBook {
 	/** Remember the key on these SANITIZED headers, if the edge stamped one. */

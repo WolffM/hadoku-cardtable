@@ -13,8 +13,8 @@ export {
 	type JvmHostFactory,
 	type JvmPoolOptions,
 	type MatchHostFactory,
-} from './host.js';
-export { coldStartsFrom } from './start-queue.js';
+} from '@hadoku/game-server/play/host';
+export { coldStartsFrom } from '@hadoku/game-server/play/start-queue';
 export { roomFormatNames } from './names.js';
 export { roomDeckCosts } from './deck-colors.js';
 export { tableGame } from './table-game.js';

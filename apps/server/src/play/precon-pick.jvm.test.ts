@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { bridgeLaunch, jvmHostConfig } from './host.js';
+import { bridgeLaunch, jvmHostConfig } from '@hadoku/game-server/play/host';
 
 const available = jvmHostConfig();
 const title = available.ok

@@ -39,7 +39,7 @@ import { expect } from 'vitest';
 import { isTierC, safeParseClientFrame, type ClientFrame, type ServerFrame } from '@hadoku/forge-wire';
 import { ARRANGEMENT_EVENT, CLIENT_EVENT, OFFERED_EVENT, PLACED_EVENT, PRESENCE_EVENT } from '@hadoku/shared';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type MatchSpec } from '../../../../server/src/play/host.ts';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../../../../server/src/play/bridge-protocol.ts';
 import { withEndStepStop } from '../../../../server/src/play/auto.ts';
 import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';

@@ -61,7 +61,7 @@ describe('relayPlugin', () => {
 	});
 
 	it("rosterOf reads runtimes/relay-match.ts's own registry: a registered match answers a join, an unregistered id refuses it", async () => {
-		const { relayMatches } = await import('../play/runtimes/relay-match.ts');
+		const { relayMatches } = await import('@hadoku/game-server/play/runtimes/relay-match');
 		const match = relayMatches.register('m-plugin-test', 2, { log: () => {}, roomSeatOf: () => null, leaderSeat: () => null });
 		const ctx = fakeCtx();
 		await relayPlugin.setup(ctx);
@@ -69,7 +69,7 @@ describe('relayPlugin', () => {
 	});
 
 	it("a relay room's match gets its game type's own seat rejoin grace: bomberman's seat hold reaches the match", async () => {
-		const { relayMatches } = await import('../play/runtimes/relay-match.ts');
+		const { relayMatches } = await import('@hadoku/game-server/play/runtimes/relay-match');
 		const { BOMBERMAN_GAME_TYPE_SPEC, registerGameType } = await import('@hadoku/shared');
 		registerGameType(BOMBERMAN_GAME_TYPE_SPEC);
 		const ctx = fakeCtx();
@@ -89,7 +89,7 @@ describe('relayPlugin', () => {
 	});
 
 	it("a relay room's match ends only on the over of the seat the room's leader holds", async () => {
-		const { relayMatches } = await import('../play/runtimes/relay-match.ts');
+		const { relayMatches } = await import('@hadoku/game-server/play/runtimes/relay-match');
 		const ctx = fakeCtx();
 		const leader = 'fk:llllllllllllllll';
 		Object.assign(ctx.state.lobby, {

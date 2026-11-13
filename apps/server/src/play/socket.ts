@@ -118,27 +118,27 @@ import {
 import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { parseDck } from '@hadoku/carddata/dck';
 
-import { CONFIG } from '../config.js';
-import { gateSocketIo } from '../gate.js';
-import { identityFromHeaders, participantHandle } from '../room/identity.js';
+import { CONFIG } from '@hadoku/game-server/config';
+import { gateSocketIo } from '@hadoku/game-server/gate';
+import { identityFromHeaders, participantHandle } from '@hadoku/game-server/room/identity';
 import type { KeyBook } from '../stats/keys.js';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { artOf } from './art.js';
 import type { ArtCatalog } from './art-ids.js';
 import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
-import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
-import { COLD_STARTS, queueColdStarts } from './start-queue.js';
+import { COLD_STARTS, queueColdStarts } from '@hadoku/game-server/play/start-queue';
 import { WATCHER_SEAT } from './match/forge-session.js';
 import { createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity, type SeatSpecWithIdentity } from './match.js';
 import type { EndedMatch, ResumeFrom } from './match/registry.js';
 import type { SpellCopy } from './spell-copiers.js';
-import { malformedFacts } from '../http/client-events.js';
-import { costlyActLimit, httpCaller, perCallerLimit, readBody } from '../http/request.js';
+import { malformedFacts } from '@hadoku/game-server/http/client-events';
+import { costlyActLimit, httpCaller, perCallerLimit, readBody } from '@hadoku/game-server/http/request';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { callerContext, report } from '../telemetry.js';
-import type { SessionHandle } from '../room/session.js';
+import { callerContext, report } from '@hadoku/game-server/telemetry';
+import type { SessionHandle } from '@hadoku/game-server/room/session';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
 

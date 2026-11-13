@@ -4,7 +4,7 @@
  * The operator, 2026-11-07: a player opening a game they already have open elsewhere is asked, in the
  * middle of the screen with the rest of the site greyed out, whether to take over here; yes ends the
  * other session. The rule and the wire are the shared room layer's (`@wolffm/rooms-protocol`'s
- * `session.ts`); the server's half is `apps/server/src/room/session.ts`. This is the screen's half:
+ * `session.ts`); the server's half is `packages/game-server/src/room/session.ts`. This is the screen's half:
  *
  *   - one socket per room screen, opened when the screen has a room, which sends `session:claim`
  *     with this tab's settled id (`./tab-id.ts`) on every connect;

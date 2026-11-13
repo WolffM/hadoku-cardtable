@@ -1,7 +1,7 @@
 /**
  * Placement, failover and the restart grace end to end on one box, against the real Forge jar:
  * two host agents (the `deploy.sh build` bundle under node 22, no cgroups) standing in for two
- * claws, and the coordinator's placement (`apps/server/src/play/placement/`) in a child process of
+ * claws, and the coordinator's placement (`packages/game-server/src/play/placement/`) in a child process of
  * its own, so it can be SIGTERMed and replaced the way pm2 restarts it.
  *
  *   AGENT_DIR=<scratch> CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=<scratch>/play \
@@ -23,11 +23,11 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 
-import { jvmHostConfig, type BridgeLine, type HostEvents, type MatchHost, type MatchSpec } from '../../apps/server/src/play/host.js';
-import { Alerts, discordSink } from '../../apps/server/src/play/placement/alerts.js';
-import { placement, type Placement } from '../../apps/server/src/play/placement/coordinator.js';
-import type { FleetNode } from '../../apps/server/src/play/placement/fleet.js';
-import { AGENT_KEY_ENV, connectRemoteHost } from '../../apps/server/src/play/remote/index.js';
+import { jvmHostConfig, type BridgeLine, type HostEvents, type MatchHost, type MatchSpec } from '../../packages/game-server/src/play/host.js';
+import { Alerts, discordSink } from '../../packages/game-server/src/play/placement/alerts.js';
+import { placement, type Placement } from '../../packages/game-server/src/play/placement/coordinator.js';
+import type { FleetNode } from '../../packages/game-server/src/play/placement/fleet.js';
+import { AGENT_KEY_ENV, connectRemoteHost } from '../../packages/game-server/src/play/remote/index.js';
 
 const dir = process.env.AGENT_DIR ?? '';
 if (dir === '') throw new Error('AGENT_DIR is not set');

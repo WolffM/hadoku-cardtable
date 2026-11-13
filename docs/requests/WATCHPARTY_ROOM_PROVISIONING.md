@@ -10,10 +10,10 @@ room server has two pieces of room provisioning that `@wolffm/rooms-server` and 
 and their tables. Watchparty has no password rooms today, so nothing on your side carries either.
 
 Cardtable moved both out of its lobby into one generic file on 2026-11-10:
-`apps/server/src/room/provisioning.ts` (MIT `platform` layer, 58 lines, no Magic content, no lobby state). It is
+`packages/game-server/src/room/provisioning.ts` (MIT `platform` layer, 58 lines, no Magic content, no lobby state). It is
 ready to be the package's code as it stands.
 
-## What cardtable has (`apps/server/src/room/provisioning.ts`)
+## What cardtable has (`packages/game-server/src/room/provisioning.ts`)
 
 ```ts
 export interface Secret {
@@ -56,7 +56,7 @@ How cardtable uses them, for the shape of the API:
 
 ## What cardtable deletes once it ships
 
-- `apps/server/src/room/provisioning.ts`, the whole file (58 lines), and its row in
+- `packages/game-server/src/room/provisioning.ts`, the whole file (58 lines), and its row in
   `scripts/layers/layers.json`;
 - the local `Secret` type import in `apps/server/src/room/lobby.ts` and `apps/server/src/room/lobby-codec.ts`,
   which then import it from `@wolffm/rooms-server`;

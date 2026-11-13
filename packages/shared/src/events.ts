@@ -1,5 +1,5 @@
 /* Events, Magic's part (the frame and Rally forms are `@hadoku/platform-wire/events`): the tournament
- * room an event plays, as Create event sets it up and the calendar reads it (`apps/server/src/room/events.ts`). */
+ * room an event plays, as Create event sets it up and the calendar reads it (`packages/game-server/src/room/events.ts`). */
 
 import { eventListSchema, eventTitleSchema, eventViewSchema, rallyCreateUrl as rallyCreateUrlFor, RallyFormIdSchema, StartsAtSchema, strictBody, updateEventBodySchema } from '@hadoku/platform-wire/events';
 import { z } from 'zod';

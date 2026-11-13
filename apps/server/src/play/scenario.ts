@@ -18,8 +18,8 @@ import { fileURLToPath } from 'node:url';
 import { ClientFrameSchema, coreTypes, currentFace, deltaKey, DELTA_TYPE, idsOf, strOf, type ServerFrame } from '@hadoku/forge-wire';
 import { afterEach } from 'vitest';
 
-import { playWorkDir } from '../config.js';
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type JvmHostConfig, type MatchHost } from './host.js';
+import { playWorkDir } from '@hadoku/game-server/config';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type JvmHostConfig, type MatchHost } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import { createMatchRegistry, type Match } from './match.js';

@@ -7,16 +7,21 @@
 
 import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
-// dist/config.js → package root (one dir up from dist/). Lets webDir resolve
-// regardless of the process's working directory — PM2 starts us from the repo
-// root, `pnpm start` from the package dir, and the two must agree.
-const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * The server app's own directory (`apps/server`), whatever the process's working directory — PM2
+ * starts us from the repo root, `pnpm start` from the package dir, and the two must agree. Bundled,
+ * this module is part of `apps/server/dist/*.js`, so it is `dist/`'s parent; run as source (tests,
+ * tsx) it is `packages/game-server/src/`, and the app it configures is `apps/server` beside it.
+ */
+export const APP_ROOT = basename(HERE) === 'dist' ? dirname(HERE) : resolve(HERE, '../../../apps/server');
 
 /** Resolve a configured path against the package root unless it is absolute. */
 const resolveDir = (value: string): string =>
-	isAbsolute(value) ? value : resolve(PKG_ROOT, value);
+	isAbsolute(value) ? value : resolve(APP_ROOT, value);
 
 /**
  * Where the server keeps what it writes (`CARDTABLE_STATE_DIR`): rooms, drafts,
@@ -31,7 +36,7 @@ const LOG_DIR = resolveDir(process.env.CARDTABLE_LOG_DIR || (STATE_DIR ? join(ST
 const DATA_DIR = STATE_DIR || resolve(LOG_DIR, '../data');
 
 /** The in-clone paths a state dir replaces, for the boot move (`state-dir.ts`). */
-export const LEGACY_STATE = { dataDir: resolve(PKG_ROOT, 'data'), logDir: resolve(PKG_ROOT, 'logs') } as const;
+export const LEGACY_STATE = { dataDir: resolve(APP_ROOT, 'data'), logDir: resolve(APP_ROOT, 'logs') } as const;
 
 export const CONFIG = {
 	/** Port this server listens on. cloudflared points the tunnel hostname here. */

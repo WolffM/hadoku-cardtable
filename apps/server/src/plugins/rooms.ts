@@ -7,9 +7,9 @@
  * whose readiness gate is a lobby read.
  */
 import { podPickNumber } from '@hadoku/draft';
-import { CONFIG } from '../config.js';
+import { CONFIG } from '@hadoku/game-server/config';
 import { restoreRooms } from '../boot.js';
-import { busyReport } from '../busy.js';
+import { busyReport } from '@hadoku/game-server/busy';
 import { endForfeitedGame } from '../http/table-actions.js';
 import { DEFAULT_PLAN, stateOf, type PoolSourceResolver, type DraftRooms } from '../room/draftRooms.js';
 import { emitDraftUpdate, draftEmitPolicy } from '../room/emit.js';

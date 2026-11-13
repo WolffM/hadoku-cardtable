@@ -41,7 +41,7 @@ import { parseArgs } from 'node:util';
 
 import type { PodMatchResult, PodStandingsRow, Tournament } from '@hadoku/shared';
 
-import { createPeople } from '../people.js';
+import { createPeople } from '@hadoku/game-server/people';
 import { readTournaments, withStandings, writeTournaments } from '../room/tournaments.js';
 
 const SITES = { prod: 'cardtable', ppe: 'cardtable-ppe' } as const;

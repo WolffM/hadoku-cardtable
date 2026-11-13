@@ -4,9 +4,9 @@
  * that say which features are up.
  */
 import { resolve } from 'node:path';
-import { announceRelease } from '../announce.js';
+import { announceRelease } from '@hadoku/game-server/announce';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { CONFIG } from '../config.js';
+import { CONFIG } from '@hadoku/game-server/config';
 import type { CardtablePlugin } from './state.js';
 
 export const listenPlugin: CardtablePlugin = {

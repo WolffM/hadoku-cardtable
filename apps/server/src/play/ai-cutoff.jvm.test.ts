@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type AiCutoff, type HostEvents, type JvmHostFactory, type MatchHost, type MatchSpec } from './host.js';
+import { jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type AiCutoff, type HostEvents, type JvmHostFactory, type MatchHost, type MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { available, deck, scenarioText, waitUntil } from './scenario.js';
 

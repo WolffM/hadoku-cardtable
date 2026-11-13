@@ -22,9 +22,9 @@
  * (`host.ts`'s own doc on that field).
  */
 import { gameTypeSpec, registerGameType } from '@hadoku/shared';
-import { CONFIG } from '../config.js';
-import { attachRelay } from '../play/relay-socket.js';
-import { relayMatches } from '../play/runtimes/relay-match.js';
+import { CONFIG } from '@hadoku/game-server/config';
+import { attachRelay } from '@hadoku/game-server/play/relay-socket';
+import { relayMatches } from '@hadoku/game-server/play/runtimes/relay-match';
 import type { CardtablePlugin } from './state.js';
 
 /** The e2e fixture's own game type — see this file's own header. Exported only for its test. */

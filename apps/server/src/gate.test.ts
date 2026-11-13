@@ -36,23 +36,23 @@ const EDGE_SECRET = 'test-edge-auth-secret-gate';
  * `room/socket.test.ts`'s own header for why the modules under test are
  * imported dynamically, after the environment is set.
  */
-let edgeMod: typeof import('./edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 let roomSocketMod: typeof import('./room/socket.ts');
 let playSocketMod: typeof import('./play/socket.ts');
-let streamMod: typeof import('./stream/index.ts');
+let streamMod: typeof import('@hadoku/game-server/stream/index');
 let lobbyMod: typeof import('./room/lobby.ts');
-let telemetryMod: typeof import('./telemetry.ts');
+let telemetryMod: typeof import('@hadoku/game-server/telemetry');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
-	edgeMod = await import('./edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 	roomSocketMod = await import('./room/socket.ts');
 	playSocketMod = await import('./play/socket.ts');
-	streamMod = await import('./stream/index.ts');
+	streamMod = await import('@hadoku/game-server/stream/index');
 	lobbyMod = await import('./room/lobby.ts');
-	telemetryMod = await import('./telemetry.ts');
+	telemetryMod = await import('@hadoku/game-server/telemetry');
 });
 
 /** Every `report()` call since the last reset. */

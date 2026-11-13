@@ -59,7 +59,7 @@ import {
 	type StopPolicy,
 	type StopWindow,
 } from '../auto.js';
-import { CONFIG } from '../../config.js';
+import { CONFIG } from '@hadoku/game-server/config';
 import { answerPending, arrangeAsk, digAnswer, digAsk, exileOrder, pendingOrders, restOrder, sameCardsOrder } from '../arrange.js';
 import { eachTypeAsk, firstEachType, nextEachType } from '../each-type.js';
 import { firstMode, modesAsk, nextMode } from '../modes.js';
@@ -67,13 +67,13 @@ import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type Sam
 import { matchCards } from '../art.js';
 import { createArtIds, type ArtIds } from '../art-ids.js';
 import { fallbackFor, type Fallback } from '../unparsed.js';
-import { type MatchHost, type MatchSpec } from '../host.js';
+import { type MatchHost, type MatchSpec } from '@hadoku/game-server/play/host';
 import { type BridgeCommand, type BridgeLine } from '../bridge-protocol.js';
 import { faceNames, namesForFormat } from '../names.js';
 import type { SpellCopy } from '../spell-copiers.js';
-import type { GameSession } from '../game-adapter.js';
+import type { GameSession } from '@hadoku/game-server/play/game-adapter';
 import type { MatchDeps, SeatSpecWithIdentity } from '../match.js';
-import { type ClientOutcome, type MatchShell, type ShellSeat } from './shell.js';
+import { type ClientOutcome, type MatchShell, type ShellSeat } from '@hadoku/game-server/play/match/shell';
 import {
 	answersAnInput,
 	asReveal,

@@ -24,7 +24,7 @@ const EDGE_SECRET = 'test-edge-auth-secret';
 
 let roomsMod: typeof import('../http/rooms.ts');
 let lobbyMod: typeof import('../room/lobby.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 let BOMBERMAN_GAME_TYPE: string;
 
 beforeAll(async () => {
@@ -33,7 +33,7 @@ beforeAll(async () => {
 	vi.resetModules();
 	roomsMod = await import('../http/rooms.ts');
 	lobbyMod = await import('../room/lobby.ts');
-	edgeMod = await import('../edge-auth.ts');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 	// `bomberman.ts` imported fresh, in the SAME `resetModules` graph as the above: a module
 	// imported before `resetModules` (a static top-level import) would register into a `@hadoku/shared`
 	// instance `rooms.ts`'s own import of it never sees, and every create would read back

@@ -1,7 +1,7 @@
 /*
  * `MatchChannel` (`@wolffm/rooms-protocol`'s `game-bundle.d.ts`, the contract `BundleSlot.tsx`
  * hands a bundle as `ctx.channel`) implemented over the relay socket
- * (`apps/server/src/play/relay-socket.ts`): a socket.io connection on the SAME path and origin
+ * (`packages/game-server/src/play/relay-socket.ts`): a socket.io connection on the SAME path and origin
  * every other socket on this page already uses (`../room/socket-options.ts`), joined with
  * `{ matchId: roomKey }`.
  *
@@ -22,7 +22,7 @@ import type { MatchChannel } from '@wolffm/rooms-protocol';
 import { defaultSocketPath, socketOptions } from '../room/socket-options.ts';
 
 /**
- * Mirrors `apps/server/src/play/relay-socket.ts`'s own `RELAY_EVENTS`. The client has no package
+ * Mirrors `packages/game-server/src/play/relay-socket.ts`'s own `RELAY_EVENTS`. The client has no package
  * of the server's to import these from (the server is not a dependency of the UI bundle), so the
  * two literal event names are repeated here rather than re-derived — if they ever drift, every
  * `relay:join` the server answers would simply go unrecognised at the join ack's own shape,

@@ -48,7 +48,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
-import { callerOf, parseBody } from './request.js';
+import { callerOf, parseBody } from '@hadoku/game-server/http/request';
 import {
 	ChallengeCreateBodySchema,
 	CreateRoomBodySchema,
@@ -85,7 +85,7 @@ import {
 	NO_MATCH,
 	type RoomCoreDeps,
 	type RoomBody,
-} from './room-core.js';
+} from '@hadoku/game-server/http/room-core';
 
 export { JOIN_RATE_LIMIT, ROOM_CREATE_RATE_LIMIT, NO_MATCH };
 export type { RoomBody };

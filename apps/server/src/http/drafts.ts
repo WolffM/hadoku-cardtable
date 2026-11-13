@@ -46,7 +46,7 @@ import { SaveDraftDeckBodySchema } from '@hadoku/shared';
 import { builtDeckOf, saveBuiltDeck, viewForParticipant, type DraftRooms } from '../room/draftRooms.js';
 import { checkSeat, type GateContext, type WireIssue } from './gate.js';
 import type { TablesLibrary } from './library.js';
-import { bodyErrors, httpCaller } from './request.js';
+import { bodyErrors, httpCaller } from '@hadoku/game-server/http/request';
 import { draftPoolForMember } from './routes.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 

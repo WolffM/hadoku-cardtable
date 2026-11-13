@@ -62,10 +62,10 @@ const PASSWORD = 'correct-horse-battery-staple-9137';
 
 let roomsMod: typeof import('./rooms.ts');
 let lobbyMod: typeof import('../room/lobby.ts');
-let constantsMod: typeof import('../room/constants.ts');
+let constantsMod: typeof import('@hadoku/game-server/room/constants');
 let podsMod: typeof import('../room/pods.ts');
-let watchpartyLinkMod: typeof import('../room/watchparty-link.ts');
-let edgeMod: typeof import('../edge-auth.ts');
+let watchpartyLinkMod: typeof import('@hadoku/game-server/room/watchparty-link');
+let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 let routesMod: typeof import('./routes.ts');
 
 beforeAll(async () => {
@@ -75,10 +75,10 @@ beforeAll(async () => {
 	vi.resetModules();
 	roomsMod = await import('./rooms.ts');
 	lobbyMod = await import('../room/lobby.ts');
-	constantsMod = await import('../room/constants.ts');
+	constantsMod = await import('@hadoku/game-server/room/constants');
 	podsMod = await import('../room/pods.ts');
-	watchpartyLinkMod = await import('../room/watchparty-link.ts');
-	edgeMod = await import('../edge-auth.ts');
+	watchpartyLinkMod = await import('@hadoku/game-server/room/watchparty-link');
+	edgeMod = await import('@hadoku/game-server/edge-auth');
 	routesMod = await import('./routes.ts');
 });
 

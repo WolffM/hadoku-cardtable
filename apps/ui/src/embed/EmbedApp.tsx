@@ -22,7 +22,7 @@
  *   along); no screen takes identity from the client. Using `ctx.identity` for
  *   anything would be a second identity path beside the one that is enforced.
  *   Their name, picture and character come from their account, server-side
- *   (`apps/server/src/people.ts`'s `applyPerson`), embedded or not.
+ *   (`packages/game-server/src/people.ts`'s `applyPerson`), embedded or not.
  * - **NOT `isLeader`.** Cardtable's room has its own leader — whoever bound it
  *   first, then whoever has been in it longest — and the server enforces it.
  *   A client-side gate on watchparty's leader would be a second authority that

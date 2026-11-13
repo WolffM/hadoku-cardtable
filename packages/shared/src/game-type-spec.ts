@@ -66,7 +66,7 @@ export interface GameTypeSpec {
   /**
    * This game type's match runs on the relay runtime — the host has no engine of its own for it,
    * only seats, watchers and a channel each seat's bundle speaks over
-   * (`apps/server/src/play/runtimes/relay.ts`'s `RelaySession`, `apps/ui/src/rooms/relay-channel.ts`
+   * (`packages/game-server/src/play/runtimes/relay.ts`'s `RelaySession`, `apps/ui/src/rooms/relay-channel.ts`
    * on the client). Absent is a game with an engine or server of its own: no channel.
    */
   runtime?: 'relay';

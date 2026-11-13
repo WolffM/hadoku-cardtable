@@ -21,10 +21,10 @@ const EDGE_SECRET = 'test-edge-auth-secret';
 /* `config.ts` reads `EDGE_AUTH_SECRET` once, at module load: everything under test is imported after it is set. */
 let serveMod: typeof import('./serve.ts');
 let lobbyMod: typeof import('./lobby.ts');
-let gateMod: typeof import('../gate.ts');
-let identityMod: typeof import('./identity.ts');
+let gateMod: typeof import('@hadoku/game-server/gate');
+let identityMod: typeof import('@hadoku/game-server/room/identity');
 let socketMod: typeof import('./socket.ts');
-let peopleMod: typeof import('../people.ts');
+let peopleMod: typeof import('@hadoku/game-server/people');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
@@ -32,10 +32,10 @@ beforeAll(async () => {
 	vi.resetModules();
 	serveMod = await import('./serve.ts');
 	lobbyMod = await import('./lobby.ts');
-	gateMod = await import('../gate.ts');
-	identityMod = await import('./identity.ts');
+	gateMod = await import('@hadoku/game-server/gate');
+	identityMod = await import('@hadoku/game-server/room/identity');
 	socketMod = await import('./socket.ts');
-	peopleMod = await import('../people.ts');
+	peopleMod = await import('@hadoku/game-server/people');
 });
 
 /** Headers the edge would stamp for a vouched account, at `tier` (default friend). */
@@ -60,7 +60,7 @@ interface Harness {
 	lockedTableKey: string;
 	presence: ReturnType<typeof import('./socket.ts').createSeatPresence>;
 	/** The served room's account lookup, whose cache a test can fill as a resumed match would. */
-	people: ReturnType<typeof import('../people.ts').createPeople>;
+	people: ReturnType<typeof import('@hadoku/game-server/people').createPeople>;
 	/** What the stand-in prefs-api says each account is called, by userId; change it to rename someone. */
 	names: Map<string, string>;
 	served: Awaited<ReturnType<typeof import('./serve.ts').attachServedRoom>>;

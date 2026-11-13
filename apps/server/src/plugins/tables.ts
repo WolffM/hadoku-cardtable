@@ -6,7 +6,7 @@
 import { join, resolve } from 'node:path';
 import { corpusDir } from '@hadoku/carddata';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { CONFIG } from '../config.js';
+import { CONFIG } from '@hadoku/game-server/config';
 import { attachDecks } from '../http/decks.js';
 import { attachDrafts } from '../http/drafts.js';
 import { attachTables } from '../http/index.js';

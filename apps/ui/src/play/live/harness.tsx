@@ -14,7 +14,7 @@
  *
  * The server must let a header-less local browser in — for a bare local run,
  * `CARDTABLE_INSECURE_NO_EDGE_AUTH=1` with `EDGE_AUTH_SECRET` unset, which
- * grants the dev tier (`apps/server/src/edge-auth.ts`).
+ * grants the dev tier (`packages/game-server/src/edge-auth.ts`).
  *
  * The fixture harness (`../harness.html`) is untouched and still renders the
  * committed game with no server at all.

@@ -28,7 +28,7 @@ import type { ParticipantId } from '@wolffm/rooms-protocol';
 import type { Lobby } from '../room/lobby.js';
 import type { Match } from '../play/match.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { httpCaller } from './request.js';
+import { httpCaller } from '@hadoku/game-server/http/request';
 
 export interface TableActionsDeps {
 	lobby: Pick<Lobby, 'get' | 'isMember' | 'abandonTable' | 'dropTableMatch' | 'resetGame' | 'resetRoom' | 'dqPlayer'>;

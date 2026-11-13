@@ -47,8 +47,8 @@ import { dirname, join } from 'node:path';
 import express, { type Request, type Response, type Router } from 'express';
 
 import { CUBE_ARTS_MAX, DraftCardSchema, ImportCubeBodySchema, sampleArt, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
-import { prepareJson, sendPrepared, type PreparedJson } from '../http/prepared.js';
-import { bodyErrors, httpCaller } from '../http/request.js';
+import { prepareJson, sendPrepared, type PreparedJson } from '@hadoku/game-server/http/prepared';
+import { bodyErrors, httpCaller } from '@hadoku/game-server/http/request';
 import type { CardCatalog } from './catalog.ts';
 import { fetchCubeCobraCube, parseCubeCobraLink, type CubeCobraCard, type CubeCobraCube, type FetchJson } from './cubecobra.ts';
 import { jsonLogger } from '@hadoku/service-kernel/log';

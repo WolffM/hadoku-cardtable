@@ -28,9 +28,9 @@ import { restoreRooms, sweepRooms, type RestoredRooms, type SweptMatch } from '.
 import { DEFAULT_PLAN, joinDraftRoom, leaveDraftRoom, singlePoolResolver, stateOf } from './room/draftRooms.ts';
 import { act, drawGauntlet, newGauntlet, startBanpick, type GauntletEraPool, type GauntletState } from './room/gauntlet.ts';
 import { GAME_DRAWN_AFTER_MS, openLobby, type Lobby } from './room/lobby.ts';
-import { UNNAMED } from './room/constants.ts';
+import { UNNAMED } from '@hadoku/game-server/room/constants';
 import type { GameHooks } from './room/pods.ts';
-import { participantHandle } from './room/identity.ts';
+import { participantHandle } from '@hadoku/game-server/room/identity';
 import { loadPool, type CubePool } from './room/pool.ts';
 import { attachDraftSocket, createSeatPresence, SEAT_RELEASE_MS } from './room/socket.js';
 

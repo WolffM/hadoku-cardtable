@@ -1,6 +1,6 @@
 /**
  * Where fleet-manager is not keeping cardtable's hosting contract right now (docs/HOSTING_CONTRACT.md),
- * by the same check the coordinator pages from every poll (`apps/server/src/play/placement/audit.ts`).
+ * by the same check the coordinator pages from every poll (`packages/game-server/src/play/placement/audit.ts`).
  * Read-only: `node-status`, and `hosting-demand` without `--slices`, which restates nothing.
  *
  *   apps/server/node_modules/.bin/tsx scripts/hosting/contract-check.ts [--json]
@@ -9,9 +9,9 @@
  * history this has not got: the coordinator checks it.
  */
 
-import { SECTION, contractViolations } from '../../apps/server/src/play/placement/audit.js';
-import { CONTRACT } from '../../apps/server/src/play/placement/contract.js';
-import { fleetCli } from '../../apps/server/src/play/placement/fleet.js';
+import { SECTION, contractViolations } from '../../packages/game-server/src/play/placement/audit.js';
+import { CONTRACT } from '../../packages/game-server/src/play/placement/contract.js';
+import { fleetCli } from '../../packages/game-server/src/play/placement/fleet.js';
 
 const json = process.argv.includes('--json');
 const fleet = fleetCli({ log: (e) => process.stderr.write(`${JSON.stringify(e)}\n`) });

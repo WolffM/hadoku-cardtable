@@ -48,7 +48,7 @@ afterAll(async () => {
 
 it('the draft pods and the served room run on the one tracker the state keeps', async () => {
 	const { PLUGINS } = await import('./index.ts');
-	const { createPeople } = await import('../people.ts');
+	const { createPeople } = await import('@hadoku/game-server/people');
 	const http = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
 	const state = {

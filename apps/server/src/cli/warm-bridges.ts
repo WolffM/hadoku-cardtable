@@ -22,8 +22,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaultJava } from '../play/engine-runtime.js';
-import { bridgeLaunch, defaultBridgeCache, defaultBridgeSource } from '../play/local-jvm.js';
+import { defaultJava } from '@hadoku/game-server/play/engine-runtime';
+import { bridgeLaunch, defaultBridgeCache, defaultBridgeSource } from '@hadoku/game-server/play/local-jvm';
 import { defaultPoolServiceSource } from '../pools/forge.js';
 
 const TREE = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');

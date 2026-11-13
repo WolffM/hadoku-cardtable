@@ -10,7 +10,7 @@
  * (`PlayerName`) goes through it.
  *
  * - What someone wears arrives with their face, resolved by our server
- *   (`apps/server/src/people.ts`), and is cleaned again here (`cleanWorn`), so
+ *   (`packages/game-server/src/people.ts`), and is cleaned again here (`cleanWorn`), so
  *   an id this build's catalogue does not know draws nothing.
  * - Colours derive from the person's own colour in `--hc-base`: their
  *   picture's average colour, else their character's (watchparty's

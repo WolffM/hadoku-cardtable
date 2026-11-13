@@ -65,8 +65,8 @@ import { pickTimeMs, timeoutPick } from '@hadoku/draft';
 
 import type { Draftbot, DraftbotInput } from './draftbot.js';
 import type { DraftRoom, DraftRooms } from './draftRooms.js';
-import { identityFromHeaders } from './identity.js';
-import { attachSessions, playsIn } from './session.js';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
+import { attachSessions, playsIn } from '@hadoku/game-server/room/session';
 import type { Lobby } from './lobby.js';
 import type { CubePool } from './pool.js';
 

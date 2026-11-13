@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Look } from '@hadoku/shared';
+import type { Look } from '@hadoku/platform-wire/look';
 
 import { attachPeople, createPeople, personOf, type PeopleRooms } from './people.js';
 

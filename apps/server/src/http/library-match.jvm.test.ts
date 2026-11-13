@@ -30,7 +30,7 @@ import { describe, it } from 'vitest';
 
 import { LIBRARY, deckPath } from '@hadoku/deck/library';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type MatchSpec } from '../play/host.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, type MatchSpec } from '@hadoku/game-server/play/host';
 import { createMatchRegistry, type Match } from '../play/match.js';
 import { nightly } from '../play/scenario.js';
 
