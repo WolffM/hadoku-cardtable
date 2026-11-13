@@ -151,7 +151,29 @@ export function frameGist(frame: unknown): Record<string, unknown> {
 	if (f.method === 'updateButtons') gist.bar = [f.label1, f.enable1, f.label2, f.enable2];
 	const card = f.card as { id?: unknown } | null | undefined;
 	if (typeof card?.id === 'number') gist.card = card.id;
+	Object.assign(gist, gameGist(f));
 	return gist;
+}
+
+/**
+ * The game's `Turn` and `Phase`, when a state frame carries them: so which seat was told which turn
+ * reads straight off the trace, at the bridge (`forge-frame`) and on the seat's wire (`wire-frame`).
+ * A seat's board once sat at turn 0 through its opponent's Main 1 with no row to say where the turn
+ * was lost.
+ */
+function gameGist(f: Record<string, unknown>): { turn?: unknown; phase?: unknown } {
+	const payload = f.payload as { gameView?: unknown; packet?: { newObjects?: unknown; objectDeltas?: unknown } } | undefined;
+	const tables = f.method === 'setGameView' ? [payload?.gameView] : f.method === 'applyDelta' ? [payload?.packet?.newObjects, payload?.packet?.objectDeltas] : [];
+	const out: { turn?: unknown; phase?: unknown } = {};
+	for (const table of tables) {
+		if (typeof table !== 'object' || table === null) continue;
+		for (const obj of Object.values(table as Record<string, Record<string, unknown>>)) {
+			if (obj?._type !== DELTA_TYPE.game) continue;
+			if ('Turn' in obj) out.turn = (obj.Turn as { v?: unknown } | null)?.v ?? null;
+			if ('Phase' in obj) out.phase = (obj.Phase as { v?: unknown } | null)?.v ?? null;
+		}
+	}
+	return out;
 }
 
 /**

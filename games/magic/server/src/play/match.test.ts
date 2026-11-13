@@ -4589,6 +4589,23 @@ describe('frameGist (the probe-mode frame trace)', () => {
 		});
 		expect(frameGist(null)).toEqual({ method: undefined, kind: undefined });
 	});
+
+	it('names the turn and phase a state frame tells its seat, and nothing for a frame that tells neither', () => {
+		const game = (props: Record<string, unknown>) => ({ '805306369': { _type: DELTA_TYPE.game, _id: 1, ...props } });
+		const turn = { t: 'int', v: 1 };
+		const phase = { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'MAIN1' };
+		expect(frameGist({ kind: 'notify', method: 'applyDelta', payload: { packet: { newObjects: {}, objectDeltas: game({ Turn: turn, Phase: phase }) } } })).toEqual({
+			method: 'applyDelta',
+			kind: 'notify',
+			turn: 1,
+			phase: 'MAIN1',
+		});
+		expect(frameGist({ kind: 'notify', method: 'setGameView', payload: { gameView: game({ Turn: turn }) } })).toMatchObject({ turn: 1 });
+		expect(frameGist({ kind: 'notify', method: 'applyDelta', payload: { packet: { newObjects: {}, objectDeltas: { '1': { _type: DELTA_TYPE.player, _id: 0, Life: { t: 'int', v: 19 } } } } } })).toEqual({
+			method: 'applyDelta',
+			kind: 'notify',
+		});
+	});
 });
 
 describe('a card-name ask', () => {
