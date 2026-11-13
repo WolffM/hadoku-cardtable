@@ -127,8 +127,8 @@ beside `isTournamentRoom`/`usesPod`) or moves into Magic's decode:
 | 2937 | `releaseLostDrafts` | only draft rooms lose a draft | `isDraftRoom` |
 | 3029 | `setPodPlan` | guard | `isDraftRoom` guard |
 | 3144 | `playPod` | a draft pod has a build phase | `isDraftRoom` |
-| 3228 | `openLobby` restore | a constructed room on a `draft:` format | Magic's restore (`restoreMagicGame`, lobby-codec) |
-| 3231 | `openLobby` restore | a pre-modes constructed room is Classic | Magic's restore (`restoreMagicGame`) |
+| 3228 | `openLobby` restore | a constructed room on a `draft:` format | Magic's restore rules (`magicRestoreRules`, lobby-codec) |
+| 3231 | `openLobby` restore | a pre-modes constructed room is Classic | Magic's restore rules (`magicRestoreRules`) |
 
 None of these needs a per-type hook today: each is a Magic rule, and every non-Magic room answers false to it,
 as it did. They become hooks when the lobby's logic moves to the platform. That step needs the list of

@@ -253,8 +253,13 @@ describe('a room stored before the lobby held its seats', () => {
 		const path = join(s.dir, file!);
 		const snapshot = JSON.parse(await readFile(path, 'utf8')) as {
 			members: { participantId: string; app: { state: Record<string, unknown>; ready: boolean } | null }[];
-			app: { tables: Record<string, unknown>[]; game: { gauntlet?: unknown; gauntlets?: unknown } };
+			app: { tables: Record<string, unknown>[]; seats?: unknown; game: { gauntlet?: unknown; gauntlets?: unknown; tables?: unknown; settings?: unknown; matches?: unknown } };
 		};
+		// A record that old predates the generic room record too: only the top-level copies it reads.
+		delete snapshot.app.seats;
+		delete snapshot.app.game.tables;
+		delete snapshot.app.game.settings;
+		delete snapshot.app.game.matches;
 		const table = snapshot.app.tables[0]!;
 		const blob = (id: string) => snapshot.members.find((m) => m.participantId === id)!.app!.state;
 		// Bob sat first and Alice readied; Alice's row predates multi-table rooms.

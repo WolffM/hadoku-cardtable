@@ -34,20 +34,20 @@ export function magicViewPart(room: RoomRecord, checks: GameHooks): MagicViewPar
 	const ai = roomAi(room);
 	return {
 		game: {
-			format: room.format,
-			mode: room.mode,
-			modeOptions: room.modeOptions === null ? null : { ...room.modeOptions },
-			clientMode: room.clientMode,
-			draftStartedAt: room.draftStartedAt === null ? null : new Date(room.draftStartedAt).toISOString(),
+			format: room.game.format,
+			mode: room.game.mode,
+			modeOptions: room.game.modeOptions === null ? null : { ...room.game.modeOptions },
+			clientMode: room.game.clientMode,
+			draftStartedAt: room.game.draftStartedAt === null ? null : new Date(room.game.draftStartedAt).toISOString(),
 			pod: usesPod(room) ? podViewOf(room, checks) : null,
-			...(room.scenario === undefined ? {} : { scenario: room.scenario }),
+			...(room.game.scenario === undefined ? {} : { scenario: room.game.scenario }),
 			ai,
 		},
-		...(room.historical === true ? { historical: true } : {}),
+		...(room.game.historical === true ? { historical: true } : {}),
 		// Public like the seats' own `deckId`s, and what the lock deals each AI entrant (`GameHooks.currentTournamentDeck`).
-		...(room.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.aiDeckAssignments } }),
+		...(room.game.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.game.aiDeckAssignments } }),
 		// Which list each open seat plays: the room draws it in place of a deck picker.
-		...(room.seatDecks === undefined ? {} : { seatDecks: { ...room.seatDecks } }),
+		...(room.game.seatDecks === undefined ? {} : { seatDecks: { ...room.game.seatDecks } }),
 		ai,
 	};
 }

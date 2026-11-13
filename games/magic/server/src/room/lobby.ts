@@ -117,6 +117,7 @@ import type { Caller } from '@hadoku/game-server/room/caller';
 import { avatarIdOf } from '@hadoku/game-server/room/avatar';
 import { addRoomMember, isMemberReady, isRoomMember, passwordAdmits, removeRoomMember, setMemberReady } from '@hadoku/game-server/room/membership';
 import { isOfferedRoom, isSweepableRoom, sortRoomsByCreation, type RoomBusyHook } from '@hadoku/game-server/room/room-list';
+import { gameSeatOf as platformGameSeatOf, leaveGameSeat, setGameSeat, takeGameSeat } from '@hadoku/game-server/room/record';
 import { watchpartyRoomId } from '@hadoku/game-server/room/watchparty-link';
 // Pods, tournaments, AI seats and their view (`PodView`) — split out, wave 99 §L.
 import {
@@ -131,7 +132,10 @@ import {
 	heldSplit,
 	initialPodSize,
 	isAiEntrant,
+	isConstructedRoom,
+	isDraftRoom,
 	isTournamentRoom,
+	seatsOnTable,
 	memberDraftId,
 	NO_GAME_HOOKS,
 	personaOf,
@@ -171,6 +175,7 @@ import {
 import {
 	APP_VERSION,
 	appCodec,
+	magicRestoreRules,
 	roomCodec,
 	SETTING_KEYS,
 	type MemberRecord,
@@ -1079,7 +1084,7 @@ function tableView(table: TableRecord, members: readonly MemberRecord[], room: R
  * to Classic or All Random keeps the leader's choice.
  */
 function tournamentDecksOf(room: RoomRecord): RoomSettings['tournamentDecks'] {
-	return room.mode === 'gauntlet' ? 'per-round' : room.settings.tournamentDecks;
+	return room.game.mode === 'gauntlet' ? 'per-round' : room.game.settings.tournamentDecks;
 }
 
 function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks, part: GameViewPart | undefined): RoomView {
@@ -1089,7 +1094,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks, part: Game
 		creator: room.creator,
 		leader: room.leader,
 		gameType: room.gameType,
-		settings: { ...room.settings, tournamentDecks: tournamentDecksOf(room) },
+		settings: { ...room.game.settings, tournamentDecks: tournamentDecksOf(room) },
 		locks: roomLocks(room),
 		locked,
 		members: room.members.map((m) => ({
@@ -1106,10 +1111,10 @@ function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks, part: Game
 			...(m.look === undefined ? {} : { look: m.look }),
 		})),
 		seats: gameSeatsOf(room),
-		tables: room.tables.map((t) => tableView(t, room.members, room)),
+		tables: room.game.tables.map((t) => tableView(t, room.members, room)),
 		// The FIRST table's live match — unchanged, so every existing reader
 		// keeps working (`docs/planning/wave71-2026-10-17.md`'s wire contract).
-		matchId: room.tables[0]?.matchId ?? null,
+		matchId: room.game.tables[0]?.matchId ?? null,
 		createdAt: new Date(room.createdAt).toISOString(),
 		testing: room.testing,
 		scheduledFor: room.scheduledFor === undefined ? null : new Date(room.scheduledFor).toISOString(),
@@ -1129,9 +1134,10 @@ const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: D
  * (`POD_SPARED_MS`) are what `sweep()` reads past the plain rule.
  */
 const MAGIC_ROOM_BUSY: RoomBusyHook<RoomRecord> = {
-	extraOffered: (room) => room.draftStartedAt !== null,
+	liveMatch: (room) => room.game.tables.some((t) => t.matchId !== null),
+	extraOffered: (room) => room.game.draftStartedAt !== null,
 	defaultIdleMs: (room) => (usesPod(room) ? ROOM_IDLE_MS : CASUAL_ROOM_IDLE_MS),
-	sparedFromSweep: (room, now) => room.draftStartedAt !== null && room.draftStartedAt > now - POD_SPARED_MS,
+	sparedFromSweep: (room, now) => room.game.draftStartedAt !== null && room.game.draftStartedAt > now - POD_SPARED_MS,
 };
 
 /**
@@ -1145,7 +1151,7 @@ const MAGIC_ROOM_BUSY: RoomBusyHook<RoomRecord> = {
 function dropHolds(room: RoomRecord, unseat: boolean): void {
 	clearReady(room.ledger);
 	for (const member of room.members) member.state = undefined;
-	for (const table of room.tables) {
+	for (const table of room.game.tables) {
 		if (unseat) table.seats = [null, null];
 		table.ready = [false, false];
 	}
@@ -1164,7 +1170,7 @@ function sameOptions(a: ModeOptions, b: ModeOptions): boolean {
  * line here, so `setMode` and `setGameType` ask one question.
  */
 function modeLocked(room: RoomRecord): boolean {
-	return room.tables.some((t) => t.ready.some(Boolean)) || inPlay(room);
+	return room.game.tables.some((t) => t.ready.some(Boolean)) || inPlay(room);
 }
 
 /**
@@ -1173,7 +1179,7 @@ function modeLocked(room: RoomRecord): boolean {
  * the pool included, though a Ready alone does not freeze the pool.
  */
 function inPlay(room: RoomRecord): boolean {
-	return room.tables.some((t) => t.matchId !== null) || gauntletUnderWay(room.gauntlets);
+	return room.game.tables.some((t) => t.matchId !== null) || gauntletUnderWay(room.game.gauntlets);
 }
 
 /**
@@ -1184,7 +1190,7 @@ function inPlay(room: RoomRecord): boolean {
  * room plays and its event freeze with a Ready or a game (`modeLocked`), its pool and rules with a game.
  */
 function roomLocks(room: RoomRecord): RoomLocks {
-	const started = room.draftStartedAt !== null ? 'draft-started' : null;
+	const started = room.game.draftStartedAt !== null ? 'draft-started' : null;
 	const plays = started ?? (modeLocked(room) ? 'mode-locked' : null);
 	const playing = started ?? (inPlay(room) ? 'mode-locked' : null);
 	// A historical replay room is born with every answer the event already
@@ -1192,7 +1198,7 @@ function roomLocks(room: RoomRecord): RoomLocks {
 	// about what it plays was ever this room's leader's choice, so nothing is
 	// offered — the same "never a control the server would refuse" rule the
 	// operator set for stale locks (2026-11-02), applied from creation.
-	if (room.historical === true) {
+	if (room.game.historical === true) {
 		const historical = started ?? 'historical';
 		return { gameType: historical, mode: historical, event: historical, format: historical, rules: historical };
 	}
@@ -1221,14 +1227,14 @@ function gauntletWithoutNames(g: GauntletState): GauntletState {
  */
 function dropDesertedGauntlets(room: RoomRecord): void {
 	const present = new Set(room.members.map((m) => m.id));
-	const deserted = room.tables.filter((t) => {
-		const g = room.gauntlets[t.id];
+	const deserted = room.game.tables.filter((t) => {
+		const g = room.game.gauntlets[t.id];
 		return t.matchId === null && g !== undefined && g.players?.some((p) => p.memberId !== null && !present.has(p.memberId)) === true;
 	});
 	if (deserted.length === 0) return;
-	const next = { ...room.gauntlets };
+	const next = { ...room.game.gauntlets };
 	for (const t of deserted) delete next[t.id];
-	room.gauntlets = next;
+	room.game.gauntlets = next;
 }
 
 /** A Gauntlet's member players named as the room knows them now; a leaver keeps what the state said. */
@@ -1359,7 +1365,7 @@ class FileLobby implements Lobby {
 		// delete, a pin that refuses a card), so every draft room is checked
 		// again rather than trusting it — including a snapshot written mid-check,
 		// which still has `planVerdict: null`.
-		if (room.gameType === 'draft') room.planVerdict = null;
+		if (isDraftRoom(room)) room.game.planVerdict = null;
 		dropDesertedGauntlets(room);
 		this.#ensurePlanChecked(room);
 	}
@@ -1374,7 +1380,7 @@ class FileLobby implements Lobby {
 	}
 
 	#persist(room: RoomRecord): void {
-		for (const table of room.tables) this.#settleSeries(room, table, false);
+		for (const table of room.game.tables) this.#settleSeries(room, table, false);
 		dropDesertedGauntlets(room);
 		const now = this.#now();
 		room.updatedAt = now;
@@ -1395,48 +1401,46 @@ class FileLobby implements Lobby {
 			};
 			return member;
 		});
+		const game = room.game;
 		const app: StoredApp = {
 			name: room.name,
 			creator: room.creator,
 			leader: room.leader,
 			gameType: room.gameType,
-			settings: { ...room.settings },
-			tables: room.tables.map((t) => ({ ...t, seats: [...t.seats] as [string | null, string | null], series: { ...t.series, wins: [...t.series.wins] as [number, number], games: t.series.games.map((g) => ({ ...g })) } })),
-			// Restated for a rollback to a pre-wave-71 build (see `StoredApp.matchId`'s doc).
-			matchId: room.tables[0]?.matchId ?? null,
-			matches: [...room.matches],
 			testing: room.testing,
 			...(room.scheduledFor === undefined ? {} : { scheduledFor: room.scheduledFor }),
-
 			secret: this.#secrets.get(room.id) ?? null,
+			seats: [...room.seats],
 			game: {
-				format: room.format,
-				mode: room.mode,
-				modeOptions: room.modeOptions === null ? null : { ...room.modeOptions },
-				clientMode: room.clientMode,
-				draftStartedAt: room.draftStartedAt,
-				plan: room.plan,
-				planVerdict: room.planVerdict,
-				podSeats: [...room.podSeats],
-				podAi: [...room.podAi],
-				...(room.podDrafts === null ? {} : { podDrafts: room.podDrafts.map((p) => [...p]) }),
-				...(room.podSplit === null ? {} : { podSplit: copySplit(room.podSplit) }),
-				podPlaying: [...room.podPlaying],
-				lockedDecks: { ...room.lockedDecks },
-				gauntlets: Object.fromEntries(Object.entries(room.gauntlets).map(([t, g]) => [t, gauntletWithoutNames(g)])),
-				...(room.scenario === undefined ? {} : { scenario: room.scenario }),
-				...(room.historical === true ? { historical: true } : {}),
-				...(room.historicalStructure === undefined ? {} : { historicalStructure: { ...room.historicalStructure } }),
-				...(room.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...room.aiDeckAssignments } }),
-				...(room.seatDecks === undefined ? {} : { seatDecks: { ...room.seatDecks } }),
+				format: game.format,
+				settings: { ...game.settings },
+				mode: game.mode,
+				modeOptions: game.modeOptions === null ? null : { ...game.modeOptions },
+				clientMode: game.clientMode,
+				tables: game.tables.map((t) => ({ ...t, seats: [...t.seats] as [string | null, string | null], series: { ...t.series, wins: [...t.series.wins] as [number, number], games: t.series.games.map((g) => ({ ...g })) } })),
+				matches: [...game.matches],
+				draftStartedAt: game.draftStartedAt,
+				plan: game.plan,
+				planVerdict: game.planVerdict,
+				podAi: [...game.podAi],
+				...(game.podDrafts === null ? {} : { podDrafts: game.podDrafts.map((p) => [...p]) }),
+				...(game.podSplit === null ? {} : { podSplit: copySplit(game.podSplit) }),
+				podPlaying: [...game.podPlaying],
+				lockedDecks: { ...game.lockedDecks },
+				gauntlets: Object.fromEntries(Object.entries(game.gauntlets).map(([t, g]) => [t, gauntletWithoutNames(g)])),
+				...(game.scenario === undefined ? {} : { scenario: game.scenario }),
+				...(game.historical === true ? { historical: true } : {}),
+				...(game.historicalStructure === undefined ? {} : { historicalStructure: { ...game.historicalStructure } }),
+				...(game.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...game.aiDeckAssignments } }),
+				...(game.seatDecks === undefined ? {} : { seatDecks: { ...game.seatDecks } }),
 				pod:
-					room.pod === null
+					game.pod === null
 						? null
 						: {
-								...room.pod,
-								humans: [...room.pod.humans],
-								results: room.pod.results.map((r) => ({ ...r })),
-								pairings: room.pod.pairings.map((p) => ({ tableId: p.tableId, players: [...p.players] as [string, string] })),
+								...game.pod,
+								humans: [...game.pod.humans],
+								results: game.pod.results.map((r) => ({ ...r })),
+								pairings: game.pod.pairings.map((p) => ({ tableId: p.tableId, players: [...p.players] as [string, string] })),
 							},
 			},
 		};
@@ -1477,7 +1481,7 @@ class FileLobby implements Lobby {
 
 	poolNamesChanged(): void {
 		for (const room of this.#rooms.values()) {
-			if (room.gameType === 'draft') this.#changed(room.id);
+			if (isDraftRoom(room)) this.#changed(room.id);
 		}
 	}
 
@@ -1499,16 +1503,16 @@ class FileLobby implements Lobby {
 	 * would be Forge work spent on a value nobody looks at.
 	 */
 	#ensurePlanChecked(room: RoomRecord): void {
-		if (room.gameType !== 'draft') return;
-		if (room.planVerdict !== null) return;
+		if (!isDraftRoom(room)) return;
+		if (room.game.planVerdict !== null) return;
 		if (this.#checkPlan === null) return;
 		const checkPlan = this.#checkPlan;
 		const roomId = room.id;
 
-		const key = this.#planKey(room.plan);
+		const key = this.#planKey(room.game.plan);
 		let pending = this.#planChecks.get(key);
 		if (pending === undefined) {
-			pending = checkPlan(room.plan);
+			pending = checkPlan(room.game.plan);
 			this.#planChecks.set(key, pending);
 			// Not `.finally` chained onto what callers await: this is the cache
 			// entry's own cleanup, run once regardless of how many rooms are
@@ -1524,8 +1528,8 @@ class FileLobby implements Lobby {
 				// a PUT that landed while this background check was in flight — a
 				// stale background result must never overwrite either.
 				const current = this.#rooms.get(roomId);
-				if (current === undefined || current.planVerdict !== null) return;
-				current.planVerdict = verdict;
+				if (current === undefined || current.game.planVerdict !== null) return;
+				current.game.planVerdict = verdict;
 				this.#persist(current);
 			},
 			(err: unknown) => {
@@ -1554,14 +1558,14 @@ class FileLobby implements Lobby {
 
 	roomOfMatch(matchId: string): RoomView | undefined {
 		for (const room of this.#rooms.values()) {
-			if (room.tables.some((t) => t.matchId === matchId) || room.matches.includes(matchId)) return this.#view(room);
+			if (room.game.tables.some((t) => t.matchId === matchId) || room.game.matches.includes(matchId)) return this.#view(room);
 		}
 		return undefined;
 	}
 
 	stillPlaying(matchId: string, memberId: string): boolean {
 		for (const room of this.#rooms.values()) {
-			for (const { matchId: live, series } of room.tables) {
+			for (const { matchId: live, series } of room.game.tables) {
 				if (series.settled || !series.played.includes(memberId)) continue;
 				if (live === matchId || series.games.some((g) => g.matchId === matchId)) return true;
 			}
@@ -1595,7 +1599,7 @@ class FileLobby implements Lobby {
 
 	#table(roomId: string, tableId: string): { room: RoomRecord; table: TableRecord } | undefined {
 		const room = this.#rooms.get(roomId);
-		const table = room?.tables.find((t) => t.id === tableId);
+		const table = room?.game.tables.find((t) => t.id === tableId);
 		return room === undefined || table === undefined ? undefined : { room, table };
 	}
 
@@ -1614,18 +1618,18 @@ class FileLobby implements Lobby {
 		const players = playersOf(room);
 		if (room.members.some((m) => m.id !== memberId && !players.includes(m.id))) return;
 		if (usesPod(room)) {
-			if (room.draftStartedAt !== null) return;
-			const open = room.podSeats.indexOf(null);
+			if (room.game.draftStartedAt !== null) return;
+			const open = room.seats.indexOf(null);
 			if (open === -1) return;
-			room.podSeats = room.podSeats.map((s, i) => (i === open ? memberId : s));
+			room.seats = room.seats.map((s, i) => (i === open ? memberId : s));
 			this.#log({ event: 'seat-auto', roomId: room.id, seat: open, memberId });
 			return;
 		}
-		const table = room.tables[0];
+		const table = room.game.tables[0];
 		if (table === undefined || table.matchId !== null) return;
-		const gauntlet = room.gauntlets[table.id];
+		const gauntlet = room.game.gauntlets[table.id];
 		if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) return;
-		if (!sitAt(room.tables, table, memberId)) return;
+		if (!sitAt(room.game.tables, table, memberId)) return;
 		this.#tookSeat(room.id, table.id, memberId);
 		this.#log({ event: 'seat-auto', roomId: room.id, tableId: table.id, memberId });
 	}
@@ -1644,8 +1648,14 @@ class FileLobby implements Lobby {
 
 	gameSeatOf(roomId: string, memberId: string): number | null {
 		const room = this.#rooms.get(roomId);
-		const seat = room === undefined ? -1 : gameSeatsOf(room).indexOf(memberId);
-		return seat === -1 ? null : seat;
+		if (room === undefined) return null;
+		// A room that plays one two-seat table keeps its seats on Magic's table; every other room's
+		// are the platform's game seats (a pod's, bomberman's).
+		if (seatsOnTable(room)) {
+			const seat = gameSeatsOf(room).indexOf(memberId);
+			return seat === -1 ? null : seat;
+		}
+		return platformGameSeatOf(room, memberId);
 	}
 
 	#tookSeat(roomId: string, tableId: string, memberId: string): void {
@@ -1664,24 +1674,24 @@ class FileLobby implements Lobby {
 	 */
 	#carryPlayers(room: RoomRecord, players: readonly string[]): void {
 		if (usesPod(room)) {
-			const seats: (string | null)[] = room.podSeats.map((s) => (s === null || s === POD_AI || s === POD_CLOSED ? s : null));
+			const seats: (string | null)[] = room.seats.map((s) => (s === null || s === POD_AI || s === POD_CLOSED ? s : null));
 			for (const id of players) {
 				const open = seats.indexOf(null);
 				if (open === -1) break;
 				seats[open] = id;
 			}
-			room.podSeats = seats;
+			room.seats = seats;
 			return;
 		}
-		const table = room.tables[0];
+		const table = room.game.tables[0];
 		if (table === undefined) return;
 		for (const id of seatList(table).map((s) => s.memberId)) leaveSeat(table, id);
 		const tableSeatCount = gameTypeSpec(room.gameType)?.seats.max ?? 2;
-		for (const id of players.slice(0, tableSeatCount)) if (sitAt(room.tables, table, id)) this.#tookSeat(room.id, table.id, id);
+		for (const id of players.slice(0, tableSeatCount)) if (sitAt(room.game.tables, table, id)) this.#tookSeat(room.id, table.id, id);
 	}
 
 	#recordMatch(room: RoomRecord, matchId: string): void {
-		if (!room.matches.includes(matchId)) room.matches = [...room.matches, matchId].slice(-ROOM_MATCHES_KEPT);
+		if (!room.game.matches.includes(matchId)) room.game.matches = [...room.game.matches, matchId].slice(-ROOM_MATCHES_KEPT);
 	}
 
 	seats(roomId: string, tableId: string): TableSeat[] {
@@ -1695,7 +1705,7 @@ class FileLobby implements Lobby {
 		const { room, table } = found;
 		const held = table.seats.indexOf(memberId);
 		if (seat === undefined ? held !== -1 : held === seat) return true;
-		if (this.#seatsShut(room) !== null || !sitAt(room.tables, table, memberId, seat)) return false;
+		if (this.#seatsShut(room) !== null || !sitAt(room.game.tables, table, memberId, seat)) return false;
 		this.#tookSeat(room.id, table.id, memberId);
 		this.#persist(room);
 		return true;
@@ -1711,13 +1721,13 @@ class FileLobby implements Lobby {
 	releaseAbandonedSeats(memberId: string, mark = Infinity): { roomId: string; tableId: string }[] {
 		const released: { roomId: string; tableId: string }[] = [];
 		for (const room of this.#rooms.values()) {
-			for (const table of room.tables) {
+			for (const table of room.game.tables) {
 				if (!table.seats.includes(memberId)) continue;
 				if ((this.#seatTaken.get(`${room.id}\u0000${table.id}\u0000${memberId}`) ?? 0) > mark) continue;
 				// A series under way keeps its seats between games too (sideboarding,
 				// between, or a game whose match went away): only a settled or unstarted one frees them.
 				if (table.matchId !== null || seriesUnderWay(table.series)) continue;
-				const gauntlet = room.gauntlets[table.id];
+				const gauntlet = room.game.gauntlets[table.id];
 				if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) continue;
 				if (!leaveSeat(table, memberId)) continue;
 				const member = room.members.find((m) => m.id === memberId);
@@ -1776,7 +1786,7 @@ class FileLobby implements Lobby {
 	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null }): RecordGameResultResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		const table = room.tables.find((t) => t.id === tableId);
+		const table = room.game.tables.find((t) => t.id === tableId);
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
 		table.matchId = null;
 		// A game that ends after its series was left is discarded: that series is already recorded.
@@ -1788,7 +1798,7 @@ class FileLobby implements Lobby {
 		table.ready = [false, false];
 		// Wave 72 §P: a pod round advances ITSELF the instant every one of its
 		// tables is `done` — see `#finishPodTable`.
-		if (table.series.phase === 'done' && room.pod !== null) this.#finishPodTable(room, table);
+		if (table.series.phase === 'done' && room.game.pod !== null) this.#finishPodTable(room, table);
 		this.#persist(room);
 		this.#log({ event: 'table-game-recorded', roomId, tableId, matchId: result.matchId, winner: result.winner, phase: table.series.phase });
 		return { ok: true, room: this.#view(room), phase: table.series.phase };
@@ -1797,9 +1807,9 @@ class FileLobby implements Lobby {
 	abandonTable(roomId: string, callerId: string, tableId: string): ResolveTableResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		const table = room.tables.find((t) => t.id === tableId);
+		const table = room.game.tables.find((t) => t.id === tableId);
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
-		if (room.pod !== null) return { ok: false, reason: 'pod-table' };
+		if (room.game.pod !== null) return { ok: false, reason: 'pod-table' };
 		if (!table.seats.includes(callerId)) return { ok: false, reason: 'not-seated' };
 		const { matchId } = table;
 		// A finished series is a result still to be recorded (a Bo1 open to its Rematch), never abandoned.
@@ -1808,9 +1818,9 @@ class FileLobby implements Lobby {
 		table.ready = [false, false];
 		// Replaced, not settled: `#settleSeries` never sees it, so nothing is recorded.
 		table.series = newSeries(seriesRoomOf(room), seatOrder(table), 'seating');
-		const next = { ...room.gauntlets };
+		const next = { ...room.game.gauntlets };
 		delete next[table.id];
-		room.gauntlets = next;
+		room.game.gauntlets = next;
 		this.#persist(room);
 		this.#log({ event: 'table-abandoned', roomId, tableId, by: callerId, matchId });
 		return { ok: true, matchId };
@@ -1819,10 +1829,10 @@ class FileLobby implements Lobby {
 	dropTableMatch(roomId: string, callerId: string, tableId: string): ResolveTableResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		const table = room.tables.find((t) => t.id === tableId);
+		const table = room.game.tables.find((t) => t.id === tableId);
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
-		const pairing = room.pod?.pairings.find((p) => p.tableId === tableId);
-		if (room.pod === null || pairing === undefined) return { ok: false, reason: 'not-pod-table' };
+		const pairing = room.game.pod?.pairings.find((p) => p.tableId === tableId);
+		if (room.game.pod === null || pairing === undefined) return { ok: false, reason: 'not-pod-table' };
 		if (!table.seats.includes(callerId) || !pairing.players.includes(callerId)) return { ok: false, reason: 'not-seated' };
 		if (table.series.phase === 'done') return { ok: false, reason: 'nothing-to-drop' };
 		const { matchId } = table;
@@ -1861,7 +1871,7 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
-		const pod = room.pod;
+		const pod = room.game.pod;
 		if (pod === null || pod.round > pod.rounds) return { ok: false, reason: 'no-pod' };
 		if (!pod.humans.includes(entrantId)) return { ok: false, reason: 'not-entrant' };
 		if ((pod.dropped ?? []).includes(entrantId)) return { ok: false, reason: 'already-dropped' };
@@ -1878,9 +1888,9 @@ class FileLobby implements Lobby {
 	 */
 	#dropEntrant(room: RoomRecord, pod: PodRecord, entrantId: string): { tableId: string | null; matchIds: string[] } {
 		// Marked first: a forfeit that finishes the round pairs the next one, which must already know.
-		room.pod = { ...pod, dropped: [...(pod.dropped ?? []), entrantId] };
+		room.game.pod = { ...pod, dropped: [...(pod.dropped ?? []), entrantId] };
 		const pairing = pod.pairings.find((p) => p.players.includes(entrantId));
-		const table = pairing === undefined ? undefined : room.tables.find((t) => t.id === pairing.tableId);
+		const table = pairing === undefined ? undefined : room.game.tables.find((t) => t.id === pairing.tableId);
 		if (table === undefined || table.series.phase === 'done') return { tableId: table?.id ?? null, matchIds: [] };
 		const matchIds = table.matchId === null ? [] : [table.matchId];
 		this.#forfeit(room, table, entrantId);
@@ -1891,7 +1901,7 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
-		const table = room.tables.find((t) => t.id === tableId);
+		const table = room.game.tables.find((t) => t.id === tableId);
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
 		const { matchId } = table;
 		if (matchId === null || table.series.phase !== 'playing') return { ok: false, reason: 'no-game' };
@@ -1909,16 +1919,16 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
-		if (room.pod !== null || room.draftStartedAt !== null) return { ok: false, reason: 'pod-under-way' };
-		const matchIds = room.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId]));
+		if (room.game.pod !== null || room.game.draftStartedAt !== null) return { ok: false, reason: 'pod-under-way' };
+		const matchIds = room.game.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId]));
 		// Let go of first, so a stopped game's end finds no table naming it and records nothing.
-		for (const table of room.tables) table.matchId = null;
+		for (const table of room.game.tables) table.matchId = null;
 		this.#interruptSeries(room, false);
-		room.gauntlets = {};
-		room.lockedDecks = {};
+		room.game.gauntlets = {};
+		room.game.lockedDecks = {};
 		this.#persist(room);
 		this.#log({ event: 'room-reset', roomId, by: leaderId, matches: matchIds.length });
-		return { ok: true, tableIds: room.tables.map((t) => t.id), matchIds };
+		return { ok: true, tableIds: room.game.tables.map((t) => t.id), matchIds };
 	}
 
 	/**
@@ -1931,7 +1941,7 @@ class FileLobby implements Lobby {
 	 * or any table a pod does not own.
 	 */
 	#finishPodTable(room: RoomRecord, table: TableRecord): void {
-		const pod = room.pod;
+		const pod = room.game.pod;
 		if (pod === null) return;
 		const pairing = pod.pairings.find((p) => p.tableId === table.id);
 		if (pairing === undefined) return;
@@ -1960,7 +1970,7 @@ class FileLobby implements Lobby {
 		if ((pod.botGames ?? []).length > 0) return true;
 		return pod.pairings.some((p) => {
 			if (p.tableId === except) return false;
-			const t = room.tables.find((x) => x.id === p.tableId);
+			const t = room.game.tables.find((x) => x.id === p.tableId);
 			return t === undefined || t.series.phase !== 'done';
 		});
 	}
@@ -1980,7 +1990,7 @@ class FileLobby implements Lobby {
 	 */
 	#advancePodRound(room: RoomRecord, pod: PodRecord): void {
 		if (pod.round >= pod.rounds) {
-			room.pod = { ...pod, round: pod.rounds + 1, pairings: [], botGames: [], bye: null };
+			room.game.pod = { ...pod, round: pod.rounds + 1, pairings: [], botGames: [], bye: null };
 			this.#log({ event: 'pod-done', roomId: room.id });
 			this.#archive(room);
 			return;
@@ -1989,9 +1999,9 @@ class FileLobby implements Lobby {
 		const { pairings, settled, bots, bye } = this.#pairRound(room, podPlayers(room, pod.humans), pod.results, nextRound);
 		const byeResult: MatchResult[] = bye === null ? [] : [{ round: nextRound, playerA: bye, playerB: null, gamesA: 2, gamesB: 0 }];
 		const results = [...pod.results, ...byeResult, ...settled];
-		room.pod = { ...pod, round: nextRound, results, pairings, botGames: bots.map((players) => ({ players })), bye };
+		room.game.pod = { ...pod, round: nextRound, results, pairings, botGames: bots.map((players) => ({ players })), bye };
 		this.#log({ event: 'pod-round-started', roomId: room.id, round: nextRound, tables: pairings.length, bye, settled: settled.length, botGames: bots.length });
-		if (pairings.length === 0 && bots.length === 0) this.#advancePodRound(room, room.pod);
+		if (pairings.length === 0 && bots.length === 0) this.#advancePodRound(room, room.game.pod);
 		else this.#playPairedBots(room);
 	}
 
@@ -2001,7 +2011,7 @@ class FileLobby implements Lobby {
 	 * restart plays the game again from its start, never waits on the one it lost.
 	 */
 	#playPairedBots(room: RoomRecord): void {
-		const pod = room.pod;
+		const pod = room.game.pod;
 		const playBotGame = this.#hooksFor(room.gameType).playBotGame;
 		if (pod === null || playBotGame === undefined) return;
 		const bestOf = seriesFormatOf(seriesRoomOf(room)).length === 1 ? 1 : 3;
@@ -2032,7 +2042,7 @@ class FileLobby implements Lobby {
 	/** Where `entrant`'s deck for a bot game comes from (`BotDeckSource`). */
 	#botDeckSource(room: RoomRecord, entrant: string): BotDeckSource {
 		if (!isTournamentRoom(room)) return { kind: 'drafted', draftId: memberDraftId(room, entrant), seat: aiEntrantSeat(entrant) };
-		const locked = tournamentDecksOf(room) === 'locked' ? (room.lockedDecks[entrant] ?? null) : null;
+		const locked = tournamentDecksOf(room) === 'locked' ? (room.game.lockedDecks[entrant] ?? null) : null;
 		return locked === null ? { kind: 'deal' } : { kind: 'locked', deck: locked };
 	}
 
@@ -2044,7 +2054,7 @@ class FileLobby implements Lobby {
 	 */
 	#botGameEnded(roomId: string, ask: BotGameAsk, result: { wins: [number, number]; gameMs: number[] } | null, error: string | null): void {
 		const room = this.#rooms.get(roomId);
-		const pod = room?.pod ?? null;
+		const pod = room?.game.pod ?? null;
 		const [a, b] = ask.players;
 		const owed = pod?.botGames?.find((g) => g.players[0] === a && g.players[1] === b);
 		if (room === undefined || pod === null || pod.round !== ask.round || owed === undefined) {
@@ -2057,8 +2067,8 @@ class FileLobby implements Lobby {
 				: { round: ask.round, playerA: a, playerB: b, gamesA: result.wins[0], gamesB: result.wins[1], ...(result.gameMs.length === 0 ? {} : { gameMs: result.gameMs }) };
 		if (result === null) this.#log({ event: 'bot-game-fallback', roomId, round: ask.round, players: ask.players, error, settled: [recorded.playerA, recorded.playerB] });
 		else this.#log({ event: 'bot-game-finished', roomId, round: ask.round, players: ask.players, wins: result.wins, gameMs: result.gameMs });
-		room.pod = { ...pod, results: [...pod.results, recorded], botGames: (pod.botGames ?? []).filter((g) => g !== owed) };
-		if (!this.#roundStillPlaying(room, room.pod, null)) this.#advancePodRound(room, room.pod);
+		room.game.pod = { ...pod, results: [...pod.results, recorded], botGames: (pod.botGames ?? []).filter((g) => g !== owed) };
+		if (!this.#roundStillPlaying(room, room.game.pod, null)) this.#advancePodRound(room, room.game.pod);
 		this.#persist(room);
 	}
 
@@ -2083,12 +2093,12 @@ class FileLobby implements Lobby {
 			players,
 			results,
 			round,
-			...(room.historicalStructure === undefined ? {} : { structure: room.historicalStructure, seed: room.id }),
+			...(room.game.historicalStructure === undefined ? {} : { structure: room.game.historicalStructure, seed: room.id }),
 		});
 		const pairings: { tableId: string; players: [string, string] }[] = [];
 		const settled: MatchResult[] = [];
 		const bots: [string, string][] = [];
-		const dropped = new Set(room.pod?.dropped ?? []);
+		const dropped = new Set(room.game.pod?.dropped ?? []);
 		for (const [a, b] of paired.tables) {
 			// A disqualified entrant's pairing is its opponent's bye (`dqPlayer`); two of them, nothing.
 			if (dropped.has(a) || dropped.has(b)) {
@@ -2130,13 +2140,13 @@ class FileLobby implements Lobby {
 		const aIsAi = isAiEntrant(a);
 		const seats: [string, string | null] = aIsAi ? [b, null] : [a, isAiEntrant(b) ? null : b];
 		const table: TableRecord = {
-			id: mintTableId(room.tables.map((t) => t.id)),
+			id: mintTableId(room.game.tables.map((t) => t.id)),
 			seats,
 			ready: [false, false],
 			matchId: null,
 			series: newSeries(seriesRoomOf(room), seats, 'seating'),
 		};
-		room.tables = [...room.tables, table];
+		room.game.tables = [...room.game.tables, table];
 		for (const id of seats) {
 			if (id === null) continue;
 			const member = room.members.find((m) => m.id === id);
@@ -2144,7 +2154,7 @@ class FileLobby implements Lobby {
 			const state = this.#hooksFor(room.gameType).seatState(memberDraftId(room, id), id);
 			if (state !== null && state !== undefined) member.state = state;
 		}
-		if (isTournamentRoom(room) && room.mode !== 'gauntlet') {
+		if (isTournamentRoom(room) && room.game.mode !== 'gauntlet') {
 			this.#seatTournamentDeck(room, table.id, a);
 			this.#seatTournamentDeck(room, table.id, b);
 		}
@@ -2160,7 +2170,7 @@ class FileLobby implements Lobby {
 	 * do about it, is `GameHooks`'s own business, never this file's.
 	 */
 	#seatTournamentDeck(room: RoomRecord, tableId: string, entrant: string): void {
-		const locked = tournamentDecksOf(room) === 'locked' ? room.lockedDecks[entrant] ?? null : null;
+		const locked = tournamentDecksOf(room) === 'locked' ? room.game.lockedDecks[entrant] ?? null : null;
 		this.#hooksFor(room.gameType).seatTournamentDeck(room.id, tableId, entrant, locked);
 	}
 
@@ -2189,7 +2199,7 @@ class FileLobby implements Lobby {
 	 */
 	#rematchable(room: RoomRecord, table: TableRecord): boolean {
 		const { series } = table;
-		if (room.scenario !== undefined) return false;
+		if (room.game.scenario !== undefined) return false;
 		if (series.phase !== 'done' || series.length !== 1 || series.settled || seriesFormatOf(seriesRoomOf(room)).length !== 1) return false;
 		return this.#stillSeated(table) && series.played.every((id) => id === null || this.#hooksFor(room.gameType).holdsSeriesDeck(room.members.find((m) => m.id === id)?.state));
 	}
@@ -2207,7 +2217,7 @@ class FileLobby implements Lobby {
 	 * who plays whom, so nobody leaves a pod series this way.
 	 */
 	#leftSeries(room: RoomRecord, table: TableRecord, leaving: string | null = null): boolean {
-		if (room.gameType === 'draft') return false;
+		if (isDraftRoom(room)) return false;
 		return !this.#stillSeated(table) || (leaving !== null && table.series.played.includes(leaving));
 	}
 
@@ -2278,7 +2288,7 @@ class FileLobby implements Lobby {
 	 * change while a game is being played.
 	 */
 	#interruptSeries(room: RoomRecord, unseat: boolean): void {
-		for (const table of room.tables) {
+		for (const table of room.game.tables) {
 			this.#settleSeries(room, table, 'interrupted');
 			table.series = newSeries(room, unseat ? [null, null] : seatOrder(table), 'seating');
 		}
@@ -2290,13 +2300,13 @@ class FileLobby implements Lobby {
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
 		const table: TableRecord = {
-			id: mintTableId(room.tables.map((t) => t.id)),
+			id: mintTableId(room.game.tables.map((t) => t.id)),
 			seats: [null, null],
 			ready: [false, false],
 			matchId: null,
 			series: newSeries(room, [null, null], 'seating'),
 		};
-		room.tables = [...room.tables, table];
+		room.game.tables = [...room.game.tables, table];
 		this.#persist(room);
 		this.#log({ event: 'table-added', roomId, tableId: table.id });
 		return { ok: true, room: this.#view(room), table: tableView(table, room.members, room) };
@@ -2306,14 +2316,14 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-		if (room.tables[0]?.id === tableId) return { ok: false, reason: 'first-table' };
-		const index = room.tables.findIndex((t) => t.id === tableId);
+		if (room.game.tables[0]?.id === tableId) return { ok: false, reason: 'first-table' };
+		const index = room.game.tables.findIndex((t) => t.id === tableId);
 		if (index === -1) return { ok: false, reason: 'no-such-table' };
-		const table = room.tables[index]!;
+		const table = room.game.tables[index]!;
 		const empty = table.seats.every((s) => s === null);
 		const idle = table.matchId === null && (table.series.phase === 'seating' || table.series.phase === 'done');
 		if (!empty || !idle) return { ok: false, reason: 'not-idle' };
-		room.tables = room.tables.filter((_, i) => i !== index);
+		room.game.tables = room.game.tables.filter((_, i) => i !== index);
 		this.#persist(room);
 		this.#log({ event: 'table-removed', roomId, tableId });
 		return { ok: true, room: this.#view(room) };
@@ -2325,21 +2335,21 @@ class FileLobby implements Lobby {
 		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
 		// An entrant who leaves mid-tournament has dropped out. Not a testing room's seed, which stands in
 		// for an entrant through round 1 and leaves so a real admin can take its seat (`testing-rooms.ts`).
-		const pod = room.pod;
+		const pod = room.game.pod;
 		let forfeited: { tableId: string; matchIds: string[] } | undefined;
 		if (pod !== null && pod.round <= pod.rounds && pod.humans.includes(memberId) && !(pod.dropped ?? []).includes(memberId) && room.testing !== true) {
 			const { tableId, matchIds } = this.#dropEntrant(room, pod, memberId);
 			if (tableId !== null) forfeited = { tableId, matchIds };
 			this.#log({ event: 'pod-entrant-left', roomId, memberId, tableId, matchIds });
 		}
-		for (const table of room.tables) {
+		for (const table of room.game.tables) {
 			this.#settleSeries(room, table, false, memberId);
 			leaveSeat(table, memberId);
 		}
 		// R16: leadership (whoever remains joined earliest) passes on here if `memberId` held it.
 		removeRoomMember(room, memberId);
 		// A split drafter leaving takes their Ready with them: the split no longer stands, and the seats it fixed are free again.
-		if (room.podSplit?.pods.some((p) => p.includes(memberId)) === true) room.podSplit = null;
+		if (room.game.podSplit?.pods.some((p) => p.includes(memberId)) === true) room.game.podSplit = null;
 		this.#persist(room);
 		this.#log({ event: 'room-left', roomId, members: room.members.length, newLeader: room.leader });
 		return { ok: true, room: this.#view(room), ...(forfeited === undefined ? {} : { forfeited }) };
@@ -2370,65 +2380,67 @@ class FileLobby implements Lobby {
 			creator: caller.id,
 			leader: caller.id,
 			gameType: input.gameType,
-			// A random era (`randomFormat`) unless the lobby was opened on a fixed one.
-			// There is no field for it in `CreateRoomInput` on purpose: a room is
-			// created on the server's pick and the leader moves it from there, so one
-			// setting has one mutator.
-			format: this.#newRoomFormat(),
-			settings: { ...DEFAULT_ROOM_SETTINGS },
-			mode: input.mode?.mode ?? null,
-			modeOptions: input.mode === undefined ? null : { ...input.mode.modeOptions },
-			clientMode: input.clientMode,
-			tables: [
-				{
-					id: mintTableId([]),
-					seats: [null, null],
-					ready: [false, false],
-					matchId: null,
-					series: newSeries({ gameType: input.gameType, mode: input.mode?.mode ?? null }, [null, null], 'seating'),
-				},
-			],
-			matches: [],
-			draftStartedAt: null,
-			plan: DEFAULT_PLAN,
-			planVerdict: null,
-			podSeats: new Array<string | null>(initialPodSize(input.gameType)).fill(null),
-			podAi: new Array<string | null>(initialPodSize(input.gameType)).fill(null),
-			podDrafts: null,
-			podSplit: null,
-			pod: null,
-			podPlaying: [],
-			lockedDecks: {},
-			gauntlets: {},
 			testing: input.testing === true,
-			...(input.scenario === undefined ? {} : { scenario: input.scenario }),
 			...(input.scheduledFor === undefined ? {} : { scheduledFor: input.scheduledFor }),
-			...(input.historical === true
-				? {
-						historical: true,
-						// The event's answers, not a leader's: format set at birth because the
-						// room is born locked against changing it, mode always constructed Classic
-						// (a historical replay IS a constructed tournament), settings the event's
-						// shape (tournament on, decks locked) unless the caller named their own.
-						format: (input.historicalFormat ?? this.#newRoomFormat()) as FormatId,
-						mode: 'classic',
-						modeOptions: {},
-						settings: input.historicalSettings ?? {
-							...DEFAULT_ROOM_SETTINGS,
-							tournament: true,
-							tournamentDecks: 'locked',
-						},
-						...(input.historicalStructure === undefined ? {} : { historicalStructure: { ...input.historicalStructure } }),
-					}
-				: {}),
-			...(input.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...input.aiDeckAssignments } }),
-			...(input.historical === true && input.seatDecks !== undefined ? { seatDecks: { ...input.seatDecks } } : {}),
+			seats: new Array<string | null>(initialPodSize(input.gameType)).fill(null),
+			game: {
+				// A random era (`randomFormat`) unless the lobby was opened on a fixed one.
+				// There is no field for it in `CreateRoomInput` on purpose: a room is
+				// created on the server's pick and the leader moves it from there, so one
+				// setting has one mutator.
+				format: this.#newRoomFormat(),
+				settings: { ...DEFAULT_ROOM_SETTINGS },
+				mode: input.mode?.mode ?? null,
+				modeOptions: input.mode === undefined ? null : { ...input.mode.modeOptions },
+				clientMode: input.clientMode,
+				tables: [
+					{
+						id: mintTableId([]),
+						seats: [null, null],
+						ready: [false, false],
+						matchId: null,
+						series: newSeries({ gameType: input.gameType, mode: input.mode?.mode ?? null }, [null, null], 'seating'),
+					},
+				],
+				matches: [],
+				draftStartedAt: null,
+				plan: DEFAULT_PLAN,
+				planVerdict: null,
+				podAi: new Array<string | null>(initialPodSize(input.gameType)).fill(null),
+				podDrafts: null,
+				podSplit: null,
+				pod: null,
+				podPlaying: [],
+				lockedDecks: {},
+				gauntlets: {},
+				...(input.scenario === undefined ? {} : { scenario: input.scenario }),
+				...(input.historical === true
+					? {
+							historical: true,
+							// The event's answers, not a leader's: format set at birth because the
+							// room is born locked against changing it, mode always constructed Classic
+							// (a historical replay IS a constructed tournament), settings the event's
+							// shape (tournament on, decks locked) unless the caller named their own.
+							format: (input.historicalFormat ?? this.#newRoomFormat()) as FormatId,
+							mode: 'classic' as const,
+							modeOptions: {},
+							settings: input.historicalSettings ?? {
+								...DEFAULT_ROOM_SETTINGS,
+								tournament: true,
+								tournamentDecks: 'locked' as const,
+							},
+							...(input.historicalStructure === undefined ? {} : { historicalStructure: { ...input.historicalStructure } }),
+						}
+					: {}),
+				...(input.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...input.aiDeckAssignments } }),
+				...(input.historical === true && input.seatDecks !== undefined ? { seatDecks: { ...input.seatDecks } } : {}),
+			},
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember(caller, now)],
 			ledger,
 		};
-		if (room.historical === true && input.historicalField !== undefined) seatHistoricalField(room, input.historicalField);
+		if (room.game.historical === true && input.historicalField !== undefined) seatHistoricalField(room, input.historicalField);
 		this.#rooms.set(id, room);
 		// A `runtime: 'relay'` room IS its own match — there is no separate "start" a
 		// non-Magic room's UI ever presses (`rooms/BundleSlot.tsx`'s own doc) — so its `RelayMatch`
@@ -2446,9 +2458,9 @@ class FileLobby implements Lobby {
 			event: 'room-created',
 			roomId: id,
 			gameType: room.gameType,
-			format: room.format,
-			mode: room.mode,
-			clientMode: room.clientMode,
+			format: room.game.format,
+			mode: room.game.mode,
+			clientMode: room.game.clientMode,
 			locked: this.#secrets.has(id),
 		});
 		this.#ensurePlanChecked(room);
@@ -2489,14 +2501,14 @@ class FileLobby implements Lobby {
 		if (room === undefined || member === undefined) return false;
 		// Once the leader has split the room, every position is locked (the operator, 2026-10-31: *"once
 		// everyone is ready and the pods are created, noone can unready anymore"*): Ready stays on.
-		if (!ready && room.gameType === 'draft' && heldSplit(room) !== null) return true;
+		if (!ready && isDraftRoom(room) && heldSplit(room) !== null) return true;
 		setMemberReady(room, memberId, ready);
 		// In a pod's lobby, Ready is "I am playing": a member who has not sat takes
 		// the first open seat. A full pod leaves them watching, ready or not — the
 		// deal never waits on a member who holds no seat.
-		if (ready && room.gameType === 'draft' && room.draftStartedAt === null && !room.podSeats.includes(memberId) && this.#seatsShut(room) === null) {
-			const open = room.podSeats.indexOf(null);
-			if (open !== -1) room.podSeats = room.podSeats.map((id, i) => (i === open ? memberId : id));
+		if (ready && isDraftRoom(room) && room.game.draftStartedAt === null && !room.seats.includes(memberId) && this.#seatsShut(room) === null) {
+			const open = room.seats.indexOf(null);
+			if (open !== -1) room.seats = room.seats.map((id, i) => (i === open ? memberId : id));
 		}
 		this.#persist(room);
 		this.#log({ event: 'room-ready', roomId, ready });
@@ -2577,10 +2589,10 @@ class FileLobby implements Lobby {
 		// Idempotent, and checked BEFORE readiness: the two browsers both ask, and
 		// the second one arrives after the first member's flags may already have
 		// been cleared by a leave. A room that has started has started.
-		if (room.draftStartedAt !== null) return { ok: true, room: this.#view(room) };
+		if (room.game.draftStartedAt !== null) return { ok: true, room: this.#view(room) };
 		if (this.#seatsShut(room) !== null) return { ok: false, reason: 'not-open' };
 		if (isTournamentRoom(room)) return this.#lockTournament(room);
-		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
+		if (!isDraftRoom(room)) return { ok: false, reason: 'not-draft' };
 		const gate = dealGate(room);
 		if (gate !== null) return { ok: false, reason: gate };
 		const seated = seatedHumans(room);
@@ -2588,12 +2600,12 @@ class FileLobby implements Lobby {
 		const split = heldSplit(room);
 		if (seated.length > POD_SEATS && split === null) return { ok: false, reason: 'not-split' };
 		if (split !== null && callerId !== room.leader) return { ok: false, reason: 'not-leader' };
-		room.draftStartedAt = this.#now();
-		if (split !== null) room.podDrafts = split.pods.map((p) => [...p]);
-		else if (room.podSeats.length > POD_SEATS) room.podDrafts = [seated];
-		room.podSplit = null;
+		room.game.draftStartedAt = this.#now();
+		if (split !== null) room.game.podDrafts = split.pods.map((p) => [...p]);
+		else if (room.seats.length > POD_SEATS) room.game.podDrafts = [seated];
+		room.game.podSplit = null;
 		this.#persist(room);
-		this.#log({ event: 'room-draft-started', roomId, members: room.members.length, seated: seated.length, pods: room.podDrafts?.map((p) => p.length) ?? [seated.length] });
+		this.#log({ event: 'room-draft-started', roomId, members: room.members.length, seated: seated.length, pods: room.game.podDrafts?.map((p) => p.length) ?? [seated.length] });
 		return { ok: true, room: this.#view(room) };
 	}
 
@@ -2601,7 +2613,7 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!room.members.some((m) => m.id === callerId)) return { ok: false, reason: 'not-member' };
-		if (room.gameType !== 'draft' || isTournamentRoom(room) || room.draftStartedAt !== null) return { ok: false, reason: 'not-draft' };
+		if (!isDraftRoom(room) || isTournamentRoom(room) || room.game.draftStartedAt !== null) return { ok: false, reason: 'not-draft' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
 		const seated = seatedHumans(room);
 		if (seated.length <= POD_SEATS) return { ok: false, reason: 'one-pod' };
@@ -2609,9 +2621,9 @@ class FileLobby implements Lobby {
 		if (gate !== null) return { ok: false, reason: gate };
 		if (heldSplit(room) === null) {
 			const seed = randomBytes(8).toString('hex');
-			room.podSplit = { seed, pods: splitIntoPods(seated, seed) };
+			room.game.podSplit = { seed, pods: splitIntoPods(seated, seed) };
 			this.#persist(room);
-			this.#log({ event: 'room-pods-split', roomId, seed, pods: room.podSplit.pods.map((p) => p.length) });
+			this.#log({ event: 'room-pods-split', roomId, seed, pods: room.game.podSplit.pods.map((p) => p.length) });
 		}
 		return { ok: true, room: this.#view(room) };
 	}
@@ -2631,7 +2643,7 @@ class FileLobby implements Lobby {
 	 * call once locked a no-op, so calling this from several places is safe.
 	 */
 	#maybeLockTournament(room: RoomRecord): void {
-		if (!isTournamentRoom(room) || room.draftStartedAt !== null || this.#seatsShut(room) !== null) return;
+		if (!isTournamentRoom(room) || room.game.draftStartedAt !== null || this.#seatsShut(room) !== null) return;
 		this.#lockTournament(room);
 	}
 
@@ -2657,31 +2669,31 @@ class FileLobby implements Lobby {
 		// A historical structure names a bracket the seated field must be able to
 		// play; a cut larger than the field, or not a power of two, is a seed
 		// fault, and the lock is the last moment it can be refused cleanly.
-		if (room.historicalStructure !== undefined && !structureOk(room.historicalStructure, entrants.length)) {
-			this.#log({ event: 'historical-structure-refused', roomId: room.id, structure: room.historicalStructure, field: entrants.length });
+		if (room.game.historicalStructure !== undefined && !structureOk(room.game.historicalStructure, entrants.length)) {
+			this.#log({ event: 'historical-structure-refused', roomId: room.id, structure: room.game.historicalStructure, field: entrants.length });
 			return { ok: false, reason: 'not-ready' };
 		}
 		// A Challenge's seat comes with its real player's list, so its human is ready by their Ready alone.
 		const pressedReady = (id: string): boolean => isMemberReady(room, id);
-		const humanReady = (id: string): boolean => (room.mode === 'classic' && room.seatDecks === undefined ? this.#hooksFor(room.gameType).hasLegalSeatDeck(room.id, id) : pressedReady(id));
+		const humanReady = (id: string): boolean => (room.game.mode === 'classic' && room.game.seatDecks === undefined ? this.#hooksFor(room.gameType).hasLegalSeatDeck(room.id, id) : pressedReady(id));
 		if (entrants.some((id) => !isAiEntrant(id) && !humanReady(id))) return { ok: false, reason: 'not-ready' };
-		if (room.seatDecks !== undefined) {
+		if (room.game.seatDecks !== undefined) {
 			// Whoever sits in a Challenge's open seat plays that seat's list: dealt by the lock like an AI's.
-			const dealt = { ...room.aiDeckAssignments };
+			const dealt = { ...room.game.aiDeckAssignments };
 			for (const id of entrants) {
-				const deck = isAiEntrant(id) ? undefined : room.seatDecks[String(room.podSeats.indexOf(id))];
+				const deck = isAiEntrant(id) ? undefined : room.game.seatDecks[String(room.seats.indexOf(id))];
 				if (deck !== undefined) dealt[id] = deck;
 			}
-			room.aiDeckAssignments = dealt;
+			room.game.aiDeckAssignments = dealt;
 		}
 		if (tournamentDecksOf(room) === 'locked') {
 			// `currentTournamentDeck` may itself re-enter `rooms.get()` (its real
 			// `routes.ts` implementation reads the room to find a pool/format).
 			// Safe here: `draftStartedAt` is still null, so any such read answers
 			// `lobby`, same as it would before this function was ever called.
-			const lockedDecks = { ...room.lockedDecks };
+			const lockedDecks = { ...room.game.lockedDecks };
 			for (const id of entrants) lockedDecks[id] = this.#hooksFor(room.gameType).currentTournamentDeck(room.id, id);
-			room.lockedDecks = lockedDecks;
+			room.game.lockedDecks = lockedDecks;
 		}
 		// A tournament room has no 1v1 table once it locks (a real run,
 		// 2026-10-22: the leader had sat at the room's own default table
@@ -2705,11 +2717,11 @@ class FileLobby implements Lobby {
 		// (`podPhaseOf`'s own doc: that is the exact crash a real run hit). The
 		// skeleton this sets is overwritten with the real pairings before this
 		// function returns.
-		room.draftStartedAt = this.#now();
-		room.pod = {
+		room.game.draftStartedAt = this.#now();
+		room.game.pod = {
 			humans: entrants,
 			round: 1,
-			rounds: room.historicalStructure !== undefined ? roundsOf(room.historicalStructure) : roundsFor(entrants.length),
+			rounds: room.game.historicalStructure !== undefined ? roundsOf(room.game.historicalStructure) : roundsFor(entrants.length),
 			results: [],
 			pairings: [],
 			bye: null,
@@ -2732,9 +2744,9 @@ class FileLobby implements Lobby {
 		if (locked !== null) return { ok: false, reason: locked };
 		const players = playersOf(room);
 		room.gameType = gameType;
-		room.mode = null;
-		room.modeOptions = null;
-		room.gauntlets = {};
+		room.game.mode = null;
+		room.game.modeOptions = null;
+		room.game.gauntlets = {};
 		this.#interruptSeries(room, true);
 		this.#carryPlayers(room, players);
 		// Readiness is readiness for a particular game: a member who readied for
@@ -2753,10 +2765,10 @@ class FileLobby implements Lobby {
 		// Setting the pool a room is already on changes nothing and clears nothing:
 		// a leader clicking the option that is already selected must not un-ready
 		// the table under everybody.
-		if (room.format === format) return { ok: true, room: this.#view(room) };
+		if (room.game.format === format) return { ok: true, room: this.#view(room) };
 		const locked = roomLocks(room).format;
 		if (locked !== null) return { ok: false, reason: locked };
-		room.format = format;
+		room.game.format = format;
 		this.#interruptSeries(room, false);
 		this.#persist(room);
 		this.#log({ event: 'room-format', roomId, format });
@@ -2767,15 +2779,15 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-		if (room.gameType !== 'constructed-1v1') return { ok: false, reason: 'not-constructed' };
-		if (room.mode === mode.mode && room.modeOptions !== null && sameOptions(room.modeOptions, mode.modeOptions)) {
+		if (!isConstructedRoom(room)) return { ok: false, reason: 'not-constructed' };
+		if (room.game.mode === mode.mode && room.game.modeOptions !== null && sameOptions(room.game.modeOptions, mode.modeOptions)) {
 			return { ok: true, room: this.#view(room) };
 		}
 		const locked = roomLocks(room).mode;
 		if (locked !== null) return { ok: false, reason: locked };
-		room.mode = mode.mode;
-		room.modeOptions = { ...mode.modeOptions };
-		room.gauntlets = {};
+		room.game.mode = mode.mode;
+		room.game.modeOptions = { ...mode.modeOptions };
+		room.game.gauntlets = {};
 		// A deck held for one mode was chosen for that mode's table, exactly as a
 		// deck held in one pool was checked in that pool.
 		this.#interruptSeries(room, false);
@@ -2788,8 +2800,8 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-		const next = { ...room.settings, ...settings };
-		const changed = SETTING_KEYS.filter((k) => next[k] !== room.settings[k]);
+		const next = { ...room.game.settings, ...settings };
+		const changed = SETTING_KEYS.filter((k) => next[k] !== room.game.settings[k]);
 		if (changed.length === 0) return { ok: true, room: this.#view(room) };
 		const locks = roomLocks(room);
 		// The event's lock holds whenever the rules' does (a game in play froze both), so it answers for a change to either.
@@ -2797,7 +2809,7 @@ class FileLobby implements Lobby {
 		if (locked !== null) return { ok: false, reason: locked };
 		const players = playersOf(room);
 		const podBefore = usesPod(room);
-		room.settings = next;
+		room.game.settings = next;
 		if (usesPod(room) !== podBefore) this.#carryPlayers(room, players);
 		this.#persist(room);
 		this.#log({ event: 'room-settings', roomId, settings: next });
@@ -2826,8 +2838,8 @@ class FileLobby implements Lobby {
 		let changed = 0;
 		for (const room of this.#rooms.values()) {
 			// A Gauntlet keeps a leaver's name in memory (`gauntletNamed`); a saved one never has it.
-			for (const [tableId, g] of Object.entries(room.gauntlets)) {
-				if (g.players?.some((p) => p.memberId !== null && ids.has(p.memberId)) === true) room.gauntlets[tableId] = gauntletWithoutNames(g);
+			for (const [tableId, g] of Object.entries(room.game.gauntlets)) {
+				if (g.players?.some((p) => p.memberId !== null && ids.has(p.memberId)) === true) room.game.gauntlets[tableId] = gauntletWithoutNames(g);
 			}
 			if (replaceIds(room, ids, to) === 0) continue;
 			changed++;
@@ -2851,7 +2863,7 @@ class FileLobby implements Lobby {
 		// HTTP layer has already checked admin and membership.
 		if (room.leader !== callerId && !room.testing) return { ok: false, reason: 'not-leader' };
 		this.#archive(room);
-		const matches = room.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId]));
+		const matches = room.game.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId]));
 		this.#forget(roomId);
 		this.#log({ event: 'room-closed', roomId, matches: matches.length });
 		return { ok: true, matches };
@@ -2860,7 +2872,7 @@ class FileLobby implements Lobby {
 	/** Gone from the list the moment it leaves the map, and from disk best-effort. */
 	#forget(id: string): void {
 		const room = this.#rooms.get(id);
-		if (room !== undefined) for (const table of room.tables) this.#settleSeries(room, table, true);
+		if (room !== undefined) for (const table of room.game.tables) this.#settleSeries(room, table, true);
 		this.#rooms.delete(id);
 		for (const key of this.#seatTaken.keys()) if (key.startsWith(`${id}\u0000`)) this.#seatTaken.delete(key);
 		this.#secrets.delete(id);
@@ -2876,9 +2888,9 @@ class FileLobby implements Lobby {
 
 	/** A pod that finished a match goes to the tournaments: finished, or ended early by a close or the sweep. Never a testing room's. */
 	#archive(room: RoomRecord): void {
-		const pod = room.pod;
+		const pod = room.game.pod;
 		// A seeded testing room's "tournament" was never played (`#settleSeries` keeps its games out of the stats the same way).
-		if (pod === null || room.testing || room.draftStartedAt === null || !pod.results.some((r) => r.playerB !== null)) return;
+		if (pod === null || room.testing || room.game.draftStartedAt === null || !pod.results.some((r) => r.playerB !== null)) return;
 		// A draft pod's shared bot (`POD_AI`) is named once; a tournament
 		// pod's own AI entrants (one per AI seat, `aiEntrantId`) are each
 		// named from the character its seat was given (`room.podAi`, kept
@@ -2888,7 +2900,7 @@ class FileLobby implements Lobby {
 		this.#onTournament({
 			id: tournamentId(room),
 			name: room.name,
-			startedAt: room.draftStartedAt,
+			startedAt: room.game.draftStartedAt,
 			endedAt: this.#now(),
 			closed: pod.round <= pod.rounds,
 			rounds: pod.rounds,
@@ -2906,7 +2918,7 @@ class FileLobby implements Lobby {
 
 	useGameType(type: string, hooks: GameHooks): void {
 		this.#hooksByType.set(type, hooks);
-		for (const room of this.#rooms.values()) if (room.gameType === type && (room.pod?.botGames ?? []).length > 0) this.#playPairedBots(room);
+		for (const room of this.#rooms.values()) if (room.gameType === type && (room.game.pod?.botGames ?? []).length > 0) this.#playPairedBots(room);
 	}
 
 	useGameView(type: string, part: GameViewPart): void {
@@ -2934,11 +2946,11 @@ class FileLobby implements Lobby {
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[] {
 		const released: string[] = [];
 		for (const room of this.#rooms.values()) {
-			if (room.gameType !== 'draft' || room.draftStartedAt === null || draftExists(room.id)) continue;
-			room.draftStartedAt = null;
-			room.podDrafts = null;
-			room.pod = null;
-			room.podPlaying = [];
+			if (!isDraftRoom(room) || room.game.draftStartedAt === null || draftExists(room.id)) continue;
+			room.game.draftStartedAt = null;
+			room.game.podDrafts = null;
+			room.game.pod = null;
+			room.game.podPlaying = [];
 			this.#persist(room);
 			released.push(room.id);
 		}
@@ -2948,18 +2960,18 @@ class FileLobby implements Lobby {
 	gauntlet(roomId: string, tableId?: string): GauntletState | null {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return null;
-		const g = room.gauntlets[tableId ?? room.tables[0]!.id];
+		const g = room.game.gauntlets[tableId ?? room.game.tables[0]!.id];
 		return g === undefined ? null : gauntletNamed(g, room.members);
 	}
 
 	setGauntlet(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return false;
-		const table = tableId ?? room.tables[0]!.id;
-		const next = { ...room.gauntlets };
+		const table = tableId ?? room.game.tables[0]!.id;
+		const next = { ...room.game.gauntlets };
 		if (gauntlet === null) delete next[table];
 		else next[table] = gauntlet;
-		room.gauntlets = next;
+		room.game.gauntlets = next;
 		this.#persist(room);
 		return true;
 	}
@@ -2967,7 +2979,7 @@ class FileLobby implements Lobby {
 	tournamentPairingOf(roomId: string, tableId: string): TournamentPairing | null {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return null;
-		const pairing = room.pod?.pairings.find((p) => p.tableId === tableId);
+		const pairing = room.game.pod?.pairings.find((p) => p.tableId === tableId);
 		if (pairing === undefined) return null;
 		const [a, b] = pairing.players;
 		// The AI's slot (if either is one) always LAST, matching the seat
@@ -2982,7 +2994,7 @@ class FileLobby implements Lobby {
 		const { roomId, pod } = podOfDraftId(draftId);
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return null;
-		if (room.podDrafts !== null) return this.#podDeal(room, pod);
+		if (room.game.podDrafts !== null) return this.#podDeal(room, pod);
 		if (pod !== 0) return null;
 		const table = podTable(room);
 		return {
@@ -2993,7 +3005,7 @@ class FileLobby implements Lobby {
 				return member === undefined ? [] : [{ participantId: place.id, displayName: member.name, seat, ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }) }];
 			}),
 			bots: table.flatMap((place, seat) => (place.kind === 'ai' ? [place.persona === null ? { name: `Bot ${seat}` } : { name: place.persona.name, avatarId: place.persona.avatarId }] : [])),
-			plan: room.plan,
+			plan: room.game.plan,
 		};
 	}
 
@@ -3003,7 +3015,7 @@ class FileLobby implements Lobby {
 	 * a seam that knows only the room id finds the right pod (`DraftRooms.findFor`).
 	 */
 	#podDeal(room: RoomRecord, pod: number): PodDeal | null {
-		const pods = room.podDrafts ?? [];
+		const pods = room.game.podDrafts ?? [];
 		const drafters = pods[pod];
 		if (drafters === undefined) return null;
 		const humans = drafters.flatMap((id, seat) => {
@@ -3018,7 +3030,7 @@ class FileLobby implements Lobby {
 			return { name: persona.name, avatarId: persona.avatarId };
 		});
 		const podOf = Object.fromEntries(pods.flatMap((ids, k) => ids.map((id) => [id, podDraftId(room.id, k)])));
-		return { seats: POD_SEATS, humans, bots, plan: room.plan, podOf };
+		return { seats: POD_SEATS, humans, bots, plan: room.game.plan, podOf };
 	}
 
 	setPodPlan(roomId: string, memberId: string, plan: DraftPlan, verdict: PoolVerdict): SetPodPlanResult {
@@ -3026,12 +3038,12 @@ class FileLobby implements Lobby {
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!room.members.some((m) => m.id === memberId)) return { ok: false, reason: 'not-member' };
 		// A draft plan only — a tournament pod drafts no pool at all (`PodView.plan`'s own doc).
-		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
-		if (room.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
+		if (!isDraftRoom(room)) return { ok: false, reason: 'not-draft' };
+		if (room.game.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
 		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
 		if (!verdict.ok) return { ok: false, reason: 'refused', verdict };
-		room.plan = plan;
-		room.planVerdict = verdict;
+		room.game.plan = plan;
+		room.game.planVerdict = verdict;
 		this.#persist(room);
 		this.#log({ event: 'pod-plan-set', roomId, memberId, planName: planDisplayName(plan, this.#hooksFor(room.gameType).roundNamesOf(plan)) });
 		return { ok: true, room: this.#view(room) };
@@ -3046,22 +3058,19 @@ class FileLobby implements Lobby {
 		if (seatsFixed(room)) return { ok: false, reason: 'not-lobby' };
 		if (this.#seatsShut(room) !== null) return { ok: false, reason: 'not-open' };
 		if (seat !== undefined && !seatInReach(room, seat)) return { ok: false, reason: 'bad-seat' };
-		const already = room.podSeats.indexOf(memberId);
+		const already = room.seats.indexOf(memberId);
 		let target = seat;
 		if (target === undefined) {
 			// Their own seat counts as open, as it always has: a sit with no seat never moves them past it.
-			const open = room.podSeats.findIndex((id, i) => id === null || i === already);
+			const open = room.seats.findIndex((id, i) => id === null || i === already);
 			// No seat open: one past the last, growing the room by that seat.
-			target = open === -1 ? room.podSeats.length : open;
+			target = open === -1 ? room.seats.length : open;
 			if (target >= podSeatCeiling(room)) return { ok: false, reason: 'pod-full' };
-		} else if (target !== already && (room.podSeats[target] ?? null) !== null) {
+		} else if (target !== already && (room.seats[target] ?? null) !== null) {
 			return { ok: false, reason: 'seat-taken' };
 		}
 		grownSeats(room, target);
-		const seats = [...room.podSeats];
-		if (already !== -1) seats[already] = null;
-		seats[target] = memberId;
-		room.podSeats = seats;
+		takeGameSeat(room, memberId, target);
 		trimmedSeats(room);
 		this.#persist(room);
 		this.#log({ event: 'pod-sit', roomId, memberId, seat: target });
@@ -3077,11 +3086,7 @@ class FileLobby implements Lobby {
 		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
 		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (seatsFixed(room)) return { ok: false, reason: 'not-lobby' };
-		const index = room.podSeats.indexOf(memberId);
-		if (index === -1) return { ok: true, room: this.#view(room) };
-		const seats = [...room.podSeats];
-		seats[index] = null;
-		room.podSeats = seats;
+		if (!leaveGameSeat(room, memberId)) return { ok: true, room: this.#view(room) };
 		trimmedSeats(room);
 		this.#persist(room);
 		this.#log({ event: 'pod-stand', roomId, memberId });
@@ -3097,18 +3102,16 @@ class FileLobby implements Lobby {
 		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
 		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (seatsFixed(room)) return { ok: false, reason: 'not-lobby' };
-		if (room.historical === true) return { ok: false, reason: 'historical' };
+		if (room.game.historical === true) return { ok: false, reason: 'historical' };
 		if (on && this.#seatsShut(room) !== null) return { ok: false, reason: 'not-open' };
-		if (!seatInReach(room, seat) || (!on && seat >= room.podSeats.length)) return { ok: false, reason: 'bad-seat' };
-		const now = room.podSeats[seat] ?? null;
+		if (!seatInReach(room, seat) || (!on && seat >= room.seats.length)) return { ok: false, reason: 'bad-seat' };
+		const now = room.seats[seat] ?? null;
 		if (on ? now === POD_AI : now === null) return { ok: true, room: this.#view(room) };
 		if (now !== (on ? null : POD_AI)) return { ok: false, reason: 'seat-taken' };
 		const avatar = on ? freeAiAvatar(room, seat) : null;
 		grownSeats(room, seat);
-		const seats = [...room.podSeats];
-		seats[seat] = on ? POD_AI : null;
-		room.podSeats = seats;
-		room.podAi = room.podAi.map((a, i) => (i === seat ? avatar : a));
+		setGameSeat(room, seat, on ? POD_AI : null);
+		room.game.podAi = room.game.podAi.map((a, i) => (i === seat ? avatar : a));
 		trimmedSeats(room);
 		this.#persist(room);
 		this.#log({ event: on ? 'pod-ai-sit' : 'pod-ai-stand', roomId, memberId, seat });
@@ -3125,13 +3128,13 @@ class FileLobby implements Lobby {
 		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
 		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (seatsFixed(room)) return { ok: false, reason: 'not-lobby' };
-		if (room.historical === true) return { ok: false, reason: 'historical' };
-		if (!seatInReach(room, seat) || seat >= room.podSeats.length) return { ok: false, reason: 'bad-seat' };
-		const now = room.podSeats[seat] ?? null;
+		if (room.game.historical === true) return { ok: false, reason: 'historical' };
+		if (!seatInReach(room, seat) || seat >= room.seats.length) return { ok: false, reason: 'bad-seat' };
+		const now = room.seats[seat] ?? null;
 		if (closed ? now === POD_CLOSED : now === null) return { ok: true, room: this.#view(room) };
 		if (now !== (closed ? null : POD_CLOSED)) return { ok: false, reason: 'seat-taken' };
 		if (closed && podSize(room) <= POD_MIN_OPEN) return { ok: false, reason: 'too-few' };
-		room.podSeats = room.podSeats.map((id, i) => (i === seat ? (closed ? POD_CLOSED : null) : id));
+		setGameSeat(room, seat, closed ? POD_CLOSED : null);
 		trimmedSeats(room);
 		this.#persist(room);
 		this.#log({ event: closed ? 'pod-seat-closed' : 'pod-seat-opened', roomId, memberId, seat, size: podSize(room) });
@@ -3141,14 +3144,14 @@ class FileLobby implements Lobby {
 	playPod(roomId: string, memberId: string): PlayPodResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		const phase = room.gameType === 'draft' ? podPhaseOf(room, this.#hooksFor(room.gameType)) : 'lobby';
+		const phase = isDraftRoom(room) ? podPhaseOf(room, this.#hooksFor(room.gameType)) : 'lobby';
 		if (phase === 'rounds' || phase === 'done') return { ok: true, room: this.#view(room) };
 		const humans = seatedHumans(room);
 		if (phase !== 'building' || !humans.includes(memberId)) return { ok: false, reason: 'not-drafter' };
 		if (!this.#hooksFor(room.gameType).built(memberDraftId(room, memberId), memberId)) return { ok: false, reason: 'not-built' };
-		if (!room.podPlaying.includes(memberId)) room.podPlaying = [...room.podPlaying, memberId];
+		if (!room.game.podPlaying.includes(memberId)) room.game.podPlaying = [...room.game.podPlaying, memberId];
 		this.#log({ event: 'pod-play', roomId, memberId });
-		if (humans.every((id) => room.podPlaying.includes(id) && this.#hooksFor(room.gameType).built(memberDraftId(room, id), id))) this.#dealPodRounds(room, draftEntrants(room, humans));
+		if (humans.every((id) => room.game.podPlaying.includes(id) && this.#hooksFor(room.gameType).built(memberDraftId(room, id), id))) this.#dealPodRounds(room, draftEntrants(room, humans));
 		this.#persist(room);
 		return { ok: true, room: this.#view(room) };
 	}
@@ -3162,9 +3165,9 @@ class FileLobby implements Lobby {
 		const rounds = roundsFor(entrants.length);
 		const { pairings, settled, bots, bye } = this.#pairRound(room, podPlayers(room, entrants), [], 1);
 		const byeResult: MatchResult[] = bye === null ? [] : [{ round: 1, playerA: bye, playerB: null, gamesA: 2, gamesB: 0 }];
-		room.pod = { humans: entrants, round: 1, rounds, results: [...byeResult, ...settled], pairings, botGames: bots.map((players) => ({ players })), bye };
+		room.game.pod = { humans: entrants, round: 1, rounds, results: [...byeResult, ...settled], pairings, botGames: bots.map((players) => ({ players })), bye };
 		this.#log({ event: 'pod-rounds-started', roomId: room.id, rounds, tables: pairings.length, bye, settled: settled.length, botGames: bots.length });
-		if (pairings.length === 0 && bots.length === 0) this.#advancePodRound(room, room.pod);
+		if (pairings.length === 0 && bots.length === 0) this.#advancePodRound(room, room.game.pod);
 		else this.#playPairedBots(room);
 	}
 }
@@ -3220,15 +3223,11 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 			});
 			const app = decoded.app;
 			const game = app.game;
-			// A constructed room a leader put on a pod before 2026-10-20, when a
-			// room's format could still be `draft:<podId>`. It comes back on the
-			// newest era with every deck hold and ready flag dropped — exactly what
-			// a format change does (`setFormat`) — since nothing held there was ever
-			// checked against a pool a constructed room can be on now.
-			const offPod = app.gameType !== 'draft' && game.format !== null && game.format.startsWith(DRAFT_POOL_PREFIX);
+			// Magic's two restore rules (`magicRestoreRules`): a constructed room on a
+			// pre-2026-10-20 `draft:<podId>` format comes back on the newest era with
+			// every deck hold and ready flag dropped, and one stored before modes is Classic.
+			const { offPod, restoredAsClassic } = magicRestoreRules(app);
 			if (offPod) log({ event: 'room-format-off-pod', roomId, format: game.format });
-			// A constructed room stored before modes existed was a Classic room.
-			const restoredAsClassic = game.mode === undefined && app.gameType === 'constructed-1v1';
 			if (restoredAsClassic) log({ event: 'room-mode-restored', roomId, mode: 'classic' });
 			const members: MemberRecord[] = [];
 			// Rebuilt, not persisted; `leaderId` is set explicitly below, from disk.
@@ -3258,60 +3257,62 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					creator: app.creator,
 					leader: app.leader,
 					gameType: app.gameType,
-					// **Restored, like the match and unlike the draft.** A room that came
-					// back on a different pool from the one its players loaded their
-					// decks against is exactly the bug this field exists to prevent:
-					// the decks are restored too (the per-member blob), so the pool
-					// they were checked in has to come back with them.
-					format: (offPod ? null : game.format) ?? fixed ?? newestFormat(formats),
-					settings: app.settings,
-					...(restoredAsClassic
-						? { mode: 'classic' as const, modeOptions: {} }
-						: { mode: game.mode ?? null, modeOptions: game.modeOptions }),
-					clientMode: game.clientMode,
-					// **Restored, tables and all** — already migrated into the one-table
-					// shape by `appCodec.deserialize` for a pre-wave-71 record. Each
-					// table's `matchId`: a match's JVM outlives the process that started
-					// it and play adopts it at boot, so the room is still playing it.
-					// Whether it came back is play's registry's answer: once adoption is
-					// done, `http/routes.ts`'s `releaseGoneMatches` lets go of every
-					// match that did not — a room must never advertise "playing" a game
-					// that died with the old process.
-					tables: app.tables.map((t, i) => (t.ready === undefined ? seatsFromMembers(t, i === 0, members) : { ...t, ready: t.ready })),
-					matches: app.matches,
-					// **Restored, the draft with it.** `room/draftRooms.ts` writes every
-					// pod to disk and restores them all at boot, so a deploy mid-pod
-					// resumes it. `releaseLostDrafts`, called once the draft registry
-					// exists, puts back in its lobby only a room whose draft did not
-					// come back — `open` would deal a brand new one over the top.
-					draftStartedAt: game.draftStartedAt,
-					// Restored, same as any other lobby setting: the leader's pool
-					// choice (and its last verdict) outlive a restart same as `format`.
-					// `?? ` covers a record written before wave 73 §A, same as `podAi` below.
-					plan: game.plan ?? DEFAULT_PLAN,
-					planVerdict: game.planVerdict ?? null,
-					// Restored, like `ready` and unlike the draft itself: who sat in the
-					// pod lobby is a property of the ROOM, not of the in-memory draft, so
-					// it survives a restart the room comes back from in its lobby phase.
-					podSeats: game.podSeats,
-					podAi: game.podAi ?? new Array<string | null>(POD_SEATS).fill(null),
-					podDrafts: game.podDrafts ?? null,
-					podSplit: game.podSplit ?? null,
-					// Restored with `draftStartedAt`, and released with it.
-					pod: game.pod,
-					podPlaying: game.podPlaying ?? [],
-					// Restored, like `podPlaying`: a tournament's locked deck(s) survive a restart with it.
-					lockedDecks: game.lockedDecks ?? {},
-					gauntlets: game.gauntlets ?? {},
 					// Restored, like every other room-level flag: a restart never turns
 					// a testing room into an ordinary one or back.
 					testing: app.testing === true,
-					...(game.scenario === undefined ? {} : { scenario: game.scenario }),
 					...(app.scheduledFor === undefined ? {} : { scheduledFor: app.scheduledFor }),
-					...(game.historical === true ? { historical: true } : {}),
-					...(game.historicalStructure === undefined ? {} : { historicalStructure: { ...game.historicalStructure } }),
-					...(game.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...game.aiDeckAssignments } }),
-					...(game.seatDecks === undefined ? {} : { seatDecks: { ...game.seatDecks } }),
+					// Restored, like `ready` and unlike the draft itself: who sat in the
+					// pod lobby is a property of the ROOM, not of the in-memory draft, so
+					// it survives a restart the room comes back from in its lobby phase.
+					seats: app.seats,
+					game: {
+						// **Restored, like the match and unlike the draft.** A room that came
+						// back on a different pool from the one its players loaded their
+						// decks against is exactly the bug this field exists to prevent:
+						// the decks are restored too (the per-member blob), so the pool
+						// they were checked in has to come back with them.
+						format: (offPod ? null : game.format) ?? fixed ?? newestFormat(formats),
+						settings: game.settings,
+						...(restoredAsClassic
+							? { mode: 'classic' as const, modeOptions: {} }
+							: { mode: game.mode ?? null, modeOptions: game.modeOptions }),
+						clientMode: game.clientMode,
+						// **Restored, tables and all** — already migrated into the one-table
+						// shape by `appCodec.deserialize` for a pre-wave-71 record. Each
+						// table's `matchId`: a match's JVM outlives the process that started
+						// it and play adopts it at boot, so the room is still playing it.
+						// Whether it came back is play's registry's answer: once adoption is
+						// done, `http/routes.ts`'s `releaseGoneMatches` lets go of every
+						// match that did not — a room must never advertise "playing" a game
+						// that died with the old process.
+						tables: game.tables.map((t, i) => (t.ready === undefined ? seatsFromMembers(t, i === 0, members) : { ...t, ready: t.ready })),
+						matches: game.matches,
+						// **Restored, the draft with it.** `room/draftRooms.ts` writes every
+						// pod to disk and restores them all at boot, so a deploy mid-pod
+						// resumes it. `releaseLostDrafts`, called once the draft registry
+						// exists, puts back in its lobby only a room whose draft did not
+						// come back — `open` would deal a brand new one over the top.
+						draftStartedAt: game.draftStartedAt,
+						// Restored, same as any other lobby setting: the leader's pool
+						// choice (and its last verdict) outlive a restart same as `format`.
+						// `?? ` covers a record written before wave 73 §A, same as `podAi` below.
+						plan: game.plan ?? DEFAULT_PLAN,
+						planVerdict: game.planVerdict ?? null,
+						podAi: game.podAi ?? new Array<string | null>(POD_SEATS).fill(null),
+						podDrafts: game.podDrafts ?? null,
+						podSplit: game.podSplit ?? null,
+						// Restored with `draftStartedAt`, and released with it.
+						pod: game.pod,
+						podPlaying: game.podPlaying ?? [],
+						// Restored, like `podPlaying`: a tournament's locked deck(s) survive a restart with it.
+						lockedDecks: game.lockedDecks ?? {},
+						gauntlets: game.gauntlets ?? {},
+						...(game.scenario === undefined ? {} : { scenario: game.scenario }),
+						...(game.historical === true ? { historical: true } : {}),
+						...(game.historicalStructure === undefined ? {} : { historicalStructure: { ...game.historicalStructure } }),
+						...(game.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...game.aiDeckAssignments } }),
+						...(game.seatDecks === undefined ? {} : { seatDecks: { ...game.seatDecks } }),
+					},
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.

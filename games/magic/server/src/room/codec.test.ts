@@ -72,7 +72,10 @@ describe('app codec v2 reads v1 rooms from disk', () => {
 			const magic = Object.fromEntries(Object.entries(raw).filter(([k]) => isMagicKey(k)));
 			const rest = Object.fromEntries(Object.entries(raw).filter(([k]) => !isMagicKey(k)));
 			expect(Object.keys(magic).length).toBeGreaterThan(0);
-			expect(written.game).toEqual(magic);
+			// `game` also gains the fields the generic room record moved under it (`settings`, `tables`,
+			// `matches`), and the game seats are `seats` too (`codec-generic.test.ts`).
+			expect(written.game).toMatchObject(magic);
+			expect(written.seats).toEqual((written.game as Record<string, unknown>).podSeats);
 			expect(Object.keys(written).filter(isMagicKey)).toEqual([]);
 			// The rest only gains the defaults the decoder fills in for an older table.
 			expect(written).toMatchObject(rest);

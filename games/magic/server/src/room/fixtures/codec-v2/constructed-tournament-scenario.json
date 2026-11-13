@@ -1,0 +1,232 @@
+{
+	"storeVersion": 2,
+	"roomId": "r-23663e7621ce",
+	"roomKey": "r-23663e7621ce",
+	"lastEventSeq": 0,
+	"createdAt": 1793563073002,
+	"updatedAt": 1794471131418,
+	"members": [
+		{
+			"participantId": "fk:member000000000000",
+			"accountId": "00000000-0000-4000-8000-000000000001",
+			"joinedAt": 1793664982683,
+			"lastSeen": 1793664982683,
+			"app": null
+		}
+	],
+	"usedAvatars": [],
+	"seats": {
+		"capacity": null,
+		"seats": [],
+		"remembered": {},
+		"reservations": {},
+		"reservationTtlMs": 0
+	},
+	"app": {
+		"name": "Constructed tournament room",
+		"creator": "dev:testing-seed",
+		"leader": "fk:member000000000000",
+		"gameType": "constructed-1v1",
+		"settings": {
+			"handSmoothing": true,
+			"tournament": true,
+			"tournamentDecks": "per-round",
+			"clock": "auto",
+			"pickTimer": {
+				"on": false,
+				"speed": 1
+			},
+			"draftBots": "model"
+		},
+		"tables": [
+			{
+				"id": "t-07e88ba2",
+				"seats": [
+					null,
+					null
+				],
+				"ready": [
+					false,
+					false
+				],
+				"matchId": null,
+				"series": {
+					"length": 1,
+					"wins": [
+						0,
+						0
+					],
+					"games": [],
+					"phase": "seating",
+					"played": [
+						null,
+						null
+					],
+					"mode": "classic",
+					"settled": false,
+					"gameStartedAt": null
+				}
+			},
+			{
+				"id": "t-26f92a1b",
+				"seats": [
+					null,
+					null
+				],
+				"ready": [
+					false,
+					false
+				],
+				"matchId": null,
+				"series": {
+					"length": 3,
+					"wins": [
+						2,
+						0
+					],
+					"games": [
+						{
+							"matchId": "r-23663e7621ce-r1-g1",
+							"winner": 0
+						},
+						{
+							"matchId": "r-23663e7621ce-r1-g2",
+							"winner": 0
+						}
+					],
+					"phase": "done",
+					"played": [
+						"dev:testing-seed",
+						null
+					],
+					"mode": "classic",
+					"settled": true,
+					"gameStartedAt": null
+				}
+			},
+			{
+				"id": "t-e0dfa05b",
+				"seats": [
+					null,
+					null
+				],
+				"ready": [
+					false,
+					false
+				],
+				"matchId": null,
+				"series": {
+					"length": 3,
+					"wins": [
+						0,
+						0
+					],
+					"games": [],
+					"phase": "seating",
+					"played": [
+						"dev:testing-seed",
+						null
+					],
+					"mode": "classic",
+					"settled": false,
+					"gameStartedAt": null
+				}
+			}
+		],
+		"matchId": null,
+		"matches": [],
+		"testing": true,
+		"secret": null,
+		"game": {
+			"format": "legacy-2020-08-03",
+			"mode": "classic",
+			"modeOptions": {},
+			"clientMode": "builtin",
+			"draftStartedAt": 1793563073059,
+			"plan": {
+				"rounds": [
+					{
+						"kind": "cube",
+						"cubeId": "mtgo-vintage-cube-2025-04"
+					},
+					{
+						"kind": "cube",
+						"cubeId": "mtgo-vintage-cube-2025-04"
+					},
+					{
+						"kind": "cube",
+						"cubeId": "mtgo-vintage-cube-2025-04"
+					}
+				]
+			},
+			"planVerdict": null,
+			"podSeats": [
+				"dev:testing-seed",
+				"ai",
+				"ai",
+				null,
+				null,
+				null,
+				null,
+				null
+			],
+			"podAi": [
+				null,
+				"herald",
+				"cleric",
+				null,
+				null,
+				null,
+				null,
+				null
+			],
+			"podPlaying": [],
+			"lockedDecks": {},
+			"gauntlets": {},
+			"scenario": "# \"Testing: Board \u2014 Combat\" (room/testing-rooms.ts): seat 0 (human) lands at\n# its own Main Phase 1 with several untapped, non-sick attackers and a board\n# of blockers across the table including first strike and deathtouch \u2014 the\n# same shape `attackers-declared.state` uses (see its header): setting\n# `activephase` straight to a combat step skips Forge's own live declare\n# window entirely, so this sits in MAIN1 and lets the admin pass priority\n# forward into a REAL Declare Attackers Step.\nturn=4\nactiveplayer=human\nactivephase=MAIN1\nhumanlife=20\nailife=20\nhumanhand=Giant Growth\nhumanbattlefield=Forest;Forest;Mountain;Colossal Dreadmaw;Boggart Brute;Grizzly Bears\nhumanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain\nhumangraveyard=\naihand=\naibattlefield=Mountain;Swamp;Anaba Bodyguard;Ankle Biter;Hill Giant\nailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain\naigraveyard=\n",
+			"pod": {
+				"humans": [
+					"dev:testing-seed",
+					"ai:1",
+					"ai:2"
+				],
+				"round": 2,
+				"rounds": 2,
+				"results": [
+					{
+						"round": 1,
+						"playerA": "ai:1",
+						"playerB": null,
+						"gamesA": 2,
+						"gamesB": 0
+					},
+					{
+						"round": 1,
+						"playerA": "dev:testing-seed",
+						"playerB": "ai:2",
+						"gamesA": 2,
+						"gamesB": 0
+					},
+					{
+						"round": 2,
+						"playerA": "ai:2",
+						"playerB": null,
+						"gamesA": 2,
+						"gamesB": 0
+					}
+				],
+				"pairings": [
+					{
+						"tableId": "t-e0dfa05b",
+						"players": [
+							"dev:testing-seed",
+							"ai:1"
+						]
+					}
+				],
+				"bye": "ai:2"
+			}
+		}
+	},
+	"appVersion": 2
+}

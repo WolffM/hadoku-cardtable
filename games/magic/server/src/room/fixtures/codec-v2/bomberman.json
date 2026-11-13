@@ -1,0 +1,140 @@
+{
+	"storeVersion": 2,
+	"roomId": "r-cf870906fd8e",
+	"roomKey": "r-cf870906fd8e",
+	"lastEventSeq": 0,
+	"createdAt": 1794000001000,
+	"updatedAt": 1794000009000,
+	"members": [
+		{
+			"participantId": "fk:alice0000000000",
+			"accountId": "00000000-0000-4000-8000-00000000000a",
+			"joinedAt": 1794000001000,
+			"lastSeen": 1794000001000,
+			"app": null
+		},
+		{
+			"participantId": "fk:bob00000000000",
+			"accountId": "00000000-0000-4000-8000-00000000000b",
+			"joinedAt": 1794000003000,
+			"lastSeen": 1794000003000,
+			"app": {
+				"ready": true
+			}
+		},
+		{
+			"participantId": "fk:carol0000000000",
+			"accountId": "00000000-0000-4000-8000-00000000000c",
+			"joinedAt": 1794000005000,
+			"lastSeen": 1794000005000,
+			"app": null
+		}
+	],
+	"usedAvatars": [],
+	"seats": {
+		"capacity": null,
+		"seats": [],
+		"remembered": {},
+		"reservations": {},
+		"reservationTtlMs": 0
+	},
+	"app": {
+		"name": "Bomberman room",
+		"creator": "fk:alice0000000000",
+		"leader": "fk:alice0000000000",
+		"gameType": "bomberman",
+		"settings": {
+			"handSmoothing": true,
+			"tournament": false,
+			"tournamentDecks": "locked",
+			"clock": "auto",
+			"pickTimer": {
+				"on": false,
+				"speed": 1
+			},
+			"draftBots": "model"
+		},
+		"tables": [
+			{
+				"id": "t-b03097c3",
+				"seats": [
+					null,
+					null
+				],
+				"ready": [
+					false,
+					false
+				],
+				"matchId": null,
+				"series": {
+					"length": 1,
+					"wins": [
+						0,
+						0
+					],
+					"games": [],
+					"phase": "seating",
+					"played": [
+						null,
+						null
+					],
+					"mode": "classic",
+					"settled": false
+				}
+			}
+		],
+		"matchId": null,
+		"matches": [],
+		"testing": false,
+		"secret": null,
+		"game": {
+			"format": "fixed-fmt",
+			"mode": null,
+			"modeOptions": null,
+			"clientMode": "builtin",
+			"draftStartedAt": null,
+			"plan": {
+				"rounds": [
+					{
+						"kind": "cube",
+						"cubeId": "mtgo-vintage-cube-2025-04"
+					},
+					{
+						"kind": "cube",
+						"cubeId": "mtgo-vintage-cube-2025-04"
+					},
+					{
+						"kind": "cube",
+						"cubeId": "mtgo-vintage-cube-2025-04"
+					}
+				]
+			},
+			"planVerdict": null,
+			"podSeats": [
+				"fk:alice0000000000",
+				"fk:bob00000000000",
+				null,
+				"ai",
+				null,
+				null,
+				null,
+				null
+			],
+			"podAi": [
+				null,
+				null,
+				null,
+				"imp",
+				null,
+				null,
+				null,
+				null
+			],
+			"podPlaying": [],
+			"lockedDecks": {},
+			"gauntlets": {},
+			"pod": null
+		}
+	},
+	"appVersion": 2
+}

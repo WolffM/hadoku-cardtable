@@ -24,7 +24,6 @@ export interface ListableRoom {
 	scheduledFor?: number;
 	testing: boolean;
 	members: { length: number };
-	tables: readonly { matchId: string | null }[];
 }
 
 /**
@@ -34,6 +33,8 @@ export interface ListableRoom {
  * `ROOM_IDLE_MS`, `CASUAL_ROOM_IDLE_MS`).
  */
 export interface RoomBusyHook<R> {
+	/** Whether a match is live in `room` (Magic: any of its tables plays one). A room with one is offered and never swept. */
+	liveMatch(room: R): boolean;
 	/** An extra reason — beyond a live match — `room` counts as busy enough to stay offered past `staleMs` (Magic: a draft under way). */
 	extraOffered(room: R): boolean;
 	/** The idle window `isSweepableRoom` uses when the caller gives none (Magic: a tournament's `ROOM_IDLE_MS`, else the casual one). */
@@ -42,8 +43,9 @@ export interface RoomBusyHook<R> {
 	sparedFromSweep(room: R, now: number): boolean;
 }
 
-/** The plain rule: no extra reason to stay offered, an 8-hour idle window, never spared. What a room wires if its game has nothing extra to say. */
+/** The plain rule: no live match it can see, no extra reason to stay offered, an 8-hour idle window, never spared. What a room wires if its game has nothing extra to say. */
 export const NO_BUSY_HOOK: RoomBusyHook<unknown> = {
+	liveMatch: () => false,
 	extraOffered: () => false,
 	defaultIdleMs: () => 8 * 60 * 60_000,
 	sparedFromSweep: () => false,
@@ -64,7 +66,7 @@ export function sortRoomsByCreation<R extends { id: string; createdAt: number }>
 export function isOfferedRoom<R extends ListableRoom>(room: R, hook: RoomBusyHook<R>, now: number, staleMs: number, touchedAt: number | undefined): boolean {
 	if (room.testing) return true;
 	if (room.members.length === 0) return false;
-	if (room.tables.some((t) => t.matchId !== null)) return true;
+	if (hook.liveMatch(room)) return true;
 	if (hook.extraOffered(room)) return true;
 	const cutoff = now - staleMs;
 	return Math.max(room.updatedAt, touchedAt ?? 0, room.scheduledFor ?? 0) > cutoff;
@@ -79,7 +81,7 @@ export function isOfferedRoom<R extends ListableRoom>(room: R, hook: RoomBusyHoo
  */
 export function isSweepableRoom<R extends ListableRoom>(room: R, hook: RoomBusyHook<R>, now: number, idleMs: number | undefined): boolean {
 	if (room.testing) return false;
-	if (room.tables.some((t) => t.matchId !== null)) return false;
+	if (hook.liveMatch(room)) return false;
 	const idle = idleMs ?? hook.defaultIdleMs(room);
 	if (Math.max(room.updatedAt, room.scheduledFor ?? 0) > now - idle) return false;
 	if (hook.sparedFromSweep(room, now)) return false;

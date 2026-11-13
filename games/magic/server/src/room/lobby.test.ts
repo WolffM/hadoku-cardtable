@@ -1795,7 +1795,12 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			// What a build before this one saved when Bob left: Bob gone, the Gauntlet still holding the table.
 			const store = new FileRoomStore(dir);
 			const saved = (await store.load(id))!;
-			const app = saved.app as { tables: { seats: (string | null)[] }[]; game: { gauntlets: Record<string, unknown> } };
+			const app = saved.app as { tables: { seats: (string | null)[] }[]; seats?: unknown; game: { gauntlets: Record<string, unknown>; tables?: unknown; settings?: unknown; matches?: unknown } };
+			// That build wrote only the old shape: no generic room record fields.
+			delete app.seats;
+			delete app.game.tables;
+			delete app.game.settings;
+			delete app.game.matches;
 			saved.members = saved.members.filter((m) => m.participantId !== BOB.id);
 			app.tables[0]!.seats = [ALICE.id, null];
 			app.game.gauntlets = { [tableId]: choosing };

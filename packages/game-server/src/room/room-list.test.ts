@@ -8,8 +8,11 @@ import { describe, expect, it } from 'vitest';
 import { isOfferedRoom, isSweepableRoom, NO_BUSY_HOOK, sortRoomsByCreation, type ListableRoom } from './room-list.ts';
 
 function roomOf(partial: Partial<ListableRoom> & { id: string }): ListableRoom {
-	return { createdAt: 0, updatedAt: 0, testing: false, members: { length: 1 }, tables: [], ...partial };
+	return { createdAt: 0, updatedAt: 0, testing: false, members: { length: 1 }, ...partial };
 }
+
+/** A game whose every room has a live match. */
+const LIVE = { ...NO_BUSY_HOOK, liveMatch: () => true };
 
 describe('sortRoomsByCreation', () => {
 	it('sorts by createdAt, then by id as a tie-break', () => {
@@ -32,8 +35,9 @@ describe('isOfferedRoom', () => {
 	});
 
 	it('offers a room with a live match regardless of staleness', () => {
-		const room = roomOf({ id: 'r-1', updatedAt: 0, tables: [{ matchId: 'm-1' }] });
-		expect(isOfferedRoom(room, NO_BUSY_HOOK, 1_000_000, 500, undefined)).toBe(true);
+		const room = roomOf({ id: 'r-1', updatedAt: 0 });
+		expect(isOfferedRoom(room, LIVE, 1_000_000, 500, undefined)).toBe(true);
+		expect(isOfferedRoom(room, NO_BUSY_HOOK, 1_000_000, 500, undefined)).toBe(false);
 	});
 
 	it("offers past staleness when the hook's extraOffered says so", () => {
@@ -57,8 +61,9 @@ describe('isSweepableRoom', () => {
 	});
 
 	it('never sweeps a room with a live match', () => {
-		const room = roomOf({ id: 'r-1', updatedAt: 0, tables: [{ matchId: 'm-1' }] });
-		expect(isSweepableRoom(room, NO_BUSY_HOOK, 1_000_000, 100)).toBe(false);
+		const room = roomOf({ id: 'r-1', updatedAt: 0 });
+		expect(isSweepableRoom(room, LIVE, 1_000_000, 100)).toBe(false);
+		expect(isSweepableRoom(room, NO_BUSY_HOOK, 1_000_000, 100)).toBe(true);
 	});
 
 	it('sweeps once idle past idleMs (or the event start, whichever is later), never before', () => {
