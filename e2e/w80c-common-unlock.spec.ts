@@ -9,7 +9,10 @@
  * can cast). That moment is a share of the resolution's effect, the animations the frame that shrank the stack
  * set off (the slice; the counter's blink and its target's crack and fade), not the spell then fading off the
  * stack. After bob's act it opens on the effect's last tenth; after her own (her counter of his Bolt included)
- * it opens at once, as Forge asks (AF216). `[w80c-common]` lines are the evidence.
+ * it goes out as Forge sends it (AF216): the page's pacer, which reports any decision it held 100 ms or more
+ * behind the board (`input-held`), held none. When Forge sends it is Forge's and the runner's, not the page's:
+ * on a loaded claw her next window came 92–318 ms after the stack shrank with nothing held (w111's A/B), so a
+ * share of the effect read off the wall clock failed 2 runs in 5. `[w80c-common]` lines are the evidence.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one this SKIPS and the
  * title says why.
@@ -138,6 +141,8 @@ interface Measured {
   lateMs: number;
   /** How much of the time from the unlock point ({@link UNLOCK_SHARE} of the effect) to the open the page's own long frames covered, in ms. */
   jankMs: number;
+  /** The longest the page's pacer held one of her decisions behind the board meanwhile, by its own `input-held` report (0: none held 100 ms). */
+  heldMs: number;
 }
 
 /** Where the board unlocks a held decision: `apps/ui/src/play/motion.ts`'s `UNLOCK_AT`, the effect's last tenth. */
@@ -152,8 +157,11 @@ const UNLOCK_SHARE = 0.9;
  */
 const LATEST_SHARE = 1.1;
 
-/** Alice's next decision after the stack shrank from `from` (at or after `since`), against what that resolution drew. */
-async function measure(page: Page, act: string, since: number, from: number): Promise<Measured> {
+/**
+ * Alice's next decision after the stack shrank from `from` (at or after `since`), against what that resolution drew;
+ * and what her page's pacer held from server log row `rows` on.
+ */
+async function measure(page: Page, stack: { serverLogFile: string }, act: string, since: number, from: number, rows: number): Promise<Measured> {
   await expect
     .poll(async () => {
       const rec = await recorded(page);
@@ -179,15 +187,21 @@ async function measure(page: Page, act: string, since: number, from: number): Pr
   const lateMs = Math.round(opened.at - (start + LATEST_SHARE * (end - start)));
   const jankMs = Math.round(jankIn(longs, start + UNLOCK_SHARE * (end - start), opened.at));
   const rel = (t: number): number => Math.round(t - shrank.at);
+  const held = serverLog(stack)
+    .slice(rows)
+    .filter((x) => x.evt === 'client' && x.seat === 0 && x.what === 'input-held')
+    .map((x) => Number(x.ms));
+  const heldMs = Math.max(0, ...held);
   console.log(
     `[w80c-common] ${act}: stack ${from}→${shrank.count} drawn at 0; alice's decision opened at ${rel(opened.at)} ms` +
       ` (ok ${opened.ok}, castable [${opened.castable.join(', ')}]); the effect's animations ${rel(start)}..${rel(end)} ms, the spell off the stack by ${rel(whole)};` +
       ` opened at ${Math.round(share * 100)}% of the effect, ${Math.round(((opened.at - start) / (whole - start)) * 100)}% of all of it;` +
-      ` ${lateMs} ms past ${Math.round(LATEST_SHARE * 100)}%, the page's long frames covering ${jankMs} ms of the wait from the unlock point`,
+      ` ${lateMs} ms past ${Math.round(LATEST_SHARE * 100)}%, the page's long frames covering ${jankMs} ms of the wait from the unlock point;` +
+      ` the pacer held ${held.length === 0 ? 'nothing 100 ms' : held.map((ms) => `${ms} ms`).join(', ')}`,
   );
   console.log(`[w80c-common] ${act}: open ${rec.open.filter((o) => o.at >= shrank.at - 2_000 && o.at <= shrank.at + 3_000).map((o) => `${rel(o.at)} ${o.open ? (o.ok ? 'OK' : 'cast') : 'shut'}`).join(' | ')}; stack ${rec.stack.filter((x) => x.at >= shrank.at - 2_000).map((x) => `${rel(x.at)}:${x.count}`).join(' ')}`);
   console.log(`[w80c-common] ${act}: animations ${drawn.map((a) => `${a.name} ${rel(a.start)}..${rel(a.end)}`).join(' | ')}`);
-  return { act, share, lateMs, jankMs };
+  return { act, share, lateMs, jankMs, heldMs };
 }
 
 test(titled('a counter and a removal resolving: when alice’s next decision opens, against what the resolution draws'), async ({ browser }) => {
@@ -215,8 +229,9 @@ test(titled('a counter and a removal resolving: when alice’s next decision ope
     await cast(a, stack, 'Doom Blade', [theirCreature(a)]);
     await passTo(a, b, 1);
     let since = await clock(a);
+    let rows = serverLog(stack).length;
     await passUntilBelow(b, a, 1, 'Doom Blade resolves');
-    results.push(await measure(a, 'own Doom Blade', since, 1));
+    results.push(await measure(a, stack, 'own Doom Blade', since, 1, rows));
 
     // Bob's counter: her Bolt, his Counterspell.
     await cast(a, stack, 'Lightning Bolt', [theirFace(a)]);
@@ -224,8 +239,9 @@ test(titled('a counter and a removal resolving: when alice’s next decision ope
     await cast(b, stack, 'Counterspell', []);
     await passTo(b, a, 2);
     since = await clock(a);
+    rows = serverLog(stack).length;
     await passUntilBelow(a, a, 2, 'Counterspell resolves');
-    results.push(await measure(a, 'bob’s Counterspell', since, 2));
+    results.push(await measure(a, stack, 'bob’s Counterspell', since, 2, rows));
 
     // Bob's removal: her Shock, his Doom Blade at her Bears.
     await cast(a, stack, 'Shock', [theirFace(a)]);
@@ -233,8 +249,9 @@ test(titled('a counter and a removal resolving: when alice’s next decision ope
     await cast(b, stack, 'Doom Blade', [theirCreature(b)]);
     await passTo(b, a, 2);
     since = await clock(a);
+    rows = serverLog(stack).length;
     await passUntilBelow(a, a, 2, 'his Doom Blade resolves');
-    results.push(await measure(a, 'bob’s Doom Blade', since, 2));
+    results.push(await measure(a, stack, 'bob’s Doom Blade', since, 2, rows));
     await passTo(a, b, 1);
     await passUntilBelow(b, a, 1, 'her Shock resolves');
 
@@ -246,20 +263,22 @@ test(titled('a counter and a removal resolving: when alice’s next decision ope
     await cast(a, stack, 'Counterspell', [a.locator('[data-placed-spell][data-selectable]:not([data-mine])')]);
     await passTo(a, b, 3);
     since = await clock(a);
+    rows = serverLog(stack).length;
     await passUntilBelow(b, a, 3, 'her Counterspell resolves');
-    results.push(await measure(a, 'own Counterspell', since, 3));
+    results.push(await measure(a, stack, 'own Counterspell', since, 3, rows));
 
     for (const r of serverLog(stack).filter((x) => x.evt === 'client' && x.seat === 0 && x.what === 'input-held')) {
       console.log(`[w80c-common] input-held ${String(r.method)} ${String(r.ms)}ms board ${String(r.boardMs)} gaps ${String(r.gapMs)} ahead ${String(r.classes)}`);
     }
-    console.log(`[w80c-common] summary ${results.map((r) => `${r.act} ${Math.round(r.share * 100)}%`).join('; ')}`);
+    console.log(`[w80c-common] summary ${results.map((r) => `${r.act} ${Math.round(r.share * 100)}% held ${r.heldMs} ms`).join('; ')}`);
     // Bob's acts: her decision after one opens on the effect's last tenth, a frame of a loaded runner either side
     // (`LATEST_SHARE`), and past that only by the page's own long frames.
-    // Her own (AF216, the operator, 2026-10-29: "AF216 is important, we dont want to violate that"): at once, as
-    // Forge asks, over its beats — her counter too, though it takes bob's Bolt off the stack with it.
+    // Her own (AF216, the operator, 2026-10-29: "AF216 is important, we dont want to violate that"): as Forge
+    // sends it, over its beats — her counter too, though it takes bob's Bolt off the stack with it. Read off the
+    // page's own pacer, not the wall clock: how soon Forge asks is the runner's load.
     for (const r of results) {
       if (r.act.startsWith('own ')) {
-        expect(r.share, `${r.act}: her own act's next decision opens as it resolves, not held`).toBeLessThanOrEqual(0.15);
+        expect(r.heldMs, `${r.act}: her own act's next decision goes out as Forge sends it, never held behind the board`).toBe(0);
         continue;
       }
       expect(r.share, `${r.act}: alice's next decision opens on the effect's last tenth, not as it starts`).toBeGreaterThanOrEqual(0.8);
@@ -291,8 +310,9 @@ test(titled('a board wipe: when the caster’s Fireblast lights, against the wip
     await record(b);
     await cast(a, stack, 'Blasphemous Act', []);
     const since = await clock(a);
+    const rows = serverLog(stack).length;
     await passUntilBelow(b, a, 1, 'Blasphemous Act resolves');
-    const { share } = await measure(a, 'own Blasphemous Act', since, 1);
+    const { share } = await measure(a, stack, 'own Blasphemous Act', since, 1, rows);
     const recA = await recorded(a);
     const shrankA = recA.stack.find((s) => s.at >= since && s.count < 1)!;
     const fireblast = recA.open.find((o) => o.at >= shrankA.at && o.castable.includes('Fireblast'));
