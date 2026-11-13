@@ -51,7 +51,7 @@ import { rankOf } from '@hadoku/game-server/edge-auth';
 import { applyPerson, type People } from '@hadoku/game-server/people';
 import { handshakeTier } from '@hadoku/game-server/room/socket-auth';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
-import type { Lobby } from './lobby.js';
+import type { Lobby, RoomView } from './lobby.js';
 
 const APP_ID = 'cardtable';
 
@@ -86,7 +86,8 @@ export function placeOfKey(lobby: Pick<Lobby, 'get' | 'roomOfMatch'>, isMatch: (
 		const room = lobby.get(id.slice(0, at));
 		if (room === undefined) continue;
 		const rest = id.slice(at + 1);
-		if (room.tables.some((t) => t.id === rest) || lobby.roomOfMatch(rest)?.id === room.id) return { served: id, roomId: room.id, kind: 'table' };
+		// A room of a game Magic does not play has no tables.
+		if ((room.tables as RoomView['tables'] | undefined)?.some((t) => t.id === rest) === true || lobby.roomOfMatch(rest)?.id === room.id) return { served: id, roomId: room.id, kind: 'table' };
 	}
 	return isMatch(id) ? { served: id, roomId: null, kind: 'match' } : null;
 }

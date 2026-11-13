@@ -25,7 +25,7 @@ const fixtures = readdirSync(FIXTURES)
 
 type Raw = Record<string, unknown> & { game: Record<string, unknown> };
 const ctx = (roomId: string) => ({ roomId, restoreId: 'test', restoredAt: 0 });
-const decode = (snapshot: RoomSnapshot): StoredApp => decodeSnapshot(snapshot, roomCodec, ctx(snapshot.roomId)).app;
+const decode = (snapshot: RoomSnapshot): StoredApp => decodeSnapshot(snapshot, roomCodec, ctx(snapshot.roomId)).app as StoredApp;
 /** `snapshot` re-encoded as this build writes it. */
 const rewritten = (snapshot: RoomSnapshot): RoomSnapshot => ({ ...snapshot, app: roomCodec.app.serialize(decode(snapshot)) });
 /** What a build before the generic room record reads of `app`: the new fields gone, the rollback copies left. */
@@ -59,7 +59,8 @@ describe('the generic room record reads rooms the build before it wrote', () => 
 		expect(apps.every((a) => a.seats === undefined && Array.isArray(a.game.podSeats) && a.tables !== undefined && a.game.tables === undefined)).toBe(true);
 	});
 
-	describe.each(fixtures)('$file', ({ snapshot }) => {
+	// A room of a game Magic does not play is hosted on the platform's plain room type: no `game` of its own.
+	describe.each(fixtures.filter((f) => f.file !== 'bomberman.json'))('$file', ({ snapshot }) => {
 		const raw = snapshot.app as Raw;
 
 		it("decodes the old shape: the seats from game.podSeats, Magic's settings, tables and matches under game", () => {
@@ -81,7 +82,20 @@ describe('the generic room record reads rooms the build before it wrote', () => 
 			expect(written.matches).toEqual(written.game.matches);
 			expect(written.matchId).toBe((written.game.tables as { matchId: string | null }[])[0]!.matchId);
 		});
+	});
 
+	it('decodes a bomberman room of the old shape to its seats and no game of its own, and writes the seats where a rollback reads them', () => {
+		const { snapshot } = fixtures.find((f) => f.file === 'bomberman.json')!;
+		const raw = snapshot.app as Raw;
+		const app = decode(snapshot) as unknown as Raw;
+		expect(app.seats).toEqual(raw.game.podSeats);
+		expect(app.game).toEqual({});
+		const written = rewritten(snapshot).app as Raw;
+		expect(written.seats).toEqual(raw.game.podSeats);
+		expect(written.game).toEqual({ podSeats: written.seats });
+	});
+
+	describe.each(fixtures)('$file', ({ snapshot }) => {
 		it('decodes the same room from the new shape, and from the new shape read the old way (a rollback)', () => {
 			const first = decode(snapshot);
 			const again = rewritten(snapshot);
@@ -123,7 +137,7 @@ describe('the generic room record reads rooms the build before it wrote', () => 
 		expect(lobby.gameSeatOf(snapshot.roomId, carol)).toBeNull();
 		expect(lobby.get(snapshot.roomId)!.seats).toEqual(podSeats.map((s) => (s === 'ai' ? null : s)));
 		// Sitting takes the platform's first open seat.
-		expect(lobby.sitPod(snapshot.roomId, carol).ok).toBe(true);
+		expect(lobby.sitSeat(snapshot.roomId, carol).ok).toBe(true);
 		expect(lobby.gameSeatOf(snapshot.roomId, carol)).toBe(2);
 	});
 });

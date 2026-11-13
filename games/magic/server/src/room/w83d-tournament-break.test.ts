@@ -89,7 +89,7 @@ async function tournament(n: number, opts: { watchingLeader?: boolean; dir?: str
 	expect(lobby.setSettings(id, leader.id, { tournament: true, tournamentDecks: 'locked' }).ok).toBe(true);
 	// Seated before anyone counts as ready, or the lock would fire on the second seat.
 	standAll(lobby, id);
-	players.forEach((p, seat) => expect(lobby.sitPod(id, p.id, seat).ok, `seat ${seat}`).toBe(true));
+	players.forEach((p, seat) => expect(lobby.sitSeat(id, p.id, seat).ok, `seat ${seat}`).toBe(true));
 	wireChecks(lobby, checks(new Set(players.map((p) => p.id))));
 	const started = lobby.startDraft(id, leader.id);
 	expect(started.ok, 'the field locks').toBe(true);

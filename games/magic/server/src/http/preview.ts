@@ -74,8 +74,8 @@ export interface PreviewRoom {
   /** Magic's part of the room, the fields of it the card draws: absent for a room of another game. */
   game?: { format: string; mode?: unknown; modeOptions?: unknown; ai?: { name: string; avatarId: string } };
   members: readonly RoomMember[];
-  /** Each table's seated players: the first table's other player is the host's opponent. */
-  tables: readonly { players: readonly { memberId: string }[] }[];
+  /** Each table's seated players: the first table's other player is the host's opponent. Absent for a room of another game. */
+  tables?: readonly { players: readonly { memberId: string }[] }[];
 }
 
 export interface PreviewDeps {
@@ -208,7 +208,7 @@ export function seatsOf(room: PreviewRoom): {
   other: string | null;
 } {
   const host = room.leader || room.creator;
-  const table = room.gameType === "draft" ? undefined : room.tables[0];
+  const table = room.gameType === "draft" ? undefined : room.tables?.[0];
   const other =
     table?.players.find((p) => p.memberId !== host)?.memberId ?? null;
   return { host, other };

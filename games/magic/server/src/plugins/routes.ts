@@ -5,7 +5,7 @@
 import { resolve } from 'node:path';
 import type { Request, Response } from 'express';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import type { TableGame } from '@hadoku/shared';
+import { isMagicGameType, type TableGame } from '@hadoku/shared';
 import { CONFIG, INDEX_HTML } from '@hadoku/game-server/config';
 import { serveCover } from '../cover.js';
 import { attachCardArt } from '../http/card-art.js';
@@ -81,6 +81,8 @@ export const routesPlugin: CardtablePlugin = {
 			// it runs, where it stands (`play/table-game.ts`). A finished match still answers for its decks.
 			tableGames: (room) => {
 				const games: Record<string, TableGame> = {};
+				// A room of a game Magic does not play has no tables.
+				if (!isMagicGameType(room.gameType)) return games;
 				for (const table of room.tables) {
 					const matchId = table.matchId ?? table.series.games.at(-1)?.matchId;
 					const match = matchId === undefined ? undefined : state.play?.matches.find(matchId);

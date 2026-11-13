@@ -17,6 +17,12 @@ import type { MemberRow } from './membership.ts';
  */
 export type GameSeats = (string | null)[];
 
+/** The marker of a seat an AI holds. */
+export const AI_SEAT = 'ai';
+
+/** The marker of a seat its room's leader closed: nobody sits there, and the game is a seat smaller. */
+export const CLOSED_SEAT = 'closed';
+
 /** What every member record has, whatever the game. */
 export interface PlatformMember extends MemberRow {
 	/** The registry userId. null for a member the edge named nobody. */

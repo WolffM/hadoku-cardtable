@@ -125,7 +125,7 @@ export const TESTING_SET_DRAFT_NAME = 'Testing: Set draft';
  * The two "already in progress" tournament rooms (the operator, 2026-10-23:
  * "some rooms that have tournaments and games in progress so i can validate
  * the ui and game actions better"). Each is seeded through the SAME lobby
- * APIs a real field uses — `sitPod`/`aiPod`/`recordGameResult` — never a
+ * APIs a real field uses — `sitSeat`/`aiSeat`/`recordGameResult` — never a
  * parallel pod-construction path, with `TESTING_SEED_CALLER` standing in for
  * the human entrant through round 1, then leaving: `join`'s "an emptied
  * room's leader left with everyone else: whoever comes in first leads it"
@@ -243,7 +243,7 @@ type SeedSeries = readonly (0 | 1)[];
 
 /**
  * Seat `TESTING_SEED_CALLER` at pod seat 0 plus `aiEntrants` AI entrants at
- * the seats after it, THEN `makeEntrantReady` (never before: `sitPod`/`aiPod`
+ * the seats after it, THEN `makeEntrantReady` (never before: `sitSeat`/`aiSeat`
  * each retry the lock — `#maybeLockTournament`'s own doc — and locking the
  * instant the seed is ready and one AI is seated is exactly the bug this
  * order avoids: `roundsFor(2) === 1`, one round and done), then play the
@@ -255,7 +255,7 @@ type SeedSeries = readonly (0 | 1)[];
  *
  * `makeEntrantReady` must itself retrigger the lock (`setReady` does;
  * `setPlayerState` does not, so a Classic caller's own one has to follow it
- * with a redundant re-`sitPod`, which does).
+ * with a redundant re-`sitSeat`, which does).
  *
  * Answers the next live table's id (`''` once the pod is done), or `null`
  * with the refusal logged: the tournament never locked, a result was
@@ -269,8 +269,8 @@ function playSeedSeries(
 	makeEntrantReady: () => void,
 	log: (entry: Record<string, unknown>) => void,
 ): string | null {
-	lobby.sitPod(roomId, TESTING_SEED_CALLER.id, 0);
-	for (let seat = 1; seat <= field.aiEntrants; seat++) lobby.aiPod(roomId, TESTING_SEED_CALLER.id, seat, true);
+	lobby.sitSeat(roomId, TESTING_SEED_CALLER.id, 0);
+	for (let seat = 1; seat <= field.aiEntrants; seat++) lobby.aiSeat(roomId, TESTING_SEED_CALLER.id, seat, true);
 	makeEntrantReady();
 	if (lobby.get(roomId)?.game?.pod?.pairings.length !== 1) {
 		log({ event: 'testing-room-seed-failed', name, reason: 'tournament-did-not-lock' });
@@ -345,8 +345,8 @@ async function seedTournamentRound2Classic(deps: TestingRoomsDeps, log: (entry: 
 	const makeEntrantReady = (): void => {
 		lobby.setPlayerState(roomId, TESTING_SEED_CALLER.id, deckState);
 		// `setPlayerState` does not itself retrigger the lock (`playSeedSeries`'s
-		// own doc) — a redundant re-`sitPod` at the same seat does.
-		lobby.sitPod(roomId, TESTING_SEED_CALLER.id, 0);
+		// own doc) — a redundant re-`sitSeat` at the same seat does.
+		lobby.sitSeat(roomId, TESTING_SEED_CALLER.id, 0);
 	};
 	if (playSeedSeries(lobby, roomId, TESTING_CLASSIC_ROUND2_NAME, ROUND2_FIELD, makeEntrantReady, log) === null) return;
 	lobby.leave(roomId, TESTING_SEED_CALLER.id);

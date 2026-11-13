@@ -127,11 +127,8 @@ describe('bomberman is a registered game type', () => {
 		// `seats.max` (10) is above 2, so `room/pods.ts`'s `usesPod` routes this room through
 		// its own pod seats, read as the room's `seats`, never the Magic table's hard-two `tables[0].players`.
 		expect(created.seats[0]).toBe(created.creator);
-		expect(created.tables[0]?.players).toEqual([]);
-		// The registered spec's own series length (`series.ts`'s `seriesFormatOf`), not
-		// Magic's `CONSTRUCTED` default — this is the one thing a registered `GameTypeSpec`
-		// already wires generically, with no bomberman-specific code in `lobby.ts`.
-		expect(created.tables[0]?.series.length).toBe(1);
+		// The platform's plain room type (`hostedRoomType`): no Magic table, nothing of Magic's at all.
+		expect(created.tables).toBeUndefined();
 
 		const joined = (await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' })).json() as import('@hadoku/magic-server/room/lobby').RoomView;
 		expect(joined.members.map((m) => m.id)).toEqual([created.creator, joined.members[1]!.id]);
@@ -144,13 +141,13 @@ describe('bomberman is a registered game type', () => {
 		expect(third.seats.filter((s) => s !== null)).toHaveLength(3);
 	});
 
-	it('answers a view with no Magic field: its game type wires no part of its own', async () => {
+	it('answers a view with no Magic field: it is hosted on the platform\'s plain room type', async () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Boom room', gameType: BOMBERMAN_GAME_TYPE } })).json() as Record<string, unknown>;
 		const reread = (await call(h, 'GET', `/api/rooms/${String(created.id)}`, { as: 'alice' })).json() as Record<string, unknown>;
 		const listed = ((await call(h, 'GET', '/api/rooms', { as: 'alice' })).json() as { rooms: Record<string, unknown>[] }).rooms.find((r) => r.id === created.id);
 		// `room/magic-view.ts`'s `MagicViewPart`: what Magic's two types add, and only theirs.
-		const magicKeys = ['game', 'ai', 'historical', 'aiDeckAssignments', 'seatDecks'];
+		const magicKeys = ['game', 'ai', 'historical', 'aiDeckAssignments', 'seatDecks', 'settings', 'tables', 'locks', 'matchId'];
 		for (const view of [created, reread, listed]) {
 			expect(view).toBeDefined();
 			expect(Object.keys(view!).filter((key) => magicKeys.includes(key))).toEqual([]);

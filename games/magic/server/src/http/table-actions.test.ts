@@ -50,7 +50,7 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 	if (opts.pod === true) {
 		expect(lobby.setSettings(roomId, ALICE, { tournament: true }).ok).toBe(true);
 		standAll(lobby, roomId);
-		players.forEach((id, seat) => expect(lobby.sitPod(roomId, id, seat).ok).toBe(true));
+		players.forEach((id, seat) => expect(lobby.sitSeat(roomId, id, seat).ok).toBe(true));
 		const checks: GameHooks = {
 			draftComplete: () => true,
 			built: () => true,

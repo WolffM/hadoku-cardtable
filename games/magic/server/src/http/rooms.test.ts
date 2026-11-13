@@ -1584,7 +1584,7 @@ describe('POST /api/rooms/:id/leave', () => {
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 		const ids = h.lobby.get(room.id)!.members.map((m) => m.id);
 		expect(h.lobby.setSettings(room.id, ids[0]!, { tournament: true }).ok).toBe(true);
-		ids.forEach((id, seat) => expect(h.lobby.sitPod(room.id, id, seat).ok).toBe(true));
+		ids.forEach((id, seat) => expect(h.lobby.sitSeat(room.id, id, seat).ok).toBe(true));
 		const checks: import('../room/pods.ts').GameHooks = { draftComplete: () => true, built: () => true, seatState: () => null, holdsSeriesDeck: () => true, roundNamesOf: () => ['', '', ''], hasLegalSeatDeck: () => true, currentTournamentDeck: () => null, seatTournamentDeck: () => {} };
 		h.lobby.useGameType('constructed-1v1', checks);
 		h.lobby.useGameType('draft', checks);

@@ -108,7 +108,7 @@ function load(repoRoot: string): Map<string, Loaded> {
  * as the testing rooms are: a warm hook that runs twice makes nothing new.
  */
 export function seedStandingChallenge(
-	lobby: Pick<Lobby, 'create' | 'list' | 'standPod' | 'leave'>,
+	lobby: Pick<Lobby, 'create' | 'list' | 'standSeat' | 'leave'>,
 	list: Challenges,
 	opts: { collection: string; player: string; field: ChallengeField },
 	log: (entry: Record<string, unknown>) => void = () => {},
@@ -120,7 +120,7 @@ export function seedStandingChallenge(
 	const made = list.create(STANDING_CREATOR, opts);
 	if (!made.ok) throw new Error(`Challenge ${opts.collection} refused: ${made.reason}`);
 	// Stand first: a member who leaves keeps their seat for their return, and this one never returns.
-	lobby.standPod(made.room.id, STANDING_CREATOR.id);
+	lobby.standSeat(made.room.id, STANDING_CREATOR.id);
 	lobby.leave(made.room.id, STANDING_CREATOR.id);
 	log({ event: 'challenge-room-seeded', roomId: made.room.id, name, player: opts.player });
 }

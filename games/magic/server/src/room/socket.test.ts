@@ -158,7 +158,7 @@ async function bootLobby(settings: Partial<RoomSettings> = {}): Promise<Lobby> {
 	// ready, then `startDraft`. Nothing here sets `draftStartedAt` by hand.
 	if (!lobby.setReady(startedRoomId, OWNER.id, true)) throw new Error('the lobby refused a ready flag');
 	// No deal with an open seat: the AI holds the other seven.
-	for (let seat = 1; seat < 8; seat++) if (!lobby.aiPod(startedRoomId, OWNER.id, seat, true).ok) throw new Error('the lobby refused an AI seat');
+	for (let seat = 1; seat < 8; seat++) if (!lobby.aiSeat(startedRoomId, OWNER.id, seat, true).ok) throw new Error('the lobby refused an AI seat');
 	// startDraft also gates on the plan's verdict (wave 73 §A follow-up) — this
 	// lobby is never given a `checkPlan`, so nothing auto-checks one; approve
 	// it directly, the way a PUT would, since this file is not about plans.
@@ -495,7 +495,7 @@ describe('a join against a draft that has not started', () => {
 		// The room starts through the lobby's own rules — every member ready,
 		// then `startDraft` — and nothing about the socket changed.
 		expect(live().lobby.setReady(pendingRoomId, OWNER.id, true)).toBe(true);
-		for (let seat = 1; seat < 8; seat++) expect(live().lobby.aiPod(pendingRoomId, OWNER.id, seat, true).ok).toBe(true);
+		for (let seat = 1; seat < 8; seat++) expect(live().lobby.aiSeat(pendingRoomId, OWNER.id, seat, true).ok).toBe(true);
 		const pendingPlan = live().lobby.get(pendingRoomId)?.game!.pod?.plan;
 		if (pendingPlan === undefined || pendingPlan === null) throw new Error('the pending room has no plan');
 		expect(live().lobby.setPodPlan(pendingRoomId, OWNER.id, pendingPlan, { ok: true, cards: 1 }).ok).toBe(true);
@@ -1379,9 +1379,9 @@ describe('a room of several pods', () => {
 		if (!made.ok) throw new Error(made.reason);
 		const id = made.room.id;
 		for (const m of people.slice(1)) expect(lobby.join(id, m).ok).toBe(true);
-		for (const m of people) expect(lobby.sitPod(id, m.id).ok).toBe(true);
+		for (const m of people) expect(lobby.sitSeat(id, m.id).ok).toBe(true);
 		lobby.get(id)!.game!.pod!.seats.forEach((s, seat) => {
-			if (s === null) expect(lobby.aiPod(id, people[0]!.id, seat, true).ok).toBe(true);
+			if (s === null) expect(lobby.aiSeat(id, people[0]!.id, seat, true).ok).toBe(true);
 		});
 		lobby.setPodPlan(id, people[0]!.id, lobby.get(id)!.game!.pod!.plan!, { ok: true, cards: 1 });
 		for (const m of people) expect(lobby.setReady(id, m.id, true)).toBe(true);
@@ -1431,7 +1431,7 @@ describe('the pod socket under one live tab per player', () => {
 		const made = lobby.create(alice, { name: 'pod-session', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error(made.reason);
 		const id = made.room.id;
-		for (let seat = 1; seat < 8; seat++) expect(lobby.aiPod(id, alice.id, seat, true).ok).toBe(true);
+		for (let seat = 1; seat < 8; seat++) expect(lobby.aiSeat(id, alice.id, seat, true).ok).toBe(true);
 		expect(lobby.setPodPlan(id, alice.id, lobby.get(id)!.game!.pod!.plan!, { ok: true, cards: 1 }).ok).toBe(true);
 		expect(lobby.setReady(id, alice.id, true)).toBe(true);
 		expect(lobby.startDraft(id, alice.id).ok).toBe(true);

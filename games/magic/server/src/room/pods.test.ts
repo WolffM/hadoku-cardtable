@@ -36,14 +36,14 @@ describe('an AI seat drawn before its drafter’s own look resolves', () => {
 		const made = lobby.create(alice, { name: 'solo pod', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
-		expect(lobby.sitPod(id, alice.id).ok).toBe(true);
+		expect(lobby.sitSeat(id, alice.id).ok).toBe(true);
 		// Down to the smallest pod: alice's own seat 0, and seat 1 for the AI.
-		for (const seat of [2, 3, 4, 5, 6, 7]) expect(lobby.closePod(id, alice.id, seat, true).ok, `seat ${seat} closes`).toBe(true);
+		for (const seat of [2, 3, 4, 5, 6, 7]) expect(lobby.closeSeat(id, alice.id, seat, true).ok, `seat ${seat} closes`).toBe(true);
 
 		// The AI seat is drawn while alice's own avatarId is still unset — exactly the state a fresh
 		// join leaves a member in before `people.ts`'s `applyPerson` ever runs.
 		expect(lobby.get(id)!.members.find((m) => m.id === alice.id)?.avatarId).toBeUndefined();
-		expect(lobby.aiPod(id, alice.id, 1, true).ok).toBe(true);
+		expect(lobby.aiSeat(id, alice.id, 1, true).ok).toBe(true);
 		const drawnForAi = lobby.get(id)!.game!.ai.avatarId;
 
 		// The lazy lookup lands moments later and happens to give alice the very face the AI already

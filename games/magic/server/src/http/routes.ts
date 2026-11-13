@@ -174,7 +174,7 @@ import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
-import { clockOn, FREE_PICK, GAME_CLOCK_MS, gameTypeSpec, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
+import { clockOn, FREE_PICK, GAME_CLOCK_MS, gameTypeSpec, isMagicGameType, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
 
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, botPoolAt, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
@@ -516,15 +516,12 @@ export function draftPoolForMember(memberId: string, rooms: DraftRooms | null): 
 const CONSTRUCTED = 'constructed-1v1';
 
 /**
- * A table's own seat count, from its room's registered `GameTypeSpec`:
- * `table.seats` when the game plays in groups smaller than the room (both
- * of Magic's own types, always 2 — a Forge match, however big the room),
- * else the room's own `seats.max` (a type with no `table` field plays the
- * whole room as one table).
+ * A table's own seat count, from its room's registered `GameTypeSpec`'s `table.seats`: both of
+ * Magic's own types, always 2 (a Forge match, however big the room). Only a Magic room has tables
+ * (`tableFor`).
  */
 function tableSeatCount(room: Pick<RoomViewLike, 'gameType'>): number {
-	const spec = gameTypeSpec(room.gameType);
-	return spec?.table?.seats ?? spec?.seats.max ?? 2;
+	return gameTypeSpec(room.gameType)?.table?.seats ?? 2;
 }
 
 /**
@@ -1113,7 +1110,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	function tableFor(req: Request, res: Response, roomId: string): { room: RoomViewLike; me: string } | null {
 		const room = rooms?.get(roomId);
 		const me = httpCaller(req);
-		if (room === undefined || !room.members.some((m) => m.id === me)) {
+		// A room of a game Magic does not play has no table: it is no room here.
+		if (room === undefined || !isMagicGameType(room.gameType) || !room.members.some((m) => m.id === me)) {
 			notFound(res);
 			return null;
 		}
@@ -2495,7 +2493,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			};
 		},
 		releaseGoneMatches() {
-			for (const room of rooms?.list() ?? []) for (const table of room.tables) liveMatchId(room, table);
+			// A room of a game Magic does not play has no tables.
+			for (const room of rooms?.list() ?? []) if (isMagicGameType(room.gameType)) for (const table of room.tables) liveMatchId(room, table);
 		},
 		gameOver: endMatchOfTable,
 		matchFreed: endMatchOfTable,

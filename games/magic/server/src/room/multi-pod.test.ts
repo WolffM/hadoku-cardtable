@@ -81,10 +81,10 @@ async function readyRoom(n: number, dir?: string): Promise<{ lobby: Lobby; id: s
 	if (!made.ok) throw new Error('create failed');
 	const id = made.room.id;
 	for (const m of people.slice(1)) expect(lobby.join(id, m).ok).toBe(true);
-	for (const m of people) expect(lobby.sitPod(id, m.id).ok, `${m.name} sits`).toBe(true);
+	for (const m of people) expect(lobby.sitSeat(id, m.id).ok, `${m.name} sits`).toBe(true);
 	expect(lobby.get(id)!.game!.pod!.seats).toHaveLength(Math.max(n, POD_SEATS));
 	lobby.get(id)!.game!.pod!.seats.forEach((s, seat) => {
-		if (s === null) expect(lobby.aiPod(id, people[0]!.id, seat, true).ok).toBe(true);
+		if (s === null) expect(lobby.aiSeat(id, people[0]!.id, seat, true).ok).toBe(true);
 	});
 	lobby.setPodPlan(id, people[0]!.id, DEFAULT_PLAN, { ok: true, cards: 1 });
 	for (const m of people) expect(lobby.setReady(id, m.id, true)).toBe(true);
@@ -150,10 +150,10 @@ describe('Split & randomize: past 8 drafters, the leader splits the ready room i
 		if (!split.ok) throw new Error(split.reason);
 		expect(lobby.setReady(id, humans[4]!, false)).toBe(true);
 		expect(lobby.get(id)!.members.find((m) => m.id === humans[4])?.ready).toBe(true);
-		expect(lobby.standPod(id, humans[9]!)).toEqual({ ok: false, reason: 'not-lobby' });
-		expect(lobby.sitPod(id, humans[2]!, 10)).toEqual({ ok: false, reason: 'not-lobby' });
-		expect(lobby.aiPod(id, humans[0]!, 10, true)).toEqual({ ok: false, reason: 'not-lobby' });
-		expect(lobby.closePod(id, humans[0]!, 10, true)).toMatchObject({ ok: false, reason: 'not-lobby' });
+		expect(lobby.standSeat(id, humans[9]!)).toEqual({ ok: false, reason: 'not-lobby' });
+		expect(lobby.sitSeat(id, humans[2]!, 10)).toEqual({ ok: false, reason: 'not-lobby' });
+		expect(lobby.aiSeat(id, humans[0]!, 10, true)).toEqual({ ok: false, reason: 'not-lobby' });
+		expect(lobby.closeSeat(id, humans[0]!, 10, true)).toMatchObject({ ok: false, reason: 'not-lobby' });
 		expect(lobby.get(id)!.game!.pod?.pods).toEqual(split.room.game!.pod?.pods);
 		expect(lobby.get(id)!.game!.pod?.seats).toEqual(split.room.game!.pod?.seats);
 	});
@@ -274,12 +274,12 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
 		for (const m of people.slice(1)) lobby.join(id, m);
-		for (const m of people.slice(0, 8)) expect(lobby.sitPod(id, m.id).ok).toBe(true);
+		for (const m of people.slice(0, 8)) expect(lobby.sitSeat(id, m.id).ok).toBe(true);
 		expect(lobby.get(id)!.game!.pod!.seats).toHaveLength(8);
-		expect(lobby.sitPod(id, people[8]!.id).ok).toBe(true);
+		expect(lobby.sitSeat(id, people[8]!.id).ok).toBe(true);
 		expect(lobby.get(id)!.game!.pod!.seats).toHaveLength(9);
 		expect(lobby.get(id)!.game!.pod!.seats[8]?.memberId).toBe(people[8]!.id);
-		expect(lobby.standPod(id, people[8]!.id).ok).toBe(true);
+		expect(lobby.standSeat(id, people[8]!.id).ok).toBe(true);
 		expect(lobby.get(id)!.game!.pod!.seats).toHaveLength(8);
 	});
 
@@ -290,11 +290,11 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
 		standAll(lobby, id);
-		expect(lobby.aiPod(id, owner.id, 9, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
-		for (let seat = 0; seat < 8; seat++) expect(lobby.aiPod(id, owner.id, seat, true).ok).toBe(true);
-		expect(lobby.aiPod(id, owner.id, 8, true).ok).toBe(true);
+		expect(lobby.aiSeat(id, owner.id, 9, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
+		for (let seat = 0; seat < 8; seat++) expect(lobby.aiSeat(id, owner.id, seat, true).ok).toBe(true);
+		expect(lobby.aiSeat(id, owner.id, 8, true).ok).toBe(true);
 		expect(lobby.get(id)!.game!.pod!.seats).toHaveLength(9);
-		expect(lobby.aiPod(id, owner.id, 10, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
+		expect(lobby.aiSeat(id, owner.id, 10, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
 	});
 
 	it('stops at 64 seats, eight pods’ worth', async () => {
@@ -304,9 +304,9 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
 		standAll(lobby, id);
-		for (let seat = 0; seat < POD_MAX_SEATS; seat++) expect(lobby.aiPod(id, owner.id, seat, true).ok, `seat ${seat}`).toBe(true);
-		expect(lobby.aiPod(id, owner.id, POD_MAX_SEATS, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
-		expect(lobby.sitPod(id, owner.id)).toEqual({ ok: false, reason: 'pod-full' });
+		for (let seat = 0; seat < POD_MAX_SEATS; seat++) expect(lobby.aiSeat(id, owner.id, seat, true).ok, `seat ${seat}`).toBe(true);
+		expect(lobby.aiSeat(id, owner.id, POD_MAX_SEATS, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
+		expect(lobby.sitSeat(id, owner.id)).toEqual({ ok: false, reason: 'pod-full' });
 	});
 
 	it('a room of 8 or fewer drafts exactly as before: one pod on the room id', async () => {

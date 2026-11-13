@@ -84,12 +84,12 @@ describe('a Challenge room', () => {
 		if (!made.ok) throw new Error(made.reason);
 		const id = made.room.id;
 		const ai = seatIds(lobby, id).indexOf(POD_AI);
-		expect(lobby.aiPod(id, ALICE.id, ai, false)).toEqual({ ok: false, reason: 'historical' });
-		expect(lobby.closePod(id, ALICE.id, ai, true)).toEqual({ ok: false, reason: 'historical' });
-		expect(lobby.standPod(id, ALICE.id).ok).toBe(true);
+		expect(lobby.aiSeat(id, ALICE.id, ai, false)).toEqual({ ok: false, reason: 'historical' });
+		expect(lobby.closeSeat(id, ALICE.id, ai, true)).toEqual({ ok: false, reason: 'historical' });
+		expect(lobby.standSeat(id, ALICE.id).ok).toBe(true);
 		const open = seatIds(lobby, id).indexOf(null);
-		expect(lobby.aiPod(id, ALICE.id, open, true), 'the open seat is a person’s').toEqual({ ok: false, reason: 'historical' });
-		expect(lobby.closePod(id, ALICE.id, open, true)).toEqual({ ok: false, reason: 'historical' });
+		expect(lobby.aiSeat(id, ALICE.id, open, true), 'the open seat is a person’s').toEqual({ ok: false, reason: 'historical' });
+		expect(lobby.closeSeat(id, ALICE.id, open, true)).toEqual({ ok: false, reason: 'historical' });
 	});
 
 	it('survives a restart with its field, its lists and its locks', async () => {
@@ -105,7 +105,7 @@ describe('a Challenge room', () => {
 		expect(after.aiDeckAssignments).toEqual(before.aiDeckAssignments);
 		expect(after.seatDecks).toEqual(before.seatDecks);
 		expect(after.locks).toEqual(before.locks);
-		expect(again.aiPod(after.id, ALICE.id, seatIds(again, after.id).indexOf(POD_AI), false)).toEqual({ ok: false, reason: 'historical' });
+		expect(again.aiSeat(after.id, ALICE.id, seatIds(again, after.id).indexOf(POD_AI), false)).toEqual({ ok: false, reason: 'historical' });
 	});
 
 	it('a standing Challenge waits empty, its one open seat for whoever comes in first, and is made once', async () => {

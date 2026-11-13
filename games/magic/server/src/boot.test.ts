@@ -143,10 +143,10 @@ function created(lobby: Lobby, name: string, options: Omit<Parameters<Lobby['cre
 /** A draft room ready to deal: everyone ready, the open seats AI, the plan checked. */
 function readyDraft(lobby: Lobby, name: string, sit: boolean): string {
 	const id = created(lobby, name, { gameType: 'draft', clientMode: 'builtin' });
-	if (sit) for (const [i, m] of EVERYONE.entries()) expect(lobby.sitPod(id, m.id, i)).toMatchObject({ ok: true });
+	if (sit) for (const [i, m] of EVERYONE.entries()) expect(lobby.sitSeat(id, m.id, i)).toMatchObject({ ok: true });
 	for (const m of EVERYONE) expect(lobby.setReady(id, m.id, true)).toBe(true);
 	(lobby.get(id)?.game!.pod?.seats ?? []).forEach((occupant, seat) => {
-		if (occupant === null) expect(lobby.aiPod(id, ALICE.id, seat, true)).toMatchObject({ ok: true });
+		if (occupant === null) expect(lobby.aiSeat(id, ALICE.id, seat, true)).toMatchObject({ ok: true });
 	});
 	lobby.setPodPlan(id, ALICE.id, DEFAULT_PLAN, VERDICT);
 	expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
@@ -171,9 +171,9 @@ function tournament(lobby: Lobby, name: string, mode: 'classic' | 'gauntlet' | '
 		}),
 	).toMatchObject({ ok: true });
 	standAll(lobby, id);
-	expect(lobby.sitPod(id, ALICE.id, 0)).toMatchObject({ ok: true });
-	if (seated === 'humans') expect(lobby.sitPod(id, BOB.id, 1)).toMatchObject({ ok: true });
-	else expect(lobby.aiPod(id, ALICE.id, 1, true)).toMatchObject({ ok: true });
+	expect(lobby.sitSeat(id, ALICE.id, 0)).toMatchObject({ ok: true });
+	if (seated === 'humans') expect(lobby.sitSeat(id, BOB.id, 1)).toMatchObject({ ok: true });
+	else expect(lobby.aiSeat(id, ALICE.id, 1, true)).toMatchObject({ ok: true });
 	for (const m of seated === 'humans' ? [ALICE, BOB] : [ALICE]) if (lobby.get(id)!.game!.draftStartedAt === null) lobby.setReady(id, m.id, true);
 	// A complete field of legal decks locks itself (ruling 7); otherwise the leader starts it.
 	if (lobby.get(id)!.game!.draftStartedAt === null) expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });

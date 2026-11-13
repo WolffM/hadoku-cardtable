@@ -10,7 +10,7 @@ export function standAll(lobby: Lobby, roomId: string): void {
 	const room = lobby.get(roomId);
 	if (room === undefined) throw new Error(`no room ${roomId}`);
 	for (const member of room.members) {
-		lobby.standPod(roomId, member.id);
+		lobby.standSeat(roomId, member.id);
 		for (const table of room.tables) lobby.stand(roomId, table.id, member.id);
 	}
 }

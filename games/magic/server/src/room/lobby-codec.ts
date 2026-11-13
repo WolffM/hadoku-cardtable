@@ -1,8 +1,8 @@
 /**
- * The saved-room codec: `RoomRecord`/`MemberRecord`/`TableRecord` (the shape a
+ * The saved-room codec: `RoomRecord`/`TableRecord` (the shape a
  * `FileLobby` instance holds in memory) and `StoredApp`/`StoredMagicGame` (the
  * shape `@wolffm/rooms-server/store` persists them as), with the codec that
- * reads one back into the other — `decodeMagicGame`, `appCodec`, `roomCodec`.
+ * reads one back into the other — `decodeMagicGame`, `decodeMagicApp`, `roomCodec`.
  * An unreadable or future-format record is QUARANTINED (`room/lobby.ts`'s own
  * doc), never half-applied.
  *
@@ -12,14 +12,15 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { AppCodec, RoomCodec } from '@wolffm/rooms-server/store';
+import type { RoomCodec } from '@wolffm/rooms-server/store';
 import {
 	ClientModeSchema,
 	DEFAULT_CLIENT_MODE,
 	DEFAULT_ROOM_SETTINGS,
 	DRAFT_POOL_PREFIX,
 	DraftPlanSchema,
-	GameTypeSchema,
+	gameTypeSpec,
+	isMagicGameType,
 	MAGIC_ROOM_STORED_KEYS,
 	PoolVerdictSchema,
 	RoomModeSchema,
@@ -29,7 +30,6 @@ import {
 	type ConstructedMode,
 	type DraftPlan,
 	type GameType,
-	type Look,
 	type ModeOptions,
 	type PoolVerdict,
 	type RoomSettings,
@@ -52,8 +52,8 @@ import {
 	type PodRecord,
 	type PodSplit,
 } from './pods.ts';
-import type { Secret } from '@hadoku/game-server/room/provisioning';
-import type { GameSeats, PlatformMember, PlatformRoomRecord } from '@hadoku/game-server/room/record';
+import type { GameSeats, PlatformRoomRecord } from '@hadoku/game-server/room/record';
+import { plainRoomType, roomAppCodec, type LobbyMember, type RoomCreateInput, type RoomTypeHooks, type StoredRoomApp } from '@hadoku/game-server/room/lobby';
 import type { FormatId } from './lobby.ts';
 
 /** Every setting has a default, so a room stored before a setting existed reads back on it without a migration. */
@@ -68,21 +68,6 @@ export interface TableRecord extends TableSeats {
 	id: string;
 	matchId: string | null;
 	series: SeriesRecord;
-}
-
-export interface MemberRecord extends PlatformMember {
-	/**
-	 * In memory only, from the member's own requests (`rename`): a saved room keeps no names (R12).
-	 * A member restored from disk is `UNNAMED` until their next request.
-	 */
-	name: string;
-	/**
-	 * In memory only: their account's character (`people.ts`'s `applyPerson`), absent until it has
-	 * been read. Normalised by `avatarIdOf` on the way in, so this is never `''` and never `null`.
-	 */
-	avatarId?: string;
-	/** In memory only (`Lobby.setLook`): their picture and cosmetics. */
-	look?: Look;
 }
 
 /**
@@ -135,7 +120,7 @@ export interface MagicRoomGame {
 	 * A tournament's locked deck(s) by entrant id, meaningful only with
 	 * `settings.tournament` on and `tournamentDecks === 'locked'` — empty
 	 * otherwise. Classic / All Random: each entrant's one deck choice,
-	 * opaque to this file (the same discipline `MemberRecord.state` already
+	 * opaque to this file (the same discipline `LobbyMember.state` already
 	 * keeps), snapshotted at the lock (`#lockTournament`) and read back by
 	 * `#seatTournamentDeck` every round. A Gauntlet tournament locks none
 	 * (`tournamentDecksOf`); a record stored before that may still hold a
@@ -169,20 +154,20 @@ export interface MagicRoomGame {
  * is null and frozen from there — `#dealPodRounds`'s own `PodRecord.humans` is what the pod plays.
  * A room that plays one two-seat table keeps its seats on `game.tables[0]`.
  */
-export interface RoomRecord extends PlatformRoomRecord<MagicRoomGame, MemberRecord> {
+export interface RoomRecord extends PlatformRoomRecord<MagicRoomGame, LobbyMember> {
 	gameType: GameType;
 }
 
 /**
  * Magic's part of the room-level `app` blob, nested under `game` on disk since
  * app version 2 (`MAGIC_ROOM_STORED_KEYS`). Version 1 kept these fields flat
- * beside the rest, and `appCodec.deserialize` lifts them.
+ * beside the rest, and `decodeMagicApp` lifts them.
  */
 interface StoredMagicGame {
 	/**
 	 * Null ONLY on the way out of `deserialize`, and only for a record written
 	 * before the field existed: `openLobby` turns that into the default. Never
-	 * null on the way in — `#persist` always writes the room's concrete id — so a
+	 * null on the way in — `storedMagicGame` always writes the room's concrete id — so a
 	 * record that stores an explicit `null` is a record this build did not write
 	 * and does not understand, and the codec quarantines it like any other.
 	 */
@@ -247,23 +232,11 @@ interface StoredMagicGame {
 }
 
 /**
- * The room-level `app` blob as `deserialize` reads it back: the platform's fields at the top, the game
- * seats in `seats`, Magic's under `game` (`docs/planning/room-record-generic.md`). The secret is here
- * and ONLY here on disk.
+ * A Magic room's `app` blob as the codec reads it back: the platform's fields at the top
+ * (`StoredRoomApp`), the game seats in `seats`, Magic's under `game` (`docs/planning/room-record-generic.md`).
  */
-export interface StoredApp {
-	name: string;
-	creator: string;
-	leader: string;
+export interface StoredApp extends StoredRoomApp {
 	gameType: GameType;
-	/** Absent for a room written before testing rooms existed, which reads back `false` — every such room is an ordinary one. */
-	testing?: boolean;
-	/** Absent for a room no event made, and for every room written before events existed. */
-	scheduledFor?: number;
-	secret: Secret | null;
-	/** The game seats: `app.seats`, else `app.game.podSeats` (every record before the generic room record). */
-	seats: GameSeats;
-	/** Magic's own fields (`StoredMagicGame`). */
 	game: StoredMagicGame;
 }
 
@@ -283,28 +256,17 @@ interface RollbackCopies {
 }
 
 /** `app` as written: the new shape plus `RollbackCopies`. */
-export function withRollbackCopies(app: StoredApp): StoredApp & RollbackCopies {
+export function withRollbackCopies(app: StoredRoomApp): StoredApp & RollbackCopies {
+	const game = app.game as StoredMagicGame;
 	return {
-		...app,
-		settings: app.game.settings,
-		tables: app.game.tables,
-		matchId: app.game.tables[0]?.matchId ?? null,
-		matches: app.game.matches,
-		game: { ...app.game, podSeats: app.seats },
+		...(app as StoredApp),
+		settings: game.settings,
+		tables: game.tables,
+		matchId: game.tables[0]?.matchId ?? null,
+		matches: game.matches,
+		game: { ...game, podSeats: app.seats },
 	};
 }
-
-/**
- * Version 2 nests Magic's fields under `game`; version 1 kept them flat, and
- * `deserialize` still reads it (nothing writes it). Not bumped for additive
- * fields — `clientMode`, `ready`/`draftStartedAt`, `format` — because each is
- * read with a default (`builtin`, `false`, `null`, the newest frozen pool), so a
- * record written before it existed decodes without a migration. Not bumped for
- * the generic room record either (`seats`, `game.settings`/`tables`/`matches`):
- * each reads back from where it was when absent, and a bump would make a
- * rollback quarantine every room (`RollbackCopies`).
- */
-export const APP_VERSION = 2;
 
 /** Any non-blank string. Whether it names a pool THIS server has is not this file's question. */
 function isFormatId(v: unknown): v is FormatId {
@@ -344,12 +306,6 @@ function storedSettings(v: Partial<RoomSettings> | undefined): RoomSettings {
 		if (value !== undefined) settings[k] = value;
 	}
 	return settings as RoomSettings;
-}
-
-function isSecret(v: unknown): v is Secret {
-	if (typeof v !== 'object' || v === null) return false;
-	const s = v as Record<string, unknown>;
-	return typeof s.salt === 'string' && typeof s.hash === 'string';
 }
 
 function isStoredGame(v: unknown): v is SeriesGame {
@@ -462,7 +418,7 @@ function decodeMagicGame(g: Record<string, unknown>, gameType: string): Omit<Sto
 	}
 	// Absent is a room written before tournament mode. Each value's own shape
 	// (a Classic/Random deck) is opaque here, the same discipline
-	// `MemberRecord.state` already keeps.
+	// `LobbyMember.state` already keeps.
 	if (g.lockedDecks !== undefined && !isStoredLockedDecks(g.lockedDecks)) throw new Error('app.game.lockedDecks is invalid');
 	// `gauntlets` (per-table) is the current shape; `gauntlet` (per-room) is
 	// the pre-tournament one, read ONLY when `gauntlets` is absent (a record
@@ -515,21 +471,12 @@ function decodeMagicGame(g: Record<string, unknown>, gameType: string): Omit<Sto
 }
 
 /**
- * The room-level codec. Its errors name the FIELD, never a value — the message
- * reaches the quarantine reason and the log, and a value here could be the hash.
+ * Magic's half of the room-level codec (`RoomTypeHooks.decode`): the game seats and Magic's `game`,
+ * the platform's fields being the core's (`roomAppCodec`). Its errors name the FIELD, never a value.
  */
-export const appCodec: AppCodec<StoredApp> = {
-	version: APP_VERSION,
-	serialize: (value) => structuredClone(withRollbackCopies(value)),
-	deserialize(raw, version, ctx) {
-		if (typeof raw !== 'object' || raw === null) throw new Error('app is not an object');
-		if (version !== 1 && version !== APP_VERSION) throw new Error('app version is not one this build reads');
-		const a = version === 1 ? liftV1(raw as Record<string, unknown>) : (raw as Record<string, unknown>);
-		if (typeof a.name !== 'string') throw new Error('app.name is not a string');
-		if (typeof a.creator !== 'string') throw new Error('app.creator is not a string');
-		if (typeof a.leader !== 'string') throw new Error('app.leader is not a string');
-		const gameType = GameTypeSchema.safeParse(a.gameType);
-		if (!gameType.success) throw new Error('app.gameType is not a known game type');
+export function decodeMagicApp(raw: Record<string, unknown>, version: number, ctx: { roomId: string }): Pick<StoredApp, 'seats' | 'game'> {
+		const a = version === 1 ? liftV1(raw) : raw;
+		const gameType = a.gameType as GameType;
 		if (typeof a.game !== 'object' || a.game === null || Array.isArray(a.game)) throw new Error('app.game is not an object');
 		const g = a.game as Record<string, unknown>;
 		// Each of these reads the new place first and falls back to where a record
@@ -555,11 +502,8 @@ export const appCodec: AppCodec<StoredApp> = {
 			throw new Error('app.tables is not a list of tables');
 		}
 		// Absent is a room written before wave 72 §P, which has nobody seated.
-		if (seatsRaw !== undefined && !isStoredPodSeats(seatsRaw, gameType.data)) throw new Error('app.seats is invalid');
-		if (a.testing !== undefined && typeof a.testing !== 'boolean') throw new Error('app.testing is invalid');
-		if (a.scheduledFor !== undefined && typeof a.scheduledFor !== 'number') throw new Error('app.scheduledFor is invalid');
-		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
-		const { gauntlet, gauntlets, ...game } = decodeMagicGame(g, gameType.data);
+		if (seatsRaw !== undefined && !isStoredPodSeats(seatsRaw, gameType)) throw new Error('app.seats is invalid');
+		const { gauntlet, gauntlets, ...game } = decodeMagicGame(g, gameType);
 		const settings = storedSettings(settingsRaw as Partial<RoomSettings> | undefined);
 		const matchId = (a.matchId ?? null) as string | null;
 		// Migrated from the pre-wave-71 shape: one table, holding the room's old
@@ -570,7 +514,7 @@ export const appCodec: AppCodec<StoredApp> = {
 		// boot has to land on the SAME id each time for "stable for the room's
 		// life" to hold — a format id (`newestFormat()`) and `clientMode`
 		// (`'builtin'`) are migrated the same deterministic way already.
-		const seriesRoom: SeriesRoom = { gameType: gameType.data, mode: game.mode };
+		const seriesRoom: SeriesRoom = { gameType, mode: game.mode };
 		const tables: StoredTable[] =
 			tablesRaw === undefined
 				? [
@@ -583,15 +527,7 @@ export const appCodec: AppCodec<StoredApp> = {
 					]
 				: (tablesRaw as Parameters<typeof storedTable>[0][]).map((t) => storedTable(t, seriesRoom));
 		return {
-			name: a.name,
-			creator: a.creator,
-			leader: a.leader,
-			gameType: gameType.data,
-			// Absent is a room written before testing rooms existed: every such room is an ordinary one.
-			testing: a.testing === true,
-			...(a.scheduledFor === undefined ? {} : { scheduledFor: a.scheduledFor as number }),
-			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
-			seats: seatsRaw === undefined ? new Array<string | null>(initialPodSize(gameType.data)).fill(null) : [...(seatsRaw as GameSeats)],
+			seats: seatsRaw === undefined ? new Array<string | null>(initialPodSize(gameType)).fill(null) : [...(seatsRaw as GameSeats)],
 			game: {
 				...game,
 				settings,
@@ -600,12 +536,11 @@ export const appCodec: AppCodec<StoredApp> = {
 				// Migrated from the pre-tournament one-per-room shape (`gauntlets`'s own
 				// doc): a record with the old field and no new one lands its single
 				// Gauntlet on `tables[0]`, the only table such a record could ever have
-				// had. Never both — `#persist` only ever writes `gauntlets` from here on.
+				// had. Never both — `storedMagicGame` only ever writes `gauntlets` from here on.
 				gauntlets: gauntlets ?? (gauntlet !== undefined && gauntlet !== null && tables.length > 0 ? { [tables[0]!.id]: gauntlet } : {}),
 			},
 		};
-	},
-};
+}
 
 /**
  * What a room restored from disk needs from Magic before it becomes a record: whether it is a
@@ -621,13 +556,37 @@ export function magicRestoreRules(app: StoredApp): { offPod: boolean; restoredAs
 	};
 }
 
-/** A saved room's codec: what `openLobby` restores every room file through. */
-export const roomCodec: RoomCodec<StoredApp, unknown> = { app: appCodec };
+/** How a Magic room's `app` blob is read and written: Magic's `game`, and the copies a rollback reads. */
+export const MAGIC_STORED: Pick<RoomTypeHooks<MagicRoomGame>, 'decode' | 'writes'> = { decode: decodeMagicApp, writes: withRollbackCopies };
+
+/**
+ * A registered game type Magic does not play (bomberman): the platform's `plainRoomType`, sized by its
+ * spec, which keeps nothing of its own. Its rooms were hosted by Magic's lobby before, so a record from
+ * then holds its seats under `game.podSeats`, and one written now copies them there for a rollback.
+ * **Both go at the dated drop, 2026-11-13, with `RollbackCopies`.** Undefined for a type nobody registered.
+ */
+export function hostedRoomType<I extends RoomCreateInput>(gameType: string): RoomTypeHooks<Record<string, never>, I> | undefined {
+	const spec = gameTypeSpec(gameType);
+	if (spec === undefined) return undefined;
+	const plain = plainRoomType<I>({
+		seats: initialPodSize(gameType),
+		max: spec.seats.max,
+		...(spec.runtime === 'relay' ? { relaySeats: spec.table?.seats ?? spec.seats.max } : {}),
+	});
+	return {
+		...plain,
+		decode: (app, version, ctx) => plain.decode(app.seats === undefined ? { ...app, seats: (app.game as { podSeats?: unknown } | undefined)?.podSeats } : app, version, ctx),
+		writes: (app) => ({ ...app, game: { podSeats: app.seats } }),
+	};
+}
+
+/** A saved room's codec: what the lobby restores every room file through. */
+export const roomCodec: RoomCodec<StoredRoomApp, unknown> = roomAppCodec((gameType) => (isMagicGameType(gameType) ? MAGIC_STORED : hostedRoomType(gameType)));
 
 /**
  * The first table's id for a room migrated from before wave 71 — DETERMINISTIC,
  * unlike `mintTableId`: nothing persists the migration on its own (a read must
- * not write, and `appCodec.deserialize` runs on every boot until something
+ * not write, and `decodeMagicApp` runs on every boot until something
  * else touches the room), so the same room id has to land on the same table
  * id every time for "stable for the room's life" to hold.
  */

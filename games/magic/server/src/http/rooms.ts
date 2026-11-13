@@ -365,7 +365,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.sitPod(id, caller.id, body.seat);
+		const result = lobby.sitSeat(id, caller.id, body.seat);
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			const error =
@@ -392,7 +392,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.standPod(id, caller.id);
+		const result = lobby.standSeat(id, caller.id);
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			return res.status(409).json({
@@ -414,7 +414,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.aiPod(id, caller.id, body.seat, body.on);
+		const result = lobby.aiSeat(id, caller.id, body.seat, body.on);
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			const error =
@@ -430,7 +430,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		res.json(roomBody(result.room, caller.id));
 	});
 
-	/** Close an empty pod seat, or open a closed one: the owner's, before the draft (`Lobby.closePod`). */
+	/** Close an empty pod seat, or open a closed one: the owner's, before the draft (`Lobby.closeSeat`). */
 	rooms.post('/:id/pod/close', (req: Request, res: Response) => {
 		const body = parseBody(PodCloseBodySchema, req, res);
 		if (body === null) return;
@@ -438,7 +438,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.closePod(id, caller.id, body.seat, body.closed);
+		const result = lobby.closeSeat(id, caller.id, body.seat, body.closed);
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			if (result.reason === 'not-leader') return res.status(403).json({ error: 'only the room owner closes seats' });

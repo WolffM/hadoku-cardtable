@@ -28,7 +28,7 @@ import { botSeatAcross, rankedStandings, rngFromSeed, roundsFor, shuffle, type M
 import { isGauntletState, type GauntletState } from './gauntlet.ts';
 import { roundNamesOf } from './plan.ts';
 import type { SeriesGame, SeriesRoom } from './series.ts';
-import { memberSeats } from '@hadoku/game-server/room/record';
+import { AI_SEAT, CLOSED_SEAT, memberSeats } from '@hadoku/game-server/room/record';
 import type { MagicRoomGame, RoomRecord } from './lobby-codec.ts';
 
 /** A room as a predicate here reads it: its game type and the named fields of Magic's part. */
@@ -80,7 +80,7 @@ export function copySplit(split: PodSplit): PodSplit {
  * bots plays Forge's AI. Stands in `PodRecord.pairings` and the results where a
  * member id would, and is never a member — but once it has played, a row of the standings.
  */
-export const POD_AI = 'ai';
+export const POD_AI = AI_SEAT;
 
 /**
  * A tournament pod's OWN AI entrant, one per AI seat (operator, 2026-10-22:
@@ -204,20 +204,12 @@ export function playersOf(room: RoomRecord): string[] {
 }
 
 /**
- * Whether this room keeps its seats on Magic's first table (a plain 1v1 room) rather than the
- * platform's game seats (`RoomRecord.seats`: a pod's, a tournament's, bomberman's).
- */
-export function seatsOnTable(room: RoomRecord): boolean {
-	return !usesPod(room);
-}
-
-/**
  * The room's game seats by seat number (`RoomView.seats`): the member holding each, or null for
  * a seat no member holds. The platform's game seats (`memberSeats`), or for a room that plays one
  * two-seat table, that table's.
  */
 export function gameSeatsOf(room: RoomRecord): (string | null)[] {
-	if (seatsOnTable(room)) return [...(room.game.tables[0]?.seats ?? [])];
+	if (!usesPod(room)) return [...(room.game.tables[0]?.seats ?? [])];
 	return memberSeats(room);
 }
 
@@ -239,7 +231,7 @@ export function seriesRoomOf(room: MagicRoomShape<'mode' | 'settings'>): SeriesR
  * how many people are in the tournament and draft"*): no one sits there, and the
  * draft deals one seat fewer.
  */
-export const POD_CLOSED = 'closed';
+export const POD_CLOSED = CLOSED_SEAT;
 
 /** The fewest seats a pod is left with: one player and one more. */
 export const POD_MIN_OPEN = 2;
@@ -340,16 +332,6 @@ export function heldSplit(room: RoomRecord): PodSplit | null {
 /** Whether the lobby's seats are fixed: its draft has started, or the leader's split stands. */
 export function seatsFixed(room: RoomRecord): boolean {
 	return room.game.draftStartedAt !== null || heldSplit(room) !== null;
-}
-
-/** Whether `seat` is one the lobby may act on: one the room has, or the one past the last (which grows it) — never past this room's own ceiling (`podSeatCeiling`). */
-export function seatInReach(room: RoomRecord, seat: number): boolean {
-	return Number.isInteger(seat) && seat >= 0 && seat < podSeatCeiling(room) && seat <= room.seats.length;
-}
-
-/** The seats the draft deals: every one not closed. */
-export function podSize(room: RoomRecord): number {
-	return podTable(room).length;
 }
 
 /** An AI seat as a player: one of the room's characters, by its own name (the operator, 2026-10-19). */
