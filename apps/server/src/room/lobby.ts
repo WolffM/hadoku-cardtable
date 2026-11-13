@@ -67,7 +67,7 @@ import {
 	type SerializedMember,
 } from '@wolffm/rooms-server/store';
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
-import { addMember, clearReady, createMembershipLedger, isReady, memberLeft, setReady as ledgerSetReady } from '@wolffm/rooms-server';
+import { addMember, clearReady, createMembershipLedger, setReady as ledgerSetReady } from '@wolffm/rooms-server';
 import {
 	DEFAULT_CLIENT_MODE,
 	DEFAULT_GAME_TYPE,
@@ -110,10 +110,11 @@ import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, type
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
 import { replaceIds } from '../erase/anonymise.js';
-import { makeSecret, mintRoomId, mintTableId, passwordMatches, type Secret } from './provisioning.ts';
+import { makeSecret, mintRoomId, mintTableId, type Secret } from './provisioning.ts';
 import { ROOM_STALE_MS, UNNAMED } from './constants.ts';
 import type { Caller } from './caller.ts';
 import { avatarIdOf } from './avatar.ts';
+import { addRoomMember, isMemberReady, isRoomMember, passwordAdmits, removeRoomMember, setMemberReady } from './membership.ts';
 import { watchpartyRoomId } from './watchparty-link.ts';
 // Pods, tournaments, AI seats and their view (`PodView`) — split out, wave 99 §L.
 import {
@@ -1105,7 +1106,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView 
 			id: m.id,
 			name: m.name,
 			joinedAt: new Date(m.joinedAt).toISOString(),
-			ready: isReady(room.ledger, m.id),
+			ready: isMemberReady(room, m.id),
 			// Spread, not `avatarId: m.avatarId`. The key is ABSENT for a member
 			// who has no avatar rather than present-and-undefined, so an
 			// in-process reader and a JSON reader see the same two states —
@@ -1381,7 +1382,7 @@ class FileLobby implements Lobby {
 		const members: SerializedMember[] = room.members.map((m) => {
 			// No name and no avatar id (R12): a member is saved as who they are, not as what they
 			// were called. Both come back from their next request (`rename`, the avatar assert).
-			const ready = isReady(room.ledger, m.id);
+			const ready = isMemberReady(room, m.id);
 			const member: SerializedMember = {
 				participantId: m.id,
 				...(m.userId === null ? {} : { accountId: m.userId }),
@@ -1593,7 +1594,8 @@ class FileLobby implements Lobby {
 	}
 
 	isMember(roomId: string, memberId: string): boolean {
-		return this.#rooms.get(roomId)?.members.some((m) => m.id === memberId) ?? false;
+		const room = this.#rooms.get(roomId);
+		return room !== undefined && isRoomMember(room, memberId);
 	}
 
 	playerState(roomId: string, memberId: string): unknown {
@@ -2339,8 +2341,7 @@ class FileLobby implements Lobby {
 	leave(roomId: string, memberId: string): LeaveResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		const index = room.members.findIndex((m) => m.id === memberId);
-		if (index === -1) return { ok: false, reason: 'not-member' };
+		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
 		// An entrant who leaves mid-tournament has dropped out. Not a testing room's seed, which stands in
 		// for an entrant through round 1 and leaves so a real admin can take its seat (`testing-rooms.ts`).
 		const pod = room.pod;
@@ -2354,12 +2355,10 @@ class FileLobby implements Lobby {
 			this.#settleSeries(room, table, false, memberId);
 			leaveSeat(table, memberId);
 		}
-		room.members.splice(index, 1);
+		// R16: leadership (whoever remains joined earliest) passes on here if `memberId` held it.
+		removeRoomMember(room, memberId);
 		// A split drafter leaving takes their Ready with them: the split no longer stands, and the seats it fixed are free again.
 		if (room.podSplit?.pods.some((p) => p.includes(memberId)) === true) room.podSplit = null;
-		// R16: `memberLeft` passes leadership to whoever remains joined earliest; `null` means empty.
-		const newLeader = memberLeft(room.ledger, memberId);
-		if (newLeader !== null) room.leader = newLeader;
 		this.#persist(room);
 		this.#log({ event: 'room-left', roomId, members: room.members.length, newLeader: room.leader });
 		return { ok: true, room: this.#view(room), ...(forfeited === undefined ? {} : { forfeited }) };
@@ -2479,18 +2478,15 @@ class FileLobby implements Lobby {
 		if (!isDurableParticipantId(caller.id)) return { ok: false, reason: 'not-durable' };
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-match' };
-		if (room.members.some((m) => m.id === caller.id)) {
+		if (isRoomMember(room, caller.id)) {
 			return { ok: true, room: this.#view(room), alreadyMember: true };
 		}
-		const secret = this.#secrets.get(roomId);
-		if (secret !== undefined && !passwordMatches(secret, password ?? '')) {
+		if (!passwordAdmits(this.#secrets.get(roomId), password)) {
 			return { ok: false, reason: 'no-match' };
 		}
 		const now = this.#now();
 		// An empty ledger's first member becomes its leader (an emptied room's new arrival leads it).
-		addMember(room.ledger, caller.id, now);
-		room.leader = room.ledger.leaderId ?? room.leader;
-		room.members.push(newMember(caller, now));
+		addRoomMember(room, newMember(caller, now), now);
 		this.#autoSeat(room, caller.id);
 		this.#persist(room);
 		this.#log({ event: 'room-joined', roomId, members: room.members.length });
@@ -2513,7 +2509,7 @@ class FileLobby implements Lobby {
 		// Once the leader has split the room, every position is locked (the operator, 2026-10-31: *"once
 		// everyone is ready and the pods are created, noone can unready anymore"*): Ready stays on.
 		if (!ready && room.gameType === 'draft' && heldSplit(room) !== null) return true;
-		ledgerSetReady(room.ledger, memberId, ready);
+		setMemberReady(room, memberId, ready);
 		// In a pod's lobby, Ready is "I am playing": a member who has not sat takes
 		// the first open seat. A full pod leaves them watching, ready or not — the
 		// deal never waits on a member who holds no seat.
@@ -2685,7 +2681,7 @@ class FileLobby implements Lobby {
 			return { ok: false, reason: 'not-ready' };
 		}
 		// A Challenge's seat comes with its real player's list, so its human is ready by their Ready alone.
-		const pressedReady = (id: string): boolean => isReady(room.ledger, id);
+		const pressedReady = (id: string): boolean => isMemberReady(room, id);
 		const humanReady = (id: string): boolean => (room.mode === 'classic' && room.seatDecks === undefined ? this.#hooksFor(room.gameType).hasLegalSeatDeck(room.id, id) : pressedReady(id));
 		if (entrants.some((id) => !isAiEntrant(id) && !humanReady(id))) return { ok: false, reason: 'not-ready' };
 		if (room.seatDecks !== undefined) {
