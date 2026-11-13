@@ -12,11 +12,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import '../../apps/ui/src/styles.css';
-import { LiveBoard } from '../../apps/ui/src/play/live/LiveBoard.tsx';
-import { clearArrow, drawArrow } from '../../apps/ui/src/play/live/gestures/arrow.ts';
-import { startMatch, type MatchTransport } from '../../apps/ui/src/play/live/match.ts';
-import { MATCH_EVENTS } from '../../apps/ui/src/play/live/transport.ts';
+import '../../games/magic/ui/src/styles.css';
+import { LiveBoard } from '../../games/magic/ui/src/play/live/LiveBoard.tsx';
+import { clearArrow, drawArrow } from '../../games/magic/ui/src/play/live/gestures/arrow.ts';
+import { startMatch, type MatchTransport } from '../../games/magic/ui/src/play/live/match.ts';
+import { MATCH_EVENTS } from '../../games/magic/ui/src/play/live/transport.ts';
 
 import { buildScenario, type BoardSize, type Packet } from './scenarios.ts';
 

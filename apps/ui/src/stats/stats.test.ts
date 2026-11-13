@@ -24,12 +24,12 @@ import {
 } from '@wolffm/prefs-client/games';
 
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
-import type { RoomFeed } from '../rooms/follow.ts';
-import { StatsPage, type StatsPageProps } from './StatsPage.tsx';
-import { StatsPage as LazyStatsPage } from './StatsButton.tsx';
-import { prefsBaseUrl, signedInStatsClient, type StatsSource } from './source.ts';
-import { matchAttr } from './magic.tsx';
-import { winningDecks } from './StatsDecks.tsx';
+import type { RoomFeed } from '@hadoku/magic-ui/rooms/follow.ts';
+import { StatsPage, type StatsPageProps } from '@hadoku/magic-ui/stats/StatsPage.tsx';
+import { StatsPage as LazyStatsPage } from '@hadoku/magic-ui/stats/StatsButton.tsx';
+import { prefsBaseUrl, signedInStatsClient, type StatsSource } from '@hadoku/magic-ui/stats/source.ts';
+import { matchAttr } from '@hadoku/magic-ui/stats/magic.tsx';
+import { winningDecks } from '@hadoku/magic-ui/stats/StatsDecks.tsx';
 
 afterEach(() => {
   cleanup();

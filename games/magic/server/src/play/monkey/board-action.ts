@@ -5,7 +5,7 @@
  * keep/bottom pick, passing priority.
  *
  * As with `./random-answer.ts`, legality is never modelled here — `boardInteraction`
- * (`apps/ui/src/play/live/match.ts`) is the ONE function that says what Forge
+ * (`games/magic/ui/src/play/live/match.ts`) is the ONE function that says what Forge
  * currently offers (`setSelectables` when a selection is open, else
  * `setWeaklySelectable` union the marks and the mulligan hand and the combat
  * targets), reused verbatim. This file only picks UNIFORMLY AT RANDOM among
@@ -26,8 +26,8 @@ import {
   selectCard,
   selectPlayer,
   type LiveMatch,
-} from '../../../../../../apps/ui/src/play/live/match.ts';
-import type { BoardView } from '../../../../../../apps/ui/src/play/adapter.ts';
+} from '../../../../ui/src/play/live/match.ts';
+import type { BoardView } from '../../../../ui/src/play/adapter.ts';
 
 import type { Rng } from './rng.ts';
 

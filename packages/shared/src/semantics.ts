@@ -62,7 +62,7 @@ function fieldSets(): { card: ReadonlySet<string>; face: ReadonlySet<string> } {
  * it guards changed rather than ended: the *payload* must stay a reference.
  *
  * A card carries `scryfallId`, and a URL is built in the browser at render time
- * (`apps/ui/src/draft/cardImage.ts`). A URL or an `image_uris` blob appearing on
+ * (`games/magic/ui/src/draft/cardImage.ts`). A URL or an `image_uris` blob appearing on
  * a payload would mean we had started copying image metadata into the thing that
  * gets persisted, snapshotted and sent over a wire — which is the step before
  * caching bytes, and the step D15 did not license.

@@ -19,11 +19,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
-import { FeaturedMatch } from '../front/LiveSlot.tsx';
+import { FeaturedMatch } from '@hadoku/magic-ui/front/LiveSlot.tsx';
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
-import { clearJoined, isJoined } from './joined.ts';
+import { clearJoined, isJoined } from '@hadoku/magic-ui/rooms/joined.ts';
 import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
-import { ROOM_WORDS } from './roomName.ts';
+import { ROOM_WORDS } from '@hadoku/magic-ui/rooms/roomName.ts';
 import { resetRolePlayerForTests, setRolePlayer } from '@hadoku/game-ui/sound/index.ts';
 import { resetMutedForTests, setMuted } from '@hadoku/ui-shell/sound';
 import type { SoundEvent } from '@hadoku/ui-shell/sound';
@@ -38,9 +38,9 @@ import {
   streamReachable,
   type Fetch,
   type RoomView,
-} from './api.ts';
-import type { FeedTarget, RoomFeed } from './follow.ts';
-import SERVER_BODIES from './room-bodies.fixture.json';
+} from '@hadoku/magic-ui/rooms/api.ts';
+import type { FeedTarget, RoomFeed } from '@hadoku/magic-ui/rooms/follow.ts';
+import SERVER_BODIES from '@hadoku/magic-ui/rooms/room-bodies.fixture.json';
 
 afterEach(() => {
   cleanup();
@@ -178,7 +178,7 @@ vi.mock('@wolffm/prefs-client', async (importOriginal) => ({
  * No socket in a unit test: the page's own feed reads once and never pings.
  * `manualFeed` is the one a test drives by hand. `./feed.test.ts` tests the real one.
  */
-vi.mock('./follow.ts', async (importOriginal) => {
+vi.mock('@hadoku/magic-ui/rooms/follow.ts', async (importOriginal) => {
   // One object, as the page's own is: a new feed per render would re-follow on every render.
   const quiet: RoomFeed = {
     follow: (_target, refresh) => {
@@ -186,7 +186,7 @@ vi.mock('./follow.ts', async (importOriginal) => {
       return () => undefined;
     },
   };
-  return { ...(await importOriginal<typeof import('./follow.ts')>()), roomFeed: () => quiet };
+  return { ...(await importOriginal<typeof import('@hadoku/magic-ui/rooms/follow.ts')>()), roomFeed: () => quiet };
 });
 
 function manualFeed(): RoomFeed & { ping(): void; targets(): FeedTarget[] } {

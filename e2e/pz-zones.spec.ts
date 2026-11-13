@@ -7,7 +7,7 @@
  * significantly down and left of where the cursor actually is … the unplaced zone disappears when all three
  * cards have been dragged … there's a horizontal scroll bar that appears in that window."*
  *
- * Every question that moves cards is one sheet of named zones (`apps/ui/src/play/prompts/MovePrompt.tsx`):
+ * Every question that moves cards is one sheet of named zones (`games/magic/ui/src/play/prompts/MovePrompt.tsx`):
  *
  *  - `pz-fateseal`: Jace, the Mind Sculptor's +2 on bob. One prompt asking the +2's action, Top | Bottom; the
  *    looked-at card dragged to Bottom goes under bob's library — Lantern of Insight shows bob's new top card.

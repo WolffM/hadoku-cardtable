@@ -284,7 +284,7 @@ function requireStringArray(
  * something.
  *
  * What keeps the absence from being silent is a test rather than a throw:
- * `apps/ui/src/components/DeckView.test.ts` asserts every committed fixture
+ * `games/magic/ui/src/components/DeckView.test.ts` asserts every committed fixture
  * carries both maps and that they cover the real decklists.
  */
 function optionalStringMap(

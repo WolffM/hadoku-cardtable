@@ -12,7 +12,7 @@
  *
  * The operator's ruling on the measurement (2026-10-20): *"let my click jump animations"* and *"shorten
  * own-resolve pauses"* — *"i like the idea of lots of animations happening at the same time, seems fun."*
- * The seat's own act goes out as Forge sends it (`apps/ui/src/play/live/pace.ts`, "The seat's own acts"):
+ * The seat's own act goes out as Forge sends it (`games/magic/ui/src/play/live/pace.ts`, "The seat's own acts"):
  * the next loop is offered while the last one's beats still play, so loops are clicked as soon as they are
  * offered here, and their animations overlap.
  *
@@ -121,7 +121,7 @@ test(titled('Thopter Foundry + Sword of the Meek: the server plays the Sword’s
       fromLoop += rows.length;
       const forwarded = rows.filter((r) => r.evt === 'ask-answered' && r.seat === 0 && r.method === 'getAbilityToPlay').map((r) => r.ms);
       const played = rows.filter((r) => r.evt === 'ask-auto-answered' && r.seat === 0 && r.method === 'getAbilityToPlay' && r.why === 'one ability').length;
-      // The pacer's own word on each question it held behind the board (`apps/ui/src/play/live/pace.ts`, `input-held`).
+      // The pacer's own word on each question it held behind the board (`games/magic/ui/src/play/live/pace.ts`, `input-held`).
       const held = rows.filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'input-held').map((r) => `${String(r.method)} ${String(r.ms)}ms (board ${String(r.boardMs)}, gaps ${String(r.gapMs)}, ahead ${String(r.classes)} [${String(r.defaults)}])`);
       const serverMs = serverNextMs(rows, sword!);
       console.log(

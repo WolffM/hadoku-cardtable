@@ -105,12 +105,12 @@ describe('mostUsedPrinting', () => {
   });
 });
 
-// @reads games/magic/server/src/play/scenarios/ games/magic/server/src/play/art-ids.json apps/ui/src/draft/pool.json
+// @reads games/magic/server/src/play/scenarios/ games/magic/server/src/play/art-ids.json games/magic/ui/src/draft/pool.json
 describe('the committed table covers every card a test scenario places', () => {
   it('a scenario card has an art row (the e2e Grizzly Bears was drawn without art)', () => {
     const read = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
     const { ids } = read('../../games/magic/server/src/play/art-ids.json') as { ids: Record<string, string> };
-    const { cards } = read('../../apps/ui/src/draft/pool.json') as { cards: { name: string }[] };
+    const { cards } = read('../../games/magic/ui/src/draft/pool.json') as { cards: { name: string }[] };
     const known = new Set([...Object.keys(ids).map((key) => key.split('|')[0]), ...cards.map((c) => c.name)]);
     const names = scenarioNames();
     expect(names).toContain('Grizzly Bears');

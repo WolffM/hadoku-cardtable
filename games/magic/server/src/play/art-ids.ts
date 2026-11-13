@@ -30,7 +30,7 @@ import { toScryfallSetCode } from '@hadoku/carddata/set-codes';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DraftCard } from '@hadoku/shared';
 
-import pool from '../../../../../apps/ui/src/draft/pool.json' with { type: 'json' };
+import pool from '../../../ui/src/draft/pool.json' with { type: 'json' };
 import table from './art-ids.json' with { type: 'json' };
 
 /** What the resolver asks the card catalog (`../pools/catalog.ts`'s `CardCatalog`). */

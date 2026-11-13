@@ -76,7 +76,7 @@ import { loadPool, type CubePool } from './pool.js';
  * invented cards is the difference between testing the seat logic and testing
  * the seat logic against something that resembles a draft.
  */
-const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../apps/ui/src/draft/pool.json');
+const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../games/magic/ui/src/draft/pool.json');
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa';
 const BOB = 'fk:bbbbbbbbbbbbbbbb';

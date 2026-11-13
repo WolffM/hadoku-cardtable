@@ -152,7 +152,7 @@ one (no Forge, no server, no jar on hokon), every board state is repeatable,
 and a loop can run for ten minutes. The live stack was not needed.
 
 **Boards** (`scenarios.ts`): the committed real capture
-(`apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`) is the base. *early* is
+(`games/magic/ui/src/play/fixtures/tierc-game1-seq1-27.json`) is the base. *early* is
 its packet 6 (turn 5, 3 + 3 permanents, 6 cards in hand); *mid* is packet 27
 (turn 14, 5 + 8, hand filled to 10). *crowded* and *huge* add clones of the
 capture's own card and card-state objects (same tags and properties, new ids):
@@ -231,7 +231,7 @@ node scripts/fps/measure.mjs leak --minutes 10 --board crowded --out leak.tsv
 
 ## The front page's scroll, from real sessions (2026-10-28)
 
-The room list reports its own scroll smoothness (`apps/ui/src/rooms/scroll-watch.ts`): one `perf`
+The room list reports its own scroll smoothness (`games/magic/ui/src/rooms/scroll-watch.ts`): one `perf`
 event per scroll burst, POSTed to `/api/client-events` (`packages/game-server/src/http/client-events.ts`) and
 written to the server's stdout as `svc: 'cardtable-client'`, `evt: 'client'`, `page: 'front'`,
 `what: 'scroll'`. Fields: `frames`, `ms`, `p50`, `p95`, `max` (gap, ms), `over25` and `over50`

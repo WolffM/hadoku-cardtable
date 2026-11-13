@@ -11,8 +11,8 @@ the UI cannot answer — before a player does.
 Code: `games/magic/server/src/play/monkey/`. It lives under `games/magic/server/src/` rather
 than `scripts/` because its wire transport needs `socket.io-client`, which is
 a real dependency of `@hadoku/magic-server` and not resolvable from a bare script;
-the rest of it reaches into `apps/ui/src/play/live/match.ts` and
-`apps/ui/src/play/prompts/rules.ts` for the exact same functions the real
+the rest of it reaches into `games/magic/ui/src/play/live/match.ts` and
+`games/magic/ui/src/play/prompts/rules.ts` for the exact same functions the real
 board and prompt components call, so "legal" is never a second model of
 Forge's rules — see each file's own header.
 
@@ -129,7 +129,7 @@ Mutation evidence, each reverted before landing:
   the match timed out at its turn cap, both flags correctly raised. The
   SERVER-side half (Forge's own `flashIncorrectAction`, caught by the wire
   tap rather than this client's own guard) is the same code path
-  `apps/ui/src/play/live/mistakes.ts` already proves against a real jar in
+  `games/magic/ui/src/play/live/mistakes.ts` already proves against a real jar in
   its own test suite; not separately re-proved here.
 - **`no-legal-answer`**, **`loop`**, **`server-unclassified`** — proved by a
   direct unit test of the pure function each flag is built on

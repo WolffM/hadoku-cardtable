@@ -57,7 +57,7 @@ export const tablesPlugin: CardtablePlugin = {
 		attachPresetRoutes(api, { store: state.presetStore });
 		// The presets, sets and cubes as Rally's pick catalogues, and each option's two view pages' data.
 		attachRally(api, {
-			symbols: rallySymbols(resolve(state.repoRoot, 'apps/ui/src/symbols')),
+			symbols: rallySymbols(resolve(state.repoRoot, 'games/magic/ui/src/symbols')),
 			cubes: state.cubeStore,
 			sets: state.setsStore,
 			presets: state.presetStore,

@@ -1,6 +1,6 @@
 /*
  * `createSound`, against a synthetic registry — no real role name needed.
- * Cardtable's own wiring (`apps/ui/src/sound/sound.test.ts`) proves the same
+ * Cardtable's own wiring (`games/magic/ui/src/sound/sound.test.ts`) proves the same
  * mechanics through its actual registry and server client, plus the
  * CardTile and SoundSettings wiring, which are Magic's.
  */

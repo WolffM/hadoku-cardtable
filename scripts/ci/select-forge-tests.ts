@@ -54,7 +54,7 @@
  *   import below one                                    its guard family (the bridge's Java: and, like the
  *                                                       engine pin, everything on a dispatch)
  *   apps/server, games/<game>/server, packages/game-server   history, route callers, the jvm suites using it
- *   apps/ui source, a package's source                  history, what it renders, the specs and jvm suites
+ *   UI source (site, game), a package's source          history, what it renders, the specs and jvm suites
  *                                                       using it (a package: and the guards of a hot path using it)
  *   anything else                                       every spec + every jvm suite
  *
@@ -167,19 +167,19 @@ export const GUARDS: Guard[] = [
   },
   {
     name: 'pacing',
-    paths: /^apps\/ui\/src\/play\/live\/pace\.ts$/,
+    paths: /^games\/magic\/ui\/src\/play\/live\/pace\.ts$/,
     specs: ['w47-pace.spec.ts', 'w71-tap-reveal.spec.ts', 'dead-bar.spec.ts', 'lg-gamelog.spec.ts', 'w67-shaman.spec.ts'],
     jvm: [],
   },
   {
     name: 'the client match state',
-    paths: /^apps\/ui\/src\/play\/live\/match\.ts$/,
+    paths: /^games\/magic\/ui\/src\/play\/live\/match\.ts$/,
     specs: ['dead-bar.spec.ts', 'w60-waiting.spec.ts', 'w55-withheld.spec.ts', 'w32.spec.ts', 'w54-blockers.spec.ts'],
     jvm: [],
   },
   {
     name: 'placement and gestures',
-    paths: /^apps\/ui\/src\/play\/live\/((presence|placed)\.ts|gestures\/.*)$/,
+    paths: /^games\/magic\/ui\/src\/play\/live\/((presence|placed)\.ts|gestures\/.*)$/,
     specs: ['presence.spec.ts', 'played-card.spec.ts', 'w62-parked.spec.ts', 'w67-shaman.spec.ts', 'w70-tapped-drag.spec.ts', 'w71-tap-reveal.spec.ts'],
     jvm: [],
   },
@@ -189,8 +189,8 @@ export const GUARDS: Guard[] = [
     // derives this list from the import graph and fails until it matches.
     name: 'the shared stylesheets',
     // `chrome.css`/`trim.css` moved into `packages/ui-shell/src/chrome/` (wave 92 §A); the alternative
-    // for them is a separate root, not another name under `apps/ui/src/chrome/`.
-    paths: /^(apps\/ui\/src\/(styles|screens\/(screens|DecksScreen|SoundBuilder|pod\/PodSeats)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)|packages\/ui-shell\/src\/chrome\/(chrome|trim))\.css$/,
+    // for them is a separate root, not another name under `games/magic/ui/src/chrome/`.
+    paths: /^(games\/magic\/ui\/src\/(styles|screens\/(screens|DecksScreen|SoundBuilder|pod\/PodSeats)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)|packages\/ui-shell\/src\/chrome\/(chrome|trim))\.css$/,
     specs: ['table-fit.spec.ts'],
     jvm: [],
   },
@@ -440,7 +440,8 @@ function gamesOf(repo: Repo): string[] {
 
 /**
  * Where workspace package `@hadoku/<name>` lives: `packages/<name>`, a game's `games/<game>/packages/<name>`,
- * or a game's server `games/<game>/server`, whose directory is not its name (`@hadoku/magic-server`).
+ * or a game's server or UI, `games/<game>/{server,ui}`, whose directory is not its name (`@hadoku/magic-server`,
+ * `@hadoku/magic-ui`).
  */
 const packageDirs = new WeakMap<Repo, Map<string, string | null>>();
 function packageDir(repo: Repo, name: string): string | null {
@@ -451,7 +452,7 @@ function packageDir(repo: Repo, name: string): string | null {
   const dir =
     ['packages', ...games.map((g) => `games/${g}/packages`)].map((d) => `${d}/${name}`).find((d) => repo.read(`${d}/package.json`) !== null) ??
     games
-      .map((g) => `games/${g}/server`)
+      .flatMap((g) => [`games/${g}/server`, `games/${g}/ui`])
       .find((d) => {
         const manifest = repo.read(`${d}/package.json`);
         return manifest !== null && (JSON.parse(manifest) as { name?: string }).name === `@hadoku/${name}`;
@@ -681,8 +682,8 @@ export function cssChangeKeys(repo: Repo, file: string, patch: string | undefine
   const via: string[] = [];
   if (direct.classes.size === 0) return { direct, reached, via, typesOnly: false };
   const uses = [...direct.classes].map((c) => new RegExp(`['"\`][^'"\`\n]*(?<![\\w-])${escape(c)}(?![\\w-])`));
-  // The app and the platform's UI packages: a package's sheet is drawn by its own components.
-  for (const f of [...repo.list('apps/ui'), ...repo.list('packages')]) {
+  // The site, each game's UI and the platform's UI packages: a package's sheet is drawn by its own components.
+  for (const f of [...repo.list('apps/ui'), ...gamesOf(repo).flatMap((g) => repo.list(`games/${g}/ui`)), ...repo.list('packages')]) {
     if (!f.endsWith('.tsx')) continue;
     const lines = (repo.read(f) ?? '').split('\n');
     const hits = lines.flatMap((l, i) => (uses.some((u) => u.test(l)) ? [i] : []));
@@ -1245,7 +1246,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       for (const [s, hit] of callers) addSpec(s, 2, `${f}: route ${hit}`, W.importer);
       continue;
     }
-    if (/^(apps\/ui|packages|games\/[^/]+\/packages)\//.test(f)) {
+    if (/^(apps\/ui|games\/[^/]+\/ui|packages|games\/[^/]+\/packages)\//.test(f)) {
       if (c.status === 'removed') {
         allSpecs ??= `${f}: removed — what it rendered may be gone`;
         allJvm ??= `${f}: removed`;
@@ -1266,8 +1267,8 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
         continue;
       }
       for (const s of specsUsing(c)) addSpec(s, 2, `uses ${f}`, W.importer);
-      // The UI and the packages it can import; a game's server is server code, as apps/server was.
-      uiImporters ??= importersIn(repo, 'apps/ui', 'packages', ...gamesOf(repo).map((g) => `games/${g}/packages`));
+      // The site's UI, each game's UI and the packages they can import; a game's server is server code, as apps/server was.
+      uiImporters ??= importersIn(repo, 'apps/ui', 'packages', ...gamesOf(repo).flatMap((g) => [`games/${g}/ui`, `games/${g}/packages`]));
       const r = f.endsWith('.css') ? cssChangeKeys(repo, f, c.patch) : reachedKeys(repo, uiImporters, f, c.patch);
       if (keyCount(r.direct) + keyCount(r.reached) === 0) {
         if (r.typesOnly) reasons.push(`${f}: type declarations only — tsc covers them`);

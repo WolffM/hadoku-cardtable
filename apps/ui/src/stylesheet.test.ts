@@ -7,33 +7,51 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { exportOf } from '../../../scripts/layers/exports.ts';
 import { importsInOrder, sheetsInSourceOrder } from '../stylesheet.ts';
 
 const SRC = dirname(fileURLToPath(import.meta.url));
-// `@hadoku/ui-shell`'s files (chrome, trim, embed today; more as other lanes move theirs) resolve
-// here, same as the real build's workspace link (wave 92 §A) — this stub resolver has to enter the
-// package the same way, or a sheet moved there (chrome.css, trim.css) silently drops out of the walk.
-// Read from the package's own `exports` map rather than assumed, so a new subpath (`./chrome/shell`,
-// a file, not a directory's `index.ts`) needs no matching change here.
-const PKG_ROOT = resolve(SRC, '../../../packages/ui-shell');
-const PKG_SRC = join(PKG_ROOT, 'src');
-const PKG_EXPORTS: Record<string, string> = JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8')).exports;
+const REPO = resolve(SRC, '../../..');
+/**
+ * The workspace's UI packages the app bundles, entered the way the real build's workspace links are
+ * (wave 92 §A moved chrome.css and trim.css into ui-shell; Magic's UI is `@hadoku/magic-ui`): this stub
+ * resolver has to enter each the same way, or a sheet that lives there silently drops out of the walk.
+ * Each subpath is read from the package's own `exports` map rather than assumed, so a new subpath
+ * (`./chrome/shell`, a file, not a directory's `index.ts`) needs no matching change here. `tag` is how
+ * a sheet there is named below: Magic's UI and the site were one directory, so their sheets keep the
+ * bare paths they had.
+ */
+const PACKAGES = [
+  { dir: 'packages/ui-shell', tag: '@ui-shell/' },
+  { dir: 'packages/game-ui', tag: '@game-ui/' },
+  { dir: 'games/magic/ui', tag: '' },
+].map(({ dir, tag }) => {
+  const root = join(REPO, dir);
+  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { name: string; exports: Record<string, string> };
+  return { root, src: join(root, 'src'), tag, name: manifest.name, exportOf: (sub: string) => exportOf(manifest.exports, sub) };
+});
 
 /**
- * Relative imports to files (under either root), a bare `@hadoku/ui-shell/<name>` to that subpath's
- * own entry module (as the package's own `exports` map says), a package's sheet by its name; any
- * other package is not entered.
+ * Relative imports to files (under any root), a bare `@hadoku/<package>/<path>` of a package above to
+ * the file its `exports` map names, any other package's sheet by its name; any other package is not entered.
  */
 async function resolveForTest(spec: string, importer: string): Promise<string | null> {
   if (spec.startsWith('.')) {
     const path = resolve(dirname(importer), spec);
     return [path, `${path}.ts`, `${path}.tsx`].find((p) => existsSync(p) && statSync(p).isFile()) ?? null;
   }
-  if (spec.startsWith('@hadoku/ui-shell/')) {
-    const rel = PKG_EXPORTS[`.${spec.slice('@hadoku/ui-shell'.length)}`];
-    return rel === undefined ? null : resolve(PKG_ROOT, rel);
+  const pkg = PACKAGES.find((p) => spec.startsWith(`${p.name}/`));
+  if (pkg !== undefined) {
+    const rel = pkg.exportOf(`.${spec.slice(pkg.name.length)}`);
+    return rel === undefined ? null : resolve(pkg.root, rel);
   }
   return spec.endsWith('.css') ? `npm:${spec}` : null;
+}
+
+/** A sheet's name below: its path under the site or a package's `src`, tagged by package. */
+function nameOf(sheet: string): string {
+  const pkg = PACKAGES.find((p) => sheet.startsWith(`${p.src}/`));
+  return pkg ? `${pkg.tag}${sheet.slice(pkg.src.length + 1)}` : sheet.replace(`${SRC}/`, '');
 }
 
 describe('importsInOrder', () => {
@@ -57,9 +75,7 @@ describe('importsInOrder', () => {
 describe('the app, walked from its entry', () => {
   // It parses every module the entry reaches: 1–3 s alone, past vitest's 5 s on a loaded host.
   it('keeps every screen’s sheets ahead of the router’s and the chrome’s, the lazy screens’ included', async () => {
-    const sheets = (await sheetsInSourceOrder(join(SRC, 'main.tsx'), resolveForTest)).map((s) =>
-      s.startsWith(`${PKG_SRC}/`) ? `@ui-shell/${s.slice(PKG_SRC.length + 1)}` : s.replace(`${SRC}/`, ''),
-    );
+    const sheets = (await sheetsInSourceOrder(join(SRC, 'main.tsx'), resolveForTest)).map(nameOf);
     const at = (sheet: string): number => {
       const i = sheets.indexOf(sheet);
       expect(i, sheet).toBeGreaterThanOrEqual(0);

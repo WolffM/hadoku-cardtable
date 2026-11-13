@@ -18,8 +18,8 @@
  * (:1952-1965) watches every seat's frames for exactly that shape and records
  * `this.coinToss = { winner: s.seat, at }` the first time it sees one, which
  * `seatIdentities()` (:1449) publishes on `forge:seats` as `coinToss`.
- * `apps/ui/src/play/live/match.ts:1412-1413` reads `coinToss` off `forge:seats`
- * and `apps/ui/src/play/live/LiveBoard.tsx` draws `CoinToss` from it — so the
+ * `games/magic/ui/src/play/live/match.ts:1412-1413` reads `coinToss` off `forge:seats`
+ * and `games/magic/ui/src/play/live/LiveBoard.tsx` draws `CoinToss` from it — so the
  * ask reaches the browser as data the client already trusts, not as a frame it
  * parses itself. Since 2026-10-19 a match that names its chooser reports no
  * coin at all — nothing was tossed (the operator: "it should ask the opponent

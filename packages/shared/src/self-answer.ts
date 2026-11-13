@@ -2,7 +2,7 @@
  * The asks a seat's own browser answers the moment they land, with nobody deciding anything —
  * one statement, read by both sides of the wire:
  *
- * - the browser (`apps/ui/src/play/live/LiveBoard.tsx`) sends the reply instead of drawing a prompt;
+ * - the browser (`games/magic/ui/src/play/live/LiveBoard.tsx`) sends the reply instead of drawing a prompt;
  * - the server (`games/magic/server/src/play/match.ts`'s `waitingOnFor`) never tells the OTHER seat that
  *   this one is deciding while such an ask is open. A loaded browser takes 139–371 ms to reply, longer
  *   than any grace, and the other screen read "Waiting for Alice to decide…" for a land she had

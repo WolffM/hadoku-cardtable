@@ -4,7 +4,7 @@
  *
  * "Legal" is never reinvented here. Every method's legality rule already
  * exists as a pure function the real prompt components call to disable their
- * own submit button — `apps/ui/src/play/prompts/rules.ts` (per-method
+ * own submit button — `games/magic/ui/src/play/prompts/rules.ts` (per-method
  * `*Problems` checkers plus the few builders: `combatDamageRules`,
  * `settleCombatAssignment`, `manaCombos`) and
  * `packages/shared/src/combat-damage.ts` (`combatDamageRules`,
@@ -12,7 +12,7 @@
  * functions say is legal, not a second legality model — the one place that
  * would duplicate Forge's own rule is `rules.ts`, and this never touches it.
  *
- * `answerAsk` (`apps/ui/src/play/live/match.ts`) re-checks every reply
+ * `answerAsk` (`games/magic/ui/src/play/live/match.ts`) re-checks every reply
  * against `REPLY_SCHEMAS` before it leaves, so a shape mistake here fails
  * loudly (`match.lastError`) rather than crossing the wire silently wrong.
  */
@@ -23,7 +23,7 @@ import {
   confirmButtons,
   manaCombos,
   settleCombatAssignment,
-} from '../../../../../../apps/ui/src/play/prompts/rules.ts';
+} from '../../../../ui/src/play/prompts/rules.ts';
 import { combatDamageReply, combatDamageRules, type CombatAssignment } from '@hadoku/shared';
 import { tickPick, type BlockingMethod, type ChoiceOption, type ServerFrame } from '@hadoku/forge-wire';
 

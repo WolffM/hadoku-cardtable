@@ -46,9 +46,12 @@ function run(decl: FakeDecl): string {
   return decl.value;
 }
 
-const OURS = { input: { file: '/repo/apps/ui/src/play/board.css' } };
+/** A game's UI package's own sheet (`games/<game>/ui/src`). */
+const OURS = { input: { file: '/repo/games/magic/ui/src/play/board.css' } };
 /** A moved stylesheet, in a workspace package's own src/, not under apps/ui at all. */
 const SHELL_OURS = { input: { file: '/repo/packages/ui-shell/src/chrome/chrome.css' } };
+/** The site's own sheet. */
+const SITE_OURS = { input: { file: '/repo/apps/ui/src/embed/embed.css' } };
 
 describe('uiScaleCss', () => {
   it('rewrites a declaration in the app’s own stylesheet', () => {
@@ -57,6 +60,7 @@ describe('uiScaleCss', () => {
 
   it('rewrites a declaration moved into a workspace package’s own src/, same as an app’s own', () => {
     expect(at(run({ prop: 'gap', value: '4px', source: SHELL_OURS }), 1.5)).toBe('6px');
+    expect(at(run({ prop: 'gap', value: '4px', source: SITE_OURS }), 1.5)).toBe('6px');
   });
 
   it('never rewrites the units themselves, an @property, an @font-face, or a sheet that is not ours', () => {

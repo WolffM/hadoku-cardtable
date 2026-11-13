@@ -58,7 +58,7 @@
  * not a valid length, so the browser discarded it, fell back to `100vw` and
  * picked the largest candidate every time: 780x1086 images for a 190px slot,
  * verified in a real browser, roughly three times the bytes for no visible
- * difference. `apps/ui/src/draft/cardImage.ts` carries the full story.
+ * difference. `games/magic/ui/src/draft/cardImage.ts` carries the full story.
  *
  * ## No Node APIs
  *

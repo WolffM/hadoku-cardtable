@@ -35,7 +35,7 @@ import { attachRally, SYMBOLS_PATH, type RallyDeps } from './rally.ts';
 import { rallySymbols, setGlyphs } from './rally-symbols.ts';
 import { REPO_ROOT, SHORTLIST_DIR } from '../root.ts';
 
-const SYMBOLS_DIR = join(REPO_ROOT, 'apps', 'ui', 'src', 'symbols');
+const SYMBOLS_DIR = join(REPO_ROOT, 'games', 'magic', 'ui', 'src', 'symbols');
 const PAUPER = 'the-pauper-cube-2026-02';
 const VINTAGE = 'mtgo-vintage-cube-2025-04';
 

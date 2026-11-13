@@ -688,7 +688,7 @@ second about **Node**. They are also hazard 8 under "Known porting hazards".
 - **VERIFIED (measured, `e2e/st-stack-resolve.spec.ts` on the claws, runs 38521280591
   and 38530007159)** — the other seat received those as two `applyDelta`
   frames 30–40 ms apart, and drew Grizzly Bears on the battlefield and on the
-  stack at once. `apps/ui/src/play/adapter.ts` now drops a spell's stack entry
+  stack at once. `games/magic/ui/src/play/adapter.ts` now drops a spell's stack entry
   once a zone list holds its card.
 
 ## A mana X is asked as ten numbers and "Other…" — 2026-10-15 (lane XW)

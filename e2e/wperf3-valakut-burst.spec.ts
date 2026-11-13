@@ -14,7 +14,7 @@
  * Red when the board's animations are listed more than once a message. Every view waits on its beats
  * twice, and each wait used to list them on its own, round after round, each in its own task: 1,633 and
  * 1,883 lists for 136 messages on main (hokon), 95 and 106 since one look a frame serves every wait
- * (`../apps/ui/src/play/motion.ts`). The long frames that remain are each one resolution's own render
+ * (`../games/magic/ui/src/play/motion.ts`). The long frames that remain are each one resolution's own render
  * and effects (~55–70 ms on hokon), logged, not judged here.
  */
 import { createRequire } from 'node:module';

@@ -5,7 +5,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { ROOM_WORDS } from '../apps/ui/src/rooms/roomName.ts';
+import { ROOM_WORDS } from '../games/magic/ui/src/rooms/roomName.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { openCreateRoom } from './play/rooms.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';

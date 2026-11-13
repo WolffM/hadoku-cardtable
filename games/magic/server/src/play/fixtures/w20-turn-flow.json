@@ -1,12 +1,12 @@
 {
  "provenance": [
   "REAL frames off a real Forge match, captured 2026-09-25 by",
-  "apps/ui/src/play/live/flow.jvm.test.ts with CARDTABLE_PLAY_DUMP set. Two seats,",
+  "games/magic/ui/src/play/live/flow.jvm.test.ts with CARDTABLE_PLAY_DUMP set. Two seats,",
   "decks of 20 Volcanic Island + 20 Merfolk of the Pearl Trident, seed 20260925.",
   "Seat 0 played one land and cast the creature; nothing was edited.",
   "Re-cut it with:",
   "  CARDTABLE_FORGE_JAR=... CARDTABLE_FORGE_RES=... CARDTABLE_PLAY_WORK_DIR=$(mktemp -d) \\",
-  "  CARDTABLE_PLAY_DUMP=<dir> pnpm vitest run apps/ui/src/play/live/flow.jvm.test.ts",
+  "  CARDTABLE_PLAY_DUMP=<dir> pnpm vitest run games/magic/ui/src/play/live/flow.jvm.test.ts",
   "`windows` is one row per showPromptMessage: the prompt, the updateButtons bar",
   "standing at that moment, and the setWeaklySelectable set standing at that",
   "moment (null when Forge had cleared it). `abilityOffers` is every",

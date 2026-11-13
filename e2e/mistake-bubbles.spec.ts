@@ -3,7 +3,7 @@
  * the screen of the seat that made the mistake and never the other's, and each gone by itself.
  *
  * A refused press that Forge never sees changes nothing else on the board, so the bubble shows
- * only if the press itself redraws it (`setMistake` in `apps/ui/src/play/live/match.ts`). The
+ * only if the press itself redraws it (`setMistake` in `games/magic/ui/src/play/live/match.ts`). The
  * `mistake-bubbles` board is built so that nothing else moves: the bubble has to show within a
  * second of the press, well inside its own 3.2 s on screen.
  *

@@ -1,5 +1,5 @@
 /*
- * Build `apps/ui/src/draft/art-artists.json` — the artist of every art id the
+ * Build `games/magic/ui/src/draft/art-artists.json` — the artist of every art id the
  * UI can show, for the places that show a card's art without its frame.
  *
  * ## Regenerate with
@@ -33,7 +33,7 @@ import { BACK_FACE } from '../../games/magic/packages/carddata/src/art/ids.ts';
 import { corpusDir } from '../../games/magic/packages/carddata/src/corpus-dir.ts';
 
 const REPO_ROOT = resolvePath(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-const DRAFT_DIR = join(REPO_ROOT, 'apps', 'ui', 'src', 'draft');
+const DRAFT_DIR = join(REPO_ROOT, 'games', 'magic', 'ui', 'src', 'draft');
 
 interface Printing {
   readonly id: string;

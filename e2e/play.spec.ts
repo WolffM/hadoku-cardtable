@@ -123,8 +123,8 @@ import { resolve } from 'node:path';
 
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
-import { toBoardView } from '../apps/ui/src/play/adapter.ts';
-import type { WireObject } from '../apps/ui/src/play/wire.ts';
+import { toBoardView } from '../games/magic/ui/src/play/adapter.ts';
+import type { WireObject } from '../games/magic/ui/src/play/wire.ts';
 import { E2E_ERA, createRoom, enabledCancel, enabledOk, says, serverLog } from './play/board.ts';
 import { messages, openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
@@ -1278,7 +1278,7 @@ test(LIVE_TITLE, async ({ browser }) => {
      * tap — is the player's, and is item 6's business, not item 5's; what item 5
      * is about is everything after, which is priority passing until the spell
      * resolves. `pressedSinceTheClick` reports the other half for the record, and
-     * `apps/ui/src/play/live/flow.jvm.test.ts` pins the whole of it (a cast with
+     * `games/magic/ui/src/play/live/flow.jvm.test.ts` pins the whole of it (a cast with
      * ZERO clicks and ZERO prompts) against a deck built for the case.
      *
      * What is NOT measured is the stack: with both seats passing a window they
@@ -1687,7 +1687,7 @@ test(LIVE_TITLE, async ({ browser }) => {
      * and it is read with `innerText`, which is everything the board currently
      * DRAWS. The inspector draws inside it: hovering a card clones that card's
      * tile into the board's `[data-board-zoom]` layer, the last element of
-     * `<section class="board">` (`apps/ui/src/play/inspect/index.ts`, wave 20 §D).
+     * `<section class="board">` (`games/magic/ui/src/play/inspect/index.ts`, wave 20 §D).
      * A preview is POINTER state, not board state, and a reloaded page has had no
      * pointer event over it, so it can never have one — the equality was
      * comparing where the mouse happened to be resting.

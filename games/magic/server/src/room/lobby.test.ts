@@ -71,7 +71,7 @@ const POOLS = CATALOG.filter((f) => f.family === 'standard').map((f) => f.id);
 const CAROL = { id: 'fk:3333333333333333', name: 'user-carol', userId: 'uid-user-carol' };
 
 /** The cube the app ships with — for the tests that drive a REAL `DraftRooms` off `podDraft`. */
-const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../apps/ui/src/draft/pool.json');
+const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../games/magic/ui/src/draft/pool.json');
 
 /** A draft room with `members` in it, all of them ready, and its draft started. */
 /** A draft room with `members` in it, all ready, no seat open — `startDraft`'s OWN gates are all clear, but its plan verdict is still whatever the lobby gave it (null, absent a `checkPlan`). */

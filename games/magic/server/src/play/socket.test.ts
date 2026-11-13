@@ -1252,7 +1252,7 @@ describe('reconnect: a browser refresh mid-match', () => {
  *
  * These cases are over REAL sockets: what is asserted is the bytes a browser
  * would receive. The client's half — adopting it — is
- * `apps/ui/src/play/live/match.test.ts`.
+ * `games/magic/ui/src/play/live/match.test.ts`.
  */
 describe('full control survives a refresh', () => {
 	it('tells a joining socket what this seat is set to, and a refreshed page is told ON', async () => {

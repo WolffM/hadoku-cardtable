@@ -487,7 +487,7 @@ function logRows(serverLogFile: string): LogRow[] {
 
 /**
  * Every spec's dead-bar check. The client reports `bar-stuck`
- * (`apps/ui/src/play/live/bar-hold.ts`) once a live server window has had nothing pressable
+ * (`games/magic/ui/src/play/live/bar-hold.ts`) once a live server window has had nothing pressable
  * on its screen for `BAR_STUCK_MS`, and again when that ends; a seat stuck past
  * {@link DEAD_BAR_MAX_MS}, or still stuck when the log ends, fails the spec that ran it. The
  * server's own `window-resent` repairs are printed beside it.

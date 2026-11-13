@@ -104,7 +104,7 @@ describe.skipIf(!available.ok)(title, () => {
 				// `match.test.ts`'s own, older invariant), but `showReveal` peeks at
 				// the already-queued `behindReveal` frames first and, finding that this
 				// move takes the SAME revealed ids off the library's visible top, marks
-				// the envelope `forceNotice: true`. The client (`apps/ui/src/play/live/
+				// the envelope `forceNotice: true`. The client (`games/magic/ui/src/play/live/
 				// match.ts`'s `showReveal`) then skips `drawsFaceUp` entirely for this
 				// reveal, instead of reading a transiently-stale pre-move snapshot that
 				// looks exactly like Courser of Kruphix's PERSISTENT "look at top" case.

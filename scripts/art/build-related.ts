@@ -1,5 +1,5 @@
 /*
- * Build `apps/ui/src/draft/related.json` — for every card, the other cards that
+ * Build `games/magic/ui/src/draft/related.json` — for every card, the other cards that
  * come with it: the tokens (and emblems) it makes, and a meld card's partner and
  * the card they meld into. The draft's fan draws them in a row under the card
  * under the pointer, and every tile adds them to the inspector's wheel (the
@@ -49,7 +49,7 @@ const arg = (name: string): string | undefined => process.argv.find((a) => a.sta
 const CACHE = resolve(arg('cache') ?? corpusDir(), 'cards.jsonl');
 const FORGE_RES = resolve(arg('forge-res') ?? resolve(ROOT, 'forge/forge-gui/res'));
 const ART_IDS = resolve(ROOT, 'games/magic/server/src/play/art-ids.json');
-const OUT = resolve(arg('out') ?? resolve(ROOT, 'apps/ui/src/draft/related.json'));
+const OUT = resolve(arg('out') ?? resolve(ROOT, 'games/magic/ui/src/draft/related.json'));
 
 /** Scryfall rows that are not a card anyone plays: a token's own row, an emblem's, an art card's. */
 const NOT_A_CARD = new Set(['token', 'double_faced_token', 'emblem', 'art_series']);

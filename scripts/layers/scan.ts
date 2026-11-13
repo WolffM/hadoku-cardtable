@@ -12,7 +12,7 @@ import { type Layer, type Resolver, REPO_ROOT, packageDirOf, packageLayerFor, pa
 import { exportOf, hadokuSubpath } from './exports.ts';
 
 // Every .ts/.tsx file git tracks under an app's or a package's src dir (`packages/*`, a game's
-// `games/*/packages/*` or its `games/*/server`), repo-relative, /-joined.
+// `games/*/packages/*`, its `games/*/server` or its `games/*/ui`), repo-relative, /-joined.
 export function listSourceFiles(): string[] {
 	const out = execFileSync(
 		'git',
@@ -34,6 +34,10 @@ export function listSourceFiles(): string[] {
 			'games/*/server/src/**/*.ts',
 			'games/*/server/src/*.tsx',
 			'games/*/server/src/**/*.tsx',
+			'games/*/ui/src/*.ts',
+			'games/*/ui/src/**/*.ts',
+			'games/*/ui/src/*.tsx',
+			'games/*/ui/src/**/*.tsx',
 		],
 		{ cwd: REPO_ROOT, encoding: 'utf8' },
 	)
@@ -289,14 +293,14 @@ interface PackageLicenceRow {
 }
 
 function allPackageLicenceRows(resolver: Resolver, allFiles: string[]): PackageLicenceRow[] {
-	const out = execFileSync('git', ['ls-files', 'apps/*/package.json', 'packages/*/package.json', 'games/*/packages/*/package.json', 'games/*/server/package.json'], {
+	const out = execFileSync('git', ['ls-files', 'apps/*/package.json', 'packages/*/package.json', 'games/*/packages/*/package.json', 'games/*/server/package.json', 'games/*/ui/package.json'], {
 		cwd: REPO_ROOT,
 		encoding: 'utf8',
 	})
 		.split('\n')
 		.filter(Boolean);
 	return out.map((relPath) => {
-		const pkgDir = dirname(relPath); // e.g. apps/server, packages/shared, games/magic/packages/deck or games/magic/server
+		const pkgDir = dirname(relPath); // e.g. apps/server, packages/shared, games/magic/packages/deck, games/magic/server or games/magic/ui
 		const name = packageNameOf(pkgDir);
 		const pkgJson = JSON.parse(readFileSync(join(REPO_ROOT, relPath), 'utf8'));
 		return {

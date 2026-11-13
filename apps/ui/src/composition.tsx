@@ -5,16 +5,16 @@ import { RallyCatalogueSchema, RallyViewSchema } from '@hadoku/shared';
 // side-effect import is this file's whole job for it.
 import './rooms/games/bomberman.tsx';
 import { registerPlayerMark } from '@hadoku/game-ui/components/Avatar.tsx';
-import { forgetCardWidths } from './play/card-size.ts';
-import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from './play/live/prefs.ts';
-import { PlayerMark } from './play/marks.tsx';
+import { forgetCardWidths } from '@hadoku/magic-ui/play/card-size.ts';
+import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '@hadoku/magic-ui/play/live/prefs.ts';
+import { PlayerMark } from '@hadoku/magic-ui/play/marks.tsx';
 import { registerEmbedAddress } from '@hadoku/game-ui/screens/route.ts';
-import { ExperimentalSettings, GameSettings, MatchSettings } from './settings/GameSettings.tsx';
+import { ExperimentalSettings, GameSettings, MatchSettings } from '@hadoku/magic-ui/settings/GameSettings.tsx';
 import { registerSettings } from '@hadoku/game-ui/settings/Settings.tsx';
-import { SoundSettings } from './settings/SoundSettings.tsx';
-import { soundsClient, type SoundsClient } from './sound/builderClient.ts';
+import { SoundSettings } from '@hadoku/magic-ui/settings/SoundSettings.tsx';
+import { soundsClient, type SoundsClient } from '@hadoku/magic-ui/sound/builderClient.ts';
 import { registerSound } from '@hadoku/game-ui/sound/index.ts';
-import { SOUND_REGISTRY } from './sound/registry.ts';
+import { SOUND_REGISTRY } from '@hadoku/magic-ui/sound/registry.ts';
 
 const GameTab = () => (<><GameSettings /><MatchSettings /><ExperimentalSettings /></>);
 

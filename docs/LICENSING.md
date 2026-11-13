@@ -103,8 +103,8 @@ least restrictive."*
 - **GPL-3.0-or-later stays wherever Forge requires it**: the `forge/` submodule itself, every file
   the layer map classifies `magic`, `tangled` or `site`, and — because a package's licence is
   declared once for the whole package — any package that still holds one such file. Today that is
-  `apps/server` (the site), `apps/ui`, `apps/agent`, `packages/shared`, Magic's server
-  `games/magic/server` and the four Magic packages under `games/magic/packages/` (`forge-wire`,
+  `apps/server` and `apps/ui` (the site), `apps/agent`, `packages/shared`, Magic's server
+  `games/magic/server`, Magic's UI `games/magic/ui` and the four Magic packages under `games/magic/packages/` (`forge-wire`,
   `carddata`, `deck` and `draft`). A package becomes MIT only
   once *every* file inside it is `platform`.
 - **The record of which file is in which layer is `scripts/layers/layers.json`** (wave 91 §A):
@@ -132,8 +132,12 @@ least restrictive."*
   `site`, not `platform`, and it imports Magic, so the ratchet expects GPL of it. The UI followed the
   same way: since 2026-11-13 every file the map called `platform` in `apps/ui` (with its sheets and
   the tests that import only it) lives at the same path under `src/` in `packages/game-ui`
-  (`@hadoku/game-ui`, MIT). What is left in `apps/ui` is Magic's UI and the site that composes it;
-  it moves under `games/magic/` in a later stage.
+  (`@hadoku/game-ui`, MIT). Since 2026-11-13 the rest of the UI is home too: `games/magic/ui`
+  (`@hadoku/magic-ui`, GPL-3.0-or-later; the board and its prompts, the draft, decks, replays, the
+  room list and front-page pieces that know Magic, stats, sounds and the vendored symbol fonts), and
+  `apps/ui` keeps only the site (the entry, the app frame, `composition.tsx`, the embed, the harness
+  and fit pages, bomberman's slot, and the vite build whose `dist/` is served). Like `apps/server`,
+  it is still GPL: the map calls it `site` and it imports Magic.
 
 ### Checklist
 
@@ -424,7 +428,7 @@ free to anyone; that is §2's call, not D20's.)
 - **Attribution travels with the fonts.** SIL OFL 1.1 requires the copyright
   notice and licence to accompany the font; `NOTICE.md` credits both packs, the
   vendored CSS keeps each pack's copyright line, and the full licence texts sit
-  beside the fonts in `apps/ui/src/symbols/LICENSE-keyrune.md` and
+  beside the fonts in `games/magic/ui/src/symbols/LICENSE-keyrune.md` and
   `LICENSE-mana.md`.
 - **Do not rename the font files.** OFL's reserved-font-name clause.
 - **`mplantin` is not ours to take.** Mana ships a Plantin-alike text face

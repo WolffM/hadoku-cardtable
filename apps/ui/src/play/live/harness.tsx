@@ -24,9 +24,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ensureCosmeticsStyles } from '@wolffm/prefs-client/cosmetics';
 
-import '../../styles.css';
-import { LiveBoard } from './LiveBoard.tsx';
-import { socketIoMatchTransport, startMatch, type SocketIoMatchOptions } from './match.ts';
+import '@hadoku/magic-ui/styles.css';
+import { LiveBoard } from '@hadoku/magic-ui/play/live/LiveBoard.tsx';
+import { socketIoMatchTransport, startMatch, type SocketIoMatchOptions } from '@hadoku/magic-ui/play/live/match.ts';
 import { composeGame } from '../../composition.tsx';
 composeGame();
 

@@ -99,11 +99,13 @@ before planning cross-game work.
 ```
 forge/           Forge, a git submodule of the public fork WolffM/forge
 apps/server/     the site: boots Magic's server and bomberman's room type; its dist/ is what PM2 runs
-apps/ui/         React SPA
+apps/ui/         the site's SPA (@hadoku/ui): entry, app frame, composition, embed, harness pages and
+                 the vite build; its dist/ is what the server hands out
 packages/shared/ Zod wire schemas
 packages/*       the platform packages (MIT where every file is platform)
 games/magic/     Magic's own home (GPL, games/magic/LICENSE): packages/{carddata,deck,draft,forge-wire},
-                 and server/ (@hadoku/magic-server: the bridge, rooms, drafts, pools, Magic's routes)
+                 server/ (@hadoku/magic-server: the bridge, rooms, drafts, pools, Magic's routes) and
+                 ui/ (@hadoku/magic-ui: the board, prompts, draft, decks, replays; no build of its own)
 cubes/           cube lists
 docs/            architecture, Forge analysis, licensing
 docs/requests/   outbound asks to other repos

@@ -19,7 +19,7 @@
  * `payCostPart` → `controller.chooseCardsForCost(..., isOptional=true, ...)`
  * (`PlayerControllerHuman.java:2619`), which opens a REAL
  * `InputSelectCardsFromList` (`min=max=1`, cancel allowed) — the same input
- * class the module header of `apps/ui/src/play/live/match.ts` already
+ * class the module header of `games/magic/ui/src/play/live/match.ts` already
  * documents as one of the two inputs that call `setSelectables`.
  *
  * **Finding (both cases below, proven against the real jar): Forge DOES ask,

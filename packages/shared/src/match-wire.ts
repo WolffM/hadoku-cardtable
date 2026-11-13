@@ -1,7 +1,7 @@
 /*
  * The match transport contract: how a Forge frame travels between the play
  * server (`apps/server/src/play/transport.ts`) and the browser
- * (`apps/ui/src/play/live/transport.ts`), on top of `@hadoku/forge-wire`'s
+ * (`games/magic/ui/src/play/live/transport.ts`), on top of `@hadoku/forge-wire`'s
  * envelope.
  *
  * ## Wave 64 §S (S1/S8) — one copy, not two
@@ -35,7 +35,7 @@
  * ENVELOPE's own parse, nothing more.
  *
  * **The frame's own validation is the CALLER's second stage, not this
- * function's.** `apps/ui/src/play/live/match.ts`'s `ingest()` calls
+ * function's.** `games/magic/ui/src/play/live/match.ts`'s `ingest()` calls
  * `parseServerEnvelope` first, reads `cursor` off the result, decides
  * duplicate/gap/resync from it, and only THEN calls `safeParseServerFrame`
  * on the frame itself — because a frame that fails to parse is exactly the
@@ -459,7 +459,7 @@ export interface ServerEnvelope extends PlatformServerEnvelope<ServerFrame> {
    * the frames already queued behind it are applied (`games/magic/server/src/play/match.ts`'s
    * `revealMustForceNotice`, AF403) — a reveal that repositions its own cards within the same
    * resolution (`DigUntilEffect`'s move to the bottom: Calibrated Blast). The client's
-   * `drawsFaceUp`/`knownTop` (`apps/ui/src/play/adapter.ts`) would otherwise read the cards' still,
+   * `drawsFaceUp`/`knownTop` (`games/magic/ui/src/play/adapter.ts`) would otherwise read the cards' still,
    * transiently, being the library's known top and skip the only place the seat would ever see
    * them; this tells it not to. Never set on a reveal a persistent look grant (Courser of Kruphix)
    * produces — nothing repositions those cards, so the server has nothing to flag. Absent on every
@@ -586,7 +586,7 @@ export const SeatIdentitySchema = z
     /**
      * This seat holds a window Forge forwarded it right now: the chain has halted on it. Told the
      * moment it changes, never after `waitingOn`'s grace, so the other screen draws an ability chip
-     * for a pass however quick (`apps/ui/src/play/live/placed.ts`'s `setChainHalted`). Absent: it holds none.
+     * for a pass however quick (`games/magic/ui/src/play/live/placed.ts`'s `setChainHalted`). Absent: it holds none.
      */
     holds: z.literal(true).optional(),
     /**
@@ -696,7 +696,7 @@ export function parseClientEnvelope(raw: unknown): MatchWireParse<ClientEnvelope
  * The envelope's own parse ONLY — `frame` is handed back unchecked (typed as
  * `ServerFrame`, not actually verified as one). See this file's own header
  * ("`ServerEnvelopeSchema` stays eager; `parseServerEnvelope` does not") for
- * why: `apps/ui/src/play/live/match.ts`'s `ingest()` is the caller that
+ * why: `games/magic/ui/src/play/live/match.ts`'s `ingest()` is the caller that
  * validates the frame, in its own second step, once it already has the
  * cursor this function returned.
  */

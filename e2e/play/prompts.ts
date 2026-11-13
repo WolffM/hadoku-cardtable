@@ -1,7 +1,7 @@
 /**
  * A person's hands on the prompt the board is showing, in a real browser.
  *
- * The Playwright twin of `apps/ui/src/play/live/prompt-driver.ts` (which drives
+ * The Playwright twin of `games/magic/ui/src/play/live/prompt-driver.ts` (which drives
  * the same components under jsdom with `fireEvent`): real clicks on the
  * rendered prompt, and nothing else — never `answerAsk`, never the socket. What
  * reaches the server is whatever the COMPONENT built and checked.
@@ -12,7 +12,7 @@
 
 import type { Page } from '@playwright/test';
 
-import { ANSWER_KIND, ANSWER_TESTID, SELF_ANSWERING } from '../../apps/ui/src/play/prompts/answer-table.ts';
+import { ANSWER_KIND, ANSWER_TESTID, SELF_ANSWERING } from '../../games/magic/ui/src/play/prompts/answer-table.ts';
 
 export { SELF_ANSWERING };
 
@@ -38,7 +38,7 @@ export { SELF_ANSWERING };
  * 38381150766: castCard's tick answered Ponder's order 162 ms after it opened).
  */
 /**
- * The mana ring (`apps/ui/src/play/live/ManaRing.tsx`), which draws a mana source's ability and colour
+ * The mana ring (`games/magic/ui/src/play/live/ManaRing.tsx`), which draws a mana source's ability and colour
  * questions in place of the generic prompt: its first disc, pressed until it closes (a combination takes
  * one press per pip). Null when no ring is showing, or its method is one to `leave`.
  */

@@ -154,7 +154,7 @@ export function colourPair(a: ManaColour, b: ManaColour): ColourPair | null {
 /**
  * The music a match plays for its viewer's deck colours — the operator, 2026-10-16 and 2026-10-17: a mono
  * deck plays its colour, a two-colour deck its pair, a three-colour deck one of the three pairs inside it,
- * and four or more any of them (`apps/ui/src/sound/match-music.ts`). A pair is spelled as in `COLOUR_PAIRS`.
+ * and four or more any of them (`games/magic/ui/src/sound/match-music.ts`). A pair is spelled as in `COLOUR_PAIRS`.
  */
 export function matchMusicRole<K extends ManaColour | ColourPair>(colours: K): `music.match.${K}` {
 	return `music.match.${colours}`;
@@ -170,7 +170,7 @@ export const MATCH_MUSIC_ROLES: readonly string[] = [
  * A blow to a player sounds as big as its damage (the operator, 2026-10-20: *"we need different sounds based on
  * how much damage is dealt … a complex crashing/explosion sound for every level of damage"*). Each tier is named by
  * its lowest damage and runs to the next: one point at a time up to 4, where one point is the most audible, then
- * 5–6, 7–9 and 10 or more, where `damagePower` stops growing (`apps/ui/src/play/motion.ts`). A crowd cheers on top
+ * 5–6, 7–9 and 10 or more, where `damagePower` stops growing (`games/magic/ui/src/play/motion.ts`). A crowd cheers on top
  * from 5 (*"maybe at 5 damage is when the cheering comes in"*).
  */
 export const IMPACT_TIERS = [1, 2, 3, 4, 5, 7, 10] as const;
@@ -200,7 +200,7 @@ function tierLabel(tiers: readonly number[], i: number): string {
  * A creature lands as heavy as it is big (the operator, 2026-10-25: *"we're missing progressive sounds for bigger
  * creatures landing on the board"*), and as heavy as it looks (2026-10-30: *"a progressively more intense creature
  * land sound that matches the effect of the creature landing"*). The tiers are the powers where the landing's picture
- * gains a stage (`entryWeight`, `apps/ui/src/play/live/entries.ts`): the table shakes from 5, cracks from 7, the
+ * gains a stage (`entryWeight`, `games/magic/ui/src/play/live/entries.ts`): the table shakes from 5, cracks from 7, the
  * cards around it are knocked away from 8 and a second ring of them from 12. Below 5 it is the plain thud (`g.enter`).
  */
 export const LANDING_TIERS = [5, 7, 8, 12] as const;

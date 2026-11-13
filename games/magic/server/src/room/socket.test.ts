@@ -3,7 +3,7 @@
  * loopback port, real `socket.io-client` connections, the real cube.
  *
  * Nothing here is stubbed. A stub transport can prove the dispatch is right —
- * `apps/ui/src/draft/socket.test.ts` does exactly that for the client half —
+ * `games/magic/ui/src/draft/socket.test.ts` does exactly that for the client half —
  * but it cannot prove that a handshake below the tier floor is refused, or that
  * two sockets in one room receive different bytes, because in a stub there are
  * no bytes and no handshake.
@@ -19,7 +19,7 @@
  *
  * ## The leak assertion is positional, not nominal
  *
- * `apps/ui/src/draft/hiddenInfo.ts` is the existing in-repo example of this
+ * `games/magic/ui/src/draft/hiddenInfo.ts` is the existing in-repo example of this
  * shape: it walks a whole serialised payload and fails on a card-shaped object
  * anywhere it does not belong, because a payload leaks when somebody ADDS a
  * field, not when they mistype one. The same idea is applied here from the
@@ -71,7 +71,7 @@ import type { Lobby } from './lobby.js';
 import type { CubePool } from './pool.js';
 import { magicView } from './magic-view.js';
 
-const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../apps/ui/src/draft/pool.json');
+const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../games/magic/ui/src/draft/pool.json');
 const EDGE_SECRET = 'test-edge-auth-secret';
 
 /*
@@ -325,7 +325,7 @@ function errors(peer: Peer): Array<{ code: string; detail?: string }> {
 /**
  * Paths at which a card-shaped object appears that the recipient may not see.
  *
- * The same positional rule `apps/ui/src/draft/hiddenInfo.ts` enforces on the
+ * The same positional rule `games/magic/ui/src/draft/hiddenInfo.ts` enforces on the
  * browser side, restated here because that module belongs to the UI app and a
  * server test must not reach across into it. A card is anything carrying both a
  * `cardId` and a `name`; the only places one may appear are the recipient's own

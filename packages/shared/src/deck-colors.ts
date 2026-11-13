@@ -9,7 +9,7 @@
  * `null` is a socket with no deck of its own: a watcher.
  *
  * Its own event for the reason `forge:art` is: the snapshot schema is mirrored
- * byte for byte in `apps/ui/src/play/live/transport.ts`. Sent on every join and
+ * byte for byte in `games/magic/ui/src/play/live/transport.ts`. Sent on every join and
  * resync, before `forge:role`, so a client has it by the time it knows which
  * kind of socket it is.
  */

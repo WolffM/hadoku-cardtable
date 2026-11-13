@@ -1,5 +1,5 @@
 /**
- * An ability chip on the stack (`apps/ui/src/play/live/placed.ts`'s `abilityChip`), on both screens.
+ * An ability chip on the stack (`games/magic/ui/src/play/live/placed.ts`'s `abilityChip`), on both screens.
  *
  * Scenario `w67-trigger`: alice casts Eternal Witness; its "enters" trigger goes on the stack while
  * bob (Full Control) holds priority, so it stays there as the chip — with Forge's long description

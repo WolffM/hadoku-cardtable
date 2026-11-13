@@ -1,6 +1,6 @@
 /**
  * Set symbols for Rally's pick rows, drawn by Rally's page from Cardtable's own Keyrune
- * (`apps/ui/src/symbols/`, D20) so Rally ships no font and no glyph of its own.
+ * (`games/magic/ui/src/symbols/`, D20) so Rally ships no font and no glyph of its own.
  *
  *   GET /api/rally/symbols.css   → `.rally-line-symbol[data-line="set/<code>" i]::before` per set
  *   GET /api/rally/keyrune.woff2 → the font that stylesheet names, by a path relative to it

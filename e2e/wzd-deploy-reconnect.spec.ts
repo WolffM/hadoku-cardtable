@@ -8,7 +8,7 @@
  * (the edge stand-in stays up). From the moment the new server answers its health check, each
  * screen must be live again within `BACK_WITHIN_MS`. socket.io's default backoff (1 s doubling
  * to 5 s) let a screen sit out up to five seconds after the server was already back; the sockets
- * now retry every quarter second, at most a second apart (`apps/ui/src/draft/socket.ts`). Then
+ * now retry every quarter second, at most a second apart (`games/magic/ui/src/draft/socket.ts`). Then
  * the match goes on: Alice plays a land and Bob sees it.
  *
  * `[wzd]` lines are the evidence: each screen's lag from the server's health to its live board.

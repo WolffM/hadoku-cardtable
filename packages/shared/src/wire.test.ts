@@ -185,7 +185,7 @@ describe('server → client', () => {
    * of the schema's keys, so `draft.ts` growing a field meant nothing until
    * someone grew that copy too. It is read off the schemas now; the test after
    * this one holds every field to that.
-   * `apps/ui/src/draft/socket.ts`'s `ingest()` drops a schema-invalid
+   * `games/magic/ui/src/draft/socket.ts`'s `ingest()` drops a schema-invalid
    * message silently (counted in `stats.invalid`, nothing on screen), which
    * is why this looked exactly like the production incident
    * `docs/planning/wave74-2026-10-21.md` logged as an unconfirmed stall: a

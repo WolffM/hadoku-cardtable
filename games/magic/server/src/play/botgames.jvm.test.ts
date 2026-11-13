@@ -19,7 +19,7 @@ const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], opt
 const available = jvmHostConfig(BRIDGE_SOURCE, { ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 const title = available.ok ? 'a bot game, played out by two Forge AIs on a real bridge' : `a bot game, played out by two Forge AIs on a real bridge — SKIPPED: ${available.reason}`;
 
-const cube = loadPool(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../apps/ui/src/draft/pool.json'));
+const cube = loadPool(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../games/magic/ui/src/draft/pool.json'));
 if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
 
 /** Quick to play out: every creature attacks into an empty board. */

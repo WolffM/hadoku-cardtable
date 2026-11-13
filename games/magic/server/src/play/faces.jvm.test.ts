@@ -5,7 +5,7 @@
  * offers an adventure's two spells, a modal double-faced card's spell and land, and a split card's
  * halves as one `getAbilityToPlay`, and its labels do not say which face is which. The bridge names
  * each ability's face (`PlayBridge.java`'s `faceAbilities`), and the seat draws those faces side by
- * side (`apps/ui/src/play/prompts/ChoicePrompts.tsx`'s `facedAbilities`).
+ * side (`games/magic/ui/src/play/prompts/ChoicePrompts.tsx`'s `facedAbilities`).
  *
  * Scenario `faces`: alice selects each card in turn; the offer must name both faces, one per ability.
  *

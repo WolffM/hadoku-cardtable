@@ -40,7 +40,7 @@ const title = available.ok
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CHECK = join(HERE, 'jvm', 'DeckNamesCheck.java');
 
-const cube = loadPool(resolve(HERE, '../../../../../apps/ui/src/draft/pool.json'));
+const cube = loadPool(resolve(HERE, '../../../../../games/magic/ui/src/draft/pool.json'));
 if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
 
 /** The card Forge files each of the cube's two-faced cards under, by layout. */

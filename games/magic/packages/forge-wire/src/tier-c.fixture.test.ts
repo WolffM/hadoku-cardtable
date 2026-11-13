@@ -2,7 +2,7 @@
  * The contract between the board and the wire: every packet in the UI's
  * committed Tier C fixture must parse under this package's schema.
  *
- * The fixture (`apps/ui/src/play/fixtures/`) is a real match's packet stream,
+ * The fixture (`games/magic/ui/src/play/fixtures/`) is a real match's packet stream,
  * and the board renders from it without importing this package. Without this
  * test the two could drift apart and both stay green. `_truncatedTo` is the
  * fixture's trim annotation, not wire data, so it is asserted present and then
@@ -17,7 +17,7 @@ import { DeltaPacketSchema, GameStateSchema } from './tier-c.ts';
 
 const FIXTURE = join(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../../../apps/ui/src/play/fixtures/tierc-game1-seq1-27.json',
+  '../../../../../games/magic/ui/src/play/fixtures/tierc-game1-seq1-27.json',
 );
 
 function loadPackets(): Record<string, unknown>[] {

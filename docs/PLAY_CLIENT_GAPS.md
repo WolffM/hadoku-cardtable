@@ -1,10 +1,10 @@
 # What the product board still does not handle
 
-Wave 17, lane A, 2026-09-21. `apps/ui/src/play/live/jvm-harness.ts`,
+Wave 17, lane A, 2026-09-21. `games/magic/ui/src/play/live/jvm-harness.ts`,
 `game-driver.ts` and `prompt-driver.ts` are test support, and twice now a
 frame was handled there and nowhere in the product (the coin-toss button bar
 until 2026-09-19; `setSelectables` until Wave 17). This is the diff of those
-drivers against `apps/ui/src/play/live/match.ts`, taken at `42ba581`. The
+drivers against `games/magic/ui/src/play/live/match.ts`, taken at `42ba581`. The
 list is what the waves after 17 work from.
 
 ## Harness-handled, product-missing at 42ba581

@@ -2,7 +2,7 @@
  * Dividing an attacker's combat damage (`assignCombatDamage`) — the facts and the one-answer rule,
  * read by both sides of the wire:
  *
- * - the browser (`apps/ui/src/play/prompts/AssignPrompts.tsx`) draws the window from
+ * - the browser (`games/magic/ui/src/play/prompts/AssignPrompts.tsx`) draws the window from
  *   {@link combatDamageRules} and checks an answer against it (`rules.ts`'s `combatDamageProblems`);
  * - the server (`games/magic/server/src/play/auto.ts`'s `onlyAnswer`) answers the ask itself when
  *   {@link onlyCombatDamage} finds one legal division, and it never reaches a browser.

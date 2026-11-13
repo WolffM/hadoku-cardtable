@@ -16,7 +16,7 @@
 import type { BrowserContext } from '@playwright/test';
 
 /**
- * `apps/ui/src/play/live/prefs.ts`'s own `FAST_MODE_DEFAULT_GLOBAL`, copied
+ * `games/magic/ui/src/play/live/prefs.ts`'s own `FAST_MODE_DEFAULT_GLOBAL`, copied
  * rather than imported: that module's type imports reach `../Board.tsx`
  * (`BoardLayout`), and this package's `tsconfig.json` sets no `--jsx` —
  * `e2e/play.spec.ts` and `e2e/isolation.ts` import OTHER pure-logic modules
@@ -51,7 +51,7 @@ export async function keepPrefsLocal(context: BrowserContext, origin: string): P
  * checkbox, which is a stronger proof than skipping this call for it.
  */
 /**
- * `apps/ui/src/play/live/LiveBoard.tsx`'s `PASS_WITH_MANA_GLOBAL`, copied for the same reason as
+ * `games/magic/ui/src/play/live/LiveBoard.tsx`'s `PASS_WITH_MANA_GLOBAL`, copied for the same reason as
  * {@link FAST_MODE_DEFAULT_GLOBAL}: every play e2e seat passes with mana floating without the ask,
  * as every driver written before it expects. `e2e/mana-floating.spec.ts` clears it on its own page.
  */

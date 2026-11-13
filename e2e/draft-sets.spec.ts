@@ -148,7 +148,7 @@ async function packCardSets(page: Page): Promise<string[]> {
  * Found live (2026-10-22): a server bug (`apps/server/src/index.ts`'s
  * `poolResolver.cards` returning `[]` for a realistic round, which fed
  * `CubeMeta.size: 0` into a wire schema requiring `positive()`) left the pod
- * on its loading skeleton forever — `apps/ui/src/draft/socket.ts`'s
+ * on its loading skeleton forever — `games/magic/ui/src/draft/socket.ts`'s
  * `ingest()` silently drops a state message that fails
  * `safeParseServerMessage` (counted in `stats.invalid`/`lastInvalid`, never
  * surfaced anywhere) and `table` never leaves `null`, so `PodScreen.tsx`'s
@@ -170,7 +170,7 @@ async function waitForPack(page: Page, who: string, timeout = UI_TIMEOUT): Promi
   } catch (err) {
     if ((await page.getByTestId('pod-waiting').count()) > 0) {
       throw new Error(
-        `${who}: the pod dealt, but stayed on its loading skeleton (data-testid="pod-waiting") for over ${timeout}ms — the draft view never reached this seat. Check apps/ui/src/draft/socket.ts's ingest(): a rejected state message (stats.invalid > 0) leaves the pack unset forever, with no error drawn on screen.`,
+        `${who}: the pod dealt, but stayed on its loading skeleton (data-testid="pod-waiting") for over ${timeout}ms — the draft view never reached this seat. Check games/magic/ui/src/draft/socket.ts's ingest(): a rejected state message (stats.invalid > 0) leaves the pack unset forever, with no error drawn on screen.`,
         { cause: err },
       );
     }

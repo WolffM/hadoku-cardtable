@@ -13,7 +13,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
 import { toShadowSelector, withHostTheme } from '../../vite.embed.config.ts';
 import { eventTarget, hitAt, scopeOf } from '@hadoku/game-ui/dom.ts';
-import type { RoomBindClient, RoomOutcome, RoomView } from '../rooms/api.ts';
+import type { RoomBindClient, RoomOutcome, RoomView } from '@hadoku/magic-ui/rooms/api.ts';
 import { appLocation, navigate, routeInMemory } from '@hadoku/game-ui/screens/route.ts';
 import type { GameBundleContext } from './contract.ts';
 import { EmbedApp } from './EmbedApp.tsx';
@@ -75,7 +75,7 @@ let releaseRoute: () => void = () => undefined;
 // graph (~1.7 s, more on a loaded host), which a `waitFor`'s 1 s would otherwise be timing. Paid
 // once here, so the waits below time the render alone.
 beforeAll(async () => {
-  await import('../screens/ConstructedScreen.tsx');
+  await import('@hadoku/magic-ui/screens/ConstructedScreen.tsx');
 }, 60_000);
 
 beforeEach(() => {

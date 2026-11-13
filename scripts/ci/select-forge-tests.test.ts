@@ -73,13 +73,22 @@ class MemRepo extends Repo {
 
 /**
  * Where a path a frozen fixture names is today. The fixtures record their commits as they were, when
- * Magic's server was `apps/server`; it is `games/magic/server` now, and only the site's own files
- * stayed. A replay asks what the same change selects in today's tree.
+ * Magic's server was `apps/server` and Magic's UI `apps/ui`; they are `games/magic/server` and
+ * `games/magic/ui` now, and only the site's own files stayed. A replay asks what the same change
+ * selects in today's tree.
  */
-const MAGIC_SERVER = 'games/magic/server/';
-const OLD_SERVER = 'apps/server/';
+const MOVES: readonly (readonly [then: string, now: string])[] = [
+  ['apps/server/', 'games/magic/server/'],
+  ['apps/ui/', 'games/magic/ui/'],
+];
 function today(path: string): string {
-  return path.startsWith(OLD_SERVER) && !existsSync(join(ROOT, path)) ? MAGIC_SERVER + path.slice(OLD_SERVER.length) : path;
+  const move = MOVES.find(([then]) => path.startsWith(then));
+  return move && !existsSync(join(ROOT, path)) ? move[1] + path.slice(move[0].length) : path;
+}
+/** `today`'s inverse: where a path of today's tree was when the fixtures were cut. */
+function then(path: string): string {
+  const move = MOVES.find(([, now]) => path.startsWith(now));
+  return move ? move[0] + path.slice(move[1].length) : path;
 }
 function todayChanges(files: Change[]): Change[] {
   return files.map((c) => ({ ...c, filename: today(c.filename), ...(c.previous_filename ? { previous_filename: today(c.previous_filename) } : {}) }));
@@ -104,8 +113,7 @@ class Tree extends Repo {
   override read(path: string): string | null {
     if (this.at === undefined) return super.read(path);
     if (!this.snaps.has(path)) {
-      const then = path.startsWith(MAGIC_SERVER) ? OLD_SERVER + path.slice(MAGIC_SERVER.length) : path;
-      const snap = [snapshotPath(this.at, path), snapshotPath(this.at, then)].find((f) => existsSync(f));
+      const snap = [snapshotPath(this.at, path), snapshotPath(this.at, then(path))].find((f) => existsSync(f));
       this.snaps.set(path, snap === undefined ? null : readFileSync(snap, 'utf8'));
     }
     return this.snaps.get(path) ?? super.read(path);
@@ -618,7 +626,7 @@ describe('real landed ranges', { timeout: SLOW_TIMEOUT }, () => {
     const sel = select(treeOf('prompt-sheet'), fixture('prompt-sheet'));
     expect(sel.specs).not.toBeNull();
     expect(sel.specs).toEqual(expect.arrayContaining(['prompt-bar.spec.ts', ...SMOKE]));
-    expect(sel.reasons).toEqual(expect.arrayContaining(['apps/ui/package.json: a version bump', 'apps/ui/src/play/live/live.css: comments only']));
+    expect(sel.reasons).toEqual(expect.arrayContaining(['apps/ui/package.json: a version bump', 'games/magic/ui/src/play/live/live.css: comments only']));
   });
 
   it('the chat divider in chrome.css (124b096b): the smoke set and the specs drawn through the chrome', () => {

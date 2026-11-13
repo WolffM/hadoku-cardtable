@@ -81,7 +81,7 @@
  *
  * Its own props, and the CSS tokens above. Nothing else. There is no chrome
  * context, no chrome export a screen imports, and no global this file sets.
- * `grep -r "from '../chrome" apps/ui/src/screens/` is empty and is meant to
+ * `grep -r "from '../chrome" games/magic/ui/src/screens/` is empty and is meant to
  * stay empty — that grep is the cheap half of this contract.
  *
  * ## What `chrome/` will pass down when a screen needs something

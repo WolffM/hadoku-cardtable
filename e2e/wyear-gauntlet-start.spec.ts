@@ -73,7 +73,7 @@ test('a Gauntlet readied over the API: a page that reads its table before its ro
       },
     );
     // Her table reads in the order the page sent them. The page keeps only the newest one's answer
-    // (`apps/ui/src/rooms/latest.ts`), so that is the one that must say both seats are ready.
+    // (`games/magic/ui/src/rooms/latest.ts`), so that is the one that must say both seats are ready.
     const tableReads: { request: Request; bothReady?: boolean }[] = [];
     const isTableRead = (request: Request): boolean => request.method() === 'GET' && new URL(request.url()).pathname.endsWith(`/api/tables/rooms/${roomId}`);
     alice.page.on('request', (request) => {

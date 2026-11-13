@@ -4,7 +4,7 @@
  * and telemetry not just guessing"*.
  *
  * The page scrolls its room list at a steady 1.1 px/ms, driven one frame at a time, bouncing at the
- * ends; the numbers are the app's own (`apps/ui/src/rooms/scroll-watch.ts`): the `perf` page event it
+ * ends; the numbers are the app's own (`games/magic/ui/src/rooms/scroll-watch.ts`): the `perf` page event it
  * sends to `/api/client-events` as each burst ends, read off the wire here exactly as the server logs
  * it. `[scroll-perf]` lines are the evidence: each burst's frames, median and p95 gap and dropped-frame
  * share, then the median of the bursts per theme.

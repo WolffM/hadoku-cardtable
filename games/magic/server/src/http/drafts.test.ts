@@ -27,7 +27,7 @@ import { moveToMain } from '@hadoku/deck';
 import { packOf, pick, runBots } from '@hadoku/draft';
 import { SaveDraftDeckBodySchema, type DraftCard } from '@hadoku/shared';
 
-import { deckFromPool, dckTextOf } from '../../../../../apps/ui/src/draft/deckFromPool.ts';
+import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import { loadPool, type CubePool } from '../room/pool.ts';
 import { createDraftRooms, DEFAULT_PLAN, joinDraftRoom, releaseSeat, singlePoolResolver, stateOf, type DraftRoom, type DraftRooms } from '../room/draftRooms.ts';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
@@ -39,7 +39,7 @@ import { REPO_ROOT } from '../root.ts';
 const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
 const EDGE_SECRET = 'test-edge-auth-secret';
-const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../apps/ui/src/draft/pool.json');
+const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../games/magic/ui/src/draft/pool.json');
 const library = loadTablesLibrary(REPO_ROOT);
 
 // `draftRooms.ts`/`identity.ts` read no env at import time, so they are

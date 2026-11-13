@@ -2,7 +2,7 @@
  * The targeter arrow, measured in a browser that has boxes.
  *
  * jsdom has no layout: every `getBoundingClientRect()` there is zeroes, so
- * `apps/ui/src/play/live/LiveBoard.test.ts` can only check which element the
+ * `games/magic/ui/src/play/live/LiveBoard.test.ts` can only check which element the
  * arrow SNAPPED to, read off the DOM. That is the right check under jsdom and
  * not the one that matters here, because **a wrong arrow still looks like an
  * arrow**: pointing at the pointer instead of the card, at the card's centre
@@ -25,7 +25,7 @@
  * battlefield included — casts it and PARKS it right there. The arrow's tail
  * is pinned at that park point, and from then on, independent of whether a
  * button is held, the arrow follows the pointer and a click answers it
- * (`apps/ui/src/play/live/gestures/cast.ts` quotes the operator's words for
+ * (`games/magic/ui/src/play/live/gestures/cast.ts` quotes the operator's words for
  * the model, and `install.ts` implements the release). Against a real Forge
  * the card's own element leaves the hand as soon as the cast is sent, so the
  * tail is measured against the park point itself, not against a card box.

@@ -827,7 +827,7 @@ singletons, as on the standalone page).
 ## D22 — A spell on the stack may be hazed and saturated · settled · 2026-10-15 · operator
 
 **A scoped exception to Scryfall's "do not blur, sharpen, desaturate, or
-color-shift card images"**, which `apps/ui/src/cardImageRules.test.ts` holds
+color-shift card images"**, which `games/magic/ui/src/cardImageRules.test.ts` holds
 for every stylesheet. A spell held on the stack is drawn through a slow heat
 haze (an SVG `feDisplacementMap`, `placed.ts`'s `HAZE_FILTER_ID`) and
 `saturate(1.16)`. Both drop off as the spell resolves or is countered, so a card

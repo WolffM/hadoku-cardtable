@@ -5037,7 +5037,7 @@ describe('the watcher channel: one projection as every player, on WATCHER_SEAT',
 		expect(snapshot.seat).toBe(0);
 		expect(snapshot.playerId).toBe(h.match.seats[0]?.playerId);
 		expect(snapshot.frames[0]?.method).toBe('openView');
-		// The same board, whichever order its objects came in (`apps/ui/src/play/live/compacted-snapshot.test.ts` reads it with the page's own fold).
+		// The same board, whichever order its objects came in (`games/magic/ui/src/play/live/compacted-snapshot.test.ts` reads it with the page's own fold).
 		const fold = (frames: readonly unknown[]): string => JSON.stringify([...foldFrames(frames as StateFrame[])].sort(([a], [b]) => Number(a) - Number(b)));
 		expect(fold(snapshot.frames)).toBe(fold(watched.map((e) => e.frame)));
 		expect(snapshot.cursor).toEqual({ epoch: h.match.epoch, seq: watched.length });

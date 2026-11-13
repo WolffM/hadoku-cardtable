@@ -5,7 +5,7 @@
  * also make it so the opponent can drag and move things on the stack around").
  *
  * The id here is a STACK ITEM's — public only once the spell is committed,
- * which `apps/ui/src/play/live/presence.ts`'s own receive path only ever
+ * which `games/magic/ui/src/play/live/presence.ts`'s own receive path only ever
  * calls `commitSpell` for after it has shown on the other seat's stack — so
  * nothing hidden crosses. Unlike `placement.ts` (which rides WITH the act
  * that plays a card, before Forge has a frame about it, because the id is

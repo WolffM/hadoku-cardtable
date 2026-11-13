@@ -2,7 +2,7 @@
  * Wave 19, lane C: questions with one answer, stops with nothing to do.
  *
  * The rules in `auto.ts` are exercised against the **committed prompt
- * fixtures** — `apps/ui/src/play/prompts/fixtures/*.json`, the same frames lane
+ * fixtures** — `games/magic/ui/src/play/prompts/fixtures/*.json`, the same frames lane
  * B's components are rendered from — read off disk rather than re-typed here,
  * so a fixture that changes shape is caught by this suite too.
  *
@@ -52,10 +52,10 @@ import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/trans
 
 /* ── The real prompt fixtures ────────────────────────────────────────── */
 
-// @reads apps/ui/src/play/prompts/fixtures/ games/magic/server/src/play/fixtures/w20-turn-flow.json
+// @reads games/magic/ui/src/play/prompts/fixtures/ games/magic/server/src/play/fixtures/w20-turn-flow.json
 const FIXTURE_DIR = resolve(
 	dirname(fileURLToPath(import.meta.url)),
-	'../../../../../apps/ui/src/play/prompts/fixtures',
+	'../../../../../games/magic/ui/src/play/prompts/fixtures',
 );
 
 function fixture(file: string): ServerFrame {

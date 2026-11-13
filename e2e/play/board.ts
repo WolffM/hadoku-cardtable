@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { ZONE_BOXES } from '../../apps/ui/src/play/zone-box.ts';
+import { ZONE_BOXES } from '../../games/magic/ui/src/play/zone-box.ts';
 import { E2E_ERA, enterMatch, twoLegalDecks } from './enter.ts';
 import { isPhone, pressInMenu, raiseHand } from './phone.ts';
 import { createStreamedRoomByApi, submitCreateRoom } from './rooms.ts';

@@ -2,8 +2,8 @@
  * The operator, 2026-10-28: *"i'm noticing some animation waiting is a bit too long. let's "unlock" the game
  * state when it's waiting on the last ~10% of an animation"*.
  *
- * A frame the pacer holds behind the board's beats (`apps/ui/src/play/live/pace.ts`) goes once every beat is
- * 90% through (`apps/ui/src/play/motion.ts`'s `UNLOCK_AT`, `whenBoardUnlocked`); the beat itself plays to its
+ * A frame the pacer holds behind the board's beats (`games/magic/ui/src/play/live/pace.ts`) goes once every beat is
+ * 90% through (`games/magic/ui/src/play/motion.ts`'s `UNLOCK_AT`, `whenBoardUnlocked`); the beat itself plays to its
  * end, under whatever is drawn next. Each screen is recorded from its own page clock: every beat (an animation
  * the board waits for) with when it started, reached 90% and ended, and when each mark was drawn. `[w80c]`
  * lines are the evidence.
@@ -23,7 +23,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { ATTACK_BEAT_MS } from '../apps/ui/src/play/motion.ts';
+import { ATTACK_BEAT_MS } from '../games/magic/ui/src/play/motion.ts';
 import { castUntilOnStack, handCardNamed, makeTitled, says, serverLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';

@@ -4,7 +4,7 @@
  * if it plays multiple fireballs. each time thopter foundry animation plays, i would want the sword of the meek
  * reanimate thing to happen faster and faster."*
  *
- * Tempo (`apps/ui/src/play/live/tempo.ts`): the `n`th instance of one thing in a turn plays at
+ * Tempo (`games/magic/ui/src/play/live/tempo.ts`): the `n`th instance of one thing in a turn plays at
  * `min(TEMPO_CAP, 1 + TEMPO_STEP × (n − 1))`.
  *
  *   1. Scenario `tf-thopter-sword` against the Forge AI, paced (Fast Mode off, where the Sword rises; Fast Mode

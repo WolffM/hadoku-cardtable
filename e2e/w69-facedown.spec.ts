@@ -2,7 +2,7 @@
  * A face-down spell on the stack is a card back on the screen that may not see it.
  *
  * w69-hidden made a card this seat's wire names nothing for a card back named "Hidden card" wherever a
- * board card is drawn. The stack layer (`apps/ui/src/play/live/placed.ts`) builds its own card from the
+ * board card is drawn. The stack layer (`games/magic/ui/src/play/live/placed.ts`) builds its own card from the
  * stack item's source card, so a face-down spell there was still a face — a text tile reading "Hidden
  * card", no art.
  *

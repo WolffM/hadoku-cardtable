@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DraftCard, PodView } from '@hadoku/shared';
 
-import { deckFromPool, dckTextOf } from '../../../../../apps/ui/src/draft/deckFromPool.ts';
+import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 
 import { loadPool, type CubePool } from '../room/pool.ts';
 import { createDraftRooms, joinDraftRoom, singlePoolResolver, stateOf, type DraftRooms } from '../room/draftRooms.ts';
@@ -26,7 +26,7 @@ import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
 const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
 const EDGE_SECRET = 'test-edge-auth-secret';
-const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../apps/ui/src/draft/pool.json');
+const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../games/magic/ui/src/draft/pool.json');
 
 let decksMod: typeof import('./decks.ts');
 let draftsMod: typeof import('./drafts.ts');

@@ -40,7 +40,7 @@ const titled = makeTitled(forge);
  */
 const INSPECTOR_GAP = 8;
 
-/** The inspector's own enlargement panel (`inspect/index.ts`'s `[data-inspect]`, `../apps/ui/src/play/inspect/index.ts`). */
+/** The inspector's own enlargement panel (`inspect/index.ts`'s `[data-inspect]`, `../games/magic/ui/src/play/inspect/index.ts`). */
 const inspectorPanel = (page: Page): Locator => page.locator('[data-board-zoom] [data-inspect]');
 
 /** Within a pixel: every number compared here comes off the same real layout. */
@@ -161,7 +161,7 @@ test(titled('T4 — the opening Keep/Mulligan is a yes/no pop-up, and the contro
 /**
  * T4, second half — a shockland's own "pay 2 life?" (`InputConfirm`'s default
  * Yes/No pair, verified against Forge's source in
- * `apps/ui/src/play/prompts/ConfirmPrompt.tsx`'s own module header).
+ * `games/magic/ui/src/play/prompts/ConfirmPrompt.tsx`'s own module header).
  *
  * **Blocked on a fixture outside lane E's ownership.** `games/magic/server/src/play/scenarios/**`
  * is `apps/server/**`, which wave 36's file lists as "owned by nobody" this

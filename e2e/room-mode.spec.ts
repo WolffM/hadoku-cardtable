@@ -43,7 +43,7 @@
  *
  * A seat with a live container behind it, and the server's own 503 for a seat
  * it has not provisioned. Both need the allocation this spec declines to
- * trigger. `apps/ui/src/screens/constructed.test.ts` drives the up-and-framed
+ * trigger. `games/magic/ui/src/screens/constructed.test.ts` drives the up-and-framed
  * branch against a stubbed stream; a live one is the stream lane's ground.
  */
 

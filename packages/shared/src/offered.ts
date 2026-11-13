@@ -2,7 +2,7 @@
  * Offered: the battlefield cards a seat's board draws clickable right now, sent to the
  * match's other screens so the stack's ability chips keep clear of them there too. The
  * operator, 2026-11-02: *"we should avoid blocking the opponents playable cards as well."*
- * Each screen places its own chips (`apps/ui/src/play/live/placed.ts`'s `settleStack`),
+ * Each screen places its own chips (`games/magic/ui/src/play/live/placed.ts`'s `settleStack`),
  * so the other seat's clickable cards have to reach it.
  *
  * What crosses: battlefield card ids, and nothing about why they can be clicked (a target,

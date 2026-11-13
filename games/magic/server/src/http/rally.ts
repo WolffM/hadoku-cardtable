@@ -9,7 +9,7 @@
  *   GET /api/rally/views/:kind/:id/pack       → a freshly opened pack (one per round for a mixed preset)
  *
  * Every answer is Rally's `{ success, data }` wrapper. The first two are read by Rally's builder,
- * the last two by Cardtable's own view pages (`apps/ui/src/rally/`), which Rally frames under its
+ * the last two by Cardtable's own view pages (`games/magic/ui/src/rally/`), which Rally frames under its
  * ranking row. All four sit behind the `api` router's `requireMinTier`, like every other route.
  *
  * ## One plan per option

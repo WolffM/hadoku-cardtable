@@ -12,7 +12,7 @@
  * chose to watch it (`watcherView`). So a drafter is never sent another
  * seat's cards anywhere on a payload. Leaking one requires adding
  * a field, which a reviewer sees, rather than forgetting a filter, which nobody
- * sees. `apps/ui/src/draft/hiddenInfo.ts` then walks whole serialised payloads
+ * sees. `games/magic/ui/src/draft/hiddenInfo.ts` then walks whole serialised payloads
  * and fails if a card-shaped object appears anywhere but `viewer.pack` and
  * `viewer.pool`.
  *

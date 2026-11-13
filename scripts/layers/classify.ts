@@ -121,15 +121,15 @@ export function buildResolver(map: LayersMap): Resolver {
 	};
 }
 
-/** A workspace package's directory: `apps/<x>`, `packages/<x>`, `games/<game>/packages/<x>` or `games/<game>/server`. */
-const PACKAGE_DIR = /^(?:apps\/[^/]+|packages\/[^/]+|games\/[^/]+\/packages\/[^/]+|games\/[^/]+\/server)(?=\/)/;
+/** A workspace package's directory: `apps/<x>`, `packages/<x>`, `games/<game>/packages/<x>` or `games/<game>/{server,ui}`. */
+const PACKAGE_DIR = /^(?:apps\/[^/]+|packages\/[^/]+|games\/[^/]+\/packages\/[^/]+|games\/[^/]+\/(?:server|ui))(?=\/)/;
 
 const packageNames = new Map<string, string>();
 
 /**
  * The package a directory holds, as an `@hadoku/<name>` specifier names it: its `package.json` name
  * without the scope, never the directory's basename (`apps/server` is `server`, `games/magic/server`
- * is `magic-server`).
+ * is `magic-server`, `games/magic/ui` is `magic-ui`).
  */
 export function packageNameOf(pkgDir: string): string {
 	let name = packageNames.get(pkgDir);

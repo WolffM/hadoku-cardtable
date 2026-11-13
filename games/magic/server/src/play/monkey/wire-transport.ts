@@ -1,6 +1,6 @@
 /*
  * The monkey's own socket.io connection — the actual wire protocol a browser
- * tab speaks, never an in-process shortcut. `apps/ui/src/play/live/match.ts`
+ * tab speaks, never an in-process shortcut. `games/magic/ui/src/play/live/match.ts`
  * already has `socketIoMatchTransport`, but it has no way to carry the
  * identity cookie the e2e stand-in edge (`e2e/edge.ts`) resolves a caller
  * from, so this is that same shape with one more option.
@@ -13,7 +13,7 @@
 
 import { io, type Socket } from 'socket.io-client';
 
-import type { MatchTransport } from '../../../../../../apps/ui/src/play/live/match.ts';
+import type { MatchTransport } from '../../../../ui/src/play/live/match.ts';
 
 export interface WireTap {
   /** Every inbound `forge:s2c` envelope, as `match.ts`'s own transport sees it — before it folds anything. */

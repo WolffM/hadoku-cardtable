@@ -13,7 +13,7 @@
  * render time, with `CardView.canBeShownTo(viewer)` (`CardView.java:622-681`):
  * the wire is trust-the-client.
  *
- * The data agrees with the reading. In `apps/ui/src/play/fixtures/
+ * The data agrees with the reading. In `games/magic/ui/src/play/fixtures/
  * tierc-game1-seq1-27.json` — seat 0's own stream — every one of seat 1's hand
  * cards arrives with `Name`, `OracleName` and a full face (`CardStateView`)
  * carrying `ImageKey`, `OracleText` and the rest; and the opening sync carries
@@ -38,7 +38,7 @@
  *                pile. They see that it exists and whose it is, never what.
  *
  * A card's zone is read from the PlayerView zone LISTS first and the card's own
- * `Zone` second, for the reason `apps/ui/src/play/adapter.ts` gives: Forge's
+ * `Zone` second, for the reason `games/magic/ui/src/play/adapter.ts` gives: Forge's
  * client re-stamps `Zone` from the lists because the per-card field can lag.
  * A card the state does not know at all is `hidden` — the conservative answer.
  *
@@ -49,7 +49,7 @@
  * your PlayerView's `Hand` list. Its face was redacted while it sat in your
  * library, so a stateless filter would leave you holding a nameless card. The
  * projector therefore folds the raw stream (Forge's own apply rules — see
- * `apps/ui/src/play/fold.ts`), recomputes every card's visibility after each
+ * `games/magic/ui/src/play/fold.ts`), recomputes every card's visibility after each
  * packet, and on a change:
  *
  *   upgrade   (hidden → faceOnly → full) — re-sends the card and its faces in
@@ -142,7 +142,7 @@
  *
  * Which of a library's known cards a screen draws on it is the client's: the
  * top ones, in order, while no card it does not know is above them
- * (`apps/ui/src/play/adapter.ts`, `knownTop`).
+ * (`games/magic/ui/src/play/adapter.ts`, `knownTop`).
  *
  * ## What the other seats were shown, the owner is told
  *
@@ -337,7 +337,7 @@ const FACE_ONLY_KEEP = new Set([
 /* ── The raw fold — Forge's apply rules ──────────────────────────────── */
 
 /**
- * `NetworkGuiGame.applyDelta`'s rules, which `apps/ui/src/play/fold.ts` also
+ * `NetworkGuiGame.applyDelta`'s rules, which `games/magic/ui/src/play/fold.ts` also
  * transcribes: `newObjects` replace, `objectDeltas` merge, `null` deletes, and
  * a delta for an unknown object is skipped.
  */
@@ -1394,7 +1394,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 				: { kind: 'notify', method: 'applyDelta', payload: { packet } };
 		},
 		stackTopActivator(): number | null {
-			// `GameView.Stack` is the stack item ids, TOP FIRST (`apps/ui/src/play/adapter.ts`).
+			// `GameView.Stack` is the stack item ids, TOP FIRST (`games/magic/ui/src/play/adapter.ts`).
 			const game = [...raw.values()].find((o) => o._type === DELTA_TYPE.game);
 			const top = idsOf(game, 'Stack')[0];
 			if (top === undefined) return null;

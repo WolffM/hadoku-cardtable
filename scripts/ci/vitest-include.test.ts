@@ -21,7 +21,7 @@ it('collects every tracked *.test.ts outside e2e/ and forge/', () => {
 		.filter((f) => f !== '' && !/^(e2e|forge)\//.test(f));
 	expect(tracked.length).toBeGreaterThan(100);
 	// The packages that moved out of an app are in the list it checks, not only the apps they left.
-	for (const dir of ['packages/game-server/', 'packages/game-ui/', 'games/magic/server/']) expect(tracked.some((f) => f.startsWith(dir)), dir).toBe(true);
+	for (const dir of ['packages/game-server/', 'packages/game-ui/', 'games/magic/server/', 'games/magic/ui/']) expect(tracked.some((f) => f.startsWith(dir)), dir).toBe(true);
 	const missed = tracked.filter((f) => !include.some((g) => matchesGlob(f, g)) || exclude.some((g) => matchesGlob(f, g)));
 	expect(missed).toEqual([]);
 });

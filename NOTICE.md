@@ -106,8 +106,8 @@ and the MIT License (CSS). All mana, tap and card type symbol images are
 copyright Wizards of the Coast.
 
 Neither font is renamed, per the SIL OFL reserved font name clause. The full
-licence texts are in `apps/ui/src/symbols/LICENSE-keyrune.md` and
-`apps/ui/src/symbols/LICENSE-mana.md`.
+licence texts are in `games/magic/ui/src/symbols/LICENSE-keyrune.md` and
+`games/magic/ui/src/symbols/LICENSE-mana.md`.
 
 A room's link preview, and the front page's "Open seats now" card, set their "VS" in **Cinzel** (<https://github.com/NDISCOVER/Cinzel>),
 copyright 2020 The Cinzel Project Authors, licensed under the SIL Open Font License 1.1. It is not

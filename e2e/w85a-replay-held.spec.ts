@@ -6,7 +6,7 @@
  * seconds and lets go on her battlefield; it is cast and resolves, and she concedes. Played back at
  * `#/replay/<id>`, the back her recorded pointer carries is drawn as Memnite's face, never a back. The
  * live board stays as it was: the other seat sees a back with no face while she holds it (the wire
- * names no held card, `apps/ui/src/play/live/presence.ts`'s `REPLAY_HELD_EVENT`).
+ * names no held card, `games/magic/ui/src/play/live/presence.ts`'s `REPLAY_HELD_EVENT`).
  *
  * `[w85a]` lines are the evidence.
  */

@@ -22,7 +22,7 @@ export default defineConfig({
   define: BUILD_DEFINES,
   test: {
     environment: 'node',
-    include: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'games/*/packages/*/src/**/*.test.ts', 'games/*/server/src/**/*.test.ts', 'scripts/**/*.test.ts'],
+    include: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'games/*/packages/*/src/**/*.test.ts', 'games/*/server/src/**/*.test.ts', 'games/*/ui/src/**/*.test.ts', 'scripts/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', 'forge/**', '.claude/**'],
     passWithNoTests: true,
     // On a CI runner, `check` shares the node with three forge-e2e shards, forge-jvm

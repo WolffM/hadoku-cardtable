@@ -110,7 +110,7 @@ export async function tapCard(page: Page, cardId: number): Promise<void> {
 
 /**
  * A touch long-press: held at the card's own centre, past `LONG_PRESS_MS` (450 ms,
- * `apps/ui/src/play/inspect/index.ts`) with no movement, released in place — `tapCard`/`touchDrag`
+ * `games/magic/ui/src/play/inspect/index.ts`) with no movement, released in place — `tapCard`/`touchDrag`
  * cover a plain tap and a drag; this is the one gesture neither makes. It is how a touch reads a
  * permanent, whose tap is its click.
  */
