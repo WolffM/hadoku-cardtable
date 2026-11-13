@@ -66,6 +66,19 @@ function zoneIds(player: WireObj | undefined, zone: string): number[] {
 	return Array.isArray(v?.v) ? v.v.map((x) => x.v) : [];
 }
 
+/** Whether `line` is Forge's prompt bar for `seat`. */
+function isPrompt(line: BridgeLine, seat: number): boolean {
+	return line.t === 'frame' && line.seat === seat && (line.frame as { method?: string }).method === 'updateButtons';
+}
+
+/** Every frame up to `end`, as `s<seat>:<method>`: what a red prints, so it shows where the read fell. */
+function frameTrace(raw: readonly BridgeLine[], end: number): string {
+	return raw
+		.slice(0, end)
+		.flatMap((l) => (l.t === 'frame' ? [`s${l.seat}:${(l.frame as { method?: string }).method}`] : []))
+		.join(' ');
+}
+
 /** Both libraries and both hands, in order, as seat 0 is told them. */
 function deal(raw: readonly BridgeLine[]): string {
 	const states = rawStatesOf(raw, 0);
@@ -87,8 +100,8 @@ const spec = (): MatchSpec => ({
 	],
 });
 
-/** One cold match, far enough to have been dealt, then gone. */
-async function dealtOnce(): Promise<string> {
+/** One cold match, far enough to have been dealt, then gone: the deal, and the frames up to where it was read. */
+async function dealtOnce(): Promise<{ dealt: string; trace: string }> {
 	if (!available.ok) throw new Error('unreachable');
 	const raw: BridgeLine[] = [];
 	const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
@@ -109,15 +122,16 @@ async function dealtOnce(): Promise<string> {
 		const match: Match = registry.create(spec());
 		expect(await match.whenRunning(120_000)).toEqual({ ok: true });
 		// Forge opens with the coin toss, which it cannot ask before the libraries
-		// exist — so a prompt is the signal that there is a deal to read.
-		await waitUntil(
-			() => raw.some((l) => l.t === 'frame' && (l.frame as { method?: string }).method === 'updateButtons'),
-			'the first prompt',
-			60_000,
-		);
-		const dealt = deal(raw);
+		// exist — so seat 0's first prompt is the signal that seat 0 has been told
+		// the deal. Seat 0's own: each seat's frames arrive on that seat's client
+		// thread, so the other seat's prompt says nothing of what seat 0 has heard.
+		// And read as of that frame, not as of the poll: one fixed point in one
+		// seat's stream, the same in both runs.
+		await waitUntil(() => raw.some((l) => isPrompt(l, 0)), "seat 0's first prompt", 60_000);
+		const at = raw.findIndex((l) => isPrompt(l, 0));
+		const dealt = deal(raw.slice(0, at + 1));
 		match.stop();
-		return dealt;
+		return { dealt, trace: frameTrace(raw, at + 1) };
 	} finally {
 		jvm.reapOnExit();
 		await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
@@ -129,10 +143,10 @@ describe.skipIf(!available.ok)(title, () => {
 		if (!available.ok) return;
 		const first = await dealtOnce();
 		const second = await dealtOnce();
-		console.log(`[seed] ${SEED} run 1:\n${first}\n[seed] ${SEED} run 2:\n${second}`);
+		console.log(`[seed] ${SEED} run 1:\n${first.dealt}\n[seed] ${SEED} run 2:\n${second.dealt}`);
 		// Non-vacuity: a comparison of two empty libraries would pass and prove
 		// nothing. A 40-card precon is the smallest deck Forge ships.
-		expect(first).toMatch(/library=(\d+,){39}/);
-		expect(second).toBe(first);
+		for (const run of [first, second]) expect(run.dealt, `read after: ${run.trace}`).toMatch(/library=(\d+,){39}/);
+		expect(second.dealt).toBe(first.dealt);
 	}, 400_000);
 });
