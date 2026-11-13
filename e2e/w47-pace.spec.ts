@@ -94,27 +94,63 @@ function offeredHandCardIds(page: Page): Promise<number[]> {
     .then((ids) => ids.sort((a, b) => a - b));
 }
 
-/** `id` is on `page`'s own view of SEAT's battlefield (`data-viewer` for the page's own seat, `:not([data-viewer])` for the other). */
-function onBattlefield(page: Page, seat: 'viewer' | 'opponent', id: number): Promise<number> {
+/** The selector for `id` on SEAT's battlefield, as `page`'s own board draws it. */
+function battlefieldCard(seat: 'viewer' | 'opponent', id: number): string {
   const scope = seat === 'viewer' ? '.seat[data-viewer]' : '.seat:not([data-viewer])';
-  return page.locator(`${scope} [data-zone="battlefield"] [data-board-card="${id}"]`).count();
+  return `${scope} [data-zone="battlefield"] [data-board-card="${id}"]`;
 }
 
-/** Milliseconds from now until `page`'s board shows `id` on SEAT's battlefield. */
-async function msUntilOnBattlefield(page: Page, seat: 'viewer' | 'opponent', id: number, who: string): Promise<number> {
-  const t0 = Date.now();
+/** `id` is on `page`'s own view of SEAT's battlefield (`data-viewer` for the page's own seat, `:not([data-viewer])` for the other). */
+function onBattlefield(page: Page, seat: 'viewer' | 'opponent', id: number): Promise<number> {
+  return page.locator(battlefieldCard(seat, id)).count();
+}
+
+/** Where `armDrawnStamp` leaves its stamp on the page's `window`. */
+const drawnKey = (id: number): string => `__w47Drawn${id}`;
+
+/**
+ * Arms `page` to stamp, by its own clock, the moment its DOM first shows `id` on SEAT's battlefield: a
+ * MutationObserver in the page, whose callback runs right after the change that drew it. Both browsers
+ * run on one host, so two pages' `Date.now()` stamps subtract to how much later one board drew the card
+ * than the other — the pacer's hold, with no runner poll in it. Two 20 ms polls from the runner, beside
+ * bob's prompt loop, read a late poll on a loaded runner as a shorter hold (w113t: 245 ms for a 600 ms
+ * resolve hold).
+ */
+async function armDrawnStamp(page: Page, seat: 'viewer' | 'opponent', id: number): Promise<void> {
+  await page.evaluate(
+    ({ selector, key }) => {
+      const stamps = window as unknown as Record<string, number | undefined>;
+      stamps[key] = undefined;
+      const observer = new MutationObserver(() => stamp());
+      const stamp = (): void => {
+        if (stamps[key] !== undefined || document.querySelector(selector) === null) return;
+        stamps[key] = Date.now();
+        observer.disconnect();
+      };
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+      stamp();
+    },
+    { selector: battlefieldCard(seat, id), key: drawnKey(id) },
+  );
+}
+
+/** When `page` stamped `id` drawn (`armDrawnStamp`), by its own clock, once its board shows it. */
+async function drawnAt(page: Page, seat: 'viewer' | 'opponent', id: number, who: string): Promise<number> {
   await expect
-    .poll(() => onBattlefield(page, seat, id), { timeout: 20_000, intervals: [20], message: `${id} shows resolved on ${who}'s board` })
+    .poll(() => onBattlefield(page, seat, id), { timeout: 20_000, message: `${id} shows resolved on ${who}'s board` })
     .toBeGreaterThan(0);
-  return Date.now() - t0;
+  const at = await page.evaluate((key) => (window as unknown as Record<string, number | undefined>)[key], drawnKey(id));
+  if (at === undefined) throw new Error(`${who}'s board shows ${id} but never stamped it`);
+  return at;
 }
 
 /**
  * Cast whichever hand creature bob is offered, and report the id and
  * `lagMs`: how much later alice's OWN board showed it resolved onto bob's
  * battlefield than bob's own board did — the number pacing is free to hold
- * back. Both are watched from the click, side by side, and apart from the
- * loop that answers bob's prompts.
+ * back. Each board stamps the moment it drew the card by its own clock
+ * (`armDrawnStamp`), so the runner's polls and the loop that answers bob's
+ * prompts are in neither number.
  *
  * Alice's time alone is not the measure. From the click it also counts
  * bob's lift, his driver answering the ability ask and Forge casting and
@@ -135,10 +171,11 @@ async function msUntilOnBattlefield(page: Page, seat: 'viewer' | 'opponent', id:
 async function castAndMeasure(bob: Page, alice: Page): Promise<{ id: number; lagMs: number }> {
   await expect.poll(() => offeredHandCardIds(bob), { timeout: 150_000, message: 'bob is offered a hand creature' }).not.toEqual([]);
   const id = (await offeredHandCardIds(bob))[0]!;
+  await Promise.all([armDrawnStamp(alice, 'opponent', id), armDrawnStamp(bob, 'viewer', id)]);
   await clickHandCard(bob, id);
-  const [aliceMs, bobMs] = await Promise.all([
-    msUntilOnBattlefield(alice, 'opponent', id, 'alice'),
-    msUntilOnBattlefield(bob, 'viewer', id, 'bob'),
+  const [aliceAt, bobAt] = await Promise.all([
+    drawnAt(alice, 'opponent', id, 'alice'),
+    drawnAt(bob, 'viewer', id, 'bob'),
     expect
       .poll(
         async () => {
@@ -149,7 +186,7 @@ async function castAndMeasure(bob: Page, alice: Page): Promise<{ id: number; lag
       )
       .toBeGreaterThan(0),
   ]);
-  return { id, lagMs: aliceMs - bobMs };
+  return { id, lagMs: aliceAt - bobAt };
 }
 
 test(titled('w47 — Fast Mode off holds a resolving spell on the stack; on, it does not'), async ({ browser }) => {
