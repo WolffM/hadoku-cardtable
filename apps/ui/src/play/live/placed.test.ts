@@ -851,6 +851,28 @@ describe('installPlaced: drawing', () => {
     expect(squareWidth(12_000, 54, 14, 80, 40), 'a cap under a card is a card').toBe(80);
   });
 
+  /** The layout sizes `squareChips` reads (jsdom lays nothing out): a chip `widthOf` wide, its text wrapping to `textHeight`. */
+  function chipLayout(widthOf: (el: HTMLElement) => number, textHeight: (w: number) => number, band: number, measured?: () => void): { restore: () => void } {
+    const chipOf = (el: HTMLElement): HTMLElement | null => {
+      const placed = el.closest<HTMLElement>('[data-placed-spell]');
+      return placed?.querySelector('.placed__chip-text') ? placed : null;
+    };
+    const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      const chip = chipOf(this);
+      return chip === null || !(this === chip || this.classList.contains('placed__chip-text')) ? 0 : widthOf(chip);
+    });
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      const chip = chipOf(this);
+      if (chip === null) return 0;
+      if (this.classList.contains('placed__chip-text')) {
+        measured?.();
+        return textHeight(widthOf(chip));
+      }
+      return this === chip ? band + textHeight(widthOf(chip)) : 0;
+    });
+    return { restore: () => (width.mockRestore(), height.mockRestore()) };
+  }
+
   it('an ability’s chip is squared once from its text’s measured area — again only when the card width changes; a spell never', async () => {
     const { canvas } = board();
     canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<ul class="zone__cards"></ul>');
@@ -866,12 +888,10 @@ describe('installPlaced: drawing', () => {
       const placed = this.closest<HTMLElement>('[data-placed-spell]');
       if (placed === null) return original.call(this);
       const w = widthOf(placed);
-      if (this.classList.contains('placed__chip-text')) {
-        measures += 1;
-        return rect({ left: 0, top: 0, width: w, height: textHeight(w) });
-      }
+      if (this.classList.contains('placed__chip-text')) return rect({ left: 0, top: 0, width: w, height: textHeight(w) });
       return rect({ left: 0, top: 0, width: w, height: placed.querySelector('.placed__chip-text') === null ? w * 1.4 : BAND + textHeight(w) });
     });
+    const layout = chipLayout(widthOf, textHeight, BAND, () => (measures += 1));
     setChainHalted(true);
     const handle = installPlaced(canvas);
     const stack = [stackItem(9, { isAbility: true, sourceCardId: 201, description: 'Card 201 - When it enters, draw a card.' }), stackItem(8)];
@@ -887,7 +907,7 @@ describe('installPlaced: drawing', () => {
     const h = BAND + textHeight(w);
     expect(w / h, `near square (${w}×${h})`).toBeGreaterThan(0.75);
     expect(w / h, `near square (${w}×${h})`).toBeLessThan(1.33);
-    expect(measures, 'one measure, one correction').toBeLessThanOrEqual(2);
+    expect(measures, 'one measure at a card’s width, and corrections until the width holds').toBeLessThanOrEqual(4);
     expect(canvas.querySelector<HTMLElement>('[data-placed-spell="8"]')!.style.width, 'a spell is a card, never squared').toBe('');
 
     const before = measures;
@@ -899,6 +919,54 @@ describe('installPlaced: drawing', () => {
     expect(widthOf(chip), 'never narrower than the new card').toBeGreaterThanOrEqual(100);
     handle.dispose();
     spy.mockRestore();
+    layout.restore();
+  });
+
+  it('an ability’s chip has one shape per card width and text, whatever width it was squared from: a resize squares it as a fresh draw does', async () => {
+    // w69-chip-shape at 1920 (run 43301221680): both screens' chips 115 px tall, one 124 px wide and the other 119. The
+    // squaring measured the text where the chip stood and stopped after two passes, so the shape followed the chip's
+    // history: a screen that squared it once more on the way (a resize's in-between card width) kept another one.
+    const AREA = 14_000;
+    const BAND = 42;
+    const squaredAt = async (widths: readonly number[], sway = 0): Promise<number> => {
+      const { canvas } = board();
+      canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<ul class="zone__cards"></ul>');
+      let card = widths[0]!;
+      const widthOf = (el: HTMLElement): number => Number.parseFloat(el.style.width) || card;
+      const textHeight = (w: number): number => Math.ceil(AREA / w / 12) * 12;
+      const original = HTMLElement.prototype.getBoundingClientRect;
+      const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+        if (this.matches('li.board-card:not([data-card-id])')) return rect({ left: 0, top: 0, width: card, height: card * 1.4 });
+        const placed = this.closest<HTMLElement>('[data-placed-spell]');
+        if (placed === null) return original.call(this);
+        // The box a hovering chip's transform draws: a little off its layout, differently on each screen.
+        const w = widthOf(placed) + sway;
+        if (this.classList.contains('placed__chip-text')) return rect({ left: 0, top: 0, width: w, height: textHeight(w) + sway });
+        return rect({ left: 0, top: 0, width: w, height: placed.querySelector('.placed__chip-text') === null ? w * 1.4 : BAND + textHeight(w) + sway });
+      });
+      const layout = chipLayout(widthOf, textHeight, BAND);
+      setChainHalted(true);
+      const handle = installPlaced(canvas);
+      const stack = [stackItem(9, { isAbility: true, sourceCardId: 201, description: 'Card 201 - When it enters, draw a card.' })];
+      handle.notify(view(stack, [{ id: 201 }]));
+      const chip = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+      await vi.waitFor(() => expect(chip.querySelector('.placed__chip-text')?.textContent).toBeTruthy());
+      for (const width of widths) {
+        card = width;
+        handle.notify(view(stack, [{ id: 201 }]));
+        await vi.waitFor(() => expect(chip.hasAttribute('data-placed-pending')).toBe(false));
+      }
+      const w = widthOf(chip);
+      handle.dispose();
+      spy.mockRestore();
+      layout.restore();
+      return w;
+    };
+    const fresh = await squaredAt([105]);
+    expect(await squaredAt([50, 105]), `squared at 105 by way of 50, as a fresh draw at 105 (${fresh} px)`).toBe(fresh);
+    // Run 43414464294, traced: at one chip width alice's text box read 79.0 px wide and bob's 78.1 — the hover's sway and
+    // turn — and the two screens squared to 119×115 and 118×128 across a line wrap.
+    expect(await squaredAt([105], 3), `squared under a hover's transform, as with none (${fresh} px)`).toBe(fresh);
   });
 
   it('exactly one item — the top of Forge’s stack — carries data-placed-next (item 3; the mutation at item 8)', () => {

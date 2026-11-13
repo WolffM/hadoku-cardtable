@@ -175,6 +175,8 @@ export const PLACED_PENDING_MS = 300;
  * was missing the art").
  */
 export const CHIP_DWELL_MS = 1500;
+/** The most layouts one squaring takes (`squareChips`): the measure at a card's width and its corrections. */
+const SQUARE_PASSES = 4;
 /** The longest a chip waits, hidden, for its art, its credit and its own size before it is drawn without them. */
 export const CHIP_ART_WAIT_MS = 1000;
 
@@ -865,7 +867,7 @@ interface Drawn {
   pendingUntil: number | null;
   /** When a held spell (`holdSpell`) is next looked at, so one hold schedules one look. */
   holdCheckAt: number | null;
-  /** An ability's chip: the card width and text it was last squared for (`squareChip`), so it is measured once per change. */
+  /** An ability's chip: the card width, cap and text it was last squared for (`squareChips`), so it is measured once per change. */
   squaredFor: string | null;
   /** A chip's place off its source's centre, kept once it has its own size, so a repaint never moves it. */
   offset: { dx: number; dy: number } | null;
@@ -1149,12 +1151,17 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   }
 
   /**
-   * Each ability's chip, as near square as it can be (`squareWidth`): one measure of its text's area at
-   * the width it has, the width solved from it, then one correction for where the lines actually
-   * wrapped. Every chip is read before any is written, so a pass is one layout for the whole stack.
-   * Once per chip per card width and text — the redraw the resize itself causes finds it already
-   * squared. Not before its text has rendered (the chip's own resize redraws it then). Says whether a
-   * chip still waiting to be shown got its size, which it is shown at from the next paint.
+   * Each ability's chip, as near square as it can be (`squareWidth`): its text's area measured at one
+   * card's width, the width solved from it, then corrections for where the lines actually wrapped
+   * until the width holds (`SQUARE_PASSES` at most). The solve depends on where the lines wrap, so
+   * its result has to be a function of the card's width and the text alone, the same on both screens:
+   * it always starts from the card's width, never from the width the chip had (a start that followed
+   * the chip's history kept the shape of a resize's in-between width), and it reads layout sizes,
+   * never the hovering chip's transformed box. Every chip is read before any is written, so a pass is one layout for
+   * the whole stack. Once per chip per card width, cap and text — the redraw the resize itself causes
+   * finds it already squared. Not before its text has rendered (the chip's own resize redraws it
+   * then). Says whether a chip still waiting to be shown got its size, which it is shown at from the
+   * next paint.
    */
   function squareChips(chips: readonly Drawn[], cardWidth: number | null, overlayBox: DOMRect): boolean {
     if (cardWidth === null) return false;
@@ -1163,7 +1170,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     const px = (v: string): number => Number.parseFloat(v) || 0;
     let open = chips.flatMap((d) => {
       const text = d.el.querySelector<HTMLElement>('.placed__chip-text');
-      const key = `${cardWidth}:${text?.textContent?.length ?? 0}`;
+      const key = `${cardWidth}:${Math.round(max)}:${text?.textContent?.length ?? 0}`;
       if (text === null || d.squaredFor === key) return [];
       // No text to wrap: a card's width is already its size.
       if (!text.textContent) {
@@ -1171,10 +1178,13 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         return [];
       }
       const style = getComputedStyle(text);
+      d.el.style.width = `${cardWidth}px`;
       return [{ d, text, key, padX: px(style.paddingLeft) + px(style.paddingRight), padY: px(style.paddingTop) + px(style.paddingBottom) }];
     });
-    for (let pass = 0; pass < 2 && open.length > 0; pass += 1) {
-      const read = open.map((c) => ({ c, lines: c.text.getBoundingClientRect(), chip: c.d.el.getBoundingClientRect() }));
+    for (let pass = 0; pass < SQUARE_PASSES && open.length > 0; pass += 1) {
+      // Layout sizes, never `getBoundingClientRect`: the chip hovers (`--stack-hover`'s sway and turn), and a box read
+      // under its transform was a pixel or two off in a different way on each screen, enough to wrap a line differently.
+      const read = open.map((c) => ({ c, lines: { width: c.text.offsetWidth, height: c.text.offsetHeight }, chip: { width: c.d.el.offsetWidth, height: c.d.el.offsetHeight } }));
       open = [];
       for (const { c, lines, chip } of read) {
         if (!(lines.width > c.padX) || !(lines.height > c.padY)) continue; // no layout yet
