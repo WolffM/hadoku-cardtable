@@ -64,7 +64,7 @@ test(titled('the wheel turns an enlarged Etali to Etali, Primal Sickness — in 
   const stack = await startPlayStack(forge);
   try {
     /* ── the deck builder ─────────────────────────────────────────────── */
-    const pool = (JSON.parse(readFileSync(fileURLToPath(new URL('../apps/ui/src/draft/pool.json', import.meta.url)), 'utf8')) as { cards: { name: string }[] }).cards;
+    const pool = (JSON.parse(readFileSync(fileURLToPath(new URL('../games/magic/ui/src/draft/pool.json', import.meta.url)), 'utf8')) as { cards: { name: string }[] }).cards;
     const etali = pool.find((c) => c.name.startsWith(`${FRONT} //`));
     expect(etali, 'the cube pool holds Etali').not.toBeUndefined();
     const builder = await openFriend(browser, 'carol');

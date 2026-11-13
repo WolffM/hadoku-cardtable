@@ -2,7 +2,7 @@
  * The match transport contract — wave 64 §S (S1/S8).
  *
  * Both apps' own `transport.ts` are now thin re-exports; the cross-package
- * "no second copy" check lives in `apps/ui/src/play/live/transport.test.ts`
+ * "no second copy" check lives in `games/magic/ui/src/play/live/transport.test.ts`
  * (it has to import both apps to compare them). This file tests the one
  * source of truth itself: the schemas parse what they must and refuse what
  * they must, and the two-stage envelope parsers keep their documented
@@ -175,7 +175,7 @@ describe('ServerEnvelopeSchema — eager; parseServerEnvelope — not', () => {
   });
 
   it('parseServerEnvelope does NOT validate the frame at all — a garbage frame still parses, cursor intact', () => {
-    // The whole point of the split: `ingest()` in `apps/ui/src/play/live/match.ts`
+    // The whole point of the split: `ingest()` in `games/magic/ui/src/play/live/match.ts`
     // needs the cursor BEFORE it knows whether the frame parses, so it can resync
     // from it — it calls `safeParseServerFrame` itself, as its own second step,
     // once it already has this function's `cursor`. Folding frame validation in

@@ -9,10 +9,10 @@
  * really wanted to cheat in this way i'd be fine with it. i care much more about
  * pre-loading art so that things load smoothly." Art ids, as the server decides
  * them for every card it sends (`games/magic/server/src/play/art-ids.ts`); never a URL,
- * which stays the client's to build (`apps/ui/src/draft/cardImage.ts`).
+ * which stays the client's to build (`games/magic/ui/src/draft/cardImage.ts`).
  *
  * Its own event, not a field on the join ack: the snapshot schema is mirrored
- * byte for byte in `apps/ui/src/play/live/transport.ts` and carries the seat's
+ * byte for byte in `games/magic/ui/src/play/live/transport.ts` and carries the seat's
  * state history, and the list is a fact about the match, not about any frame —
  * the same reasoning `forge:full-control` and `forge:seats` are their own
  * events. Sent on every join and resync, so a reload or a resumed match warms

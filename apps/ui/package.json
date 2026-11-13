@@ -4,35 +4,29 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "Draft UI — the interior of the room's central canvas slot. Three sources: fixtures, the in-process engine, and a live socket. Card art resolves through @hadoku/carddata/art (Scryfall's image CDN by default); no image bytes are bundled.",
+  "description": "The site's SPA: the entry, the app frame and its routes, the composition that plugs Magic's UI (@hadoku/magic-ui) and bomberman into the platform UI (@hadoku/game-ui, @hadoku/ui-shell), the embed, the fit and play harness pages, and the vite build whose dist/ the server hands out.",
   "scripts": {
     "dev": "vite",
     "build": "vite build && vite build -c vite.embed.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint:css": "node node_modules/@wolffm/themes/scripts/check-usage.mjs ./src ../../packages/ui-shell/src ../../packages/game-ui/src"
+    "lint:css": "node node_modules/@wolffm/themes/scripts/check-usage.mjs ./src ../../games/magic/ui/src ../../packages/ui-shell/src ../../packages/game-ui/src"
   },
   "dependencies": {
-    "@hadoku/carddata": "workspace:*",
-    "@hadoku/deck": "workspace:*",
-    "@hadoku/forge-wire": "workspace:*",
     "@hadoku/game-ui": "workspace:*",
+    "@hadoku/magic-ui": "workspace:*",
     "@hadoku/shared": "workspace:*",
     "@hadoku/ui-shell": "workspace:*",
     "@wolffm/game-stats-ui": "npm:@hadoku/game-stats-ui@0.1.12",
     "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.27",
-    "@wolffm/rooms-client": "npm:@hadoku/rooms-client@0.45.91",
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.91",
     "@wolffm/task-ui-components": "npm:@hadoku/task-ui-components@4.23.35",
     "@wolffm/themes": "npm:@hadoku/themes@5.14.4",
     "@wolffm/watchparty-ui": "npm:@hadoku/watchparty-ui@0.45.91",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "socket.io-client": "^4.8.3",
-    "zod": "4.5.4"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@hadoku/game-server": "workspace:*",
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.3",
     "@types/react": "19.2.18",

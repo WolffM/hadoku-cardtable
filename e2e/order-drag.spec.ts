@@ -35,7 +35,7 @@ import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { beforePoint, pointIn, settle, stripPoint, type Point } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
-/** `apps/ui/src/play/live/gestures/types.ts`'s `DRAG_SLOP_PX`: how far a press travels before it is a drag. */
+/** `games/magic/ui/src/play/live/gestures/types.ts`'s `DRAG_SLOP_PX`: how far a press travels before it is a drag. */
 const DRAG_SLOP_PX = 6;
 
 const forge = forgeAvailability();

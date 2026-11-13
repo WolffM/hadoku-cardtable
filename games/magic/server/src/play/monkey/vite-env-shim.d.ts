@@ -1,5 +1,5 @@
 /*
- * `packages/game-ui/src/http.ts` and `apps/ui/src/draft/socket.ts` read
+ * `packages/game-ui/src/http.ts` and `games/magic/ui/src/draft/socket.ts` read
  * `import.meta.env?.BASE_URL`, which only exists under Vite's own types
  * (`vite/client`, apps/ui's own `tsconfig.json`). This program runs those
  * files under Node, where `import.meta.env` is simply `undefined` at

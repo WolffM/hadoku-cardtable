@@ -76,11 +76,14 @@ function inAtRule(node: CssNode | undefined, names: ReadonlySet<string>): boolea
 
 const KEYFRAMES = new Set(['keyframes']);
 
-/** Only the app's own sheets: a workspace package's `src` counts the same as `apps/<app>/src` —
- *  never the fleet's chrome or the symbol packs' vendor CSS, which keep their authored sizes. */
+/** Only the app's own sheets: a workspace package's `src` counts the same as `apps/<app>/src`, and so does a
+ *  game's (`games/<game>/ui/src`, `games/<game>/packages/<pkg>/src`) — never the fleet's chrome or the symbol
+ *  packs' vendor CSS, which keep their authored sizes. */
 function ownSheet(file: string | undefined): boolean {
-  return file !== undefined && /[\\/](?:apps[\\/][^\\/]+|packages[\\/][^\\/]+)[\\/]src[\\/]/.test(file) && !/[\\/]node_modules[\\/]/.test(file);
+  return file !== undefined && OWN_SRC.test(file) && !/[\\/]node_modules[\\/]/.test(file);
 }
+
+const OWN_SRC = /[\\/](?:apps[\\/][^\\/]+|packages[\\/][^\\/]+|games[\\/][^\\/]+[\\/](?:ui|packages[\\/][^\\/]+))[\\/]src[\\/]/;
 
 /** The PostCSS plugin both builds run (`vite.config.ts`, `vite.embed.config.ts`). Idempotent. */
 export const uiScaleCss = {

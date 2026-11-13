@@ -5,7 +5,7 @@
  * **Can only pass once lane L mounts `SelectionPrompt` in `LiveBoard.tsx`**
  * (`docs/planning/wave42-evidence/P-contract.md`) — this lane's own files
  * build the component and prove the WIRE shapes against real Forge directly
- * (`apps/ui/src/play/prompts/offboard.jvm.test.ts`, `worldbreaker.jvm.test.ts`,
+ * (`games/magic/ui/src/play/prompts/offboard.jvm.test.ts`, `worldbreaker.jvm.test.ts`,
  * `sanctum-worldbreaker.jvm.test.ts`), never through a browser. This spec is
  * the other half: that a real person, in a real browser, sees the pop-up and
  * can click it. It asserts against `SelectionPrompt`'s OWN test ids

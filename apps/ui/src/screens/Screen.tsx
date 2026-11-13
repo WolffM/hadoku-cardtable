@@ -8,9 +8,9 @@
 import { Suspense, useEffect } from 'react';
 
 import { lazyComponent } from '@hadoku/game-ui/lazy.ts';
-import { warmMatchesFrom } from '../play/live/matchStart.ts';
+import { warmMatchesFrom } from '@hadoku/magic-ui/play/live/matchStart.ts';
 import { navigate, useRoute } from '@hadoku/game-ui/screens/route.ts';
-import type { DraftTransport } from '../draft/socket.ts';
+import type { DraftTransport } from '@hadoku/magic-ui/draft/socket.ts';
 
 /*
  * Every screen but the lobby is a chunk of its own (`../lazy.ts`), loaded the first time its route
@@ -21,22 +21,22 @@ import type { DraftTransport } from '../draft/socket.ts';
  * where its import is written, a lazy one included (`../../stylesheet.ts`), so the lobby's import
  * stays between the screens and `screens.css` comes after them all, as it always has.
  */
-const ConstructedScreen = lazyComponent(() => import('./ConstructedScreen.tsx').then((m) => m.ConstructedScreen));
-const DeckScreen = lazyComponent(() => import('./DeckScreen.tsx').then((m) => m.DeckScreen));
-const DecksScreen = lazyComponent(() => import('./DecksScreen.tsx').then((m) => m.DecksScreen));
-const InventoryScreen = lazyComponent(() => import('./InventoryScreen.tsx').then((m) => m.InventoryScreen));
+const ConstructedScreen = lazyComponent(() => import('@hadoku/magic-ui/screens/ConstructedScreen.tsx').then((m) => m.ConstructedScreen));
+const DeckScreen = lazyComponent(() => import('@hadoku/magic-ui/screens/DeckScreen.tsx').then((m) => m.DeckScreen));
+const DecksScreen = lazyComponent(() => import('@hadoku/magic-ui/screens/DecksScreen.tsx').then((m) => m.DecksScreen));
+const InventoryScreen = lazyComponent(() => import('@hadoku/magic-ui/screens/InventoryScreen.tsx').then((m) => m.InventoryScreen));
 import { LobbyScreen } from './LobbyScreen.tsx';
 // The trophy beside the lobby's gear warms the stats page's chunk, so the page drawn here is the trophy's own.
-import { StatsPage } from '../stats/StatsButton.tsx';
-const matchScreen = () => import('./MatchScreen.tsx');
+import { StatsPage } from '@hadoku/magic-ui/stats/StatsButton.tsx';
+const matchScreen = () => import('@hadoku/magic-ui/screens/MatchScreen.tsx');
 const MatchScreen = lazyComponent(() => matchScreen().then((m) => m.MatchScreen));
-const MusicReview = lazyComponent(() => import('./MusicReview.tsx').then((m) => m.MusicReview));
-const ReplayScreen = lazyComponent(() => import('../replay/ReplayScreen.tsx').then((m) => m.ReplayScreen));
-const RallyEmbed = lazyComponent(() => import('../rally/RallyEmbed.tsx').then((m) => m.RallyEmbed));
-const SoundBuilder = lazyComponent(() => import('./SoundBuilder.tsx').then((m) => m.SoundBuilder));
-const SoundSandbox = lazyComponent(() => import('./SoundSandbox.tsx').then((m) => m.SoundSandbox));
+const MusicReview = lazyComponent(() => import('@hadoku/magic-ui/screens/MusicReview.tsx').then((m) => m.MusicReview));
+const ReplayScreen = lazyComponent(() => import('@hadoku/magic-ui/replay/ReplayScreen.tsx').then((m) => m.ReplayScreen));
+const RallyEmbed = lazyComponent(() => import('@hadoku/magic-ui/rally/RallyEmbed.tsx').then((m) => m.RallyEmbed));
+const SoundBuilder = lazyComponent(() => import('@hadoku/magic-ui/screens/SoundBuilder.tsx').then((m) => m.SoundBuilder));
+const SoundSandbox = lazyComponent(() => import('@hadoku/magic-ui/screens/SoundSandbox.tsx').then((m) => m.SoundSandbox));
 const TrimScreen = lazyComponent(() => import('@hadoku/game-ui/settings/TrimScreen.tsx').then((m) => m.TrimScreen));
-import './screens.css';
+import '@hadoku/magic-ui/screens/screens.css';
 
 // A room opens its new match before it hands the page over, with the match screen's own opener.
 warmMatchesFrom(() => matchScreen().then((m) => m.matchOpener));

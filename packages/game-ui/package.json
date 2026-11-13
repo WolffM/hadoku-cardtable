@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "The browser parts any hosted game shares, above ui-shell: the room shell and session, seats and looks, the room route, the front page's generic pieces (gate, polls, gallery, patch notes), the bundle slot and relay channel a game's client mounts in, settings and trim screens, the HTTP and socket helpers, and the generic components (modal, popover, avatar, action button, radio cards). Knows no game; Magic's UI plugs in from apps/ui. MIT; imports only react, react-dom, socket.io-client, @wolffm/* and the platform packages.",
+  "description": "The browser parts any hosted game shares, above ui-shell: the room shell and session, seats and looks, the room route, the front page's generic pieces (gate, polls, gallery, patch notes), the bundle slot and relay channel a game's client mounts in, settings and trim screens, the HTTP and socket helpers, and the generic components (modal, popover, avatar, action button, radio cards). Knows no game; Magic's UI (games/magic/ui) plugs in, composed by the site (apps/ui). MIT; imports only react, react-dom, socket.io-client, @wolffm/* and the platform packages.",
   "exports": {
     "./*": "./src/*"
   },

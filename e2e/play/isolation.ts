@@ -147,7 +147,7 @@ export interface SeatStream {
   final: State;
 }
 
-/** Replay a browser's inbound stream the way `apps/ui/src/play/live/match.ts` does. */
+/** Replay a browser's inbound stream the way `games/magic/ui/src/play/live/match.ts` does. */
 export function foldStream(messages: readonly PlayMessage[]): SeatStream {
   let state: State = new Map();
   let cursor: Cursor | null = null;

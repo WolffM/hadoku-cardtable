@@ -10,7 +10,7 @@
  * after the last — not all at once (alice's, before: ~40 ms apart) and not one per two seconds (bob's, before).
  * No decision of alice's is held on the way (`input-held`, AF216).
  *
- * Each trigger is the same thing drawn again, so each plays faster than the last (`apps/ui/src/play/live/tempo.ts`,
+ * Each trigger is the same thing drawn again, so each plays faster than the last (`games/magic/ui/src/play/live/tempo.ts`,
  * the operator, 2026-11-02: "the more time an animation plays in a single turn, i think the faster it should
  * happen"): the gap before the `n`th is `RESOLVE_CHAIN_GAP_MS` at the `n`th's tempo.
  *
@@ -37,9 +37,9 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 const TRAILER = { width: 1920, height: 1080 };
-/** `apps/ui/src/play/live/pace.ts`'s `RESOLVE_CHAIN_GAP_MS`. */
+/** `games/magic/ui/src/play/live/pace.ts`'s `RESOLVE_CHAIN_GAP_MS`. */
 const GAP_MS = 300;
-/** `apps/ui/src/play/live/tempo.ts`'s scale: the `n`th trigger's tempo. */
+/** `games/magic/ui/src/play/live/tempo.ts`'s scale: the `n`th trigger's tempo. */
 const tempoOf = (n: number): number => Math.min(2.5, 1 + 0.25 * (n - 1));
 /** The gap before the `n`th trigger's fireball. */
 const gapBefore = (n: number): number => GAP_MS / tempoOf(n);

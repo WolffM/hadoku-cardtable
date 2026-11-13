@@ -1,6 +1,6 @@
 /**
  * A Classic room's pool, from the leader's screen: the format tabs and the year slider
- * (`apps/ui/src/components/YearSlider.tsx`). Every spec that puts a room on an era goes through
+ * (`games/magic/ui/src/components/YearSlider.tsx`). Every spec that puts a room on an era goes through
  * `choosePool`, so the gesture lives in one place.
  */
 

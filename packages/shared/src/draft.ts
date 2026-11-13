@@ -3,9 +3,9 @@
  *
  * This is the contract the engine produces and the UI consumes. It supersedes
  * two placeholders that shipped with deletion conditions written on them:
- * `apps/ui/src/draft/types.ts` (which mirrored `@wolffm/rooms-protocol`'s seat
+ * `games/magic/ui/src/draft/types.ts` (which mirrored `@wolffm/rooms-protocol`'s seat
  * vocabulary because the registry could not be authenticated at the time) and
- * `apps/ui/src/draft/validate.ts` (a hand-written structural checker standing in
+ * `games/magic/ui/src/draft/validate.ts` (a hand-written structural checker standing in
  * for exactly this file).
  *
  * ## Hidden information is a type, not a filter
@@ -16,7 +16,7 @@
  * `viewer.pack` / `viewer.pool`: the recipient's own seat, or — the `watcher`
  * arm — the one seat a person holding no seat chose to watch. Leaking a card
  * anywhere else means *adding a field*, not forgetting a filter.
- * `apps/ui/src/draft/hiddenInfo.ts` asserts the same property at runtime over
+ * `games/magic/ui/src/draft/hiddenInfo.ts` asserts the same property at runtime over
  * whole serialised payloads, because JSON does not typecheck.
  *
  * ## `epoch` is not decoration — see `SeqCursor`
@@ -75,7 +75,7 @@ export const RaritySchema = z.enum(['common', 'uncommon', 'rare', 'mythic', 'spe
 const CardFaceFields = {
   /**
    * Scryfall's own card id, carried ONLY so the browser can derive an image
-   * URL for itself — see `apps/ui/src/draft/cardImage.ts`.
+   * URL for itself — see `games/magic/ui/src/draft/cardImage.ts`.
    *
    * The id, not a URL and not Scryfall's `image_uris` blob. Carrying the id
    * keeps the payload a *reference*: we never copy their image metadata, and
@@ -283,7 +283,7 @@ export function isWaiting(view: DraftView, id: SeatId): boolean {
 /**
  * Parse an unknown payload, throwing with the offending path.
  *
- * Replaces `apps/ui/src/draft/validate.ts`'s `expectDraftView`, which existed
+ * Replaces `games/magic/ui/src/draft/validate.ts`'s `expectDraftView`, which existed
  * only because this schema did not.
  */
 export function parseDraftView(raw: unknown, label = 'payload'): DraftView {

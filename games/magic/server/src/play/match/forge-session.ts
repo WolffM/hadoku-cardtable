@@ -996,7 +996,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 *
 	 * **Deliberately NOT folded into {@link Match.snapshot}.** `MatchSnapshot`
 	 * is `.strict()` (`transport.ts`'s `MatchSnapshotSchema`, mirrored byte for
-	 * byte in `apps/ui/src/play/live/transport.ts`), and neither file is this
+	 * byte in `games/magic/ui/src/play/live/transport.ts`), and neither file is this
 	 * lane's to widen this wave — `match.test.ts` and `socket.test.ts` both
 	 * validate a live snapshot against that schema, so an extra key there
 	 * reds them for a reason that has nothing to do with this feature. This is
@@ -1045,7 +1045,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 * card's name. `null` whenever this seat has nothing open.
 	 *
 	 * **Payment first, asks second, never both**: `InputPayMana` is not one of
-	 * the 13 blocking methods (`payingMana`'s own note, `apps/ui/src/play/live/match.ts`) —
+	 * the 13 blocking methods (`payingMana`'s own note, `games/magic/ui/src/play/live/match.ts`) —
 	 * it runs on the ordinary prompt/buttons channel, so `s.payment` and
 	 * `s.asks` never hold at once for the same seat.
 	 *
@@ -1053,7 +1053,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 * is never an {@link OpenAsk} (it carries no `callId`; `InputSelectManyBase`
 	 * is not one of the 13 blocking methods) but it is this seat's own live
 	 * decision exactly as much as one is — the client's own rule, before this
-	 * wave's fix replaced it (`apps/ui/src/play/live/LiveBoard.tsx`'s deleted
+	 * wave's fix replaced it (`games/magic/ui/src/play/live/LiveBoard.tsx`'s deleted
 	 * `myMoveNow`). Measured against the real jar for Thirst for Knowledge's
 	 * discard (`docs/planning/wave60-evidence/B/waiting.md`): the two-of-five
 	 * choice reaches the wire as `setSelectables(min:2, max:2, …)`, not a
@@ -2070,7 +2070,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		this.tellWatchers(s, frame);
 		// `setSelectables`/`clearSelectables` can open or close the
 		// other seat's `waitingOn` fact too — a selection is a live decision
-		// (`myMoveNow`'s own client-side rule, `apps/ui/src/play/live/
+		// (`myMoveNow`'s own client-side rule, `games/magic/ui/src/play/live/
 		// LiveBoard.tsx`) but never an `OpenAsk`, so nowhere else in this
 		// method's tail would catch it.
 		if (frame.method === 'setSelectables' || frame.method === 'clearSelectables') this.checkWaitingOn();
@@ -3189,7 +3189,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 *
 	 * Commanded exactly as the Auto press above is, on the act
 	 * `games/magic/packages/forge-wire` has carried since wave 17 (`tier-a.ts:51`, `:196`) and
-	 * the browser already sends (`apps/ui/src/play/live/match.ts`). Nothing is
+	 * the browser already sends (`games/magic/ui/src/play/live/match.ts`). Nothing is
 	 * said: the cast never happened, so there is no cost to account for, and the
 	 * board returning to priority IS the answer. The window itself is answered,
 	 * so it is never shown — the operator, 2026-10-14: *"chain lightning should
@@ -3426,7 +3426,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 * header) and the real discard choice right behind it (`choose`, still a
 	 * live, unanswered ask) into ONE ask the browser actually answers —
 	 * `chooseSingleEntityForEffect`, reusing its existing `delayedReveal`
-	 * (already drawn by `apps/ui/src/play/prompts/ChoicePrompts.tsx`'s
+	 * (already drawn by `games/magic/ui/src/play/prompts/ChoicePrompts.tsx`'s
 	 * `DelayedRevealNote`, the "Rampant Growth shape"): the whole revealed hand
 	 * stays visible, only the valid cards are clickable. See the module header
 	 * above {@link newMatchId} for the ruling and the structural match that
@@ -3501,7 +3501,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 
 	/**
 	 * Whether `frame`'s revealed cards must be SHOWN to the seat even though
-	 * `apps/ui/src/play/adapter.ts`'s `drawsFaceUp`/`knownTop` might otherwise
+	 * `games/magic/ui/src/play/adapter.ts`'s `drawsFaceUp`/`knownTop` might otherwise
 	 * read them as already visible on the board: `frame.staysVisible === false`
 	 * — a fact `PlayBridge.java`'s `revealStaysAtLibraryTop` computes directly
 	 * off Forge's LIVE state (the resolving ability's own destination

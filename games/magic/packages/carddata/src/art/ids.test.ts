@@ -6,7 +6,7 @@
  * question that broke in a real match (wave 19 §D, #9 *"some art missing"*):
  * **given the cards a match can actually contain, does an art URL come out?**
  * So nothing here is fabricated. It loads the files that ship —
- * `games/magic/server/src/play/art-ids.json`, `apps/ui/src/draft/pool.json` and
+ * `games/magic/server/src/play/art-ids.json`, `games/magic/ui/src/draft/pool.json` and
  * `art-manifest.json` — builds the index the way the server's art resolver
  * (`games/magic/server/src/play/art-ids.ts`) builds it, and puts the answer through
  * `resolveArtUrl` itself. A stub anywhere in that chain would make the
@@ -42,7 +42,7 @@ import {
   type ArtIdTableFile,
 } from './ids.ts';
 
-const DRAFT_DIR = new URL('../../../../../../apps/ui/src/draft/', import.meta.url);
+const DRAFT_DIR = new URL('../../../../../../games/magic/ui/src/draft/', import.meta.url);
 
 function readJson<T>(name: string): T {
   return JSON.parse(readFileSync(fileURLToPath(new URL(name, DRAFT_DIR)), 'utf8')) as T;
@@ -69,7 +69,7 @@ const ART_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(#b
 describe('every card a match can contain has art', () => {
   /*
    * `Mountain|MRD` is not a hypothetical. It is the exact pair in the committed
-   * capture (`apps/ui/src/play/fixtures/tierc-game1-seq1-27.json` carries
+   * capture (`games/magic/ui/src/play/fixtures/tierc-game1-seq1-27.json` carries
    * `ImageKey: "c:Mountain|MRD|1"`, `SetCode: "MRD"`), so this is the card the
    * operator was looking at when they said art was missing.
    */

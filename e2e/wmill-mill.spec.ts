@@ -2,7 +2,7 @@
  * Cards milled fly from their library into their graveyard, against real Forge.
  *
  * The operator, 2026-11-01: *"we need a 'milling' animation. something for cards put into the graveyard from
- * the library."* `apps/ui/src/play/live/mill.ts` finds every card that left a library and appeared in a graveyard
+ * the library."* `games/magic/ui/src/play/live/mill.ts` finds every card that left a library and appeared in a graveyard
  * in the same frame and flies a copy of it, face up, from the library's count mark into its place on the pile,
  * which hides it until the copy lands. A big mill is a riffle that ends in about a second.
  *

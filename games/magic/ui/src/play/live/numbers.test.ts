@@ -1,0 +1,1548 @@
+// @vitest-environment jsdom
+/*
+ * Floating combat numbers (`numbers.ts`): the diff, the stacking layout, the
+ * counter's steps, and what `installNumbers` draws into a board's overlay
+ * root. jsdom gives every element a zero rect, so the DOM half of this suite
+ * stubs `getBoundingClientRect` with real numbers — the same device
+ * `presence.test.ts` uses for the same reason.
+ */
+
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
+import { ATTACK_BEAT_MS, boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, damageSize, damagePower, GLIDE_MS, lifeImpactAt, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
+import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
+import { tempoOf } from './tempo.ts';
+import { entryWeight } from './entries.ts';
+import { ALIGN_MS, contactMs, RAM_STAGGER_MS, windUpOf } from './ram.ts';
+import {
+  LIFE_COLOUR_MS,
+  POP_MS,
+  POP_THRESHOLD,
+  RESOLUTION_CARRY_MS,
+  RISE_MS,
+  STACK_OFFSET_PX,
+  STACK_STAGGER_MS,
+  STRIKE_SLACK_MS,
+  diffViews,
+  formatDelta,
+  installNumbers,
+  LIFE_PUNCH_MS,
+  lifeChunks,
+  lifeColour,
+  planRams,
+  ramEnd,
+  stackLayout,
+} from './numbers.ts';
+
+/* ── fixtures: the smallest BoardView/BoardPlayer/BoardCard that typechecks ── */
+
+function card(id: number, damage: number): BoardCard {
+  return {
+    id,
+    card: {
+      cardId: `c${id}`,
+      name: `Card ${id}`,
+      manaCost: [],
+      manaValue: 0,
+      colors: [],
+      typeLine: 'Creature',
+      oracleText: '',
+      setCode: 'TST',
+      collectorNumber: String(id),
+      rarity: 'common',
+    },
+    tapped: false,
+    summoningSick: false,
+    damage,
+    counters: [],
+    attacking: false,
+    blocking: false,
+    token: false,
+  };
+}
+
+function player(
+  id: number,
+  life: number,
+  opts: { battlefield?: BoardCard[]; graveyard?: BoardCard[]; isViewer?: boolean } = {},
+): BoardPlayer {
+  return {
+    id,
+    name: `P${id}`,
+    life,
+    isViewer: opts.isViewer ?? false,
+    isActive: false,
+    hasPriority: false,
+    hasLost: false,
+    hand: null,
+    handCount: 0,
+    libraryCount: 0,
+    battlefield: opts.battlefield ?? [],
+    graveyard: opts.graveyard ?? [],
+    exile: [],
+  };
+}
+
+function view(players: BoardPlayer[]): BoardView {
+  return {
+    seq: 1,
+    title: 't',
+    turn: 1,
+    phase: null,
+    phaseLabel: '',
+    activePlayerId: null,
+    players,
+    stack: [],
+    gameOver: false,
+    missingCardIds: [],
+  };
+}
+
+/* ── pure: diffing ─────────────────────────────────────────────────────── */
+
+describe('diffViews', () => {
+  it('the first view ever seen diffs to nothing — there is no "before" to compare it against', () => {
+    const v = view([player(0, 20), player(1, 20)]);
+    expect(diffViews(null, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [], pt: [] });
+  });
+
+  it('a life change is reported for the player it happened to, and nobody else', () => {
+    const before = view([player(0, 20), player(1, 20)]);
+    const after = view([player(0, 17), player(1, 20)]);
+    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [], pt: [] });
+  });
+
+  it('a damage change on a creature still on a battlefield is reported, keyed by card id and owner', () => {
+    const before = view([player(0, 20, { battlefield: [card(7, 0)] }), player(1, 20)]);
+    const after = view([player(0, 20, { battlefield: [card(7, 1)] }), player(1, 20)]);
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [], pt: [] });
+  });
+
+  it('a creature that leaves the battlefield for a graveyard is a departure', () => {
+    const before = view([player(0, 20, { battlefield: [card(7, 3)] }), player(1, 20)]);
+    const after = view([player(0, 20, { battlefield: [], graveyard: [card(7, 3)] }), player(1, 20)]);
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [],
+      departures: [{ cardId: 7, playerId: 0, to: 'graveyard', toPlayerId: 0, card: card(7, 3), index: 0 }], attacks: [], pt: [] });
+  });
+
+  it("the other seat's creatures that start attacking are an attack; the viewer's own, and one already attacking, are not", () => {
+    const attacking = (id: number): BoardCard => ({ ...card(id, 0), attacking: true });
+    const before = view([player(0, 20, { isViewer: true, battlefield: [card(1, 0)] }), player(1, 20, { battlefield: [card(5, 0), card(6, 0), attacking(7)] })]);
+    const after = view([player(0, 20, { isViewer: true, battlefield: [attacking(1)] }), player(1, 20, { battlefield: [attacking(5), card(6, 0), attacking(7)] })]);
+    expect(diffViews(before, after).attacks).toEqual([5]);
+  });
+
+  it('nothing moving at all diffs to nothing', () => {
+    const v = view([player(0, 20, { battlefield: [card(7, 2)] }), player(1, 20)]);
+    expect(diffViews(v, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [], pt: [] });
+  });
+});
+
+/* ── pure: stacking, ticking, colour and text ─────────────────────────── */
+
+describe('stackLayout', () => {
+  it('the first number at an anchor has no offset and no delay; each later one at the SAME instant adds one step of each', () => {
+    expect(stackLayout(0)).toEqual({ offsetPx: 0, delayMs: 0 });
+    expect(stackLayout(1)).toEqual({ offsetPx: STACK_OFFSET_PX, delayMs: STACK_STAGGER_MS });
+    expect(stackLayout(2)).toEqual({ offsetPx: 2 * STACK_OFFSET_PX, delayMs: 2 * STACK_STAGGER_MS });
+  });
+});
+
+describe('lifeChunks', () => {
+  it('each damage instance is its own chunk, in the order they land, adding up to the change', () => {
+    expect(lifeChunks(-7, [{ at: 100, amount: 1 }, { at: 380, amount: 4 }, { at: 660, amount: 2 }], 50)).toEqual([
+      { at: 100, delta: -1 },
+      { at: 380, delta: -4 },
+      { at: 660, delta: -2 },
+    ]);
+  });
+
+  it('hits are taken in the order they land, not the order given; two landing at the same moment land as one', () => {
+    expect(lifeChunks(-6, [{ at: 380, amount: 4 }, { at: 100, amount: 1 }, { at: 100, amount: 1 }], 50)).toEqual([
+      { at: 100, delta: -2 },
+      { at: 380, delta: -4 },
+    ]);
+  });
+
+  it('what the total moved beyond the hits is one more instance, a gap after the last: a gain beside the loss, or a loss that was not damage', () => {
+    expect(lifeChunks(-1, [{ at: 0, amount: 3 }], 50), 'a gain with the loss is never summed into it').toEqual([
+      { at: 0, delta: -3 },
+      { at: 50, delta: 2 },
+    ]);
+    expect(lifeChunks(2, [{ at: 0, amount: 3 }], 50), 'a net gain still lands the hit first').toEqual([
+      { at: 0, delta: -3 },
+      { at: 50, delta: 5 },
+    ]);
+    expect(lifeChunks(-5, [{ at: 0, amount: 3 }], 50)).toEqual([
+      { at: 0, delta: -3 },
+      { at: 50, delta: -2 },
+    ]);
+  });
+
+  it('no hits is one chunk with the whole change; no change is nothing', () => {
+    expect(lifeChunks(-3, [], 50)).toEqual([{ at: 0, delta: -3 }]);
+    expect(lifeChunks(4, [{ at: 10, amount: 0 }], 50)).toEqual([{ at: 0, delta: 4 }]);
+    expect(lifeChunks(0, [], 50)).toEqual([]);
+  });
+
+  it('the running total never passes through a value between two instances', () => {
+    const chunks = lifeChunks(-9, [{ at: 0, amount: 2 }, { at: 1, amount: 3 }, { at: 2, amount: 4 }], 1);
+    let total = 20;
+    const shown = chunks.map((c) => (total += c.delta));
+    expect(shown).toEqual([18, 15, 11]);
+  });
+});
+
+describe('colour and text', () => {
+  it('life: a gain is the success colour, a loss the danger colour', () => {
+    expect(lifeColour(3)).toBe('success');
+    expect(lifeColour(-3)).toBe('danger');
+  });
+
+  it('formatDelta signs a life change', () => {
+    expect(formatDelta(3)).toBe('+3');
+    expect(formatDelta(-3)).toBe('-3');
+  });
+});
+
+/* ── installNumbers: the DOM ──────────────────────────────────────────── */
+
+type Box = { left: number; top: number; width: number; height: number };
+const rect = (b: Box): DOMRect => ({ ...b, right: b.left + b.width, bottom: b.top + b.height, x: b.left, y: b.top, toJSON: () => b }) as DOMRect;
+
+function board(): { canvas: HTMLElement } {
+  const canvas = document.createElement('div');
+  canvas.innerHTML = `
+    <div class="board">
+      <div data-player-face data-player-id="0" data-viewer=""><span data-testid="life">20</span></div>
+      <div data-player-face data-player-id="1"><span data-testid="life">20</span></div>
+      <div data-zone="battlefield" data-owner="you"><li class="board-card" data-card-id="7"><span class="board-card__pt"></span></li></div>
+      <div data-zone="battlefield" data-owner="them"></div>
+      <div data-zone="graveyard" data-owner="you"></div>
+      <div data-zone="graveyard" data-owner="them"></div>
+      <div class="board__overlay" data-board-overlay=""></div>
+    </div>`;
+  document.body.append(canvas);
+  const boxes: Record<string, Box> = {
+    '[data-board-overlay]': { left: 0, top: 0, width: 1000, height: 800 },
+    '[data-player-face][data-player-id="0"]': { left: 100, top: 700, width: 60, height: 60 },
+    '[data-player-face][data-player-id="1"]': { left: 100, top: 20, width: 60, height: 60 },
+    '[data-card-id="7"] .board-card__pt': { left: 300, top: 400, width: 24, height: 16 },
+    '[data-zone="graveyard"][data-owner="you"]': { left: 500, top: 700, width: 60, height: 84 },
+    '[data-zone="graveyard"][data-owner="them"]': { left: 500, top: 20, width: 60, height: 84 },
+  };
+  for (const [selector, box] of Object.entries(boxes)) canvas.querySelector<HTMLElement>(selector)!.getBoundingClientRect = () => rect(box);
+  return { canvas };
+}
+
+afterEach(() => {
+  document.body.innerHTML = '';
+  vi.useRealTimers();
+});
+
+describe('installNumbers: life', () => {
+  it('a life loss spawns one number at the face, danger-coloured, signed, and it is gone after its lifetime', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 17)]));
+
+    const numbers = overlay.querySelectorAll<HTMLElement>('.board-number');
+    expect(numbers, 'one number, spawned at once (no stacking, nothing to stagger against)').toHaveLength(1);
+    expect(numbers[0]!.textContent).toBe('-3');
+    expect(numbers[0]!.dataset.numberColour).toBe('danger');
+    expect(numbers[0]!.dataset.numberPop, 'a change of 3 does not pop').toBeUndefined();
+    expect(numbers[0]!.style.left).toBe('130px'); // player 1's face centre (100+30), overlay-relative
+    expect(numbers[0]!.style.top).toBe('50px');
+
+    vi.advanceTimersByTime(RISE_MS - 1);
+    expect(overlay.querySelectorAll('.board-number'), 'still rising').toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(overlay.querySelectorAll('.board-number'), 'its lifetime is over').toHaveLength(0);
+  });
+
+  it('AF420: the number grows with the change — 15px for a point, 38px at the cap — and the pop stays an accent, not the only sign of a heavy change', () => {
+    const fontSizeOf = (delta: number): number => {
+      const { canvas } = board();
+      const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+      const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+      handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+      handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20 - delta)]));
+      const size = Number.parseFloat(overlay.querySelector<HTMLElement>('.board-number')!.style.fontSize);
+      handle.dispose();
+      return size;
+    };
+    expect(fontSizeOf(1), 'a point is the smallest').toBeCloseTo(15, 1);
+    expect(fontSizeOf(20), 'the cap is the biggest').toBeCloseTo(38, 1);
+    expect(fontSizeOf(30), 'above the cap is no bigger than the cap').toBeCloseTo(fontSizeOf(20), 5);
+    expect(fontSizeOf(10), 'the middle is between the two, and grows with the change').toBeGreaterThan(fontSizeOf(1));
+    expect(fontSizeOf(10)).toBeLessThan(fontSizeOf(20));
+    // A small change (3) does not pop, but is still drawn bigger than a change of 1 — size, not only the pop, carries weight.
+    expect(fontSizeOf(3)).toBeGreaterThan(fontSizeOf(1));
+  });
+
+  it('a change of 5 or more pops, and its lifetime is the pop plus the rise', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 25)]));
+
+    const el = overlay.querySelector<HTMLElement>('.board-number')!;
+    expect(el.textContent).toBe('+5');
+    expect(el.dataset.numberColour).toBe('success');
+    expect(el.dataset.numberPop, `${POP_THRESHOLD} or more pops`).toBe('');
+
+    vi.advanceTimersByTime(POP_MS + RISE_MS - 1);
+    expect(overlay.querySelectorAll('.board-number')).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(overlay.querySelectorAll('.board-number'), 'gone after pop + rise, not rise alone').toHaveLength(0);
+    handle.dispose();
+  });
+
+  it('reduced motion: no pop attribute even past the threshold, and the reduced flag is set', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => true, fastMode: () => false });
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 25)]));
+
+    const el = overlay.querySelector<HTMLElement>('.board-number')!;
+    expect(el.dataset.numberPop, 'reduced motion never pops').toBeUndefined();
+    expect(el.dataset.numberReduced).toBe('');
+
+    vi.advanceTimersByTime(RISE_MS);
+    expect(overlay.querySelectorAll('.board-number'), 'the plain rise duration, not the popped one').toHaveLength(0);
+    handle.dispose();
+  });
+
+  it('the seat bar’s own life span lands the whole change at once with a punch, coloured for 1.5s, with nothing drawn beside it', async () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const face1 = canvas.querySelector<HTMLElement>('[data-player-face][data-player-id="1"]')!;
+    const lifeSpan = face1.querySelector<HTMLElement>('[data-testid="life"]')!;
+    const seen = new Set<string>();
+    new MutationObserver(() => seen.add(lifeSpan.textContent ?? '')).observe(lifeSpan, { childList: true, characterData: true, subtree: true });
+
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 17)]));
+
+    expect(lifeSpan.textContent, 'landed whole').toBe('17');
+    expect(face1.textContent, 'no old value beside the counter').toBe(lifeSpan.textContent);
+    expect(lifeSpan.dataset.numberLifeColour).toBe('danger');
+    expect(lifeSpan.dataset.lifeLanded, 'it punches').toBe('punch');
+    expect(canvas.style.getPropertyValue('--life-punch-ms')).toBe(`${LIFE_PUNCH_MS}ms`);
+
+    vi.advanceTimersByTime(LIFE_COLOUR_MS - 1);
+    expect(lifeSpan.textContent).toBe('17');
+    expect(lifeSpan.dataset.numberLifeColour, 'still coloured, 1.5s not up yet').toBe('danger');
+    vi.advanceTimersByTime(1);
+    expect(lifeSpan.dataset.numberLifeColour).toBeUndefined();
+    expect(lifeSpan.dataset.lifeLanded).toBeUndefined();
+    await Promise.resolve();
+    expect([...seen].filter((v) => v !== '20' && v !== '17'), 'never a value in between').toEqual([]);
+    handle.dispose();
+  });
+
+  it('reduced motion: the counter fades its new total in, no punch', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const handle = installNumbers(canvas, { reducedMotion: () => true, fastMode: () => false });
+    const lifeSpan = canvas.querySelector<HTMLElement>('[data-player-face][data-player-id="1"] [data-testid="life"]')!;
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 23)]));
+    expect(lifeSpan.textContent).toBe('23');
+    expect(lifeSpan.dataset.lifeLanded).toBe('fade');
+    expect(lifeSpan.dataset.numberLifeColour).toBe('success');
+    handle.dispose();
+  });
+
+  it('Fast Mode: the counter jumps straight to the new value, with nothing drawn beside it', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => true });
+    const face1 = canvas.querySelector<HTMLElement>('[data-player-face][data-player-id="1"]')!;
+    const lifeSpan = face1.querySelector<HTMLElement>('[data-testid="life"]')!;
+
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 17)]));
+
+    expect(lifeSpan.textContent, 'Fast Mode: no stepping').toBe('17');
+    expect(face1.textContent, 'no old value beside the counter').toBe('17');
+    handle.dispose();
+  });
+
+  it('stacking: a second number at the same anchor before the first ends offsets 12px sideways and starts 80ms later on its own clock', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 18)])); // first: -2, spawns at once
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 16)])); // second: -2, while the first is still active
+
+    expect(overlay.querySelectorAll('.board-number'), 'the second one has not placed yet').toHaveLength(1);
+    const first = overlay.querySelector<HTMLElement>('.board-number')!;
+    const firstLeft = Number.parseFloat(first.style.left);
+
+    // The second life change this turn is the second instance of one, and plays at its tempo (`tempo.ts`).
+    vi.advanceTimersByTime(STACK_STAGGER_MS / tempoOf(2) - 1);
+    expect(overlay.querySelectorAll('.board-number'), 'one ms short of the stagger: still one').toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    const numbers = overlay.querySelectorAll<HTMLElement>('.board-number');
+    expect(numbers, 'the stagger elapsed: the second has placed').toHaveLength(2);
+    const second = numbers[1]!;
+    expect(Number.parseFloat(second.style.left) - firstLeft, 'offset 12px sideways from the first').toBe(STACK_OFFSET_PX);
+    handle.dispose();
+  });
+});
+
+describe('installNumbers: a creature gets no number', () => {
+  it('damage marked on a creature, or a creature dying with damage on it, draws no number — its hit is the impact (Forge’s own hits)', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 2)] }), player(1, 20)]));
+    expect(overlay.querySelectorAll('.board-number'), 'damage marked: the badge shows it, nothing floats').toHaveLength(0);
+    handle.notify(view([player(0, 20, { isViewer: true, graveyard: [card(7, 2)] }), player(1, 20)]));
+    expect(overlay.querySelectorAll('.board-number'), 'it died: still no number').toHaveLength(0);
+    handle.dispose();
+  });
+});
+
+describe('installNumbers: dispose', () => {
+  it('tears down every active number and the life span’s own colour, and schedules nothing further', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const face1 = canvas.querySelector<HTMLElement>('[data-player-face][data-player-id="1"]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 17)]));
+    expect(overlay.querySelectorAll('.board-number')).toHaveLength(1);
+
+    handle.dispose();
+    expect(overlay.querySelectorAll('.board-number')).toHaveLength(0);
+    expect(face1.querySelector('[data-testid="life"]')!.hasAttribute('data-number-life-colour')).toBe(false);
+
+    // A notify after dispose does nothing — the handle is dead.
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 10)]));
+    vi.advanceTimersByTime(STACK_STAGGER_MS + RISE_MS);
+    expect(overlay.querySelectorAll('.board-number')).toHaveLength(0);
+  });
+});
+
+/* ── a resolution's effects, in beats ─────────────────────────────────── */
+
+function item(id: number, sourceCardId: number | null): StackEntry {
+  return { id, description: '', sourceCardId, sourceName: null, sourceCard: null, controllerName: null, isAbility: true };
+}
+
+function withStack(v: BoardView, stack: StackEntry[]): BoardView {
+  return { ...v, stack };
+}
+
+describe('diffViews: what a resolution did', () => {
+  it('an item gone from the stack is resolved; a token from nowhere is an arrival from the card that made it', () => {
+    const before = withStack(view([player(0, 20, { battlefield: [card(7, 0)] }), player(1, 20)]), [item(40, 7)]);
+    const zombie = { ...card(50, 0), token: true, createdBy: 7 };
+    const after = view([player(0, 20, { battlefield: [card(7, 0), zombie] }), player(1, 20)]);
+    const diff = diffViews(before, after);
+    expect(diff.resolved.map((i) => i.id)).toEqual([40]);
+    expect(diff.arrivals).toEqual([{ cardId: 50, source: 7, origin: 'token', heft: 0 }]);
+  });
+
+  it('a card played from a hand the viewer cannot see is not an arrival — the other seat’s landing draws it', () => {
+    const before = view([player(0, 20), { ...player(1, 20), handCount: 3, libraryCount: 30 }]);
+    const after = view([player(0, 20), { ...player(1, 20, { battlefield: [card(9, 0)] }), handCount: 2, libraryCount: 30 }]);
+    expect(diffViews(before, after).arrivals).toEqual([]);
+  });
+
+  it('a card a resolution put onto a battlefield out of the viewer’s own hand arrives from that hand (Show and Tell)', () => {
+    const elf = card(9, 0);
+    const before = withStack(view([{ ...player(0, 20, { isViewer: true }), hand: [elf], handCount: 1 }, player(1, 20)]), [{ ...item(41, 3), isAbility: false }]);
+    const after = view([{ ...player(0, 20, { isViewer: true, battlefield: [elf] }), hand: [], handCount: 0 }, player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'hand', fromPlayerId: 0, heft: 0 }]);
+  });
+
+  it('a card a resolution put onto a battlefield out of a hand the viewer cannot see arrives from that hand', () => {
+    const before = withStack(view([player(0, 20), { ...player(1, 20), handCount: 3, libraryCount: 30 }]), [item(41, 3)]);
+    const after = view([player(0, 20), { ...player(1, 20, { battlefield: [card(9, 0)] }), handCount: 2, libraryCount: 30 }]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'hand', fromPlayerId: 1, heft: 0 }]);
+  });
+
+  it('a land played from the viewer’s own hand resolves nothing and is not an arrival — the play draws it', () => {
+    const land = card(9, 0);
+    const before = view([{ ...player(0, 20, { isViewer: true }), hand: [land], handCount: 1 }, player(1, 20)]);
+    const after = view([{ ...player(0, 20, { isViewer: true, battlefield: [land] }), hand: [], handCount: 0 }, player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([]);
+  });
+
+  it('a permanent spell resolving off the stack arrives from its stack item; an ability of the same card does not make one', () => {
+    const bears = card(9, 0);
+    const spell = { ...item(41, 9), isAbility: false };
+    const before = withStack(view([player(0, 20), player(1, 20)]), [spell]);
+    const after = view([player(0, 20, { battlefield: [bears] }), player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'stack', stackItemId: 41, heft: 0 }]);
+    const ability = withStack(view([player(0, 20, { battlefield: [bears] }), player(1, 20)]), [item(42, 9)]);
+    expect(diffViews(ability, after).arrivals, 'already on the battlefield').toEqual([]);
+  });
+
+  it('a card a resolution put onto a battlefield off a library’s revealed top is an arrival', () => {
+    const top = card(9, 0);
+    const before = withStack(view([{ ...player(0, 20), libraryTop: [top], libraryCount: 30 }, player(1, 20)]), [item(41, null)]);
+    const after = view([{ ...player(0, 20, { battlefield: [top] }), libraryCount: 29 }, player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'other', heft: 0 }]);
+  });
+
+  it('a card a resolution put onto a battlefield out of a library is an arrival, maker unknown', () => {
+    const before = withStack(view([{ ...player(0, 20), libraryCount: 30 }, player(1, 20)]), [item(41, null)]);
+    const after = view([{ ...player(0, 20, { battlefield: [card(9, 0)] }), libraryCount: 29 }, player(1, 20)]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'other', heft: 0 }]);
+  });
+
+  it('a board being set up is not an arrival: permanents and tokens no resolution and no maker explain', () => {
+    const before = view([{ ...player(0, 20), libraryCount: 0 }, { ...player(1, 20), libraryCount: 0 }]);
+    const after = view([
+      { ...player(0, 20, { battlefield: [card(9, 0), { ...card(10, 0), token: true }] }), libraryCount: 6 },
+      { ...player(1, 20, { battlefield: [card(11, 0)] }), libraryCount: 6 },
+    ]);
+    expect(diffViews(before, after).arrivals).toEqual([]);
+    const shuffledIn = view([{ ...player(0, 20), libraryCount: 40 }, player(1, 20)]);
+    const dealt = view([{ ...player(0, 20, { battlefield: [card(9, 0)] }), libraryCount: 33 }, player(1, 20)]);
+    expect(diffViews(shuffledIn, dealt).arrivals, 'not even when a library shrank with it').toEqual([]);
+  });
+});
+
+describe('installNumbers: a resolution’s hits', () => {
+  function sorinBoard(): { canvas: HTMLElement; overlay: HTMLElement; face: HTMLElement; life: HTMLElement } {
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="8" data-card-id="8"></li>');
+    canvas.querySelector<HTMLElement>('[data-board-card="8"]')!.getBoundingClientRect = () => rect({ left: 600, top: 500, width: 60, height: 84 });
+    const face = canvas.querySelector<HTMLElement>('[data-player-face][data-player-id="1"]')!;
+    return { canvas, overlay: canvas.querySelector<HTMLElement>('[data-board-overlay]')!, face, life: face.querySelector<HTMLElement>('[data-testid="life"]')! };
+  }
+
+  it('life lost to a resolving ability travels from its source to the face; the number and the counter wait for it to land', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay, face, life } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    life.textContent = '18'; // React draws the new total with the frame
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+
+    const mark = overlay.querySelector<HTMLElement>('.effect-hit');
+    expect(mark?.dataset.hit, 'a hit leaves the source at once').toBe('player:1:40');
+    expect(mark!.dataset.projectile, 'drawn as a bolt').toBe('bolt');
+    expect(mark!.dataset.colour, 'an ability of a card the fixture gives no colour: colourless').toBe('C');
+    // No Web Animations in jsdom: the ball is put where it lands, the face's centre (130, 50).
+    expect(mark!.style.transform, 'aimed at the face, as big as a hit of 2').toBe(`translate(130.0px, 50.0px) translate(-50%, -50%) scale(${damageSize(damagePower(2)).toFixed(3)})`);
+    expect(overlay.querySelectorAll('.board-number'), 'no number before it lands').toHaveLength(0);
+    expect(life.textContent, 'the counter still reads the old total').toBe('20');
+
+    vi.advanceTimersByTime(HIT_MS);
+    expect(overlay.querySelector('.effect-hit'), 'the mark is gone on landing').toBeNull();
+    expect(face.hasAttribute('data-hit-flash'), 'no flash on an avatar: its ring drew as a box around it').toBe(false);
+    expect(overlay.querySelector('.effect-impact'), 'and takes the impact').not.toBeNull();
+    expect(overlay.querySelector('.board-number')?.textContent, 'a life total still shows its number').toBe('-2');
+    expect(life.textContent, 'the counter lands the hit whole').toBe('18');
+    handle.dispose();
+  });
+
+  /*
+   * fx-effects.spec.ts:217, run 42547289885: on a loaded host alice's resolution of Sorin's +1 came as
+   * three deltas over 212 ms, the item leaving the stack in one and her life change in the next, and
+   * her screen drew a bare −2 with nothing travelling. Mutation: drop `carriedResolution` and the first
+   * of these fails.
+   */
+  it('a life change a view after its resolution left the stack still travels from it, when its face hit names that source', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay, life } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const board = (life1: number): BoardView => view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, life1)]);
+    handle.notify(withStack(board(20), [item(40, 8)]));
+    handle.notify(board(20)); // the item leaves the stack: no life change yet
+    vi.advanceTimersByTime(200);
+    life.textContent = '18';
+    handle.notify({ ...board(18), faceHits: [{ seq: 3, playerId: 1, sourceId: 8, amount: 2, combat: false }] });
+    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.hit, 'the hit leaves the resolution’s source').toBe('player:1:40');
+    expect(life.textContent, 'the counter waits for it to land').toBe('20');
+    handle.dispose();
+  });
+
+  it('a later life change with no face hit from that source never borrows the resolution: nothing travels', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const board = (life1: number): BoardView => view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, life1)]);
+    handle.notify(withStack(board(20), [item(40, 8)]));
+    handle.notify(board(20));
+    handle.notify({ ...board(19), faceHits: [{ seq: 3, playerId: 1, sourceId: 99, amount: 1, combat: false }] });
+    expect(overlay.querySelector('.effect-hit'), 'another source’s damage').toBeNull();
+    handle.notify(board(18));
+    expect(overlay.querySelector('.effect-hit'), 'a payment: no face hit at all').toBeNull();
+    vi.advanceTimersByTime(RESOLUTION_CARRY_MS + 1);
+    handle.notify({ ...board(16), faceHits: [{ seq: 4, playerId: 1, sourceId: 8, amount: 2, combat: false }] });
+    expect(overlay.querySelector('.effect-hit'), 'the same source, but long after its resolution').toBeNull();
+    handle.dispose();
+  });
+
+  it('a resolution that hit a player twice sends two bolts, BOLT_STAGGER_MS apart, each landing its own chunk and number', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay, life } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    life.textContent = '15';
+    handle.notify({
+      ...view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 15)]),
+      faceHits: [
+        { seq: 7, playerId: 1, sourceId: 8, amount: 2, combat: false },
+        { seq: 8, playerId: 1, sourceId: 8, amount: 3, combat: false },
+      ],
+    });
+    expect([...overlay.querySelectorAll<HTMLElement>('.effect-hit')].map((m) => m.dataset.hit)).toEqual(['player:1:40']);
+    expect(life.textContent).toBe('20');
+    vi.advanceTimersByTime(BOLT_STAGGER_MS);
+    expect([...overlay.querySelectorAll<HTMLElement>('.effect-hit')].map((m) => m.dataset.hit)).toEqual(['player:1:40', 'player:1:40:1']);
+    vi.advanceTimersByTime(HIT_MS - BOLT_STAGGER_MS);
+    expect(life.textContent, 'the first instance lands whole').toBe('18');
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-2']);
+    vi.advanceTimersByTime(BOLT_STAGGER_MS);
+    expect(life.textContent, 'then the second').toBe('15');
+    vi.advanceTimersByTime(STACK_STAGGER_MS);
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-2', '-3']);
+    handle.dispose();
+  });
+
+  it('the hit on the face is heard as it lands, on the caster’s side; an ability’s hit has no colour layer', () => {
+    vi.useFakeTimers();
+    const { canvas } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [{ ...item(40, 8), controllerName: 'P0' }]));
+    const now = Date.now();
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+    expect(boardSoundsAt(1).map((s) => [s.role, s.at - now, s.intensity, s.mine, s.colourCell])).toEqual([['g.spell-hit', HIT_MS, damagePower(2), true, null]]);
+    handle.dispose();
+  });
+
+  /*
+   * lg-gamelog, run 39378286337: Lightning Bolt's hit (22 → 19) was still in flight when the Bears'
+   * combat damage (19 → 17) arrived and was drawn at once; the bolt landed after it and wrote its own 19
+   * over the 17 React had already drawn, and React, rendering 17 again, never wrote it back.
+   */
+  it.each([
+    ['Fast Mode', true],
+    ['at full motion', false],
+  ])('%s: a hit that lands after a newer life change leaves the counter on the newer total', (_, fast) => {
+    vi.useFakeTimers();
+    const { canvas, life } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => fast });
+    const at = (n: number, stack: StackEntry[] = []) => withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, n)]), stack);
+    handle.notify(at(22, [item(40, 8)]));
+    life.textContent = '19'; // React draws each frame's total as it arrives
+    handle.notify(at(19));
+    expect(life.textContent, 'the bolt is in flight: the counter still reads the old total').toBe('22');
+    vi.advanceTimersByTime(HIT_MS / 2);
+    life.textContent = '17';
+    handle.notify(at(17));
+    vi.advanceTimersByTime(HIT_MS + LIFE_COLOUR_MS);
+    expect(life.textContent, 'the newest total, once every hit has landed').toBe('17');
+    handle.dispose();
+  });
+
+  it('notes when the life hit lands, and the board is still only once it has, for what must wait for the hit (the result screen, a life total’s sound)', async () => {
+    vi.useFakeTimers();
+    const { canvas } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    const at = Date.now();
+    handle.notify({ ...view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), seq: 7 });
+    expect(lifeImpactAt(7), 'its sound waits for the hit').toBe(at + HIT_MS);
+    expect(lifeImpactAt(6), 'another view drew no hit').toBeNull();
+    let still = false;
+    whenBoardStill(() => (still = true));
+    await vi.advanceTimersByTimeAsync(HIT_MS - 1);
+    expect(still, 'the board is busy until the hit lands').toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(still, 'and still once it has').toBe(true);
+    handle.dispose();
+  });
+
+  it("the other seat's attack holds the board for its beat, so what comes after it waits until it has been seen; Fast Mode holds nothing", async () => {
+    vi.useFakeTimers();
+    const attacking = (id: number): BoardCard => ({ ...card(id, 0), attacking: true });
+    const reports: Record<string, unknown>[] = [];
+    for (const fast of [false, true]) {
+      const { canvas } = board();
+      const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => fast, report: (data) => reports.push(data) });
+      handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [card(5, 0)] })]));
+      handle.notify({ ...view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacking(5)] })]), seq: 2 });
+      let still = false;
+      whenBoardStill(() => (still = true));
+      if (fast) {
+        expect(still, 'Fast Mode: the board is still at once').toBe(true);
+      } else {
+        await vi.advanceTimersByTimeAsync(ATTACK_BEAT_MS - 1);
+        expect(still, 'the attack is still being shown').toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(still, 'and the board is free once it has been').toBe(true);
+      }
+      handle.dispose();
+    }
+    expect(reports, 'one attack beat, told to the log').toEqual([{ what: 'attack', attackers: 1, beatMs: ATTACK_BEAT_MS }]);
+  });
+
+  it('a board taken down mid-beat is still at once: nothing it was drawing is left to wait for', async () => {
+    vi.useFakeTimers();
+    const { canvas } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    handle.notify({ ...view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), seq: 7 });
+    let still = false;
+    whenBoardStill(() => (still = true));
+    handle.dispose();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(still).toBe(true);
+  });
+
+  it('a reveal that arrived while the item was on the stack goes first: its card glows where the board draws it, and the hit waits out its beat', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    // The revealed top card, drawn under its owner's avatar; the resolution puts it in her hand.
+    canvas.querySelector('.board')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9" data-library-top=""></li>');
+    const revealed = { cardIds: [9], at: Date.now() };
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]), revealed);
+    expect(canvas.querySelector('[data-board-card="9"]')!.hasAttribute('data-reveal-beat'), 'the revealed card glows on the board').toBe(true);
+    canvas.querySelector('[data-board-card="9"]')!.remove();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9"></li>');
+    const inHand = canvas.querySelector<HTMLElement>('[data-board-card="9"]')!;
+    inHand.getBoundingClientRect = () => rect({ left: 200, top: 650, width: 60, height: 84 });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), revealed);
+
+    expect(inHand.hasAttribute('data-reveal-beat'), 'and keeps glowing where it lands').toBe(true);
+    expect(overlay.querySelector('.effect-hit'), 'nothing travels during the reveal’s beat').toBeNull();
+    vi.advanceTimersByTime(REVEAL_BEAT_MS);
+    expect(inHand.hasAttribute('data-reveal-beat'), 'the glow is over with the beat').toBe(false);
+    const mark = overlay.querySelector<HTMLElement>('.effect-hit');
+    expect(mark, 'then the hit').not.toBeNull();
+    expect(mark!.dataset.hit).toBe('player:1:40');
+    vi.advanceTimersByTime(HIT_MS);
+    expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
+    handle.dispose();
+  });
+
+  it('a reveal from before the item was put on the stack is not its reveal: the hit goes at once', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const revealed = { cardIds: [9], at: Date.now() };
+    // Inside the reveal's beat still, but well before the item was drawn on the stack.
+    vi.advanceTimersByTime(REVEAL_BEAT_MS / 2);
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]), revealed);
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), revealed);
+    expect(overlay.querySelector('.effect-hit')?.getAttribute('data-hit')).toBe('player:1:40');
+    handle.dispose();
+  });
+
+  it('a reflexive trigger new in the frame it resolves takes the reveal of its SOURCE — the bolt leaves the revealed card (AF420, Calibrated Blast: telemetry m-bafaa3d3238f)', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    // The card the spell revealed, drawn in its own zone — distinct from card 8 (both items' source).
+    canvas.querySelector('.board')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9"></li>');
+    const card9 = canvas.querySelector<HTMLElement>('[data-board-card="9"]')!;
+    const card9Box = vi.fn(() => rect({ left: 50, top: 50, width: 60, height: 84 }));
+    card9.getBoundingClientRect = card9Box;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const revealed = { cardIds: [9], at: Date.now() };
+    // The spell (item 40, source 8) resolves with the reveal and nothing else — 0 hits of its own.
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), revealed);
+    expect(card9Box, 'not read yet: nothing travelled for the spell itself').not.toHaveBeenCalled();
+    // Its reflexive trigger (item 41, the SAME source) appears and resolves seconds later — no reveal
+    // is resent, and the trigger was never seen on any earlier stack: `firstSeen` holds nothing for it.
+    vi.advanceTimersByTime(4000);
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(41, 8)]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+    const mark = overlay.querySelector<HTMLElement>('.effect-hit');
+    expect(mark, 'the trigger’s hit still travels').not.toBeNull();
+    expect(mark!.dataset.hit, 'keyed by the trigger’s own stack item, not the spell’s').toBe('player:1:41');
+    expect(card9Box, 'the bolt’s origin is read from the revealed card, not the trigger’s own (anonymous) source').toHaveBeenCalled();
+    handle.dispose();
+  });
+
+  it('a token made by a resolution materialises in its own slot and lands (`entries.ts`’s `release`), not a glide from its maker', async () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    overlay.getBoundingClientRect = () => rect({ left: 0, top: 0, width: 1200, height: 800 });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]));
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="50" data-card-id="50"></li>');
+    const token = canvas.querySelector<HTMLElement>('[data-board-card="50"]')!;
+    token.getBoundingClientRect = () => rect({ left: 700, top: 500, width: 60, height: 84 });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0), { ...card(50, 0), token: true, createdBy: 8 }] }), player(1, 20)]));
+
+    expect(token.getAttribute('data-arriving-from'), 'still marked with its maker').toBe('8');
+    expect(token.style.visibility, 'hidden behind its own stand-in, never flown from Kalitas').toBe('hidden');
+    expect(document.querySelector('[data-cast-ghost], [data-cast-lift]'), 'no glide from the maker').toBeNull();
+    expect(overlay.querySelector('.board-entry[data-entry="release"]'), 'a release stand-in over its own slot').not.toBeNull();
+    await vi.advanceTimersByTimeAsync(GLIDE_MS);
+    expect(token.hasAttribute('data-arriving-from')).toBe(false);
+    expect(token.style.visibility, 'shown again once the stand-in is done').toBe('');
+    handle.dispose();
+  });
+
+  /** A creature spell (item 41, card 9) on the stack, drawn there by `placed.ts`, resolving onto the viewer's battlefield. */
+  function resolveBears(landingDrawn?: (cardId: number) => boolean): { overlay: HTMLElement; bears: HTMLElement; handle: ReturnType<typeof installNumbers> } {
+    const { canvas, overlay } = sorinBoard();
+    overlay.getBoundingClientRect = () => rect({ left: 0, top: 0, width: 1200, height: 800 });
+    overlay.insertAdjacentHTML('beforeend', '<div data-placed-spell="41"></div>');
+    overlay.querySelector<HTMLElement>('[data-placed-spell="41"]')!.getBoundingClientRect = () => rect({ left: 900, top: 300, width: 60, height: 84 });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, ...(landingDrawn === undefined ? {} : { landingDrawn }) });
+    const bearsCard = { ...card(9, 0), card: { ...card(9, 0).card, power: '2', toughness: '2' } };
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [{ ...item(41, 9), isAbility: false }]));
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9"></li>');
+    const bears = canvas.querySelector<HTMLElement>('[data-board-card="9"]')!;
+    bears.getBoundingClientRect = () => rect({ left: 700, top: 500, width: 60, height: 84 });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0), bearsCard] }), player(1, 20)]));
+    return { overlay, bears, handle };
+  }
+
+  it('a creature spell nobody played resolving (cascade’s, the AI’s) lands from where the stack drew it', async () => {
+    vi.useFakeTimers();
+    const { overlay, bears, handle } = resolveBears();
+    const entry = overlay.querySelector<HTMLElement>('.board-entry[data-entry="cast"]');
+    expect(entry, 'a cast stand-in').not.toBeNull();
+    expect(bears.style.visibility, 'the row card hidden behind it').toBe('hidden');
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(bears.style.visibility, 'shown once it has landed').toBe('');
+    handle.dispose();
+  });
+
+  it('a card a seat’s play lands itself is left to that play: no second entry', () => {
+    vi.useFakeTimers();
+    const asked: number[] = [];
+    const { overlay, bears, handle } = resolveBears((id) => {
+      asked.push(id);
+      return true;
+    });
+    expect(asked).toEqual([9]);
+    expect(overlay.querySelector('.board-entry'), 'nothing drawn here').toBeNull();
+    expect(bears.hasAttribute('data-arriving-from')).toBe(false);
+    handle.dispose();
+  });
+
+  it('a land’s ability hits in the colour its mana is: Valakut’s damage is red', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const valakut = {
+      ...card(8, 0).card,
+      name: 'Valakut, the Molten Pinnacle',
+      typeLine: 'Land',
+      colors: [],
+      oracleText: 'Valakut, the Molten Pinnacle enters tapped.\nWhenever a Mountain you control enters, if you control at least five other Mountains, you may have Valakut, the Molten Pinnacle deal 3 damage to any target.\n{T}: Add {R}.',
+    };
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [{ ...item(40, 8), sourceCard: valakut }]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 17)]));
+    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.colour).toBe('R');
+    handle.dispose();
+  });
+
+  it('reduced motion: nothing travels — the number appears in place, with no flash on the face', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay, face } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => true, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+    expect(overlay.querySelector('.effect-hit')).toBeNull();
+    expect(face.hasAttribute('data-hit-flash')).toBe(false);
+    expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
+    handle.dispose();
+  });
+});
+
+describe('diffViews: Forge’s own hits and what left the battlefield', () => {
+  it('a view’s hits are the ones above the last seq already seen, on a card that was or is on a battlefield', () => {
+    const before = { ...view([player(0, 20, { battlefield: [card(7, 0), card(9, 0)] }), player(1, 20)]), hits: [{ seq: 1, cardId: 7, sourceId: 40, amount: 2 }] };
+    const after = {
+      ...view([player(0, 20, { battlefield: [card(9, 0)], graveyard: [card(7, 0)] }), player(1, 20)]),
+      hits: [
+        { seq: 1, cardId: 7, sourceId: 40, amount: 2 },
+        { seq: 2, cardId: 7, sourceId: 41, amount: 3 },
+        { seq: 3, cardId: 9, sourceId: null, amount: 1 },
+        { seq: 4, cardId: 99, sourceId: 41, amount: 1 },
+      ],
+    };
+    expect(diffViews(before, after).hits.map((h) => h.seq), 'seq 1 was drawn already; card 99 was never on a battlefield').toEqual([2, 3]);
+  });
+
+  it('a permanent that left every battlefield is a departure, wherever it went; one that changed control is not', () => {
+    const before = view([player(0, 20, { battlefield: [card(7, 0), card(8, 0), card(9, 0), card(10, 0)] }), player(1, 20)]);
+    const after = view([
+      { ...player(0, 20, { graveyard: [card(7, 0)] }), exile: [card(8, 0)] },
+      player(1, 20, { battlefield: [card(10, 0)] }),
+    ]);
+    expect(diffViews(before, after).departures.map((d) => [d.cardId, d.to, d.toPlayerId, d.index])).toEqual([
+      [7, 'graveyard', 0, 0],
+      [8, 'exile', 0, 1],
+      [9, 'gone', 0, 2],
+    ]);
+  });
+});
+
+describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', () => {
+  /** Two of my creatures, 7 and 9, and Slagstorm (item 40, card 131) drawn on the stack. */
+  function sweeperBoard(): { canvas: HTMLElement; overlay: HTMLElement } {
+    const { canvas } = board();
+    const field = canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!;
+    field.querySelector('[data-card-id="7"]')!.setAttribute('data-board-card', '7');
+    field.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9"><span class="board-card__pt"></span></li>');
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    overlay.insertAdjacentHTML('beforeend', '<div data-placed-spell="40"></div>');
+    overlay.querySelector<HTMLElement>('[data-placed-spell="40"]')!.getBoundingClientRect = () => rect({ left: 450, top: 350, width: 96, height: 134 });
+    return { canvas, overlay };
+  }
+
+  /** What `Board.tsx` draws in the commit Forge's frame lands in: each creature's place kept as a gap. */
+  function keepPlaces(canvas: HTMLElement): void {
+    for (const [id, left] of [
+      [7, 300],
+      [9, 380],
+    ] as const) {
+      const gap = document.createElement('li');
+      gap.className = 'zone__gap';
+      gap.setAttribute(LEAVING_GAP_ATTR, String(id));
+      gap.getBoundingClientRect = () => rect({ left, top: 400, width: 60, height: 84 });
+      canvas.querySelector(`[data-board-card="${id}"]`)!.replaceWith(gap);
+    }
+  }
+
+  const before = withStack(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0), card(9, 0)] }), player(1, 20)]), [
+    { ...item(40, 131), isAbility: false, sourceCard: { ...card(131, 0).card, name: 'Slagstorm', colors: ['R'] } },
+  ]);
+  const after: BoardView = {
+    ...view([player(0, 20, { isViewer: true, graveyard: [card(7, 0), card(9, 0)] }), player(1, 20)]),
+    hits: [
+      { seq: 1, cardId: 7, sourceId: 131, amount: 3 },
+      { seq: 2, cardId: 9, sourceId: 131, amount: 3 },
+    ],
+  };
+
+  it('a commit that resolves nothing reads no spell box: every read of one forces the browser to lay out the commit', () => {
+    const { canvas, overlay } = sweeperBoard();
+    let reads = 0;
+    overlay.querySelector<HTMLElement>('[data-placed-spell="40"]')!.getBoundingClientRect = () => {
+      reads += 1;
+      return rect({ left: 450, top: 350, width: 96, height: 134 });
+    };
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(before);
+    for (let i = 0; i < 3; i += 1) handle.noteStack(before);
+    expect(reads, 'Slagstorm waits on the stack through four commits').toBe(0);
+    handle.notify(after);
+    expect(reads, 'it resolves: its box is where its fireballs leave from').toBe(1);
+    handle.dispose();
+  });
+
+  it('a red fireball flies at once to each creature and slams into it (no number); each is destroyed the moment its own hit lands — and the spell fades only after', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sweeperBoard();
+    const left: [Departure, number][] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (batch) => batch.forEach(({ departure: d, delayMs: ms }) => left.push([d, ms])) });
+    handle.notify(before);
+    keepPlaces(canvas);
+    const at = Date.now();
+    handle.notify(after);
+
+    const ball = overlay.querySelector<HTMLElement>('.effect-hit');
+    expect(ball?.dataset.hit, 'the first fireball leaves the spell at once: no blink first').toBe('card:7:1');
+    expect(ball?.dataset.colour, 'in Slagstorm’s colour').toBe('R');
+    expect(left.map(([d, ms]) => [d.cardId, d.to, d.cause, ms]), 'each goes as its own fireball lands (`strike`), killed by damage — its due time, a little late, only should that never come').toEqual([
+      [7, 'graveyard', 'damage', HIT_MS + STRIKE_SLACK_MS],
+      [9, 'graveyard', 'damage', BOLT_STAGGER_MS + HIT_MS + STRIKE_SLACK_MS],
+    ]);
+    expect(takeResolutionEffects(40), 'the spell fades once the last creature is gone').toBe(at + BOLT_STAGGER_MS + HIT_MS + EXIT_MOTIONS.shatter.ms);
+
+    vi.advanceTimersByTime(HIT_MS);
+    expect(canvas.querySelector(`[${LEAVING_GAP_ATTR}="7"]`)!.hasAttribute('data-hit-flash'), 'no copy drawn in this test: its place flashes').toBe(true);
+    expect([...overlay.querySelectorAll<HTMLElement>('.effect-impact')].map((n) => [n.dataset.impact, n.dataset.colour]), 'it slams in').toEqual([['card:7:1', 'R']]);
+    vi.advanceTimersByTime(BOLT_STAGGER_MS);
+    expect([...overlay.querySelectorAll<HTMLElement>('.effect-impact')].map((n) => n.dataset.impact)).toEqual(['card:7:1', 'card:9:2']);
+    expect(overlay.querySelector('.board-number'), 'no number on a creature: the impact is the hit').toBeNull();
+    handle.dispose();
+  });
+
+  it('each fireball is heard as it slams in: its own hit, in the spell’s colour, as heavy as its damage, on the caster’s side', () => {
+    vi.useFakeTimers();
+    const { canvas } = sweeperBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(before, [{ ...before.stack[0]!, controllerName: 'P1' }]));
+    keepPlaces(canvas);
+    const now = Date.now();
+    handle.notify(after);
+    const hits = boardSoundsAt(1).filter((s) => s.role === 'g.spell-hit');
+    expect(hits.map((s) => [s.role, s.at - now, s.intensity, s.mine, s.colourCell]), 'one hit per fireball, in Slagstorm’s red').toEqual([
+      ['g.spell-hit', HIT_MS, damagePower(3), false, 'R|spell'],
+      ['g.spell-hit', BOLT_STAGGER_MS + HIT_MS, damagePower(3), false, 'R|spell'],
+    ]);
+    handle.dispose();
+  });
+
+  it('destroyed with no damage (no hits): the creatures go at once, while the spell waits on the stack', () => {
+    vi.useFakeTimers();
+    const { canvas } = sweeperBoard();
+    const left: [number, number, string | undefined][] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (batch) => batch.forEach(({ departure: d, delayMs: ms }) => left.push([d.cardId, ms, d.cause])) });
+    handle.notify(before);
+    keepPlaces(canvas);
+    handle.notify({ ...after, hits: [] });
+    expect(left, 'no cause: destroyed, so sliced').toEqual([
+      [7, 0, undefined],
+      [9, 0, undefined],
+    ]);
+    handle.dispose();
+  });
+
+  it('a wipe in two views (measured, Blasphemous Act): a creature that leaves in the later one, with no hits, still goes as its own fireball lands, and that fireball is drawn at its kept place', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sweeperBoard();
+    const left: [number, number, string | undefined][] = [];
+    const struck: number[] = [];
+    const handle = installNumbers(canvas, {
+      reducedMotion: () => false,
+      fastMode: () => false,
+      leave: (batch) => batch.forEach(({ departure: d, delayMs: ms }) => left.push([d.cardId, ms, d.cause])),
+      strike: (id) => struck.push(id),
+    });
+    handle.notify(before);
+    // The resolution's view: both hits, and only 7 died in it.
+    const resolved: BoardView = { ...view([player(0, 20, { isViewer: true, battlefield: [card(9, 0)], graveyard: [card(7, 0)] }), player(1, 20)]), hits: after.hits };
+    const gap = document.createElement('li');
+    gap.setAttribute(LEAVING_GAP_ATTR, '7');
+    gap.getBoundingClientRect = () => rect({ left: 300, top: 400, width: 60, height: 84 });
+    canvas.querySelector('[data-board-card="7"]')!.replaceWith(gap);
+    handle.notify(resolved);
+    // 9 dies in the next view, 80 ms on, which carries no hits: its row card is replaced by its kept gap.
+    vi.advanceTimersByTime(80);
+    const gap9 = document.createElement('li');
+    gap9.setAttribute(LEAVING_GAP_ATTR, '9');
+    gap9.getBoundingClientRect = () => rect({ left: 380, top: 400, width: 60, height: 84 });
+    canvas.querySelector('[data-board-card="9"]')!.replaceWith(gap9);
+    handle.notify({ ...after, hits: [] });
+    expect(left, 'each waits on its own fireball, killed by damage').toEqual([
+      [7, HIT_MS + STRIKE_SLACK_MS, 'damage'],
+      [9, BOLT_STAGGER_MS + HIT_MS - 80 + STRIKE_SLACK_MS, 'damage'],
+    ]);
+    vi.advanceTimersByTime(BOLT_STAGGER_MS - 80);
+    expect(overlay.querySelector<HTMLElement>('.effect-hit[data-hit="card:9:2"]'), 'its fireball flies, at its kept place').not.toBeNull();
+    expect(struck, 'nothing has landed yet').toEqual([]);
+    vi.advanceTimersByTime(HIT_MS);
+    expect(canvas.querySelector(`[${LEAVING_GAP_ATTR}="9"]`)!.hasAttribute('data-hit-flash'), 'and lands there').toBe(true);
+    expect(struck, 'each death starts on its own impact').toEqual([7, 9]);
+    handle.dispose();
+  });
+
+  it('Forge’s cause wins over the reading of the hits: a creature Forge says was sacrificed is not taken for destroyed', () => {
+    vi.useFakeTimers();
+    const { canvas } = sweeperBoard();
+    const left: [number, string | undefined][] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (batch) => batch.forEach(({ departure: d }) => left.push([d.cardId, d.cause])) });
+    handle.notify(before);
+    keepPlaces(canvas);
+    handle.notify({ ...after, hits: [], deathCauses: new Map([[7, 'SACRIFICED'], [9, 'DESTROYED']]) });
+    expect(left).toEqual([
+      [7, 'sacrificed'],
+      [9, 'destroyed'],
+    ]);
+    handle.dispose();
+  });
+
+  it('Fast Mode: nothing waits to leave', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sweeperBoard();
+    const left: [number, number][] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => true, leave: (batch) => batch.forEach(({ departure: d, delayMs: ms }) => left.push([d.cardId, ms])) });
+    handle.notify(before);
+    keepPlaces(canvas);
+    handle.notify(after);
+    expect(overlay.querySelector<HTMLElement>('.effect-hit')?.dataset.hit, 'the first hit leaves at once').toBe('card:7:1');
+    expect(left).toEqual([
+      [7, 0],
+      [9, 0],
+    ]);
+    handle.dispose();
+  });
+});
+
+describe('installNumbers: combat damage', () => {
+  it('a hit with nothing resolving and no ram to draw is a crash at the creature — dust and rocks, no fireball, no number', () => {
+    const { canvas } = board();
+    canvas.querySelector('[data-card-id="7"]')!.setAttribute('data-board-card', '7');
+    canvas.querySelector<HTMLElement>('[data-board-card="7"]')!.getBoundingClientRect = () => rect({ left: 300, top: 400, width: 60, height: 84 });
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = { ...card(50, 0), card: { ...card(50, 0).card, colors: ['G' as const] } };
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(7, 0)] }), player(1, 20, { battlefield: [attacker] })]));
+    handle.notify({
+      ...view([player(0, 20, { isViewer: true, battlefield: [card(7, 2)] }), player(1, 20, { battlefield: [attacker] })]),
+      hits: [{ seq: 1, cardId: 7, sourceId: 50, amount: 2 }],
+    });
+    expect(overlay.querySelector('.effect-hit'), 'no fireball between creatures').toBeNull();
+    expect(overlay.querySelector('.effect-impact'), 'no fire').toBeNull();
+    expect(overlay.querySelector<HTMLElement>('.effect-crash')?.dataset.crash).toBe('card:7:1');
+    expect(overlay.querySelectorAll('.effect-crash__rock').length, 'rocks thrown').toBeGreaterThan(0);
+    expect(overlay.querySelector('.board-number')).toBeNull();
+    handle.dispose();
+  });
+});
+
+/*
+ * The operator, 2026-11-01, of trailer cut 3's Ghoul: "the crack looks ugly. but something i would have
+ * liked is the actual player avatar moving a bit from the impact. currently it doesn't move at all".
+ * A charge on a player cracks nothing (the crack is a landing's alone) and recoils the struck face's
+ * avatar, away from its attacker, on the blow's own frame, as hard as the blow.
+ */
+describe('installNumbers: a charge on a player', () => {
+  type Played = { el: Element; frames: Keyframe[]; options: KeyframeAnimationOptions };
+  /** Attackers 50, 51, … charge player 0 for `amounts`; the clock stops `at` ms in (default: just past the first blow). */
+  function charge(amounts: number[], at = RAM_STAGGER_MS + contactMs('charge') + 50): { played: Played[]; canvas: HTMLElement; dispose: () => void } {
+    vi.useFakeTimers();
+    const played: Played[] = [];
+    // jsdom has no Web Animations: a stand-in that records what is played and never finishes.
+    Element.prototype.animate = function (this: Element, frames: Keyframe[] | PropertyIndexedKeyframes | null, options?: number | KeyframeAnimationOptions) {
+      played.push({ el: this, frames: frames as Keyframe[], options: options as KeyframeAnimationOptions });
+      return { finished: new Promise(() => undefined), cancel: () => undefined, effect: null } as unknown as Animation;
+    };
+    const { canvas } = board();
+    canvas.querySelector('[data-player-face][data-player-id="0"]')!.insertAdjacentHTML('afterbegin', '<span class="face__avatar"></span>');
+    const theirs = canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!;
+    amounts.forEach((_, i) => {
+      theirs.insertAdjacentHTML('beforeend', `<li class="board-card" data-card-id="${50 + i}" data-board-card="${50 + i}"></li>`);
+      theirs.querySelector<HTMLElement>(`[data-board-card="${50 + i}"]`)!.getBoundingClientRect = () => rect({ left: 400 + 70 * i, top: 200, width: 60, height: 84 });
+    });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attackers = amounts.map((_, i) => ({ ...card(50 + i, 0), attacking: true }));
+    const total = amounts.reduce((a, b) => a + b, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: attackers })]));
+    handle.notify({
+      ...view([player(0, 20 - total, { isViewer: true }), player(1, 20, { battlefield: attackers })]),
+      faceHits: amounts.map((amount, i) => ({ seq: i + 1, playerId: 0, sourceId: 50 + i, amount, combat: true })),
+    });
+    vi.advanceTimersByTime(at);
+    return {
+      played,
+      canvas,
+      dispose: () => {
+        handle.dispose();
+        delete (Element.prototype as Partial<Element>).animate;
+        vi.useRealTimers();
+      },
+    };
+  }
+
+  it.each([7, 18])('a %i-damage charge on a player cracks nothing', (amount) => {
+    const { canvas, played, dispose } = charge([amount]);
+    expect(canvas.querySelector('.effect-crash[data-crash="crash:50"]'), 'the blow landed').not.toBeNull();
+    expect(played.some((p) => p.el === canvas && p.options.composite === 'add'), 'it shook the table').toBe(true);
+    expect(canvas.querySelectorAll('.board-entry__crackle')).toHaveLength(0);
+    dispose();
+  });
+
+  it('the struck avatar recoils away from its attacker, on the blow, and further the heavier the blow', () => {
+    const push = (amount: number): number => {
+      const { played, dispose } = charge([amount]);
+      const mine = played.filter((p) => p.el.matches('[data-player-id="0"] .face__avatar'));
+      dispose();
+      expect(mine, `${amount}: one recoil`).toHaveLength(1);
+      expect(mine[0]!.options.id).toBe('recoil:crash:50');
+      const peak = /(-?[\d.]+)px (-?[\d.]+)px/.exec(String(mine[0]!.frames[1]!.translate))!;
+      const [x, y] = [Number(peak[1]), Number(peak[2])];
+      // The attacker stands up and right of the face (430,242 → 130,730): pushed down and left.
+      expect(x, `${amount}: pushed left`).toBeLessThan(0);
+      expect(y, `${amount}: pushed down`).toBeGreaterThan(0);
+      return Math.hypot(x, y);
+    };
+    const light = push(1);
+    const heavy = push(18);
+    expect(light, 'a poke barely nudges').toBeLessThan(3);
+    expect(heavy, 'a big blow shoves further').toBeGreaterThan(3 * light);
+    expect(heavy, 'never off the bar').toBeLessThanOrEqual(12);
+  });
+
+  it('a multi-attack recoils the avatar once per blow, each on its own blow, the strongest last', () => {
+    const recoils = (at: number): string[] => {
+      const { played, dispose } = charge([10, 1, 18, 4], at);
+      dispose();
+      return played.filter((p) => p.el.matches('.face__avatar')).map((p) => String(p.options.id));
+    };
+    // `planRams` sends them weakest first, a stagger apart: 51 (1), 53 (4), 50 (10), 52 (18).
+    const plan = planRams([], [10, 1, 18, 4].map((amount, i) => ({ seq: i + 1, playerId: 0, sourceId: 50 + i, amount, combat: true })), () => true);
+    expect(plan.rams.map((r) => r.sourceId)).toEqual([51, 53, 50, 52]);
+    const blow = (n: number): number => plan.rams[n]!.delayMs + contactMs('charge');
+    expect(recoils(blow(0) - 1), 'nothing before the first blow').toEqual([]);
+    expect(recoils(blow(0)), 'the 1 at its blow').toEqual(['recoil:crash:51']);
+    expect(recoils(blow(3)), 'all four, in turn').toEqual(['recoil:crash:51', 'recoil:crash:53', 'recoil:crash:50', 'recoil:crash:52']);
+  });
+});
+
+describe('planRams', () => {
+  const hit = (seq: number, cardId: number, sourceId: number | null) => ({ seq, cardId, sourceId, amount: 2 });
+  const face = (seq: number, playerId: number, sourceId: number | null, combat = true) => ({ seq, playerId, sourceId, amount: 3, combat });
+  const anyone = (): boolean => true;
+
+  it('an attacker and its blocker that hit each other meet, at one time, and both hits land as they strike', () => {
+    const { rams, hitAt } = planRams([hit(1, 20, 10), hit(2, 10, 20)], [], anyone);
+    expect(rams).toEqual([
+      { sourceId: 10, kind: 'meet', target: { cardId: 20 }, delayMs: 0, amount: 2, power: damagePower(2) },
+      { sourceId: 20, kind: 'meet', target: { cardId: 10 }, delayMs: 0, amount: 2, power: damagePower(2) },
+    ]);
+    expect([hitAt.get(1), hitAt.get(2)]).toEqual([contactMs('meet'), contactMs('meet')]);
+  });
+
+  it('a pair that meets arrives together, at the pace of the heavier blow', () => {
+    const { rams, hitAt } = planRams([hit(1, 20, 10), { seq: 2, cardId: 10, sourceId: 20, amount: 5 }], [], anyone);
+    expect(rams.map((r) => r.power)).toEqual([damagePower(5), damagePower(5)]);
+    expect(hitAt.get(1)).toBe(hitAt.get(2));
+  });
+
+  it('an unblocked attacker charges its player; a creature hit by one that is not hit back is struck; each next ram a stagger later', () => {
+    const { rams, hitAt } = planRams([hit(1, 20, 11)], [face(2, 1, 10)], anyone);
+    expect(rams.map((r) => [r.sourceId, r.kind, r.target, r.delayMs])).toEqual([
+      [11, 'strike', { cardId: 20 }, 0],
+      [10, 'charge', { playerId: 1 }, RAM_STAGGER_MS],
+    ]);
+    expect(hitAt.get(1)).toBe(contactMs('strike'));
+    expect(hitAt.get(2)).toBe(RAM_STAGGER_MS + contactMs('charge'));
+  });
+
+  it('a multi-attack goes in order of strength, the strongest last; ties in the order Forge dealt them; a pair that meets by its heavier', () => {
+    // The operator, 2026-10-31: "when handling a multi-attack scenario have the creature attack in order of strength with the strongest creatures hitting at the end."
+    const at = (seq: number, sourceId: number, amount: number) => ({ seq, playerId: 1, sourceId, amount, combat: true });
+    const { rams, hitAt } = planRams([], [at(1, 10, 5), at(2, 11, 1), at(3, 12, 9), at(4, 13, 3), at(5, 14, 3)], anyone);
+    expect(rams.map((r) => [r.sourceId, r.amount, r.delayMs])).toEqual([
+      [11, 1, 0],
+      [13, 3, RAM_STAGGER_MS],
+      [14, 3, 2 * RAM_STAGGER_MS],
+      [10, 5, 3 * RAM_STAGGER_MS],
+      [12, 9, 4 * RAM_STAGGER_MS],
+    ]);
+    expect(hitAt.get(3), 'the 9 lands last').toBe(4 * RAM_STAGGER_MS + contactMs('charge'));
+    // A 2 that meets a 6 goes as a 6: after a lone 4, before nothing heavier.
+    const fight = planRams([{ seq: 1, cardId: 20, sourceId: 10, amount: 2 }, { seq: 2, cardId: 10, sourceId: 20, amount: 6 }], [at(3, 11, 4)], anyone);
+    expect(fight.rams.map((r) => [r.sourceId, r.delayMs])).toEqual([
+      [11, 0],
+      [10, RAM_STAGGER_MS],
+      [20, RAM_STAGGER_MS],
+    ]);
+  });
+
+  it('an attacker that hits a planeswalker or a battle charges it, as it would a player', () => {
+    const walker = 30;
+    const { rams, hitAt } = planRams([hit(1, walker, 10), hit(2, 20, 11)], [], anyone, (id) => id !== walker);
+    expect(rams.map((r) => [r.sourceId, r.kind, r.target])).toEqual([
+      [10, 'charge', { cardId: walker }],
+      [11, 'strike', { cardId: 20 }],
+    ]);
+    expect(hitAt.get(1)).toBe(contactMs('charge'));
+  });
+
+  it('a trampler rams its blocker, and its damage to the player lands as it strikes', () => {
+    const { rams, hitAt } = planRams([hit(1, 20, 10)], [face(2, 1, 10)], anyone);
+    expect(rams, 'as hard as its heaviest hit: the 3 to the player').toEqual([{ sourceId: 10, kind: 'strike', target: { cardId: 20 }, delayMs: 0, amount: 3, power: damagePower(3) }]);
+    expect(hitAt.get(2)).toBe(contactMs('strike'));
+  });
+
+  it('no ram for a hit with no source, a source not drawn on a battlefield, or damage to a player outside combat', () => {
+    const { rams, hitAt } = planRams([hit(1, 20, null), hit(2, 21, 99)], [face(3, 1, 10, false)], (id) => id !== 99);
+    expect(rams).toEqual([]);
+    expect(hitAt.size).toBe(0);
+  });
+});
+
+describe('ramEnd', () => {
+  it('both die: they crumple into each other; only it: blasted away; only the other: it wins; neither: a bounce; a player: a charge', () => {
+    expect(ramEnd('meet', true, true)).toBe('crumple');
+    expect(ramEnd('meet', true, false)).toBe('blasted');
+    expect(ramEnd('meet', false, true)).toBe('win');
+    expect(ramEnd('meet', false, false)).toBe('bounce');
+    expect(ramEnd('strike', false, true)).toBe('win');
+    expect(ramEnd('charge', false, false)).toBe('charge');
+  });
+});
+
+describe('installNumbers: a ram', () => {
+  it('a player charged by an attacker loses the life as the attacker strikes — the counter holds until then', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    canvas.querySelector<HTMLElement>('[data-board-card="50"]')!.getBoundingClientRect = () => rect({ left: 300, top: 100, width: 60, height: 84 });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = card(50, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]));
+    handle.notify({
+      ...view([player(0, 17, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]),
+      faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 3, combat: true }],
+    });
+    const life = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
+    expect(life.textContent, 'still what it was while the attacker is on its way').toBe('20');
+    // The blow draws before its number, though both are due at the same moment.
+    const crashOnLanding: boolean[] = [];
+    const set = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!.set!;
+    Object.defineProperty(life, 'textContent', {
+      configurable: true,
+      get: () => Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!.get!.call(life),
+      set: (v: string) => {
+        crashOnLanding.push(canvas.querySelector('.effect-crash') !== null);
+        set.call(life, v);
+      },
+    });
+    expect(lifeImpactAt(1), "the life sound waits for the blow").toBe(Date.now() + contactMs('charge'));
+    vi.advanceTimersByTime(contactMs('charge'));
+    expect(canvas.querySelector<HTMLElement>('.effect-crash')?.dataset.crash, 'the blow crashes on the avatar').toBe('crash:50');
+    expect(life.textContent, 'the blow lands the counter whole').toBe('17');
+    expect(crashOnLanding, 'the counter moved once, after the crash was drawn').toEqual([true]);
+    handle.dispose();
+  });
+
+  it('a lifelink creature’s hit raises its controller’s life as it strikes, same as the target’s falls — a heal mote travels to the gaining face', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="50"></li>');
+    canvas.querySelector<HTMLElement>('[data-board-card="50"]')!.getBoundingClientRect = () => rect({ left: 300, top: 700, width: 60, height: 84 });
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = { ...card(50, 0), keywords: ['Lifelink'] };
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [attacker] }), player(1, 20)]));
+    handle.notify({
+      ...view([player(0, 23, { isViewer: true, battlefield: [attacker] }), player(1, 17)]),
+      faceHits: [{ seq: 1, playerId: 1, sourceId: 50, amount: 3, combat: true }],
+    });
+
+    const life0 = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
+    const life1 = canvas.querySelector('[data-player-face][data-player-id="1"] [data-testid="life"]')!;
+    expect(life0.textContent, 'the gain waits for the strike, same as the loss').toBe('20');
+    expect(life1.textContent).toBe('20');
+
+    vi.advanceTimersByTime(contactMs('charge'));
+    expect(overlay.querySelector('[data-projectile="heal"]'), 'a heal mote left the lifelinker as it struck').not.toBeNull();
+    expect(life0.textContent, 'still rising, not before the blow').toBe('20');
+
+    vi.advanceTimersByTime(HIT_MS);
+    expect(life0.textContent, 'the controller’s life rose').toBe('23');
+    expect(life1.textContent, 'the struck player’s life fell, same as any other hit').toBe('17');
+    handle.dispose();
+  });
+
+  it('a charge plays its whoosh as it launches, once turned to face the player, and its damage tier’s impact on the blow, as heavy as the damage, on the attacker’s side', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = card(50, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]));
+    const now = Date.now();
+    handle.notify({
+      ...view([player(0, 17, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]),
+      faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 3, combat: true }],
+    });
+    expect(boardSoundsAt(1).map((s) => [s.role, s.at - now, s.intensity, s.mine])).toEqual([
+      ['g.impact.3', contactMs('charge'), damagePower(3), false],
+      // The charge sounds as it launches, out of its wind-up.
+      ['g.charge', ALIGN_MS + windUpOf(entryWeight(3).power).ms, damagePower(3), false],
+    ]);
+    handle.dispose();
+  });
+
+  it('a charge into a planeswalker is its own blow, not a player’s', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="30" data-card-id="30"></li>');
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = card(50, 0);
+    const walker = { ...card(30, 0), card: { ...card(30, 0).card, typeLine: 'Legendary Planeswalker — Jace' } };
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [walker] }), player(1, 20, { battlefield: [attacker] })]));
+    handle.notify({
+      ...view([player(0, 20, { isViewer: true, battlefield: [walker] }), player(1, 20, { battlefield: [attacker] })]),
+      hits: [{ seq: 1, cardId: 30, sourceId: 50, amount: 3 }],
+    });
+    expect(boardSoundsAt(1).map((s) => s.role)).toEqual(['g.walker-hit', 'g.charge']);
+    handle.dispose();
+  });
+
+  it('a charge of 5 or more brings the crowd in on the blow, by its own tier', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = card(50, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]));
+    const now = Date.now();
+    handle.notify({
+      ...view([player(0, 12, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]),
+      faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 8, combat: true }],
+    });
+    expect(boardSoundsAt(1).map((s) => [s.role, s.at - now])).toEqual([
+      ['g.impact.7', contactMs('charge')],
+      ['g.cheer.7', contactMs('charge')],
+      ['g.charge', ALIGN_MS + windUpOf(entryWeight(8).power).ms],
+    ]);
+    handle.dispose();
+  });
+
+  it('several attackers at one player: ONE number counts up as each blow lands, bumping on each, and the counter steps with it to the real total', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const ids = [50, 51, 52];
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = ids.map((id) => `<li class="board-card" data-board-card="${id}"></li>`).join('');
+    ids.forEach((id, i) => (canvas.querySelector<HTMLElement>(`[data-board-card="${id}"]`)!.getBoundingClientRect = () => rect({ left: 300 + i * 80, top: 100, width: 60, height: 84 })));
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attackers = ids.map((id) => card(id, 0));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: attackers })]));
+    handle.notify({
+      ...view([player(0, 13, { isViewer: true }), player(1, 20, { battlefield: attackers })]),
+      faceHits: [
+        { seq: 1, playerId: 0, sourceId: 50, amount: 1, combat: true },
+        { seq: 2, playerId: 0, sourceId: 51, amount: 4, combat: true },
+        { seq: 3, playerId: 0, sourceId: 52, amount: 2, combat: true },
+      ],
+    });
+    const life = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
+    const numbers = (): HTMLElement[] => [...overlay.querySelectorAll<HTMLElement>('.board-number')];
+    expect(numbers(), 'nothing before the first blow').toHaveLength(0);
+
+    vi.advanceTimersByTime(contactMs('charge'));
+    expect(numbers().map((n) => n.textContent)).toEqual(['-1']);
+    const first = numbers()[0]!;
+    expect(first.dataset.numberRunning, 'it holds where it is while blows are still coming').toBeDefined();
+
+    vi.advanceTimersByTime(RAM_STAGGER_MS);
+    expect(numbers(), 'the same number, not a second one').toEqual([first]);
+    // The strongest last: the 2 before the 4.
+    expect(first.textContent).toBe('-3');
+    expect(first.dataset.numberBump, 'the change bumps').toBeDefined();
+    expect(life.textContent, 'the counter lands the second blow whole: 19 less 2, never a point at a time').toBe('17');
+
+    vi.advanceTimersByTime(RAM_STAGGER_MS);
+    expect(first.textContent).toBe('-7');
+    expect(first.dataset.numberRunning, 'the last blow is in: it rises').toBeUndefined();
+    expect(life.textContent, 'the last blow lands whole').toBe('13');
+    expect(first.dataset.numberPop, 'it lets go reading 7: a pop, then the rise').toBeDefined();
+    vi.advanceTimersByTime(POP_MS + RISE_MS - 1);
+    expect(numbers(), 'still rising').toEqual([first]);
+    vi.advanceTimersByTime(1);
+    expect(numbers(), 'gone once it has risen').toHaveLength(0);
+    handle.dispose();
+  });
+
+  it('the running number ends on what the life total says even when the hits add up to less: the rest lands as one more instance after the last blow', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li><li class="board-card" data-board-card="51"></li>';
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attackers = [card(50, 0), card(51, 0)];
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: attackers })]));
+    handle.notify({
+      ...view([player(0, 12, { isViewer: true }), player(1, 20, { battlefield: attackers })]),
+      faceHits: [
+        { seq: 1, playerId: 0, sourceId: 50, amount: 1, combat: true },
+        { seq: 2, playerId: 0, sourceId: 51, amount: 4, combat: true },
+      ],
+    });
+    const life = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
+    vi.advanceTimersByTime(contactMs('charge') + RAM_STAGGER_MS);
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-5']);
+    expect(life.textContent).toBe('15');
+    vi.advanceTimersByTime(RAM_STAGGER_MS);
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-8']);
+    expect(life.textContent).toBe('12');
+    handle.dispose();
+  });
+
+  it('Fast Mode: no ram, the life is lost at once', () => {
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => true });
+    const attacker = card(50, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]));
+    handle.notify({
+      ...view([player(0, 17, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]),
+      faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 3, combat: true }],
+    });
+    expect(canvas.querySelector('.effect-impact')).toBeNull();
+    handle.dispose();
+  });
+});
+
+/* Each length `numbers.css` animates over is one of the constants, set on the canvas as a `--*-ms` (`durations.test.ts`: the sheet restates none). */
+describe('installNumbers: the stylesheet reads its durations', () => {
+  const css = readFileSync(resolve(import.meta.dirname ?? 'games/magic/ui/src/play/live', 'numbers.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('the canvas carries every duration the sheet reads, from the constants', () => {
+    const { canvas } = board();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const read = [...new Set([...css.matchAll(/var\((--[\w-]+-ms)\)/g)].map((m) => m[1]!))];
+    expect(read.length).toBeGreaterThan(0);
+    for (const name of read) expect(canvas.style.getPropertyValue(name), name).toMatch(/^\d+ms$/);
+    expect(canvas.style.getPropertyValue('--rise-ms')).toBe(`${RISE_MS}ms`);
+    expect(canvas.style.getPropertyValue('--pop-ms')).toBe(`${POP_MS}ms`);
+    expect(canvas.style.getPropertyValue('--reveal-beat-ms')).toBe(`${REVEAL_BEAT_MS}ms`);
+    handle.dispose();
+  });
+});
+
+/*
+ * The operator, 2026-11-01, trailer cut 4's Blasphemous Act: thirteen creatures read `2/-12` while the fireballs
+ * were still in the air. A creature's damage is drawn as what hits it lands (`./damage-hold.ts`).
+ */
+describe('installNumbers: a creature’s damage waits for its hit', () => {
+  it('a creature hit by a bolt keeps its old damage drawn until the bolt lands', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-card-id="7"]')!.setAttribute('data-board-card', '7');
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    overlay.insertAdjacentHTML('beforeend', '<div data-placed-spell="40"></div>');
+    overlay.querySelector<HTMLElement>('[data-placed-spell="40"]')!.getBoundingClientRect = () => rect({ left: 450, top: 350, width: 96, height: 134 });
+    const holds: string[] = [];
+    const handle = installNumbers(canvas, {
+      reducedMotion: () => false,
+      fastMode: () => false,
+      holdDamage: (id, damage) => holds.push(`hold ${id}@${damage}`),
+      releaseDamage: (id) => holds.push(`release ${id}`),
+    });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(7, 1)] }), player(1, 20)]), [item(40, 131)]));
+    handle.notify({ ...view([player(0, 20, { isViewer: true, battlefield: [card(7, 4)] }), player(1, 20)]), hits: [{ seq: 1, cardId: 7, sourceId: 131, amount: 3 }] });
+    expect(holds, 'its damage before the bolt is held as the bolt sets off').toEqual(['hold 7@1']);
+    vi.advanceTimersByTime(HIT_MS - 1);
+    expect(holds, 'still in the air').toEqual(['hold 7@1']);
+    vi.advanceTimersByTime(1);
+    expect(holds, 'drawn as it lands').toEqual(['hold 7@1', 'release 7']);
+    handle.dispose();
+  });
+
+  it('a hit at a card this view never drew on a battlefield holds nothing', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const holds: string[] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, holdDamage: (id) => holds.push(`hold ${id}`), releaseDamage: (id) => holds.push(`release ${id}`) });
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify({ ...view([player(0, 20, { isViewer: true }), player(1, 20)]), hits: [{ seq: 1, cardId: 99, sourceId: 131, amount: 3 }] });
+    vi.advanceTimersByTime(HIT_MS * 2);
+    expect(holds).toEqual([]);
+    handle.dispose();
+  });
+});

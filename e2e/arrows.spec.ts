@@ -25,7 +25,7 @@
  * `boardInteraction`'s "Players" section says so, and
  * `gestures.test.ts`'s own pinned test — "a player is a legal target for
  * the whole selection" — asserts the current, documented trade-off
- * directly). That data lives in `apps/ui/src/play/live/match.ts`, which is
+ * directly). That data lives in `games/magic/ui/src/play/live/match.ts`, which is
  * not this lane's file. `docs/planning/wave41-evidence/` has the real-Forge
  * reproduction for both.
  *

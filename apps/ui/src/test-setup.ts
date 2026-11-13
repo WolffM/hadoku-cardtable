@@ -11,13 +11,16 @@ import { APP_ID } from '../app-name.ts';
 
 configureShell({ appId: APP_ID });
 
-// Every UI test sees the game wired as the app wires it (`./composition.tsx`). Imported once the test file
+/** A test of the site's UI or of a game's (`games/<name>/ui`). */
+const UI_TEST = /\/(apps\/ui|games\/[^/]+\/ui)\/src\//;
+
+// Every UI test, the site's and Magic's (`games/magic/ui`), sees the game wired as the app wires it (`./composition.tsx`). Imported once the test file
 // has been, so the parts registered are the ones its own `vi.mock`s replaced. A file that replaced a
 // registering module outright (a factory with no `register…`) has opted out of that part, and of the ones after it:
 // `play/live/matchStart.test.ts` (route.ts, sound/index.ts), `screens/roomSounds.test.ts` and
 // `screens/gauntlet/sounds.test.ts` (sound/index.ts).
 beforeAll(async () => {
-  if (expect.getState().testPath?.includes('/apps/ui/src/') !== true) return;
+  if (!UI_TEST.test(expect.getState().testPath ?? '')) return;
   try {
     (await import('./composition.tsx')).composeGame();
   } catch (error) {

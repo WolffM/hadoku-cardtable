@@ -62,7 +62,7 @@ export function cardColors(raw: { colors?: unknown; layout?: unknown; card_faces
  *
  * `"{3}{W}{W}"` -> `['3','W','W']`, `"{X}{R}"` -> `['X','R']`,
  * `"{W/U}"` -> `['W/U']`. Deliberately tokens rather than a rendered string:
- * the renderer needs the pieces. `apps/ui/src/components/ManaPip.tsx` turns one
+ * the renderer needs the pieces. `games/magic/ui/src/components/ManaPip.tsx` turns one
  * token into one symbol, and a hybrid into Mana's two-half split — which is a
  * class per PART, so a pre-rendered `{W/U}` would have to be taken apart again.
  *
@@ -121,7 +121,7 @@ export function toDraftCard(card: GameplayCard, cardId: string): Record<string, 
     cardId,
     // Scryfall's id, so the BROWSER can derive an image URL. Not a URL, and not
     // their `image_uris` blob — see this file's header, and
-    // apps/ui/src/draft/cardImage.ts for the only place it becomes a URL.
+    // games/magic/ui/src/draft/cardImage.ts for the only place it becomes a URL.
     ...(typeof raw.id === 'string' ? { scryfallId: raw.id } : {}),
     ...(oracleId === undefined ? {} : { oracleId }),
     name: String(raw.name ?? front?.name ?? 'Unknown'),

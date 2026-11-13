@@ -558,7 +558,7 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
  * It is a named value rather than a spelled-out object because two callers need
  * exactly it and for the same reason: a seat that wants to CLICK its own lands.
  * `auto.test.ts` keeps every strict case of {@link decidePay} under it, and
- * `apps/ui/src/play/live/board-play.jvm.test.ts` runs its seats under it so
+ * `games/magic/ui/src/play/live/board-play.jvm.test.ts` runs its seats under it so
  * that step 3 — two Mountains untapped, one `{R}` to pay — is still a real
  * choice and is still paid by a click on a land. Under
  * {@link DEFAULT_STOP_POLICY} Forge's Auto settles that before a click can
@@ -678,7 +678,7 @@ function toggled(phases: readonly PhaseType[], phase: PhaseType, on: boolean): r
  * env hatch instead of the wire flag, so that route is gone; the flag is the
  * one path. `'everyPriority'` had no documented env-side use either — the
  * suites that still want wave 20's behaviour (`auto.test.ts`,
- * `apps/ui/src/play/live/*.jvm.test.ts`) import {@link EVERY_PRIORITY_POLICY}
+ * `games/magic/ui/src/play/live/*.jvm.test.ts`) import {@link EVERY_PRIORITY_POLICY}
  * directly, never through this hatch. Both constants are still exported and
  * still pinned by those suites; only the env NAME is gone, so
  * `CARDTABLE_PLAY_STOP_POLICY` answers to exactly the names a documented

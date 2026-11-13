@@ -392,7 +392,7 @@ test(
           const gap = at[k + 1]! - at[k]!;
           const owner = casters[casters.length - 1 - k]!;
           console.log(`[w59-chain] ${who} departure ${k} (${owner}'s Quicken) ${gap.toFixed(1)} ms after departure ${k - 1}`);
-          // The (k + 1)th Quicken to resolve this turn plays at its tempo (`apps/ui/src/play/live/tempo.ts`), its gap with it.
+          // The (k + 1)th Quicken to resolve this turn plays at its tempo (`games/magic/ui/src/play/live/tempo.ts`), its gap with it.
           const tempo = Math.min(2.5, 1 + 0.25 * k);
           if (owner !== who) expect(gap, `${who}: ${owner}'s Quicken's departure ${k} is spaced by the chain gap at its tempo`).toBeGreaterThanOrEqual(250 / tempo);
         }

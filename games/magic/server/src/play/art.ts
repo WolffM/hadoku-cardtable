@@ -4,7 +4,7 @@
  * `forge:art`. Read off the match's own spec: the `.dck` text each seat was started with, and the
  * scenario's `[state]` text. A seat on a random Forge precon (`deck: null`) names nothing here — the
  * bridge picks it inside the JVM — and its cards rely on the client's decode-before-flip guard alone
- * (`apps/ui/src/draft/cardImage.ts`'s `artReady`).
+ * (`games/magic/ui/src/draft/cardImage.ts`'s `artReady`).
  */
 import { parseDck } from '@hadoku/carddata/dck';
 

@@ -49,7 +49,7 @@ import type { GameBundleContext, GameBundleModule, MountedGameBundle } from './c
 import '@wolffm/themes/style.css';
 import '@wolffm/themes/icons.css';
 import '@wolffm/task-ui-components/controls.css';
-import '../styles.css';
+import '@hadoku/magic-ui/styles.css';
 import '@hadoku/ui-shell/chrome';
 
 // Every storage key, event name and chat prefix the shell writes is built from this.

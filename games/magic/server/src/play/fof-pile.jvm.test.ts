@@ -1,6 +1,6 @@
 /**
  * Fact or Fiction's pile choice, against real Forge — the shape
- * `rules.ts`'s `pileChoiceOf` (apps/ui/src/play/prompts/rules.ts) assumes:
+ * `rules.ts`'s `pileChoiceOf` (games/magic/ui/src/play/prompts/rules.ts) assumes:
  * `PlayerControllerHuman.chooseCardsPile` sends ONE flat `getChoices` list,
  * `[pile-1 header, ...pile1's cards, pile-2 header, ...pile2's cards]`, each
  * header a fake `CardView` at `Integer.MIN_VALUE`/`MIN_VALUE + 1`

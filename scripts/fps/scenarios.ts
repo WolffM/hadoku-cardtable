@@ -1,13 +1,13 @@
 /*
  * Board states and animation loops for the browser-fps harness, as Tier C `DeltaPacket`s.
  *
- * Everything starts from the committed real capture (`apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`,
+ * Everything starts from the committed real capture (`games/magic/ui/src/play/fixtures/tierc-game1-seq1-27.json`,
  * a real Forge match's first 27 packets). Bigger boards are that game plus one setup packet whose cards are
  * CLONES of the capture's own card and card-state objects — same properties, same tags, new ids — so every
  * value the client parses is one Forge really sent. What is synthetic: how many there are, and the deltas
  * the loops send (Tapped, Attacking, CombatView, Stack moves), each in the shape the capture uses.
  */
-import game1 from '../../apps/ui/src/play/fixtures/tierc-game1-seq1-27.json';
+import game1 from '../../games/magic/ui/src/play/fixtures/tierc-game1-seq1-27.json';
 
 type Tagged = Record<string, unknown>;
 type Obj = { _type: number; _id: number } & Record<string, unknown>;

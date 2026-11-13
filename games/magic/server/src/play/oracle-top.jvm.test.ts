@@ -3,7 +3,7 @@
  * opponent can see revealed top of deck, but i can't see it."* A fetchland's search asks with a `delayedReveal`
  * of the WHOLE library; kept as a reveal, the shuffle after it was unreadable (every card in it was looked at),
  * so the searcher went on knowing every card in its library — and the board, which reads a whole library known
- * as a search still open (`apps/ui/src/play/adapter.ts`, `knownTop`), drew no top for the owner while the
+ * as a search still open (`games/magic/ui/src/play/adapter.ts`, `knownTop`), drew no top for the owner while the
  * opponent, told only Oracle's top card, saw it. Against real Forge: alice cracks Misty Rainforest with Oracle
  * of Mul Daya out; after the shuffle each seat names exactly one card of her library, the top one.
  */

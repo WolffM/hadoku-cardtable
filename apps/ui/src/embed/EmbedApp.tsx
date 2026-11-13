@@ -43,7 +43,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HadokuThemeProvider, THEME_FAMILIES, type HadokuThemeValue } from '@wolffm/themes';
 
-import { roomsClient, type RoomBindClient } from '../rooms/api.ts';
+import { roomsClient, type RoomBindClient } from '@hadoku/magic-ui/rooms/api.ts';
 import { Screen } from '../screens/Screen.tsx';
 import { navigate, useRoute, type Route } from '@hadoku/game-ui/screens/route.ts';
 import { useUiScale } from '@hadoku/game-ui/settings/Settings.tsx';

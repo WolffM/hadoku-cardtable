@@ -34,7 +34,7 @@
 import { useEffect, useState } from 'react';
 
 import { AppHeader } from '@wolffm/task-ui-components';
-import { RouteLink } from './screens/BackLink.tsx';
+import { RouteLink } from '@hadoku/magic-ui/screens/BackLink.tsx';
 import { Screen, type ScreenProps } from './screens/Screen.tsx';
 import { useRoute } from '@hadoku/game-ui/screens/route.ts';
 import { setScreenMusic } from '@hadoku/game-ui/sound/index.ts';
@@ -43,8 +43,8 @@ import { HeaderLinks } from '@hadoku/game-ui/chrome/HeaderLinks.tsx';
 import { RoomShell } from '@hadoku/game-ui/room/RoomShell.tsx';
 import { SessionPrompt, sessionBlocks, useRoomSession } from '@hadoku/game-ui/room/SessionPrompt.tsx';
 import { useWhoami } from '@hadoku/game-ui/room/whoami.ts';
-import { knownRoomOfMatch, roomOfMatch } from './play/live/matchStart.ts';
-import { useJoined } from './rooms/joined.ts';
+import { knownRoomOfMatch, roomOfMatch } from '@hadoku/magic-ui/play/live/matchStart.ts';
+import { useJoined } from '@hadoku/magic-ui/rooms/joined.ts';
 import { CARDTABLE_SETTINGS_TABS, HostDrawsSettingsProvider, useUiScale } from '@hadoku/game-ui/settings/Settings.tsx';
 import { useTrim } from '@hadoku/game-ui/settings/siteTrim.ts';
 import { useSoundPrefs } from '@hadoku/ui-shell/sound';

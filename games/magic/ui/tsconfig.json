@@ -1,0 +1,20 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    // Bundler resolution, not nodenext: this package is bundled by the site's
+    // Vite (apps/ui), never run by Node. It is also what lets `import fixture from './x.json'` work
+    // without an import attribute, which is how the committed fixtures load.
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false,
+    "allowImportingTsExtensions": true,
+    "types": ["vite/client"]
+  },
+  // The site's build defines (`__HADOKU_UI_VERSION__` and the app name) are declared once, beside
+  // the build that defines them (apps/ui/build-defines.ts); Magic's board and clients read the version.
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../../../apps/ui/src/globals.d.ts"]
+}

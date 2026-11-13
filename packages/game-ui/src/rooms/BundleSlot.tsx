@@ -61,7 +61,7 @@ import { useHadokuTheme } from '@wolffm/themes';
 // layer, which is `magic` (most of its files are) — a platform file importing `@hadoku/shared`
 // at all is a `platform→magic` violation regardless of which symbol it names. `game-type-spec.ts`
 // is explicitly carved out as `platform` in `layers.json`, and a relative path resolves to that
-// ONE file's own classification instead — the same technique `apps/ui/src/play/art.testing.ts`
+// ONE file's own classification instead — the same technique `games/magic/ui/src/play/art.testing.ts`
 // already uses to reach `games/magic/server/src/http/card-art.ts`. Still one module and one registry:
 // `@hadoku/shared`'s package.json exports only `.` → `./src/index.ts`, which re-exports this same
 // file, so Vite and vitest resolve both paths to the identical module.

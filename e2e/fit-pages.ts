@@ -1,5 +1,5 @@
 /**
- * The UI's fit pages (`apps/ui/src/fit/*.html`), served by the app's own Vite: the e2e package carries
+ * The UI's fit pages (`games/magic/ui/src/fit/*.html`), served by the app's own Vite: the e2e package carries
  * no bundler of its own. And the check that a bundle is React's production build.
  *
  * Vite's dev server sets `process.env.NODE_ENV` to development in its whole process when it is unset,
@@ -85,7 +85,7 @@ export function assertProductionBundle(dir: string): void {
   if (dev.length > 0) throw new Error(`React's development build is bundled in ${dev.join(', ')}: NODE_ENV was not production when it was built`);
 }
 
-/** One fit page (`apps/ui/src/fit/<page>.html`) built for production with the app's config, checked, and previewed: for specs that time it. */
+/** One fit page (`games/magic/ui/src/fit/<page>.html`) built for production with the app's config, checked, and previewed: for specs that time it. */
 export async function buildFitPage(page: string): Promise<FitPages> {
   const v = await vite();
   const out = mkdtempSync(join(tmpdir(), `fit-${page}-`));

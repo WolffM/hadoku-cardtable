@@ -25,7 +25,7 @@ import { io as ioClient } from 'socket.io-client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { moveToMain } from '@hadoku/deck';
 
-import { deckFromPool, dckTextOf } from '../../../../../apps/ui/src/draft/deckFromPool.ts';
+import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import type { MatchReport } from '@wolffm/prefs-client/games';
 import type { ClientFrame } from '@hadoku/forge-wire';
 import { GAME_CLOCK_MS, type ClockSetting } from '@hadoku/shared';
@@ -61,8 +61,8 @@ import { magicView } from '../room/magic-view.js';
 const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
 const EDGE_SECRET = 'test-edge-auth-secret';
-// @reads decks/ apps/ui/src/draft/pool.json
-const CUBE_FILE = resolve(REPO_ROOT, 'apps/ui/src/draft/pool.json');
+// @reads decks/ games/magic/ui/src/draft/pool.json
+const CUBE_FILE = resolve(REPO_ROOT, 'games/magic/ui/src/draft/pool.json');
 
 /**
  * Real cross-era history, the way `library.test.ts`'s own "failure path"

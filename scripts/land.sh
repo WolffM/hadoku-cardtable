@@ -154,8 +154,8 @@ CHANGED=$(git diff --name-only origin/main..HEAD)
 # deleted module, which `related` cannot follow to the suites that still import it. The platform's
 # server and UI packages' source is the exception: it is the server's and the UI's own code, which
 # `related` follows through its `@hadoku/game-server/*` and `@hadoku/game-ui/*` imports as it did
-# when it lived in apps/server and apps/ui. Magic's server (`games/magic/server`) is not under a
-# `packages/` directory, so its source is `related`'s too.
+# when it lived in apps/server and apps/ui. Magic's server and UI (`games/magic/{server,ui}`) are not
+# under a `packages/` directory, so their source is `related`'s too.
 TESTS="pnpm run test"
 GONE=$({ grep -E '\.tsx?$' <<<"$CHANGED" || true; } | while read -r f; do [ -f "$f" ] || echo "$f"; done)
 if [ -z "$GONE" ] && ! { grep -vE '^packages/game-(server|ui)/src/' <<<"$CHANGED" || true; } | grep -qE -e '^(packages/|games/[^/]+/packages/|apps/ui/src/test-setup\.ts$)' -f <(grep -v '^#' scripts/ci/run-all.txt); then

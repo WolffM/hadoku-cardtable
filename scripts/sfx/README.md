@@ -79,7 +79,7 @@ its credit in `NOTICE.md`. `add-track.py` transcodes one into the server's sound
 catalogue's Music section; then place it on `music.lobby`, `music.match`, a colour's `music.match.<W|U|B|R|G>`
 or a pair's `music.match.<pair>` (the ten pairs spelled as `COLOUR_PAIRS`: WU UB BR RG GW WB UR BG RW GU)
 in `#/sounds`. A match plays the viewer's colour, their pair, one of the three pairs in a three-colour deck,
-or any of the fifteen for four or more (`apps/ui/src/sound/match-music.ts`). The
+or any of the fifteen for four or more (`games/magic/ui/src/sound/match-music.ts`). The
 operator drops new tracks in `~/.local/share/cardtable/ingest/` (outside every clone, so a deploy that swaps
 the clone leaves them where they are).
 
@@ -282,7 +282,7 @@ python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r11-i
 
 The operator, playtest 2026-10-24: a combat drum sound when combat is entered, not when it is skipped. `g.combat`
 ("Combat drums") plays once per combat, on both screens, when the attack is declared (`attackDeclared` in
-`apps/ui/src/play/live/sound-events.ts`: on the attacker's own screen it waits for the lock-in, not the first pick).
+`games/magic/ui/src/play/live/sound-events.ts`: on the attacker's own screen it waits for the lock-in, not the first pick).
 `round12-combat-drums.json` is eight short percussion phrases, deliberately varied (a "taiko war drums" music
 track is in the retired log); `finish.py` caps them at 2.6 s.
 

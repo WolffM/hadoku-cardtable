@@ -2,7 +2,7 @@
  * Nothing the server runs may reach a stylesheet.
  *
  * The server imports a few of the UI's own modules (the monkey drives a seat
- * with `apps/ui/src/play/live/match.ts`), and some of them run under plain
+ * with `games/magic/ui/src/play/live/match.ts`), and some of them run under plain
  * Node through tsx, which has no loader for `.css`: one `import './dice.css'`
  * anywhere down that graph is an ERR_UNKNOWN_FILE_EXTENSION before the first
  * line runs (hadoku-cardtable#17, forge-monkey red on main for a day). Vitest
@@ -11,7 +11,7 @@
  * This walks every runtime import (`import type` is erased, so it is skipped)
  * reachable from the server's source and names each chain that ends in a
  * `.css`. A state module that needs a drawing's helper takes it from a module
- * that imports no stylesheet (`apps/ui/src/play/live/shown.ts`).
+ * that imports no stylesheet (`games/magic/ui/src/play/live/shown.ts`).
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -66,7 +66,7 @@ describe('the server never imports a stylesheet', () => {
 
   it('would name the chain if one did', () => {
     // The walker itself, on the UI module that draws the die: it imports dice.css.
-    const dice = join(ROOT, 'apps/ui/src/play/live/dice.ts');
-    expect(cssChains([dice])).toEqual(['apps/ui/src/play/live/dice.ts -> ./dice.css']);
+    const dice = join(ROOT, 'games/magic/ui/src/play/live/dice.ts');
+    expect(cssChains([dice])).toEqual(['games/magic/ui/src/play/live/dice.ts -> ./dice.css']);
   });
 });

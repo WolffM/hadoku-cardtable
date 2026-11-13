@@ -3,7 +3,7 @@
  * real deck library.
  *
  * Operator, 2026-10-05: *"i'll need a tab selector at the top for picking the
- * format as well obviously."* `apps/ui/src/screens/constructed.test.ts` proves
+ * format as well obviously."* `games/magic/ui/src/screens/constructed.test.ts` proves
  * the control against a stubbed `/api/tables/formats`; this proves the real
  * one — that the server's `family` field is what the catalog actually carries
  * for a Legacy era, that the leader's browser can drive Standard → Modern →

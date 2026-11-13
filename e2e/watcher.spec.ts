@@ -18,7 +18,7 @@
  *    The operator, 2026-11-01, correcting 2026-10-28's turn-following: *"Spectators
  *    should be able to have the switch perspective button, but it shouldn't
  *    auto-swap for them."* (The front page's recorded-game card is the one place
- *    that follows the turn — `apps/ui/src/front/FeaturedMatch.test.ts`.)
+ *    that follows the turn — `games/magic/ui/src/front/FeaturedMatch.test.ts`.)
  * 4. What the active player is shown, the watcher is shown: Goblin Guide's
  *    reveal reaches the watcher, and the card under it never does.
  */

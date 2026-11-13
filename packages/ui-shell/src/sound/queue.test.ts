@@ -2,7 +2,7 @@
  * The queue's mechanics — order, shuffling, candidate ranking and padding —
  * against a synthetic catalog and ranking function. The real cell grammar,
  * colour matrix and folder-naming rules are Magic's own
- * (`apps/ui/src/sound/queue.ts` and its test), not this package's.
+ * (`games/magic/ui/src/sound/queue.ts` and its test), not this package's.
  */
 import { describe, expect, it } from 'vitest';
 

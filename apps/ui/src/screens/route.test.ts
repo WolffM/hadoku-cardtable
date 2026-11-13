@@ -14,7 +14,7 @@
  * `.test.ts` and not `.test.tsx` on purpose. The root vitest config globs
  * `apps/*\/src/**\/*.test.ts`, so a `.tsx` test is silently NOT COLLECTED — a
  * green gate that ran nothing. This repo has been bitten by that four times;
- * see `apps/ui/src/components/DraftScreen.test.ts`'s header.
+ * see `games/magic/ui/src/components/DraftScreen.test.ts`'s header.
  */
 
 import { describe, expect, it } from 'vitest';

@@ -549,7 +549,7 @@ export const STOP_POLICY_ENV = 'CARDTABLE_PLAY_STOP_POLICY';
  * `Match.setFullControl` already give over the wire — that is the shadow this
  * item found — and no doc ever gave `everyPriority` a reason to be chosen from
  * an environment rather than imported directly, which is how the suites that
- * still pin it (`auto.test.ts`, and `apps/ui/src/play/live/*.jvm.test.ts`) use
+ * still pin it (`auto.test.ts`, and `games/magic/ui/src/play/live/*.jvm.test.ts`) use
  * it. `EVERY_PRIORITY_POLICY` and `FULL_CONTROL_POLICY` are still exported
  * values — this hatch is narrower, not the model.
  */
@@ -983,7 +983,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const request = parseMatchRequest(raw);
 			if (!request.ok) return { error: `malformed: ${request.errors[0]?.path ?? '$'} ${request.errors[0]?.message ?? ''}` };
 			// A seat back after a restart can ask before its match is adopted: it waits, it is not told
-			// the match is gone (the screen says "Updating…" meanwhile, `apps/ui/src/play/live/match.ts`).
+			// the match is gone (the screen says "Updating…" meanwhile, `games/magic/ui/src/play/live/match.ts`).
 			// Only then: an act sent right behind the join must find the seat already held.
 			if (!adoptedYet) await adopted;
 			const match = matches.get(request.value.matchId);
@@ -1119,7 +1119,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 * Item 4's server half (wave 29 §B): every seat's identity, on its
 						 * own event and for the same reason `forge:full-control` is —
 						 * `MatchSnapshotSchema` is `.strict()` and mirrored byte for byte in
-						 * `apps/ui/src/play/live/transport.ts`, so folding a new key into it
+						 * `games/magic/ui/src/play/live/transport.ts`, so folding a new key into it
 						 * is a change to a file no lane owns this wave. `Match.seatIdentities`
 						 * has the full argument. Sent on every join and every resync, to
 						 * THIS socket, both seats always (an avatar is not hidden

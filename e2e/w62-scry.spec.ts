@@ -12,7 +12,7 @@
  * this exact jar (`docs/planning/wave62-evidence/S/scry.md`): casting it
  * opens Forge's `order` ask (`MovePrompt.tsx`'s Top | Bottom zones), never
  * `manipulateCardList` — so this spec drives THAT component's own
- * press-drag (`apps/ui/src/play/prompts/row-drag.ts`, the board's phantom,
+ * press-drag (`games/magic/ui/src/play/prompts/row-drag.ts`, the board's phantom,
  * every zone prompt shares), never an HTML5
  * `dragstart`/`dragover`/`drop` sequence.
  *

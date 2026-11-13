@@ -11,9 +11,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ensureCosmeticsStyles } from '@wolffm/prefs-client/cosmetics';
 
-import '../styles.css';
-import { Board } from './Board.tsx';
-import { boardFromFixture, PLAY_FIXTURES } from './fixtures.ts';
+import '@hadoku/magic-ui/styles.css';
+import { Board } from '@hadoku/magic-ui/play/Board.tsx';
+import { boardFromFixture, PLAY_FIXTURES } from '@hadoku/magic-ui/play/fixtures.ts';
 import { composeGame } from '../composition.tsx';
 composeGame();
 

@@ -1,5 +1,5 @@
 /**
- * The ordering prompts' rows (`apps/ui/src/play/prompts/row-drag.ts`), as a hand reaches for them: where a
+ * The ordering prompts' rows (`games/magic/ui/src/play/prompts/row-drag.ts`), as a hand reaches for them: where a
  * person can press or drop, and when the rows have stopped sliding from the last drop.
  */
 import type { Locator, Page } from '@playwright/test';

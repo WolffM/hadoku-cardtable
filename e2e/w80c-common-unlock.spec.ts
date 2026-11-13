@@ -145,7 +145,7 @@ interface Measured {
   heldMs: number;
 }
 
-/** Where the board unlocks a held decision: `apps/ui/src/play/motion.ts`'s `UNLOCK_AT`, the effect's last tenth. */
+/** Where the board unlocks a held decision: `games/magic/ui/src/play/motion.ts`'s `UNLOCK_AT`, the effect's last tenth. */
 const UNLOCK_SHARE = 0.9;
 /**
  * The latest a decision after bob's act may open: a frame of a loaded runner past the unlock point. Past it only

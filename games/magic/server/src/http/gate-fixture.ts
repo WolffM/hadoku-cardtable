@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { basicLand, moveToMain, setBasicLand } from '@hadoku/deck';
 import type { DraftCard } from '@hadoku/shared';
 
-import { deckFromPool, dckTextOf } from '../../../../../apps/ui/src/draft/deckFromPool.ts';
+import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import { loadPool } from '../room/pool.js';
 import type { DraftPoolLookup, GateContext } from './gate.js';
 import { loadTablesLibrary } from './library.js';

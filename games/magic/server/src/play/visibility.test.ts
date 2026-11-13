@@ -1,9 +1,9 @@
 /**
  * Hidden information, asserted over whole serialised payloads of REAL data.
  *
- * The stream is `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`: the
+ * The stream is `games/magic/ui/src/play/fixtures/tierc-game1-seq1-27.json`: the
  * first 27 `DeltaPacket`s a real Forge client received in a real two-player
- * match (provenance in `apps/ui/src/play/fixtures.ts`). It is Forge's
+ * match (provenance in `games/magic/ui/src/play/fixtures.ts`). It is Forge's
  * unfiltered stream — the opponent's hand arrives with names — which is what
  * makes it the right input: it is exactly what this projector exists to cut.
  *

@@ -172,7 +172,7 @@ export function newMatchId(): string {
  *
  * The operator's ruling (2026-10-02): fold 1 into 2 — the caster gets ONE
  * choice showing the whole hand with the unchoosable cards greyed, the
- * "Rampant Growth shape" `apps/ui/src/play/prompts/ChoicePrompts.tsx` already
+ * "Rampant Growth shape" `games/magic/ui/src/play/prompts/ChoicePrompts.tsx` already
  * draws for `chooseSingleEntityForEffect`'s `delayedReveal` — and drop 3
  * outright, because the opponent learns which card went from the log and
  * their own graveyard.

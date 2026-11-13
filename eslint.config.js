@@ -86,7 +86,7 @@ export default [
 
   // ── UI (browser) ────────────────────────────────────────────────────
   {
-    files: ['apps/ui/src/**/*.{ts,tsx}', 'packages/game-ui/src/**/*.{ts,tsx}'],
+    files: ['apps/ui/src/**/*.{ts,tsx}', 'games/*/ui/src/**/*.{ts,tsx}', 'packages/game-ui/src/**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -173,7 +173,7 @@ export default [
     },
   },
   {
-    files: ['apps/ui/src/draft/socket.ts'],
+    files: ['games/magic/ui/src/draft/socket.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -187,11 +187,11 @@ export default [
   {
     // A `//` line between JSX tags is not a comment: it renders, as text, on the page. 7fdeea9d9
     // wrapped the stats popout's root in <OverPage> and its comment line became the popout's first line.
-    files: ['apps/ui/src/**/*.tsx', 'packages/game-ui/src/**/*.tsx'],
+    files: ['apps/ui/src/**/*.tsx', 'games/*/ui/src/**/*.tsx', 'packages/game-ui/src/**/*.tsx'],
     rules: { 'no-restricted-syntax': ['error', JSX_COMMENT_TEXT] },
   },
   {
-    files: ['apps/ui/src/play/live/LiveBoard.tsx'],
+    files: ['games/magic/ui/src/play/live/LiveBoard.tsx'],
     rules: {
       'no-restricted-imports': ['error', { paths: [{ name: 'react-dom', importNames: ['createPortal'] }] }],
       'no-restricted-syntax': [
@@ -235,7 +235,7 @@ export default [
 
   // ── Unit tests: wait on state, assert behaviour ──────────────────────
   {
-    files: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'games/*/packages/*/src/**/*.test.ts', 'games/*/server/src/**/*.test.ts'],
+    files: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'games/*/packages/*/src/**/*.test.ts', 'games/*/server/src/**/*.test.ts', 'games/*/ui/src/**/*.test.ts'],
     ignores: [
       '**/*.jvm.test.ts',
       // Files that still sleep on a wall clock, to be emptied rather than grown.
@@ -246,11 +246,11 @@ export default [
       'games/magic/server/src/room/watching.test.ts',
       'games/magic/server/src/room/lobby.test.ts',
       'games/magic/server/src/room/socket.test.ts',
-      'apps/ui/src/play/live/LiveBoard.test.ts',
-      'apps/ui/src/play/live/art-preload.test.ts',
-      'apps/ui/src/play/live/gestures/gestures.test.ts',
-      'apps/ui/src/play/live/placed.test.ts',
-      'apps/ui/src/play/live/presence.test.ts',
+      'games/magic/ui/src/play/live/LiveBoard.test.ts',
+      'games/magic/ui/src/play/live/art-preload.test.ts',
+      'games/magic/ui/src/play/live/gestures/gestures.test.ts',
+      'games/magic/ui/src/play/live/placed.test.ts',
+      'games/magic/ui/src/play/live/presence.test.ts',
       'packages/room-ask/src/registry.test.ts',
     ],
     rules: {

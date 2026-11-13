@@ -1,5 +1,5 @@
 /*
- * Build `apps/ui/src/draft/deck-art-traits.json` — what the deck chooser needs to
+ * Build `games/magic/ui/src/draft/deck-art-traits.json` — what the deck chooser needs to
  * know about a library card to decide whether its art should stand for a deck.
  *
  * ## Regenerate with
@@ -31,7 +31,7 @@ import { corpusDir } from '../../games/magic/packages/carddata/src/corpus-dir.ts
 import { LIBRARY_CARD_COSTS } from '../../games/magic/packages/deck/src/library/deck-costs.generated.ts';
 
 const REPO_ROOT = resolvePath(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-const DRAFT_DIR = join(REPO_ROOT, 'apps', 'ui', 'src', 'draft');
+const DRAFT_DIR = join(REPO_ROOT, 'games', 'magic', 'ui', 'src', 'draft');
 
 interface Printing {
   readonly id: string;

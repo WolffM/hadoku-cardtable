@@ -106,6 +106,6 @@ Wizards of the Coast's IP.
 Short version: no money ever, no public access to the app, and an
 "unofficial, not affiliated with or endorsed by Wizards of the Coast"
 disclaimer. Mana and set symbols come from the third-party Keyrune and Mana
-fonts (licence texts in `apps/ui/src/symbols/`). Card art is loaded from
+fonts (licence texts in `games/magic/ui/src/symbols/`). Card art is loaded from
 Scryfall's image CDN as a replaceable placeholder (D15); no image is ever
 committed to this repo.

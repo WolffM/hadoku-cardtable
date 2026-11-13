@@ -1,7 +1,7 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    // nodenext (inherited): this package IS run by Node, unlike apps/ui which
+    // nodenext (inherited): this package IS run by Node, unlike games/magic/ui which
     // Vite serves. That is why the relative imports here carry a `.js`
     // extension — nodenext ESM requires one, and tsc does not add it.
     //
@@ -26,7 +26,7 @@
   // defines is reachable from an entry point or emitted.
   "include": ["src/**/*.ts"],
   // `src/play/monkey/` (the monkey seat fuzzer, never imported by the site)
-  // reaches into `apps/ui/src` for its board/prompt rules, which need the DOM
+  // reaches into `games/magic/ui/src` for its board/prompt rules, which need the DOM
   // lib this package deliberately does not have. Its own `tsconfig.json`
   // typechecks it with that lib added; excluded here so adding it does not
   // reopen DOM globals for this package's real product code.

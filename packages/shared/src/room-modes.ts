@@ -13,7 +13,7 @@
  *   random    { pool }                    `full` draws from every family
  *
  * The server (`games/magic/server/src/room/lobby.ts`) stores the pair and the UI
- * (`apps/ui/src/rooms/api.ts`) reads it; both bind to THIS file, so the shape
+ * (`games/magic/ui/src/rooms/api.ts`) reads it; both bind to THIS file, so the shape
  * is stated once.
  */
 

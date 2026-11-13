@@ -6,13 +6,13 @@
  * `.ct-popover` rule, and that panel no longer sits in one. A per-component rule misses whatever container it was not
  * written for, so none is allowed.
  */
-// @reads apps/ui/src/ packages/ui-shell/src/ packages/game-ui/src/ apps/ui/index.html
+// @reads games/magic/ui/src/ apps/ui/src/ packages/ui-shell/src/ packages/game-ui/src/ apps/ui/index.html
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { uiPath, uiSheets } from './ui-sources.testing.ts';
+import { uiPath, uiSheets } from '@hadoku/magic-ui/ui-sources.testing.ts';
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 const read = (path: string): string => readFileSync(join(SRC, path), 'utf8');

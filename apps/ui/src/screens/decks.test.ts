@@ -6,20 +6,20 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { serveNamedArt } from '../play/art.testing.ts';
+import { serveNamedArt } from '@hadoku/magic-ui/play/art.testing.ts';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { DraftCard } from '@hadoku/shared';
 
-import { DecksScreen } from './DecksScreen.tsx';
+import { DecksScreen } from '@hadoku/magic-ui/screens/DecksScreen.tsx';
 import { LobbyScreen } from './LobbyScreen.tsx';
 import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
-import { DeckManage } from './DeckManage.tsx';
-import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
-import { draftedDeckOf } from './ConstructedScreen.tsx';
-import { dckTextOf } from '../draft/deckFromPool.ts';
-import type { DeckRecords } from '../stats/deckOrder.ts';
-import poolJson from '../draft/pool.json';
+import { DeckManage } from '@hadoku/magic-ui/screens/DeckManage.tsx';
+import type { MyDeck, MyDecksClient } from '@hadoku/magic-ui/deck/myDecks.ts';
+import { draftedDeckOf } from '@hadoku/magic-ui/screens/ConstructedScreen.tsx';
+import { dckTextOf } from '@hadoku/magic-ui/draft/deckFromPool.ts';
+import type { DeckRecords } from '@hadoku/magic-ui/stats/deckOrder.ts';
+import poolJson from '@hadoku/magic-ui/draft/pool.json';
 
 // A card known by its name is answered as the server answers it (`GET /api/cards/art`).
 beforeEach(serveNamedArt);

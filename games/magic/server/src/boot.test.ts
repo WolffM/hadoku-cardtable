@@ -38,7 +38,7 @@ import { magicView } from './room/magic-view.js';
 /** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */
 const testPresence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 
-const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../apps/ui/src/draft/pool.json');
+const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../games/magic/ui/src/draft/pool.json');
 
 const ALICE = { id: 'fk:1111111111111111', name: 'user-alice', userId: 'uid-user-alice' };
 const BOB = { id: 'fk:2222222222222222', name: 'user-bob', userId: 'uid-user-bob' };

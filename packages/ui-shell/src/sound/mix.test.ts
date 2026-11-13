@@ -3,7 +3,7 @@
  * The planner's mechanics, against a synthetic registry — no real role or
  * cell grammar needed to pin them. A game's own role names and layer cells
  * (Magic's colour matrix, say) are proved by that game's own tests against
- * its own registry (cardtable's: `apps/ui/src/sound/mix.test.ts`'s
+ * its own registry (cardtable's: `games/magic/ui/src/sound/mix.test.ts`'s
  * `SCENARIOS` block, which checks every scripted beat against the real
  * role registry).
  */

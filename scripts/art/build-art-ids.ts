@@ -95,7 +95,7 @@ const REPO_ROOT = resolvePath(fileURLToPath(new URL('.', import.meta.url)), '..'
 const DEFAULT_CACHE = corpusDir();
 const DEFAULT_OUT = join(REPO_ROOT, 'games', 'magic', 'server', 'src', 'play', 'art-ids.json');
 const DECKS_DIR = join(REPO_ROOT, 'decks');
-const POOL_FILE = join(REPO_ROOT, 'apps', 'ui', 'src', 'draft', 'pool.json');
+const POOL_FILE = join(REPO_ROOT, 'games', 'magic', 'ui', 'src', 'draft', 'pool.json');
 const SCENARIOS_DIR = join(REPO_ROOT, 'games', 'magic', 'server', 'src', 'play', 'scenarios');
 
 /** Every card a test scenario (`games/magic/server/src/play/scenarios/*.state`) places — a match the e2e suite plays shows them. */

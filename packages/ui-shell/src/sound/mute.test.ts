@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /*
  * `mute.ts` against the fleet's preference service, faked in memory. The
- * app's own wiring test (`apps/ui/src/sound/sound.test.ts`) covers the
+ * app's own wiring test (`games/magic/ui/src/sound/sound.test.ts`) covers the
  * interplay with `playRole`; what belongs here is `mute.ts` alone, and that
  * every key it writes is built from `appId()`, not a literal.
  */

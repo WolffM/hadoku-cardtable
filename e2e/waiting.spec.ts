@@ -8,7 +8,7 @@
  * need some waiting prompt."*
  *
  * Forge resolves the coin toss itself and only ever asks the WINNER the
- * Play/Draw question (`apps/ui/src/play/prompts/ConfirmPrompt.tsx`'s own
+ * Play/Draw question (`games/magic/ui/src/play/prompts/ConfirmPrompt.tsx`'s own
  * module header, citing `PlayerControllerHuman.chooseStartingPlayer`); the
  * loser is never asked anything at that step, and Forge sends them no wire
  * text for the moment either (`LiveBoard.tsx`'s `isWaitingForPregameDecision`

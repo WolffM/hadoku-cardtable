@@ -1,0 +1,197 @@
+# Mutation tests — the hard three's answer rules (Wave 9 lane C, 2026-09-17)
+#
+# Each mutation edits ONE line of games/magic/ui/src/play/prompts/rules.ts, runs
+#   flock <build.lock> pnpm exec vitest run games/magic/ui/src/play/prompts
+# records the exit code and the failing tests, then copies the original back
+# (cmp against a saved copy: identical). Baseline and restored: 132 passed, exit 0.
+
+## combat-sum
+# combatDamageProblems: 'if (total !== rules.damage)' -> 'if (false && total !== rules.damage)'
+exit 1
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+Tests  2 failed | 130 passed (132)
+× assignCombatDamage > refuses damage that does not sum to the damage dealt
+× assignCombatDamage > cannot send damage that sums wrong
+
+## combat-order
+# combatDamageProblems: 'aliveBefore ||= amount < b.lethal' -> 'aliveBefore ||= false && amount < b.lethal'
+exit 1
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+Tests  4 failed | 128 passed (132)
+× assignCombatDamage > refuses damage to a later blocker before the earlier one has lethal
+× assignCombatDamage > refuses trample-over before every blocker has lethal
+× assignCombatDamage > lets blockers take damage in any order under overrideOrder, but still gates the defender
+× assignCombatDamage > cannot send damage past a blocker that lacks lethal
+
+## order-remaining
+# orderProblems: 'if (ask.remainingObjectsMax >= 0)' -> 'if (false && ask.remainingObjectsMax >= 0)'
+exit 1
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+Tests  4 failed | 128 passed (132)
+× order > needs every item placed when nothing may remain
+× order > holds a bounded split to its range
+× order > starts with everything unplaced and OK disabled
+× order > cannot send an order with an item left unplaced
+
+## sideboard-pool
+# sideboardProblems: 'if (reply === null) return []' -> 'if (reply === null || true) return []'
+exit 1
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+Tests  2 failed | 130 passed (132)
+× sideboard > refuses a card from outside both pools, and more copies than the pools hold
+× sideboard > the answer rule refuses a card from outside both pools
+
+## restored
+Test Files  9 passed (9)
+Tests  132 passed (132)
+exit 0
+
+# ── Wave 24 lane D (2026-09-26) — the search view and the auto-answer guards ──
+#
+# Same method, same harness. Each mutation edits ONE file under
+# games/magic/ui/src/play/prompts/, then
+#   flock -x /tmp/claude-1000/w24.lock npx vitest run games/magic/ui/src/play/prompts
+# records the exit code and the failing tests, copies the original back and
+# `cmp`s it (identical in every case below).
+#
+# Baseline and restored, both: Test Files 9 passed | 1 skipped (10)
+#                              Tests 168 passed | 1 skipped (169), exit 0
+# (The 1 skipped is search.jvm.test.ts, which needs CARDTABLE_FORGE_JAR.)
+
+## hidden-info-fabricated-row  (rules.ts)
+# searchRows: 'rows.push({ ref, option: null, choosable: false })'
+#          -> 'rows.push({ ref: { kind: "card", id: ref.id + 1 }, option: null, choosable: false })'
+# i.e. the search view draws a card id the ask never carried.
+exit 1
+Tests  9 failed | 159 passed | 1 skipped (169)
+× searchRows > puts the options first, in Forge's order, then what was only revealed
+× searchRows > never draws a card twice, however the two lists overlap
+× searchRows > is exactly the reveal when Forge offered nothing
+× searchRows > carries only ids the ask itself named
+× searchRows > keeps a player option choosable — a reveal is cards, the options need not be
+× a library search > puts what Forge offered first and draws the rest present but not selectable
+× a library search > draws EXACTLY the ids the ask carried — never one the lookup happens to know
+× a library search > resolves art through the same Name|SET key the board uses
+× a library search > a reveal with no options at all is still drawn, every card, none of them pickable
+restored: identical
+
+## choosable-inverted  (rules.ts)
+# searchRows: the two 'choosable:' flags swapped — the options become the
+# un-pickable rows and the revealed-only cards become pickable. This is
+# "invert Forge's own answer".
+exit 1
+Tests  7 failed | 161 passed | 1 skipped (169)
+× searchRows > puts the options first, in Forge's order, then what was only revealed
+× searchRows > is exactly the options when there is no reveal
+× searchRows > is exactly the reveal when Forge offered nothing
+× searchRows > keeps a player option choosable — a reveal is cards, the options need not be
+× chooseEntitiesForEffect > captions the reveal and draws its cards in the ONE grid, answering the refs chosen in offer order
+× a library search > puts what Forge offered first and draws the rest present but not selectable
+× a library search > a reveal with no options at all is still drawn, every card, none of them pickable
+restored: identical
+
+## reveal-auto-answered  (rules.ts)
+# autoAnswer: a line added ahead of the method guard that answers a reveal
+#   'if (ask.method === "getChoices" && ask.max <= 0) return { … why: "revealed" };'
+# — the change §D.5 looks like it wants and that would delete the information.
+exit 1
+Tests  1 failed | 167 passed | 1 skipped (169)
+× autoAnswer > never answers a reveal — a getChoices with max <= 0 keeps its OK
+restored: identical
+
+## confirm-auto-answered  (rules.ts)
+# autoAnswer: the same shape, for `confirm` — the ask a cost confirm arrives as
+# when Forge's frame makes it one, where a "no" aborts the activation.
+exit 1
+Tests  2 failed | 166 passed | 1 skipped (169)
+× autoAnswer > answers only getAbilityToPlay: everything else with one legal reply is the server's
+× autoAnswer > never answers a confirm, not even a one-button one — declining is the player's
+restored: identical
+
+## two-abilities-auto-answered  (rules.ts)
+# autoAnswer: 'if (ask.abilities.length !== 1) return null' -> '< 1'
+# i.e. a two-ability offer — a genuine choice — answered for the player.
+exit 1
+Tests  1 failed | 167 passed | 1 skipped (169)
+× autoAnswer > asks when there are two abilities: that is a real choice
+restored: identical
+
+## unoffered-becomes-selectable  (ChoicePrompts.tsx)
+# ChooseSingleEntityPrompt: 'row.option === null ? <UnofferedRow …> : <label>…'
+#                        -> 'false ? …' — every revealed row gets a tick.
+exit 1
+Tests  3 failed | 165 passed | 1 skipped (169)
+× a library search > puts what Forge offered first and draws the rest present but not selectable
+× a library search > answers only an offered ref — the revealed-only card can never be sent
+× a library search > a reveal with no options at all is still drawn, every card, none of them pickable
+restored: identical
+
+## art-key-drops-setcode  (PromptShell.tsx)
+# promptCardTile: 'scryfallIdFor(KNOWN_ART_IDS, name, setCode)'
+#              -> 'scryfallIdFor(KNOWN_ART_IDS, name, "")' — the pre-wave-24
+# behaviour, where a prompt tile could draw a different printing than the board.
+exit 1
+Tests  1 failed | 167 passed | 1 skipped (169)
+× a prompt tile and the board resolve the same printing > uses Name|SET, not the bare name, for a card whose printings differ
+restored: identical
+
+## restored (all three files cmp identical to their saved copies)
+Test Files  9 passed | 1 skipped (10)
+Tests  168 passed | 1 skipped (169)
+exit 0
+
+## wave 25 §F — a tile's name is not its label  (PromptShell.tsx)
+# promptTileFor + promptCardTile: back to ONE string for both jobs, exactly as
+# c698ae5 had it —
+#   promptCardTile(forgeId, name, setCode = '')            [no `label`]
+#   promptTileFor: promptCardTile(forgeId, label ?? facts?.name ?? …, …)
+# i.e. Forge's pre-rendered `CardView.toString()` label ("Mox Opal (130)") used
+# as the art key. Both broken call sites fail, one test each.
+exit 1
+Tests  2 failed | 171 passed | 1 skipped (174)
+× a reveal Forge pre-rendered with CardView.toString() > resolves art from the card's own facts, never from the label
+× order over cards Forge pre-rendered > resolves each item's art from the card's own facts, never from the label
+restored: Tests  173 passed | 1 skipped (174), exit 0
+
+## wave 34 §G item 1 — the Choose X slider: real-contrast OK (PromptShell.tsx / prompts.css)
+# .prompt__submit rule deleted from prompts.css, restoring the pre-item-1 file
+# exactly (no background/colour of its own — the global `button` rule's
+# native-face bug this whole item was about).
+exit 1
+Tests  1 failed | 7 passed (8)   [PromptShell.test.ts alone]
+× OK is styled for real contrast, not just enabled (wave 34 §G item 1) > .prompt__submit fills with the accent and sets an explicit text colour — never left to the browser default
+restored: Tests 8 passed (8), exit 0
+
+## wave 34 §G item 1 — numericChoiceRange's key===label assumption (rules.ts / ChoicePrompts.tsx)
+# rules.ts and ChoicePrompts.tsx reverted to the committed pre-item-1 version:
+# numericChoiceRange required `c.key === c.label` (both the bare integer);
+# the default selection used `String(range.min)` as a KEY; the slider's value
+# display parsed the chosen KEY as an integer. None of these ever match
+# Forge's real wire shape (`key: "c" + index`, measured against a real match,
+# see g1-choose-x-slider.md) — this mutation IS the pre-fix, shipped state.
+exit 1
+Tests  9 failed | 94 passed (103)   [rules.test.ts + choices.test.ts + choose-x.jvm.test.ts]
+× numericChoiceRange > reads a plain 0..N range, and keys it positionally — never the integer
+× numericChoiceRange > reads a range that does not start at zero, still keyed from c0
+× numericChoiceRange > carries Forge's own Other… entry separately from the range it caps, by its own real key
+× "Choose X" (item 13): a slider, not a radio list > dragging it answers Forge's own key for the value dragged to — not the raw dragged number
+× "Choose X" (item 13): a slider, not a radio list > an Other… entry is a button beside the slider, and picking it answers Forge's own key for it
+× "Choose X" (item 13): a slider, not a radio list > OK stays enabled at every legal value, min through max — not only the default
+  (3 more: fixture/structural assertions depending on the same shape)
+× the Choose X slider, against a real Forge match > renders the real ask as a slider … [TIMES OUT — the numeric ask is never recognised at all, so the test's own `reply` hook never fires and the real match hangs waiting for an answer it never gets]
+restored: rules.test.ts 69 passed, choices.test.ts 33 passed, choose-x.jvm.test.ts 1 passed (jar run), exit 0 each
+
+## wave 42 §P item 1 — classifySelection's off-board detection (SelectionPrompt.tsx)
+# classifySelection: `return ids.some((id) => !boardCardIds.has(id)) ? 'off-board' : 'on-board';`
+# -> `return 'on-board';` (the off-board branch deleted — every selection reads as on-board,
+# which is exactly the soft-lock: an off-board target (Relentless Dead's graveyard pick) would
+# then draw no popup at all, same as before this item).
+#
+# Re-run after the manager's send-back removed the speculative 'confirm' SelectionKind (no real
+# card was ever measured to send that shape) and its three unit tests — count dropped from 14 to
+# 12 total; the mutation itself and the two tests it kills are unchanged.
+exit 1
+Tests  2 failed | 10 passed (12)
+× classifySelection > is off-board when any named card is not on the board — W18's soft-lock shape
+× classifySelection > is off-board even when the selection mixes an on-board card with an off-board one
+restored: Tests 12 passed (12), exit 0

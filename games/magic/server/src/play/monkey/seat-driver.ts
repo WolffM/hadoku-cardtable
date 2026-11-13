@@ -4,9 +4,9 @@
  * `docs/MONKEY.md` comes out of.
  */
 
-import { choiceBounds } from '../../../../../../apps/ui/src/play/prompts/rules.ts';
-import { currentAsk, type LiveMatch } from '../../../../../../apps/ui/src/play/live/match.ts';
-import { answerAsk, answerConfirm } from '../../../../../../apps/ui/src/play/live/match.ts';
+import { choiceBounds } from '../../../../ui/src/play/prompts/rules.ts';
+import { currentAsk, type LiveMatch } from '../../../../ui/src/play/live/match.ts';
+import { answerAsk, answerConfirm } from '../../../../ui/src/play/live/match.ts';
 
 import { takeRandomBoardAction } from './board-action.ts';
 import { randomAnswer, type LiveAsk } from './random-answer.ts';

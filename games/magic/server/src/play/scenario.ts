@@ -131,7 +131,7 @@ export interface TimeoutDump {
  * the thrown error's message — the one place a CI log keeps it.
  *
  * **Wave 64 §S (S11): the one function both jvm harnesses call.** Until this
- * fold, the UI's own `apps/ui/src/play/live/jvm-harness.ts` kept none of
+ * fold, the UI's own `games/magic/ui/src/play/live/jvm-harness.ts` kept none of
  * this — its `waitUntil` threw a bare message, no stderr, no frames — because
  * it also removes the run dir on `stop()`, same as this file, so the ONE
  * place either harness can still read `bridge.stderr.txt` is before that

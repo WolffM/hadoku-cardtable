@@ -96,18 +96,12 @@ importers:
 
   apps/ui:
     dependencies:
-      '@hadoku/carddata':
-        specifier: workspace:*
-        version: link:../../games/magic/packages/carddata
-      '@hadoku/deck':
-        specifier: workspace:*
-        version: link:../../games/magic/packages/deck
-      '@hadoku/forge-wire':
-        specifier: workspace:*
-        version: link:../../games/magic/packages/forge-wire
       '@hadoku/game-ui':
         specifier: workspace:*
         version: link:../../packages/game-ui
+      '@hadoku/magic-ui':
+        specifier: workspace:*
+        version: link:../../games/magic/ui
       '@hadoku/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -120,9 +114,6 @@ importers:
       '@wolffm/prefs-client':
         specifier: npm:@hadoku/prefs-client@1.1.27
         version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
-      '@wolffm/rooms-client':
-        specifier: npm:@hadoku/rooms-client@0.45.91
-        version: '@hadoku/rooms-client@0.45.91(react@19.2.8)(socket.io-client@4.8.3)'
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.91
         version: '@hadoku/rooms-protocol@0.45.91'
@@ -141,16 +132,7 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
-      socket.io-client:
-        specifier: ^4.8.3
-        version: 4.8.3
-      zod:
-        specifier: 4.5.4
-        version: 4.5.4
     devDependencies:
-      '@hadoku/game-server':
-        specifier: workspace:*
-        version: link:../../packages/game-server
       '@testing-library/dom':
         specifier: 10.4.1
         version: 10.4.1
@@ -278,6 +260,76 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.23.13
+
+  games/magic/ui:
+    dependencies:
+      '@hadoku/carddata':
+        specifier: workspace:*
+        version: link:../packages/carddata
+      '@hadoku/deck':
+        specifier: workspace:*
+        version: link:../packages/deck
+      '@hadoku/forge-wire':
+        specifier: workspace:*
+        version: link:../packages/forge-wire
+      '@hadoku/game-ui':
+        specifier: workspace:*
+        version: link:../../../packages/game-ui
+      '@hadoku/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      '@hadoku/ui-shell':
+        specifier: workspace:*
+        version: link:../../../packages/ui-shell
+      '@wolffm/game-stats-ui':
+        specifier: npm:@hadoku/game-stats-ui@0.1.12
+        version: '@hadoku/game-stats-ui@0.1.12(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)'
+      '@wolffm/prefs-client':
+        specifier: npm:@hadoku/prefs-client@1.1.27
+        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
+      '@wolffm/rooms-client':
+        specifier: npm:@hadoku/rooms-client@0.45.91
+        version: '@hadoku/rooms-client@0.45.91(react@19.2.8)(socket.io-client@4.8.3)'
+      '@wolffm/rooms-protocol':
+        specifier: npm:@hadoku/rooms-protocol@0.45.91
+        version: '@hadoku/rooms-protocol@0.45.91'
+      '@wolffm/themes':
+        specifier: npm:@hadoku/themes@5.14.4
+        version: '@hadoku/themes@5.14.4(react@19.2.8)'
+      '@wolffm/watchparty-ui':
+        specifier: npm:@hadoku/watchparty-ui@0.45.91
+        version: '@hadoku/watchparty-ui@0.45.91(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+      socket.io-client:
+        specifier: ^4.8.3
+        version: 4.8.3
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
+    devDependencies:
+      '@hadoku/game-server':
+        specifier: workspace:*
+        version: link:../../../packages/game-server
+      '@testing-library/dom':
+        specifier: 10.4.1
+        version: 10.4.1
+      '@testing-library/react':
+        specifier: 16.3.3
+        version: 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@types/react':
+        specifier: 19.2.18
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: 19.2.5
+        version: 19.2.5(@types/react@19.2.18)
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.13)
 
   packages/game-server:
     dependencies:

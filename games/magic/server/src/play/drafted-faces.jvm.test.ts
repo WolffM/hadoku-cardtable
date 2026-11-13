@@ -30,7 +30,7 @@ const title = available.ok
 	? 'a drafted two-faced card is in the deck Forge plays, and is cast, against real Forge'
 	: `a drafted two-faced card is in the deck Forge plays, and is cast, against real Forge — SKIPPED: ${available.reason}`;
 
-const cube = loadPool(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../apps/ui/src/draft/pool.json'));
+const cube = loadPool(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../games/magic/ui/src/draft/pool.json'));
 if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
 const FABLE = cube.pool.cards.find((c) => c.name === 'Fable of the Mirror-Breaker // Reflection of Kiki-Jiki');
 if (FABLE === undefined) throw new Error('the cube no longer holds Fable of the Mirror-Breaker');

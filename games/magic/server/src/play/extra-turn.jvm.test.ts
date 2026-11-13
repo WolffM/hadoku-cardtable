@@ -1,7 +1,7 @@
 /**
  * What Forge's two extra-turn properties say, read off the frames real Forge sends both seats: the
  * operator, 2026-10-19, *"when a player has extra turns, this kind of thing should be visible
- * somewhere around their portrait"*. The board's status zone (`apps/ui/src/play/Board.tsx`,
+ * somewhere around their portrait"*. The board's status zone (`games/magic/ui/src/play/Board.tsx`,
  * `SeatStatus`) draws `PlayerView.ExtraTurnCount` as the turns to come and `PlayerView.IsExtraTurn`
  * as the mark that this turn is one; this is where their semantics are pinned.
  *

@@ -1,7 +1,7 @@
 /**
  * Wave 36 T4, shape 1: every Forge yes/no that is a QUESTION (not a priority
  * pass) now renders in the decision area, not the control bar
- * (`apps/ui/src/play/prompts/ConfirmPrompt.tsx`, lane G;
+ * (`games/magic/ui/src/play/prompts/ConfirmPrompt.tsx`, lane G;
  * `docs/planning/wave36-evidence/g-shape1.md` is the wiring note this file
  * follows). The two buttons carry fixed testids regardless of which
  * question is open — `prompt-confirm-yes` is Forge's own button 1

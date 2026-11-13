@@ -1,0 +1,562 @@
+/*
+ * Styling for the draft surface's own components: the spectator notice, the
+ * seat bar and the deck builder. (The connection banner's rules are its own,
+ * `ConnectionBanner.css`, beside it in the platform's UI package.)
+ *
+ * ## Why this file exists at all, instead of more rules in `styles.css`
+ *
+ * `games/magic/ui/src/styles.css` is owned by nobody this wave, on purpose. Two lanes
+ * were editing the same app in parallel and a shared stylesheet is the one file
+ * they would both have wanted; the resolution was that neither may touch it and
+ * each writes its own, imported by its own modules. So this is co-located with
+ * the components it dresses and is pulled in by `SpectatorNotice.tsx`,
+ * `SeatBar.tsx` and `DeckView.tsx` rather than by the app shell.
+ *
+ * It CONSUMES the palette on `:root` and redefines none of it. Every value
+ * below is either a token from `styles.css` or a literal that only makes sense
+ * here. A fallback is given on each `var()` so that a component rendered
+ * outside the app — which is exactly what the component tests do — is still
+ * legible rather than transparent-on-transparent.
+ *
+ * Both legal rules from `styles.css` hold here too and are easy to check:
+ * the only `url()` in this file names the seat ring's own SVG markers, and
+ * nothing draws a card frame, a set symbol or a mana symbol. Pips are `ManaPip`'s circles.
+ */
+
+/* ── The spectator notice ────────────────────────────────────────────── */
+
+.spectate {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 10px 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-raised);
+}
+
+.spectate__tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--c-generic);
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  flex: none;
+}
+
+.spectate__text {
+  margin: 0;
+  color: var(--ink-dim);
+}
+
+/* ── seats: the pod, as one table (`components/SeatBar.tsx`) ───────── */
+
+.seats {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+/* A square the ring is drawn in; the seats and arcs are placed in its own 0-100 box. */
+.podcircle {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.podcircle__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.podcircle__arc {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  marker-end: url(#podcircle-head);
+}
+
+/* The ring before the draft arrives (`SeatBarSkeleton`): arcs without heads, which way the packs go is not known yet. */
+.podcircle__arc--ghost {
+  marker-end: none;
+  stroke-dasharray: 1.5 2;
+}
+
+/* The arc into the seat in view (yours, or the one you watch): where its next pack comes from. */
+.podcircle__arc--in {
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  marker-end: url(#podcircle-head-in);
+}
+
+.podcircle__head {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.podcircle__head--in {
+  stroke: var(--accent);
+}
+
+.podcircle__centre {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  transform: translate(-50%, -50%);
+}
+
+.podcircle__centre .counters {
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.podcircle__seats {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Placed by its face's centre (`left`/`top` from SeatBar), its name and count under it. */
+.seatbar__seat {
+  position: absolute;
+  width: 72px;
+  transform: translate(-50%, -20px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.seatbar__face {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow: 0 0 0 2px var(--line);
+}
+
+/* The characters are pixel art: keep their pixels square. */
+.seatbar__face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* Still owes a pick: the ring is lit, and the pack it is picking from is in its hands (`.packq__hand`). */
+.seatbar__seat--waiting .seatbar__face {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.seatbar__seat--you .seatbar__name {
+  color: var(--accent-ink);
+}
+
+/* A spectator's seats: the one watched, and the rest to press. A filter, not a box-shadow, so the glow survives the picking ring's animation. */
+.seatbar__seat--watched .seatbar__face {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  filter: drop-shadow(0 0 5px var(--accent));
+}
+
+.seatbar__watch {
+  position: absolute;
+  inset: -4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+.seatbar__watch:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.seatbar__watch:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.seatbar__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* The name, and a held seat's mark, on one line under the face; a long name gives way, never the mark. */
+.seatbar__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+/* A held seat in the pod. Its face ringed dashed, because it is an inference. */
+.seatbar__seat--held {
+  opacity: 0.8;
+}
+
+.seatbar__seat--held .seatbar__face {
+  box-shadow: none;
+  outline: 2px dashed var(--warn);
+  outline-offset: -2px;
+}
+
+.seatbar__held {
+  color: var(--warn);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── the packs waiting in front of each seat (`SeatBar.tsx`, `pack-queue.ts`) ── */
+
+.packq {
+  /* A pack is `pack-queue.ts`'s PACK of the ring's box wide, whatever the panel's width or the UI scale. */
+  --pack-w: calc(100% * 10 / 264);
+
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * A pack, placed by its centre and turned (`SeatBar.tsx`'s `poseOf`). It has
+ * no transition: only a step of the draft moves it, and `SeatBar` animates that
+ * step itself, so a pose that changes for any other reason is drawn in place.
+ * Every pack is drawn over the seats: never behind a face or a name.
+ */
+.packq__pack {
+  position: absolute;
+  z-index: 2;
+  width: var(--pack-w);
+  aspect-ratio: 488 / 680;
+  translate: -50% -50%;
+}
+
+/* The pack a seat is picking from, fanned in its hands and held up in front of its portrait's lower
+   30%, cut off by the face's bottom edge (`SeatBar`'s `Hand`, `HAND`, `HAND_CUT`): 16 face pixels wide. */
+.packq__hand {
+  position: absolute;
+  z-index: 2;
+  width: calc(var(--pack-w) * 1.6);
+  aspect-ratio: 488 / 680;
+  translate: -50% -50%;
+}
+
+/* Fanned from the bottom, as a hand of cards is held; the pile's own nudge (below) does not apply. */
+.packq .packq__hand .card-back.packq__card {
+  transform-origin: 50% 100%;
+  translate: none;
+  rotate: calc(var(--k) * 11deg);
+}
+
+.packq__hand .card-back::before {
+  border-radius: 1px;
+}
+
+/* The seats and the counters sit under every pack. */
+.packq ~ .podcircle__centre,
+.packq ~ .podcircle__seats {
+  z-index: 1;
+}
+
+/* The pose's own motion (rattle, teeter, slump) pivots on the pack's bottom edge. */
+.packq__stack {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+}
+
+/* Three of the table's own backs (`card-back.css`), squared up a little untidily. */
+.packq .card-back.packq__card {
+  --card-back-w: 100%;
+
+  position: absolute;
+  inset: 0;
+  border-color: color-mix(in srgb, var(--ink) 40%, var(--line));
+  border-radius: 2px;
+  translate: calc(var(--k) * 1.5px) calc(var(--k) * -1.5px);
+  rotate: calc(var(--k) * 5deg);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.packq .card-back::before {
+  border-radius: 1px;
+}
+
+/* The poses, louder with every pack waiting (`--shake` is depth − 1, so the shake shows from 3). */
+.packq__stack[data-pose='jammed'] {
+  animation: packq-rattle calc(1.6s - var(--shake) * 0.15s) steps(2, jump-none) infinite;
+}
+
+@keyframes packq-rattle {
+  0%,
+  70%,
+  100% {
+    transform: none;
+  }
+
+  80% {
+    transform: translateX(calc(var(--shake) * 0.25px)) rotate(calc(var(--shake) * 0.6deg));
+  }
+
+  90% {
+    transform: translateX(calc(var(--shake) * -0.25px)) rotate(calc(var(--shake) * -0.6deg));
+  }
+}
+
+.packq__stack[data-pose='teeter'] {
+  animation: packq-teeter calc(2.2s - var(--shake) * 0.15s) ease-in-out infinite alternate;
+}
+
+@keyframes packq-teeter {
+  from {
+    transform: rotate(calc(var(--shake) * -1.6deg));
+  }
+
+  to {
+    transform: rotate(calc(var(--shake) * 1.6deg));
+  }
+}
+
+.packq__stack[data-pose='slumped'] {
+  animation: packq-slump 1.8s ease-in-out infinite;
+}
+
+@keyframes packq-slump {
+  50% {
+    transform: scale(1.06, 0.9);
+  }
+}
+
+/* A seat under five or more packs fidgets. */
+.seatbar__seat[data-swamped] .seatbar__face {
+  animation:
+    seat-picking 1.4s ease-in-out infinite,
+    packq-fidget 0.9s ease-in-out infinite;
+}
+
+@keyframes packq-fidget {
+  0%,
+  60%,
+  100% {
+    translate: 0 0;
+  }
+
+  70% {
+    translate: -1px 0;
+  }
+
+  80% {
+    translate: 1px -1px;
+  }
+
+  90% {
+    translate: -1px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .packq__stack[data-pose],
+  .seatbar__seat[data-swamped] .seatbar__face {
+    animation: none;
+  }
+}
+
+/* ── The deck builder ────────────────────────────────────────────────── */
+
+.deck {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.deck__head {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.deck__title {
+  font-size: 20px;
+}
+
+.deck__note {
+  margin: 4px 0 0;
+  color: var(--ink-dim);
+  max-width: 62ch;
+}
+
+.deck__counts {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 8px;
+  align-items: baseline;
+}
+
+.deck__count {
+  font-size: 22px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.deck__count--quiet {
+  color: var(--ink-faint);
+  font-size: 16px;
+}
+
+.deck__of {
+  color: var(--ink-dim);
+}
+
+.deck__h2 {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.deck__basics {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-raised);
+}
+
+.deck__basic {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.deck__basic button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: inherit;
+  cursor: pointer;
+}
+
+.deck__basic button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.deck__basic-n {
+  min-width: 2ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.deck__problems {
+  margin: 0;
+  padding: 10px 14px 10px 32px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius, 8px);
+  color: var(--warn);
+}
+
+.deck__piles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.deck__pile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.deck__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deckrow {
+  display: grid;
+  grid-template-columns: 26px 2ch 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--bg-card);
+  min-width: 0;
+}
+
+.deckrow__move {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-raised);
+  color: inherit;
+  cursor: pointer;
+}
+
+.deckrow__count {
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.deckrow__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deckrow__cost {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.deckrow__type {
+  color: var(--ink-faint);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 18ch;
+}
+
+.deck__foot {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}

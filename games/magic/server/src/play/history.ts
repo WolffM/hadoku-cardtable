@@ -5,7 +5,7 @@
  * ## Why it is compacted
  *
  * A page folds a snapshot's frames into one board and keeps none of them
- * (`apps/ui/src/play/live/match.ts`'s `adoptSnapshot` → `foldFrames`): what it reads is where the
+ * (`games/magic/ui/src/play/live/match.ts`'s `adoptSnapshot` → `foldFrames`): what it reads is where the
  * sequence ends, never the sequence. Kept whole, the history was every state frame of the game —
  * 2.08 MB at the end of a 26-minute game, sent again on every join, reconnect and resync, for a
  * board that is 167 KB folded. So at the start of each turn ({@link StateHistory.push}) the history
@@ -18,7 +18,7 @@
  * - **One `setGameView`**: the folded board (`visibility.ts`'s {@link foldFrame}, the page's own
  *   rules), the sequence number of the last state frame (the page's `forgeSeq`), and every state
  *   fact the bridge sends beside a packet (`StateSiblings`: `stackTargetSpells`, `pendingTriggers`,
- *   … — `apps/ui/src/play/fold.ts`'s `FoldResult`) at its current value. A fact is current from
+ *   … — `games/magic/ui/src/play/fold.ts`'s `FoldResult`) at its current value. A fact is current from
  *   the last frame that named it since the last `setGameView`, which resets them all: the page
  *   folds them the same way. One the stream has not named since is left out, and the page's
  *   default is the empty value a frame naming it as empty would give.

@@ -8,23 +8,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
 
-import type { MatchTransport } from '../play/live/match.ts';
+import type { MatchTransport } from '@hadoku/magic-ui/play/live/match.ts';
 
 // The board is not what this is about: it draws the room the screen hands it, and nothing else.
-vi.mock('../play/live/LiveBoard.tsx', async () => {
+vi.mock('@hadoku/magic-ui/play/live/LiveBoard.tsx', async () => {
   const { createElement: h } = await import('react');
   return { LiveBoard: ({ roomId }: { roomId: string | null }) => h('output', { 'data-testid': 'board-room' }, roomId ?? 'none') };
 });
 // No socket in jsdom: a room nobody pings.
-vi.mock('../rooms/follow.ts', async (importOriginal) => ({
+vi.mock('@hadoku/magic-ui/rooms/follow.ts', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   roomFeed: () => ({ follow: () => () => undefined }),
 }));
 
 const { useMatchRoomId } = await import('../App.tsx');
-const { MatchScreen } = await import('./MatchScreen.tsx');
-const { forgetMatchesFollowed } = await import('../play/live/matchStart.ts');
-const { default: SERVER_BODIES } = await import('../rooms/room-bodies.fixture.json');
+const { MatchScreen } = await import('@hadoku/magic-ui/screens/MatchScreen.tsx');
+const { forgetMatchesFollowed } = await import('@hadoku/magic-ui/play/live/matchStart.ts');
+const { default: SERVER_BODIES } = await import('@hadoku/magic-ui/rooms/room-bodies.fixture.json');
 
 const quiet = (): MatchTransport => ({ on() {}, emit() {}, request() {}, disconnect() {} });
 

@@ -31,7 +31,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 
 import { App } from '../App.tsx';
 import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
-import type { DraftTransport } from '../draft/socket.ts';
+import type { DraftTransport } from '@hadoku/magic-ui/draft/socket.ts';
 
 /*
  * A transport that does nothing.

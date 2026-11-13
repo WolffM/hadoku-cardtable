@@ -2,5 +2,5 @@
 # and every Forge suite (scripts/ci/select-forge-tests.ts). One extended regex per line.
 ^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.ts|\.npmrc|\.nvmrc)$
 ^(apps|packages|games/[^/]+/packages)/[^/]+/(package\.json|tsconfig[^/]*\.json)$
-^games/[^/]+/server/(package\.json|tsconfig[^/]*\.json)$
+^games/[^/]+/(server|ui)/(package\.json|tsconfig[^/]*\.json)$
 ^scripts/ci/run-all\.txt$

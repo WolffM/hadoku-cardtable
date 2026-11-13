@@ -39,7 +39,7 @@
  * implemented `setSelectables` and `setWeaklySelectable` and dropped this one,
  * so an input that speaks only through it reached a seat as prose plus a
  * two-button bar and nothing to click. `InputLondonMulligan` is that input —
- * see the note on the client side in `apps/ui/src/play/live/match.ts`.
+ * see the note on the client side in `games/magic/ui/src/play/live/match.ts`.
  *
  * Unlike the other two it is INCREMENTAL and two-way: Forge calls it with
  * `true` to mark entities and with `false` to unmark them, one call per
@@ -601,7 +601,7 @@ export const ManaMarksSchema = ManaFactsSchema.pick({ life: true, damage: true, 
  *
  * Wave 19 lane B. The picker drew "ability #243" because the state channel
  * carries no `SpellAbilityView` objects at all — Tier C's object types are
- * 0–4, and a spell ability is none of them (`apps/ui/src/play/prompts/
+ * 0–4, and a spell ability is none of them (`games/magic/ui/src/play/prompts/
  * lookup.ts`'s header records the finding). The label closes that: the bridge
  * sends `SpellAbilityView.toString()`, which is Forge's "cost then
  * description" (`SpellAbilityView.java:42-55` → `toUnsuppressedString`) —

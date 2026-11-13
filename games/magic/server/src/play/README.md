@@ -4,7 +4,7 @@ Started Wave 9. Starts a real Forge match behind the existing socket server,
 maps our participants to Forge's players, and streams each seat **its own**
 projection of the game over the A↔B transport contract — the schemas live in
 `packages/shared/src/match-wire.ts` (Wave 64 §S), one instance imported by both
-this server and `apps/ui/src/play/live/transport.ts`, not two mirrors kept in
+this server and `games/magic/ui/src/play/live/transport.ts`, not two mirrors kept in
 sync by hand. There is no `play/transport.ts` on this side any more.
 
 ```
@@ -215,7 +215,7 @@ handshake, never a payload.
   at `2ea81c0`, when the server and client each still kept their own copy of
   the schema: strict on both. Since Wave 64 §S there is only the one schema,
   in `packages/shared/src/match-wire.ts`, re-exported (not redefined) by both
-  the server and `apps/ui/src/play/live/transport.ts`, which carries `outcome`
+  the server and `games/magic/ui/src/play/live/transport.ts`, which carries `outcome`
   and `message` as optional non-empty strings — so "both sides agree" is now
   true by construction rather than by two files being kept in sync by hand.
 
@@ -318,11 +318,11 @@ was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
 
 | suite | what | real data |
 | --- | --- | --- |
-| `visibility.test.ts` (21) | both seats projected from Wave 8's 27-packet fixture; whole-payload leak check; own hand fully visible after draws; public cards untouched; events dropped (real `GameEventCardChangeZone`); `setGameView`; a face-down permanent | `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`, `games/magic/packages/forge-wire/src/events/fixtures/` |
+| `visibility.test.ts` (21) | both seats projected from Wave 8's 27-packet fixture; whole-payload leak check; own hand fully visible after draws; public cards untouched; events dropped (real `GameEventCardChangeZone`); `setGameView`; a face-down permanent | `games/magic/ui/src/play/fixtures/tierc-game1-seq1-27.json`, `games/magic/packages/forge-wire/src/events/fixtures/` |
 | `match.test.ts` (60) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression; **crash** (both seats told, once, at the next cursor; kept across a resync) and **reconnect** (the grace, the same board and ask after a refresh) | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
 | `socket.test.ts` (27) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch; a refresh in browser order (old socket closed first) outliving the grace; a crash leaving the server up; full control echoed to every join and resync, restored across a refresh, per seat, and withheld from a refused join | same transcript |
 | `host.test.ts` (40) | the coordinator against `fixtures/fake-bridge.mjs` (a child process speaking the `--host` bridge's line protocol, no Forge) and a scripted launcher: placement into the fullest warm JVM up to `perJvm`, a booting JVM taken rather than a second launched, the warm JVM kept behind a full one, `maxJvms`, a refused start, a stop never answered; routing each line to its own match; a JVM SIGKILLed or SIGSTOPped failing every match on it; failed boots giving up keeping a JVM warm; the JVM's flags and heap cap; the run directory (removed on a clean end, kept and pruned on a crash); idle retirement; the boot sweep against a **fixture** work dir; and re-attach — a JVM still running after the process that started it, every match on it offered back and replayed, an orphan past `ORPHAN_MAX_MS` retired, handed over and taken back by a second pool, the reap on the way out, and a full disk degrading a match | fake bridge — runs in CI |
-| `auto.test.ts` (144) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `apps/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
+| `auto.test.ts` (144) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `games/magic/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
 | `auto.jvm.test.ts` (1) | the same against a real Forge: stops passed only where Forge named nothing, every cast says what it paid, the scry asks about the scried cards; **skips visibly** without a jar | live |
 | `seed.jvm.test.ts` (1) | one seed, one deal: two cold matches on seed 20260918 put both libraries in the same order — the seed reaching Forge's `MyRandom`, measured rather than read off the source; **skips visibly** without a jar | live |
 | `match.jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (a JVM launched for it), and seeded variety **placed into the warm JVM**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
@@ -883,6 +883,6 @@ counted (`Match.invalidFrames`) and logged. No refused `GameEvent` was needed
   relying on this line.
 - `sideboard` and `applyYieldUpdate` when multi-game matches exist.
 - ~~UI: render `showErrorDialog` (the crash notice) in `LiveBoard`~~ — **done**:
-  `apps/ui/src/play/live/match.ts` handles the `matchEnded` notice and
+  `games/magic/ui/src/play/live/match.ts` handles the `matchEnded` notice and
   `LiveBoard.test.ts` covers it.
 - A liveness check for a JVM that hangs without exiting (see "Not verified").

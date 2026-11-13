@@ -208,7 +208,7 @@ async function main(): Promise<void> {
         ? resolve(outDirArg.slice('--out-dir='.length), `${slug(name)}.json`)
         : outArg !== undefined
           ? resolve(outArg.slice('--out='.length))
-          : resolve(repoRoot(), 'apps', 'ui', 'src', 'draft', 'pool.json');
+          : resolve(repoRoot(), 'games', 'magic', 'ui', 'src', 'draft', 'pool.json');
 
     await mkdir(dirname(outPath), { recursive: true });
     await writeFile(outPath, `${JSON.stringify({ cube: name, size: pool.length, cards: pool }, null, 1)}\n`, 'utf8');

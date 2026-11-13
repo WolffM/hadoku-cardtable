@@ -46,17 +46,17 @@
 
 import { useEffect, useState } from 'react';
 
-import { Banner } from '../front/Banner.tsx';
+import { Banner } from '@hadoku/magic-ui/front/Banner.tsx';
 import { FrontGateContext, useFrontGateState } from '@hadoku/game-ui/front/gate.ts';
-import { RoomList } from '../rooms/RoomList.tsx';
-import type { FeaturedPick, RoomsClient } from '../rooms/api.ts';
-import type { RoomFeed } from '../rooms/follow.ts';
+import { RoomList } from '@hadoku/magic-ui/rooms/RoomList.tsx';
+import type { FeaturedPick, RoomsClient } from '@hadoku/magic-ui/rooms/api.ts';
+import type { RoomFeed } from '@hadoku/magic-ui/rooms/follow.ts';
 import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
 import { useSiteTrim } from '@hadoku/game-ui/settings/siteTrim.ts';
-import { StatsButton } from '../stats/StatsButton.tsx';
-import type { StatsSource } from '../stats/source.ts';
-import { DecksButton } from './DecksButton.tsx';
-import { InventoryButton } from './InventoryButton.tsx';
+import { StatsButton } from '@hadoku/magic-ui/stats/StatsButton.tsx';
+import type { StatsSource } from '@hadoku/magic-ui/stats/source.ts';
+import { DecksButton } from '@hadoku/magic-ui/screens/DecksButton.tsx';
+import { InventoryButton } from '@hadoku/magic-ui/screens/InventoryButton.tsx';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 
 export interface LobbyScreenProps {

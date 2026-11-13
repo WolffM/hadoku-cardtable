@@ -138,7 +138,7 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      # The @wolffm/themes token gate (check-usage) over apps/ui: a family fill
+      # The @wolffm/themes token gate (check-usage) over the UI (the site, Magic's, ui-shell, game-ui): a family fill
       # used as text, an unknown token, a var() fallback.
       - name: Lint CSS
         run: pnpm run lint:css

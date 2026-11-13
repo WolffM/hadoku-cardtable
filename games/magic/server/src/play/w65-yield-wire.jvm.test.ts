@@ -3,7 +3,7 @@
  * alice yielding, bob's Bolt left his hand but the e2e never saw alice's face
  * become selectable on bob's screen, and the Bolt never resolved. The board
  * offers a player while a `setSelectables` is live on that seat's wire and at
- * no other time (`apps/ui/src/play/live/match.ts`, "Players"). So the product
+ * no other time (`games/magic/ui/src/play/live/match.ts`, "Players"). So the product
  * fact this test waits on is THAT frame on bob's wire — not the prompt text the
  * sibling `yield.jvm.test.ts` driver uses — and then targets alice the way the
  * board does. Twice in one JVM, because the e2e was red in full runs and

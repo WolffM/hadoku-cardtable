@@ -15,7 +15,7 @@
  * `applyDelta`) and, on a change the wire did not carry, emits a synthetic
  * one-property `applyDelta` in the exact encoding a real one would use.
  *
- * `apps/ui/src/play/live/match.ts`'s `mulliganHand` (lane A's file, not this
+ * `games/magic/ui/src/play/live/match.ts`'s `mulliganHand` (lane A's file, not this
  * lane's) only offers the hand when `readGameBool(state, 'Mulligan')` is true;
  * this test does not drive that file. It drives the same real match the
  * diagnosis probe did, through this lane's own server primitives (`host.ts`,
@@ -306,7 +306,7 @@ describe.skipIf(!available.ok)(title, () => {
 				'seat0 after',
 			]);
 
-			// The shuffle sound's whole input (`apps/ui/src/play/live/sound-events.ts`'s
+			// The shuffle sound's whole input (`games/magic/ui/src/play/live/sound-events.ts`'s
 			// `wasShuffled`): a mulligan shuffles the library, and Forge re-sends the
 			// reordered `Library` list (`Zone.shuffle` → `onChanged` →
 			// `updateZoneForView`). Both seats' projections must carry it, ids in a new

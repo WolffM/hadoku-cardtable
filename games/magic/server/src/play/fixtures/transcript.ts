@@ -38,11 +38,11 @@ const TRANSCRIPT_FILE = resolve(dirname(fileURLToPath(import.meta.url)), 'bridge
 const TRANSCRIPT_MATCH = 'm-transcript01';
 
 /**
- * `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`: the first 27 `DeltaPacket`s a real Forge
- * client received in a real two-player match (provenance in `apps/ui/src/play/fixtures.ts`),
+ * `games/magic/ui/src/play/fixtures/tierc-game1-seq1-27.json`: the first 27 `DeltaPacket`s a real Forge
+ * client received in a real two-player match (provenance in `games/magic/ui/src/play/fixtures.ts`),
  * Forge's unfiltered stream with both hands named.
  */
-const TIERC_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../../apps/ui/src/play/fixtures/tierc-game1-seq1-27.json');
+const TIERC_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../../games/magic/ui/src/play/fixtures/tierc-game1-seq1-27.json');
 
 /** {@link TIERC_FILE}'s packets as `applyDelta` frames, annotations stripped. */
 export function fixtureFrames(): StateFrame[] {
