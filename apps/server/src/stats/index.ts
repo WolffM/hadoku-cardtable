@@ -14,7 +14,7 @@
  */
 
 import type { Match } from '../play/match.js';
-import type { SeriesEnd } from '../room/lobby.js';
+import type { SeriesEnd } from '../room/pods.js';
 import { matchFacts } from './facts.js';
 import type { KeyBook } from './keys.js';
 import { buildMatchReport, buildSeriesReport, type MatchStart, type SeatStart, type SeriesSeatStart } from './report.js';

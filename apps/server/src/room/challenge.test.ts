@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { challenges, challengeRoomName, seedStandingChallenge } from './challenge.ts';
-import { openLobby, POD_AI, type Lobby } from './lobby.ts';
+import { openLobby, type Lobby } from './lobby.ts';
+import { POD_AI } from './pods.ts';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const LEGACY = 'tournament-legacy-2026-02-07';

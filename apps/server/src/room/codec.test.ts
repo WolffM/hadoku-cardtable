@@ -12,7 +12,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { decodeSnapshot, FileRoomStore, type RoomSnapshot } from '@wolffm/rooms-server/store';
 import { MAGIC_ROOM_STORED_KEYS } from '@hadoku/shared';
 
-import { openLobby, roomCodec } from './lobby.ts';
+import { openLobby } from './lobby.ts';
+import { roomCodec } from './lobby-codec.ts';
 
 const FIXTURES = join(import.meta.dirname, 'fixtures', 'codec-v1');
 const fixtures = readdirSync(FIXTURES)

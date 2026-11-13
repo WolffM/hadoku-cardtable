@@ -20,7 +20,8 @@ import { ROOM_FEED_CHANNEL, type RoomChanged } from '@wolffm/rooms-protocol';
 
 import { attachRoomFeed } from './watching.ts';
 import { deriveParticipantId } from './identity.ts';
-import { openLobby, ROOM_STALE_MS, type Lobby } from './lobby.ts';
+import { openLobby, type Lobby } from './lobby.ts';
+import { ROOM_STALE_MS } from './constants.ts';
 
 interface Person {
 	key: string;

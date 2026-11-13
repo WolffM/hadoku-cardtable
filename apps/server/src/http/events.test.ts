@@ -22,6 +22,7 @@ const DAY = 24 * HOUR;
 let eventsHttp: typeof import('./events.ts');
 let eventsStore: typeof import('../room/events.ts');
 let lobbyMod: typeof import('../room/lobby.ts');
+let constantsMod: typeof import('../room/constants.ts');
 let edgeMod: typeof import('../edge-auth.ts');
 
 beforeAll(async () => {
@@ -31,6 +32,7 @@ beforeAll(async () => {
 	eventsHttp = await import('./events.ts');
 	eventsStore = await import('../room/events.ts');
 	lobbyMod = await import('../room/lobby.ts');
+	constantsMod = await import('../room/constants.ts');
 	edgeMod = await import('../edge-auth.ts');
 });
 
@@ -220,7 +222,7 @@ describe('/api/events', () => {
 		clock.now += 2 * DAY;
 		expect(lobby.sweep()).toEqual([]);
 		expect(lobby.offered().map((r) => r.id)).toEqual([event.roomId]);
-		clock.now += DAY + lobbyMod.ROOM_STALE_MS + 1;
+		clock.now += DAY + constantsMod.ROOM_STALE_MS + 1;
 		expect(lobby.offered()).toEqual([]);
 		clock.now += lobbyMod.ROOM_IDLE_MS;
 		expect(lobby.sweep()).toEqual([event.roomId]);

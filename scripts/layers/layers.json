@@ -22,6 +22,10 @@
     "apps/server/src/room/identity.ts",
     "apps/server/src/room/seats.ts",
     "apps/server/src/room/events.ts",
+    "apps/server/src/room/caller.ts",
+    "apps/server/src/room/avatar.ts",
+    "apps/server/src/room/watchparty-link.ts",
+    "apps/server/src/room/socket-auth.ts",
     "apps/server/src/play/placement/**",
     "apps/server/src/play/remote/**",
     "apps/server/src/play/recording/**",
@@ -141,12 +145,9 @@
     "apps/ui/src/rooms/games/bomberman.test.ts"
   ],
   "tangled": [
-    "apps/server/src/room/lobby.ts",
     "apps/server/src/http/routes.ts",
     "apps/server/src/play/match.ts",
     "apps/server/src/room/draftRooms.ts",
-    "apps/server/src/room/emit.ts",
-    "apps/server/src/room/socket.ts",
     "apps/server/src/http/rooms.ts",
     "apps/server/src/http/index.ts",
     "apps/server/src/play/index.ts",

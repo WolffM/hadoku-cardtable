@@ -62,6 +62,9 @@ const PASSWORD = 'correct-horse-battery-staple-9137';
 
 let roomsMod: typeof import('./rooms.ts');
 let lobbyMod: typeof import('../room/lobby.ts');
+let constantsMod: typeof import('../room/constants.ts');
+let podsMod: typeof import('../room/pods.ts');
+let watchpartyLinkMod: typeof import('../room/watchparty-link.ts');
 let edgeMod: typeof import('../edge-auth.ts');
 let routesMod: typeof import('./routes.ts');
 
@@ -72,6 +75,9 @@ beforeAll(async () => {
 	vi.resetModules();
 	roomsMod = await import('./rooms.ts');
 	lobbyMod = await import('../room/lobby.ts');
+	constantsMod = await import('../room/constants.ts');
+	podsMod = await import('../room/pods.ts');
+	watchpartyLinkMod = await import('../room/watchparty-link.ts');
 	edgeMod = await import('../edge-auth.ts');
 	routesMod = await import('./routes.ts');
 });
@@ -1578,7 +1584,7 @@ describe('POST /api/rooms/:id/leave', () => {
 		const ids = h.lobby.get(room.id)!.members.map((m) => m.id);
 		expect(h.lobby.setSettings(room.id, ids[0]!, { tournament: true }).ok).toBe(true);
 		ids.forEach((id, seat) => expect(h.lobby.sitPod(room.id, id, seat).ok).toBe(true));
-		const checks: import('../room/lobby.ts').GameHooks = { draftComplete: () => true, built: () => true, seatState: () => null, holdsSeriesDeck: () => true, roundNamesOf: () => ['', '', ''], hasLegalSeatDeck: () => true, currentTournamentDeck: () => null, seatTournamentDeck: () => {} };
+		const checks: import('../room/pods.ts').GameHooks = { draftComplete: () => true, built: () => true, seatState: () => null, holdsSeriesDeck: () => true, roundNamesOf: () => ['', '', ''], hasLegalSeatDeck: () => true, currentTournamentDeck: () => null, seatTournamentDeck: () => {} };
 		h.lobby.useGameType('constructed-1v1', checks);
 		h.lobby.useGameType('draft', checks);
 		const started = h.lobby.startDraft(room.id, ids[0]!);
@@ -2064,7 +2070,7 @@ describe('GET /api/rooms and stale rooms', () => {
 			import('../room/lobby.ts').RoomView;
 		expect(await ids(h, 'bob')).toEqual([room.id]);
 
-		clock += lobbyMod.ROOM_STALE_MS - 1;
+		clock += constantsMod.ROOM_STALE_MS - 1;
 		expect(await ids(h, 'bob')).toEqual([room.id]);
 
 		clock += 2;
@@ -2087,7 +2093,7 @@ describe('GET /api/rooms and stale rooms', () => {
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'playing' } })).json() as
 			import('../room/lobby.ts').RoomView;
 		h.lobby.setTableMatch(room.id, room.tables[0]!.id, 'a1b2c3d4-0000-4000-8000-000000000002');
-		clock += lobbyMod.ROOM_STALE_MS * 3;
+		clock += constantsMod.ROOM_STALE_MS * 3;
 		expect(await ids(h, 'bob')).toEqual([room.id]);
 	});
 });
@@ -2098,7 +2104,7 @@ describe('POST /api/rooms/watchparty', () => {
 		const first = await call(h, 'POST', '/api/rooms/watchparty', { as: 'alice', body: { room: 'movie-night' } });
 		expect(first.status).toBe(200);
 		const made = first.json() as import('../room/lobby.ts').RoomView & { you: { leader: boolean } };
-		expect(made.id).toBe(lobbyMod.watchpartyRoomId('movie-night'));
+		expect(made.id).toBe(watchpartyLinkMod.watchpartyRoomId('movie-night'));
 		expect(made.id).toMatch(/^wp-[0-9a-f]{20}$/);
 		expect(made.you.leader).toBe(true);
 		expect(made.locked).toBe(false);
@@ -2984,7 +2990,7 @@ describe("an event's room before its seats open", () => {
 		const pod = h.lobby.create(organizer, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin', scheduledFor: Date.now() + 2 * 60 * 60_000 });
 		const table = h.lobby.create(organizer, { name: 'Cup', gameType: 'constructed-1v1', clientMode: 'builtin', scheduledFor: Date.now() + 2 * 60 * 60_000 });
 		if (!pod.ok || !table.ok) throw new Error('create failed');
-		const shut = { error: lobbyMod.SEATS_SHUT };
+		const shut = { error: podsMod.SEATS_SHUT };
 		for (const id of [pod.room.id, table.room.id]) expect((await call(h, 'POST', `/api/rooms/${id}/join`)).status).toBe(200);
 		expect(h.lobby.get(pod.room.id)?.game.pod?.seats.every((s) => s === null), 'coming in seats nobody').toBe(true);
 		expect(h.lobby.get(table.room.id)?.tables[0]?.players, 'at a table either').toEqual([]);

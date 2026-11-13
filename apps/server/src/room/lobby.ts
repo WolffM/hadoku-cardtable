@@ -57,7 +57,7 @@
  * rather than a member who silently vanishes on the next restart.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import {
 	FileRoomStore,
 	STORE_VERSION,
@@ -69,7 +69,6 @@ import {
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { addMember, clearReady, createMembershipLedger, isReady, memberLeft, setReady as ledgerSetReady } from '@wolffm/rooms-server';
 import {
-	AVATAR_ID_MAX,
 	DEFAULT_CLIENT_MODE,
 	DEFAULT_GAME_TYPE,
 	DEFAULT_ROOM_SETTINGS,
@@ -113,9 +112,9 @@ import type { TableFormat } from '../http/library.js';
 import { replaceIds } from '../erase/anonymise.js';
 import { makeSecret, mintRoomId, mintTableId, passwordMatches, type Secret } from './provisioning.ts';
 import { ROOM_STALE_MS, UNNAMED } from './constants.ts';
-// Re-exported so every file that already imported one of these from `lobby.ts`
-// keeps working unchanged — `constants.ts` is their real home now.
-export { ROOM_STALE_MS, UNNAMED };
+import type { Caller } from './caller.ts';
+import { avatarIdOf } from './avatar.ts';
+import { watchpartyRoomId } from './watchparty-link.ts';
 // Pods, tournaments, AI seats and their view (`PodView`) — split out, wave 99 §L.
 import {
 	aiEntrantSeat,
@@ -153,7 +152,6 @@ import {
 	seatHistoricalField,
 	seatInReach,
 	seatsFixed,
-	SEATS_SHUT,
 	seriesRoomOf,
 	settledBotGame,
 	splitIntoPods,
@@ -168,21 +166,6 @@ import {
 	type SeriesEnd,
 	type TournamentPairing,
 } from './pods.ts';
-// Re-exported so every file that already imported one of these from `lobby.ts`
-// keeps working unchanged — `pods.ts` is their real home now.
-export {
-	aiEntrantSeat,
-	isAiEntrant,
-	POD_AI,
-	POD_CLOSED,
-	POD_MIN_OPEN,
-	SEATS_SHUT,
-	splitIntoPods,
-	type BotDeckSource,
-	type BotGameAsk,
-	type GameHooks,
-	type SeriesEnd,
-};
 // The saved-room codec — split out, wave 99 §L.
 import {
 	APP_VERSION,
@@ -195,9 +178,6 @@ import {
 	type StoredTable,
 	type TableRecord,
 } from './lobby-codec.ts';
-// Re-exported so every file that already imported `roomCodec` from `lobby.ts`
-// keeps working unchanged — `lobby-codec.ts` is its real home now.
-export { roomCodec };
 
 /* ── the room's format ───────────────────────────────────────────────────── */
 
@@ -312,28 +292,6 @@ export function randomFormat(random: () => number, formats: readonly CatalogForm
 }
 
 /**
- * The one reading of an avatar id, in every direction.
- *
- * `@wolffm/rooms-protocol` types it `avatarId?: string | null` (`RosterIdentity`,
- * `LocalIdentity`), so THREE states arrive — absent, explicitly null, a string —
- * and exactly TWO ever leave this file: a non-blank string, or absent. `null`,
- * `''`, whitespace, an over-long value and anything that is not a string all
- * collapse to absent, because to whoever is drawing a face they all mean the
- * same thing (draw the fallback) and a third state on the wire is a third branch
- * in every consumer for no new fact.
- *
- * An EMPTY STRING reaching a client is the specific bug this function exists to
- * stop. It survives a `!== undefined` check and then resolves to a sprite URL
- * ending `square_.png`, which is a 404 drawn as a broken image rather than the
- * fallback the absence would have produced.
- */
-function avatarIdOf(v: unknown): string | undefined {
-	if (typeof v !== 'string') return undefined;
-	const trimmed = v.trim();
-	return trimmed === '' || trimmed.length > AVATAR_ID_MAX ? undefined : trimmed;
-}
-
-/**
  * A new member, wearing no character yet. Their character is their account's
  * (`people.ts`'s `applyPerson`, as they arrive): prefs-api answers one for
  * every account, drawing and keeping one for an account that never picked, so
@@ -359,22 +317,6 @@ export interface RoomView extends PublicRoomView {
 	/** A Challenge's open seat → the list its player plays (`RoomRecord.seatDecks`). */
 	seatDecks?: Record<string, string>;
 	ai: AiPersona;
-}
-
-/**
- * Who is asking. `id` from `identityFromHeaders`, `name` from `userNameOf`, `userId` from
- * `accountIdOf`: the registry userId `id` was minted from, which is what a saved room keeps
- * (R12). null for a caller the edge named nobody, and for the testing seed.
- */
-export interface Caller {
-	id: string;
-	name: string;
-	userId: string | null;
-	/**
-	 * The edge's `X-Hadoku-Verified`: the operator verifies this person (`verifiedOf`). Absent is
-	 * not verified, as the header's own absence is: a restored or synthetic caller verifies nobody.
-	 */
-	verified?: boolean;
 }
 
 interface CreateRoomInput {
@@ -1190,20 +1132,6 @@ function viewOf(room: RoomRecord, locked: boolean, checks: GameHooks): RoomView 
 }
 
 
-
-/**
- * The cardtable room a watchparty room's game slot is bound to.
- *
- * A digest, not the watchparty name. Watchparty hands the embed its room ID
- * (the same for the leader and viewers), but that id is opaque to us — any
- * length or alphabet — and a room id must fit `ROOM_ID_RE` and is printed in
- * the list and every log line. Were a leader KEY ever passed by mistake
- * (`<room>-<16 hex>`, a credential), the digest still never prints it. `wp-`
- * keeps it apart from `r-` (minted) ids; 20 hex is 80 bits.
- */
-export function watchpartyRoomId(watchpartyRoom: string): string {
-	return `wp-${createHash('sha256').update(watchpartyRoom).digest('hex').slice(0, 20)}`;
-}
 
 /** What a bound room is made as. The leader changes the game type and pool afterwards. */
 const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: DEFAULT_GAME_TYPE, clientMode: DEFAULT_CLIENT_MODE };

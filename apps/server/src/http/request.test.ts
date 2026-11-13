@@ -1,6 +1,7 @@
 import type { Request } from 'express';
 import { describe, expect, it } from 'vitest';
-import { UNNAMED, type Caller } from '../room/lobby.ts';
+import { UNNAMED } from '../room/constants.ts';
+import type { Caller } from '../room/caller.ts';
 import { callerOf } from './request.ts';
 
 const reqOf = (headers: Record<string, string>) => ({ headers }) as unknown as Request;

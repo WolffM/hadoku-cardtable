@@ -21,7 +21,8 @@ import { pairRound, roundsFor, standings, type MatchResult } from '@hadoku/draft
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { roundNamesOf } from './plan.ts';
-import { openLobby, type GameHooks, type Lobby, type RoomView, type SeriesEnd } from './lobby.ts';
+import { openLobby, type Lobby, type RoomView } from './lobby.ts';
+import type { GameHooks, SeriesEnd } from './pods.ts';
 
 const dirs: string[] = [];
 

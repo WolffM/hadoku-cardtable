@@ -116,13 +116,9 @@ import {
 	type RoomYou,
 	type TableGame,
 } from '@hadoku/shared';
-import {
-	POD_MIN_OPEN,
-	SEATS_SHUT,
-	watchpartyRoomId,
-	type Lobby,
-	type RoomView,
-} from '../room/lobby.js';
+import { type Lobby, type RoomView } from '../room/lobby.js';
+import { POD_MIN_OPEN, SEATS_SHUT } from '../room/pods.js';
+import { watchpartyRoomId } from '../room/watchparty-link.js';
 import type { Challenges } from '../room/challenge.js';
 import type { DraftRooms } from '../room/draftRooms.js';
 import { jsonLogger } from '../log.js';

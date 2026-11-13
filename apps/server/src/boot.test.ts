@@ -27,7 +27,9 @@ import { GAUNTLET_SNAKE, type DraftCard, type GauntletSeatIndex } from '@hadoku/
 import { restoreRooms, sweepRooms, type RestoredRooms, type SweptMatch } from './boot.ts';
 import { DEFAULT_PLAN, joinDraftRoom, leaveDraftRoom, singlePoolResolver, stateOf } from './room/draftRooms.ts';
 import { act, drawGauntlet, newGauntlet, startBanpick, type GauntletEraPool, type GauntletState } from './room/gauntlet.ts';
-import { GAME_DRAWN_AFTER_MS, UNNAMED, openLobby, type GameHooks, type Lobby } from './room/lobby.ts';
+import { GAME_DRAWN_AFTER_MS, openLobby, type Lobby } from './room/lobby.ts';
+import { UNNAMED } from './room/constants.ts';
+import type { GameHooks } from './room/pods.ts';
 import { participantHandle } from './room/identity.ts';
 import { loadPool, type CubePool } from './room/pool.ts';
 import { attachDraftSocket, createSeatPresence, SEAT_RELEASE_MS } from './room/socket.js';

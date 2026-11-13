@@ -36,26 +36,21 @@ import { loadPool } from './pool.ts';
 import { roundNamesOf } from './plan.ts';
 import { AVATAR_ID_MAX, clockOn, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, ROOM_CONTROLS, SEATS_OPEN_BEFORE_MS, type ClientMode, type RoomLocks, type GauntletPlayer, type PoolVerdict, type Tournament } from '@hadoku/shared';
 import {
-	UNNAMED,
 	draftIdOfPool,
 	draftPoolId,
 	newestFormat,
 	NO_FORMAT,
 	openLobby,
-	POD_AI,
-	POD_CLOSED,
 	randomFormat,
 	CASUAL_ROOM_IDLE_MS,
 	POD_SPARED_MS,
 	ROOM_IDLE_MS,
 	ROOM_MATCHES_KEPT,
-	ROOM_STALE_MS,
-	type BotGameAsk,
-	type GameHooks,
 	type Lobby,
 	type RoomView,
-	type SeriesEnd,
 } from './lobby.ts';
+import { UNNAMED, ROOM_STALE_MS } from './constants.ts';
+import { POD_AI, POD_CLOSED, type BotGameAsk, type GameHooks, type SeriesEnd } from './pods.ts';
 import { createSeatPresence, SEAT_RELEASE_MS } from './socket.js';
 
 /** A throwaway presence tracker — this file never exercises a disconnect grace (`disconnectGraceMs` stays 0 everywhere here), so one instance shared by every `createDraftRooms` call in this file is inert, never a second REAL tracker. */

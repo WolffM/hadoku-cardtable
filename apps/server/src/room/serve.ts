@@ -49,7 +49,7 @@ import { ROOM_ID_RE } from '@hadoku/shared';
 
 import { rankOf } from '../edge-auth.js';
 import { applyPerson, type People } from '../people.js';
-import { handshakeTier } from './socket.js';
+import { handshakeTier } from './socket-auth.js';
 import { identityFromHeaders } from './identity.js';
 import type { Lobby } from './lobby.js';
 

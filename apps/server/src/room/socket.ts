@@ -144,8 +144,6 @@
  * runs, so nothing live is ever dropped as idle.
  */
 
-import type { Request } from 'express';
-import type { IncomingHttpHeaders } from 'node:http';
 import type { Server as SocketIOServer } from 'socket.io';
 import { MultiRateLimiter, PresenceTracker, emitPerRecipient, type EmitPolicy, type RateLimitConfig } from '@wolffm/rooms-server';
 import { seatOf, type ParticipantId } from '@wolffm/rooms-protocol';
@@ -163,7 +161,6 @@ import {
 	type WireErrorCode,
 } from '@hadoku/shared';
 
-import { tierOf } from '../edge-auth.js';
 import { gateSocketIo } from '../gate.js';
 import {
 	cursorFor,
@@ -188,6 +185,7 @@ import {
 } from './emit.js';
 import { askDraftbot, chooseByRatings, draftbotTally, modelSeatsOf, type Draftbot, type DraftbotAnswer, type DraftbotOutcome } from './draftbot.js';
 import { identityFromHeaders } from './identity.js';
+import { handshakeTier } from './socket-auth.js';
 import type { SessionHandle } from './session.js';
 import type { Lobby } from './lobby.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
@@ -287,21 +285,6 @@ const NO_HEARTBEAT_IDLE_MS = 24 * 60 * 60 * 1000;
  * no way to cancel — see the module header's "no-op once it fires").
  */
 type SeatTimerHandle = { kind: 'real'; handle: ReturnType<typeof setTimeout> } | { kind: 'scheduled' };
-
-/**
- * `tierOf` over the sanitized handshake headers. Exported so `chat.ts`'s
- * `admit` reads the same tier floor from the same handshake, rather than a
- * second copy of this cast — the thing this comment is already written about.
- */
-export function handshakeTier(headers: IncomingHttpHeaders): string {
-	// `tierOf` reads exactly one header off `req.headers`, but it is typed for an
-	// express `Request` and a handshake carries a bare `IncomingMessage`. The
-	// cast is here rather than a second copy of the header read: a duplicated
-	// tier lookup is precisely how the socket path and the HTTP path come to
-	// disagree about who is allowed in, which is the bug `edge-auth.ts`'s header
-	// is written about.
-	return tierOf({ headers } as unknown as Request);
-}
 
 /**
  * The step after a pick, to everyone in the room, one payload per recipient.

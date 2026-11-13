@@ -9,7 +9,8 @@ import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 
-import { openLobby, type GameHooks, type Lobby } from '../room/lobby.js';
+import { openLobby, type Lobby } from '../room/lobby.js';
+import type { GameHooks } from '../room/pods.js';
 import { newGauntlet } from '../room/gauntlet.ts';
 import { attachRooms } from './rooms.js';
 import { attachTableActions } from './table-actions.js';

@@ -35,7 +35,8 @@ import type { Request, Response, Router } from "express";
 import { ROOM_ID_RE, type RoomMember } from "@hadoku/shared";
 
 import type { People, Person } from "../people.js";
-import { POD_AI, UNNAMED } from "../room/lobby.js";
+import { POD_AI } from "../room/pods.js";
+import { UNNAMED } from "../room/constants.js";
 import { perCallerLimit } from "./request.js";
 
 export const PREVIEW_WIDTH = 1200;

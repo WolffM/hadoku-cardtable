@@ -21,7 +21,8 @@ import { join } from 'node:path';
 import { LIBRARY, type LibraryCollection } from '@hadoku/deck/library';
 import type { ChallengeEvent, ChallengeField } from '@hadoku/shared';
 
-import type { Caller, Lobby, RoomView } from './lobby.js';
+import type { Lobby, RoomView } from './lobby.js';
+import type { Caller } from './caller.js';
 
 /** What `tournament.json` holds that a Challenge room reads. */
 interface TournamentRecord {

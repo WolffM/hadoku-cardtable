@@ -45,7 +45,8 @@ import {
 import type { EventRecord, Events, FormRecord } from '../room/events.js';
 import { callerOf, httpCaller, parseBody, perCallerLimit } from './request.js';
 import type { People, Person } from '../people.js';
-import { UNNAMED, type Lobby, type RoomView } from '../room/lobby.js';
+import { type Lobby, type RoomView } from '../room/lobby.js';
+import { UNNAMED } from '../room/constants.js';
 
 type RallyFetch = (input: string, init?: RequestInit) => Promise<globalThis.Response>;
 

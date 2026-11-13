@@ -20,7 +20,7 @@
 
 import type { Tournament } from '@hadoku/shared';
 
-import { isAiEntrant, POD_AI } from './lobby.js';
+import { isAiEntrant, POD_AI } from './pods.js';
 
 /** How long a result holds the seat after its last round. */
 export const FEATURE_MS = 7 * 24 * 60 * 60_000;

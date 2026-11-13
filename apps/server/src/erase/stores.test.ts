@@ -8,7 +8,7 @@ import { placeholderId, replaceIds } from './anonymise.ts';
 import { personOf } from './index.ts';
 import { legacyIdsStep } from './legacy-ids.ts';
 import { recordingsStep } from './recordings.ts';
-import { UNNAMED } from '../room/lobby.ts';
+import { UNNAMED } from '../room/constants.ts';
 
 const IDS = new Set(['fk:alice', 'uid-alice']);
 const TO = 'erased:0a1b2c3d';

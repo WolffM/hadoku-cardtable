@@ -17,7 +17,7 @@ import type { FeaturedTournament, Tournament } from '@hadoku/shared';
 import { faceOfPerson, type People, type Person } from '../people.js';
 import { featuredTournament, playedByPeople } from '../room/featured-tournament.js';
 import type { Tournaments } from '../room/tournaments.js';
-import { UNNAMED } from '../room/lobby.js';
+import { UNNAMED } from '../room/constants.js';
 
 /** `t` as it is served: each person named and drawn as they are now, and no userIds. */
 function shown({ users = {}, ...t }: Tournament, found: ReadonlyMap<string, Person>): Tournament {

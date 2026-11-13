@@ -53,7 +53,7 @@ import {
 	type GauntletResult,
 	type GauntletState,
 } from '../room/gauntlet.js';
-import { isAiEntrant } from '../room/lobby.js';
+import { isAiEntrant } from '../room/pods.js';
 import { roomDeckCosts } from '../play/deck-colors.js';
 import { deckLines, type TablesLibrary } from './library.js';
 
