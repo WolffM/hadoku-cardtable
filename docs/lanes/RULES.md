@@ -6,7 +6,8 @@ Read all of this before you start. Your brief adds to it; where they differ, the
 - Lanes do NOT dispatch CI proofs. Prove locally: a failing test first (unit / component / server test from the
   repo root: `CI=1 node_modules/.bin/vitest run <paths>`, read the Tests line), then the fix; typecheck + eslint on
   what you touched. Report: the diff's reasoning, the local RED→GREEN evidence, and which Forge specs/suites main's
-  post-land run should check. The manager reviews and lands; main's push run and the 2-hourly full run verify; a red
+  post-land run should check (`bash scripts/lanes/prove-and-land.sh --plan <your worktree>` prints what forge.yml's
+  selection picks for your diff; it pushes, dispatches and lands nothing). The manager reviews and lands; main's push run and the 2-hourly full run verify; a red
   there is fixed forward or reverted at once.
 - Exception: ONE claw dispatch only when no local test can show the failure (a Forge engine/fork change, a bridge
   behaviour only real Forge produces). Say why. Wait for it with ONE background
