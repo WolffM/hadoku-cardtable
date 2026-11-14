@@ -4,10 +4,11 @@
  * lands as — its shape, its face and whose it is.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardPlayer, BoardView } from '../adapter.ts';
-import { diceOf, diePath, facesOf, installDice, nextFace, shapeOf, tumbleFrames } from './dice.ts';
+import { whenBoardUnlocked } from '../motion.ts';
+import { diceOf, diePath, facesOf, installDice, nextFace, rollMs, shapeOf, TUMBLE_MS, tumbleFrames } from './dice.ts';
 import { shownRoll, type ShownRoll } from './shown.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
@@ -175,5 +176,62 @@ describe('the die on the board', () => {
     dice.notify([shownRoll({ player: { kind: 'player', id: 0 }, sides: 20, results: [2], source: { kind: 'card', id: 7 } }, Date.now() - 60_000)], view);
     expect(canvas.querySelectorAll('.board-die')).toHaveLength(0);
     dice.dispose();
+  });
+});
+
+describe('what the roll decides waits for the die', () => {
+  /** The page's own Web Animations, on the fake clock: each starts `lag` ms after it is asked for, as a pending animation starts once the frame that drew it is done. */
+  function animateOnTheClock(lag: number): { anims: Animation[]; restore: () => void } {
+    const anims: Animation[] = [];
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      value(this: HTMLElement, _frames: Keyframe[], options: KeyframeAnimationOptions) {
+        const endTime = Number(options.duration);
+        const startsAt = Date.now() + lag;
+        const anim = {
+          id: options.id ?? '',
+          playbackRate: 1,
+          effect: { getComputedTiming: () => ({ endTime }) },
+          // Settled in the first frame past its end, as the page's own is.
+          finished: new Promise<void>((over) => {
+            const frame = (): void => void (Date.now() - startsAt >= endTime ? over() : requestAnimationFrame(frame));
+            frame();
+          }),
+          get currentTime() {
+            return Math.min(endTime, Math.max(0, Date.now() - startsAt));
+          },
+          get playState() {
+            return Date.now() - startsAt >= endTime ? 'finished' : 'running';
+          },
+        } as unknown as Animation;
+        anims.push(anim);
+        return anim;
+      },
+    });
+    return { anims, restore: () => delete (HTMLElement.prototype as { animate?: unknown }).animate };
+  }
+
+  it('the pacer lets go only once every die is down, however late the page started its tumble', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    // A slow frame under the roll's view: the tumble starts 200 ms after the die was thrown, so at the roll's own
+    // 90% it is in its last tenth, in the air.
+    const lag = 200;
+    expect(lag, 'late enough that the clock comes in the tumble’s last tenth').toBeGreaterThan(Math.round(rollMs(1) * 0.9) - TUMBLE_MS);
+    const { anims, restore } = animateOnTheClock(lag);
+    const canvas = board();
+    canvas.querySelector<HTMLElement>('[data-board-overlay]')!.getAnimations = () => anims;
+    const dice = installDice(canvas, { reducedMotion: () => false });
+    try {
+      dice.notify([roll()], view);
+      const die = canvas.querySelector<HTMLElement>('.board-die')!;
+      let downWhenLetGo: boolean | null = null;
+      whenBoardUnlocked(() => (downWhenLetGo = 'dieDown' in die.dataset));
+      await vi.advanceTimersByTimeAsync(rollMs(1) + lag + 500);
+      expect(downWhenLetGo, 'let go, with the die down').toBe(true);
+    } finally {
+      dice.dispose();
+      restore();
+      vi.useRealTimers();
+    }
   });
 });
