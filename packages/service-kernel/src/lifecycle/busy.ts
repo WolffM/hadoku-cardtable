@@ -75,10 +75,22 @@ const PROXIED_HEADERS = [
 	'x-edge-auth',
 ] as const;
 
+/**
+ * How a request reached this server, read from the headers alone: `edge` when it carries the
+ * edge's seal header (claimed, not verified: a forged one still reads `edge`, and so still alerts),
+ * `tunnel` when Cloudflare proxied it but the edge did not (a direct hit on the tunnel hostname),
+ * `local` when nothing proxied it (a probe from this host). A remote caller cannot read as `local`:
+ * it cannot strip the headers Cloudflare adds after it.
+ */
+export function arrivedVia(headers: Record<string, unknown>): 'edge' | 'tunnel' | 'local' {
+	if (headers['x-edge-auth'] !== undefined) return 'edge';
+	return PROXIED_HEADERS.some((h) => headers[h] !== undefined) ? 'tunnel' : 'local';
+}
+
 export function isLocalProbe(req: Pick<Request, 'socket' | 'headers'>): boolean {
 	const addr = req.socket?.remoteAddress;
 	if (addr === undefined || !LOOPBACK.has(addr)) return false;
-	return !PROXIED_HEADERS.some((h) => req.headers[h] !== undefined);
+	return arrivedVia(req.headers) === 'local';
 }
 
 /** `report` computes the app's own `BusyReport`; this adds the local-only gate and fail-safe. */

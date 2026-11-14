@@ -280,20 +280,23 @@ describe('what the seals and limiters report', () => {
 		]);
 	});
 
-	it('a seal refusal names the surface and the sanitized caller', () => {
+	it('a seal refusal names the surface, how the request arrived, and the sanitized caller', () => {
 		const { events } = recorder();
 		reportSealRefused('play-socket', { 'x-hadoku-tier': 'public', 'user-agent': 'python-requests/2' }, null);
+		reportSealRefused('http', { 'cf-ray': 'r1', 'x-hadoku-tier': 'public', 'user-agent': 'Chrome/92' }, '/');
 		expect(events).toEqual([
 			[
 				'seal-refused',
 				{
 					surface: 'play-socket',
 					path: null,
+					via: 'local',
 					userId: null,
 					tier: 'public',
 					ua: 'python-requests/2',
 				},
 			],
+			['seal-refused', { surface: 'http', path: '/', via: 'tunnel', userId: null, tier: 'public', ua: 'Chrome/92' }],
 		]);
 	});
 });

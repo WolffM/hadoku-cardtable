@@ -23,6 +23,16 @@
  * `--own-ip` is our own egress, masked the way the log masks it; agents' probes
  * and e2e browsers come from it and are not visitors. Default: looked up once.
  *
+ * Two kinds of expected traffic are counted on one line each rather than listed:
+ * - a seal refusal that never came through the edge (`via` `tunnel`: a direct hit on the public
+ *   tunnel hostname, which scanners find daily; `local`: a probe from this host). The seal did its
+ *   job. Only `via: edge` (an edge rule wider than our floor), or a refusal posted before `via`
+ *   existed, raises the ALERT.
+ * - hadoku_site's nightly member battletest (`members-e2e.yml`, job `site:e2e-members`): about
+ *   two dozen accounts made and deleted from the CI runner's address. Its runs' windows come from
+ *   the job log; see {@link battletestTraffic} for what inside them counts as the suite's. Gate
+ *   breaches are judged before this is set aside: a hole the battletest finds is a hole.
+ *
  * `--post` also sends a digest to Discord, with the full report attached, through
  * the vault's `DISCORD_CARDTABLE_DAILY_WEBHOOK` (read from the broker with the same
  * service key). A failed post exits 3 after printing the report.
@@ -41,6 +51,9 @@ const PAGE = 1000;
 /** The Discord message's budget (Discord's own limit is 2000). */
 const DIGEST_MAX = 2000;
 const BACKUP_JOB = 'cardtable:state-backup';
+const BATTLETEST_JOB = 'site:e2e-members';
+/** Slack each side of a battletest run's window: the job row's duration is the job's, not the browser's. */
+const BATTLETEST_SLACK_MS = 2 * 60_000;
 /** The backup is daily: over a day and a half means a night has been lost. */
 const BACKUP_STALE_HOURS = 36;
 
@@ -64,6 +77,37 @@ export async function latestBackup(get: Get, now: Date): Promise<Backup> {
 		return { at: row.timestamp, ageHours, stale: ageHours > BACKUP_STALE_HOURS, error: null };
 	} catch (err) {
 		return { at: null, ageHours: null, stale: true, error: (err as Error).message };
+	}
+}
+
+/** One battletest run: from its job row's end time less its duration, to that end time. */
+export interface Run {
+	from: string;
+	to: string;
+}
+
+export interface Runs {
+	runs: Run[];
+	/** Why the job log could not be read: the report then counts the suite as visitors and says so, and exits as it would have. */
+	error: string | null;
+}
+
+/** Every battletest run that finished since `since`, from monitoring-api's job log. */
+export async function battletestRuns(get: Get, since: string): Promise<Runs> {
+	try {
+		const page = await get(`/jobs?job_name=${encodeURIComponent(BATTLETEST_JOB)}&since=${since}&limit=100`);
+		const runs = ((page.jobs ?? []) as { timestamp?: string; duration_ms?: number | null }[])
+			.filter((j) => j.timestamp !== undefined)
+			.map((j) => {
+				const end = Date.parse(j.timestamp as string);
+				return {
+					from: new Date(end - (j.duration_ms ?? 0) - BATTLETEST_SLACK_MS).toISOString(),
+					to: new Date(end + BATTLETEST_SLACK_MS).toISOString(),
+				};
+			});
+		return { runs, error: null };
+	} catch (err) {
+		return { runs: [], error: (err as Error).message };
 	}
 }
 
@@ -224,6 +268,53 @@ function eventIncident(e: Event): Incident {
 	};
 }
 
+/** A seal refusal that never came through the edge: the seal did its job, nothing to look at now. */
+const offEdgeRefusal = (e: Event): boolean => e.event === 'seal-refused' && (ctx(e).via === 'tunnel' || ctx(e).via === 'local');
+
+export interface Battletest {
+	runs: number;
+	/** The suite's accounts: first seen inside a run, from an address two or more of those shared. */
+	accounts: Set<string>;
+	/** Its addresses, masked as the log masks them. */
+	ips: Set<string>;
+	/** Rows inside a run from one of its addresses, or from one of its accounts. */
+	rows: Set<Row>;
+	events: Set<Event>;
+}
+
+/**
+ * What in the window was the member battletest. An account first seen inside a run is a candidate;
+ * an address that two or more candidates came from is the runner's (the suite makes about two
+ * dozen accounts from one address, which a person signing up in the same minutes does not), and
+ * the candidates seen from it are the suite's. Then every row inside a run from that address
+ * (its anonymous probes included), every row of one of its accounts, and every info event naming
+ * one of its accounts is set aside.
+ */
+export function battletestTraffic(rows: Row[], events: Event[], runs: Run[]): Battletest {
+	const inRun = (at: string): boolean => runs.some((r) => at >= r.from && at <= r.to);
+	const candidates = new Set(
+		events
+			.filter((e) => e.event === 'caller-first-seen' && inRun(e.timestamp))
+			.map((e) => ctx(e).userId)
+			.filter((id): id is string => typeof id === 'string'),
+	);
+	const byIp = new Map<string, Set<string>>();
+	for (const r of rows)
+		if (r.ip_address !== null && r.user_id !== null && candidates.has(r.user_id) && inRun(r.timestamp))
+			byIp.set(r.ip_address, (byIp.get(r.ip_address) ?? new Set()).add(r.user_id));
+	const ips = new Set([...byIp].filter(([, ids]) => ids.size >= 2).map(([ip]) => ip));
+	const accounts = new Set([...byIp].filter(([ip]) => ips.has(ip)).flatMap(([, ids]) => [...ids]));
+	const theirs = (r: Row): boolean =>
+		(r.user_id !== null && accounts.has(r.user_id)) || (r.ip_address !== null && ips.has(r.ip_address) && inRun(r.timestamp));
+	return {
+		runs: runs.length,
+		accounts,
+		ips,
+		rows: new Set(rows.filter(theirs)),
+		events: new Set(events.filter((e) => isTraffic(levelOfEvent(e)) && accounts.has(text(ctx(e).userId)))),
+	};
+}
+
 /**
  * The first section: every service event at warn or above and every hosting alert (an alert's
  * resolution is info, and stands beside the alert it closes), every edge 5xx whoever caused it, and
@@ -233,7 +324,7 @@ function needsALook(rows: Row[], events: Event[], breaches: Row[], ownIp: string
 	const who = (r: Row): string =>
 		`${r.user_type} ${r.user_id ?? '-'}${r.user_id === TOUR ? ' (tour)' : r.ip_address === ownIp ? ' (own egress)' : ''}`;
 	return [
-		...events.filter((e) => !isTraffic(levelOfEvent(e)) || e.event === 'alert').map(eventIncident),
+		...events.filter((e) => (!isTraffic(levelOfEvent(e)) || e.event === 'alert') && !offEdgeRefusal(e)).map(eventIncident),
 		...rows
 			.filter((r) => r.status >= 500)
 			.map((r) => ({
@@ -254,7 +345,7 @@ function needsALook(rows: Row[], events: Event[], breaches: Row[], ownIp: string
 }
 
 /** One site's normal traffic: `rows` are its visitors' requests, `events` its info events. */
-function aggregate(rows: Row[], events: Event[]) {
+function aggregate(rows: Row[], events: Event[], refusals: Event[]) {
 	const anon = rows.filter(isAnonymous);
 	const named = rows.filter((r) => !isAnonymous(r));
 
@@ -346,6 +437,10 @@ function aggregate(rows: Row[], events: Event[]) {
 			(r) => `${r.status} ${r.method} ${shape(r.path)}`,
 		).slice(0, 20),
 		eventsByName: count(events, (e) => e.event ?? '(no event)'),
+		refusedOffEdge: count(refusals, (e) => {
+			const c = ctx(e);
+			return `${text(c.via)} ${text(c.surface)} ${text(c.path)} ${text(c.ua)}`;
+		}),
 	};
 }
 export type SiteSummary = ReturnType<typeof aggregate>;
@@ -355,14 +450,26 @@ const SITE_ORDER = ['prod', 'ppe'];
 const rank = (order: string[], x: string): number => (order.includes(x) ? order.indexOf(x) : order.length);
 
 /** `unread` names each listing that stopped short; its counts are then a floor, and the run exits 2. */
-export function summarise(rows: Row[], events: Event[], ownIp: string, since: string, backup: Backup | null = null, unread: string[] = []) {
-	const visitors = rows.filter((r) => r.user_id !== TOUR && r.ip_address !== ownIp);
+export function summarise(
+	rows: Row[],
+	events: Event[],
+	ownIp: string,
+	since: string,
+	backup: Backup | null = null,
+	unread: string[] = [],
+	runs: Runs = { runs: [], error: null },
+) {
+	const everyVisitor = rows.filter((r) => r.user_id !== TOUR && r.ip_address !== ownIp);
 	// The edge answers an anonymous caller itself (backend 'auth': the sign-in page or a 401).
-	// Anything else reached cardtable's own server without an account.
-	const breaches = visitors.filter((r) => isAnonymous(r) && r.backend !== 'auth' && r.status < 400);
+	// Anything else reached cardtable's own server without an account. Judged before the
+	// battletest is set aside: a hole it finds is a hole.
+	const breaches = everyVisitor.filter((r) => isAnonymous(r) && r.backend !== 'auth' && r.status < 400);
 	const incidents = needsALook(rows, events, breaches, ownIp);
-	const traffic = events.filter((e) => isTraffic(levelOfEvent(e)));
-	const sites = [...new Set([...visitors.map((r) => siteOfPath(r.path)), ...traffic.map(siteOfEvent)])].sort(
+	const battletest = battletestTraffic(everyVisitor, events, runs.runs);
+	const visitors = everyVisitor.filter((r) => !battletest.rows.has(r));
+	const traffic = events.filter((e) => isTraffic(levelOfEvent(e)) && !battletest.events.has(e));
+	const refusedOffEdge = events.filter(offEdgeRefusal);
+	const sites = [...new Set([...visitors.map((r) => siteOfPath(r.path)), ...traffic.map(siteOfEvent), ...refusedOffEdge.map(siteOfEvent)])].sort(
 		(a, b) => rank(SITE_ORDER, a) - rank(SITE_ORDER, b) || (a === 'unknown' ? 1 : b === 'unknown' ? -1 : a.localeCompare(b)),
 	);
 	return {
@@ -370,12 +477,20 @@ export function summarise(rows: Row[], events: Event[], ownIp: string, since: st
 		levels: Object.fromEntries(LEVEL_ORDER.map((l) => [l, incidents.filter((i) => i.level === l).length])),
 		alerts: {
 			gateBreaches: breaches.length,
-			sealRefused: events.filter((e) => e.event === 'seal-refused').length,
+			sealRefused: events.filter((e) => e.event === 'seal-refused' && !offEdgeRefusal(e)).length,
 			critical: incidents.filter((i) => i.level === 'critical' && i.what !== 'gate-breach').length,
 			staleBackup: backup?.stale === true,
 			unread,
 		},
 		backup,
+		battletest: {
+			runs: battletest.runs,
+			accounts: battletest.accounts.size,
+			ips: [...battletest.ips],
+			requests: battletest.rows.size,
+			events: battletest.events.size,
+			error: runs.error,
+		},
 		incidents,
 		sites: Object.fromEntries(
 			sites.map((s) => [
@@ -383,6 +498,7 @@ export function summarise(rows: Row[], events: Event[], ownIp: string, since: st
 				aggregate(
 					visitors.filter((r) => siteOfPath(r.path) === s),
 					traffic.filter((e) => siteOfEvent(e) === s),
+					refusedOffEdge.filter((e) => siteOfEvent(e) === s),
 				),
 			]),
 		) as Record<string, SiteSummary>,
@@ -408,6 +524,10 @@ const backupText = (b: Backup): string =>
 			: `last succeeded ${stamp(b.at)} (${b.ageHours}h${b.stale ? ', STALE' : ''})`;
 const levelsLine = (s: Summary): string =>
 	`${s.levels.critical} critical, ${s.levels.error} error, ${s.levels.warn} warn${s.levels.info ? `, ${s.levels.info} resolved` : ''}`;
+const battletestText = (b: Summary['battletest']): string =>
+	b.error !== null
+		? `Member battletest (${BATTLETEST_JOB}): job log unreadable (${b.error}), so its traffic is counted as visitors`
+		: `Member battletest (${BATTLETEST_JOB}): ${b.runs} run(s); set aside ${b.accounts} account(s), ${b.requests} request(s), ${b.events} event(s)${b.ips.length ? ` from ${b.ips.join(', ')}` : ''}`;
 const stamp = (at: string): string => at.slice(0, 19).replace('T', ' ');
 
 export function render(s: Summary): string {
@@ -426,6 +546,7 @@ export function render(s: Summary): string {
 	if (alert !== null) out.push(alert);
 	for (const u of s.alerts.unread) out.push(`\n## INCOMPLETE: ${u}`);
 	if (s.backup) out.push(`\n## Backup: ${backupText(s.backup)}`);
+	if (s.battletest.runs > 0 || s.battletest.error !== null) out.push(`\n## ${battletestText(s.battletest)}`);
 	const sw = Math.max(4, ...s.incidents.map((i) => i.site.length));
 	section(
 		`Needs a look: ${levelsLine(s)} (each one, oldest first)`,
@@ -482,6 +603,7 @@ export function render(s: Summary): string {
 		);
 		sub('4xx (excluding the edge sign-in 401s)', table(a.errors4xx));
 		sub('Info events by name', table(a.eventsByName));
+		sub('Seal refusals that never came through the edge (refused as they should be)', table(a.refusedOffEdge));
 	}
 	return out.join('\n');
 }
@@ -543,6 +665,7 @@ export function digest(s: Summary): string {
 				.join(' · ');
 		}),
 		...(s.backup ? [`**Backup:** ${backupText(s.backup)}${s.backup.stale ? ' ⚠️' : ''}`] : []),
+		...(s.battletest.runs > 0 || s.battletest.error !== null ? [`**${battletestText(s.battletest).replace(': ', ':** ')}`] : []),
 		`**Anonymous:** ${
 			sites.every(([, a]) => a.anonymous.requests === 0)
 				? 'none'
@@ -625,17 +748,18 @@ async function main(): Promise<void> {
 		if (!res.ok) throw new HttpError(`${path}: HTTP ${res.status}`, res.status);
 		return (await res.json()) as Record<string, unknown>;
 	});
-	const [logs, events, mine, backup] = await Promise.all([
+	const [logs, events, mine, backup, battletest] = await Promise.all([
 		pages<Row>(get, `/logs/query?path=/cardtable&since=${since}`, 'logs'),
 		pages<Event>(get, `/service-events?service=cardtable&since=${since}`, 'events'),
 		ownIp(args['own-ip']),
 		latestBackup(get, new Date()),
+		battletestRuns(get, since),
 	]);
 	const unread = [
 		...(logs.error === null ? [] : [`edge log: ${logs.error}`]),
 		...(events.error === null ? [] : [`server events: ${events.error}`]),
 	];
-	const summary = summarise(logs.rows, events.rows, mine, since, backup, unread);
+	const summary = summarise(logs.rows, events.rows, mine, since, backup, unread, battletest);
 	const report = args.json ? JSON.stringify(summary, null, 2) : render(summary);
 	console.log(report);
 

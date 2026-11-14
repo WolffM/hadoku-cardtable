@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
-import { busyHandler, isLocalProbe, type BusyReport } from './busy.ts';
+import { arrivedVia, busyHandler, isLocalProbe, type BusyReport } from './busy.ts';
 
 describe('isLocalProbe', () => {
 	const req = (remoteAddress: string | undefined, headers: Record<string, string> = {}) =>
@@ -17,6 +17,15 @@ describe('isLocalProbe', () => {
 	it('rejects loopback that came through Cloudflare or the edge', () => {
 		for (const h of ['cf-ray', 'cf-connecting-ip', 'x-forwarded-for', 'x-edge-auth', 'x-real-ip'])
 			expect(isLocalProbe(req('127.0.0.1', { [h]: 'x' }))).toBe(false);
+	});
+});
+
+describe('arrivedVia', () => {
+	it("reads edge from the edge's seal header, tunnel from Cloudflare's alone, local from neither", () => {
+		expect(arrivedVia({ 'x-edge-auth': 'sealed', 'cf-ray': 'r1', 'user-agent': 'Firefox' })).toBe('edge');
+		expect(arrivedVia({ 'cf-ray': 'r1', 'cf-connecting-ip': '198.51.100.7', 'user-agent': 'Chrome/92' })).toBe('tunnel');
+		expect(arrivedVia({ forwarded: 'for=198.51.100.7' })).toBe('tunnel');
+		expect(arrivedVia({ 'user-agent': 'curl/8.14.1', host: '127.0.0.1:9011' })).toBe('local');
 	});
 });
 

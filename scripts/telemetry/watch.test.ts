@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { alertLine, HttpError, latestBackup, retrying, digest, pages, render, summarise, type Event, type Get, type Row } from './watch.ts';
+import { alertLine, battletestRuns, HttpError, latestBackup, retrying, digest, pages, render, summarise, type Event, type Get, type Row } from './watch.ts';
 
 /** A monitoring-api listing, newest first, that answers at most `cap` rows a page whatever was asked, and says `hasMore` past them. */
 function cappedApi(all: { id: string }[], cap = 500): { get: Get; asked: string[] } {
@@ -159,6 +159,82 @@ describe('summarise', () => {
 		expect(heads.slice(1).map((h) => h.split(':')[0])).toEqual(['## prod', '## ppe', '## unknown']);
 		expect(text).toContain('lowest Forge headroom (free match slots on eligible claws, at a window\'s peak) n/a: no claws');
 		expect(text.split('\n')[1]).toBe('ALERT: 0 gate breach(es), 1 seal-refused, 1 critical event(s)');
+	});
+});
+
+describe('seal refusals', () => {
+	const refused = (hhmm: string, via: string | undefined, site = 'prod') =>
+		ev(at(hhmm), 'seal-refused', 'warn', { site, surface: 'http', path: '/', ...(via ? { via } : {}), userId: null, tier: 'public', ua: 'curl/8.14.1' });
+
+	it('counts one that never came through the edge on its site, without listing or alerting on it', () => {
+		const s = summarise([], [refused('01:00', 'tunnel'), refused('01:05', 'tunnel'), refused('02:00', 'local', 'ppe')], '198.51.100.*', at('00:00'));
+		expect(s.incidents).toEqual([]);
+		expect(alertLine(s)).toBeNull();
+		expect(s.sites.prod.refusedOffEdge).toEqual([['tunnel http / curl/8.14.1', 2]]);
+		expect(s.sites.ppe.refusedOffEdge).toEqual([['local http / curl/8.14.1', 1]]);
+		expect(render(s)).toContain('### Seal refusals that never came through the edge (refused as they should be)\n     2  tunnel http / curl/8.14.1');
+	});
+
+	it('alerts on one the edge let through, and on one posted before via existed', () => {
+		const s = summarise([], [refused('01:00', 'edge'), refused('02:00', undefined)], '198.51.100.*', at('00:00'));
+		expect(s.incidents.map((i) => i.what)).toEqual(['seal-refused', 'seal-refused']);
+		expect(alertLine(s)).toBe('ALERT: 0 gate breach(es), 2 seal-refused, 0 critical event(s)');
+	});
+});
+
+describe('the member battletest', () => {
+	const RUNNER = '192.0.2.*';
+	const runs = { runs: [{ from: at('09:43'), to: at('10:12') }], error: null };
+	const firstSeen = (hhmm: string, userId: string, site = 'ppe') =>
+		ev(at(hhmm), 'caller-first-seen', 'info', { site, userId, tier: 'member', ua: 'HeadlessChrome' });
+	const suite = ['a1', 'a2', 'a3'];
+	const EVENTS_BT: Event[] = [
+		...suite.map((id, i) => firstSeen(`09:5${i}`, id)),
+		ev(at('09:51'), 'costly-act', 'info', { site: 'ppe', act: 'page-load', tier: 'member', userId: 'a1' }),
+		// A person who signed up during the run, from home.
+		firstSeen('09:55', 'person'),
+	];
+	const ROWS_BT: Row[] = [
+		...suite.map((id, i) => row(at(`09:5${i}`), '/cardtable-ppe/', { user_id: id, ip_address: RUNNER })),
+		// The suite's own page load on prod, whose art requests the edge refused once its account was deleted.
+		row(at('09:52'), '/cardtable/api/art/0b7c5c1e-3d8a-4c55-9f3e-6a1b2c3d4e5f', { status: 401, backend: 'auth', user_id: null, user_type: 'public', ip_address: RUNNER }),
+		row(at('09:55'), '/cardtable-ppe/', { user_id: 'person', ip_address: '203.0.113.*' }),
+		// The runner's address outside a run is somebody's traffic.
+		row(at('15:00'), '/cardtable/api/rooms', { user_id: 'other', ip_address: RUNNER }),
+	];
+
+	it("sets aside its accounts and its address's requests inside a run, and keeps a person who signed up meanwhile", () => {
+		const s = summarise(ROWS_BT, EVENTS_BT, '198.51.100.*', at('00:00'), null, [], runs);
+		expect(s.battletest).toEqual({ runs: 1, accounts: 3, ips: [RUNNER], requests: 4, events: 4, error: null });
+		expect(s.sites.ppe.newAccounts.map((a) => a.userId)).toEqual(['person']);
+		expect(s.sites.ppe.requests).toBe(1);
+		expect(s.sites.ppe.costlyActs).toEqual([]);
+		expect(s.sites.prod.requests).toBe(1);
+		expect(s.sites.prod.anonymous.requests).toBe(0);
+		expect(render(s)).toContain(`## Member battletest (site:e2e-members): 1 run(s); set aside 3 account(s), 4 request(s), 4 event(s) from ${RUNNER}`);
+	});
+
+	it('still alerts on a gate breach the battletest found', () => {
+		const hole = row(at('10:00'), '/cardtable/api/rooms', { user_id: null, user_type: 'public', ip_address: RUNNER });
+		const s = summarise([...ROWS_BT, hole], EVENTS_BT, '198.51.100.*', at('00:00'), null, [], runs);
+		expect(alertLine(s)).toBe('ALERT: 1 gate breach(es), 0 seal-refused, 0 critical event(s)');
+	});
+
+	it('counts the suite as visitors, and says so, when the job log cannot be read', () => {
+		const s = summarise(ROWS_BT, EVENTS_BT, '198.51.100.*', at('00:00'), null, [], { runs: [], error: '/jobs: HTTP 500' });
+		expect(s.sites.ppe.newAccounts).toHaveLength(4);
+		expect(alertLine(s)).toBeNull();
+		expect(render(s)).toContain('## Member battletest (site:e2e-members): job log unreadable (/jobs: HTTP 500), so its traffic is counted as visitors');
+	});
+
+	it("reads each run's window from the job row's end and duration, with slack each side", async () => {
+		const asked: string[] = [];
+		const got = await battletestRuns(async (path) => {
+			asked.push(path);
+			return { jobs: [{ timestamp: '2026-11-14T10:10:35.391Z', duration_ms: 1_364_000 }] };
+		}, at('00:00'));
+		expect(asked).toEqual([`/jobs?job_name=site%3Ae2e-members&since=${at('00:00')}&limit=100`]);
+		expect(got).toEqual({ runs: [{ from: '2026-11-14T09:45:51.391Z', to: '2026-11-14T10:12:35.391Z' }], error: null });
 	});
 });
 

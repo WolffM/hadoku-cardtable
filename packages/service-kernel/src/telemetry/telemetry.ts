@@ -14,6 +14,8 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import type { NextFunction, Request, Response } from 'express';
 
+import { arrivedVia } from '../lifecycle/busy.ts';
+
 /**
  * A log line: one object a reader can grep by its own fields. This module never imports a
  * concrete logger (another lane owns that), so it takes whatever shape fits.
@@ -199,14 +201,14 @@ export function callerContext(headers: Headers): TelemetryContext {
 }
 
 /**
- * A seal below the edge refused a caller. With the edge in front this should
- * never fire: one means a direct hit on the tunnel host, or an edge rule wider
- * than this server's floor — both worth a look. `Surface` is an open string:
- * this module knows no game's surface names, so the app's own adapter narrows
- * it to a closed set.
+ * A seal below the edge refused a caller. `via` ({@link arrivedVia}) says which kind: `edge` is an
+ * edge rule wider than this server's floor and needs a look now; `tunnel` is a direct hit on the
+ * tunnel hostname and `local` a probe from this host, both refused as they should be (a public
+ * tunnel hostname is scanned daily). `Surface` is an open string: this module knows no game's
+ * surface names, so the app's own adapter narrows it to a closed set.
  */
 export function reportSealRefused<Surface extends string>(surface: Surface, headers: Headers, path: string | null): void {
-	report('seal-refused', { surface, path, ...callerContext(headers) });
+	report('seal-refused', { surface, path, via: arrivedVia(headers as Record<string, unknown>), ...callerContext(headers) });
 }
 
 export interface FirstSeenOptions {

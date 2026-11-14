@@ -252,13 +252,13 @@ describe('firstSeen', () => {
 });
 
 describe('reportSealRefused', () => {
-	it('names the surface and the sanitized caller — `Surface` is an open string, any label works', () => {
+	it('names the surface, how the request arrived and the sanitized caller — `Surface` is an open string, any label works', () => {
 		const { events } = recorder();
 		reportSealRefused('play-socket', { 'x-hadoku-tier': 'public', 'user-agent': 'python-requests/2' }, null);
-		reportSealRefused('a-new-surface', { 'x-hadoku-tier': 'public' }, '/x');
+		reportSealRefused('a-new-surface', { 'x-edge-auth': 'sealed', 'x-hadoku-tier': 'public' }, '/x');
 		expect(events).toEqual([
-			['seal-refused', { surface: 'play-socket', path: null, userId: null, tier: 'public', ua: 'python-requests/2' }],
-			['seal-refused', { surface: 'a-new-surface', path: '/x', userId: null, tier: 'public', ua: null }],
+			['seal-refused', { surface: 'play-socket', path: null, via: 'local', userId: null, tier: 'public', ua: 'python-requests/2' }],
+			['seal-refused', { surface: 'a-new-surface', path: '/x', via: 'edge', userId: null, tier: 'public', ua: null }],
 		]);
 	});
 });

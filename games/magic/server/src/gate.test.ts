@@ -268,7 +268,7 @@ describe('the one gate: every surface refuses below the floor and admits at it',
 		await h().admitted(edgeHeaders('member'));
 		const refusals = sealRefusals();
 		expect(refusals, JSON.stringify(refusals)).toHaveLength(1);
-		expect(refusals[0]).toMatchObject({ surface, path, tier: 'member', userId: 'user-gate-test' });
+		expect(refusals[0]).toMatchObject({ surface, path, via: 'edge', tier: 'member', userId: 'user-gate-test' });
 	});
 
 	it.each(surfaces())('%s reports nothing on an admitted handshake', async (_surface, _path, h) => {
