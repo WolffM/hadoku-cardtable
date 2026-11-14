@@ -279,6 +279,15 @@ function passedWindow(payload: unknown): boolean {
 export const BOARD_HOLD_MAX_MS = 5_000;
 
 /**
+ * The longest the next item of a chain waits for the last resolution to be drawn. A page under load can take longer to
+ * draw a frame than the gap is long, and the next item then waits for that frame: left on the delivery's clock it went out
+ * before the last was ever on screen, and both were first drawn in the same frame (CI, bob's screen on a loaded claw: a
+ * fireball 131 ms after the last, whose frame came 156 ms after it). A page that draws nothing (a hidden tab runs no
+ * animation frames) still lets the chain go this long after the last.
+ */
+export const RESOLVE_DRAWN_WAIT_MAX_MS = 1_000;
+
+/**
  * A decision — a frame the seat can act on ({@link canAct}) — that waited at least this long behind what came
  * before it is reported (`input-held`): how long, and how much of that was the board's beats and the classes' gaps (the
  * operator, 2026-10-20, of a looped combo: "it seems i have to wait for the life gain sound to play before i
@@ -654,6 +663,8 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
    * a departure that took longer to draw never shortens the next one's (w59's chain, 142.5 ms of 142.9).
    */
   let lastResolveAt = -Infinity;
+  /** The last resolution has gone out and its frame has not come yet: the next item of a chain waits for it ({@link RESOLVE_DRAWN_WAIT_MAX_MS}). */
+  let resolveUndrawn = false;
   /** The last frame that carried the stack was a resolution that left items on it, and nobody has decided anything since. */
   let chainOpen = false;
 
@@ -751,11 +762,13 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     if (next.pace === 'resolve') {
       const sentAt = lastDeliveredAt;
       lastResolveAt = sentAt;
+      resolveUndrawn = nextFrame !== null;
       nextFrame?.(() => {
         // A later resolution has its own anchor; this one is only ever moved to its own drawing.
         if (lastResolveAt !== sentAt) return;
         lastResolveAt = Math.max(sentAt, now());
-        // The next of the chain, already timed from the delivery, is timed again from the drawing.
+        resolveUndrawn = false;
+        // The next of the chain, waiting on this drawing, is timed from it.
         if (timer !== null && queue[0]?.chain === 'resolve') {
           stopTimer();
           pump();
@@ -867,7 +880,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       head.chain === null
         ? lastDeliveredAt + delayFor(head.pace, queue.length > 1, head.own)
         : head.chain === 'resolve' && !fast
-          ? lastResolveAt + RESOLVE_CHAIN_GAP_MS / tempo()
+          ? lastResolveAt + (resolveUndrawn ? RESOLVE_DRAWN_WAIT_MAX_MS : RESOLVE_CHAIN_GAP_MS / tempo())
           : 0;
     const waitMs = Math.max(0, due - now(), landsAt - now());
     if (waitMs > 0) {

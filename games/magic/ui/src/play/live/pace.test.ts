@@ -15,7 +15,7 @@ import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
 import { FLIP_MS } from './CoinToss.tsx';
 import { DIE_STAGGER_MS, POP_MS, TUMBLE_MS } from './dice.ts';
-import { actMemory, BOARD_HOLD_MAX_MS, classify, inTheAir, isPacedTransport, ownAct, pacedMatchTransport, PACE_DELAYS_MS, RESOLVE_CHAIN_GAP_MS, type PaceClass } from './pace.ts';
+import { actMemory, BOARD_HOLD_MAX_MS, classify, inTheAir, isPacedTransport, ownAct, pacedMatchTransport, PACE_DELAYS_MS, RESOLVE_CHAIN_GAP_MS, RESOLVE_DRAWN_WAIT_MAX_MS, type PaceClass } from './pace.ts';
 
 /* ── Building the shapes `classify` reads ────────────────────────────── */
 
@@ -1185,6 +1185,43 @@ describe('a chain of resolutions nobody decides between', () => {
     for (const f of chain) inner.deliver(f);
     await run(() => times.length === N && drawnAt.length === N);
     for (const g of gaps(drawnAt)) expect(g, `drawn ${gaps(drawnAt).join(',')}`).toBeGreaterThanOrEqual(RESOLVE_CHAIN_GAP_MS);
+  });
+
+  it('a departure whose frame comes later than the gap is drawn before the next one goes, never in the same frame (CI 43103204289, 43442130050)', async () => {
+    // A loaded page: every other frame comes 400 ms late, longer than the gap — the next one must wait for it, not leave on the delivery's clock.
+    const drawnAt: number[] = [];
+    const sentBeforeDrawn: number[] = [];
+    let k = 0;
+    const nextFrame = (run: () => void): void => {
+      const n = k++;
+      setTimeout(
+        () => {
+          drawnAt.push(Date.now());
+          if (times.length > n + 1) sentBeforeDrawn.push(n);
+          run();
+        },
+        n % 2 === 0 ? 400 : 0,
+      );
+    };
+    const { inner, times, received } = watch(BOB, { boardStill: fakeBoard().still, nextFrame });
+    for (const t of triggers) inner.deliver(t);
+    await run(() => received.length === triggers.length);
+    await vi.advanceTimersByTimeAsync(5_000);
+    for (const f of chain) inner.deliver(f);
+    await run(() => times.length === N && drawnAt.length === N);
+    expect(sentBeforeDrawn, 'resolutions that went out before the one ahead of them was drawn').toEqual([]);
+    for (const [i, t] of times.slice(1).entries()) expect(t - drawnAt[i]!, `sent ${gaps(times).join(',')}; drawn ${gaps(drawnAt).join(',')}`).toBeGreaterThanOrEqual(RESOLVE_CHAIN_GAP_MS);
+  });
+
+  it(`a page that draws nothing (a hidden tab) still lets the chain go, each ${RESOLVE_DRAWN_WAIT_MAX_MS} ms after the last`, async () => {
+    const { inner, times, received } = watch(BOB, { boardStill: fakeBoard().still, nextFrame: () => undefined });
+    for (const t of triggers) inner.deliver(t);
+    await run(() => received.length === triggers.length);
+    await vi.advanceTimersByTimeAsync(5_000);
+    for (const f of chain) inner.deliver(f);
+    await run(() => times.length === N);
+    expect(times, 'every resolution went out').toHaveLength(N);
+    for (const g of gaps(times)) expect(g, `gaps ${gaps(times).join(',')}`).toBe(RESOLVE_DRAWN_WAIT_MAX_MS);
   });
 
   it('each resolution going out names the items it takes off the stack, for the board’s tempo to count before it is drawn', async () => {
