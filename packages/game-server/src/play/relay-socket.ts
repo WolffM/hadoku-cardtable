@@ -9,7 +9,7 @@
  *
  * ## The gate is the play socket's, re-applied
  *
- * `../gate.ts`'s `gateSocketIo` with the SAME `surface: 'play-socket'` the
+ * `../gate.ts`'s `gateSocketIo` (or the game's own, `RelayDeps.gate`) with the SAME `surface: 'play-socket'` the
  * play socket itself uses (`play/socket.ts`) — not a new check, the
  * identical one, installed again on the same `io` for the same reason
  * `play/socket.ts`'s own header gives: an ordering dependency on who
@@ -38,6 +38,7 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 import type { RateLimitConfig } from '@wolffm/rooms-server';
+import type { Gate } from '@hadoku/service-kernel/http';
 
 import { gateSocketIo } from '../gate.js';
 import { identityFromHeaders } from '../room/identity.js';
@@ -104,6 +105,11 @@ export type RelayJoinAck =
 export interface RelayDeps {
 	/** The tier floor; `CONFIG.minTier` in production. */
 	minTier: string;
+	/**
+	 * The handshake gate: the game's own binding of the kernel's `createGate` (its edge secret, its
+	 * bare-local hatch, its seal-refusal report). Absent: cardtable's (`../gate.ts`).
+	 */
+	gate?: Pick<Gate, 'gateSocketIo'>;
 	/** This match's roster, or `undefined` for a matchId nothing is running — refused as `unknown-match`. */
 	rosterOf(matchId: string): RelayRoster | undefined;
 	/** The match ended: every seat left (`null`), or the leader's own bundle said `{ t: 'over', winners }`. */
@@ -139,7 +145,7 @@ function readMatchId(payload: unknown): string | null {
  * a second, independent `live` map, so callers should not do that.
  */
 export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
-	gateSocketIo(io, { minTier: deps.minTier, surface: 'play-socket' });
+	(deps.gate ?? { gateSocketIo }).gateSocketIo(io, { minTier: deps.minTier, surface: 'play-socket' });
 	const log = deps.log ?? ((): void => {});
 	const live = new Map<string, LiveMatch>();
 

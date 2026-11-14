@@ -1,9 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // Run by Node (it strips TypeScript natively) inside the app's server, never
-    // built on its own: the `.ts` files in src/ are what consumers import, so
-    // relative imports carry an explicit `.ts` extension. No DOM: server code.
+    // Run by Node (it strips TypeScript natively) inside the app's server: the
+    // `.ts` files in src/ are what workspace consumers import, so relative
+    // imports carry an explicit `.ts` extension. The published dist/ is built
+    // from this config by scripts/publish/build.ts. No DOM: server code.
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "declaration": false,
@@ -11,5 +12,5 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "scripts/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }

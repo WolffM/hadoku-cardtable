@@ -20,7 +20,6 @@
     "./server": "./src/server/index.ts"
   },
   "scripts": {
-    "build": "node scripts/build.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

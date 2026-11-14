@@ -1,17 +1,29 @@
-name: Publish service kernel
+name: Publish platform packages
 
-# packages/service-kernel → @wolffm/service-kernel on GitHub Packages (the
-# fleet's games install it from there) and @hadoku/service-kernel on npmjs.
-# Cardtable itself never installs it: its own server imports the workspace
-# copy. The shape is hadoku-watchparty's publish-packages.yml, and the npmjs
-# half is hadoku_site's docs/operations/NPMJS_PUBLISHING.md.
+# The MIT platform packages (scripts/publish/manifest.ts's PUBLISHED) → @wolffm/<name> on GitHub
+# Packages, where the fleet's games install them from (hadoku_site's templates/game), and
+# @hadoku/<name> on npmjs once that package's npmjs half is live. Cardtable itself never installs
+# them: its own server and UI import the workspace copies. The shape is hadoku-watchparty's
+# publish-packages.yml, and the npmjs half is hadoku_site's docs/operations/NPMJS_PUBLISHING.md.
+#
+# THE FILE NAME STAYS publish-kernel.yml. npmjs trusts exactly one workflow FILE per package
+# (`npm trust github … --file publish-kernel.yml`), and @hadoku/service-kernel's trust already
+# names this one; renaming it would break that package's npmjs publish. Every other package here
+# is trusted on the same file when its first publish is done.
 
 on:
   push:
     branches:
       - main
     paths:
+      - 'packages/platform-wire/**'
+      - 'packages/host-wire/**'
+      - 'packages/room-ask/**'
       - 'packages/service-kernel/**'
+      - 'packages/ui-shell/**'
+      - 'packages/game-server/**'
+      - 'packages/game-ui/**'
+      - 'scripts/publish/**'
       - '.github/workflows/publish-kernel.yml'
   workflow_dispatch:
 
@@ -28,8 +40,23 @@ concurrency:
 jobs:
   publish:
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
-    outputs:
-      npmjs: ${{ steps.npmjs.outputs.live }}
+    # One package at a time, in this order: a package after every sibling it depends on, because
+    # its manifest names each sibling at the version the registry has for it NOW (manifest.ts).
+    # A failure stops the rest, so no dependent publishes against a sibling that did not.
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        include:
+          - { package: platform-wire, npmjs: NPMJS_PLATFORM_WIRE }
+          - { package: host-wire, npmjs: NPMJS_HOST_WIRE }
+          - { package: room-ask, npmjs: NPMJS_ROOM_ASK }
+          - { package: service-kernel, npmjs: NPMJS_SERVICE_KERNEL }
+          - { package: ui-shell, npmjs: NPMJS_UI_SHELL }
+          - { package: game-server, npmjs: NPMJS_GAME_SERVER }
+          - { package: game-ui, npmjs: NPMJS_GAME_UI }
+    env:
+      DIR: packages/${{ matrix.package }}
     steps:
       - name: Mark the start, so the reported duration is real
         run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
@@ -49,71 +76,84 @@ jobs:
           NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       # BEFORE the version step: next-version reads the registry under the
-      # manifest's name, which is @wolffm/service-kernel only after this.
-      # Written in the runner's checkout, never committed back.
+      # manifest's name, which is @wolffm/<name> only after this. It reads the
+      # registry too, for each sibling's version. Written in the runner's
+      # checkout, never committed back.
       - name: Write the published manifest
-        run: node packages/service-kernel/scripts/publish-manifest.ts
+        run: node scripts/publish/manifest.ts "$DIR"
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       # The version is CI's, never a commit's: one patch above the registry's
       # newest. A committed version above it is kept, so a deliberate minor
       # bump still works.
-      - name: Version service-kernel
+      - name: Version ${{ matrix.package }}
         id: version
         uses: WolffM/hadoku-actions/next-version@v1
         with:
-          package-dir: packages/service-kernel
+          package-dir: ${{ env.DIR }}
         env:
           NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       - name: Build
-        run: node packages/service-kernel/scripts/build.ts
+        run: node scripts/publish/build.ts "$DIR"
 
       - name: List what the tarball carries
-        working-directory: packages/service-kernel
+        working-directory: ${{ env.DIR }}
         run: |
           set -euo pipefail
-          pnpm pack --pack-destination "$RUNNER_TEMP/kernel-pack" >/dev/null
-          tar tzf "$RUNNER_TEMP"/kernel-pack/*.tgz | sort
-          rm -rf "$RUNNER_TEMP/kernel-pack"
+          pnpm pack --pack-destination "$RUNNER_TEMP/pack" >/dev/null
+          tar tzf "$RUNNER_TEMP"/pack/*.tgz | sort
+          rm -rf "$RUNNER_TEMP/pack"
 
       - name: Publish to GitHub Packages
         if: steps.version.outputs.published != 'true'
-        working-directory: packages/service-kernel
+        working-directory: ${{ env.DIR }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pnpm publish --no-git-checks
-          echo "📦 Published @wolffm/service-kernel@${{ steps.version.outputs.version }}"
+          echo "📦 Published @wolffm/${{ matrix.package }}@${{ steps.version.outputs.version }}"
 
       # npmjs takes a package only once its trusted publisher exists, which
-      # needs a first publish by hand (hadoku_site
-      # docs/requests/service-kernel-npmjs.md). Until the repo variable
-      # NPMJS_SERVICE_KERNEL is `live`, this stage runs as a dry run: it packs,
-      # renames, runs the leak gate and prints the file list, and uploads
-      # nothing, so the hosted job below has nothing to publish and is skipped.
+      # needs a first publish by hand (hadoku_site docs/requests/). Until the
+      # package's repo variable (matrix.npmjs) is `live`, this stage runs as a
+      # dry run: it packs, renames, runs the leak gate and prints the file list,
+      # and uploads nothing, so the hosted job below has nothing of it to publish.
+      # A dry run that the gate refuses is reported, not fatal: the gate's
+      # findings are what the first-publish request is decided on.
       - name: Is the npmjs half live?
         id: npmjs
-        run: echo "live=${{ vars.NPMJS_SERVICE_KERNEL == 'live' }}" >> "$GITHUB_OUTPUT"
+        run: echo "live=${{ vars[matrix.npmjs] == 'live' }}" >> "$GITHUB_OUTPUT"
 
-      - name: Stage service-kernel for npmjs
+      - name: Stage ${{ matrix.package }} for npmjs
+        continue-on-error: ${{ steps.npmjs.outputs.live != 'true' }}
         uses: WolffM/hadoku-actions/publish-npmjs@v1
         with:
-          package-dir: packages/service-kernel
+          package-dir: ${{ env.DIR }}
           dry-run: ${{ steps.npmjs.outputs.live != 'true' }}
 
       - name: Report the outcome so a silent failure can't hide
         if: always()
         uses: WolffM/hadoku-actions/report-job@v1
         with:
-          job-name: cardtable:publish-kernel
+          # service-kernel keeps the name the fleet's ci-watch already covers.
+          job-name: ${{ matrix.package == 'service-kernel' && 'cardtable:publish-kernel' || format('cardtable:publish-{0}', matrix.package) }}
           service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
           started-at: ${{ env.JOB_STARTED_AT }}
 
   # Trusted publishing refuses self-hosted runners: the job above staged the
-  # gated tarball, and this hosted job (no checkout, no secret) hands it to npm.
+  # gated tarballs, and this hosted job (no checkout, no secret) hands them to
+  # npm. It runs when any package's npmjs half is live; it publishes only what
+  # was staged, which is only the live ones.
   npmjs:
     needs: publish
-    if: needs.publish.outputs.npmjs == 'true'
+    if: >-
+      needs.publish.result == 'success' && (
+        vars.NPMJS_PLATFORM_WIRE == 'live' || vars.NPMJS_HOST_WIRE == 'live' ||
+        vars.NPMJS_ROOM_ASK == 'live' || vars.NPMJS_SERVICE_KERNEL == 'live' ||
+        vars.NPMJS_UI_SHELL == 'live' || vars.NPMJS_GAME_SERVER == 'live' ||
+        vars.NPMJS_GAME_UI == 'live')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -132,7 +172,7 @@ jobs:
   # GitHub-hosted runner before any worker runs), so our runner reports it.
   npmjs-report:
     needs: [publish, npmjs]
-    if: always() && needs.publish.outputs.npmjs == 'true'
+    if: always() && needs.npmjs.result != 'skipped'
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 5
     steps:

@@ -88,7 +88,7 @@ function rosterOf(roster: Roster): import('./relay-socket.ts').RelayRoster {
 	};
 }
 
-async function boot(rosters: Record<string, Roster>, options: { joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } | null } = {}): Promise<Harness> {
+async function boot(rosters: Record<string, Roster>, options: Parameters<typeof bootWith>[1] = {}): Promise<Harness> {
 	return bootWith((matchId) => {
 		const r = rosters[matchId];
 		return r === undefined ? undefined : rosterOf(r);
@@ -97,7 +97,7 @@ async function boot(rosters: Record<string, Roster>, options: { joinRateLimit?: 
 
 async function bootWith(
 	rosterFor: (matchId: string) => import('./relay-socket.ts').RelayRoster | undefined,
-	options: { joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } | null } = {},
+	options: { joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } | null; gate?: Parameters<typeof socketMod.attachRelay>[1]['gate'] } = {},
 ): Promise<Harness> {
 	const logs: Record<string, unknown>[] = [];
 	const ended: { matchId: string; outcome: unknown }[] = [];
@@ -109,6 +109,7 @@ async function bootWith(
 		onEnded: (matchId, outcome) => ended.push({ matchId, outcome }),
 		log: (e) => logs.push(e),
 		joinRateLimit: options.joinRateLimit,
+		...(options.gate === undefined ? {} : { gate: options.gate }),
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -169,6 +170,25 @@ describe('relay:join', () => {
 	it('refuses a caller below the floor, the same as the play socket', async () => {
 		const h = await boot({});
 		await expect(connect(h.port, {})).rejects.toBeDefined();
+	});
+
+	it("installs a game's own gate in place of cardtable's, at the floor it is given", async () => {
+		const asked: { minTier: string; surface: string }[] = [];
+		const h = await boot(
+			{},
+			{
+				gate: {
+					gateSocketIo: (io, opts) => {
+						asked.push(opts);
+						io.use((_socket, next) => next());
+					},
+				},
+			},
+		);
+		// No edge headers at all: cardtable's gate refuses this caller (above); the game's admits it.
+		const peer = await connect(h.port, {});
+		expect(peer.socket.connected).toBe(true);
+		expect(asked).toEqual([{ minTier: 'friend', surface: 'play-socket' }]);
 	});
 
 	it('refuses a matchId nothing is running', async () => {
