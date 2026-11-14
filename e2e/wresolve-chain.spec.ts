@@ -22,7 +22,12 @@
  *    no later than that — or than its resolution reaching the seat, when Forge was slower than the gap — by more
  *    than the long frames the page reported in between and a small allowance: a pacer that waits too long fails on
  *    any machine, and the machine's own jank does not;
- *  - "never together" and "never drags" stay on the drawn gaps.
+ *  - "never together" stays on the drawn gaps;
+ *  - "never drags" is the screen's own share of each gap: from the later of the last fireball and the frame that
+ *    carries this one's resolution reaching the seat. On a loaded claw Forge itself sends a trigger 400–800 ms after the
+ *    last, and the killing one's frame 0.3–1.1 s after its word of the damage (it comes with the game's end): drawn
+ *    gaps of 900–1700 ms with the screen adding a normal ~100 ms (CI 43221810562 … 43501072162). A pacer holding the
+ *    chain for the board's beats, two seconds a trigger, still fails it.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -50,7 +55,7 @@ const gapBefore = (n: number): number => GAP_MS / tempoOf(n);
  */
 const TOGETHER = 0.5;
 const MEDIAN = (GAP_MS - 40) / GAP_MS;
-/** "without dragging": the slowest a chain's next fireball may be. */
+/** "without dragging": the most the screen may add to a chain's next fireball, past the last one and its own frame's arrival. */
 const SLOWEST_MS = 900;
 /** A set-off may come this much before its gap: the fireball's frame and the pacer's anchor are one frame, give or take. */
 const EARLY_SLACK_MS = 20;
@@ -183,7 +188,6 @@ test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a tim
       const shares = gaps.map((g, k) => g / gapBefore(k + 2));
       const median = [...shares].sort((a, b) => a - b)[Math.floor(shares.length / 2)] ?? 0;
       expect.soft(median, `${who}: the chain keeps its gaps (median ≥ ${MEDIAN.toFixed(2)} of each)`).toBeGreaterThanOrEqual(MEDIAN);
-      expect.soft(gaps.filter((g) => g > SLOWEST_MS), `${who}: the chain does not drag (each ≤ ${SLOWEST_MS} ms after the last)`).toEqual([]);
 
       // The quickening, in the product's own word: each trigger's beats (`numbers.ts`'s `effect` report) ran faster.
       const tempos = log.filter((r) => r.evt === 'client' && r.seat === seat && r.what === 'beats' && Number(r.hits) > 0).map((r) => Number(r.tempo));
@@ -206,6 +210,10 @@ test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a tim
           : [],
       );
       expect.soft(arrivals.length, `${who}: Forge's word of each trigger's damage is in the server log`).toBeGreaterThanOrEqual(times.length);
+      // What the screen added to each gap, past the last fireball and this one's frame reaching it: Forge's own pace is not the chain's drag.
+      const added = times.slice(1).map((t, k) => Math.round(t - Math.max(times[k]!, arrivals[k + 1] ?? -Infinity)));
+      console.log(`[wresolve] ${who}: frames arrived ${gapsOf(arrivals.slice(0, times.length)).join(',')} ms apart; the screen added ${added.join(',')} ms`);
+      expect.soft(added.filter((a) => a > SLOWEST_MS), `${who}: the chain does not drag (each ≤ ${SLOWEST_MS} ms after the last and its frame)`).toEqual([]);
       // The last fireball kills: Forge's word that the game is over can come ahead of its frame, so that gap is not the chain's.
       const links = times.slice(1, -1).map((t, k) => {
         const anchor = frames[k] ?? times[k]!;
