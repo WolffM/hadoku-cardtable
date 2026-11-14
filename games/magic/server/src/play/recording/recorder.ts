@@ -80,7 +80,7 @@ export function bridgeDigest(bridgeSourcePath: string): string {
 
 /**
  * The version this server was built as, for the action log's `server` field: `dist/version.txt`,
- * which the build writes (scripts/release/build-version.ts — the newest release in the tree plus
+ * which the build writes (packages/devkit/src/release/build-version.ts — the newest release in the tree plus
  * the commit). Read, never derived here: no `git` shell-out at runtime. `'unknown'` when there is
  * none (a `tsx` dev server that was never built) rather than throwing: a recording is never worth
  * failing boot over.

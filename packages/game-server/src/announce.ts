@@ -8,11 +8,11 @@
  *
  * The cardtable-specific bits are the service id (`cardtable`, which names the idempotency keys and
  * the `source` field), the ordering of release files, which the kernel cannot read itself — it is
- * `scripts/release/build-version.ts`'s `newestReleaseFile`/`releaseFilesNewestFirst`, injected here —
+ * `packages/devkit/src/release/build-version.ts`'s `newestReleaseFile`/`releaseFilesNewestFirst`, injected here —
  * and the earlier-credits file, `docs/releases/before-releases.md` (docs/RELEASE.md § "Attribution").
  */
 import { join } from 'node:path';
-import { newestReleaseFile, releaseFilesNewestFirst } from '../../../scripts/release/build-version.js';
+import { newestReleaseFile, releaseFilesNewestFirst } from '../../devkit/src/release/build-version.js';
 import {
 	allReleases as kernelAllReleases,
 	announceRelease as kernelAnnounceRelease,

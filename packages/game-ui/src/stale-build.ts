@@ -7,7 +7,7 @@
  * a card face, resynced into the same refusal three times and stopped drawing a game that went on.
  * A reload fetches the bundle the server is serving now, and the seat rejoins on the same tab id.
  *
- * Builds are `vX.Y.Z+<sha>` or `CARDTABLE_VERSION` as it stands (`scripts/release/build-version.ts`).
+ * Builds are `vX.Y.Z+<sha>` or `CARDTABLE_VERSION` as it stands (`packages/devkit/src/release/build-version.ts`).
  * Only a newer RELEASE reloads on sight: main past a release (PPE, a dev server, e2e) builds as the
  * same release with another sha, and a stale `dist/version.txt` under a dev server is common, so a
  * sha alone is no reason to reload a page that reads everything. A page that cannot read what the

@@ -20,7 +20,7 @@
  *
  * `ordering` decides which release files are newest: the kernel does not read a release-notes
  * directory layout itself. The app supplies it (cardtable's adapter injects
- * `scripts/release/build-version.ts`'s `newestReleaseFile`/`releaseFilesNewestFirst`, since the
+ * `packages/devkit/src/release/build-version.ts`'s `newestReleaseFile`/`releaseFilesNewestFirst`, since the
  * kernel cannot import `scripts/`).
  *
  * Imports only; nothing runs at import.
@@ -48,7 +48,7 @@ export interface Embed {
 
 /**
  * How release-notes file names are ordered: the kernel knows no directory layout of its own, so
- * the app supplies this (cardtable's adapter binds `scripts/release/build-version.ts`).
+ * the app supplies this (cardtable's adapter binds `packages/devkit/src/release/build-version.ts`).
  */
 export interface ReleaseOrdering {
 	/** The newest release file name among `names`, or null when there is none. */

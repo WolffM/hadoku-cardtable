@@ -20,7 +20,7 @@ for editing, lands them and runs the release. By hand:
 1. **Pick the version.** `vX.Y.Z`, one product version per release. Bump the minor when any
    pending file has a `## New` or `## Changed` bullet, the patch when they are all fixes. The
    version is the notes file's NAME and nothing else: no file is ever edited to carry a version.
-   A build reports `<newest notes in its tree>+<commit>` (`scripts/release/build-version.ts`),
+   A build reports `<newest notes in its tree>+<commit>` (`packages/devkit/src/release/build-version.ts`),
    so a released sha reports this version and PPE reports the release it builds on. The
    `version` fields in `apps/*/package.json` are inert: nothing bumps or reads them.
 2. **Collect what's in it:** every file in `docs/releases/pending/` (except its `README.md`), and

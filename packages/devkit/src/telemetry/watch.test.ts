@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { alertLine, battletestRuns, HttpError, latestBackup, retrying, digest, pages, render, summarise, type Event, type Get, type Row } from './watch.ts';
+import { alertLine, battletestRuns, HttpError, latestBackup, retrying, digest, pages, render, summarise, type Event, type Get, type Row, type WatchApp } from './watch.ts';
+
+/** Cardtable's telemetry block, as its devkit.config.json names it: the cases below were written against it. */
+const APP: WatchApp = {
+	name: 'cardtable',
+	envPrefix: 'CARDTABLE',
+	service: 'cardtable',
+	path: '/cardtable',
+	backupJob: 'cardtable:state-backup',
+	battletestJob: 'site:e2e-members',
+	tourUserId: 'c8c59a87-f8af-4da7-9c99-d9e536b3fca8',
+	discordWebhookSecret: 'DISCORD_CARDTABLE_DAILY_WEBHOOK',
+};
 
 /** A monitoring-api listing, newest first, that answers at most `cap` rows a page whatever was asked, and says `hasMore` past them. */
 function cappedApi(all: { id: string }[], cap = 500): { get: Get; asked: string[] } {
@@ -104,7 +116,7 @@ describe('a listing that stops answering', () => {
 	});
 
 	it('exits 2 with an incomplete report, saying so in the report and the digest', () => {
-		const s = summarise([], [], '198.51.100.*', at('00:00'), null, ['edge log: /logs/query?path=/cardtable: HTTP 500 after 5000 rows']);
+		const s = summarise(APP, [], [], '198.51.100.*', at('00:00'), null, ['edge log: /logs/query?path=/cardtable: HTTP 500 after 5000 rows']);
 		expect(alertLine(s)).toBe(
 			'ALERT: 0 gate breach(es), 0 seal-refused, 0 critical event(s), incomplete (edge log: /logs/query?path=/cardtable: HTTP 500 after 5000 rows)',
 		);
@@ -114,7 +126,7 @@ describe('a listing that stops answering', () => {
 });
 
 describe('summarise', () => {
-	const s = summarise(ROWS, EVENTS, '198.51.100.*', at('00:00'));
+	const s = summarise(APP, ROWS, EVENTS, '198.51.100.*', at('00:00'));
 
 	it('lists every warn+ event, alert resolution and edge 5xx individually, oldest first', () => {
 		expect(s.incidents.map((i) => [i.at.slice(11, 16), i.site, i.level, i.what])).toEqual([
@@ -147,9 +159,9 @@ describe('summarise', () => {
 
 	it('exits 2 for a seal refusal or a critical event, and names them', () => {
 		expect(alertLine(s)).toBe('ALERT: 0 gate breach(es), 1 seal-refused, 1 critical event(s)');
-		expect(alertLine(summarise(ROWS, EVENTS.filter((e) => e.level === 'info'), '198.51.100.*', at('00:00')))).toBeNull();
+		expect(alertLine(summarise(APP, ROWS, EVENTS.filter((e) => e.level === 'info'), '198.51.100.*', at('00:00')))).toBeNull();
 		const breach = row(at('05:00'), '/cardtable/api/rooms', { user_id: null, user_type: 'public' });
-		expect(alertLine(summarise([breach], [], '198.51.100.*', at('00:00')))).toBe('ALERT: 1 gate breach(es), 0 seal-refused, 0 critical event(s)');
+		expect(alertLine(summarise(APP, [breach], [], '198.51.100.*', at('00:00')))).toBe('ALERT: 1 gate breach(es), 0 seal-refused, 0 critical event(s)');
 	});
 
 	it('renders the incidents first, then one block per site', () => {
@@ -167,7 +179,7 @@ describe('seal refusals', () => {
 		ev(at(hhmm), 'seal-refused', 'warn', { site, surface: 'http', path: '/', ...(via ? { via } : {}), userId: null, tier: 'public', ua: 'curl/8.14.1' });
 
 	it('counts one that never came through the edge on its site, without listing or alerting on it', () => {
-		const s = summarise([], [refused('01:00', 'tunnel'), refused('01:05', 'tunnel'), refused('02:00', 'local', 'ppe')], '198.51.100.*', at('00:00'));
+		const s = summarise(APP, [], [refused('01:00', 'tunnel'), refused('01:05', 'tunnel'), refused('02:00', 'local', 'ppe')], '198.51.100.*', at('00:00'));
 		expect(s.incidents).toEqual([]);
 		expect(alertLine(s)).toBeNull();
 		expect(s.sites.prod.refusedOffEdge).toEqual([['tunnel http / curl/8.14.1', 2]]);
@@ -176,7 +188,7 @@ describe('seal refusals', () => {
 	});
 
 	it('alerts on one the edge let through, and on one posted before via existed', () => {
-		const s = summarise([], [refused('01:00', 'edge'), refused('02:00', undefined)], '198.51.100.*', at('00:00'));
+		const s = summarise(APP, [], [refused('01:00', 'edge'), refused('02:00', undefined)], '198.51.100.*', at('00:00'));
 		expect(s.incidents.map((i) => i.what)).toEqual(['seal-refused', 'seal-refused']);
 		expect(alertLine(s)).toBe('ALERT: 0 gate breach(es), 2 seal-refused, 0 critical event(s)');
 	});
@@ -204,7 +216,7 @@ describe('the member battletest', () => {
 	];
 
 	it("sets aside its accounts and its address's requests inside a run, and keeps a person who signed up meanwhile", () => {
-		const s = summarise(ROWS_BT, EVENTS_BT, '198.51.100.*', at('00:00'), null, [], runs);
+		const s = summarise(APP, ROWS_BT, EVENTS_BT, '198.51.100.*', at('00:00'), null, [], runs);
 		expect(s.battletest).toEqual({ runs: 1, accounts: 3, ips: [RUNNER], requests: 4, events: 4, error: null });
 		expect(s.sites.ppe.newAccounts.map((a) => a.userId)).toEqual(['person']);
 		expect(s.sites.ppe.requests).toBe(1);
@@ -216,12 +228,12 @@ describe('the member battletest', () => {
 
 	it('still alerts on a gate breach the battletest found', () => {
 		const hole = row(at('10:00'), '/cardtable/api/rooms', { user_id: null, user_type: 'public', ip_address: RUNNER });
-		const s = summarise([...ROWS_BT, hole], EVENTS_BT, '198.51.100.*', at('00:00'), null, [], runs);
+		const s = summarise(APP, [...ROWS_BT, hole], EVENTS_BT, '198.51.100.*', at('00:00'), null, [], runs);
 		expect(alertLine(s)).toBe('ALERT: 1 gate breach(es), 0 seal-refused, 0 critical event(s)');
 	});
 
 	it('counts the suite as visitors, and says so, when the job log cannot be read', () => {
-		const s = summarise(ROWS_BT, EVENTS_BT, '198.51.100.*', at('00:00'), null, [], { runs: [], error: '/jobs: HTTP 500' });
+		const s = summarise(APP, ROWS_BT, EVENTS_BT, '198.51.100.*', at('00:00'), null, [], { runs: [], error: '/jobs: HTTP 500' });
 		expect(s.sites.ppe.newAccounts).toHaveLength(4);
 		expect(alertLine(s)).toBeNull();
 		expect(render(s)).toContain('## Member battletest (site:e2e-members): job log unreadable (/jobs: HTTP 500), so its traffic is counted as visitors');
@@ -232,7 +244,7 @@ describe('the member battletest', () => {
 		const got = await battletestRuns(async (path) => {
 			asked.push(path);
 			return { jobs: [{ timestamp: '2026-11-14T10:10:35.391Z', duration_ms: 1_364_000 }] };
-		}, at('00:00'));
+		}, at('00:00'), APP.battletestJob);
 		expect(asked).toEqual([`/jobs?job_name=site%3Ae2e-members&since=${at('00:00')}&limit=100`]);
 		expect(got).toEqual({ runs: [{ from: '2026-11-14T09:45:51.391Z', to: '2026-11-14T10:12:35.391Z' }], error: null });
 	});
@@ -243,7 +255,7 @@ describe('digest', () => {
 		const many = Array.from({ length: 400 }, (_, i) =>
 			ev(`2026-11-04T05:${String(i % 60).padStart(2, '0')}:00.000Z`, 'alert', 'warn', { site: 'prod', key: `kind-${i}`, text: `⚠️ ${'x'.repeat(300)}` }),
 		);
-		const s = summarise(ROWS, [...EVENTS, ...many], '198.51.100.*', at('00:00'));
+		const s = summarise(APP, ROWS, [...EVENTS, ...many], '198.51.100.*', at('00:00'));
 		const text = digest(s);
 
 		expect(text.split('\n')[1]).toBe('**Needs a look:** 1 critical, 1 error, 401 warn, 1 resolved');
@@ -296,17 +308,17 @@ describe('backup', () => {
 
 	it("asks for the job's newest succeeded run in the last 36 h, and a fresh row needs no look", async () => {
 		const { get, asked } = jobs([{ timestamp: '2026-11-06T12:02:35.538Z' }]);
-		const b = await latestBackup(get, now);
+		const b = await latestBackup(get, now, APP.backupJob);
 		expect(asked).toEqual(['/jobs?job_name=cardtable%3Astate-backup&state=succeeded&since=2026-11-05T06:00:00.000Z&limit=1']);
 		expect(b).toEqual({ at: '2026-11-06T12:02:35.538Z', ageHours: 5, stale: false, error: null });
-		const s = summarise([], [], '198.51.100.*', at('00:00'), b);
+		const s = summarise(APP, [], [], '198.51.100.*', at('00:00'), b);
 		expect(alertLine(s)).toBeNull();
 		expect(render(s)).toContain('## Backup: last succeeded 2026-11-06 12:02:35 (5h)');
 		expect(digest(s)).toContain('**Backup:** last succeeded 2026-11-06 12:02:35 (5h)');
 	});
 
 	it('exits 2 when no run succeeded in the window, and says so in the report and the digest', async () => {
-		const s = summarise([], [], '198.51.100.*', at('00:00'), await latestBackup(jobs([]).get, now));
+		const s = summarise(APP, [], [], '198.51.100.*', at('00:00'), await latestBackup(jobs([]).get, now, APP.backupJob));
 		expect(alertLine(s)).toBe('ALERT: 0 gate breach(es), 0 seal-refused, 0 critical event(s), backup stale');
 		expect(render(s)).toContain('## Backup: no succeeded cardtable:state-backup in 36h (STALE)');
 		expect(digest(s)).toContain('**Backup:** no succeeded cardtable:state-backup in 36h (STALE) ⚠️');
@@ -316,9 +328,9 @@ describe('backup', () => {
 		const get: Get = async (path) => {
 			throw new Error(`${path.split('?')[0]}: HTTP 403`);
 		};
-		const b = await latestBackup(get, now);
+		const b = await latestBackup(get, now, APP.backupJob);
 		expect(b).toEqual({ at: null, ageHours: null, stale: true, error: '/jobs: HTTP 403' });
-		const s = summarise([], [], '198.51.100.*', at('00:00'), b);
+		const s = summarise(APP, [], [], '198.51.100.*', at('00:00'), b);
 		expect(alertLine(s)).toBe('ALERT: 0 gate breach(es), 0 seal-refused, 0 critical event(s), backup unreadable (/jobs: HTTP 403)');
 		expect(render(s)).toContain('## Backup: job log unreadable: /jobs: HTTP 403');
 	});
@@ -332,9 +344,67 @@ describe('serviceKey', () => {
 		const { serviceKey } = await import('./watch.ts');
 		const file = join(mkdtempSync(join(tmpdir(), 'watch-key-')), '.devvault.local.json');
 		writeFileSync(file, JSON.stringify({ key: 'from-file' }));
-		expect(serviceKey({ CARDTABLE_TELEMETRY_KEY_FILE: file })).toBe('from-file');
-		expect(serviceKey({ CARDTABLE_TELEMETRY_KEY: 'value-wins', CARDTABLE_TELEMETRY_KEY_FILE: file })).toBe('value-wins');
+		expect(serviceKey('CARDTABLE', { CARDTABLE_TELEMETRY_KEY_FILE: file })).toBe('from-file');
+		expect(serviceKey('CARDTABLE', { CARDTABLE_TELEMETRY_KEY: 'value-wins', CARDTABLE_TELEMETRY_KEY_FILE: file })).toBe('value-wins');
 		writeFileSync(file, '{}');
-		expect(() => serviceKey({ CARDTABLE_TELEMETRY_KEY_FILE: file })).toThrow(/no "key" field/);
+		expect(() => serviceKey('CARDTABLE', { CARDTABLE_TELEMETRY_KEY_FILE: file })).toThrow(/no "key" field/);
+	});
+});
+
+describe('another app', () => {
+	const FAKE: WatchApp = { name: 'fakeapp', envPrefix: 'FAKEAPP', service: 'fakeapp', path: '/fakeapp', backupJob: 'fakeapp:state-backup' };
+
+	it("splits sites by its own path and names itself, never cardtable's", () => {
+		const s = summarise(FAKE, [row(at('01:00'), '/fakeapp/api/x'), row(at('01:01'), '/fakeapp-ppe/api/x', { status: 503 })], [], '198.51.100.*', at('00:00'));
+		expect(Object.keys(s.sites)).toEqual(['prod', 'ppe']);
+		expect(s.incidents.map((i) => i.site)).toEqual(['ppe']);
+		expect(render(s)).toMatch(/^fakeapp telemetry since/);
+		expect(digest(s)).toMatch(/^\*\*fakeapp daily\*\*/);
+	});
+
+	it('asks for no battletest when the config names none', async () => {
+		const asked: string[] = [];
+		expect(await battletestRuns(async (p) => (asked.push(p), {}), at('00:00'), undefined)).toEqual({ runs: [], error: null });
+		expect(asked).toEqual([]);
+	});
+
+	it('runs end to end from its config with a stubbed fetch: its path, its service, its backup job, its key', async () => {
+		const { mkdtempSync } = await import('node:fs');
+		const { tmpdir } = await import('node:os');
+		const { join } = await import('node:path');
+		const { fixtureConfig, writeConfig } = await import('../config.testing.ts');
+		const { main } = await import('./watch.ts');
+		const root = mkdtempSync(join(tmpdir(), 'watch-app-'));
+		writeConfig(root, fixtureConfig(join(root, 'state'), { appId: 'fakeapp', envPrefix: 'FAKEAPP', telemetry: { service: 'fakeapp', path: '/fakeapp', keyFile: 'key.json', backupJob: 'fakeapp:state-backup' } }));
+		const asked: string[] = [];
+		const keys = new Set<string>();
+		const stub = (async (url: string | URL | Request, init?: RequestInit) => {
+			const u = String(url);
+			asked.push(u.replace('https://hadoku.me/health/api', ''));
+			keys.add(new Headers(init?.headers).get('X-User-Key') ?? '');
+			const body = u.includes('/logs/query')
+				? { logs: [{ id: 'r1', ...row(at('01:00'), '/fakeapp/api/rooms') }], hasMore: false }
+				: u.includes('/service-events')
+					? { events: [], hasMore: false }
+					: { jobs: [{ timestamp: '2026-11-04T10:00:00.000Z' }] };
+			return new Response(JSON.stringify(body), { status: 200 });
+		}) as typeof fetch;
+		const out: string[] = [];
+		const code = await main(['--hours', '12', '--own-ip', '198.51.100.*'], root, {
+			fetch: stub,
+			env: { FAKEAPP_TELEMETRY_KEY: 'fake-key', CARDTABLE_TELEMETRY_KEY: 'wrong-app-key' },
+			now: () => new Date('2026-11-04T12:00:00.000Z'),
+			print: (l) => out.push(l),
+			printError: (l) => out.push(l),
+		});
+		expect(code).toBe(0);
+		expect(keys).toEqual(new Set(['fake-key']));
+		expect(asked).toEqual([
+			'/logs/query?path=/fakeapp&since=2026-11-04T00:00:00.000Z&limit=1000&offset=0',
+			'/service-events?service=fakeapp&since=2026-11-04T00:00:00.000Z&limit=1000&offset=0',
+			'/jobs?job_name=fakeapp%3Astate-backup&state=succeeded&since=2026-11-03T00:00:00.000Z&limit=1',
+		]);
+		expect(out.join('\n')).toContain('fakeapp telemetry since 2026-11-04T00:00:00.000Z: 1 edge rows, 0 server events');
+		expect(out.join('\n')).toContain('## prod: 1 requests');
 	});
 });

@@ -7,6 +7,7 @@
     "packages/host-wire/**",
     "packages/game-server/**",
     "packages/game-ui/**",
+    "packages/devkit/**",
     "apps/agent/src/*.ts",
     "packages/shared/src/look.ts",
     "packages/shared/src/room-view.ts",

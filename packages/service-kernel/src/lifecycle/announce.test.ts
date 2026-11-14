@@ -3,7 +3,7 @@
  * `service` is a sample value ('myapp'), never cardtable's. The tests that exercise this repo's
  * real `docs/releases` content (length caps, no mid-sentence breaks, the pending-notes style rule)
  * stay next to cardtable's adapter, since they pin THIS repo's own notes, not generic behaviour.
- * `ordering` here is a tiny synthetic stand-in for `scripts/release/build-version.ts`'s
+ * `ordering` here is a tiny synthetic stand-in for `packages/devkit/src/release/build-version.ts`'s
  * `newestReleaseFile`/`releaseFilesNewestFirst`, which the kernel cannot import.
  */
 import { createHmac } from 'node:crypto';
@@ -20,7 +20,7 @@ const SECRET = 'test-secret';
 const SERVICE = 'myapp';
 
 const RELEASE_FILE = /^v(\d+)\.(\d+)\.(\d+)\.md$/;
-/** A minimal semver-by-filename ordering, standing in for `scripts/release/build-version.ts`. */
+/** A minimal semver-by-filename ordering, standing in for `packages/devkit/src/release/build-version.ts`. */
 const ORDERING: ReleaseOrdering = {
 	newestFirst(names) {
 		const parsed = names.flatMap((name) => {

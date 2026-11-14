@@ -201,8 +201,17 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
 - **Waiting on CI and landing.** Wait for a run with ONE background
   `scripts/lanes/watch-run.sh <run-id>`, never a poll loop in your own context.
   `scripts/lanes/prove-and-land.sh <worktree> -f only=… -f specs=…` rebases onto
-  origin/main, proves that exact HEAD on the claws, and lands only on green. A new
-  ledger row in a landing commit is `| AF??? |`; `scripts/land.sh` numbers it.
+  origin/main, proves that exact HEAD on the claws, and lands only on green
+  (`--plan` first says what it would dispatch and what forge.yml's selection picks,
+  pushing nothing). A new ledger row in a landing commit is `| AF??? |`; `scripts/land.sh`
+  numbers it.
+- **These scripts are the devkit's.** The claim, land, prove, watch-run, release and
+  telemetry scripts under `scripts/` are one-line entry points of `packages/devkit`
+  (MIT), which reads every cardtable value (paths, workflows, the ledger, the telemetry
+  service, the ports) from `devkit.config.json`; the Magic-only steps are hooks it names
+  (`scripts/art/land-art-rows.sh`, `scripts/ci/select-forge-tests.ts`).
+  `packages/devkit/README.md` has every field and what it replaced. Change behaviour in the
+  package, cardtable's values in the config.
 - **Release notes accumulate in `docs/releases/pending/`.** A land that changes
   something a player can see or feel adds one file there, in the same commit:
   `<YYYY-MM-DD>-<slug>.md`, bullets under `## New` / `## Changed` / `## Fixed`, in
@@ -217,7 +226,7 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
   it first; the running server re-reads the file when it changes, so the tab shows it on the next
   load with no restart. Show the operator the dry run before writing.
 - **No commit edits a version.** A build's version is derived from the tree
-  (`scripts/release/build-version.ts`: the newest `docs/releases/vX.Y.Z.md` plus the
+  (`packages/devkit/src/release/build-version.ts`: the newest `docs/releases/vX.Y.Z.md` plus the
   commit, or `CARDTABLE_VERSION`), and `release.yml` defaults to that notes file's
   version. The `version` fields in `apps/*/package.json` are inert; never bump them.
 

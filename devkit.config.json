@@ -1,0 +1,46 @@
+{
+  "$comment": "What packages/devkit knows about cardtable (packages/devkit/README.md has every field). scripts/devkit-config.test.ts pins these to the values the scripts hardcoded before the devkit.",
+  "appId": "cardtable",
+  "repo": "WolffM/hadoku-cardtable",
+  "envPrefix": "CARDTABLE",
+  "stateDir": "~/.local/state/cardtable",
+  "claimsFile": "~/.local/state/cardtable/claims.tsv",
+  "scratchDir": "/tmp/claude-1000",
+  "nodeBin": "~/.local/share/fnm/node-versions/v24.18.0/installation/bin",
+  "trees": {
+    "deploy": "~/srv/hadoku-cardtable",
+    "ppe": "~/srv/hadoku-cardtable-ppe"
+  },
+  "ci": { "workflow": "ci.yml", "name": "CI", "checkJob": "check" },
+  "proof": {
+    "workflow": "forge.yml",
+    "maxInFlight": 3,
+    "select": "scripts/ci/select-forge-tests.ts"
+  },
+  "releases": { "dir": "docs/releases" },
+  "ledger": "docs/planning/playtest-ledger.md",
+  "land": {
+    "lock": "/tmp/claude-1000/land.lock",
+    "devVault": "~/repos/hadoku_site/scripts/secrets/dev-vault.mjs",
+    "linkDeps": "scripts/link-worktree-node-modules.sh",
+    "unsetEnv": ["CARDTABLE_FORGE_JAR", "CARDTABLE_FORGE_RES"],
+    "botCommits": "^chore: auto-update @wolffm/",
+    "tests": {
+      "runAllList": "scripts/ci/run-all.txt",
+      "whole": ["^packages/", "^games/[^/]+/packages/", "^apps/ui/src/test-setup\\.ts$"],
+      "relatedOnly": ["^packages/game-(server|ui)/src/"]
+    },
+    "hooks": { "beforeCheck": ["scripts/art/land-art-rows.sh"] }
+  },
+  "telemetry": {
+    "service": "cardtable",
+    "path": "/cardtable",
+    "keyFile": "/home/hadoku/repos/hadoku-cardtable/.devvault.local.json",
+    "outDir": "/home/hadoku/.local/state/cardtable/telemetry",
+    "backupJob": "cardtable:state-backup",
+    "battletestJob": "site:e2e-members",
+    "tourUserId": "c8c59a87-f8af-4da7-9c99-d9e536b3fca8",
+    "discordWebhookSecret": "DISCORD_CARDTABLE_DAILY_WEBHOOK"
+  },
+  "health": { "prod": 9008, "ppe": 9011 }
+}

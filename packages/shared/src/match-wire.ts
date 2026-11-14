@@ -153,7 +153,7 @@ export const MATCH_EVENTS = {
    */
   restartState: 'forge:restart-state',
   /**
-   * The server's build (`scripts/release/build-version.ts`), server → client, once per socket, on
+   * The server's build (`packages/devkit/src/release/build-version.ts`), server → client, once per socket, on
    * connect. Its own event rather than a field on the join ack: `MatchSnapshotSchema` is
    * `.strict()`, so a page still running an older bundle would refuse every ack that carried a new
    * key, where socket.io drops an event nobody listens to. See {@link ServerBuildSchema}.

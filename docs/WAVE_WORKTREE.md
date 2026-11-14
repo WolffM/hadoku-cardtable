@@ -109,7 +109,7 @@ No tracker hop. As soon as the manager has verified a lane and committed it on t
 3. runs `pnpm run check`;
 4. pushes `HEAD:main`.
 
-It edits no version: a build's version comes from the tree (`scripts/release/build-version.ts`).
+It edits no version: a build's version comes from the tree (`packages/devkit/src/release/build-version.ts`).
 
 Lanes still working keep their uncommitted files, because the wave branch is never rebased. A later land skips
 what an earlier one pushed.

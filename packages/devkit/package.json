@@ -1,0 +1,20 @@
+{
+  "name": "@hadoku/devkit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "A game repo's landing and release discipline, parameterised by app id: claims, land, prove-and-land, run watching, release notes, the build version and the telemetry watch. Every app-specific value comes from the repo's devkit.config.json; app-only steps plug in as hooks it names. MIT; imports only node built-ins and zod.",
+  "exports": {
+    "./config": "./src/config.ts",
+    "./release/build-version": "./src/release/build-version.ts",
+    "./release/collect": "./src/release/collect.ts",
+    "./telemetry/watch": "./src/telemetry/watch.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.5.4"
+  }
+}
