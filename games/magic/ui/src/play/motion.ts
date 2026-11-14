@@ -192,6 +192,12 @@ export interface Unlocks {
   endsInMs: number;
   /** Where its beats run: each still running there once that point has come is waited for to its own {@link UNLOCK_AT}. */
   root?: Element;
+  /**
+   * Not before this settles, however late: a drawing whose last beat starts as an earlier one ends (a die's pop, once
+   * its tumble is down) runs behind its clock by however late the page started the first, and the earlier beat's own
+   * {@link UNLOCK_AT} is not the drawing's.
+   */
+  after?: Promise<unknown>;
 }
 
 function hold(set: Set<Promise<void>>, waiters: Set<() => void>, until: Promise<void>): void {
@@ -232,10 +238,11 @@ export function noteBoardDrawing(over: Promise<unknown>, unlocks?: Unlocks): voi
   hold(drawing, stillWaiters, settled);
   if (unlocks === undefined) return hold(locked, unlockWaiters, settled);
   const unlocked = new Promise<void>((at) => {
-    setTimeout(() => {
+    const look = (): void => {
       if (done || unlocks.root === undefined) return at();
       void animationsSettled(unlocks.root, UNLOCK_AT).then(at);
-    }, unlockAfter(unlocks.endsInMs));
+    };
+    setTimeout(() => void Promise.resolve(unlocks.after).then(look, look), unlockAfter(unlocks.endsInMs));
   });
   hold(locked, unlockWaiters, Promise.race([settled, unlocked]));
 }

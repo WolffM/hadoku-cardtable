@@ -27,7 +27,7 @@
  * the seat's own next frame and question too, in Fast Mode as well (the operator, 2026-10-28: "make sure
  * the dice roll completes before any action is triggered"). The tumble and its landing are also a beat
  * (`../motion.ts`'s `noteBoardDrawing`, the animations carrying `BEAT_ANIMATION_ID`), let go, as every beat
- * is, at `UNLOCK_AT` of the roll: the last die has landed by then, its pop still playing. Reduced motion: the
+ * is, at `UNLOCK_AT` of the roll, and never before the last die is down, its pop playing. Reduced motion: the
  * die appears where it lands, showing its result, and nothing waits.
  *
  * Every element is in the board's overlay, never a transform on a card in a row (table-fit).
@@ -374,8 +374,8 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     );
   }
 
-  /** One die, from `from` to beside it: its tumble, its shadow, its faces, its landing. Settles when it has landed. */
-  async function throwDie(root: HTMLElement, roll: ShownRoll, die: Die, own: boolean, path: DiePath): Promise<void> {
+  /** One die, from `from` to beside it: its tumble, its shadow, its faces, its landing. Calls `down` once its tumble is over and its pop playing; settles when it has landed. */
+  async function throwDie(root: HTMLElement, roll: ShownRoll, die: Die, own: boolean, path: DiePath, down: () => void): Promise<void> {
     const el = makeDie(roll, die, own, path.size);
     root.append(el);
     place(el);
@@ -399,7 +399,7 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     shadow.animate(shadowFrames(path, kf), { duration: TUMBLE_MS, easing, fill: 'forwards', id: BEAT_ANIMATION_ID });
     await Promise.all([tumble.finished.catch(() => undefined), flicker(el, facesOf(roll.sides, die.result), die.result, TUMBLE_MS * 0.92)]);
     // Down: the tumble is over, the pop to come. What the roll decides may show from here (`./pace.ts`
-    // lets go at `UNLOCK_AT` of the roll), so this, not `data-die-landed` after the pop, is "landed".
+    // lets go at `UNLOCK_AT` of the roll and once `down` is called), so this, not `data-die-landed` after the pop, is "landed".
     el.dataset.dieDown = '';
     remove(shadow);
     if (!live) return;
@@ -411,6 +411,7 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
       id: BEAT_ANIMATION_ID,
     });
     if (die.ignored) el.dataset.dieIgnored = '';
+    down();
     await pop.finished.catch(() => undefined);
     linger(el);
   }
@@ -425,22 +426,27 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     const viewer = viewerOf(view)?.id ?? view.players[0]?.id;
     const own = roll.player === viewer;
     const still = reduced();
+    const downs: Promise<void>[] = [];
     const thrown = diceOf(roll).map(
       (die, i) =>
         new Promise<void>((resolve) => {
+          let down!: () => void;
+          downs.push(new Promise<void>((isDown) => (down = isDown)));
           const settle = (): void => {
             landing.delete(settle);
+            down();
             resolve();
           };
           landing.add(settle);
-          const go = (): void => void throwDie(root, roll, die, own, diePath(card, box, own, i)).then(settle, settle);
+          const go = (): void => void throwDie(root, roll, die, own, diePath(card, box, own, i), down).then(settle, settle);
           // Reduced motion: every die is simply there, at once.
           if (i === 0 || still) go();
           else schedule(go, i * DIE_STAGGER_MS);
         }),
     );
-    // The pacer lets go once the roll is `UNLOCK_AT` through: every die down, the last pop still playing.
-    if (!still) noteBoardDrawing(Promise.all(thrown), { endsInMs: rollMs(thrown.length), root });
+    // The pacer lets go once the roll is `UNLOCK_AT` through and every die is down, the last pop still playing: a
+    // tumble the page started a slow frame late is still in its last tenth when the roll's own 90% comes.
+    if (!still) noteBoardDrawing(Promise.all(thrown), { endsInMs: rollMs(thrown.length), root, after: Promise.all(downs) });
   }
 
   return {
