@@ -35,23 +35,39 @@ const titled = makeTitled(forge);
 
 const LOOPS = 5;
 /**
- * The most a timed loop's pick may take to the next offer, on the server's clock: from the pick's arrival
- * (`forge-command` selectCard on the Sword) to the next priority window shown the seat (`prompt-forwarded`),
- * where the Foundry is offered again. Measured on the claws
- * before the ruling: 2.86 s (1.41 s of the board's beats, 1.3 s of resolve gaps, 150 ms of an objectless
- * delta's gap). The browser's own wall time is printed, never judged: on a claw shared by six Forge jobs
- * it read 1571 ms for a loop the server offered in 764 (run 42493341901).
+ * The most of a timed loop's pick→next offer that may be the server's own, on the server's clock: from the
+ * pick's arrival (`forge-command` selectCard on the Sword) to the next priority window shown the seat
+ * (`prompt-forwarded`), where the Foundry is offered again. Forge works through most of that span — the
+ * activation, the AI's two priority passes, both resolutions — and the server answers what Forge then waits
+ * on: the {1}, its own two passes, the Sword's trigger, the offer itself. Only the answers are ours, and only
+ * they are judged: a question held behind the board, paced or sent to the browser counts in full (the live
+ * game's 2.5 s trigger, a beat of 400 ms or more), while Forge's own work, which a claw shared by several
+ * Forge jobs slows threefold, does not. Measured on the claws (runs 43221810562–43518718871): the server's
+ * share was 1–20 ms in every timed loop, Forge's 228–1458 ms; the whole span, once judged against 1.2 s,
+ * went red six times on Forge's share alone.
  */
-const NEXT_OFFER_BUDGET_MS = 1_200;
+const SERVER_SHARE_BUDGET_MS = 250;
 
 const at = (r: Record<string, unknown>): number => Date.parse(String(r.t));
 
-/** The server's pick→next offer for one loop's rows: the Sword pick's arrival to the next priority window it shows the seat. */
-function serverNextMs(rows: Record<string, unknown>[], sword: number): number | null {
+/**
+ * One loop's pick→next offer on the server's clock, the Sword pick's arrival to the next priority window it
+ * shows the seat, and the server's own share of it: each of its acts in between (`forge-command`, then the
+ * offer's `prompt-forwarded`) timed from the seat's last Forge frame before it, which is when Forge began
+ * waiting on the server. The rest is Forge's.
+ */
+function serverNext(rows: Record<string, unknown>[], sword: number): { totalMs: number; ownMs: number } | null {
   const pick = rows.findIndex((r) => r.evt === 'forge-command' && r.cmd === 'act' && r.seat === 0 && r.method === 'selectCard' && r.card === sword);
   if (pick < 0) return null;
-  const offer = rows.slice(pick).find((r) => r.evt === 'prompt-forwarded' && r.seat === 0 && r.kind === 'priority');
-  return offer === undefined ? null : at(offer) - at(rows[pick]!);
+  let forgeAt = at(rows[pick]!);
+  let ownMs = 0;
+  for (const r of rows.slice(pick + 1)) {
+    if (r.evt === 'forge-frame' && r.seat === 0) forgeAt = at(r);
+    const offer = r.evt === 'prompt-forwarded' && r.seat === 0 && r.kind === 'priority';
+    if (r.evt === 'forge-command' || offer) ownMs += at(r) - forgeAt;
+    if (offer) return { totalMs: at(r) - at(rows[pick]!), ownMs };
+  }
+  return null;
 }
 const life = (page: Page) => page.locator('.seat[data-viewer] [data-testid="life"]');
 
@@ -90,7 +106,7 @@ test(titled('Thopter Foundry + Sword of the Meek: the server plays the Sword’s
     await whenOffered(page, foundry!, 60_000);
     await expect(page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card]'), 'the scenario’s 11 permanents, which `whenLooped` counts from').toHaveCount(11);
 
-    const timed: { pickMs: number; nextMs: number; held: string[] }[] = [];
+    const timed: { pickMs: number; nextMs: number; ownMs: number; held: string[] }[] = [];
     let fromLoop = serverLog(stack).length;
     for (let loop = 0; loop < LOOPS; loop++) {
       const [sword] = await ownNamed(page, 'Sword of the Meek');
@@ -115,7 +131,7 @@ test(titled('Thopter Foundry + Sword of the Meek: the server plays the Sword’s
       // The server writes its log through a stream: the row of the window the browser just drew can
       // still be on its way to the file, most of all after the server itself stalled.
       await expect
-        .poll(() => serverNextMs(serverLog(stack).slice(fromLoop), sword!), { timeout: 15_000, message: `loop ${loop}: the server logged the pick and the next offer` })
+        .poll(() => serverNext(serverLog(stack).slice(fromLoop), sword!), { timeout: 15_000, message: `loop ${loop}: the server logged the pick and the next offer` })
         .not.toBeNull();
       const rows = serverLog(stack).slice(fromLoop);
       fromLoop += rows.length;
@@ -123,19 +139,19 @@ test(titled('Thopter Foundry + Sword of the Meek: the server plays the Sword’s
       const played = rows.filter((r) => r.evt === 'ask-auto-answered' && r.seat === 0 && r.method === 'getAbilityToPlay' && r.why === 'one ability').length;
       // The pacer's own word on each question it held behind the board (`games/magic/ui/src/play/live/pace.ts`, `input-held`).
       const held = rows.filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'input-held').map((r) => `${String(r.method)} ${String(r.ms)}ms (board ${String(r.boardMs)}, gaps ${String(r.gapMs)}, ahead ${String(r.classes)} [${String(r.defaults)}])`);
-      const serverMs = serverNextMs(rows, sword!);
+      const next = serverNext(rows, sword!)!;
       console.log(
-        `[tf] loop ${loop}: click→pick ${pickAt - clickAt} ms, pick→next offer ${String(serverMs)} ms on the server (${nextAt - pickedAt} ms in the browser), total ${nextAt - clickAt} ms; ` +
+        `[tf] loop ${loop}: click→pick ${pickAt - clickAt} ms, pick→next offer ${next.totalMs} ms on the server (the server's own ${next.ownMs}, Forge's ${next.totalMs - next.ownMs}; ${nextAt - pickedAt} ms in the browser), total ${nextAt - clickAt} ms; ` +
           `getAbilityToPlay answered by the browser after ${JSON.stringify(forwarded)} ms, played by the server ${played}; held: ${held.join('; ') || 'none'}`,
       );
-      if (loop > 0) timed.push({ pickMs: pickAt - clickAt, nextMs: serverMs!, held });
+      if (loop > 0) timed.push({ pickMs: pickAt - clickAt, nextMs: next.totalMs, ownMs: next.ownMs, held });
     }
     const mean = (xs: number[]) => Math.round(xs.reduce((a, b) => a + b, 0) / xs.length);
-    console.log(`[tf] mean of loops 1–${LOOPS - 1}: click→pick ${mean(timed.map((t) => t.pickMs))} ms, pick→next offer ${mean(timed.map((t) => t.nextMs))} ms on the server`);
+    console.log(`[tf] mean of loops 1–${LOOPS - 1}: click→pick ${mean(timed.map((t) => t.pickMs))} ms, pick→next offer ${mean(timed.map((t) => t.nextMs))} ms on the server, ${mean(timed.map((t) => t.ownMs))} of it the server's own`);
 
     // The loop's own frames wait on no beat and no gap: the next question is never held behind them.
     expect(timed.flatMap((t) => t.held), 'no timed loop’s question waited on the board or a gap').toEqual([]);
-    for (const [i, t] of timed.entries()) expect(t.nextMs, `loop ${i + 1}: pick→next offer within ${NEXT_OFFER_BUDGET_MS} ms on the server's clock`).toBeLessThan(NEXT_OFFER_BUDGET_MS);
+    for (const [i, t] of timed.entries()) expect(t.ownMs, `loop ${i + 1}: the server's own share of pick→next offer within ${SERVER_SHARE_BUDGET_MS} ms`).toBeLessThan(SERVER_SHARE_BUDGET_MS);
     // However the loops overlapped, every life gained is drawn.
     await expect(life(page), 'every loop’s life is drawn once the beats are over').toHaveText(String(20 + LOOPS), { timeout: 10_000 });
 
