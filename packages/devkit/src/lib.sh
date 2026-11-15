@@ -27,6 +27,12 @@ devkit_load() {
   DK_NODE=$(dk_pick_node) || exit 2
   root=${DEVKIT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || true)}
   [ -n "$root" ] || { echo "devkit: not in a git checkout; set DEVKIT_ROOT to the repo that holds devkit.config.json" >&2; exit 2; }
+  # A checkout fast-forwarded past a dependency change without an install fails below as
+  # ERR_MODULE_NOT_FOUND; name the two ways to give it one instead.
+  [ -e "$DK_SRC/../node_modules/zod" ] || {
+    echo "devkit: $(realpath "$DK_SRC/..") has no node_modules/zod. A worktree: scripts/link-worktree-node-modules.sh <its absolute path>; a checkout with its own install: pnpm install --frozen-lockfile there" >&2
+    exit 2
+  }
   vars=$("$DK_NODE" "$DK_SRC/config.ts" --root "$root" shell) || exit 2
   eval "$vars"
   # The scripts this one runs read the same repo's config.
