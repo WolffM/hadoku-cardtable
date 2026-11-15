@@ -152,8 +152,8 @@ importers:
         specifier: 6.1.1
         version: 6.1.1(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.13))
       '@wolffm/catalogue':
-        specifier: npm:@hadoku/catalogue@^1.0.13
-        version: '@hadoku/catalogue@1.0.13'
+        specifier: npm:@hadoku/catalogue@^1.0.14
+        version: '@hadoku/catalogue@1.0.14'
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.13)
@@ -792,8 +792,8 @@ packages:
       '@noble/hashes':
         optional: true
 
-  '@hadoku/catalogue@1.0.13':
-    resolution: {integrity: sha512-X72XkqJ9ui4GQUU1C8wG75elfYyti4ErKSNhNXnrI5cPfTwjcud2hVfo2KmnvJoIHMQH/oMkzcD87GHEuCbvkA==}
+  '@hadoku/catalogue@1.0.14':
+    resolution: {integrity: sha512-U/0O2ixg7reB0aLsG5gvB+yPBwL/l1pGF5KX2DsP5BwvZus/vX3+UCXMHTYFIuHv2K10zRI3ji0Tk3qTMNRfxQ==}
     engines: {node: '>=18'}
 
   '@hadoku/cdn-client@2.1.0':
@@ -2699,7 +2699,7 @@ snapshots:
 
   '@exodus/bytes@1.15.1': {}
 
-  '@hadoku/catalogue@1.0.13': {}
+  '@hadoku/catalogue@1.0.14': {}
 
   '@hadoku/cdn-client@2.1.0(react@19.2.8)':
     optionalDependencies:
