@@ -21,7 +21,8 @@ describe('the published manifest', () => {
 		expect(pkg.files).toEqual(['dist', 'LICENSE']);
 		expect(existsSync(join(REPO, 'packages', name, 'LICENSE'))).toBe(true);
 		expect(pkg.devDependencies).toBeUndefined();
-		expect(pkg.publishLeaveOut).toBeUndefined();
+		// The workflow builds from this manifest, after writing it: the build's leave-out list rides along.
+		expect(pkg.publishLeaveOut).toEqual(workspace.publishLeaveOut);
 		expect(pkg.publishConfig).toEqual({ registry: 'https://npm.pkg.github.com', access: 'public' });
 		// Nothing a registry cannot resolve, and every sibling at the exact version this run gave it.
 		const deps = { ...pkg.dependencies, ...pkg.peerDependencies };

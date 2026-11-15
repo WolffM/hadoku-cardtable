@@ -13,7 +13,8 @@
 //     and every file that imports one of those, transitively;
 //   - a file under one of the package.json's `publishLeaveOut` paths (relative to src/, a
 //     trailing `/` for a directory): this repo's own code that a published package does not carry,
-//     such as game-server's Forge hosting. Its importers go too, as above.
+//     such as game-server's Forge hosting. Its importers go too, as above. The workflow writes the
+//     published manifest before it builds, so manifest.ts keeps this field for the build to read.
 //
 // After tsc: declarations get the same `.ts` → `.js` rewrite the JavaScript already has (TypeScript
 // leaves .d.ts specifiers alone, and a consumer resolving `./x.ts` from one finds nothing); every
