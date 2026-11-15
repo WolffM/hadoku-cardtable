@@ -48,6 +48,7 @@ import {
 	type ToAgent,
 } from '@hadoku/host-wire';
 import { Cgroups } from './cgroups.ts';
+import { HeartbeatWatch } from './heartbeat-watch.ts';
 import { Jvm, type Installed, type Log } from './jvm.ts';
 import { Store } from './store.ts';
 
@@ -97,6 +98,7 @@ export class Agent {
 	private readonly watchers = new Map<string, FSWatcher>();
 	private readonly guard: ReplayGuard;
 	private readonly now: () => number;
+	private beats: HeartbeatWatch | null = null;
 	private readonly log: Log;
 	private readonly fenceMs: number;
 	private readonly jvmDir: string;
@@ -174,6 +176,7 @@ export class Agent {
 		server.on('upgrade', (req: IncomingMessage, socket: Duplex) => this.upgrade(req, socket));
 		this.server = server;
 		const hb = this.opts.heartbeatMs ?? HEARTBEAT_MS;
+		this.beats = new HeartbeatWatch(hb, this.now);
 		this.timers.push(
 			setInterval(() => this.heartbeat(), hb),
 			setInterval(() => this.tick(), Math.min(1000, hb)),
@@ -195,6 +198,7 @@ export class Agent {
 	close(): void {
 		this.draftbot.stop();
 		for (const t of this.timers) clearInterval(t);
+		this.beats?.stop();
 		for (const w of this.watchers.values()) w.close();
 		for (const jvm of this.jvms.values()) jvm.detach();
 		this.session?.socket.destroy();
@@ -253,8 +257,15 @@ export class Agent {
 	}
 
 	private heartbeat(): void {
+		const late = this.beats?.beat() ?? null;
 		if (this.session === null) return;
-		this.emit({ t: 'hb', at: this.now(), jvms: this.live().map((j) => j.health()), slice: this.cgroups.slice(), draftbot: this.draftbot.status() });
+		const { socket } = this.session;
+		const started = this.now();
+		this.emit({ t: 'hb', at: started, jvms: this.live().map((j) => j.health()), slice: this.cgroups.slice(), draftbot: this.draftbot.status() });
+		const buildMs = this.now() - started;
+		if (late !== null || this.beats?.slow(buildMs) === true) {
+			this.log('heartbeat-late', { gapMs: late?.gapMs ?? null, loopMaxMs: late?.loopMaxMs ?? null, buildMs, queuedBytes: socket.writableLength });
+		}
 	}
 
 	private emit(f: FromAgent): void {

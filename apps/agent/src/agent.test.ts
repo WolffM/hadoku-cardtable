@@ -354,6 +354,21 @@ describe('host agent', () => {
 		await until('killed', () => !pidAlive(pid));
 	});
 
+	it('logs a late heartbeat with its gap, the loop delay, its build time and the bytes queued on the socket', async () => {
+		const logged: { what: string; data: Record<string, unknown> }[] = [];
+		const { port } = await startAgent(scratch(), fakeCgroups(), 10_000, (what, data = {}) => void logged.push({ what, data }));
+		const { client } = await coordinator(port, fakeRuntime());
+		const late = (): Record<string, unknown> | undefined => logged.find((l) => l.what === 'heartbeat-late')?.data;
+		await until('a heartbeat', () => client.health !== null);
+		const first = client.health;
+		await until('the next heartbeat', () => client.health !== first);
+		expect(late()).toBeUndefined();
+		clock.t += 7_000; // the agent's clock says seven seconds passed between two heartbeats
+		await until('heartbeat-late', () => late() !== undefined);
+		expect(late()).toMatchObject({ gapMs: 7_000, buildMs: 0, queuedBytes: expect.any(Number) });
+		expect(late()?.loopMaxMs).toEqual(expect.any(Number));
+	});
+
 	it('the coordinator fails the claw over when heartbeats stop for the window', async () => {
 		const { agent, port } = await startAgent(scratch());
 		const { client, launcher } = await coordinator(port, fakeRuntime());
