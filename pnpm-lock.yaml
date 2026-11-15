@@ -110,10 +110,10 @@ importers:
         version: link:../../packages/ui-shell
       '@wolffm/game-stats-ui':
         specifier: npm:@hadoku/game-stats-ui@0.1.12
-        version: '@hadoku/game-stats-ui@0.1.12(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)'
+        version: '@hadoku/game-stats-ui@0.1.12(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)'
       '@wolffm/prefs-client':
         specifier: npm:@hadoku/prefs-client@1.1.27
-        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
+        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.91
         version: '@hadoku/rooms-protocol@0.45.91'
@@ -384,7 +384,7 @@ importers:
         version: link:../ui-shell
       '@wolffm/prefs-client':
         specifier: npm:@hadoku/prefs-client@1.1.27
-        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
+        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
       '@wolffm/rooms-client':
         specifier: npm:@hadoku/rooms-client@0.45.91
         version: '@hadoku/rooms-client@0.45.91(react@19.2.8)(socket.io-client@4.8.3)'
@@ -1580,6 +1580,9 @@ packages:
   engine.io-client@6.6.6:
     resolution: {integrity: sha512-iY6QdftLQ9pyiPoX082bpf/u1UewnOaJrtJIF9T0++QB34lZrj0uP+Q/bj8AlUsAxqhnkTV2BS8SBZSxOmoV5Q==}
 
+  engine.io-client@6.6.7:
+    resolution: {integrity: sha512-GyAvmPA7gnRCpDQbYACAy79Lg4ewevrmaPzySZz0OVvgyZc3gEfLLqPTYk8wVBScjOEpM9ZO4KryyFpVItjGEA==}
+
   engine.io-parser@5.2.3:
     resolution: {integrity: sha512-HqD3yTBfnBxIrbnM1DoD6Pcq8NECnh8d4As1Qgh0z5Gg3jRRIqijury0CL3ghu/edArpUYiYqQiDUQBIs4np3Q==}
     engines: {node: '>=10.0.0'}
@@ -2193,6 +2196,10 @@ packages:
     resolution: {integrity: sha512-uP0bpjWrjQmUt5DTHq9RuoCBdFJF10cdX9X+a368j/Ft0wmaVgxlrjvK3kjvgCODOMMOz9lcaRzxmso0bTWZ/g==}
     engines: {node: '>=10.0.0'}
 
+  socket.io-client@4.8.4:
+    resolution: {integrity: sha512-7wjKAvVXYOJsbmUgkWbnhPD4bFpkqrUR0++XOjpGFmqDqsqV1CI93VTraeExLxpjxEqrWgFoSRZu1ihjLWfkAA==}
+    engines: {node: '>=10.0.0'}
+
   socket.io-parser@4.2.7:
     resolution: {integrity: sha512-IH/iSeO9T6gz1KkFleGDWkG9N3dl4jXVYUtMhIqH10Md0ttMer8nUNWiP1DKuNrybD2xBrixLJdCC9J6ECoYkg==}
     engines: {node: '>=10.0.0'}
@@ -2487,6 +2494,9 @@ packages:
   zod@4.5.4:
     resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
 
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
+
   zustand@5.1.0:
     resolution: {integrity: sha512-ciJZlP48M1PTQbVQq81CGVFxHTLpZNrFjKqwjtCU34AWuXTZT/jrF3p9+fI84Cf1eSCMLapxqBy/SNTfwOBuqA==}
     engines: {node: '>=12.20.0'}
@@ -2698,9 +2708,21 @@ snapshots:
       '@wolffm/themes': '@hadoku/themes@5.14.4(react@19.2.8)'
       react: 19.2.8
 
+  '@hadoku/game-stats-ui@0.1.12(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
+      '@wolffm/themes': '@hadoku/themes@5.14.4(react@19.2.8)'
+      react: 19.2.8
+
   '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)':
     dependencies:
       zod: 4.5.4
+    optionalDependencies:
+      react: 19.2.8
+
+  '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)':
+    dependencies:
+      zod: 4.6.7
     optionalDependencies:
       react: 19.2.8
 
@@ -2726,21 +2748,21 @@ snapshots:
 
   '@hadoku/themes@5.14.4(react@19.2.8)':
     dependencies:
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
-      zod: 4.5.4
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
+      zod: 4.6.7
     optionalDependencies:
       react: 19.2.8
 
   '@hadoku/watchparty-ui@0.45.91(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@wolffm/cdn-client': '@hadoku/cdn-client@2.1.0(react@19.2.8)'
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
       '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.91'
       '@wolffm/themes': '@hadoku/themes@5.14.4(react@19.2.8)'
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
-      socket.io-client: 4.8.3
-      zod: 4.5.4
+      socket.io-client: 4.8.4
+      zod: 4.6.7
       zustand: 5.1.0(@types/react@19.2.18)(react@19.2.8)
     optionalDependencies:
       '@wolffm/task-ui-components': '@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
@@ -3348,6 +3370,18 @@ snapshots:
   encodeurl@2.0.0: {}
 
   engine.io-client@6.6.6:
+    dependencies:
+      '@socket.io/component-emitter': 3.1.2
+      debug: 4.4.3
+      engine.io-parser: 5.2.3
+      ws: 8.21.3
+      xmlhttprequest-ssl: 2.1.2
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+
+  engine.io-client@6.6.7:
     dependencies:
       '@socket.io/component-emitter': 3.1.2
       debug: 4.4.3
@@ -4066,6 +4100,17 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  socket.io-client@4.8.4:
+    dependencies:
+      '@socket.io/component-emitter': 3.1.2
+      debug: 4.4.3
+      engine.io-client: 6.6.7
+      socket.io-parser: 4.2.7
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+
   socket.io-parser@4.2.7:
     dependencies:
       '@socket.io/component-emitter': 3.1.2
@@ -4304,6 +4349,8 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   zod@4.5.4: {}
+
+  zod@4.6.7: {}
 
   zustand@5.1.0(@types/react@19.2.18)(react@19.2.8):
     optionalDependencies:
