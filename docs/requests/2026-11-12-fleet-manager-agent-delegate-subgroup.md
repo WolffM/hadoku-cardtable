@@ -1,6 +1,6 @@
 # Request to hadoku-fleet-manager: `DelegateSubgroup=` on the agent unit
 
-**From:** hadoku-cardtable, 2026-11-12 (wave 105, lane A). **Status: OPEN.**
+**From:** hadoku-cardtable, 2026-11-12 (wave 105, lane A). **Status: DONE 2026-11-15** (see the end).
 
 ## Context
 
@@ -85,3 +85,19 @@ subgroup — it does not discover an arbitrary one.
   `systemctl status cardtable-agent.service` shows it running again, with no "Device or resource
   busy" in the unit's journal, and the live JVM(s) it had are adopted, not fenced. We will run this
   ourselves under a lease drain once the directive is live; tell us when that is.
+
+## Done (2026-11-15)
+
+- fleet-manager `da67e39` (2026-11-14) renders `DelegateSubgroup=agent` for a tenant with
+  `workersOutliveRestart`. It reached the claws only when the slice was re-asserted:
+  `fleet hosting claw-{8,9,10} --tenant cardtable --reassert`, 19:55–19:56Z, one claw at a time,
+  after a diff of each claw's unit against the render showed that line and its comment as the only
+  change. Each agent restarted once (relay down ~0.5 s), adopted its warm JVM, no quarantine, no
+  alert; `/proc/<main pid>/cgroup` reads `…/cardtable-agent.service/agent` on all three.
+- The kill test, on claw-8 under a lease drain, 20:56:16Z, agent `3c932c8d2dfc`: the unit's own
+  `cgroup.subtree_control` read `memory` (the state that refused every respawn), `kill -9` of the
+  main pid → systemd respawned it 2.3 s later in `agent/` (`NRestarts=1`, no "Device or resource
+  busy"), and it adopted the live JVM `h-cf2d9959968e`; prod logged the relay back with no
+  quarantine or alert. The draft bot's capped leaf held no process at that moment, so the run
+  proves the respawn against the stuck grant, not against a running capped bot.
+
