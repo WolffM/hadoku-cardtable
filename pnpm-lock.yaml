@@ -110,10 +110,10 @@ importers:
         version: link:../../packages/ui-shell
       '@wolffm/game-stats-ui':
         specifier: npm:@hadoku/game-stats-ui@0.1.12
-        version: '@hadoku/game-stats-ui@0.1.12(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)'
+        version: '@hadoku/game-stats-ui@0.1.12(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)'
       '@wolffm/prefs-client':
         specifier: npm:@hadoku/prefs-client@1.1.27
-        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
+        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.91
         version: '@hadoku/rooms-protocol@0.45.91'
@@ -132,6 +132,9 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
     devDependencies:
       '@testing-library/dom':
         specifier: 10.4.1
@@ -384,7 +387,7 @@ importers:
         version: link:../ui-shell
       '@wolffm/prefs-client':
         specifier: npm:@hadoku/prefs-client@1.1.27
-        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
+        version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-client':
         specifier: npm:@hadoku/rooms-client@0.45.91
         version: '@hadoku/rooms-client@0.45.91(react@19.2.8)(socket.io-client@4.8.3)'
@@ -403,6 +406,9 @@ importers:
       socket.io-client:
         specifier: ^4.8.3
         version: 4.8.3
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
     devDependencies:
       '@hadoku/shared':
         specifier: workspace:*
@@ -2494,9 +2500,6 @@ packages:
   zod@4.5.4:
     resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
 
-  zod@4.6.7:
-    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
-
   zustand@5.1.0:
     resolution: {integrity: sha512-ciJZlP48M1PTQbVQq81CGVFxHTLpZNrFjKqwjtCU34AWuXTZT/jrF3p9+fI84Cf1eSCMLapxqBy/SNTfwOBuqA==}
     engines: {node: '>=12.20.0'}
@@ -2708,21 +2711,9 @@ snapshots:
       '@wolffm/themes': '@hadoku/themes@5.14.4(react@19.2.8)'
       react: 19.2.8
 
-  '@hadoku/game-stats-ui@0.1.12(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)':
-    dependencies:
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
-      '@wolffm/themes': '@hadoku/themes@5.14.4(react@19.2.8)'
-      react: 19.2.8
-
   '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)':
     dependencies:
       zod: 4.5.4
-    optionalDependencies:
-      react: 19.2.8
-
-  '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)':
-    dependencies:
-      zod: 4.6.7
     optionalDependencies:
       react: 19.2.8
 
@@ -2748,21 +2739,21 @@ snapshots:
 
   '@hadoku/themes@5.14.4(react@19.2.8)':
     dependencies:
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
-      zod: 4.6.7
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
+      zod: 4.5.4
     optionalDependencies:
       react: 19.2.8
 
   '@hadoku/watchparty-ui@0.45.91(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@wolffm/cdn-client': '@hadoku/cdn-client@2.1.0(react@19.2.8)'
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.6.7)'
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.91'
       '@wolffm/themes': '@hadoku/themes@5.14.4(react@19.2.8)'
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
       socket.io-client: 4.8.4
-      zod: 4.6.7
+      zod: 4.5.4
       zustand: 5.1.0(@types/react@19.2.18)(react@19.2.8)
     optionalDependencies:
       '@wolffm/task-ui-components': '@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
@@ -4349,8 +4340,6 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   zod@4.5.4: {}
-
-  zod@4.6.7: {}
 
   zustand@5.1.0(@types/react@19.2.18)(react@19.2.8):
     optionalDependencies:

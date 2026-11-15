@@ -24,7 +24,8 @@
     "@wolffm/task-ui-components": "npm:@hadoku/task-ui-components@4.23.35",
     "@wolffm/themes": "npm:@hadoku/themes@5.14.4",
     "@wolffm/watchparty-ui": "npm:@hadoku/watchparty-ui@0.45.91",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@hadoku/shared": "workspace:*",
