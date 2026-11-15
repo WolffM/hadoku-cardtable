@@ -10,7 +10,10 @@
 //   - tests and test support: `*.test.*`, `*.testing.*`, anything importing vitest or
 //     @testing-library, and anything under a `fixtures/` directory;
 //   - a file whose relative imports leave the package (it would point at a path no tarball has),
-//     and every file that imports one of those, transitively.
+//     and every file that imports one of those, transitively;
+//   - a file under one of the package.json's `publishLeaveOut` paths (relative to src/, a
+//     trailing `/` for a directory): this repo's own code that a published package does not carry,
+//     such as game-server's Forge hosting. Its importers go too, as above.
 //
 // After tsc: declarations get the same `.ts` → `.js` rewrite the JavaScript already has (TypeScript
 // leaves .d.ts specifiers alone, and a consumer resolving `./x.ts` from one finds nothing); every
@@ -44,8 +47,8 @@ export function relativeImports(text: string): string[] {
 	return [...text.matchAll(SPECIFIER)].map((m) => m[1]!).filter((s) => s.startsWith('.'));
 }
 
-/** Which of `src`'s files ship, decided from their own text alone. */
-export function plan(src: string): Plan {
+/** Which of `src`'s files ship, decided from their own text and the package's `leaveOut` paths. */
+export function plan(src: string, leaveOut: readonly string[] = []): Plan {
 	const all = readdirSync(src, { recursive: true, withFileTypes: true })
 		.filter((e) => e.isFile())
 		.map((e) => relative(src, join(e.parentPath, e.name)))
@@ -55,7 +58,9 @@ export function plan(src: string): Plan {
 	const imports = new Map<string, string[]>();
 	for (const file of sources) {
 		const text = readFileSync(join(src, file), 'utf8');
-		if (TEST_FILE.test(file)) dropped.set(file, 'test or test support');
+		const left = leaveOut.find((p) => (p.endsWith('/') ? file.startsWith(p) : file === p));
+		if (left !== undefined) dropped.set(file, `under publishLeaveOut ${left}`);
+		else if (TEST_FILE.test(file)) dropped.set(file, 'test or test support');
 		else if (TEST_IMPORT.test(text)) dropped.set(file, 'imports a test library');
 		// nodenext source names the `.js` tsc will emit; the file it means is the `.ts`/`.tsx` beside it.
 		const targets = relativeImports(text).map((s) => {
@@ -100,7 +105,8 @@ export function build(pkgDir: string): Plan & { repointed: number; renamed: numb
 	const root = resolve(pkgDir);
 	const src = join(root, 'src');
 	const dist = join(root, 'dist');
-	const p = plan(src);
+	const leaveOut = (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { publishLeaveOut?: string[] }).publishLeaveOut ?? [];
+	const p = plan(src, leaveOut);
 	rmSync(dist, { recursive: true, force: true });
 
 	const tsconfig = join(root, 'tsconfig.publish.json');

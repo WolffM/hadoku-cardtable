@@ -21,6 +21,7 @@ describe('the published manifest', () => {
 		expect(pkg.files).toEqual(['dist', 'LICENSE']);
 		expect(existsSync(join(REPO, 'packages', name, 'LICENSE'))).toBe(true);
 		expect(pkg.devDependencies).toBeUndefined();
+		expect(pkg.publishLeaveOut).toBeUndefined();
 		expect(pkg.publishConfig).toEqual({ registry: 'https://npm.pkg.github.com', access: 'public' });
 		// Nothing a registry cannot resolve, and every sibling at the exact version this run gave it.
 		const deps = { ...pkg.dependencies, ...pkg.peerDependencies };
@@ -126,6 +127,27 @@ describe('the published build', () => {
 			'uses-vitest.ts': 'imports a test library',
 			'via.tsx': 'imports escapes.ts, which is left out',
 			'via2.ts': 'imports via.tsx, which is left out',
+		});
+	});
+
+	it('leaves out what the package lists in publishLeaveOut, a directory or one file, and its importers', () => {
+		const p = plan(
+			tree({
+				'kernel.ts': "export const k = 1;",
+				'hosting/fleet.ts': "export const hosts = ['node-a'];",
+				'hosting/deep/rules.ts': '',
+				'one.ts': '',
+				'uses-hosting.ts': "import { hosts } from './hosting/fleet.js';",
+				'hostingless.ts': '',
+			}),
+			['hosting/', 'one.ts'],
+		);
+		expect(p.keep).toEqual(['hostingless.ts', 'kernel.ts']);
+		expect(Object.fromEntries(p.dropped.map((d) => [d.file, d.why]))).toEqual({
+			'hosting/deep/rules.ts': 'under publishLeaveOut hosting/',
+			'hosting/fleet.ts': 'under publishLeaveOut hosting/',
+			'one.ts': 'under publishLeaveOut one.ts',
+			'uses-hosting.ts': 'imports hosting/fleet.ts, which is left out',
 		});
 	});
 

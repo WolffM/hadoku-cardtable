@@ -8,6 +8,10 @@
   "exports": {
     "./*": "./src/*.ts"
   },
+  "publishLeaveOut": [
+    "play/placement/",
+    "play/remote/"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

@@ -85,6 +85,8 @@ export function publishManifest(src: Manifest, versionOf: (published: string) =>
 	delete pkg.private;
 	// A consumer installs none of them, and a workspace: one names a package no registry has.
 	delete pkg.devDependencies;
+	// The build's own input (build.ts): a consumer has no use for it.
+	delete pkg.publishLeaveOut;
 	pkg.exports = publishedExports(name, src.exports);
 	pkg.files = ['dist', 'LICENSE'];
 

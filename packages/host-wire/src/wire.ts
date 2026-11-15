@@ -60,7 +60,7 @@ export const JVM_OVERHEAD_MB = 400;
 export const AGENT_RESERVE_MB = 100;
 /**
  * The draft bot service's memory cap (its leaf's `memory.max`), and what it reserves in the slice.
- * Measured on claw-9 (2026-11-06): 1.15–1.31 GB RSS answering one pod's 7 seats a call, 1.88 GB
+ * Measured on a hosting node (2026-11-06): 1.15–1.31 GB RSS answering one pod's 7 seats a call, 1.88 GB
  * after 56-seat calls. 1.5 GB still leaves a 4 GB unit room for one 2 GB-heap JVM; a call too big
  * for it is OOM-killed, the agent restarts it, and the backup answers meanwhile.
  */

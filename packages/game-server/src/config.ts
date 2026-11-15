@@ -220,7 +220,7 @@ export const CONFIG = {
 	/** How long, past the fencing window, the claws' agents hold their JVMs for the next server on a restart. */
 	restartGraceMs: parseInt(process.env.CARDTABLE_PLAY_RESTART_GRACE_MS || '90000', 10),
 
-	/** The operator's time-boxed force of hokon onto the Forge backstop: a JSON file `{"until":"<ISO>"}`. */
+	/** The operator's time-boxed force of the backstop host onto the Forge backstop: a JSON file `{"until":"<ISO>"}`. */
 	backstopForceFile: process.env.CARDTABLE_BACKSTOP_FORCE_FILE ?? join(DATA_DIR, 'backstop-force.json'),
 
 	/** `CARDTABLE_PLAY_PROBE=1`: the e2e harness's dev diagnostics — the scenario routes and the frame and stop traces. Never on in production. */
