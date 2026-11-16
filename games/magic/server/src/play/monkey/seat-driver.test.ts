@@ -17,10 +17,10 @@ import { SERVER_FRAME_EXAMPLES } from '../../../../packages/forge-wire/src/examp
 
 import { clearDeclineStreak, declineStreak, hasNoLegalAnswer, type DeclinedStreaks } from './seat-driver.ts';
 import type { LiveAsk } from './random-answer.ts';
-import { isRefusal, makeLogTail, serverFlagsOf } from './run-match.ts';
+import { isRefusal, logEnd, makeLogTail, serverFlagsOf } from './run-match.ts';
 import { seedArg, seedFrom } from './rng.ts';
 
-import { mkdtempSync, writeFileSync, appendFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, appendFileSync, rmSync, truncateSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -82,10 +82,7 @@ describe('makeLogTail — flag (e), server-unclassified', () => {
     try {
       writeFileSync(file, `${JSON.stringify({ evt: 'match-created', matchId: 'm-1' })}\n`);
       const tail = makeLogTail(file);
-      // Everything already on disk at construction counts as "new" on the FIRST read — there is
-      // no record of the file's size before it: `run-match.ts` only ever constructs one of these
-      // once its match's own log lines are the only ones left to read (plus whatever an earlier
-      // match in the same stack wrote, which the matchId filter below drops regardless).
+      // A tail given no start reads the log from its first byte.
       expect(tail().map((r) => r.evt)).toEqual(['match-created']);
 
       appendFileSync(file, `${JSON.stringify({ evt: 'ask-unanswerable', matchId: 'm-1', method: 'chooseEntitiesForEffect' })}\n`);
@@ -95,6 +92,25 @@ describe('makeLogTail — flag (e), server-unclassified', () => {
       expect(rows.filter((r) => r.matchId === 'm-1' && r.evt === 'ask-unanswerable')).toHaveLength(1);
       expect(rows.some((r) => r.matchId === 'm-OTHER')).toBe(true); // the filter by matchId is `run-match.ts`'s own job, not `makeLogTail`'s
       expect(rows.filter((r) => r.evt === 'match-created')).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("a match's tail starts where the log ended when the match was asked for, and reads only what is appended, whatever the log's size", () => {
+    const dir = mkdtempSync(join(tmpdir(), 'monkey-logtail-'));
+    const file = join(dir, 'server.jsonl');
+    try {
+      // Three sparse GiB of an earlier run's rows: more than one read of the whole file can hold.
+      writeFileSync(file, `${JSON.stringify({ evt: 'ask-unclassified', matchId: 'm-EARLIER' })}\n`);
+      truncateSync(file, 3 * 2 ** 30);
+      const tail = makeLogTail(file, logEnd(file));
+      expect(tail()).toEqual([]);
+      appendFileSync(file, `${JSON.stringify({ evt: 'match-created', matchId: 'm-1', deck: 'Œuvre' })}\n`);
+      expect(tail()).toEqual([{ evt: 'match-created', matchId: 'm-1', deck: 'Œuvre' }]);
+      appendFileSync(file, `${JSON.stringify({ evt: 'ask-unclassified', matchId: 'm-1' })}\n`);
+      expect(tail()).toEqual([{ evt: 'ask-unclassified', matchId: 'm-1' }]);
+      expect(tail()).toEqual([]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -78,7 +78,7 @@ describe('lastServerRows', () => {
     const file = join(dir, 'server.jsonl');
     const rows = Array.from({ length: 30 }, (_, i) => JSON.stringify({ evt: i === 26 ? 'wire-frame' : 'ask', matchId: i % 2 === 0 ? 'm1' : 'm2', i }));
     writeFileSync(file, `${rows.join('\n')}\nnot json\n{"evt":"torn","matchId":"m1"`);
-    const [header, ...rest] = lastServerRows(file, 'm1', 3);
+    const [header, ...rest] = lastServerRows(file, 'm1', 0, 3);
     rmSync(dir, { recursive: true, force: true });
     expect(JSON.parse(header!)).toMatchObject({ rows: 30, newestAnyMatch: { evt: 'ask', matchId: 'm2' } });
     expect(rest.map((r) => (JSON.parse(r) as { i: number }).i)).toEqual([22, 24, 28]);
@@ -92,8 +92,8 @@ describe('jvmStderrLines', () => {
     writeFileSync(log, `${JSON.stringify({ evt: 'match-placed', matchId: 'm1', hostId: 'h-1' })}\n`);
     mkdirSync(join(dir, 'h-1'));
     writeFileSync(join(dir, 'h-1', 'bridge.stderr.txt'), ['[bridge] match m1: started', '[bridge] match m2: started', 'java.util.ConcurrentModificationException', 'noise'].join('\n'));
-    const got = jvmStderrLines(log, dir, 'm1');
-    const missing = jvmStderrLines(log, dir, 'm9');
+    const got = jvmStderrLines(log, dir, 'm1', 0);
+    const missing = jvmStderrLines(log, dir, 'm9', 0);
     rmSync(dir, { recursive: true, force: true });
     expect(got).toEqual(['stderr: [bridge] match m1: started', 'stderr: java.util.ConcurrentModificationException']);
     expect(missing).toEqual(['no match-placed row for m9']);

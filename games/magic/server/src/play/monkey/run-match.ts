@@ -5,7 +5,7 @@
  * or a cap is hit.
  */
 
-import { readFileSync, statSync } from 'node:fs';
+import { closeSync, fstatSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { mintTabId } from '@wolffm/rooms-protocol';
@@ -41,23 +41,44 @@ export interface RunMatchOptions {
   workDir: string;
 }
 
-/** New JSON lines appended to `path` since the last call, tolerating a torn final line. */
-export function makeLogTail(path: string): () => Record<string, unknown>[] {
-  let offset = 0;
+/** How big the stack's log is now: where a match about to start begins reading it ({@link makeLogTail}). */
+export function logEnd(path: string): number {
+  try {
+    return statSync(path).size;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * The JSON lines appended to `path` since the last call (since byte `from`, on the first), tolerating
+ * a torn final line. It reads the appended bytes and nothing else. A seat drains its tail every tick,
+ * so one that read the whole log each time cost the run the size of the log per tick and seat, on the
+ * thread its sockets are read on: by 250 MB a new seat's connect took over ten seconds, and its board
+ * reported `no-snapshot` on a server that had answered at once (nightlies 43583433129, 43702177989).
+ */
+export function makeLogTail(path: string, from = 0): () => Record<string, unknown>[] {
+  let offset = from;
   return () => {
-    let text: string;
+    let added: Buffer;
     try {
-      text = readFileSync(path, 'utf8');
+      const fd = openSync(path, 'r');
+      try {
+        const size = fstatSync(fd).size;
+        if (size <= offset) return [];
+        const buffer = Buffer.allocUnsafe(size - offset);
+        added = buffer.subarray(0, readSync(fd, buffer, 0, buffer.length, offset));
+      } finally {
+        closeSync(fd);
+      }
     } catch {
       return [];
     }
-    if (text.length <= offset) return [];
-    const added = text.slice(offset);
-    const lastNewline = added.lastIndexOf('\n');
+    const lastNewline = added.lastIndexOf(0x0a);
     if (lastNewline === -1) return []; // no whole line yet
     offset += lastNewline + 1;
     const out: Record<string, unknown>[] = [];
-    for (const line of added.slice(0, lastNewline).split('\n')) {
+    for (const line of added.subarray(0, lastNewline).toString('utf8').split('\n')) {
       if (!line.startsWith('{')) continue;
       try {
         out.push(JSON.parse(line) as Record<string, unknown>);
@@ -113,10 +134,11 @@ const FRAME_ECHOES = new Set(['wire-frame', 'forge-frame']);
 /**
  * The last `n` server log rows about `matchId` (frame echoes left out), as JSON lines, after one line saying how big the log
  * is and what its newest row from ANY match was: a match gone quiet and a server gone quiet look the
- * same from its own rows alone.
+ * same from its own rows alone. Read from byte `from`, where the log ended when the match was asked
+ * for ({@link logEnd}): none of its rows is older, and `rows` counts the ones since.
  */
-export function lastServerRows(path: string, matchId: string, n = 40): string[] {
-  const rows = makeLogTail(path)();
+export function lastServerRows(path: string, matchId: string, from: number, n = 40): string[] {
+  const rows = makeLogTail(path, from)();
   let bytes: number | null = null;
   try {
     bytes = statSync(path).size;
@@ -124,7 +146,7 @@ export function lastServerRows(path: string, matchId: string, n = 40): string[] 
     // No log file: `bytes` says so.
   }
   const newest = rows.at(-1);
-  const header = { log: path, bytes, rows: rows.length, newestAnyMatch: newest === undefined ? null : { t: newest.t, evt: newest.evt, matchId: newest.matchId ?? null } };
+  const header = { log: path, bytes, from, rows: rows.length, newestAnyMatch: newest === undefined ? null : { t: newest.t, evt: newest.evt, matchId: newest.matchId ?? null } };
   return [
     JSON.stringify(header),
     ...rows
@@ -141,8 +163,8 @@ export function lastServerRows(path: string, matchId: string, n = 40): string[] 
  * out of budget (`AvailableActions: heuristic timed out`), which offers every card it did not reach,
  * so a click on one is refused; the line names no match, and the JVM may host others.
  */
-export function jvmStderrLines(serverLogFile: string, workDir: string, matchId: string, n = 30): string[] {
-  const placed = makeLogTail(serverLogFile)().find((row) => row.evt === 'match-placed' && row.matchId === matchId);
+export function jvmStderrLines(serverLogFile: string, workDir: string, matchId: string, from: number, n = 30): string[] {
+  const placed = makeLogTail(serverLogFile, from)().find((row) => row.evt === 'match-placed' && row.matchId === matchId);
   if (placed === undefined) return [`no match-placed row for ${matchId}`];
   const file = join(workDir, String(placed.hostId), 'bridge.stderr.txt');
   let text: string;
@@ -229,6 +251,8 @@ export function stopFor(
 
 export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const started = new Date().toISOString();
+  // Every row the server writes about this match comes after this point in its log.
+  const logStart = logEnd(opts.serverLogFile);
   const started201 = await startAiMatch(opts);
   if ('error' in started201) {
     // A 503 is the server saying it cannot host a match (its ceiling, a drain, no Forge, no JVM):
@@ -295,7 +319,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     },
   });
 
-  const drainLog = makeLogTail(opts.serverLogFile);
+  const drainLog = makeLogTail(opts.serverLogFile, logStart);
   const drainServerFlags = (): { evt: string; detail: string }[] => serverFlagsOf(drainLog(), matchId);
 
   const progress = { turn: 0, turnSince: Date.now(), startedAt: Date.now() };
@@ -325,8 +349,8 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
       refusals: () => refusals,
       drainServerFlags,
       serverRows: () => [
-        ...lastServerRows(opts.serverLogFile, matchId),
-        ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId),
+        ...lastServerRows(opts.serverLogFile, matchId, logStart),
+        ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId, logStart),
         ...wire.map((w) => `wire: ${w}`),
       ],
     },
@@ -358,7 +382,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const ended = gaveUp?.ended ?? true;
   const notEnded = ended ? '' : `; its concede was not seen to end it within ${GIVE_UP_MS} ms`;
   // A concede that did not end the match leaves it holding a server slot: what the server last did with it is the evidence.
-  const evidence = ended ? [] : [...gaveUp!.evidence, ...lastServerRows(opts.serverLogFile, matchId), ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId)];
+  const evidence = ended ? [] : [...gaveUp!.evidence, ...lastServerRows(opts.serverLogFile, matchId, logStart), ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId, logStart)];
   if (timedOut) {
     // What the seat kept doing on its last turn, and what the server last did with this match: a match
     // that ran out its cap is either a seat repeating one act or a game that stopped answering.
@@ -367,7 +391,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
         reason === 'turn-stall'
           ? `turn ${match.view?.turn ?? '?'} went on for over ${opts.turnStallMs} ms (${decisions} decision(s) in the match)${notEnded}`
           : `the match did not finish within its wall (${opts.matchTimeoutMs} ms, turn ${match.view?.turn ?? '?'})${notEnded}`,
-        [...repeated.map((r) => `repeated: ${r}`), ...(ended ? lastServerRows(opts.serverLogFile, matchId) : evidence), ...wire.map((w) => `wire: ${w}`)],
+        [...repeated.map((r) => `repeated: ${r}`), ...(ended ? lastServerRows(opts.serverLogFile, matchId, logStart) : evidence), ...wire.map((w) => `wire: ${w}`)],
       ),
     );
   }
@@ -377,8 +401,8 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   if (serverEnd !== null) {
     extra.push(
       noFinishFlag(serverEnd, [
-        ...lastServerRows(opts.serverLogFile, matchId),
-        ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId),
+        ...lastServerRows(opts.serverLogFile, matchId, logStart),
+        ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId, logStart),
         ...wire.map((w) => `wire: ${w}`),
       ]),
     );
