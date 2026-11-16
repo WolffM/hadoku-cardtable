@@ -33,6 +33,14 @@
  * the first spell it can afford, press OK) because what is asserted is what
  * FORGE was asked and what the seat was told, not the quality of the play.
  *
+ * Crude, but a seat: every act names the input its window was shown for
+ * (`notes[seat].input`, the envelope's `input`), as the board does
+ * (`games/magic/ui/src/play/live/match.ts`'s `inputId`). An act that names none
+ * is one the bridge cannot drop when Forge has moved on, and Forge's ActGate
+ * hands it to whatever input opens next: an OK pressed on a priority bar
+ * answered the sacrifice confirm before its prompt was written, and the prompt
+ * then went out with no card and no `confirmAbility` (run 43647690900).
+ *
  * ## Wave 24 §E added a second scenario: the two windows the model must explain
  *
  * The second test below is a DIAGNOSIS, and it exists because the two requests
@@ -77,6 +85,7 @@ import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount } 
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry, type Match } from './match.js';
+import { WINDOW_FRAMES } from './match/forge-frames.js';
 import { finishMulligan, scenarioText, startScenario, waitUntil as waitUntilScenario } from './scenario.js';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
@@ -211,7 +220,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 
 			/** What each seat was last told, and what happened at each priority stop. */
-			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null }));
+			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null, input: undefined as number | undefined }));
 			/** One row per priority window this seat was shown: was Forge's set empty, was it passed. */
 			const stops: { seat: number; phase: string; stackEmpty: boolean; idle: boolean; ownMain: boolean; passed: boolean; unsettled: boolean }[] = [];
 			const says: { seat: number; message: string; type: string | null; mana: string | null }[] = [];
@@ -275,6 +284,7 @@ describe.skipIf(!available.ok)(title, () => {
 				emit: (_m, seat, envelope) => {
 					sent.push({ seat, envelope });
 					const f = envelope.frame;
+					if (WINDOW_FRAMES.has(f.method)) notes[seat]!.input = envelope.input;
 					if (f.method === 'showPromptMessage') {
 						// the row itself now opens off the raw bridge line (the
 						// `line` wrapper above), because a window the server auto-passes
@@ -421,7 +431,7 @@ describe.skipIf(!available.ok)(title, () => {
 						const land = hand.find((c) => c.land && offered(c.id));
 						if (land !== undefined && !acted.has(`${key}:land`)) {
 							acted.add(`${key}:land`);
-							match.fromClient(seat, select(land.id));
+							match.fromClient(seat, select(land.id), n.input);
 							continue;
 						}
 						const untapped = zone(seat, 'Battlefield').filter((c) => c.land && !c.tapped).length;
@@ -429,11 +439,11 @@ describe.skipIf(!available.ok)(title, () => {
 						if (spell !== undefined && untapped >= 1 && !acted.has(`${key}:cast`)) {
 							acted.add(`${key}:cast`);
 							casts += 1;
-							match.fromClient(seat, select(spell.id));
+							match.fromClient(seat, select(spell.id), n.input);
 							continue;
 						}
 					}
-					if (n.ok) match.fromClient(seat, OK);
+					if (n.ok) match.fromClient(seat, OK, n.input);
 				}
 				await new Promise((r) => setTimeout(r, 120));
 			}
@@ -597,7 +607,7 @@ describe.skipIf(!available.ok)(title, () => {
 			// around a prompt paired a real decision with that correction instead
 			// of its own real buttons.
 			const rows = (): RawRow[] => rowsFromRaw(raw, 0);
-			const notes = [0, 1].map(() => ({ prompt: '', ok: false }));
+			const notes = [0, 1].map(() => ({ prompt: '', ok: false, input: undefined as number | undefined }));
 			// `setWeaklySelectable`/`clearWeaklySelectable` are never held or
 			// corrected by `match.ts` (only the prompt/buttons pair is), so
 			// reading this off `emit` — unlike the prompt and buttons themselves —
@@ -615,6 +625,7 @@ describe.skipIf(!available.ok)(title, () => {
 				emit: (_m, seat, envelope) => {
 					sent.push({ seat, envelope });
 					const f = envelope.frame;
+					if (WINDOW_FRAMES.has(f.method)) notes[seat]!.input = envelope.input;
 					if (f.method === 'showPromptMessage') notes[seat]!.prompt = f.message;
 					else if (f.method === 'updateButtons') notes[seat]!.ok = f.enable1;
 					if (seat !== 0) return;
@@ -757,7 +768,7 @@ describe.skipIf(!available.ok)(title, () => {
 						const card = zone(seat, 'Hand')[0];
 						if (card !== undefined && !acted.has(`${seat}:discard:${at}`)) {
 							acted.add(`${seat}:discard:${at}`);
-							match.fromClient(seat, select(card.id));
+							match.fromClient(seat, select(card.id), n.input);
 						}
 						continue;
 					}
@@ -776,14 +787,14 @@ describe.skipIf(!available.ok)(title, () => {
 						const mystic = hand.find((c) => c.name === 'Stoneforge Mystic');
 						if (mystic !== undefined && untapped.length >= 2 && twoSourceRows().length === 0 && !acted.has(`${key}:cast`)) {
 							acted.add(`${key}:cast`);
-							match.fromClient(0, select(mystic.id));
+							match.fromClient(0, select(mystic.id), n.input);
 							continue;
 						}
 						// An Evolving Wilds on the battlefield is the #16 window.
 						const wilds = board.find((c) => c.name === 'Evolving Wilds' && !c.tapped && offered(c.id));
 						if (wilds !== undefined && sacrificeRows().length === 0 && !acted.has(`${key}:wilds`)) {
 							acted.add(`${key}:wilds`);
-							match.fromClient(0, select(wilds.id));
+							match.fromClient(0, select(wilds.id), n.input);
 							continue;
 						}
 						// Otherwise take the land drop, preferring a Plains once the
@@ -793,11 +804,11 @@ describe.skipIf(!available.ok)(title, () => {
 							: (hand.find((c) => c.name === 'Plains') ?? hand.find((c) => c.land));
 						if (land !== undefined && !acted.has(`${key}:land`)) {
 							acted.add(`${key}:land`);
-							match.fromClient(0, select(land.id));
+							match.fromClient(0, select(land.id), n.input);
 							continue;
 						}
 					}
-					if (n.ok) match.fromClient(seat, OK);
+					if (n.ok) match.fromClient(seat, OK, n.input);
 				}
 				await new Promise((r) => setTimeout(r, 120));
 			}
@@ -980,7 +991,7 @@ describe.skipIf(!available.ok)(title, () => {
 			// safe as it always was.
 			const rows = (): RawRow[] => rowsFromRaw(raw, 0);
 			const live = { actionable: null as number[] | null, selectables: null as number[] | null };
-			const notes = [0, 1].map(() => ({ prompt: '', ok: false }));
+			const notes = [0, 1].map(() => ({ prompt: '', ok: false, input: undefined as number | undefined }));
 
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
@@ -991,6 +1002,7 @@ describe.skipIf(!available.ok)(title, () => {
 				emit: (_m, seat, envelope) => {
 					sent.push({ seat, envelope });
 					const f = envelope.frame;
+					if (WINDOW_FRAMES.has(f.method)) notes[seat]!.input = envelope.input;
 					if (f.method === 'showPromptMessage') notes[seat]!.prompt = f.message;
 					else if (f.method === 'updateButtons') notes[seat]!.ok = f.enable1;
 					if (seat !== 0) return;
@@ -1123,7 +1135,7 @@ describe.skipIf(!available.ok)(title, () => {
 						const card = zone(seat, 'Hand')[0];
 						if (card !== undefined && !acted.has(`${seat}:discard:${at}`)) {
 							acted.add(`${seat}:discard:${at}`);
-							match.fromClient(seat, select(card.id));
+							match.fromClient(seat, select(card.id), n.input);
 						}
 						continue;
 					}
@@ -1138,7 +1150,7 @@ describe.skipIf(!available.ok)(title, () => {
 						n.prompt !== ''
 					) {
 						targeted = true;
-						match.fromClient(0, target(match.seats[1]!.playerId ?? -1));
+						match.fromClient(0, target(match.seats[1]!.playerId ?? -1), n.input);
 						continue;
 					}
 					const myMain =
@@ -1161,7 +1173,7 @@ describe.skipIf(!available.ok)(title, () => {
 							const land = hand.find((c) => c.name === want);
 							if (land !== undefined && !acted.has(`${key}:land`)) {
 								acted.add(`${key}:land`);
-								match.fromClient(0, select(land.id));
+								match.fromClient(0, select(land.id), n.input);
 								continue;
 							}
 						} else {
@@ -1169,12 +1181,12 @@ describe.skipIf(!available.ok)(title, () => {
 							const blast = hand.find((c) => c.name === 'Galvanic Blast');
 							if (blast !== undefined && untapped >= 2 && !acted.has('cast')) {
 								acted.add('cast');
-								match.fromClient(0, select(blast.id));
+								match.fromClient(0, select(blast.id), n.input);
 								continue;
 							}
 						}
 					}
-					if (n.ok) match.fromClient(seat, OK);
+					if (n.ok) match.fromClient(seat, OK, n.input);
 				}
 				await new Promise((r) => setTimeout(r, 120));
 			}
