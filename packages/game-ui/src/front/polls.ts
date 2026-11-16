@@ -1,7 +1,8 @@
 /*
- * The Upcoming card's Polls page: the open Rally forms attached to events (`GET /api/events/forms`,
+ * The Upcoming card's Polls page: the Rally forms attached to events (`GET /api/events/forms`,
  * `games/magic/server/src/http/events.ts`), each Rally's own summary of it plus who attached it
- * (`AttachedForm`). Its Open button goes to the form on Rally.
+ * (`AttachedForm`). The server decides which are listed: the open ones, and to whoever attached it
+ * a closed one still waiting for its event. Its Open button goes to the form on Rally.
  */
 
 import { useEffect, useState } from 'react';
@@ -16,7 +17,7 @@ const defaultFetch: Fetch = (input, init) => fetch(input, init);
 
 export function pollsClient(fetchImpl: Fetch = defaultFetch) {
   return {
-    /** The open forms; one the page cannot read is skipped, never the whole list. A refused read throws. */
+    /** The listed forms; one the page cannot read is skipped, never the whole list. A refused read throws. */
     async list(): Promise<Poll[]> {
       const res = await getJson(apiUrl('events/forms'), fetchImpl);
       const body = await bodyOf(res);
@@ -24,14 +25,14 @@ export function pollsClient(fetchImpl: Fetch = defaultFetch) {
       const forms = isRecord(body) && Array.isArray(body.forms) ? body.forms : [];
       return forms.flatMap((f) => {
         const poll = AttachedFormSchema.safeParse(f);
-        return poll.success && poll.data.status === 'open' ? [poll.data] : [];
+        return poll.success ? [poll.data] : [];
       });
     },
   };
 }
 
 /** Soonest to close first; a form with no closing time last. */
-export function openPolls(polls: readonly Poll[]): Poll[] {
+export function bySoonestClose(polls: readonly Poll[]): Poll[] {
   const closes = (p: Poll): number => (p.closesAt === null ? Infinity : Date.parse(p.closesAt));
   return [...polls].sort((a, b) => closes(a) - closes(b));
 }
@@ -71,7 +72,7 @@ export async function refreshPolls(): Promise<void> {
   const mine = ++generation;
   let next: Poll[];
   try {
-    next = openPolls(await client.list());
+    next = bySoonestClose(await client.list());
   } catch {
     // Not reachable for a moment: the page keeps what it showed, or says there are none.
     if (current !== null || mine !== generation) return;
@@ -86,7 +87,7 @@ export async function refreshPolls(): Promise<void> {
  */
 export async function pollAttached(form: Poll): Promise<void> {
   generation += 1;
-  if (form.status === 'open') publish(openPolls([...(current ?? []).filter((p) => p.id !== form.id), form]));
+  publish(bySoonestClose([...(current ?? []).filter((p) => p.id !== form.id), form]));
   await refreshPolls();
 }
 

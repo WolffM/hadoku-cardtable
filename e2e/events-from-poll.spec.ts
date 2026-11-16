@@ -5,6 +5,8 @@
  * tournament filled in from the form — its title, its best windows with how many can make each, and
  * the pool the people free for the chosen window ranked first — every field still editable, and it
  * sends the form along. The calendar then shows Rally's count of who can make the event's start.
+ * The poll here has already closed, as one usually has by the time its event is made: it still
+ * lists to whoever attached it, marked closed, with Create event.
  *
  * Rally is never reached from this harness (`events.spec.ts`), so the test answers the events and
  * polls reads, and answers the create as Rally being down after reading what the dialog sent.
@@ -17,7 +19,7 @@ import { keepPrefsLocal } from './prefsLocal.ts';
 
 const DAY = 24 * 60 * 60_000;
 
-test('Create event on a poll fills the tournament from the form and sends it along; the calendar counts who signed up', async ({ browser }) => {
+test('Create event on a closed poll fills the tournament from the form and sends it along; the calendar counts who signed up', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await context.addCookies([{ name: SESSION_COOKIE, value: 'carol', domain: '127.0.0.1', path: '/' }]);
   await keepPrefsLocal(context, EDGE_ORIGIN);
@@ -31,8 +33,8 @@ test('Create event on a poll fills the tournament from the form and sends it alo
   const poll = {
     id: 'f-major',
     title: 'Draft Major #1',
-    status: 'open',
-    closesAt: null,
+    status: 'closed',
+    closesAt: new Date(Date.now() - 60 * 60_000).toISOString(),
     url: 'https://hadoku.me/rally?e=f-major',
     createdBy: 'carol',
     schema: { name: 'event-signup', version: 1 },
@@ -73,6 +75,7 @@ test('Create event on a poll fills the tournament from the form and sends it alo
 
     await page.getByTestId('front-upcoming-next').click();
     await expect(page.getByTestId('front-upcoming-title')).toHaveText('Polls');
+    await expect(page.getByTestId('front-poll-closed')).toHaveText('closed');
     await page.getByTestId('front-poll-create-event').click();
     const dialog = page.getByTestId('event-create');
     await expect(dialog).toBeVisible();

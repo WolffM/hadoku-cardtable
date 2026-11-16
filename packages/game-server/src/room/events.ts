@@ -65,7 +65,7 @@ export interface Events {
 	/** False when the form was already attached. */
 	attachForm(form: NewForm, now: number): boolean;
 	detachForm(formId: string, callerId: string): FormChange;
-	/** Forget forms Rally says are closed or gone: nobody lists them again. */
+	/** Forget forms Rally says are gone, or closed and done with: nobody lists them again. */
 	forgetForms(formIds: readonly string[]): void;
 	/** Account erase: an event they organised and a form they attached keep going under `to`, with no name. Answers how many changed, once saved. */
 	anonymise(ids: ReadonlySet<string>, to: string): Promise<{ events: number; forms: number }>;

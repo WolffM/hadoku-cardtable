@@ -6,7 +6,8 @@
  *   POST   /api/events            { title, startsAt, room, formId? } → 201 EventView | 400 | 403 | 404 | 409 { verdict } | 429 | 502
  *   PATCH  /api/events/:id        { startsAt, title? } → 200 EventView | 400 | 403 | 404
  *   DELETE /api/events/:id        → 200 { ok: true } | 403 | 404
- *   GET    /api/events/forms      → 200 { forms: AttachedForm[] }, the open ones, closing soonest first
+ *   GET    /api/events/forms      → 200 { forms: AttachedForm[] }, closing soonest first: the open ones, and
+ *                                    to whoever attached it a closed one no event is made from yet
  *   POST   /api/events/forms      { formId } → 201 AttachedForm | 200 (already attached) | 400 | 404 | 502
  *   DELETE /api/events/forms/:id  → 200 { ok: true } | 403 | 404
  *
@@ -21,6 +22,10 @@
  * this server also reads the form's availability as counts: an attached form lists its best
  * windows, and an event made from a form (`formId`) shows how many can make its start
  * (`signedUp`), live, so a later answer counts too.
+ *
+ * A poll closing is when its event gets made, so a closed form stays listed to whoever attached
+ * it, with its windows, until an event is made from it or `CLOSED_FORM_KEPT_MS` after it closed;
+ * everyone else stops seeing it when it closes.
  */
 
 import type { Request, Response, Router } from 'express';
@@ -88,6 +93,9 @@ export const EVENT_CREATE_RATE_LIMIT: RateLimitConfig = {
 
 /** A start this far in the past is still accepted: a form filled in a minute late. */
 const STARTS_AT_GRACE_MS = 5 * 60_000;
+
+/** A closed form stays creatable this long after it closed (or, closed with no close time, after it was attached). */
+export const CLOSED_FORM_KEPT_MS = 14 * 24 * 60 * 60_000;
 
 /** How long Rally's answer about a form is trusted before the next caller reads behind it: the polls card re-reads every minute. */
 const RALLY_SUMMARY_TTL_MS = 5 * 60_000;
@@ -237,6 +245,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 	api.get('/events/forms', async (req: Request, res: Response) => {
 		const me = httpCaller(req);
 		const attached = events.forms();
+		const madeFrom = new Set(events.upcoming(now()).flatMap((e) => (e.formId === undefined ? [] : [e.formId])));
 		const [answers, nameOf] = await Promise.all([Promise.all(attached.map((f) => summary(f.formId, true))), namesOf(attached.map((f) => f.attachedByUserId))]);
 		const gone: string[] = [];
 		const open: { form: AttachedForm; attachedAt: number }[] = [];
@@ -244,8 +253,14 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 			const a = answers[i]!;
 			if (!a.ok) {
 				if (a.reason === 'not-found') gone.push(f.formId);
-			} else if (a.summary.status === 'closed') gone.push(f.formId);
-			else open.push({ form: formView(f, a.summary, me, nameOf), attachedAt: f.attachedAt });
+				return;
+			}
+			if (a.summary.status === 'closed') {
+				const closedAt = a.summary.closesAt === null ? f.attachedAt : Date.parse(a.summary.closesAt);
+				if (madeFrom.has(f.formId) || now() >= closedAt + CLOSED_FORM_KEPT_MS) return void gone.push(f.formId);
+				if (f.attachedById !== me) return;
+			}
+			open.push({ form: formView(f, a.summary, me, nameOf), attachedAt: f.attachedAt });
 		});
 		events.forgetForms(gone);
 		const closes = (f: AttachedForm): number => (f.closesAt === null ? Infinity : Date.parse(f.closesAt));
@@ -301,6 +316,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		const startsAt = Date.parse(body.startsAt);
 		if (startsAt < now() - STARTS_AT_GRACE_MS) return res.status(400).json({ error: 'startsAt must not be in the past' });
 		// The form is checked before the room exists too: only a sign-up form Rally knows is linked.
+		let formClosed = false;
 		if (body.formId !== undefined) {
 			const found = await summary(body.formId);
 			if (!found.ok || !isEventSignupForm(found.summary)) {
@@ -309,6 +325,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 				if (found.reason === 'not-found') return res.status(404).json({ error: 'Rally has no such form' });
 				return res.status(502).json({ error: 'Rally did not answer; try again in a moment' });
 			}
+			formClosed = found.summary.status === 'closed';
 		}
 		if (!createLimit(req, res)) return;
 
@@ -326,6 +343,8 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (body.plan !== undefined && verdict !== null) lobby.setPodPlan(roomId, caller.id, body.plan, verdict);
 
 		const event = events.create({ roomId, startsAt, organizerId: caller.id, organizerUserId: caller.userId, ...(body.formId === undefined ? {} : { formId: body.formId }) }, now());
+		// A closed poll was kept only so its event could be made: made, it goes.
+		if (formClosed && body.formId !== undefined) events.forgetForms([body.formId]);
 		// The create body takes only Magic's game types (`CreateRoomBodySchema`).
 		res.status(201).json(view(event, magicView(lobby.get(roomId))!, caller.id, () => caller.name, await signedUpOf(event)));
 	});

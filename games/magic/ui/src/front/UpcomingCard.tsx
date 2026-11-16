@@ -7,7 +7,7 @@
  *     a date block, its title, when, and its room as the room is now (`GET /api/events` reads each
  *     event's room live, so an edit in the room shows here at once). View opens the room, Sign up
  *     joins it; the organizer moves or cancels their own instead.
- *   - **Polls** — the open Rally forms attached to events (`./polls.ts`), each with Open to Rally;
+ *   - **Polls** — the open Rally forms attached to events (`./polls.ts`), and to whoever attached it a closed one still waiting for its event, each with Open to Rally;
  *     whoever attached one may make its event from it (Create event, filled in from the form).
  *
  * Events are made from the room list's Create event (`../rooms/CreateEventDialog.tsx`).
@@ -281,7 +281,13 @@ function PollRow({ poll, now }: { poll: Poll; now: number }) {
       {poll.closesAt !== null && <DateBlock at={poll.closesAt} />}
       <span className="front-card__event-text">
         <span className="front-card__event-title">{poll.title}</span>
-        {poll.closesAt !== null && <span className="front-card__event-detail">closes {countdown(poll.closesAt, now)}</span>}
+        {poll.status === 'closed' ? (
+          <span className="front-card__event-detail" data-testid="front-poll-closed">
+            closed
+          </span>
+        ) : (
+          poll.closesAt !== null && <span className="front-card__event-detail">closes {countdown(poll.closesAt, now)}</span>
+        )}
         <span className="front-card__event-actions">
           {poll.mine && poll.windows.length > 0 && (
             <button type="button" className="button" data-testid="front-poll-create-event" onClick={() => setMaking(true)}>

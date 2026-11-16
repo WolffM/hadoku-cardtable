@@ -292,7 +292,7 @@ describe('/api/events/forms', () => {
 		expect(FormListSchema.parse((await call(base, 'alice', 'GET', '/events/forms')).body).forms).toEqual([]);
 	});
 
-	it('lists only the forms Rally says are open, and only the attacher detaches one', async () => {
+	it('lists the forms Rally says are open, a closed one only to its attacher, and only the attacher detaches one', async () => {
 		const clock = { now: Date.UTC(2026, 9, 28, 12) };
 		const rally: Record<string, RallyRow> = { a: rallyForm('a', { closesAt: '2026-11-05T00:00:00.000Z' }), b: rallyForm('b', { closesAt: '2026-11-02T00:00:00.000Z' }), c: rallyForm('c') };
 		const { base } = await openApp(clock, rally);
@@ -306,11 +306,17 @@ describe('/api/events/forms', () => {
 		clock.now += 10 * 60_000;
 		expect(await ids()).toEqual(['b', 'a', 'c']);
 		await vi.waitFor(async () => expect(await ids()).toEqual(['b']));
+		const mine = async () => FormListSchema.parse((await call(base, 'alice', 'GET', '/events/forms')).body).forms.map((f) => [f.id, f.status]);
+		expect(await mine()).toEqual([
+			['b', 'open'],
+			['a', 'closed'],
+		]);
 
 		expect((await call(base, 'bob', 'DELETE', '/events/forms/b')).status).toBe(403);
 		expect((await call(base, 'alice', 'DELETE', '/events/forms/zzz')).status).toBe(404);
 		expect((await call(base, 'alice', 'DELETE', '/events/forms/b')).status).toBe(200);
 		expect(await ids()).toEqual([]);
+		expect(await mine()).toEqual([['a', 'closed']]);
 	});
 
 	it('reads Rally once per form however many poll at once, and an outage costs one read per form every 30 s', async () => {
@@ -378,6 +384,38 @@ describe('an event made from a Rally form', () => {
 
 		const moved = await call(base, 'alice', 'PATCH', `/events/${event.id}`, { startsAt: '2026-11-29T23:30:00.000Z' });
 		expect(EventViewSchema.parse(moved.body).signedUp).toBe(0);
+	});
+
+	it('a closed poll stays creatable to its attacher until its event is made, or two weeks after it closed', async () => {
+		const clock = { now: Date.UTC(2026, 10, 16, 20) };
+		const rally: Record<string, RallyRow> = {
+			poll: rallyForm('poll', { closesAt: '2026-11-16T21:00:00.000Z', availability: AVAILABILITY }),
+			idle: rallyForm('idle', { closesAt: '2026-11-16T21:00:00.000Z', availability: AVAILABILITY }),
+		};
+		const { base, file } = await openApp(clock, rally);
+		for (const formId of ['poll', 'idle']) expect((await call(base, 'alice', 'POST', '/events/forms', { formId })).status).toBe(201);
+		rally.poll = rallyForm('poll', { status: 'closed', closesAt: '2026-11-16T21:00:00.000Z', availability: AVAILABILITY });
+		rally.idle = rallyForm('idle', { status: 'closed', closesAt: '2026-11-16T21:00:00.000Z', availability: AVAILABILITY });
+		clock.now = Date.UTC(2026, 10, 16, 22, 30);
+		const forms = async (user: string) => FormListSchema.parse((await call(base, user, 'GET', '/events/forms')).body).forms;
+		// The first read after it closed still has the open answer; Rally's word follows behind it.
+		await forms('alice');
+		await vi.waitFor(async () => expect((await forms('alice')).map((f) => f.status)).toEqual(['closed', 'closed']));
+		const poll = (await forms('alice')).find((f) => f.id === 'poll')!;
+		expect(poll).toMatchObject({ mine: true, windows: AVAILABILITY.best });
+		expect(await forms('bob')).toEqual([]);
+
+		const made = await call(base, 'alice', 'POST', '/events', { ...tournament('Draft Major', START, { gameType: 'draft' }), formId: 'poll' });
+		expect(made.status).toBe(201);
+		expect(EventViewSchema.parse(made.body).signedUp).toBe(8);
+		expect((await forms('alice')).map((f) => f.id)).toEqual(['idle']);
+		await vi.waitFor(async () => expect(JSON.parse(await readFile(file, 'utf8')).forms.map((f: { formId: string }) => f.formId)).toEqual(['idle']));
+
+		// Nobody made one from the other: it goes two weeks after it closed.
+		clock.now = Date.parse('2026-11-16T21:00:00.000Z') + 14 * DAY - 60_000;
+		expect((await forms('alice')).map((f) => f.id)).toEqual(['idle']);
+		clock.now += 60_000;
+		expect(await forms('alice')).toEqual([]);
 	});
 
 	it('links only a sign-up form Rally knows, before any room is made', async () => {

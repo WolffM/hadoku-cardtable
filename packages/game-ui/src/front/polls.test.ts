@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { openPolls, pollsClient } from './polls.ts';
+import { bySoonestClose, pollsClient } from './polls.ts';
 
 const form = (id: string, over: Record<string, unknown> = {}) => ({
   id,
@@ -22,9 +22,12 @@ const form = (id: string, over: Record<string, unknown> = {}) => ({
 const answering = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 describe('pollsClient', () => {
-  it('reads the attached forms and keeps only the open ones', async () => {
+  it('reads every form the server lists, a closed one too', async () => {
     const polls = await pollsClient(answering(200, { forms: [form('a'), form('b', { status: 'closed' })] })).list();
-    expect(polls.map((p) => p.id)).toEqual(['a']);
+    expect(polls.map((p) => [p.id, p.status])).toEqual([
+      ['a', 'open'],
+      ['b', 'closed'],
+    ]);
     expect(polls[0]).toMatchObject({ title: 'Form a', url: 'https://hadoku.me/rally/f/a' });
   });
   it('skips a form it cannot read rather than losing the rest', async () => {
@@ -36,9 +39,9 @@ describe('pollsClient', () => {
   });
 });
 
-describe('openPolls', () => {
+describe('bySoonestClose', () => {
   it('closes soonest first; a form with no closing time goes last', () => {
     const polls = [form('never'), form('late', { closesAt: '2026-11-09T20:00:00Z' }), form('soon', { closesAt: '2026-11-02T20:00:00Z' })] as never;
-    expect(openPolls(polls).map((p) => p.id)).toEqual(['soon', 'late', 'never']);
+    expect(bySoonestClose(polls).map((p) => p.id)).toEqual(['soon', 'late', 'never']);
   });
 });
