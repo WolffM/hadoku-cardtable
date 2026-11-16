@@ -142,6 +142,9 @@ function draftbotRepo(): { repo: string; commit: string; cache: string } {
 }
 
 describe('the draft bot artifact', () => {
+	/** Real git commits, clones and archives: about 2 s alone, past vitest's 5 s on a loaded host. */
+	const REAL_GIT_MS = 30_000;
+
 	it('is pinned to a full commit', () => {
 		expect(DRAFTBOT_PIN.commit).toMatch(/^[0-9a-f]{40}$/);
 	});
@@ -155,8 +158,7 @@ describe('the draft bot artifact', () => {
 		expect(existsSync(join(a, '.git'))).toBe(false);
 		expect(readFileSync(join(a, 'packages', 'recommenderService', 'w.bin'), 'utf8')).toBe('weights');
 		expect(await prepareDraftbot(cache, { repo, commit })).toBe(a);
-		// Real git clones and archives: about 2 s alone, past vitest's 5 s on a loaded host.
-	}, 30_000);
+	}, REAL_GIT_MS);
 
 	it('keeps nothing when a step fails: weights that do not match their checksum', async () => {
 		const { repo, cache } = draftbotRepo();
@@ -165,5 +167,5 @@ describe('the draft bot artifact', () => {
 		const commit = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 		await expect(prepareDraftbot(cache, { repo, commit })).rejects.toThrow(new RegExp(`^draftbot ${commit.slice(0, 12)}: sha256sum`));
 		expect(readdirSync(cache)).toEqual([]);
-	});
+	}, REAL_GIT_MS);
 });
