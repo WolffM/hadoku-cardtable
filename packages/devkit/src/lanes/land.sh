@@ -23,11 +23,15 @@
 #
 # It does NOT wait for CI (memory: never wait inside a lock). CI is the combined gate: a red
 # run on the pushed sha belongs to the wave that pushed it.
+#
+# `--dry-run` is the only argument it takes; anything else is refused with exit 2 before anything
+# runs, because a misspelt or misplaced `--dry-run` would otherwise be a real land.
 set -euo pipefail
+DRY=0
+case "$#:${1:-}" in 0:) ;; 1:--dry-run) DRY=1 ;; *) echo "usage: land.sh [--dry-run]" >&2; exit 2 ;; esac
 # shellcheck source=../lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"; devkit_load
 
-DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
 MAIN=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 LOCK=$DK_LAND_LOCK
 NODE_BIN=$DK_NODE_BIN
