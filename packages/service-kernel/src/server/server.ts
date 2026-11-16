@@ -39,7 +39,18 @@
  * in-flight requests finish within `requestGraceMs`. It exits on the close or at
  * `deadlineMs`, whichever comes first, logging `shutdown-done` with the fields the plugins'
  * shutdowns returned.
+ *
+ * ## A socket handed over
+ *
+ * In production the PM2 wrapper runs this process under hadoku_site's handover supervisor
+ * (`services/pm2/lib/handover.py`, deploy continuity's socket mover), which binds the port once and
+ * keeps it open across deploys. Started that way (`HADOKU_LISTEN_FD`), the server listens on the
+ * socket it inherited instead of binding `port`, and writes one byte to `HADOKU_READY_FD` once it
+ * accepts. Connections made while no generation accepts (this one booting, the last one shutting
+ * down) wait in the socket's backlog instead of being refused. `close` closes this process's copy
+ * only; the supervisor's stays open. Without the variables it binds `port` as it always has.
  */
+import { closeSync, writeSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express, { type Express, type Request, type Response, type Router } from 'express';
@@ -55,6 +66,22 @@ import { firstSeen, installTelemetry, type Report } from '../telemetry/index.ts'
 import { createBus, type Bus, type EventMap, type KernelEvents } from './bus.ts';
 
 export const PHASES = ['config', 'bundle', 'stores', 'routes', 'sockets', 'listen', 'warm'] as const;
+
+/** The deploy handover's two descriptors (module header). */
+export interface Handover {
+	listenFd: number;
+	readyFd: number | null;
+}
+
+/** The handover the supervisor started this process with, or null when it binds its own port. */
+export function handoverFromEnv(env: NodeJS.ProcessEnv = process.env): Handover | null {
+	const listen = env.HADOKU_LISTEN_FD;
+	if (listen === undefined || listen === '') return null;
+	const fd = Number(listen);
+	if (!Number.isInteger(fd) || fd < 0) throw new Error(`HADOKU_LISTEN_FD is not a descriptor: ${JSON.stringify(listen)}`);
+	const ready = env.HADOKU_READY_FD;
+	return { listenFd: fd, readyFd: ready === undefined || ready === '' ? null : Number(ready) };
+}
 export type Phase = (typeof PHASES)[number];
 
 export interface GameServerConfig {
@@ -87,6 +114,11 @@ export interface GameServerConfig {
 	/** Stamp each kernel phase on the boot clock (default true). */
 	stampPhases?: boolean;
 	shutdown?: { deadlineMs?: number; requestGraceMs?: number; restartFlushMs?: number };
+	/**
+	 * A listening socket to serve instead of binding `port`, and the pipe to say so on: the deploy
+	 * handover (module header). Defaults to `HADOKU_LISTEN_FD` / `HADOKU_READY_FD`; null binds.
+	 */
+	handover?: Handover | null;
 	/** Install SIGTERM/SIGINT handlers (default true). */
 	signals?: boolean;
 	/** Ends the process once shut down; `process.exit` unless a test passes its own. */
@@ -328,13 +360,20 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 
 	// After every socket.io attach: engine.io moves itself to the front of the request listeners.
 	stampOrigin(httpServer, config.origin ?? id);
+	const handover = config.handover === undefined ? handoverFromEnv() : config.handover;
 	await new Promise<void>((listening, failed) => {
 		httpServer.once('error', failed);
-		httpServer.listen(config.port, config.host, () => {
+		const done = (): void => {
 			httpServer.off('error', failed);
 			listening();
-		});
+		};
+		if (handover === null) httpServer.listen(config.port, config.host, done);
+		else httpServer.listen({ fd: handover.listenFd }, done);
 	});
+	if (handover !== null && handover.readyFd !== null) {
+		writeSync(handover.readyFd, 'R');
+		closeSync(handover.readyFd);
+	}
 	capacity.start();
 	const { port } = httpServer.address() as AddressInfo;
 	console.log(`[${id}] listening on ${config.host}:${port}`);
