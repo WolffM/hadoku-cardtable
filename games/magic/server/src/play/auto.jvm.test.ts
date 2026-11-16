@@ -209,6 +209,17 @@ function rowsFromRaw(raw: BridgeLine[], seat: number): RawRow[] {
 	return rows;
 }
 
+/**
+ * Whether the seat has already acted on the input its window shows. It then waits for Forge's next
+ * one, as the board does (`LiveMatch.inputLive`): a second act on the same input is made on a
+ * window Forge has left, and the bridge drops it. A cast clicked a tick behind the land play was
+ * dropped that way, the spell stayed in hand and the seat's untapped land read as something to do
+ * through a combat the server rightly passed. A window with no input is never held back.
+ */
+function actedAlready(n: { input: number | undefined; actedOn: number | undefined }): boolean {
+	return n.input !== undefined && n.input === n.actedOn;
+}
+
 describe.skipIf(!available.ok)(title, () => {
 	it(
 		'stops only where the seat can act, says what it paid, and never asks a one-answer question',
@@ -220,7 +231,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 
 			/** What each seat was last told, and what happened at each priority stop. */
-			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null, input: undefined as number | undefined }));
+			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null, input: undefined as number | undefined, actedOn: undefined as number | undefined }));
 			/** One row per priority window this seat was shown: was Forge's set empty, was it passed. */
 			const stops: { seat: number; phase: string; stackEmpty: boolean; idle: boolean; ownMain: boolean; passed: boolean; unsettled: boolean }[] = [];
 			const says: { seat: number; message: string; type: string | null; mana: string | null }[] = [];
@@ -419,6 +430,7 @@ describe.skipIf(!available.ok)(title, () => {
 					const n = notes[seat]!;
 					const me = names[seat]!;
 					const turn = /Turn: (\d+) \(([^)]*)\)/.exec(n.prompt);
+					if (actedAlready(n)) continue;
 					const myMain =
 						n.prompt.startsWith(`Priority: ${me}`) && /Stack: Empty/.test(n.prompt) && /Phase: Main/.test(n.prompt) && turn?.[2] === me;
 					if (myMain) {
@@ -432,6 +444,7 @@ describe.skipIf(!available.ok)(title, () => {
 						if (land !== undefined && !acted.has(`${key}:land`)) {
 							acted.add(`${key}:land`);
 							match.fromClient(seat, select(land.id), n.input);
+							n.actedOn = n.input;
 							continue;
 						}
 						const untapped = zone(seat, 'Battlefield').filter((c) => c.land && !c.tapped).length;
@@ -440,10 +453,14 @@ describe.skipIf(!available.ok)(title, () => {
 							acted.add(`${key}:cast`);
 							casts += 1;
 							match.fromClient(seat, select(spell.id), n.input);
+							n.actedOn = n.input;
 							continue;
 						}
 					}
-					if (n.ok) match.fromClient(seat, OK, n.input);
+					if (n.ok) {
+						match.fromClient(seat, OK, n.input);
+						n.actedOn = n.input;
+					}
 				}
 				await new Promise((r) => setTimeout(r, 120));
 			}
@@ -607,7 +624,7 @@ describe.skipIf(!available.ok)(title, () => {
 			// around a prompt paired a real decision with that correction instead
 			// of its own real buttons.
 			const rows = (): RawRow[] => rowsFromRaw(raw, 0);
-			const notes = [0, 1].map(() => ({ prompt: '', ok: false, input: undefined as number | undefined }));
+			const notes = [0, 1].map(() => ({ prompt: '', ok: false, input: undefined as number | undefined, actedOn: undefined as number | undefined }));
 			// `setWeaklySelectable`/`clearWeaklySelectable` are never held or
 			// corrected by `match.ts` (only the prompt/buttons pair is), so
 			// reading this off `emit` — unlike the prompt and buttons themselves —
@@ -772,6 +789,7 @@ describe.skipIf(!available.ok)(title, () => {
 						}
 						continue;
 					}
+					if (actedAlready(n)) continue;
 					const myMain =
 						n.prompt.startsWith(`Priority: ${me}`) && /Stack: Empty/.test(n.prompt) && /Phase: Main/.test(n.prompt) && turn?.[2] === me;
 					if (myMain && seat === 0) {
@@ -788,6 +806,7 @@ describe.skipIf(!available.ok)(title, () => {
 						if (mystic !== undefined && untapped.length >= 2 && twoSourceRows().length === 0 && !acted.has(`${key}:cast`)) {
 							acted.add(`${key}:cast`);
 							match.fromClient(0, select(mystic.id), n.input);
+							n.actedOn = n.input;
 							continue;
 						}
 						// An Evolving Wilds on the battlefield is the #16 window.
@@ -795,6 +814,7 @@ describe.skipIf(!available.ok)(title, () => {
 						if (wilds !== undefined && sacrificeRows().length === 0 && !acted.has(`${key}:wilds`)) {
 							acted.add(`${key}:wilds`);
 							match.fromClient(0, select(wilds.id), n.input);
+							n.actedOn = n.input;
 							continue;
 						}
 						// Otherwise take the land drop, preferring a Plains once the
@@ -805,10 +825,14 @@ describe.skipIf(!available.ok)(title, () => {
 						if (land !== undefined && !acted.has(`${key}:land`)) {
 							acted.add(`${key}:land`);
 							match.fromClient(0, select(land.id), n.input);
+							n.actedOn = n.input;
 							continue;
 						}
 					}
-					if (n.ok) match.fromClient(seat, OK, n.input);
+					if (n.ok) {
+						match.fromClient(seat, OK, n.input);
+						n.actedOn = n.input;
+					}
 				}
 				await new Promise((r) => setTimeout(r, 120));
 			}
@@ -991,7 +1015,7 @@ describe.skipIf(!available.ok)(title, () => {
 			// safe as it always was.
 			const rows = (): RawRow[] => rowsFromRaw(raw, 0);
 			const live = { actionable: null as number[] | null, selectables: null as number[] | null };
-			const notes = [0, 1].map(() => ({ prompt: '', ok: false, input: undefined as number | undefined }));
+			const notes = [0, 1].map(() => ({ prompt: '', ok: false, input: undefined as number | undefined, actedOn: undefined as number | undefined }));
 
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
@@ -1139,6 +1163,7 @@ describe.skipIf(!available.ok)(title, () => {
 						}
 						continue;
 					}
+					if (actedAlready(n)) continue;
 					// The targeting input for the cast in flight: neither a priority
 					// window nor a payment, and it is the one thing seat 0 owes Forge.
 					if (
@@ -1151,6 +1176,7 @@ describe.skipIf(!available.ok)(title, () => {
 					) {
 						targeted = true;
 						match.fromClient(0, target(match.seats[1]!.playerId ?? -1), n.input);
+						n.actedOn = n.input;
 						continue;
 					}
 					const myMain =
@@ -1174,6 +1200,7 @@ describe.skipIf(!available.ok)(title, () => {
 							if (land !== undefined && !acted.has(`${key}:land`)) {
 								acted.add(`${key}:land`);
 								match.fromClient(0, select(land.id), n.input);
+								n.actedOn = n.input;
 								continue;
 							}
 						} else {
@@ -1182,11 +1209,15 @@ describe.skipIf(!available.ok)(title, () => {
 							if (blast !== undefined && untapped >= 2 && !acted.has('cast')) {
 								acted.add('cast');
 								match.fromClient(0, select(blast.id), n.input);
+								n.actedOn = n.input;
 								continue;
 							}
 						}
 					}
-					if (n.ok) match.fromClient(seat, OK, n.input);
+					if (n.ok) {
+						match.fromClient(seat, OK, n.input);
+						n.actedOn = n.input;
+					}
 				}
 				await new Promise((r) => setTimeout(r, 120));
 			}
