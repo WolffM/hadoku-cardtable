@@ -197,8 +197,11 @@ describe.skipIf(!available.ok)(title, () => {
 			const jcmd = join(dirname(config.java), 'jcmd');
 			expect(existsSync(jcmd), `no jcmd beside ${config.java}`).toBe(true);
 			const dump = spawnSync(jcmd, [String(jvm.pid), 'Thread.print'], { encoding: 'utf8' }).stdout;
-			const gameThreads = new Set(dump.match(/^"Game-\d+"/gm) ?? []);
-			expect(gameThreads.size, dump.slice(0, 2000)).toBeGreaterThanOrEqual(2);
+			// Threads are counted, not names: Forge numbers a game thread from a counter no lock guards
+			// (`ThreadUtil.WorkerThreadFactory`'s `countr++`), so two matches whose games start together can
+			// both be on a `"Game-0"`, and a set of names held one (runs 42768932118, 43000394258, 43196952460).
+			const gameThreads = dump.match(/^"Game-\d+"/gm) ?? [];
+			expect(gameThreads.length, (dump.match(/^"[^"]*"/gm) ?? []).join(' ')).toBeGreaterThanOrEqual(2);
 
 			send({ t: 'reply', match: A, seat: 0, callId: probeAsk(A)?.callId, result: true });
 			send({ t: 'reply', match: B, seat: 0, callId: probeAsk(B)?.callId, result: false });
