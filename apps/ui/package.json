@@ -33,7 +33,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.1",
-    "@wolffm/catalogue": "npm:@hadoku/catalogue@^1.0.14",
+    "@wolffm/catalogue": "npm:@hadoku/catalogue@^1.0.15",
     "vite": "8.2.2"
   }
 }
