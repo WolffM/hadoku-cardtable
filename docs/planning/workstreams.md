@@ -177,7 +177,7 @@ it. PR-5 is new and exists to serve it.
 
 | # | Programme | State |
 | --- | --- | --- |
-| **PR-9** | **Platform** — make this repo a general tool for future games: the scaffolding, networking, rooms and accounts are kept, and a new game brings its own engine, data and UI. The operator, 2026-11-06: *"we are likely to want to make new games with new UI, but want to retain the power of the scaffolding, networking, user management, and other stuff"*; on rooms: *"watchparty and cardtable really should share essentially all the same code here"* | **Phases 1–4 on main; phase 3 has one item left (verified 2026-11-11 at 11fb96678).** Fence w91; kernel and shell w92–w94; wire and room storage w95a/b; room core w96–w98; **fence cleanup w99 VERIFIED**: edges 60/11 → **2/0**, `lobby.ts` 4,716 → **3,386**, the ratchet key-strict. Bomberman and `templates/game` were already on `@wolffm/service-kernel` (hadoku_site 880bf59b6, 2026-11-08), so the board's "edge-auth swap" item was stale. Phase 3's last item is the `game.*` reader sweep, **w100, a single session, SCAFFOLDED 2026-11-11** (`docs/planning/wave100-2026-11-11.md`). Phases 5 (match host) and 6 are not started **Phase 5 cut 2026-11-11 into four steps** (w101 the seams, w102 the `class Match` split as a single session, w103 the runtimes incl. in-process, w104 the UI slot + ConstructedScreen + bomberman embedded). **w101 SCAFFOLDED** (`docs/planning/wave101-2026-11-11.md`) |
+| **PR-9** | **Platform** — make this repo a general tool for future games: the scaffolding, networking, rooms and accounts are kept, and a new game brings its own engine, data and UI. The operator, 2026-11-06: *"we are likely to want to make new games with new UI, but want to retain the power of the scaffolding, networking, user management, and other stuff"*; on rooms: *"watchparty and cardtable really should share essentially all the same code here"* | **Phases 1–5 done, the Magic move done, the platform published (verified 2026-11-16 at 00a4c4c77).** The fence is clean: `baseline.json` has no platform→magic edges and an empty tangled list (w110). Magic lives in `games/magic/{server,ui,packages}` (w109, w111, w112, w116u, w117), and `apps/{server,ui}` are thin site roots. Rooms run on the platform lobby with game hooks (w113v–w115). The seven MIT packages publish from `publish-kernel.yml`, six of them to npmjs as `@hadoku/*` (2026-11-16). hadoku_site `templates/game` is built on them (w118t), and the land/release tooling is `packages/devkit` (w118d). Open: w118t's seven "still cardtable-shaped" items, devkit on the publish list, and the dated drops. See the w109–w118 section at the end |
 | **PR-8** | **Presentation** — sound, motion, board and UI art. The operator, 2026-09-27: *"one of the most important parts of this project is getting the graphics/audio to be upgraded. thats a huge part of the appeal, otherwise all we've done is create magic online with slight improvements"* | **NEW, and the operator's stated priority after w25**: *"i would prefer to not be debugging the game functionality for much longer."* See the presentation section below for what exists, what does not, and the three decisions that gate it |
 | **PR-7** | **The outer shell** — adopt hadoku_site's `templates/game` and delete our hand-written wrapper in favour of it | **SCHEDULED: the wave immediately after the game client.** Operator, 2026-09-20. Not before — the shell wraps the client, and the client is the unproven half |
 | **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS. W19 landed the QOL wave**: static canvas with player faces, only-Forge-offered clickability + drag + targeter, stops only where a legal action exists with payment said out loud, art ids for every card and stack item. The operator's bar — *"i would not even call this alpha playable yet"* — was the brief; their re-test is the remaining proof |
@@ -3949,3 +3949,178 @@ The operator ruled 2026-11-11 that the tracker chains the platform waves through
   - the corpus's host step. The tracker measured no runtime reader of the in-tree `cards.jsonl`.
   - The layer map counts ~482k magic lines against ~41k platform, so the move is staged: packages (w109), then the server's Magic as a package, then the UI's.
 - **Queue for later:** `~/.cache/cardtable-manager/next-wave-queue.md` (w69-chip-shape's art race, wresolve-chain if it recurs, hadoku-fleet-manager#88).
+
+## w109–w118 verified by the tracker (2026-11-12 → 2026-11-16): Magic moved home, templates/game and the devkit, v0.68.0–v0.68.2, npmjs
+
+- **w109** (Magic moves home, stage 1 — the four Magic packages to `games/magic/packages/`): 879515d89..d2e409af2
+  (move 6f0c583ce, gauntlet-arrive fix b1c08b5d8). 177 renames (136 at 100%). Key number: the layer ratchet and
+  select-forge-tests both went blind on the moved packages until fixed (two new classes of "a move leaves a
+  scanner's view"). Carried: `tf-thopter-sword.spec.ts`'s 1200 ms `NEXT_OFFER_BUDGET_MS` flakes on main under claw
+  load (A/B'd, not this move's); 54 stale `.partial` scryfall cache files; worktrees cut before the move need
+  main's link script.
+- **w110** (stage 2a — tangled list to zero, 3 lanes H/L/S): tangled 10 → 0 (`baseline.json` edgeCounts {}).
+  Order L→S→L→H, each CI green and on PPE before the next; ≈1 h 52 m dispatch to deployed. Full Forge run after
+  last land: every job green. H moved the generic `/api/rooms` routes to `http/room-core.ts` (rooms.ts 816→509);
+  its own mutation caught a double `PATCH /api/rooms/:id` registration before land. L split lobby/socket's
+  generic pieces into platform (membership, room-list, avatar, watchparty-link) — net +162 lines, accepted as a
+  seam exception. S gave `@hadoku/shared` a platform entry (`/platform`) and found the ratchet resolves imports
+  per-package, not per-subpath — carried as a tracker item (later fixed in w113v).
+- **w111** (stage 2b(i) — apps/server's platform code to `packages/game-server`): 0d85dd8f7. 116 files moved
+  (112 renames at 100%). `@hadoku/game-server` (MIT). Codemod rewrote 330 specifiers + 64 path mentions.
+  Ratchet byte-identical to main after the move. CI full=true green except one flaky (`w80c-common-unlock`,
+  judged as main's own load-sensitive flake by A/B ×5: verify 5/5 green, main 2 failed/3 passed). Carried:
+  main's own `yield-cancel.jvm` red (unrelated, fixed in w113t).
+- **w112** (stage 2b(ii) — `apps/server` → `games/magic/server`, thin site left behind): 8bacf61ff..1c1ee38a4
+  ..2febc0119. `@hadoku/magic-server` (GPL); new `apps/server` = `@hadoku/server` (GPL, site, 147 source lines).
+  933 files touched, 715 renames (712 ≥90%). Key number: main's CI went red on the move itself — `packageDir`
+  called an uncached `repo.list('games')` on every import resolve, turning a directory walk into a perf
+  regression once Magic's server lived under `games/`; fixed (2febc0119), file's test time 102 s → 22 s. Also
+  caught: vitest's `include` and eslint's test rule would have silently stopped covering Magic's 213 suites.
+  A jar-timing jvm red (`endturn.jvm`) was judged a loaded-host flake by A/B.
+- **w113t** (flaky-spec lane, 3 items): landed c54d190f6, 06ac823b6, f959b046a. (1) `yield-cancel.jvm`: real race
+  — a Cancel press could re-arm an already-ended yield bar and steal a different window; fixed in PlayBridge,
+  proved 10/10 (one real race caught live). (2) `w69-chip-shape`: two real mechanisms (path-dependent squaring,
+  and measuring a hover-transformed box) — fixed with layout reads instead of `getBoundingClientRect`; 16/16 ×2
+  pinned-core runs. (3) `w80c-common-unlock`: the *test's* wall-clock share measure was wrong, not the product —
+  switched to reading the pacer's own `input-held`; pinned-core A/B base 5/5 red vs fix 5/5 green. full=true
+  green after all three landed; one unrelated flaky `w47-pace` named as a tracker item (same clock-reading class).
+- **w113v** (room view asks its game; ratchet resolves imports by subpath): landed b339ee45c (+ art rows
+  e85512dd8), e41ca3f5a, 3182c194a. `Lobby.useGameView` hook moves Magic's `game`/`ai` fields off every room's
+  view into a per-type registry; ~460 test sites typed `game!`. 16/16 prod room records and 18/18 PPE records
+  round-tripped byte-equal. Ratchet's `exports.ts` now follows `exports` maps to the real file per subpath, and
+  a second blind spot (`export * as ns from`, invisible to `ts.preProcessFile`) was found and fixed with a full
+  AST walk — edge count unchanged (2647) but a previously invisible platform→magic edge became visible. Carried:
+  `draft.spec.ts:1037` intermittent one red (unpinned cause); dated drop of the top-level `ai` field after
+  `roomAiOf` ships a release.
+- **w114** (room record goes generic — platform `PlatformRoomRecord`/seats): landed 7f3f824e9 (design note
+  56b5cee2b first). A type-checked codemod rewrote 309 reads (lobby.ts 237, pods.ts 58, magic-view.ts 14).
+  Write-both strategy (new shape + `RollbackCopies`) chosen over quarantine. 16/16 prod + 18/18 PPE room records
+  round-tripped with 0 quarantined on old-build reads of new-build writes. `pnpm run check` 13921 passed.
+  Carried: dated drop of `RollbackCopies` after this ships a release; next step (w115) is moving the lobby's
+  logic itself, mapped file by section with line numbers.
+- **w115** (lobby core moves to the platform — any game gets rooms via hooks): landed 12ab93cf4 (one commit,
+  steps 1–5 together — core and Magic's lobby are one class split along the hook interface). `games/magic/server
+  /src/room/lobby.ts` 3335 → 2475; new platform `packages/game-server/src/room/lobby.ts` 1049 lines
+  (`RoomTypeHooks<G,I>`, the seed of `templates/game`'s room checklist). Net +141 lines (~76 over the brief's
+  ≤0 budget — accounted to `plainRoomType`/`hostedRoomType` and new guard types). Toy-room test with **no Magic
+  import** proves create/seat/ready/leadership-handoff/restore/sweep. 16/16 prod + 18/18 PPE records equal.
+  full=true: one jvm red (`seed.jvm`) also red on main's base commit — not this change, carried to w116r.
+  Deliberate departure: bomberman's blob is empty rather than Magic-shaped, which broke some tests' assumptions
+  on purpose (documented, not an oversight).
+- **w116r** (main's reds + RoomView made honest): 5 items landed (cfc224aab, ede45cdf5, ca04d19b7, 97d17d3da,
+  5968f11a3). `seed.jvm`: named mechanism (cross-seat frame interleaving, a wait on *any* seat read against
+  *seat 0*'s view) but not reproduced in 24 starved repro runs — read point fixed to seat 0's own first prompt,
+  proved 3/3. `RoomView` honesty: `magicView()` narrowing collapsed 7 hand-written guards into one.
+  `draft.spec.ts:1037`: both standing hypotheses killed by evidence; real cause unpinned — a seat's view missed
+  `GameView.Turn` for a whole turn; added turn/phase to the frame-trace probe so the next recurrence names its
+  layer. `w47-pace`: switched from runner-poll timing to a DOM-mutation timestamp (w113t item 3's class).
+  `w83a-chess-clock`: genuine product bug (a flag timer that could fail to re-arm when it fired early) — fixed
+  with a release note, past the brief's scope but justified as player-visible. **full=true after all 5 landed
+  came back red**: shard 4 hit its 75-min job cap mid-run (carried as a rebalance item) and `wait-names.jvm`
+  showed a one-off frame reorder on loaded hokon (A/B'd 3/3 both sides — not this session's change).
+- **w116u** (stage 3(i) — apps/ui's platform code to `packages/game-ui`): landed 9680cc338 (one commit, df2d6454e).
+  `@hadoku/game-ui` (MIT), 53 modules + 8 sheets + 19 tests (81 paths). Key proof: the built SPA bundle was
+  **byte-identical** to main's build (143 files, same content hashes) — the gate for a UI move, not the test
+  suite, per this note's own conclusion. Caught by that same byte comparison: a CSS `url()` font reference
+  (Cinzel) silently broke across the move (vite built anyway) and the UI-scale px-rewrite tool had never covered
+  non-`apps/*` sheets. `select-forge-tests`' land-history lookup didn't follow git renames — every prior move had
+  silently weakened it. Carried: `tf-thopter-sword` flaky on main (confirmed by A/B, not this change).
+- **w117** (stage 3(ii) — `apps/ui` → `games/magic/ui`, thin site left behind): landed 4c6df5740..8793ca523
+  ..2e1e7396c. `@hadoku/magic-ui` (GPL), new thin `apps/ui` = `@hadoku/ui` (22 source files / 1,652 lines).
+  Built SPA again byte-identical (272 files) after fixing the font-url and segment-built-path misses the codemod
+  initially made. This closes "Magic moves home": final split is `apps/{server,ui,agent}` (GPL, thin),
+  `games/magic/{server,ui,packages/*}` (GPL), and 7 MIT platform packages (platform-wire, host-wire, room-ask,
+  service-kernel, ui-shell, game-server, game-ui). Two jvm reds on the push run (`seed.jvm`, `fs-top-known`)
+  judged as unrelated Forge timing (same tree's scheduled full run was green on both shards) — named as a
+  "didn't repeat" item rather than chased further.
+- **w118t** (templates/game rebuilt on the platform packages, cardtable + hadoku_site): cardtable 45ea6b9a7
+  publishes the 7 MIT packages from one matrix workflow (`publish-kernel.yml`); hadoku_site b5c1439ac rebuilds
+  `templates/game` on them. Published to GitHub Packages first (platform-wire/host-wire 0.1.0, room-ask 0.1.2,
+  service-kernel 0.1.33, ui-shell/game-server/game-ui 0.1.0); a same-day devkit land republished all seven
+  lockstep to 0.1.1/0.1.3/0.1.34 by design. A hydrated template game (counter-to-10 toy) installed the packages
+  via the GitHub-Packages read token, ran `pnpm run check` (protocol 3/3, server 10/10) and `pnpm run e2e`
+  (2/2); a mutation (leader sends `state` instead of `over`) correctly failed 1/2 then passed restored.
+  Carried: seven "still cardtable-shaped" items in game-server/game-ui (below) and the npmjs request.
+- **w118d** (the devkit, parameterised by app id): landed 690f074a2, 3ff239ffe. `packages/devkit` (MIT) replaces
+  cardtable-hardcoded `scripts/lanes/*`, `scripts/land.sh`, `scripts/telemetry/*`, `scripts/release/*` with
+  `devkit.config.json`-driven entry points. Proved against a **fake second app** (bare git remote, its own
+  claims/ledger/releases/state) end to end: claim/overlap-refusal, `land.sh --dry-run` then a real push with a
+  numbered ledger row, a telemetry-watch stub call scoped to the fake app's own path/service/key. Mutations:
+  pointing the fake app's claims file at the real one's state correctly broke the claim test; dropping
+  cardtable's `proof` block correctly dropped `--plan`'s dispatch. 13959 passed / 418 skipped, +15 new tests,
+  every moved test kept its case count.
+
+**Releases:**
+- **v0.68.0 — "Undo"** (tag `release/v0.68.0` @ 37f285f12): Undo lands beside Restart turn (asks the opponent,
+  AI always allows); Bomberman plays through the room on cardtable's own relay, with rematch-in-room.
+- **v0.68.1 — "Steadier clocks and stacks"** (tag `release/v0.68.1` @ efc5af4e8): the stack-chip-shape and
+  chess-clock-at-zero fixes, plus "Magic's code now lives in its own home" (w109–w112's stage 1/2) and "rooms run
+  on a shared lobby any game can use" (w113v/w114 groundwork) as fixes-only notes.
+- **v0.68.2 — "Hits in order"** (tag `release/v0.68.2` @ ea0893b50): trigger-chain and die-roll timing fixes for
+  slower screens; "the parts every game shares are published, and a new game's starter is built on them" (w118t);
+  "the tools that land and release changes work for any game" (w118d).
+
+**npmjs:** the six platform packages (platform-wire, host-wire, room-ask, ui-shell, game-server, game-ui) are now
+live on npmjs as `@hadoku/*`, published by `publish-kernel.yml` with provenance (publish run 43779028285:
+platform-wire/host-wire/ui-shell/game-server/game-ui at 0.1.6, room-ask at 0.1.8). The leak gate refused fleet
+host names in code comments (host-wire 1 line, game-server 9 lines); reworded before the first publish.
+`game-server`'s `play/placement/` and `play/remote/` are left out of the published package via `publishLeaveOut`
+(5ed24a59e) — they're cardtable's draftbot/hosting wiring, not platform. Trusted publisher set via `npm trust`.
+
+Separately: main went red after an unrelated `@wolffm/*` auto-update (6700e6083) — two copies of `prefs-client`
+pulled in by a zod peer mismatch; fixed by pinning zod 4.5.4 in `apps/ui` and `game-ui` (ea0893b50).
+
+**hadoku-fleet-manager#88 VERIFIED 2026-11-16:** `kill -9` of the agent on claw-9 (01:50Z), claw-8 (01:53Z) and
+claw-10 (02:01Z), each under a lease drain: every one respawned in 2 s into the `agent/` leaf, re-adopted its
+JVM, draftbot re-capped, and reconnected prod's relay in under 1 s — no failover observed. Proof comment posted
+on the issue. Lesson recorded: a fixed 30-minute lease lapsed under a 75-minute scheduled Forge shard once during
+this proof; the fix is a 2-hour lease and waiting on "drained OR lease gone", not a fixed sleep.
+
+**Open** (from `next-wave-queue.md`, items not marked DONE):
+
+*Dated drops (time-gated on a release going out):*
+- w113v: drop the top-level `ai` field (`magic-view.ts`'s `MagicViewPart.ai`, `RoomBodySchema.ai`,
+  `roomAiOf`'s fallback) in the first release *after* the one that ships `roomAiOf` (b339ee45c).
+- w114/w115: drop `RollbackCopies` (top-level `settings`/`tables`/`matchId`/`matches`, `game.podSeats`) and its
+  fallback reads — including `hostedRoomType`'s `game.podSeats` read/write — in the first release after the one
+  that ships 7f3f824e9/12ab93cf4.
+
+*Flaky tests with named causes (not yet fixed):*
+- `draft.spec.ts:1037` "both seats reach turn 1": a seat's view missed `GameView.Turn` for a whole turn once;
+  the probe now logs turn/phase in forge-frame/wire-frame rows — read the next red's fields to name the layer.
+- `w83b-draft-rope.spec.ts:265`: a wall-clock flake; make it read the code's own clock.
+- `wait-names.jvm`: one frame-reorder seen on loaded jit-hokon (A/B 3/3 both sides inconclusive).
+- `socket.test.ts` "a burst of starts": a 1.2 s wall-clock timeout tripped once by a stalled claw; read the
+  code's own clock (same class as the above).
+- forge-e2e shard 4 runs 55–65 min against its 75-min cap and was cancelled once on a shared claw — rebalance
+  shards or raise the cap.
+- `challenge.spec.ts` never closes its own browser context (the harness closes it at the next stack start) — the
+  leftover page in one draft.spec:1037 failure screenshot is still unexplained.
+
+*Platform shape — w118t's "still cardtable-shaped" items in game-server/game-ui:*
+1. The room socket (roster/chat/presence, `/room`) still lives in `magic-server`'s `room/serve.ts`; the template
+   has no chat column. Move it into game-server so the template can mount game-ui's `RoomShell`.
+2. `config.ts`/`kernel.ts`/`edge-auth.ts`/`telemetry.ts` read `CARDTABLE_*` env at import time, and
+   `edge-auth.ts` asserts the cardtable tier floor at import — a game can't configure these yet.
+3. `PARTICIPANT_ID_DOMAIN` (`hadoku.cardtable.participant.v1`) and `UNNAMED = 'friend'` put every game's
+   participant ids in cardtable's own domain.
+4. `LobbyCore` (room-core) calls `roomOfMatch`/`setGameType`, which the platform `RoomLobby` doesn't have;
+   the template has to subclass. Candidate: carry both on `RoomLobby` itself.
+5. Not in the published build: game-ui's `BundleSlot.tsx` + `relay-test-fixture.tsx` relatively import
+   `packages/shared/src/game-type-spec.ts` (move it to platform-wire); game-server's `announce.ts`,
+   `play/placement/*`, `play/remote/*` are cardtable-only wiring not meant to publish.
+6. Relay `input` messages carry a self-declared `seat`; the server doesn't stamp the sender — fine for a toy,
+   not for a real game (`fromSeat` should be stamped by `relay-socket.ts`).
+7. Lockstep republish: any push under the seven packages republishes all seven (including the kernel to npmjs).
+   Consider skipping a leg whose tarball already equals the registry's newest.
+
+*Follow-ups:*
+- Add `@hadoku/devkit` to `publish-kernel.yml`'s matrix (it's `private: true` today), then wire the devkit into
+  `templates/game` per w118d's note.
+- `fleet ci-watch --write` so ci-watch covers the new `cardtable:publish-<name>` jobs.
+- Mark hadoku_site's `docs/requests/2026-11-14-platform-packages-npmjs.md` done (npmjs is now live).
+- A lockfile gate against two peer-variants of one `@hadoku`/`@wolffm` package in the same tree (the class fix
+  for the zod/prefs-client auto-update red above).
+
+**Next:** the operator's live bomberman check on prod (still open from w107n/w108l), then the top-level code
+analysis.
