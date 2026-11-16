@@ -2008,10 +2008,15 @@ describe('the match socket under one live tab per player', () => {
 		const { h, matchId, first } = await aliceHolds();
 		const second = await connect(h.port, edgeHeaders('alice'));
 		expect(await second.request('forge:join', { matchId, tabId: TAB_B })).toEqual({ error: 'session-elsewhere' });
-		// A round trip on the first socket: anything the server sent it before now has arrived.
+		// A round trip on the first socket, which the server answers with that socket's role again, behind
+		// the ack: once that second role is here, so is anything the refusal sent the socket before it.
 		await first.request('forge:resync', { matchId });
+		await waitUntil(() => first.roles.length > 1, 'the resync’s own role');
 		expect(first.socket.connected).toBe(true);
-		expect(first.roles).toEqual([{ matchId, role: 'player' }]);
+		expect(first.roles).toEqual([
+			{ matchId, role: 'player' },
+			{ matchId, role: 'player' },
+		]);
 		expect(h.logs.filter((l) => l.evt === 'seat-taken-over')).toEqual([]);
 		expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'session-elsewhere', room: matchId }));
 	});

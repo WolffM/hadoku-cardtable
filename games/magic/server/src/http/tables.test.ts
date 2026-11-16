@@ -215,8 +215,9 @@ describe('checkSeat', () => {
 	 * all of them and must not fail this.
 	 */
 	// Every deck against every era: 1,459 decks by 67 eras since the library ran to 2025,
-	// near 100,000 checks, so it gets the time that takes rather than the default 5 s.
-	it('answers the era filter for every deck and every era, with no dead option at either end', { timeout: 30_000 }, () => {
+	// near 100,000 checks, so it gets the time that takes rather than the default 5 s: 16 s on a busy
+	// host, 43 s in a full check on a busier one and 50 s at 15% of a core, where 30 s was too little.
+	it('answers the era filter for every deck and every era, with no dead option at either end', { timeout: 120_000 }, () => {
 		const offered = new Map<string, string[]>();
 		for (const format of library.formats) {
 			const legal = library.decks

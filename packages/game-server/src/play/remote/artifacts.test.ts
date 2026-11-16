@@ -28,7 +28,9 @@ function bigDir(): { dir: string; cache: string } {
 // Prod's v0.53.0 restart (2026-11-06 16:00Z) packed the new pin's `res` with a blocking `tar`:
 // 12.5 s in which nothing else on the server ran.
 describe('packDir', () => {
-	it('packs off the event loop, and claws connecting at once share one pack', async () => {
+	// A real `tar -czf` and a sha256 over 32 MB that will not compress: about a second of CPU, which took
+	// 7 s at 15% of a core and past the default 5 s on a busy host. The budget is four times that.
+	it('packs off the event loop, and claws connecting at once share one pack', { timeout: 30_000 }, async () => {
 		const { dir, cache } = bigDir();
 		// Ticks while the tarball is still being written: none at all if `tar` holds the event loop.
 		let ticks = 0;
