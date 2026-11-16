@@ -798,7 +798,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   /**
    * A press on a card only the held offer draws ({@link drawnOffer}): the outline said it could be
    * played, so the press is not refused — it is sent the moment Forge offers that card again
-   * ({@link sendDeferredSelect}), and dropped if the hold ends without it or a selection opens.
+   * ({@link sendDeferredSelect}), and dropped, the card marked {@link refused}, if the hold ends
+   * without it or a selection opens.
    */
   deferredSelect: { cardId: number; placement: Placement | undefined } | null;
   /**
@@ -830,8 +831,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   actCard: number | null;
   /**
    * The card Forge just turned away (`flashIncorrectAction`: a click it would
-   * refuse, or a payment the server cancelled because nothing can pay it),
-   * for {@link REFUSED_MS}. `seq` tells a second refusal of the same card from
+   * refuse, or a payment the server cancelled because nothing can pay it), or whose kept press
+   * Forge's next input never took ({@link deferredSelect}), for {@link REFUSED_MS}. `seq` tells a second refusal of the same card from
    * the first, so the mark is drawn again.
    */
   refused: { card: number; seq: number } | null;
@@ -3947,12 +3948,15 @@ function sendDeferredSelect(match: LiveMatch): void {
  * A press kept under a held offer (`deferredSelect`) that Forge's next input never took: dropped,
  * and logged, because nothing was sent and the match log could not otherwise say the card was
  * pressed. `selection` names the selection that opened instead (`on-board`, `off-board`, or `none`).
+ * The card is marked as one Forge turned away ({@link LiveMatch.refused}), so the player sees the
+ * press was not taken; not when their own press of the bar is what dropped it.
  */
 function dropDeferredSelect(match: LiveMatch, why: 'bar-pressed' | 'hold-ended' | 'selection-opened' | 'offer-withdrawn'): void {
   const kept = match.deferredSelect;
   if (kept === null) return;
   match.deferredSelect = null;
   if (match.watcher) return;
+  if (why !== 'bar-pressed') refuse(match, kept.cardId);
   const chosen = match.selectables === null ? [] : [...match.selectables.cards];
   const onView = match.view === null ? new Set<number>() : cardIdsInView(match.view);
   const selection = chosen.length === 0 ? 'none' : chosen.some((id) => !onView.has(id)) ? 'off-board' : 'on-board';

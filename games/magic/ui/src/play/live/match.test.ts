@@ -1557,6 +1557,8 @@ describe('the offer through a click’s turnaround', () => {
     await until('the drop at the server', () => droppedAtServer(s).length === 1);
     expect(droppedAtServer(s)[0]).toMatchObject({ kind: 'info', data: { what: 'click-dropped', card: land, why: 'selection-opened', selection: 'on-board', inSelection: false } });
     expect(ClientEventSchema.safeParse(droppedAtServer(s)[0]).success, 'the match log keeps it').toBe(true);
+    // And shown: the land wears the mark of a card Forge turned away.
+    expect(m.refused?.card, 'the dropped press marks its card').toBe(land);
     await sendAndApply(s, m, [clear(), prompt('Priority'), bar(true), actionable([land])]);
     expect(await selects(), 'nor goes out later, once dropped').toBe(1);
   });
@@ -1619,6 +1621,32 @@ describe('the offer through a click’s turnaround', () => {
     expect(await selected(), 'Forge named a set without it: the press was dropped there').toEqual([first]);
     await until('the drop at the server', () => droppedAtServer(s).length === 1);
     expect(droppedAtServer(s)[0]).toMatchObject({ data: { what: 'click-dropped', card: second, why: 'offer-withdrawn', selection: 'none' } });
+    expect(m.refused?.card, 'the dropped press marks its card').toBe(second);
+  });
+
+  it('a press on a held outline is dropped and its card marked when the hold runs out; the player pressing the bar drops it unmarked', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [first, second] = [mine[0]!, mine[1]!];
+    const kept = async (): Promise<void> => {
+      await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([first, second])]);
+      expect(selectCard(m, first)).toBe(true);
+      await sendAndApply(s, m, [clearActionable()]);
+      expect(selectCard(m, second), 'the held outline takes the press').toBe(true);
+    };
+    await kept();
+    s.holdClock.advance(HOLD_MAX_MS);
+    await until('the drop at the server', () => droppedAtServer(s).length === 1);
+    expect(droppedAtServer(s)[0]).toMatchObject({ data: { what: 'click-dropped', card: second, why: 'hold-ended' } });
+    expect(m.refused?.card, 'the press Forge never took marks its card').toBe(second);
+    const marked = m.refused?.seq;
+
+    await kept();
+    await sendAndApply(s, m, [bar(true)]);
+    expect(pressButton(m, 'ok')).toBe(true);
+    await until('the second drop at the server', () => droppedAtServer(s).length === 2);
+    expect(droppedAtServer(s)[1]).toMatchObject({ data: { what: 'click-dropped', card: second, why: 'bar-pressed' } });
+    expect(m.refused?.seq ?? marked, 'their own press of the bar is no refusal').toBe(marked);
   });
 
   it('choose the target → Forge stops the selection and the ability resolves: still drawn, until priority names its set', async () => {
