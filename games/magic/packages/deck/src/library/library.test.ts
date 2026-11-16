@@ -66,9 +66,26 @@ function read(repoRelative: string): string {
   return readFileSync(join(REPO_ROOT, repoRelative), 'utf8');
 }
 
+/**
+ * A frozen pool, read once for the file: the 69 fixtures are 51 MB of JSON, and the tests below ask for
+ * the same ones over and over (one per deck, and three tests each read every one).
+ */
+const parsedPools = new Map<string, PoolFixture>();
 function fixture(date: string, family: FormatFamily = 'standard'): PoolFixture {
-  return parsePoolFixture(JSON.parse(read(poolFixturePath(date, family))));
+  const path = poolFixturePath(date, family);
+  let parsed = parsedPools.get(path);
+  if (parsed === undefined) {
+    parsed = parsePoolFixture(JSON.parse(read(path)));
+    parsedPools.set(path, parsed);
+  }
+  return parsed;
 }
+
+/**
+ * The budget of a test that reads every frozen pool, since whichever runs first parses all 51 MB itself:
+ * 1.3 s on a quiet host, past the default 5 s on a busy one, and 9.8 s at 15% of a core. Three times that.
+ */
+const EVERY_POOL_MS = 30_000;
 
 /** Every deck in the library, with the collection it is filed under. */
 const ALL_DECKS = LIBRARY.flatMap((c) => c.decks.map((entry) => ({ collection: c, entry })));
@@ -184,7 +201,7 @@ describe('every deck loads, with a citation, an archetype and a pilot', () => {
 });
 
 describe('the committed pool fixtures', () => {
-  it('agree with the rotation table about which snapshot was in force, for every family', () => {
+  it('agree with the rotation table about which snapshot was in force, for every family', { timeout: EVERY_POOL_MS }, () => {
     // The fixture's card list needs the corpus; its FORMAT block does not —
     // `formatAtFamily` answers from the committed rotation table alone. So
     // this is the one join that can be checked in CI, and it is the join that
@@ -651,7 +668,7 @@ describe('the library cost map a browser is handed', () => {
     );
   });
 
-  it('is the fixtures unchanged, not a re-computation of them', () => {
+  it('is the fixtures unchanged, not a re-computation of them', { timeout: EVERY_POOL_MS }, () => {
     // Every entry must be byte-identical to the frozen pool's own string, in at
     // least one pool. A cost invented here would fold to the wrong colours.
     // POOL_FIXTURE_KEYS, not POOL_FIXTURE_DATES: Modern/Legacy eras share a
@@ -665,7 +682,7 @@ describe('the library cost map a browser is handed', () => {
     }
   });
 
-  it('covers every card the library plays that has a cost, and no land', () => {
+  it('covers every card the library plays that has a cost, and no land', { timeout: EVERY_POOL_MS }, () => {
     const played = libraryCardNames();
     // Absence means "no coloured pip", so a name absent from the map must be
     // absent from every pool's cost map too — otherwise the dropdown silently
