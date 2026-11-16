@@ -4194,6 +4194,8 @@ describe('R16 — the result screen, drawn over the board', () => {
     const { s, m, getByTestId } = await liveBoard();
     const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
     s.send(gameOverDelta(m.view!.seq + 1, viewerId));
+    await untilMatch(m, () => expect(m.over).toBe(true));
+    await untilBoardStill();
 
     await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('defeat'));
     expect(getByTestId('game-result').textContent).toContain('Defeat');
@@ -4209,7 +4211,6 @@ describe('R16 — the result screen, drawn over the board', () => {
     await waitFor(() => expect(currentRoute()).toEqual({ kind: 'lobby' }));
   });
 
-  /** A finished game in room `r-1`: the opponent lost, so the viewer sees Victory. */
   /**
    * The end's last beats (`noteBoardDrawing`) run on real timers, and the result screen waits for them
    * (`useAfterTheBoard`); this waits on the board itself, with no deadline, so a `waitFor` after it covers
@@ -4224,6 +4225,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     fireEvent.click(await waitFor(() => getByTestId('game-result-next')));
   }
 
+  /** A finished game in room `r-1`: the opponent lost, so the viewer sees Victory. */
   async function victoryInRoom() {
     const s = (server = await startReplayServer());
     const m = (match = startMatch({
@@ -4425,6 +4427,8 @@ describe('R16 — the result screen, drawn over the board', () => {
         },
       }),
     );
+    await untilMatch(m, () => expect(m.over).toBe(true));
+    await untilBoardStill();
     await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('draw'));
     expect(getByTestId('game-result').textContent).toContain('Draw');
   });

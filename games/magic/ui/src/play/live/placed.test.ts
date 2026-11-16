@@ -10,6 +10,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// The artist table is a lazy chunk a chip's credit waits for (`draft/artists.ts`). Loaded here, with the
+// file, so the credit's own import is answered from the module cache: fetched inside a test, the half
+// megabyte crosses to a main thread that is serving every other worker, and took longer than a wait allows.
+import '../../draft/art-artists.json';
 import type { BoardView, StackEntry } from '../adapter.ts';
 import { GLIDE_MS, noteResolutionEffects, PLACEMENT_WAIT_MS, unlockAfter, whenBoardStill, whenBoardUnlocked } from '../motion.ts';
 import {
@@ -18,7 +22,7 @@ import {
   defaultSpot,
   forgetPlacements,
   holdSpell,
-  installPlaced,
+  installPlaced as installLayer,
   LEAVE_FADE_MS,
   onSpellMoved,
   placeSpell,
@@ -143,7 +147,19 @@ function board(): { canvas: HTMLElement } {
   return { canvas };
 }
 
+/**
+ * `installPlaced`, taken down after its test whether or not the test reached its own `dispose`: a layer a red
+ * test left up still repaints on every halt, and takes the next test's halt as drawn before that test's layer sees it.
+ */
+const installed: ReturnType<typeof installLayer>[] = [];
+function installPlaced(...args: Parameters<typeof installLayer>): ReturnType<typeof installLayer> {
+  const handle = installLayer(...args);
+  installed.push(handle);
+  return handle;
+}
+
 afterEach(() => {
+  for (const handle of installed.splice(0)) handle.dispose();
   document.body.innerHTML = '';
   forgetPlacements();
   vi.useRealTimers();
@@ -712,7 +728,11 @@ describe('installPlaced: drawing', () => {
     const unknown = { ...draftCard('Nobody'), scryfallId: '00000000-0000-4000-8000-000000000000' };
     handle.notify(view([stackItem(9, { isAbility: true, sourceCard: credited }), stackItem(10, { isAbility: true, sourceCard: unknown })]));
     const chip = (id: number) => canvas.querySelector<HTMLElement>(`[data-placed-spell="${id}"]`)!;
-    await vi.waitFor(() => expect(chip(9).querySelector('.placed__chip-credit')).not.toBeNull());
+    // Two chips are two React roots, and each commits on its own turn: both are waited for.
+    await vi.waitFor(() => {
+      expect(chip(9).querySelector('.placed__chip-credit')).not.toBeNull();
+      expect(chip(10).querySelector('.placed__chip-name')).not.toBeNull();
+    });
     expect(chip(9).querySelector('.placed__chip-credit')!.textContent).toBe('Illus. Lie Setiawan · ™ & © WotC');
     expect(chip(9).querySelector('img.placed__chip-art'), 'credited, so drawn').not.toBeNull();
     expect(chip(10).querySelector('img'), 'no artist on record: no art').toBeNull();

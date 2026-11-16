@@ -16,7 +16,7 @@ import type { AddressInfo } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import { ClientEventSchema } from '@hadoku/shared';
 
@@ -83,7 +83,7 @@ import {
   type LiveMatch,
   type MatchTransport,
 } from './match.ts';
-import { confirmAsk, fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
+import { confirmAsk, fixtureFrames, startReplayServer, until, untilMatch, type ReplayServer } from './replay-server.ts';
 import { HOLD_MAX_MS } from './timed-hold.ts';
 import { diffViews, planRams } from './numbers.ts';
 import { MATCH_EVENTS, parseMatchAck, parseServerEnvelope } from './transport.ts';
@@ -1185,14 +1185,25 @@ describe('clicking the board: only what Forge offered', () => {
     await sendAndApply(s, m, [prompt('Select target'), selectables([theirs[0]!], 1, 1)]);
     expect(selectCard(m, theirs[0]!)).toBe(true);
     expect(m.actCard).toBe(mine[0]);
-    await sendAndApply(s, m, [clear(), prompt('Priority'), bar(true), flash]);
-    expect(m.refused).toEqual({ card: mine[0], seq: 1 });
+    // The mark goes on a timer, and a timer counts from its event-loop turn's own start, not from the
+    // moment it was set: on a busy host the wall clock saw a 900 ms mark gone after 805. So the timer's
+    // clock is the one read — a fake one, moving with real time so the socket still runs, read in the
+    // turn that sets the mark (`untilMatch` runs its check there) and again once the mark is gone.
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    let marked = 0;
+    for (const f of [clear(), prompt('Priority'), bar(true), flash]) s.send(f);
+    await untilMatch(m, () => {
+      expect(m.refused).toEqual({ card: mine[0], seq: 1 });
+      marked = Date.now();
+    });
     // no payment was open when this flash landed — `InputPassPriority`'s own shape, not the
     // auto-cancel's — so the classifier says nothing rather than guess.
     expect(m.mistake).toBeNull();
-    const at = Date.now();
     await until('the mark to go', () => m.refused === null);
-    expect(Date.now() - at).toBeGreaterThanOrEqual(REFUSED_MS - 50);
+    expect(Date.now() - marked).toBeGreaterThanOrEqual(REFUSED_MS);
   });
 
   it('a refusal with no act of this seat behind it marks nothing', async () => {
