@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { FREE_PICK } from '@hadoku/shared';
 import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import { attachParked } from '../http/parked.js';
 import { attachReplays } from '../http/replays.js';
 import { createArtIds } from '../play/art-ids.js';
@@ -33,7 +34,7 @@ export const recordingsPlugin: CardtablePlugin = {
 		// here) and `PlayDeps.onEnvelope`. `pin`/`bridge`/`server` are each read once, at boot, from
 		// values this server already has, never a `git` shell-out at runtime.
 		const recordingsLog = jsonLogger('cardtable-recording');
-		const dir = CONFIG.recordingsDir;
+		const dir = MAGIC_CONFIG.recordingsDir;
 		state.serverBuild = serverVersion(state.pkgRoot);
 		state.recorder = createRecorder({
 			dir,
@@ -84,7 +85,7 @@ export const recordingsPlugin: CardtablePlugin = {
 		// snapshot. On disk for good, beside the rooms.
 		const parkedLog = jsonLogger('cardtable-parked');
 		state.parked = openParkedStore({
-			dir: CONFIG.parkedDir,
+			dir: MAGIC_CONFIG.parkedDir,
 			log: parkedLog,
 			roomOf: (matchId) => lobby.roomOfMatch(matchId),
 			formatName: (pool) => (draftIdOfPool(pool) !== null ? 'Draft' : pool === FREE_PICK ? 'Free pick' : (state.library.format(pool)?.pool.name ?? pool)),

@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { corpusDir } from '@hadoku/carddata';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import { attachDecks } from '../http/decks.js';
 import { attachDrafts } from '../http/drafts.js';
 import { attachTables } from '../http/index.js';
@@ -49,7 +50,7 @@ export const tablesPlugin: CardtablePlugin = {
 		attachDecks(api, { draftRooms, room: (id) => lobby.get(id) });
 		// The cube picker: the shortlist plus any Cube Cobra import, re-verified fresh at import and at
 		// refresh with the same `checkCards` `room/plan.ts` runs.
-		attachCubeRoutes(api, { store: state.cubeStore, check: (cards) => checkCards(cards, state.forgePools, { uncheckedWithoutJar: CONFIG.testUncheckedPools }) });
+		attachCubeRoutes(api, { store: state.cubeStore, check: (cards) => checkCards(cards, state.forgePools, { uncheckedWithoutJar: MAGIC_CONFIG.testUncheckedPools }) });
 		// Every set Forge can draft, newest first, each with its set-cube size and a cache-only verdict.
 		attachSetRoutes(api, { store: state.setsStore });
 		// Named custom plans, shared with the group, in `data/presets.json`.
@@ -74,12 +75,12 @@ export const tablesPlugin: CardtablePlugin = {
 		const catalogRefresh = createCatalogRefresh({
 			catalog: state.catalog,
 			scryfallDir: corpusDir(),
-			catalogPath: CONFIG.catalogPath,
+			catalogPath: MAGIC_CONFIG.catalogPath,
 			onSwap: () => state.setsStore.clearMissingTextVerdicts(),
 			log: jsonLogger('cardtable-pools'),
 		});
-		const stopCatalogRefresh = CONFIG.catalogRefresh ? catalogRefresh.start() : (): void => undefined;
-		if (!CONFIG.catalogRefresh) console.log('[cardtable] catalog refresh disabled (CARDTABLE_CATALOG_REFRESH=0)');
+		const stopCatalogRefresh = MAGIC_CONFIG.catalogRefresh ? catalogRefresh.start() : (): void => undefined;
+		if (!MAGIC_CONFIG.catalogRefresh) console.log('[cardtable] catalog refresh disabled (CARDTABLE_CATALOG_REFRESH=0)');
 		ctx.bootPhase('tables');
 		// Stops the 24 h timer; an in-flight run finishes on its own.
 		return { shutdown: () => stopCatalogRefresh() };

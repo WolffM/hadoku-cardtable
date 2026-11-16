@@ -1,5 +1,5 @@
 /** The deck library, and whether this server has a Forge build at all. */
-import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import { loadTablesLibrary } from '../http/index.js';
 import { jvmHostConfig } from '../play/index.js';
 import { BRIDGE_SOURCE } from '../root.js';
@@ -26,8 +26,8 @@ export const libraryPlugin: CardtablePlugin = {
 		if (!state.forge.ok) {
 			console.warn(`[cardtable] play: no Forge (${state.forge.reason}) — POST /api/play/matches answers 503, and every draft plan is refused until one is`);
 		}
-		if (CONFIG.newRoomFormat !== undefined && CONFIG.newRoomFormat !== 'newest') {
-			throw new Error(`CARDTABLE_NEW_ROOM_FORMAT must be 'newest' or unset, not ${JSON.stringify(CONFIG.newRoomFormat)}`);
+		if (MAGIC_CONFIG.newRoomFormat !== undefined && MAGIC_CONFIG.newRoomFormat !== 'newest') {
+			throw new Error(`CARDTABLE_NEW_ROOM_FORMAT must be 'newest' or unset, not ${JSON.stringify(MAGIC_CONFIG.newRoomFormat)}`);
 		}
 	},
 };

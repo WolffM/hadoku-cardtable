@@ -27,7 +27,6 @@ import {
 	userNameOf,
 	isAdmin,
 } from '@hadoku/service-kernel/auth';
-import { CONFIG } from './config.js';
 import { ENV_PREFIX, edgeAuth, gate } from './kernel.js';
 
 export { TIER_ORDER, rankOf, tierOf, verifiedOf, verifiedFromHeaders, callerIdOf, userIdOf, userKeyOf, accountIdOf, userNameOf, isAdmin };
@@ -40,11 +39,16 @@ export type { Tier };
  * (`CARDTABLE_MIN_TIER=member` on a build without `member`) would silently
  * admit everyone, the direct tunnel hits included. Refusing to boot is the
  * only safe answer.
+ *
+ * Kept here for every existing caller (and `edge-auth.test.ts`'s refusal coverage) — the real,
+ * fail-closed check now runs inside `config.ts`'s `createConfig` itself (w119 §C.4), at the one
+ * deterministic place that builds `CONFIG.minTier`, not as an import-time side effect of this
+ * file. `CONFIG.minTier` is therefore already asserted by the time anything reads it; this
+ * wrapper just lets a caller (or a test) run the same check against an arbitrary string.
  */
 export function assertFloor(tier: string): Tier {
 	return kernelAssertFloor(tier, { envPrefix: ENV_PREFIX, allowPublic: false });
 }
-assertFloor(CONFIG.minTier);
 
 /** Force a public/anon identity unless edge provenance is proven. */
 export const sanitizeHeaders = edgeAuth.sanitizeHeaders;

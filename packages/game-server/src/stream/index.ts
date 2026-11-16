@@ -117,9 +117,17 @@ export function roomStreamPathOf(url: string | undefined): RoomStreamPath | null
 	return { roomKey, seat: Number(m[2]), rest: query === undefined ? rest : `${rest}?${query}` };
 }
 
-// `CARDTABLE_STREAM_DIR` keeps a second server on the same machine (`pnpm dev`) off this one's containers.
-const STREAM_DIR = process.env.CARDTABLE_STREAM_DIR ?? join(homedir(), '.local', 'share', 'cardtable', 'stream');
-const STREAMS_FILE = join(STREAM_DIR, 'STREAMS');
+/**
+ * Where `STREAMS` lives, if `streamLayout`'s caller passes nothing: `~/.local/share/cardtable/
+ * stream`, same as `CARDTABLE_STREAM_DIR`'s old default. A literal, not a `process.env` read (w119
+ * §C, same reasoning as `alloc.ts`'s `ROOM_STREAM_BASE_PORT`/`CONTAINER_NAME_PREFIX`): this
+ * platform file reads no `CARDTABLE_*` var itself any more. `games/magic/server/src/plugins/
+ * stream.ts` passes `MAGIC_CONFIG.streamDir` (`CARDTABLE_STREAM_DIR`, so a second server on the
+ * same machine still stays off this one's containers) as `streamLayout`'s `dir`.
+ */
+function streamsFile(dir?: string): string {
+	return join(dir ?? join(homedir(), '.local', 'share', 'cardtable', 'stream'), 'STREAMS');
+}
 
 /**
  * How many containers to expose, read from `STREAMS` on disk.
@@ -131,9 +139,11 @@ const STREAMS_FILE = join(STREAM_DIR, 'STREAMS');
 export function streamLayout(
 	exists: (p: string) => boolean = existsSync,
 	read: (p: string) => string = (f) => readFileSync(f, 'utf8'),
+	dir?: string,
 ): { streamCount: number } {
+	const streamsFilePath = streamsFile(dir);
 	try {
-		const raw = exists(STREAMS_FILE) ? read(STREAMS_FILE).trim() : '0';
+		const raw = exists(streamsFilePath) ? read(streamsFilePath).trim() : '0';
 		const n = Number(raw);
 		return { streamCount: Number.isInteger(n) && n >= 0 && n <= 8 ? n : 0 };
 	} catch {

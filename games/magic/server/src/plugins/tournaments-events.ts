@@ -2,6 +2,7 @@
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '@hadoku/game-server/config';
 import { openEvents } from '@hadoku/game-server/room/events';
+import { MAGIC_CONFIG } from '../config.js';
 import { openTournaments } from '../room/tournaments.js';
 import type { CardtablePlugin } from './state.js';
 
@@ -12,7 +13,7 @@ export const tournamentsEventsPlugin: CardtablePlugin = {
 		const { state } = ctx;
 		state.roomsLog = jsonLogger('cardtable-rooms');
 		// Every pod that played a round, kept past its room for the stats popout's Tournaments tab.
-		state.tournaments = await openTournaments(CONFIG.tournamentsFile, state.roomsLog);
+		state.tournaments = await openTournaments(MAGIC_CONFIG.tournamentsFile, state.roomsLog);
 		// The front page's calendar; an event's room is the lobby's own.
 		state.events = await openEvents(CONFIG.eventsFile, state.roomsLog);
 		ctx.bootPhase('tournaments-events');

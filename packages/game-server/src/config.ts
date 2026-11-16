@@ -1,13 +1,32 @@
 /**
- * Runtime config for the Cardtable loopback-UI tunnel server.
+ * Runtime config for a game-server app — the PLATFORM half (w119 §C).
  *
- * Every value is env-overridable so the PM2 wrapper (which pulls them from the
- * vault broker) can inject them without a code edit.
+ * `createConfig` is a factory: every value it returns comes from the `env` object and `envPrefix`
+ * it is called with (defaults: `process.env` and `'CARDTABLE'`), read when the factory RUNS, never
+ * cached at this module's import. Two calls in one process, with different prefixes and/or
+ * env objects, build two independent configs — which is what lets a second game on
+ * `@hadoku/game-server` (bomberman) set its own `BOMBERMAN_*` variables instead of cardtable's.
+ *
+ * `export const CONFIG = createConfig()` below is cardtable's own instance, built the moment this
+ * module is first imported — kept for every file that already does `import { CONFIG } from
+ * '@hadoku/game-server/config'` and must keep working unchanged.
+ *
+ * What is NOT here any more: Magic-only settings (catalog, art mirror, draft bot, tournaments,
+ * sounds, draft timing, the Forge-hosting envs, the room-stream envs) moved to
+ * `games/magic/server/src/config.ts`'s `createMagicConfig`/`MAGIC_CONFIG` — a game with no Forge
+ * engine has no business reading `CARDTABLE_DRAFT_BOT_PICK_MS`. Cardtable's deployment-only ArchiveBot
+ * settings moved there too (not to `apps/server`): the only two readers,
+ * `games/magic/server/src/plugins/{listen,routes}.ts`, are in the `magic` layer, which may not
+ * import `apps/server` (the `site` layer) — see `scripts/layers/layers.json`'s allowed directions.
+ * Survey: `~/.cache/cardtable-manager/bomberman-survey-2026-11-16.md` §3 has the classification
+ * with the original line numbers.
  */
 
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+
+import { assertFloor as kernelAssertFloor, type Tier } from '@hadoku/service-kernel/auth';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -20,34 +39,26 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const APP_ROOT = basename(HERE) === 'dist' ? dirname(HERE) : resolve(HERE, '../../../apps/server');
 
 /** Resolve a configured path against the package root unless it is absolute. */
-const resolveDir = (value: string): string =>
-	isAbsolute(value) ? value : resolve(APP_ROOT, value);
-
-/**
- * Where the server keeps what it writes (`CARDTABLE_STATE_DIR`): rooms, drafts,
- * recordings and the rest of `data/` directly in it, and `logs/` beside them.
- * Outside the clone, so a deploy can build a new clone aside and swap it in
- * while this one serves. Unset (dev, tests, e2e) = the old in-clone layout,
- * `logs/` and `data/` in the package. `state-dir.ts` moves the in-clone copy
- * here on the first boot that has it.
- */
-const STATE_DIR = process.env.CARDTABLE_STATE_DIR ? resolveDir(process.env.CARDTABLE_STATE_DIR) : '';
-const LOG_DIR = resolveDir(process.env.CARDTABLE_LOG_DIR || (STATE_DIR ? join(STATE_DIR, 'logs') : 'logs'));
-const DATA_DIR = STATE_DIR || resolve(LOG_DIR, '../data');
+const resolveDir = (value: string): string => (isAbsolute(value) ? value : resolve(APP_ROOT, value));
 
 /** The in-clone paths a state dir replaces, for the boot move (`state-dir.ts`). */
 export const LEGACY_STATE = { dataDir: resolve(APP_ROOT, 'data'), logDir: resolve(APP_ROOT, 'logs') } as const;
 
-export const CONFIG = {
-	/** Port this server listens on. cloudflared points the tunnel hostname here. */
-	port: parseInt(process.env.CARDTABLE_PORT || '9008', 10),
+export interface CreateConfigOptions {
+	/** Every env var this factory reads is `<envPrefix>_<NAME>`. Default `'CARDTABLE'`. */
+	envPrefix?: string;
+	/** The environment to read. Default `process.env` — override to build a second config in one process (a test, or a second game). */
+	env?: NodeJS.ProcessEnv;
+}
 
+export interface GameServerConfig {
+	/** Port this server listens on. cloudflared points the tunnel hostname here. */
+	readonly port: number;
 	/**
 	 * Loopback only. The tunnel is the single ingress; binding 0.0.0.0 would put
 	 * this on the LAN with no gate in front of it, because the gate is at the edge.
 	 */
-	host: process.env.CARDTABLE_HOST || '127.0.0.1',
-
+	readonly host: string;
 	/**
 	 * The public prefix the BROWSER sees: hadoku.me/cardtable/…
 	 *
@@ -56,267 +67,161 @@ export const CONFIG = {
 	 * prefix, or the browser requests /assets/x.js instead of /cardtable/assets/x.js
 	 * and the page loads blank. assertBasePath() checks that at boot.
 	 */
-	basePrefix: process.env.CARDTABLE_BASE_PREFIX || '/cardtable',
-
+	readonly basePrefix: string;
 	/**
 	 * The built SPA this server serves off local disk. There is no GitHub-Pages
 	 * shell and no published micro-frontend bundle for a loopback-UI app — this
 	 * directory IS the front end, and `pnpm build` in the child repo produces it.
 	 */
-	// `../ui/dist` because this repo splits the halves across workspace members:
-	// apps/ui builds the SPA, apps/server hands it out. The PM2 wrapper passes an
-	// absolute CARDTABLE_WEB_DIR in production; this default is what makes
-	// `pnpm --filter @hadoku/server dev` work straight after `pnpm -r build`.
-	webDir: resolveDir(process.env.CARDTABLE_WEB_DIR || '../ui/dist'),
-
+	readonly webDir: string;
 	/**
 	 * Tier floor enforced here as a SECOND seal, independent of route-tiers.ts.
 	 *
 	 * The edge gate is the real one, but it lives in another repo on another
 	 * deploy cadence, and the tunnel hostname is reachable without it. A floor
 	 * here means a route-tiers edit cannot silently widen this app on its own.
+	 *
+	 * Validated at factory-call time (`kernelAssertFloor`, moved here from
+	 * `edge-auth.ts`'s former import-time self-check, w119 §C.4): a floor this
+	 * build does not know, or `public`, throws out of `createConfig` itself —
+	 * fails closed exactly as before, just at the one deterministic place that
+	 * builds the config, not as a side effect of any file happening to import
+	 * `edge-auth.ts`.
 	 */
-	minTier: process.env.CARDTABLE_MIN_TIER || 'friend',
-
+	readonly minTier: Tier;
 	/**
 	 * Shared secret edge-router stamps as X-Edge-Auth on everything it proxies
 	 * (workers/shared/edgeAuth.ts). Identity headers are believed ONLY when this
 	 * matches. Unset = FAIL CLOSED: every request is degraded to public/anon.
+	 *
+	 * Not prefixed: `EDGE_AUTH_SECRET` is the edge's own shared secret, common to
+	 * every app behind it, never per-game.
 	 */
-	edgeAuthSecret: process.env.EDGE_AUTH_SECRET || '',
-
+	readonly edgeAuthSecret: string;
 	/**
 	 * Bare-local dev escape hatch. With EDGE_AUTH_SECRET unset this server fails
 	 * closed and strips tier/identity from every request, which locks a local
 	 * browser out of its own app. Never set where the tunnel host is reachable.
 	 */
-	allowUnverifiedEdge: process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH === '1',
-
+	readonly allowUnverifiedEdge: boolean;
 	/**
 	 * Identity granted to a header-less caller while allowUnverifiedEdge is on.
 	 * Defaults to the floor, so `pnpm dev` serves the app to a local browser
 	 * instead of 404ing it. Read ONLY on that path — it grants nothing in
 	 * production, where the hatch is off and provenance decides.
 	 */
-	devTier: process.env.CARDTABLE_DEV_TIER || process.env.CARDTABLE_MIN_TIER || 'friend',
-
+	readonly devTier: string;
 	/**
 	 * This server's own service-tier key for the game-stats store and for
 	 * people's prefs rows, from the vault via the PM2 wrapper. Unset = match
 	 * stats are off (logged once), and a music-review read or write is refused
 	 * by prefs-api and answers 502.
 	 */
-	serviceKey: process.env.CARDTABLE_SERVICE_KEY || '',
-
-	/**
-	 * The prefs mount people's own rows are read and written on (`http/musicReviewStore.ts`),
-	 * without `/api/v1`, with the same service key.
-	 */
-	prefsBaseUrl: process.env.CARDTABLE_PREFS_BASE_URL || 'https://hadoku.me/prefs',
-
-	/**
-	 * Where security telemetry is posted (`/health/api/telemetry` under it), with
-	 * the same service key as the stats. Unset key = telemetry is off (logged once).
-	 */
-	monitoringBaseUrl: process.env.CARDTABLE_MONITORING_BASE_URL || 'https://hadoku.me',
-	/** Watchparty's origin, whose sprites draw a member's character on a room's link preview (`http/preview.ts`). */
-	watchpartyBaseUrl: process.env.CARDTABLE_WATCHPARTY_BASE_URL || 'https://hadoku.me/watchparty',
-
+	readonly serviceKey: string;
+	/** The prefs mount people's own rows are read and written on, without `/api/v1`, with the same service key. */
+	readonly prefsBaseUrl: string;
+	/** Where security telemetry is posted (`/health/api/telemetry` under it), with the same service key as the stats. Unset key = telemetry is off (logged once). */
+	readonly monitoringBaseUrl: string;
+	/** Watchparty's origin, whose sprites draw a member's character on a room's link preview. */
+	readonly watchpartyBaseUrl: string;
 	/** Every user id this server has admitted, so `caller-first-seen` fires once per account. */
-	callersSeenFile: process.env.CARDTABLE_CALLERS_SEEN_FILE ?? join(DATA_DIR, 'callers-seen.json'),
-
+	readonly callersSeenFile: string;
 	/** The prefs mount the stats are reported to, without `/api/v1`. */
-	statsBaseUrl: process.env.CARDTABLE_STATS_BASE_URL || 'https://hadoku.me/prefs',
-
-	/**
-	 * ArchiveBot's webhook secret for this app, from the vault via the PM2 wrapper. Prod's wrapper
-	 * holds it and PPE's does not, which is what keeps release notes a prod-only post. Unset = the
-	 * boot announcement is skipped (`announce.ts`).
-	 */
-	archivebotSecret: process.env.ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET || '',
-
-	/** ArchiveBot's webhook server, on loopback beside this one. */
-	archivebotUrl: process.env.CARDTABLE_ARCHIVEBOT_URL || 'http://127.0.0.1:3004',
-
-	/** `CARDTABLE_STATE_DIR`, resolved; empty when unset (the in-clone layout). */
-	stateDir: STATE_DIR,
-
+	readonly statsBaseUrl: string;
+	/** The resolved state dir; empty when unset (the in-clone layout). */
+	readonly stateDir: string;
 	/** Structured access log destination (gitignored, created on boot). */
-	logDir: LOG_DIR,
-
+	readonly logDir: string;
 	/**
 	 * The server's persisted state: the state dir itself when one is set, else
 	 * `data/` beside the log directory. `data/` is gitignored, so a `git pull`
-	 * deploy leaves it alone; e2e sets CARDTABLE_LOG_DIR and therefore gets its
+	 * deploy leaves it alone; e2e sets the log dir var and therefore gets its
 	 * own directory rather than production's.
 	 */
-	dataDir: DATA_DIR,
-
-	/** Every pod that played a round, kept past its room (`CARDTABLE_TOURNAMENTS_FILE`). */
-	tournamentsFile: process.env.CARDTABLE_TOURNAMENTS_FILE ?? join(DATA_DIR, 'tournaments.json'),
-
-	/** The front page's scheduled events (`CARDTABLE_EVENTS_FILE`). */
-	eventsFile: process.env.CARDTABLE_EVENTS_FILE ?? join(DATA_DIR, 'events.json'),
-
-	/** The lobby's rooms, one file each (`CARDTABLE_ROOMS_DIR`). */
-	roomsDir: process.env.CARDTABLE_ROOMS_DIR ?? join(DATA_DIR, 'rooms'),
-
-	/** The sound builder's uploads and assignments (`CARDTABLE_SOUNDS_DIR`). */
-	soundsDir: process.env.CARDTABLE_SOUNDS_DIR ?? join(DATA_DIR, 'sounds'),
-
-	/**
-	 * How long a draft bot takes over a pick (`CARDTABLE_DRAFT_BOT_PICK_MS`): every
-	 * bot holding a pack takes one card per turn. Long enough that bots do not
-	 * drain a pod into the slowest human's pile at once, short enough that a
-	 * quick drafter rarely waits on one.
-	 */
-	draftBotPickMs: parseInt(process.env.CARDTABLE_DRAFT_BOT_PICK_MS || '1200', 10),
-
-	/**
-	 * A CubeCobra draftbot service for the bots' picks (`room/draftbot.ts`), and its
-	 * `X-Internal-Token`. Unset: no draftbot, every bot pick is the heuristic's.
-	 */
-	draftbotUrl: process.env.CARDTABLE_DRAFTBOT_URL || '',
-	draftbotToken: process.env.CARDTABLE_DRAFTBOT_TOKEN || '',
-
-	/** Each draft's state, so a pod survives a restart (`CARDTABLE_DRAFTS_DIR`). */
-	draftsDir: process.env.CARDTABLE_DRAFTS_DIR ?? join(DATA_DIR, 'drafts'),
-
-	/** A friend's Cube Cobra imports, flat `<id>.json` (`CARDTABLE_CUBES_DIR`). */
-	cubesDir: process.env.CARDTABLE_CUBES_DIR ?? join(DATA_DIR, 'cubes'),
-
-	/** Every match's action log and public stream (`play/recording/`, `CARDTABLE_RECORDINGS_DIR`). */
-	recordingsDir: process.env.CARDTABLE_RECORDINGS_DIR ?? join(DATA_DIR, 'recordings'),
-
-	/** Every game both players walked away from, kept to be resumed (`play/parked.ts`, `CARDTABLE_PARKED_DIR`). */
-	parkedDir: process.env.CARDTABLE_PARKED_DIR ?? join(DATA_DIR, 'parked'),
-
-	/** The card catalog the pools resolve against (`CARDTABLE_CATALOG`). */
-	catalogPath: process.env.CARDTABLE_CATALOG ?? resolve(homedir(), '.local/share/cardtable/catalog/cards.json'),
-
-	/** The art mirror's log (`upload-art`, `CARDTABLE_ART_MIRROR`): which CDN object holds each card image. Missing, every image is Scryfall's. */
-	artMirrorPath: process.env.CARDTABLE_ART_MIRROR ?? resolve(homedir(), '.local/share/cardtable/art/mirror.jsonl'),
-
-	/**
-	 * `CARDTABLE_NEW_ROOM_FORMAT=newest` pins every new room to the newest
-	 * Standard era instead of a random one: the e2e harnesses set it, because
-	 * their specs read a fresh room's pool and a run must not depend on a draw.
-	 */
-	newRoomFormat: process.env.CARDTABLE_NEW_ROOM_FORMAT,
-
-	/**
-	 * Where Forge matches run (`CARDTABLE_PLAY_HOSTS`): `local`, this machine, as always (the
-	 * default until the claw acceptance run passes), or `claws`, placed across the hosting claws'
-	 * agents with this machine as the backstop (`play/placement/`). Anything else is `local`.
-	 */
-	playHosts: process.env.CARDTABLE_PLAY_HOSTS === 'claws' ? ('claws' as const) : ('local' as const),
-
-	/**
-	 * The hosting alerts' Discord webhook, from the vault via the PM2 wrapper
-	 * (`.devvault.json`: `DISCORD_CARDTABLE_ALERT_WEBHOOK`). Unset = alerts are logged, not posted.
-	 */
-	alertWebhook: process.env.DISCORD_CARDTABLE_ALERT_WEBHOOK || '',
-
-	/** How long, past the fencing window, the claws' agents hold their JVMs for the next server on a restart. */
-	restartGraceMs: parseInt(process.env.CARDTABLE_PLAY_RESTART_GRACE_MS || '90000', 10),
-
+	readonly dataDir: string;
+	/** The front page's scheduled events — a generic room-list feature, not Magic's own. */
+	readonly eventsFile: string;
+	/** The lobby's rooms, one file each. */
+	readonly roomsDir: string;
+	/** The hosting alerts' Discord webhook, from the vault via the PM2 wrapper. Unset = alerts are logged, not posted. */
+	readonly alertWebhook: string;
 	/** The operator's time-boxed force of the backstop host onto the Forge backstop: a JSON file `{"until":"<ISO>"}`. */
-	backstopForceFile: process.env.CARDTABLE_BACKSTOP_FORCE_FILE ?? join(DATA_DIR, 'backstop-force.json'),
-
-	/** `CARDTABLE_PLAY_PROBE=1`: the e2e harness's dev diagnostics — the scenario routes and the frame and stop traces. Never on in production. */
-	playProbe: process.env.CARDTABLE_PLAY_PROBE === '1',
-
+	readonly backstopForceFile: string;
 	/**
-	 * `CARDTABLE_PLAY_REJOIN_GRACE_MS`: how long a match nobody is at waits before it is parked
-	 * (`play/socket.ts`'s `PlayDeps.rejoinGraceMs`). Unset is play's own five minutes; a spec that
-	 * parks a game sets it shorter. Never set by the deploy path.
+	 * Both e2e stacks' escape from the per-caller limits on making rooms, organizing events and
+	 * starting matches (`http/request.ts`'s `perCallerLimit`). Never set by the deploy path.
 	 */
-	playRejoinGraceMs: process.env.CARDTABLE_PLAY_REJOIN_GRACE_MS === undefined ? undefined : parseInt(process.env.CARDTABLE_PLAY_REJOIN_GRACE_MS, 10),
-
+	readonly testNoRateLimits: boolean;
 	/**
-	 * `CARDTABLE_E2E_UNCHECKED_POOLS=1`: the jar-less e2e stack's own escape
-	 * hatch, wave 73 §A follow-up (CI `check` run 39715510788: a jar-less
-	 * server can never pass a plan's verdict, so `Lobby.startDraft` refused
-	 * `plan-not-ready` forever and `draft.spec`'s "two friends draft a whole
-	 * pod" never dealt).
-	 *
-	 * With it, `room/plan.ts`'s `checkCards` answers OK for a source whose
-	 * cards all resolved (`missingText` still refuses — this is an escape from
-	 * "no jar", never from "no catalog text") instead of refusing with "Forge
-	 * is not available". A source checked WITH a jar is unaffected either way:
-	 * nothing here ever stands in for a real `forge.check`.
-	 *
-	 * Nothing in this repo's own deploy path (the PM2 wrapper, the vault
-	 * broker) ever sets this — `config.test.ts` pins that a config built from
-	 * a bare `process.env` (nothing set) reads `false`. `e2e/harness.ts` sets
-	 * it on its OWN jar-less server only (never `e2e/play/harness.ts`'s,
-	 * which has a real jar and keeps running the real check regardless of
-	 * this flag). `index.ts` logs a boot warning whenever it reads true, the
-	 * same register `EDGE_AUTH_SECRET`'s own dev hatch warns at.
+	 * Look people up without a service key, from the e2e edge's prefs-api stand-in. Never set by
+	 * the deploy path.
 	 */
-	testUncheckedPools: process.env.CARDTABLE_E2E_UNCHECKED_POOLS === '1',
+	readonly testPeopleStandIn: boolean;
+}
 
-	/**
-	 * `CARDTABLE_E2E_NO_RATE_LIMITS=1`: both e2e stacks' escape from the
-	 * per-caller limits on making rooms, organizing events and starting matches
-	 * (`http/request.ts`'s `perCallerLimit`). One test identity makes every room
-	 * and starts every match of a whole run, far past any limit a person meets.
-	 * Never set by the deploy path; `config.test.ts` pins it false from a bare
-	 * environment, and `index.ts` warns at boot whenever it reads true.
-	 */
-	testNoRateLimits: process.env.CARDTABLE_E2E_NO_RATE_LIMITS === '1',
+/** Everything a game-server app needs that is not specific to any one game (w119 §C). */
+export function createConfig(options: CreateConfigOptions = {}): GameServerConfig {
+	const prefix = options.envPrefix ?? 'CARDTABLE';
+	const env = options.env ?? process.env;
+	const read = (name: string): string | undefined => env[`${prefix}_${name}`];
 
-	/**
-	 * `CARDTABLE_E2E_PEOPLE_STAND_IN=1`: look people up (`people.ts`) without a
-	 * service key, from the e2e edge's prefs-api stand-in at `prefsBaseUrl`. The
-	 * e2e stacks hold no key, which is what keeps match stats off there, and
-	 * without this no spec could see a look. Never set by the deploy path.
-	 */
-	testPeopleStandIn: process.env.CARDTABLE_E2E_PEOPLE_STAND_IN === '1',
+	const stateDirRaw = read('STATE_DIR');
+	const stateDir = stateDirRaw ? resolveDir(stateDirRaw) : '';
+	const logDir = resolveDir(read('LOG_DIR') || (stateDir ? join(stateDir, 'logs') : 'logs'));
+	const dataDir = stateDir || resolve(logDir, '../data');
 
-	/**
-	 * `CARDTABLE_CATALOG_REFRESH`: on by default, so production needs no
-	 * cross-repo change to keep its catalog current with Scryfall's daily
-	 * bulk file (`pools/refresh.ts`, wave 74 §G). `index.ts` starts the job
-	 * only when this reads `true`.
-	 *
-	 * Off (`'0'`) is for every server that is NOT production: CI's forge-e2e
-	 * on the claws, every dev/e2e server a session boots, and a lane's own
-	 * manual smoke-boot. Each of those would otherwise run `createCatalogRefresh`
-	 * against `CARDTABLE_SCRYFALL_DIR ?? ~/.local/share/cardtable/scryfall` at
-	 * its own boot — a real Scryfall download, every time, into land.sh's
-	 * SHARED art cache when the default path is in play (`e2e/harness.ts` and
-	 * `e2e/play/harness.ts` set this to `'0'` in the server env they spawn,
-	 * for exactly this reason — one lane's `.partial` file there is what
-	 * found this).
-	 */
-	catalogRefresh: process.env.CARDTABLE_CATALOG_REFRESH !== '0',
+	const minTierRaw = read('MIN_TIER') || 'friend';
+	const minTier = kernelAssertFloor(minTierRaw, { envPrefix: prefix, allowPublic: false });
 
-	/**
-	 * `CARDTABLE_PLAY_SEED`: fixes Forge's shuffles, the coin toss and the precon
-	 * pick for every match this server starts, or undefined (production) for an
-	 * unseeded one. Read at each start, not at boot, so a test can set it.
-	 */
-	get playSeed(): number | undefined {
-		const raw = process.env.CARDTABLE_PLAY_SEED;
-		const seed = raw === undefined || raw === '' ? Number.NaN : Number(raw);
-		return Number.isFinite(seed) ? seed : undefined;
-	},
+	return {
+		port: parseInt(read('PORT') || '9008', 10),
+		host: read('HOST') || '127.0.0.1',
+		basePrefix: read('BASE_PREFIX') || '/cardtable',
+		// `../ui/dist` because this repo splits the halves across workspace members: apps/ui builds
+		// the SPA, apps/server hands it out. The PM2 wrapper passes an absolute WEB_DIR in
+		// production; this default is what makes `pnpm --filter @hadoku/server dev` work straight
+		// after `pnpm -r build`.
+		webDir: resolveDir(read('WEB_DIR') || '../ui/dist'),
+		minTier,
+		edgeAuthSecret: env.EDGE_AUTH_SECRET || '',
+		allowUnverifiedEdge: read('INSECURE_NO_EDGE_AUTH') === '1',
+		devTier: read('DEV_TIER') || minTierRaw,
+		serviceKey: read('SERVICE_KEY') || '',
+		prefsBaseUrl: read('PREFS_BASE_URL') || 'https://hadoku.me/prefs',
+		monitoringBaseUrl: read('MONITORING_BASE_URL') || 'https://hadoku.me',
+		watchpartyBaseUrl: read('WATCHPARTY_BASE_URL') || 'https://hadoku.me/watchparty',
+		callersSeenFile: read('CALLERS_SEEN_FILE') ?? join(dataDir, 'callers-seen.json'),
+		statsBaseUrl: read('STATS_BASE_URL') || 'https://hadoku.me/prefs',
+		stateDir,
+		logDir,
+		dataDir,
+		eventsFile: read('EVENTS_FILE') ?? join(dataDir, 'events.json'),
+		roomsDir: read('ROOMS_DIR') ?? join(dataDir, 'rooms'),
+		alertWebhook: env[`DISCORD_${prefix}_ALERT_WEBHOOK`] || '',
+		backstopForceFile: read('BACKSTOP_FORCE_FILE') ?? join(dataDir, 'backstop-force.json'),
+		testNoRateLimits: read('E2E_NO_RATE_LIMITS') === '1',
+		testPeopleStandIn: read('E2E_PEOPLE_STAND_IN') === '1',
+	};
+}
 
-	/** Container n's noVNC port is this plus n (the static bench publishes 127.0.0.1:6080+n). */
-	streamBasePort: Number(process.env.CARDTABLE_STREAM_PORT ?? 6080),
-
-	/** The first host port a room's seat stream may take — see `stream/alloc.ts`. */
-	roomStreamBasePort: Number(process.env.CARDTABLE_ROOM_STREAM_PORT ?? 6100),
-
-	/** The name every room stream container this server owns starts with; `scripts/stream/container.sh` reads the same variable. */
-	streamNamePrefix: process.env.CARDTABLE_STREAM_NAME_PREFIX ?? 'cardtable-room',
-} as const;
+/**
+ * Cardtable's own instance, built once at this module's first import (every existing
+ * `import { CONFIG } from '@hadoku/game-server/config'` keeps working unchanged). Not `as const`:
+ * several test suites (`edge-auth.test.ts`) cast this to a mutable mapped type and swap individual
+ * fields for a case, then restore them — that only works on a plain object, which this is.
+ */
+export const CONFIG = createConfig();
 
 /**
  * Where a Forge match's run directories go (`CARDTABLE_PLAY_WORK_DIR`). Takes the
  * environment as an argument, as `play/host.ts`'s `jvmHostConfig` does, so a test
  * can point one host at its own directory.
+ *
+ * Stays here rather than moving to Magic's config (w119 §C survey calls this Forge-match specific)
+ * because `play/local-jvm.ts` — out of this lane's ownership — imports it directly from this
+ * module; moving it would break that file's import with no file in this wave's briefs allowed to
+ * fix it. `local-jvm.ts` itself is written generic over "any JVM-hosted engine", so this is
+ * defensible as the local JVM launcher's own platform-level default, not only Forge's.
  */
 export function playWorkDir(env: NodeJS.ProcessEnv = process.env): string {
 	return resolve(env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play'));

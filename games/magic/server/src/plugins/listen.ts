@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { announceRelease } from '@hadoku/game-server/announce';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import type { CardtablePlugin } from './state.js';
 
 export const listenPlugin: CardtablePlugin = {
@@ -50,7 +51,7 @@ export const warmPlugin: CardtablePlugin = {
 		if (CONFIG.testPeopleStandIn) {
 			console.warn('[cardtable] CARDTABLE_E2E_PEOPLE_STAND_IN=1 — people are looked up with no service key, from the e2e stand-in. e2e stacks only, never production.');
 		}
-		if (CONFIG.testUncheckedPools) {
+		if (MAGIC_CONFIG.testUncheckedPools) {
 			console.warn('[cardtable] CARDTABLE_E2E_UNCHECKED_POOLS=1 — a plan with no jar passes unchecked (missingText still refuses). e2e/harness.ts only, never production.');
 		}
 		if (!ctx.bundle.ok) {
@@ -61,8 +62,8 @@ export const warmPlugin: CardtablePlugin = {
 		}
 		void announceRelease({
 			releasesDir: resolve(state.repoRoot, 'docs/releases'),
-			secret: CONFIG.archivebotSecret,
-			archivebotUrl: CONFIG.archivebotUrl,
+			secret: MAGIC_CONFIG.archivebotSecret,
+			archivebotUrl: MAGIC_CONFIG.archivebotUrl,
 			appUrl: `https://hadoku.me${CONFIG.basePrefix}/`,
 			log: jsonLogger('cardtable-release'),
 		});

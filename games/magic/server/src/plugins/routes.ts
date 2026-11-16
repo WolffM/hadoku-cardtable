@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import type { Request, Response } from 'express';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG, INDEX_HTML } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import { serveCover } from '../cover.js';
 import { attachCardArt } from '../http/card-art.js';
 import { attachClientEvents } from '@hadoku/game-server/http/client-events';
@@ -93,13 +94,13 @@ export const routesPlugin: CardtablePlugin = {
 		attachCardArt(api, { art: createArtIds(state.catalog), keys: state.artKeys });
 		attachEvents(api, { events: state.events, lobby, people, checkPlan: state.checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: state.roomsLog, closed: state.roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 		// The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
-		attachDiscord(api, { secret: CONFIG.archivebotSecret, archivebotUrl: CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
+		attachDiscord(api, { secret: MAGIC_CONFIG.archivebotSecret, archivebotUrl: MAGIC_CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
 
 		// The sound-builder's catalogue, take audio and assignment matrix, read and written per request
 		// in a gitignored data dir, so a redeploy keeps an admin's assignments.
 		const soundsLog = jsonLogger('cardtable-sounds');
 		attachSounds(api, {
-			dir: CONFIG.soundsDir,
+			dir: MAGIC_CONFIG.soundsDir,
 			log: soundsLog,
 			reviews: createMusicReviewStore({
 				baseUrl: CONFIG.prefsBaseUrl,

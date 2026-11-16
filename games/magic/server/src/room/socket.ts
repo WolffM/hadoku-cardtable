@@ -240,7 +240,7 @@ interface DraftSocketDeps {
 	minTier: string;
 	log?: EmitLog;
 	rateLimit?: RateLimitConfig;
-	/** How long a bot turn takes. `CONFIG.draftBotPickMs` in production; 0 (the default) picks at once. */
+	/** How long a bot turn takes. `MAGIC_CONFIG.draftBotPickMs` in production; 0 (the default) picks at once. */
 	botPickMs?: number;
 	/** Picks for the bots on the clock (`draftbot.ts`). Absent: every bot pick is the heuristic's. */
 	draftbot?: Draftbot;

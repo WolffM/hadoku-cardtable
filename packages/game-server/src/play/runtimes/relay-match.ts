@@ -29,12 +29,14 @@ import type { RelayRoster } from '../relay-socket.js';
 import { inProcessHost } from './in-process.js';
 import { RelaySession, type RelayCommand, type RelayLine, type RelayOutcome, type RelaySink } from './relay.js';
 
-/** A `MatchSpec` with `seatCount` seats, none AI. `host.ts`'s own tuple-typed `seats` is Forge's;
- *  nothing here ever reads a relay match's `spec` back (there is no engine to configure), so the
- *  cast below is inert and stays local to this one file. */
+/**
+ * A `MatchSpec` with `seatCount` seats, none AI. `MatchSpec.seats` is a plain `SeatSpec[]` (w119
+ * §C), not the old 2-tuple built for Forge's own "seat 0 is never AI" rule, so a pod-sized roster
+ * like this one needs no `as unknown as MatchSpec` to fit it any more.
+ */
 function relaySpec(seatCount: number): MatchSpec {
 	const seats = Array.from({ length: seatCount }, (_, seat) => ({ ai: false, name: `Seat ${seat}`, deck: null }));
-	return { seats } as unknown as MatchSpec;
+	return { seats };
 }
 
 /**

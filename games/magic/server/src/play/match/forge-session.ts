@@ -59,7 +59,7 @@ import {
 	type StopPolicy,
 	type StopWindow,
 } from '../auto.js';
-import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../../config.js';
 import { answerPending, arrangeAsk, digAnswer, digAsk, exileOrder, pendingOrders, restOrder, sameCardsOrder } from '../arrange.js';
 import { eachTypeAsk, firstEachType, nextEachType } from '../each-type.js';
 import { firstMode, modesAsk, nextMode } from '../modes.js';
@@ -132,7 +132,7 @@ import {
 
 
 /** Trace every stop decision (`stop-decided`) — probe mode only, see `maybeAutoPass`. */
-const TRACE_STOPS = CONFIG.playProbe;
+const TRACE_STOPS = MAGIC_CONFIG.playProbe;
 
 /**
  * Trace every frame Forge sends (`forge-frame`), every command sent to Forge (`forge-command`) and
@@ -140,7 +140,7 @@ const TRACE_STOPS = CONFIG.playProbe;
  * `t` of its own write, so a gap between a cast and its landing reads straight off the log
  * (w67-shaman: "2 s of lag" had no row to put a number on).
  */
-const TRACE_FRAMES = CONFIG.playProbe;
+const TRACE_FRAMES = MAGIC_CONFIG.playProbe;
 
 /** The few fields of a frame that name it in a trace row. */
 export function frameGist(frame: unknown): Record<string, unknown> {

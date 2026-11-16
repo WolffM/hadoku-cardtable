@@ -5,7 +5,7 @@
 import type { ArtManifestFile } from '@hadoku/carddata/art';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { DraftPlan, PoolVerdict } from '@hadoku/shared';
-import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import artManifest from '../play/art-manifest.json' with { type: 'json' };
 import { loadArtKeys } from '../pools/art-keys.js';
 import { loadCardCatalog } from '../pools/catalog.js';
@@ -26,10 +26,10 @@ export const poolsPlugin: CardtablePlugin = {
 		// --out-dir=`): read-only, never `CARDTABLE_*`-overridden, because it ships with the bundle.
 		// `importDir` (`CARDTABLE_CUBES_DIR`) is writable: a friend's Cube Cobra imports, flat `<id>.json`.
 		state.shortlistDir = SHORTLIST_DIR;
-		state.catalog = loadCardCatalog(CONFIG.catalogPath);
+		state.catalog = loadCardCatalog(MAGIC_CONFIG.catalogPath);
 		ctx.bootPhase('catalog');
-		state.artKeys = loadArtKeys({ mirrorPath: CONFIG.artMirrorPath, manifest: (artManifest as ArtManifestFile).entries });
-		state.cubeStore = createCubeStore({ shortlistDir: state.shortlistDir, importDir: CONFIG.cubesDir, catalog: state.catalog });
+		state.artKeys = loadArtKeys({ mirrorPath: MAGIC_CONFIG.artMirrorPath, manifest: (artManifest as ArtManifestFile).entries });
+		state.cubeStore = createCubeStore({ shortlistDir: state.shortlistDir, importDir: MAGIC_CONFIG.cubesDir, catalog: state.catalog });
 		if (state.cubeStore.list().length === 0) console.warn(`[cardtable] draft pool: no shortlist cubes loaded from ${state.shortlistDir} — draft rooms are disabled`);
 		ctx.bootPhase('cubes');
 
@@ -48,9 +48,9 @@ export const poolsPlugin: CardtablePlugin = {
 
 		state.defaultCubeCards = state.cubeStore.cards(DEFAULT_CUBE_ID) ?? null;
 		// Without a jar, `room/plan.ts`'s own rule applies: every source not already checked at this pin
-		// is refused, with a reason, unless CONFIG.testUncheckedPools (the jar-less e2e stack's hatch).
+		// is refused, with a reason, unless MAGIC_CONFIG.testUncheckedPools (the jar-less e2e stack's hatch).
 		state.checkDraftPlan = (plan: DraftPlan): Promise<PoolVerdict> =>
-			checkPlan(plan, { cubes: state.cubeStore, sets: state.setsStore, forge: state.forgePools, uncheckedWithoutJar: CONFIG.testUncheckedPools });
+			checkPlan(plan, { cubes: state.cubeStore, sets: state.setsStore, forge: state.forgePools, uncheckedWithoutJar: MAGIC_CONFIG.testUncheckedPools });
 
 		const forgePools = state.forgePools;
 		const say = jsonLogger('cardtable');

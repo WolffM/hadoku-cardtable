@@ -64,7 +64,7 @@ export interface PlanCheckDeps {
 	sets?: SetLookup;
 	/** `null` without a jar — "the verdict then refuses every source not already checked at this pin, with a reason. It never passes by default." */
 	forge: ForgeChecker | null;
-	/** `CONFIG.testUncheckedPools` — see `checkCards`'s own doc. Absent/false everywhere but the jar-less e2e stack. */
+	/** `MAGIC_CONFIG.testUncheckedPools` — see `checkCards`'s own doc. Absent/false everywhere but the jar-less e2e stack. */
 	uncheckedWithoutJar?: boolean;
 }
 
@@ -88,7 +88,7 @@ function sourceKey(src: PoolSource): string {
  *   hiding an unplayable card behind the first missing-text one found.
  * - Without a jar: refused, with a reason, unless `missingText` alone already
  *   refuses it. Never passes by default —
- * - UNLESS `uncheckedWithoutJar` (`CONFIG.testUncheckedPools`,
+ * - UNLESS `uncheckedWithoutJar` (`MAGIC_CONFIG.testUncheckedPools`,
  *   `CARDTABLE_E2E_UNCHECKED_POOLS=1`): the jar-less e2e `check` job's own
  *   escape hatch (CI run 39715510788 — without it `Lobby.startDraft` refuses
  *   `plan-not-ready` forever on a server with no jar at all). `missingText`

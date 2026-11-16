@@ -45,16 +45,19 @@ import { fileURLToPath } from 'node:url';
 
 import { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
 
-import { CONFIG } from '../config.js';
-
 /**
- * The first host port a room's seat may take.
+ * The first host port a room's seat may take, when `createRoomStreams`'s caller does not pass its
+ * own `basePort`.
  *
  * Deliberately clear of everything else on this host: 6080–6081 are the static
  * bench, and the e2e harness picks its ports from 20000 up (`e2e/ports.ts`). `container.sh` refuses
  * anything below 6100 a second time, in case this constant is ever loosened.
+ *
+ * A literal, not `CONFIG.roomStreamBasePort` (w119 §C): the room-stream ports are Forge/Magic-only
+ * (survey §3), so Magic's `MAGIC_CONFIG.roomStreamBasePort` is what `plugins/stream.ts` passes in
+ * as `basePort` — this platform file reads no `CARDTABLE_*` env var itself any more.
  */
-export const ROOM_STREAM_BASE_PORT = CONFIG.roomStreamBasePort;
+export const ROOM_STREAM_BASE_PORT = 6100;
 
 /**
  * How many streamed seats may exist on this host AT ONCE, across all rooms.
@@ -85,8 +88,11 @@ export const IDLE_RECLAIM_MS = 30 * 60_000;
  * therefore sets its own prefix, and `container.sh` already reads the same
  * variable, so the script and the server can never disagree about what this
  * server may touch.
+ *
+ * A literal default, like {@link ROOM_STREAM_BASE_PORT} — `plugins/stream.ts` passes its own
+ * `namePrefix` from `MAGIC_CONFIG.streamNamePrefix` (`CARDTABLE_STREAM_NAME_PREFIX`).
  */
-const CONTAINER_NAME_PREFIX = CONFIG.streamNamePrefix;
+const CONTAINER_NAME_PREFIX = 'cardtable-room';
 
 export interface RoomStreamSeat {
 	seat: number;

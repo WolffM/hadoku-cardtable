@@ -125,7 +125,7 @@ export interface CreateCatalogRefreshOpts {
 	catalog: CardCatalog;
 	/** Where the Scryfall bulk cache lives — `CARDTABLE_SCRYFALL_DIR`, default `~/.local/share/cardtable/scryfall`. Shared with land.sh; never the lane's own fixture dir outside a test. */
 	scryfallDir: string;
-	/** Where the live catalog file lives — `CONFIG.catalogPath`. Rebuilt to a sibling temp file first, then renamed here. */
+	/** Where the live catalog file lives — `MAGIC_CONFIG.catalogPath`. Rebuilt to a sibling temp file first, then renamed here. */
 	catalogPath: string;
 	/** Called once, only after a real swap. Clearing missing-text verdicts is the caller's cache's job, not this file's. */
 	onSwap?: () => void;

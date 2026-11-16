@@ -119,6 +119,7 @@ import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { parseDck } from '@hadoku/carddata/dck';
 
 import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import { gateSocketIo } from '@hadoku/game-server/gate';
 import { identityFromHeaders, participantHandle } from '@hadoku/game-server/room/identity';
 import type { KeyBook } from '../stats/keys.js';
@@ -472,7 +473,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	//
 	// Unset in production, which is every deployment: this is the test hatch,
 	// and an unseeded match is what it falls back to.
-	const seed = CONFIG.playSeed;
+	const seed = MAGIC_CONFIG.playSeed;
 	// `MatchSpecWithIdentity`, not `MatchSpec`, so `displayName` can sit on each
 	// seat beside `deck` and `ai` without the excess-property check a literal
 	// typed directly as `MatchSpec` would fail. Returned as `spec: MatchSpec`

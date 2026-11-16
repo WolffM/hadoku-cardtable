@@ -9,7 +9,7 @@
  *
  * The catalog is `e2e/fixtures/sets-catalog.json` (ISD/ALA/ARB, committed —
  * same move F's e2e harness already makes, `6ef44860`), resolved from the
- * repo root, never `CONFIG.catalogPath`/`CARDTABLE_CATALOG`/the host's own
+ * repo root, never `MAGIC_CONFIG.catalogPath`/`CARDTABLE_CATALOG`/the host's own
  * `~/.local/share/cardtable/catalog/cards.json`. The claws have no such
  * file — a claw run (forge-jvm, 39737505733) found that the hard way: every
  * `byName` missed, so only bare front faces survived and the test failed

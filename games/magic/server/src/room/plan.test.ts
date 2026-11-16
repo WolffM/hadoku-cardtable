@@ -314,7 +314,7 @@ describe('checkCards — the shared core, also games/magic/server/src/pools/cube
 
 /*
  * CI fix-forward (run 39715510788): the jar-less e2e stack's own escape
- * hatch (CONFIG.testUncheckedPools, threaded in here as checkCards' third
+ * hatch (MAGIC_CONFIG.testUncheckedPools, threaded in here as checkCards' third
  * argument) — never from production, never a substitute for a real catalog
  * check.
  */

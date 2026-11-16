@@ -132,7 +132,7 @@ describe('moveLegacyState (adapter smoke test)', () => {
 });
 
 describe('CONFIG with CARDTABLE_STATE_DIR', () => {
-	const KEYS = ['CARDTABLE_STATE_DIR', 'CARDTABLE_LOG_DIR', 'CARDTABLE_ROOMS_DIR', 'CARDTABLE_RECORDINGS_DIR'] as const;
+	const KEYS = ['CARDTABLE_STATE_DIR', 'CARDTABLE_LOG_DIR', 'CARDTABLE_ROOMS_DIR'] as const;
 	const saved: Partial<Record<(typeof KEYS)[number], string>> = {};
 	beforeEach(() => {
 		for (const k of KEYS) {
@@ -155,7 +155,6 @@ describe('CONFIG with CARDTABLE_STATE_DIR', () => {
 		expect(CONFIG.dataDir).toBe('/srv-data/cardtable');
 		expect(CONFIG.logDir).toBe('/srv-data/cardtable/logs');
 		expect(CONFIG.roomsDir).toBe('/srv-data/cardtable/rooms');
-		expect(CONFIG.recordingsDir).toBe('/srv-data/cardtable/recordings');
 		expect(CONFIG.callersSeenFile).toBe('/srv-data/cardtable/callers-seen.json');
 	});
 

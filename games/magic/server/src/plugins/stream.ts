@@ -5,6 +5,7 @@
  */
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import { attachStream, attachStreamRoutes, streamLayout } from '@hadoku/game-server/stream/index';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from '@hadoku/game-server/stream/alloc';
 import { streamedContainerEnv, streamedEngineConfig, streamedHost } from '@hadoku/game-server/play/runtimes/streamed';
@@ -24,7 +25,7 @@ export const streamRoutesPlugin: CardtablePlugin = {
 	phase: 'routes',
 	setup(ctx) {
 		const { state } = ctx;
-		state.streamCount = streamLayout().streamCount;
+		state.streamCount = streamLayout(undefined, undefined, MAGIC_CONFIG.streamDir).streamCount;
 		state.streamLog = jsonLogger('cardtable-stream');
 		const script = findContainerScript();
 		if (script === null) {
@@ -54,6 +55,8 @@ export const streamRoutesPlugin: CardtablePlugin = {
 						// A lobby room or a draft pod: can anyone still reach this room?
 						roomExists: (roomKey) => state.lobby.get(roomKey) !== undefined || state.draftRooms?.find(roomKey) !== undefined,
 						script: scriptRunner(script, magic?.ok === true ? streamedContainerEnv(magic.config) : {}),
+						basePort: MAGIC_CONFIG.roomStreamBasePort,
+						namePrefix: MAGIC_CONFIG.streamNamePrefix,
 						log: state.streamLog,
 						onEnded: (roomKey, reason) => {
 							state.streamedHosts.get(roomKey)?.settled(reason);
@@ -92,7 +95,7 @@ export const streamRoutesPlugin: CardtablePlugin = {
 		};
 		attachStreamRoutes(ctx.app, {
 			minTier: CONFIG.minTier,
-			streamBasePort: CONFIG.streamBasePort,
+			streamBasePort: MAGIC_CONFIG.streamBasePort,
 			streamCount: state.streamCount,
 			rooms: state.roomStreams,
 			ensureRoom: state.ensureRoomStreams,
@@ -112,7 +115,7 @@ export const streamSocketPlugin: CardtablePlugin = {
 		const { state } = ctx;
 		const handle = attachStream(ctx.httpServer, {
 			minTier: CONFIG.minTier,
-			streamBasePort: CONFIG.streamBasePort,
+			streamBasePort: MAGIC_CONFIG.streamBasePort,
 			streamCount: state.streamCount,
 			rooms: state.roomStreams,
 			ensureRoom: state.ensureRoomStreams,

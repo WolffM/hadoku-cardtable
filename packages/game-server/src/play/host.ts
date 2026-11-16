@@ -169,13 +169,29 @@ export interface HeadlessRules {
 	gameS: number;
 }
 
-export interface MatchSpec {
-	/**
-	 * Seat 0 is a human in every match a player sees: the bridge refuses a match with no human seat,
-	 * because Forge watches an AI-against-AI game through a desktop window a headless JVM cannot open.
-	 * Only a bot game ({@link headless}) seats two AIs, and it never opens that window.
-	 */
-	seats: [SeatSpec & { ai: false }, SeatSpec] | [SeatSpec & { ai: true }, SeatSpec & { ai: true }];
+/**
+ * What a match needs to start, generic over the game `G`'s own extra fields (w119 §C). Only
+ * `seats` (its length) and {@link MatchSpec.headless} (its presence) are read by this file's own
+ * coordinator — everything else below is opaque to it: spread onto `config.json` (`bridgeConfig`)
+ * and kept whole in `JvmRecord`, never interpreted here.
+ *
+ * `G`'s default, `unknown` (so `KnownFields & unknown` simplifies back to `KnownFields`), keeps every existing bare `MatchSpec` (no type
+ * argument) call site reading exactly the shape below — every field here was Forge-specific
+ * before this wave, and still is; nothing is removed. One thing DID move (w119 §C.3): `seats` is
+ * a plain array, not the old 2-tuple with "seat 0 is never AI" encoded in its type (that rule is
+ * `socket.ts`'s/the bridge's to enforce, not this type's) — so `runtimes/relay-match.ts`'s
+ * pod-sized, no-AI roster no longer needs `as unknown as MatchSpec` to fit it.
+ *
+ * A fuller split — moving `.dck` text, puzzle scenarios, hand smoothing and coin-toss rigging out
+ * of this base into a Magic-only `G` — would need edits to files outside w119 §C's ownership
+ * (`packages/game-server/src/play/placement/coordinator.ts`, and most of `games/magic/server/src/
+ * play/*`'s own `MatchSpec` readers: `match.ts`, `botgames.ts`, `parked.ts`, `deck-colors.ts`,
+ * `table-game.ts`, `art.ts`, `recording/{recorder,rebuild}.ts`, `match/registry.ts`,
+ * `http/routes.ts`), so it is deferred; see the wave report.
+ */
+export type MatchSpec<G = unknown> = {
+	/** Every seat this match starts with. */
+	seats: SeatSpec[];
 	/** A bot game ({@link HeadlessRules}); absent for every match a player plays or watches. */
 	headless?: HeadlessRules;
 	/** Seeds Forge's shuffles and the precon pick, for a repeatable test run. Omitted in play. */
@@ -240,7 +256,7 @@ export interface MatchSpec {
 	 * Absent: no clock. Inert in the JVM, like `format`.
 	 */
 	clockMs?: [number, number];
-}
+} & G;
 
 /**
  * The four lines the host and placement read from any engine's own line type `L`; everything else

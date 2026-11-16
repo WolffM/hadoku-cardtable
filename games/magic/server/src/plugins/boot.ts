@@ -8,6 +8,7 @@ import { moveLegacyState } from '@hadoku/service-kernel/state';
 import { CONFIG, LEGACY_STATE } from '@hadoku/game-server/config';
 import { fleetCli, primeFleet } from '@hadoku/game-server/play/placement/index';
 import { reportingAlerts } from '@hadoku/game-server/telemetry';
+import { MAGIC_CONFIG } from '../config.js';
 import type { CardtablePlugin } from './state.js';
 
 export const stateDirPlugin: CardtablePlugin = {
@@ -29,6 +30,6 @@ export const fleetPlugin: CardtablePlugin = {
 		// The claws' fleet read, started now so it runs beside the rest of the boot: a seat back after a
 		// restart waits for its match to be adopted, and adopting waits on this read (`primeFleet`).
 		ctx.state.placementLog = jsonLogger('cardtable-placement');
-		ctx.state.primedFleet = CONFIG.playHosts === 'claws' ? primeFleet(fleetCli({ log: reportingAlerts(ctx.state.placementLog) })) : undefined;
+		ctx.state.primedFleet = MAGIC_CONFIG.playHosts === 'claws' ? primeFleet(fleetCli({ log: reportingAlerts(ctx.state.placementLog) })) : undefined;
 	},
 };

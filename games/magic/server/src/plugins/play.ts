@@ -4,6 +4,7 @@
  */
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import { sweepRooms } from '../boot.js';
 import { attachPlay, coldStartsFrom, jvmHostFactory, roomFormatNames, spellCopierLookup, type PlayHandle } from '../play/index.js';
 import { clawPlacement, registryRestorer } from '@hadoku/game-server/play/placement/index';
@@ -33,7 +34,7 @@ export const playPlugin: CardtablePlugin = {
 		// The draft bot the claws run when matches are placed on them (`play/placement/draftbot.ts`);
 		// else a plain service at CARDTABLE_DRAFTBOT_URL (a dev box).
 		const clawsDraftbot: Draftbot | undefined =
-			CONFIG.playHosts === 'claws'
+			MAGIC_CONFIG.playHosts === 'claws'
 				? { batchDraft: (inputs, signal) => (state.clawHosts === null ? Promise.reject(new Error('no Forge hosts, so no claw runs the draft bot')) : state.clawHosts.draftbot.batchDraft(inputs, signal)) }
 				: undefined;
 		// One live tab per player per room (`room/session.ts`), over every socket of a room: the screen's
@@ -53,8 +54,8 @@ export const playPlugin: CardtablePlugin = {
 			rooms: state.draftRooms,
 			lobby,
 			minTier: CONFIG.minTier,
-			botPickMs: CONFIG.draftBotPickMs,
-			draftbot: clawsDraftbot ?? (CONFIG.draftbotUrl ? httpDraftbot(CONFIG.draftbotUrl, CONFIG.draftbotToken || undefined) : undefined),
+			botPickMs: MAGIC_CONFIG.draftBotPickMs,
+			draftbot: clawsDraftbot ?? (MAGIC_CONFIG.draftbotUrl ? httpDraftbot(MAGIC_CONFIG.draftbotUrl, MAGIC_CONFIG.draftbotToken || undefined) : undefined),
 			// The ONE tracker, built by `plugins/rooms.ts` before `draftRooms`
 			// itself — the same instance that pod's own seat-hold runs on.
 			presence: state.seatPresence,
@@ -67,10 +68,10 @@ export const playPlugin: CardtablePlugin = {
 		// Where matches run (`CARDTABLE_PLAY_HOSTS`): this machine's pool, or placement across the claws
 		// with this machine as the backstop. Every alert placement posts is also a service event.
 		const { placementLog } = state;
-		state.clawHosts = forge.ok && CONFIG.playHosts === 'claws' ? clawPlacement(forge.config, { webhook: CONFIG.alertWebhook, forceFile: CONFIG.backstopForceFile, restartGraceMs: CONFIG.restartGraceMs, log: reportingAlerts(placementLog), fleet: state.primedFleet, draftbots: (deps) => new ClawDraftbots(deps) }) : null;
+		state.clawHosts = forge.ok && MAGIC_CONFIG.playHosts === 'claws' ? clawPlacement(forge.config, { webhook: CONFIG.alertWebhook, forceFile: CONFIG.backstopForceFile, restartGraceMs: MAGIC_CONFIG.restartGraceMs, log: reportingAlerts(placementLog), fleet: state.primedFleet, draftbots: (deps) => new ClawDraftbots(deps) }) : null;
 		state.localHost = forge.ok && state.clawHosts === null ? jvmHostFactory(forge.config) : null;
 		const { clawHosts, localHost } = state;
-		placementLog({ evt: 'play-hosts', mode: forge.ok ? CONFIG.playHosts : 'none', alerts: CONFIG.alertWebhook === '' ? 'logged only' : 'discord' });
+		placementLog({ evt: 'play-hosts', mode: forge.ok ? MAGIC_CONFIG.playHosts : 'none', alerts: CONFIG.alertWebhook === '' ? 'logged only' : 'discord' });
 
 		const play = attachPlay(io, api, {
 			minTier: CONFIG.minTier,
@@ -81,7 +82,7 @@ export const playPlugin: CardtablePlugin = {
 			// Match JVMs booting at once (`play/start-queue.ts`); `CARDTABLE_PLAY_COLD_STARTS`.
 			coldStarts: coldStartsFrom(),
 			// Diagnostics for a live check only. Never set in production (see play/socket.ts).
-			probe: CONFIG.playProbe,
+			probe: MAGIC_CONFIG.playProbe,
 			...(CONFIG.testNoRateLimits ? { startRateLimit: null, restartRateLimit: null, undoRateLimit: null } : {}),
 			devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 			// The stats report, the room's own series ledger (recorded at once rather than on the next
@@ -99,7 +100,7 @@ export const playPlugin: CardtablePlugin = {
 			// A match let go of unfinished (nobody came back, its host failed) frees its table at once,
 			// not on the table's next act: until then the room offers a match that is gone.
 			onFreed: (match) => tables.matchFreed(match),
-			...(CONFIG.playRejoinGraceMs === undefined ? {} : { rejoinGraceMs: CONFIG.playRejoinGraceMs }),
+			...(MAGIC_CONFIG.playRejoinGraceMs === undefined ? {} : { rejoinGraceMs: MAGIC_CONFIG.playRejoinGraceMs }),
 			// The registry's `emit`, for every seat, before it reaches a socket; the recorder keeps only the watcher's.
 			onEnvelope: (matchId, seat, envelope) => recorder.onEnvelope(matchId, seat, envelope),
 			onPresence: (matchId, seat, playerId, presence) => recorder.onPresence(matchId, seat, playerId, presence),
@@ -143,7 +144,7 @@ export const playPlugin: CardtablePlugin = {
 		setInterval(() => sweepAll(), ROOM_SWEEP_MS).unref();
 		// Diagnostics only, like play's own probes: the sweep run on a clock `aheadMs` from now, so a spec
 		// can see a game its eight hours old end (`e2e/w82-forced-draw.spec.ts`). Never in production.
-		if (CONFIG.playProbe) {
+		if (MAGIC_CONFIG.playProbe) {
 			api.post('/play/sweep', (req, res) => {
 				const aheadMs = Number((req.body as { aheadMs?: unknown } | undefined)?.aheadMs ?? 0);
 				if (!Number.isFinite(aheadMs)) {
@@ -160,7 +161,7 @@ export const playPlugin: CardtablePlugin = {
 		// share is capped by the bridge (`PlayBridge.UNDO_BUDGET_BYTES`), and this shows how much of it play uses.
 		ctx.gauge('undoMb', () => Math.round(play.matches.active().reduce((n, m) => n + (m.undoBytes?.() ?? 0), 0) / (1 << 20)));
 		ctx.gauge('jvms', () => clawHosts?.hosts().hosts.reduce((n, h) => n + h.jvms.length, 0) ?? localHost?.jvms().length ?? 0);
-		if (CONFIG.playHosts === 'claws') ctx.gauge('forgeFree', () => clawHosts?.hosts().hosts.filter((h) => h.eligible).reduce((n, h) => n + h.free, 0) ?? 0);
+		if (MAGIC_CONFIG.playHosts === 'claws') ctx.gauge('forgeFree', () => clawHosts?.hosts().hosts.filter((h) => h.eligible).reduce((n, h) => n + h.free, 0) ?? 0);
 
 		return {
 			// Start nothing new, leave every live match running for the next process to re-attach (its JVM

@@ -8,6 +8,7 @@ import { CONFIG } from '@hadoku/game-server/config';
 import { legacyIdsStep } from '@hadoku/game-server/erase/legacy-ids';
 import { recordingsStep } from '@hadoku/game-server/erase/recordings';
 import { roomsEraseSteps } from '@hadoku/game-server/erase/rooms';
+import { MAGIC_CONFIG } from '../config.js';
 import { endForfeitedGame } from '../http/table-actions.js';
 import type { Match } from '../play/match.js';
 import type { CardtablePlugin } from './state.js';
@@ -28,7 +29,7 @@ export const erasePlugin: CardtablePlugin = {
 				{ what: 'pods', erase: (p) => state.draftRooms?.erase(p.participantId, p.ids, p.placeholder) ?? { decks: 0, pods: 0 } },
 				{ what: 'tournaments', erase: (p) => state.tournaments.anonymise(p.ids, p.placeholder) },
 				{ what: 'events', erase: (p) => state.events.anonymise(p.ids, p.placeholder) },
-				recordingsStep(CONFIG.recordingsDir),
+				recordingsStep(MAGIC_CONFIG.recordingsDir),
 				{ what: 'parked', erase: (p) => state.parked.forget(p.participantId) },
 				{ what: 'presets', erase: (p) => state.presetStore.anonymise(p.ids, p.placeholder) },
 				{ what: 'cubes', erase: (p) => state.cubeStore.anonymise(p.ids, p.placeholder) },

@@ -8,6 +8,7 @@
  */
 import { podPickNumber } from '@hadoku/draft';
 import { CONFIG } from '@hadoku/game-server/config';
+import { MAGIC_CONFIG } from '../config.js';
 import { restoreRooms } from '../boot.js';
 import { busyReport } from '@hadoku/game-server/busy';
 import { endForfeitedGame } from '../http/table-actions.js';
@@ -48,7 +49,7 @@ export const roomsPlugin: CardtablePlugin = {
 		const draftPolicy = draftEmitPolicy(jsonLogger('cardtable-draft'));
 		// A deploy mid-pod resumes it, a draft room whose draft did not come back goes back to its
 		// lobby, and the idle rooms are swept. A new room opens on a random era unless
-		// `CONFIG.newRoomFormat` pins it.
+		// `MAGIC_CONFIG.newRoomFormat` pins it.
 		// The ONE presence tracker for the whole server, built HERE —
 		// before `restoreRooms`'s `createDraftRooms` call below, which takes
 		// this same instance as its REQUIRED `presence` dep, and before
@@ -67,7 +68,7 @@ export const roomsPlugin: CardtablePlugin = {
 			lobby: {
 				dir: CONFIG.roomsDir,
 				formats: state.library.formats,
-				...(CONFIG.newRoomFormat === 'newest' ? { defaultFormat: newestFormat(state.library.formats) } : {}),
+				...(MAGIC_CONFIG.newRoomFormat === 'newest' ? { defaultFormat: newestFormat(state.library.formats) } : {}),
 				log: state.roomsLog,
 				onTournament: (t) => state.tournaments.record(t),
 				onSeriesEnd: (end) => state.matchStats.seriesEnd(end),
@@ -83,7 +84,7 @@ export const roomsPlugin: CardtablePlugin = {
 							// The grace ran out: the seat was vacated on a timer, with no socket event to answer.
 							onDeferredChange: (room) => emitDraftUpdate(ctx.io, room, draftPolicy),
 							// A 45-minute draft must survive this process restarting on every push to main.
-							storeDir: CONFIG.draftsDir,
+							storeDir: MAGIC_CONFIG.draftsDir,
 							presence: seatPresence,
 						}
 					: null,
