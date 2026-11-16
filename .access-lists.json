@@ -1,0 +1,5 @@
+{
+  "//": "Edge access lists this repo's service identity asks to be on: list id -> the one reason. The operator grants each on hadoku_site's command-station -> Service grants; nothing grants it automatically (hadoku_site docs/operations/SECRETS.md, 'How a repo asks for an edge access list').",
+  "prefs-avatar-resolve": "The game server resolves a room's people to names and avatars by userId (POST /prefs/api/v1/_avatar/resolve, packages/game-server/src/people.ts)",
+  "prefs-cardtable": "The game server reads and writes cardtable's per-person rows in prefs-api (/prefs/api/v1/_service/cardtable/rows, e.g. games/magic/server/src/http/musicReviewStore.ts)"
+}
