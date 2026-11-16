@@ -1,42 +1,48 @@
 /**
- * Cardtable's rooms, served by cardtable: `@wolffm/rooms-server/room`'s `serveRoom` on this
+ * A game's rooms, served by its own server: `@wolffm/rooms-server/room`'s `serveRoom` on this
  * server's own socket.io, at the `/room` namespace `RoomChrome`'s `roomOrigin` connects to
- * (`packages/game-ui/src/room/RoomShell.tsx`). The chrome's whole room socket comes here — join, roster,
- * identity, chat — and none of it goes to watchparty, so an open cardtable room neither counts on
+ * (`packages/game-ui/src/room/RoomShell.tsx`). The chrome's whole room socket comes here — join,
+ * roster, identity, chat — and none of it goes to watchparty, so an open room neither counts on
  * watchparty's server nor holds its deploys.
+ *
+ * Moved here from `games/magic/server/src/room/serve.ts` (wave 119 §S): the only two things that
+ * were Magic-only were a `Lobby` type import and one `magicView(...).tables` read inside
+ * `placeOfKey`. Both are gone — the `Lobby` here is `ServeLobby<V>`, a structural slice any
+ * `RoomLobby` satisfies (`room/lobby.ts`'s own `LobbyCore` trick in `http/room-core.ts`), and the
+ * table/match lookup is `RoomTypeHooks.subPlaceOf`, which Magic implements and a game with no
+ * sub-places (bomberman, `plainRoomType`'s) simply never answers yes to.
  *
  * ## One answer to "who is here"
  *
- * `presence` is `state.seatPresence`, the server's ONE `PresenceTracker` (`room/socket.ts`'s
- * `createSeatPresence`): the instance the lobby's seat grace and every draft pod's seat-hold already
- * run on. A room connection is a connection of the PERSON (`key` = their participant id, the
- * tracker's lobby key), beside their tab's feed and draft sockets. So the chrome's roster, the seat
- * grace and a pod's hold read one tracker, and a second tab is one person, not two.
+ * `presence` is the server's ONE `PresenceTracker`: the instance the lobby's seat grace and every
+ * draft pod's seat-hold already run on. A room connection is a connection of the PERSON (`key` =
+ * their participant id, the tracker's lobby key), beside their tab's feed and draft sockets. So
+ * the chrome's roster, the seat grace and a pod's hold read one tracker, and a second tab is one
+ * person, not two.
  *
  * ## One answer to "who is this"
  *
- * `account` is `people.ts`'s lookup, keyed by the edge's `X-User-Id`, and always reads fresh:
- * serveRoom calls it on the chrome's `identity_update` after a rename or a new picture, on the
- * account's own join or chat once its copy is `accountStaleMs` old, and on a person's first join
- * since this server started. serveRoom pushes the answer to every connection of the
- * account and calls `apply`, which writes it into the lobby (`applyPerson`): the room list, the
- * table and the chrome all read the same name, picture and character, and a rename reaches the
- * other players' room list with nobody rejoining.
+ * `account` is the app's own account lookup, keyed by the edge's `X-User-Id`, and always reads
+ * fresh: serveRoom calls it on the chrome's `identity_update` after a rename or a new picture, on
+ * the account's own join or chat once its copy is stale, and on a person's first join since this
+ * server started. serveRoom pushes the answer to every connection of the account and calls
+ * `apply`, which writes it into the lobby: the room list, the table and the chrome all read the
+ * same name, picture and character, and a rename reaches the other players' room list with
+ * nobody rejoining.
  *
  * ## Who may join
  *
- * `admit` is the gate: the tier floor (the same one every cardtable socket applies), a key this app
- * minted (`cardtable-<id>`, `RoomShell.tsx`'s `roomKeyFor`), and a place the lobby knows. A room
- * has one chat, its own key, on its lobby and on every game at its tables (the operator,
- * 2026-11-11). It admits the room's members, and anyone at all while the room has no password,
- * since anyone may watch an open room's match (the operator, 2026-11-11: *"let non-members into
- * unlocked rooms' chat"*); a locked room admits its members only. A match no room holds (a game
- * against the AI, a scenario) admits anyone, keyed by the match's own id. A table's key
- * (`<roomId>-<tableId>`) is what screens built before 2026-11-11 joined during a game, and is
- * gated as its room is. A refusal sends nothing of the room.
+ * `admit` is the gate: the tier floor (the same one every socket applies), a key this app minted
+ * (`<appId>-<id>`, `RoomShell.tsx`'s `roomKeyFor`), and a place the lobby knows. A room has one
+ * chat, its own key, on its lobby and on every game at its tables. It admits the room's members,
+ * and anyone at all while the room has no password, since anyone may watch an open room's match;
+ * a locked room admits its members only. A match no room holds (a game against the AI, a
+ * scenario) admits anyone, keyed by the match's own id. A table's key (`<roomId>-<tableId>`) is
+ * what screens built before 2026-11-11 joined during a game, and is gated as its room is. A
+ * refusal sends nothing of the room.
  *
- * `APP_ID` must agree with `apps/ui/app-name.ts`'s `APP_ID`; it is restated rather than imported,
- * since a server importing UI source is the wrong direction for this app's layering.
+ * `appId` must agree with the UI's own app id; it is passed in rather than imported, since a
+ * server importing UI source is the wrong direction for any app's layering.
  */
 
 import type { IncomingHttpHeaders } from 'node:http';
@@ -45,16 +51,12 @@ import { participantHandle } from '@wolffm/rooms-protocol';
 import type { PresenceTracker } from '@wolffm/rooms-server';
 import { createChatHistoryStore, type RoomChatMessage } from '@wolffm/rooms-server/chat';
 import { serveRoom, type AccountIdentity, type ServedRoom } from '@wolffm/rooms-server/room';
-import { ROOM_ID_RE } from '@hadoku/shared';
+import type { Look } from '@hadoku/platform-wire/look';
 
-import { rankOf } from '@hadoku/game-server/edge-auth';
-import { applyPerson, type People } from '@hadoku/game-server/people';
-import { handshakeTier } from '@hadoku/game-server/room/socket-auth';
-import { identityFromHeaders } from '@hadoku/game-server/room/identity';
-import type { Lobby } from './lobby.js';
-import { magicView } from './magic-view.js';
-
-const APP_ID = 'cardtable';
+import { rankOf } from '../edge-auth.js';
+import { applyPerson, type People } from '../people.js';
+import { handshakeTier } from './socket-auth.js';
+import { identityFromHeaders } from './identity.js';
 
 /** In memory per room, and the default/max page a `GET …/chat` page asks for. */
 const MAX_MESSAGES_PER_ROOM = 500;
@@ -64,6 +66,31 @@ const PAGE_LIMIT_MAX = 100;
 /** A room's chat file is read back for this long after boot; older, it is deleted on sight. */
 const CHAT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
+/** The minimal room-view shape this file touches, whatever the game. The real `PlatformRoomView` (and Magic's `RoomView`) satisfy it. */
+export interface ServeRoomView {
+	id: string;
+	locked: boolean;
+	members: readonly { id: string; name: string; avatarId?: string }[];
+}
+
+/**
+ * The slice of `room/lobby.ts`'s `RoomLobby` this file calls, typed against `V` alone — never the
+ * real game-specific view. Method syntax (not property) is load-bearing, same as
+ * `http/room-core.ts`'s `LobbyCore`: it is what lets a real, narrower-typed `Lobby` satisfy this
+ * interface with no cast, through TypeScript's bivariant parameter checking.
+ */
+export interface ServeLobby<V extends ServeRoomView> {
+	get(roomId: string): V | undefined;
+	isMember(roomId: string, participantId: string): boolean;
+	onChange(listener: (roomId: string) => void): () => void;
+	/** `RoomLobby.subPlaceOf`: whether `rest` names a sub-place (a table, a remembered match) inside this room. */
+	subPlaceOf(roomId: string, rest: string): boolean;
+	/** `people.ts`'s `applyPerson`, writing an account's name, character and look onto a member. */
+	rename(caller: { id: string; name: string }): void;
+	setAvatar(roomId: string, memberId: string, avatarId: string | null): boolean;
+	setLook(roomId: string, memberId: string, look: Look | undefined): boolean;
+}
+
 /**
  * What a room key names: the served room (its chat and roster), and the lobby room it belongs to
  * (null for a match no room holds), and whether anyone at the floor may watch it.
@@ -71,30 +98,36 @@ const CHAT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 type RoomPlace = { served: string; roomId: string; kind: 'room' | 'table' } | { served: string; roomId: null; kind: 'match' };
 
 /**
- * `cardtable-<id>` → the place it names, or null when it is not one of ours or names nothing live.
- * A table's key is `<roomId>-<tableId>`, or `<roomId>-<matchId>` when the screen's copy of the room
- * no longer names the table its match was played at; either is the room's table chat, the match
- * found through the lobby's own memory of it (`roomOfMatch`). Screens since 2026-11-11 join the
- * room's own key on every screen; a page loaded before that still joins a table's.
+ * `<appId>-<id>` → the place it names, or null when it is not one of ours or names nothing live.
+ * A table's key is `<roomId>-<tableId>`, or `<roomId>-<matchId>` when the screen's copy of the
+ * room no longer names the table its match was played at; either is the room's table chat, the
+ * match found through the room's own `subPlaceOf`. Screens since 2026-11-11 join the room's own
+ * key on every screen; a page loaded before that still joins a table's.
  */
-export function placeOfKey(lobby: Pick<Lobby, 'get' | 'roomOfMatch'>, isMatch: (id: string) => boolean, roomKey: string): RoomPlace | null {
-	const prefix = `${APP_ID}-`;
+export function placeOfKey<V extends ServeRoomView>(
+	lobby: Pick<ServeLobby<V>, 'get' | 'subPlaceOf'>,
+	isMatch: (id: string) => boolean,
+	appId: string,
+	roomKey: string,
+	roomIdRe: RegExp,
+): RoomPlace | null {
+	const prefix = `${appId}-`;
 	if (!roomKey.startsWith(prefix)) return null;
 	const id = roomKey.slice(prefix.length);
-	if (!ROOM_ID_RE.test(id)) return null;
+	if (!roomIdRe.test(id)) return null;
 	if (lobby.get(id) !== undefined) return { served: id, roomId: id, kind: 'room' };
 	for (let at = id.indexOf('-'); at !== -1; at = id.indexOf('-', at + 1)) {
 		const room = lobby.get(id.slice(0, at));
 		if (room === undefined) continue;
 		const rest = id.slice(at + 1);
-		// A room of a game Magic does not play has no tables.
-		if (magicView(room)?.tables.some((t) => t.id === rest) === true || lobby.roomOfMatch(rest)?.id === room.id) return { served: id, roomId: room.id, kind: 'table' };
+		// A room of a game with no idea of a sub-place answers `subPlaceOf` false for every `rest`.
+		if (lobby.subPlaceOf(room.id, rest)) return { served: id, roomId: room.id, kind: 'table' };
 	}
 	return isMatch(id) ? { served: id, roomId: null, kind: 'match' } : null;
 }
 
 /** Whether `participantId` may be in `place`: a room's (or its table's) members, or anyone while the room has no password; anyone at a match. */
-function mayJoin(lobby: Lobby, place: RoomPlace, participantId: string): boolean {
+function mayJoin<V extends ServeRoomView>(lobby: Pick<ServeLobby<V>, 'get' | 'isMember'>, place: RoomPlace, participantId: string): boolean {
 	if (place.roomId === null) return true;
 	if (lobby.isMember(place.roomId, participantId)) return true;
 	return lobby.get(place.roomId)?.locked === false;
@@ -105,8 +138,8 @@ function accountOfHeaders(headers: IncomingHttpHeaders): string | undefined {
 	return typeof id === 'string' && id !== '' ? id : undefined;
 }
 
-interface ServeDeps {
-	lobby: Lobby;
+export interface ServeDeps<V extends ServeRoomView> {
+	lobby: ServeLobby<V>;
 	/** The server's one tracker (`state.seatPresence`). */
 	presence: PresenceTracker<string>;
 	/** The account lookup (`state.people`). */
@@ -117,13 +150,17 @@ interface ServeDeps {
 	minTier: string;
 	/** Where chat history is kept; a thunk, read on every call. */
 	stateDir: () => string;
+	/** What a room key is prefixed with: `<appId>-<id>` (`RoomShell.tsx`'s `roomKeyFor`). Must agree with the UI's own app id. */
+	appId: string;
+	/** A room id's shape, for `placeOfKey`'s own validation. */
+	roomIdRe: RegExp;
 	/** Default `/room`. */
 	namespace?: string;
 	onEvent?: (level: 'info' | 'warn' | 'debug', event: string, fields: Record<string, unknown>) => void;
 }
 
-/** Mount cardtable's rooms on `io` (see the header). */
-export async function attachServedRoom(io: SocketIOServer, deps: ServeDeps): Promise<ServedRoom<string, RoomChatMessage>> {
+/** Mount a game's rooms on `io` (see this file's header). */
+export async function attachServedRoom<V extends ServeRoomView>(io: SocketIOServer, deps: ServeDeps<V>): Promise<ServedRoom<string, RoomChatMessage>> {
 	const { lobby, people } = deps;
 	const store = createChatHistoryStore<RoomChatMessage>({
 		stateDir: deps.stateDir,
@@ -131,7 +168,7 @@ export async function attachServedRoom(io: SocketIOServer, deps: ServeDeps): Pro
 		pageLimit: PAGE_LIMIT,
 		pageLimitMax: PAGE_LIMIT_MAX,
 		roomLifeMs: () => CHAT_RETENTION_MS,
-		safeRoomId: ROOM_ID_RE,
+		safeRoomId: deps.roomIdRe,
 		onEvent: deps.onEvent === undefined ? undefined : (level, event, roomId, fields) => deps.onEvent?.(level, event, { roomId, ...fields }),
 	});
 	// A room's chat is readable from the moment this server listens, not some time after.
@@ -152,7 +189,7 @@ export async function attachServedRoom(io: SocketIOServer, deps: ServeDeps): Pro
 				return null;
 			};
 			if (rankOf(handshakeTier(headers)) < rankOf(deps.minTier)) return refuse('tier');
-			const place = placeOfKey(lobby, deps.isMatch, join.room_key);
+			const place = placeOfKey(lobby, deps.isMatch, deps.appId, join.room_key, deps.roomIdRe);
 			if (place === null) return refuse('no-place');
 			const participantId = identityFromHeaders(headers, socket.id);
 			if (!mayJoin(lobby, place, participantId)) return refuse('not-member');

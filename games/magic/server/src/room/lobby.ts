@@ -411,6 +411,7 @@ export interface Lobby
 		| 'list' | 'offered' | 'touch' | 'get' | 'isMember' | 'playerState' | 'setPlayerState' | 'setReady' | 'setAvatar' | 'onAvatarChange'
 		| 'usersOf' | 'setLook' | 'onChange' | 'leave' | 'close' | 'anonymise' | 'removed' | 'reschedule' | 'seatsShutUntil' | 'gameSeatOf'
 		| 'bindWatchparty' | 'join' | 'rename' | 'sweep' | 'onRelayRoomOpened' | 'sitSeat' | 'standSeat' | 'aiSeat' | 'closeSeat'
+		| 'subPlaceOf' | 'roleOf' | 'removeFromSeat' | 'lowerSeatCapacity' | 'botReplacesHuman'
 	> {
 	/**
 	 * The room that started `matchId`, or undefined. A match id is never a room id.
@@ -1133,6 +1134,10 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			},
 			busy: MAGIC_ROOM_BUSY,
 			liveMatches: (room) => room.game.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId])),
+			// `room/serve.ts`'s `placeOfKey`: a table's own id, its live match, or one of the room's
+			// remembered matches (what `roomOfMatch` used to answer, read directly off this room instead
+			// of scanning every room for it).
+			subPlaceOf: (room, rest) => room.game.tables.some((t) => t.id === rest || t.matchId === rest) || room.game.matches.includes(rest),
 			leaving: (room, memberId) => {
 				// An entrant who leaves mid-tournament has dropped out. Not a testing room's seed, which stands in
 				// for an entrant through round 1 and leaves so a real admin can take its seat (`testing-rooms.ts`).

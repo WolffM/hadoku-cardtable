@@ -57,6 +57,7 @@ import { addRoomMember, isMemberReady, isRoomMember, passwordAdmits, removeRoomM
 import { makeSecret, mintRoomId, type Secret } from './provisioning.ts';
 import { AI_SEAT, CLOSED_SEAT, leaveGameSeat, memberSeats, setGameSeat, takeGameSeat, type GameSeats, type PlatformMember, type PlatformRoomRecord } from './record.ts';
 import { isOfferedRoom, isSweepableRoom, NO_BUSY_HOOK, sortRoomsByCreation, type RoomBusyHook } from './room-list.ts';
+import { lowerCapacity, replaceWithBot } from './seat-eviction.ts';
 import { watchpartyRoomId } from './watchparty-link.ts';
 
 /** A member as the lobby keeps one: the platform's record plus what a view shows of them. */
@@ -197,6 +198,13 @@ export interface RoomTypeHooks<G, I extends RoomCreateInput = RoomCreateInput> {
 	ending?(room: LobbyRoom<G>, why: 'close' | 'sweep' | 'forget'): void;
 	/** A relay room's match seat count: set for a type whose room IS its match (`onRelayRoomOpened`). */
 	relaySeats?: number;
+	/**
+	 * Whether `rest` names a sub-place inside this room that the type keeps track of beyond its game
+	 * seats (a table id, a match this room remembers) — `room/serve.ts`'s `placeOfKey`, matching a
+	 * stale table-keyed room-socket join back to its room. Default: never (a type with no such idea,
+	 * `plainRoomType`'s).
+	 */
+	subPlaceOf?(room: LobbyRoom<G>, rest: string): boolean;
 }
 
 /** The fewest seats a room is left with when its seats are closed: one player and one more. */
@@ -226,6 +234,28 @@ export type CloseSeatResult<V> =
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'too-few' | 'historical' };
 
 export type StandSeatResult<V> = { ok: true; room: V } | { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' };
+
+/**
+ * The three atomic seat ops every member-is-a-player-or-a-spectator room needs and `sitSeat`/
+ * `aiSeat`/`closeSeat` do not give it, because each of those refuses an occupied seat
+ * (`docs/planning/wave119-2026-11-16.md` §S; the survey's §7 names the same gap in
+ * `@wolffm/rooms-protocol` and bomberman, unbuilt everywhere alike). Each evicts its occupant to
+ * the spectator row FIRST, in the same call, so there is never a tick with a stale seat and a
+ * fresh one both claiming the member. Leader-only; each is the leader's own kick/shrink/replace,
+ * never a member acting on themselves. Built against cardtable's own `GameSeats`, not
+ * `@wolffm/rooms-protocol`'s `SeatTable` — see `removeFromSeat`'s own doc for why.
+ */
+export type RemoveFromSeatResult<V> =
+	| { ok: true; room: V }
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'target-not-member' | 'not-draft' | 'not-lobby' };
+
+export type LowerSeatCapacityResult<V> =
+	| { ok: true; room: V; evicted: readonly string[] }
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'historical' | 'too-few' };
+
+export type BotReplacesHumanResult<V> =
+	| { ok: true; room: V; evicted: string | null }
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'historical' | 'bad-seat' };
 
 export interface AvatarChange {
 	roomId: string;
@@ -510,6 +540,17 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		return room !== undefined && isRoomMember(room, memberId);
 	}
 
+	/**
+	 * Everyone in a room is a player or a spectator, never neither (the operator, 2026-11-02):
+	 * `'player'` iff `memberId` holds a game seat, `'spectator'` iff they are a member who holds
+	 * none. Derived from the seats every time, never stored, so there is no third value to desync
+	 * into. Undefined for a non-member or no such room — the question does not apply to them.
+	 */
+	roleOf(roomId: string, memberId: string): 'player' | 'spectator' | undefined {
+		if (!this.isMember(roomId, memberId)) return undefined;
+		return this.gameSeatOf(roomId, memberId) === null ? 'spectator' : 'player';
+	}
+
 	/** Per-member opaque state owned by the game's routes (the deck a seat holds). Not part of the view. undefined when unset / no room / not a member. */
 	playerState(roomId: string, memberId: string): unknown {
 		const member = this.#rooms.get(roomId)?.members.find((m) => m.id === memberId);
@@ -572,6 +613,17 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	 * member, or no such room. What a relay match seats a socket by, so the relay and every screen
 	 * name the same seat holders.
 	 */
+	/**
+	 * Whether `rest` names a sub-place inside `roomId` that its type keeps track of beyond its game
+	 * seats (a table id, a match this room remembers) — `room/serve.ts`'s `placeOfKey`, matching a
+	 * stale table-keyed room-socket join back to its room. False for no such room, or for a type
+	 * with no concept of one (`plainRoomType`'s).
+	 */
+	subPlaceOf(roomId: string, rest: string): boolean {
+		const room = this.#rooms.get(roomId);
+		return room !== undefined && (this.hooksOf(room).subPlaceOf?.(room, rest) ?? false);
+	}
+
 	gameSeatOf(roomId: string, memberId: string): number | null {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return null;
@@ -858,6 +910,87 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		this.persist(room);
 		this.log({ event: closed ? 'pod-seat-closed' : 'pod-seat-opened', roomId, memberId, seat, size: size() });
 		return { ok: true, room: this.view(room) };
+	}
+
+	/**
+	 * The leader removes `targetId` from whatever game seat they hold, to the spectator row.
+	 * Idempotent: a target who holds none is still answered `ok`. Never touches membership — they
+	 * stay in the room, watching (this file's own "a player or a spectator, never neither",
+	 * 2026-11-02). `targetId` need not be `memberId`; this is the leader acting on someone else,
+	 * which is exactly what `standSeat` (self-service) cannot do. `leaveGameSeat` already IS this
+	 * operation's contract — `@wolffm/rooms-protocol@0.45.95`'s own `removeFromSeat(table,
+	 * participantId)` is `unseatParticipant(table, participantId, { hold: false })`, the same shape —
+	 * so no `seat-eviction.ts` entry exists for this one; see that file's header for the two that do.
+	 */
+	removeFromSeat(roomId: string, memberId: string, targetId: string): RemoveFromSeatResult<V> {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
+		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		if (!isRoomMember(room, targetId)) return { ok: false, reason: 'target-not-member' };
+		const found = this.#seatRoom(roomId, memberId);
+		if ('refused' in found) return { ok: false, reason: found.refused };
+		const { room: r, hooks } = found;
+		if (!leaveGameSeat(r, targetId)) return { ok: true, room: this.view(r) };
+		hooks.trimSeats(r);
+		this.persist(r);
+		this.log({ event: 'seat-removed-by-leader', roomId, memberId, targetId });
+		hooks.seatsChanged?.(r);
+		return { ok: true, room: this.view(r) };
+	}
+
+	/**
+	 * The leader closes seats from the TOP down until `count` are open, evicting any occupant
+	 * first — a human to the spectator row, an AI simply removed — instead of `closeSeat`'s refusal
+	 * on an occupied seat. Never below `MIN_OPEN_SEATS`. A `count` already met is a no-op. Answers
+	 * the humans evicted, highest seat first. `AI_SEAT`/`CLOSED_SEAT` are not member ids, so the
+	 * default `memberSeats` view reads them as open same as any other non-member string — a room
+	 * type that wants its view to tell "AI"/"closed" from "open" gives itself its own `seatsView`
+	 * (same as Magic's pod view carries AI through `podAi`, a field of its own, not this one's).
+	 */
+	lowerSeatCapacity(roomId: string, memberId: string, count: number): LowerSeatCapacityResult<V> {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
+		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		const found = this.#seatRoom(roomId, memberId);
+		if ('refused' in found) return { ok: false, reason: found.refused };
+		const { room: r, hooks } = found;
+		if (hooks.fieldFixed?.(r) === true) return { ok: false, reason: 'historical' };
+		if (!Number.isInteger(count) || count < MIN_OPEN_SEATS) return { ok: false, reason: 'too-few' };
+		const { seats, evicted } = lowerCapacity(r.seats, count);
+		if (evicted.length === 0 && seats.every((s, i) => s === r.seats[i])) return { ok: true, room: this.view(r), evicted };
+		r.seats = seats;
+		hooks.trimSeats(r);
+		this.persist(r);
+		this.log({ event: 'seat-capacity-lowered', roomId, memberId, count, evicted: evicted.length });
+		hooks.seatsChanged?.(r);
+		return { ok: true, room: this.view(r), evicted };
+	}
+
+	/**
+	 * The leader puts the AI in `seat`, evicting whoever holds it first — a human to the spectator
+	 * row — instead of `aiSeat`'s refusal on an occupied seat. Already the AI's: a no-op.
+	 */
+	botReplacesHuman(roomId: string, memberId: string, seat: number): BotReplacesHumanResult<V> {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
+		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		const found = this.#seatRoom(roomId, memberId);
+		if ('refused' in found) return { ok: false, reason: found.refused };
+		const { room: r, hooks } = found;
+		if (hooks.fieldFixed?.(r) === true) return { ok: false, reason: 'historical' };
+		if (!this.#inReach(r, hooks, seat) || seat >= r.seats.length) return { ok: false, reason: 'bad-seat' };
+		const { seats, evicted } = replaceWithBot(r.seats, seat);
+		if (evicted === null && seats[seat] === r.seats[seat]) return { ok: true, room: this.view(r), evicted: null };
+		r.seats = seats;
+		hooks.aiSeated?.(r, seat, true);
+		hooks.trimSeats(r);
+		this.persist(r);
+		this.log({ event: 'seat-bot-replaced-human', roomId, memberId, seat, evicted: evicted !== null });
+		hooks.seatsChanged?.(r);
+		return { ok: true, room: this.view(r), evicted };
 	}
 
 	/**

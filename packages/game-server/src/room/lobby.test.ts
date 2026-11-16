@@ -51,9 +51,28 @@ const TOY_ROOM: RoomTypeHooks<ToyRoomGame, ToyInput> = {
 
 type ToyView = PlatformRoomView & { game: ToyRoomGame };
 
+/** Same toy, but up to four seats — big enough to prove the leader's atomic seat ops (wave 119 §S). */
+const TOY4 = 'toy4';
+const TOY4_ROOM: RoomTypeHooks<ToyRoomGame, ToyInput> = {
+	...TOY_ROOM,
+	seatCeiling: () => 4,
+	growSeats(room, seat) {
+		while (room.seats.length <= seat) room.seats = [...room.seats, null];
+	},
+	trimSeats(room) {
+		while (room.seats.length > 2 && room.seats.at(-1) === null) room.seats = room.seats.slice(0, -1);
+	},
+	// The default `memberSeats` reads any non-member string (the AI marker, a closed seat's) as
+	// open, which is right for a room that never shows them apart — this one wants its view to
+	// carry the markers verbatim, the way a real caller who needs to tell "AI"/"closed" from
+	// "open" in the generic view (not a game-specific field, as Magic's `podAi` does) would.
+	seatsView: (room) => [...room.seats],
+};
+
 const ALICE = { id: 'fk:aaaaaaaaaaaaaaaa', name: 'alice', userId: 'uid-alice' };
 const BOB = { id: 'fk:bbbbbbbbbbbbbbbb', name: 'bob', userId: 'uid-bob' };
 const CAROL = { id: 'fk:cccccccccccccccc', name: 'carol', userId: 'uid-carol' };
+const DAVE = { id: 'fk:dddddddddddddddd', name: 'dave', userId: 'uid-dave' };
 
 const dirs: string[] = [];
 afterAll(async () => {
@@ -65,7 +84,11 @@ async function openToyLobby(dir: string, now: () => number, log: (e: Record<stri
 		store: new FileRoomStore(dir),
 		now,
 		log,
-		typeOf: (gameType) => (gameType === TOY ? (TOY_ROOM as unknown as RoomTypeHooks<unknown, ToyInput>) : undefined),
+		typeOf: (gameType) => {
+			if (gameType === TOY) return TOY_ROOM as unknown as RoomTypeHooks<unknown, ToyInput>;
+			if (gameType === TOY4) return TOY4_ROOM as unknown as RoomTypeHooks<unknown, ToyInput>;
+			return undefined;
+		},
 		watchpartyRoom: { name: 'Toy table', gameType: TOY },
 	});
 	await lobby.open();
@@ -146,4 +169,95 @@ describe('a room of a game the platform alone hosts', () => {
 		expect(log.filter((e) => e.event === 'room-quarantined').map((e) => [e.roomId, e.reason])).toEqual([[bad.room.id, `codec: snapshot for room ${bad.room.id} is unreadable (codec): app codec threw: Error: app.game is invalid`]]);
 	});
 
+});
+
+/**
+ * The leader's three atomic seat ops (wave 119 §S): each evicts an occupant to the spectator row in
+ * the SAME call, which `sitSeat`/`aiSeat`/`closeSeat` cannot do (each of those refuses an occupied
+ * seat). Built on cardtable's own `GameSeats`, isolated here so a later swap to
+ * `@wolffm/rooms-protocol`'s own equivalents (once published) is this file's tests to re-point, not
+ * a redesign of the callers (`http/room-core.ts`'s HTTP routes, `room/lobby.ts`'s doc comment).
+ */
+describe("the leader's atomic seat ops: nobody is ever seatless and not a member (2026-11-02)", () => {
+	async function fourSeatRoom(): Promise<{ lobby: RoomLobby<ToyView, ToyInput>; id: string }> {
+		const dir = await mkdtemp(join(tmpdir(), 'cardtable-toy4-lobby-'));
+		dirs.push(dir);
+		const lobby = await openToyLobby(dir, () => 1_800_000_000_000);
+		const made = lobby.create(ALICE, { name: 'Four seats', gameType: TOY4 });
+		if (!made.ok) throw new Error('not made');
+		const id = made.room.id;
+		lobby.join(id, BOB);
+		lobby.join(id, CAROL);
+		lobby.join(id, DAVE);
+		lobby.sitSeat(id, BOB.id);
+		lobby.sitSeat(id, CAROL.id);
+		lobby.sitSeat(id, DAVE.id);
+		expect(lobby.get(id)?.seats).toEqual([ALICE.id, BOB.id, CAROL.id, DAVE.id]);
+		return { lobby, id };
+	}
+
+	it('roleOf: a seated member plays, an unseated one watches, an outsider is neither', async () => {
+		const { lobby, id } = await fourSeatRoom();
+		expect(lobby.roleOf(id, ALICE.id)).toBe('player');
+		lobby.standSeat(id, ALICE.id);
+		expect(lobby.roleOf(id, ALICE.id)).toBe('spectator');
+		expect(lobby.roleOf(id, 'fk:nobody0000000000')).toBeUndefined();
+		expect(lobby.roleOf('r-nosuchroom00', ALICE.id)).toBeUndefined();
+	});
+
+	it('subPlaceOf: a room type with no idea of a sub-place answers false for every key, and for no such room', async () => {
+		const { lobby, id } = await fourSeatRoom();
+		expect(lobby.subPlaceOf(id, 'anything')).toBe(false);
+		expect(lobby.subPlaceOf('r-nosuchroom00', 'anything')).toBe(false);
+	});
+
+	it("removeFromSeat: the leader evicts a seated member to the spectator row; they stay a member; idempotent; refused for a non-leader or a non-member target", async () => {
+		const { lobby, id } = await fourSeatRoom();
+		expect(lobby.removeFromSeat(id, ALICE.id, BOB.id)).toMatchObject({ ok: true });
+		expect(lobby.roleOf(id, BOB.id)).toBe('spectator');
+		expect(lobby.isMember(id, BOB.id)).toBe(true);
+		expect(lobby.get(id)?.seats).toEqual([ALICE.id, null, CAROL.id, DAVE.id]);
+		// Idempotent: Bob already holds no seat.
+		expect(lobby.removeFromSeat(id, ALICE.id, BOB.id)).toMatchObject({ ok: true });
+		// Only the leader may do this.
+		expect(lobby.removeFromSeat(id, CAROL.id, DAVE.id)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.get(id)?.seats).toEqual([ALICE.id, null, CAROL.id, DAVE.id]);
+		// The target must be a member.
+		expect(lobby.removeFromSeat(id, ALICE.id, 'fk:nobody0000000000')).toEqual({ ok: false, reason: 'target-not-member' });
+	});
+
+	it('lowerSeatCapacity: the leader closes seats from the top, evicting occupants first; never below MIN_OPEN_SEATS; idempotent once met', async () => {
+		const { lobby, id } = await fourSeatRoom();
+		const result = lobby.lowerSeatCapacity(id, ALICE.id, 2);
+		expect(result.ok).toBe(true);
+		if (!result.ok) throw new Error('unreachable');
+		// Highest seat (Dave) evicted first, then Carol.
+		expect(result.evicted).toEqual([DAVE.id, CAROL.id]);
+		expect(lobby.get(id)?.seats).toEqual([ALICE.id, BOB.id, 'closed', 'closed']);
+		expect(lobby.roleOf(id, DAVE.id)).toBe('spectator');
+		expect(lobby.roleOf(id, CAROL.id)).toBe('spectator');
+		expect(lobby.isMember(id, DAVE.id)).toBe(true);
+		// Already met: a no-op, nothing further evicted.
+		expect(lobby.lowerSeatCapacity(id, ALICE.id, 2)).toEqual({ ok: true, room: lobby.get(id), evicted: [] });
+		// Never below MIN_OPEN_SEATS (2).
+		expect(lobby.lowerSeatCapacity(id, ALICE.id, 1)).toEqual({ ok: false, reason: 'too-few' });
+		// Only the leader.
+		const { lobby: lobby2, id: id2 } = await fourSeatRoom();
+		expect(lobby2.lowerSeatCapacity(id2, BOB.id, 2)).toEqual({ ok: false, reason: 'not-leader' });
+	});
+
+	it("botReplacesHuman: the leader puts the AI in a seat, evicting its human occupant first; idempotent once the AI holds it; bad-seat out of range", async () => {
+		const { lobby, id } = await fourSeatRoom();
+		const result = lobby.botReplacesHuman(id, ALICE.id, 2);
+		expect(result).toMatchObject({ ok: true, evicted: CAROL.id });
+		expect(lobby.get(id)?.seats).toEqual([ALICE.id, BOB.id, 'ai', DAVE.id]);
+		expect(lobby.roleOf(id, CAROL.id)).toBe('spectator');
+		expect(lobby.isMember(id, CAROL.id)).toBe(true);
+		// Idempotent: the AI already holds seat 2.
+		expect(lobby.botReplacesHuman(id, ALICE.id, 2)).toEqual({ ok: true, room: lobby.get(id), evicted: null });
+		// Out of range.
+		expect(lobby.botReplacesHuman(id, ALICE.id, 99)).toEqual({ ok: false, reason: 'bad-seat' });
+		// Only the leader.
+		expect(lobby.botReplacesHuman(id, DAVE.id, 1)).toEqual({ ok: false, reason: 'not-leader' });
+	});
 });

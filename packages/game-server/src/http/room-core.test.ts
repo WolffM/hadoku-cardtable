@@ -1,0 +1,256 @@
+/**
+ * The leader's three atomic seat-op routes (wave 119 §S: remove a seated member, lower seat
+ * capacity, replace a human with the AI), through a REAL express app and a real `RoomLobby` on a
+ * toy room type — no Magic import, same discipline as `room/lobby.test.ts`'s own toy fixture, so
+ * this proves the GENERIC route wiring (status codes, leader-only, rate limit) rather than
+ * anything Magic-specific. Magic's own `http/rooms.ts`/`rooms.test.ts` (not this lane's) cover the
+ * same routes mounted for real pods.
+ */
+import express from 'express';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { createServer, type Server as HttpServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { FileRoomStore } from '@wolffm/rooms-server/store';
+
+import { NO_BUSY_HOOK } from '../room/room-list.ts';
+import type { PlatformRoomView, RoomCreateInput, RoomTypeHooks } from '../room/lobby.ts';
+import type { RoomCoreWire } from './room-core.ts';
+
+const EDGE_SECRET = 'test-edge-auth-secret';
+
+/*
+ * `config.ts`/`kernel.ts` read `EDGE_AUTH_SECRET` once, at import time — so `room-core.ts` (which
+ * imports `edge-auth.ts`) and `room/lobby.ts` must be imported AFTER it is set, same discipline as
+ * `room/serve.test.ts`. A static top-level import of either would load `edge-auth.ts` at file-parse
+ * time, before this file's own `beforeAll` runs.
+ */
+let edgeMod: typeof import('../edge-auth.ts');
+let identityMod: typeof import('../room/identity.ts');
+let lobbyMod: typeof import('../room/lobby.ts');
+let roomCoreMod: typeof import('./room-core.ts');
+
+beforeAll(async () => {
+	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
+	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
+	vi.resetModules();
+	edgeMod = await import('../edge-auth.ts');
+	identityMod = await import('../room/identity.ts');
+	lobbyMod = await import('../room/lobby.ts');
+	roomCoreMod = await import('./room-core.ts');
+});
+
+function edgeHeaders(userKey: string): Record<string, string> {
+	return { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': 'friend', 'x-user-id': `user-${userKey}`, 'x-user-key': `friend-key-${userKey}` };
+}
+
+function participantIdFor(userKey: string): string {
+	return identityMod.identityFromHeaders(edgeHeaders(userKey) as unknown as Parameters<typeof identityMod.identityFromHeaders>[0], 'unused');
+}
+
+/** A toy room type with four seats, big enough to prove the leader's seat ops. */
+const TOY = 'toy';
+interface ToyGame {
+	played: number;
+}
+type ToyView = PlatformRoomView & { game: ToyGame };
+const TOY_ROOM: RoomTypeHooks<ToyGame, RoomCreateInput> = {
+	newGame: () => ({ seats: [null, null], game: { played: 0 } }),
+	encode: (room) => ({ ...room.game }),
+	decode: (app) => ({ seats: Array.isArray(app.seats) ? [...(app.seats as (string | null)[])] : [null, null], game: { played: 0 } }),
+	restore: () => ({ dropHolds: false, game: () => ({ played: 0 }) }),
+	view: (room) => ({ game: { ...room.game } }),
+	// The generic default `memberSeats` reads `AI_SEAT`/`CLOSED_SEAT` as open; this fixture wants
+	// its view to carry them verbatim, same reasoning as `room/lobby.test.ts`'s own TOY4 fixture.
+	seatsView: (room) => [...room.seats],
+	busy: NO_BUSY_HOOK,
+	liveMatches: () => [],
+	usesSeats: () => true,
+	seatsFixed: () => false,
+	seatCeiling: () => 4,
+	growSeats(room, seat) {
+		while (room.seats.length <= seat) room.seats = [...room.seats, null];
+	},
+	trimSeats(room) {
+		while (room.seats.length > 2 && room.seats.at(-1) === null) room.seats = room.seats.slice(0, -1);
+	},
+};
+
+function body<T>(check: (v: unknown) => v is T): RoomCoreWire<T, never>['createRoomBody'] {
+	return { safeParse: (v) => (check(v) ? { success: true, data: v } : { success: false, error: { issues: [{ code: 'invalid_type', path: [], message: 'bad body' }] } }) };
+}
+const EMPTY_BODY = body((v): v is object => typeof v === 'object' && v !== null);
+const CREATE_BODY = body((v): v is { name: string; gameType: string } => typeof v === 'object' && v !== null && typeof (v as { name?: unknown }).name === 'string' && typeof (v as { gameType?: unknown }).gameType === 'string');
+const JOIN_BODY = body((v): v is { password?: string } => typeof v === 'object' && v !== null);
+const READY_BODY = body((v): v is { ready: boolean } => typeof v === 'object' && v !== null && typeof (v as { ready?: unknown }).ready === 'boolean');
+const WATCHPARTY_BODY = body((v): v is { room: string } => typeof v === 'object' && v !== null && typeof (v as { room?: unknown }).room === 'string');
+
+const ROOM_ID_RE = /^r-[0-9a-z]+$/;
+
+/** The real `RoomLobby<ToyView, RoomCreateInput>`, loaded only after `EDGE_AUTH_SECRET` is set. */
+type ToyLobby = import('../room/lobby.ts').RoomLobby<ToyView, RoomCreateInput>;
+
+/**
+ * `LobbyCore` (room-core.ts's own interface) also wants `roomOfMatch`/`setGameType` — Magic's own
+ * additions, not the generic `RoomLobby`'s. Neither route under test here touches them; this
+ * wraps the real lobby's own methods (so `h.lobby` in a test is still the full `RoomLobby`) with
+ * the narrowest stand-in for the two `attachRoomCore` structurally needs but never calls here.
+ */
+function asLobbyCore(lobby: ToyLobby): import('./room-core.ts').LobbyCore<ToyView, RoomCreateInput> {
+	return {
+		get: lobby.get.bind(lobby),
+		offered: lobby.offered.bind(lobby),
+		isMember: lobby.isMember.bind(lobby),
+		create: lobby.create.bind(lobby),
+		join: lobby.join.bind(lobby),
+		setReady: lobby.setReady.bind(lobby),
+		touch: lobby.touch.bind(lobby),
+		leave: lobby.leave.bind(lobby),
+		close: lobby.close.bind(lobby),
+		bindWatchparty: lobby.bindWatchparty.bind(lobby),
+		roomOfMatch: () => undefined,
+		setGameType: () => ({ ok: false, reason: 'not-supported' }),
+		removeFromSeat: lobby.removeFromSeat.bind(lobby),
+		lowerSeatCapacity: lobby.lowerSeatCapacity.bind(lobby),
+		botReplacesHuman: lobby.botReplacesHuman.bind(lobby),
+	};
+}
+
+interface Harness {
+	port: number;
+	lobby: ToyLobby;
+	close: () => Promise<void>;
+}
+
+const dirs: string[] = [];
+let http: HttpServer | undefined;
+
+async function boot(): Promise<Harness> {
+	const dir = await mkdtemp(join(tmpdir(), 'w119s-room-core-test-'));
+	dirs.push(dir);
+	const lobby = new lobbyMod.RoomLobby<ToyView, RoomCreateInput>({
+		store: new FileRoomStore(dir),
+		now: () => Date.now(),
+		log: () => undefined,
+		typeOf: (t) => (t === TOY ? (TOY_ROOM as unknown as RoomTypeHooks<unknown, RoomCreateInput>) : undefined),
+		watchpartyRoom: { name: 'wp', gameType: TOY },
+	});
+	await lobby.open();
+
+	const app = express();
+	app.use(edgeMod.edgeProvenance);
+	app.use(edgeMod.requireMinTier);
+	const api = express.Router();
+	api.use(express.json());
+	roomCoreMod.attachRoomCore(api, {
+		lobby: asLobbyCore(lobby),
+		wire: {
+			roomIdRe: ROOM_ID_RE,
+			createRoomBody: CREATE_BODY,
+			joinRoomBody: JOIN_BODY,
+			readyBody: READY_BODY,
+			emptyBody: EMPTY_BODY,
+			watchpartyBindBody: WATCHPARTY_BODY,
+			patchRoomBody: EMPTY_BODY as unknown as RoomCoreWire<never, never>['patchRoomBody'],
+		},
+	});
+	app.use('/api', api);
+	http = createServer(app);
+	await new Promise<void>((done) => http!.listen(0, '127.0.0.1', done));
+	return {
+		port: (http.address() as AddressInfo).port,
+		lobby,
+		close: () => new Promise<void>((done) => http!.close(() => done())),
+	};
+}
+
+async function post(h: Harness, path: string, headers: Record<string, string>, bodyJson: unknown): Promise<{ status: number; json: Record<string, unknown> }> {
+	const res = await fetch(`http://127.0.0.1:${h.port}/api/rooms${path}`, { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(bodyJson) });
+	return { status: res.status, json: (await res.json()) as Record<string, unknown> };
+}
+
+afterEach(async () => {
+	await http?.close();
+	http = undefined;
+});
+afterAll(async () => {
+	for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
+});
+
+describe('the leader’s seat-op routes', () => {
+	/** Alice (seat 0) leads; Bob sits explicitly at seat 3, so the room grows to four seats with two held in the middle open — the shape the capacity op has to evict past, not just truncate. */
+	async function fourSeatRoom(h: Harness): Promise<{ id: string; alice: string; bob: string }> {
+		const alice = participantIdFor('alice');
+		const bob = participantIdFor('bob');
+		const made = h.lobby.create({ id: alice, name: 'alice', userId: 'u-alice' }, { name: 'room', gameType: TOY });
+		if (!made.ok) throw new Error('not made');
+		h.lobby.join(made.room.id, { id: bob, name: 'bob', userId: 'u-bob' });
+		// `sitSeat` only ever grows the room one seat past its current length, so Bob (auto-seated
+		// at 1 on joining) walks forward a seat at a time to reach 3, growing the room with him.
+		expect(h.lobby.sitSeat(made.room.id, bob, 2)).toMatchObject({ ok: true });
+		expect(h.lobby.sitSeat(made.room.id, bob, 3)).toMatchObject({ ok: true });
+		expect(h.lobby.get(made.room.id)?.seats).toEqual([alice, null, null, bob]);
+		return { id: made.room.id, alice, bob };
+	}
+
+	it('POST /:id/seats/remove: the leader evicts a seated member; a non-leader is refused 403', async () => {
+		const h = await boot();
+		try {
+			const { id, bob } = await fourSeatRoom(h);
+			const refused = await post(h, `/${id}/seats/remove`, edgeHeaders('bob'), { memberId: bob });
+			expect(refused.status).toBe(403);
+			const ok = await post(h, `/${id}/seats/remove`, edgeHeaders('alice'), { memberId: bob });
+			expect(ok.status).toBe(200);
+			// `trimSeats` drops the now-trailing-null seats back to the room's floor of two.
+			expect(ok.json.seats).toEqual([h.lobby.get(id)?.members[0]?.id, null]);
+			expect(h.lobby.roleOf(id, bob)).toBe('spectator');
+			expect(h.lobby.isMember(id, bob)).toBe(true);
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('POST /:id/seats/capacity: the leader shrinks the room, evicting from the top; never below two seats', async () => {
+		const h = await boot();
+		try {
+			const { id, alice, bob } = await fourSeatRoom(h);
+			const lowered = await post(h, `/${id}/seats/capacity`, edgeHeaders('alice'), { count: 2 });
+			expect(lowered.status).toBe(200);
+			expect(lowered.json.evicted).toEqual([bob]);
+			expect(h.lobby.roleOf(id, bob)).toBe('spectator');
+			const tooFew = await post(h, `/${id}/seats/capacity`, edgeHeaders('alice'), { count: 1 });
+			expect(tooFew.status).toBe(400);
+			void alice;
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('POST /:id/seats/bot: the leader replaces a seated human with the AI', async () => {
+		const h = await boot();
+		try {
+			const { id, bob } = await fourSeatRoom(h);
+			const result = await post(h, `/${id}/seats/bot`, edgeHeaders('alice'), { seat: 3 });
+			expect(result.status).toBe(200);
+			expect(result.json.evicted).toBe(bob);
+			expect(result.json.seats).toEqual([h.lobby.get(id)?.members[0]?.id, null, null, 'ai']);
+			expect(h.lobby.roleOf(id, bob)).toBe('spectator');
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('is rate-limited per caller', async () => {
+		const h = await boot();
+		try {
+			const { id, bob } = await fourSeatRoom(h);
+			let last: { status: number } = { status: 200 };
+			for (let i = 0; i < 11; i++) last = await post(h, `/${id}/seats/remove`, edgeHeaders('alice'), { memberId: bob });
+			expect(last.status).toBe(429);
+		} finally {
+			await h.close();
+		}
+	});
+});

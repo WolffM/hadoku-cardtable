@@ -54,7 +54,65 @@ export interface LobbyCore<V extends RoomViewCore, C> {
 	bindWatchparty(caller: CallerLike, watchpartyRoom: string): { ok: true; room: V } | { ok: false };
 	roomOfMatch(matchId: string): V | undefined;
 	setGameType(roomId: string, callerId: string, gameType: string): { ok: true; room: V } | { ok: false; reason: string };
+	/**
+	 * The leader's three atomic seat ops (wave 119 §S; `room/lobby.ts`'s own docs on each): remove a
+	 * seated member, lower the seat count under occupants, replace a human with the AI — each
+	 * evicts its occupant to the spectator row in the same call. `string` reasons rather than a
+	 * union: this file never names the real ones (`RemoveFromSeatResult` et al.), only maps whatever
+	 * comes back to a status code below.
+	 */
+	removeFromSeat(roomId: string, callerId: string, targetId: string): { ok: true; room: V } | { ok: false; reason: string };
+	lowerSeatCapacity(roomId: string, callerId: string, count: number): { ok: true; room: V; evicted: readonly string[] } | { ok: false; reason: string };
+	botReplacesHuman(roomId: string, callerId: string, seat: number): { ok: true; room: V; evicted: string | null } | { ok: false; reason: string };
 }
+
+/** A `BodySchema<T>` with no dependency the way `RoomCoreWire`'s injected ones have — this file imports no zod, no `@hadoku/shared`. */
+function field<T>(check: (v: unknown) => v is T, message: string): { safeParse(body: unknown): { success: true; data: T } | { success: false; error: { issues: { code: string; path: readonly PropertyKey[]; message: string }[] } } } {
+	return {
+		safeParse(body) {
+			if (check(body)) return { success: true, data: body };
+			return { success: false, error: { issues: [{ code: 'invalid_type', path: [], message }] } };
+		},
+	};
+}
+
+const removeFromSeatBody = field((v): v is { memberId: string } => typeof v === 'object' && v !== null && typeof (v as { memberId?: unknown }).memberId === 'string', 'memberId must be a string');
+const lowerCapacityBody = field((v): v is { count: number } => typeof v === 'object' && v !== null && Number.isInteger((v as { count?: unknown }).count), 'count must be an integer');
+const botReplacesHumanBody = field((v): v is { seat: number } => typeof v === 'object' && v !== null && Number.isInteger((v as { seat?: unknown }).seat), 'seat must be an integer');
+
+/** Every one of the leader's three seat ops' own refusal, mapped to a status. `'no-room'`/`no such room` reuses the create/join answer on purpose: never telling a non-member whether a room id exists. */
+function seatOpStatus(res: Response, reason: string): void {
+	if (reason === 'no-room') return noMatch(res);
+	if (reason === 'not-member' || reason === 'target-not-member') return noMatch(res);
+	if (reason === 'not-leader') {
+		res.status(403).json({ error: 'only the room leader can do that' });
+		return;
+	}
+	if (reason === 'not-draft' || reason === 'not-lobby') {
+		res.status(409).json({ error: 'this room does not seat through game seats, or its seats are fixed right now' });
+		return;
+	}
+	if (reason === 'historical') {
+		res.status(409).json({ error: 'a historical room’s field is the event’s, not the leader’s to change' });
+		return;
+	}
+	if (reason === 'too-few') {
+		res.status(400).json({ error: 'a room always keeps at least two seats open' });
+		return;
+	}
+	if (reason === 'bad-seat') {
+		res.status(400).json({ error: 'not a seat this room has' });
+		return;
+	}
+	res.status(400).json({ error: reason });
+}
+
+/** Every one of the leader's three seat ops, per caller: a burst of 10, then one every 10 s — the same shape as a join attempt, spent only by a leader who is actually a member of the room (checked before this is asked). */
+export const SEAT_OP_RATE_LIMIT: RateLimitConfig = {
+	capacity: 10,
+	refillAmount: 1,
+	refillIntervalMs: 10_000,
+};
 
 /** The request-body schemas and the room-id shape, injected rather than imported: the real values live in a Magic-resolved package. */
 export interface RoomCoreWire<C, P extends object> {
@@ -155,6 +213,7 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 	const log = deps.log ?? jsonLogger('cardtable-rooms');
 	const now = deps.now ?? Date.now;
 	const joinLimiter = new MultiRateLimiter<string>(deps.joinRateLimit ?? JOIN_RATE_LIMIT);
+	const seatOpLimiter = new MultiRateLimiter<string>(SEAT_OP_RATE_LIMIT);
 
 	const roomBody = (room: V, callerId: string): RoomBody<V, G> => {
 		const mine = room.members.find((m) => m.id === callerId);
@@ -313,6 +372,52 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		deps.closed?.(id, result.matches);
 		deps.reseedTesting?.();
 		res.json({ ok: true });
+	});
+
+	/** The leader's own rate limit, spent whether the op succeeds or is refused for any reason but a bad body — a flood of refusals is still a flood. */
+	const seatOpLimit = (req: Request, res: Response): boolean => {
+		const caller = callerOf(req);
+		if (seatOpLimiter.allow(caller.id, 1, now())) return true;
+		log({ event: 'seat-op-refused', reason: 'rate-limited' });
+		res.setHeader('Retry-After', String(Math.ceil(SEAT_OP_RATE_LIMIT.refillIntervalMs / 1000)));
+		res.status(429).json({ error: 'too many seat changes; wait a little and try again' });
+		return false;
+	};
+
+	// The leader removes a seated member to the spectator row (wave 119 §S).
+	rooms.post('/:id/seats/remove', (req: Request, res: Response) => {
+		const body = parseBody(removeFromSeatBody, req, res);
+		if (body === null || !seatOpLimit(req, res)) return;
+		const caller = callerOf(req);
+		const id = String(req.params.id);
+		if (!wire.roomIdRe.test(id)) return noMatch(res);
+		const result = lobby.removeFromSeat(id, caller.id, body.memberId);
+		if (!result.ok) return seatOpStatus(res, result.reason);
+		res.json(roomBody(result.room, caller.id));
+	});
+
+	// The leader lowers the seat count, evicting whoever holds a seat past it (wave 119 §S).
+	rooms.post('/:id/seats/capacity', (req: Request, res: Response) => {
+		const body = parseBody(lowerCapacityBody, req, res);
+		if (body === null || !seatOpLimit(req, res)) return;
+		const caller = callerOf(req);
+		const id = String(req.params.id);
+		if (!wire.roomIdRe.test(id)) return noMatch(res);
+		const result = lobby.lowerSeatCapacity(id, caller.id, body.count);
+		if (!result.ok) return seatOpStatus(res, result.reason);
+		res.json({ ...roomBody(result.room, caller.id), evicted: result.evicted });
+	});
+
+	// The leader puts the AI in a seat, evicting its human occupant first (wave 119 §S).
+	rooms.post('/:id/seats/bot', (req: Request, res: Response) => {
+		const body = parseBody(botReplacesHumanBody, req, res);
+		if (body === null || !seatOpLimit(req, res)) return;
+		const caller = callerOf(req);
+		const id = String(req.params.id);
+		if (!wire.roomIdRe.test(id)) return noMatch(res);
+		const result = lobby.botReplacesHuman(id, caller.id, body.seat);
+		if (!result.ok) return seatOpStatus(res, result.reason);
+		res.json({ ...roomBody(result.room, caller.id), evicted: result.evicted });
 	});
 
 	/**

@@ -1,11 +1,13 @@
 /**
- * Cardtable's rooms, served here (`room/serve.ts`): the chrome's room socket, on the same `io` the
- * draft socket and the room feed use. `sockets` phase: it reads `state.lobby` and the one tracker
- * (`rooms`, `stores` phase), `state.people` (`routes` phase) and `state.play` (`play`, before it).
+ * Cardtable's rooms, served here (`@hadoku/game-server/room/serve`, moved there from
+ * `room/serve.ts` in wave 119 §S): the chrome's room socket, on the same `io` the draft socket and
+ * the room feed use. `sockets` phase: it reads `state.lobby` and the one tracker (`rooms`,
+ * `stores` phase), `state.people` (`routes` phase) and `state.play` (`play`, before it).
  */
 import { join } from 'node:path';
 import { CONFIG } from '@hadoku/game-server/config';
-import { attachServedRoom } from '../room/serve.js';
+import { attachServedRoom } from '@hadoku/game-server/room/serve';
+import { ROOM_ID_RE } from '@hadoku/shared';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { CardtablePlugin } from './state.js';
 
@@ -23,6 +25,8 @@ export const roomPlugin: CardtablePlugin = {
 			isMatch: (id) => state.play?.matches.find(id) !== undefined,
 			minTier: CONFIG.minTier,
 			stateDir: () => join(CONFIG.dataDir, 'chat'),
+			appId: 'cardtable',
+			roomIdRe: ROOM_ID_RE,
 			onEvent: (level, event, fields) => logRoom({ evt: event, level, ...fields }),
 		});
 		ctx.bootPhase('room');

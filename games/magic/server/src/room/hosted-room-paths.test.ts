@@ -11,9 +11,10 @@ import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { registerGameType, type ParticipantId } from '@hadoku/shared';
+import { registerGameType, ROOM_ID_RE, type ParticipantId } from '@hadoku/shared';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { playsIn } from '@hadoku/game-server/room/session';
+import { placeOfKey } from '@hadoku/game-server/room/serve';
 import type { TablesLibrary } from '../http/library.ts';
 import { seatsOf } from '../http/preview.ts';
 import { attachTables, type TablesHandle } from '../http/routes.ts';
@@ -21,7 +22,6 @@ import { attachTableActions } from '../http/table-actions.ts';
 import { tableGamesOf } from '../play/table-game.ts';
 import { openLobby, type Lobby, type RoomView } from './lobby.ts';
 import { magicView } from './magic-view.ts';
-import { placeOfKey } from './serve.ts';
 
 registerGameType({ id: 'hosted-paths-game', seats: { min: 1, max: 4 }, ready: false, series: { length: 1 }, canStart: () => ({ ok: true }) });
 
@@ -99,8 +99,8 @@ describe('a room of a game Magic does not play, through Magic’s readers', () =
 	});
 
 	it('serve: its key is the room, and nothing after it is a table', () => {
-		expect(placeOfKey(lobby, () => false, `cardtable-${hosted.id}`)).toEqual({ served: hosted.id, roomId: hosted.id, kind: 'room' });
-		expect(placeOfKey(lobby, () => false, `cardtable-${hosted.id}-t-anything`)).toBeNull();
+		expect(placeOfKey(lobby, () => false, 'cardtable', `cardtable-${hosted.id}`, ROOM_ID_RE)).toEqual({ served: hosted.id, roomId: hosted.id, kind: 'room' });
+		expect(placeOfKey(lobby, () => false, 'cardtable', `cardtable-${hosted.id}-t-anything`, ROOM_ID_RE)).toBeNull();
 	});
 
 	it('a table’s concede: no room here', async () => {
