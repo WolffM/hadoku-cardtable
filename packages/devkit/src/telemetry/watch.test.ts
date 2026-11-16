@@ -200,25 +200,28 @@ describe('the member battletest', () => {
 	const firstSeen = (hhmm: string, userId: string, site = 'ppe') =>
 		ev(at(hhmm), 'caller-first-seen', 'info', { site, userId, tier: 'member', ua: 'HeadlessChrome' });
 	const suite = ['a1', 'a2', 'a3'];
+	// Real accounts are UUIDs (hadoku_site's identity model), and so are the two people here.
+	const PERSON = '7d0c2f4e-5a1b-4c3d-8e9f-0a1b2c3d4e5f';
+	const OTHER = '2b9e8d7c-6f5a-4e3d-9c2b-1a0f9e8d7c6b';
 	const EVENTS_BT: Event[] = [
 		...suite.map((id, i) => firstSeen(`09:5${i}`, id)),
 		ev(at('09:51'), 'costly-act', 'info', { site: 'ppe', act: 'page-load', tier: 'member', userId: 'a1' }),
 		// A person who signed up during the run, from home.
-		firstSeen('09:55', 'person'),
+		firstSeen('09:55', PERSON),
 	];
 	const ROWS_BT: Row[] = [
 		...suite.map((id, i) => row(at(`09:5${i}`), '/cardtable-ppe/', { user_id: id, ip_address: RUNNER })),
 		// The suite's own page load on prod, whose art requests the edge refused once its account was deleted.
 		row(at('09:52'), '/cardtable/api/art/0b7c5c1e-3d8a-4c55-9f3e-6a1b2c3d4e5f', { status: 401, backend: 'auth', user_id: null, user_type: 'public', ip_address: RUNNER }),
-		row(at('09:55'), '/cardtable-ppe/', { user_id: 'person', ip_address: '203.0.113.*' }),
+		row(at('09:55'), '/cardtable-ppe/', { user_id: PERSON, ip_address: '203.0.113.*' }),
 		// The runner's address outside a run is somebody's traffic.
-		row(at('15:00'), '/cardtable/api/rooms', { user_id: 'other', ip_address: RUNNER }),
+		row(at('15:00'), '/cardtable/api/rooms', { user_id: OTHER, ip_address: RUNNER }),
 	];
 
 	it("sets aside its accounts and its address's requests inside a run, and keeps a person who signed up meanwhile", () => {
 		const s = summarise(APP, ROWS_BT, EVENTS_BT, '198.51.100.*', at('00:00'), null, [], runs);
 		expect(s.battletest).toEqual({ runs: 1, accounts: 3, ips: [RUNNER], requests: 4, events: 4, error: null });
-		expect(s.sites.ppe.newAccounts.map((a) => a.userId)).toEqual(['person']);
+		expect(s.sites.ppe.newAccounts.map((a) => a.userId)).toEqual([PERSON]);
 		expect(s.sites.ppe.requests).toBe(1);
 		expect(s.sites.ppe.costlyActs).toEqual([]);
 		expect(s.sites.prod.requests).toBe(1);

@@ -137,8 +137,10 @@ jobs:
         if: always()
         uses: WolffM/hadoku-actions/report-job@v1
         with:
-          # service-kernel keeps the name the fleet's ci-watch already covers.
-          job-name: ${{ matrix.package == 'service-kernel' && 'cardtable:publish-kernel' || format('cardtable:publish-{0}', matrix.package) }}
+          # The `cardtable:` prefix is literal, so hadoku_site's check:report-coverage can read the
+          # worker off the file. service-kernel keeps the name the fleet's ci-watch already
+          # covers (cardtable:publish-kernel); the rest are cardtable:publish-<package>.
+          job-name: cardtable:publish-${{ matrix.package == 'service-kernel' && 'kernel' || matrix.package }}
           service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
           started-at: ${{ env.JOB_STARTED_AT }}
 
