@@ -6,9 +6,10 @@ across about ten weeks, most of it in service of one of five shifts.
 ## The whole plan, one commit
 
 The first commit (`7a2108d`, 2026-09-11) scaffolded the whole approach before
-a line of game logic existed: a fork of Forge (the open-source Magic rules
-engine) vendored in as a git submodule, plus a Node room layer built on a
-private companion repo's existing room, chat and presence code. The design
+a line of game logic existed. It vendored in a fork of Forge (the
+open-source Magic rules engine) as a git submodule, plus a Node room layer
+built on a private companion repo's existing room, chat and presence code.
+The design
 argument — keep Forge's own server-authoritative model, and replace only the
 transport at the one seam Forge had already drawn for a remote GUI — is
 [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md), written the same day and
@@ -17,13 +18,14 @@ unchanged in shape since.
 ## The card library grows backward
 
 Through late September and October, a run of large commits pulled Magic's
-own competitive history into the deck library one era at a time: the
-power-era Standard decks of 2008–2016 (`7029898`), a format picker splitting
-Standard, Modern and Legacy with Modern and Legacy history pulled from
-Forge's own archive (`3490bc8`), Standard pushed back to 1995's Type 2 and
-Modern to 2011 (`446ba8f`), and finally the whole library brought forward to
-Pro Tour 2025's summer in one 1.19-million-line commit (`f13ed39`,
-2026-10-16) — still the single largest commit in the repo's history.
+own competitive history into the deck library one era at a time. First came
+the power-era Standard decks of 2008–2016 (`7029898`). Then a format picker
+split Standard, Modern and Legacy apart, with Modern and Legacy history
+pulled from Forge's own archive (`3490bc8`). Standard then reached back to
+1995's Type 2, and Modern to 2011 (`446ba8f`). Finally, one
+1.19-million-line commit brought the whole library forward to Pro Tour
+2025's summer (`f13ed39`, 2026-10-16) — still the single largest commit in
+the repo's history.
 
 ## Going public, then free
 
@@ -41,12 +43,13 @@ could sign up and never read `NOTICE.md` on their own (`aeb431a93`,
 
 ## A bot joins the draft
 
-On the morning of 2026-11-06, a private companion repo vendoring a
-third-party neural draft-rating model was measured for cost inside this
-server (`138e8f911`) and then on a lighter WASM backend (`61ae017a2`,
-15 ms per pod's pick round, no native dependency) — and wired into live
-drafts as the bots' first choice, with the existing heuristic kept as a
-fallback, 49 minutes after the first measurement (`7b2be16fc`). See
+On the morning of 2026-11-06, a private companion repo's third-party
+neural draft-rating model was measured for cost inside this server
+(`138e8f911`), then re-measured on a lighter WASM backend (`61ae017a2`:
+15 ms per pod's pick round, no native dependency). It was wired into live
+drafts as the bots' first choice just 49 minutes after the first
+measurement, with the existing heuristic kept as a fallback (`7b2be16fc`).
+See
 [features.md#cube-drafting](features.md#cube-drafting) for how a draft
 chooses between the two today.
 

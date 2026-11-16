@@ -26,8 +26,11 @@ depth.
 
 ## How it fits together
 
-```
-browser (member tier) ─► hadoku.me/cardtable/ ─► apps/server (Node, room layer) ─► forge/ (headless JVM, the rules)
+```mermaid
+flowchart LR
+    Browser["Browser (member tier)"] --> Edge["hadoku.me/cardtable/"]
+    Edge --> Server["apps/server (Node, room layer)"]
+    Server --> Forge["forge/ (headless JVM, the rules)"]
 ```
 
 - **Two processes on purpose.** The Node side never has to understand
@@ -36,9 +39,9 @@ browser (member tier) ─► hadoku.me/cardtable/ ─► apps/server (Node, room
   Forge already factors "a player whose GUI lives elsewhere" into one class
   (`RemoteClientGuiGame`), so a browser client is that, wired through JSON
   instead of Java serialization.
-- **Magic's own code lives under `games/magic/`** — packages for card data,
+- **Magic's own code lives under `games/magic/`**: packages for card data,
   decks and drafts, `server/` for the bridge and rooms, `ui/` for the board,
-  draft and deck screens — moved there from `apps/server` and `apps/ui` to
+  draft and deck screens. It moved there from `apps/server` and `apps/ui` to
   leave room for more than one small game on the same room layer
   (`6f0c583`, `1c1ee38a4`, `8793ca5`; see
   [history.md#magic-moves-home](history.md#magic-moves-home)).

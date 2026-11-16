@@ -24,8 +24,8 @@ Each fact names the commit it comes from.
   any member (`8d25176d8`, 2026-10-30) was live in production
   (`b000d90f1`) by 2026-11-02.
 - **The longest subject line.** `285e2c2`'s subject is 688 characters
-  (`git show -s --format=%s 285e2c2 | wc -m`; fact sheet, 2026-11-16) — one
-  sentence specifying the exact physics of one punch animation: windup,
+  (`git show -s --format=%s 285e2c2 | wc -m`; fact sheet, 2026-11-16). It is
+  one sentence specifying the exact physics of one punch animation: windup,
   exponential charge curve, and how it is journaled when it hits a
   planeswalker instead of a creature.
 - **A miscounted enum.** An unanchored `grep -c 'Mode\.'` over Forge's

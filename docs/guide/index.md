@@ -9,7 +9,7 @@ features:
   - name: Cube drafting
     summary: "Draft a cube with up to eight seats; any empty seat is filled by a bot."
   - name: Hosting a draft
-    summary: "Pick a cube, a seat count and a pack timer, then open the pod."
+    summary: "Pick a cube and a pick timer, then let the pod's eight seats fill."
   - name: Playing a match
     summary: "Play a drafted or constructed deck against a friend or against Forge's own AI."
   - name: The deck library
@@ -43,6 +43,8 @@ on a private companion repo's room, chat and presence code, owns everything
 above a single match: lobbies, pods, presence, chat.
 [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) has the full design and the seam
 in Forge's own code that makes a browser client possible at all.
+
+![Card Table's Rooms panel: the Draft/Constructed filters, Create room and Create event buttons, and a grid of seeded "Testing:" rooms, most waiting for players](images/lobby.webp)
 
 - [Features](features.md): what each part does and how to use it.
 - [Contributing](contributing.md): running it locally, the build, the gates, how it ships.
