@@ -751,7 +751,7 @@ describe('creating a room', () => {
     await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
-  it('omits an empty password and an unchosen mode: the type is three radios, Constructed first and chosen, and no mode is', async () => {
+  it('omits an empty password and an unchosen mode: the type is two radios, Constructed first and chosen, and no mode is', async () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
@@ -761,9 +761,11 @@ describe('creating a room', () => {
     expect(types.map((r) => [r.value, r.checked, r.disabled])).toEqual([
       ['constructed-1v1', true, false],
       ['draft', false, false],
-      ['bomberman', false, false],
     ]);
-    expect(screen.getByRole('radiogroup', { name: 'Game type' }).textContent, 'no Challenge without Experimental features').toBe('ConstructedDraftBomberman');
+    // Bomberman (an external game) is offered only with Experimental features on, the same gate
+    // Challenge uses — wave 119 §U fixed the old hardcoded, ungated entry (survey 2026-11-16 §1:
+    // "ruling 7: open to every member, no gate" was the one real bug in an otherwise generic file).
+    expect(screen.getByRole('radiogroup', { name: 'Game type' }).textContent, 'no Challenge or Bomberman without Experimental features').toBe('ConstructedDraft');
     const modes = within(screen.getByTestId('room-create-constructed-mode')).getAllByRole('radio') as HTMLInputElement[];
     expect(modes.map((r) => [r.value, r.checked])).toEqual([
       ['classic', false],
@@ -842,7 +844,12 @@ describe('creating a room', () => {
     await waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
-  it('creates a bomberman room through the form, no Experimental flag needed and no mode sent (ruling 7: open to every member)', async () => {
+  it('creates a bomberman room through the form, with Experimental features on, and no mode sent', async () => {
+    // Bomberman (an external game) is offered only with Experimental features on — the same gate
+    // the Challenge test above this one sets (wave 119 §U; the old ungated behaviour this test
+    // name used to describe, "ruling 7: open to every member, no gate", was the one real bug the
+    // survey flagged in an otherwise generic file).
+    savedPrefs.current = { experimental: true };
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');

@@ -98,7 +98,7 @@ before planning cross-game work.
 
 ```
 forge/           Forge, a git submodule of the public fork WolffM/forge
-apps/server/     the site: boots Magic's server and bomberman's room type; its dist/ is what PM2 runs
+apps/server/     the site: boots Magic's server and the external-game room types; its dist/ is what PM2 runs
 apps/ui/         the site's SPA (@hadoku/ui): entry, app frame, composition, embed, harness pages and
                  the vite build; its dist/ is what the server hands out
 packages/shared/ Zod wire schemas

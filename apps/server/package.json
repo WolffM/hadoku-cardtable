@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "The site: cardtable's loopback tunnel server. Boots the kernel with Magic's plugins (@hadoku/magic-server) and bomberman's room type, serves the built @hadoku/ui SPA, and is the bundle PM2 runs (dist/index.js).",
+  "description": "The site: cardtable's loopback tunnel server. Boots the kernel with Magic's plugins (@hadoku/magic-server) and the configured external-game room types, serves the built @hadoku/ui SPA, and is the bundle PM2 runs (dist/index.js).",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc --noEmit -p tsconfig.json && esbuild src/index.ts ../../games/magic/server/src/pools/catalog-build-worker.ts --bundle --platform=node --format=esm --target=node24 --outdir=dist --entry-names=[name] --external:express --external:socket.io --external:@wolffm/rooms-protocol --external:@wolffm/rooms-server --external:@resvg/resvg-js && node ../../scripts/release/print-build-version.ts > dist/version.txt && tsx ../../games/magic/server/src/cli/warm-bridges.ts",
@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@hadoku/game-server": "workspace:*",
+    "@hadoku/game-ui": "workspace:*",
     "@hadoku/magic-server": "workspace:*",
     "@hadoku/service-kernel": "workspace:*",
     "@hadoku/shared": "workspace:*",

@@ -2,8 +2,9 @@
  * BundleSlot — mounts a same-origin game bundle (a module exporting `GameBundleModule`) inside
  * the room screen, the way watchparty mounts one inside its own room: through
  * `@wolffm/rooms-client`'s `mountGameBundle`, never by importing the bundle's own code here. A
- * game type registers it as its `GameRoomUi.game` (`rooms/games/bomberman.tsx`); this file knows
- * nothing about bomberman or any other bundle, only the contract.
+ * game type registers it as its `GameRoomUi.game` (`./external-games.tsx`, one of cardtable's
+ * configured external games, today bomberman); this file knows nothing about bomberman or any
+ * other bundle, only the contract.
  *
  * `platform`: imports nothing of Magic's. `view` comes in as `RoomViewBase`
  * (`./game-setup.ts`), never `@hadoku/shared`'s `RoomBody` — that package is Magic's to import,
@@ -71,8 +72,8 @@ import { useWhoami } from '../room/whoami.ts';
 import type { RoomViewBase } from './game-setup.ts';
 import { openRelayChannel, type RelayChannel } from './relay-channel.ts';
 // The relay channel's own e2e fixture (`relay-test`), never a real room type: a side-effect
-// import, exactly as `composition.tsx` imports `rooms/games/bomberman.tsx` — see that module's
-// own doc for the flag it reads before registering anything.
+// import, exactly as `apps/ui/src/composition.tsx` imports `./external-games.tsx` — see that
+// module's own doc for the flag it reads before registering anything.
 import './relay-test-fixture.tsx';
 import './BundleSlot.css';
 

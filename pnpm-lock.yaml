@@ -53,6 +53,9 @@ importers:
       '@hadoku/game-server':
         specifier: workspace:*
         version: link:../../packages/game-server
+      '@hadoku/game-ui':
+        specifier: workspace:*
+        version: link:../../packages/game-ui
       '@hadoku/magic-server':
         specifier: workspace:*
         version: link:../../games/magic/server

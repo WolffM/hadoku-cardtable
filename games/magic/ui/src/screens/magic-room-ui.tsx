@@ -138,8 +138,9 @@
  * included — reads those clients back with `useGameClients`, never as function parameters.
  *
  * `registerGameRoomUi('draft', …)` and `registerGameRoomUi('constructed-1v1', …)` run once, at
- * this module's import, the same way `rooms/games/bomberman.tsx` registers `bomberman` — not on
- * every render, which is what both did before this move. What they register are small
+ * this module's import, the same way `@hadoku/game-ui/rooms/external-games.tsx` registers each
+ * configured external game — not on every render, which is what both did before this move. What
+ * they register are small
  * context-reading components ({@link DraftSetup}, {@link DraftGame}, {@link ConstructedSetup},
  * {@link ConstructedGame}): `RoomTableScreen` is still the one place that owns the state, because
  * `constructed-1v1`'s `setup` and `game` are drawn TOGETHER, in the same render, and only ONE
@@ -179,7 +180,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
-import { DEFAULT_ROOM_SETTINGS, magicGame, OPEN_ROOM_LOCKS, roomAiOf } from '@hadoku/shared';
+import { DEFAULT_ROOM_SETTINGS, isMagicGameType, magicGame, OPEN_ROOM_LOCKS, roomAiOf } from '@hadoku/shared';
 import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodView, type RoomMode, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
 import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
@@ -1101,6 +1102,12 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   /** The table's reads and this screen's own writes of it, latest-wins (`../rooms/latest.ts`). */
   const [tableReads] = useState(latestReads);
   const [tableError, setTableError] = useState<string | null>(null);
+  /**
+   * The same refusal `tableError` holds, for a room of a game type Magic does not play. There is
+   * no table to read for one (`http/routes.ts`'s `tableFor` 404s every room Magic does not play,
+   * member or not) — joining it is the generic room read's own job, below, not this table read's.
+   */
+  const [genericJoinError, setGenericJoinError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deckId, setDeckId] = useState('');
   /**
@@ -1194,6 +1201,19 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
    * behaviour every room had before there was a draft branch.
    */
   const draftRoom = view?.gameType === 'draft';
+  /**
+   * The room's own gameType string, read on its own rather than off `view` so neither effect
+   * below re-subscribes on every polled `view` (a new object each read) — only when the game
+   * type itself actually changes, which for a room already open never does.
+   */
+  const viewGameType = view?.gameType ?? null;
+  /**
+   * Known, not merely assumed: `null` until the room has answered at all, so the table read
+   * below still runs on the very first render exactly as it always has — this only ever turns
+   * true once a `rooms.get` answer names a type Magic does not play, and never turns true for a
+   * Magic room (`view?.gameType` never flips away from Magic's own two once it is one of them).
+   */
+  const isKnownNonMagicRoom = viewGameType !== null && !isMagicGameType(viewGameType);
   const draftStartedAt = game?.draftStartedAt ?? null;
   const members = view?.members ?? [];
   const allReady = podDealable(game?.pod?.seats, members);
@@ -1314,7 +1334,18 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   // table it reads back is empty for a draft room — nobody loads a deck — but
   // `GET /api/tables/rooms/:roomId` is not game-type gated, so the read is a
   // real answer and the join is a real join.
+  //
+  // **A room of a game Magic does not play never runs this.** `tableFor`
+  // (`http/routes.ts`) 404s every such room, for every caller, member or not —
+  // that is not a refusal this join-on-refusal dance can ever clear, and
+  // retrying it forever is exactly the "no such room" the operator saw on a
+  // bomberman room (2026-11-16). The generic room read below does the joining
+  // for one of these instead, through `rooms.join`, the same mechanism this
+  // effect uses — just never through this Magic-only table route. Before the
+  // room's own type is known this still runs, same as it always has; it stops
+  // only once `isKnownNonMagicRoom` says so.
   useEffect(() => {
+    if (isKnownNonMagicRoom) return;
     let live = true;
     let joined = false;
     let stop = false;
@@ -1375,14 +1406,24 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
       live = false;
       stopFollowing();
     };
-  }, [client, rooms, roomId, feed, attempt, tableReads]);
+  }, [client, rooms, roomId, feed, attempt, tableReads, isKnownNonMagicRoom]);
 
   // The room record, read beside the table on the same feed. The mode is
   // latched on the first read; the membership keeps moving, because a streamed
   // room's seats appear as people arrive.
+  //
+  // For a room of a game Magic does not play, this is ALSO the join: the
+  // table read above never runs for one (`isKnownNonMagicRoom`), and
+  // `GET /api/rooms/:id` answers any caller, member or not, so a refusal can
+  // never signal "join me" the way the table route's 404 does. What signals
+  // it instead is the room's own member list not naming `you.id` yet — true
+  // for a fresh invite link, false forever after `rooms.join` lands one.
   useEffect(() => {
     let live = true;
+    let joined = false;
+    let stop = false;
     const read = (): void => {
+      if (stop) return;
       // Latest-wins (`../rooms/latest.ts`): a dropped read decides nothing, opening the body included.
       const landed = roomReads.read();
       rooms.get(roomId).then(
@@ -1406,6 +1447,28 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
           modeRef.current ??= magicGame(room).clientMode;
           setView(room);
           setResolved(true);
+          setGenericJoinError(null);
+          if (isMagicGameType(room.gameType) || joined || room.members.some((m) => m.id === room.you.id)) return;
+          joined = true;
+          void rooms.join(roomId, passwordRef.current === '' ? undefined : passwordRef.current).then((join) => {
+            if (!live) return;
+            if (join.ok) {
+              read();
+              return;
+            }
+            stop = true;
+            if (join.reason === 'refused') {
+              // Same two-sentence refusal the table read's join uses, for the same reason: the
+              // server will not say whether a room is locked or not there, and should not.
+              setLocked(passwordRef.current === '' ? 'need' : 'wrong');
+              return;
+            }
+            if (join.reason === 'rate-limited') {
+              setLocked('rate-limited');
+              return;
+            }
+            setGenericJoinError(join.message ?? 'Could not join the room.');
+          });
         },
         () => {
           // The room could not be read. That is the same server the table read
@@ -1421,7 +1484,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
       live = false;
       stopFollowing();
     };
-  }, [rooms, roomId, feed, roomReads]);
+  }, [rooms, roomId, feed, roomReads, attempt]);
 
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
@@ -1530,7 +1593,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   /** The room's name as soon as either read has it; the id is never a title. */
   const roomTitle = streamed ? view?.name : (table?.room.name ?? view?.name);
   /** The room answered with a refusal rather than a table: there is nothing more to wait for. */
-  const settled = locked !== null || tableError !== null;
+  const settled = locked !== null || tableError !== null || genericJoinError !== null;
   /** The empty seats Forge's AI is offered on: every one, while nobody but me is seated, as a pod offers it on every open seat. */
   const botSeats = players.every((p) => p.you) ? [0, 1].filter((seat) => !players.some((p) => p.seat === seat)) : [];
   /**
@@ -1546,7 +1609,14 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   const aiHolds = !tournament && players.length === 1 && (matchId !== null || (gauntletAi !== undefined && gauntlet?.phase !== 'done'));
   const aiSeat = aiHolds && botSeats.length === 1 ? { seat: botSeats[0]!, name: gauntletAi?.name ?? roomAi?.name ?? 'AI', avatarId: gauntletAi?.avatarId ?? roomAi?.avatarId } : null;
   /** Nothing of the room's own to draw yet: its skeleton instead. */
-  const pending = !streamed && !settled && (!resolved || (!draftRoom && table === null));
+  /**
+   * Whether this room ever has a table to wait on at all: a draft room never has, by the same
+   * reasoning as below, and neither does a room of a game Magic does not play — treated as
+   * "unknown, so assume yes" (`isKnownNonMagicRoom` false) until the room's own type says
+   * otherwise, so a Magic room's existing wait for its table is unchanged either way.
+   */
+  const needsTable = !draftRoom && !isKnownNonMagicRoom;
+  const pending = !streamed && !settled && (!resolved || (needsTable && table === null));
   /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
   const picking =
     !streamed && !draftRoom && mode === 'classic' && resolved && locked === null && table !== null && !spectating && loaded !== null;
@@ -2806,7 +2876,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
         setTableError(null);
         setAttempt((n) => n + 1);
       }}
-      roomMissingMessage={locked === null && tableError !== null && table === null ? tableError : null}
+      roomMissingMessage={locked === null && table === null && (tableError ?? genericJoinError) !== null ? (tableError ?? genericJoinError) : null}
     >
       {/* The game type's own UI, through the registry: what it draws before the room is
           underway (`setup`), and what it draws once it is (`game`). `gameUiProps` is built

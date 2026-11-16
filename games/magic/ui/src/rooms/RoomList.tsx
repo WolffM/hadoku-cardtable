@@ -95,6 +95,7 @@ import './rooms.css';
 import { uiLength } from '@hadoku/ui-shell/settings';
 import { useWhoami } from '@hadoku/game-ui/room/whoami.ts';
 import { defaultRoomName } from './roomName.ts';
+import { EXTERNAL_GAMES } from '@hadoku/game-ui/rooms/external-games.tsx';
 
 type ListState =
   | { kind: 'loading' }
@@ -773,25 +774,24 @@ function RoomRow({
 /* ── create ──────────────────────────────────────────────────────────── */
 
 /**
- * Bomberman's own wire id — a plain string literal, the same way `'constructed-1v1'` and
- * `'draft'` are written here rather than shared from one constant with the server
- * (`apps/server/src/plugins/bomberman.ts` registers the matching spec). Offered here, not in
- * `api.ts`'s `GAME_TYPES`: that list is also `GameTypeRow.tsx`'s, shared with `RoomHeader.tsx`'s
- * in-room "convert to the other type" control, which stays Magic's own two — converting a live
- * room into a game with no Match at all is not this wave's question.
+ * Every external game cardtable may draw a room for (`@hadoku/game-ui/rooms/external-games.tsx`
+ * has the full rationale, and the server's own `CARDTABLE_EXPERIMENTAL_GAMES` flag), as the
+ * create form's own radio cards. Offered here, not in `api.ts`'s `GAME_TYPES`: that list is also
+ * `GameTypeRow.tsx`'s, shared with `RoomHeader.tsx`'s in-room "convert to the other type"
+ * control, which stays Magic's own two — converting a live room into a game with no Match at all
+ * is not this wave's question.
  */
-const BOMBERMAN_GAME_TYPE = 'bomberman';
-
-/** What Create room offers for "Game type": Magic's own two, plus Bomberman (ruling 7: open to every member, no gate). */
-const ROOM_GAME_TYPES: readonly RadioCard<GameType>[] = [...GAME_TYPES, { value: BOMBERMAN_GAME_TYPE, label: 'Bomberman' }];
+const EXTERNAL_GAME_TYPES: readonly RadioCard<GameType>[] = EXTERNAL_GAMES.map((g) => ({ value: g.id, label: g.label }));
 
 /**
  * What Create room makes: a room of a game type, or a Challenge (`ChallengeFields.tsx`), which is
  * born whole. Challenge is offered only to a player with Experimental features on (the operator,
- * 2026-11-10); a Challenge room already made is listed and joined like any other.
+ * 2026-11-10); a Challenge room already made is listed and joined like any other. An external
+ * game's room is offered the same way, for the same reason — the one real bug the old hardcoded
+ * Bomberman entry had (survey 2026-11-16 §1: "ruling 7: open to every member, no gate").
  */
 type CreateKind = GameType | 'challenge';
-const CREATE_KINDS: readonly RadioCard<CreateKind>[] = [...ROOM_GAME_TYPES, { value: 'challenge', label: 'Challenge' }];
+const CREATE_KINDS: readonly RadioCard<CreateKind>[] = [...GAME_TYPES, ...EXTERNAL_GAME_TYPES, { value: 'challenge', label: 'Challenge' }];
 
 /**
  * The create form, as a modal over the list. Escape, the close button and a
@@ -904,7 +904,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
           </div>
 
           <span className="rooms__caption">Game type</span>
-          <RadioCards name="room-create-type" label="Game type" options={experimental ? CREATE_KINDS : ROOM_GAME_TYPES} value={kind} onChange={pick} testId="room-create-type" />
+          <RadioCards name="room-create-type" label="Game type" options={experimental ? CREATE_KINDS : GAME_TYPES} value={kind} onChange={pick} testId="room-create-type" />
 
           {kind === 'challenge' ? (
             events !== null && choice !== null && <ChallengeFields idPrefix="room-create" events={events} value={choice} onChange={setChoice} />

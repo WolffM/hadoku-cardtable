@@ -70,14 +70,27 @@ describe('relayPlugin', () => {
 
 	it("a relay room's match gets its game type's own seat rejoin grace: bomberman's seat hold reaches the match", async () => {
 		const { relayMatches } = await import('@hadoku/game-server/play/runtimes/relay-match');
-		const { BOMBERMAN_GAME_TYPE_SPEC, registerGameType } = await import('@hadoku/shared');
-		registerGameType(BOMBERMAN_GAME_TYPE_SPEC);
+		const { registerGameType } = await import('@hadoku/shared');
+		// The one entry `EXTERNAL_GAMES` has today (wave 119 §U) — read off that config, not a
+		// literal re-typed here.
+		const { EXTERNAL_GAMES } = await import('@hadoku/game-ui/rooms/external-games-config.ts');
+		const bomberman = EXTERNAL_GAMES.find((g) => g.id === 'bomberman')!;
+		registerGameType({
+			id: bomberman.id,
+			runtime: bomberman.runtime,
+			seatRejoinGraceMs: bomberman.seatRejoinGraceMs,
+			seats: bomberman.seats,
+			ready: false,
+			series: { length: 1 },
+			canStart: (seated) => (seated >= bomberman.seats.min ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
+			gameCodec: { storedKeys: [], decode: () => ({}) },
+		});
 		const ctx = fakeCtx();
 		const logged: Record<string, unknown>[] = [];
 		(ctx.state as unknown as { roomsLog: (e: Record<string, unknown>) => void }).roomsLog = (e) => logged.push(e);
 		await relayPlugin.setup(ctx);
 		const hook = vi.mocked(ctx.state.lobby.onRelayRoomOpened).mock.calls[0]![0];
-		hook('m-grace-test', 10, BOMBERMAN_GAME_TYPE_SPEC.id);
+		hook('m-grace-test', 10, bomberman.id);
 		const match = relayMatches.get('m-grace-test');
 		if (match === undefined) throw new Error('no match registered');
 		match.attach({ toSeat: () => {}, toWatchers: () => {} }, () => {});

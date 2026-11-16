@@ -1,9 +1,11 @@
 /* The game's parts, handed to the generic files that draw them: once per composition root (`./App.tsx`, `./embed/EmbedApp.tsx`), and in `./test-setup.ts`. */
 import { RallyCatalogueSchema, RallyViewSchema } from '@hadoku/shared';
-// Bomberman's own room UI (`rooms/games/bomberman.tsx`) registers itself at module scope the
-// moment it is imported, unlike everything below, which `composeGame()` wires explicitly — so a
-// side-effect import is this file's whole job for it.
-import './rooms/games/bomberman.tsx';
+// Cardtable's external-game room types (`@hadoku/game-ui/rooms/external-games.tsx` — platform,
+// so Magic's own `RoomList.tsx` can read the same list for its create-room radio without a
+// site→magic import) register themselves at module scope the moment this is imported, unlike
+// everything below, which `composeGame()` wires explicitly — so a side-effect import is this
+// file's whole job for it.
+import '@hadoku/game-ui/rooms/external-games.tsx';
 import { registerPlayerMark } from '@hadoku/game-ui/components/Avatar.tsx';
 import { forgetCardWidths } from '@hadoku/magic-ui/play/card-size.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '@hadoku/magic-ui/play/live/prefs.ts';

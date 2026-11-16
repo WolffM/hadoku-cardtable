@@ -190,7 +190,12 @@ export const GUARDS: Guard[] = [
     name: 'the shared stylesheets',
     // `chrome.css`/`trim.css` moved into `packages/ui-shell/src/chrome/` (wave 92 §A); the alternative
     // for them is a separate root, not another name under `games/magic/ui/src/chrome/`.
-    paths: /^(games\/magic\/ui\/src\/(styles|screens\/(screens|DecksScreen|SoundBuilder|pod\/PodSeats)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)|packages\/ui-shell\/src\/chrome\/(chrome|trim))\.css$/,
+    // `pod/PodSeats.css` dropped out (wave 119 §U): its block is now drawn by
+    // `packages/game-ui/src/seats/{SeatChip,SpectatorRow}.tsx` too, but that tree imports no CSS
+    // of its own — `screens/pod/PodSeats.tsx` imports the generic tree directly, so the two sides
+    // are connected (rule B) without this sheet being read by more than the one importer that
+    // always styled it.
+    paths: /^(games\/magic\/ui\/src\/(styles|screens\/(screens|DecksScreen|SoundBuilder)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)|packages\/ui-shell\/src\/chrome\/(chrome|trim))\.css$/,
     specs: ['table-fit.spec.ts'],
     jvm: [],
   },

@@ -44,20 +44,18 @@
  * then): started early, it fetched a replay and then threw it away for the live match.
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Banner } from '@hadoku/magic-ui/front/Banner.tsx';
-import { FrontGateContext, useFrontGateState } from '@hadoku/game-ui/front/gate.ts';
+import { LobbyShell } from '@hadoku/game-ui/front/LobbyShell.tsx';
 import { RoomList } from '@hadoku/magic-ui/rooms/RoomList.tsx';
 import type { FeaturedPick, RoomsClient } from '@hadoku/magic-ui/rooms/api.ts';
 import type { RoomFeed } from '@hadoku/magic-ui/rooms/follow.ts';
 import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
-import { useSiteTrim } from '@hadoku/game-ui/settings/siteTrim.ts';
 import { StatsButton } from '@hadoku/magic-ui/stats/StatsButton.tsx';
 import type { StatsSource } from '@hadoku/magic-ui/stats/source.ts';
 import { DecksButton } from '@hadoku/magic-ui/screens/DecksButton.tsx';
 import { InventoryButton } from '@hadoku/magic-ui/screens/InventoryButton.tsx';
-import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
@@ -69,40 +67,34 @@ export interface LobbyScreenProps {
 }
 
 export function LobbyScreen({ rooms, feed, statsSource }: LobbyScreenProps) {
-  const shellRef = useChromeShell('fit');
   /** The server's pick for the live slot; `undefined` until the first room list has answered. */
   const [featured, setFeatured] = useState<FeaturedPick | null | undefined>(undefined);
-  const gate = useFrontGateState();
-  const trimLoaded = useSiteTrim().loaded;
-  const { settle } = gate;
-  useEffect(() => {
-    if (trimLoaded) settle('trim');
-  }, [trimLoaded, settle]);
   return (
-    <div ref={shellRef} className="shell shell--fit" data-testid="lobby">
-      {/* No title here. The fleet's AppHeader already says "Card Table" at the
-          top of every route, from the catalogue (`app-name.ts`), and a second
-          one in the page said it twice — operator, 2026-09-27. The other
-          screens' `shell__head` earns its place by naming the ROOM or the
-          deck; the lobby has nothing to add that the header has not said. */}
-      <nav className="shell__tools">
-        <DecksButton />
-        <InventoryButton />
-        <StatsButton source={statsSource} />
-        <SettingsGear />
-      </nav>
-      <FrontGateContext.Provider value={gate}>
-        <main className="front" aria-busy={!gate.revealed}>
-          <Banner featured={featured} />
-          <RoomList client={rooms} feed={feed} onFeatured={setFeatured} />
-        </main>
-      </FrontGateContext.Provider>
-      {/* LICENSING.md D25: strangers can sign up, so the Fan Content Policy's "unofficial" line is back,
-          small, at the foot of the page's own scroll. D23 took the old bordered footer away. */}
-      <p className="shell__disclaimer">
-        Unofficial fan project, not affiliated with or endorsed by Wizards of the Coast. Card names, text and images
-        are ™ &amp; © Wizards of the Coast.
-      </p>
-    </div>
+    <LobbyShell
+      // No title here. The fleet's AppHeader already says "Card Table" at the
+      // top of every route, from the catalogue (`app-name.ts`), and a second
+      // one in the page said it twice — operator, 2026-09-27. The other
+      // screens' `shell__head` earns its place by naming the ROOM or the
+      // deck; the lobby has nothing to add that the header has not said.
+      navTools={
+        <>
+          <DecksButton />
+          <InventoryButton />
+          <StatsButton source={statsSource} />
+          <SettingsGear />
+        </>
+      }
+      banner={<Banner featured={featured} />}
+      // LICENSING.md D25: strangers can sign up, so the Fan Content Policy's "unofficial" line is
+      // back, small, at the foot of the page's own scroll. D23 took the old bordered footer away.
+      disclaimer={
+        <>
+          Unofficial fan project, not affiliated with or endorsed by Wizards of the Coast. Card names, text and
+          images are ™ &amp; © Wizards of the Coast.
+        </>
+      }
+    >
+      <RoomList client={rooms} feed={feed} onFeatured={setFeatured} />
+    </LobbyShell>
   );
 }

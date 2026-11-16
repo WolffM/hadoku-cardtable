@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "The site's SPA: the entry, the app frame and its routes, the composition that plugs Magic's UI (@hadoku/magic-ui) and bomberman into the platform UI (@hadoku/game-ui, @hadoku/ui-shell), the embed, the fit and play harness pages, and the vite build whose dist/ the server hands out.",
+  "description": "The site's SPA: the entry, the app frame and its routes, the composition that plugs Magic's UI (@hadoku/magic-ui) and the external-game rooms into the platform UI (@hadoku/game-ui, @hadoku/ui-shell), the embed, the fit and play harness pages, and the vite build whose dist/ the server hands out.",
   "scripts": {
     "dev": "vite",
     "build": "vite build && vite build -c vite.embed.config.ts",

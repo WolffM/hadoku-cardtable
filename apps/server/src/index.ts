@@ -15,8 +15,8 @@
  * would render blank is replaced by a page that says why.
  *
  * This package is the site: this file (cardtable's config) and the plugin list (`./plugins/`), which
- * is Magic's server's plugins (`@hadoku/magic-server`, `games/magic/server`) plus bomberman's room
- * type. `@hadoku/service-kernel/server` boots them: it owns the express app, the HTTP and socket.io servers, the floor, `/health` and the
+ * is Magic's server's plugins (`@hadoku/magic-server`, `games/magic/server`) plus the external-game room
+ * types. `@hadoku/service-kernel/server` boots them: it owns the express app, the HTTP and socket.io servers, the floor, `/health` and the
  * busy probe, telemetry and capacity, the erase route, listen and the shutdown, and runs each
  * plugin in its phase (`config → bundle → stores → routes → sockets → listen → warm`), in the
  * order listed. The plugins stamp the boot clock with cardtable's own phase names. The draft and
