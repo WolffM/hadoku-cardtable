@@ -117,6 +117,30 @@ test(titled('chat hidden, the latest lines float over the table and never take a
       return { overlay: !!el?.closest('[data-testid="floating-chat"]'), table: !!el?.closest('.wp-room-chrome-frame__content') };
     }, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
     expect(hit, 'a press over the lines lands on the table').toEqual({ overlay: false, table: true });
+    // Above every layer the board draws, its prompts and dialogs included, under only the card zoom the
+    // pointer is on (the operator, 2026-11-16: "it should display above but be completely 'ephemeral'").
+    // Watchparty's room-chrome e2e paints the lines over a dialog-level button and presses it through them.
+    const layers = await a.evaluate(() => {
+      // The layer an element paints at among the page's own: its outermost ancestor with a z-index.
+      const z = (el: Element | null) => {
+        let layer = NaN;
+        for (let e = el; e !== null; e = e.parentElement) {
+          const n = Number(getComputedStyle(e).zIndex);
+          if (Number.isFinite(n)) layer = n;
+        }
+        return layer;
+      };
+      const scale = getComputedStyle(document.querySelector('.cardtable-chrome')!);
+      return {
+        floating: z(document.querySelector('[data-testid="floating-chat"]')),
+        prompt: z(document.querySelector('.live__prompt')),
+        modal: Number(scale.getPropertyValue('--z-modal')),
+        zoom: Number(scale.getPropertyValue('--z-zoom')),
+      };
+    });
+    expect(layers.prompt, 'the decision is open, at its own layer').toBeGreaterThan(0);
+    expect(layers.floating, `the lines are over the decision and every dialog (${JSON.stringify(layers)})`).toBeGreaterThan(Math.max(layers.prompt, layers.modal));
+    expect(layers.floating, 'and under the card zoom').toBeLessThan(layers.zoom);
 
     await a.locator(`${CHROME} button[aria-label="Show chat"]`).click();
     await expect(chatBox(a)).toBeVisible();
