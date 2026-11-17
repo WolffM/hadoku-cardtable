@@ -4124,3 +4124,22 @@ this proof; the fix is a 2-hour lease and waiting on "drained OR lease gone", no
 
 **Next:** the operator's live bomberman check on prod (still open from w107n/w108l), then the top-level code
 analysis.
+
+## w119–w120 verified by the tracker (2026-11-17, bomberman programme stage 1)
+
+| wave | lane | landed | evidence the tracker checked |
+| --- | --- | --- | --- |
+| w119 | P | watchparty d02dbdfb, rooms-protocol 0.45.95 | removeFromSeat/replaceWithBot; seats.test 47/47, mutation red 2 |
+| w119 | C | 169a12a10 | createConfig({envPrefix}); CI 43971435017 green |
+| w119 | U | 771e4a1d2 | 1a fixed (non-Magic room opens); L3a in game-ui/seats; bomberman = one flag-gated config entry; claw 21/21 |
+| w119 | S | e7913f63c + 676fb6253 | /room socket in game-server; leader remove/capacity/bot routes; main red ~5 min (route table), fixed |
+| w120 | P2 | watchparty 5075e839, rooms-protocol 0.45.99 | closed seats + seatBot/unseatBot; 76/76; mutations 4 and 2 red |
+| w120 | S2 | 1f8a65b82 + 368a12a60 | seat-eviction.ts gone (`git ls-tree` 0); ops on SeatTable; 1v1 remove/capacity; UI Remove/Bot/Fewer seats wired; claw 30/30 |
+| w120 | F | 028a4236d, game-ui 0.1.18 | RoomFront in game-ui (specifier `front/RoomFront.tsx`); lobby DOM byte-identical 5/5 |
+| w120 | K | 3c7646640 | MatchSpec Forge fields → Magic; ArchiveBot → apps/server; index.test.ts @reads game-server http |
+
+PPE `/health` 368a12a60 (03:09Z 11-17), CI green on it. Prod v0.69.0 (aecb02fd1); S, S2, F, K reach prod at the next `/cutrelease`.
+Incidents: w120's manager symlinked into ~/srv/hadoku-cardtable-ppe node_modules (~01:10Z, healed by redeploy 01:36Z); main red 01:05Z–02:17Z (rooms-protocol 0.45.99's `closed` field in two raw seatRows tests).
+
+Carried (next cardtable wave): game-server `configureParticipantIdDomain` (bm1 patches 0.1.15 until then); config built at boot rather than a lazy Proxy; Magic TableSeats per-round pairing onto SeatTable (1v1 seats/bot 409 'no-bot-seat'); RoomFront `className` → `createPanelClassName`; an extensionless `front/RoomFront` export; why watchparty's publish did not fire update-wolffm; S2's spec-level mutation on a claw.
+Stage 2 (bm1, hadoku-bomberman) is running; stage 3 (watchparty hosts bomberman with the overlay) follows it.
