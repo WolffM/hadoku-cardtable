@@ -11,7 +11,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 import { pushDraftbot, pushRuntime, type PackedRuntime } from '@hadoku/game-server/play/remote/artifacts';
 import { AgentClient } from '@hadoku/game-server/play/remote/client';
@@ -26,9 +26,27 @@ import { procStartTicks } from './jvm.ts';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 const cleanup: (() => void)[] = [];
+/**
+ * Every fake JVM appends its pid here. The agent launches JVMs `detached` on an O_RDWR fifo, so a
+ * fake one (`exec cat`) never sees EOF and outlives the test run: it has to be killed by pid.
+ */
+const fakeJvmPids = join(mkdtempSync(join(tmpdir(), 'agent-test-pids-')), 'pids');
+function killFakeJvms(): void {
+	if (!existsSync(fakeJvmPids)) return;
+	for (const pid of readFileSync(fakeJvmPids, 'utf8').split('\n').filter(Boolean).map(Number)) {
+		try {
+			process.kill(pid, 'SIGKILL');
+		} catch (e) {
+			if ((e as NodeJS.ErrnoException).code !== 'ESRCH') throw e;
+		}
+	}
+	rmSync(fakeJvmPids);
+}
 afterEach(() => {
+	killFakeJvms();
 	for (const c of cleanup.splice(0).reverse()) c();
 });
+afterAll(() => rmSync(join(fakeJvmPids, '..'), { recursive: true, force: true }));
 
 function scratch(): string {
 	const d = mkdtempSync(join(tmpdir(), 'agent-test-'));
@@ -43,7 +61,7 @@ function tgz(src: string, name: string): { file: string; sha: string } {
 }
 
 /** A JDK whose `java` is a script: by default `warm`, then every stdin line back. */
-function fakeRuntime(java = '#!/bin/sh\necho \'{"t":"warm"}\'\nexec cat\n'): PackedRuntime {
+function fakeRuntime(java = `#!/bin/sh\necho $$ >> '${fakeJvmPids}'\necho '{"t":"warm"}'\nexec cat\n`): PackedRuntime {
 	const src = scratch();
 	mkdirSync(join(src, 'jdk', 'bin'), { recursive: true });
 	writeFileSync(join(src, 'jdk', 'bin', 'java'), java);
