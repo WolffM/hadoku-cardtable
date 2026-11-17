@@ -465,8 +465,15 @@ export function gripStackItem(id: number, hand: string, at: Point, grip: Grip, s
   const after = [...held.keys()].join();
   if (held.size > 0) hands.set(id, held);
   else hands.delete(id);
-  // A change of hands moves it from where it was drawn: but this screen's own hand alone, picking it up or putting it down, is the pointer's.
-  if (was !== null && after !== before && (hand !== 'you' || before.includes(',') || after.includes(','))) handsChanged.set(id, { from: was, since: now });
+  // A change of hands moves it from where it was drawn — but only a real HANDOFF (more than one
+  // hand involved on either side of the change): the solo hand that has held it throughout, picking
+  // it up or putting it down, is the pointer's, whether that pointer is this screen's own or a
+  // relayed one. `hand !== 'you'` alone used to qualify every relayed hand's own solo drop for this
+  // glide too, adding a full `HANDS_CHANGE_MS` on top of its catch-up lag right as it let go — the
+  // claw's own measured "worst" gap sat 500-600ms after the drag ended, not during it (runs
+  // 44147692676/44157117742), which is this glide's own window, not the in-flight catch-up/
+  // extrapolation this module eases during the drag.
+  if (was !== null && after !== before && (before.includes(',') || after.includes(','))) handsChanged.set(id, { from: was, since: now });
   // A point from no hand at all (a joiner's replay) is drawn where it says, at once.
   if (held.size === 0 && grip === 'move') handsChanged.delete(id);
   // The last hand to let go places it where it let go; a move from no hand is a point of its own.

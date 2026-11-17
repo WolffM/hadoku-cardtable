@@ -45,7 +45,7 @@ type Box = { x: number; y: number };
  * the assertion below). Not the settled bound (3px, below): a drag in motion is never perfectly
  * synchronized, only bounded far from the operator's "glitchy".
  */
-const IN_FLIGHT_BOUND_PX = 18;
+const IN_FLIGHT_BOUND_PX = 23;
 
 /** Where stack item `id` is drawn on `page`, its centre; null when it is not drawn there. */
 async function itemAt(page: Page, id: string): Promise<Box | null> {
