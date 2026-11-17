@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, resizeWindow, serverLog, twoLegalDecks } from './play/board.ts';
+import { makeTitled, pressIntoGame2, resizeWindow, serverLog, twoLegalDecks } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -182,16 +182,11 @@ test(
 
       // Both at once, not alice-then-bob: pressing alice's own first can be the very room update
       // that finally reaches bob's `TablePage` (its OUTER table read, measured far slower than
-      // `TableSideboard`'s own), swapping bob's screen from `SeriesEnterNext` to `TableCard`
-      // between the wait above and this click — so bob's own path is re-read right here, not
-      // assumed from the wait.
-      await Promise.all([
-        aliceEnter.click(),
-        (async () => {
-          if (await bobEnter.isVisible().catch(() => false)) await bobEnter.click();
-          else await bobCard.click();
-        })(),
-      ]);
+      // `TableSideboard`'s own), swapping bob's screen from `SeriesEnterNext` to `TableCard` — or
+      // back — AFTER a click is already travelling to one of them, detaching it mid-flight.
+      // `pressIntoGame2` presses by STATE, re-reading which gate is there on every pass, rather
+      // than one visibility snapshot (the wait above) followed by a blind click.
+      await Promise.all([aliceEnter.click(), pressIntoGame2(bob.page, MATCH_URL, 60_000)]);
       const isNewMatch = (url: string): boolean => {
         const id = MATCH_URL.exec(url)?.[1];
         return id !== undefined && id !== match1;

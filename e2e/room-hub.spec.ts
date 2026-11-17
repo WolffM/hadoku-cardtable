@@ -19,7 +19,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { sitPodAt } from './podSeats.ts';
 
 import { PREFIX } from './identities.ts';
-import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
+import { makeTitled, pressIntoGame2, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -183,20 +183,13 @@ test(
       // Bob's own gate races two paths to the SAME guarantee (a press, never an auto-navigate):
       // `TableSideboard`'s own `SeriesEnterNext` (its feed-driven table read), or `TablePage`'s
       // pre-existing `TableCard` ("Return to game", `table-match-link`) once the room's OUTER,
-      // much slower table read catches up and swaps `TableSideboard` out from under it before
-      // this line's wait resolves (`e2e/w122f-sideboard-lobby.spec.ts` names the same race).
-      // Which one wins is not asserted, only that one of them is there.
+      // much slower table read catches up and swaps `TableSideboard` out from under it
+      // (`e2e/w122f-sideboard-lobby.spec.ts` names the same race) — including AFTER a press has
+      // already been aimed at one of them, which detaches it mid-click. `pressIntoGame2` presses
+      // by state, re-reading which gate is there on every pass, rather than one visibility
+      // snapshot followed by a blind click.
       await expect(alice.page.getByTestId('game-result-enter'), 'alice: Enter game is offered').toBeVisible({ timeout: UI_TIMEOUT });
-      const bobEnter = bob.page.getByTestId('game-result-enter');
-      const bobCard = bob.page.getByTestId('table-match-link');
-      await expect(bobEnter.or(bobCard), 'bob: a press-only way into game 2 is offered').toBeVisible({ timeout: UI_TIMEOUT });
-      await Promise.all([
-        alice.page.getByTestId('game-result-enter').click(),
-        (async () => {
-          if (await bobEnter.isVisible().catch(() => false)) await bobEnter.click();
-          else await bobCard.click();
-        })(),
-      ]);
+      await Promise.all([alice.page.getByTestId('game-result-enter').click(), pressIntoGame2(bob.page, matchUrl, UI_TIMEOUT)]);
       await bob.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
       await expect(bob.page.locator('[aria-label="Game board"]'), 'game 2').toBeVisible({ timeout: UI_TIMEOUT });
 
