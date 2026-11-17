@@ -31,6 +31,8 @@ describe('the chess clock', () => {
     vi.setSystemTime(100_000);
     const { getByTestId } = render(createElement(MatchClock, { clock: { ms: 61_000, running: true, at: 100_000 } }));
     const clock = getByTestId('match-clock');
+    // The clock's own text stays exactly the time — the icon beside it (`clock.css`'s
+    // `.match-clock__art`) is a separate element, so it draws nothing into `textContent`.
     expect(clock.textContent).toBe('1:01');
     expect(clock.hasAttribute('data-running')).toBe(true);
     expect(clock.hasAttribute('data-low')).toBe(false);
@@ -41,5 +43,12 @@ describe('the chess clock', () => {
     expect(clock.textContent).toBe('0:09');
     expect(clock.hasAttribute('data-low')).toBe(false);
     expect(clock.hasAttribute('data-out')).toBe(true);
+  });
+
+  it('AF633: carries its own drawn icon, so it reads as a clock rather than the life pill', () => {
+    const { getByTestId } = render(createElement(MatchClock, { clock: { ms: 61_000, running: false, at: 0 } }));
+    const clock = getByTestId('match-clock');
+    expect(clock.querySelector('.match-clock__art'), 'a clock-face icon is drawn inside the badge').not.toBeNull();
+    expect(clock.textContent, 'and the icon contributes no text of its own').toBe('1:01');
   });
 });

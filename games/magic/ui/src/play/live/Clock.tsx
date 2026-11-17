@@ -6,7 +6,11 @@
  * between two rosters, and draws it.
  *
  * Warning-coloured in the last minute, danger-coloured in the last ten seconds — theme tokens, so
- * the contrast is the theme's. No words: the number and its colour are the whole of it.
+ * the contrast is the theme's. No words: a drawn clock face and the number, never a sentence.
+ *
+ * Beside the life pill this badge read as, drawn in the same capsule and the same weight, the two
+ * were not tellable apart at a glance. The badge below is its OWN shape (a rounded tag, not the
+ * life pill's circle) and carries its own icon; `clock.css` has both.
  */
 
 import { useEffect, useState } from 'react';
@@ -46,6 +50,15 @@ export function MatchClock({ clock }: { clock: PlayerClock }) {
       data-low={(left <= LOW_MS && left > OUT_MS) || undefined}
       data-out={left <= OUT_MS || undefined}
     >
+      {/*
+       * Beside the life pill this badge used to read as, a clock face — drawn, not a glyph font,
+       * the same convention `marks.tsx`/`Board.tsx`'s own corner marks keep. `currentcolor` so it
+       * tints with the state colour exactly as the number already does.
+       */}
+      <svg className="match-clock__art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <circle cx="8" cy="8" r="6.3" />
+        <path d="M8 4.6V8.3l2.6 1.6" />
+      </svg>
       {clockText(left)}
     </span>
   );

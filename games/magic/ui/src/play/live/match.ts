@@ -262,7 +262,7 @@ import { watchRestart } from '@hadoku/game-ui/restart-notice.ts';
 
 import { defaultSocketPath, socketOptions } from '@hadoku/game-ui/room/socket-options.ts';
 import { normalizeAvatarId } from '@hadoku/game-ui/room/avatar.ts';
-import { attackLockedIn, drawsFaceUp, keepUnchangedCards, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
+import { attackLockedIn, drawsFaceUp, hasKeyword, keepUnchangedCards, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { shownFlip, shownRoll, type ShownFlip, type ShownRoll } from './shown.ts';
 import { preloadMatchArt } from './art-preload.ts';
@@ -3265,6 +3265,37 @@ export function isBlockAssignment(match: LiveMatch, blocker: number, attacker: n
   const targets = blockTargets(match, view);
   if (targets === null || !targets.has(attacker)) return false;
   return ownBlocker(match, blocker);
+}
+
+/**
+ * A menace attacker with exactly one planned blocker leaves that blocker marked — until a second
+ * joins it or it leaves. Both screens share the same `view.combat` (nothing secret about a
+ * declared block), so this needs no `InputBlock` state of its own and reads the same on alice's
+ * screen and bob's.
+ *
+ * Forge already refuses Done Blocking the same way this would be wrong (`buttonOneRefusal`'s
+ * `CombatUtil.validateBlocks`, read out as `refusal1`) — but that is one string for the WHOLE
+ * declaration, built for a tooltip, not a card id. This reads the band's own planned blockers
+ * against the attacker's live `menace` keyword instead of parsing that prose, so it marks the
+ * right card rather than guessing one out of it, and it keeps working for anything that GRANTS
+ * menace (an aura, an anthem) the same as a card printed with it, because `keywords` is Forge's
+ * current list either way (`adapter.ts`'s `hasKeyword`, not the printed-only one).
+ *
+ * Once Done Blocking actually applies, Forge's own refusal has already ruled out exactly this
+ * shape (one blocker on a menace attacker) — so the mark only ever shows while the window is still
+ * open, with no extra gate needed to turn it off.
+ */
+export function insufficientBlockers(view: BoardView): ReadonlySet<number> {
+  const cards = view.players.flatMap((p) => p.battlefield);
+  const out = new Set<number>();
+  for (const band of view.combat ?? []) {
+    const planned = band.plannedBlockers ?? [];
+    if (planned.length !== 1) continue;
+    const attacker = band.attackers[0];
+    const card = attacker === undefined ? undefined : cards.find((c) => c.id === attacker);
+    if (card !== undefined && hasKeyword(card.keywords, 'menace')) out.add(planned[0]!);
+  }
+  return out;
 }
 
 /**
