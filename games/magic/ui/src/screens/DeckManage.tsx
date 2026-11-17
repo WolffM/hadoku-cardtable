@@ -12,6 +12,7 @@ import { DECK_NAME_MAX } from '@hadoku/shared';
 
 import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
 import './DecksScreen.css';
+import '@hadoku/game-ui/components/Button.css';
 import { uiLength } from '@hadoku/ui-shell/settings';
 
 export function DeckManage({ deck, client, onRenamed, onDeleted }: { deck: MyDeck; client: MyDecksClient; onRenamed: (deck: MyDeck) => void; onDeleted: () => void }) {
@@ -58,7 +59,7 @@ export function DeckManage({ deck, client, onRenamed, onDeleted }: { deck: MyDec
               if (e.key === 'Escape') setNaming(null);
             }}
           />
-          <button type="submit" className="decks__icon" aria-label="Save name" data-testid="decks-name-save" disabled={busy}>
+          <button type="submit" className="decks__icon ct-action" aria-label="Save name" data-testid="decks-name-save" disabled={busy}>
             <Icon name="tick" size={uiLength('0.9rem')} />
           </button>
         </form>
@@ -69,7 +70,7 @@ export function DeckManage({ deck, client, onRenamed, onDeleted }: { deck: MyDec
       )}
       {naming === null && (
         <DeleteConfirm deck={deck} client={client} onDeleted={onDeleted} testId="decks-delete" className="decks__actions">
-          <button type="button" className="decks__icon" aria-label="Rename" data-testid="decks-rename" onClick={() => setNaming(deck.name)}>
+          <button type="button" className="decks__icon ct-action" aria-label="Rename" data-testid="decks-rename" onClick={() => setNaming(deck.name)}>
             <Icon name="edit" size={uiLength('0.9rem')} />
           </button>
         </DeleteConfirm>
@@ -104,17 +105,17 @@ export function DeleteConfirm({ deck, client, onDeleted, testId, className, chil
     <span className={className} data-asking={asking ? 'true' : undefined}>
       {asking ? (
         <>
-          <button type="button" className="decks__confirm" data-testid={`${testId}-confirm`} disabled={busy} onClick={confirm}>
+          <button type="button" className="decks__confirm ct-action ct-action--danger" data-testid={`${testId}-confirm`} disabled={busy} onClick={confirm}>
             Delete
           </button>
-          <button type="button" className="decks__icon" aria-label="Keep" data-testid={`${testId}-cancel`} disabled={busy} onClick={() => setAsking(false)}>
+          <button type="button" className="decks__icon ct-action" aria-label="Keep" data-testid={`${testId}-cancel`} disabled={busy} onClick={() => setAsking(false)}>
             <Icon name="close" size={uiLength('0.9rem')} />
           </button>
         </>
       ) : (
         <>
           {children}
-          <button type="button" className="decks__icon" aria-label={`Delete ${deck.name}`} data-testid={testId} onClick={() => setAsking(true)}>
+          <button type="button" className="decks__icon ct-action" aria-label={`Delete ${deck.name}`} data-testid={testId} onClick={() => setAsking(true)}>
             <Icon name="trash" size={uiLength('0.9rem')} />
           </button>
         </>

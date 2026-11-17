@@ -240,21 +240,21 @@
   color: var(--color-bg);
 }
 
-/* What else a card's foot holds: a sibling of the way in, above its hit area. */
+/* What else a card's foot holds: a sibling of the way in, above its hit area. Colour/hover are
+   `.ct-action` (imported in `tableResolve.tsx`); this is the size, and its own transparent rest
+   fill (the menu-item look, filled only on hover). */
 .table-card__resolve {
   position: relative;
   z-index: 1;
   min-height: 36px;
   margin-left: auto;
   padding: 0 14px;
-  border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: transparent;
-  color: var(--color-text);
   font: inherit;
-  cursor: pointer;
 }
 
+/* At rest only — `.ct-action--danger` covers hover and focus. */
 .table-card__resolve--danger {
   margin-left: 0;
   border-color: var(--danger);

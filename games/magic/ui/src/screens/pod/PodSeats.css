@@ -153,16 +153,15 @@
   gap: 3px;
 }
 
-.pod-seats__action {
+/* The same small size as `.table-side__action` below. Colour/hover are `.ct-action`
+   (imported in `SeatChip.tsx`, which draws this block); this is the size only. */
+.pod-seats__action,
+.table-side__action {
   font: inherit;
   font-size: 11px;
   line-height: 1.2;
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
   border-radius: var(--hdk-radius-sm);
   padding: 2px 6px;
-  cursor: pointer;
 }
 
 /* The leader's hand-off: the crown the leader wears, as a button. */
@@ -171,11 +170,6 @@
   width: 12px;
   height: 13px;
   fill: currentColor;
-}
-
-.pod-seats__action:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 /*
@@ -249,23 +243,10 @@
   color: var(--color-text-tertiary);
 }
 
-/* The leader's "Fewer seats" (`PodLobby.tsx`, wave 120 §S2) — same small-button look as a seat's own actions. */
+/* The leader's "Fewer seats" (`PodLobby.tsx`, wave 120 §S2) — the box and hover are grouped
+   with `.pod-seats__action` above; this is its one difference. */
 .table-side__action {
-  font: inherit;
-  font-size: 11px;
   font-weight: 400;
-  line-height: 1.2;
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm);
-  padding: 2px 6px;
-  cursor: pointer;
-}
-
-.table-side__action:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 /* A pod lobby's spectators, under its seat strip (`PodLobby.tsx`): apart from the strip above and the pool below. */

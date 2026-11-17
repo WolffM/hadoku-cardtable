@@ -28,6 +28,7 @@ import { podPlayers, POD_CLOSED, type PodView } from './wire.ts';
 import { faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
 import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
 import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
+import '@hadoku/game-ui/components/Button.css';
 
 /**
  * `room/lobby.ts`'s own `MIN_OPEN_SEATS` (its `too-few` refusal: "a room always keeps at least
@@ -125,7 +126,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
                   {iLead && !fieldFixed && (
                     <ActionButton
                       action="lower-capacity"
-                      className="table-side__action"
+                      className="table-side__action ct-action"
                       data-testid="pod-lower-capacity"
                       aria-label="Reduce the room to one fewer seat"
                       disabled={openSeats <= MIN_OPEN_SEATS}

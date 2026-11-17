@@ -39,6 +39,7 @@
   color: var(--color-text);
 }
 
+/* Colour/hover are `.ct-action` (imported below); this is the size only. */
 .decks__icon,
 .decks__confirm {
   display: inline-flex;
@@ -47,19 +48,12 @@
   height: 28px;
   min-width: 28px;
   padding: 0 6px;
-  border: 1px solid var(--color-border);
   border-radius: var(--hdk-radius);
-  background: var(--color-bg-card);
-  color: var(--color-text-secondary);
   font: inherit;
   font-size: 13px;
-  cursor: pointer;
 }
 
-.decks__icon:hover:not(:disabled) {
-  color: var(--color-text);
-}
-
+/* At rest only — `.ct-action--danger` covers hover and focus. */
 .decks__confirm {
   border-color: var(--danger);
   color: var(--danger-ink);

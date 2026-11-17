@@ -13,6 +13,7 @@
 import { useState, type ReactNode } from 'react';
 
 import { Modal } from '@hadoku/game-ui/components/Modal.tsx';
+import '@hadoku/game-ui/components/Button.css';
 import type { TableCardSeries, TablePhase } from './TableCard.tsx';
 
 export interface TableResolveHandlers {
@@ -105,7 +106,7 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
     <button
       key={r}
       type="button"
-      className="table-card__resolve"
+      className="table-card__resolve ct-action"
       role={menu ? 'menuitem' : undefined}
       data-testid={`${testId}-${r}`}
       onClick={() => {
@@ -137,12 +138,12 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
             <span aria-hidden="true">→</span>
             <strong>{after[confirming]}</strong>
           </span>
-          <button type="button" className="table-card__resolve" data-testid={`${testId}-${confirming}-keep`} onClick={() => setConfirming(null)}>
+          <button type="button" className="table-card__resolve ct-action" data-testid={`${testId}-${confirming}-keep`} onClick={() => setConfirming(null)}>
             {confirming === 'reset' || confirming === 'dq0' || confirming === 'dq1' ? 'Cancel' : 'Keep playing'}
           </button>
           <button
             type="button"
-            className="table-card__resolve table-card__resolve--danger"
+            className="table-card__resolve table-card__resolve--danger ct-action ct-action--danger"
             data-testid={`${testId}-${confirming}-yes`}
             onClick={() => {
               void run[confirming]!().then((refused) => {

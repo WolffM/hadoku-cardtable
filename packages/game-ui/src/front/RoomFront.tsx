@@ -673,7 +673,7 @@ function RoomRow<V extends RoomFrontRoom>({
           )}
 
           {!asking && room.testing === true && client.reset !== undefined && (
-            <button type="button" className="rooms__enter" data-testid="room-reset" aria-label={`Reset ${room.name}`} disabled={busy} onClick={() => void onResetClick()}>
+            <button type="button" className="rooms__enter room-card__go" data-testid="room-reset" aria-label={`Reset ${room.name}`} disabled={busy} onClick={() => void onResetClick()}>
               Reset
             </button>
           )}

@@ -195,7 +195,12 @@ export const GUARDS: Guard[] = [
     // of its own — `screens/pod/PodSeats.tsx` imports the generic tree directly, so the two sides
     // are connected (rule B) without this sheet being read by more than the one importer that
     // always styled it.
-    paths: /^(games\/magic\/ui\/src\/(styles|screens\/(screens|DecksScreen|SoundBuilder)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)|packages\/ui-shell\/src\/chrome\/(chrome|trim))\.css$/,
+    // `packages/game-ui/src/components/Button.css`: the small bordered action's one
+    // look (`.ct-action`/`.ct-action--danger`), imported directly by every screen that draws it —
+    // Reset/Close, a deck's rename/delete, an inventory action, a pod seat's own action, a table's
+    // scorekeeping buttons — because those trees do not otherwise import each other (`ct-action` is
+    // in `css-ownership.test.ts`'s `SHARED`, like `button`).
+    paths: /^(games\/magic\/ui\/src\/(styles|screens\/(screens|DecksScreen|SoundBuilder)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)|packages\/(ui-shell\/src\/chrome\/(chrome|trim)|game-ui\/src\/components\/Button))\.css$/,
     specs: ['table-fit.spec.ts'],
     jvm: [],
   },

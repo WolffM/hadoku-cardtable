@@ -19,6 +19,7 @@ import { Avatar } from '../components/Avatar.tsx';
 import { PlayerName } from '../room/look.tsx';
 import { StatusPill } from '../components/StatusPill.tsx';
 import type { Look } from '@hadoku/platform-wire/look';
+import '../components/Button.css';
 
 /** The same crown `magic-room-ui.tsx` draws for its own direct uses — duplicated, not imported, so this file pulls in nothing of Magic's. */
 export const SEAT_CROWN_PATH = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
@@ -106,11 +107,11 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
               <span className="pod-seats__label">Open</span>
               {!fieldFixed && iLead && (
                 <span className="pod-seats__actions">
-                  <ActionButton action="ai" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} disabled={shut} onPress={() => onBotOn?.(seat)}>
+                  <ActionButton action="ai" className="pod-seats__action ct-action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} disabled={shut} onPress={() => onBotOn?.(seat)}>
                     AI
                   </ActionButton>
                   {seat < realSeatCount && (
-                    <ActionButton action="close" className="pod-seats__action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onPress={() => onCloseSeat?.(seat)}>
+                    <ActionButton action="close" className="pod-seats__action ct-action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onPress={() => onCloseSeat?.(seat)}>
                       Close
                     </ActionButton>
                   )}
@@ -128,7 +129,7 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
               <span className="pod-seats__label">Closed</span>
               {iLead && (
                 <span className="pod-seats__actions">
-                  <ActionButton action="open" className="pod-seats__action" data-testid="pod-seat-open" data-seat={seat} aria-label={`Open seat ${seat + 1}`} onPress={() => onOpenSeat?.(seat)}>
+                  <ActionButton action="open" className="pod-seats__action ct-action" data-testid="pod-seat-open" data-seat={seat} aria-label={`Open seat ${seat + 1}`} onPress={() => onOpenSeat?.(seat)}>
                     Open
                   </ActionButton>
                 </span>
@@ -146,7 +147,7 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
               <span className="pod-seats__label">{occupant.name}</span>
               {!fieldFixed && iLead && (
                 <span className="pod-seats__actions">
-                  <ActionButton action="ai-remove" className="pod-seats__action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onPress={() => onBotOff?.(seat)}>
+                  <ActionButton action="ai-remove" className="pod-seats__action ct-action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onPress={() => onBotOff?.(seat)}>
                     Remove
                   </ActionButton>
                 </span>
@@ -174,17 +175,17 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
             {iLead && !mine && (onRemoveMember !== undefined || onBotReplace !== undefined || onMakeLeader !== undefined) && (
               <span className="pod-seats__actions">
                 {onRemoveMember !== undefined && (
-                  <ActionButton action="remove" className="pod-seats__action" data-testid="pod-seat-remove" data-seat={seat} aria-label={`Remove ${name} from the table`} onPress={() => onRemoveMember(seat, id)}>
+                  <ActionButton action="remove" className="pod-seats__action ct-action" data-testid="pod-seat-remove" data-seat={seat} aria-label={`Remove ${name} from the table`} onPress={() => onRemoveMember(seat, id)}>
                     Remove
                   </ActionButton>
                 )}
                 {onBotReplace !== undefined && (
-                  <ActionButton action="bot-replace" className="pod-seats__action" data-testid="pod-seat-bot-replace" data-seat={seat} aria-label={`Put the bot in ${name}'s seat`} onPress={() => onBotReplace(seat, id)}>
+                  <ActionButton action="bot-replace" className="pod-seats__action ct-action" data-testid="pod-seat-bot-replace" data-seat={seat} aria-label={`Put the bot in ${name}'s seat`} onPress={() => onBotReplace(seat, id)}>
                     Bot
                   </ActionButton>
                 )}
                 {onMakeLeader !== undefined && (
-                  <ActionButton action="make-leader" className="pod-seats__action" data-testid="pod-seat-make-leader" data-seat={seat} aria-label={`Make ${name} the room leader`} onPress={() => onMakeLeader(id)}>
+                  <ActionButton action="make-leader" className="pod-seats__action ct-action" data-testid="pod-seat-make-leader" data-seat={seat} aria-label={`Make ${name} the room leader`} onPress={() => onMakeLeader(id)}>
                     <svg className="pod-seats__action-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d={SEAT_CROWN_PATH} /></svg>
                   </ActionButton>
                 )}

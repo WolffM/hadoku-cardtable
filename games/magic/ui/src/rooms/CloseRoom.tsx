@@ -14,6 +14,7 @@
 import { useState } from 'react';
 
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
+import '@hadoku/game-ui/components/Button.css';
 import { resetRoom } from '../screens/tableActions.ts';
 import type { RoomsClient } from './api.ts';
 import './CloseRoom.css';
@@ -40,11 +41,11 @@ export function CloseRoom({
     return (
       <>
         {resettable && (
-          <button type="button" className="room-close" data-testid="room-reset" onClick={() => setAsking('reset')}>
+          <button type="button" className="room-close ct-action" data-testid="room-reset" onClick={() => setAsking('reset')}>
             Reset
           </button>
         )}
-        <button type="button" className="room-close" data-testid="room-close" onClick={() => setAsking('close')}>
+        <button type="button" className="room-close ct-action" data-testid="room-close" onClick={() => setAsking('close')}>
           Close
         </button>
       </>
@@ -74,7 +75,7 @@ export function CloseRoom({
     <span className="room-close__ask" data-testid={`room-${asking}-ask`}>
       <button
         type="button"
-        className="room-close"
+        className="room-close ct-action"
         data-testid={`room-${asking}-no`}
         autoFocus
         disabled={busy}
@@ -85,7 +86,7 @@ export function CloseRoom({
       >
         Cancel
       </button>
-      <button type="button" className="room-close room-close--danger" data-testid={`room-${asking}-yes`} disabled={busy} onClick={confirm}>
+      <button type="button" className="room-close room-close--danger ct-action ct-action--danger" data-testid={`room-${asking}-yes`} disabled={busy} onClick={confirm}>
         {asking === 'reset' ? 'Reset room' : 'Close room'}
       </button>
       {error !== null && (

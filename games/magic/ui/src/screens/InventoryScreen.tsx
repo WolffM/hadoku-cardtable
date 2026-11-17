@@ -28,6 +28,7 @@ import { useWhoami } from '@hadoku/game-ui/room/whoami.ts';
 import { HomeHead } from './HomeHead.tsx';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import './InventoryScreen.css';
+import '@hadoku/game-ui/components/Button.css';
 
 const defaultPools = poolsClient();
 
@@ -67,11 +68,11 @@ function InventoryCard({
           {cube.refreshedAt !== null ? ` · refreshed ${relativeTime(cube.refreshedAt)}` : ''}
         </span>
         <span className="inventory__actions">
-          <button type="button" className="inventory__action" data-testid={`inventory-refresh-${cube.id}`} disabled={busy} onClick={() => onRefresh(cube.id)}>
+          <button type="button" className="inventory__action ct-action" data-testid={`inventory-refresh-${cube.id}`} disabled={busy} onClick={() => onRefresh(cube.id)}>
             Refresh
           </button>
           {cube.importedBy === myId && (
-            <button type="button" className="inventory__action" data-testid={`inventory-delete-${cube.id}`} disabled={busy} onClick={() => onDelete(cube.id)}>
+            <button type="button" className="inventory__action ct-action" data-testid={`inventory-delete-${cube.id}`} disabled={busy} onClick={() => onDelete(cube.id)}>
               Delete
             </button>
           )}
