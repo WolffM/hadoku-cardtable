@@ -20,6 +20,7 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { parseStartBody, parseStopPolicyEnv, STOP_POLICY_ENV } from './socket.ts';
 import { DEFAULT_STOP_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
 import { MAX_CONCURRENT_MATCHES, type HostEvents, type MatchRecord, type MatchHostFactory, type MatchSpec } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, ReplayHost, secretsFor } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
@@ -1673,7 +1674,7 @@ function jvmPool(): { factory: MatchHostFactory<BridgeLine, BridgeCommand>; host
 		}
 	}
 	const make = (id: string, spec: MatchSpec, events: HostEvents<BridgeLine, BridgeCommand>): DurableHost => {
-		const host = new DurableHost(id, spec, events);
+		const host = new DurableHost(id, spec as ForgeMatchSpec, events);
 		hosts.push(host);
 		return host;
 	};

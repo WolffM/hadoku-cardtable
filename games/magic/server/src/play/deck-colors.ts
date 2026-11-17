@@ -12,7 +12,7 @@ import { deckColorsByName, type DeckColor } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
 import { draftIdOfPool } from '../room/lobby.js';
-import type { MatchSpec } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 
 /** Scryfall cost strings by card name, for a match's format. */
 export type DeckCosts = (format: string | undefined) => Readonly<Record<string, string>>;
@@ -38,7 +38,7 @@ export function roomDeckCosts(library: { format(id: string): { fixture: { manaCo
 }
 
 /** The colours of the deck `seat` was started with, or null when the server never saw it. */
-export function seatDeckColors(spec: Pick<MatchSpec, 'seats' | 'format'>, seat: number, costs: DeckCosts): DeckColor[] | null {
+export function seatDeckColors(spec: Pick<ForgeMatchSpec, 'seats' | 'format'>, seat: number, costs: DeckCosts): DeckColor[] | null {
 	const deck = spec.seats[seat]?.deck ?? null;
 	if (deck === null) return null;
 	const main = parseDck(deck).sections.get('main') ?? [];

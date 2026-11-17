@@ -29,7 +29,8 @@ import { describe, it } from 'vitest';
 
 import { LIBRARY, deckPath } from '@hadoku/deck/library';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type MatchSpec } from '@hadoku/game-server/play/host';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from '../play/forge-spec.js';
 import { createMatchRegistry, type Match } from '../play/match.js';
 import { nightly } from '../play/scenario.js';
 import { BRIDGE_SOURCE } from '../root.js';
@@ -66,7 +67,7 @@ async function startsAndRuns(seatA: { name: string; text: string }, seatB: { nam
 			overGraceMs: 60_000,
 			emit: () => {},
 		});
-		const spec: MatchSpec = {
+		const spec: ForgeMatchSpec = {
 			seats: [
 				{ name: 'Seat 1', ai: false, deck: seatA.text },
 				{ name: 'Seat 2', ai: false, deck: seatB.text },

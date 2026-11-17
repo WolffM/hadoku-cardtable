@@ -19,6 +19,12 @@
  * (`isRegisteredGameType`). Deleting one entry from `EXTERNAL_GAMES` removes that one external
  * game from cardtable; deleting the whole array (or leaving the flag unset) removes every one,
  * bomberman included.
+ *
+ * `e2eOnly` entries (`external-games-config.ts`'s `e2e-toy-relay`, wave 120 §F's proof fixture)
+ * are filtered OUT of the registration loop below unless `CARDTABLE_E2E_TOY_GAMES=1`, a SECOND,
+ * dedicated gate on top of `CARDTABLE_EXPERIMENTAL_GAMES` — so prod never lists the toy even if
+ * it someday turns experimental games on, and only the e2e stack that explicitly asks for it (by
+ * setting this var on `startPlayStack`'s own env) ever sees it.
  */
 import { registerGameType, type GameTypeSpec } from '@hadoku/shared';
 import type { CardtablePlugin } from '@hadoku/magic-server/plugins/state';
@@ -47,6 +53,10 @@ export const externalGamesPlugin: CardtablePlugin = {
 	phase: 'config',
 	setup() {
 		if (process.env.CARDTABLE_EXPERIMENTAL_GAMES !== '1') return;
-		for (const game of EXTERNAL_GAMES) registerGameType(specOf(game));
+		const e2eToyGames = process.env.CARDTABLE_E2E_TOY_GAMES === '1';
+		for (const game of EXTERNAL_GAMES) {
+			if (game.e2eOnly === true && !e2eToyGames) continue;
+			registerGameType(specOf(game));
+		}
 	},
 };

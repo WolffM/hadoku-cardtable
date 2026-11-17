@@ -155,8 +155,6 @@ export interface SeatSpec {
 	/** Forge's player name. Shown to both seats, so never an identity. */
 	name: string;
 	ai: boolean;
-	/** `.dck` text, or null for a random Forge precon. */
-	deck: string | null;
 }
 
 /**
@@ -170,24 +168,27 @@ export interface HeadlessRules {
 }
 
 /**
- * What a match needs to start, generic over the game `G`'s own extra fields (w119 §C). Only
- * `seats` (its length) and {@link MatchSpec.headless} (its presence) are read by this file's own
- * coordinator — everything else below is opaque to it: spread onto `config.json` (`bridgeConfig`)
- * and kept whole in `JvmRecord`, never interpreted here.
+ * What a match needs to start, generic over the game `G`'s own extra fields (w119 §C, w120 §K).
+ * Only `seats` (its length) and {@link MatchSpec.headless} (its presence) are read by this file's
+ * own coordinator — everything else below is opaque to it: spread onto `config.json`
+ * (`bridgeConfig`) and kept whole in `JvmRecord`, never interpreted here.
  *
  * `G`'s default, `unknown` (so `KnownFields & unknown` simplifies back to `KnownFields`), keeps every existing bare `MatchSpec` (no type
- * argument) call site reading exactly the shape below — every field here was Forge-specific
- * before this wave, and still is; nothing is removed. One thing DID move (w119 §C.3): `seats` is
- * a plain array, not the old 2-tuple with "seat 0 is never AI" encoded in its type (that rule is
- * `socket.ts`'s/the bridge's to enforce, not this type's) — so `runtimes/relay-match.ts`'s
- * pod-sized, no-AI roster no longer needs `as unknown as MatchSpec` to fit it.
- *
- * A fuller split — moving `.dck` text, puzzle scenarios, hand smoothing and coin-toss rigging out
- * of this base into a Magic-only `G` — would need edits to files outside w119 §C's ownership
- * (`packages/game-server/src/play/placement/coordinator.ts`, and most of `games/magic/server/src/
- * play/*`'s own `MatchSpec` readers: `match.ts`, `botgames.ts`, `parked.ts`, `deck-colors.ts`,
- * `table-game.ts`, `art.ts`, `recording/{recorder,rebuild}.ts`, `match/registry.ts`,
- * `http/routes.ts`), so it is deferred; see the wave report.
+ * argument) call site reading exactly the shape below. w120 §K moved the four fields that were
+ * Forge-only in principle AND in practice — `.dck` text (off {@link SeatSpec}), puzzle scenarios
+ * (`scenario`/`skipOpening`/`restore`) and coin-toss rigging (`chooser`) — out of this base and
+ * into Magic's own `games/magic/server/src/play/forge-spec.ts` (`ForgeMatchSpec`/`ForgeSeatSpec`),
+ * which every Magic reader of a real match's spec now imports instead of this bare type:
+ * `match.ts` (`SeatSpecWithIdentity`/`MatchSpecWithIdentity`), `botgames.ts`, `parked.ts`,
+ * `deck-colors.ts`, `table-game.ts`, `art.ts`, `recording/{recorder,rebuild}.ts`,
+ * `match/{registry,forge-session}.ts`, `socket.ts`, `http/routes.ts`. `format`, `handSmoothing`,
+ * `clockMs`, `seed` and `headless` stay here: none of the four were named by the brief, each is
+ * arguably generic to any room-hosted game (a format id, a clock, a seed, a bot game), and
+ * `fixtures/toy-game/*` and `runtimes/relay-match.ts` build a bare `MatchSpec` directly, so moving
+ * them would widen this change past what was asked. `seats` is a plain array, not the old 2-tuple
+ * with "seat 0 is never AI" encoded in its type (that rule is `socket.ts`'s/the bridge's to
+ * enforce, not this type's) — so `runtimes/relay-match.ts`'s pod-sized, no-AI roster needs no
+ * `as unknown as MatchSpec` to fit it.
  */
 export type MatchSpec<G = unknown> = {
 	/** Every seat this match starts with. */
@@ -197,31 +198,14 @@ export type MatchSpec<G = unknown> = {
 	/** Seeds Forge's shuffles and the precon pick, for a repeatable test run. Omitted in play. */
 	seed?: number;
 	/**
-	 * Wave 33 §S — a TEST-only starting position: the text of a Forge puzzle file's
-	 * `[state]` section (`humanlife=`, `humanhand=`, `humanbattlefield=`,
-	 * `activephase=`, … — `GameState.parseLine` in the deploy tree's forge-build
-	 * cache has the full key list), with `human…` keys applying to seat 0 and
-	 * `ai…` keys to seat 1. `bridgeConfig` spreads it onto `config.json` like every
-	 * other `MatchSpec` field; `PlayBridge.java`'s `configFrom` reads it and
-	 * `BridgeGui.hostMatch` applies it from `HostedMatch`'s own start-game hook —
-	 * see that method's doc. Omitted in play: `socket.ts`'s `parseStartBody`
-	 * accepts this key only behind `CARDTABLE_PLAY_PROBE=1` and refuses it
-	 * otherwise, so production never sends one.
+	 * Opaque per-game resume text, opened and written by `G`'s own `GameAdapter.restoreSpec`
+	 * (`game-adapter.ts`) — never read here. `fixtures/toy-game/rules.ts`'s `playToy` reads its own
+	 * JSON-encoded checkpoint back from this; Magic's `ForgeMatchSpec.scenario`
+	 * (`games/magic/server/src/play/forge-spec.ts`, w120 §K) is the Forge-shaped equivalent, kept
+	 * apart from this generic field because `PlayBridge.java`'s `configFrom` reads `scenario` by
+	 * that exact key, not whatever a non-Forge `G` happens to call its own resume data.
 	 */
-	scenario?: string;
-	/**
-	 * Start on {@link scenario}'s board with no coin toss and no mulligan — Forge's
-	 * own Puzzle game type, which skips both (`GameAction.startGame`). Set only by
-	 * `socket.ts` for a board-state room's own scenario; a test's scenario keeps the
-	 * ordinary opening its drivers click through.
-	 */
-	skipOpening?: boolean;
-	/**
-	 * {@link scenario} is this match's own turn-start snapshot (`restoredSpec`): its board goes back
-	 * as it was, running no replacement effect ("enters tapped", "you may pay 2 life"), where a
-	 * board room's scenario plays each permanent's entry. Implies {@link skipOpening}.
-	 */
-	restore?: boolean;
+	resumeData?: string;
 	/**
 	 * The room's format id (`room/lobby.ts`'s `FormatId`): what a card-name ask is
 	 * narrowed to (`names.ts`). Inert in the JVM — `configFrom` never reads it — and
@@ -236,20 +220,6 @@ export type MatchSpec<G = unknown> = {
 	 * spec built directly, as the jvm suites build theirs, deals what it always did.
 	 */
 	handSmoothing?: boolean;
-	/**
-	 * Wave 71 §E — names the seat Forge asks to choose play or draw. Every game we
-	 * host is a fresh Forge `Match`, so Forge always treats it as the FIRST game of
-	 * that match and tosses a coin (`GameAction.determineFirstTurnPlayer`,
-	 * `forge/forge-game/src/main/java/forge/game/GameAction.java:2364-2416`) rather
-	 * than asking the previous loser — this field is how the room still names that
-	 * player. `PlayBridge.java`'s `startMatch` rigs the coin toss so the named seat
-	 * is the one Forge asks (`SeatGui`'s `updateButtons` with `label1:'Play',
-	 * label2:'Draw'`), which makes the published `coinToss.winner` (`match.ts:1055`)
-	 * that seat too — the client's existing flip/notice needs no change. Omitted:
-	 * byte-identical to today, an unrigged coin toss. Never set alongside a change
-	 * to `forge/` — a fork change is a jar switch, and that switch is the operator's.
-	 */
-	chooser?: 0 | 1;
 	/**
 	 * The chess clock: each seat's time left, in ms, when this game starts — a room
 	 * with the clock on carries what the series' last game left (`play/clock.ts`).

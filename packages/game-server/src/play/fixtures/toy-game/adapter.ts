@@ -15,7 +15,6 @@ export type ToyFrame =
 	| { kind: 'notify'; text: string };
 
 export const toyAdapter: GameAdapter<MatchSpec, ToyLine, ToyCmd, ToyFrame, ToyCheckpoint> = {
-	// `ai`/`name` only: `deck` (and everything else `MatchSpec.seats` carries for Forge) goes unread.
 	seats: (spec) => spec.seats.map((s) => ({ ai: s.ai, name: s.name })),
 
 	classify: (line): ClassifiedLine<ToyCheckpoint> => {
@@ -65,9 +64,10 @@ export const toyAdapter: GameAdapter<MatchSpec, ToyLine, ToyCmd, ToyFrame, ToyCh
 		notice: () => {},
 	}),
 
-	// `cp` is `rules.ts`'s whole state (the running score): write it into `.scenario` as JSON, the
-	// field `playToy` reads it back from. `skipOpening`/`chooser` etc. are Forge's own and go unread.
-	restoreSpec: (spec, cp) => ({ ...spec, scenario: JSON.stringify(cp) }),
+	// `cp` is `rules.ts`'s whole state (the running score): write it into `.resumeData` as JSON, the
+	// field `playToy` reads it back from. Forge's own `scenario`/`skipOpening`/`chooser` are Magic's
+	// `ForgeMatchSpec` now (w120 §K) and go unread here regardless.
+	restoreSpec: (spec, cp) => ({ ...spec, resumeData: JSON.stringify(cp) }),
 	// `GameAdapter.concede`'s `seat` is a plain `number` (any game's shell may have more than two
 	// seats); `seats()` above always answers exactly two, so the shell never calls this with
 	// anything but 0 or 1.

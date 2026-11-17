@@ -42,7 +42,7 @@ import { createGameServer } from '@hadoku/service-kernel/server';
 import { SERVER_RESTARTING_EVENT } from '@hadoku/shared';
 import { EMBED_ENTRIES } from '@hadoku/game-server/base-path';
 import { ART_REDIRECTS } from '@hadoku/game-server/capacity';
-import { CONFIG, INDEX_HTML } from '@hadoku/game-server/config';
+import { CONFIG, indexHtml } from '@hadoku/game-server/config';
 import { fkOf } from '@hadoku/game-server/erase/index';
 import { edgeAuth, gate } from '@hadoku/game-server/kernel';
 import { monitoringSink, siteOf } from '@hadoku/game-server/telemetry';
@@ -64,7 +64,7 @@ await createGameServer<CardtableEvents, Cardtable>({
 		edgeAuth,
 		gate,
 		basePrefix: CONFIG.basePrefix,
-		bundle: { indexHtml: INDEX_HTML, webDir: CONFIG.webDir, embedEntries: EMBED_ENTRIES },
+		bundle: { indexHtml: indexHtml(), webDir: CONFIG.webDir, embedEntries: EMBED_ENTRIES },
 		repoRoot: REPO_ROOT,
 		restartEvent: SERVER_RESTARTING_EVENT,
 		// Prod and PPE both post as `cardtable`; the base path says which one this is.

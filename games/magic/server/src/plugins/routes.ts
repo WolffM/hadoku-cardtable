@@ -5,7 +5,7 @@
 import { resolve } from 'node:path';
 import type { Request, Response } from 'express';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { CONFIG, INDEX_HTML } from '@hadoku/game-server/config';
+import { CONFIG, indexHtml } from '@hadoku/game-server/config';
 import { MAGIC_CONFIG } from '../config.js';
 import { serveCover } from '../cover.js';
 import { attachCardArt } from '../http/card-art.js';
@@ -22,7 +22,7 @@ import { attachTrim } from '@hadoku/game-server/http/trim';
 import { attachUsage } from '@hadoku/game-server/http/usage';
 import { attachPeople, createPeople } from '@hadoku/game-server/people';
 import { createArtIds } from '../play/art-ids.js';
-import { tableGamesOf } from '../play/table-game.js';
+import { tableGamesOf, type TableGameSource } from '../play/table-game.js';
 import type { CardtablePlugin } from './state.js';
 
 export const routesPlugin: CardtablePlugin = {
@@ -39,7 +39,7 @@ export const routesPlugin: CardtablePlugin = {
 		});
 		// Every client-routed path serves the same index.html, per caller within a limit (`http/page.ts`).
 		attachPage(app, {
-			indexHtml: INDEX_HTML,
+			indexHtml: indexHtml(),
 			basePath: ctx.bundle,
 			basePrefix: CONFIG.basePrefix,
 			...(CONFIG.testNoRateLimits ? { rateLimit: null } : {}),
@@ -77,8 +77,10 @@ export const routesPlugin: CardtablePlugin = {
 			arrived: (roomId, caller) => {
 				if (caller.userId !== null) void accounts.arrived(roomId, caller.id, caller.userId);
 			},
-			// Each table's game for the table card (`play/table-game.ts`).
-			tableGames: (room) => tableGamesOf(room, (matchId) => state.play?.matches.find(matchId), state.deckCosts),
+			// Each table's game for the table card (`play/table-game.ts`). `MatchRegistry.find`'s
+			// `Match | EndedMatch` carry `.spec` as `MatchShell`'s own bare `MatchSpec` field or
+			// (`EndedMatch`) as `ForgeMatchSpec` already; both are really Forge's (w120 §K).
+			tableGames: (room) => tableGamesOf(room, (matchId) => state.play?.matches.find(matchId) as TableGameSource | undefined, state.deckCosts),
 			// `POST …/start` fetches a realistic round's boosters and caches them on `draftRooms` BEFORE
 			// `lobby.startDraft` runs, so the first socket `join`'s `draftRooms.open()` stays synchronous.
 			realistic: {
@@ -94,7 +96,7 @@ export const routesPlugin: CardtablePlugin = {
 		attachCardArt(api, { art: createArtIds(state.catalog), keys: state.artKeys });
 		attachEvents(api, { events: state.events, lobby, people, checkPlan: state.checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: state.roomsLog, closed: state.roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 		// The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
-		attachDiscord(api, { secret: MAGIC_CONFIG.archivebotSecret, archivebotUrl: MAGIC_CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
+		attachDiscord(api, { secret: state.archivebot.secret, archivebotUrl: state.archivebot.url, log: jsonLogger('cardtable-discord') });
 
 		// The sound-builder's catalogue, take audio and assignment matrix, read and written per request
 		// in a gitignored data dir, so a redeploy keeps an admin's assignments.

@@ -29,8 +29,9 @@ import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import type { MatchReport } from '@wolffm/prefs-client/games';
 import type { ClientFrame } from '@hadoku/forge-wire';
 import { GAME_CLOCK_MS, type ClockSetting } from '@hadoku/shared';
-import type { MatchRecord, MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
+import type { MatchRecord, MatchHostFactory } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../play/bridge-protocol.js';
+import type { ForgeMatchSpec } from '../play/forge-spec.js';
 import type { MatchRegistry } from '../play/match.js';
 import {
 	MATCH_EVENTS,
@@ -510,7 +511,7 @@ const CAROL = idOf('carol');
 
 interface Harness {
 	port: number;
-	specs: MatchSpec[];
+	specs: ForgeMatchSpec[];
 	hosts: ReplayHost[];
 	rooms: DraftRooms;
 	lobby: FakeLobby;
@@ -542,7 +543,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory<BridgeLin
 	const rooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube.pool), now: () => 1_700_000_000_000 });
 
 	const { factory, hosts } = replayFactory();
-	const specs: MatchSpec[] = [];
+	const specs: ForgeMatchSpec[] = [];
 	const lobby = opts.lobby ?? fakeLobby();
 	const app = express();
 	app.use(edgeMod.edgeProvenance);
@@ -582,7 +583,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory<BridgeLin
 		host:
 			opts.host ??
 			((id, spec, events) => {
-				specs.push(spec);
+				specs.push(spec as ForgeMatchSpec);
 				return factory(id, spec, events);
 			}),
 		log: (e) => playLogs.push(e),
@@ -3583,7 +3584,7 @@ describe('an All Random table', () => {
 		return pending;
 	}
 	/** The two decks a spec dealt, as library ids, and the era they share. */
-	function dealt(spec: MatchSpec | undefined): { ids: string[]; eras: string[] } {
+	function dealt(spec: ForgeMatchSpec | undefined): { ids: string[]; eras: string[] } {
 		const ids = (spec?.seats ?? []).map((s) => libraryIdOf(s.deck) ?? '?');
 		return { ids, eras: ids.map((id) => library.deck(id)?.era ?? '?') };
 	}

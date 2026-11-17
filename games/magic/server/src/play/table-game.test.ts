@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TableGameLive } from '@hadoku/shared';
 
-import type { MatchSpec } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import { deckArtCard, seatDeck, tableGame, type TableGameSource } from './table-game.js';
 
 const COSTS: Record<string, string> = { 'Goblin Matron': '{2}{R}', 'Goblin Lackey': '{R}', 'Siege-Gang Commander': '{3}{R}{R}', Counterspell: '{U}{U}' };
@@ -25,7 +25,7 @@ describe('deckArtCard', () => {
 
 describe('seatDeck', () => {
 	it('names the deck, folds its colours and picks its art from the .dck the seat was started with', () => {
-		const spec: Pick<MatchSpec, 'seats'> = { seats: [{ name: 'a', ai: false, deck: dck('Goblins', '20 Mountain\n4 Goblin Matron\n4 Goblin Lackey') }, { name: 'b', ai: true, deck: null }] };
+		const spec: Pick<ForgeMatchSpec, 'seats'> = { seats: [{ name: 'a', ai: false, deck: dck('Goblins', '20 Mountain\n4 Goblin Matron\n4 Goblin Lackey') }, { name: 'b', ai: true, deck: null }] };
 		expect(seatDeck(spec, 0, costs)).toEqual({ name: 'Goblins', colors: ['R'], art: 'Goblin Matron' });
 		// A random Forge precon: the server never saw it.
 		expect(seatDeck(spec, 1, costs)).toBeNull();

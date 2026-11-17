@@ -35,7 +35,7 @@ import { RelaySession, type RelayCommand, type RelayLine, type RelayOutcome, typ
  * like this one needs no `as unknown as MatchSpec` to fit it any more.
  */
 function relaySpec(seatCount: number): MatchSpec {
-	const seats = Array.from({ length: seatCount }, (_, seat) => ({ ai: false, name: `Seat ${seat}`, deck: null }));
+	const seats = Array.from({ length: seatCount }, (_, seat) => ({ ai: false, name: `Seat ${seat}` }));
 	return { seats };
 }
 

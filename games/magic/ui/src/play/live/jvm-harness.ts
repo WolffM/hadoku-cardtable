@@ -39,7 +39,23 @@ import { expect } from 'vitest';
 import { isTierC, safeParseClientFrame, type ClientFrame, type ServerFrame } from '@hadoku/forge-wire';
 import { ARRANGEMENT_EVENT, CLIENT_EVENT, OFFERED_EVENT, PLACED_EVENT, PRESENCE_EVENT } from '@hadoku/shared';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type MatchSpec } from '@hadoku/game-server/play/host';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type MatchSpec, type SeatSpec } from '@hadoku/game-server/play/host';
+
+/**
+ * `.dck` text, puzzle scenarios and coin-toss rigging moved off the platform's generic
+ * `MatchSpec`/`SeatSpec` in w120 §K (`games/magic/server/src/play/forge-spec.ts`'s
+ * `ForgeMatchSpec`/`ForgeSeatSpec`). This harness is Forge-only but, like every other file
+ * under `games/magic/ui`, does not depend on `@hadoku/magic-server`, so it declares the same
+ * four fields locally rather than adding that dependency for a test harness alone.
+ */
+export type HarnessSeatSpec = SeatSpec & { deck: string | null };
+export type HarnessMatchSpec = Omit<MatchSpec, 'seats'> & {
+  seats: HarnessSeatSpec[];
+  scenario?: string;
+  skipOpening?: boolean;
+  restore?: boolean;
+  chooser?: 0 | 1;
+};
 import type { BridgeCommand, BridgeLine } from '../../../../server/src/play/bridge-protocol.ts';
 import { withEndStepStop } from '../../../../server/src/play/auto.ts';
 import { createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
@@ -312,7 +328,7 @@ export function startLiveScenario(name: string, decks: [string, string] = ['40 M
   });
 }
 
-export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
+export async function startLiveMatch(spec: HarnessMatchSpec): Promise<LiveHarness> {
   const available = forgeAvailability();
   if (!available.ok) throw new Error(available.reason);
   const host = jvmHostFactory<BridgeLine, BridgeCommand>(available.config);

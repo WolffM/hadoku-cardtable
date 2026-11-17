@@ -21,7 +21,7 @@ import { toyEngine } from './rules.js';
 const ALICE = 'fk:alice' as ParticipantId;
 const BOB = 'fk:bob' as ParticipantId;
 
-const SPEC: MatchSpec = { seats: [{ ai: false, name: 'Alice', deck: null }, { ai: false, name: 'Bob', deck: null }] };
+const SPEC: MatchSpec = { seats: [{ ai: false, name: 'Alice' }, { ai: false, name: 'Bob' }] };
 
 function deps(): ToyMatchDeps {
 	return { log: () => undefined, host: inProcessHost(toyEngine()), emit: () => undefined, emitWatchers: () => undefined, restoreSpec: toyAdapter.restoreSpec };

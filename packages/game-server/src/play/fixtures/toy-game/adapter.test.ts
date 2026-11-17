@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import type { MatchSpec } from '../../host.js';
 import { toyAdapter, type ToyFrame } from './adapter.js';
 
-const SPEC: MatchSpec = { seats: [{ ai: false, name: 'Alice', deck: null }, { ai: false, name: 'Bob', deck: null }] };
+const SPEC: MatchSpec = { seats: [{ ai: false, name: 'Alice' }, { ai: false, name: 'Bob' }] };
 
 describe('toyAdapter.seats / .concede / .notice', () => {
-	it('seats() reads spec.seats back, ai and name only — deck goes unread', () => {
+	it('seats() reads spec.seats back, ai and name only', () => {
 		expect(toyAdapter.seats(SPEC)).toEqual([{ ai: false, name: 'Alice' }, { ai: false, name: 'Bob' }]);
 	});
 
@@ -16,8 +16,8 @@ describe('toyAdapter.seats / .concede / .notice', () => {
 		expect(toyAdapter.notice('the match ended')).toEqual({ kind: 'notify', text: 'the match ended' });
 	});
 
-	it('restoreSpec() writes the checkpoint into .scenario as JSON, for playToy to read back', () => {
-		expect(toyAdapter.restoreSpec(SPEC, { score: [2, 1] })).toEqual({ ...SPEC, scenario: '{"score":[2,1]}' });
+	it('restoreSpec() writes the checkpoint into .resumeData as JSON, for playToy to read back', () => {
+		expect(toyAdapter.restoreSpec(SPEC, { score: [2, 1] })).toEqual({ ...SPEC, resumeData: '{"score":[2,1]}' });
 	});
 });
 

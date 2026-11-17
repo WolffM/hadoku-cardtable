@@ -21,7 +21,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type AiCutoff, type HostEvents, type JvmHostFactory, type MatchHost, type MatchSpec } from '@hadoku/game-server/play/host';
+import { jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type AiCutoff, type HostEvents, type JvmHostFactory, type MatchHost } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { available, deck, scenarioText, waitUntil } from './scenario.js';
 
@@ -57,7 +58,7 @@ describe.skipIf(!available.ok)(title, () => {
 		if (!available.ok) throw new Error('unreachable');
 		const config = { ...available.config, perJvm: 2, jvmOpts: [...available.config.jvmOpts, '-Dcardtable.aiTimeoutSec=0'] };
 		pool = jvmHostFactory(config, { warm: false, sweep: false, log: (e) => poolLog.push(e), onCutoff: (c) => cutoffs.push(c) });
-		const spec: MatchSpec = {
+		const spec: ForgeMatchSpec = {
 			seed: 20261027,
 			skipOpening: true,
 			scenario: scenarioText('aa-ai-turn'),

@@ -1,7 +1,7 @@
 /**
  * Runtime config for the pieces of cardtable only Magic needs (w119 §C) — the catalog, the art
  * mirror, the draft bot, tournaments, sounds, draft/Forge-hosting timing, the room-stream
- * (noVNC/Forge-desktop) envs, and cardtable's own ArchiveBot release-announce integration.
+ * (noVNC/Forge-desktop) envs, and {@link playWorkDir}.
  *
  * `createMagicConfig` is a factory in the same shape as `@hadoku/game-server/config`'s
  * `createConfig`: every value comes from the `env`/`envPrefix` it is called with (default
@@ -11,23 +11,24 @@
  * `config.test.ts` (platform) already proves that move for `roomsDir`; this file's own
  * `config.test.ts` proves it for `draftsDir`/`tournamentsFile`/`recordingsDir`.
  *
- * ArchiveBot (`archivebotSecret`/`archivebotUrl`) is NOT Magic-specific in principle (the survey
- * calls it "cardtable's own release-notes integration", deployment-only) — but its only two
- * readers, `plugins/{listen,routes}.ts`, live in the `magic` layer, which `scripts/layers/layers.json`
- * forbids from importing `apps/server` (the `site` layer that owns composition). Putting it in
- * `apps/server` instead would need `apps/server/src/plugins/index.ts` to thread it down into
- * these two Magic plugins — that file is lane U's for this wave, not this lane's to edit. Kept
- * here, where both readers already are, until that wiring exists; flagged in the wave report.
+ * ArchiveBot (cardtable's own release-notes integration, deployment-only, not Magic-specific in
+ * principle) moved out of this file (w120 §K): its two readers, `plugins/{listen,routes}.ts`, live
+ * in the `magic` layer, which `scripts/layers/layers.json` forbids from importing `apps/server`
+ * (the `site` layer that owns composition) — so the SETTINGS moved to `apps/server`'s own
+ * `plugins/archivebot.ts`, which reads them (the site may read anything) and sets them on
+ * `ctx.state.archivebot`, a field both plugins now read instead of a Magic config value. Kept
+ * here only until this wave: C's w119 remainder flagged the wiring as `apps/server/src/
+ * plugins/index.ts`, which was outside that lane's row and is inside this one's.
  *
  * Survey: `~/.cache/cardtable-manager/bomberman-survey-2026-11-16.md` §3 has the classification
  * with the original line numbers (cardtable's `packages/game-server/src/config.ts`, before this
  * split).
  */
 
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { createConfig } from '@hadoku/game-server/config';
+import { createConfig, lazyConfig } from '@hadoku/game-server/config';
 
 export interface CreateMagicConfigOptions {
 	/** Every env var this factory reads is `<envPrefix>_<NAME>`. Default `'CARDTABLE'`. */
@@ -105,14 +106,6 @@ export interface MagicConfig {
 	 * second server on the same machine (`pnpm dev`) off this one's containers.
 	 */
 	readonly streamDir: string;
-	/**
-	 * ArchiveBot's webhook secret for this app, from the vault via the PM2 wrapper. Prod's wrapper
-	 * holds it and PPE's does not, which is what keeps release notes a prod-only post. Unset = the
-	 * boot announcement is skipped.
-	 */
-	readonly archivebotSecret: string;
-	/** ArchiveBot's webhook server, on loopback beside this one. */
-	readonly archivebotUrl: string;
 }
 
 /** Everything cardtable's Magic deployment needs that the platform `createConfig` does not (w119 §C). */
@@ -151,10 +144,24 @@ export function createMagicConfig(options: CreateMagicConfigOptions = {}): Magic
 		roomStreamBasePort: Number(read('ROOM_STREAM_PORT') ?? 6100),
 		streamNamePrefix: read('STREAM_NAME_PREFIX') ?? 'cardtable-room',
 		streamDir: read('STREAM_DIR') ?? join(homedir(), '.local', 'share', 'cardtable', 'stream'),
-		archivebotSecret: env[`ARCHIVEBOT_${prefix}_WEBHOOK_SECRET`] || '',
-		archivebotUrl: read('ARCHIVEBOT_URL') || 'http://127.0.0.1:3004',
 	};
 }
 
-/** Cardtable's own instance, built once at this module's first import — same shape as `@hadoku/game-server/config`'s `CONFIG`. */
-export const MAGIC_CONFIG = createMagicConfig();
+/**
+ * Where a Forge match's run directories go (`CARDTABLE_PLAY_WORK_DIR`) — moved from the platform's
+ * config (w120 §K: Forge/JVM-match specific, like every other setting in this file).
+ * `play/local-jvm.ts`'s `jvmHostConfig` takes this as an injected `workDir`, computed by whichever
+ * caller starts a JVM (every reader is this package: `plugins/library.ts`, `play/scenario.ts`,
+ * `play/recording/rebuild.ts`), rather than importing it itself — the platform file knows no
+ * game's own env var names and keeps its own generic fallback default for every other caller
+ * (scripts, the UI's jvm harness) that passes no `workDir` of its own.
+ */
+export function playWorkDir(env: NodeJS.ProcessEnv = process.env): string {
+	return resolve(env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play'));
+}
+
+/**
+ * Cardtable's own instance — built on first property access, not at import, the same way
+ * `@hadoku/game-server/config`'s `CONFIG` is ({@link lazyConfig}, w120 §K).
+ */
+export const MAGIC_CONFIG: MagicConfig = lazyConfig(createMagicConfig);

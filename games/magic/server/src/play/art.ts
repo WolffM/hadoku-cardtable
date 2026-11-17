@@ -9,7 +9,7 @@
 import { parseDck } from '@hadoku/carddata/dck';
 
 import type { ArtIds } from './art-ids.js';
-import type { MatchSpec } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 
 /**
  * A scenario key that lists cards in a zone (`humanhand=`, `aibattlefield=`, …; `scenarios/README.md` has the
@@ -41,7 +41,7 @@ interface SpecCard {
 	set: string | null;
 }
 
-export function matchCards(spec: Pick<MatchSpec, 'seats' | 'scenario'>): SpecCard[] {
+export function matchCards(spec: Pick<ForgeMatchSpec, 'seats' | 'scenario'>): SpecCard[] {
 	const cards = new Map<string, SpecCard>();
 	const add = (name: string, set: string | null): void => {
 		const key = `${name}|${set ?? ''}`;
@@ -58,6 +58,6 @@ export function matchCards(spec: Pick<MatchSpec, 'seats' | 'scenario'>): SpecCar
 }
 
 /** Every art id the match's cards draw — each card's, and its back's — for `forge:art`. */
-export function artOf(spec: Pick<MatchSpec, 'seats' | 'scenario'>, ids: ArtIds): string[] {
+export function artOf(spec: Pick<ForgeMatchSpec, 'seats' | 'scenario'>, ids: ArtIds): string[] {
 	return [...new Set(matchCards(spec).flatMap((card) => ids.images(card.name, card.set)))];
 }

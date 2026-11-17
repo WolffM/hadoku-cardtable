@@ -15,7 +15,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
-import type { MatchSpec } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { BridgeLine } from './bridge-protocol.js';
 import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/transcript.js';
 import { createMatchRegistry, type Match } from './match.js';
@@ -38,7 +38,7 @@ const TRANSCRIPT = loadTranscript();
 const OPENING = TRANSCRIPT.slice(0, TRANSCRIPT.findIndex((l) => l.t === 'frame' && (l.frame as { kind: string }).kind === 'ask'));
 const SNAPSHOT = { t: 'snapshot', turn: 4, state: 'turn=4\nactiveplayer=p1\nactivephase=UNTAP\nactivephaseadvance=UPKEEP\np0life=12\n', ms: 2 } as const satisfies BridgeLine;
 const DECK = (name: string): string => `[metadata]\nName=${name}\n[main]\n20 Mountain\n`;
-const TWO_HUMANS: MatchSpec = { seats: [{ name: 'alice', ai: false, deck: DECK('Burn') }, { name: 'bob', ai: false, deck: DECK('Ramp') }], format: 'free' };
+const TWO_HUMANS: ForgeMatchSpec = { seats: [{ name: 'alice', ai: false, deck: DECK('Burn') }, { name: 'bob', ai: false, deck: DECK('Ramp') }], format: 'free' };
 
 let socketMod: typeof import('./socket.ts');
 let edgeMod: typeof import('@hadoku/game-server/edge-auth');
@@ -105,7 +105,7 @@ describe('the registry lets go of a match that ended', () => {
 		expect(ended).toMatchObject({ id: match.id, status: 'stopped', failure: null, winner: null });
 		expect(ended?.seats.map((s) => s.owner)).toEqual(['fk:aaaaaaaaaaaaaaaa', null]);
 		expect(ended?.seatOf('fk:aaaaaaaaaaaaaaaa')).toBe(0);
-		expect(ended?.spec.seats.map((s) => s.deck)).toEqual([DECK('Burn'), DECK('Ramp')]);
+		expect((ended?.spec as ForgeMatchSpec | undefined)?.seats.map((s) => s.deck)).toEqual([DECK('Burn'), DECK('Ramp')]);
 		expect(ended?.spec, 'a board is the parked record’s to keep, not the tombstone’s').not.toHaveProperty('scenario');
 		expect(ended?.live()).toBeNull();
 		expect(freed).toEqual([match.id]);
@@ -193,7 +193,7 @@ const ROOM: StoreRoom = {
 } as StoreRoom;
 
 describe('the parked store', () => {
-	function running(spec: MatchSpec = TWO_HUMANS, snapshot = true): Match {
+	function running(spec: ForgeMatchSpec = TWO_HUMANS, snapshot = true): Match {
 		const { factory, hosts } = replayFactory();
 		// A still clock: the seats' time left is what the record says, to the millisecond.
 		const r = createMatchRegistry({ host: factory, log: () => undefined, overGraceMs: 60_000, emit: () => undefined, now: () => 1_000 });

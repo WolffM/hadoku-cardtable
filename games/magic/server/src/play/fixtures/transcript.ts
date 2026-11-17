@@ -29,7 +29,8 @@ import { fileURLToPath } from 'node:url';
 
 import { DELTA_TYPE, boolOf, cardIdOfState, deltaKey, intOf } from '@hadoku/forge-wire';
 
-import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
+import type { HostEvents, MatchHost, MatchHostFactory } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from '../forge-spec.js';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
 import { type DeltaPacketJson, type StateFrame, type WireObj } from '../visibility.js';
 
@@ -98,7 +99,7 @@ export class ReplayHost implements MatchHost<BridgeCommand> {
 	stopped = false;
 	constructor(
 		readonly matchId: string,
-		readonly spec: MatchSpec,
+		readonly spec: ForgeMatchSpec,
 		private readonly events: HostEvents<BridgeLine, BridgeCommand>,
 	) {}
 	push(...lines: BridgeLine[]): void {
@@ -120,7 +121,8 @@ export function replayFactory(): { factory: MatchHostFactory<BridgeLine, BridgeC
 	return {
 		hosts,
 		factory: (id, spec, events) => {
-			const host = new ReplayHost(id, spec, events);
+			// Every spec this test fixture is ever handed is really Forge's (w120 §K).
+			const host = new ReplayHost(id, spec as ForgeMatchSpec, events);
 			hosts.push(host);
 			return host;
 		},

@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { DeckCosts } from '../deck-colors.js';
 import type { HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
+import type { ForgeMatchSpec } from '../forge-spec.js';
 import { anonymousSpec, bridgeDigest, createRecorder, forgePin, SEATS_RECORD_MS, serverVersion } from './recorder.js';
 
 let dir: string;
@@ -26,7 +27,7 @@ function linesOf(path: string): { t: string; [k: string]: unknown }[] {
 
 const NO_COSTS: DeckCosts = () => ({});
 
-function spec(seed?: number): MatchSpec {
+function spec(seed?: number): ForgeMatchSpec {
 	return { seed, seats: [{ name: 'A', ai: false, deck: null }, { name: 'B', ai: false, deck: null }] };
 }
 
@@ -489,7 +490,7 @@ describe('createRecorder', () => {
 			{ seat: 1, claimed: true, playerId: 1 },
 		];
 		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, seatsOf: () => roster, usersOf: () => ['uid-ari', 'uid-bo'] });
-		const played: MatchSpec = { seed: 1, seats: [{ name: 'Ari Realname', ai: false, deck: null }, { name: 'Bo Realname', ai: false, deck: null }] };
+		const played: ForgeMatchSpec = { seed: 1, seats: [{ name: 'Ari Realname', ai: false, deck: null }, { name: 'Bo Realname', ai: false, deck: null }] };
 		recorder.host(inner)('m-1', played, { line: () => undefined, exit: () => undefined, log: () => undefined });
 		expect(inner.calls[0]!.spec.seats.map((s) => s.name), 'Forge still plays the people by name').toEqual(['Ari Realname', 'Bo Realname']);
 		(inner.calls[0]!.events.exit as (r: string) => void)('stopped');
@@ -502,7 +503,7 @@ describe('createRecorder', () => {
 	});
 
 	it('the AI keeps the name Forge plays it by', () => {
-		const vsAi: MatchSpec = { seats: [{ name: 'Ari', ai: false, deck: null }, { name: 'Forge AI', ai: true, deck: null }] };
+		const vsAi: ForgeMatchSpec = { seats: [{ name: 'Ari', ai: false, deck: null }, { name: 'Forge AI', ai: true, deck: null }] };
 		expect(anonymousSpec(vsAi).seats.map((s) => s.name)).toEqual(['Player 1', 'Forge AI']);
 	});
 

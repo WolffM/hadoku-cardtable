@@ -57,7 +57,7 @@ const config = (): JvmHostConfig => ({
 	xmxMb: 1000,
 });
 
-const SPEC: MatchSpec = { seats: [{ name: 'Seat 1', ai: false, deck: null }, { name: 'Seat 2', ai: true, deck: null }] };
+const SPEC: MatchSpec = { seats: [{ name: 'Seat 1', ai: false }, { name: 'Seat 2', ai: true }] };
 
 /* ── Fakes ── */
 
@@ -1090,8 +1090,8 @@ describe('failover', () => {
 		const bot = rec(r.order, 'b-1');
 		const botSpec: MatchSpec = {
 			seats: [
-				{ name: 'Bot 1', ai: true, deck: null },
-				{ name: 'Bot 2', ai: true, deck: null },
+				{ name: 'Bot 1', ai: true },
+				{ name: 'Bot 2', ai: true },
 			],
 			headless: { bestOf: 3, gameS: 180 },
 		};

@@ -28,7 +28,8 @@ import { join } from 'node:path';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { RoomMode, RoomSettings } from '@hadoku/shared';
 
-import type { MatchSpec, TurnSnapshot } from '@hadoku/game-server/play/host';
+import type { TurnSnapshot } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { Match } from './match.js';
 import type { MagicRoomView, RoomView } from '../room/lobby.js';
 import type { MagicViewGame } from '../room/magic-view.js';
@@ -94,7 +95,7 @@ export type Checkpoint = TurnSnapshot;
 export interface ParkedRecord extends ParkedSummary {
 	v: typeof VERSION;
 	/** The match's spec, without the opening a resume adds back (`restoredSpec`). */
-	spec: MatchSpec;
+	spec: ForgeMatchSpec;
 	/** See {@link Checkpoint}. */
 	snapshot: Checkpoint;
 	/** Each seat's chess-clock time left, absent in a game without a clock. */
@@ -193,15 +194,18 @@ export function openParkedStore(deps: ParkedStoreDeps): ParkedStore {
 			if (room.testing) return notParked('a testing room started it');
 			const game = room.game;
 			if (game === undefined) return notParked('its room is not one Magic plays');
+			// `match.spec` is `MatchShell`'s own field (platform-generic, bare `MatchSpec`); every match
+			// this store parks is Forge's, so it is really a `ForgeMatchSpec` (w120 §K).
+			const forgeSpec = match.spec as ForgeMatchSpec;
 			const seat = (i: 0 | 1): ParkedSeat => {
-				const spec = match.spec.seats[i];
+				const spec = forgeSpec.seats[i];
 				const owner = match.seats[i]?.owner ?? null;
 				const member = owner === null ? undefined : room.members.find((m) => m.id === owner);
 				const deck = spec.deck === null ? null : (parseDck(spec.deck).name ?? null);
 				return { ai: spec.ai, owner: spec.ai ? null : owner, name: member?.name ?? match.seats[i]?.displayName ?? spec.name, deckName: deck };
 			};
 			// The opening a resume adds back (`restoredSpec`), and the board of the game this one was resumed from, go.
-			const { scenario: _scenario, skipOpening: _skipOpening, restore: _restore, ...spec } = match.spec;
+			const { scenario: _scenario, skipOpening: _skipOpening, restore: _restore, ...spec } = forgeSpec;
 			const clockMs = match.clockLeft();
 			const format = match.spec.format ?? game.format;
 			const record: ParkedRecord = {

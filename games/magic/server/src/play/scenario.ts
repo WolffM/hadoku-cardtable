@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { ClientFrameSchema, coreTypes, currentFace, deltaKey, DELTA_TYPE, idsOf, strOf, type ServerFrame } from '@hadoku/forge-wire';
 import { afterEach } from 'vitest';
 
-import { playWorkDir } from '@hadoku/game-server/config';
+import { playWorkDir } from '../config.js';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type JvmHostConfig, type MatchHost } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import type { SeatIdentity } from '@hadoku/shared';
@@ -29,7 +29,7 @@ import type { ServerEnvelope } from '@hadoku/shared';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import { BRIDGE_SOURCE } from '../root.js';
 
-export const available = jvmHostConfig(BRIDGE_SOURCE, { ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
+export const available = jvmHostConfig(BRIDGE_SOURCE, { ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' }, playWorkDir());
 
 /**
  * A suite or case too slow to run on every push is gated on this and carries `[nightly]`

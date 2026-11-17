@@ -67,7 +67,8 @@ import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type Sam
 import { matchCards } from '../art.js';
 import { createArtIds, type ArtIds } from '../art-ids.js';
 import { fallbackFor, type Fallback } from '../unparsed.js';
-import { type MatchHost, type MatchSpec } from '@hadoku/game-server/play/host';
+import { type MatchHost } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from '../forge-spec.js';
 import { type BridgeCommand, type BridgeLine } from '../bridge-protocol.js';
 import { faceNames, namesForFormat } from '../names.js';
 import type { SpellCopy } from '../spell-copiers.js';
@@ -658,11 +659,11 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	private undoHeld = 0;
 	private readonly deps: MatchDeps;
 	private readonly now: () => number;
-	private readonly spec: MatchSpec;
+	private readonly spec: ForgeMatchSpec;
 	/** What this game reads and moves of the match it runs in. */
 	private readonly shell: ShellView;
 
-	constructor(id: string, epoch: string, spec: MatchSpec, deps: MatchDeps, shell: ShellView) {
+	constructor(id: string, epoch: string, spec: ForgeMatchSpec, deps: MatchDeps, shell: ShellView) {
 		this.id = id;
 		this.epoch = epoch;
 		this.deps = deps;

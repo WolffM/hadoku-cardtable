@@ -92,11 +92,10 @@ import {
 	utimesSync,
 	writeFileSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
-import { playWorkDir } from '../config.js';
 import { bridgeDiagnostics } from './diagnostics.js';
 import {
 	CRASH_MARKER,
@@ -225,8 +224,14 @@ export function defaultBridgeCache(env: NodeJS.ProcessEnv = process.env): string
 /**
  * Resolve the JVM host's configuration, or say exactly what is missing. `bridgeSource` is the game's
  * own bridge (Magic's is `@hadoku/magic-server/root`'s `BRIDGE_SOURCE`): the platform knows no game's tree.
+ *
+ * `workDir`, when given, is INJECTED by the caller rather than read here (w120 §K: Magic's own
+ * `games/magic/server/src/config.ts` has its own `playWorkDir`, which every Magic caller —
+ * `plugins/library.ts`, `play/scenario.ts`, `play/recording/rebuild.ts` — passes through this
+ * param). Omitted, this file falls back to its own generic default, unchanged from before this
+ * param existed, for every other caller (scripts, the UI's jvm harness) that passes none.
  */
-export function jvmHostConfig(bridgeSource: string, env: NodeJS.ProcessEnv = process.env): JvmAvailability {
+export function jvmHostConfig(bridgeSource: string, env: NodeJS.ProcessEnv = process.env, workDir?: string): JvmAvailability {
 	const jar = env.CARDTABLE_FORGE_JAR ?? '';
 	const res = env.CARDTABLE_FORGE_RES ?? '';
 	if (jar === '') return { ok: false, reason: 'CARDTABLE_FORGE_JAR is not set' };
@@ -242,7 +247,7 @@ export function jvmHostConfig(bridgeSource: string, env: NodeJS.ProcessEnv = pro
 			java: env.CARDTABLE_JAVA ?? defaultJava(env),
 			jar: resolve(jar),
 			res: resolve(res),
-			workDir: playWorkDir(env),
+			workDir: workDir ?? resolve(env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play')),
 			jvmOpts: (env.CARDTABLE_PLAY_JVM_OPTS ?? '').split(/\s+/).filter((s) => s !== ''),
 			bridgeSource,
 			bridgeCache: defaultBridgeCache(env),

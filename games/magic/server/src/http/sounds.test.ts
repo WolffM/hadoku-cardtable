@@ -650,17 +650,24 @@ describe('every /api/sounds route is friend tier and above', () => {
 
 describe('the music review is friend tier and above even when the app lets members in', () => {
 	let mods: { sounds: typeof import('./sounds.ts'); edge: typeof import('@hadoku/game-server/edge-auth') };
+	let savedMinTier: string | undefined;
 
 	beforeAll(async () => {
-		const saved = process.env.CARDTABLE_MIN_TIER;
+		savedMinTier = process.env.CARDTABLE_MIN_TIER;
 		process.env.CARDTABLE_MIN_TIER = 'member';
-		try {
-			vi.resetModules();
-			mods = { sounds: await import('./sounds.ts'), edge: await import('@hadoku/game-server/edge-auth') };
-		} finally {
-			if (saved === undefined) delete process.env.CARDTABLE_MIN_TIER;
-			else process.env.CARDTABLE_MIN_TIER = saved;
-		}
+		vi.resetModules();
+		mods = { sounds: await import('./sounds.ts'), edge: await import('@hadoku/game-server/edge-auth') };
+		// `CARDTABLE_MIN_TIER` stays 'member' for every `it` below, not only for this import: `CONFIG`
+		// is lazy (w120 §K) and reads it on the HTTP app's first request, not at this import, so
+		// restoring it here — before either `it` runs a single request — would read back the SAVED
+		// floor instead, and every "member passes the general floor, the feature's own friend-gate
+		// still refuses them" assertion would see a 404 (the general floor) where it expects 403 (the
+		// feature). Restored in `afterAll`, once both `it`s are done with it.
+	});
+
+	afterAll(() => {
+		if (savedMinTier === undefined) delete process.env.CARDTABLE_MIN_TIER;
+		else process.env.CARDTABLE_MIN_TIER = savedMinTier;
 	});
 
 	it('a member gets 403 from the music-review routes and writes nothing; the takes themselves stay open to them', async () => {

@@ -43,8 +43,9 @@ import { artOf } from '../art.js';
 import { createArtIds, type ArtCatalog } from '../art-ids.js';
 import type { DeckCosts } from '../deck-colors.js';
 import { seatDeckColors } from '../deck-colors.js';
-import type { MatchHost, MatchHostFactory, MatchSpec, SeatSpec } from '@hadoku/game-server/play/host';
+import type { MatchHost, MatchHostFactory } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
+import type { ForgeMatchSpec, ForgeSeatSpec } from '../forge-spec.js';
 import { gameOutcome } from '../match.js';
 import { WATCHER_SEAT } from '../match/forge-session.js';
 import type { OutcomeFacts } from '@hadoku/game-server/play/match/outcome';
@@ -188,10 +189,10 @@ function guarded(log: JsonLog, matchId: string, what: string, run: () => void): 
  * person's (R12; #27). Forge's own text in a replay rebuilt from it says `Player N`, and the replay
  * names its people from the log's `users` as they are when watched. The AI keeps Forge's name for it.
  */
-export function anonymousSpec(spec: MatchSpec): MatchSpec {
-	const named = <S extends SeatSpec>(s: S, n: number): S => (s.ai ? s : { ...s, name: `Player ${n}` });
+export function anonymousSpec(spec: ForgeMatchSpec): ForgeMatchSpec {
+	const named = <S extends ForgeSeatSpec>(s: S, n: number): S => (s.ai ? s : { ...s, name: `Player ${n}` });
 	// Each seat keeps its own `ai`, so the pair is still the shape it came in.
-	return { ...spec, seats: [named(spec.seats[0], 1), named(spec.seats[1], 2)] as MatchSpec['seats'] };
+	return { ...spec, seats: [named(spec.seats[0], 1), named(spec.seats[1], 2)] as ForgeMatchSpec['seats'] };
 }
 
 /** The action log's `users`, by seat, from the end line's roster; nothing when no roster was read. */
@@ -258,10 +259,13 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 
 	return {
 		host(inner) {
-			const wrapped = ((matchId, spec, events) => {
+			const wrapped = ((matchId, rawSpec, events) => {
 				// A bot game is nobody's match: nothing to replay and nobody to name.
-				if (spec.headless !== undefined) return inner(matchId, spec, events);
-				const seeded: MatchSpec = spec.seed === undefined ? { ...spec, seed: randomSeed() } : spec;
+				if (rawSpec.headless !== undefined) return inner(matchId, rawSpec, events);
+				// `inner`'s own call signature (`MatchHostFactory`) is platform-generic, bare `MatchSpec`;
+				// this recorder is Forge's own (w120 §K).
+				const spec = rawSpec as ForgeMatchSpec;
+				const seeded: ForgeMatchSpec = spec.seed === undefined ? { ...spec, seed: randomSeed() } : spec;
 				const roomId = deps.roomOf(matchId);
 				const startedAt = new Date(now()).toISOString();
 				const writer = createMatchRecordingWriter({

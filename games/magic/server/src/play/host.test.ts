@@ -35,10 +35,10 @@ import {
 	type JvmHostConfig,
 	type JvmHostFactory,
 	type MatchHost,
-	type MatchSpec,
 	type ReapResult,
 } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { JvmLauncher, JvmTransport } from '@hadoku/game-server/play/jvm-transport';
 import { queueColdStarts } from '@hadoku/game-server/play/start-queue';
 import { LAUNCH_RECORD_FILE, readLaunchRecord } from '@hadoku/game-server/play/local-jvm';
@@ -84,7 +84,7 @@ mkdirSync(config.res);
 const RES_MARKER = join(config.res, 'cardsfolder.marker');
 writeFileSync(RES_MARKER, 'Forge res — never deleted through a run dir');
 
-const SPEC: MatchSpec = { seats: [{ name: 'Seat 1', ai: false, deck: null }, { name: 'Seat 2', ai: false, deck: null }] };
+const SPEC: ForgeMatchSpec = { seats: [{ name: 'Seat 1', ai: false, deck: null }, { name: 'Seat 2', ai: false, deck: null }] };
 
 /** `host.ts`'s liveness check period (not exported): the pool looks at a JVM's silence this often. */
 const LIVENESS_CHECK_MS = 1000;

@@ -190,6 +190,7 @@ import { roundNamesOf } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
 import { statsModeOf } from '../room/series.js';
 import type { MatchSpec } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from '../play/forge-spec.js';
 import type { GameOutcome } from '../play/match.js';
 import { AI_SEAT_OWNER } from '../play/match/forge-session.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
@@ -2253,7 +2254,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// previous one (`draft-pods-plan.md`, "The loser of the previous game
 		// chooses play or draw"). The first game of a series has no previous
 		// game, so `chooser` stays unset and Forge's own unrigged coin toss runs
-		// (`MatchSpec.chooser?: 0 | 1`, `play/host.ts`) — and a `done` series'
+		// (`ForgeMatchSpec.chooser?: 0 | 1`, `forge-spec.ts`) — and a `done` series'
 		// `games` still holds its LAST game until `setTableMatch` replaces it, so
 		// `newSeries` is what keeps a brand-new series' opening game from being
 		// rigged to the PREVIOUS series' loser.
@@ -2459,8 +2460,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// started: `matchStats.gameOver`'s `stats-skipped` log is the one place
 			// this is noticed, never a silent special case elsewhere.
 			if (room.testing === true) return null;
+			// `match.spec` is `MatchShell`'s own field (platform-generic, bare `MatchSpec`); every
+			// match this reports on is Forge's, so it is really a `ForgeMatchSpec` (w120 §K).
+			const spec = match.spec as ForgeMatchSpec;
 			// The pool the match was dealt in, from its own spec: the room's can move on after it.
-			const pool = match.spec.format ?? 'unknown';
+			const pool = spec.format ?? 'unknown';
 			// The series this game was played in, as it stood when the game ended.
 			const bestOf = room.tables.find((t) => t.matchId === match.id)?.series.length;
 			const format = library.format(pool);
@@ -2468,7 +2472,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			const family = draftIdOfPool(pool) !== null ? 'draft' : pool === FREE_PICK ? 'free' : (format?.family ?? 'unknown');
 			const deckOf = (text: string | null, id = text === null ? undefined : libraryIdByText.get(text)) =>
 				text === null ? null : summarizeDeck(text, costs, id);
-			const seats: MatchStartInput['seats'] = match.spec.seats.map((s, i) => {
+			const seats: MatchStartInput['seats'] = spec.seats.map((s, i) => {
 				if (s.ai) return { ai: true, memberId: null, deck: deckOf(s.deck) };
 				const owner = match.seats[i]?.owner ?? null;
 				const drafted = owner === null ? undefined : draftedDeckId(pool, owner, s.deck);
@@ -2490,7 +2494,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				attrs: {
 					format: family,
 					pool,
-					opponent: match.spec.seats.some((s) => s.ai) ? 'bot' : 'human',
+					opponent: spec.seats.some((s) => s.ai) ? 'bot' : 'human',
 					mode: statsModeOf({ gameType: room.gameType, mode: gameOf(room).mode }),
 					...(bestOf === undefined ? {} : { bestOf }),
 				},

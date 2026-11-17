@@ -1,5 +1,5 @@
 /**
- * Runtime config for a game-server app — the PLATFORM half (w119 §C).
+ * Runtime config for a game-server app — the PLATFORM half (w119 §C, w120 §K).
  *
  * `createConfig` is a factory: every value it returns comes from the `env` object and `envPrefix`
  * it is called with (defaults: `process.env` and `'CARDTABLE'`), read when the factory RUNS, never
@@ -7,22 +7,29 @@
  * env objects, build two independent configs — which is what lets a second game on
  * `@hadoku/game-server` (bomberman) set its own `BOMBERMAN_*` variables instead of cardtable's.
  *
- * `export const CONFIG = createConfig()` below is cardtable's own instance, built the moment this
- * module is first imported — kept for every file that already does `import { CONFIG } from
- * '@hadoku/game-server/config'` and must keep working unchanged.
+ * `export const CONFIG` below is cardtable's own instance — kept for every file that already does
+ * `import { CONFIG } from '@hadoku/game-server/config'` and must keep working unchanged, field
+ * access and all (an `edge-auth.test.ts` case casts it to a mutable mapped type and swaps a field
+ * for the case, then restores it). w120 §K: it is no longer built "the moment this module is
+ * first imported" — {@link lazyConfig} defers the one `createConfig()` call (the tier floor's
+ * fail-closed check included) to the first property READ of any kind, which in production is the
+ * app's own boot (`apps/server/src/index.ts`'s first `CONFIG.host`), not merely the module graph
+ * happening to reach this file. Before this wave, importing `config.ts` for ANY reason — even a
+ * test three hops away that never touches a field — ran the whole factory as a side effect.
  *
  * What is NOT here any more: Magic-only settings (catalog, art mirror, draft bot, tournaments,
- * sounds, draft timing, the Forge-hosting envs, the room-stream envs) moved to
- * `games/magic/server/src/config.ts`'s `createMagicConfig`/`MAGIC_CONFIG` — a game with no Forge
- * engine has no business reading `CARDTABLE_DRAFT_BOT_PICK_MS`. Cardtable's deployment-only ArchiveBot
- * settings moved there too (not to `apps/server`): the only two readers,
- * `games/magic/server/src/plugins/{listen,routes}.ts`, are in the `magic` layer, which may not
- * import `apps/server` (the `site` layer) — see `scripts/layers/layers.json`'s allowed directions.
+ * sounds, draft timing, the Forge-hosting envs, the room-stream envs, `playWorkDir`) moved to
+ * `games/magic/server/src/config.ts`'s `createMagicConfig`/`MAGIC_CONFIG` (itself lazy the same
+ * way) — a game with no Forge engine has no business reading `CARDTABLE_DRAFT_BOT_PICK_MS`.
+ * Cardtable's deployment-only ArchiveBot settings moved to `apps/server/src/plugins/archivebot.ts`
+ * (w120 §K): its two readers, `games/magic/server/src/plugins/{listen,routes}.ts`, are in the
+ * `magic` layer, which may not import `apps/server` (the `site` layer) — see
+ * `scripts/layers/layers.json`'s allowed directions; the site plugin injects the settings onto
+ * `ctx.state.archivebot` instead.
  * Survey: `~/.cache/cardtable-manager/bomberman-survey-2026-11-16.md` §3 has the classification
  * with the original line numbers.
  */
 
-import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
@@ -205,26 +212,45 @@ export function createConfig(options: CreateConfigOptions = {}): GameServerConfi
 }
 
 /**
- * Cardtable's own instance, built once at this module's first import (every existing
- * `import { CONFIG } from '@hadoku/game-server/config'` keeps working unchanged). Not `as const`:
- * several test suites (`edge-auth.test.ts`) cast this to a mutable mapped type and swap individual
- * fields for a case, then restore them — that only works on a plain object, which this is.
+ * Wraps `factory` so it runs on first property access instead of as a side effect of merely
+ * importing the module that calls this (w120 §K). Until then, `target` is an empty, extensible
+ * plain object: `materialize()` calls `factory()` exactly once (cached in `built`) and then
+ * delegates every trap straight to the real result through `Reflect`, so after the first access
+ * `target` behaves exactly like `factory()`'s own return value always did — a live getter on it
+ * (`MagicConfig.playSeed`'s "read this each time") stays live, and a plain field stays a plain,
+ * writable, enumerable one. Exported for `games/magic/server/src/config.ts`'s `MAGIC_CONFIG`,
+ * which wants the same deferral.
  */
-export const CONFIG = createConfig();
-
-/**
- * Where a Forge match's run directories go (`CARDTABLE_PLAY_WORK_DIR`). Takes the
- * environment as an argument, as `play/host.ts`'s `jvmHostConfig` does, so a test
- * can point one host at its own directory.
- *
- * Stays here rather than moving to Magic's config (w119 §C survey calls this Forge-match specific)
- * because `play/local-jvm.ts` — out of this lane's ownership — imports it directly from this
- * module; moving it would break that file's import with no file in this wave's briefs allowed to
- * fix it. `local-jvm.ts` itself is written generic over "any JVM-hosted engine", so this is
- * defensible as the local JVM launcher's own platform-level default, not only Forge's.
- */
-export function playWorkDir(env: NodeJS.ProcessEnv = process.env): string {
-	return resolve(env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play'));
+export function lazyConfig<T extends object>(factory: () => T): T {
+	let built: T | undefined;
+	const materialize = (): T => (built ??= factory());
+	return new Proxy({} as T, {
+		get: (_t, prop) => Reflect.get(materialize(), prop),
+		set: (_t, prop, value) => Reflect.set(materialize(), prop, value),
+		has: (_t, prop) => Reflect.has(materialize(), prop),
+		ownKeys: () => Reflect.ownKeys(materialize()),
+		getOwnPropertyDescriptor: (_t, prop) => Reflect.getOwnPropertyDescriptor(materialize(), prop),
+		deleteProperty: (_t, prop) => Reflect.deleteProperty(materialize(), prop),
+	});
 }
 
-export const INDEX_HTML = join(CONFIG.webDir, 'index.html');
+/**
+ * Cardtable's own instance (every existing `import { CONFIG } from '@hadoku/game-server/config'`
+ * keeps working unchanged) — built on first property access, not at import ({@link lazyConfig}).
+ * Not `as const`: several test suites (`edge-auth.test.ts`) cast this to a mutable mapped type and
+ * swap individual fields for a case, then restore them — that only works on a plain object, which
+ * this still is once materialized.
+ */
+export const CONFIG: GameServerConfig = lazyConfig(createConfig);
+
+/**
+ * `webDir/index.html` — a function, not a plain constant, so reading it cannot itself be the
+ * thing that forces {@link CONFIG} to materialize merely by being imported (w120 §K: this was
+ * `export const INDEX_HTML = join(CONFIG.webDir, …)`, which read `CONFIG.webDir` the moment this
+ * module was first imported, defeating `lazyConfig` for every field, floor check included). Both
+ * readers (`apps/server/src/index.ts`, `games/magic/server/src/plugins/routes.ts`) call this from
+ * inside their own boot step, not at their own module's top level.
+ */
+export function indexHtml(): string {
+	return join(CONFIG.webDir, 'index.html');
+}

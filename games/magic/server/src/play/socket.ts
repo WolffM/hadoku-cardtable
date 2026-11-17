@@ -128,9 +128,10 @@ import { artOf } from './art.js';
 import type { ArtCatalog } from './art-ids.js';
 import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
-import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from '@hadoku/game-server/play/host';
+import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type ReapResult } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { COLD_STARTS, queueColdStarts } from '@hadoku/game-server/play/start-queue';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import { WATCHER_SEAT } from './match/forge-session.js';
 import { createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity, type SeatSpecWithIdentity } from './match.js';
 import type { EndedMatch, ResumeFrom } from './match/registry.js';
@@ -296,7 +297,7 @@ export interface PlayHandle {
 	 * ceiling, then waited for until Forge has opened the game, and stopped if it never does. `from`: a
 	 * resumed game ({@link MatchRegistry.create}). `startedFor` can read its place in the queue.
 	 */
-	start(req: Request, spec: MatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom): Promise<StartOutcome>;
+	start(req: Request, spec: ForgeMatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom): Promise<StartOutcome>;
 	/**
 	 * Settles once every match an earlier server left running has been adopted (or refused). The
 	 * host finds them asynchronously — a JVM may run on another machine — so anything that judges
@@ -429,7 +430,7 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
  * and `handSmoothing` is the room's setting of that name (`MatchSpec.handSmoothing`).
  *
  * `chooser` (wave 71 §E) names the seat Forge asks to choose play or draw —
- * see `MatchSpec.chooser`'s own doc (`host.ts`) for why a fresh match needs
+ * see `ForgeMatchSpec.chooser`'s own doc (`host.ts`) for why a fresh match needs
  * this named rather than left to Forge's own coin toss. Absent: untouched,
  * exactly today's unrigged toss.
  *
@@ -443,13 +444,13 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
  *
  * `scenario` (wave 33 §S, shape 1) is the text of a Forge puzzle file's
  * `[state]` section — `human…` keys for seat 0, `ai…` keys for seat 1 — carried
- * straight onto {@link MatchSpec.scenario} (`host.ts`'s header has the argument
+ * straight onto {@link ForgeMatchSpec.scenario} (`host.ts`'s header has the argument
  * for why it lives there). This function does NOT gate it on the probe flag:
  * that is a server concern (`attachPlay`'s `deps.probe`, which this module
  * does not see), checked by the caller in `attachPlay`'s `POST /matches`
  * handler before a match is ever created.
  */
-export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: false; error: string } {
+export function parseStartBody(body: unknown): { ok: true; spec: ForgeMatchSpec } | { ok: false; error: string } {
 	const parsed = readBody(StartMatchBodySchema, body);
 	if (!parsed.ok) return parsed;
 	const { opponent, decks, scenario, format, handSmoothing, chooser, clockMs, avatars } = parsed.value;
@@ -474,12 +475,10 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	// Unset in production, which is every deployment: this is the test hatch,
 	// and an unseeded match is what it falls back to.
 	const seed = MAGIC_CONFIG.playSeed;
-	// `MatchSpecWithIdentity`, not `MatchSpec`, so `displayName` can sit on each
-	// seat beside `deck` and `ai` without the excess-property check a literal
-	// typed directly as `MatchSpec` would fail. Returned as `spec: MatchSpec`
-	// below anyway (it satisfies that narrower type structurally), because
-	// `host.ts`'s own type is not this lane's to widen — see `match.ts`'s
-	// header on `SeatSpecWithIdentity`.
+	// `MatchSpecWithIdentity`, not the bare `ForgeMatchSpec`, so `displayName` can sit on each
+	// seat beside `deck` and `ai` without the excess-property check a literal typed directly as
+	// `ForgeMatchSpec` would fail. Returned as `spec: ForgeMatchSpec` below anyway — it satisfies
+	// that type structurally (`match.ts`'s header on `SeatSpecWithIdentity`).
 	const spec: MatchSpecWithIdentity = {
 		seats: [
 			// Forge shows these names to both seats. Wave 31 §S: they are the room's
@@ -735,7 +734,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		// Who is waiting on this start, for `GET /queue`: the caller, and a room start's players
 		// (`http/routes.ts`'s `startFromRoom`), whose own asks join this one.
 		const startedFor: unknown = res.locals.startedFor;
-		// A board room's own board opens on the board itself: no coin toss, no mulligan (`MatchSpec.skipOpening`).
+		// A board room's own board opens on the board itself: no coin toss, no mulligan (`ForgeMatchSpec.skipOpening`).
 		const started = await start(req, res.locals.trustedScenario === true ? { ...parsed.spec, skipOpening: true } : parsed.spec, [
 			httpCaller(req),
 			...(Array.isArray(startedFor) ? (startedFor as ParticipantId[]) : []),
@@ -752,7 +751,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		});
 	});
 
-	async function start(req: Request, spec: MatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom): Promise<StartOutcome> {
+	async function start(req: Request, spec: ForgeMatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom): Promise<StartOutcome> {
 		// A match started now would be handed a JVM this process is about to stop
 		// watching, and its seats would never be told. Refused in words instead.
 		if (draining !== null) return { ok: false, status: 503, error: draining };
@@ -821,7 +820,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	router.get('/matches/:id/deck', (req: Request, res: Response) => {
 		const match = matches.find(String(req.params.id));
 		const seat = match?.seatOf(httpCaller(req)) ?? null;
-		const deck = seat === null ? null : (match?.spec.seats[seat]?.deck ?? null);
+		const deck = seat === null ? null : ((match?.spec as ForgeMatchSpec | undefined)?.seats[seat]?.deck ?? null);
 		if (deck === null) {
 			res.status(404).json({ error: 'no deck of yours in that match' });
 			return;
@@ -1084,7 +1083,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						// its trigger answers) is sent, only what the whole table is told.
 						if (joined.get(result.matchId) === WATCHER_SEAT) {
 							socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() });
-							socket.emit(ART_EVENT, { matchId: result.matchId, ids: artOf(match.spec, match.art) });
+							socket.emit(ART_EVENT, { matchId: result.matchId, ids: artOf(match.spec as ForgeMatchSpec, match.art) });
 							socket.emit(DECK_COLORS_EVENT, { matchId: result.matchId, colors: null });
 							tellRole(socket, result.matchId, 'watcher');
 							return;
@@ -1131,9 +1130,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 */
 						socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() } satisfies MatchSeats);
 						// Every card either seat could show, so this browser decodes the art before any of it is drawn (`@hadoku/shared`'s `art.ts`).
-						socket.emit(ART_EVENT, { matchId: result.matchId, ids: artOf(match.spec, match.art) });
+						socket.emit(ART_EVENT, { matchId: result.matchId, ids: artOf(match.spec as ForgeMatchSpec, match.art) });
 						// This seat's deck colours, before its role, for the match's music (`@hadoku/shared`'s `deck-colors.ts`).
-						socket.emit(DECK_COLORS_EVENT, { matchId: result.matchId, colors: seatDeckColors(match.spec, result.seat, deckCosts) });
+						socket.emit(DECK_COLORS_EVENT, { matchId: result.matchId, colors: seatDeckColors(match.spec as ForgeMatchSpec, result.seat, deckCosts) });
 						// And whether THIS socket holds the seat, every time: a newer window may have taken it since.
 						tellRole(socket, result.matchId, isController(result.matchId, result.seat, socket.id) ? 'player' : 'elsewhere');
 					}

@@ -19,6 +19,14 @@
  * assertion for the order because a booted server IS the assertion.
  *
  * Never the live service: every port is ephemeral and every path is a temp dir.
+ *
+ * `related`-blind on purpose, so it needs its own `@reads`: `ENTRY` is a bare file path handed to
+ * `spawn()`, never a static `import`, so `vitest related`'s import-graph walk cannot see that this
+ * suite's `route-table.json` assertion exercises every route the booted app registers, including
+ * every one `packages/game-server/src/http/**` adds or removes (w119-S's land, 676fb6253, added a
+ * route there and reddened main for 5 minutes: `land.sh`'s related-tests pass ran without this
+ * suite, and only CI's full run caught it — w120 §K).
+ * @reads packages/game-server/src/http/
  */
 
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';

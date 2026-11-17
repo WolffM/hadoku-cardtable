@@ -5,14 +5,14 @@
  * fits these lines and commands to the shell's seam; this file is only the rules, run through
  * `runtimes/in-process.ts`.
  *
- * Configured with `host.ts`'s own `MatchSpec` — `.deck`/`.clockMs` and the rest simply go unread —
- * rather than a toy-shaped spec of its own: a match's CONFIG is generic over the engine's
- * line/command vocabulary only, never over `Spec` itself (`MatchHostFactory<L, C>`'s own pinned
- * shape hardcodes `MatchSpec` the same way), so there is nothing a toy `Spec` would buy here.
- * `.scenario` is the one field this toy repurposes: `adapter.ts`'s `restoreSpec` writes a
- * JSON-encoded {@link ToyCheckpoint} into it, and {@link playToy} reads it back as where the score
- * starts — the toy's own, deliberately un-Forge-like stand-in for Forge's own puzzle-state text in
- * the same field. A spec with no `.scenario` starts fresh at 0–0, same as ever.
+ * Configured with `host.ts`'s own `MatchSpec` — `.clockMs` and the rest simply go unread — rather
+ * than a toy-shaped spec of its own: a match's CONFIG is generic over the engine's line/command
+ * vocabulary only, never over `Spec` itself (`MatchHostFactory<L, C>`'s own pinned shape hardcodes
+ * `MatchSpec` the same way), so there is nothing a toy `Spec` would buy here.
+ * `.resumeData` is the one field this toy uses: `adapter.ts`'s `restoreSpec` writes a JSON-encoded
+ * {@link ToyCheckpoint} into it, and {@link playToy} reads it back as where the score starts — the
+ * generic opaque-resume-text field every `G` may use its own way (Magic's Forge-shaped equivalent
+ * is `ForgeMatchSpec.scenario`). A spec with no `.resumeData` starts fresh at 0–0, same as ever.
  */
 
 import type { MatchSpec } from '../../host.js';
@@ -51,15 +51,15 @@ export interface ToyRun {
 }
 
 /**
- * Runs a toy match, start to finish, from `spec.seats`' two entries (`ai`/`name`; its `deck` goes
- * unread). `line` is called once synchronously before this returns (`{ t: 'ready' }`), and once
+ * Runs a toy match, start to finish, from `spec.seats`' two entries (`ai`/`name`). `line` is
+ * called once synchronously before this returns (`{ t: 'ready' }`), and once
  * more for every {@link ToyCmd} {@link ToyRun.send} is given — never out of order, and never again
  * once the game is over. Matches `runtimes/in-process.ts`'s `InProcessEngine.start` exactly, so
  * {@link toyEngine} is a one-line wrap.
  */
 export function playToy(spec: MatchSpec, line: (l: ToyLine) => void): ToyRun {
 	// `adapter.ts`'s `restoreSpec` wrote a checkpoint here; see this file's header.
-	const restored = typeof spec.scenario === 'string' ? (JSON.parse(spec.scenario) as ToyCheckpoint) : null;
+	const restored = typeof spec.resumeData === 'string' ? (JSON.parse(spec.resumeData) as ToyCheckpoint) : null;
 	const score: [number, number] = restored === null ? [0, 0] : [...restored.score];
 	let over = false;
 	line({ t: 'ready' });

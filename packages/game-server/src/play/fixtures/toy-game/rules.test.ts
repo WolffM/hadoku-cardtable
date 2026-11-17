@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { MatchSpec } from '../../host.js';
 import { playToy, toyEngine, WIN_SCORE, type ToyLine } from './rules.js';
 
-const SPEC: MatchSpec = { seats: [{ ai: false, name: 'Alice', deck: null }, { ai: false, name: 'Bob', deck: null }] };
+const SPEC: MatchSpec = { seats: [{ ai: false, name: 'Alice' }, { ai: false, name: 'Bob' }] };
 
 describe('playToy', () => {
 	it('says ready once, synchronously, before returning', () => {

@@ -1,5 +1,5 @@
 /** The deck library, and whether this server has a Forge build at all. */
-import { MAGIC_CONFIG } from '../config.js';
+import { MAGIC_CONFIG, playWorkDir } from '../config.js';
 import { loadTablesLibrary } from '../http/index.js';
 import { jvmHostConfig } from '../play/index.js';
 import { BRIDGE_SOURCE } from '../root.js';
@@ -22,7 +22,7 @@ export const libraryPlugin: CardtablePlugin = {
 		// Read once, before the pools: the draft pool service's own JVM needs the same jar/res config
 		// the match JVMs do, and it is wired before `attachRooms` so `checkPlan` has a real
 		// `ForgePools` from the start.
-		state.forge = jvmHostConfig(BRIDGE_SOURCE);
+		state.forge = jvmHostConfig(BRIDGE_SOURCE, process.env, playWorkDir());
 		if (!state.forge.ok) {
 			console.warn(`[cardtable] play: no Forge (${state.forge.reason}) — POST /api/play/matches answers 503, and every draft plan is refused until one is`);
 		}

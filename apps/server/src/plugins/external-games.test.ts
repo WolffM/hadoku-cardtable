@@ -259,3 +259,47 @@ describe('CARDTABLE_EXPERIMENTAL_GAMES unset: no external game registers at all'
 		await reregistered.externalGamesPlugin.setup({} as never);
 	});
 });
+
+describe('an e2eOnly entry needs its own second gate (w120 §K)', () => {
+	afterEach(() => {
+		delete process.env.CARDTABLE_E2E_TOY_GAMES;
+	});
+
+	it('is not registered under CARDTABLE_EXPERIMENTAL_GAMES=1 alone — CARDTABLE_E2E_TOY_GAMES is unset', async () => {
+		delete process.env.CARDTABLE_E2E_TOY_GAMES;
+		vi.resetModules();
+		const shared = await import('@hadoku/shared');
+		const externalGamesMod = await import('./external-games.ts');
+		const e2eEntry = externalGamesMod.EXTERNAL_GAMES.find((g) => g.e2eOnly === true);
+		expect(e2eEntry, 'external-games-config.ts still has an e2eOnly entry to test against').toBeDefined();
+		const nonE2eEntry = externalGamesMod.EXTERNAL_GAMES.find((g) => g.e2eOnly !== true);
+		expect(nonE2eEntry, 'and at least one entry without the flag, to prove the filter is selective').toBeDefined();
+		await externalGamesMod.externalGamesPlugin.setup({} as never);
+		expect(shared.isRegisteredGameType(e2eEntry!.id)).toBe(false);
+		// The ordinary gate alone still works: a non-`e2eOnly` entry registers as it always did.
+		expect(shared.isRegisteredGameType(nonE2eEntry!.id)).toBe(true);
+	});
+
+	it('registers only with CARDTABLE_E2E_TOY_GAMES=1 on top of CARDTABLE_EXPERIMENTAL_GAMES=1', async () => {
+		process.env.CARDTABLE_E2E_TOY_GAMES = '1';
+		vi.resetModules();
+		const shared = await import('@hadoku/shared');
+		const externalGamesMod = await import('./external-games.ts');
+		const e2eEntry = externalGamesMod.EXTERNAL_GAMES.find((g) => g.e2eOnly === true)!;
+		await externalGamesMod.externalGamesPlugin.setup({} as never);
+		expect(shared.isRegisteredGameType(e2eEntry.id)).toBe(true);
+	});
+
+	it('registers nothing at all with CARDTABLE_E2E_TOY_GAMES=1 but CARDTABLE_EXPERIMENTAL_GAMES unset — the first gate still rules', async () => {
+		process.env.CARDTABLE_E2E_TOY_GAMES = '1';
+		const saved = process.env.CARDTABLE_EXPERIMENTAL_GAMES;
+		delete process.env.CARDTABLE_EXPERIMENTAL_GAMES;
+		vi.resetModules();
+		const shared = await import('@hadoku/shared');
+		const externalGamesMod = await import('./external-games.ts');
+		const e2eEntry = externalGamesMod.EXTERNAL_GAMES.find((g) => g.e2eOnly === true)!;
+		await externalGamesMod.externalGamesPlugin.setup({} as never);
+		expect(shared.isRegisteredGameType(e2eEntry.id)).toBe(false);
+		if (saved !== undefined) process.env.CARDTABLE_EXPERIMENTAL_GAMES = saved;
+	});
+});

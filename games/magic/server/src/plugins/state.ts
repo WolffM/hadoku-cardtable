@@ -46,6 +46,14 @@ export interface Cardtable {
 	 */
 	readonly pkgRoot: string;
 	readonly repoRoot: string;
+	/**
+	 * ArchiveBot's release-announce settings (w120 §K): cardtable's own deployment integration, not
+	 * Magic-specific, so the SITE reads them (`apps/server/src/plugins/archivebot.ts`, `config`
+	 * phase, before `routes`/`listen`) and injects them here, rather than `listen.ts`/`routes.ts`
+	 * importing `apps/server` (the `magic` layer may not import `site`). Unset secret: the boot
+	 * announcement is skipped, same as before this moved.
+	 */
+	archivebot: { secret: string; url: string };
 
 	// bundle
 	placementLog: JsonLog;

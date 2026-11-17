@@ -62,8 +62,8 @@ export const warmPlugin: CardtablePlugin = {
 		}
 		void announceRelease({
 			releasesDir: resolve(state.repoRoot, 'docs/releases'),
-			secret: MAGIC_CONFIG.archivebotSecret,
-			archivebotUrl: MAGIC_CONFIG.archivebotUrl,
+			secret: state.archivebot.secret,
+			archivebotUrl: state.archivebot.url,
 			appUrl: `https://hadoku.me${CONFIG.basePrefix}/`,
 			log: jsonLogger('cardtable-release'),
 		});

@@ -13,7 +13,7 @@ import { manaValueOf } from '@hadoku/deck';
 import type { TableGame, TableGameLive, TableSeatDeck } from '@hadoku/shared';
 
 import { seatDeckColors, type DeckCosts } from './deck-colors.js';
-import type { MatchSpec } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { RoomView } from '../room/lobby.js';
 import { magicView } from '../room/magic-view.js';
 
@@ -43,7 +43,7 @@ export function deckArtCard(main: readonly { card: { name: string; set?: string 
 }
 
 /** `seat`'s deck as the card draws it, or null when the server never saw it (a random Forge precon). */
-export function seatDeck(spec: Pick<MatchSpec, 'seats' | 'format'>, seat: number, costs: DeckCosts): TableSeatDeck | null {
+export function seatDeck(spec: Pick<ForgeMatchSpec, 'seats' | 'format'>, seat: number, costs: DeckCosts): TableSeatDeck | null {
 	const text = spec.seats[seat]?.deck ?? null;
 	if (text === null) return null;
 	const deck = parseDck(text);
@@ -53,7 +53,7 @@ export function seatDeck(spec: Pick<MatchSpec, 'seats' | 'format'>, seat: number
 
 /** What `tableGame` reads of a match. */
 export interface TableGameSource {
-	spec: Pick<MatchSpec, 'seats' | 'format'>;
+	spec: Pick<ForgeMatchSpec, 'seats' | 'format'>;
 	/** The game under way, or null once it is over. */
 	live(): TableGameLive | null;
 }

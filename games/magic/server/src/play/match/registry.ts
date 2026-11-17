@@ -1,8 +1,9 @@
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 import type { RestartState, SeatIdentity, ServerEnvelope, StopPhase } from '@hadoku/shared';
 
-import type { HostEvents, MatchHost, MatchRecord, MatchSpec, TurnSnapshot } from '@hadoku/game-server/play/host';
+import type { HostEvents, MatchHost, MatchRecord, TurnSnapshot } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
+import type { ForgeMatchSpec } from '../forge-spec.js';
 import type { Match, MatchDeps } from '../match.js';
 import type { SeatState } from './forge-session.js';
 
@@ -35,7 +36,7 @@ import type { SeatState } from './forge-session.js';
  * and `HostedMatch`'s own constructor is the only caller — `create`/`restore`, below, pass the
  * snapshot through as `restore.checkpoint` rather than calling this themselves.
  */
-export function restoredSpec(spec: MatchSpec, snapshot: TurnSnapshot): MatchSpec {
+export function restoredSpec(spec: ForgeMatchSpec, snapshot: TurnSnapshot): ForgeMatchSpec {
 	const { chooser: _chooser, ...rest } = spec;
 	return { ...rest, scenario: snapshot.state, skipOpening: true, restore: true };
 }
@@ -62,11 +63,13 @@ export class EndedMatch {
 	readonly failure: string | null;
 	readonly winner: string | null;
 	/** The match's spec without a scenario: a resumed game's opening board is the parked record's to keep. */
-	readonly spec: MatchSpec;
+	readonly spec: ForgeMatchSpec;
 	readonly seats: readonly Pick<SeatState, 'seat' | 'ai' | 'owner' | 'playerId' | 'deck'>[];
 
 	constructor(match: Match) {
-		const { scenario: _scenario, ...spec } = match.spec;
+		// `match.spec` is `MatchShell`'s own field (platform-generic, bare `MatchSpec`); every match
+		// this registry builds is Forge's, so it is really a `ForgeMatchSpec` (w120 §K).
+		const { scenario: _scenario, ...spec } = match.spec as ForgeMatchSpec;
 		this.id = match.id;
 		this.status = match.status === 'failed' ? 'failed' : 'stopped';
 		this.failure = match.failure;

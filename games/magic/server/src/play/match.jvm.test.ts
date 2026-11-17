@@ -55,7 +55,8 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 
-import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type JvmHostFactory, type MatchSpec } from '@hadoku/game-server/play/host';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type JvmHostFactory } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry, type Match } from './match.js';
@@ -99,7 +100,7 @@ describe.skipIf(!available.ok)(title, () => {
 	});
 
 	const variety = Number(process.env.CARDTABLE_PLAY_SEED ?? Date.now() % 1_000_000_007);
-	const runs: [string, () => MatchSpec, boolean][] = [
+	const runs: [string, () => ForgeMatchSpec, boolean][] = [
 		[
 			'fixed: Spirit Flames v Decay, seed 20260918, cold',
 			() => ({

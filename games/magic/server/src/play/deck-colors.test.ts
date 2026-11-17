@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DeckColorsSchema } from '@hadoku/shared';
 
 import { roomDeckCosts, seatDeckColors } from './deck-colors.js';
-import type { MatchSpec } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 
 const costs: Record<string, string> = { 'Lightning Bolt': '{R}', 'Grizzly Bears': '{1}{G}', 'Gut Shot': '{R/P}', Naturalize: '{1}{G}' };
 const fixed = () => costs;
@@ -13,7 +13,7 @@ const splashSide = '[metadata]\nName=Side\n[main]\n4 Lightning Bolt\n[Sideboard]
 const colourless = '[metadata]\nName=Rocks\n[main]\n4 Gut Shot\n20 Wastes\n';
 
 describe("a seat's deck colours, for the match's music", () => {
-	const spec = (deck: string | null): Pick<MatchSpec, 'seats'> => ({ seats: [{ name: 'a', ai: false, deck }, { name: 'b', ai: false, deck: gruul }] });
+	const spec = (deck: string | null): Pick<ForgeMatchSpec, 'seats'> => ({ seats: [{ name: 'a', ai: false, deck }, { name: 'b', ai: false, deck: gruul }] });
 
 	it('folds the main deck the seat was started with, never the other seat’s', () => {
 		expect(seatDeckColors(spec(red), 0, fixed)).toEqual(['R']);

@@ -113,7 +113,8 @@ import {
 
 import { type StopPolicy } from './auto.js';
 import { type ArtCatalog, type ArtIds } from './art-ids.js';
-import { MAX_CONCURRENT_MATCHES, type MatchRecord, type MatchSpec, type TurnSnapshot } from '@hadoku/game-server/play/host';
+import { MAX_CONCURRENT_MATCHES, type MatchRecord, type TurnSnapshot } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { runBotGame, type BotGameInput, type BotGameOutcome } from './botgames.js';
 import type { SpellCopy } from './spell-copiers.js';
@@ -125,19 +126,16 @@ import { ENDED_KEPT, EndedMatch, restoredSpec, type RegistryDeps, type Restored,
 import { newMatchId, type ProbeResult } from './match/forge-frames.js';
 
 /**
- * `host.ts`'s `SeatSpec`, widened with the name the caller gave the seat. The
+ * `forge-spec.ts`'s `ForgeSeatSpec`, widened with the name the caller gave the seat. The
  * seat's avatar is not here: it is its holder's, asked on every roster
  * ({@link MatchDeps.seatAvatar}).
  *
- * Declared here rather than on `SeatSpec` itself: `host.ts` is owned by
- * neither wave-29 lane, and it does not need to change to carry this. Read
- * `games/magic/server/src/play/bridge/PlayBridge.java`'s `configFrom` to confirm —
- * it pulls `name`/`ai`/`deck` off each seat's JSON object by key and ignores
- * anything else, so the extra property `bridgeConfig`'s `...spec` spread
- * carries into `config.json` is inert there: Forge never reads it and never
- * shows it.
+ * Read `games/magic/server/src/play/bridge/PlayBridge.java`'s `configFrom` to confirm — it pulls
+ * `name`/`ai`/`deck` off each seat's JSON object by key and ignores anything else, so the extra
+ * property `bridgeConfig`'s `...spec` spread carries into `config.json` is inert there: Forge
+ * never reads it and never shows it.
  */
-export type SeatSpecWithIdentity = MatchSpec['seats'][number] & {
+export type SeatSpecWithIdentity = ForgeMatchSpec['seats'][number] & {
 	/**
 	 * The name the caller GAVE this seat (wave 31 §S, `socket.ts`'s `names`),
 	 * sanitised and unique within the match — and the same string as `name`,
@@ -149,8 +147,8 @@ export type SeatSpecWithIdentity = MatchSpec['seats'][number] & {
 	avatarId?: string;
 };
 
-/** `MatchSpec`, with both seats widened the same way. */
-export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
+/** `ForgeMatchSpec`, with both seats widened the same way. */
+export type MatchSpecWithIdentity = Omit<ForgeMatchSpec, 'seats'> & {
 	seats: [SeatSpecWithIdentity & { ai: false }, SeatSpecWithIdentity];
 };
 
@@ -288,7 +286,7 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 
 	constructor(
 		id: string,
-		spec: MatchSpec,
+		spec: ForgeMatchSpec,
 		deps: MatchDeps,
 		/**
 		 * From `<run>/jvm.json`, when this match is being taken back from an
@@ -518,7 +516,7 @@ export interface MatchRegistry {
 	 * (`parked.ts`), opening on that board ({@link restoredSpec}) with its seats already held by
 	 * `from.owners` and its clock where it was left.
 	 */
-	create(spec: MatchSpec, from?: ResumeFrom): Match;
+	create(spec: ForgeMatchSpec, from?: ResumeFrom): Match;
 	/** A match the registry holds: from its create until it ends ({@link MatchRegistry.find} has the rest). */
 	get(id: string): Match | undefined;
 	/**
@@ -661,7 +659,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			const attach = deps.attach;
 			// A bot game is never a match (`play/botgames.ts`): left for the host to stop, and played again by its room.
 			if (attach === undefined || record.spec.headless !== undefined) return null;
-			const match: Match = new Match(record.matchId, record.spec, depsOf(record.matchId, () => match), {
+			const match: Match = new Match(record.matchId, record.spec as ForgeMatchSpec, depsOf(record.matchId, () => match), {
 				epoch: record.epoch,
 				owners: record.owners,
 				startedAt: Date.parse(record.startedAt),
@@ -680,7 +678,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			const now = (deps.now ?? Date.now)();
 			// `old.spec` goes through UNCHANGED, same as `create` above: `checkpoint` (when there is a
 			// snapshot to restore from) is `HostedMatch`'s own cue to run it through `restoredSpec` itself.
-			const match: Match = new Match(id, old.spec, depsOf(id, () => match), {
+			const match: Match = new Match(id, old.spec as ForgeMatchSpec, depsOf(id, () => match), {
 				// Never the old epoch's spelling, `${id}:${startedAt}`, even within its millisecond.
 				epoch: `${id}:${now}:${randomBytes(4).toString('hex')}`,
 				owners: old.owners(),

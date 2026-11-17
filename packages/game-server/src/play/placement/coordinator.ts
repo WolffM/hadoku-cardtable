@@ -327,7 +327,7 @@ export type Placement<L extends { t: string }, C extends { t: string }> = MatchH
 
 /** A start-to-first-frame canary: a human seat and an AI seat with random precons, stopped at once. */
 export function frameCanary<L extends { t: string }, C extends { t: string }>(timeoutMs = CANARY_TIMEOUT_MS): Canary<L, C> {
-	const spec: MatchSpec = { seats: [{ name: 'canary', ai: false, deck: null }, { name: 'canary-ai', ai: true, deck: null }], seed: 1 };
+	const spec: MatchSpec = { seats: [{ name: 'canary', ai: false }, { name: 'canary-ai', ai: true }], seed: 1 };
 	return (_node, pool) =>
 		new Promise((resolve) => {
 			let done = false;

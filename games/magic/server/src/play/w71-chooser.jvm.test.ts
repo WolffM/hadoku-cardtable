@@ -47,7 +47,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type MatchSpec } from '@hadoku/game-server/play/host';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry } from './match.js';
@@ -80,7 +81,7 @@ function isPlayOrDraw(frame: unknown): boolean {
 	return f?.method === 'updateButtons' && f.label1 === 'Play' && f.label2 === 'Draw' && f.enable1 === true && f.enable2 === true;
 }
 
-function spec(seed: number, chooser: 0 | 1 | undefined): MatchSpec {
+function spec(seed: number, chooser: 0 | 1 | undefined): ForgeMatchSpec {
 	return {
 		seed,
 		...(chooser === undefined ? {} : { chooser }),

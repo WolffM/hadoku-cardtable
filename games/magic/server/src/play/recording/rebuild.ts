@@ -61,8 +61,10 @@ import type { ServerEnvelope } from '@hadoku/shared';
 import { artOf } from '../art.js';
 import { seatDeckColors, type DeckCosts } from '../deck-colors.js';
 import { winnerSeatFromLosers } from '@hadoku/game-server/play/match/outcome';
-import { jvmHostConfig, type MatchHost, type MatchHostFactory, type MatchSpec } from '@hadoku/game-server/play/host';
+import { jvmHostConfig, type MatchHost, type MatchHostFactory } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
+import { playWorkDir } from '../../config.js';
+import type { ForgeMatchSpec } from '../forge-spec.js';
 import { createProjector, EVERY_PLAYER, type StateFrame } from '../visibility.js';
 import { createArtIds, type ArtCatalog, type ArtIds } from '../art-ids.js';
 import { bridgeDigest, forgePin } from './recorder.js';
@@ -79,7 +81,7 @@ import { BRIDGE_SOURCE } from '../../root.js';
  * already takes it reading the very same files.
  */
 
-export type ActionHeaderLine = Omit<ActionsHeader, 'spec'> & { spec: MatchSpec };
+export type ActionHeaderLine = Omit<ActionsHeader, 'spec'> & { spec: ForgeMatchSpec };
 export type ActionCmdLine = Omit<ActionsCmdLine, 'cmd'> & { cmd: BridgeCommand };
 export type ActionEndLine = ActionsEndLine;
 export type ActionLogLine = ActionHeaderLine | ActionCmdLine | ActionEndLine;
@@ -122,7 +124,7 @@ export interface RunningForge {
 
 /** This server's own Forge identity, via `recorder.ts`'s `forgePin`/`bridgeDigest` — the same two facts the header line records, computed the same way the recorder computes them for its own identity. */
 export function currentForge(env: NodeJS.ProcessEnv = process.env): RunningForge | null {
-	const available = jvmHostConfig(BRIDGE_SOURCE, env);
+	const available = jvmHostConfig(BRIDGE_SOURCE, env, playWorkDir(env));
 	if (!available.ok) return null;
 	return { pin: forgePin(available.config.jar), bridge: bridgeDigest(available.config.bridgeSource) };
 }
@@ -486,9 +488,9 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
  * them through, with every cast and shape change kept here rather than there.
  */
 
-/** `ReplaysDeps.canRebuild`'s exact shape. `header.spec` is `unknown` there (it depends on nothing above the wire); this file's own `readActionLog` already takes the same trust that it is really a `MatchSpec`. */
+/** `ReplaysDeps.canRebuild`'s exact shape. `header.spec` is `unknown` there (it depends on nothing above the wire); this file's own `readActionLog` already takes the same trust that it is really a `ForgeMatchSpec`. */
 export function canRebuildBoolean(header: { pin: string | null; bridge: string; spec: unknown }, running: RunningForge | null = currentForge()): boolean {
-	return canRebuild({ pin: header.pin, bridge: header.bridge, spec: header.spec as MatchSpec }, running).ok;
+	return canRebuild({ pin: header.pin, bridge: header.bridge, spec: header.spec as ForgeMatchSpec }, running).ok;
 }
 
 /** `ReplaysDeps.rebuild`'s exact shape. */

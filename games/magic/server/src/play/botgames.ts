@@ -14,8 +14,9 @@
  */
 
 import { report } from '@hadoku/game-server/telemetry';
-import type { MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
+import type { MatchHostFactory } from '@hadoku/game-server/play/host';
 import type { BridgeLine, BridgeCommand } from './bridge-protocol.js';
+import type { ForgeMatchSpec } from './forge-spec.js';
 
 /** A bot game's one game, in seconds of wall clock, before the bridge calls it a draw (Forge's own sim clock is 120). */
 export const BOT_GAME_S = 180;
@@ -36,7 +37,7 @@ export type BotGameOutcome =
  * The bridge's `start` for a bot game. Forge tells its players apart by name (`LobbyPlayer.equals`),
  * so two characters of one name are told apart here.
  */
-export function botGameSpec(input: BotGameInput): MatchSpec {
+export function botGameSpec(input: BotGameInput): ForgeMatchSpec {
 	const [first, second] = input.names;
 	return {
 		seats: [

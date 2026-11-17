@@ -27,6 +27,7 @@ import type { ServerEnvelope } from '@hadoku/shared';
 import type { DeckCosts } from '../deck-colors.js';
 import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from '../bridge-protocol.js';
+import type { ForgeMatchSpec } from '../forge-spec.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry } from '../match.js';
 import { WATCHER_SEAT } from '../match/forge-session.js';
@@ -81,7 +82,7 @@ const boardOfEnvelopeFrames = (frames: readonly ServerFrame[]): string => boardD
 /* ── canRebuild: fast, no JVM ─────────────────────────────────────────────────────────────── */
 
 describe('canRebuild', () => {
-	const specWith = (seed: number | undefined, seat1Ai: boolean): MatchSpec => ({
+	const specWith = (seed: number | undefined, seat1Ai: boolean): ForgeMatchSpec => ({
 		seed,
 		seats: [
 			{ name: 'A', ai: false, deck: null },
@@ -231,7 +232,7 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 
 	it('rebuilds the same game, and the same watcher stream, from the action log alone', async () => {
 		if (!available.ok) return;
-		const spec: MatchSpec = {
+		const spec: ForgeMatchSpec = {
 			seed: Number(process.env.CARDTABLE_PLAY_SEED ?? 20261027),
 			seats: [
 				{ name: 'A', ai: false, deck: precon(process.env.CARDTABLE_REBUILD_DECK_A ?? 'Spirit Flames') },

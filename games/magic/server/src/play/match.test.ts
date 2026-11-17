@@ -25,7 +25,8 @@ import {
 } from '@hadoku/shared';
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
-import type { HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from '@hadoku/game-server/play/host';
+import type { HostEvents, MatchRecord, MatchHost, MatchHostFactory, TurnSnapshot } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import { createMatchRegistry, type Match, type MatchSpecWithIdentity } from './match.js';
 import { MATCH_ENDED_TITLE, PENDING_REVEAL_CHOICE_MS } from './match/forge-frames.js';
@@ -1651,7 +1652,7 @@ describe('a match restored from its turn-start snapshot', () => {
 		expect(h.hosts).toHaveLength(2);
 		const spec = (h.hosts[1] as ReplayHost).spec;
 		expect(spec).toEqual({ seats: h.match.spec.seats, seed: 7, scenario: SNAPSHOT.state, skipOpening: true, restore: true });
-		expect(spec).toEqual(restoredSpec(h.match.spec, { turn: 3, state: SNAPSHOT.state }));
+		expect(spec).toEqual(restoredSpec(h.match.spec as ForgeMatchSpec, { turn: 3, state: SNAPSHOT.state }));
 		expect(r.latestSnapshot).toEqual({ turn: 3, state: SNAPSHOT.state });
 		// The restored match's `checkpoint` ran through `HostedMatch`'s own constructor, same as the
 		// spec it restored: `restore.checkpoint`, not a direct `restoredSpec` call in the registry.
@@ -1686,7 +1687,7 @@ describe('a match restored from its turn-start snapshot', () => {
 		const { factory, hosts } = replayFactory();
 		const logs: Record<string, unknown>[] = [];
 		const registry = createMatchRegistry({ host: factory, log: (e) => logs.push(e), overGraceMs: 60_000, emit: () => undefined });
-		const spec: MatchSpec = { seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], chooser: 1, handSmoothing: true, format: 'cube' };
+		const spec: ForgeMatchSpec = { seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], chooser: 1, handSmoothing: true, format: 'cube' };
 		const match = registry.create(spec);
 		match.claim(ALICE);
 		match.claim(BOB);

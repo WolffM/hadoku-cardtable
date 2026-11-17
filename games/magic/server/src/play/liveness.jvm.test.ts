@@ -29,7 +29,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 import type { ServerEnvelope } from '@hadoku/shared';
 
-import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type JvmHostConfig, type JvmHostFactory, type MatchSpec } from '@hadoku/game-server/play/host';
+import { jvmHostConfig, jvmHostFactory as jvmHostFactoryGeneric, liveJvmCount, type JvmHostConfig, type JvmHostFactory } from '@hadoku/game-server/play/host';
+import type { ForgeMatchSpec } from './forge-spec.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 const jvmHostFactory = (config: Parameters<typeof jvmHostFactoryGeneric>[0], options?: Parameters<typeof jvmHostFactoryGeneric>[1]) => jvmHostFactoryGeneric<BridgeLine, BridgeCommand>(config, options);
 import { createMatchRegistry, type Match } from './match.js';
@@ -61,7 +62,7 @@ const VS_AI = {
 		{ name: 'Seat 1', ai: false, deck: deck('Seat one') },
 		{ name: 'Seat 2', ai: true, deck: deck('Seat two') },
 	],
-} satisfies MatchSpec;
+} satisfies ForgeMatchSpec;
 
 interface Run {
 	match: Match;
@@ -84,7 +85,7 @@ afterEach(async () => {
 	await waitUntil(() => liveJvmCount() === 0, 'every JVM to exit', 30_000);
 });
 
-function start(patch: Partial<JvmHostConfig>, spec: MatchSpec = VS_AI): Run {
+function start(patch: Partial<JvmHostConfig>, spec: ForgeMatchSpec = VS_AI): Run {
 	if (!available.ok) throw new Error('unreachable');
 	const config = { ...available.config, ...patch, jvmOpts: [...available.config.jvmOpts, ...(patch.jvmOpts ?? [])] };
 	const logs: Record<string, unknown>[] = [];
