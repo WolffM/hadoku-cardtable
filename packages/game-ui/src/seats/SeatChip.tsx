@@ -185,7 +185,7 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
                 )}
                 {onMakeLeader !== undefined && (
                   <ActionButton action="make-leader" className="pod-seats__action" data-testid="pod-seat-make-leader" data-seat={seat} aria-label={`Make ${name} the room leader`} onPress={() => onMakeLeader(id)}>
-                    Lead
+                    <svg className="pod-seats__action-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d={SEAT_CROWN_PATH} /></svg>
                   </ActionButton>
                 )}
               </span>

@@ -165,6 +165,14 @@
   cursor: pointer;
 }
 
+/* The leader's hand-off: the crown the leader wears, as a button. */
+.pod-seats__action-icon {
+  display: block;
+  width: 12px;
+  height: 13px;
+  fill: currentColor;
+}
+
 .pod-seats__action:disabled {
   opacity: 0.5;
   cursor: default;

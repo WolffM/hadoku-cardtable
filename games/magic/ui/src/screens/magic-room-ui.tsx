@@ -3167,7 +3167,7 @@ function PlayerRow({
       {onMakeLeader !== undefined && (
         <span className="pod-seats__actions">
           <ActionButton action="make-leader" className="pod-seats__action" data-testid="room-seat-make-leader" data-seat={seat} aria-label={`Make ${player.name} the room leader`} onPress={onMakeLeader}>
-            Lead
+            <svg className="pod-seats__action-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d={CROWN} /></svg>
           </ActionButton>
         </span>
       )}

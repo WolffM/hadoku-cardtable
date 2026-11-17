@@ -1,6 +1,6 @@
 ## New
 
-- A room's leader can hand the room to anyone in it, seated or watching, with the Lead button beside their name.
+- A room's leader can hand the room to anyone in it, seated or watching, with the crown button under their name.
 
 ## Fixed
 

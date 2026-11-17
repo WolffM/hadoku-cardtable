@@ -55,7 +55,7 @@ export function SpectatorRow({ spectators, myId, leaderId, onWatch, watchDisable
             {onMakeLeader !== undefined && member.id !== myId && (
               <span className="pod-seats__actions">
                 <ActionButton action="make-leader" className="pod-seats__action" data-testid="spectator-make-leader" data-member={member.id} aria-label={`Make ${member.name} the room leader`} onPress={() => onMakeLeader(member.id)}>
-                  Lead
+                  <svg className="pod-seats__action-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d={SEAT_CROWN_PATH} /></svg>
                 </ActionButton>
               </span>
             )}
