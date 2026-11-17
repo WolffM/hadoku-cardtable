@@ -1,0 +1,22 @@
+# The operator: "why does error speech 'I have to wait for priority' show when clicking on my
+# opponents graveyard? i was just trying to view it, not use any effect." The confirmed real class
+# (read from live telemetry, match m-dadc9e87cb11): a seat clicks the OTHER seat's own battlefield
+# permanent while it waits — `reason:"nothing-offered"`, wrongly said `"priority"`. Mirrors
+# `mistake-bubbles.state`'s own proven shape exactly for the waiting seat (an empty hand and
+# battlefield, so Forge gives it no live input at all) with the roles swapped: bob (ai, seat 1) is
+# active and holds priority; alice (human, seat 0) has none and nothing of her own. Bob's
+# battlefield holds a Mountain for alice to click, and his graveyard a second card for the same
+# check on a public zone. Used by `e2e/w121a-mistake-priority.spec.ts`.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=Forest
+aibattlefield=Mountain
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=Runeclaw Bear

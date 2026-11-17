@@ -12,17 +12,16 @@
  *   City of Brass — Forge's yes/no of the two colours as a ring; the U key pays one.
  *   Tundra — its two abilities as a ring, both paying the hybrid left; a click on W pays it.
  *   Then Holy Day's {W} from the second Tundra: its U pays nothing owed and is greyed.
- * `mana-ring`, by press, drag and release (the operator, 2026-11-06: "the regular tap should also work"):
- *   Tundra — the press opens its ring before anything is sent; let go on U adds {U}.
- *   City of Brass — let go on R adds {R} and deals its 1: Forge's colour question answered by the drag.
- *   Adarkar Wastes — dragged off every disc and let go on nothing: nothing is sent, nothing tapped;
- *     then a plain click still opens Forge's ring, and W is picked from it.
+ * `mana-ring`, a press that drags away (the operator: "not just on release, but also only if on
+ * release and no drag happened ... otherwise theres no way to drag cards" — retires the old
+ * press-drag-release for every mana source): Tundra, dragged 60 px and let go, opens no ring at
+ * any point and sends nothing; a plain click on it afterward still opens Forge's ring, and W is
+ * picked from it. (`e2e/w121a-mana-drag.spec.ts` has the fuller RED→GREEN proof.)
  * No generic decision box is drawn for any of it.
  * `mana-ring`, the pointer over an open ring (the operator, 2026-11-07: "i notice it grows and shrinks in
  * size when hovered/not hovered. lets just get rid of that effect entirely"): on Tundra's ring and City
- * of Brass's, and on Adarkar Wastes's held press, the pointer goes from the land onto a disc, back onto
- * the land, onto another disc and off it again, and no disc's size and no box of the land's card changes
- * in any frame of it.
+ * of Brass's, the pointer goes from the land onto a disc, back onto the land, onto another disc and off
+ * it again, and no disc's size and no box of the land's card changes in any frame of it.
  *
  * Needs a Forge build; without one the test SKIPS and its title says why.
  */
@@ -31,7 +30,7 @@ import { expect, test } from '@playwright/test';
 import { clickHandCard, handCardNamed, isTapped, lifeOf, makeTitled, manaPool as pool, ownNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { centreOf, expectCardViewBesideRing, expectRingOn, lifeNow, pathTo, pressPoint, ring, ringOption, ringOptions, traceRingBoxes, whatIsAt } from './mana-ring.ts';
+import { centreOf, expectCardViewBesideRing, expectRingOn, lifeNow, pathTo, pressPoint, ring, ringOption, ringOptions, traceRingBoxes } from './mana-ring.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -159,7 +158,7 @@ test(titled('inside a payment the mana ring answers Forge’s two-colour yes/no 
   }
 });
 
-test(titled('a press on a mana source opens its ring under the press: a drag to a disc and a release picks it, a release on nothing picks nothing, and a click still works'), async ({ browser }) => {
+test(titled('AF626: a press on a mana source that drags away opens no ring at any point and sends nothing; a plain click on it still works'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -169,73 +168,31 @@ test(titled('a press on a mana source opens its ring under the press: a drag to 
     const page = alice.page;
     const genericBox = page.locator('[data-testid="live-prompt"], [data-testid="live-confirm"]');
     const [tundra] = await ownNamed(page, 'Tundra');
-    const [brass] = await ownNamed(page, 'City of Brass');
-    const [wastes] = await ownNamed(page, 'Adarkar Wastes');
-    if (tundra === undefined || brass === undefined || wastes === undefined) throw new Error('the scenario board is not drawn');
-    const life = lifeOf(page, 'me');
+    if (tundra === undefined) throw new Error('the scenario board is not drawn');
     const drag = async (from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> => {
       for (const p of pathTo(from, to)) await page.mouse.move(p.x, p.y);
     };
 
-    // Tundra: the press opens the ring before Forge is asked; let go on U.
+    // Tundra: a press that drags 70 px away never opens its ring — `e2e/w121a-mana-drag.spec.ts`
+    // watches every frame of this to prove it; here it is enough that none is open mid-drag or after.
     const onTundra = await pressPoint(page, tundra);
     await page.mouse.move(onTundra.x, onTundra.y);
     await page.mouse.down();
-    await expectRingOn(page, onTundra, 'Tundra, pressed');
-    await expect(ring(page), 'drawn on the press, before Forge asked').toHaveAttribute('data-press');
-    await expect(ringOptions(page)).toHaveCount(2);
-    const u = await centreOf(ringOption(page, 'U'));
-    await drag(onTundra, u);
-    await expect(ringOption(page, 'U'), 'the disc under the pointer is lit').toHaveAttribute('data-armed');
+    await drag(onTundra, { x: onTundra.x, y: onTundra.y - 70 });
+    await expect(ring(page), 'no ring opened for the drag').toHaveCount(0);
     await page.mouse.up();
-    await expect(ring(page), 'the ring closed').toHaveCount(0);
-    await expect.poll(async () => (await pool(page)).U, { timeout: 10_000, message: 'Tundra added {U}' }).toBe(1);
-    await expect.poll(() => isTapped(page, tundra), { timeout: 10_000 }).toBe(true);
-    await expect(genericBox, 'no generic decision box').toHaveCount(0);
-
-    // City of Brass: let go on R answers Forge's colour question too.
-    const onBrass = await pressPoint(page, brass, 0.6, 0.55);
-    await page.mouse.move(onBrass.x, onBrass.y);
-    await page.mouse.down();
-    await expect(ring(page)).toHaveAttribute('data-press');
-    await expect(ringOptions(page)).toHaveCount(5);
-    await expect(ring(page).getByTestId('mana-ring-life'), 'its 1 damage on every colour').toHaveCount(5);
-    const r = await centreOf(ringOption(page, 'R'));
-    await drag(onBrass, r);
-    await expect(ringOption(page, 'R'), `the disc under the pointer is lit (the page hits ${await whatIsAt(page, r)})`).toHaveAttribute('data-armed');
-    await page.mouse.up();
-    await expect.poll(async () => (await pool(page)).R, { timeout: 10_000, message: 'City of Brass added {R}' }).toBe(1);
-    await expect.poll(() => lifeNow(page, life), { timeout: 10_000, message: 'City of Brass dealt 1' }).toBe(19);
-    await expect(ring(page), 'no ring left open').toHaveCount(0);
-    await expect(genericBox, 'no generic decision box').toHaveCount(0);
-
-    // Adarkar Wastes: over a disc, then off every disc, and let go on nothing.
-    const onWastes = await pressPoint(page, wastes);
-    await page.mouse.move(onWastes.x, onWastes.y);
-    await page.mouse.down();
-    await expect(ringOptions(page)).toHaveCount(3);
-    const w = await centreOf(ringOption(page, 'W'));
-    await drag(onWastes, w);
-    await expect(ringOption(page, 'W')).toHaveAttribute('data-armed');
-    const away = { x: onWastes.x, y: Math.max(8, onWastes.y - 260) };
-    await drag(w, away);
-    await expect(ring(page).locator('[data-armed]'), 'off every disc, none is lit').toHaveCount(0);
-    await page.mouse.up();
-    await expect(ring(page), 'the ring closed').toHaveCount(0);
-    await page.waitForTimeout(1_500);
-    await expect(ring(page), 'nothing was sent: Forge asks nothing').toHaveCount(0);
-    await expect(genericBox).toHaveCount(0);
-    expect(await isTapped(page, wastes), 'nothing tapped').toBe(false);
-    expect(await lifeNow(page, life), 'no damage').toBe(19);
+    await expect(ring(page), 'still none after the release').toHaveCount(0);
+    await page.waitForTimeout(500);
+    await expect(ring(page), 'and none opened late').toHaveCount(0);
+    await expect(genericBox, 'no generic decision box either').toHaveCount(0);
 
     // A plain click still opens Forge's own ring, and a click on W picks from it.
-    const again = await pressPoint(page, wastes);
+    const again = await pressPoint(page, tundra);
     await page.mouse.click(again.x, again.y);
-    await expectRingOn(page, again, 'Adarkar Wastes, clicked');
-    await expect(ring(page), "Forge's own question").toHaveAttribute('data-method', 'getAbilityToPlay');
+    await expectRingOn(page, again, 'Tundra, clicked');
+    await expect(ring(page)).toHaveAttribute('data-ring', 'abilities');
     await ringOption(page, 'W').click();
-    await expect.poll(async () => (await pool(page)).W, { timeout: 10_000, message: 'Adarkar Wastes added {W}' }).toBe(1);
-    await expect.poll(() => lifeNow(page, life), { timeout: 10_000, message: 'Adarkar Wastes dealt 1' }).toBe(18);
+    await expect.poll(async () => (await pool(page)).W, { timeout: 10_000, message: 'Tundra added {W}' }).toBe(1);
     await expect(ring(page)).toHaveCount(0);
     await expect(genericBox).toHaveCount(0);
   } finally {
@@ -253,8 +210,7 @@ test(titled('the pointer over an open mana ring resizes nothing: no disc grows u
     const page = alice.page;
     const [tundra] = await ownNamed(page, 'Tundra');
     const [brass] = await ownNamed(page, 'City of Brass');
-    const [wastes] = await ownNamed(page, 'Adarkar Wastes');
-    if (tundra === undefined || brass === undefined || wastes === undefined) throw new Error('the scenario board is not drawn');
+    if (tundra === undefined || brass === undefined) throw new Error('the scenario board is not drawn');
     const glide = async (from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> => {
       for (const p of pathTo(from, to)) await page.mouse.move(p.x, p.y);
       await page.waitForTimeout(250);
@@ -286,26 +242,6 @@ test(titled('the pointer over an open mana ring resizes nothing: no disc grows u
       await expect(ring(page), `${name}: the ring closed`).toHaveCount(0);
       await expect.poll(() => isTapped(page, id), { timeout: 10_000, message: `${name} tapped` }).toBe(true);
     }
-
-    // Adarkar Wastes, held down: the press's own ring over the land the pointer pressed, then let go on nothing.
-    const onWastes = await pressPoint(page, wastes);
-    await page.mouse.move(onWastes.x, onWastes.y);
-    await page.waitForTimeout(250);
-    await page.mouse.down();
-    await expect(ring(page), 'Adarkar Wastes: the press opens its ring').toHaveAttribute('data-press');
-    const w = await centreOf(ringOption(page, 'W'));
-    const u = await centreOf(ringOption(page, 'U'));
-    const stop = await traceRingBoxes(page, wastes);
-    await glide(onWastes, w);
-    await glide(w, onWastes);
-    await glide(onWastes, u);
-    await glide(u, onWastes);
-    const frames = await stop();
-    const trace = frames.map((f) => `${f.t}ms discs ${f.discs} | card ${f.card}`).join('\n');
-    expect.soft(frames.length, `Adarkar Wastes, pressed: every disc and the land's card held one size and place while the pointer crossed the ring:\n${trace}`).toBe(1);
-    await glide(onWastes, { x: onWastes.x, y: Math.max(8, onWastes.y - 260) });
-    await page.mouse.up();
-    await expect(ring(page), 'Adarkar Wastes: let go on nothing, the ring closed').toHaveCount(0);
   } finally {
     await stack.stop();
   }

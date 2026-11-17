@@ -1,20 +1,20 @@
 /**
  * The mana ring on a phone (`mana-ring.spec.ts` has the desktop's): a tap on City of Brass opens its
  * ring of five above or beside the finger, never under it (no disc covers the finger's touch), every
- * disc at least 44 px, whole on the screen; a tap on a disc adds that colour. And by press, drag and
- * release: the finger held on Tundra opens its ring above it, a slide to U and a lift adds {U}, with
- * nothing panned; on Adarkar Wastes a lift away from every disc sends nothing.
+ * disc at least 44 px, whole on the screen; a tap on a disc adds that colour. The operator's ruling
+ * ("yes, everything"): a finger held on Tundra and slid away never opens its ring at all — nothing
+ * panned by the candidate itself — and a plain tap on it afterward still opens and picks.
  *
  * Needs a Forge build; without one the test SKIPS and its title says why.
  */
 import { expect, test } from '@playwright/test';
 
-import { isTapped, makeTitled, manaPool as pool, ownNamed } from './play/board.ts';
+import { makeTitled, manaPool as pool, ownNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { PHONE } from './play/phone.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { boxOf } from './mana-floating.ts';
-import { centreOf, pathTo, pressPoint, ring, ringOption, ringOptions } from './mana-ring.ts';
+import { pressPoint, ring, ringOption, ringOptions } from './mana-ring.ts';
 import { touchPressStart } from './w90a-deck-peek-touch.ts';
 
 test.use(PHONE);
@@ -63,7 +63,7 @@ test(titled('on a phone the mana ring opens above the finger that tapped the lan
   }
 });
 
-test(titled('on a phone a finger held on a mana source opens its ring above it: a slide to a disc and a lift picks it, a lift away picks nothing'), async ({ browser }) => {
+test(titled('AF626: on a phone a finger held on a mana source and slid away opens no ring at all; a plain tap on it still works'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -72,44 +72,30 @@ test(titled('on a phone a finger held on a mana source opens its ring above it: 
     const { alice } = await startScenarioMatch(browser, stack, 'mana-ring');
     const page = alice.page;
     const [tundra] = await ownNamed(page, 'Tundra');
-    const [wastes] = await ownNamed(page, 'Adarkar Wastes');
-    if (tundra === undefined || wastes === undefined) throw new Error('the scenario board is not drawn');
-    const scrolls = () =>
-      page.evaluate(() => [document.scrollingElement ?? document.documentElement, ...document.querySelectorAll('.board, .board *')].filter((el) => el.scrollLeft !== 0 || el.scrollTop !== 0).map((el) => `${el.className}:${el.scrollLeft},${el.scrollTop}`).join(' '));
-    const before = await scrolls();
+    if (tundra === undefined) throw new Error('the scenario board is not drawn');
 
+    // A finger held and slid 60 px away never opens the ring — the candidate never claims the touch,
+    // so there is nothing of its own to pan either.
     const at = await pressPoint(page, tundra, 0.5, 0.5);
     const finger = await touchPressStart(page, at);
     try {
-      await expect(ring(page), 'the ring opens on the held finger').toHaveAttribute('data-press', { timeout: 10_000 });
-      await expect(ringOptions(page)).toHaveCount(2);
-      const u = await centreOf(ringOption(page, 'U'));
-      expect(u.y, 'above the finger').toBeLessThan(at.y);
-      for (const p of pathTo(at, u)) await finger.moveTo(p.x, p.y);
-      await expect(ringOption(page, 'U'), 'the disc under the finger is lit').toHaveAttribute('data-armed');
+      await finger.moveTo(at.x, at.y - 60);
+      await expect(ring(page), 'no ring opened for the slide').toHaveCount(0);
     } finally {
       await finger.release();
     }
+    await expect(ring(page), 'still none after the lift').toHaveCount(0);
+    await page.waitForTimeout(500);
+    await expect(ring(page), 'and none opened late').toHaveCount(0);
+
+    // A plain tap still opens the ring, and a tap on a disc still picks from it.
+    const again = await pressPoint(page, tundra, 0.5, 0.5);
+    await page.touchscreen.tap(again.x, again.y);
+    await expect(ring(page).getByTestId('mana-ring-hub'), 'a tap still opens the ring').toBeVisible({ timeout: 10_000 });
+    await expect(ringOptions(page)).toHaveCount(2);
+    await ringOption(page, 'U').tap();
     await expect(ring(page), 'the ring closed').toHaveCount(0);
     await expect.poll(async () => (await pool(page)).U, { timeout: 10_000, message: 'Tundra added {U}' }).toBe(1);
-    expect(await scrolls(), 'the slide panned nothing').toBe(before);
-
-    const onWastes = await pressPoint(page, wastes, 0.5, 0.5);
-    const lift = await touchPressStart(page, onWastes);
-    try {
-      await expect(ringOptions(page)).toHaveCount(3, { timeout: 10_000 });
-      const w = await centreOf(ringOption(page, 'W'));
-      for (const p of pathTo(onWastes, w)) await lift.moveTo(p.x, p.y);
-      const away = { x: w.x, y: Math.max(8, w.y - 140) };
-      for (const p of pathTo(w, away)) await lift.moveTo(p.x, p.y);
-      await expect(ring(page).locator('[data-armed]'), 'off every disc, none is lit').toHaveCount(0);
-    } finally {
-      await lift.release();
-    }
-    await expect(ring(page), 'the ring closed').toHaveCount(0);
-    await page.waitForTimeout(1_500);
-    await expect(ring(page), 'nothing was sent: Forge asks nothing').toHaveCount(0);
-    expect(await isTapped(page, wastes), 'nothing tapped').toBe(false);
   } finally {
     await stack.stop();
   }
