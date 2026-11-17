@@ -162,6 +162,9 @@ describe('/api/events', () => {
 		expect(event.kind).toBe('draft-pod');
 		expect(lobby.get(event.roomId!)).toMatchObject({ gameType: 'draft', settings: { pickTimer: { on: true, speed: 2 } }, game: { pod: { plan: PLAN, verdict: { ok: true } } } });
 		expect(event.room).toMatchObject({ gameType: 'draft', phase: 'lobby', settings: { pickTimer: { on: true, speed: 2 } } });
+		// The calendar names a draft by its plan, never by the constructed format its room still holds.
+		const listed = EventListSchema.parse((await call(base, 'alice', 'GET', '/events')).body).events[0]!.room!;
+		expect([listed.format, listed.pool]).toEqual(['', 'vintage']);
 
 		const refused = await call(base, 'alice', 'POST', '/events', tournament('Bad cube', startsAt, { gameType: 'draft', plan: REFUSED_PLAN }));
 		expect(refused.status).toBe(409);

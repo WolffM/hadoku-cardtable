@@ -46,14 +46,15 @@ function DateBlock({ at }: { at: string }) {
 }
 
 /**
- * The room's own state, as the room is now: its format and how many have signed up — those who
+ * The room's own state, as the room is now: its pool (a draft's plan, a constructed room's format) and how many have signed up — those who
  * said on its Rally form they can make it, for an event made from one; else those in its room.
  */
 function roomLine(event: EventView): string | null {
   const room = event.room ?? null;
   if (room === null) return null;
   const signedUp = event.signedUp ?? (room.phase === null ? room.members : room.entrants);
-  const parts = [room.format === '' ? null : formatEraLabel(room.format), `${String(signedUp)} signed up`];
+  const pool = room.pool ?? (room.format === '' ? null : formatEraLabel(room.format));
+  const parts = [pool, `${String(signedUp)} signed up`];
   return parts.filter((p): p is string => p !== null).join(' · ');
 }
 

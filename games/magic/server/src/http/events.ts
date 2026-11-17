@@ -36,6 +36,7 @@ import {
 	CreateEventBodySchema,
 	isEventSignupForm,
 	isPodAi,
+	planDisplayName,
 	RallyFormSummarySchema,
 	UpdateEventBodySchema,
 	type AttachedForm,
@@ -178,9 +179,10 @@ function roomState(room: MagicRoomView): EventRoom {
 	return {
 		gameType: room.gameType,
 		mode: room.game?.mode ?? null,
-		format: room.game?.format ?? '',
+		// A draft room still holds a constructed format from its defaults; it plays its plan, not that.
+		format: room.gameType === 'draft' ? '' : (room.game?.format ?? ''),
 		settings: room.settings,
-		pool: pod?.roundNames ?? null,
+		pool: pod?.plan == null || pod.roundNames == null ? null : planDisplayName(pod.plan, pod.roundNames),
 		locked: room.locked,
 		phase: pod?.phase ?? null,
 		members: room.members.length,

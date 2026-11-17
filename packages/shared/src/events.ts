@@ -77,14 +77,14 @@ export const EventRoomSchema = z.object({
   gameType: GameTypeSchema,
   /** A constructed room's mode, or null for a draft room and one whose leader has not chosen. */
   mode: ConstructedModeSchema.nullable().catch(null),
-  /** A constructed room's pool: a frozen era's id, or `free`. */
+  /** A constructed room's pool: a frozen era's id, or `free`; empty for a draft room, which drafts `pool`. */
   format: z.string().catch(''),
   settings: z
     .object(RoomSettingsSchema.partial().shape)
     .transform((s): RoomSettings => ({ ...DEFAULT_ROOM_SETTINGS, ...s }))
     .catch(() => ({ ...DEFAULT_ROOM_SETTINGS })),
-  /** A draft room's three rounds by name (`PodView.roundNames`); null for a constructed room. */
-  pool: z.tuple([z.string(), z.string(), z.string()]).nullable().catch(null),
+  /** A draft room's pool by its display name (`planDisplayName`, e.g. "Bloomburrow · Set-cube"); null for a constructed room. */
+  pool: z.string().nullable().catch(null),
   /** Whether joining takes a password. */
   locked: z.boolean().catch(false),
   /** The pod's phase, or null for a room with no pod. */
