@@ -18,8 +18,14 @@
  * The plain image route is stood in for (a card-sized SVG, never real image bytes — the same
  * convention `w69-backface.spec.ts`/`front-gallery-preload.spec.ts` use): this spec is about whether
  * the chip ASKS for and DRAWS an id's art, not about Scryfall's own bytes. The new `/artist` route is
- * left to the real server, reading the real `CARDTABLE_SCRYFALL_DIR` corpus the wave's env points at
- * — the one thing this spec measures live.
+ * left to the real server — the one thing this spec measures live — but never the HOST's corpus: a
+ * claw has none (`CARDTABLE_SCRYFALL_DIR` unset there), which read the host's real
+ * `~/.local/share/cardtable/scryfall` here on a claw (run 44045918783, claw-10): the request went
+ * out but the route 404'd, and the poll timed out the same way RED did. `startPlayStack`'s own
+ * `CARDTABLE_SCRYFALL_DIR` is overridden to this spec's own fixture corpus,
+ * `e2e/fixtures/w121c-corpus/cards.jsonl` (the same one `card-art.test.ts` reads), so the route
+ * answers from a fixture everywhere, host or claw alike (memory: tests never read the host catalog
+ * — the same rule, for the corpus).
  *
  * The e2e stack's own server catalog (`e2e/fixtures/sets-catalog.json`, ISD/ALA/ARB — never the
  * host's) has no printing of either card, by design (`play/harness.ts`'s `PLAY_CATALOG`): no e2e
@@ -80,7 +86,14 @@ test(titled('AF632 — Dragonologist and Betor, Kin to All: neither card is in a
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
-  const stack = await startPlayStack(forge, { env: { CARDTABLE_CATALOG: resolve(import.meta.dirname, 'fixtures', 'w121c-catalog.json') } });
+  const stack = await startPlayStack(forge, {
+    env: {
+      CARDTABLE_CATALOG: resolve(import.meta.dirname, 'fixtures', 'w121c-catalog.json'),
+      // Never the host's: a claw has none, and the live `/artist` route (`card-art.ts`) must answer
+      // the same way everywhere. This is the one fixture both this spec AND `card-art.test.ts` read.
+      CARDTABLE_SCRYFALL_DIR: resolve(import.meta.dirname, 'fixtures', 'w121c-corpus'),
+    },
+  });
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w121c-chip-art', { beforeAlice: serveArt, beforeBob: serveArt });
     for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1600, height: 1000 });
