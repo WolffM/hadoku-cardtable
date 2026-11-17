@@ -1883,8 +1883,19 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   // `myTournamentTable`'s effect, further down.
   const sawNoMatch = useRef(false);
   if (table !== null && matchId === null) sawNoMatch.current = true;
+  /**
+   * AF639, the operator, 2026-11-16: *"the next game does not open by itself; players click to
+   * enter it."* Once this room has drawn `mySideboarding`'s `TableCard` (below), the next game is
+   * entered by a press — that card's own "Sideboard" link, or `TablePage`'s own "Return to game" —
+   * never by this effect walking in on its own: that race (this effect against `TablePage`'s, both
+   * reading the same table) was the flash the operator described, measured in
+   * `docs/handoff/w122-F/af639-flash.md`. Game 1's own start (`startAs`, just below) never passes
+   * through `sideboarding`, so it is untouched.
+   */
+  const sawSideboarding = useRef(false);
+  if (mySideboarding) sawSideboarding.current = true;
   useEffect(() => {
-    if (!tournament && matchId !== null) followMatchOnce(matchId, sawNoMatch.current);
+    if (!tournament && matchId !== null && !sawSideboarding.current) followMatchOnce(matchId, sawNoMatch.current);
   }, [tournament, matchId]);
 
   const startVsBot = (): void => {
