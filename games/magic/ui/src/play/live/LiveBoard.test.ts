@@ -173,8 +173,8 @@ const tableState = vi.hoisted(() => ({
   matchId: null as string | null,
   /** The table's series phase, as the table read reports it beside `matchId`. */
   phase: 'done' as string,
-  startRoom: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-next00000000' })),
-  startVsBot: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-bot000000000' })),
+  startRoom: vi.fn(async (_roomId: string, _tableId?: string) => ({ ok: true as const, matchId: 'm-next00000000' })),
+  startVsBot: vi.fn(async (_roomId: string, _tableId?: string, _opts?: { rematch?: boolean }) => ({ ok: true as const, matchId: 'm-bot000000000' })),
   ready: vi.fn((_roomId: string, _ready: boolean, _tableId?: string, _opts?: { rematch?: boolean }) => undefined),
   loadDeck: vi.fn((_roomId: string, _deck: unknown, _tableId?: string) => undefined),
   decks: vi.fn(() => [] as { id: string; main: { name: string; count: number }[]; sideboard: { name: string; count: number }[] }[]),
@@ -227,8 +227,28 @@ vi.mock('../../screens/tables.ts', async (importOriginal) => {
         else tableState.ready(roomId, ready, tableId);
         return { ok: true as const, table: table() };
       },
-      startRoom: tableState.startRoom,
-      startVsBot: tableState.startVsBot,
+      // The real server's `startRoom`/`startVsBot` put the new match id on the table itself, which the
+      // next `table()` read already carries (AF639: `GameResultScreen`/`TableSideboard` read it off
+      // `table.room.matchId`, not off the start call's own answer, so neither screen has to be the one
+      // that asked to learn the next game exists). The spy stays the assertable call; this wrapper is
+      // the one place that keeps `tableState.matchId` honest with it.
+      startRoom: async (roomId: string, tableId?: string) => {
+        // Forwarded at the SAME arity the caller used (`ready`'s own discipline, above): an absent
+        // id is a 2-arg spy call, never a 3rd arg of `undefined`, so `toHaveBeenCalledWith('r-1')`
+        // still means what it always did.
+        const answer = await (tableId === undefined ? tableState.startRoom(roomId) : tableState.startRoom(roomId, tableId));
+        if (answer.ok) tableState.matchId = answer.matchId;
+        return answer;
+      },
+      startVsBot: async (roomId: string, tableId?: string, opts?: { rematch?: boolean }) => {
+        const answer = await (opts !== undefined
+          ? tableState.startVsBot(roomId, tableId, opts)
+          : tableId === undefined
+            ? tableState.startVsBot(roomId)
+            : tableState.startVsBot(roomId, tableId));
+        if (answer.ok) tableState.matchId = answer.matchId;
+        return answer;
+      },
     }),
   };
 });
@@ -4271,16 +4291,20 @@ describe('R16 — the result screen, drawn over the board', () => {
     expect(rematch().getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('the other player pressed first: their check, my button highlighted; my press starts the match once and goes to it', async () => {
+  it('the other player pressed first: their check, my button highlighted; my press starts the match once, and stays here until Enter game is pressed (AF639)', async () => {
     tableState.other.ready = true;
-    const { rematch, check } = await victoryInRoom();
+    const { rematch, check, getByTestId } = await victoryInRoom();
     await waitFor(() => expect(check(false), 'their check').not.toBeNull());
     expect(rematch().getAttribute('data-highlight')).toBe('true');
 
     fireEvent.click(rematch());
-    await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-next00000000'));
-    expect(tableState.startRoom).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(tableState.startRoom).toHaveBeenCalledTimes(1));
     expect(tableState.startRoom).toHaveBeenCalledWith('r-1');
+    // AF639: the match exists, but this screen does not jump to it by itself.
+    const enter = await waitFor(() => getByTestId('game-result-enter'));
+    expect(globalThis.location.hash, 'no auto-navigate once the match exists').not.toBe('#/match/m-next00000000');
+    fireEvent.click(enter);
+    await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-next00000000'));
   });
 
   it('a series a room change interrupted is not rematched: the table no longer lists this game', async () => {
@@ -4354,13 +4378,16 @@ describe('R16 — the result screen, drawn over the board', () => {
     });
   });
 
-  it("the other screen started the match: this one follows the room's new match", async () => {
-    const { rematch, check } = await victoryInRoom();
+  it("the other screen started the match: this one draws Enter game for the room's new match, and presses it (AF639)", async () => {
+    const { rematch, check, getByTestId } = await victoryInRoom();
     await waitFor(() => expect(rematch().disabled).toBe(false));
     fireEvent.click(rematch());
     await waitFor(() => expect(check(true)).not.toBeNull());
     tableState.matchId = 'm-theirs000000';
     roomPing();
+    const enter = await waitFor(() => getByTestId('game-result-enter'));
+    expect(globalThis.location.hash, 'no auto-navigate: the OTHER screen asked, this one still waits for a press').not.toBe('#/match/m-theirs000000');
+    fireEvent.click(enter);
     await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-theirs000000'));
   });
 
@@ -4375,14 +4402,17 @@ describe('R16 — the result screen, drawn over the board', () => {
     expect(rematch().disabled).toBe(true);
   });
 
-  it('a game played alone against the bot: Rematch readies the one seat, and a series that did not convert starts the next bot game at once', async () => {
+  it('a game played alone against the bot: Rematch readies the one seat, and a series that did not convert reaches the bot’s next game on a press (AF639)', async () => {
     tableState.other = { ready: false, present: false };
-    const { rematch } = await victoryInRoom();
+    const { rematch, getByTestId } = await victoryInRoom();
     await waitFor(() => expect(rematch().disabled).toBe(false));
     fireEvent.click(rematch());
-    await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-bot000000000'));
     expect(tableState.ready, 'the press says it is a Rematch').toHaveBeenCalledWith('r-1', true, undefined, { rematch: true });
+    const enter = await waitFor(() => getByTestId('game-result-enter'));
     expect(tableState.startVsBot, 'the start says it is a Rematch, so the bot keeps its deck').toHaveBeenCalledWith('r-1', undefined, { rematch: true });
+    expect(globalThis.location.hash, 'even alone, no auto-navigate').not.toBe('#/match/m-bot000000000');
+    fireEvent.click(enter);
+    await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-bot000000000'));
   });
 
   it('Main menu leaves the room first, then goes to the lobby', async () => {

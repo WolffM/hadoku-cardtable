@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { enterMatch, makeTitled, readyFromSideboard, serverLog } from './play/board.ts';
+import { enterMatch, makeTitled, pressEnterGame, readyFromSideboard, serverLog } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { twoLegalDecks } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
@@ -112,6 +112,8 @@ async function aliceWaits(stack: PlayStack, alice: Friend, bob: Friend, matchId:
 async function bobAgrees(stack: PlayStack, alice: Friend, bob: Friend, matchId: string, started: number, errors: string[]): Promise<void> {
   await press(bob.page, 'game-result-rematch');
   for (const f of [alice, bob]) await readyFromSideboard(f.page);
+  // AF639: the next game exists once both are ready, but neither screen opens it by itself.
+  for (const f of [alice, bob]) await pressEnterGame(f.page);
   for (const f of [alice, bob]) {
     await expect.poll(() => MATCH_URL.exec(f.page.url())?.[1], { message: `${f.name} reaches a new match`, timeout: 120_000 }).not.toBe(matchId);
     await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });
@@ -275,6 +277,8 @@ test(titled('against the AI in Classic: a Rematch keeps the bot’s deck, after 
     await expect(rematch(alice)).toBeEnabled({ timeout: 15_000 });
     await press(alice.page, 'game-result-rematch');
     await readyFromSideboard(alice.page);
+    // AF639: even alone against the AI, the next game does not open by itself.
+    await pressEnterGame(alice.page);
     const game2 = await onNewBoard(game1);
     expect(botOf(game2), 'game 2 of the Bo3 the Rematch made plays the same bot deck').toEqual({ deck: first.deck, from: 'kept' });
     await concede();

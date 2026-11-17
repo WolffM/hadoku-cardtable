@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test } from '@playwright/test';
 
-import { makeTitled, readyFromSideboard } from './play/board.ts';
+import { makeTitled, pressEnterGame, readyFromSideboard } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
@@ -72,6 +72,9 @@ test(titled('the result screen has Rematch, Back to room and Main menu; Back to 
     // (the operator, 2026-10-23: "a small box that lets me return").
     await alice.page.getByTestId('room-table-link').click();
     for (const f of [alice, bob]) await readyFromSideboard(f.page);
+    // AF639: the next game exists once both are ready, but neither screen opens it by itself —
+    // alice's from the room's table page, bob's from his own result screen.
+    for (const f of [alice, bob]) await pressEnterGame(f.page);
     for (const f of [alice, bob]) {
       await expect.poll(() => MATCH_URL.exec(f.page.url())?.[1], { message: `${f.name} reaches a new match`, timeout: 120_000 }).not.toBe(matchId);
       await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });

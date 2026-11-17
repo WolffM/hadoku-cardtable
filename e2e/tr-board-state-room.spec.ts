@@ -50,6 +50,8 @@ test(forge.ok ? 'an admin starts a board-state testing room vs the AI and lands 
     // And by Rematch, from the result screen.
     await concede();
     await admin.page.getByTestId('game-result-rematch').click();
+    // AF639: even alone against the AI, the next game does not open by itself.
+    await admin.page.getByTestId('game-result-enter').click();
     const third = await onScriptedBoard(second);
     expect(new Set([first, second, third]).size, 'every start is its own match').toBe(3);
 
