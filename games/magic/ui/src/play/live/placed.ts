@@ -430,6 +430,52 @@ function drawnPoint(id: number, at: Point, now: number, ease: boolean): { at: Po
   return { at: lerp(changed.from, target, 1 - (1 - t) ** 3), moving };
 }
 
+/** One drag of a stack item as this screen drew it, from its grab to its drop: what `drag` reports. */
+interface DragTrace {
+  readonly since: number;
+  last: Point;
+  lastAt: number;
+  moves: number;
+  px: number;
+  maxGapMs: number;
+}
+
+const dragTraces = new Map<string, DragTrace>();
+let dragReport: ((data: Record<string, string | number | boolean>) => void) | null = null;
+
+/** Where each stack drag drawn here is told, once it lets go (`LiveBoard` sends it as a `drag` client event). Returns the unsubscribe. */
+export function reportStackDrags(report: (data: Record<string, string | number | boolean>) => void): () => void {
+  dragReport = report;
+  return () => {
+    if (dragReport === report) dragReport = null;
+    dragTraces.clear();
+  };
+}
+
+/** Traces `hand`'s drag of `id` for `reportStackDrags`; `drawn` is where the item stood on this screen as the hand let go. */
+function traceDrag(id: number, hand: string, at: Point, grip: Grip, now: number, drawn: Point | null): void {
+  if (dragReport === null) return;
+  const key = `${id}:${hand}`;
+  if (grip === 'grab') {
+    dragTraces.set(key, { since: now, last: at, lastAt: now, moves: 0, px: 0, maxGapMs: 0 });
+    return;
+  }
+  const trace = dragTraces.get(key);
+  if (trace === undefined) return;
+  trace.moves += 1;
+  trace.px += Math.hypot(at.x - trace.last.x, at.y - trace.last.y);
+  trace.maxGapMs = Math.max(trace.maxGapMs, now - trace.lastAt);
+  trace.last = at;
+  trace.lastAt = now;
+  if (grip !== 'drop') return;
+  dragTraces.delete(key);
+  const data: Record<string, string | number | boolean> = {
+    what: 'stack', hand: hand === 'you' ? 'own' : 'relayed', id, ms: now - trace.since, moves: trace.moves, px: Math.round(trace.px), maxGapMs: trace.maxGapMs,
+  };
+  if (drawn !== null) data.offPx = Math.round(Math.hypot(drawn.x - at.x, drawn.y - at.y));
+  dragReport(data);
+}
+
 /**
  * A hand on stack item `id` takes hold, moves or lets go (`grip`). `you` is this screen's own pointer
  * (`gestures/install.ts`), and is told on to the other screens (`onSpellMoved`); any other hand is
@@ -500,6 +546,7 @@ export function gripStackItem(id: number, hand: string, at: Point, grip: Grip, s
     record.movedAt = movedAt;
   }
   if (hand === 'you') for (const listener of moveListeners) listener(id, at, grip);
+  traceDrag(id, hand, at, grip, now, was);
   requestRepaint();
 }
 

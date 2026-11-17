@@ -28,6 +28,7 @@ import {
   placeSpell,
   releaseSpell,
   gripStackItem,
+  reportStackDrags,
   type Rect,
   COUNTERED_MS,
   COUNTER_HOLD_MS,
@@ -230,6 +231,29 @@ describe('the seam', () => {
     unsub();
     gripStackItem(5, 'you', { x: 30, y: 40 }, 'grab', 'you');
     expect(heard, 'unsubscribed').toHaveLength(3);
+  });
+
+  it('reports each stack drag once it lets go: whose hand, how long, the longest wait between relayed points, and how far the drawn item stood from the let-go', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const told: Record<string, unknown>[] = [];
+    const stop = reportStackDrags((data) => told.push(data));
+    gripStackItem(7, 'seat:1', { x: 0, y: 0 }, 'grab', 'them');
+    vi.advanceTimersByTime(60);
+    gripStackItem(7, 'seat:1', { x: 30, y: 40 }, 'move', 'them');
+    vi.advanceTimersByTime(180);
+    gripStackItem(7, 'seat:1', { x: 60, y: 80 }, 'move', 'them');
+    expect(told, 'nothing until it lets go').toEqual([]);
+    vi.advanceTimersByTime(60);
+    gripStackItem(7, 'seat:1', { x: 60, y: 80 }, 'drop', 'them');
+    expect(told).toHaveLength(1);
+    expect(told[0]).toMatchObject({ what: 'stack', hand: 'relayed', id: 7, ms: 300, moves: 3, px: 100, maxGapMs: 180 });
+    expect(told[0]!.offPx, 'the drawn copy still catching up as the hand let go').toBeGreaterThan(0);
+    stop();
+    gripStackItem(7, 'you', { x: 0, y: 0 }, 'grab', 'you');
+    gripStackItem(7, 'you', { x: 5, y: 0 }, 'drop', 'you');
+    expect(told, 'unsubscribed').toHaveLength(1);
+    vi.useRealTimers();
   });
 
   describe('two hands on one stack item (the operator, 2026-11-02: "a funny interaction i dont want to kill")', () => {

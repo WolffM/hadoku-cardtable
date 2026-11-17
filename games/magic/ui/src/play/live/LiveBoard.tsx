@@ -293,7 +293,7 @@ import { attackWith } from './gestures/commit.ts';
 import { stackAsk } from './gestures/stack.ts';
 import { castLandingWeight } from './gestures/cast.ts';
 import { installPresence, type Side } from './presence.ts';
-import { setChainHalted } from './placed.ts';
+import { reportStackDrags, setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import { boardFacts, watchFrames, type FrameWatch } from './frame-watch.ts';
@@ -3643,6 +3643,10 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
     // Read through a ref, so toggling Fast Mode mid-match does not tear the layer down mid-gesture.
     const handle = installGestures({ canvas, match, report: (kind, data) => reportClient(match.transport, match.matchId, kind, data) });
     return () => handle.dispose();
+  }, [match, spectator]);
+  useEffect(() => {
+    if (spectator) return undefined;
+    return reportStackDrags((data) => reportClient(match.transport, match.matchId, 'drag', data));
   }, [match, spectator]);
 
   /*

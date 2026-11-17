@@ -43,7 +43,12 @@ export const CLIENT_EVENT = 'forge:client';
  * without one, so the next drop explains itself. Kept from any joined
  * socket, not only the seat's controller: it is about the socket, and a
  * spectator's drop is as much a question as a player's.
+ * `drag`: a stack item dragged on this screen, by its own pointer or relayed
+ * from another seat's (`live/placed.ts`) — how long, how far, how many relayed
+ * points arrived and the longest wait between two, and how far the drawn item
+ * stood from where the drag let go — so "dragging their effect is glitchy" is
+ * read from both seats' lines in the log.
  */
-export const ClientEventSchema = clientEventSchema(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect', 'park', 'perf', 'connection']);
+export const ClientEventSchema = clientEventSchema(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect', 'park', 'perf', 'connection', 'drag']);
 
 export type ClientEvent = z.output<typeof ClientEventSchema>;
