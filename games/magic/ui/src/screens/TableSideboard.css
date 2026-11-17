@@ -1,0 +1,17 @@
+/*
+ * The sideboard panel this file draws (`series/GameResultScreen.tsx`'s `SeriesSideboardPanel` /
+ * `SeriesEnterNext`) is `.board__over`: `position: absolute; inset: 0`, sized against whatever box
+ * contains it — inside `LiveBoard.tsx` that box is `.live`, the whole match frame. On the room's
+ * table page (`TablePage.tsx`'s `.pod__rounds`, a flex column) there is no such box: a plain
+ * wrapper div has no in-flow content of its own (the panel inside is taken out of flow) and
+ * collapses to zero height, which clips the absolutely positioned panel to nothing — measured
+ * against the real DOM (wave 122 §F, AF628): the panel existed but Playwright read it `hidden`.
+ *
+ * This class IS that box: a flex item that fills the rest of the table page's column, and the
+ * positioned ancestor `inset: 0` resolves against.
+ */
+.table-sideboard-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 320px;
+}

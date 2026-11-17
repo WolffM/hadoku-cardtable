@@ -262,6 +262,17 @@ export interface MatchDeps extends HostedMatchDeps<BridgeLine, BridgeCommand> {
 }
 
 /**
+ * The grace a NEW game's chess clock gets before it starts running at all (AF639, the operator,
+ * 2026-11-16: *"the clock gives a 1-minute grace before it starts running"*). Keyed on
+ * {@link MatchShell.startedAt}, which a restore (`match/registry.ts`'s `restore`, a JVM lost
+ * mid-game) and a take-back (`adopt`) both keep from the ORIGINAL game, so neither is re-graced —
+ * only a game that is actually new (`create`, including a parked game's resume, which stamps a
+ * fresh `startedAt`) gets the 60 s. "Every game of a series starts from the whole clock"
+ * (`clock.ts`'s own comment) already treats each game uniformly; this is the same uniform rule.
+ */
+export const NEW_GAME_CLOCK_GRACE_MS = 60_000;
+
+/**
  * Forge's own {@link HostedMatch}: every fact about the game itself is asked of {@link session},
  * a `ForgeSession`. `fixtures/toy-game/match.ts`'s `ToyMatch` and `runtimes/relay-match.ts`'s
  * `RelayMatch` are `HostedMatch` over their own `GameSession`s the same way.
@@ -283,6 +294,8 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	readonly session: ForgeSession;
 	readonly seats: SeatState[];
 	declare protected readonly deps: MatchDeps;
+	/** Armed once, while this game is inside {@link NEW_GAME_CLOCK_GRACE_MS}: wakes {@link syncClock} at the grace's end. */
+	private graceTimer: NodeJS.Timeout | null = null;
 
 	constructor(
 		id: string,
@@ -319,6 +332,32 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	serverStopping(message: string): void {
 		this.deps.log({ evt: 'match-ending-with-server', matchId: this.id, status: this.status });
 		this.game.notice('server-stopping', message);
+	}
+
+	/**
+	 * {@link MatchShell.syncClock}, with {@link NEW_GAME_CLOCK_GRACE_MS} ahead of it: while the game
+	 * is inside its grace, no seat's clock runs at all — `super.syncClock()` is never called, so
+	 * {@link ChessClock.set} never sees a seat as running, whatever Forge is actually waiting on
+	 * ({@link ForgeSession.waitedOn}). A single timer wakes this once, at the grace's end, to run
+	 * the real check against whatever is true by then; every call inside the grace besides the
+	 * first only confirms the timer is already armed. A game that ends inside the grace never
+	 * started its clock, which is correct: nobody is charged for time nobody could act in.
+	 */
+	override syncClock(): void {
+		if (this.clock !== null && !this.replaying) {
+			const left = NEW_GAME_CLOCK_GRACE_MS - (this.now() - this.startedAt);
+			if (left > 0) {
+				if (this.graceTimer === null) {
+					this.graceTimer = setTimeout(() => {
+						this.graceTimer = null;
+						this.syncClock();
+					}, left);
+					this.graceTimer.unref();
+				}
+				return;
+			}
+		}
+		super.syncClock();
 	}
 
 	/**
