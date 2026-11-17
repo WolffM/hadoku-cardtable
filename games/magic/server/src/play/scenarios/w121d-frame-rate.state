@@ -1,0 +1,21 @@
+# e2e/w121d-frame-rate.spec.ts (wave 121 lane D, AF638). The operator's own board in m-3967095cc641
+# (2026-11-16): seat 1 ran 79 fps (p95 36 ms, worst 222 ms) on a 12-vs-8-permanent board with five to
+# nine flying creatures animating at once, while the same board ran 151 fps on seat 0's screen. Alice
+# holds 12 permanents (two Serra Angel and three Narcomoeba flying, two Grizzly Bears and two Hill
+# Giant grounded, three lands) and four cards in hand; bob holds eight lands and nothing to block
+# with, so a full attack goes through unblocked and its 24 power is lethal to bob's 20 life — one
+# attack both measures COMBAT_DAMAGE with every flyer moving and ends the game, so the SAME board sits
+# behind the result screen for the idle-after-game-over measurement.
+turn=8
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Forest;Mountain;Giant Growth;Lightning Bolt
+humanbattlefield=Serra Angel;Serra Angel;Narcomoeba;Narcomoeba;Narcomoeba;Grizzly Bears;Grizzly Bears;Hill Giant;Hill Giant;Forest;Forest;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island;Island;Island;Island;Mountain;Mountain;Swamp;Swamp
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aigraveyard=
