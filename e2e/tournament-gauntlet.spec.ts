@@ -2,15 +2,16 @@
  * Gauntlet in tournament mode, end to end, against the REAL built server and real Forge —
  * `docs/planning/tournament-mode-plan.md`'s ruling 6 and this lane's own Design.
  *
- * Alice, Bob and two AI entrants lock a Gauntlet tournament with Decks locked set, which a Gauntlet
- * ignores (the operator, 2026-10-23: *"let's just disable 'decks locked' for guantlet mode"*). Round 1
- * (`roundsFor(4) === 2`) pairs "across the table" by seat — alice-vs-ai and bob-vs-ai, two
- * SIMULTANEOUS Gauntlet tables, each keyed by its own table id (`room/lobby.ts`'s `gauntlets`,
- * `http/gauntlet.ts`'s `?table=`/body `table`). Both humans draw, bank and choose independently;
- * acting on one table is proved to leave the other alone. Round 2 re-pairs the field by score and
- * draws its own decks and bans/picks them, as round 1 did.
+ * Alice, Bob, Carol and one AI entrant lock a Gauntlet tournament with Decks locked set, which a
+ * Gauntlet ignores (the operator, 2026-10-23: *"let's just disable 'decks locked' for guantlet mode"*).
+ * Round 1 (`roundsFor(4) === 2`) pairs humans first (AF627): alice-vs-carol, and bob, the human left
+ * over, against the AI — two SIMULTANEOUS Gauntlet tables, each keyed by its own table id
+ * (`room/lobby.ts`'s `gauntlets`, `http/gauntlet.ts`'s `?table=`/body `table`). Both tables draw, bank
+ * and choose independently; acting on one table is proved to leave the other alone. Round 2 re-pairs
+ * the field by score (alice, who won, meets bob) and draws its own decks and bans/picks them, as
+ * round 1 did.
  *
- * API-driven through alice's and bob's own identities, the same way `e2e/cm-gauntlet.spec.ts`
+ * API-driven through each human's own identity, the same way `e2e/cm-gauntlet.spec.ts`
  * drives a single Gauntlet: the Gauntlet screens are their own lane's, this proves the server
  * contract (`room/lobby.ts`, `room/gauntlet.ts`, `http/gauntlet.ts`) end to end against real
  * Forge matches.
@@ -46,11 +47,14 @@ test(
     const stack = await startPlayStack(forge);
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
+    const carol = await openFriend(browser, 'carol');
     try {
       await alice.page.goto(`${stack.origin}${PREFIX}/`);
       const aliceApi = <T>(method: 'GET' | 'POST', path: string, data?: unknown) => send<T>(alice.context.request, stack.origin, method, path, data);
       await bob.page.goto(`${stack.origin}${PREFIX}/`);
       const bobApi = <T>(method: 'GET' | 'POST', path: string, data?: unknown) => send<T>(bob.context.request, stack.origin, method, path, data);
+      await carol.page.goto(`${stack.origin}${PREFIX}/`);
+      const carolApi = <T>(method: 'GET' | 'POST', path: string, data?: unknown) => send<T>(carol.context.request, stack.origin, method, path, data);
 
       const created = await aliceApi<{ id: string }>('POST', '/rooms', {
         name: `e2e tournament-gauntlet ${Date.now()}`,
@@ -69,6 +73,7 @@ test(
       // joins only after its first read 404s as a non-member, a race `bobApi`'s
       // own direct calls below must not depend on. Joined for real, right now.
       expect((await bobApi('POST', `/rooms/${roomId}/join`, {})).status).toBe(200);
+      expect((await carolApi('POST', `/rooms/${roomId}/join`, {})).status).toBe(200);
 
       const patched = await alice.context.request.patch(`${stack.origin}${PREFIX}/api/rooms/${roomId}`, { data: { settings: { tournament: true, tournamentDecks: 'locked' } } });
       expect(patched.status(), await patched.text()).toBe(200);
@@ -81,22 +86,23 @@ test(
       await bob.page.keyboard.press('Escape');
       await expect(bob.page.getByTestId('match-rules-popover')).toHaveCount(0);
 
-      // Alice seat 0, Bob seat 1, two AI seats 2 and 3 — round 1's "across the table" pairing
-      // (`@hadoku/draft`'s `round1`) splits [alice, bob, ai:2, ai:3] in half and pairs each top
-      // half seat with the matching bottom one: alice-vs-ai:2, bob-vs-ai:3 — two REAL tables, each
-      // with an AI, never alice-vs-bob in round 1.
+      // Alice seat 0, Bob seat 1, Carol seat 2, the AI seat 3 — humans first (AF627, `@hadoku/draft`'s
+      // `swissRound`): the humans pair among themselves by `round1`'s across-the-table formula
+      // (alice-vs-carol), and bob, the one human left over, takes the AI. Two REAL tables, one of
+      // each shape.
       expect((await aliceApi('POST', `/rooms/${roomId}/pod/sit`, { seat: 0 })).status).toBe(200);
       expect((await bobApi('POST', `/rooms/${roomId}/pod/sit`, { seat: 1 })).status).toBe(200);
-      expect((await aliceApi('POST', `/rooms/${roomId}/pod/ai`, { seat: 2, on: true })).status).toBe(200);
+      expect((await carolApi('POST', `/rooms/${roomId}/pod/sit`, { seat: 2 })).status).toBe(200);
       expect((await aliceApi('POST', `/rooms/${roomId}/pod/ai`, { seat: 3, on: true })).status).toBe(200);
 
       // Ready, for Gauntlet, is the room-level member ready — no deck to pick pre-lock (ruling 4).
-      // Bob's own Ready is the last thing the field needs: it locks by itself (ruling 7).
+      // Carol's own Ready is the last thing the field needs: it locks by itself (ruling 7).
       expect((await aliceApi('POST', `/rooms/${roomId}/ready`, { ready: true })).status).toBe(200);
-      const locked = await bobApi<{ game: { pod: PodView | null } }>('POST', `/rooms/${roomId}/ready`, { ready: true });
+      expect((await bobApi('POST', `/rooms/${roomId}/ready`, { ready: true })).status).toBe(200);
+      const locked = await carolApi<{ game: { pod: PodView | null } }>('POST', `/rooms/${roomId}/ready`, { ready: true });
       expect(locked.status, JSON.stringify(locked.body)).toBe(200);
       const pod1 = locked.body.game.pod!;
-      expect(pod1.phase, 'the field locked itself on Bob’s own Ready').toBe('rounds');
+      expect(pod1.phase, 'the field locked itself on Carol’s own Ready').toBe('rounds');
       expect(pod1.round).toBe(1);
       console.log(`[tournament-gauntlet] round 1 pairings: ${JSON.stringify(pod1.pairings)}`);
 
@@ -108,6 +114,7 @@ test(
       const myAliceId = roomView.body.you.id;
       const bobView = await bobApi<RoomView>('GET', `/rooms/${roomId}`);
       const myBobId = bobView.body.you.id;
+      const myCarolId = (await carolApi<RoomView>('GET', `/rooms/${roomId}`)).body.you.id;
       // An earlier round's table stays in `tables`; only the current pairings' tables count.
       const tableOf = (view: RoomView, memberId: string): string => {
         const current = new Set(view.game.pod.pairings.map((p) => p.tableId));
@@ -116,12 +123,15 @@ test(
       const t1Alice = tableOf(roomView.body, myAliceId);
       const t1Bob = tableOf(bobView.body, myBobId);
       expect(t1Alice, 'two DIFFERENT tables, not the same one').not.toBe(t1Bob);
+      expect(tableOf(roomView.body, myCarolId), 'carol is alice’s round-1 opponent, not bob’s').toBe(t1Alice);
 
       /** Reads `tableId`'s Gauntlet view as `api` sees it. */
       const view = async (api: typeof aliceApi, tableId: string): Promise<GauntletView> => (await api<GauntletView>('GET', `/tables/rooms/${roomId}/gauntlet?table=${tableId}`)).body;
 
-      // Both ready at their OWN table — the pairing's other seat is AI, always ready, no `ai: true` needed.
+      // Every human readies at their OWN table — alice and carol both at theirs; bob alone at his (the
+      // pairing's other seat is AI, always ready, no `ai: true` needed).
       expect((await aliceApi('POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, table: t1Alice })).status).toBe(200);
+      expect((await carolApi('POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, table: t1Alice })).status).toBe(200);
       expect((await bobApi('POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, table: t1Bob })).status).toBe(200);
 
       let va = await view(aliceApi, t1Alice);
@@ -131,17 +141,32 @@ test(
       expect(va.decks.map((d) => d.id).join(), 'two independent draws').not.toBe(vb.decks.map((d) => d.id).join());
       console.log(`[tournament-gauntlet] alice@${t1Alice} era=${va.era?.title} bob@${t1Bob} era=${vb.era?.title}`);
 
-      /** Runs `tableId`'s banpick to `choose`, acting on the human's own turn and waiting out the AI's. */
-      const runBanpick = async (api: typeof aliceApi, tableId: string): Promise<GauntletView> => {
+      /** Each human's API at `tableId`, by their own seat there (`GauntletView.you`); a seat with none is the AI's. */
+      const seatsAt = async (tableId: string, apis: (typeof aliceApi)[]): Promise<Map<number, typeof aliceApi>> => {
+        const seats = new Map<number, typeof aliceApi>();
+        for (const api of apis) {
+          const you = (await view(api, tableId)).you;
+          if (you !== null) seats.set(you, api);
+        }
+        return seats;
+      };
+      const t1AliceSeats = await seatsAt(t1Alice, [aliceApi, carolApi]);
+      expect([...t1AliceSeats.keys()].sort(), 'alice and carol hold both seats of their table').toEqual([0, 1]);
+      const t1BobSeats = await seatsAt(t1Bob, [bobApi]);
+
+      /** Runs `tableId`'s banpick to `choose`, acting on each human's own turn and waiting out the AI's. */
+      const runBanpick = async (tableId: string, seats: Map<number, typeof aliceApi>): Promise<GauntletView> => {
+        const reader = [...seats.values()][0]!;
         let v: GauntletView;
         await expect
           .poll(
             async () => {
-              v = await view(api, tableId);
+              v = await view(reader, tableId);
               if (v.phase !== 'banpick') return v.phase;
-              if (v.step!.seat === 0) {
+              const actor = seats.get(v.step!.seat);
+              if (actor !== undefined) {
                 const deck = v.decks.find((d) => d.status === 'open')!.id;
-                expect((await api('POST', `/tables/rooms/${roomId}/gauntlet/act`, { act: v.step!.act, deck, table: tableId })).status).toBe(200);
+                expect((await actor('POST', `/tables/rooms/${roomId}/gauntlet/act`, { act: v.step!.act, deck, table: tableId })).status).toBe(200);
               }
               return v.phase;
             },
@@ -151,8 +176,8 @@ test(
         return v!;
       };
 
-      va = await runBanpick(aliceApi, t1Alice);
-      vb = await runBanpick(bobApi, t1Bob);
+      va = await runBanpick(t1Alice, t1AliceSeats);
+      vb = await runBanpick(t1Bob, t1BobSeats);
       expect(va.phase).toBe('choose');
       expect(vb.phase).toBe('choose');
       console.log('[tournament-gauntlet] both tables’ round-1 banpick done independently');
@@ -163,26 +188,39 @@ test(
       // Gauntlet's result screen ever offers (its own "Next game" is hidden in a pod — `LiveBoard.tsx`'s
       // `nextInRoom ? !inPod : rematchable`) — back in the room, `gameOver`'s own `enterChoose` has
       // already put the table straight into `choose` for the next game, same as a non-pod Gauntlet.
-      const playOneGame = async (api: typeof aliceApi, page: Player['page'], tableId: string): Promise<void> => {
-        const mine = (await view(api, tableId)).decks.find((d) => d.status === 'picked' && d.by === 0 && !d.played)!.id;
-        expect((await api('POST', `/tables/rooms/${roomId}/gauntlet/choose`, { deck: mine, table: tableId })).status).toBe(200);
-        await expect.poll(async () => (await view(api, tableId)).phase, { timeout: 30_000, message: `${tableId}: the AI’s own choice deals the game` }).toBe('playing');
+      /** A human at a table: their API, their page, and their seat there. */
+      type Seat = { api: typeof aliceApi; page: Player['page']; seat: number };
+      const seated = (seats: Map<number, typeof aliceApi>, who: [typeof aliceApi, Player['page']][]): Seat[] =>
+        [...seats.entries()].map(([seat, api]) => ({ api, seat, page: who.find(([a]) => a === api)![1] }));
+      // Every human at the table chooses their own next pick (the AI chooses its own), the game is
+      // dealt, every human's page follows it, and `loser` concedes.
+      const playOneGame = async (tableId: string, humans: Seat[], loser: Seat): Promise<void> => {
+        for (const h of humans) {
+          const mine = (await view(h.api, tableId)).decks.find((d) => d.status === 'picked' && d.by === h.seat && !d.played)!.id;
+          expect((await h.api('POST', `/tables/rooms/${roomId}/gauntlet/choose`, { deck: mine, table: tableId })).status).toBe(200);
+        }
+        await expect.poll(async () => (await view(loser.api, tableId)).phase, { timeout: 30_000, message: `${tableId}: every choice in, the game is dealt` }).toBe('playing');
         // The table's own page follows its game.
-        await page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}/table/${tableId}`);
-        await page.getByTestId('live-concede').click({ timeout: 30_000 });
-        await page.getByTestId('live-concede-yes').click();
-        await expect(page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });
-        await page.getByTestId('game-result-room').click();
+        for (const h of humans) await h.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}/table/${tableId}`);
+        await loser.page.getByTestId('live-concede').click({ timeout: 30_000 });
+        await loser.page.getByTestId('live-concede-yes').click();
+        await expect(loser.page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });
+        await loser.page.getByTestId('game-result-room').click();
       };
-      const finishMatch = async (api: typeof aliceApi, page: Player['page'], tableId: string): Promise<void> => {
+      const finishMatch = async (tableId: string, humans: Seat[], loser: Seat): Promise<void> => {
         for (let game = 0; game < 3; game++) {
-          await playOneGame(api, page, tableId);
-          if ((await view(api, tableId)).phase === 'done') return;
+          await playOneGame(tableId, humans, loser);
+          if ((await view(loser.api, tableId)).phase === 'done') return;
         }
         throw new Error(`${tableId}: still not done after 3 games`);
       };
-      await finishMatch(aliceApi, alice.page, t1Alice);
-      await finishMatch(bobApi, bob.page, t1Bob);
+      const who: [typeof aliceApi, Player['page']][] = [[aliceApi, alice.page], [bobApi, bob.page], [carolApi, carol.page]];
+      const atAlice = seated(t1AliceSeats, who);
+      const atBob = seated(t1BobSeats, who);
+      // Carol concedes to alice, bob to the AI: round 2 then pairs alice (the one winner among the
+      // humans) with bob, whom she has not met, and carol, left over, takes the AI.
+      await finishMatch(t1Alice, atAlice, atAlice.find((h) => h.api === carolApi)!);
+      await finishMatch(t1Bob, atBob, atBob[0]!);
 
       // Round 1 settles for both.
       await expect.poll(async () => (await aliceApi<{ game: { pod: PodView } }>('GET', `/rooms/${roomId}`)).body.game.pod.round, { timeout: 60_000, message: 'round 2 begins' }).toBe(2);
@@ -194,8 +232,8 @@ test(
       const t2Alice = tableOf(roomView2.body, myAliceId);
       const t2Bob = tableOf(bobView2.body, myBobId);
 
-      // Both lost to the AI in round 1, so Swiss pairs them together: one table for both.
-      expect(t2Alice, 'round 2 seats the two 0-point humans at one table').toBe(t2Bob);
+      // Humans first, by score and never a repeat: alice (beat carol) meets bob (lost to the AI) at one table.
+      expect(t2Alice, 'round 2 seats alice and bob at one table').toBe(t2Bob);
 
       // Round 2 draws its own decks, then bans and picks them.
       expect((await aliceApi('POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, table: t2Alice })).status).toBe(200);
@@ -207,6 +245,7 @@ test(
     } finally {
       await alice.context.close();
       await bob.context.close();
+      await carol.context.close();
       await stack.stop();
     }
   },

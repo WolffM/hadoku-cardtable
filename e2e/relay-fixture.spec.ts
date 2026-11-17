@@ -16,11 +16,11 @@
  * Alice makes the room (API, since no create-form button exists for a test-only type — the same
  * reason `createRoomByApi` exists for a streamed room), Bob joins it (seat 1), Carol joins third
  * (a watcher — the room is already full at two seats). Alice's message reaches Bob and Carol,
- * never back to herself; Carol's own send is refused (nothing is relayed to anyone); Alice, the
- * leader, ends the match, and every screen shows the room's result. Then the same room plays a
- * second match: every screen rejoins the room's next match on its own, the bundle is mounted
- * afresh, the second match's messages are delivered, bob's over is refused (only the leader ends
- * a match), and the leader's result replaces the first's. Erin,
+ * never back to herself; Carol's own send is refused (nothing is relayed to anyone); Bob's over is
+ * refused (only the leader or the round's host ends a match, and Alice is both); Alice ends the
+ * match, and every screen shows the room's result. Then the same room plays a second match: every
+ * screen rejoins the room's next match on its own, the bundle is mounted afresh, the second match's
+ * messages are delivered, and the leader's result replaces the first's. Erin,
  * loading the room after that end, sees its result too.
  *
  * `[relay-fixture]` lines are the evidence.
@@ -126,6 +126,17 @@ test(titled('a relay-test room: two seats and a watcher talk over ctx.channel �
     await expect(messages(bob), "bob hears nothing more from carol's refused send").toHaveCount(1);
     await expect(messages(alice)).toHaveCount(0);
 
+    // Only the leader or the round's host ends it (the host seat is whoever joined the round
+    // first). In this first round alice is both — her screen joined before bob's loaded — so
+    // bob's over is refused, relayed to nobody, and the match goes on. (The second round's host is
+    // whichever screen rejoins first, so this is the round that can prove a refusal.)
+    await bob.page.getByTestId('relay-fixture-end').click();
+    await expect.poll(() => relayLog().filter((r) => r.evt === 'relay-over-refused').map((r) => r.seat), { timeout: 15_000 }).toEqual([1]);
+    expect(relayLog().find((r) => r.evt === 'relay-host-seat')?.seat, 'alice hosts the first round').toBe(0);
+    await expect(messages(alice), "alice never hears bob's refused over").toHaveCount(0);
+    await expect(messages(carol), 'carol hears alice, never the refused over').toHaveCount(1);
+    await expect(result(alice)).toHaveCount(0);
+
     // The leader ends it; every screen shows the room's result (the fixture's End names its own seat).
     const joinsBefore = joins();
     await alice.page.getByTestId('relay-fixture-end').click();
@@ -146,12 +157,7 @@ test(titled('a relay-test room: two seats and a watcher talk over ctx.channel �
     // The second match is under way, so the first match's result is gone from every screen.
     for (const f of [alice, bob, carol]) await expect(result(f), `${f.name}'s first result clears`).toHaveCount(0, { timeout: 15_000 });
 
-    // Only the leader ends it: bob's over is refused, relayed to nobody, and the match goes on.
-    await bob.page.getByTestId('relay-fixture-end').click();
-    await expect.poll(() => relayLog().filter((r) => r.evt === 'relay-over-refused').map((r) => r.seat), { timeout: 15_000 }).toEqual([1]);
-    await expect(messages(alice), "alice never hears bob's refused over").toHaveCount(1);
-    await expect(messages(carol), "carol hears alice and bob, never the refused over").toHaveCount(2);
-    await expect(result(alice)).toHaveCount(0);
+    await expect(messages(carol), 'carol hears alice and bob in the second match').toHaveCount(2, { timeout: 15_000 });
 
     // The leader ends the second match with bob the winner: its result replaces the first's.
     await alice.page.evaluate(() => {

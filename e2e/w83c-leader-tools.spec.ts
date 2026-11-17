@@ -115,7 +115,10 @@ test(titled('a watching leader resets a game (the score stands, a fresh game fol
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
     const carol = await openFriend(browser, 'carol');
-    const roomId = await tournament(stack.origin, alice, [alice, bob, carol], [bob, carol], 2);
+    const dave = await openFriend(browser, 'dave');
+    // Humans first (AF627): bob, carol and dave in seats 0–2 and the AI in seat 3 pair bob with dave and
+    // carol, the human left over, with the AI — bob's and carol's are two different tables.
+    const roomId = await tournament(stack.origin, alice, [alice, bob, carol, dave], [bob, carol, dave], 1);
     const room = async () => (await call<RoomBody>(alice, stack.origin, 'GET', `/rooms/${roomId}`)).body;
     let r = await room();
     expect(r.game.pod.phase, 'the field locked').toBe('rounds');
@@ -123,7 +126,8 @@ test(titled('a watching leader resets a game (the score stands, a fresh game fol
     const [bobId, carolId] = [id(bob), id(carol)];
     const bobs = tableOf(r, bobId);
     const carols = tableOf(r, carolId);
-    expect(bobs.id, 'each human plays an AI').not.toBe(carols.id);
+    expect(bobs.id, 'bob and carol play at different tables').not.toBe(carols.id);
+    expect(r.game.pod.pairings.find((p) => p.players.includes(carolId))!.players.some((id) => id.startsWith('ai:')), 'carol plays the AI').toBe(true);
 
     // Carol loses game 1, so a reset of game 2 has a score to keep.
     await intoGame(carol, stack.origin, roomId, carols.id);
@@ -132,7 +136,7 @@ test(titled('a watching leader resets a game (the score stands, a fresh game fol
     await expect(carol.page.getByTestId('game-result')).toBeVisible({ timeout: UI_TIMEOUT });
     await expect.poll(async () => tableOf(await room(), carolId).series.wins, { timeout: UI_TIMEOUT }).toEqual([0, 1]);
     const game2 = await intoGame(carol, stack.origin, roomId, carols.id);
-    const bobGame = await intoGame(bob, stack.origin, roomId, bobs.id);
+    const [bobGame] = await Promise.all([intoGame(bob, stack.origin, roomId, bobs.id), intoGame(dave, stack.origin, roomId, bobs.id)]);
 
     // Nobody but the leader: no tool on a player's hub, and the server refuses one asked for.
     expect((await call(carol, stack.origin, 'POST', `/rooms/${roomId}/pod/dq`, { memberId: bobId })).status, 'a player may not DQ').toBe(403);
@@ -170,7 +174,7 @@ test(titled('a watching leader resets a game (the score stands, a fresh game fol
     console.log(`[w83c] round 2: pairings ${JSON.stringify(r.game.pod.pairings)} results ${JSON.stringify(r.game.pod.results.filter((x) => x.round === 2))}`);
     expect(r.game.pod.pairings.flatMap((p) => p.players)).not.toContain(bobId);
     expect(r.game.pod.results.filter((x) => x.round === 2 && (x.playerA === bobId || x.playerB === bobId)), 'his record is kept as it was').toEqual([]);
-    expect(r.game.pod.results.filter((x) => x.round === 2 && x.playerB === null), 'whoever drew him has a bye').toHaveLength(1);
+    expect(r.game.pod.results.filter((x) => x.round === 2 && x.playerB === null), 'the field he left is odd: one bye').toHaveLength(1);
 
     // The standings keep him, marked.
     await alice.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
