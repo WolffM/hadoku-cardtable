@@ -4141,5 +4141,18 @@ analysis.
 PPE `/health` 368a12a60 (03:09Z 11-17), CI green on it. Prod v0.69.0 (aecb02fd1); S, S2, F, K reach prod at the next `/cutrelease`.
 Incidents: w120's manager symlinked into ~/srv/hadoku-cardtable-ppe node_modules (~01:10Z, healed by redeploy 01:36Z); main red 01:05Z–02:17Z (rooms-protocol 0.45.99's `closed` field in two raw seatRows tests).
 
-Carried (next cardtable wave): game-server `configureParticipantIdDomain` (bm1 patches 0.1.15 until then); config built at boot rather than a lazy Proxy; Magic TableSeats per-round pairing onto SeatTable (1v1 seats/bot 409 'no-bot-seat'); RoomFront `className` → `createPanelClassName`; an extensionless `front/RoomFront` export; why watchparty's publish did not fire update-wolffm; S2's spec-level mutation on a claw.
-Stage 2 (bm1, hadoku-bomberman) is running; stage 3 (watchparty hosts bomberman with the overlay) follows it.
+Carried (next cardtable wave): config built at boot rather than a lazy Proxy; Magic TableSeats per-round pairing onto SeatTable (1v1 seats/bot 409 'no-bot-seat'); why watchparty's publish did not fire update-wolffm; S2's spec-level mutation on a claw.
+Done in s3: `configureParticipantIdDomain`, the RoomFront rename and the extensionless exports.
+
+## bm1 + s3 verified by the tracker (2026-11-17, bomberman programme stages 2 and 3)
+
+| wave | lane | landed | evidence the tracker checked |
+| --- | --- | --- | --- |
+| bm1 | all | bomberman d0be70c + e0f0743 | bomberman on game-server rooms; RoomFront front page; overlay over full-size art; bots are seats |
+| s3 | P3 | watchparty 9e69cea6, rooms-protocol 0.45.100 | `SeatInfo.sprite?` |
+| s3 | G | 35defc017, game-server 0.1.24, game-ui 0.1.24 | id domain, /room handshake floor, relay host-over/readmit/serialised start/consumer gate, SeatList leader-only; CI + Forge + publish green on 35defc017; PPE `/health` 35defc017 |
+| s3 | B | bomberman 296f7f1, e1fd879, 7610cc1, 78a7783, f40c6c1 | prod `/health` f40c6c1 bundle ok; `patches/` empty, no patchedDependencies; `configureParticipantIdDomain` called; CI + redeploy green |
+| s3 | W | watchparty f9bebdac | e2e/game-bundle-seats.spec green on bomberman 78a7783 (not in CI: needs a bomberman checkout); watchparty CI + deploy green |
+
+Not verified: the live check on production (no second signed-in account; operator steps in `~/.cache/cardtable-manager/s3-closing.md`); match stats reaching monitoring-api (no production round played).
+Carried: bomberman concurrent double Start → two matches (client `beginMatch`); a server-side observable for a non-leader host's `over`; game-ui `avatarSquareUrl` hard-wires `/watchparty/media/`; closed seats render like open ones; toy relay host-over/double-start have no e2e (unit + mutation only); Magic TableSeats per-round pairing; config at boot; update-wolffm not firing on watchparty publishes. Incident: W's sub-agent ran one pattern `pkill -f` (nothing in production hit).
