@@ -69,11 +69,26 @@ describe('the fan', () => {
     expect(open()).toBe(0);
   });
 
-  // The operator, 2026-10-19: the fan's open card is already full size, so no enlarged copy beside it.
-  it('gives the shared inspector nothing to open in the fan', () => {
+  // 2026-11-16: hovering the currently viewed draft card zooms it like every other hover —
+  // the open card alone is inspectable while picking; its neighbours, read in the related row
+  // instead (the operator, 2026-10-19: no enlarged DUPLICATE beside the already-full-size open
+  // card), are not.
+  it('gives the shared inspector only the open card to zoom, in a picking fan', () => {
     mount();
     const slots = [...screen.getByTestId('pack').querySelectorAll('.pack__slot')];
-    expect(slots.filter((el) => /^w\d+$/.test(el.getAttribute('data-card-id') ?? ''))).toEqual([]);
+    const tagged = slots.filter((el) => /^w\d+$/.test(el.getAttribute('data-card-id') ?? ''));
+    expect(tagged).toHaveLength(1);
+    expect(tagged[0]!.hasAttribute('data-focused')).toBe(true);
+  });
+
+  it('moves the inspector tag with the open card as the arrow keys step it', () => {
+    mount();
+    step(1);
+    const slots = [...screen.getByTestId('pack').querySelectorAll('.pack__slot')];
+    const tagged = slots.filter((el) => /^w\d+$/.test(el.getAttribute('data-card-id') ?? ''));
+    expect(tagged).toHaveLength(1);
+    expect(tagged[0]!.hasAttribute('data-focused')).toBe(true);
+    expect(open()).toBe(1);
   });
 
   // The operator, 2026-11-01, on Rally's sample pack: a fan nothing picks from is read, so hover opens the inspector.

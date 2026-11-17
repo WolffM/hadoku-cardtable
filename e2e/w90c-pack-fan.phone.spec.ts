@@ -173,7 +173,11 @@ test('the fan: no stray hover opens the shared inspector over the carousel at re
     // even while picking, so a pointer merely CROSSING the pack (never clicked, never held) could enlarge
     // a card full-screen over the room header. None of the taps above touch a card's own `data-card-id`
     // trigger path (a long press would; a plain tap or drag does not), so if the panel is open here, the
-    // id leaked back onto a picking fan's cards.
+    // id leaked back onto a picking fan's cards. 2026-11-16 gave the DESKTOP fan's open card this
+    // id so hovering it zooms like any other card (`desktopFan !== null && i === shown`); a PHONE picking
+    // fan's cards — the open one included — still carry none, exactly as before this change, because `hoverOff()`
+    // never disables hover on this screen (only `Board`'s own portrait switch sets `data-layout`), so a
+    // stray mouse `pointerover` at mount is still the live hazard this test is the one guard against.
     await expect(page.locator('.inspect'), 'no enlarged preview is open over the resting carousel').toHaveCount(0);
     const tagged = await page.getByTestId('pack').locator('.pack__slot[data-card-id]').count();
     expect(tagged, 'a picking fan’s cards carry no inspector trigger id').toBe(0);

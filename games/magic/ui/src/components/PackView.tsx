@@ -23,17 +23,22 @@
  * `FAN_MIN_WIDTH` the fan draws the grid. "fan"/"grid" is still a control, the
  * grid is what the tests read, and both render the same `CardTile`s in order.
  *
- * ## The shared inspector: the grid, and a fan nothing picks from
+ * ## The shared inspector: the grid, a fan nothing picks from, and the open card
  *
- * The fan's open card is already full size, so an enlarged copy beside it is a
- * duplicate while picking (the operator, 2026-10-19: *"i dont need the hover
- * expand anymore"*): a picking fan shows the hovered card's back face and
- * tokens in its related row instead. A fan nothing picks from (Rally's sample
- * pack, a watcher's view of a drafter) is read, not picked, and its cards open
- * the shared inspector like the grid's (the operator, 2026-11-01, on the sample
- * pack: *"for fan view it's missing the hover to expand and mousewheel to show
- * transform cards"*). The inspector is then the one expanded view, so the
- * related row is not drawn.
+ * The fan's SIDE cards stay uninspectable while picking — an enlarged copy
+ * beside the open one would be a near-duplicate for those (the operator,
+ * 2026-10-19: *"i dont need the hover expand anymore"*): a picking fan shows
+ * the hovered card's back face and tokens in its related row instead. The
+ * OPEN card itself is inspectable again (2026-11-16: *"hovering the
+ * currently viewed draft card should zoom it to the size cards normally
+ * reach on hover"*) — the fan's own size caps at `MAX_CARD_H`, short of the
+ * shared inspector's size, so hovering it still reaches the one size every
+ * other hover on this app does. A fan nothing picks from (Rally's sample
+ * pack, a watcher's view of a drafter) is read, not picked, and every one of
+ * its cards opens the shared inspector like the grid's (the operator,
+ * 2026-11-01, on the sample pack: *"for fan view it's missing the hover to
+ * expand and mousewheel to show transform cards"*). The inspector is then
+ * the one expanded view, so the related row is not drawn.
  *
  * Each inspectable slot carries a synthetic `data-card-id="w<n>"` of its own,
  * matching `play/inspect/index.ts`'s `TILE_ID` so hovering opens the same
@@ -491,14 +496,21 @@ export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyN
             key={card.cardId}
             className="pack__slot"
             // Inspectable (the shared hover/long-press preview) in the grid, always — desktop or
-            // phone — and in a BROWSING fan's on-screen cards; never a PICKING fan's, desktop or
-            // phone, where the open card is already full size and the gesture is reserved for the
-            // pick itself. `!fanned` (not `desktopFan === null`) is the "grid" test: `desktopFan` is
-            // null for every phone card, fan included, so that test alone tagged a phone fan's cards
-            // even while picking — the shared inspector's `document`-level `focusin`/long-press then
-            // fired OVER the carousel, the giant enlarged card the operator's rework shot caught
-            // (`w90c-pack-fan.phone.spec.ts`).
-            data-card-id={!fanned || (browsing && !off) ? `w${i}` : undefined}
+            // phone — in a BROWSING fan's on-screen cards, and in a DESKTOP PICKING fan on its OPEN
+            // card alone (2026-11-16: "hovering the currently viewed draft card should zoom
+            // it to the size cards normally reach on hover" — the fan's own size tops out at
+            // `MAX_CARD_H`, short of the shared inspector's hand-card size most of the time; this
+            // reaches it for the one card being read, same as the grid already did). A picking fan's
+            // OTHER on-screen cards stay uninspectable: the operator, 2026-10-19, on a duplicate
+            // enlarged copy beside the open card. `desktopFan !== null` (not `!phone`) is the gate
+            // this uses, not `!fanned`: a PHONE picking fan's open card stays uninspectable, same as
+            // before this change — a stray MOUSE `pointerover` at mount (`hoverOff()` only ever disables
+            // hover on `Board`'s own portrait switch, never on this screen's own narrower
+            // `usePhoneLayout`) can still land on it despite `pointerType: 'touch'`'s own guard, which
+            // is the exact regression `w90c-pack-fan.phone.spec.ts` caught when `!fanned` alone
+            // (`desktopFan === null` for EVERY phone card, fan included) tagged a phone fan's cards
+            // even while picking and the panel fired full-screen over the carousel.
+            data-card-id={!fanned || (browsing && !off) || (desktopFan !== null && i === shown) ? `w${i}` : undefined}
             data-focused={highlighted === i ? '' : undefined}
             data-off={off ? '' : undefined}
             onPointerDown={off ? undefined : () => (pointerFocusing.current = true)}
