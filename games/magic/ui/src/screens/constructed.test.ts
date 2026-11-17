@@ -2223,7 +2223,12 @@ describe('the table’s pool', () => {
     expect(screen.queryByTestId('deck-mine')).toBeNull();
   });
 
-  it('opens my sideboard step full size on my table’s page', async () => {
+  // Between games of my own series, my table's own page IS the sideboard step — not `TablePage`'s
+  // own wrapper around it. The operator: "sideboarding entered from the room lobby is exactly the
+  // in-game sideboarding screen" — so the room's header, its settings gear, the face-off and
+  // `TablePage`'s own "Lobby" back-link are all ABSENT, not merely out of the way, the same bypass
+  // a dealt draft pod already takes (`magic-room-ui.tsx`'s own early return).
+  it('my table’s own page, between games of my series, is the sideboard step alone — no room chrome around it', async () => {
     const mine = { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } } as SeatChoice;
     const table: Table = {
       players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false, deck: { name: 'Jund (Emanuele Giusti)', rulesName: 'Standard (M11)', legal: true, issueCount: 0, choice: mine } }), opponent({ seat: 1, ready: false })],
@@ -2232,9 +2237,12 @@ describe('the table’s pool', () => {
     };
     const server = stubServer(table);
     render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, myDecks: server.myDecks, roomId: ROOM, tableId: 't-stub0001', feed: everyMs(10) }));
-    expect(await screen.findByTestId('table-page')).toBeTruthy();
     expect(await screen.findByTestId('table-sideboard')).toBeTruthy();
-    expect(screen.getByTestId('table-hub').getAttribute('href')).toBe(`#/room/${ROOM}`);
+    expect(screen.queryByTestId('table-page')).toBeNull();
+    expect(screen.queryByTestId('table-hub')).toBeNull();
+    expect(screen.queryByTestId('table-seats')).toBeNull();
+    expect(screen.queryByTestId('room-name')).toBeNull();
+    expect(screen.queryByTestId('match-rules')).toBeNull();
     expect(screen.queryByTestId('room-players')).toBeNull();
   });
 

@@ -36,6 +36,7 @@ interface Reading {
   text: string;
   seconds: number;
   running: boolean;
+  grace: boolean;
 }
 
 /** Both clocks on one screen, the viewer's own first. */
@@ -46,7 +47,7 @@ async function clocks(page: Page): Promise<{ you: Reading | null; them: Reading 
       if (clock === null) return null;
       const text = clock.textContent?.trim() ?? '';
       const [m, s] = text.split(':').map(Number);
-      return { text, seconds: (m ?? 0) * 60 + (s ?? 0), running: clock.hasAttribute('data-running') };
+      return { text, seconds: (m ?? 0) * 60 + (s ?? 0), running: clock.hasAttribute('data-running'), grace: clock.hasAttribute('data-grace') };
     };
     const seats = Array.from(document.querySelectorAll('[data-testid="player"]'));
     return { you: read(seats.find((s) => s.hasAttribute('data-viewer')) ?? null), them: read(seats.find((s) => !s.hasAttribute('data-viewer')) ?? null) };
@@ -62,21 +63,31 @@ test(titled('a seat that idles on priority runs out of time and loses; the other
     const started = Date.now();
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'bolt-player', { clockMs: [CLOCK_MS, CLOCK_MS] });
 
-    // Inside the grace neither clock runs, full and static on both screens.
+    // Inside the grace neither clock runs, full and static on both screens — and both draw
+    // `data-grace`, the one state the operator asked for on the clock itself ("the clock gives a
+    // 1-minute grace before it starts running"): a held clock otherwise looks exactly like one
+    // merely waiting on the OTHER seat's turn, which this attribute is what tells apart.
     const graceLeft = GRACE_MS - (Date.now() - started);
     if (graceLeft > 5_000) {
       const inGrace = await clocks(alice.page);
       expect(inGrace.you?.running, "inside the grace, alice's own clock does not run").toBe(false);
       expect(inGrace.them?.running, "inside the grace, bob's does not either").toBe(false);
-      say(`inside the grace (${graceLeft}ms left): alice ${inGrace.you?.text}, bob ${inGrace.them?.text}`);
+      expect(inGrace.you?.grace, "inside the grace, alice's own clock shows it").toBe(true);
+      expect(inGrace.them?.grace, "inside the grace, bob's shows it too").toBe(true);
+      say(`inside the grace (${graceLeft}ms left): alice ${inGrace.you?.text} grace=${inGrace.you?.grace}, bob ${inGrace.them?.text} grace=${inGrace.them?.grace}`);
     }
 
-    // Both screens draw both clocks, and agree whose is running once the grace ends: alice's.
+    // Both screens draw both clocks, and agree whose is running once the grace ends: alice's —
+    // and `data-grace` is gone from both the instant it is, not left drawn alongside the real run.
     await expect
       .poll(async () => (await clocks(alice.page)).you?.running, { timeout: GRACE_MS + 20_000, message: "alice's own clock runs on her screen, once the grace ends" })
       .toBe(true);
     await expect.poll(async () => (await clocks(bob.page)).them?.running, { timeout: 10_000, message: "alice's clock runs on bob's screen" }).toBe(true);
     expect(Date.now() - started, 'the clock did not start before the grace ended').toBeGreaterThanOrEqual(GRACE_MS - 1_000);
+    const afterGrace = await clocks(alice.page);
+    expect(afterGrace.you?.grace, "alice's own clock: the grace is over, not merely not running").toBeFalsy();
+    expect((await clocks(bob.page)).them?.grace, "bob's screen agrees the grace is over").toBeFalsy();
+    say(`grace ended: alice ${afterGrace.you?.text} grace=${afterGrace.you?.grace}`);
 
     const bobAtStart = (await clocks(bob.page)).you;
     expect(bobAtStart, "bob's own clock is drawn").not.toBeNull();

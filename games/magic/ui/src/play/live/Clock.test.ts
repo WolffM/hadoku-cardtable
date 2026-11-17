@@ -51,4 +51,23 @@ describe('the chess clock', () => {
     expect(clock.querySelector('.match-clock__art'), 'a clock-face icon is drawn inside the badge').not.toBeNull();
     expect(clock.textContent, 'and the icon contributes no text of its own').toBe('1:01');
   });
+
+  describe('the new-game grace', () => {
+    it('is drawn, by its own attribute, for a stopped clock the caller says is inside the grace', () => {
+      const { getByTestId } = render(createElement(MatchClock, { clock: { ms: 60_000, running: false, at: 0 }, grace: true }));
+      const clock = getByTestId('match-clock');
+      expect(clock.hasAttribute('data-grace')).toBe(true);
+      expect(clock.hasAttribute('data-running')).toBe(false);
+    });
+
+    it('is absent without the prop: an ordinary stopped clock (waiting on the other seat) is not mistaken for one', () => {
+      const { getByTestId } = render(createElement(MatchClock, { clock: { ms: 60_000, running: false, at: 0 } }));
+      expect(getByTestId('match-clock').hasAttribute('data-grace')).toBe(false);
+    });
+
+    it('never draws once the clock itself is running, even if the caller still passes it (the grace and a running clock cannot both be true, but the attribute follows the real state anyway)', () => {
+      const { getByTestId } = render(createElement(MatchClock, { clock: { ms: 60_000, running: true, at: 0 }, grace: true }));
+      expect(getByTestId('match-clock').hasAttribute('data-grace')).toBe(false);
+    });
+  });
 });

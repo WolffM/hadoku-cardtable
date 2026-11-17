@@ -165,7 +165,7 @@ test(
       const aliceEnter = alice.page.getByTestId('game-result-enter');
       await expect(aliceEnter, 'alice: Enter game is offered').toBeVisible({ timeout: 90_000 });
 
-      // Bob's own gate races two paths to the SAME guarantee (AF639: a press, never an
+      // Bob's own gate races two paths to the SAME guarantee (a press, never an
       // auto-navigate) — `TableSideboard`'s own `SeriesEnterNext` (its feed-driven table read), or
       // `TablePage`'s pre-existing `TableCard` ("Return to game", `table-match-link`) once the
       // room's OUTER, much slower table read catches up and swaps `TableSideboard` out from under

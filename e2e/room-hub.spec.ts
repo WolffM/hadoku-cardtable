@@ -179,11 +179,24 @@ test(
       for (const p of [alice, bob]) await p.page.getByTestId('sideboard-ready').click();
       // The next game exists once both are ready, but neither screen opens it by itself —
       // alice's own result screen, bob's room table page.
-      for (const p of [alice, bob]) {
-        const enter = p.page.getByTestId('game-result-enter');
-        await expect(enter, `${p.name}: Enter game is offered`).toBeVisible({ timeout: UI_TIMEOUT });
-        await enter.click();
-      }
+      //
+      // Bob's own gate races two paths to the SAME guarantee (a press, never an auto-navigate):
+      // `TableSideboard`'s own `SeriesEnterNext` (its feed-driven table read), or `TablePage`'s
+      // pre-existing `TableCard` ("Return to game", `table-match-link`) once the room's OUTER,
+      // much slower table read catches up and swaps `TableSideboard` out from under it before
+      // this line's wait resolves (`e2e/w122f-sideboard-lobby.spec.ts` names the same race).
+      // Which one wins is not asserted, only that one of them is there.
+      await expect(alice.page.getByTestId('game-result-enter'), 'alice: Enter game is offered').toBeVisible({ timeout: UI_TIMEOUT });
+      const bobEnter = bob.page.getByTestId('game-result-enter');
+      const bobCard = bob.page.getByTestId('table-match-link');
+      await expect(bobEnter.or(bobCard), 'bob: a press-only way into game 2 is offered').toBeVisible({ timeout: UI_TIMEOUT });
+      await Promise.all([
+        alice.page.getByTestId('game-result-enter').click(),
+        (async () => {
+          if (await bobEnter.isVisible().catch(() => false)) await bobEnter.click();
+          else await bobCard.click();
+        })(),
+      ]);
       await bob.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
       await expect(bob.page.locator('[aria-label="Game board"]'), 'game 2').toBeVisible({ timeout: UI_TIMEOUT });
 

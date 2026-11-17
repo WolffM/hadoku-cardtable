@@ -4291,7 +4291,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     expect(rematch().getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('the other player pressed first: their check, my button highlighted; my press starts the match once, and stays here until Enter game is pressed (AF639)', async () => {
+  it('the other player pressed first: their check, my button highlighted; my press starts the match once, and stays here until Enter game is pressed', async () => {
     tableState.other.ready = true;
     const { rematch, check, getByTestId } = await victoryInRoom();
     await waitFor(() => expect(check(false), 'their check').not.toBeNull());
@@ -4378,7 +4378,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     });
   });
 
-  it("the other screen started the match: this one draws Enter game for the room's new match, and presses it (AF639)", async () => {
+  it("the other screen started the match: this one draws Enter game for the room's new match, and presses it", async () => {
     const { rematch, check, getByTestId } = await victoryInRoom();
     await waitFor(() => expect(rematch().disabled).toBe(false));
     fireEvent.click(rematch());
@@ -4402,7 +4402,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     expect(rematch().disabled).toBe(true);
   });
 
-  it('a game played alone against the bot: Rematch readies the one seat, and a series that did not convert reaches the bot’s next game on a press (AF639)', async () => {
+  it('a game played alone against the bot: Rematch readies the one seat, and a series that did not convert reaches the bot’s next game on a press', async () => {
     tableState.other = { ready: false, present: false };
     const { rematch, getByTestId } = await victoryInRoom();
     await waitFor(() => expect(rematch().disabled).toBe(false));

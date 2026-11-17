@@ -85,7 +85,7 @@ async function concede(alice: Friend, bob: Friend, loser: Friend): Promise<void>
 
 test(
   titled(
-    'Bo1 → Rematch opens the sideboard step, a swap carries into game 2 once both press Enter game (AF639), the loser of game 1 is asked play-or-draw; at 1-1 it opens with no Rematch press',
+    'Bo1 → Rematch opens the sideboard step, a swap carries into game 2 once both press Enter game, the loser of game 1 is asked play-or-draw; at 1-1 it opens with no Rematch press',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
