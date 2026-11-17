@@ -29,6 +29,14 @@ import { POD_TIEBREAKS, type PodTiebreak } from '@hadoku/shared';
 export interface PodPlayer {
   id: string;
   podSeat: number;
+  /**
+   * Whether this entrant is one of the pod's bots (an AI entrant), never a
+   * human member. Absent or `false` is a human — every caller that never
+   * sets it (a pure Swiss field, a tournament bracket) gets exactly the
+   * single-field pairing this always played; only `pairRound`'s "humans
+   * first" rule (`swissRound`, below) reads it.
+   */
+  isBot?: boolean;
 }
 
 /**
@@ -184,6 +192,61 @@ function laterRound(players: PodPlayer[], results: MatchResult[]): PairRoundResu
   return { tables: pairDown(pool, played), bye };
 }
 
+/**
+ * One round's Swiss pairing, humans paired before bots (the operator,
+ * 2026-11-16, amending the full Swiss): "in a pod with two or
+ * more humans, pair humans with each other in every round where they have
+ * not met; a bot only takes a human who has no human left to play. Bots
+ * still play each other headless, so the bracket stays full." With fewer
+ * than two humans, or no bots at all, this is exactly `round1`/`laterRound`
+ * played over the one field, unchanged — a solo-vs-bots draft pod and an
+ * all-human pod never take this branch.
+ *
+ * Reached by pairing the humans among themselves and the bots among
+ * themselves, each by the SAME `round1`/`laterRound` the single field used
+ * to play (so each side's own seat order, score ranking, repeat-avoidance
+ * and bye-eligibility — "byes... otherwise unchanged" — are exactly what
+ * they always were, just scoped to that side):
+ *
+ *  - Every human paired (`humans.length` even): the bot side stands as its
+ *    own pairing played it; any bot left over (`bots.length` odd) takes the
+ *    bye, since no human needs it.
+ *  - One human and one bot both left over (both odd): neither has a same-side
+ *    partner, so they play each other — this is round 1 of the exact pod
+ *    the brief measured (`pairing.test.ts`'s own citation).
+ *  - One human left over, every bot already paired (`humans.length` odd,
+ *    `bots.length` even and at least 2): no bot is free, so one bot's own
+ *    pairing is broken — it takes the leftover human instead, and its
+ *    erstwhile partner takes the bye in its place. Measured, not guessed:
+ *    this is the only way to honor "a bot only takes a human who has no
+ *    human left to play" without leaving that human on a bye while bots it
+ *    could have played sit paired with each other.
+ */
+function swissRound(players: PodPlayer[], results: MatchResult[], round: number): PairRoundResult {
+  const humans = players.filter((p) => p.isBot !== true);
+  const bots = players.filter((p) => p.isBot === true);
+  if (humans.length < 2 || bots.length === 0) {
+    return round === 1 ? round1(players) : laterRound(players, results);
+  }
+  const human = round === 1 ? round1(humans) : laterRound(humans, results);
+  const bot = round === 1 ? round1(bots) : laterRound(bots, results);
+  if (human.bye === null) {
+    // Every human has a human opponent; a leftover bot (if any) just sits out.
+    return { tables: [...human.tables, ...bot.tables], bye: bot.bye };
+  }
+  if (bot.bye !== null) {
+    // Neither the odd human nor the odd bot has a same-side partner: pair them.
+    return { tables: [...human.tables, ...bot.tables, [human.bye, bot.bye]], bye: null };
+  }
+  // The odd human needs a bot, and every bot already has one of its own:
+  // free the lowest-priority bot pairing and bye the bot it displaces.
+  const botTables = [...bot.tables];
+  const freed = botTables.pop();
+  if (freed === undefined) return { tables: [...human.tables, ...bot.tables], bye: human.bye };
+  const [displacedBot, freedBot] = freed;
+  return { tables: [...human.tables, ...botTables, [human.bye, freedBot]], bye: displacedBot };
+}
+
 /** One more question a round's pairing may be asked: the tournament's structure, if it has one. */
 export interface PairRoundInput {
   players: PodPlayer[];
@@ -195,7 +258,7 @@ export interface PairRoundInput {
   seed?: string;
 }
 
-/** Pair one round of the whole field. See `round1` and `laterRound` for the Swiss rules; a cut round is bracketed by rank. */
+/** Pair one round of the whole field. See `swissRound` (`round1`/`laterRound`, humans first) for the Swiss rules; a cut round is bracketed by rank. */
 export function pairRound(input: PairRoundInput): PairRoundResult {
   const { players, results, round, structure, seed = '' } = input;
   if (players.length === 0) return { tables: [], bye: null };
@@ -203,7 +266,7 @@ export function pairRound(input: PairRoundInput): PairRoundResult {
   if (structure !== undefined && structure.cut > 1 && round > structure.swiss) {
     return cutRound(players, results, seed, structure);
   }
-  return round === 1 ? round1(players) : laterRound(players, results);
+  return swissRound(players, results, round);
 }
 
 /** The most Swiss rounds a tournament plays, however large its field (the operator, 2026-10-31). */

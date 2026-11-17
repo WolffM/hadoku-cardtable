@@ -95,6 +95,53 @@ describe('pairRound round 1 (across the table)', () => {
   });
 });
 
+describe('pairRound: humans first (the operator, 2026-11-16 — amends the full Swiss)', () => {
+  /**
+   * `PodPlayer`s in seat order the way a real pod's table seats them
+   * (`pods.ts`'s `podTable`): every human first, every bot after. Measured
+   * against the real log of pod `r-67759762d971` (2026-11-17,
+   * `/home/hadoku/.pm2/logs/cardtable-out.log`): its `pod-rounds-started`
+   * at 05:21:23Z paired 2 live tables (one per human, each against a bot)
+   * and 2 bot games — exactly what the OLD across-the-table seat formula
+   * does with 2 humans seated first and 6 bots after (half=4 pairs seat i
+   * with seat i+4, so each human lands on a bot four seats over).
+   */
+  function podOf(humanIds: string[], botIds: string[]): PodPlayer[] {
+    return [
+      ...humanIds.map((id, i): PodPlayer => ({ id, podSeat: i + 1 })),
+      ...botIds.map((id, i): PodPlayer => ({ id, podSeat: humanIds.length + i + 1, isBot: true })),
+    ];
+  }
+
+  function isMixed(table: [string, string], isBot: (id: string) => boolean): boolean {
+    return isBot(table[0]) !== isBot(table[1]);
+  }
+
+  it('the exact prod pod (r-67759762d971, 2 humans + 6 bots, 3 rounds): round 1 pairs the two humans together, not each with a bot', () => {
+    const players = podOf(['h1', 'h2'], ['ai:2', 'ai:3', 'ai:4', 'ai:5', 'ai:6', 'ai:7']);
+    const { tables, bye } = pairRound({ players, results: [], round: 1 });
+    expect(bye).toBeNull();
+    expect(tables).toContainEqual(['h1', 'h2']);
+    const isBot = (id: string) => id.startsWith('ai:');
+    for (const t of tables) expect(isMixed(t, isBot), t.join(' vs ')).toBe(false);
+  });
+
+  it('a 4-human pod: no table pairs a human against a bot while a fresh human pairing still exists, across all 3 rounds', () => {
+    const humanIds = ['h1', 'h2', 'h3', 'h4'];
+    const botIds = ['ai:4', 'ai:5', 'ai:6', 'ai:7'];
+    const isBot = (id: string) => id.startsWith('ai:');
+    const players = podOf(humanIds, botIds);
+    const results: MatchResult[] = [];
+    for (let round = 1; round <= 3; round++) {
+      const { tables, bye } = pairRound({ players, results, round });
+      expect(bye, `round ${round}`).toBeNull();
+      for (const t of tables) expect(isMixed(t, isBot), `round ${round}: ${t.join(' vs ')}`).toBe(false);
+      // A deterministic winner (the lower id of each table) to advance the field.
+      for (const [a, b] of tables) results.push(a < b ? win(round, a, b) : win(round, b, a));
+    }
+  });
+});
+
 describe('pairRound later rounds: score-based, avoiding a repeat pairing', () => {
   it('pairs by match points when no repeat is at stake', () => {
     // Round 1: p1 beats p3, p2 beats p4. Round 2 should pair the two leaders
