@@ -28,7 +28,7 @@ import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { HostEvents, MatchRecord, MatchHost, MatchHostFactory, TurnSnapshot } from '@hadoku/game-server/play/host';
 import type { ForgeMatchSpec } from './forge-spec.js';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
-import { createMatchRegistry, type Match, type MatchSpecWithIdentity } from './match.js';
+import { createMatchRegistry, NEW_GAME_CLOCK_GRACE_MS, type Match, type MatchSpecWithIdentity } from './match.js';
 import { MATCH_ENDED_TITLE, PENDING_REVEAL_CHOICE_MS } from './match/forge-frames.js';
 import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, WATCHER_SEAT, frameGist } from './match/forge-session.js';
 import { ACTIVITY_WINDOW_MS, CONCEDE_ANSWER_MS, RESTART_ASK_MS } from '@hadoku/game-server/play/match/shell';
@@ -1600,7 +1600,9 @@ function recordFor(match: Match, state: Survivable): MatchRecord {
 	return {
 		matchId: match.id,
 		hostId: 'h-000000000000',
-		startedAt: new Date().toISOString(),
+		// The match's OWN start, not "now": production keeps this across a restart (`MatchShell.startedAt`'s
+		// own doc), and AF639's new-game clock grace (`match.ts`) reads it to tell a resumed match from a new one.
+		startedAt: new Date(match.startedAt).toISOString(),
 		epoch: state.remembered?.epoch ?? null,
 		owners: state.remembered?.owners ?? [],
 		spec: { seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] },
@@ -5260,6 +5262,8 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	it("runs only the seat the game is waiting on, and tells both screens on the roster when it starts and stops", () => {
 		vi.useFakeTimers();
 		const h = clocked([60_000, 60_000]);
+		// Past AF639's new-game grace (its own describe below): this test is about waitedOn, not the grace.
+		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		waitingOnSeat0(h);
 		const [mine, theirs] = h.match.seatIdentities();
 		expect(mine!.clock?.running).toBe(true);
@@ -5278,6 +5282,8 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	it('flags at zero: the server concedes for the seat, logs it, and the win is a timeout', () => {
 		vi.useFakeTimers();
 		const h = clocked([20_000, 60_000]);
+		// Past AF639's new-game grace: this test is about flagging, not the grace.
+		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		waitingOnSeat0(h);
 		vi.advanceTimersByTime(19_000);
 		expect(h.host.commands.some((c) => c.t === 'act' && c.frame.method === 'concede')).toBe(false);
@@ -5292,6 +5298,8 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	it('flags at zero even when its timer fires a millisecond before the wall clock reaches zero', () => {
 		vi.useFakeTimers();
 		const h = clocked([20_000, 60_000]);
+		// Past AF639's new-game grace: this test is about the timer/wall-clock race, not the grace.
+		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		waitingOnSeat0(h);
 		// Node's timers run on the event loop's own clock, truncated to the millisecond, and `now()` reads
 		// `Date.now()`: a timer armed for the 20 000 ms left can fire when the wall clock has moved 19 999.
@@ -5305,6 +5313,8 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	it("keeps running for a seat that disconnected: being away answers nothing", () => {
 		vi.useFakeTimers();
 		const h = clocked([60_000, 60_000]);
+		// Past AF639's new-game grace: this test is about disconnection, not the grace.
+		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		h.match.claim(ALICE);
 		h.match.claim(BOB);
 		waitingOnSeat0(h);
@@ -5319,6 +5329,8 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 		const { factory, attach, state } = survivable();
 		const deps = { host: factory, attach, log: () => undefined, overGraceMs: 60_000, emit: () => undefined, actSilenceMs: 10 * 60_000 };
 		const first = createMatchRegistry(deps).create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], clockMs: [60_000, 60_000] });
+		// Past AF639's new-game grace: this test is about handing a match over and taking it back, not the grace.
+		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		first.claim(ALICE);
 		first.claim(BOB);
 		state.push(...OPENING);
@@ -5343,6 +5355,67 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'concede' }));
 		h.host.push({ t: 'gameover', winner: 'Seat 2', losers: [0], lost: [{ player: 0, reason: 'Conceded' }] } as BridgeLine);
 		expect(h.match.outcome()).toEqual({ kind: 'won', winner: 1, conceded: true });
+	});
+
+	/**
+	 * AF639: the operator, 2026-11-16, of the flash into the next game of a series: *"the clock
+	 * gives a 1-minute grace before it starts running."* A new game's clock does not run at all
+	 * for its first {@link NEW_GAME_CLOCK_GRACE_MS}, whatever Forge is waiting on — mutation-tested
+	 * by deleting `Match.syncClock`'s override (`match.ts`): every case below then fails, because
+	 * the first seat asked starts the clock at once.
+	 */
+	describe('the new-game clock grace (AF639)', () => {
+		it("does not run a seat the game is waiting on, inside the grace", () => {
+			vi.useFakeTimers();
+			const h = clocked([60_000, 60_000]);
+			waitingOnSeat0(h);
+			const [mine] = h.match.seatIdentities();
+			expect(mine!.clock).toEqual({ ms: 60_000, running: false });
+			vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS - 1_000);
+			expect(h.match.clockLeft()).toEqual([60_000, 60_000]);
+			expect(h.match.seatIdentities()[0]!.clock?.running, 'still not running, 1s short of the grace').toBe(false);
+		});
+
+		it('starts the seat the game is waiting on the instant the grace ends', () => {
+			vi.useFakeTimers();
+			const h = clocked([60_000, 60_000]);
+			waitingOnSeat0(h);
+			vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
+			expect(h.match.seatIdentities()[0]!.clock?.running, 'the grace ended; the real waitedOn state takes over').toBe(true);
+			vi.advanceTimersByTime(5_000);
+			expect(h.match.clockLeft()![0]).toBeLessThanOrEqual(55_000);
+		});
+
+		it('a game that ends inside the grace never charged either clock', () => {
+			vi.useFakeTimers();
+			const h = clocked([60_000, 60_000]);
+			waitingOnSeat0(h);
+			vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS - 1_000);
+			h.host.push({ t: 'gameover', winner: 'Seat 1', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] } as BridgeLine);
+			expect(h.match.clockLeft()).toEqual([60_000, 60_000]);
+		});
+
+		it('a RESTORED game (a JVM take-back) keeps its original startedAt and is not re-graced', () => {
+			vi.useFakeTimers();
+			const { factory, attach, state } = survivable();
+			const deps = { host: factory, attach, log: () => undefined, overGraceMs: 60_000, emit: () => undefined, actSilenceMs: 10 * 60_000 };
+			const first = createMatchRegistry(deps).create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], clockMs: [60_000, 60_000] });
+			first.claim(ALICE);
+			first.claim(BOB);
+			// Well past the grace before the server goes down, so the taken-back match's `startedAt` is old.
+			vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS + 10_000);
+			state.push(...OPENING);
+			first.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+			state.push(PROBE_ASK);
+			expect(first.handOver()).toBe(true);
+			const kept = first.clockLeft()!;
+			vi.advanceTimersByTime(60_000);
+			const next = createMatchRegistry(deps).adopt({ ...recordFor(first, state), clockMs: kept })!;
+			// Taken back past the grace: the clock runs at once, as the pre-existing restart test expects.
+			expect(next.seatIdentities()[0]!.clock?.running).toBe(true);
+			vi.advanceTimersByTime(2_000);
+			expect(next.clockLeft()![0]).toBe(kept[0] - 2_000);
+		});
 	});
 });
 

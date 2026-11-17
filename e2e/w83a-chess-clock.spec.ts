@@ -4,6 +4,11 @@
  * never on the server's own auto-passes, and at zero that player loses the game, which the result
  * calls Out of Time.
  *
+ * **AF639's grace (2026-11-16):** the operator, of the flash into a series' next game, *"the clock
+ * gives a 1-minute grace before it starts running."* `NEW_GAME_CLOCK_GRACE_MS` (`play/match.ts`) is
+ * 60 s, for every new game, this scenario match included — not only a series' second game — so this
+ * spec reads full, not-running clocks for the first beat and only then waits for alice's to start.
+ *
  * A short, test-only clock (`clockMs` on the start body; a room's own is 20 minutes). Alice holds
  * priority in her main phase with a castable Lightning Bolt (`bolt-player`) and does nothing. Her
  * clock runs on both screens and bob's does not — bob's whole time is unchanged while she idles,
@@ -22,6 +27,8 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 const CLOCK_MS = 25_000;
+/** `play/match.ts`'s `NEW_GAME_CLOCK_GRACE_MS` (AF639): no seat's clock runs before this many ms have passed. */
+const GRACE_MS = 60_000;
 
 const say = (line: string): void => console.log(`[w83a-clock] ${line}`);
 
@@ -49,14 +56,27 @@ async function clocks(page: Page): Promise<{ you: Reading | null; them: Reading 
 test(titled('a seat that idles on priority runs out of time and loses; the other clock never moves'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(3 * 60_000);
+  test.setTimeout(4 * 60_000);
   const stack = await startPlayStack(forge);
   try {
+    const started = Date.now();
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'bolt-player', { clockMs: [CLOCK_MS, CLOCK_MS] });
 
-    // Both screens draw both clocks, and agree whose is running: alice's.
-    await expect.poll(async () => (await clocks(alice.page)).you?.running, { timeout: 20_000, message: "alice's own clock runs on her screen" }).toBe(true);
+    // AF639: inside the grace neither clock runs, full and static on both screens.
+    const graceLeft = GRACE_MS - (Date.now() - started);
+    if (graceLeft > 5_000) {
+      const inGrace = await clocks(alice.page);
+      expect(inGrace.you?.running, "inside the grace, alice's own clock does not run").toBe(false);
+      expect(inGrace.them?.running, "inside the grace, bob's does not either").toBe(false);
+      say(`inside the grace (${graceLeft}ms left): alice ${inGrace.you?.text}, bob ${inGrace.them?.text}`);
+    }
+
+    // Both screens draw both clocks, and agree whose is running once the grace ends: alice's.
+    await expect
+      .poll(async () => (await clocks(alice.page)).you?.running, { timeout: GRACE_MS + 20_000, message: "alice's own clock runs on her screen, once the grace ends" })
+      .toBe(true);
     await expect.poll(async () => (await clocks(bob.page)).them?.running, { timeout: 10_000, message: "alice's clock runs on bob's screen" }).toBe(true);
+    expect(Date.now() - started, 'the clock did not start before the grace ended').toBeGreaterThanOrEqual(GRACE_MS - 1_000);
 
     const bobAtStart = (await clocks(bob.page)).you;
     expect(bobAtStart, "bob's own clock is drawn").not.toBeNull();

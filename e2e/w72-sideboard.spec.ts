@@ -3,9 +3,11 @@
  *
  *   A 1v1 constructed room: every series starts as Bo1. Game 1 ends, and both
  *   players press Rematch, which makes the series Bo3. Each sees the sideboard
- *   step with their own 75, and one swaps a card. Game 2 starts with the
- *   swapped deck, and the loser of game 1 is asked play-or-draw. Game 2 leaves
- *   the series 1-1, so the sideboard step opens with no Rematch press.
+ *   step with their own 75, and one swaps a card. Game 2 exists once both are
+ *   Ready, but neither screen opens it by itself (AF639, 2026-11-16): each
+ *   presses "Enter game" on their own screen, and only then does game 2 start
+ *   with the swapped deck, the loser of game 1 asked play-or-draw. Game 2
+ *   leaves the series 1-1, so the sideboard step opens with no Rematch press.
  *
  * `[w72-sideboard]` lines are the evidence: which screen pressed what, and
  * what each saw.
@@ -83,7 +85,7 @@ async function concede(alice: Friend, bob: Friend, loser: Friend): Promise<void>
 
 test(
   titled(
-    'Bo1 → Rematch opens the sideboard step, a swap carries into game 2, the loser of game 1 is asked play-or-draw; at 1-1 it opens with no Rematch press',
+    'Bo1 → Rematch opens the sideboard step, a swap carries into game 2 once both press Enter game (AF639), the loser of game 1 is asked play-or-draw; at 1-1 it opens with no Rematch press',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -131,17 +133,21 @@ test(
       }
       for (const f of [alice, bob]) await expect(f.page.getByTestId('sideboard-ready')).toHaveAttribute('aria-pressed', 'true');
 
-      /* ── game 2 starts; bob (game 1's loser) is asked play-or-draw ────── */
-      // Both pages are STILL on game 1's match URL at this point (nothing has
-      // navigated yet), and that URL already satisfies the bare `MATCH_URL`
-      // pattern — a plain `waitForURL(matchUrl)` resolves at once against the
-      // unchanged URL rather than waiting for game 2's. Wait for a match id
-      // that differs from game 1's instead.
+      /* ── AF639: game 2 exists server-side, but neither screen jumps to it ── */
+      // by itself — each presses "Enter game" on its own screen (the operator,
+      // 2026-11-16: "the next game does not open by itself; players click to
+      // enter it").
       const matchUrl = MATCH_URL;
       const isNewMatch = (url: URL): boolean => {
         const id = matchUrl.exec(url.href)?.[1];
         return id !== undefined && id !== match1;
       };
+      for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result-enter'), `${f.name}: Enter game is offered`).toBeVisible({ timeout: 30_000 });
+      for (const f of [alice, bob]) expect(isNewMatch(new URL(f.page.url())), `${f.name}: still on game 1's URL — no auto-navigate`).toBe(false);
+      console.log('[w72-sideboard] game 2 exists; neither screen has navigated — Enter game is offered on both');
+
+      /* ── game 2 starts; bob (game 1's loser) is asked play-or-draw ────── */
+      for (const f of [alice, bob]) await press(f.page, 'game-result-enter');
       await alice.page.waitForURL(isNewMatch, { timeout: 120_000 });
       await bob.page.waitForURL(isNewMatch, { timeout: 120_000 });
       const match2 = matchUrl.exec(alice.page.url())?.[1];

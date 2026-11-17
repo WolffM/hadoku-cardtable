@@ -1153,6 +1153,19 @@ export async function readyFromSideboard(page: Page): Promise<void> {
   await ready.click();
 }
 
+/**
+ * AF639 (the operator, 2026-11-16): *"the next game does not open by itself; players click to enter
+ * it."* Once the next game exists on THIS screen — every seat has readied the sideboard step (or a
+ * solo Rematch against the AI has agreed) — it stays on "Enter game" until pressed. Call this once
+ * PER SCREEN, after every `readyFromSideboard` call that was going to reach a new match has
+ * returned (a 2-player series needs BOTH readied before either screen's "Enter game" appears).
+ */
+export async function pressEnterGame(page: Page): Promise<void> {
+  const enter = page.getByTestId('game-result-enter');
+  await expect(enter, 'the next game exists; "Enter game" is offered').toBeVisible({ timeout: 30_000 });
+  await enter.click();
+}
+
 /** Draw a box from empty table around every card in `ids`, and let go. */
 export async function boxAround(page: Page, ids: readonly (number | string)[]): Promise<void> {
   const { from, to, empty } = await page.evaluate((cards) => {
