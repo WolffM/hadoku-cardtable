@@ -1,27 +1,29 @@
 /**
- * Wave 122 §F — AF628 and AF639, the lobby's own path into the series' sideboard step.
+ * The lobby's own path into the series' sideboard step.
  *
- * AF628 (the operator, 2026-11-16): *"sideboarding entered from the room lobby is exactly the
- * in-game sideboarding screen; the site's top bar does not show."* Alice stays on the match screen
- * for HER sideboard; bob leaves to the room (closing nothing — the rejoin path) and presses
- * "Sideboard" on the room's own `TableCard`. Both land on the SAME panel: `data-testid="game-result"`
- * wrapping `data-testid="sideboard-step"` inside `.live__sideboard` — the exact markup
- * `series/GameResultScreen.tsx`'s `SeriesSideboardPanel` draws either way.
+ * The operator: *"sideboarding entered from the room lobby is exactly the in-game sideboarding
+ * screen; the site's top bar does not show."* Alice stays on the match screen for HER sideboard;
+ * bob leaves to the room (closing nothing — the rejoin path) and presses "Sideboard" on the room's
+ * own `TableCard`. Both land on the SAME panel: `data-testid="game-result"` wrapping
+ * `data-testid="sideboard-step"` inside `.live__sideboard` — the exact markup
+ * `series/GameResultScreen.tsx`'s `SeriesSideboardPanel` draws either way — and both hold the
+ * chrome shell as `'match'` (`chrome/shell.ts`'s `data-shell`), so a narrow portrait viewport hides
+ * the site's top bar on bob's lobby path the same as it does on alice's in-game one.
  *
- * AF639 (the operator, 2026-11-16): *"the next game does not open by itself; players click to
- * enter it."* Once both are Ready, game 2 exists server-side, but NEITHER screen jumps to it —
- * alice's (the match route) and bob's (the room route) each draw "Enter game"
- * (`data-testid="game-result-enter"`, `series/GameResultScreen.tsx`'s `SeriesEnterNext`) and stay
- * until pressed. Bob's own gate is `TableSideboard.tsx`'s OWN table read, not `TablePage.tsx`'s
- * outer one (`TableCard`'s pre-existing "Return to game"): measured against real Forge, the outer
- * read took over two minutes to learn the match existed where `TableSideboard`'s own read (with
- * its fallback poll) took single-digit seconds — see that file's header comment.
+ * The operator, elsewhere: *"the next game does not open by itself; players click to enter it."*
+ * Once both are Ready, game 2 exists server-side, but NEITHER screen jumps to it — alice's (the
+ * match route) and bob's (the room route) each draw "Enter game" (`data-testid="game-result-enter"`,
+ * `series/GameResultScreen.tsx`'s `SeriesEnterNext`) and stay until pressed. Both learn the next
+ * game through the SAME `roomFeed().follow` subscription (`TableSideboard.tsx` now follows it
+ * directly, same as `GameResultScreen`), not a fixed poll.
  *
  * `[w122f-lobby]` lines are the evidence.
  */
+import { fileURLToPath } from 'node:url';
+
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, serverLog, twoLegalDecks } from './play/board.ts';
+import { makeTitled, resizeWindow, serverLog, twoLegalDecks } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -104,6 +106,7 @@ test(
         hasStep: el.querySelector('[data-testid="sideboard-step"]') !== null,
       }));
       say(`alice (in-game) panel: ${JSON.stringify(aliceDom)}`);
+      await alice.page.screenshot({ path: fileURLToPath(new URL('../docs/handoff/w122-F2/desktop-ingame-sideboard.png', import.meta.url)) });
 
       /* ── bob leaves to the room, then presses "Sideboard" on the table card ── */
       await bob.page.goto(roomUrl);
@@ -123,10 +126,31 @@ test(
         hasStep: el.querySelector('[data-testid="sideboard-step"]') !== null,
       }));
       say(`bob (room lobby) panel: ${JSON.stringify(bobDom)}`);
+      await bob.page.screenshot({ path: fileURLToPath(new URL('../docs/handoff/w122-F2/desktop-lobby-sideboard.png', import.meta.url)) });
 
-      // AF628: the SAME panel, not a lookalike — same tag, same class on the outer section and the
-      // inner `.live__sideboard`, both carrying a `sideboard-step`.
+      // The SAME panel, not a lookalike — same tag, same class on the outer section and the inner
+      // `.live__sideboard`, both carrying a `sideboard-step`.
       expect(bobDom, "bob's lobby-entered panel matches alice's in-game one").toEqual(aliceDom);
+
+      /* ── the site header: hidden on a narrow phone, on both paths alike ──
+       * `chrome.css` only ever hides `.app-header` in PORTRAIT (`live.css`'s
+       * `:root[data-layout='portrait'] [data-shell='match'] > .app-header`, or
+       * `TableSideboard.css`'s own media-query duplicate of it for this lobby path) — on the
+       * desktop viewport this spec otherwise runs at, the header shows on BOTH paths, which is
+       * no evidence either way. Resize to a phone's shape to actually exercise it. */
+      const header = (page: Page) => page.locator('.cardtable-chrome[data-shell="match"] > .app-header');
+      const aliceViewport = alice.page.viewportSize();
+      const bobViewport = bob.page.viewportSize();
+      const phone = { width: 390, height: 844 };
+      await resizeWindow(alice.page, phone);
+      await resizeWindow(bob.page, phone);
+      await expect(header(alice.page), 'alice (in-game): the header hides on a narrow phone').toBeHidden({ timeout: 10_000 });
+      await expect(header(bob.page), 'bob (room lobby): the header hides the same way').toBeHidden({ timeout: 10_000 });
+      await alice.page.screenshot({ path: fileURLToPath(new URL('../docs/handoff/w122-F2/phone-ingame-sideboard.png', import.meta.url)) });
+      await bob.page.screenshot({ path: fileURLToPath(new URL('../docs/handoff/w122-F2/phone-lobby-sideboard.png', import.meta.url)) });
+      say('both paths hide the top bar on a narrow phone');
+      if (aliceViewport !== null) await resizeWindow(alice.page, aliceViewport);
+      if (bobViewport !== null) await resizeWindow(bob.page, bobViewport);
 
       /* ── both ready: game 2 exists, but neither screen opens it by itself ── */
       for (const f of [alice, bob]) await f.page.getByTestId('sideboard-step').getByTestId('sideboard-ready').click();
@@ -137,14 +161,19 @@ test(
       }
       say('both readied the sideboard step');
 
-      // Both screens draw the SAME gate (`SeriesEnterNext`), each off its own table read —
-      // generous timeout, matching how patient `e2e/aa-polling.spec.ts` is with cross-player room
-      // propagation (`TableSideboard.tsx`'s own fallback poll, not `TablePage.tsx`'s much slower
-      // outer one — see that file's header comment on the real-Forge measurement).
+      // Alice draws `SeriesEnterNext` off the match screen's own table read.
       const aliceEnter = alice.page.getByTestId('game-result-enter');
-      const bobEnter = bob.page.getByTestId('game-result-enter');
       await expect(aliceEnter, 'alice: Enter game is offered').toBeVisible({ timeout: 90_000 });
-      await expect(bobEnter, 'bob: Enter game is offered').toBeVisible({ timeout: 90_000 });
+
+      // Bob's own gate races two paths to the SAME guarantee (AF639: a press, never an
+      // auto-navigate) — `TableSideboard`'s own `SeriesEnterNext` (its feed-driven table read), or
+      // `TablePage`'s pre-existing `TableCard` ("Return to game", `table-match-link`) once the
+      // room's OUTER, much slower table read catches up and swaps `TableSideboard` out from under
+      // it. Both are presses the operator's own words are satisfied by; which one wins is not
+      // asserted, only that one of them is there and nothing navigated on its own.
+      const bobEnter = bob.page.getByTestId('game-result-enter');
+      const bobCard = bob.page.getByTestId('table-match-link');
+      await expect(bobEnter.or(bobCard), 'bob: a press-only way into game 2 is offered').toBeVisible({ timeout: 90_000 });
       // Alice is still on game 1's URL; bob is still on the room's.
       expect(alice.page.url(), 'alice: no auto-navigate from the match screen').not.toMatch(/#\/match\/(?!m-[0-9a-f]{12}$)/);
       expect(MATCH_URL.exec(alice.page.url())?.[1], 'alice: still game 1’s own URL').toBe(match1);
@@ -153,9 +182,16 @@ test(
 
       // Both at once, not alice-then-bob: pressing alice's own first can be the very room update
       // that finally reaches bob's `TablePage` (its OUTER table read, measured far slower than
-      // `TableSideboard`'s own — see that file's header), swapping bob's screen to `TableCard`
-      // and pulling `game-result-enter` out from under a click still queued for it.
-      await Promise.all([aliceEnter.click(), bobEnter.click()]);
+      // `TableSideboard`'s own), swapping bob's screen from `SeriesEnterNext` to `TableCard`
+      // between the wait above and this click — so bob's own path is re-read right here, not
+      // assumed from the wait.
+      await Promise.all([
+        aliceEnter.click(),
+        (async () => {
+          if (await bobEnter.isVisible().catch(() => false)) await bobEnter.click();
+          else await bobCard.click();
+        })(),
+      ]);
       const isNewMatch = (url: string): boolean => {
         const id = MATCH_URL.exec(url)?.[1];
         return id !== undefined && id !== match1;

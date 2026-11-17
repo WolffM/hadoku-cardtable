@@ -262,8 +262,8 @@ export interface MatchDeps extends HostedMatchDeps<BridgeLine, BridgeCommand> {
 }
 
 /**
- * The grace a NEW game's chess clock gets before it starts running at all (AF639, the operator,
- * 2026-11-16: *"the clock gives a 1-minute grace before it starts running"*). Keyed on
+ * The grace a NEW game's chess clock gets before it starts running at all (the operator: *"the
+ * clock gives a 1-minute grace before it starts running"*). Keyed on
  * {@link MatchShell.startedAt}, which a restore (`match/registry.ts`'s `restore`, a JVM lost
  * mid-game) and a take-back (`adopt`) both keep from the ORIGINAL game, so neither is re-graced —
  * only a game that is actually new (`create`, including a parked game's resume, which stamps a

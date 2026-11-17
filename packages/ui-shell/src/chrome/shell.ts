@@ -17,28 +17,32 @@ export type ChromeShell = 'fit' | 'match' | 'sound';
 const frameOf = (el: Element): Element | null => el.closest('.cardtable-chrome');
 
 /**
- * Mark the page frame with `name`=`value` for as long as `el` is drawn. Several marking it at once (a
- * screen redrawn into a new element before the old one goes) each hold it; it goes with the last.
+ * Mark the page frame with `name`=`value` for as long as `el` is drawn. Holders stack per
+ * attribute, in the order they took it: the frame always shows the LAST one still holding, and a
+ * holder that unmounts falls back to whichever is still underneath it — not just to nothing. A
+ * screen nested inside another's frame (the lobby's sideboard step holding `'match'` over the
+ * room's own `'fit'`) relies on this: it can give the attribute back to the one it covered.
  */
 function hold(el: Element, name: string, value: string): () => void {
   const frame = frameOf(el);
   if (frame === null) return () => undefined;
-  const holders = HELD.get(frame) ?? new Map<string, number>();
-  HELD.set(frame, holders);
-  const key = `${name}=${value}`;
-  holders.set(key, (holders.get(key) ?? 0) + 1);
+  const stacks = HELD.get(frame) ?? new Map<string, { value: string }[]>();
+  HELD.set(frame, stacks);
+  const stack = stacks.get(name) ?? [];
+  stacks.set(name, stack);
+  const entry = { value };
+  stack.push(entry);
   frame.setAttribute(name, value);
   return () => {
-    const left = (holders.get(key) ?? 1) - 1;
-    if (left > 0) holders.set(key, left);
-    else {
-      holders.delete(key);
-      if (frame.getAttribute(name) === value) frame.removeAttribute(name);
-    }
+    const at = stack.indexOf(entry);
+    if (at >= 0) stack.splice(at, 1);
+    const top = stack[stack.length - 1];
+    if (top !== undefined) frame.setAttribute(name, top.value);
+    else frame.removeAttribute(name);
   };
 }
 
-const HELD = new WeakMap<Element, Map<string, number>>();
+const HELD = new WeakMap<Element, Map<string, { value: string }[]>>();
 
 /** A screen's shell: a ref for its root element. Stable for a `kind`, so a redraw writes nothing. */
 export function useChromeShell(kind: ChromeShell): RefCallback<HTMLElement> {

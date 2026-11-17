@@ -73,7 +73,7 @@ async function finishRound(r: Round, loser: Friend, winner: Friend): Promise<voi
       await openMyTable(p.page, r.roomUrl);
       await p.page.getByTestId('sideboard-ready').click({ timeout: UI_TIMEOUT });
     }
-    // AF639: the next game exists once both are ready, but neither screen opens it by itself.
+    // The next game exists once both are ready, but neither screen opens it by itself.
     for (const p of [winner, loser]) await p.page.getByTestId('game-result-enter').click({ timeout: UI_TIMEOUT });
     for (const p of [winner, loser]) await expect(board(p), `${p.name}: game ${game + 2}`).toBeVisible({ timeout: UI_TIMEOUT });
   }

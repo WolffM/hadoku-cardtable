@@ -46,6 +46,17 @@ describe('the page frame’s own marks', () => {
     expect(frame.hasAttribute('data-shell')).toBe(false);
   });
 
+  it('gives the mark back to the screen underneath, when a nested holder set a different value', () => {
+    // An array (not a second `Fragment` element) in `inFrame`'s one child slot, kept an array on the
+    // rerender too, so React reconciles `'outer'` by key instead of tearing down and remounting it
+    // along with `'nested'` — the only way to prove the outer holder was never asked to unmount.
+    const outer = createElement(Shell, { kind: 'fit', key: 'outer' });
+    const { frame, view } = inFrame([outer, createElement(Shell, { kind: 'match', key: 'nested' })]);
+    expect(frame.getAttribute('data-shell'), 'the nested holder wins while both are drawn').toBe('match');
+    view.rerender(createElement(Fragment, null, [outer] as never));
+    expect(frame.getAttribute('data-shell'), 'the outer holder is still there underneath it').toBe('fit');
+  });
+
   it('says watchparty’s room frame is drawn, apart from the shell', () => {
     const { frame, view } = inFrame(createElement(Fragment, null, createElement(Frame), createElement(Shell, { kind: 'fit' })));
     expect(frame.hasAttribute('data-room-frame')).toBe(true);

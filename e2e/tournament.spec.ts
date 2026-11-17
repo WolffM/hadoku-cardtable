@@ -93,7 +93,7 @@ test(
       await openMyTable(loser.page, roomUrl);
       await expect(loser.page.getByTestId('table-sideboard'), 'the loser’s table page opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
       for (const p of [winner, loser]) await p.page.getByTestId('sideboard-ready').click();
-      // AF639: the next game exists once both are ready, but neither screen opens it by itself.
+      // The next game exists once both are ready, but neither screen opens it by itself.
       for (const p of [winner, loser]) {
         const enter = p.page.getByTestId('game-result-enter');
         await expect(enter, `${p.name}: Enter game is offered`).toBeVisible({ timeout: UI_TIMEOUT });
@@ -258,7 +258,7 @@ test(
         await openMyTable(alice!.page, roomUrl);
         await expect(alice!.page.getByTestId('table-sideboard'), `round ${round}: the table page opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('sideboard-ready').click();
-        // AF639: even alone against the AI, the next game does not open by itself.
+        // Even alone against the AI, the next game does not open by itself.
         const enter = alice!.page.getByTestId('game-result-enter');
         await expect(enter, `round ${round}: Enter game is offered`).toBeVisible({ timeout: UI_TIMEOUT });
         await enter.click();
