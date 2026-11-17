@@ -271,7 +271,7 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
-  it('reports how the board held still in a commit that drew departures: the copy off its card, and the most any card moved', () => {
+  it('reports how the board held still in a commit that drew departures: the stand-in off its card, and the most any card moved', () => {
     vi.useFakeTimers();
     const canvas = board();
     const report = vi.fn();
@@ -279,11 +279,11 @@ describe('installDepartures', () => {
     canvas.querySelector<HTMLElement>('[data-board-card="7"]')!.getBoundingClientRect = () => rect(300, 380, 60, 84);
     handle.snapshot();
     handle.capture();
-    keepPlace(canvas); // the gap stands at (300, 400): 20 px lower than the card was
+    keepPlace(canvas); // the gap stands at (300, 400): 20 px lower than the card was, and the stand-in is drawn where the card was
     handle.leave([{ departure: departure('graveyard'), delayMs: 0 }]);
     handle.snapshot();
     vi.advanceTimersByTime(250);
-    expect(report).toHaveBeenCalledWith(expect.objectContaining({ what: 'departure-layout', departures: 1, copyDx: 0, copyDy: 20 }));
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({ what: 'departure-layout', departures: 1, copyDx: 0, copyDy: 0 }));
     handle.dispose();
   });
 
@@ -376,13 +376,36 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
+  it('a tapped creature that dies is drawn exactly over its own turned box, not a step below it (an Incinerate on an attacked Figure of Destiny dropped 42 px)', () => {
+    vi.useFakeTimers();
+    const canvas = board();
+    const card = canvas.querySelector<HTMLElement>('[data-board-card="7"]')!;
+    Object.assign(card.style, { width: '60px', marginTop: '42px', marginBottom: '42px' });
+    card.insertAdjacentHTML('afterbegin', '<div class="board-card__face" style="width: 60px"></div>');
+    // Its row slot is at 400; its margin puts its own box, the turned card, at 442.
+    card.getBoundingClientRect = () => rect(300, 442, 60, 43);
+    const report = vi.fn();
+    const handle = installDepartures(canvas, { onDone: () => undefined, report });
+    handle.snapshot();
+    handle.capture();
+    keepPlace(canvas);
+    handle.leave([{ departure: departure('graveyard', 'damage'), delayMs: 0 }]);
+    const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
+    expect([standIn.style.left, standIn.style.top], 'on the card, where it was drawn').toEqual(['300px', '442px']);
+    handle.snapshot();
+    vi.advanceTimersByTime(250);
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({ what: 'departure-layout', copyDx: 0, copyDy: 0 }));
+    handle.dispose();
+  });
+
   it('a turned card’s step is worked out from the row card before it left, never read off its copies once they are built (cut 3: the wipe’s second layout)', () => {
     const canvas = board();
     const card = canvas.querySelector<HTMLElement>('[data-board-card="7"]')!;
     // A card 100px wide whose face is a pile's 10px fan narrower, turned: its margins a share of the face.
     Object.assign(card.style, { width: '100px', marginTop: '27px', marginBottom: '27px' });
     card.insertAdjacentHTML('afterbegin', '<div class="board-card__face" style="width: 90px"></div>');
-    card.getBoundingClientRect = () => rect(300, 400, 100, 84);
+    // Its own box starts its step below its upright place, the row slot at 400.
+    card.getBoundingClientRect = () => rect(300, 427, 100, 84);
     const handle = installDepartures(canvas, { onDone: () => undefined });
     handle.snapshot();
     handle.capture();
@@ -400,7 +423,7 @@ describe('installDepartures', () => {
     const canvas = board();
     const card = canvas.querySelector<HTMLElement>('[data-board-card="7"]')!;
     card.style.marginTop = '26px';
-    card.getBoundingClientRect = () => rect(300, 400, 60, 84);
+    card.getBoundingClientRect = () => rect(300, 426, 60, 84);
     const handle = installDepartures(canvas, { onDone: () => undefined });
     handle.snapshot();
     handle.capture();

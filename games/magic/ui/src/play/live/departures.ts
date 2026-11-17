@@ -444,18 +444,18 @@ function turnedStep(card: HTMLElement | undefined): number {
   return card === undefined ? 0 : Math.max(0, parseFloat(getComputedStyle(card).marginTop) || 0);
 }
 
-/** A row card's turned step, with its own width and its face's: the face is a pile's fan narrower. Null without a face to read. */
+/** A row card's turned step, with its own width and its face's: the face is a pile's fan narrower. `face` is 0 without a face to read. */
 interface Turn {
   readonly step: number;
   readonly width: number;
   readonly face: number;
 }
 
-function turnOf(card: HTMLElement): Turn | null {
+function turnOf(card: HTMLElement): Turn {
   const step = turnedStep(card);
   if (step === 0) return { step, width: 0, face: 0 };
   const face = card.querySelector<HTMLElement>(':scope > .board-card__face');
-  if (face === null) return null;
+  if (face === null) return { step, width: 0, face: 0 };
   return { step, width: Number.parseFloat(getComputedStyle(card).width), face: Number.parseFloat(getComputedStyle(face).width) };
 }
 
@@ -487,8 +487,8 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
   /** Each battlefield card's box before the commit that draws departures, by id (`capture`). */
   let boxes = new Map<number, DOMRect>();
   /** Each battlefield card's turn (`turnOf`) as of the same read, by id. */
-  let turns = new Map<number, Turn | null>();
-  /** This commit's departures, for its layout report: how many, and the most a copy sat off its card. */
+  let turns = new Map<number, Turn>();
+  /** This commit's departures, for its layout report: how many, and the most a stand-in was drawn off its card's own box. */
   let pending: { count: number; copyDx: number; copyDy: number } | null = null;
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const standIns = new Set<HTMLElement>();
@@ -672,6 +672,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         tempo: number;
         from: HTMLElement;
         at: DOMRect;
+        was: DOMRect | undefined;
         step: number | undefined;
         motion: ExitMotion;
         landing: HTMLElement | null;
@@ -688,25 +689,25 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         const motion = exitMotionFor(departure);
         const place = gap.getBoundingClientRect();
         const was = boxes.get(departure.cardId);
+        const turn = turns.get(departure.cardId);
         pending ??= { count: 0, copyDx: 0, copyDy: 0 };
         pending.count += 1;
-        if (was !== undefined) {
-          pending.copyDx = Math.max(pending.copyDx, Math.abs(place.left - was.left));
-          pending.copyDy = Math.max(pending.copyDy, Math.abs(place.top - was.top));
-        }
         /*
          * Where the card was drawn in the frame before, at its place's size: its row may have been gliding
          * as a card beside it closed up (measured: 62–186 px off its gap, a wipe's later deaths, whose
          * stand-ins were drawn over the earlier ones' — the operator's "two creatures instantly disappeared").
+         * `at` is the card's upright place, as the gap is: a turned card's own box starts its step below that
+         * (the step is a margin on the card, `card.css`), and `fitTurned` moves the stand-in down by it. Taking
+         * the turned box itself counted the step twice, and every tapped creature that died dropped a step
+         * (the operator, 2026-11-17, of an Incinerate on an attacked Figure of Destiny: 42 px).
          */
-        const at = was === undefined ? place : new DOMRect(was.left, was.top, place.width, place.height);
+        const at = was === undefined ? place : new DOMRect(was.left, was.top - (turn?.step ?? 0), place.width, place.height);
         const landing = travels(motion) ? handLanding(canvas, departure, taken) : null;
         if (landing !== null) taken.add(landing);
         // Its copy's turned step, from the row card's: reading it off the copy, after every stand-in is
         // built, is the same number for the price of laying out the whole batch of copies a second time.
-        const turn = turns.get(departure.cardId);
-        const step = turn == null ? undefined : stepAt(turn, place.width);
-        plans.push({ departure, delayMs, tempo, from, at, step, motion, landing, to: landing?.getBoundingClientRect() ?? null });
+        const step = turn === undefined ? undefined : stepAt(turn, place.width);
+        plans.push({ departure, delayMs, tempo, from, at, was, step, motion, landing, to: landing?.getBoundingClientRect() ?? null });
       }
       if (root === null || box === null || plans.length === 0) return;
       // The batch's specks share one budget, and so do its shatters' shards — each shard a whole copy of
@@ -729,6 +730,10 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       const fits = built.map((b) => b.step ?? turnedStep(b.copies[0]));
       built.forEach((b, i) => {
         fitTurned(b.wrap, b.copies, b.at.top - box.top, fits[i]!);
+        if (b.was !== undefined && pending !== null) {
+          pending.copyDx = Math.max(pending.copyDx, Math.abs(b.at.left - b.was.left));
+          pending.copyDy = Math.max(pending.copyDy, Math.abs(b.at.top + fits[i]! - b.was.top));
+        }
         const { wrap, at, landing, departure, delayMs, motion, tempo } = b;
         // Only a card or a back is hidden while it is flown to — never a whole hand.
         const hides = landing !== null && landing.getAttribute('data-zone') === null;
