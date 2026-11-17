@@ -293,7 +293,7 @@ import {
 import { installMarks, markScanWanted } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
 import { MOVABLE_DIALOG } from '../movable.tsx';
-import { closeManaPress, openManaPress, pressRingFor, tapManaPress } from '../mana-press.ts';
+import { pressRingFor, tapManaPress } from '../mana-press.ts';
 import { guardTextSelection } from './text-press.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
 import { playRole } from '@hadoku/game-ui/sound/index.ts';
@@ -322,9 +322,6 @@ import './gestures.css';
 
 /** Set on the canvas while this layer is installed, so `./gestures.css` can dress it. */
 const CANVAS_ATTR = 'data-gesture-canvas';
-
-/** How close to a disc's direction a finger's slide must head to be the ring's, not a lane's pan: within 35°. */
-const DISC_HEADING_COS = Math.cos((35 * Math.PI) / 180);
 
 /**
  * How long a parked card may sit with Forge showing no sign of the play — the
@@ -997,7 +994,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (id !== null && Number.isFinite(id)) reportSwallowedClick(match, id, by);
   }
 
+  /**
+   * Claiming a press for any OTHER gesture drops a mana-source candidate this same press was being
+   * tracked as: the candidate never claims the press itself, so whichever gesture DOES claim
+   * it — the arrange-drag it must not shadow, a stack drag, a lift — wins outright, and no ring opens.
+   */
   function claim(event: PointerEvent): void {
+    manaPress = null;
     if (event.cancelable) event.preventDefault();
   }
 
@@ -1646,20 +1649,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // Reset at the top of every FRESH press — see the latch's own doc comment.
     clicks.reset();
     /*
-     * A press on a mana source with a choice opens its ring under the press, before anything is sent
-     * (the operator, 2026-11-06): the release decides (`onPointerUp`). Ahead of the arrangement guard:
-     * such a land is picked from, not moved.
+     * A mana source with a choice decides on the RELEASE, never the press (the operator: "not just
+     * on release, but also only if on release and no drag happened ... otherwise theres no way to
+     * drag cards"). This press is NOT claimed and NOT returned here — it is only noted as a
+     * candidate, so every branch below (the arrangement guard included) runs exactly as it would
+     * for a card with no ring at all, and whichever of them DOES claim the press (`claim`, which
+     * drops this candidate) wins outright. `onPointerUp` opens the ring itself, only once this exact
+     * pointer lets go having never crossed the drag slop.
      */
     if (manaPress === null && match.asks.length === 0 && match.selectables === null && !declaringAttackers(match)) {
       const source = cardIdUnder(eventTarget(event));
-      const ring = source === null || !boardInteraction(match).selectable.has(source) ? null : pressRingFor(match, source);
-      if (source !== null && ring !== null) {
-        claim(event);
+      if (source !== null && boardInteraction(match).selectable.has(source) && pressRingFor(match, source) !== null) {
         manaPress = { source, pointerId: event.pointerId, press: { x: event.clientX, y: event.clientY }, moved: false };
-        hover = null;
-        openManaPress(match, { source, ring, at: { x: event.clientX, y: event.clientY, finger: event.pointerType === 'touch' || event.pointerType === 'pen' } });
-        paint();
-        return;
       }
     }
     /*
@@ -1883,59 +1884,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
     paint();
   }
 
-  /**
-   * Whether a move from `press` to `at` heads for one of the press ring's discs: within
-   * {@link DISC_HEADING_COS} of the direction from the press to the disc's centre.
-   */
-  function headsForDisc(press: Point, at: Point): boolean {
-    const ring = scopeOf(canvas).querySelector('[data-press]');
-    if (ring === null) return false;
-    const mx = at.x - press.x;
-    const my = at.y - press.y;
-    const m = Math.hypot(mx, my);
-    if (m === 0) return false;
-    for (const el of ring.querySelectorAll<HTMLElement>('[data-testid="mana-ring-option"], [data-testid="mana-ring-chip"]')) {
-      const b = el.getBoundingClientRect();
-      const dx = b.left + b.width / 2 - press.x;
-      const dy = b.top + b.height / 2 - press.y;
-      const d = Math.hypot(dx, dy);
-      if (d > 0 && (mx * dx + my * dy) / (m * d) >= DISC_HEADING_COS) return true;
-    }
-    return false;
-  }
-
-  /**
-   * The disc or chip of the press's ring under `at`, armed; every other one disarmed. Read off the
-   * discs' own boxes, not the page's hit test: while the press is held its ring is the only thing it
-   * can pick, whatever else is drawn there (the card view a hover left open, say).
-   */
-  function armManaDisc(at: Point): HTMLElement | null {
-    const ring = scopeOf(canvas).querySelector('[data-press]');
-    if (ring === null) return null;
-    let disc: HTMLElement | null = null;
-    for (const el of ring.querySelectorAll<HTMLElement>('[data-testid="mana-ring-option"], [data-testid="mana-ring-chip"]')) {
-      const b = el.getBoundingClientRect();
-      const over = at.x >= b.left && at.x <= b.right && at.y >= b.top && at.y <= b.bottom && !(el instanceof HTMLButtonElement && el.disabled);
-      if (over && disc === null) disc = el;
-      else el.removeAttribute('data-armed');
-    }
-    disc?.setAttribute('data-armed', '');
-    return disc;
-  }
-
   function onPointerMove(event: PointerEvent): void {
     if (otherPointer(event)) return;
     if (manaPress !== null && event.pointerId === manaPress.pointerId) {
-      const at = { x: event.clientX, y: event.clientY };
-      // A finger on a sideways-pannable lane card: a slide toward one of the ring's discs, or up or
-      // down (`pastSlopAcross`), is the ring's; a mostly-sideways move toward none is the lane's pan,
-      // whose `pointercancel` closes the ring with nothing sent. A swipe across a lane of duals
-      // scrolls it (run 42226619510, w89h), and a slide to a disc off to the side still picks it
-      // (run 42228610500, mana-ring.phone: the discs bloom above the finger, at an angle).
-      if (!manaPress.moved && pastSlop(manaPress.press, at) && (!sidewaysPan || pastSlopAcross(manaPress.press, at) || headsForDisc(manaPress.press, at))) {
-        manaPress.moved = true;
-      }
-      if (manaPress.moved) armManaDisc(at);
+      // No ring is drawn for a press, so there is nothing here to arm or protect — only
+      // whether THIS pointer ever crossed the drag slop, which `onPointerUp` reads to decide whether
+      // it was a tap. Nothing else claimed this press (or `manaPress` would already be null, see
+      // `claim`), so a card with a mana ring moves exactly as one with none would.
+      if (!manaPress.moved && pastSlop(manaPress.press, { x: event.clientX, y: event.clientY })) manaPress.moved = true;
       return;
     }
     const at = { x: event.clientX, y: event.clientY };
@@ -2009,15 +1965,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (manaPress !== null && event.pointerId === manaPress.pointerId) {
       const press = manaPress;
       manaPress = null;
-      // Logged: what the release was read as, so a report of a pick that did not happen is read, not guessed.
-      const disc = press.moved ? armManaDisc({ x: event.clientX, y: event.clientY }) : null;
-      options.report?.('info', { what: 'mana-press', card: press.source, moved: press.moved, picked: disc?.getAttribute('data-mana') ?? (disc === null ? '-' : 'chip'), touch: event.pointerType === 'touch' });
-      if (press.moved) {
-        // A disc's own click is its pick (`ManaRing`); let go on nothing, nothing is sent.
-        disc?.click();
-        closeManaPress(match);
-      } else tapManaPress(match, press.source);
-      // The click this release leaves is the press's, answered above: never also the card's or a disc's.
+      // Logged: what the release was read as, so a report of a drag this never opened a ring for is read, not guessed.
+      options.report?.('info', { what: 'mana-press', card: press.source, moved: press.moved, touch: event.pointerType === 'touch' });
+      // A drag opens nothing — whatever else was tracking this same press (an arrangeable
+      // permanent's own reorder-drag) resolves its own release; the native click this release leaves
+      // is left alone too, exactly as it would be for a card with no ring at all.
+      if (press.moved) return;
+      tapManaPress(match, press.source, { x: event.clientX, y: event.clientY, finger: event.pointerType === 'touch' || event.pointerType === 'pen' });
+      // The click this release leaves is the tap's own, answered above: never also the card's native click.
       clicks.arm('mana-press');
       return;
     }
@@ -2169,14 +2124,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   function onTouchMove(event: TouchEvent): void {
     if (!event.cancelable) return;
-    if (drag?.moved === true || placedDrag?.moved === true || manaPress?.moved === true) event.preventDefault();
+    // A mana-source candidate claims nothing and draws nothing, so there is no ring here for
+    // this to protect — whatever else is tracking the same press (an arrangeable permanent's own
+    // touch drag) cancels the browser's own default on its own terms.
+    if (drag?.moved === true || placedDrag?.moved === true) event.preventDefault();
   }
 
   function onPointerCancel(event: PointerEvent): void {
     if (otherPointer(event)) return;
     if (manaPress !== null && event.pointerId === manaPress.pointerId) {
       manaPress = null;
-      closeManaPress(match);
       return;
     }
     if (placedDrag !== null) {

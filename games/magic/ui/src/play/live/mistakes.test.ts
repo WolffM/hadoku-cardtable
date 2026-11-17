@@ -84,16 +84,34 @@ describe('mistakeOfClick: only the shapes Forge’s own state answers for certai
     expect(mistakeOfClick(view(me), 'not-offered', 1)).toBeNull();
   });
 
-  it('a press with no priority is "priority" — "no-input" and "nothing-offered" alike', () => {
-    const me = player({ hasPriority: false });
+  it('a press on this seat’s OWN hand or battlefield card with no priority is "priority" — "no-input" and "nothing-offered" alike', () => {
+    const own = card(7, 'Instant');
+    const me = player({ hasPriority: false, hand: [own] });
     expect(mistakeOfClick(view(me), 'no-input', 7)).toBe('priority');
     expect(mistakeOfClick(view(me), 'nothing-offered', 7)).toBe('priority');
   });
 
   it('is null for "no-input"/"nothing-offered" while the seat DOES have priority — a real gap, not this seat’s mistake', () => {
-    const me = player({ hasPriority: true });
+    const own = card(7, 'Instant');
+    const me = player({ hasPriority: true, hand: [own] });
     expect(mistakeOfClick(view(me), 'no-input', 7)).toBeNull();
     expect(mistakeOfClick(view(me), 'nothing-offered', 7)).toBeNull();
+  });
+
+  it('AF634: a click on a card in neither this seat’s hand nor battlefield is never "priority" — a view was never an attempt to act', () => {
+    const me = player({ hasPriority: false, isActive: false });
+    expect(mistakeOfClick(view(me), 'no-input', 42)).toBeNull();
+    expect(mistakeOfClick(view(me), 'nothing-offered', 42)).toBeNull();
+    expect(mistakeOfClick(view(me), 'not-offered', 42)).toBeNull();
+  });
+
+  it('AF634: a click on the opponent’s own battlefield permanent, while this seat waits, is never "priority" (the operator’s own report, a seat clicking the other’s permanents)', () => {
+    const theirs = card(42, 'Creature — Bear');
+    const me = player({ hasPriority: false, isActive: false });
+    const v = view(me);
+    const withTheirCard: BoardView = { ...v, players: [me, { ...v.players[1]!, battlefield: [theirs] }] };
+    expect(mistakeOfClick(withTheirCard, 'nothing-offered', 42)).toBeNull();
+    expect(mistakeOfClick(withTheirCard, 'no-input', 42)).toBeNull();
   });
 
   it('an attack aim at a summoning-sick creature is "sick" — haste already excluded by the board', () => {

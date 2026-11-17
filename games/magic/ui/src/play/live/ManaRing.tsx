@@ -6,16 +6,16 @@
  *
  * A pick is a click (a tap) on a disc, or a key (a colour letter, a pair's two letters, a digit).
  * Escape or a press away answers "none" where Forge allows it. On a finger the ring opens above the
- * press, never under it, its discs at least 44 px. A press on a source whose offer gives a choice
- * opens its ring before anything is sent (`./mana-press.ts`): a drag to a disc and a release on it
- * picks it there.
+ * press, never under it, its discs at least 44 px. A tap on a source whose offer gives a choice (a
+ * release that crossed no drag) sends its click and opens its ring there, held for Forge's
+ * question (`./mana-press.ts`).
  */
 
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 
 import { ManaCost, ManaPip } from '../../components/ManaPip.tsx';
 import { answerAsk, pressButton, undoableManaSource, undoManaChoice, type LiveAsk, type LiveMatch } from './match.ts';
-import { closeManaPress, echoOfManaPress, heldManaPress, MANA_PRESS_EVENT, manaPressOf, pickHeldPress, pickManaPress, releaseHeldPress, type ManaPress } from './mana-press.ts';
+import { echoOfManaPress, heldManaPress, MANA_PRESS_EVENT, pickHeldPress, releaseHeldPress, type ManaPress } from './mana-press.ts';
 import { clampOffset, pointerAt, type PressPoint } from './movable.tsx';
 import { chipLayout, costTokens, discKeys, inOrderOf, markGlyphs, optionForKeys, promptRing, ringFor, ringLayout, tallyDone, type Mana, type Ring, type RingAnswer, type RingOption } from './mana-ring.ts';
 import './mana-ring.css';
@@ -45,9 +45,7 @@ export interface ManaRingProps {
   readonly titles?: ReadonlyMap<string, string>;
   readonly onPick: (pick: RingPick) => void;
   readonly onCancel: () => void;
-  /** Drawn on a press, before Forge asked (`data-press`): the gestures layer resolves its release. */
-  readonly press?: boolean;
-  /** Opens where the press's ring just stood, without blooming again. */
+  /** Opens where a tap's ring just stood, without blooming again. */
   readonly still?: boolean;
   /** Where it opens; the pointer's last press or move on the board when none. Read once: it never moves after. */
   readonly anchor?: PressPoint | null;
@@ -123,7 +121,7 @@ function extentOf(discs: readonly { dx: number; dy: number }[], chips: readonly 
   return { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` };
 }
 
-export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, press = false, still = false, anchor, question, onOpen }: ManaRingProps) {
+export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, still = false, anchor, question, onOpen }: ManaRingProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const [finger, setFinger] = useState(coarsePointer);
@@ -264,7 +262,6 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, press = fa
         className={['mana-ring__ring', finger ? 'mana-ring__ring--finger' : '', still ? 'mana-ring__ring--still' : ''].filter(Boolean).join(' ')}
         data-testid="mana-ring"
         data-ring={kind}
-        data-press={press ? '' : undefined}
         data-method={ask?.method}
         data-call-id={ask?.callId}
         role="dialog"
@@ -333,8 +330,8 @@ function titlesOf(ring: Ring): Map<string, string> {
 
 /** What the one ring shows now, and who it answers. */
 interface Shown {
-  readonly by: 'press' | 'held' | 'ask' | 'prompt';
-  /** Which question: a press's and its held ring's are the same. */
+  readonly by: 'held' | 'ask' | 'prompt';
+  /** Which question: a held ring's and Forge's own after it are the same. */
   readonly question: string;
   readonly card: number | null;
   readonly ring: Ring;
@@ -345,10 +342,10 @@ interface Shown {
   readonly onCancel: () => void;
 }
 
-/** The ring of a press while it is down, or held after a tap until Forge's question takes it over. */
-function pressShown(match: LiveMatch, press: ManaPress, by: 'press' | 'held'): Shown {
+/** The ring held after a tap, until Forge's question for it takes it over. */
+function heldShown(match: LiveMatch, press: ManaPress): Shown {
   return {
-    by,
+    by: 'held',
     question: `press:${press.source}`,
     card: press.source,
     ring: press.ring,
@@ -356,10 +353,9 @@ function pressShown(match: LiveMatch, press: ManaPress, by: 'press' | 'held'): S
     titles: titlesOf(press.ring),
     onPick: (pick) => {
       if (pick.to === 'tally-done') return;
-      if (by === 'press') pickManaPress(match, press.source, pick);
-      else pickHeldPress(match, press.source, pick);
+      pickHeldPress(match, press.source, pick);
     },
-    onCancel: () => (by === 'press' ? closeManaPress(match) : releaseHeldPress(match)),
+    onCancel: () => releaseHeldPress(match),
   };
 }
 
@@ -421,9 +417,9 @@ const opens = new WeakMap<LiveMatch, number>();
 
 /**
  * The one mana ring (the operator, 2026-11-08: "it seems to display multiple times and move. let's make
- * sure it only displays once"). It owns whether the ring is open: a press's ring, held after a tap,
- * becomes the ring Forge's question about it asks, as the same element, where the press was. A
- * question that follows nothing a press opened opens a ring of its own.
+ * sure it only displays once"). It owns whether the ring is open: a tap's ring, held, becomes the
+ * ring Forge's question about it asks, as the same element, where the tap was. A question that
+ * follows nothing a tap opened opens a ring of its own.
  */
 export function ManaRings({ match, ask, promptColors, report }: { match: LiveMatch; ask: LiveAsk | null; promptColors: readonly [Mana, Mana] | null; report: (data: Record<string, string | number | boolean>) => void }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
@@ -433,29 +429,27 @@ export function ManaRings({ match, ask, promptColors, report }: { match: LiveMat
   }, []);
   const session = useRef<Session | null>(null);
 
-  const pressed = manaPressOf(match);
   const held = heldManaPress(match);
   const asked = ask === null ? null : askShown(match, ask);
   const shown: Shown | null =
-    pressed !== null ? pressShown(match, pressed, 'press')
-    : asked !== null ? asked
+    asked !== null ? asked
     : promptColors !== null ? promptShown(match, promptColors)
-    : held !== null && ask === null ? pressShown(match, held, 'held')
+    : held !== null && ask === null ? heldShown(match, held)
     : null;
 
   const was = session.current;
   let now: Session | null = null;
   if (shown !== null) {
     if (was !== null && was.question === shown.question) now = was.by === shown.by ? was : { ...was, by: shown.by };
-    else if (was !== null && (was.by === 'press' || was.by === 'held') && (shown.by === 'ask' || shown.by === 'prompt')) now = { ...was, question: shown.question, by: shown.by, takenOver: true };
+    else if (was !== null && was.by === 'held' && (shown.by === 'ask' || shown.by === 'prompt')) now = { ...was, question: shown.question, by: shown.by, takenOver: true };
     else {
-      const echo = shown.by === 'press' ? null : echoOfManaPress(match);
+      const echo = echoOfManaPress(match);
       now = {
         id: ++sessions,
         question: shown.question,
         by: shown.by,
         still: echo !== null,
-        anchor: shown.by === 'press' || shown.by === 'held' ? (pressed ?? held)!.at : echo,
+        anchor: shown.by === 'held' ? held!.at : echo,
         order: discKeys(shown.ring.options),
         takenOver: false,
       };
@@ -494,7 +488,6 @@ export function ManaRings({ match, ask, promptColors, report }: { match: LiveMat
       titles={shown.titles}
       onPick={shown.onPick}
       onCancel={shown.onCancel}
-      press={shown.by === 'press'}
       still={now.still}
       anchor={now.anchor}
       question={shown.question}

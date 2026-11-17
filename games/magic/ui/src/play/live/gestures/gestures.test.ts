@@ -72,7 +72,7 @@ import { installGestures } from './index.ts';
 import { MATCH_EVENTS } from '../transport.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
 import { RAMMING_ATTR } from '../ram.ts';
-import { heldManaPress, manaPressOf, releaseHeldPress } from '../mana-press.ts';
+import { heldManaPress, releaseHeldPress } from '../mana-press.ts';
 import type { GestureHandle } from './types.ts';
 import { LONG_PRESS_MS, mountInspector } from '../../inspect/index.ts';
 
@@ -4641,11 +4641,15 @@ describe('wave 89 §D — a touch tap reads a hand card and acts on a permanent;
  * own inline `touch-action` stands in for the stylesheet, which jsdom does not load.
  */
 /*
- * A land with a mana ring in a portrait lane (`touch-action: pan-x`): a press opens its ring under the
- * finger, but a sideways swipe is still the lane's scroll — the operator's rule that a finger can
- * always pan the board (run 42226619510: w89h's swipe across a lane of duals scrolled 0 px).
+ * The operator, on Abzan Devotee: "should not pop up the mana ability when i'm trying to drag it.
+ * only on mouse up should it appear and only if it wasn't dragged"; ruling the same day, "not just
+ * on release, but also only if on release and no drag happened. and yes, everything... otherwise
+ * theres no way to drag cards": a mana source's ring opens only on a release that crossed no drag,
+ * retiring the old press-drag-release outright. A press claims nothing, so an arrangeable
+ * permanent's own reorder-drag (`Board.tsx`'s `useArrangeDrag`) is free to start on it exactly as
+ * it would on a card with no ring at all.
  */
-describe('a mana source’s press ring in a sideways-scrolling lane — a sideways swipe still scrolls', () => {
+describe('a mana source’s ring opens only on a release that crossed no drag (AF626)', () => {
   async function ringBoard() {
     const board = await gestureBoard();
     const land = mineOf(board.m).battlefield[0]!.id;
@@ -4664,64 +4668,45 @@ describe('a mana source’s press ring in a sideways-scrolling lane — a sidewa
     }) as { abilities: readonly OfferedAbility[] };
     board.m.manaRings = new Map([[land, ask.abilities]]);
     const li = cardEl(board.canvas, land);
-    li.style.touchAction = 'pan-x';
     return { ...board, land, li };
   }
 
-  function touchMoveCancelled(at: Element): boolean {
-    const event = new Event('touchmove', { bubbles: true, cancelable: true });
-    at.dispatchEvent(event);
-    return event.defaultPrevented;
-  }
-
-  it('a sideways swipe is the lane’s scroll: the browser’s touchmove is left alone, and its pointercancel closes the ring, sending nothing', async () => {
-    const { s, m, li } = await ringBoard();
-    fireEvent.pointerDown(li, { button: 0, pointerType: 'touch', clientX: 300, clientY: 400 });
-    expect(manaPressOf(m), 'the press opens the ring').not.toBeNull();
-    fireEvent.pointerMove(li, { pointerType: 'touch', clientX: 220, clientY: 404 });
-    expect(touchMoveCancelled(li), 'sideways: the lane scrolls').toBe(false);
-    fireEvent.pointerCancel(li, { pointerType: 'touch' });
-    expect(manaPressOf(m), 'the pan closed the ring').toBeNull();
-    expect(await s.framesFrom(m)).toHaveLength(0);
-  });
-
-  it('a slide toward a disc off to the side is the ring’s, though it moves more sideways than up', async () => {
-    const { m, li, canvas } = await ringBoard();
-    fireEvent.pointerDown(li, { button: 0, pointerType: 'touch', clientX: 300, clientY: 400 });
-    // The press ring's disc, drawn up and to the left of the finger at a shallow angle (the ring blooms above it).
-    const ring = document.createElement('div');
-    ring.setAttribute('data-press', '');
-    const disc = document.createElement('button');
-    disc.setAttribute('data-testid', 'mana-ring-option');
-    disc.getBoundingClientRect = () => DOMRect.fromRect({ x: 194, y: 334, width: 52, height: 52 });
-    ring.append(disc);
-    canvas.append(ring);
-    fireEvent.pointerMove(li, { pointerType: 'touch', clientX: 250, clientY: 370 });
-    expect(touchMoveCancelled(li), 'toward the disc: the ring holds the finger').toBe(true);
-    fireEvent.pointerUp(li, { pointerType: 'touch', clientX: 250, clientY: 370 });
-    expect(manaPressOf(m)).toBeNull();
-    ring.remove();
-  });
-
-  it('a slide up or down past the slop is the ring’s: the browser’s touchmove is cancelled', async () => {
+  it('a press opens no ring and claims nothing: the browser’s own default stands, free for an arrangeable permanent’s own drag', async () => {
     const { m, li } = await ringBoard();
-    fireEvent.pointerDown(li, { button: 0, pointerType: 'touch', clientX: 300, clientY: 400 });
-    fireEvent.pointerMove(li, { pointerType: 'touch', clientX: 306, clientY: 340 });
-    expect(touchMoveCancelled(li), 'up: the ring holds the finger').toBe(true);
-    fireEvent.pointerUp(li, { pointerType: 'touch', clientX: 306, clientY: 340 });
-    expect(manaPressOf(m)).toBeNull();
+    const press = fireEvent.pointerDown(li, { button: 0, clientX: 300, clientY: 400 });
+    expect(press, 'not claimed — left to whatever else a press on this card starts').toBe(true);
+    expect(heldManaPress(m), 'nothing opens on the press').toBeNull();
+    fireEvent.pointerUp(li, { clientX: 300, clientY: 400 });
   });
 
-  it('a tap sends the click and holds its ring, the same one, for the question Forge asks next', async () => {
+  it('a press that crosses the drag slop before letting go opens no ring and sends nothing', async () => {
     const { s, m, li } = await ringBoard();
-    fireEvent.pointerDown(li, { button: 0, pointerType: 'mouse', clientX: 300, clientY: 400 });
-    const press = manaPressOf(m);
-    fireEvent.pointerUp(li, { pointerType: 'mouse', clientX: 300, clientY: 400 });
-    expect(manaPressOf(m), 'the press is over').toBeNull();
-    expect(heldManaPress(m), 'its ring is held, where the press was').toBe(press);
+    fireEvent.pointerDown(li, { button: 0, clientX: 300, clientY: 400 });
+    fireEvent.pointerMove(li, { clientX: 300 + 40, clientY: 400 });
+    fireEvent.pointerUp(li, { clientX: 300 + 40, clientY: 400 });
+    expect(heldManaPress(m), 'a drag opens no ring').toBeNull();
+    expect(await s.framesFrom(m), 'a drag sends nothing of this gesture’s own').toHaveLength(0);
+  });
+
+  it('a release with no drag sends the click and holds the ring, at the release point', async () => {
+    const { s, m, li } = await ringBoard();
+    fireEvent.pointerDown(li, { button: 0, clientX: 300, clientY: 400 });
+    fireEvent.pointerUp(li, { clientX: 300, clientY: 400 });
+    expect(heldManaPress(m), 'the ring opens, held, on the release').not.toBeNull();
     expect(heldManaPress(m)?.at).toEqual({ x: 300, y: 400, finger: false });
     expect(await s.framesFrom(m), 'the click went out').toHaveLength(1);
     releaseHeldPress(m);
+  });
+
+  it('a touch press claims nothing either: the lane’s own pan and a touch arrange-drag are both left alone', async () => {
+    const { m, li } = await ringBoard();
+    const press = fireEvent.pointerDown(li, { button: 0, pointerType: 'touch', clientX: 300, clientY: 400 });
+    expect(press, 'not claimed on touch either').toBe(true);
+    const move = new Event('touchmove', { bubbles: true, cancelable: true });
+    li.dispatchEvent(move);
+    expect(move.defaultPrevented, 'the candidate alone never cancels the browser’s own touchmove').toBe(false);
+    fireEvent.pointerCancel(li, { pointerType: 'touch' });
+    expect(heldManaPress(m), 'the cancelled candidate opened nothing').toBeNull();
   });
 });
 

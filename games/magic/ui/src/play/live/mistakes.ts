@@ -56,17 +56,27 @@ function ownCard(me: BoardPlayer, cardId: number): BoardPlayer['battlefield'][nu
  * A board click `match.ts`'s `refusal()` turned away. `reason` is `refusal()`'s own return value —
  * this function reads it, never recomputes it, so the two stay one rule. Null for everything this
  * classifier cannot say for certain.
+ *
+ * **Every shape below is about this seat trying to ACT with its own card** — `ownCard`'s own two
+ * zones. A click on anything else (a graveyard or exile card, either seat's; the opponent's
+ * battlefield) was never an attempt to act, whatever `reason` reads as: Board.tsx sends every
+ * unselectable card's click here, including a plain click to look at a card never offered to this
+ * seat. The operator's own report was exactly that: clicking an opponent's permanent while this
+ * seat waited (match m-dadc9e87cb11, seat 1 clicking seat 0's own battlefield cards) read
+ * `nothing-offered` and said "I have to wait for priority" for a card this seat was never trying
+ * to play or activate. `card` is looked up once, first, so neither check below can fire for it.
  */
 export function mistakeOfClick(view: BoardView | null, reason: string, cardId: number, unaffordable: ReadonlySet<number> | null = null): MistakeKey | null {
   if (view === null) return null;
   const me = view.players.find((p) => p.isViewer);
   if (me === undefined) return null;
-  // `InputPassPriority` and the gap between one input ending and the next starting both read
-  // `nothing-offered`/`no-input` — either way, a press with no priority is this seat's own mistake.
-  if ((reason === 'no-input' || reason === 'nothing-offered') && !me.hasPriority) return 'priority';
-  if (reason !== 'not-offered') return null;
   const card = ownCard(me, cardId);
   if (card === undefined) return null;
+  // `InputPassPriority` and the gap between one input ending and the next starting both read
+  // `nothing-offered`/`no-input` — either way, a press with no priority on this seat's own card is
+  // this seat's own mistake.
+  if ((reason === 'no-input' || reason === 'nothing-offered') && !me.hasPriority) return 'priority';
+  if (reason !== 'not-offered') return null;
   if (
     LAND.test(card.card.typeLine) &&
     me.numLandThisTurn !== undefined &&
