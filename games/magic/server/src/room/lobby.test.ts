@@ -2962,7 +2962,7 @@ describe('Lobby.playPod', () => {
 		if (started.ok) expect(started.room.game!.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, 'ai:4']]);
 	});
 
-	it('two players in a pod of eight, six of them AI: an eight-entrant Swiss, each human across the table from a bot', async () => {
+	it('two players in a pod of eight, six of them AI: humans first pairs the two of them together, and the six bots play each other out', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -2980,14 +2980,17 @@ describe('Lobby.playPod', () => {
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
 		expect(started.room.game!.pod).toMatchObject({ phase: 'rounds', round: 1, rounds: 3, bye: null });
-		// Seats 2 and 3 face seats 6 and 7; seats 0 and 1, both bots, face 4 and 5 in bot games.
-		expect(started.room.game!.pod?.pairings.map((p) => p.players)).toEqual([
-			[ALICE.id, 'ai:6'],
-			[BOB.id, 'ai:7'],
-		]);
+		// The operator, 2026-11-16: "in a pod with two or more humans,
+		// pair humans with each other … a bot only takes a human who has no
+		// human left to play." Seats 2 and 3 are the two humans — ALICE and BOB
+		// pair with EACH OTHER now, not each across the table from a bot — and
+		// the six bots (seats 0, 1, 4, 5, 6, 7) pair up among themselves and
+		// play out headless with no table at all.
+		expect(started.room.game!.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, BOB.id]]);
 		expect(started.room.game!.pod?.results).toEqual([
-			{ round: 1, playerA: 'ai:0', playerB: 'ai:4', gamesA: 2, gamesB: 0 },
-			{ round: 1, playerA: 'ai:1', playerB: 'ai:5', gamesA: 2, gamesB: 0 },
+			{ round: 1, playerA: 'ai:0', playerB: 'ai:5', gamesA: 2, gamesB: 0 },
+			{ round: 1, playerA: 'ai:1', playerB: 'ai:6', gamesA: 2, gamesB: 0 },
+			{ round: 1, playerA: 'ai:4', playerB: 'ai:7', gamesA: 2, gamesB: 0 },
 		]);
 	});
 });
@@ -3032,7 +3035,7 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		expect(lobby.playerState(id, CAROL.id)).toEqual({ seatedFor: CAROL.id });
 	});
 
-	it('three humans and two bots are a five-entrant Swiss: the bots pair as humans would, and the middle seat still has the bye', async () => {
+	it('three humans and two bots are a five-entrant Swiss: humans first pairs two of the three humans together, and a bot — never the third human — takes the bye', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -3048,12 +3051,18 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		const started = playAll(lobby, id, [ALICE, BOB, CAROL]);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
-		expect(started.room.game!.pod).toMatchObject({ round: 1, rounds: 3, bye: CAROL.id });
+		// Humans first: the human-only round-1 formula leaves BOB as the odd one out
+		// among the three humans (ALICE pairs with CAROL); he takes the bot a
+		// human's own round would have left free, and the bot that displaces
+		// — never a human — takes the bye.
+		expect(started.room.game!.pod).toMatchObject({ round: 1, rounds: 3, bye: 'ai:3' });
 		expect(started.room.game!.pod?.pairings.map((p) => p.players)).toEqual([
-			[ALICE.id, 'ai:3'],
+			[ALICE.id, CAROL.id],
 			[BOB.id, 'ai:4'],
 		]);
-		// Each bot's character is its own seat's, the one the lobby showed.
+		// Each bot's character is its own seat's, the one the lobby showed —
+		// 'ai:3' still names one, even on the bye: its `playerB: null` result
+		// names it too (`podPersonas`'s own doc).
 		const seats = lobby.get(id)!.game!.pod!;
 		expect(Object.keys(seats.personas).sort()).toEqual(['ai:3', 'ai:4']);
 	});
@@ -3198,12 +3207,14 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
 		expect(started.room.game!.pod?.phase).toBe('rounds');
-		// Seats 0–2 are theirs and 3–7 the bots': each of them across the table from a bot, no bye.
+		// Seats 0–2 are theirs and 3–7 the bots'. Humans first: two of the three humans
+		// (ALICE, CAROL — the human-only round-1 formula) pair with each other;
+		// the third (BOB) takes a bot, since no human is left for him. 8 is
+		// even, so no bye; the remaining bots play each other out.
 		expect(started.room.game!.pod?.bye).toBeNull();
 		expect(started.room.game!.pod?.pairings.map((p) => p.players)).toEqual([
-			[ALICE.id, 'ai:4'],
+			[ALICE.id, CAROL.id],
 			[BOB.id, 'ai:5'],
-			[CAROL.id, 'ai:6'],
 		]);
 
 		// The pod lookup reads `Lobby.podDraft`, exactly as `http/routes.ts`'s
@@ -4623,7 +4634,15 @@ describe('a table resolved from its card: Abandon and Drop match (docs/planning/
 });
 
 describe('Leader tools: DQ a player, reset a game', () => {
-	/** Bob and Carol against two AI entrants, Alice leading — watching, or at seat 3 in the AI's place. */
+	/** Dave — a 4th named entrant, only this describe block's (the file's own ad hoc pattern, `DAVE` at line 4617). */
+	const DAVE = { id: 'fk:4444444444444444', name: 'user-dave', userId: 'uid-user-dave' };
+
+	/**
+	 * Bob, Carol and Dave — three humans, so humans first pairs two of
+	 * them together — against one AI entrant, Alice leading: watching, or seated
+	 * at seat 3 in the AI's place (then all four are human, and the humans-first fallback
+	 * is the plain single-field Swiss, same as ever).
+	 */
 	async function fourEntrants(opts: { leaderSeated?: boolean } = {}) {
 		const entries: Record<string, unknown>[] = [];
 		const ended: SeriesEnd[] = [];
@@ -4632,15 +4651,15 @@ describe('Leader tools: DQ a player, reset a game', () => {
 		const made = lobby.create(ALICE, { name: 'DQ night', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
-		for (const m of [BOB, CAROL]) expect(lobby.join(id, m).ok).toBe(true);
+		for (const m of [BOB, CAROL, DAVE]) expect(lobby.join(id, m).ok).toBe(true);
 		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
 		standAll(lobby, id);
 		expect(lobby.sitSeat(id, BOB.id, 0).ok).toBe(true);
 		expect(lobby.sitSeat(id, CAROL.id, 1).ok).toBe(true);
-		expect(lobby.aiSeat(id, ALICE.id, 2, true).ok).toBe(true);
+		expect(lobby.sitSeat(id, DAVE.id, 2).ok).toBe(true);
 		if (opts.leaderSeated === true) expect(lobby.sitSeat(id, ALICE.id, 3).ok).toBe(true);
 		else expect(lobby.aiSeat(id, ALICE.id, 3, true).ok).toBe(true);
-		wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+		wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id, DAVE.id]) }));
 		const started = lobby.startDraft(id, ALICE.id);
 		if (!started.ok) throw new Error('rounds did not start');
 		const tableOf = (who: string) => lobby.get(id)!.game!.pod!.pairings.find((p) => p.players.includes(who))!.tableId;
@@ -4649,6 +4668,9 @@ describe('Leader tools: DQ a player, reset a game', () => {
 
 	it('the leader, watching, DQs a player mid-round: their match is a loss, their later pairings are byes, and the standings keep them, marked', async () => {
 		const { lobby, dir, id, entries, tableOf } = await fourEntrants();
+		// Humans first: the three humans' own round-1 formula pairs Bob with Dave
+		// (Carol is the odd one out among them and takes the lone bot, seat 3)
+		// — two independent live tables, so DQing Bob does not end Carol's round.
 		const bobs = tableOf(BOB.id);
 		expect(lobby.setTableMatch(id, bobs, 'm-bob1')).toBe(true);
 
@@ -4662,7 +4684,10 @@ describe('Leader tools: DQ a player, reset a game', () => {
 		expect(view.game!.pod!.dropped).toEqual([BOB.id]);
 		expect(entries).toContainEqual(expect.objectContaining({ event: 'player-dq', roomId: id, by: ALICE.id, memberId: BOB.id }));
 
-		// Carol's table finishes round 1; round 2 pairs, and whoever drew Bob gets a bye instead of a table.
+		// Carol's table (against the AI) finishes round 1; round 2 pairs Carol
+		// and Dave together (the two humans left) and Bob, dropped,
+		// draws the lone AI — which gets a bye instead of a table, exactly as
+		// "a bot only takes a human who has no human left to play" leaves it.
 		const carols = tableOf(CAROL.id);
 		for (const m of ['m-c1', 'm-c2']) {
 			expect(lobby.setTableMatch(id, carols, m)).toBe(true);
@@ -4671,9 +4696,10 @@ describe('Leader tools: DQ a player, reset a game', () => {
 		view = magicView(lobby.get(id))!;
 		expect(view.game!.pod!.round).toBe(2);
 		expect(view.game!.pod!.pairings.flatMap((p) => p.players), 'no table in round 2 seats him').not.toContain(BOB.id);
+		expect(view.game!.pod!.pairings.map((p) => p.players)).toEqual([[CAROL.id, DAVE.id]]);
 		const round2 = view.game!.pod!.results.filter((r) => r.round === 2);
 		expect(round2.some((r) => r.playerA === BOB.id || r.playerB === BOB.id), 'he plays no further match, so his record is kept').toBe(false);
-		expect(round2.filter((r) => r.playerB === null), 'his opponent has a bye').toHaveLength(1);
+		expect(round2.filter((r) => r.playerB === null), 'whoever drew him has a bye instead — here the lone AI').toHaveLength(1);
 		expect(view.game!.pod!.standings.map((s) => s.id)).toContain(BOB.id);
 
 		// Survives a restart.

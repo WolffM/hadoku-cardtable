@@ -443,19 +443,21 @@ function tournamentTable(room: RoomRecord): TournamentPlace[] {
  * TOURNAMENT pod's `entrants` are `podEntrants`'s own list, read against the
  * SAME compaction (`tournamentTable`) that produced it, so an id's `podSeat`
  * here is always the one it was minted with — an empty seat is no seat at
- * all, never a numbering gap.
+ * all, never a numbering gap. Each row's `isBot` is the place's own
+ * `kind !== 'human'` — `pairing.ts`'s `pairRound` reads it to pair humans
+ * before bots (the operator, 2026-11-16).
  */
 export function podPlayers(room: RoomRecord, entrants: readonly string[]): PodPlayer[] {
 	if (isTournamentRoom(room)) {
 		return tournamentTable(room).flatMap((place, podSeat) => {
 			if (place.kind === 'empty') return [];
 			const id = place.kind === 'human' ? place.id : aiEntrantId(podSeat);
-			return entrants.includes(id) ? [{ id, podSeat }] : [];
+			return entrants.includes(id) ? [{ id, podSeat, isBot: place.kind !== 'human' }] : [];
 		});
 	}
 	return podTable(room).flatMap((place, podSeat) => {
 		const id = place.kind === 'human' ? place.id : aiEntrantId(podSeat);
-		return entrants.includes(id) ? [{ id, podSeat }] : [];
+		return entrants.includes(id) ? [{ id, podSeat, isBot: place.kind !== 'human' }] : [];
 	});
 }
 
