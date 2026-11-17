@@ -15,9 +15,10 @@
  * the Experimental-features-gated create-room radio (`RoomList.tsx`) — using a toy stub bundle
  * (`fixtures/external-game-embed.fixture.js`), not hadoku-bomberman's own code (never copied
  * here) or its old by-name spec (`e2e/bomberman.spec.ts`, deleted this wave: "no bomberman code
- * in cardtable"). The one real config entry it rides on today happens to be named `bomberman`
- * (the only entry `EXTERNAL_GAMES` has) — that is a fact about today's configuration, not about
- * this spec, which never otherwise names it.
+ * in cardtable"). Wave 120 §F: this spec rides on `EXTERNAL_GAMES`' own `e2e-toy-relay` entry
+ * (`e2eOnly: true`, `packages/game-ui/src/rooms/external-games-config.ts`), never on `bomberman`
+ * by name or by position — deleting the `bomberman` entry (bomberman's own wave `bm1` is expected
+ * to) deletes nothing this spec depends on.
  *
  * Covers everything `bomberman.spec.ts` did (both seats get a channel and talk, a seat drops and
  * returns inside its seat hold, the leader's `over` is the room's result, reloading after the end
@@ -44,18 +45,32 @@ const PREFIX = '/cardtable';
 const FIXTURE_PATH = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures/external-game-embed.fixture.js');
 
 /**
- * The one entry `EXTERNAL_GAMES` has today (`apps/server/src/plugins/external-games.ts`,
- * `@hadoku/game-ui/rooms/external-games.tsx`) — read off that config, not asserted as a fact this
- * spec depends on being named any particular thing. Its own seat hold, carried to the relay.
+ * `EXTERNAL_GAMES`' own e2e-only entry (`packages/game-ui/src/rooms/external-games-config.ts`) —
+ * read off that config's own shape below, not asserted as a fact this spec depends on bomberman
+ * being named any particular thing or holding any particular position in the array. Its own seat
+ * hold, carried to the relay.
  */
-const EXTERNAL_GAME_TYPE = 'bomberman';
+const EXTERNAL_GAME_TYPE = 'e2e-toy-relay';
 const SEAT_HOLD_MS = 120_000;
 
 /** Serve the stub bundle for every request the room's `BundleSlot` makes, same origin, any port. */
 async function stubExternalGameEmbed(context: BrowserContext): Promise<void> {
-  await context.route('**/bomberman/embed/bomberman-embed.js', (route) =>
+  await context.route('**/e2e/toy-relay-embed.js', (route) =>
     route.fulfill({ path: FIXTURE_PATH, contentType: 'text/javascript' }),
   );
+}
+
+/**
+ * The one client-side escape for this entry (`RoomList.tsx`'s own `e2eToyGamesEnabled`): without
+ * it, Create room's radio never offers `e2e-toy-relay` in a real browser, Experimental features on
+ * or not — a per-member preference is not a flag this spec, or anyone else, should be able to flip
+ * in prod. Set before the page's own scripts run, so the module-scope read sees it from the first
+ * render.
+ */
+async function enableE2eToyGames(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    (window as unknown as { __cardtableE2eToyGames?: boolean }).__cardtableE2eToyGames = true;
+  });
 }
 
 const fixturePanel = (page: Page) => page.getByTestId('external-game-fixture');
@@ -70,12 +85,14 @@ test(titled('a configured external-game room, made through Create room with Expe
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
-  const stack = await startPlayStack(forge, { env: { CARDTABLE_EXPERIMENTAL_GAMES: '1' } });
+  const stack = await startPlayStack(forge, { env: { CARDTABLE_EXPERIMENTAL_GAMES: '1', CARDTABLE_E2E_TOY_GAMES: '1' } });
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
     await stubExternalGameEmbed(alice.context);
     await stubExternalGameEmbed(bob.context);
+    await enableE2eToyGames(alice.context);
+    await enableE2eToyGames(bob.context);
 
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await openCreateRoom(alice.page);

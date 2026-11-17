@@ -37,12 +37,22 @@ export interface ExternalGameConfig {
   embedSrc: string;
   /** How long a dropped seat is held for its player to come back (`relay-match.ts`'s `seatRejoinGraceMs`). */
   seatRejoinGraceMs: number;
+  /**
+   * An entry that proves the GENERIC mechanism rather than any one real game (wave 120 §F:
+   * "deleting the `bomberman` entry deletes nothing else" — `e2e/external-game-room.spec.ts` rides
+   * on this one, never on `bomberman` by name). `apps/server/src/plugins/external-games.ts`'s
+   * `setup()` filters an `e2eOnly` entry out of its registration loop unless
+   * `CARDTABLE_E2E_TOY_GAMES=1` — a SECOND, dedicated gate on top of the shared
+   * `CARDTABLE_EXPERIMENTAL_GAMES` every entry already has, so this one stays unregistered even
+   * where a real external game is turned on. The e2e spec's own `startPlayStack` sets both.
+   */
+  e2eOnly?: boolean;
 }
 
 /**
- * One entry per external game cardtable may host. Bomberman is the only one today — its own
- * repo serves `/bomberman/embed/bomberman-embed.js` same-origin, the same path watchparty loads
- * it from.
+ * One entry per external game cardtable may host, plus one e2e-only fixture entry. Bomberman's own
+ * repo serves `/bomberman/embed/bomberman-embed.js` same-origin, the same path watchparty loads it
+ * from.
  *
  * - `seats: {min:2, max:10}` — `hadoku-bomberman/game/src/consts.rs:54` (`MAX_PLAYERS = 10`) and
  *   `game/src/board.rs:136` (no 1-player map).
@@ -57,5 +67,14 @@ export const EXTERNAL_GAMES: readonly ExternalGameConfig[] = [
     runtime: 'relay',
     embedSrc: '/bomberman/embed/bomberman-embed.js',
     seatRejoinGraceMs: 120_000,
+  },
+  {
+    id: 'e2e-toy-relay',
+    label: 'Toy Relay Game',
+    seats: { min: 2, max: 4 },
+    runtime: 'relay',
+    embedSrc: '/e2e/toy-relay-embed.js',
+    seatRejoinGraceMs: 120_000,
+    e2eOnly: true,
   },
 ];
