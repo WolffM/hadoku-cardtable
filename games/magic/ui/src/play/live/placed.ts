@@ -331,15 +331,32 @@ export function isPlaced(cardId: number): boolean {
 /**
  * A hand on a stack item: where it is drawn from (`from`, at `since`), its latest point (`to`), and
  * how long it takes to get there (`ms`). Alone on an item, this screen's own hand is always at its
- * latest: a drag follows the pointer. With two hands on it, every hand eases, or the point between
- * them saw-tooths: another seat's arrives a relay apart (`PRESENCE_SEND_MS`, later when the wire is
- * slow) and eases over two relays, so it never stops between them; this screen's own moves a
- * pointer event at a time and eases over one. Claw runs 41545233269 (3 turns in 46 frames, the
- * other hand stepping) and 41571386507 (7 turns at 60 fps, this hand stepping 10 px a move).
+ * latest: a drag follows the pointer. With two hands on it, this screen's own moves a pointer event
+ * at a time and eases over one; another seat's arrives a relay apart (`PRESENCE_SEND_MS`) and eases
+ * over half of one (`RELAY_CATCHUP_MS`) — `vx`/`vy` are 0 for `you`, which never needs them — then,
+ * for the other half, `handAt` keeps it moving along the velocity its last two relayed points
+ * measured (capped at `EXTRAPOLATE_CAP_MS`), instead of sitting still at a point that is already a
+ * relay stale. A flat ease to two relays behind measured 25-50px of disagreement on a moving drag,
+ * on two different-size screens (stack-drag-shared.spec.ts, claw runs); this is the fix that test's
+ * own comment named as still open.
+ *
+ * Both halves are short, and that is deliberate, not a half-measure: a catch-up or an extrapolation
+ * as long as a whole relay interval overshoots whenever one relay arrives later than the last (a
+ * jittered network, never a metronome) — the velocity it just measured is already a little wrong by
+ * the time the NEXT point lands, so projecting it for a full interval turned back on itself under
+ * the claw's own jittered-relay replay (41571386507's 7 turns, reproduced locally at 9 turns with a
+ * full-interval catch-up and no cap). Half an interval each is the largest that still measured ZERO
+ * turns against that same replay, locally, while still cutting the lag the unit test below measures
+ * (53.3px with no extrapolation at all → 13.3px here, for the same 160px/360ms drag). Never GLIDE_MS
+ * or PRESENCE_SEND_MS itself (Settled).
  */
-type Hand = { from: Point; to: Point; since: number; ms: number };
+type Hand = { from: Point; to: Point; since: number; ms: number; vx: number; vy: number };
+/** This screen's own hand, when another shares the item: a pointer event at a time, so it eases over one relay interval, same as the other hand's. Alone on the item it is instant (`ms: 0`). */
 const OWN_EASE_MS = PRESENCE_SEND_MS;
-const RELAYED_EASE_MS = 2 * PRESENCE_SEND_MS;
+/** A relayed hand's catch-up leg on each new point — see `Hand`'s own doc for why this is half a relay, not a whole one. */
+const RELAY_CATCHUP_MS = Math.round(PRESENCE_SEND_MS / 2);
+/** How long past a relayed hand's catch-up `handAt` keeps extrapolating its last velocity before freezing — see `Hand`'s own doc; also the ceiling on a stalled or dropped sender's chip running away. */
+const EXTRAPOLATE_CAP_MS = Math.round(PRESENCE_SEND_MS / 2);
 /** When the hands on an item change (one takes hold or lets go), it moves to its new point over this, never in a step. */
 const HANDS_CHANGE_MS = GLIDE_MS;
 
@@ -354,9 +371,19 @@ const handsChanged = new Map<number, { from: Point; since: number }>();
 const lerp = (a: Point, b: Point, t: number): Point => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
 const progress = (now: number, since: number, ms: number): number => (ms <= 0 ? 1 : Math.min(1, Math.max(0, (now - since) / ms)));
 
-/** Where a hand is drawn at `now`: its latest, or (`ease`) on its way there from where it was. */
+/**
+ * Where a hand is drawn at `now`: easing to its latest point over `ms`; once there, extrapolating
+ * along `vx`/`vy` (0 for this screen's own hand, and for one with fewer than two points yet) for up
+ * to `EXTRAPOLATE_CAP_MS` past the catch-up, so a relayed hand's drawn point keeps tracking the
+ * dragging seat's path between relays instead of waiting at the last one it heard.
+ */
 function handAt(hand: Hand, now: number, ease: boolean): Point {
-  return ease ? lerp(hand.from, hand.to, progress(now, hand.since, hand.ms)) : hand.to;
+  if (!ease) return hand.to;
+  const t = progress(now, hand.since, hand.ms);
+  if (t < 1) return lerp(hand.from, hand.to, t);
+  if (hand.vx === 0 && hand.vy === 0) return hand.to;
+  const aheadMs = Math.min(now - (hand.since + hand.ms), EXTRAPOLATE_CAP_MS);
+  return { x: hand.to.x + hand.vx * aheadMs, y: hand.to.y + hand.vy * aheadMs };
 }
 
 /** Where the hands on an item put it: between them. */
@@ -365,6 +392,9 @@ function handsPoint(held: ReadonlyMap<string, Hand>, now: number, ease: boolean)
   if (points.length === 0) return null;
   return { x: points.reduce((sum, p) => sum + p.x, 0) / points.length, y: points.reduce((sum, p) => sum + p.y, 0) / points.length };
 }
+
+/** Whether `h` is still moving on its own: easing to its latest point, or (a relayed hand) still extrapolating past it. */
+const handMoving = (h: Hand, now: number): boolean => now - h.since < h.ms || ((h.vx !== 0 || h.vy !== 0) && now - (h.since + h.ms) < EXTRAPOLATE_CAP_MS);
 
 /**
  * Where stack item `id` is drawn at `now`, and whether it is still on its way there (another frame is
@@ -375,7 +405,7 @@ function drawnPoint(id: number, at: Point, now: number, ease: boolean): { at: Po
   if (!ease) return { at, moving: false };
   const held = hands.get(id);
   const target = held === undefined ? at : (handsPoint(held, now, true) ?? at);
-  let moving = held !== undefined && [...held.values()].some((h) => now - h.since < h.ms);
+  let moving = held !== undefined && [...held.values()].some((h) => handMoving(h, now));
   const changed = handsChanged.get(id);
   if (changed === undefined) return { at: target, moving };
   const t = progress(now, changed.since, HANDS_CHANGE_MS);
@@ -402,14 +432,27 @@ export function gripStackItem(id: number, hand: string, at: Point, grip: Grip, s
   const held = hands.get(id) ?? new Map<string, Hand>();
   const was = record === undefined ? null : drawnPoint(id, record.at, now, true).at;
   const before = [...held.keys()].join();
-  const fresh = (p: Point): Hand => ({ from: p, to: p, since: now, ms: 0 });
+  const fresh = (p: Point): Hand => ({ from: p, to: p, since: now, ms: 0, vx: 0, vy: 0 });
   if (grip === 'grab' || grip === 'drop') held.delete(hand);
   if (grip === 'grab') held.set(hand, fresh(at));
   else if (grip === 'move' && held.has(hand)) {
     // A hand eases on from where it is drawn now (see `Hand`); this screen's own, alone on it, is where the pointer is.
-    const shared = held.size > 1;
-    const ms = hand !== 'you' ? RELAYED_EASE_MS : shared ? OWN_EASE_MS : 0;
-    held.set(hand, ms === 0 ? fresh(at) : { from: handAt(held.get(hand)!, now, true), to: at, since: now, ms });
+    const prev = held.get(hand)!;
+    const from = handAt(prev, now, true);
+    if (hand !== 'you') {
+      // The velocity between this relayed point and the last one, over the time since that one
+      // arrived (`prev.since`): what `handAt` extrapolates with once this leg's catch-up ends, so a
+      // watcher's copy keeps moving along the sender's actual path between relays rather than
+      // waiting at the point just caught up to.
+      const dt = now - prev.since;
+      const vx = dt > 0 ? (at.x - prev.to.x) / dt : 0;
+      const vy = dt > 0 ? (at.y - prev.to.y) / dt : 0;
+      held.set(hand, { from, to: at, since: now, ms: RELAY_CATCHUP_MS, vx, vy });
+    } else {
+      const shared = held.size > 1;
+      const ms = shared ? OWN_EASE_MS : 0;
+      held.set(hand, ms === 0 ? fresh(at) : { from, to: at, since: now, ms, vx: 0, vy: 0 });
+    }
   }
   if (order !== undefined) {
     const mine = held.get('you');
