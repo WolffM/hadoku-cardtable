@@ -93,6 +93,12 @@ function deal(raw: readonly BridgeLine[]): string {
 		.join('\n');
 }
 
+/** Whether seat 0 has been told both seats' libraries by the end of `raw`. */
+function hasLibraries(raw: readonly BridgeLine[]): boolean {
+	const last = rawStatesOf(raw, 0).at(-1);
+	return last !== undefined && [0, 1].every((p) => zoneIds(last.get(deltaKey(DELTA_TYPE.player, p)), 'Library').length > 0);
+}
+
 const spec = (): ForgeMatchSpec => ({
 	seed: SEED,
 	seats: [
@@ -122,14 +128,18 @@ async function dealtOnce(): Promise<{ dealt: string; trace: string }> {
 		});
 		const match: Match = registry.create(spec());
 		expect(await match.whenRunning(120_000)).toEqual({ ok: true });
-		// Forge opens with the coin toss, which it cannot ask before the libraries
-		// exist — so seat 0's first prompt is the signal that seat 0 has been told
-		// the deal. Seat 0's own: each seat's frames arrive on that seat's client
+		// Read at seat 0's first prompt by which seat 0 has been told both libraries.
+		// Not simply its first prompt: a prompt bar can reach seat 0 before the delta
+		// that carries the deal does (two scheduled runs read
+		// `… s0:applyDelta s0:showPromptMessage s0:updateButtons` with both libraries
+		// still empty). Seat 0's own: each seat's frames arrive on that seat's client
 		// thread, so the other seat's prompt says nothing of what seat 0 has heard.
-		// And read as of that frame, not as of the poll: one fixed point in one
-		// seat's stream, the same in both runs.
-		await waitUntil(() => raw.some((l) => isPrompt(l, 0)), "seat 0's first prompt", 60_000);
-		const at = raw.findIndex((l) => isPrompt(l, 0));
+		// And read as of that frame, not as of the poll: one fixed point in one seat's
+		// stream, the same in both runs, since nothing reshuffles before the coin toss
+		// is answered.
+		const toldAt = (): number => raw.findIndex((l, i) => isPrompt(l, 0) && hasLibraries(raw.slice(0, i + 1)));
+		await waitUntil(() => toldAt() !== -1, "seat 0's first prompt after the deal", 60_000);
+		const at = toldAt();
 		const dealt = deal(raw.slice(0, at + 1));
 		match.stop();
 		return { dealt, trace: frameTrace(raw, at + 1) };
