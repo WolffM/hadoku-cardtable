@@ -1,0 +1,17 @@
+# Path to Exile's arrow outlived its target (the operator, 2026-11-17, m-f1e1958ca49b): the AI's Path
+# exiled their Lotus Cobra 47 ms after the cast, then they searched for a basic land for 12.7 s with
+# Path still on the stack, its arrow drawn into their exile pile. Two seats: bob (the second seat)
+# casts Path at alice's Grizzly Bears in his Main 1, so the search is alice's and stays open.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Grizzly Bears
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=Path to Exile
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=

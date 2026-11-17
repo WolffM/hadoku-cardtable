@@ -235,6 +235,18 @@ const drawnListeners = new Set<(id: number) => void>();
 /** `installPlaced`'s own repaint hooks — every placement change asks every live instance to redraw. */
 const repaintHooks = new Set<() => void>();
 
+/** The zones a stack item's card target can stand in, as a board view lists them. */
+type CardZone = 'battlefield' | 'graveyard' | 'exile';
+
+/** Every card's zone in `view`, of the zones a target can stand in. */
+function zonesOf(view: BoardView): Map<number, CardZone> {
+  const out = new Map<number, CardZone>();
+  for (const p of view.players) {
+    for (const zone of ['battlefield', 'graveyard', 'exile'] as const) for (const c of p[zone]) out.set(c.id, zone);
+  }
+  return out;
+}
+
 function requestRepaint(): void {
   for (const hook of repaintHooks) hook();
 }
@@ -1013,6 +1025,39 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
    */
   const clickable = { turn: Number.NaN, ids: new Set<number>(), own: '' };
   const drawn = new Map<number, Drawn>();
+  /**
+   * The zone each card target stood in when its stack item was put on the stack, by arrow key: a card
+   * that leaves it is a new object, no longer the target, and its arrow goes. Path to Exile's creature
+   * is in exile while its controller searches for a land, the spell still on the stack (the operator,
+   * 2026-11-17, m-f1e1958ca49b: the Cobra exiled 47 ms after the cast, the search 12.7 s). Recorded from
+   * the views (`noteTargetZones`), never from a paint: an opponent's cast is paced, and its first paint
+   * may already find the creature in exile.
+   */
+  const targetZones = new Map<string, CardZone>();
+  /** Each card's zone in the latest view, and in the one before it (`noteTargetZones`). */
+  let zonesNow = new Map<number, CardZone>();
+  let zonesBefore = new Map<number, CardZone>();
+
+  /**
+   * A stack item's card targets, the first view it is in: each one's zone as it was put on the stack.
+   * On the battlefield in the view before, that is its zone — two of Forge's deltas, the cast and the
+   * exile, can arrive as one view. Otherwise its zone now, so a target in a graveyard keeps its arrow there.
+   */
+  function noteTargetZones(view: BoardView): void {
+    zonesBefore = zonesNow;
+    zonesNow = zonesOf(view);
+    const onStack = new Set<string>();
+    for (const item of view.stack) {
+      onStack.add(String(item.id));
+      for (const id of item.targetCardIds ?? []) {
+        const key = `${item.id}:card:${id}`;
+        if (targetZones.has(key)) continue;
+        const zone = zonesBefore.get(id) === 'battlefield' ? 'battlefield' : zonesNow.get(id);
+        if (zone !== undefined) targetZones.set(key, zone);
+      }
+    }
+    for (const key of targetZones.keys()) if (!onStack.has(key.slice(0, key.indexOf(':')))) targetZones.delete(key);
+  }
   /** AE27: items gone from the stack, still drawn while something on it targets them (`awaitCounter`). */
   const awaitingCounter = new Set<number>();
   /** Abilities on the stack never drawn (nobody stopped), by stack id → their source card's id. */
@@ -1619,8 +1664,11 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       if (d === undefined || d.leaving) continue;
       const targets: { key: string; to: Element; box?: Rect | undefined; cause?: true }[] = [];
       for (const id of item.targetCardIds ?? []) {
+        const key = `${item.id}:card:${id}`;
+        const home = targetZones.get(key);
+        if (home !== undefined && home !== zonesNow.get(id)) continue;
         const to = cardBox(canvas, id);
-        if (to !== null) targets.push({ key: `${item.id}:card:${id}`, to });
+        if (to !== null) targets.push({ key, to });
       }
       for (const id of item.targetPlayerIds ?? []) {
         const to = faceBox(canvas, id);
@@ -1948,6 +1996,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   return {
     notify(view: BoardView, nextInteraction?: PlacedInteraction): void {
       if (!live) return;
+      noteTargetZones(view);
       lastView = view;
       interaction = nextInteraction;
       render();

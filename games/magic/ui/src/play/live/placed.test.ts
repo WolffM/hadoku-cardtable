@@ -1097,6 +1097,57 @@ describe('installPlaced: arrows (item 2, item 8’s other mutation point)', () =
     handle.dispose();
   });
 
+  /** `view`, with alice's card 201 in `zone` (the board's DOM is moved to match by the caller). */
+  function viewWith201(stack: StackEntry[], zone: 'battlefield' | 'graveyard' | 'exile'): BoardView {
+    const v = view(stack);
+    const alice = v.players[0]!;
+    return { ...v, players: [{ ...alice, [zone]: [battlefieldCard(201)] }, v.players[1]!] };
+  }
+  /** Board 201 drawn in alice's `zone` pile instead of her battlefield. */
+  function draw201In(canvas: HTMLElement, zone: string): void {
+    const pile = document.createElement('div');
+    pile.setAttribute('data-zone', zone);
+    pile.setAttribute('data-owner', 'you');
+    pile.append(canvas.querySelector('[data-board-card="201"]')!);
+    canvas.querySelector('.board')!.append(pile);
+  }
+  const arrowsFor9 = (canvas: HTMLElement) => canvas.querySelectorAll('[data-board-overlay] .placed__arrow[data-for="9"]').length;
+
+  it('a target that has left its zone is no longer aimed at, though the spell is still resolving (Path to Exile’s land search)', () => {
+    // The operator, 2026-11-17 (m-f1e1958ca49b): the AI's Path to Exile on their Lotus Cobra, exiled
+    // 47 ms after the cast, while they spent 12.7 s on the land search with Path still on the stack.
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(viewWith201([], 'battlefield'));
+    handle.notify(viewWith201([stackItem(9, { targetCardIds: [201] })], 'battlefield'));
+    expect(arrowsFor9(canvas), 'aimed at the creature').toBe(1);
+    draw201In(canvas, 'exile');
+    handle.notify(viewWith201([stackItem(9, { targetCardIds: [201] })], 'exile'));
+    expect(arrowsFor9(canvas), 'gone once the creature is in exile').toBe(0);
+    handle.dispose();
+  });
+
+  it('the cast and the exile in one view: never aimed at the exiled card at all', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(viewWith201([], 'battlefield'));
+    draw201In(canvas, 'exile');
+    handle.notify(viewWith201([stackItem(9, { targetCardIds: [201] })], 'exile'));
+    expect(arrowsFor9(canvas)).toBe(0);
+    handle.dispose();
+  });
+
+  it('a target in a graveyard when the spell is cast keeps its arrow there', () => {
+    const { canvas } = board();
+    draw201In(canvas, 'graveyard');
+    const handle = installPlaced(canvas);
+    handle.notify(viewWith201([], 'graveyard'));
+    handle.notify(viewWith201([stackItem(9, { targetCardIds: [201] })], 'graveyard'));
+    handle.notify(viewWith201([stackItem(9, { targetCardIds: [201] })], 'graveyard'));
+    expect(arrowsFor9(canvas)).toBe(1);
+    handle.dispose();
+  });
+
   it('two of one trigger, set off by two cards, each point at their own, marked apart from a target', () => {
     // The operator, 2026-11-09: Jace, Architect of Thought's +1 met two attackers and drew two chips
     // that looked one. Each chip now points at the attacker it is for.

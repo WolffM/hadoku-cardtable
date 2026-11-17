@@ -90,7 +90,7 @@ describe('one source of truth for a card’s size (the operator, 2026-10-09)', (
       }) as StackEntry;
     const view = {
       seq: 1, title: 't', turn: 1, phase: null, phaseLabel: '', activePlayerId: null,
-      players: [{ id: 0, name: 'Alice', isViewer: true, battlefield: [] }, { id: 1, name: 'Bob', isViewer: false, battlefield: [] }],
+      players: [{ id: 0, name: 'Alice', isViewer: true, battlefield: [], graveyard: [], exile: [] }, { id: 1, name: 'Bob', isViewer: false, battlefield: [], graveyard: [], exile: [] }],
       stack: [entry(9, false), entry(10, true)],
     } as unknown as BoardView;
     handle.notify(view);
