@@ -63,3 +63,49 @@
   color: var(--danger);
   border-color: var(--danger);
 }
+
+/*
+ * A new game's clock, inside its 1-minute grace: not running (so `[data-running]`'s solid accent
+ * edge does not apply), but not merely idling on the other seat's turn either — an accent ring
+ * pulses over the dim badge, so the two are tellable apart without a word. Low/out can never
+ * co-occur with a fresh game's full clock, but `:not()` keeps the precedence explicit rather than
+ * relying on that.
+ *
+ * The ring is its own layer (`::after`), never the badge's own `border-color`: an `infinite`
+ * animation runs on every frame for as long as the element stands, and one that moves a property
+ * the compositor cannot take (`border-color` among them) repaints the badge on the MAIN thread
+ * every frame it runs — `composited-loops.test.ts` is the guard this file's own doc comment
+ * explains (a stack float's `filter` animation ran a real match at 7 fps). `opacity` is
+ * compositor-only, so the ring's pulse costs nothing the main thread has to redraw.
+ */
+.match-clock {
+  position: relative;
+}
+
+.match-clock[data-grace]:not([data-low]):not([data-out])::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--accent);
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  animation: match-clock-grace 1.6s ease-in-out infinite;
+}
+
+@keyframes match-clock-grace {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-clock[data-grace]:not([data-low]):not([data-out])::after {
+    animation: none;
+    opacity: 1;
+  }
+}

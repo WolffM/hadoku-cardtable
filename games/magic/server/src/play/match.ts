@@ -335,6 +335,16 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	}
 
 	/**
+	 * Milliseconds left in {@link NEW_GAME_CLOCK_GRACE_MS}, or 0/negative once it is over or there
+	 * is no clock to grace at all (a replay). The one computation {@link syncClock} and
+	 * {@link clockGrace} both read, so the two can never drift onto two different answers for the
+	 * same instant.
+	 */
+	private graceLeft(): number {
+		return this.clock === null || this.replaying ? 0 : NEW_GAME_CLOCK_GRACE_MS - (this.now() - this.startedAt);
+	}
+
+	/**
 	 * {@link MatchShell.syncClock}, with {@link NEW_GAME_CLOCK_GRACE_MS} ahead of it: while the game
 	 * is inside its grace, no seat's clock runs at all — `super.syncClock()` is never called, so
 	 * {@link ChessClock.set} never sees a seat as running, whatever Forge is actually waiting on
@@ -344,20 +354,31 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	 * started its clock, which is correct: nobody is charged for time nobody could act in.
 	 */
 	override syncClock(): void {
-		if (this.clock !== null && !this.replaying) {
-			const left = NEW_GAME_CLOCK_GRACE_MS - (this.now() - this.startedAt);
-			if (left > 0) {
-				if (this.graceTimer === null) {
-					this.graceTimer = setTimeout(() => {
-						this.graceTimer = null;
-						this.syncClock();
-					}, left);
-					this.graceTimer.unref();
-				}
-				return;
+		const left = this.graceLeft();
+		if (left > 0) {
+			if (this.graceTimer === null) {
+				this.graceTimer = setTimeout(() => {
+					this.graceTimer = null;
+					this.syncClock();
+				}, left);
+				this.graceTimer.unref();
 			}
+			return;
 		}
 		super.syncClock();
+	}
+
+	/**
+	 * Whether THIS instant is still inside the new-game grace above — read by
+	 * {@link ForgeSession.seatIdentities} (through `ShellView`) to mark both seats' clock readings
+	 * on the roster, so a screen can draw the grace as its own state rather than guess it from a
+	 * clock that merely is not running yet (a seat waiting on the OTHER seat's turn looks
+	 * identical otherwise: `ms` unspent, `running: false`). Never the reason the real clock does
+	 * or does not run — {@link syncClock} above still owns that; this only reports what it already
+	 * decided.
+	 */
+	clockGrace(): boolean {
+		return this.graceLeft() > 0;
 	}
 
 	/**

@@ -641,11 +641,20 @@ const ABORT_SAFE: ReadonlySet<string> = new Set(['showConfirmDialog', 'showOptio
  */
 export const WATCHER_SEAT = -1;
 
-/** The shell's members a Forge game reads or moves: its status, its clock, the replay gag, the host its acts go out on. */
+/**
+ * The shell's members a Forge game reads or moves: its status, its clock, the replay gag, the host
+ * its acts go out on.
+ *
+ * `clockGrace` is OPTIONAL and intersected in, rather than picked from `MatchShell`: the new-game
+ * clock grace is Magic's own rule (`match.ts`'s `Match.clockGrace`), not a generic match concept —
+ * `MatchShell` (`packages/game-server`, platform) carries no such method, and it should not, so
+ * this stays the seam where a Magic-only fact reaches a Magic-only reader without widening the
+ * platform base class for one game's rule.
+ */
 type ShellView = Pick<
 	MatchShell<BridgeLine, BridgeCommand>,
 	'status' | 'failure' | 'replaying' | 'host' | 'concededBy' | 'clock' | 'runningWaiters' | 'syncClock' | 'watchConcede' | 'noteActivity' | 'tellRestart' | 'undoMoved' | 'armRejoinGrace' | 'fail'
->;
+> & { clockGrace?(): boolean };
 
 export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	readonly id: string;
@@ -1035,7 +1044,13 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			...(s.away ? { away: true } : {}),
 			...(() => {
 				const reading = this.shell.clock?.reading(this.now())[s.seat];
-				return reading === undefined ? {} : { clock: reading };
+				if (reading === undefined) return {};
+				// The new-game grace (`Match.clockGrace`, Magic's own concept — not every `ShellView`
+				// has it, hence the optional chain): both seats' clock readings carry it on EVERY
+				// `seatIdentities()` call, `tellRoster`'s realtime roster push included, not only the
+				// resend `socket.ts` sends a freshly (re)joined client — a screen already connected
+				// before the grace started must see it the same way.
+				return this.shell.clockGrace?.() === true ? { clock: { ...reading, grace: true } } : { clock: reading };
 			})(),
 		}));
 	}

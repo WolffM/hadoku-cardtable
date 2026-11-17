@@ -229,6 +229,7 @@ import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '@hadoku/game-ui/components/StatusPill.tsx';
 import { entrantLookup, heldFor, myCurrentTable, passRoomLeader, relayedPodSource, useFollowMyTable, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
+import { TableSideboard } from './TableSideboard.tsx';
 import { useRoomSounds } from './roomSounds.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
 import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
@@ -2849,6 +2850,47 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   if (!streamed && draftRoom && draftStartedAt !== null && locked === null) {
     return (
       <MagicRoomUiContext.Provider value={magicRoomUi}>{gameRoomUiFor('draft')!.game(gameUiProps)}</MagicRoomUiContext.Provider>
+    );
+  }
+  /**
+   * The table's OWN page, between its games, for whichever of its own seats I hold — the same
+   * bypass the draft branch above takes for a dealt pod, and for the same reason: `RoomShell`
+   * draws the room's header, its settings and (through `TablePage`) the face-off ABOVE whatever
+   * it is given as children, so going through it at all put those between the player and the
+   * sideboard panel (the operator: "sideboarding entered from the room lobby is exactly the
+   * in-game sideboarding screen"; measured, the room's header and the face-off sat above the
+   * panel, below the fold, on a desktop viewport — not what either path draws once the match
+   * itself ends a game). `TableSideboard` holds the chrome shell as `'match'` itself
+   * (`TableSideboard.tsx`), so this gives it the SAME full frame `LiveBoard`'s own sideboard step
+   * draws in, nothing above it but the site's own header (unchanged either path, and hidden on a
+   * narrow phone by the same portrait rule `TableSideboard.css` already carries).
+   *
+   * `myTable?.id === tableId` rather than `mySideboarding` alone: a tournament room's hub
+   * (`tableId === undefined`) still draws the room the ordinary way, as does a watcher who opened
+   * someone ELSE's table while mine is the one sideboarding. `tournament ||` skips the room-player
+   * check for a tournament table because `mySideboarding` already came off `myTournamentTable`
+   * (`myCurrentTable`, keyed on MY member id) — a seat that is not mine never sets it.
+   */
+  if (
+    !streamed &&
+    !draftRoom &&
+    tableId !== undefined &&
+    mySideboarding &&
+    myTable?.id === tableId &&
+    (tournament || mine !== null) &&
+    locked === null &&
+    resolved
+  ) {
+    return (
+      <MagicRoomUiContext.Provider value={magicRoomUi}>
+        {/* `.shell` (`screens.css`), the same bare page frame `PodScreen.tsx` draws a dealt pod in:
+            a flex column the chrome's own ancestor rule already grows to the viewport, which is
+            what `.table-sideboard-frame`'s own `flex: 1 1 auto` needs a parent to resolve against
+            outside `TablePage.tsx`'s `.pod__rounds`. */}
+        <div className="shell" data-testid="table-sideboard-page">
+          <TableSideboard key={`${tableId}:${myTable.series.games.length}`} roomId={roomId} tableId={tableId} refresh={view} tables={client} />
+        </div>
+      </MagicRoomUiContext.Provider>
     );
   }
 
