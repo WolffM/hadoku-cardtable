@@ -36,7 +36,7 @@ export interface PlatformRoomRecord<G, M extends PlatformMember = PlatformMember
 	id: string;
 	name: string;
 	creator: string;
-	/** Mirrors `ledger.leaderId`, kept non-null; it moves only when the leader leaves (`membership.ts`). */
+	/** Mirrors `ledger.leaderId`, kept non-null; it moves when the leader leaves or hands it on (`membership.ts`). */
 	leader: string;
 	gameType: string;
 	/** A seeded, admin-only room: never swept (`room-list.ts`). */

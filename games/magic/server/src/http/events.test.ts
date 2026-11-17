@@ -13,6 +13,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { AttachedFormSchema, EventListSchema, EventViewSchema, FormListSchema, rallyCreateUrl, rallyFormIdOf, rallyReturnOf } from '@hadoku/shared';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -202,8 +203,9 @@ describe('/api/events', () => {
 		expect(lobby.setGameType(event.roomId!, leader, 'draft').ok).toBe(true);
 		expect(await listed()).toMatchObject({ kind: 'draft-pod', room: { gameType: 'draft', mode: null } });
 
-		expect(lobby.join(event.roomId!, { id: 'fk:2222222222222222', name: 'user-bob', userId: 'uid-user-bob' }).ok).toBe(true);
-		expect((await listed())?.room?.members).toBe(2);
+		expect(await listed()).toMatchObject({ mine: false, joined: false });
+		expect(lobby.join(event.roomId!, { id: identityFromHeaders(headersFor('bob'), 'unused'), name: 'user-bob', userId: 'uid-user-bob' }).ok).toBe(true);
+		expect(await listed()).toMatchObject({ mine: false, joined: true, room: { members: 2 } });
 	});
 
 	it('lists soonest first and drops an event six hours after it starts', async () => {

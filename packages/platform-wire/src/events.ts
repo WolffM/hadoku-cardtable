@@ -58,6 +58,8 @@ export const eventViewSchema = <K extends z.ZodType, R extends z.ZodType>(kind: 
     organizer: z.string(),
     /** Whether the caller organized it: only they may move or cancel it. */
     mine: z.boolean().catch(false),
+    /** Whether the caller is already in the event's room: they have signed up, so there is nothing to sign up for. */
+    joined: z.boolean().catch(false),
     /** The event's room. An event whose room has closed is not listed. */
     roomId: z.string().nullable().catch(null),
     /** The room as it is now. Always sent; optional only so a reader's fixture may leave it out. */

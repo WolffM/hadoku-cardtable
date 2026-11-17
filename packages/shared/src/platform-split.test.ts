@@ -31,6 +31,7 @@ const EVENT = {
   startsAt: '2026-10-30T12:00:00.000Z',
   organizer: 'user-alice',
   mine: true,
+  joined: true,
   roomId: 'r-b97bb1051d2a',
   room: {
     gameType: 'constructed-1v1',

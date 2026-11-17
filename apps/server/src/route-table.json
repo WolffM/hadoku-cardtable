@@ -75,6 +75,7 @@
     "POST /api/rooms/",
     "POST /api/rooms/:id/close",
     "POST /api/rooms/:id/join",
+    "POST /api/rooms/:id/leader",
     "POST /api/rooms/:id/leave",
     "POST /api/rooms/:id/pod/ai",
     "POST /api/rooms/:id/pod/close",

@@ -492,6 +492,42 @@ describe('the leader removes a seated member, or puts the bot in their place', (
   });
 });
 
+describe('the leader hands the room on', () => {
+  const twoSeated = (): PodSeatsValue => {
+    const seats = emptySeats();
+    seats[0] = { memberId: 'u-alice', name: 'Alice' };
+    seats[1] = { memberId: 'u-bob', name: 'Bob' };
+    return seats;
+  };
+  const seatsAs = (me: string, onMakeLeader: (memberId: string) => void) =>
+    render(
+      createElement(PodSeats, {
+        seats: twoSeated(),
+        myMemberId: me,
+        leaderId: 'u-alice',
+        readyOf: () => false,
+        faceOf: () => ({ id: null }),
+        onSit: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
+        onMakeLeader,
+      }),
+    );
+
+  it('offers the leader Lead on another member’s seat, never on their own', () => {
+    const onMakeLeader = vi.fn();
+    seatsAs('u-alice', onMakeLeader);
+    expect(screen.getByTestId('pod-seat-0').querySelector('[data-testid="pod-seat-make-leader"]')).toBeNull();
+    (screen.getByTestId('pod-seat-1').querySelector('[data-testid="pod-seat-make-leader"]') as HTMLElement).click();
+    expect(onMakeLeader).toHaveBeenCalledWith('u-bob');
+  });
+
+  it('offers it to nobody else', () => {
+    seatsAs('u-bob', vi.fn());
+    expect(screen.queryByTestId('pod-seat-make-leader')).toBeNull();
+  });
+});
+
 // bm1-closing (carried to this wave, §G.4): "SeatList 0.1.x renders the AI button for
 // non-leaders (press is a no-op); onBotReplace not wired." The AI/Remove-AI controls draw on an
 // OPEN seat and on a bot-held one — distinct from the member Remove/Bot pair just above, which

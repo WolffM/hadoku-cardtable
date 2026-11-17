@@ -64,6 +64,8 @@ export interface LobbyCore<V extends RoomViewCore, C> {
 	removeFromSeat(roomId: string, callerId: string, targetId: string): { ok: true; room: V } | { ok: false; reason: string };
 	lowerSeatCapacity(roomId: string, callerId: string, count: number): { ok: true; room: V; evicted: readonly string[] } | { ok: false; reason: string };
 	botReplacesHuman(roomId: string, callerId: string, seat: number): { ok: true; room: V; evicted: string | null } | { ok: false; reason: string };
+	/** The leader hands the room's leadership to another member (`room/lobby.ts`'s `passLeader`). */
+	passLeader(roomId: string, callerId: string, targetId: string): { ok: true; room: V } | { ok: false; reason: string };
 }
 
 /** A `BodySchema<T>` with no dependency the way `RoomCoreWire`'s injected ones have — this file imports no zod, no `@hadoku/shared`. */
@@ -422,6 +424,18 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		const result = lobby.botReplacesHuman(id, caller.id, body.seat);
 		if (!result.ok) return seatOpStatus(res, result.reason);
 		res.json({ ...roomBody(result.room, caller.id), evicted: result.evicted });
+	});
+
+	// The leader hands the room to another member, seated or watching. Spends the seat-op limit.
+	rooms.post('/:id/leader', (req: Request, res: Response) => {
+		const body = parseBody(removeFromSeatBody, req, res);
+		if (body === null || !seatOpLimit(req, res)) return;
+		const caller = callerOf(req);
+		const id = String(req.params.id);
+		if (!wire.roomIdRe.test(id)) return noMatch(res);
+		const result = lobby.passLeader(id, caller.id, body.memberId);
+		if (!result.ok) return seatOpStatus(res, result.reason);
+		res.json(roomBody(result.room, caller.id));
 	});
 
 	/**

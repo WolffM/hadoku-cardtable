@@ -404,7 +404,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 
 	/**
 	 * The AI button on an open pod seat (`{ seat, on: true }`), or taking it
-	 * back out (`on: false`), lobby phase only, any member. The draft deals
+	 * back out (`on: false`), lobby phase only, the leader's. The draft deals
 	 * only once no seat is open (`room/lobby.ts`'s `startDraft`).
 	 */
 	rooms.post('/:id/pod/ai', (req: Request, res: Response) => {
@@ -417,6 +417,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const result = lobby.aiSeat(id, caller.id, body.seat, body.on);
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
+			if (result.reason === 'not-leader') return res.status(403).json({ error: 'only the room leader can do that' });
 			const error =
 				result.reason === 'not-draft'
 					? 'this room does not have a pod'

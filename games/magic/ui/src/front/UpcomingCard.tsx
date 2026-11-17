@@ -258,9 +258,11 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
                   </button>
                 </>
               ) : (
+                !event.joined && (
                 <button type="button" className="button front-card__more" data-testid="front-calendar-signup" disabled={busy} onClick={() => void signUp(roomId)}>
                   Sign up
                 </button>
+                )
               )}
             </span>
           )

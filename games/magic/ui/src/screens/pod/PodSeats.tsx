@@ -77,9 +77,11 @@ export interface PodSeatsProps {
   onRemoveMember?: (seat: number, memberId: string) => void;
   /** The leader puts the bot in a seated human's place, one action (wave 120 §S2). Absent draws no Bot button. */
   onBotReplace?: (seat: number, memberId: string) => void;
+  /** The leader hands the room to a seated member. Absent draws no Lead button. */
+  onMakeLeader?: (memberId: string) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFixed = false, shut = false, onSit, onAi, onClose, onRemoveMember, onBotReplace }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFixed = false, shut = false, onSit, onAi, onClose, onRemoveMember, onBotReplace, onMakeLeader }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
@@ -127,6 +129,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFi
       onOpenSeat={(seat) => onClose(seat, false)}
       onRemoveMember={onRemoveMember}
       onBotReplace={onBotReplace}
+      onMakeLeader={onMakeLeader}
     />
   );
 }

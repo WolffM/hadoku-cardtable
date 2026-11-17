@@ -78,10 +78,12 @@ export interface SeatListProps {
    * button is drawn on a member's seat. Gated on `iLead`, never offered on the viewer's own seat.
    */
   onBotReplace?: (seat: number, memberId: string) => void;
+  /** The leader hands the room to a seated member. Absent: no Lead button. Gated on `iLead`, never on the viewer's own seat. */
+  onMakeLeader?: (memberId: string) => void;
 }
 
 /** A strip of seats, one `<li>` each: dashed-open / "×"-closed / the bot's own look / a member's avatar, a label underneath, every action its own always-visible button. */
-export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realSeatCount, mySeat, onSit, onBotOn, onBotOff, onCloseSeat, onOpenSeat, onRemoveMember, onBotReplace }: SeatListProps) {
+export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realSeatCount, mySeat, onSit, onBotOn, onBotOff, onCloseSeat, onOpenSeat, onRemoveMember, onBotReplace, onMakeLeader }: SeatListProps) {
   return (
     <ul className="pod-seats" data-testid="pod-seats">
       {slots.map(({ seat, occupant }) => {
@@ -169,7 +171,7 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
             </span>
             <PlayerName name={name} face={face} className="pod-seats__label" />
             <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />
-            {iLead && !mine && (onRemoveMember !== undefined || onBotReplace !== undefined) && (
+            {iLead && !mine && (onRemoveMember !== undefined || onBotReplace !== undefined || onMakeLeader !== undefined) && (
               <span className="pod-seats__actions">
                 {onRemoveMember !== undefined && (
                   <ActionButton action="remove" className="pod-seats__action" data-testid="pod-seat-remove" data-seat={seat} aria-label={`Remove ${name} from the table`} onPress={() => onRemoveMember(seat, id)}>
@@ -179,6 +181,11 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
                 {onBotReplace !== undefined && (
                   <ActionButton action="bot-replace" className="pod-seats__action" data-testid="pod-seat-bot-replace" data-seat={seat} aria-label={`Put the bot in ${name}'s seat`} onPress={() => onBotReplace(seat, id)}>
                     Bot
+                  </ActionButton>
+                )}
+                {onMakeLeader !== undefined && (
+                  <ActionButton action="make-leader" className="pod-seats__action" data-testid="pod-seat-make-leader" data-seat={seat} aria-label={`Make ${name} the room leader`} onPress={() => onMakeLeader(id)}>
+                    Lead
                   </ActionButton>
                 )}
               </span>

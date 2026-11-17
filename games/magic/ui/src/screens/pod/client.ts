@@ -241,6 +241,11 @@ export function lowerPodSeatCapacity(roomId: string, count: number): Promise<Pod
   return postRoom(roomId, 'seats/capacity', { count });
 }
 
+/** The leader hands the room to another member, seated or watching. */
+export function passRoomLeader(roomId: string, memberId: string): Promise<PodActionOutcome> {
+  return postRoom(roomId, 'leader', { memberId });
+}
+
 /** The leader puts the bot in `seat`, evicting its human occupant first. */
 export function botReplacesPodSeat(roomId: string, seat: number): Promise<PodActionOutcome> {
   return postRoom(roomId, 'seats/bot', { seat });

@@ -115,6 +115,7 @@ function asLobbyCore(lobby: ToyLobby): import('./room-core.ts').LobbyCore<ToyVie
 		removeFromSeat: lobby.removeFromSeat.bind(lobby),
 		lowerSeatCapacity: lobby.lowerSeatCapacity.bind(lobby),
 		botReplacesHuman: lobby.botReplacesHuman.bind(lobby),
+		passLeader: lobby.passLeader.bind(lobby),
 	};
 }
 
@@ -237,6 +238,22 @@ describe('the leader’s seat-op routes', () => {
 			expect(result.json.evicted).toBe(bob);
 			expect(result.json.seats).toEqual([h.lobby.get(id)?.members[0]?.id, null, null, 'ai']);
 			expect(h.lobby.roleOf(id, bob)).toBe('spectator');
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('POST /:id/leader: the leader hands the room to another member, who can then act as leader; a non-leader is refused 403', async () => {
+		const h = await boot();
+		try {
+			const { id, alice, bob } = await fourSeatRoom(h);
+			expect((await post(h, `/${id}/leader`, edgeHeaders('bob'), { memberId: bob })).status).toBe(403);
+			expect((await post(h, `/${id}/leader`, edgeHeaders('alice'), { memberId: 'fk:0000000000000000' })).status).toBe(404);
+			const passed = await post(h, `/${id}/leader`, edgeHeaders('alice'), { memberId: bob });
+			expect(passed.status).toBe(200);
+			expect(h.lobby.get(id)?.leader).toBe(bob);
+			expect((await post(h, `/${id}/seats/remove`, edgeHeaders('alice'), { memberId: bob })).status).toBe(403);
+			expect((await post(h, `/${id}/seats/remove`, edgeHeaders('bob'), { memberId: alice })).status).toBe(200);
 		} finally {
 			await h.close();
 		}

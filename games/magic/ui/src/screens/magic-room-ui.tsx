@@ -227,7 +227,7 @@ import { RoomSpectators } from './RoomSpectators.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '@hadoku/game-ui/components/StatusPill.tsx';
-import { entrantLookup, heldFor, myCurrentTable, relayedPodSource, useFollowMyTable, type HeldAt } from './pod/client.ts';
+import { entrantLookup, heldFor, myCurrentTable, passRoomLeader, relayedPodSource, useFollowMyTable, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { useRoomSounds } from './roomSounds.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
@@ -2292,6 +2292,14 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
   };
+  /** The leader hands the room to another member; the room's feed carries the new crown. */
+  const makeLeader = (memberId: string): void => {
+    setActionError(null);
+    void passRoomLeader(roomId, memberId).then((outcome) => {
+      if (!outcome.ok) setActionError(outcome.message);
+    });
+  };
+
   const standUp = (): void => {
     if (queued(() => standUp())) return;
     setBusy(true);
@@ -2707,6 +2715,9 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
                         player={{ ...player, ready: readyAt(players.indexOf(player)) }}
                         face={faceOf(members.find((m) => m.name === player.name))}
                         leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
+                        {...(iAmLeader && !player.you && members.some((m) => m.name === player.name)
+                          ? { onMakeLeader: () => makeLeader(members.find((m) => m.name === player.name)!.id) }
+                          : {})}
                         {...(player.you
                           ? {
                               onReady: () =>
@@ -2724,6 +2735,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
                 myId={view?.you.id ?? null}
                 leaderId={view?.leader ?? ''}
                 {...(seated ? { onWatch: standUp } : {})}
+                {...(iAmLeader ? { onMakeLeader: makeLeader } : {})}
                 watchDisabled={tableLocked || underway}
               />
             </div>
@@ -3100,6 +3112,7 @@ function PlayerRow({
   leader = false,
   onReady,
   readyDisabled = false,
+  onMakeLeader,
 }: {
   seat: number;
   player: RoomPlayer;
@@ -3110,6 +3123,8 @@ function PlayerRow({
   readyDisabled?: boolean;
   /** This seat's player sets the table: a crown on their avatar. */
   leader?: boolean;
+  /** Given to the leader on another player's row: hands them the room. */
+  onMakeLeader?: () => void;
 }) {
   return (
     <li className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-mine={player.you ? '' : undefined}>
@@ -3148,6 +3163,13 @@ function PlayerRow({
           </svg>
           {readyLabel(player.ready)}
         </ActionButton>
+      )}
+      {onMakeLeader !== undefined && (
+        <span className="pod-seats__actions">
+          <ActionButton action="make-leader" className="pod-seats__action" data-testid="room-seat-make-leader" data-seat={seat} aria-label={`Make ${player.name} the room leader`} onPress={onMakeLeader}>
+            Lead
+          </ActionButton>
+        </span>
       )}
     </li>
   );

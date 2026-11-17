@@ -4,7 +4,7 @@ import type { EventView } from '@hadoku/shared';
 import { countdown } from '@hadoku/game-ui/front/countdown.ts';
 import { fromLocalInput, toLocalInput, upcoming } from './events.ts';
 
-const at = (iso: string, title = iso): EventView => ({ id: title, kind: 'room', title, startsAt: iso, organizer: 'alice', mine: false, roomId: null, room: null });
+const at = (iso: string, title = iso): EventView => ({ id: title, kind: 'room', title, startsAt: iso, organizer: 'alice', mine: false, joined: false, roomId: null, room: null });
 
 describe('upcoming', () => {
   it('is every event, soonest first, whatever order they came in: the calendar scrolls, it never cuts', () => {

@@ -225,6 +225,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		startsAt: new Date(e.startsAt).toISOString(),
 		organizer: nameOf(e.organizerUserId, e.organizerName),
 		mine: e.organizerId === callerId,
+		joined: lobby.isMember(room.id, callerId),
 		roomId: room.id,
 		room: roomState(room),
 		signedUp,

@@ -28,9 +28,11 @@ export interface SpectatorRowProps {
   watchDisabled?: boolean;
   /** Drawn under the seats rather than beside them (a pod's strip). */
   under?: boolean;
+  /** Given to the leader only: hands the room to a spectator. Drawn on everyone but the viewer. */
+  onMakeLeader?: (memberId: string) => void;
 }
 
-export function SpectatorRow({ spectators, myId, leaderId, onWatch, watchDisabled = false, under = false }: SpectatorRowProps) {
+export function SpectatorRow({ spectators, myId, leaderId, onWatch, watchDisabled = false, under = false, onMakeLeader }: SpectatorRowProps) {
   if (spectators.length === 0 && onWatch === undefined) return null;
   return (
     <div className={under ? 'table-side table-side--under' : 'table-side'} data-testid="room-spectators">
@@ -50,6 +52,13 @@ export function SpectatorRow({ spectators, myId, leaderId, onWatch, watchDisable
               )}
             </span>
             <PlayerName name={member.name} face={faceOf(member)} className="pod-seats__label" />
+            {onMakeLeader !== undefined && member.id !== myId && (
+              <span className="pod-seats__actions">
+                <ActionButton action="make-leader" className="pod-seats__action" data-testid="spectator-make-leader" data-member={member.id} aria-label={`Make ${member.name} the room leader`} onPress={() => onMakeLeader(member.id)}>
+                  Lead
+                </ActionButton>
+              </span>
+            )}
           </li>
         ))}
         {onWatch !== undefined && (

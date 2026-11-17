@@ -227,6 +227,26 @@ describe('a room of a game the platform alone hosts', () => {
  * `@wolffm/rooms-protocol`'s own equivalents (once published) is this file's tests to re-point, not
  * a redesign of the callers (`http/room-core.ts`'s HTTP routes, `room/lobby.ts`'s doc comment).
  */
+describe('a passed leadership', () => {
+	it('is saved: a restart keeps the new leader, and when they leave it passes to whoever joined earliest', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'cardtable-toy-leader-'));
+		dirs.push(dir);
+		const now = () => 1_800_000_000_000;
+		const lobby = await openToyLobby(dir, now);
+		const made = lobby.create(ALICE, { name: 'Pass it on', gameType: TOY });
+		if (!made.ok) throw new Error('not made');
+		const id = made.room.id;
+		lobby.join(id, BOB);
+		lobby.join(id, CAROL);
+		expect(lobby.passLeader(id, ALICE.id, CAROL.id)).toMatchObject({ ok: true, room: { leader: CAROL.id } });
+		const log: Record<string, unknown>[] = [];
+		const restored = await openToyLobby(dir, now, (e) => log.push(e));
+		expect(log).toEqual([]);
+		expect(restored.get(id)?.leader).toBe(CAROL.id);
+		expect(restored.leave(id, CAROL.id)).toMatchObject({ ok: true, room: { leader: ALICE.id } });
+	});
+});
+
 describe("the leader's atomic seat ops: nobody is ever seatless and not a member (2026-11-02)", () => {
 	async function fourSeatRoom(): Promise<{ lobby: RoomLobby<ToyView, ToyInput>; id: string }> {
 		const dir = await mkdtemp(join(tmpdir(), 'cardtable-toy4-lobby-'));
@@ -308,6 +328,27 @@ describe("the leader's atomic seat ops: nobody is ever seatless and not a member
 		expect(lobby.botReplacesHuman(id, ALICE.id, 99)).toEqual({ ok: false, reason: 'bad-seat' });
 		// Only the leader.
 		expect(lobby.botReplacesHuman(id, DAVE.id, 1)).toEqual({ ok: false, reason: 'not-leader' });
+	});
+
+	it('aiSeat: only the leader puts the AI in an open seat or takes it out', async () => {
+		const { lobby, id } = await fourSeatRoom();
+		lobby.standSeat(id, DAVE.id);
+		expect(lobby.aiSeat(id, BOB.id, 3, true)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.get(id)?.seats).toEqual([ALICE.id, BOB.id, CAROL.id]);
+		expect(lobby.aiSeat(id, ALICE.id, 3, true)).toMatchObject({ ok: true });
+		expect(lobby.aiSeat(id, BOB.id, 3, false)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.get(id)?.seats).toEqual([ALICE.id, BOB.id, CAROL.id, 'ai']);
+	});
+
+	it('passLeader: the leader hands the room to any member, seated or watching', async () => {
+		const { lobby, id } = await fourSeatRoom();
+		lobby.standSeat(id, DAVE.id);
+		expect(lobby.passLeader(id, BOB.id, CAROL.id)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.passLeader(id, ALICE.id, 'fk:nobody0000000000')).toEqual({ ok: false, reason: 'target-not-member' });
+		expect(lobby.passLeader(id, ALICE.id, ALICE.id)).toMatchObject({ ok: true });
+		expect(lobby.passLeader(id, ALICE.id, DAVE.id)).toMatchObject({ ok: true, room: { leader: DAVE.id } });
+		expect(lobby.removeFromSeat(id, ALICE.id, BOB.id)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.removeFromSeat(id, DAVE.id, BOB.id)).toMatchObject({ ok: true });
 	});
 });
 

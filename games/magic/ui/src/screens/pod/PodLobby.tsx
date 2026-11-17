@@ -19,7 +19,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 
 import type { RoomMember } from '../../rooms/api.ts';
-import { aiPod, botReplacesPodSeat, closePod, lowerPodSeatCapacity, removeFromPodSeat, sitPod, splitPod, standPod, startSplitDraft, type PodActionOutcome } from './client.ts';
+import { aiPod, botReplacesPodSeat, closePod, passRoomLeader, lowerPodSeatCapacity, removeFromPodSeat, sitPod, splitPod, standPod, startSplitDraft, type PodActionOutcome } from './client.ts';
 import { PodSeats } from './PodSeats.tsx';
 import { RoomSpectators } from '../RoomSpectators.tsx';
 import { PodSplit, PodSplitAction, standingPods } from './PodSplit.tsx';
@@ -148,6 +148,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
                   onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}
                   onRemoveMember={(_seat, memberId) => act(() => removeFromPodSeat(roomId, memberId))}
                   onBotReplace={(seat) => act(() => botReplacesPodSeat(roomId, seat))}
+                  onMakeLeader={(memberId) => act(() => passRoomLeader(roomId, memberId))}
                 />
               </div>
             )}
@@ -165,6 +166,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
               myId={myMemberId}
               leaderId={leaderId}
               {...(myMemberId !== null && podPlayers(pod).has(myMemberId) ? { onWatch: () => act(() => standPod(roomId)) } : {})}
+              {...(iLead ? { onMakeLeader: (memberId: string) => act(() => passRoomLeader(roomId, memberId)) } : {})}
             />
           )}
         </>

@@ -72,6 +72,17 @@ export function removeRoomMember<M extends MemberRow>(room: MembershipRoom<M>, i
 	return removed;
 }
 
+/**
+ * Hand the room's leadership to the member `to`. Answers false, changing nothing, when `to` is not a
+ * member. The caller has checked the hand-off is the current leader's to make, and persists the room.
+ */
+export function passRoomLeader<M extends MemberRow>(room: MembershipRoom<M>, to: string): boolean {
+	if (!isRoomMember(room, to)) return false;
+	room.ledger.leaderId = to;
+	room.leader = to;
+	return true;
+}
+
 /** `memberId`'s readiness for whatever the room is about to start. */
 export function isMemberReady(room: Pick<MembershipRoom<MemberRow>, 'ledger'>, memberId: string): boolean {
 	return isReady(room.ledger, memberId);

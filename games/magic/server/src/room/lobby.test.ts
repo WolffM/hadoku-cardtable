@@ -938,7 +938,7 @@ describe('Lobby.startDraft', () => {
 		expect(lobby.setReady(draft.room.id, BOB.id, true)).toBe(true);
 		// Everyone seated is ready, and six seats are still open: no deal with an open seat.
 		expect(lobby.startDraft(draft.room.id, BOB.id)).toEqual({ ok: false, reason: 'not-ready' });
-		fillWithAi(lobby, draft.room.id, BOB.id);
+		fillWithAi(lobby, draft.room.id, ALICE.id);
 		approvePlan(lobby, draft.room.id);
 		const started = lobby.startDraft(draft.room.id, BOB.id);
 		expect(started.ok).toBe(true);
@@ -2768,7 +2768,8 @@ describe('Lobby.startDraft — no open seat, and only the seated are waited on',
 		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
 		expect(lobby.get(id)?.game!.pod?.seats[0]).toEqual({ memberId: ALICE.id, name: ALICE.name });
 		expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
-		for (let seat = 1; seat < 7; seat++) expect(lobby.aiSeat(id, BOB.id, seat, true).ok).toBe(true);
+		expect(lobby.aiSeat(id, BOB.id, 1, true), 'only the leader seats the AI').toEqual({ ok: false, reason: 'not-leader' });
+		for (let seat = 1; seat < 7; seat++) expect(lobby.aiSeat(id, ALICE.id, seat, true).ok).toBe(true);
 		expect(lobby.startDraft(id, ALICE.id), 'one seat still open').toEqual({ ok: false, reason: 'not-ready' });
 		expect(lobby.aiSeat(id, ALICE.id, 7, true).ok).toBe(true);
 		// Two members and seven AI seats: nine different characters, the last AI seat's among them.
@@ -3431,7 +3432,7 @@ describe('closed pod seats', () => {
 		expect(lobby.closeSeat(id, ALICE.id, 5, true).ok).toBe(true);
 		expect(lobby.get(id)?.game!.pod?.seats[5]).toEqual({ memberId: POD_CLOSED, name: '' });
 		expect(lobby.sitSeat(id, BOB.id, 5)).toMatchObject({ ok: false });
-		expect(lobby.aiSeat(id, BOB.id, 5, true)).toEqual({ ok: false, reason: 'seat-taken' });
+		expect(lobby.aiSeat(id, ALICE.id, 5, true)).toEqual({ ok: false, reason: 'seat-taken' });
 		expect(lobby.closeSeat(id, ALICE.id, 5, false).ok).toBe(true);
 		expect(lobby.get(id)?.game!.pod?.seats[5]).toBeNull();
 	});

@@ -1727,10 +1727,11 @@ describe('POST /api/rooms/:id/start', () => {
 		expect((early.json() as { error: string }).error).toContain('the AI');
 		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').MagicRoomView).game!.draftStartedAt).toBeNull();
 
-		// The AI button, on every open seat.
-		for (let seat = 2; seat < 8; seat++) expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat, on: true } })).status).toBe(200);
-		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat: 2, on: 'yes' } })).status).toBe(400);
-		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat: 0, on: true } })).status).toBe(409);
+		// The AI button, on every open seat: the leader's alone.
+		expect(await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat: 2, on: true } })).toMatchObject({ status: 403 });
+		for (let seat = 2; seat < 8; seat++) expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat: 2, on: 'yes' } })).status).toBe(400);
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat: 0, on: true } })).status).toBe(409);
 		await approvePlan(h, room.id);
 		// Bob is not the leader, and starts it anyway: any member may ask.
 		const started = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'bob' });
@@ -3000,7 +3001,8 @@ describe("an event's room before its seats open", () => {
 		const sat = await call(h, 'POST', `/api/rooms/${pod.room.id}/pod/sit`, { body: { seat: 0 } });
 		expect([sat.status, sat.json()]).toEqual([409, shut]);
 		const ai = await call(h, 'POST', `/api/rooms/${pod.room.id}/pod/ai`, { body: { seat: 1, on: true } });
-		expect([ai.status, ai.json()]).toEqual([409, shut]);
+		expect([ai.status, ai.json()]).toEqual([403, { error: 'only the room leader can do that' }]);
+		expect(h.lobby.aiSeat(pod.room.id, organizer.id, 1, true), "the organizer's AI waits too").toEqual({ ok: false, reason: 'not-open' });
 
 		const tableSat = await call(h, 'POST', `/api/tables/rooms/${table.room.id}/sit`, {});
 		expect([tableSat.status, tableSat.json()]).toEqual([409, shut]);

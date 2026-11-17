@@ -411,7 +411,7 @@ export interface Lobby
 		| 'list' | 'offered' | 'touch' | 'get' | 'isMember' | 'playerState' | 'setPlayerState' | 'setReady' | 'setAvatar' | 'onAvatarChange'
 		| 'usersOf' | 'setLook' | 'onChange' | 'leave' | 'close' | 'anonymise' | 'removed' | 'reschedule' | 'seatsShutUntil' | 'gameSeatOf'
 		| 'bindWatchparty' | 'join' | 'rename' | 'sweep' | 'onRelayRoomOpened' | 'sitSeat' | 'standSeat' | 'aiSeat' | 'closeSeat'
-		| 'subPlaceOf' | 'roleOf' | 'removeFromSeat' | 'lowerSeatCapacity' | 'botReplacesHuman'
+		| 'subPlaceOf' | 'roleOf' | 'removeFromSeat' | 'lowerSeatCapacity' | 'botReplacesHuman' | 'passLeader'
 	> {
 	/**
 	 * The room that started `matchId`, or undefined. A match id is never a room id.

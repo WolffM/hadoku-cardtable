@@ -53,7 +53,7 @@ import { replaceIds } from '../erase/anonymise.ts';
 import { avatarIdOf } from './avatar.ts';
 import type { Caller } from './caller.ts';
 import { ROOM_STALE_MS, UNNAMED } from './constants.ts';
-import { addRoomMember, isMemberReady, isRoomMember, passwordAdmits, removeRoomMember, setMemberReady } from './membership.ts';
+import { addRoomMember, isMemberReady, isRoomMember, passRoomLeader, passwordAdmits, removeRoomMember, setMemberReady } from './membership.ts';
 import { makeSecret, mintRoomId, type Secret } from './provisioning.ts';
 import { AI_SEAT, CLOSED_SEAT, leaveGameSeat, memberSeats, setGameSeat, takeGameSeat, type GameSeats, type PlatformMember, type PlatformRoomRecord } from './record.ts';
 import { isOfferedRoom, isSweepableRoom, NO_BUSY_HOOK, sortRoomsByCreation, type RoomBusyHook } from './room-list.ts';
@@ -260,6 +260,9 @@ export type SitSeatResult<V> =
 	| { ok: true; room: V }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'not-open' | 'bad-seat' | 'seat-taken' | 'pod-full' | 'historical' };
 
+/** `aiSeat`'s answer: a seat's answer, or `not-leader` — only the room's leader seats or unseats the AI. */
+export type AiSeatResult<V> = SitSeatResult<V> | { ok: false; reason: 'not-leader' };
+
 export type CloseSeatResult<V> =
 	| { ok: true; room: V }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'too-few' | 'historical' };
@@ -276,6 +279,10 @@ export type StandSeatResult<V> = { ok: true; room: V } | { ok: false; reason: 'n
  * never a member acting on themselves. Built against cardtable's own `GameSeats`, not
  * `@wolffm/rooms-protocol`'s `SeatTable` — see `removeFromSeat`'s own doc for why.
  */
+export type PassLeaderResult<V> =
+	| { ok: true; room: V }
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'target-not-member' };
+
 export type RemoveFromSeatResult<V> =
 	| { ok: true; room: V }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'target-not-member' | 'not-draft' | 'not-lobby' };
@@ -938,11 +945,12 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		return { ok: true, room: this.view(room) };
 	}
 
-	/** Put the AI in an open seat (`on`), or take it out. Any member. */
-	aiSeat(roomId: string, memberId: string, seat: number, on: boolean): SitSeatResult<V> {
+	/** Put the AI in an open seat (`on`), or take it out. The leader's. */
+	aiSeat(roomId: string, memberId: string, seat: number, on: boolean): AiSeatResult<V> {
 		const found = this.#seatRoom(roomId, memberId);
 		if ('refused' in found) return { ok: false, reason: found.refused };
 		const { room, hooks } = found;
+		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
 		if (hooks.fieldFixed?.(room) === true) return { ok: false, reason: 'historical' };
 		if (on && this.seatsShut(room) !== null) return { ok: false, reason: 'not-open' };
 		if (!this.#inReach(room, hooks, seat) || (!on && seat >= room.seats.length)) return { ok: false, reason: 'bad-seat' };
@@ -979,6 +987,22 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		hooks.trimSeats(room);
 		this.persist(room);
 		this.log({ event: closed ? 'pod-seat-closed' : 'pod-seat-opened', roomId, memberId, seat, size: size() });
+		return { ok: true, room: this.view(room) };
+	}
+
+	/**
+	 * The leader hands the room's leadership to `targetId`, another member, seated or watching.
+	 * Passing it to yourself is answered `ok` and changes nothing.
+	 */
+	passLeader(roomId: string, memberId: string, targetId: string): PassLeaderResult<V> {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
+		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		if (targetId === memberId) return { ok: true, room: this.view(room) };
+		if (!passRoomLeader(room, targetId)) return { ok: false, reason: 'target-not-member' };
+		this.persist(room);
+		this.log({ event: 'leader-passed', roomId, memberId, targetId });
 		return { ok: true, room: this.view(room) };
 	}
 
