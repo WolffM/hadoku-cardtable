@@ -19,8 +19,8 @@
     "@hadoku/service-kernel": "workspace:*",
     "@hadoku/shared": "workspace:*",
     "@resvg/resvg-js": "^2.6.2",
-    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.102",
-    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.102",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.103",
+    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.103",
     "express": "^5.1.0",
     "socket.io": "^4.8.3"
   },
