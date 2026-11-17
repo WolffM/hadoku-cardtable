@@ -23,7 +23,7 @@ import { expect, test, type Browser, type BrowserContext, type Page, type Reques
 
 import { EDGE_ORIGIN, SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { enterMatch, makeTitled, readyFromSideboard } from './play/board.ts';
+import { enterMatch, makeTitled, pressEnterGame, readyFromSideboard } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -206,6 +206,8 @@ test(titled('two result screens left open read nothing; one reloaded still remat
     console.log(`[aa-poll] alice (reloaded) pressed Rematch: bob's screen drew her check after ${Date.now() - t0}ms`);
     await bob.page.getByTestId('game-result-rematch').click();
     for (const f of [alice, bob]) await readyFromSideboard(f.page);
+    // AF639: the next game exists once both are ready, but neither screen opens it by itself.
+    for (const f of [alice, bob]) await pressEnterGame(f.page);
     for (const f of [alice, bob]) {
       await expect.poll(() => MATCH_URL.exec(f.page.url())?.[1], { message: `${f.name} reaches a new match`, timeout: 120_000 }).not.toBe(matchId);
     }

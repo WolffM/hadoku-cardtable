@@ -177,6 +177,13 @@ test(
       await alice.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('sideboard-step')).toBeVisible({ timeout: UI_TIMEOUT });
       for (const p of [alice, bob]) await p.page.getByTestId('sideboard-ready').click();
+      // AF639: the next game exists once both are ready, but neither screen opens it by itself —
+      // alice's own result screen, bob's room table page.
+      for (const p of [alice, bob]) {
+        const enter = p.page.getByTestId('game-result-enter');
+        await expect(enter, `${p.name}: Enter game is offered`).toBeVisible({ timeout: UI_TIMEOUT });
+        await enter.click();
+      }
       await bob.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
       await expect(bob.page.locator('[aria-label="Game board"]'), 'game 2').toBeVisible({ timeout: UI_TIMEOUT });
 
