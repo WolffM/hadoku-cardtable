@@ -17,6 +17,11 @@
  *   the game ends and as the board or the tab closes: a baseline even when nothing went bad.
  * - `what: 'phases'` — the same frames by the phase they were drawn in, beside each summary: combat
  *   against a main phase, whether or not anything went bad in either.
+ * - `what: 'env'` — once a match, beside the first summary: the machine and the browser a bad number
+ *   might be, read apart from a regression (the operator, 2026-11-16: one seat's screen ran at 79 fps
+ *   on a board the other seat's ran at 151 on, the same match — `devicePixelRatio`, the CPU's own core
+ *   count, the GPU WebGL names back (empty where the browser hides or has none), the UI scale slider,
+ *   and the display's own rate, read from the match's own calm frames rather than a fresh sample).
  *
  * A frame costs two clock reads, a few counter writes and one histogram bump: no allocation, no DOM read,
  * no layout. Everything else is computed only when a stretch opens or a report goes out.
@@ -123,6 +128,8 @@ export interface FrameWatchHost {
   board: () => Data;
   /** The page's own facts (DOM size, running animations), read with {@link FrameWatchHost.board}. Defaults to {@link pageFacts}. */
   page?: () => Data;
+  /** The machine and the browser (`dpr`, `cores`, `gpu`, `scale`), read once a match. Defaults to {@link envFacts}. */
+  env?: () => Data;
   /** Test seams: the real `requestAnimationFrame`, `cancelAnimationFrame`, `performance.now`, `document` and `PerformanceObserver` by default. */
   raf?: (callback: (t: number) => void) => number;
   caf?: (handle: number) => void;
@@ -253,6 +260,45 @@ export function pageFacts(): Data {
   };
 }
 
+/**
+ * The GPU WebGL names back, read once and cached: `""` where the browser hides it (a privacy budget,
+ * no WebGL) or there is none (software rendering, `SwiftShader`/`llvmpipe`/`ANGLE (...)`'s own string
+ * still says so). A canvas never attached to the page, so the probe draws nothing. Never free, which is
+ * why it runs once a page and its answer is kept, not re-asked.
+ */
+let gpuRendererCache: string | null = null;
+export function gpuRenderer(): string {
+  if (gpuRendererCache !== null) return gpuRendererCache;
+  gpuRendererCache = '';
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    if (gl !== null && gl !== undefined) {
+      const info = gl.getExtension('WEBGL_debug_renderer_info');
+      const raw = info === null ? gl.getParameter(gl.RENDERER) : gl.getParameter(info.UNMASKED_RENDERER_WEBGL);
+      gpuRendererCache = String(raw).slice(0, TEXT_MAX);
+    }
+  } catch {
+    // No WebGL, or the browser refuses the probe: "" stands for "can't tell," never a guess.
+  }
+  return gpuRendererCache;
+}
+
+/**
+ * What the page's own hardware and settings are, read once a match (`env`, beside the first summary):
+ * what the operator's own screen is the difference, not a regression — `devicePixelRatio`, the CPU's
+ * core count Firefox and Chrome both offer, the GPU WebGL names back, and the UI scale slider
+ * (`--ui-scale`, a plain number — never a `calc()`, so `parseFloat` reads it straight).
+ */
+export function envFacts(): Data {
+  const scale = typeof document === 'undefined' ? NaN : parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-scale'));
+  return {
+    dpr: typeof window === 'undefined' || !Number.isFinite(window.devicePixelRatio) ? 1 : window.devicePixelRatio,
+    cores: typeof navigator === 'undefined' ? 0 : (navigator.hardwareConcurrency ?? 0),
+    gpu: gpuRenderer(),
+    scale: Number.isFinite(scale) ? scale : 1,
+  };
+}
+
 /** What makes the page draw: input, DOM changes, and animations and transitions starting. */
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown', 'scroll', 'resize', 'animationstart', 'transitionrun'] as const;
 
@@ -304,6 +350,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
   const doc = host.doc ?? document;
   const win = host.win ?? window;
   const page = host.page ?? pageFacts;
+  const env = host.env ?? envFacts;
   const Observer = host.observer === undefined ? (typeof PerformanceObserver === 'function' ? (PerformanceObserver as unknown as ObserverClass) : null) : host.observer;
   const attribution = attributionOf(Observer);
   const work = host.work ?? workSpent;
@@ -335,6 +382,8 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
   let suppressedTotal = 0;
   let summaryTurn = -1;
   let lastTurn = -1;
+  // `env` fires once, beside whichever summary is first (`turns`, `over` or `end`).
+  let envSent = false;
 
   // The open stretch: everything up to its last slow gap, and the frames since it (dropped if it recovers).
   let open = false;
@@ -587,6 +636,12 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
 
   function summary(why: 'turns' | 'over' | 'end'): void {
     if (frames === 0) return;
+    const p50 = percentile(histogram, frames, 0.5);
+    if (!envSent) {
+      envSent = true;
+      // The display's own rate, from this summary's own calm frames rather than a fresh sample: free.
+      host.report({ what: 'env', hz: Math.round(1000 / Math.max(1, p50)), ...env() });
+    }
     host.report({
       what: 'summary',
       why,
@@ -595,7 +650,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       frames,
       watchedMs: Math.round(watchedMs),
       fps: Math.round((frames * 10_000) / Math.max(1, watchedMs)) / 10,
-      p50: percentile(histogram, frames, 0.5),
+      p50,
       p95: percentile(histogram, frames, 0.95),
       p99: percentile(histogram, frames, 0.99),
       worstMs: Math.round(worst),

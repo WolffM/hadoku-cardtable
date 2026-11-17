@@ -15,6 +15,8 @@ import {
   SUMMARY_EVERY_TURNS,
   animationTop,
   boardFacts,
+  envFacts,
+  gpuRenderer,
   loafFields,
   pageActivity,
   phaseField,
@@ -426,6 +428,18 @@ describe('watchFrames', () => {
     expect(t.scheduled, 'disposed: the loop stops').toBe(false);
   });
 
+  it('sends the machine and the browser once, beside the first summary — never again, even across several', () => {
+    const t = tab();
+    const watch = watchFrames({ ...t.host, env: () => ({ dpr: 2, cores: 8, gpu: 'Apple M-Series GPU', scale: 1.1 }) });
+    watch.noteTurn(1);
+    t.frames(60, 16); // the display's own rate, read from these calm frames: a steady 16 ms gap buckets to p50 17 (the bucket's own upper edge) → 1000/17 ≈ 58.8 → 59 Hz
+    watch.noteTurn(1 + SUMMARY_EVERY_TURNS);
+    expect(t.of('env')).toEqual([{ what: 'env', hz: 59, dpr: 2, cores: 8, gpu: 'Apple M-Series GPU', scale: 1.1 }]);
+    watch.noteTurn(1 + 2 * SUMMARY_EVERY_TURNS);
+    watch.dispose();
+    expect(t.of('env'), 'once a match, not once a summary').toHaveLength(1);
+  });
+
   it('splits every summary’s frames by the phase they were drawn in — combat against a main phase, bad or not', () => {
     const t = tab();
     const watch = watchFrames(t.host);
@@ -581,6 +595,15 @@ describe('the attribution fields', () => {
     const view = { turn: 7, phase: 'COMBAT_DAMAGE', activePlayerId: 2, stack: [{}], players: [player(1, true, 8, 4), player(2, false, 9, 6)] } as unknown as BoardView;
     expect(boardFacts(view)).toEqual({ phase: 'COMBAT_DAMAGE', turn: 7, whose: 'theirs', mine: 8, theirs: 9, hand: 4, stack: 1 });
     expect(boardFacts(null)).toEqual({ turn: -1 });
+  });
+
+  it('reads the machine with no throw where the browser offers nothing — jsdom has no WebGL and no `--ui-scale`', () => {
+    expect(gpuRenderer()).toBe('');
+    const facts = envFacts();
+    expect(facts.gpu).toBe('');
+    expect(facts.scale, 'no --ui-scale in this document: the default, never NaN').toBe(1);
+    expect(typeof facts.dpr).toBe('number');
+    expect(typeof facts.cores).toBe('number');
   });
 
   it('name the running animations by what they move, most first', () => {
