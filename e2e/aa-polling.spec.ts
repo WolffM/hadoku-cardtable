@@ -206,7 +206,7 @@ test(titled('two result screens left open read nothing; one reloaded still remat
     console.log(`[aa-poll] alice (reloaded) pressed Rematch: bob's screen drew her check after ${Date.now() - t0}ms`);
     await bob.page.getByTestId('game-result-rematch').click();
     for (const f of [alice, bob]) await readyFromSideboard(f.page);
-    // AF639: the next game exists once both are ready, but neither screen opens it by itself.
+    // The next game exists once both are ready, but neither screen opens it by itself.
     for (const f of [alice, bob]) await pressEnterGame(f.page);
     for (const f of [alice, bob]) {
       await expect.poll(() => MATCH_URL.exec(f.page.url())?.[1], { message: `${f.name} reaches a new match`, timeout: 120_000 }).not.toBe(matchId);

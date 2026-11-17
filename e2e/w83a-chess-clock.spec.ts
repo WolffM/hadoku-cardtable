@@ -4,7 +4,7 @@
  * never on the server's own auto-passes, and at zero that player loses the game, which the result
  * calls Out of Time.
  *
- * **AF639's grace (2026-11-16):** the operator, of the flash into a series' next game, *"the clock
+ * **The new-game grace:** the operator, of the flash into a series' next game, *"the clock
  * gives a 1-minute grace before it starts running."* `NEW_GAME_CLOCK_GRACE_MS` (`play/match.ts`) is
  * 60 s, for every new game, this scenario match included — not only a series' second game — so this
  * spec reads full, not-running clocks for the first beat and only then waits for alice's to start.
@@ -27,7 +27,7 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 const CLOCK_MS = 25_000;
-/** `play/match.ts`'s `NEW_GAME_CLOCK_GRACE_MS` (AF639): no seat's clock runs before this many ms have passed. */
+/** `play/match.ts`'s `NEW_GAME_CLOCK_GRACE_MS`: no seat's clock runs before this many ms have passed. */
 const GRACE_MS = 60_000;
 
 const say = (line: string): void => console.log(`[w83a-clock] ${line}`);
@@ -62,7 +62,7 @@ test(titled('a seat that idles on priority runs out of time and loses; the other
     const started = Date.now();
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'bolt-player', { clockMs: [CLOCK_MS, CLOCK_MS] });
 
-    // AF639: inside the grace neither clock runs, full and static on both screens.
+    // Inside the grace neither clock runs, full and static on both screens.
     const graceLeft = GRACE_MS - (Date.now() - started);
     if (graceLeft > 5_000) {
       const inGrace = await clocks(alice.page);

@@ -4,7 +4,7 @@
  *   A 1v1 constructed room: every series starts as Bo1. Game 1 ends, and both
  *   players press Rematch, which makes the series Bo3. Each sees the sideboard
  *   step with their own 75, and one swaps a card. Game 2 exists once both are
- *   Ready, but neither screen opens it by itself (AF639, 2026-11-16): each
+ *   Ready, but neither screen opens it by itself: each
  *   presses "Enter game" on their own screen, and only then does game 2 start
  *   with the swapped deck, the loser of game 1 asked play-or-draw. Game 2
  *   leaves the series 1-1, so the sideboard step opens with no Rematch press.
@@ -133,7 +133,7 @@ test(
       }
       for (const f of [alice, bob]) await expect(f.page.getByTestId('sideboard-ready')).toHaveAttribute('aria-pressed', 'true');
 
-      /* ── AF639: game 2 exists server-side, but neither screen jumps to it ── */
+      /* ── game 2 exists server-side, but neither screen jumps to it ── */
       // by itself — each presses "Enter game" on its own screen (the operator,
       // 2026-11-16: "the next game does not open by itself; players click to
       // enter it").

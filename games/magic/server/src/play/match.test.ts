@@ -1601,7 +1601,7 @@ function recordFor(match: Match, state: Survivable): MatchRecord {
 		matchId: match.id,
 		hostId: 'h-000000000000',
 		// The match's OWN start, not "now": production keeps this across a restart (`MatchShell.startedAt`'s
-		// own doc), and AF639's new-game clock grace (`match.ts`) reads it to tell a resumed match from a new one.
+		// own doc), and the new-game clock grace (`match.ts`) reads it to tell a resumed match from a new one.
 		startedAt: new Date(match.startedAt).toISOString(),
 		epoch: state.remembered?.epoch ?? null,
 		owners: state.remembered?.owners ?? [],
@@ -5162,7 +5162,7 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	it("runs only the seat the game is waiting on, and tells both screens on the roster when it starts and stops", () => {
 		vi.useFakeTimers();
 		const h = clocked([60_000, 60_000]);
-		// Past AF639's new-game grace (its own describe below): this test is about waitedOn, not the grace.
+		// Past the new-game grace (its own describe below): this test is about waitedOn, not the grace.
 		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		waitingOnSeat0(h);
 		const [mine, theirs] = h.match.seatIdentities();
@@ -5182,7 +5182,7 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	it('flags at zero: the server concedes for the seat, logs it, and the win is a timeout', () => {
 		vi.useFakeTimers();
 		const h = clocked([20_000, 60_000]);
-		// Past AF639's new-game grace: this test is about flagging, not the grace.
+		// Past the new-game grace: this test is about flagging, not the grace.
 		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		waitingOnSeat0(h);
 		vi.advanceTimersByTime(19_000);
@@ -5198,7 +5198,7 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	it('flags at zero even when its timer fires a millisecond before the wall clock reaches zero', () => {
 		vi.useFakeTimers();
 		const h = clocked([20_000, 60_000]);
-		// Past AF639's new-game grace: this test is about the timer/wall-clock race, not the grace.
+		// Past the new-game grace: this test is about the timer/wall-clock race, not the grace.
 		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		waitingOnSeat0(h);
 		// Node's timers run on the event loop's own clock, truncated to the millisecond, and `now()` reads
@@ -5213,7 +5213,7 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	it("keeps running for a seat that disconnected: being away answers nothing", () => {
 		vi.useFakeTimers();
 		const h = clocked([60_000, 60_000]);
-		// Past AF639's new-game grace: this test is about disconnection, not the grace.
+		// Past the new-game grace: this test is about disconnection, not the grace.
 		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		h.match.claim(ALICE);
 		h.match.claim(BOB);
@@ -5229,7 +5229,7 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 		const { factory, attach, state } = survivable();
 		const deps = { host: factory, attach, log: () => undefined, overGraceMs: 60_000, emit: () => undefined, actSilenceMs: 10 * 60_000 };
 		const first = createMatchRegistry(deps).create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], clockMs: [60_000, 60_000] });
-		// Past AF639's new-game grace: this test is about handing a match over and taking it back, not the grace.
+		// Past the new-game grace: this test is about handing a match over and taking it back, not the grace.
 		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 		first.claim(ALICE);
 		first.claim(BOB);
@@ -5258,7 +5258,7 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	});
 
 	/**
-	 * AF639: the operator, 2026-11-16, of the flash into the next game of a series: *"the clock
+	 * The operator, of the flash into the next game of a series: *"the clock
 	 * gives a 1-minute grace before it starts running."* A new game's clock does not run at all
 	 * for its first {@link NEW_GAME_CLOCK_GRACE_MS}, whatever Forge is waiting on — mutation-tested
 	 * by deleting `Match.syncClock`'s override (`match.ts`): every case below then fails, because

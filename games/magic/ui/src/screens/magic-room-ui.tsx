@@ -1884,16 +1884,18 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   const sawNoMatch = useRef(false);
   if (table !== null && matchId === null) sawNoMatch.current = true;
   /**
-   * AF639, the operator, 2026-11-16: *"the next game does not open by itself; players click to
-   * enter it."* Once this room has drawn `mySideboarding`'s `TableCard` (below), the next game is
-   * entered by a press — that card's own "Sideboard" link, or `TablePage`'s own "Return to game" —
-   * never by this effect walking in on its own: that race (this effect against `TablePage`'s, both
-   * reading the same table) was the flash the operator described, measured in
-   * `docs/handoff/w122-F/af639-flash.md`. Game 1's own start (`startAs`, just below) never passes
-   * through `sideboarding`, so it is untouched.
+   * Once this room has drawn `mySideboarding`'s `TableCard` (below), the next game is entered by a
+   * press — that card's own "Sideboard" link, or `TablePage`'s own "Return to game" — never by this
+   * effect walking in on its own. Game 1's own start (`startAs`, just below) never passes through
+   * `sideboarding`, so it is untouched.
+   *
+   * Latched off `table` (`client.table`'s own read, below), the SAME read `matchId` comes from —
+   * NOT `mySideboarding` (`view.tables[0]`, the generic room read): that one lagged `table` by
+   * minutes on a loaded host (measured), so `matchId` could turn non-null before a `mySideboarding`
+   * this slow ever saw `sideboarding` at all, and this effect walked in on its own regardless.
    */
   const sawSideboarding = useRef(false);
-  if (mySideboarding) sawSideboarding.current = true;
+  if (table !== null && table.room.matchId === null && table.room.phase === 'sideboarding') sawSideboarding.current = true;
   useEffect(() => {
     if (!tournament && matchId !== null && !sawSideboarding.current) followMatchOnce(matchId, sawNoMatch.current);
   }, [tournament, matchId]);
@@ -1952,7 +1954,15 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
     // Never for a tournament: `startRoom`/`startVsBot` with no table id act on
     // `tables[0]`, which a tournament room never plays — its own start is
     // `startTournamentTable`'s effect, scoped to `myTournamentTable`, further down.
-    if (tournament || draftRoom || startAs === null || matchId !== null || mine === null || asked.current) return;
+    //
+    // Never while `sideboarding`: `bothReady` is the SAME per-player `ready` flag the sideboard
+    // step's own Ready sets (`SideboardStep`'s `onReady` → `tables.ready`), so once both have
+    // readied the SIDEBOARD, this effect saw `bothReady` again and started the match itself,
+    // calling `openNewMatch` with no press — the exact flash `SeriesEnterNext` exists to stop,
+    // just from a THIRD caller `TableSideboard.tsx`/`GameResultScreen.tsx` never touched. A
+    // Gauntlet's `between` phase is untouched: its next round genuinely IS "set up in the room"
+    // by this same effect (`GameResultScreen`'s own "starts nothing" case).
+    if (tournament || draftRoom || startAs === null || matchId !== null || mine === null || asked.current || table?.room.phase === 'sideboarding') return;
     asked.current = true;
     setStarting(true);
     (startAs === 'ai' ? client.startVsBot(roomId) : client.startRoom(roomId))

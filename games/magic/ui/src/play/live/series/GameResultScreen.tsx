@@ -10,37 +10,21 @@
  * not only by what moved here. `lostPlayers` is exported from `LiveBoard.tsx` for exactly this file to
  * import back.
  *
- * ## AF639 — the next game does not open by itself (2026-11-16)
+ * ## The next game opens only on a press
  *
- * The operator: *"the next game does not open by itself; players click to enter it, and the clock
- * gives a 1-minute grace before it starts running."* Before this, `GameResultScreen` watched the
- * room's table and called `openNewMatch` the INSTANT the next match existed — on this screen once
- * it had asked for it (`started`), and again from a generic effect that fired for either screen,
- * whichever had asked. Measured (`docs/handoff/w122-F/af639-flash.md`): the generic effect raced the
- * ROOM's own `followMatchOnce` effect (`screens/magic-room-ui.tsx`) for a player who had left to the
- * lobby and come back through "Sideboard" (`screens/pod/TablePage.tsx`) — the room briefly drew
- * `TableCard` (deck, score, "Return to game") before the auto-navigate replaced it with the board,
- * which is the flash the operator described ("shows the player's match card … maybe their deck").
+ * `GameResultScreen` never calls `openNewMatch` on its own: once the room's table names a newer
+ * match (`next`), this screen stops showing the sideboard editor and shows {@link SeriesEnterNext}
+ * instead — the same summary `TableCard` draws ("Return to game"), except it STAYS, with a press
+ * ("Enter game") that is the only caller of `openNewMatch`. `magic-room-ui.tsx`'s and
+ * `TablePage.tsx`'s own auto-navigate effects (`followMatchOnce`) are narrowed the same way, so
+ * neither screen jumps in by itself once a table has been seen `sideboarding`.
  *
- * The fix: `GameResultScreen` no longer calls `openNewMatch` on its own. Once the room's table
- * names a newer match (`next`, read the same way it always was), this screen stops showing the
- * sideboard editor and shows {@link SeriesEnterNext} instead — the SAME `TableCard`-style summary
- * that used to flash, except it now STAYS, with a press ("Enter game") that is the only thing that
- * calls `openNewMatch`. `TablePage`'s own `TableCard` ("Return to game") already was this kind of
- * gate for the room side; `magic-room-ui.tsx`'s and `TablePage.tsx`'s own auto-navigate effects
- * (`followMatchOnce`) are narrowed the same way, in those files, so neither screen jumps in by itself.
+ * ## The lobby's sideboard step is this same screen
  *
- * ## AF628 — sideboarding from the lobby is the SAME screen (2026-11-16)
- *
- * The operator: *"sideboarding entered from the room lobby is exactly the in-game sideboarding
- * screen; the site's top bar does not show."* `screens/TableSideboard.tsx` (the room's own entry,
- * reached via `TablePage`'s "Sideboard" link) used to wrap `SideboardStep` in a bare `<div>` of its
- * own; this screen's own sideboard branch wrapped the SAME `SideboardStep` in `.board__over.board__over--sideboard`
- * / `.live__sideboard`. {@link SeriesSideboardPanel} is that wrapper, factored out so both callers
- * share the one markup — `TableSideboard.tsx` now renders it directly. The site top bar is a
- * SEPARATE fact (`@hadoku/ui-shell`'s chrome shell, `RoomTableScreen`'s `useChromeShell('fit')` vs.
- * `MatchScreen`'s `useChromeShell('match')`) this file does not touch — see `TableSideboard.tsx`'s
- * own note on why that half is not fixed here.
+ * `screens/TableSideboard.tsx` (the room's own entry, reached via `TablePage`'s "Sideboard" link)
+ * renders {@link SeriesSideboardPanel} / {@link SeriesEnterNext} directly — the SAME components
+ * this file's own sideboard branch draws, factored out here so both callers share one markup
+ * rather than each wrapping `SideboardStep` in their own.
  */
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -392,7 +376,7 @@ export function SideboardStep({
 }
 
 /**
- * The ONE sideboard-step wrapper (AF628): `GameResultScreen`'s own "Next" branch and
+ * The ONE sideboard-step wrapper: `GameResultScreen`'s own "Next" branch and
  * `TableSideboard.tsx` (the room lobby's "Sideboard" link) both draw THIS, not a lookalike each —
  * same classes, same markup, so a screenshot diff of the two paths has nothing left to find in the
  * panel itself. `title` and `exits` are each caller's own (an outcome's name here, a plain
@@ -444,10 +428,8 @@ export function SeriesSideboardPanel({
 }
 
 /**
- * AF639: the screen a next game stays on until it is pressed into — the operator's own words for
- * what used to flash and vanish ("shows the player's match card and … maybe their deck"). `onEnter`
- * is the only caller of `openNewMatch`; nothing here, or in `GameResultScreen`/`TableSideboard`,
- * calls it on its own any more.
+ * The screen a next game stays on until it is pressed into. `onEnter` is the only caller of
+ * `openNewMatch`; nothing here, or in `GameResultScreen`/`TableSideboard`, calls it on its own.
  */
 export function SeriesEnterNext({
   title,
@@ -544,7 +526,7 @@ export function MatchEndedNotice({ ended, roomId }: { ended: { title: string; me
  * ready, and highlights the button of the
  * player the other is waiting on. Once both are ready either screen asks for
  * the match (`startRoom`; the server answers one match to both). **Neither screen
- * jumps in on its own any more** (AF639): once the room's table names the new
+ * jumps in on its own any more**: once the room's table names the new
  * match this screen draws {@link SeriesEnterNext} instead, and ONLY a press
  * there calls `openNewMatch`. In a game played alone against the bot there is
  * nobody to wait for, so Rematch still reaches the SAME enter-to-play screen at once.
@@ -768,7 +750,7 @@ export function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: 
    * The next game's id, the instant it is known — from THIS screen's own ask ({@link started}, set
    * synchronously off its answer, never waiting on a fresh room read), or from the room's next table
    * read, for the screen that did NOT ask (`next`, same fact `table?.room.matchId` always was). Either
-   * way (AF639) the screen does not act on it by itself: see {@link SeriesEnterNext} below.
+   * way the screen does not act on it by itself: see {@link SeriesEnterNext} below.
    */
   const [readyMatchId, setReadyMatchId] = useState<string | null>(null);
   const next = readyMatchId ?? table?.room.matchId ?? null;
@@ -779,7 +761,7 @@ export function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: 
     setRefusal(error);
   };
   const started = (answer: StartOutcome): void => {
-    // `openNewMatch` is no longer called here (AF639): only the player's own press on
+    // `openNewMatch` is not called here: only the player's own press on
     // `SeriesEnterNext` does, once it has a next game id — this screen's own, right away, or the
     // next table read's, for whichever screen did not ask.
     if (answer.ok) setReadyMatchId(answer.matchId);
@@ -838,7 +820,7 @@ export function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: 
   if (!shownOnce.current) return null;
 
   /**
-   * AF639: the next game exists (the sideboard's Ready agreed, or a solo Rematch against the AI) —
+   * The next game exists (the sideboard's Ready agreed, or a solo Rematch against the AI) —
    * this screen stays here with the faces it already has and a single press onward, rather than
    * jumping in by itself.
    */

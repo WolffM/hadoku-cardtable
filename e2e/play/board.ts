@@ -1154,7 +1154,7 @@ export async function readyFromSideboard(page: Page): Promise<void> {
 }
 
 /**
- * AF639 (the operator, 2026-11-16): *"the next game does not open by itself; players click to enter
+ * The operator: *"the next game does not open by itself; players click to enter
  * it."* Once the next game exists on THIS screen — every seat has readied the sideboard step (or a
  * solo Rematch against the AI has agreed) — it stays on "Enter game" until pressed. Call this once
  * PER SCREEN, after every `readyFromSideboard` call that was going to reach a new match has

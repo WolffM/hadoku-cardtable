@@ -228,7 +228,7 @@ vi.mock('../../screens/tables.ts', async (importOriginal) => {
         return { ok: true as const, table: table() };
       },
       // The real server's `startRoom`/`startVsBot` put the new match id on the table itself, which the
-      // next `table()` read already carries (AF639: `GameResultScreen`/`TableSideboard` read it off
+      // next `table()` read already carries (`GameResultScreen`/`TableSideboard` read it off
       // `table.room.matchId`, not off the start call's own answer, so neither screen has to be the one
       // that asked to learn the next game exists). The spy stays the assertable call; this wrapper is
       // the one place that keeps `tableState.matchId` honest with it.
@@ -4300,7 +4300,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     fireEvent.click(rematch());
     await waitFor(() => expect(tableState.startRoom).toHaveBeenCalledTimes(1));
     expect(tableState.startRoom).toHaveBeenCalledWith('r-1');
-    // AF639: the match exists, but this screen does not jump to it by itself.
+    // The match exists, but this screen does not jump to it by itself.
     const enter = await waitFor(() => getByTestId('game-result-enter'));
     expect(globalThis.location.hash, 'no auto-navigate once the match exists').not.toBe('#/match/m-next00000000');
     fireEvent.click(enter);
