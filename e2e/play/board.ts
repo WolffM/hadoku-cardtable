@@ -1166,6 +1166,37 @@ export async function pressEnterGame(page: Page): Promise<void> {
   await enter.click();
 }
 
+/**
+ * A room-side gate into a series' next game: `TableSideboard`'s own "Enter game"
+ * (`game-result-enter`) or `TablePage`'s pre-existing `TableCard` ("Return to game",
+ * `table-match-link`) — whichever the room's own table read is currently drawing. The two can
+ * swap under a press already travelling to one of them: the room's OUTER table read (slower)
+ * catches up and `magic-room-ui.tsx`'s own sideboarding bypass hands the frame to the other,
+ * detaching whichever element a click was aimed at mid-flight. So this presses by STATE, never a
+ * single visibility snapshot followed by a blind click: each pass re-reads which gate (if either)
+ * is there right now, clicks it with its own short timeout, and swallows only a detach or a
+ * timeout from that click — any other error is a real failure and is rethrown. Returns once the
+ * page's own URL matches `matchUrl` (which must anchor the match route, e.g. `/#\/match\//`).
+ */
+export async function pressIntoGame2(page: Page, matchUrl: RegExp, timeout: number): Promise<void> {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    if (matchUrl.test(page.url())) return;
+    if (Date.now() > deadline) throw new Error(`pressIntoGame2: ${page.url()} never reached a match URL within ${timeout}ms`);
+    const enter = page.getByTestId('game-result-enter');
+    const card = page.getByTestId('table-match-link');
+    try {
+      if (await enter.isVisible().catch(() => false)) await enter.click({ timeout: 1_000 });
+      else if (await card.isVisible().catch(() => false)) await card.click({ timeout: 1_000 });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!/detached|Timeout/i.test(message)) throw err;
+    }
+    if (matchUrl.test(page.url())) return;
+    await page.waitForTimeout(200);
+  }
+}
+
 /** Draw a box from empty table around every card in `ids`, and let go. */
 export async function boxAround(page: Page, ids: readonly (number | string)[]): Promise<void> {
   const { from, to, empty } = await page.evaluate((cards) => {
