@@ -590,11 +590,16 @@ export interface BoardPlayer {
 /**
  * A chess clock as the server last told it (`SeatIdentity.clock`): `ms` left and whether it runs,
  * with `at`, when this screen heard it — a running clock is drawn as `ms - (now - at)`.
+ *
+ * `grace`: true for as long as a new game's clock holds before it runs at all — the server's own
+ * fact (`Match.clockGrace`, cardtable's server), never derived here from `ms`/`running` alone,
+ * which cannot tell a fresh game's held clock apart from one merely waiting on the other seat.
  */
 export interface PlayerClock {
   ms: number;
   running: boolean;
   at: number;
+  grace?: boolean;
 }
 
 /** One emblem a player has — {@link BoardPlayer.emblems}. */

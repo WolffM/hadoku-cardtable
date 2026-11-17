@@ -601,8 +601,13 @@ export const SeatIdentitySchema = z
      * This seat's chess clock, as of the roster: `ms` left and whether it is running. Re-sent
      * whenever a clock starts or stops, so a screen counts a running one down from when this
      * arrived and never decides time itself. Absent in a game without a clock.
+     *
+     * `grace`: true for as long as a new game's clock holds before it runs at all (cardtable's
+     * `Match.clockGrace`) — absent rather than `false` once the grace ends, the same shape every
+     * other momentary flag here uses (`away`, `holds`). A screen never running yet otherwise looks
+     * identical to one merely waiting on the other seat's turn; this is what tells the two apart.
      */
-    clock: z.object({ ms: z.number().int().min(0), running: z.boolean() }).strict().optional(),
+    clock: z.object({ ms: z.number().int().min(0), running: z.boolean(), grace: z.boolean().optional() }).strict().optional(),
   })
   .strict();
 export type SeatIdentity = z.infer<typeof SeatIdentitySchema>;

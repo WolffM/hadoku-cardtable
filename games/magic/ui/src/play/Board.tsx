@@ -3631,7 +3631,7 @@ function PlayerFace({ player, interaction, poison: drawPoison = true }: { player
         </span>
         {poison > 0 && <PoisonMark count={poison} />}
       </span>
-      {player.clock !== undefined && <MatchClock clock={player.clock} />}
+      {player.clock !== undefined && <MatchClock clock={player.clock} grace={player.clock.grace === true} />}
     </>
   );
   return (
