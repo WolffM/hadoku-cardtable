@@ -118,12 +118,18 @@ describe.skipIf(!available.ok)(title, () => {
 	);
 
 	it(
-		"tr-playtest-1116: the AI's menace Brute attacking two Walls, Abzan Devotee and Betor on the human's side, three cards in the AI's graveyard",
+		"tr-playtest-1116: seat 1's menace Brute attacking two Walls, Abzan Devotee and Betor on seat 0's side, three cards in seat 1's graveyard",
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 1, decks: DECKS, scenario: scenarioText('tr-playtest-1116'), skipOpening: true });
 			try {
-				await waitUntil(() => s.zone(0, 'Battlefield').some((c) => c.name === 'Abzan Devotee'), 'the board applied', 60_000, s);
+				// Each seat's view arrives on its own frame: wait for both, or the AI side reads empty.
+				await waitUntil(
+					() => s.zone(0, 'Battlefield').some((c) => c.name === 'Abzan Devotee') && s.zone(1, 'Battlefield').some((c) => c.name === 'Boggart Brute') && s.zone(1, 'Graveyard').length === 3,
+					'the board applied on both seats',
+					60_000,
+					s,
+				);
 				const mine = s.zone(0, 'Battlefield').map((c) => c.name);
 				expect(mine).toEqual(expect.arrayContaining(['Wall of Stone', 'Abzan Devotee', 'Betor, Kin to All']));
 				expect(s.zone(1, 'Battlefield').map((c) => c.name)).toContain('Boggart Brute');
