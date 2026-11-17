@@ -1,6 +1,6 @@
 /**
  * The app's own pages and the rooms' API: the cover, the embed 404, the SPA fallback, the people
- * behind the avatars, the rooms, tournaments, card art, events, Discord, sounds and the relays.
+ * behind the avatars, the rooms, tournaments, card art, events (and their Discord mirror), Discord, sounds and the relays.
  */
 import { resolve } from 'node:path';
 import type { Request, Response } from 'express';
@@ -11,6 +11,7 @@ import { serveCover } from '../cover.js';
 import { attachCardArt } from '../http/card-art.js';
 import { attachClientEvents } from '@hadoku/game-server/http/client-events';
 import { attachDiscord } from '../http/discord.js';
+import { eventDiscordShape } from '../http/event-discord.js';
 import { attachEvents } from '../http/events.js';
 import { createMusicReviewStore } from '../http/musicReviewStore.js';
 import { attachPage } from '@hadoku/game-server/http/page';
@@ -21,6 +22,7 @@ import { attachTournaments } from '../http/tournaments.js';
 import { attachTrim } from '@hadoku/game-server/http/trim';
 import { attachUsage } from '@hadoku/game-server/http/usage';
 import { attachPeople, createPeople } from '@hadoku/game-server/people';
+import { discordEvents, SWEEP_MS } from '@hadoku/game-server/room/discord-events';
 import { createArtIds } from '../play/art-ids.js';
 import { tableGamesOf, type TableGameSource } from '../play/table-game.js';
 import type { CardtablePlugin } from './state.js';
@@ -94,7 +96,19 @@ export const routesPlugin: CardtablePlugin = {
 		});
 		attachTournaments(api, { tournaments: state.tournaments, people });
 		attachCardArt(api, { art: createArtIds(state.catalog), keys: state.artKeys });
-		attachEvents(api, { events: state.events, lobby, people, checkPlan: state.checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: state.roomsLog, closed: state.roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
+		// Every event also in the Discord server's Events tab, through ArchiveBot (prod only: it holds the secret).
+		// The lobby restored its rooms in `stores`, so the boot sweep sees every event's room.
+		const discordCalendar = discordEvents({
+			service: 'cardtable',
+			secret: state.archivebot.secret,
+			archivebotUrl: state.archivebot.url,
+			events: state.events,
+			shape: eventDiscordShape({ lobby, people, appUrl: `https://hadoku.me${CONFIG.basePrefix}` }),
+			log: jsonLogger('cardtable-discord'),
+		});
+		void discordCalendar.sweep();
+		if (state.archivebot.secret !== '') setInterval(() => void discordCalendar.sweep(), SWEEP_MS).unref();
+		attachEvents(api, { events: state.events, lobby, people, checkPlan: state.checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: state.roomsLog, closed: state.roomClosed, discord: discordCalendar, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 		// The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
 		attachDiscord(api, { secret: state.archivebot.secret, archivebotUrl: state.archivebot.url, log: jsonLogger('cardtable-discord') });
 

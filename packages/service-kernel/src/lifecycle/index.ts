@@ -21,3 +21,4 @@ export {
 	type ReleaseNotes,
 	type ReleaseOrdering,
 } from './announce.ts';
+export { archivebotPost, type ArchivebotReply, type ArchivebotTarget } from './archivebot.ts';

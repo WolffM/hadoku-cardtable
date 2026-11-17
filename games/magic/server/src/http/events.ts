@@ -15,7 +15,9 @@
  * organizer its leader, with `scheduledFor` set so the lobby neither hides nor reaps it before the
  * event. Its view is read from the room each time, so a change made in the room shows here at
  * once; an event whose room has closed is not listed. Cancelling closes the room unless a match or
- * a draft has started in it; moving the start moves the room's `scheduledFor` with it.
+ * a draft has started in it; moving the start moves the room's `scheduledFor` with it. Making,
+ * moving and cancelling an event each update the Discord server's Events tab as they happen
+ * (`discord`, never awaited).
  *
  * A form is checked through Rally's summary with this server's service key (signed-in callers
  * only on Rally's side), and only an `event-signup@1` form is attached. Being a service caller,
@@ -48,6 +50,7 @@ import {
 	type RallyFormSummary,
 } from '@hadoku/shared';
 
+import type { DiscordEvents } from '@hadoku/game-server/room/discord-events';
 import type { EventRecord, Events, FormRecord } from '@hadoku/game-server/room/events';
 import { callerOf, httpCaller, parseBody, perCallerLimit } from '@hadoku/game-server/http/request';
 import type { People, Person } from '@hadoku/game-server/people';
@@ -75,6 +78,8 @@ export interface EventsDeps {
 	closed?: (roomId: string, matches: readonly string[]) => void;
 	/** Where a Rally call that failed is told. */
 	log: (entry: Record<string, unknown>) => void;
+	/** The Discord server's Events tab, kept to match each change here as it is made; absent, none is. */
+	discord?: DiscordEvents;
 	/** Overrides `EVENT_CREATE_RATE_LIMIT`; `null` is none (`perCallerLimit`). */
 	createRateLimit?: RateLimitConfig | null;
 	/** Organizers' and attachers' names, looked up when shown (`people.ts`). Absent: a record shows the name it kept, if any. */
@@ -348,6 +353,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		const event = events.create({ roomId, startsAt, organizerId: caller.id, organizerUserId: caller.userId, ...(body.formId === undefined ? {} : { formId: body.formId }) }, now());
 		// A closed poll was kept only so its event could be made: made, it goes.
 		if (formClosed && body.formId !== undefined) events.forgetForms([body.formId]);
+		void deps.discord?.sync(event.id);
 		// The create body takes only Magic's game types (`CreateRoomBodySchema`).
 		res.status(201).json(view(event, magicView(lobby.get(roomId))!, caller.id, () => caller.name, await signedUpOf(event)));
 	});
@@ -367,6 +373,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		const result = events.reschedule(existing.id, me, startsAt);
 		if (!result.ok) return refuse(res, result.reason);
 		lobby.reschedule(room.id, startsAt);
+		void deps.discord?.sync(existing.id);
 		const [nameOf, signedUp] = await Promise.all([namesOf([result.event.organizerUserId]), signedUpOf(result.event)]);
 		res.json(view(result.event, magicView(lobby.get(room.id)) ?? room, me, nameOf, signedUp));
 	});
@@ -375,6 +382,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		const me = httpCaller(req);
 		const result = events.cancel(String(req.params.id), me);
 		if (!result.ok) return refuse(res, result.reason);
+		void deps.discord?.cancel(result.event);
 		const room = magicView(lobby.get(result.event.roomId));
 		// A room people have started playing in outlives its event; one still waiting goes with it.
 		if (room !== undefined && (room.game?.draftStartedAt ?? null) === null && room.tables.every((t) => t.matchId === null)) {

@@ -14,9 +14,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
+import { standInArchivebot, type StandInArchivebot } from '@hadoku/game-server/room/archivebot-events.testing';
 import { AttachedFormSchema, EventListSchema, EventViewSchema, FormListSchema, rallyCreateUrl, rallyFormIdOf, rallyReturnOf } from '@hadoku/shared';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
+const ARCHIVEBOT_SECRET = 'test-archivebot-secret';
 const HOUR = 60 * 60_000;
 const DAY = 24 * HOUR;
 
@@ -25,6 +27,8 @@ let eventsStore: typeof import('@hadoku/game-server/room/events');
 let lobbyMod: typeof import('../room/lobby.ts');
 let constantsMod: typeof import('@hadoku/game-server/room/constants');
 let edgeMod: typeof import('@hadoku/game-server/edge-auth');
+let discordMod: typeof import('@hadoku/game-server/room/discord-events');
+let eventDiscordMod: typeof import('./event-discord.ts');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
@@ -35,6 +39,8 @@ beforeAll(async () => {
 	lobbyMod = await import('../room/lobby.ts');
 	constantsMod = await import('@hadoku/game-server/room/constants');
 	edgeMod = await import('@hadoku/game-server/edge-auth');
+	discordMod = await import('@hadoku/game-server/room/discord-events');
+	eventDiscordMod = await import('./event-discord.ts');
 });
 
 const dirs: string[] = [];
@@ -61,7 +67,7 @@ function rallyForm(id: string, over: Record<string, unknown> = {}): RallyRow {
 	};
 }
 
-async function openApp(clock: { now: number }, rally: Record<string, RallyRow> = {}, opts: { people?: Record<string, string>; events?: unknown } = {}) {
+async function openApp(clock: { now: number }, rally: Record<string, RallyRow> = {}, opts: { people?: Record<string, string>; events?: unknown; archivebot?: StandInArchivebot } = {}) {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-events-test-'));
 	dirs.push(dir);
 	if (opts.events !== undefined) await writeFile(join(dir, 'events.json'), JSON.stringify(opts.events));
@@ -83,6 +89,18 @@ async function openApp(clock: { now: number }, rally: Record<string, RallyRow> =
 		const row = rally[decodeURIComponent(id)] ?? { status: 404 };
 		return row.status === 200 ? Response.json({ success: true, data: row.form }) : Response.json({ success: false }, { status: row.status });
 	};
+	const discord =
+		opts.archivebot === undefined
+			? undefined
+			: discordMod.discordEvents({
+					service: 'cardtable',
+					secret: ARCHIVEBOT_SECRET,
+					archivebotUrl: opts.archivebot.url,
+					events,
+					shape: eventDiscordMod.eventDiscordShape({ lobby, people, appUrl: 'https://hadoku.me/cardtable' }),
+					log,
+					now,
+				});
 	const app = express();
 	app.use(edgeMod.edgeProvenance);
 	app.use(edgeMod.requireMinTier);
@@ -97,13 +115,14 @@ async function openApp(clock: { now: number }, rally: Record<string, RallyRow> =
 		rally: { serviceKey: 'svc-key', fetch: fetchRally },
 		people,
 		log,
+		...(discord === undefined ? {} : { discord }),
 	});
 	app.use('/api', api);
 	const server = createServer(app);
 	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 	servers.push(server);
 	const { port } = server.address() as AddressInfo;
-	return { base: `http://127.0.0.1:${port}/api`, lobby, closed, rallyCalls, file: join(dir, 'events.json') };
+	return { base: `http://127.0.0.1:${port}/api`, lobby, closed, rallyCalls, discord, file: join(dir, 'events.json') };
 }
 
 function headersFor(user: string): Record<string, string> {
@@ -262,6 +281,52 @@ describe('/api/events', () => {
 		const alice = lobby.get(event.roomId!)!.leader;
 		expect(lobby.close(event.roomId!, alice).ok).toBe(true);
 		expect(EventListSchema.parse((await call(base, 'alice', 'GET', '/events')).body).events).toEqual([]);
+	});
+});
+
+describe('the Discord server mirrors /api/events', () => {
+	const bots: StandInArchivebot[] = [];
+	afterEach(async () => {
+		await Promise.all(bots.splice(0).map((b) => b.close()));
+	});
+	const open = async (clock: { now: number }) => {
+		const bot = await standInArchivebot(ARCHIVEBOT_SECRET, () => clock.now);
+		bots.push(bot);
+		return { bot, ...(await openApp(clock, {}, { people: { 'user-alice': 'Alice' }, archivebot: bot })) };
+	};
+
+	it('making, moving and cancelling an event each reach the Discord event, which reads as the room and links to it', async () => {
+		const clock = { now: Date.UTC(2026, 10, 17, 12) };
+		const { base, bot } = await open(clock);
+		const startsAt = new Date(clock.now + 2 * DAY).toISOString();
+		const made = await call(base, 'alice', 'POST', '/events', tournament('Friday cube', startsAt, { gameType: 'draft' }));
+		expect(made.status).toBe(201);
+		const event = EventViewSchema.parse(made.body);
+		await vi.waitFor(() => expect(bot.live()).toHaveLength(1));
+		expect(bot.live()[0]).toMatchObject({
+			name: 'Friday cube',
+			startTime: startsAt,
+			description: `Cube Draft, organized by Alice.\nhttps://hadoku.me/cardtable/room/${event.roomId}`,
+			location: `hadoku.me/cardtable/room/${event.roomId}`,
+			sourceKey: `cardtable-event-${event.id}`,
+		});
+
+		const later = new Date(clock.now + 3 * DAY).toISOString();
+		expect((await call(base, 'alice', 'PATCH', `/events/${event.id}`, { startsAt: later })).status).toBe(200);
+		await vi.waitFor(() => expect(bot.live()).toMatchObject([{ startTime: later }]));
+
+		expect((await call(base, 'alice', 'DELETE', `/events/${event.id}`)).status).toBe(200);
+		await vi.waitFor(() => expect(bot.live()).toEqual([]));
+		expect(bot.made).toHaveLength(1);
+	});
+
+	it('an event whose room has a password stays off Discord', async () => {
+		const clock = { now: Date.UTC(2026, 10, 17, 12) };
+		const { base, bot, discord } = await open(clock);
+		const made = await call(base, 'alice', 'POST', '/events', tournament('Secret league', new Date(clock.now + DAY).toISOString(), { gameType: 'draft', password: 'hush' }));
+		expect(made.status).toBe(201);
+		await discord?.sweep();
+		expect(bot.paths).toEqual([]);
 	});
 });
 

@@ -20,7 +20,7 @@ The operator's words are quoted verbatim. **Design** is ours and may change.
 | --- | --- | --- | --- |
 | 1 | Discord icon in the top bar, between theme picker and gear | hadoku-task (lib), hadoku_site (contract, templates), then cardtable | **Live** in `status` (left of the picker), `apps/ui/src/chrome/HeaderLinks.tsx`; moves between picker and gear when the `links` slot ships (`docs/requests/HADOKU_SITE_HEADER_LINKS.md`) |
 | 2 | The Discord server itself | operator (create), ArchiveBot (channels/roles/invite) | **Live** 2026-10-23: guild `1563307288406786078`, set up by ArchiveBot's `/setup cardtable`; invite `https://discord.gg/tfRddmWkDv` (permanent; joining earns no role). ArchiveBot's first invite, `VvntUGQVwm`, stopped accepting joins when the server became a Community server on 2026-11-05 |
-| 3 | Automation: patch notes, tournament events, later linking + room announcements | ArchiveBot | Patch notes **live** (`apps/server/src/announce.ts`, prod boot). Tournament events: ArchiveBot's routes are ready (`/api/events/create`, key `cardtable-tournament-<id>`; keep `eventId` for update/cancel) and wait on tournaments having a scheduled start. Contract: `docs/requests/ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md` |
+| 3 | Automation: patch notes, tournament events, later linking + room announcements | ArchiveBot | Patch notes **live** (`apps/server/src/announce.ts`, prod boot). Events **live** 2026-11-17: every calendar event (`/api/events`) is mirrored to the Events tab by `packages/game-server/src/room/discord-events.ts` (create, move, cancel as they happen; a 10-minute sweep retries failures and follows renames and closed or password-locked rooms; key `cardtable-event-<id>`). Contract: `docs/requests/ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md` |
 
 ## 1. Top bar
 
@@ -87,10 +87,8 @@ On cardtable's side:
   subjects are engineering prose. Candidates: the operator's ✅ rows in
   `docs/planning/playtest-ledger.md` since the last post, or a hand-written
   `docs/patch-notes/<version>.md` that the land step posts if present. The operator chooses.
-- **Tournament events.** Tournament mode (`docs/planning/tournament-mode-plan.md`) has no
-  scheduled-start concept yet; today a room locks its seats when the host decides. An event needs a
-  start time. So either a "schedule this tournament" action that calls `/api/events/create`, or
-  hand-made events in Discord to start with.
+- **Tournament events.** Live: the calendar's events (`/api/events`, which have a start) are
+  mirrored to the Discord Events tab; see track 3 above.
 - **Caller.** The server's PM2 wrapper (`hadoku_site/services/pm2/cardtable-wrapper.mjs`) gets the new
   secret from the vault, and the server calls loopback 3004. The reference signer is
   `hadoku-meet/worker/src/lib/archivebot.ts` (`signedPost`).

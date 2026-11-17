@@ -25,10 +25,10 @@
  *
  * Imports only; nothing runs at import.
  */
-import { createHmac } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JsonLog } from '../log/log.ts';
+import { archivebotPost } from './archivebot.ts';
 
 /** ArchiveBot's per-embed description cap. */
 const DESCRIPTION_MAX = 4096;
@@ -259,23 +259,6 @@ function notesPayload(service: string, notes: ReleaseNotes, appUrl: string, now:
 
 const creditsKey = (service: string, version: string): string => `${service}-credits-${version}`;
 
-async function postSigned(options: AnnounceOptions, path: string, body: string): Promise<Response> {
-	const signature = createHmac('sha256', options.secret).update(body).digest('hex');
-	return (options.fetch ?? fetch)(`${options.archivebotUrl}${path}`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json', 'X-Hadoku-Signature': `sha256=${signature}` },
-		body,
-		signal: AbortSignal.timeout(10_000),
-	});
-}
-
-/** POST `body` to ArchiveBot's `path`: the status, the raw reply, and a 2xx reply parsed (`{}` otherwise). */
-async function call(options: AnnounceOptions, path: string, body: string): Promise<{ status: number; ok: boolean; raw: string; answer: Record<string, unknown> }> {
-	const res = await postSigned(options, path, body);
-	const raw = await res.text();
-	return { status: res.status, ok: res.ok, raw, answer: res.ok ? (JSON.parse(raw) as Record<string, unknown>) : {} };
-}
-
 async function readEarlierCredits(file: string | undefined): Promise<string[]> {
 	if (file === undefined) return [];
 	try {
@@ -315,7 +298,7 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 
 	for (const older of releases.slice(1)) {
 		try {
-			const res = await call(options, '/api/messages/delete', JSON.stringify({ idempotencyKey: creditsKey(service, older.version), timestamp: now().getTime(), source: service }));
+			const res = await archivebotPost(options, '/api/messages/delete', JSON.stringify({ idempotencyKey: creditsKey(service, older.version), timestamp: now().getTime(), source: service }));
 			if (res.status === 404) continue;
 			log({ event: 'release-credits', outcome: res.ok ? 'deleted' : 'failed', version: older.version, ...(res.ok ? {} : { status: res.status, reply: res.raw.slice(0, 500) }) });
 		} catch (err) {
@@ -324,7 +307,7 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 	}
 
 	try {
-		const res = await call(options, '/api/messages/send', notesPayload(service, notes, options.appUrl, now()));
+		const res = await archivebotPost(options, '/api/messages/send', notesPayload(service, notes, options.appUrl, now()));
 		if (!res.ok) {
 			log({ event: 'release-announce', outcome: 'failed', version: notes.version, status: res.status, reply: res.raw.slice(0, 500) });
 			return;
@@ -337,7 +320,7 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 
 	for (const release of releases) {
 		try {
-			const res = await call(options, '/api/messages/edit', notesPayload(service, release, options.appUrl, now()));
+			const res = await archivebotPost(options, '/api/messages/edit', notesPayload(service, release, options.appUrl, now()));
 			// 404: no post for it, on record or in the channel's history: nothing to change.
 			if (res.status === 404) continue;
 			if (!res.ok) {
@@ -361,7 +344,7 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 				retain: true,
 				embeds: splitBody(body).map((description, i) => ({ ...(i === 0 ? { title: CREDITS_TITLE } : {}), description, url: options.appUrl, color: 0x2f855a })),
 			});
-		const sent = await call(options, '/api/messages/send', payload(now()));
+		const sent = await archivebotPost(options, '/api/messages/send', payload(now()));
 		if (!sent.ok) {
 			log({ event: 'release-credits', outcome: 'failed', version: notes.version, status: sent.status, reply: sent.raw.slice(0, 500) });
 			return;
@@ -370,7 +353,7 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 			log({ event: 'release-credits', outcome: 'posted', version: notes.version });
 			return;
 		}
-		const edited = await call(options, '/api/messages/edit', payload(now()));
+		const edited = await archivebotPost(options, '/api/messages/edit', payload(now()));
 		if (!edited.ok) log({ event: 'release-credits', outcome: 'failed', version: notes.version, status: edited.status, reply: edited.raw.slice(0, 500) });
 		else if (edited.answer.edited === true) log({ event: 'release-credits', outcome: 'edited', version: notes.version });
 	} catch (err) {

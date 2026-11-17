@@ -27,6 +27,8 @@ const EventRecordSchema = z.object({
 	organizerName: z.string().optional(),
 	/** The Rally sign-up form it was made from: Rally counts who can make it (`EventView.signedUp`). */
 	formId: z.string().optional(),
+	/** What the Discord server's calendar holds for it, as last sent (`discord-events.ts`): absent while it has none. */
+	discord: z.object({ eventId: z.string(), sent: z.string() }).optional(),
 	createdAt: z.number(),
 });
 export type EventRecord = z.infer<typeof EventRecordSchema>;
@@ -60,6 +62,8 @@ export interface Events {
 	create(event: NewEvent, now: number): EventRecord;
 	reschedule(id: string, callerId: string, startsAt: number): EventChange;
 	cancel(id: string, callerId: string): EventChange;
+	/** Record what Discord's calendar now holds for an event, or that it holds nothing (`undefined`). No-op for an event since cancelled. */
+	setDiscord(id: string, discord: EventRecord['discord']): void;
 	/** Every attached form, oldest first. */
 	forms(): FormRecord[];
 	/** False when the form was already attached. */
@@ -146,6 +150,14 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 			log({ event: 'event-cancelled', id });
 			void save();
 			return found;
+		},
+		setDiscord(id, discord) {
+			const found = events.find((e) => e.id === id);
+			if (found === undefined) return;
+			const { discord: _, ...rest } = found;
+			const event: EventRecord = discord === undefined ? rest : { ...rest, discord };
+			events = events.map((e) => (e.id === id ? event : e));
+			void save();
 		},
 		forms() {
 			return forms;
