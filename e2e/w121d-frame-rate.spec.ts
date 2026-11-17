@@ -221,11 +221,24 @@ async function sit(browser: Browser, run: (t: Table) => Promise<void>): Promise<
   }
 }
 
-/** Alice attacks with everyone (12 permanents, 5 flying); bob has nothing to block with. Returns once the result screen shows. */
-async function attackToGameOver(t: Table): Promise<void> {
+/**
+ * Alice declares attack with everyone (12 permanents, 5 flying). Returns with combat still LIVE —
+ * attackers marked `[data-attacking]`, nobody has passed Declare Attackers Step yet — so the flyers
+ * (and the attacking ring their comment in `card.css` names) are still animating well before the
+ * lethal blow that ends the game: sampling here, not after the result screen shows, is the only way
+ * to read "animating during combat" apart from "never stops once the game is over".
+ */
+async function declareAttack(t: Table): Promise<void> {
   await passToDeclareAttackers(t.alice);
   await t.alice.getByTestId('live-attack-all').first().click();
   await t.alice.locator('[data-testid="live-decision-ok"]:enabled').first().click();
+  // All 9 of alice's creatures attack (5 flying — the two Serra Angel, the three Narcomoeba — plus
+  // the two Grizzly Bears and two Hill Giant grounded); only the flyers are this spec's own concern.
+  await expect(t.alice.locator('li.board-card[data-attacking]')).toHaveCount(9, { timeout: 10_000 });
+}
+
+/** From a live Declare Attackers Step to the result screen: bob has nothing to block with, so every stop left is a priority pass, on either seat. */
+async function passToGameOver(t: Table): Promise<void> {
   await expect
     .poll(
       async () => {
@@ -240,9 +253,15 @@ async function attackToGameOver(t: Table): Promise<void> {
 
 test(titled('AF638 budget: 12-vs-8 combat damage, five flyers, then the result screen idle'), async ({ browser }) => {
   await sit(browser, async (t) => {
-    const { report: combat } = await trace(t.browserCdp, t.alice, null, 'combat', () => attackToGameOver(t));
-    expect(combat.anims.n, 'five Serra Angel/Narcomoeba flyers are still animating through combat').toBeGreaterThanOrEqual(5);
+    const { report: combat } = await trace(t.browserCdp, t.alice, null, 'combat', async () => {
+      await declareAttack(t);
+      // Held here: nobody has passed priority yet, so nothing moves the game toward the lethal blow —
+      // a clean window to sample "mid-combat", not racing the pass loop below.
+      await t.alice.waitForTimeout(1_000);
+    });
+    expect(combat.anims.n, 'five Serra Angel/Narcomoeba flyers are still animating mid-combat, before the lethal blow').toBeGreaterThanOrEqual(5);
 
+    await passToGameOver(t);
     await t.alice.waitForTimeout(IDLE_SETTLE_MS);
     const { report: idle } = await trace(t.browserCdp, t.alice, null, 'idle-after-gameover', () => t.alice.waitForTimeout(IDLE_WINDOW_MS));
     // Never gated on milliseconds (a CI runner draws in software — `docs/spikes/browser-fps.md`); this
