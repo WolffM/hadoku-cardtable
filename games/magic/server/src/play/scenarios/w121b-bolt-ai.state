@@ -1,0 +1,18 @@
+# Wave 121 §B, AF629 — `bolt-player.state`'s mirror: seat 1 (ai, bob) holds priority and a castable
+# Lightning Bolt instead of seat 0. `human…`/`ai…` keys land on seat 0/seat 1 regardless of who is
+# actually sitting there (`e2e/play/scenario.ts`), and this harness always seats two real browsers,
+# so bob idling here runs HIS clock while alice's sits stopped — the one state `bolt-player.state`
+# itself never reaches, needed to read the opponent's clock colour from alice's own screen.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Lightning Bolt
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

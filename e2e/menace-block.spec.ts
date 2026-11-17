@@ -18,6 +18,11 @@
  * - The second wall joins: enabled; Done; at Combat Damage both walls block the Brute.
  * - Or the one wall leaves: enabled; Done; nothing blocks, and the Brute's 3 reach alice.
  *
+ * AF637 (the operator, 2026-11-16): the lone wall ALSO carries its own corner mark
+ * (`Board.tsx`'s `StateMarks`, `data-mark="underBlocked"`) — on alice's screen AND bob's, since it
+ * rides the shared combat view, not an `InputBlock` only alice runs — gone once the second wall
+ * joins or the first one leaves.
+ *
  * Every step prints one `[menace-block]` line.
  */
 
@@ -46,6 +51,14 @@ async function blocks(page: Page): Promise<string[]> {
 /** Alice's own life total, as her screen draws it. */
 const ownLife = async (page: Page): Promise<string | null> => (await lifeOf(page, 'me').textContent())?.trim() ?? null;
 
+/**
+ * AF637: whether `cardId`'s own corner marks carry the "needs another blocker" mark, on `page` —
+ * read the same way on alice's screen and bob's, since it rides the shared combat view
+ * (`live/match.ts`'s `insufficientBlockers`), never an `InputBlock` only one of them runs.
+ */
+const underBlocked = (page: Page, cardId: number): Promise<boolean> =>
+  page.locator(`[data-board-card="${cardId}"] > .board-card__marks > [data-mark="underBlocked"]`).count().then((n) => n > 0);
+
 /** The match up to alice's open block window: the Brute's id and her two walls. */
 async function openBlockWindow(alice: Page, bob: Page): Promise<{ brute: number; x: number; y: number }> {
   const ids = async (l: ReturnType<typeof attackingCards>): Promise<number[]> =>
@@ -61,8 +74,8 @@ async function openBlockWindow(alice: Page, bob: Page): Promise<{ brute: number;
   return { brute, x, y };
 }
 
-/** One wall on the Brute: Done Blocking off, saying why on hover. */
-async function oneBlockerRefused(alice: Page, brute: number, x: number): Promise<void> {
+/** One wall on the Brute: Done Blocking off, saying why on hover; AF637's mark on the wall, both screens. */
+async function oneBlockerRefused(alice: Page, bob: Page, brute: number, x: number): Promise<void> {
   await assignBlock(alice, x, brute);
   await expect.poll(() => blocks(alice), { timeout: 10_000, message: 'the wall blocks the Brute' }).toEqual([`${x}>${brute}`]);
   // Forge's next bar answers the block; read the button once it has.
@@ -74,6 +87,11 @@ async function oneBlockerRefused(alice: Page, brute: number, x: number): Promise
   const tip = await decisionOkTip(alice);
   log('one blocker tip', tip);
   expect(tip, 'the hover says why, in Forge’s words, by name').toMatch(/^Boggart Brute cannot be blocked with 1 creatures/);
+
+  // AF637: the lone wall itself carries the insufficient-block mark, on alice's screen AND bob's.
+  await expect.poll(() => underBlocked(alice, x), { timeout: 10_000, message: "the lone wall shows AF637's mark on alice's screen" }).toBe(true);
+  await expect.poll(() => underBlocked(bob, x), { timeout: 10_000, message: "and on bob's screen too" }).toBe(true);
+  log('one blocker mark', { alice: await underBlocked(alice, x), bob: await underBlocked(bob, x) });
 }
 
 /**
@@ -106,8 +124,9 @@ test(titled('a menace attacker with one blocker: Done Blocking is off and says w
   try {
     seated = await startScenarioMatch(browser, stack, 'menace-block');
     const alice = seated.alice.page;
-    const { brute, x, y } = await openBlockWindow(alice, seated.bob.page);
-    await oneBlockerRefused(alice, brute, x);
+    const bob = seated.bob.page;
+    const { brute, x, y } = await openBlockWindow(alice, bob);
+    await oneBlockerRefused(alice, bob, brute, x);
 
     await assignBlock(alice, y, brute);
     await expect.poll(() => blocks(alice), { timeout: 10_000, message: 'both walls block the Brute' }).toEqual([`${x}>${brute}`, `${y}>${brute}`].sort());
@@ -116,7 +135,12 @@ test(titled('a menace attacker with one blocker: Done Blocking is off and says w
     log('two blockers', { disabled: await decisionOk(alice).isDisabled(), tip });
     expect(tip, 'nothing to explain').toBeNull();
 
-    await declare(alice, seated.bob.page);
+    // AF637: a second blocker resolves it — the mark is gone, on both screens, from the ORIGINAL wall too.
+    await expect.poll(() => underBlocked(alice, x), { timeout: 10_000, message: "the mark clears on alice's screen once a second blocker joins" }).toBe(false);
+    await expect.poll(() => underBlocked(bob, x), { timeout: 10_000, message: 'and on bob\'s' }).toBe(false);
+    expect(await underBlocked(alice, y), 'the second wall never carried the mark either').toBe(false);
+
+    await declare(alice, bob);
     log('declared', { alice: await blocks(alice), bob: await blocks(seated.bob.page) });
     expect(await blocks(alice), 'Forge declared both walls on the Brute').toEqual([`${x}>${brute}`, `${y}>${brute}`].sort());
     expect(await blocks(seated.bob.page), 'bob sees the same block').toEqual([`${x}>${brute}`, `${y}>${brute}`].sort());
@@ -136,15 +160,20 @@ test(titled('a menace attacker with one blocker: removing the blocker turns Done
   try {
     seated = await startScenarioMatch(browser, stack, 'menace-block');
     const alice = seated.alice.page;
-    const { brute, x } = await openBlockWindow(alice, seated.bob.page);
-    await oneBlockerRefused(alice, brute, x);
+    const bob = seated.bob.page;
+    const { brute, x } = await openBlockWindow(alice, bob);
+    await oneBlockerRefused(alice, bob, brute, x);
 
     await undoBlock(alice, x);
     await expect.poll(() => blocks(alice), { timeout: 10_000, message: 'the wall leaves combat' }).toEqual([]);
     await expect(decisionOk(alice), 'no blocker: Done Blocking is on').toBeEnabled({ timeout: 5_000 });
     log('blocker removed', { disabled: await decisionOk(alice).isDisabled(), tip: await decisionOkTip(alice) });
 
-    await declare(alice, seated.bob.page);
+    // AF637: the wall left combat, so the mark leaves with it — both screens.
+    await expect.poll(() => underBlocked(alice, x), { timeout: 10_000, message: "the mark clears on alice's screen once the blocker leaves" }).toBe(false);
+    await expect.poll(() => underBlocked(bob, x), { timeout: 10_000, message: "and on bob's" }).toBe(false);
+
+    await declare(alice, bob);
     expect(await blocks(alice), 'nothing blocks').toEqual([]);
     await expect.poll(() => ownLife(alice), { timeout: 10_000, message: 'the unblocked Brute’s 3 reach alice' }).toBe('17');
     log('declared', { life: await ownLife(alice) });
