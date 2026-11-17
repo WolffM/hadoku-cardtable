@@ -4096,6 +4096,28 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(done.game!.pod?.standings[0]).toMatchObject({ id: ALICE.id, matchPoints: 6, rank: 1 });
 			void archived; // onTournament is proven by the 2-player test above; this one proves the round math.
 		});
+
+		// r-67759762d971, 2026-11-17: a disconnect freed a player's settled round-1 seat while their
+		// round-2 table sat between games, and took the room-wide deck with it — the sideboard step
+		// then had no deck to draw and the player had no way to game 2.
+		it('a disconnect frees a settled earlier round’s seat and keeps the deck the current round’s series still plays', async () => {
+			const { lobby, id } = await threeHumanTournament();
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			const table1 = started.room.game!.pod!.pairings[0]!.tableId;
+			lobby.recordGameResult(id, table1, { matchId: 'm-r1-g1', winner: 0 });
+			lobby.recordGameResult(id, table1, { matchId: 'm-r1-g2', winner: 0 });
+			const table2 = lobby.get(id)!.game!.pod!.pairings[0]!.tableId;
+			expect(lobby.setTableMatch(id, table2, 'm-r2-g1')).toBe(true);
+			lobby.recordGameResult(id, table2, { matchId: 'm-r2-g1', winner: 1 });
+			expect(magicView(lobby.get(id))!.tables.find((t) => t.id === table2)!.series.phase).toBe('sideboarding');
+			expect(lobby.setPlayerState(id, ALICE.id, { held: 'the drafted deck' })).toBe(true);
+
+			expect(lobby.releaseAbandonedSeats(ALICE.id)).toEqual([{ roomId: id, tableId: table1 }]);
+			expect(lobby.seats(id, table2).map((s) => s.memberId)).toContain(ALICE.id);
+			expect(lobby.playerState(id, ALICE.id)).toEqual({ held: 'the drafted deck' });
+		});
 	});
 
 	describe('the fifth tiebreak: each game timed from its match’s start to its result (the operator, 2026-10-23)', () => {

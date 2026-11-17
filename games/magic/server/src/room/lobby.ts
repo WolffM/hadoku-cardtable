@@ -1489,11 +1489,14 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 				const gauntlet = room.game.gauntlets[table.id];
 				if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) continue;
 				if (!leaveSeat(table, memberId)) continue;
-				const member = room.members.find((m) => m.id === memberId);
-				if (member !== undefined) member.state = undefined;
 				released.push({ roomId: room.id, tableId: table.id });
 			}
-			if (released.some((r) => r.roomId === room.id)) this.persist(room);
+			if (!released.some((r) => r.roomId === room.id)) continue;
+			// The held deck is the member's across the room, not one table's: a pod seats them at
+			// every round's table, so it goes only with the last seat they hold here.
+			const member = room.members.find((m) => m.id === memberId);
+			if (member !== undefined && !room.game.tables.some((t) => t.seats.includes(memberId))) member.state = undefined;
+			this.persist(room);
 		}
 		for (const { roomId, tableId } of released) this.log({ event: 'seat-released-disconnected', roomId, tableId, memberId });
 		return released;
