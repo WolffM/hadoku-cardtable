@@ -108,16 +108,18 @@ function decorHost(face: Element): Element | null {
   const size = Math.max(face.getBoundingClientRect().width, 1);
   let host: Element | null = null;
   for (let box = face.parentElement; box !== null && box.parentElement !== null; box = box.parentElement) {
-    const rect = box.getBoundingClientRect();
-    if (rect.width > size * 1.6) break;
+    if (box.getBoundingClientRect().width > size * 1.6) break;
     const style = getComputedStyle(box);
     // A face that turns away (a coin's sides) hides what it holds: its overlay stays inside it.
     if (style.backfaceVisibility === 'hidden') break;
-    // A box clipped down to nothing (a screen-reader-only list, e.g. `rooms.css`'s `.rooms__sr`:
-    // `width:1px;height:1px;overflow:hidden`) means to hide everything inside it, not merely trim a
-    // seat's ring: the overlay must not escape past it onto the visible page (a spectator's halo
-    // once leaked out of a front-page room card's hidden member list, under the room's own name).
-    if (rect.width <= 2 || rect.height <= 2) break;
+    // A box clipped on purpose to hide its content from sighted eyes — the screen-reader-only idiom
+    // (`rooms.css`'s `.rooms__sr`: `clip:rect(0 0 0 0)`), never how a seat's round RING clips (that is
+    // `overflow` plus a border-radius, no `clip`/`clip-path` at all) — is not a box to escape: the
+    // overlay must stay inside it (a spectator's halo once leaked out of a front-page room card's
+    // hidden member list, under the room's own name). Read from the computed STYLE, not a measured
+    // size: jsdom lays nothing out, so every box's `getBoundingClientRect()` is 0×0 there regardless
+    // of which kind of clip it is.
+    if (!['', 'auto'].includes(style.clip) || !['', 'none'].includes(style.clipPath)) break;
     if ([style.overflow, style.overflowX, style.overflowY].some((o) => o !== '' && o !== 'visible')) host = box.parentElement;
   }
   return host;
