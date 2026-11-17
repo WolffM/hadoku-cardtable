@@ -11,24 +11,6 @@ import { FaceDecor, PlayerName } from './look.tsx';
 
 afterEach(cleanup);
 
-/** `rect`'s own corner, as `getBoundingClientRect` would report it — jsdom does no layout, so every
- * box a test cares about is stubbed by hand (below). */
-function domRect(width: number, height: number, top = 40, left = 20): DOMRect {
-  return {
-    width,
-    height,
-    top,
-    left,
-    right: left + width,
-    bottom: top + height,
-    x: left,
-    y: top,
-    toJSON() {
-      return this;
-    },
-  } as DOMRect;
-}
-
 describe('PlayerName', () => {
   it('is plain text, with the class it was given, for someone who wears nothing on their name', () => {
     const { container } = render(createElement(PlayerName, { name: 'Ari', face: { id: 'sage', look: { cosmetics: { overlay: 'overlay.halo' } } }, className: 'n' }));
@@ -64,39 +46,25 @@ describe('FaceDecor near a screen-reader-only list', () => {
    * it showed up under the room owner's name on the card, not on the (invisible) spectator's own face.
    *
    * `decorHost` (`look.tsx`) escapes a clipping ancestor so a crown can clear a ROUND RING roughly the
-   * face's own size; the bug was that it escaped THIS clip too, which is not sized to the face at all —
-   * it is sized to show nothing, on purpose. The fix keeps an overlay inside any ancestor clipped down
-   * to near-nothing. jsdom never lays anything out, so every box this test cares about is a stub.
+   * face's own size — that clip is `overflow` plus a border-radius, never `clip`/`clip-path`. The bug
+   * was that it escaped `.rooms__sr`'s clip too, which hides its content on purpose, the same way. The
+   * fix reads the computed `clip`/`clip-path` rather than a measured size: jsdom never lays anything
+   * out (`getBoundingClientRect()` is 0×0 for every box here, ring or sr-only alike), so a rule tied to
+   * size cannot tell them apart in a unit test — or, for that matter, in a real browser, where both
+   * boxes can be exactly the same size.
    */
-  const originalRect: typeof Element.prototype.getBoundingClientRect = Element.prototype.getBoundingClientRect;
-  const RECTS: Readonly<Record<string, { width: number; height: number }>> = {
-    'room-card-body': { width: 260, height: 140 },
-    'members-sr': { width: 1, height: 1 },
-    'member-face': { width: 18, height: 18 },
-  };
-
-  afterEach(() => {
-    Element.prototype.getBoundingClientRect = originalRect;
-  });
-
-  it('keeps a spectator’s halo inside the hidden member list, off the card itself', () => {
-    Element.prototype.getBoundingClientRect = function (this: Element) {
-      const id = this.getAttribute('data-testid');
-      const sized = id === null ? undefined : RECTS[id];
-      return sized === undefined ? domRect(0, 0) : domRect(sized.width, sized.height);
-    };
-
+  it('keeps a spectator’s halo inside the hidden member list, off the card itself (jsdom: every box is 0×0, so only the computed clip tells them apart)', () => {
     const { container } = render(
       createElement(
         'div',
-        { 'data-testid': 'room-card-body', style: { position: 'relative' } },
+        { 'data-testid': 'room-card-body' },
         createElement('span', { 'data-testid': 'owner-name' }, "Kawakimi’s Room"),
         createElement(
           'span',
           {
             'data-testid': 'members-sr',
             className: 'rooms__sr',
-            style: { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', overflowX: 'hidden', overflowY: 'hidden', clip: 'rect(0px, 0px, 0px, 0px)' },
+            style: { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0px, 0px, 0px, 0px)' },
           },
           createElement('img', { 'data-testid': 'member-face' }),
           createElement(FaceDecor, { avatarId: 'spectator', look: { cosmetics: { overlay: 'overlay.halo' } } }),
@@ -108,5 +76,22 @@ describe('FaceDecor near a screen-reader-only list', () => {
     const decor = container.querySelector('[data-hc-art]');
     expect(decor, 'the spectator’s halo art is drawn').not.toBeNull();
     expect(membersSr?.contains(decor), 'the halo stays a descendant of the hidden member list, never escapes onto the visible card').toBe(true);
+  });
+
+  it('still escapes a plain seat ring the same size as the hidden box (`overflow` alone, no `clip`/`clip-path`)', () => {
+    const { container } = render(
+      createElement(
+        'span',
+        { className: 'outer' },
+        createElement(
+          'span',
+          { className: 'ring', style: { width: '1px', height: '1px', overflow: 'hidden' } },
+          createElement('img', {}),
+          createElement(FaceDecor, { avatarId: 'seated', look: { cosmetics: { overlay: 'overlay.halo' } } }),
+        ),
+      ),
+    );
+    const decor = container.querySelector('[data-testid="face-decor"]');
+    expect(decor?.parentElement?.className, 'a ring with no clip style still lets the overlay clear it').toBe('outer');
   });
 });
