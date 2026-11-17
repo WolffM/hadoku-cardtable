@@ -81,11 +81,16 @@ async function myTableId(page: Page, roomId: string): Promise<string> {
   return mine.tableId;
 }
 
-/** Back to my table's page by its own link, as from the hub's card: what a player who left it does. */
+/**
+ * Back to my table's page by its own link, as from the hub's card: what a player who left it
+ * does. Between games of my own series (`series.phase === 'sideboarding'`), the table's page is
+ * the sideboard panel itself, drawn in the game's own frame with no room chrome around it — so
+ * `table-page` never mounts there at all; either one landing is this call succeeding.
+ */
 export async function openMyTable(page: Page, roomUrl: string): Promise<void> {
   const roomId = roomIdOfUrl(roomUrl);
   await page.goto(`${roomUrl}/table/${await myTableId(page, roomId)}`);
-  await expect(page.getByTestId('table-page')).toBeVisible();
+  await expect(page.getByTestId('table-page').or(page.getByTestId('table-sideboard'))).toBeVisible();
 }
 
 /**

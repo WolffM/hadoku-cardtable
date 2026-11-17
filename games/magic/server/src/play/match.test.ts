@@ -5364,16 +5364,26 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 	 * by deleting `Match.syncClock`'s override (`match.ts`): every case below then fails, because
 	 * the first seat asked starts the clock at once.
 	 */
-	describe('the new-game clock grace (AF639)', () => {
+	describe('the new-game clock grace', () => {
 		it("does not run a seat the game is waiting on, inside the grace", () => {
 			vi.useFakeTimers();
 			const h = clocked([60_000, 60_000]);
 			waitingOnSeat0(h);
 			const [mine] = h.match.seatIdentities();
-			expect(mine!.clock).toEqual({ ms: 60_000, running: false });
+			expect(mine!.clock).toEqual({ ms: 60_000, running: false, grace: true });
 			vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS - 1_000);
 			expect(h.match.clockLeft()).toEqual([60_000, 60_000]);
 			expect(h.match.seatIdentities()[0]!.clock?.running, 'still not running, 1s short of the grace').toBe(false);
+			expect(h.match.seatIdentities()[0]!.clock?.grace, 'still inside the grace, 1s short of its end').toBe(true);
+		});
+
+		it("rides the roster's clock as `grace: true` for as long as the grace holds, and is absent (not `false`) once it ends", () => {
+			vi.useFakeTimers();
+			const h = clocked([60_000, 60_000]);
+			waitingOnSeat0(h);
+			expect(h.match.seatIdentities().map((s) => s.clock?.grace)).toEqual([true, true]);
+			vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
+			expect(h.match.seatIdentities().map((s) => s.clock?.grace), 'absent, not `grace: false`, the same shape every other momentary flag here uses').toEqual([undefined, undefined]);
 		});
 
 		it('starts the seat the game is waiting on the instant the grace ends', () => {
