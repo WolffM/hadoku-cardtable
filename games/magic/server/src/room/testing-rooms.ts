@@ -116,6 +116,7 @@ const SPECS: readonly TestingRoomSpec[] = [
 	{ name: 'Testing: Board — Trigger storm', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-triggers') },
 	// The operator, 2026-10-26: "give me a test room with a gifts ungiven deck and four mana on turn one".
 	{ name: 'Testing: Board — Gifts Ungiven', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-gifts') },
+	{ name: 'Testing: Board — Play test 11-16', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-playtest-1116') },
 ];
 
 /** The set-draft room's own stable name — never the set's name, so a new set releasing never orphans this one and spawns a second. */

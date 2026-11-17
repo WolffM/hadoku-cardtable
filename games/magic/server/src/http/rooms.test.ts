@@ -2650,11 +2650,11 @@ describe('testing rooms (admin only, seeded)', () => {
 		const adminList = await call(h, 'GET', '/api/rooms', { headers: { 'x-hadoku-tier': 'admin' } });
 		const adminRooms = (adminList.json() as { rooms: { id: string; name: string; testing: boolean }[] }).rooms;
 		const testingRooms = adminRooms.filter((r) => r.testing);
-		// Thirteen rooms need nothing beyond `Lobby.create`/`setSettings`/
+		// Fourteen rooms need nothing beyond `Lobby.create`/`setSettings`/
 		// `sitPod`/`aiPod`/`recordGameResult` (the four original testing rooms,
 		// seven board-state rooms — lane testing-states, 2026-10-23, trigger storm
-		// and Gifts Ungiven included — and the two "round 2" tournament rooms — lane
-		// testing-tourney, 2026-10-23); the fourteenth (the set draft) is
+		// Gifts Ungiven and the 2026-11-16 play test's board included — and the two "round 2" tournament rooms — lane
+		// testing-tourney, 2026-10-23); the fifteenth (the set draft) is
 		// skipped and logged with no catalog wired — this harness's own
 		// `checkPlan`/`newestSetCode` are both omitted.
 		expect(testingRooms.map((r) => r.name).sort()).toEqual(
@@ -2670,6 +2670,7 @@ describe('testing rooms (admin only, seeded)', () => {
 				'Testing: Board — Big board',
 				'Testing: Board — Trigger storm',
 				'Testing: Board — Gifts Ungiven',
+				'Testing: Board — Play test 11-16',
 				'Testing: Constructed tournament — round 2',
 				'Testing: Gauntlet tournament — round 2',
 				'Testing: Tournament — finished (8 players)',

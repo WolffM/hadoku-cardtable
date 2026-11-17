@@ -1,0 +1,19 @@
+# "Testing: Board — Play test 11-16" (room/testing-rooms.ts): the 2026-11-16 play test's board items on one
+# board, for the operator to check by hand on PPE. It opens in the AI's Declare Attackers step with its
+# Boggart Brute (menace) attacking: block it with one Wall of Stone to see the under-block mark, add the
+# second to clear it. The AI's graveyard holds cards to click and view outside priority. On the human's
+# turn: drag Abzan Devotee (a drag moves it, a click with no drag opens its mana ring), cast Dragonologist
+# (its chip draws art, it arrives summoning sick), and Betor, Kin to All's end-step chip draws art.
+turn=2
+activeplayer=ai
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=Dragonologist;Lightning Bolt
+humanbattlefield=Wall of Stone;Wall of Stone;Abzan Devotee;Betor, Kin to All;Island;Island;Island;Plains;Swamp;Forest
+humanlibrary=Opt;Shivan Dragon;Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Boggart Brute|Attacking;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=Runeclaw Bear;Lightning Bolt;Grizzly Bears
