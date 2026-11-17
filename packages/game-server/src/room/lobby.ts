@@ -57,7 +57,7 @@ import { addRoomMember, isMemberReady, isRoomMember, passwordAdmits, removeRoomM
 import { makeSecret, mintRoomId, type Secret } from './provisioning.ts';
 import { AI_SEAT, CLOSED_SEAT, leaveGameSeat, memberSeats, setGameSeat, takeGameSeat, type GameSeats, type PlatformMember, type PlatformRoomRecord } from './record.ts';
 import { isOfferedRoom, isSweepableRoom, NO_BUSY_HOOK, sortRoomsByCreation, type RoomBusyHook } from './room-list.ts';
-import { lowerCapacity, replaceWithBot } from './seat-eviction.ts';
+import { lowerCapacity, replaceWithBot } from './seat-table-adapter.ts';
 import { watchpartyRoomId } from './watchparty-link.ts';
 
 /** A member as the lobby keeps one: the platform's record plus what a view shows of them. */
@@ -184,6 +184,19 @@ export interface RoomTypeHooks<G, I extends RoomCreateInput = RoomCreateInput> {
 	seatsFixed(room: LobbyRoom<G>): boolean;
 	/** Whether the AI and closed seats are the event's, not anybody's to change. */
 	fieldFixed?(room: LobbyRoom<G>): boolean;
+	/**
+	 * The leader's three atomic ops' fallback seat lineup for a room this type says does NOT
+	 * `usesSeats` — wave 120 §S2: a 1v1 room's one `RoomTable` IS its seats, so the leader's
+	 * remove, lower-capacity AND bot-replace reach it too, through the same table `gameSeatsOf`'s
+	 * own non-pod branch already reads, rather than the room's own (unused, always-empty)
+	 * `room.seats`. Undefined declines: the plain `not-draft` every other seat op already answers.
+	 * `botReplacesHuman` still checks the target's own `supportsBot` before it does anything with
+	 * it — a 1v1 room's table is not offered an AI seat (see `GenericSeatTarget.supportsBot`'s own
+	 * header), but the route now answers that truthfully (`'no-bot-seat'`), never the `not-draft`
+	 * that would wrongly say this room does not seat through game seats at all. Not consulted for
+	 * `sitSeat`/`standSeat`/`aiSeat`/`closeSeat`, which stay gated on `usesSeats` exactly as before.
+	 */
+	extraSeatTarget?(room: LobbyRoom<G>): GenericSeatTarget | undefined;
 	/** The most game seats the room grows to. */
 	seatCeiling(room: LobbyRoom<G>): number;
 	/** The game seats grown to hold `seat`. */
@@ -205,6 +218,24 @@ export interface RoomTypeHooks<G, I extends RoomCreateInput = RoomCreateInput> {
 	 * `plainRoomType`'s).
 	 */
 	subPlaceOf?(room: LobbyRoom<G>, rest: string): boolean;
+}
+
+/**
+ * A generic seat lineup the leader's atomic ops can read and write — `room.seats` itself (every
+ * room type that `usesSeats`), or, via `RoomTypeHooks.extraSeatTarget`, wherever ELSE a type that
+ * does NOT keeps its seating (wave 120 §S2: a 1v1 room's one `RoomTable`).
+ */
+export interface GenericSeatTarget {
+	read(): GameSeats;
+	write(seats: GameSeats): void;
+	/**
+	 * Whether this lineup has an AI-occupies-a-seat idea at all — `botReplacesHuman`'s own gate,
+	 * checked before it ever picks a seat. `room.seats` always does (`AI_SEAT`). A 1v1 room's one
+	 * table does not (wave 120 §S2): `false` here is what lets that route answer a truthful,
+	 * specific refusal (`'no-bot-seat'`) instead of the plain `not-draft` a room that does not seat
+	 * through game seats AT ALL answers — a 1v1 room now does, for the other two ops.
+	 */
+	supportsBot: boolean;
 }
 
 /** The fewest seats a room is left with when its seats are closed: one player and one more. */
@@ -255,7 +286,7 @@ export type LowerSeatCapacityResult<V> =
 
 export type BotReplacesHumanResult<V> =
 	| { ok: true; room: V; evicted: string | null }
-	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'historical' | 'bad-seat' };
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'historical' | 'bad-seat' | 'no-bot-seat' };
 
 export interface AvatarChange {
 	roomId: string;
@@ -827,6 +858,45 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	}
 
 	/**
+	 * `removeFromSeat`/`lowerSeatCapacity`/`botReplacesHuman`'s own resolver (wave 120 §S2) — the
+	 * same checks as `#seatRoom`, but a room that does NOT `usesSeats` gets one more chance:
+	 * `hooks.extraSeatTarget`, a type's OWN seat lineup for just these three ops (a 1v1 room's one
+	 * table). `generic` tells the caller whether `target` IS `room.seats` (so `trimSeats` applies)
+	 * or the type's own stand-in (which trims nothing — a fixed-size table, never grown or shrunk
+	 * this way). `room.seats` always `supportsBot` (its `AI_SEAT` marker); a type's own stand-in
+	 * says for itself.
+	 */
+	#seatOpRoom(
+		roomId: string,
+		memberId: string,
+	):
+		| { room: LobbyRoom; hooks: RoomTypeHooks<unknown, I>; target: GenericSeatTarget; generic: boolean }
+		| { refused: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' } {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { refused: 'no-room' };
+		if (!isRoomMember(room, memberId)) return { refused: 'not-member' };
+		const hooks = this.hooksOf(room);
+		if (hooks.usesSeats(room)) {
+			if (hooks.seatsFixed(room)) return { refused: 'not-lobby' };
+			return {
+				room,
+				hooks,
+				generic: true,
+				target: {
+					read: () => room.seats,
+					write: (seats) => {
+						room.seats = seats;
+					},
+					supportsBot: true,
+				},
+			};
+		}
+		const target = hooks.extraSeatTarget?.(room);
+		if (target === undefined) return { refused: 'not-draft' };
+		return { room, hooks, generic: false, target };
+	}
+
+	/**
 	 * Take a game seat. `seat` absent takes the first open one (their own counts as open), growing the
 	 * room by one past the last when none is; given, it must be open and in reach. Moves the caller from
 	 * any seat they held.
@@ -917,10 +987,12 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	 * Idempotent: a target who holds none is still answered `ok`. Never touches membership — they
 	 * stay in the room, watching (this file's own "a player or a spectator, never neither",
 	 * 2026-11-02). `targetId` need not be `memberId`; this is the leader acting on someone else,
-	 * which is exactly what `standSeat` (self-service) cannot do. `leaveGameSeat` already IS this
-	 * operation's contract — `@wolffm/rooms-protocol@0.45.95`'s own `removeFromSeat(table,
-	 * participantId)` is `unseatParticipant(table, participantId, { hold: false })`, the same shape —
-	 * so no `seat-eviction.ts` entry exists for this one; see that file's header for the two that do.
+	 * which is exactly what `standSeat` (self-service) cannot do. Resolved through `#seatOpRoom`
+	 * (wave 120 §S2), not `#seatRoom`: a room that does not `usesSeats` gets one more chance at
+	 * `hooks.extraSeatTarget` before the plain `not-draft` — a 1v1 room's one table, for instance.
+	 * The library's own `removeFromSeat(table, participantId)` is `unseatParticipant(table,
+	 * participantId, { hold: false })`, the same shape a plain null-out already was, so the target
+	 * array is mutated directly here rather than through `seat-table-adapter.ts`.
 	 */
 	removeFromSeat(roomId: string, memberId: string, targetId: string): RemoveFromSeatResult<V> {
 		const room = this.#rooms.get(roomId);
@@ -928,11 +1000,14 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
 		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
 		if (!isRoomMember(room, targetId)) return { ok: false, reason: 'target-not-member' };
-		const found = this.#seatRoom(roomId, memberId);
+		const found = this.#seatOpRoom(roomId, memberId);
 		if ('refused' in found) return { ok: false, reason: found.refused };
-		const { room: r, hooks } = found;
-		if (!leaveGameSeat(r, targetId)) return { ok: true, room: this.view(r) };
-		hooks.trimSeats(r);
+		const { room: r, hooks, target, generic } = found;
+		const seats = target.read();
+		const at = seats.indexOf(targetId);
+		if (at === -1) return { ok: true, room: this.view(r) };
+		target.write(seats.map((s, i) => (i === at ? null : s)));
+		if (generic) hooks.trimSeats(r);
 		this.persist(r);
 		this.log({ event: 'seat-removed-by-leader', roomId, memberId, targetId });
 		hooks.seatsChanged?.(r);
@@ -947,21 +1022,23 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	 * default `memberSeats` view reads them as open same as any other non-member string — a room
 	 * type that wants its view to tell "AI"/"closed" from "open" gives itself its own `seatsView`
 	 * (same as Magic's pod view carries AI through `podAi`, a field of its own, not this one's).
+	 * Resolved through `#seatOpRoom` (wave 120 §S2): see `removeFromSeat`'s header.
 	 */
 	lowerSeatCapacity(roomId: string, memberId: string, count: number): LowerSeatCapacityResult<V> {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
 		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
-		const found = this.#seatRoom(roomId, memberId);
+		const found = this.#seatOpRoom(roomId, memberId);
 		if ('refused' in found) return { ok: false, reason: found.refused };
-		const { room: r, hooks } = found;
+		const { room: r, hooks, target, generic } = found;
 		if (hooks.fieldFixed?.(r) === true) return { ok: false, reason: 'historical' };
 		if (!Number.isInteger(count) || count < MIN_OPEN_SEATS) return { ok: false, reason: 'too-few' };
-		const { seats, evicted } = lowerCapacity(r.seats, count);
-		if (evicted.length === 0 && seats.every((s, i) => s === r.seats[i])) return { ok: true, room: this.view(r), evicted };
-		r.seats = seats;
-		hooks.trimSeats(r);
+		const before = target.read();
+		const { seats, evicted } = lowerCapacity(before, count);
+		if (evicted.length === 0 && seats.every((s, i) => s === before[i])) return { ok: true, room: this.view(r), evicted };
+		target.write(seats);
+		if (generic) hooks.trimSeats(r);
 		this.persist(r);
 		this.log({ event: 'seat-capacity-lowered', roomId, memberId, count, evicted: evicted.length });
 		hooks.seatsChanged?.(r);
@@ -970,23 +1047,30 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 
 	/**
 	 * The leader puts the AI in `seat`, evicting whoever holds it first — a human to the spectator
-	 * row — instead of `aiSeat`'s refusal on an occupied seat. Already the AI's: a no-op.
+	 * row — instead of `aiSeat`'s refusal on an occupied seat. Already the AI's: a no-op. Resolved
+	 * through `#seatOpRoom` (wave 120 §S2): see `removeFromSeat`'s header. A room whose target
+	 * does not `supportsBot` (a 1v1 room's one table — no AI-occupies-a-seat idea of its own) is
+	 * refused `'no-bot-seat'`, a truthful, specific reason — never the plain `not-draft`, which
+	 * would wrongly say this room does not seat through game seats at all (it does, for the other
+	 * two ops), and never an invented AI seat the table has nowhere to show.
 	 */
 	botReplacesHuman(roomId: string, memberId: string, seat: number): BotReplacesHumanResult<V> {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
 		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
-		const found = this.#seatRoom(roomId, memberId);
+		const found = this.#seatOpRoom(roomId, memberId);
 		if ('refused' in found) return { ok: false, reason: found.refused };
-		const { room: r, hooks } = found;
+		const { room: r, hooks, target, generic } = found;
 		if (hooks.fieldFixed?.(r) === true) return { ok: false, reason: 'historical' };
+		if (!target.supportsBot) return { ok: false, reason: 'no-bot-seat' };
 		if (!this.#inReach(r, hooks, seat) || seat >= r.seats.length) return { ok: false, reason: 'bad-seat' };
-		const { seats, evicted } = replaceWithBot(r.seats, seat);
-		if (evicted === null && seats[seat] === r.seats[seat]) return { ok: true, room: this.view(r), evicted: null };
-		r.seats = seats;
+		const before = target.read();
+		const { seats, evicted } = replaceWithBot(before, seat);
+		if (evicted === null && seats[seat] === before[seat]) return { ok: true, room: this.view(r), evicted: null };
+		target.write(seats);
 		hooks.aiSeated?.(r, seat, true);
-		hooks.trimSeats(r);
+		if (generic) hooks.trimSeats(r);
 		this.persist(r);
 		this.log({ event: 'seat-bot-replaced-human', roomId, memberId, seat, evicted: evicted !== null });
 		hooks.seatsChanged?.(r);

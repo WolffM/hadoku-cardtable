@@ -224,6 +224,28 @@ export function splitPod(roomId: string): Promise<PodActionOutcome> {
   return postPod(roomId, 'split', {});
 }
 
+/*
+ * The leader's three atomic seat ops (wave 119 §S, wave 120 §S2) are `game-server`'s GENERIC
+ * `/api/rooms/:id/seats/*` routes (`packages/game-server/src/http/room-core.ts`), never Magic's
+ * own `pod/<action>` ones `postPod` sends — `postRoom` is the same raw POST either way, just a
+ * different path.
+ */
+
+/** The leader removes a seated member to the spectator row, still a member. */
+export function removeFromPodSeat(roomId: string, memberId: string): Promise<PodActionOutcome> {
+  return postRoom(roomId, 'seats/remove', { memberId });
+}
+
+/** The leader closes seats from the top down until `count` are open, evicting any occupant first. */
+export function lowerPodSeatCapacity(roomId: string, count: number): Promise<PodActionOutcome> {
+  return postRoom(roomId, 'seats/capacity', { count });
+}
+
+/** The leader puts the bot in `seat`, evicting its human occupant first. */
+export function botReplacesPodSeat(roomId: string, seat: number): Promise<PodActionOutcome> {
+  return postRoom(roomId, 'seats/bot', { seat });
+}
+
 /** The leader's Start draft for a split room: the server deals each pod its draft, and the room's feed carries it to everyone. */
 export function startSplitDraft(roomId: string): Promise<PodActionOutcome> {
   return postRoom(roomId, 'start', {});

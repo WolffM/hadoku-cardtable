@@ -73,9 +73,13 @@ export interface PodSeatsProps {
   onAi: (seat: number, on: boolean) => void;
   /** The owner's: close an open seat (`closed`), or open a closed one. */
   onClose: (seat: number, closed: boolean) => void;
+  /** The leader removes a seated human to the spectator row (wave 120 §S2). Absent draws no Remove button. */
+  onRemoveMember?: (seat: number, memberId: string) => void;
+  /** The leader puts the bot in a seated human's place, one action (wave 120 §S2). Absent draws no Bot button. */
+  onBotReplace?: (seat: number, memberId: string) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFixed = false, shut = false, onSit, onAi, onClose }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFixed = false, shut = false, onSit, onAi, onClose, onRemoveMember, onBotReplace }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
@@ -121,6 +125,8 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFi
       onBotOff={(seat) => onAi(seat, false)}
       onCloseSeat={(seat) => onClose(seat, true)}
       onOpenSeat={(seat) => onClose(seat, false)}
+      onRemoveMember={onRemoveMember}
+      onBotReplace={onBotReplace}
     />
   );
 }

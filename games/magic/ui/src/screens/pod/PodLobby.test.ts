@@ -10,7 +10,7 @@ import { createElement } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { PodLobby } from './PodLobby.tsx';
-import { POD_SEATS, type PodView } from './wire.ts';
+import { POD_CLOSED, POD_SEATS, type PodView } from './wire.ts';
 
 afterEach(() => {
   cleanup();
@@ -126,5 +126,62 @@ describe('PodLobby', () => {
   it('draws the Classic deck chooser slot under the strip when the caller gives one', () => {
     renderLobby({ children: createElement('div', { 'data-testid': 'stand-in-deck-picker' }) });
     expect(screen.getByTestId('stand-in-deck-picker')).not.toBeNull();
+  });
+
+  // Wave 120 §S2: the leader's Remove, Bot, and "Fewer seats" — the generic `seats/*` routes, never Magic's own `pod/*`.
+  describe('the leader’s seat ops (wave 120 §S2)', () => {
+    it('offers Fewer seats only to the leader', () => {
+      renderLobby({ myMemberId: 'u-bob' });
+      expect(screen.queryByTestId('pod-lower-capacity'), 'not the leader').toBeNull();
+    });
+
+    it('enables Fewer seats well above the floor, and disables it once only two seats are open', () => {
+      renderLobby({ myMemberId: 'u-alice' });
+      expect((screen.getByTestId('pod-lower-capacity') as HTMLButtonElement).disabled, '8 open seats, well above the floor').toBe(false);
+      cleanup();
+
+      const seats: PodView['seats'] = emptySeats();
+      seats[0] = { memberId: 'u-alice', name: 'Alice' };
+      seats[1] = { memberId: 'u-bob', name: 'Bob' };
+      for (let i = 2; i < POD_SEATS; i++) seats[i] = { memberId: POD_CLOSED, name: '' };
+      renderLobby({ myMemberId: 'u-alice', pod: pod({ seats }) });
+      expect((screen.getByTestId('pod-lower-capacity') as HTMLButtonElement).disabled, 'only the floor’s two seats are open').toBe(true);
+    });
+
+    it('presses Fewer seats to the generic seats/capacity route, one fewer than the open count', async () => {
+      const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+      renderLobby({ myMemberId: 'u-alice' });
+      screen.getByTestId('pod-lower-capacity').click();
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+      const [url, init] = fetch.mock.calls[0]!;
+      expect(String(url)).toMatch(/\/rooms\/r-1\/seats\/capacity$/);
+      expect(JSON.parse((init as RequestInit).body as string)).toEqual({ count: POD_SEATS - 1 });
+    });
+
+    it('presses a member’s Remove to the generic seats/remove route with their member id', async () => {
+      const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+      renderLobby({ myMemberId: 'u-alice' });
+      screen.getByTestId('pod-seat-remove').click();
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+      const [url, init] = fetch.mock.calls[0]!;
+      expect(String(url)).toMatch(/\/rooms\/r-1\/seats\/remove$/);
+      expect(JSON.parse((init as RequestInit).body as string)).toEqual({ memberId: 'u-bob' });
+    });
+
+    it('presses a member’s Bot to the generic seats/bot route with their seat', async () => {
+      const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+      renderLobby({ myMemberId: 'u-alice' });
+      screen.getByTestId('pod-seat-bot-replace').click();
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+      const [url, init] = fetch.mock.calls[0]!;
+      expect(String(url)).toMatch(/\/rooms\/r-1\/seats\/bot$/);
+      expect(JSON.parse((init as RequestInit).body as string)).toEqual({ seat: 1 });
+    });
+
+    it('offers neither Remove nor Bot to a member who does not lead the room', () => {
+      renderLobby({ myMemberId: 'u-bob' });
+      expect(screen.queryByTestId('pod-seat-remove')).toBeNull();
+      expect(screen.queryByTestId('pod-seat-bot-replace')).toBeNull();
+    });
   });
 });

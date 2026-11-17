@@ -69,6 +69,54 @@ const TOY4_ROOM: RoomTypeHooks<ToyRoomGame, ToyInput> = {
 	seatsView: (room) => [...room.seats],
 };
 
+/**
+ * A room type whose own game seats are never used (`usesSeats: () => false`, same as a classic 1v1
+ * room's) — its two players sit at ONE table of its own, `game.table`, auto-seated there on arrival.
+ * Stands in for a real classic room's `RoomTable` (`games/magic/server/src/room/lobby.ts`'s
+ * `extraSeatTarget`) so the leader's remove and lower-capacity are proved against the FALLBACK path
+ * generically, with no Magic in this file (wave 120 §S2).
+ */
+const TOY_TABLE = 'toy-table';
+interface ToyTableGame extends ToyRoomGame {
+	table: (string | null)[];
+}
+function isToyTableGame(v: unknown): v is ToyTableGame {
+	return isToyGame(v) && Array.isArray((v as ToyTableGame).table);
+}
+const TOY_TABLE_ROOM: RoomTypeHooks<ToyTableGame, ToyInput> = {
+	newGame: (input) => ({ seats: [], game: { target: input.target ?? WIN_SCORE, played: 0, table: [null, null] } }),
+	encode: (room) => ({ ...room.game, table: [...room.game.table] }),
+	decode(app) {
+		if (!isToyTableGame(app.game)) throw new Error('app.game is invalid');
+		return { seats: [], game: { ...app.game, table: [...app.game.table] } };
+	},
+	restore: (app) => ({ dropHolds: false, game: () => ({ ...(app.game as ToyTableGame), table: [...(app.game as ToyTableGame).table] }) }),
+	view: (room) => ({ game: { ...room.game, table: [...room.game.table] } }),
+	busy: NO_BUSY_HOOK,
+	liveMatches: () => [],
+	// Nobody waits unseated: the table's own two players ARE the room's players (default `playersOf` would read `room.seats`, always empty for this type).
+	players: (room) => room.game.table.filter((s): s is string => s !== null),
+	autoSeat: (room, memberId) => {
+		const open = room.game.table.indexOf(null);
+		if (open === -1) return false;
+		room.game.table = room.game.table.map((s, i) => (i === open ? memberId : s));
+		return true;
+	},
+	usesSeats: () => false,
+	seatsFixed: () => false,
+	seatCeiling: () => 0,
+	growSeats: () => {},
+	trimSeats: () => {},
+	extraSeatTarget: (room) => ({
+		read: () => [...room.game.table],
+		write: (seats) => {
+			room.game.table = seats;
+		},
+		// Stands in for a classic 1v1 room's own table: no AI-occupies-a-seat idea at all.
+		supportsBot: false,
+	}),
+};
+
 const ALICE = { id: 'fk:aaaaaaaaaaaaaaaa', name: 'alice', userId: 'uid-alice' };
 const BOB = { id: 'fk:bbbbbbbbbbbbbbbb', name: 'bob', userId: 'uid-bob' };
 const CAROL = { id: 'fk:cccccccccccccccc', name: 'carol', userId: 'uid-carol' };
@@ -87,6 +135,7 @@ async function openToyLobby(dir: string, now: () => number, log: (e: Record<stri
 		typeOf: (gameType) => {
 			if (gameType === TOY) return TOY_ROOM as unknown as RoomTypeHooks<unknown, ToyInput>;
 			if (gameType === TOY4) return TOY4_ROOM as unknown as RoomTypeHooks<unknown, ToyInput>;
+			if (gameType === TOY_TABLE) return TOY_TABLE_ROOM as unknown as RoomTypeHooks<unknown, ToyInput>;
 			return undefined;
 		},
 		watchpartyRoom: { name: 'Toy table', gameType: TOY },
@@ -259,5 +308,58 @@ describe("the leader's atomic seat ops: nobody is ever seatless and not a member
 		expect(lobby.botReplacesHuman(id, ALICE.id, 99)).toEqual({ ok: false, reason: 'bad-seat' });
 		// Only the leader.
 		expect(lobby.botReplacesHuman(id, DAVE.id, 1)).toEqual({ ok: false, reason: 'not-leader' });
+	});
+});
+
+/**
+ * Wave 120 §S2: a room type that does not `usesSeats` (same as a classic 1v1 room's) may still name
+ * a DIFFERENT seat lineup for the leader's three atomic ops (`extraSeatTarget`) — proved here with
+ * no Magic at all, against the toy's own "one table" (`TOY_TABLE_ROOM`), whose target declines a bot
+ * (`supportsBot: false`) the same way a 1v1 room's own table does.
+ */
+describe("the leader's three atomic ops reach a room type's OWN seat lineup when it does not usesSeats (wave 120 §S2)", () => {
+	async function tableRoom(): Promise<{ lobby: RoomLobby<ToyView, ToyInput>; id: string }> {
+		const dir = await mkdtemp(join(tmpdir(), 'cardtable-toytable-lobby-'));
+		dirs.push(dir);
+		const lobby = await openToyLobby(dir, () => 1_800_000_000_000);
+		const made = lobby.create(ALICE, { name: 'One table', gameType: TOY_TABLE });
+		if (!made.ok) throw new Error('not made');
+		const id = made.room.id;
+		lobby.join(id, BOB);
+		expect((lobby.get(id) as unknown as { game: ToyTableGame }).game.table).toEqual([ALICE.id, BOB.id]);
+		expect(lobby.get(id)?.seats, 'this type never populates room.seats at all').toEqual([]);
+		return { lobby, id };
+	}
+
+	it("removeFromSeat evicts to the type's own table, never room.seats", async () => {
+		const { lobby, id } = await tableRoom();
+		expect(lobby.removeFromSeat(id, ALICE.id, BOB.id)).toMatchObject({ ok: true });
+		expect((lobby.get(id) as unknown as { game: ToyTableGame }).game.table).toEqual([ALICE.id, null]);
+		expect(lobby.roleOf(id, BOB.id)).toBe('spectator');
+		expect(lobby.isMember(id, BOB.id)).toBe(true);
+		// Idempotent: Bob already holds no seat there.
+		expect(lobby.removeFromSeat(id, ALICE.id, BOB.id)).toMatchObject({ ok: true });
+		// Only the leader.
+		expect(lobby.removeFromSeat(id, BOB.id, ALICE.id)).toEqual({ ok: false, reason: 'not-leader' });
+	});
+
+	it('lowerSeatCapacity reaches it too — a no-op at the floor, refused below it, same as every other room', async () => {
+		const { lobby, id } = await tableRoom();
+		expect(lobby.lowerSeatCapacity(id, ALICE.id, 2)).toMatchObject({ ok: true, evicted: [] });
+		expect((lobby.get(id) as unknown as { game: ToyTableGame }).game.table).toEqual([ALICE.id, BOB.id]);
+		expect(lobby.lowerSeatCapacity(id, ALICE.id, 1)).toEqual({ ok: false, reason: 'too-few' });
+	});
+
+	it("botReplacesHuman reaches the fallback too, but refuses truthfully — the type's own target has no AI-seat idea of its own (never the plain not-draft, which would say this room does not seat through game seats at all)", async () => {
+		const { lobby, id } = await tableRoom();
+		expect(lobby.botReplacesHuman(id, ALICE.id, 0)).toEqual({ ok: false, reason: 'no-bot-seat' });
+	});
+
+	it('sitSeat/standSeat/aiSeat/closeSeat stay gated on usesSeats exactly as before — extraSeatTarget never widens them', async () => {
+		const { lobby, id } = await tableRoom();
+		expect(lobby.sitSeat(id, ALICE.id)).toEqual({ ok: false, reason: 'not-draft' });
+		expect(lobby.standSeat(id, ALICE.id)).toEqual({ ok: false, reason: 'not-draft' });
+		expect(lobby.aiSeat(id, ALICE.id, 0, true)).toEqual({ ok: false, reason: 'not-draft' });
+		expect(lobby.closeSeat(id, ALICE.id, 0, true)).toEqual({ ok: false, reason: 'not-draft' });
 	});
 });

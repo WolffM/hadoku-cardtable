@@ -233,9 +233,31 @@
 
 .table-side__heading {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--color-text-tertiary);
+}
+
+/* The leader's "Fewer seats" (`PodLobby.tsx`, wave 120 §S2) — same small-button look as a seat's own actions. */
+.table-side__action {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.table-side__action:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* A pod lobby's spectators, under its seat strip (`PodLobby.tsx`): apart from the strip above and the pool below. */

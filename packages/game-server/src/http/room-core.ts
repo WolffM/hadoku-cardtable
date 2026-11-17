@@ -104,6 +104,10 @@ function seatOpStatus(res: Response, reason: string): void {
 		res.status(400).json({ error: 'not a seat this room has' });
 		return;
 	}
+	if (reason === 'no-bot-seat') {
+		res.status(409).json({ error: 'this room has no seat the bot can take' });
+		return;
+	}
 	res.status(400).json({ error: reason });
 }
 

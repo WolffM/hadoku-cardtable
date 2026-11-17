@@ -19,14 +19,22 @@
 import { useRef, useState, type ReactNode } from 'react';
 
 import type { RoomMember } from '../../rooms/api.ts';
-import { aiPod, closePod, sitPod, splitPod, standPod, startSplitDraft, type PodActionOutcome } from './client.ts';
+import { aiPod, botReplacesPodSeat, closePod, lowerPodSeatCapacity, removeFromPodSeat, sitPod, splitPod, standPod, startSplitDraft, type PodActionOutcome } from './client.ts';
 import { PodSeats } from './PodSeats.tsx';
 import { RoomSpectators } from '../RoomSpectators.tsx';
 import { PodSplit, PodSplitAction, standingPods } from './PodSplit.tsx';
 import { ReadyToggle } from './ReadyToggle.tsx';
-import { podPlayers, type PodView } from './wire.ts';
+import { podPlayers, POD_CLOSED, type PodView } from './wire.ts';
 import { faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
+import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
 import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
+
+/**
+ * `room/lobby.ts`'s own `MIN_OPEN_SEATS` (its `too-few` refusal: "a room always keeps at least
+ * two seats open") — restated here rather than imported, since the UI pulls in no server module.
+ * The server is still the one gate; this only keeps a doomed-to-refuse press off the button.
+ */
+const MIN_OPEN_SEATS = 2;
 
 export interface PodLobbyProps {
   testId: string;
@@ -71,6 +79,10 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
       });
   };
 
+  const iLead = myMemberId !== null && myMemberId === leaderId;
+  // Open seats as the server counts them for `lowerSeatCapacity`: every seat but a closed one — occupied, AI or empty alike.
+  const openSeats = pod === null ? 0 : pod.seats.filter((s) => s?.memberId !== POD_CLOSED).length;
+
   const splitStands = pod !== null && standingPods(pod) !== null;
   // The leader's Split, then Start draft, sit with Ready; once split, every position is locked, Ready included.
   const side = (
@@ -108,7 +120,21 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
               <PodSplit pod={pod} members={members} myMemberId={myMemberId} />
             ) : (
               <div className="table-side">
-                <h3 className="table-side__heading">Players</h3>
+                <h3 className="table-side__heading">
+                  Players
+                  {iLead && !fieldFixed && (
+                    <ActionButton
+                      action="lower-capacity"
+                      className="table-side__action"
+                      data-testid="pod-lower-capacity"
+                      aria-label="Reduce the room to one fewer seat"
+                      disabled={openSeats <= MIN_OPEN_SEATS}
+                      onPress={() => act(() => lowerPodSeatCapacity(roomId, openSeats - 1))}
+                    >
+                      Fewer seats
+                    </ActionButton>
+                  )}
+                </h3>
                 <PodSeats
                   seats={pod.seats}
                   myMemberId={myMemberId}
@@ -120,6 +146,8 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
                   onSit={(seat) => act(() => sitPod(roomId, seat))}
                   onAi={(seat, on) => act(() => aiPod(roomId, seat, on))}
                   onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}
+                  onRemoveMember={(_seat, memberId) => act(() => removeFromPodSeat(roomId, memberId))}
+                  onBotReplace={(seat) => act(() => botReplacesPodSeat(roomId, seat))}
                 />
               </div>
             )}

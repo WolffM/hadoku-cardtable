@@ -796,6 +796,68 @@ describe('Lobby.sweep: eight hours for a room that is not a tournament, never wh
 	});
 });
 
+/*
+ * Wave 120 §S2: a classic (non-pod) room's leader's three atomic ops now reach its one table too,
+ * no longer the plain `not-draft` every seat op answered before — through the same table
+ * `gameSeatsOf`'s non-pod branch already reads, never a second, disconnected lineup.
+ * `botReplacesHuman` still refuses it (`'no-bot-seat'`, a truthful, specific reason rather than the
+ * generic `not-draft`): a classic table has no AI-occupies-a-seat idea of its own.
+ */
+describe("a 1v1 room's leader removes a seated opponent, lowers the table's seat count, or is refused the AI replace (wave 120 §S2)", () => {
+	async function seatedTable() {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+		// `RoomView.seats` is `gameSeatsOf`'s non-pod branch — the table's own occupants, not a
+		// second, disconnected lineup — so this reads the same as `tables[0].players` above.
+		expect(magicView(lobby.get(id))?.tables[0]?.players.map((p) => p.memberId)).toEqual([ALICE.id, BOB.id]);
+		expect(lobby.get(id)?.seats).toEqual([ALICE.id, BOB.id]);
+		return { lobby, id, tableId };
+	}
+
+	it("removeFromSeat evicts the opponent from the table, to the spectator row, still a member", async () => {
+		const { lobby, id } = await seatedTable();
+		expect(lobby.removeFromSeat(id, ALICE.id, BOB.id)).toMatchObject({ ok: true });
+		expect(magicView(lobby.get(id))?.tables[0]?.players.map((p) => p.memberId)).toEqual([ALICE.id]);
+		expect(lobby.roleOf(id, BOB.id)).toBe('spectator');
+		expect(lobby.isMember(id, BOB.id)).toBe(true);
+		// Idempotent: Bob already holds no seat.
+		expect(lobby.removeFromSeat(id, ALICE.id, BOB.id)).toMatchObject({ ok: true });
+		// Only the leader.
+		expect(lobby.removeFromSeat(id, BOB.id, ALICE.id)).toEqual({ ok: false, reason: 'not-leader' });
+	});
+
+	it("removeFromSeat refuses not-draft once the table plays a live match — nothing here unseats a live opponent", async () => {
+		const { lobby, id, tableId } = await seatedTable();
+		expect(lobby.setTableMatch(id, tableId, 'm-live')).toBe(true);
+		expect(lobby.removeFromSeat(id, ALICE.id, BOB.id)).toEqual({ ok: false, reason: 'not-draft' });
+	});
+
+	it('lowerSeatCapacity reaches the table too — a no-op at the floor (a 1v1 table never has more than two), refused below it', async () => {
+		const { lobby, id } = await seatedTable();
+		expect(lobby.lowerSeatCapacity(id, ALICE.id, 2)).toMatchObject({ ok: true, evicted: [] });
+		expect(magicView(lobby.get(id))?.tables[0]?.players.map((p) => p.memberId)).toEqual([ALICE.id, BOB.id]);
+		expect(lobby.lowerSeatCapacity(id, ALICE.id, 1)).toEqual({ ok: false, reason: 'too-few' });
+	});
+
+	it('botReplacesHuman refuses a classic room truthfully (no-bot-seat) — never the plain not-draft, which would say this room does not seat through game seats at all', async () => {
+		const { lobby, id } = await seatedTable();
+		expect(lobby.botReplacesHuman(id, ALICE.id, 0)).toEqual({ ok: false, reason: 'no-bot-seat' });
+	});
+
+	it("sitSeat/standSeat/aiSeat/closeSeat stay not-draft for a classic room exactly as before — extraSeatTarget never widens them", async () => {
+		const { lobby, id } = await seatedTable();
+		expect(lobby.sitSeat(id, ALICE.id)).toEqual({ ok: false, reason: 'not-draft' });
+		expect(lobby.standSeat(id, ALICE.id)).toEqual({ ok: false, reason: 'not-draft' });
+		expect(lobby.aiSeat(id, ALICE.id, 0, true)).toEqual({ ok: false, reason: 'not-draft' });
+		expect(lobby.closeSeat(id, ALICE.id, 0, true)).toEqual({ ok: false, reason: 'not-draft' });
+	});
+});
+
 /* ── a match outlives the process that started it ───────────────────── */
 
 describe("a restored room keeps its match", () => {

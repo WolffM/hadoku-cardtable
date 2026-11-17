@@ -1173,6 +1173,32 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			// moment the field is valid (`#maybeLockTournament`'s own doc).
 			seatsChanged: (room) => this.#maybeLockTournament(room),
 			usesSeats: usesPod,
+			/**
+			 * A non-pod (classic 1v1) room's own one table IS its seats — the same place
+			 * `gameSeatsOf`'s non-pod branch already reads (`pods.ts`) — so the leader's remove,
+			 * lower-capacity AND bot-replace reach it too (wave 120 §S2), through `leaveSeat` (the
+			 * exact function `stand`/`#carryPlayers` already use), never a second, disconnected
+			 * lineup. Declined entirely while the table plays a live match (`matchId !== null`):
+			 * nothing here has a story for unseating a player mid-game. `supportsBot: false`
+			 * because a classic room's `TableSeats` has no AI-occupies-a-seat idea of its own
+			 * (`seatBot`/`replaceWithBot` are a pod's — `PodView.seats`' `POD_AI` marker, a thing
+			 * this table's two-member `SeatPair` cannot hold) — `botReplacesHuman` answers that
+			 * truthfully (`'no-bot-seat'`), never this file inventing one.
+			 */
+			extraSeatTarget: (room) => {
+				const table = room.game.tables[0];
+				if (table === undefined || table.matchId !== null) return undefined;
+				return {
+					read: () => [...table.seats],
+					write: (seats) => {
+						for (let i = 0; i < table.seats.length; i++) {
+							const was = table.seats[i];
+							if (was !== null && seats[i] === null) leaveSeat(table, was);
+						}
+					},
+					supportsBot: false,
+				};
+			},
 			seatsFixed,
 			fieldFixed: (room) => room.game.historical === true,
 			seatCeiling: podSeatCeiling,

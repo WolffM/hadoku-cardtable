@@ -417,3 +417,77 @@ describe('a room past 8: one list of seats, pods decided only at the split', () 
     expect(screen.queryByTestId('pod-seat-64')).toBeNull();
   });
 });
+
+// Wave 120 §S2: the leader's Remove and Bot land on a seated human, never a bot (that's `onAi`/
+// `onBotOff`), never the leader's own seat, and never for anyone who is not the leader.
+describe('the leader removes a seated member, or puts the bot in their place', () => {
+  const twoSeated = (): PodSeatsValue => {
+    const seats = emptySeats();
+    seats[0] = { memberId: 'u-alice', name: 'Alice' };
+    seats[1] = { memberId: 'u-bob', name: 'Bob' };
+    return seats;
+  };
+
+  it('offers Remove and Bot on another member’s seat to the leader, never on the leader’s own', () => {
+    const onRemoveMember = vi.fn();
+    const onBotReplace = vi.fn();
+    render(
+      createElement(PodSeats, {
+        seats: twoSeated(),
+        myMemberId: 'u-alice',
+        leaderId: 'u-alice',
+        readyOf: () => false,
+        faceOf: () => ({ id: null }),
+        onSit: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
+        onRemoveMember,
+        onBotReplace,
+      }),
+    );
+    expect(screen.getByTestId('pod-seat-0').querySelector('[data-testid="pod-seat-remove"]'), 'never on my own seat').toBeNull();
+    expect(screen.getByTestId('pod-seat-0').querySelector('[data-testid="pod-seat-bot-replace"]'), 'never on my own seat').toBeNull();
+
+    (screen.getByTestId('pod-seat-1').querySelector('[data-testid="pod-seat-remove"]') as HTMLElement).click();
+    expect(onRemoveMember).toHaveBeenCalledWith(1, 'u-bob');
+
+    (screen.getByTestId('pod-seat-1').querySelector('[data-testid="pod-seat-bot-replace"]') as HTMLElement).click();
+    expect(onBotReplace).toHaveBeenCalledWith(1, 'u-bob');
+  });
+
+  it('offers neither to a member who does not lead the room', () => {
+    render(
+      createElement(PodSeats, {
+        seats: twoSeated(),
+        myMemberId: 'u-bob',
+        leaderId: 'u-alice',
+        readyOf: () => false,
+        faceOf: () => ({ id: null }),
+        onSit: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
+        onRemoveMember: vi.fn(),
+        onBotReplace: vi.fn(),
+      }),
+    );
+    expect(screen.queryByTestId('pod-seat-remove')).toBeNull();
+    expect(screen.queryByTestId('pod-seat-bot-replace')).toBeNull();
+  });
+
+  it('draws neither button at all when the caller gives no handler', () => {
+    render(
+      createElement(PodSeats, {
+        seats: twoSeated(),
+        myMemberId: 'u-alice',
+        leaderId: 'u-alice',
+        readyOf: () => false,
+        faceOf: () => ({ id: null }),
+        onSit: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    expect(screen.queryByTestId('pod-seat-remove')).toBeNull();
+    expect(screen.queryByTestId('pod-seat-bot-replace')).toBeNull();
+  });
+});
