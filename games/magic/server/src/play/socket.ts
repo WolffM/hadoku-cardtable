@@ -816,17 +816,25 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	 * open your deck list."* Only the seat the caller holds: the other seat's list is hidden
 	 * information, so a watcher, the other player and anyone else get the same 404 as a match that
 	 * does not exist. Names and counts, as the room's deck peek draws them.
+	 *
+	 * Each line also carries its cost: `deckCosts(match.spec.format)` is the SAME map
+	 * `seatDeckColors` already folds this match's music off (below), so a drafted-cube deck's cards —
+	 * invisible to the LIBRARY-only fallback `deckCosts` defaults to — answer with their real cost
+	 * here too, not just in the one place that already asked correctly. A name the map has nothing
+	 * for (a land) carries `''`, same as `deckColorsByName` already reads absence.
 	 */
 	router.get('/matches/:id/deck', (req: Request, res: Response) => {
 		const match = matches.find(String(req.params.id));
 		const seat = match?.seatOf(httpCaller(req)) ?? null;
-		const deck = seat === null ? null : ((match?.spec as ForgeMatchSpec | undefined)?.seats[seat]?.deck ?? null);
+		const spec = match?.spec as ForgeMatchSpec | undefined;
+		const deck = seat === null ? null : (spec?.seats[seat]?.deck ?? null);
 		if (deck === null) {
 			res.status(404).json({ error: 'no deck of yours in that match' });
 			return;
 		}
+		const costs = deckCosts(spec?.format);
 		const parsed = parseDck(deck);
-		const lines = (section: string) => (parsed.sections.get(section) ?? []).map((e) => ({ name: e.card.name, count: e.count }));
+		const lines = (section: string) => (parsed.sections.get(section) ?? []).map((e) => ({ name: e.card.name, count: e.count, cost: costs[e.card.name] ?? '' }));
 		res.json({ name: parsed.metadata.get('name') ?? '', main: lines('main'), sideboard: lines('sideboard') });
 	});
 

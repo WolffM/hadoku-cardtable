@@ -27,7 +27,7 @@ export const recordingsPlugin: CardtablePlugin = {
 	setup(ctx) {
 		const { api, state } = ctx;
 		const { forge, lobby, catalog } = state;
-		state.deckCosts = roomDeckCosts(state.tables.library, state.defaultCubeCards);
+		state.deckCosts = roomDeckCosts(state.tables.library, state.defaultCubeCards, catalog);
 		const deckCosts = state.deckCosts;
 
 		// Hooked entirely from outside `match.ts`/`host.ts`: the host factory play is given (wrapped

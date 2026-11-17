@@ -44,7 +44,7 @@ export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
 export function namedCardPool(cards: Iterable<NamedCard>): DraftCard[] {
   const byRef = new Map<string, NamedCard>();
   for (const card of cards) byRef.set(cardRef(card.name, card.set), card);
-  return [...byRef.values()].map(libraryFace);
+  return [...byRef.values()].map((card) => libraryFace(card));
 }
 
 export function libraryDeckPool(main: readonly DeckLine[], sideboard: readonly DeckLine[]): DraftCard[] {

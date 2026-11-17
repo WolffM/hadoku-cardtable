@@ -147,7 +147,11 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 	const schedule = deps.schedule ?? ((fn: () => void, ms: number) => void setTimeout(fn, ms));
 	const now = deps.now ?? Date.now;
 	const eras = gauntletEras(library.formats, library.decks);
-	const costs = roomDeckCosts(library, null);
+	// A Gauntlet's decks are always catalogued LIBRARY decks (`library.decks`'s own era pools) — the
+	// exact set `LIBRARY_CARD_COSTS` is built from — so the catalog fallback (a DRAFTED cube's
+	// own cards) is never exercised here. No-op rather than threading the server's real catalog
+	// through `GauntletDeps`/`http/routes.ts`'s one caller, which this lane does not own.
+	const costs = roomDeckCosts(library, null, { byName: () => null });
 
 	function deckInfo(eraId: string | undefined): (id: string) => GauntletDeckInfo {
 		return (id) => {
