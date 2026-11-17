@@ -37,18 +37,23 @@ vi.mock('@wolffm/rooms-server/room', async (importOriginal) => {
 });
 
 let dir = '';
+let PLUGINS: (typeof import('./index.ts'))['PLUGINS'];
+let createPeople: (typeof import('@hadoku/game-server/people'))['createPeople'];
+// The whole plugin graph, imported cold, takes seconds on a loaded host: it gets its own budget
+// here, so the test's measures the two plugins' setup and nothing else.
+const COLD_IMPORT_MS = 60_000;
 beforeAll(async () => {
 	dir = await mkdtemp(join(tmpdir(), 'cardtable-presence-boot-'));
 	process.env.CARDTABLE_STATE_DIR = dir;
-});
+	({ PLUGINS } = await import('./index.ts'));
+	({ createPeople } = await import('@hadoku/game-server/people'));
+}, COLD_IMPORT_MS);
 afterAll(async () => {
 	delete process.env.CARDTABLE_STATE_DIR;
 	await rm(dir, { recursive: true, force: true });
 });
 
 it('the draft pods and the served room run on the one tracker the state keeps', async () => {
-	const { PLUGINS } = await import('./index.ts');
-	const { createPeople } = await import('@hadoku/game-server/people');
 	const http = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
 	const state = {
