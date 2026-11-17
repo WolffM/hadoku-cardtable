@@ -2121,6 +2121,13 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			s.pendingButtons = null;
 			this.clearPendingTimer(s);
 			if (held === null) {
+				// A notice whose bar came first (InputBlock: `updateButtons`, then `showMessage`): the yield
+				// answers it as its prompt lands, and the live bar already on the seat's screen goes dead.
+				const wasLive = s.wireButtonsLive;
+				if (this.yieldsNotice(s, readPromptFacts(this.notesOf(s))) && this.maybeAutoPass(s)) {
+					if (wasLive && s.buttons !== null && s.buttons.method === 'updateButtons') this.send(s, this.disabledBar(s.buttons));
+					return;
+				}
 				this.disarmStuckWindow(s);
 				this.releaseOffer(s, this.inputOf(frame));
 				this.send(s, frame);
@@ -2145,6 +2152,9 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		}
 		s.pendingButtons = null;
 		this.clearPendingTimer(s);
+		// A notice's bar (Declare Blockers'): its prompt went out as it came, and the yield answers it
+		// here, before its live OK reaches the seat.
+		if (this.yieldsNotice(s, readPromptFacts(this.notesOf(s))) && this.maybeAutoPass(s)) return;
 		this.releaseOffer(s, this.inputOf(frame));
 		this.send(s, frame);
 	}
@@ -2943,6 +2953,41 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 * this to suppress the `updateButtons` frame that would otherwise show the
 	 * player a stop they were never actually given (Q17's transient-stack race).
 	 */
+	/** The seat's Auto Yield is on for this turn, and the window in hand is its own, live and asking nothing else. */
+	private yieldOn(s: SeatState, facts: PromptFacts): boolean {
+		return (
+			s.autoYield !== null &&
+			s.autoYield.on &&
+			s.autoYield.turn === s.projector.turnNumber() &&
+			facts.mine &&
+			facts.confirmLive &&
+			facts.openAsks === 0
+		);
+	}
+
+	/**
+	 * A notice the yield answers: on the other seat's turn, a prompt of no window shape (`promptShape`)
+	 * whose bar's one live button is OK, with no selection and no payment open — see `maybeAutoPass`.
+	 * The turn is the projector's active player: `facts.myTurn` reads the `Priority:` line, which a
+	 * notice has none of.
+	 */
+	private yieldsNotice(s: SeatState, facts: PromptFacts): boolean {
+		const active = s.projector.activePlayer();
+		return (
+			this.yieldOn(s, facts) &&
+			facts.window === 'other' &&
+			!facts.cancelLive &&
+			s.prompt !== null &&
+			s.prompt.method === 'showPromptMessage' &&
+			promptShape(s.prompt) === null &&
+			s.selection === null &&
+			s.payment === null &&
+			s.playerId !== null &&
+			active !== null &&
+			active !== s.playerId
+		);
+	}
+
 	private maybeAutoPass(s: SeatState): boolean {
 		// The prompt in hand was already passed on, so these buttons belong to the input
 		// AFTER it (see `SeatState.passedOn`): not ours to press for.
@@ -2960,23 +3005,23 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		 * The auto-yield override: every priority window on the OTHER seat's turn
 		 * is passed — a stack with their spell on it included, the window already
 		 * open when it was pressed included — on `decideStop`'s own entry guards.
-		 * Declare Blockers' block-assignment ask is never `window === 'priority'`,
-		 * so it is untouched regardless.
+		 *
+		 * And so is a notice: a window whose one live button is OK, asking nothing
+		 * to be picked — Declare Blockers' block assignment above all
+		 * (`InputBlock.showMessage`: `updateButtons(owner, true, false, true)`), whose
+		 * OK declares the blocks already assigned, or none. The operator, 2026-11-17,
+		 * pressing Auto Yield on that window and still having to press OK: *"clicking
+		 * auto-yield should pass through the active decision."* A Yes/No confirm has
+		 * two live buttons, and a pick is a selection, a payment or an ask: none is
+		 * a notice.
 		 *
 		 * It outranks full control: pressing Auto Yield is the seat saying so for
 		 * this turn, and full control is a standing "ask me". The operator,
 		 * 2026-10-14, in full control with a stack item held: *"auto-yield should
 		 * work even for things already on the stack."*
 		 */
-		const yieldsNow =
-			s.autoYield !== null &&
-			s.autoYield.on &&
-			s.autoYield.turn === s.projector.turnNumber() &&
-			facts.window === 'priority' &&
-			facts.mine &&
-			facts.confirmLive &&
-			facts.openAsks === 0 &&
-			!facts.myTurn;
+		const notice = this.yieldsNotice(s, facts);
+		const yieldsNow = notice || (this.yieldOn(s, facts) && facts.window === 'priority' && !facts.myTurn);
 		if (s.fullControl && !yieldsNow) {
 			s.lastStop = { rule: 'gated' };
 			return false;
@@ -2987,7 +3032,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			return false;
 		}
 		const judged = yieldsNow ? null : judgeStop(facts, s.policy);
-		const phase = judged === null ? (facts.phaseLabel ?? 'priority') : judged.pass;
+		const phase = judged === null ? (notice ? 'notice' : (facts.phaseLabel ?? 'priority')) : judged.pass;
 		s.lastStop = judged === null ? { rule: 'auto-yield' } : { rule: judged.rule, ...(judged.plays === undefined ? {} : { plays: judged.plays }) };
 		/*
 		 * Behind `CARDTABLE_PLAY_PROBE=1` (the e2e harness's servers): every
@@ -3023,7 +3068,16 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		// Forge clears the set as the input stops; drop ours with it so the next
 		// stop is judged on the next answer rather than on this one.
 		s.actionable = null;
-		this.deps.log({ evt: 'auto-passed', matchId: this.id, seat: s.seat, phase, rule: s.lastStop.rule, ...(yieldsNow ? { why: 'auto-yield' } : {}) });
+		this.deps.log({
+			evt: 'auto-passed',
+			matchId: this.id,
+			seat: s.seat,
+			phase,
+			rule: s.lastStop.rule,
+			...(yieldsNow ? { why: 'auto-yield' } : {}),
+			// The frames ring keeps no notice (it has no `promptShape`): what was answered for the seat is here.
+			...(notice && s.prompt !== null && s.prompt.method === 'showPromptMessage' ? { message: s.prompt.message } : {}),
+		});
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 		return true;
 	}

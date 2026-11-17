@@ -3918,6 +3918,106 @@ describe('hold-decide-forward', () => {
 			expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed').map((l) => l.why)).toEqual(['auto-yield', 'auto-yield']);
 		});
 
+		describe('a notice — one live button, nothing to pick — is passed through too (the operator, 2026-11-17)', () => {
+			/** Turn 5, its active player `active` (seat 1 is player 1; the other seat is player 0). */
+			function activeFrame(turn: number, active: number) {
+				const frame = turnFrame(turn);
+				const key = String(deltaKeyOf(DELTA_TYPE.game, 1));
+				return { ...frame, payload: { packet: { ...frame.payload.packet, objectDeltas: { [key]: { ...frame.payload.packet.objectDeltas[key]!, PlayerTurn: { t: 'int', v: active } } } } } };
+			}
+			// `InputBlock.showMessage`: OK live (done blocking), Cancel dead.
+			const blocks = 'Select another attacker to declare blockers for.';
+			const blockWindow = (h: Harness) =>
+				h.host.push(
+					{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, blocks) },
+					{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'Cancel', enable1: true, enable2: false }) },
+				);
+			const okPresses = (h: Harness) => h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'selectButtonOk').length;
+			const notices = (h: Harness) => h.logs.filter((l) => l.evt === 'auto-passed' && l.phase === 'notice').map((l) => l.message);
+
+			it('Auto Yield pressed on the open Declare Blockers window presses its OK, and the log names the notice', () => {
+				const h = openedHarness();
+				closeDanglingBar(h, SEAT1_ID);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: activeFrame(5, 0) });
+				const before = envelopesFor(h, SEAT1_ID).length;
+				const presses = okPresses(h);
+				blockWindow(h);
+				expect(methodsSent(h, SEAT1_ID, before), 'without the yield the window is the seat’s').toEqual(['showPromptMessage', 'updateButtons']);
+				expect(okPresses(h)).toBe(presses);
+				const logsBefore = h.logs.length;
+				h.match.setAutoYield(SEAT1_ID, true);
+				expect(okPresses(h), 'answered at once').toBe(presses + 1);
+				expect(h.logs.slice(logsBefore).filter((l) => l.evt === 'auto-passed')).toEqual([
+					{ evt: 'auto-passed', matchId: h.match.id, seat: SEAT1_ID, phase: 'notice', rule: 'auto-yield', why: 'auto-yield', message: blocks },
+				]);
+			});
+
+			it('with the yield already on, a later block window is answered before its live OK reaches the seat', () => {
+				const h = openedHarness();
+				closeDanglingBar(h, SEAT1_ID);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: activeFrame(5, 0) });
+				h.match.setAutoYield(SEAT1_ID, true);
+				const before = envelopesFor(h, SEAT1_ID).length;
+				const presses = okPresses(h);
+				blockWindow(h);
+				// A prompt of no window shape goes out as it comes (`holdPromptWindow`); its bar is the decision.
+				expect(methodsSent(h, SEAT1_ID, before)).toEqual(['showPromptMessage']);
+				expect(okPresses(h)).toBe(presses + 1);
+			});
+
+			it('in Forge’s own order — InputBlock sends its bar BEFORE its prompt — the block is answered as its prompt lands, and the bar left on the seat is dead', () => {
+				// Run 44156821118: "Waiting for A..." with a dead bar, then the block's live bar, then its prompt.
+				const h = openedHarness();
+				closeDanglingBar(h, SEAT1_ID);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: activeFrame(5, 0) });
+				h.match.setAutoYield(SEAT1_ID, true);
+				h.host.push(
+					{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(0, 'Waiting for Seat 1...') },
+					{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { enable1: false, enable2: false }) },
+				);
+				const before = envelopesFor(h, SEAT1_ID).length;
+				const presses = okPresses(h);
+				h.host.push(
+					{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'Cancel', enable1: true, enable2: false }) },
+					{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, blocks) },
+				);
+				expect(okPresses(h), 'the block answered for the seat').toBe(presses + 1);
+				const bars = envelopesFor(h, SEAT1_ID)
+					.slice(before)
+					.flatMap((e) => (e.frame.method === 'updateButtons' ? [e.frame.enable1 || e.frame.enable2] : []));
+				expect(bars.at(-1), `the last bar the seat holds is dead: ${JSON.stringify(bars)}`).toBe(false);
+				expect(notices(h)).toEqual([blocks]);
+			});
+
+			it('not a notice, or not theirs to yield: a Yes/No, a pick, the seat’s own turn, and no yield at all are all asked', () => {
+				const asked = (setup: (h: Harness) => void, push: (h: Harness) => void, yieldOn = true) => {
+					const h = openedHarness();
+					closeDanglingBar(h, SEAT1_ID);
+					setup(h);
+					if (yieldOn) h.match.setAutoYield(SEAT1_ID, true);
+					const presses = okPresses(h);
+					push(h);
+					return okPresses(h) === presses;
+				};
+				const theirs = (h: Harness) => h.host.push({ t: 'frame', seat: SEAT1_ID, frame: activeFrame(5, 0) });
+				const yesNo = (h: Harness) =>
+					h.host.push(
+						{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Do you want to pay {1}?') },
+						{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Yes', label2: 'No', enable1: true, enable2: true }) },
+					);
+				const pick = (h: Harness) =>
+					h.host.push(
+						{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'setSelectables', cards: [{ kind: 'card', id: 77 }], min: 0, max: 1 } },
+						{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Choose up to one card to return') },
+						{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { enable1: true, enable2: false }) },
+					);
+				expect(asked(theirs, yesNo), 'a Yes/No').toBe(true);
+				expect(asked(theirs, pick), 'a pick').toBe(true);
+				expect(asked((h) => h.host.push({ t: 'frame', seat: SEAT1_ID, frame: activeFrame(5, 1) }), blockWindow), 'the seat’s own turn').toBe(true);
+				expect(asked(theirs, blockWindow, false), 'no yield').toBe(true);
+			});
+		});
+
 		it('under full control, a window on the seat’s own turn is still asked with auto-yield on', () => {
 			const h = openedHarness();
 			closeDanglingBar(h, SEAT1_ID);
