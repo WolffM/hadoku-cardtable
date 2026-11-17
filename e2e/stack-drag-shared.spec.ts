@@ -39,6 +39,14 @@ const titled = makeTitled(forge);
 
 type Box = { x: number; y: number };
 
+/**
+ * The widest the two screens' own board-fraction read of a moving drag may disagree, in px, while
+ * it is still in flight — well under the 25-50px measured against the old flat relay ease (see
+ * the assertion below). Not the settled bound (3px, below): a drag in motion is never perfectly
+ * synchronized, only bounded far from the operator's "glitchy".
+ */
+const IN_FLIGHT_BOUND_PX = 18;
+
 /** Where stack item `id` is drawn on `page`, its centre; null when it is not drawn there. */
 async function itemAt(page: Page, id: string): Promise<Box | null> {
   const box = await page.locator(`[data-placed-spell="${id}"]:not([data-placed-leaving])`).first().boundingBox();
@@ -291,11 +299,12 @@ test(titled('either seat drags any stack item; both at once neither flicker nor 
         ws.on('framereceived', tap('got'));
       });
     }
-    // The operator's two clients are never the same size — alice's window stays 1600x1000,
-    // bob's is deliberately a different size, so a disagreement that only shows up when the two
-    // screens' own boards are not the same box (the realistic case) is not hidden by an equal resize.
-    await resizeWindow(alice, { width: 1600, height: 1000 });
-    await resizeWindow(bob, { width: 1100, height: 700 });
+    // The operator's two clients are never the same size. These are the operator's OWN windows
+    // from the two real matches the operator reported on (m-3967095cc641, m-dadc9e87cb11,
+    // 2026-11-17): `"kind":"info"` lines in the prod log name each seat's `window` — alice's
+    // 1536x729, bob's 1863x1324, not a guess.
+    await resizeWindow(alice, { width: 1536, height: 729 });
+    await resizeWindow(bob, { width: 1863, height: 1324 });
     await expect.poll(() => ownNamed(alice, 'Nomads en-Kor'), { timeout: 30_000, message: 'Nomads en-Kor is out' }).toHaveLength(1);
     const nomads = (await ownNamed(alice, 'Nomads en-Kor'))[0]!;
     const illusionist = (await ownNamed(alice, 'Cephalid Illusionist'))[0]!;
@@ -349,12 +358,18 @@ test(titled('either seat drags any stack item; both at once neither flicker nor 
         `worst disagreement read on alice's board = ${worstOnAlice1.px.toFixed(1)}px at +${worstOnAlice1.at}ms; on bob's board = ${worstOnBob1.px.toFixed(1)}px at +${worstOnBob1.at}ms; ` +
         `FINAL (settled, ~1.2s after mouse-up) on alice's board = ${finalOnAlice1.toFixed(1)}px; on bob's board = ${finalOnBob1.toFixed(1)}px`,
     );
-    // Whatever the transient relay lag is while bob's hand is still moving it (bounded by the
-    // deliberate PRESENCE_SEND_MS throttle and GLIDE_MS hand-off ease — removing either reintroduces
-    // the "weirdly visually laggy" regression those exist to prevent, so this is a floor on
-    // SETTLING, never on the motion itself), the two screens' own read of where it finally stands
-    // must agree — a regression guard on the position CONTRACT itself, proved here on two screens of
-    // deliberately DIFFERENT sizes (1600x1000 and 1100x700), not just two identical windows.
+    // The operator: "dragging opponents effect around is glitchy". The old code measured 25-50px of
+    // transient disagreement here (a flat ease to a relay two throttles behind, `placed.ts`'s old
+    // `RELAYED_EASE_MS`); the fix (`gripStackItem`'s relayed hand now catches up over ONE relay
+    // interval and then extrapolates its own velocity, never GLIDE_MS or PRESENCE_SEND_MS itself)
+    // keeps a watcher's copy on the dragging seat's actual path instead of a stale point. This bounds
+    // the IN-FLIGHT gap, not only the settled one below.
+    expect(worstOnAlice1.px, `the in-flight gap on alice's board stays well under the old 25-50px`).toBeLessThan(IN_FLIGHT_BOUND_PX);
+    expect(worstOnBob1.px, `and on bob's board, a different size from alice's`).toBeLessThan(IN_FLIGHT_BOUND_PX);
+    // Whatever the transient relay lag is while bob's hand is still moving it, the two screens' own
+    // read of where it finally stands must agree — a regression guard on the position CONTRACT
+    // itself, proved here on two screens of deliberately DIFFERENT sizes (the operator's own, from
+    // the real matches above), not just two identical windows.
     expect(finalOnAlice1, 'alice’s and bob’s screens agree on where bob’s drag of her chip finally stands').toBeLessThan(3);
     expect(finalOnBob1, 'read on bob’s board too, a different size from alice’s').toBeLessThan(3);
 

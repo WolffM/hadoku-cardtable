@@ -332,6 +332,35 @@ describe('the seam', () => {
       vi.useRealTimers();
     });
 
+    it('the operator: "dragging opponents effect around is glitchy" — a watcher with no hand of her own on it tracks the dragging seat\'s real-time path, not a stale catch-up point', () => {
+      // alice holds no hand on item 9 at all here (bob drags it alone) — the exact shape of
+      // stack-drag-shared.spec.ts's step 1, which measured 25-50px of disagreement on the old flat
+      // `RELAYED_EASE_MS` ease (claw runs, both window sizes equal and different). This proves the
+      // SAME physics in a fast, deterministic unit test: a straight drag at the e2e spec's own speed
+      // (pull(bob, from, 160, 40) over 360ms ≈ 0.458 px/ms), relayed every `PRESENCE_SEND_MS` (60ms,
+      // its own sender's throttle — `presence.ts`'s `sendPlaced`), measuring how far the drawn point
+      // ever strays from the sender's continuous straight-line path once the drag is under way (the
+      // first relay excluded, same as the e2e spec's own `settleMs`).
+      vi.useFakeTimers();
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => false });
+      handle.notify(view([stackItem(9)]));
+      const START = 200;
+      const SPEED = 160 / 360; // px/ms — the e2e spec's own pull(), x alone
+      const RELAY_MS = 60; // PRESENCE_SEND_MS
+      gripStackItem(9, 'seat:1', { x: START, y: 200 }, 'grab', 'you');
+      let maxGap = 0;
+      for (let ms = 1; ms <= 900; ms += 1) {
+        vi.advanceTimersByTime(1);
+        if (ms % RELAY_MS === 0) gripStackItem(9, 'seat:1', { x: START + SPEED * ms, y: 200 }, 'move', 'you');
+        handle.notify(view([stackItem(9)]));
+        if (ms > 2 * RELAY_MS) maxGap = Math.max(maxGap, Math.abs(drawnAt(canvas, 9).x - (START + SPEED * ms)));
+      }
+      expect(maxGap, `the drawn point never strays this far from the sender's real path while dragging (px)`).toBeLessThan(15);
+      handle.dispose();
+      vi.useRealTimers();
+    });
+
     it('their last let-go holds its point until it has glided there and stood DRAG_HOLD_MS: both screens show the same spot before it comes to rest', () => {
       vi.useFakeTimers();
       const { canvas } = board();
