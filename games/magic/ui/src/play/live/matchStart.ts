@@ -20,22 +20,29 @@ const followed = new Set<string>();
 /**
  * Every table this page has seen between two games of its series (`sideboarding`), keyed by the
  * games it had played then — a series records a game when it ends, so its next game starts at the
- * same count, and a table id that comes back for a fresh pairing starts again at none. Its next game
- * opens on a press (the operator, 2026-11-16: *"let's not automatically go past that screen, allow
- * players to click to enter the game"*), never by a follow. Page-wide, not a component's ref: the
- * screen that drew the sideboard step is replaced by another the moment the next game exists, and a
- * fresh mount must not forget it.
+ * same count, and a table id that comes back for a fresh pairing starts again at none — with the
+ * next game it was first seen to hold. That game opens on a press (the operator, 2026-11-16: *"let's
+ * not automatically go past that screen, allow players to click to enter the game"*), never by a
+ * follow; a later one at the same count is a leader's Reset game, which carries its players in as
+ * it always has. Page-wide, not a component's ref: the screen that drew the sideboard step is
+ * replaced by another the moment the next game exists, and a fresh mount must not forget it.
  */
-const sideboarded = new Set<string>();
+const sideboarded = new Map<string, string | null>();
 
 export function noteSideboarding(tableId: string, played: number): void {
-  sideboarded.add(`${tableId}#${played}`);
+  const key = `${tableId}#${played}`;
+  if (!sideboarded.has(key)) sideboarded.set(key, null);
 }
 
-/** Whether `matchId` is a table's next game that waits for this page's press: seen sideboarding, not yet entered. */
+/** Whether `matchId` is a table's next game that waits for this page's press: the first seen after its sideboarding, not yet entered. */
 export function awaitsPress(tableId: string, played: number, matchId: string | null): boolean {
-  return matchId !== null && sideboarded.has(`${tableId}#${played}`) && !followed.has(matchId);
+  const key = `${tableId}#${played}`;
+  if (matchId === null || !sideboarded.has(key)) return false;
+  const next = sideboarded.get(key) ?? matchId;
+  sideboarded.set(key, next);
+  return matchId === next && !followed.has(matchId);
 }
+
 /** Every table of a room's rounds this page has been carried to. */
 const tablesFollowed = new Set<string>();
 

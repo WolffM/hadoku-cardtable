@@ -105,7 +105,7 @@ test(
       await bob.page.goto(roomUrl);
       await expect(bob.page.getByTestId('room-table-link'), 'bob: the room draws Sideboard, not the board').toBeVisible({ timeout: 20_000 });
       await bob.page.getByTestId('room-table-link').click();
-      await bob.page.waitForURL(/\/room\/r-[0-9a-f]{12}\/table\/t-[0-9a-f]{12}$/, { timeout: 20_000 });
+      await bob.page.waitForURL(/\/room\/r-[0-9a-f]{12}\/table\/t-[0-9a-f]+$/, { timeout: 20_000 });
       await expect(bob.page.getByTestId('table-sideboard'), 'bob: the table page opens the sideboard step').toBeVisible({ timeout: 20_000 });
       await expect(bob.page.getByTestId('sideboard-step'), 'bob: the lobby path reaches the same sideboard step').toBeVisible({ timeout: 20_000 });
       await bob.page.screenshot({ path: fileURLToPath(new URL('../docs/handoff/w123-F/desktop-lobby-sideboard.png', import.meta.url)) });
@@ -119,16 +119,18 @@ test(
       await assertNoRoomChrome(alice.page, 'alice', '1600x1000');
       say('neither path draws the room header, its settings gear, or the face-off');
 
-      // The panel itself sits at the same place in each page's own frame: nothing of either
-      // path's chrome stands above it pushing it down by a different amount.
-      const panelTop = async (page: Page): Promise<number> => {
+      // The panel is the same box on both paths: nothing of either path's chrome pushes it down,
+      // and neither frame squeezes it (a frame that only grew to its content once drew it at its floor).
+      const panelBox = async (page: Page) => {
         const box = await page.getByTestId('sideboard-step').boundingBox();
         if (box === null) throw new Error('sideboard-step has no box');
-        return box.y;
+        return box;
       };
-      const [aliceTop, bobTop] = await Promise.all([panelTop(alice.page), panelTop(bob.page)]);
-      say(`panel top: alice=${aliceTop} bob=${bobTop}`);
-      expect(Math.abs(aliceTop - bobTop), 'the panel sits at (near enough) the same height on both paths').toBeLessThanOrEqual(24);
+      const [aliceBox, bobBox] = await Promise.all([panelBox(alice.page), panelBox(bob.page)]);
+      say(`panel: alice=${JSON.stringify(aliceBox)} bob=${JSON.stringify(bobBox)}`);
+      for (const k of ['y', 'width', 'height'] as const) {
+        expect(Math.abs(aliceBox[k] - bobBox[k]), `the panel's ${k} is the same on both paths`).toBeLessThanOrEqual(24);
+      }
 
       /* ── the same, on a phone ── */
       await resizeWindow(alice.page, PHONE);

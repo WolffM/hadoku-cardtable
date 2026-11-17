@@ -2886,11 +2886,10 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   ) {
     return (
       <MagicRoomUiContext.Provider value={magicRoomUi}>
-        {/* `.shell` (`screens.css`), the same bare page frame `PodScreen.tsx` draws a dealt pod in:
-            a flex column the chrome's own ancestor rule already grows to the viewport, which is
-            what `.table-sideboard-frame`'s own `flex: 1 1 auto` needs a parent to resolve against
-            outside `TablePage.tsx`'s `.pod__rounds`. */}
-        <div className="shell" data-testid="table-sideboard-page">
+        {/* The match's own frame (`MatchScreen.tsx`'s `.shell.shell--match`, one viewport tall), so
+            `.table-sideboard-frame` fills it as `.live` does and the panel is the in-game one's size.
+            A bare `.shell` grows only to its content: the panel came out its 320px floor. */}
+        <div className="shell shell--match" data-testid="table-sideboard-page">
           <TableSideboard key={`${tableId}:${myTable.series.games.length}`} roomId={roomId} tableId={tableId} refresh={view} tables={client} />
         </div>
       </MagicRoomUiContext.Provider>

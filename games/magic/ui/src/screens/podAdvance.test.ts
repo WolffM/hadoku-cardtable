@@ -421,6 +421,18 @@ describe('my table’s page is where a player comes back to', () => {
     expect(route()).toEqual({ kind: 'match', matchId });
   });
 
+  it('a leader’s Reset game after that next game still carries me into the fresh one, as it always has', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
+    const game1 = [{ matchId: 'm-000000000001', winner: 1 as const }];
+    const mounted = mountPod('t-2');
+    mounted.draft.send(complete());
+    mounted.room.read(ctxOf(rounds('t-2'), [{ id: 't-2', players, matchId: null, series: series('sideboarding', game1) }]));
+    mounted.room.read(ctxOf(rounds('t-2'), [{ id: 't-2', players, matchId: 'm-000000000008', series: series('playing', game1) }]));
+    expect(route(), 'game 2 waits for my press').not.toEqual({ kind: 'match', matchId: 'm-000000000008' });
+    mounted.room.read(ctxOf(rounds('t-2'), [{ id: 't-2', players, matchId: 'm-000000000009', series: series('playing', game1) }]));
+    await vi.waitFor(() => expect(route()).toEqual({ kind: 'match', matchId: 'm-000000000009' }));
+  });
+
   it('starts my game again when it died mid-series (`playing`, no match)', async () => {
     const posts: string[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
