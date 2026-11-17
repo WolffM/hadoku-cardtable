@@ -73,3 +73,49 @@ describe('GET /api/art/<id>: where every card image comes from', () => {
 		expect((await get(`/api/art/${ID}?size=huge`)).status).toBe(404);
 	});
 });
+
+// @reads e2e/fixtures/w121c-corpus/cards.jsonl
+describe('GET /api/art/<id>/artist: an id no committed table covers (AF632)', () => {
+	const CORPUS = resolve(import.meta.dirname, '../../../../../e2e/fixtures/w121c-corpus');
+	const keys: ArtKeys = { keyFor: () => undefined, settled: async () => undefined };
+
+	async function get(path: string): Promise<Response> {
+		const api = express.Router();
+		attachCardArt(api, { art: ART, keys, corpusDir: () => CORPUS });
+		const app = express().use('/api', api);
+		const server = app.listen(0);
+		try {
+			const { port } = server.address() as AddressInfo;
+			return await fetch(`http://127.0.0.1:${port}${path}`);
+		} finally {
+			server.close();
+		}
+	}
+
+	it("answers from the live corpus a constructed deck's card the committed table never covered", async () => {
+		// Dragonologist's chip drew no art — never in any cube, so never in `art-artists.json`
+		// — even though `art-ids.ts` resolves its id fine (`play/art-ids.test.ts`). This id is that
+		// resolved id, from the fixture corpus standing in for the host's.
+		const res = await get('/api/art/8810ebb4-9e51-46f0-a54a-a0b4d77b762a/artist');
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ artist: 'Fixture Artist C' });
+	});
+
+	it("a back face's own artist, when the faces were drawn by different hands", async () => {
+		const front = await get('/api/art/7bf864db-4754-433d-9d77-6695f78f6c09/artist');
+		expect(await front.json()).toEqual({ artist: 'Fixture Artist B' });
+		const back = await get('/api/art/7bf864db-4754-433d-9d77-6695f78f6c09/back/artist');
+		expect(await back.json()).toEqual({ artist: 'Fixture Artist Back' });
+	});
+
+	it('404s for an id the corpus has no printing of, and for anything that is not an id', async () => {
+		expect((await get('/api/art/00000000-0000-4000-8000-000000000000/artist')).status).toBe(404);
+		expect((await get('/api/art/not-an-id/artist')).status).toBe(404);
+	});
+
+	it('caches the corpus read across requests, and answers the same for two at once', async () => {
+		const [a, b] = await Promise.all([get('/api/art/59fdc045-b938-4321-aec3-51685cbbaa52/artist'), get('/api/art/59fdc045-b938-4321-aec3-51685cbbaa52/artist')]);
+		expect(await a.json()).toEqual({ artist: 'Fixture Artist A' });
+		expect(await b.json()).toEqual({ artist: 'Fixture Artist A' });
+	});
+});
