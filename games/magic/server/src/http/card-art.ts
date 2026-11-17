@@ -35,7 +35,7 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { Request, Response, Router } from 'express';
-import { corpusDir } from '@hadoku/carddata';
+import { corpusDir } from '@hadoku/carddata/corpus-dir';
 import { BACK_FACE, cdnUrlFor, parseCardRef, resolveArtUrl, type ArtImageSize } from '@hadoku/carddata/art';
 
 import type { ArtKeys } from '../pools/art-keys.js';
