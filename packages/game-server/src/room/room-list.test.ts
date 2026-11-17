@@ -15,11 +15,11 @@ function roomOf(partial: Partial<ListableRoom> & { id: string }): ListableRoom {
 const LIVE = { ...NO_BUSY_HOOK, liveMatch: () => true };
 
 describe('sortRoomsByCreation', () => {
-	it('sorts by createdAt, then by id as a tie-break', () => {
+	it('sorts newest first, then by id as a tie-break', () => {
 		const a = { id: 'r-b', createdAt: 100 };
 		const b = { id: 'r-a', createdAt: 100 };
 		const c = { id: 'r-z', createdAt: 50 };
-		expect(sortRoomsByCreation([a, b, c]).map((r) => r.id)).toEqual(['r-z', 'r-a', 'r-b']);
+		expect(sortRoomsByCreation([a, b, c]).map((r) => r.id)).toEqual(['r-a', 'r-b', 'r-z']);
 	});
 });
 

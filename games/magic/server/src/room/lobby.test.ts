@@ -200,7 +200,7 @@ describe('Lobby.create', () => {
 			expect(result.room.game!.clientMode).toBe(clientMode);
 			made.push(result.room);
 		}
-		expect(lobby.list().map((r) => r.game!.clientMode)).toEqual(['builtin', 'streamed']);
+		expect(lobby.list().map((r) => r.game!.clientMode), 'newest first').toEqual(['streamed', 'builtin']);
 		for (const room of made) {
 			expect(lobby.get(room.id)?.game!.clientMode).toBe(room.game!.clientMode);
 		}
@@ -342,7 +342,7 @@ describe('a room’s format', () => {
 		expect(last.room.game!.format).toBe(familyOf(order.at(-1)!).at(-1));
 		expect(draws).toEqual([]);
 		// Every body that carries a room carries it, list as well as get.
-		expect(lobby.list().map((r) => r.game!.format)).toEqual([first.room.game!.format, last.room.game!.format]);
+		expect(lobby.list().map((r) => r.game!.format)).toEqual([last.room.game!.format, first.room.game!.format]);
 		expect(lobby.get(first.room.id)?.game!.format).toBe(first.room.game!.format);
 	});
 

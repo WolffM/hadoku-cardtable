@@ -519,8 +519,8 @@ describe('GET /api/rooms', () => {
 		const res = await call(h, 'GET', '/api/rooms', { as: 'bob' });
 		expect(res.status).toBe(200);
 		const { rooms } = res.json() as { rooms: import('../room/lobby.ts').MagicRoomView[] };
-		expect(rooms.map((r) => r.name)).toEqual(['Open', 'Locked']);
-		expect(rooms.map((r) => r.locked)).toEqual([false, true]);
+		expect(rooms.map((r) => r.name)).toEqual(['Locked', 'Open']);
+		expect(rooms.map((r) => r.locked)).toEqual([true, false]);
 		// The listing says WHETHER a room is locked and nothing more.
 		const secret = storedSecret(dir);
 		expect(res.text).not.toContain(PASSWORD);
@@ -1437,7 +1437,7 @@ describe('the lobby', () => {
 		expect(h.lobby.get('r-000000000000')).toBeUndefined();
 	});
 
-	it('lists in creation order even for rooms made in the same millisecond, across a restart', async () => {
+	it('lists newest first even for rooms made in the same millisecond, across a restart', async () => {
 		// A frozen clock is the worst case, and it is not hypothetical: two
 		// rooms created in one click tied on `createdAt`, and the tie-break is
 		// the random room id, so the front page's order flipped run to run.
@@ -1448,14 +1448,14 @@ describe('the lobby', () => {
 			const made = first.create(caller, { name, gameType: 'constructed-1v1', clientMode: 'builtin' });
 			expect(made.ok).toBe(true);
 		}
-		expect(first.list().map((r) => r.name)).toEqual(['one', 'two', 'three']);
+		expect(first.list().map((r) => r.name)).toEqual(['three', 'two', 'one']);
 		expect(new Set(first.list().map((r) => r.createdAt)).size).toBe(3);
 
 		const second = await lobbyMod.openLobby({ dir, now: () => 1_000 });
-		expect(second.list().map((r) => r.name)).toEqual(['one', 'two', 'three']);
-		// A room created AFTER the restart still sorts last.
+		expect(second.list().map((r) => r.name)).toEqual(['three', 'two', 'one']);
+		// A room created AFTER the restart still sorts first.
 		expect(second.create(caller, { name: 'four', gameType: 'draft', clientMode: 'builtin' }).ok).toBe(true);
-		expect(second.list().map((r) => r.name)).toEqual(['one', 'two', 'three', 'four']);
+		expect(second.list().map((r) => r.name)).toEqual(['four', 'three', 'two', 'one']);
 	});
 
 	it('quarantines a record it cannot read instead of dropping or half-applying it', async () => {

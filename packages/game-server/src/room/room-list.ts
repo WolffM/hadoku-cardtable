@@ -51,9 +51,9 @@ export const NO_BUSY_HOOK: RoomBusyHook<unknown> = {
 	sparedFromSweep: () => false,
 };
 
-/** Creation order, with the (random) room id as a tie-break for two rooms made in the same millisecond — `list()`'s and `offered()`'s shared sort. */
+/** Newest room first, with the (random) room id as a tie-break for two rooms made in the same millisecond — `list()`'s and `offered()`'s shared sort. */
 export function sortRoomsByCreation<R extends { id: string; createdAt: number }>(rooms: readonly R[]): R[] {
-	return [...rooms].sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
+	return [...rooms].sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1));
 }
 
 /**
