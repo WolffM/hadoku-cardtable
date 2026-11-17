@@ -22,13 +22,21 @@
  *    the operator's "zoom in" (2026-11-01). That was the UI scale: a player at 110% saw the page
  *    drawn at 100% until the prefs read answered, then everything grew a tenth. carol is a player at
  *    110% here, her prefs answering with the page's other reads;
- *  - the page was revealed at once: no frame showed one part loaded while another still waited.
+ *  - the page was revealed at once: no frame showed one part loaded while another still waited,
+ *    until `HOLD_MS` had passed. That is the gate's own promise (`packages/game-ui/src/front/gate.ts`):
+ *    past it, the page shows what it has and a late part fades in alone, by design. So the reads are
+ *    held only until the skeleton's first frame, measured and released by the page itself: held
+ *    longer, a loaded claw ran the page past `HOLD_MS` before its answers were even sent, and the
+ *    designed fallback read as a piecemeal reveal (CI run 43979157736; at a 15% CPU quota the old
+ *    hold released at 4.8 s of the page's clock).
  *
  * Twice: on the room server alone (no match and no replay, so no live slot), and with a finished
  * real match kept as a replay, which the live slot plays (Forge; skipped without the jar).
  * `[front-skeleton]` lines are the evidence.
  */
 import { expect, test, type Browser, type Page, type Route } from '@playwright/test';
+
+import { HOLD_MS } from '../packages/game-ui/src/front/gate.ts';
 
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { makeTitled } from './play/board.ts';
@@ -69,19 +77,32 @@ const partsFor = (rooms: number): Record<string, string> => ({
   ...Object.fromEntries(Array.from({ length: rooms }, (_, i) => [`room-${i}`, `[data-testid="room-list"] > [data-testid="room-row"]:nth-child(${i + 1})`])),
 });
 
+/** Each selector's box on the page now, rounded to 0.1px; `null` when not drawn. Runs in the page. */
+function measure(sel: Record<string, string>): Record<string, Box | null> {
+  const out: Record<string, Box | null> = {};
+  for (const [part, s] of Object.entries(sel)) {
+    const el = document.querySelector(s);
+    const r = el?.getBoundingClientRect();
+    out[part] =
+      r === undefined || (el instanceof HTMLElement && el.offsetParent === null)
+        ? null
+        : { x: Math.round(r.x * 10) / 10, y: Math.round(r.y * 10) / 10, w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10 };
+  }
+  return out;
+}
+
 async function boxes(page: Page, sel: Record<string, string>): Promise<Record<string, Box | null>> {
-  return page.evaluate((sel) => {
-    const out: Record<string, { x: number; y: number; w: number; h: number } | null> = {};
-    for (const [part, s] of Object.entries(sel)) {
-      const el = document.querySelector(s);
-      const r = el?.getBoundingClientRect();
-      out[part] =
-        r === undefined || (el instanceof HTMLElement && el.offsetParent === null)
-          ? null
-          : { x: Math.round(r.x * 10) / 10, y: Math.round(r.y * 10) / 10, w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10 };
-    }
-    return out;
-  }, sel);
+  return page.evaluate(`(${measure.toString()})(${JSON.stringify(sel)})`);
+}
+
+/** Where the page keeps the skeleton parts to measure on its first frame, for the visit after this one. */
+const MEASURE_KEY = 'front-skeleton:measure';
+
+/** What the page measured on the skeleton's first frame, before it let its reads go. */
+interface SkeletonFrame {
+  t: number;
+  boxes: Record<string, Box | null>;
+  ghosts: number;
 }
 
 const off = (a: Box, b: Box): number => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.w - b.w), Math.abs(a.h - b.h));
@@ -97,8 +118,18 @@ type FrameBox = [number, number, number, number, number, number] | null;
 
 /** Every layout shift, every frame's set of reveal phases, and every frame's boxes, from the first paint. */
 async function watch(page: Page): Promise<void> {
-  await page.addInitScript((boxes: Record<string, string>) => {
-    const w = window as unknown as { __shifts: string[]; __phases: string[]; __frames: Array<{ t: number; b: Record<string, FrameBox> }> };
+  const init = (
+    { boxes, key }: { boxes: Record<string, string>; key: string },
+    measureNow: (sel: Record<string, string>) => Record<string, Box | null>,
+  ): void => {
+    const w = window as unknown as {
+      __shifts: string[];
+      __phases: Array<{ t: number; phases: string }>;
+      __frames: Array<{ t: number; b: Record<string, FrameBox> }>;
+      __skeleton?: SkeletonFrame;
+      __skeletonDrawn?: () => Promise<void>;
+    };
+    const toMeasure = sessionStorage.getItem(key);
     w.__shifts = [];
     w.__phases = [];
     w.__frames = [];
@@ -113,8 +144,13 @@ async function watch(page: Page): Promise<void> {
       const phases = Array.from(document.querySelectorAll('[data-reveal]'))
         .map((el) => `${el.getAttribute('data-reveal')}:${el.getAttribute('data-phase')}`)
         .join(' ');
-      if (phases !== last) w.__phases.push(phases);
+      if (phases !== last) w.__phases.push({ t: Math.round(performance.now()), phases });
       last = phases;
+      // The skeleton's first frame: measure it here and let the reads go, so the page waits on nothing but the skeleton.
+      if (toMeasure !== null && w.__skeleton === undefined && document.querySelector('[data-skeleton="room-0"]') !== null) {
+        w.__skeleton = { t: Math.round(performance.now()), boxes: measureNow(JSON.parse(toMeasure) as Record<string, string>), ghosts: document.querySelectorAll('[data-skeleton^="room-"]').length };
+        void w.__skeletonDrawn?.();
+      }
       // From the skeleton's first frame: before it the page has not drawn its boxes yet.
       if (w.__frames.length > 0 || document.querySelector('[data-skeleton]') !== null) {
         const b: Record<string, FrameBox> = {};
@@ -139,7 +175,9 @@ async function watch(page: Page): Promise<void> {
       requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
-  }, FRAME_BOXES);
+  };
+  // As source, with the spec's own `measure` beside it: an init script cannot close over the spec's functions.
+  await page.addInitScript({ content: `(${init.toString()})(${JSON.stringify({ boxes: FRAME_BOXES, key: MEASURE_KEY })}, ${measure.toString()});` });
 }
 
 /** Every frame whose box moved, resized or rescaled from the skeleton's first frame. */
@@ -201,7 +239,7 @@ async function visitTwice(browser: Browser, origin: string, minRooms: number, ex
   const PARTS = partsFor(Math.min(rooms, MAX_ROOM_GHOSTS));
   console.log(`[front-skeleton] first visit shifts: ${JSON.stringify(await page.evaluate(() => (window as unknown as { __shifts: string[] }).__shifts))}`);
 
-  // The second: every API read, and carol's prefs, held until the skeleton has been measured.
+  // The second: every API read, and carol's prefs, held until the page has measured its skeleton's first frame.
   let release = (): void => undefined;
   const released = new Promise<void>((done) => (release = done));
   await page.unrouteAll();
@@ -210,13 +248,17 @@ async function visitTwice(browser: Browser, origin: string, minRooms: number, ex
     if (route.request().method() === 'GET') await released;
     await route.continue();
   });
+  await page.exposeFunction('__skeletonDrawn', () => release());
+  await page.evaluate(
+    ({ key, sel }) => sessionStorage.setItem(key, JSON.stringify(sel)),
+    { key: MEASURE_KEY, sel: { ...STEADY, ...Object.fromEntries(Object.keys(PARTS).map((p) => [p, `[data-skeleton="${p}"]`])) } },
+  );
   await page.reload();
-  await expect(page.locator('[data-skeleton="room-0"]')).toBeVisible();
-  await page.waitForTimeout(300);
-  const skeleton = await boxes(page, { ...STEADY, ...Object.fromEntries(Object.keys(PARTS).map((p) => [p, `[data-skeleton="${p}"]`])) });
-  const ghosts = await page.locator('[data-skeleton^="room-"]').count();
-
-  release();
+  await released;
+  const drawn = await page.evaluate(() => (window as unknown as { __skeleton: SkeletonFrame }).__skeleton);
+  const skeleton = drawn.boxes;
+  const ghosts = drawn.ghosts;
+  console.log(`[front-skeleton] the skeleton's first frame at ${drawn.t}ms of the page's clock; its reads let go then`);
   await expect(page.locator('[data-testid="room-list"] > [data-testid="room-row"]')).toHaveCount(rooms);
   await expect(page.locator('[data-reveal]:not([data-phase="shown"])')).toHaveCount(0, { timeout: 30_000 });
   await page.waitForTimeout(300);
@@ -237,7 +279,7 @@ async function visitTwice(browser: Browser, origin: string, minRooms: number, ex
   }
 
   const { shifts, phases, frames } = await page.evaluate(() => {
-    const w = window as unknown as { __shifts: string[]; __phases: string[]; __frames: Array<{ t: number; b: Record<string, FrameBox> }> };
+    const w = window as unknown as { __shifts: string[]; __phases: Array<{ t: number; phases: string }>; __frames: Array<{ t: number; b: Record<string, FrameBox> }> };
     return { shifts: w.__shifts, phases: w.__phases, frames: w.__frames };
   });
   const changed = frameChanges(frames);
@@ -246,8 +288,13 @@ async function visitTwice(browser: Browser, origin: string, minRooms: number, ex
   console.log(`[front-skeleton] second visit shifts: ${JSON.stringify(shifts)}`);
   console.log(`[front-skeleton] reveal phases, frame by frame: ${JSON.stringify(phases)}`);
   for (const s of shifts) failures.push(`layout shift ${s}`);
-  for (const frame of phases) {
-    if (/:waiting/.test(frame) && /:(fading|shown)/.test(frame)) failures.push(`revealed piecemeal: ${frame}`);
+  // Past `HOLD_MS` from the skeleton's first frame, the gate has given up waiting (its clock started at
+  // mount, before that frame): a part that fades in alone then is the designed fallback, not a defect.
+  const holdEnds = drawn.t + HOLD_MS;
+  for (const { t, phases: frame } of phases) {
+    if (!(/:waiting/.test(frame) && /:(fading|shown)/.test(frame))) continue;
+    if (t < holdEnds) failures.push(`revealed piecemeal at ${t}ms, inside the ${HOLD_MS}ms hold that ended at ${holdEnds}ms: ${frame}`);
+    else console.log(`[front-skeleton] after the hold (${t}ms, past ${holdEnds}ms) a late part revealed alone, as the gate allows: ${frame}`);
   }
   await context.close();
   return failures;
