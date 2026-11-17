@@ -1,0 +1,22 @@
+# AF632: Dragonologist's ability chip, and later Betor, Kin to All's, drew without art — neither is
+# in any cube, so `art-artists.json` (the committed, cube-and-library-pool artist table) never heard
+# of either, even though `play/art-ids.ts` resolves their id fine. Alice casts Dragonologist (its
+# "enters, look at the top six" trigger goes on the stack) while bob (Full Control) holds priority, so
+# the trigger stays there as the chip, same mechanism as `w67-trigger.state`. Betor, Kin to All sits
+# on alice's battlefield already, with Wall of Omens beside it (total toughness 11, clearing Betor's
+# own "if creatures you control have total toughness 10 or greater" check), so once Dragonologist's
+# trigger is done and the turn is walked forward to alice's end step, Betor's own trigger goes on the
+# stack the same way.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Dragonologist
+humanbattlefield=Betor, Kin to All;Wall of Omens;Island;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

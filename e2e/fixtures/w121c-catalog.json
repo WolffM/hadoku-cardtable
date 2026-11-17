@@ -1,0 +1,42 @@
+{
+  "cards": {
+    "dragonologist": {
+      "cardId": "dragonologist",
+      "name": "Dragonologist",
+      "manaCost": ["2", "U"],
+      "manaValue": 3,
+      "colors": ["U"],
+      "typeLine": "Creature — Human Wizard",
+      "oracleText": "When this creature enters, look at the top six cards of your library. You may reveal an instant, sorcery, or Dragon card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.\nUntapped Dragons you control have hexproof.",
+      "power": "1",
+      "toughness": "3",
+      "setCode": "TDM",
+      "collectorNumber": "42",
+      "rarity": "rare",
+      "scryfallId": "8810ebb4-9e51-46f0-a54a-a0b4d77b762a",
+      "oracleId": "f6791df0-a37b-44dc-8bf3-40ac2304d188"
+    },
+    "betor, kin to all": {
+      "cardId": "betor, kin to all",
+      "name": "Betor, Kin to All",
+      "manaCost": ["2", "W", "B", "G"],
+      "manaValue": 5,
+      "colors": ["B", "G", "W"],
+      "typeLine": "Legendary Creature — Spirit Dragon",
+      "oracleText": "Flying\nAt the beginning of your end step, if creatures you control have total toughness 10 or greater, draw a card. Then if creatures you control have total toughness 20 or greater, untap each creature you control. Then if creatures you control have total toughness 40 or greater, each opponent loses half their life, rounded up.",
+      "power": "5",
+      "toughness": "7",
+      "setCode": "TDM",
+      "collectorNumber": "172",
+      "rarity": "mythic",
+      "scryfallId": "b475b071-5545-483e-a397-89451f258602",
+      "oracleId": "826a0db6-195a-4697-9bd6-f544b279e3cf"
+    }
+  },
+  "aliases": {},
+  "printings": {
+    "TDM:42": { "key": "dragonologist", "scryfallId": "8810ebb4-9e51-46f0-a54a-a0b4d77b762a", "rarity": "rare" },
+    "TDM:172": { "key": "betor, kin to all", "scryfallId": "b475b071-5545-483e-a397-89451f258602", "rarity": "mythic" }
+  },
+  "alchemy": []
+}
