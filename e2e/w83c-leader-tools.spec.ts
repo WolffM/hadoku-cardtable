@@ -83,7 +83,7 @@ async function intoGame(p: Friend, origin: string, roomId: string, tableId: stri
   await expect.poll(async () => matchUrl.test(p.page.url()) || (await sideboard.isVisible()), { timeout: UI_TIMEOUT, message: `${p.name}: a game or its sideboard step` }).toBe(true);
   if (!matchUrl.test(p.page.url())) {
     await sideboard.click();
-    // AF639: even alone against the AI, the next game does not open by itself.
+    // Even alone against the AI, the next game does not open by itself.
     await p.page.getByTestId('game-result-enter').click({ timeout: UI_TIMEOUT });
   }
   await p.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });

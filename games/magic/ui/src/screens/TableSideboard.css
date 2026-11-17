@@ -4,8 +4,7 @@
  * contains it — inside `LiveBoard.tsx` that box is `.live`, the whole match frame. On the room's
  * table page (`TablePage.tsx`'s `.pod__rounds`, a flex column) there is no such box: a plain
  * wrapper div has no in-flow content of its own (the panel inside is taken out of flow) and
- * collapses to zero height, which clips the absolutely positioned panel to nothing — measured
- * against the real DOM (wave 122 §F, AF628): the panel existed but Playwright read it `hidden`.
+ * collapses to zero height, which clips the absolutely positioned panel to nothing.
  *
  * This class IS that box: a flex item that fills the rest of the table page's column, and the
  * positioned ancestor `inset: 0` resolves against.
@@ -14,4 +13,24 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 320px;
+}
+
+/*
+ * The site header on a narrow phone, while this screen draws the sideboard step: a CSS-only reach
+ * into `AppChrome`'s sibling class, same as `live.css`'s own `[data-shell='match'] > .app-header`
+ * rule, which this duplicates rather than depends on.
+ *
+ * `live.css`'s rule is keyed on BOTH `[data-shell='match']` and `:root[data-layout='portrait']` —
+ * and `data-layout` is only ever set by `usePortraitLayout` (`play/portrait.ts`), which only
+ * `Board`/`LiveBoard` mount. This screen (`TableSideboard.tsx`) holds `data-shell='match'` the
+ * same way the match does (`chrome/shell.ts`), but mounting `usePortraitLayout` from a room screen
+ * to also get `data-layout` would re-open wave 89's Settled 10 ("landscape, desktop, draft and the
+ * room screens … must never carry this attribute") — not this lane's call. The media query here is
+ * `usePortraitLayout`'s own condition (`PORTRAIT_MEDIA_QUERY`), read directly off the viewport
+ * instead of off an attribute only the match installs, so this needs nothing from `portrait.ts`.
+ */
+@media (max-width: 600px) and (orientation: portrait) {
+  .cardtable-chrome[data-shell='match'] > .app-header {
+    display: none;
+  }
 }

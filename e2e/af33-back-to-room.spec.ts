@@ -72,7 +72,7 @@ test(titled('the result screen has Rematch, Back to room and Main menu; Back to 
     // (the operator, 2026-10-23: "a small box that lets me return").
     await alice.page.getByTestId('room-table-link').click();
     for (const f of [alice, bob]) await readyFromSideboard(f.page);
-    // AF639: the next game exists once both are ready, but neither screen opens it by itself —
+    // The next game exists once both are ready, but neither screen opens it by itself —
     // alice's from the room's table page, bob's from his own result screen.
     for (const f of [alice, bob]) await pressEnterGame(f.page);
     for (const f of [alice, bob]) {

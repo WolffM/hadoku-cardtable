@@ -80,12 +80,10 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
 
   const matchId = table?.matchId ?? null;
   /**
-   * AF639, the operator, 2026-11-16: *"the next game does not open by itself; players click to
-   * enter it."* A table that has been seen `sideboarding` reaches its next game by a press — the
-   * `TableCard` below already draws "Return to game" the instant `matchId` is set — not by this
-   * effect any more. A pod round's FRESH pairing never passes through `sideboarding` (its table is
-   * born `matchId === null` and goes straight to a live match, no sideboard step), so that walk-in
-   * is unaffected: `sawSideboarding` stays false for it, same as before this wave.
+   * A table that has been seen `sideboarding` reaches its next game by a press — the `TableCard`
+   * below already draws "Return to game" the instant `matchId` is set — not by this effect. A pod
+   * round's FRESH pairing never passes through `sideboarding` (its table is born `matchId === null`
+   * and goes straight to a live match, no sideboard step), so `sawSideboarding` stays false for it.
    */
   const sawSideboarding = useRef(false);
   if (mine && matchId === null && table?.series.phase === 'sideboarding') sawSideboarding.current = true;
