@@ -91,6 +91,8 @@ async function boot(
 		build?: string;
 		/** One live tab per player per room (`../room/session.ts`), on a clock the test turns. A match is its own room here. */
 		sessions?: { now: () => number };
+		/** The match's cost map (`./deck-colors.ts`'s `roomDeckCosts`, production); defaults to `attachPlay`'s own `LIBRARY_CARD_COSTS` fallback. */
+		deckCosts?: import('./deck-colors.ts').DeckCosts;
 	} = {},
 ): Promise<Harness> {
 	const { factory, hosts } = options.host ?? replayFactory();
@@ -126,6 +128,7 @@ async function boot(
 		rejoinGraceMs: options.rejoinGraceMs,
 		...(options.onAbandoned === undefined ? {} : { onAbandoned: options.onAbandoned }),
 		...(options.build === undefined ? {} : { build: options.build }),
+		...(options.deckCosts === undefined ? {} : { deckCosts: options.deckCosts }),
 		seatAvatar: (_matchId, owner) => [...(options.faces ?? [])].find(([user]) => identityFromHeaders(edgeHeaders(user), 'test') === owner)?.[1],
 	});
 	played = handle;
@@ -489,14 +492,44 @@ describe('GET /api/play/matches/:id/deck', () => {
 		expect(await mine.json()).toEqual({
 			name: 'Mono White',
 			main: [
-				{ name: 'Savannah Lions', count: 4 },
-				{ name: 'Plains', count: 16 },
+				{ name: 'Savannah Lions', count: 4, cost: '{W}' },
+				{ name: 'Plains', count: 16, cost: '' },
 			],
-			sideboard: [{ name: 'Disenchant', count: 2 }],
+			sideboard: [{ name: 'Disenchant', count: 2, cost: '{1}{W}' }],
 		});
-		expect(await (await deckOf(h, matchId, 'bob')).json()).toEqual({ name: 'Mono Green', main: [{ name: 'Forest', count: 20 }], sideboard: [] });
+		expect(await (await deckOf(h, matchId, 'bob')).json()).toEqual({ name: 'Mono Green', main: [{ name: 'Forest', count: 20, cost: '' }], sideboard: [] });
 		expect((await deckOf(h, matchId, 'carol')).status, 'a caller at no seat is told nothing').toBe(404);
 		expect((await deckOf(h, 'm-nope', 'alice')).status, 'nor about a match that is not there').toBe(404);
+	});
+
+	/*
+	 * measured on the operator's own pod, r-67759762d971, deck hash 81aea98e4291: of the 41
+	 * distinct named cards in that drafted Abzan (W/B/G) deck, exactly ONE — Qarsi Revenant — has an
+	 * entry in `LIBRARY_CARD_COSTS` (it also happens to be in a catalogued precon); the other 40,
+	 * Dusyut Earthcarver among them, are cube-only cards no premade library deck plays. Before this
+	 * fix the route answered every line's cost from that one static table regardless of the match's
+	 * own format, so a drafted-cube deck's own-deck peek showed a cost (and so a colour) for Qarsi
+	 * Revenant alone — the exact shape of the bug, not a guess at it.
+	 */
+	it('answers each line’s cost from the match’s own cost map, not only the static library table', async () => {
+		const CUBE_DECK = `[metadata]\nName=Cube draft r-67759762d971\n[main]\n1 Qarsi Revenant\n1 Dusyut Earthcarver\n1 Forest\n`;
+		const CUBE_COSTS: Readonly<Record<string, string>> = { 'Dusyut Earthcarver': '{5}{G}' };
+		const costsFor: import('./deck-colors.ts').DeckCosts = (format) => (format === 'draft-r-67759762d971' ? CUBE_COSTS : {});
+		const h = await boot({ deckCosts: costsFor });
+		const matchId = (await startMatch(h, 'alice', { opponent: 'ai', decks: [CUBE_DECK, null], format: 'draft-r-67759762d971' })).body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		await alice.request('forge:join', { matchId });
+		expect(await (await deckOf(h, matchId, 'alice')).json()).toEqual({
+			name: 'Cube draft r-67759762d971',
+			main: [
+				// Not from `LIBRARY_CARD_COSTS` (the fixture carries none of these) — from the match's own
+				// map, exactly as `seatDeckColors` already folds this match's music off.
+				{ name: 'Qarsi Revenant', count: 1, cost: '' },
+				{ name: 'Dusyut Earthcarver', count: 1, cost: '{5}{G}' },
+				{ name: 'Forest', count: 1, cost: '' },
+			],
+			sideboard: [],
+		});
 	});
 });
 

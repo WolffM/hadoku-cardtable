@@ -146,22 +146,28 @@ export function resetNamedArtForTests(fetchImpl: Fetch): void {
   fetchArt = fetchImpl;
 }
 
-/** A library card's face by its name and pinned set: no type line and no rules text, which the wire does not send. */
-export function libraryFace({ name, set }: NamedCard): DraftCard {
-  const printed = LIBRARY_CARD_COSTS[name] ?? '';
+/**
+ * A library card's face by its name and pinned set: no type line and no rules text, which the wire
+ * does not send. `costs` defaults to `LIBRARY_CARD_COSTS` — right for every LIBRARY deck (the room's
+ * deck chooser, the Gauntlet's tiles, a table card, the deck editor) — but a seat's OWN deck
+ * (`play/live/own-deck.tsx`) may be a drafted cube's, which that static table was never built to
+ * cover: its caller passes the match's own per-line costs instead, straight off the wire.
+ */
+export function libraryFace({ name, set }: NamedCard, costs: Readonly<Record<string, string>> = LIBRARY_CARD_COSTS): DraftCard {
+  const printed = costs[name] ?? '';
   const art = artOf(cardRef(name, set));
   return namedFace(name, manaTokensOf(printed), manaValueOf(printed), art?.scryfallId, art?.backs, set ?? '');
 }
 
 /** A deck line known by its name and set (`libraryFace`). */
-export function namedPeekLine(line: DeckLine): PeekLine {
-  const face = libraryFace(line);
+export function namedPeekLine(line: DeckLine, costs?: Readonly<Record<string, string>>): PeekLine {
+  const face = libraryFace(line, costs);
   return { name: line.name, count: line.count, cost: face.manaCost, manaValue: face.manaValue, face };
 }
 
-/** A library deck's lines: the wire sends names and sets. */
-export function libraryPeekList(main: readonly DeckLine[], sideboard: readonly DeckLine[]): PeekList {
-  return { main: main.map(namedPeekLine), sideboard: sideboard.map(namedPeekLine) };
+/** A deck's lines: the wire sends names and sets. `costs`, see {@link libraryFace}. */
+export function libraryPeekList(main: readonly DeckLine[], sideboard: readonly DeckLine[], costs?: Readonly<Record<string, string>>): PeekList {
+  return { main: main.map((l) => namedPeekLine(l, costs)), sideboard: sideboard.map((l) => namedPeekLine(l, costs)) };
 }
 
 /** A card's art id by its ref (`Name|SET`) — what a table card's deck art is (`TableCard.tsx`). */
