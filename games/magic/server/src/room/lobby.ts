@@ -1397,8 +1397,9 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 	 * A room whose plan has no verdict yet gets one, in the background, with
 	 * no PUT — see this class's `#checkPlan` and `OpenLobbyOptions.checkPlan`'s
 	 * own doc for why this exists at all. Called from `created` (every new
-	 * room starts on the Settled default, unchecked) and `restored` (a snapshot
-	 * written mid-check, before the previous process could finish one).
+	 * room starts on the Settled default, unchecked), `restored` (a snapshot
+	 * written mid-check, before the previous process could finish one) and
+	 * `setGameType` (a constructed room turned into a draft).
 	 *
 	 * Only a `draft` room's plan is ever read, so a constructed room's (always
 	 * the Settled default, never shown or acted on) is never checked — that
@@ -2329,6 +2330,9 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		// including the leader making the change.
 		clearReady(room.ledger);
 		this.persist(room);
+		// A room made as constructed was never checked (`#ensurePlanChecked` skips it), so a switch
+		// to draft would leave its picker on "Checking…" with nothing coming.
+		this.#ensurePlanChecked(room);
 		this.log({ event: 'room-game-type', roomId, gameType });
 		return { ok: true, room: this.#view(room) };
 	}

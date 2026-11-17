@@ -4576,6 +4576,17 @@ describe("a room's plan checks itself — created or restored, not only PUT", ()
 		expect(checkPlan).not.toHaveBeenCalled();
 	});
 
+	it('a constructed room switched to draft gets its verdict — the picker never sits on Checking…', async () => {
+		const dir = await tempDir();
+		const checkPlan = vi.fn(async (): Promise<PoolVerdict> => ({ ok: true, cards: 42 }));
+		const lobby = await openLobby({ dir, checkPlan });
+		const made = lobby.create(ALICE, { name: 'switch', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		expect(lobby.setGameType(made.room.id, ALICE.id, 'draft').ok).toBe(true);
+		await vi.waitFor(() => expect(lobby.get(made.room.id)?.game!.pod?.verdict).toEqual({ ok: true, cards: 42 }));
+		expect(checkPlan).toHaveBeenCalledTimes(1);
+	});
+
 	it('a room restored with a null verdict (the checker never answered before the process died) is checked again at boot', async () => {
 		const dir = await tempDir();
 		// Never resolves — simulates a process that died mid-check, leaving the
