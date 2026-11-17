@@ -18,10 +18,10 @@
  * Per-type differences are inputs only: the slot, `canStart` and `ready`.
  */
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import type { RoomTable, TableGame } from '@hadoku/shared';
 
-import { followMatchOnce } from '../../play/live/matchStart.ts';
+import { awaitsPress, followMatchOnce, noteSideboarding } from '../../play/live/matchStart.ts';
 import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { BackLink } from '../BackLink.tsx';
 import { TableCard } from '../TableCard.tsx';
@@ -79,20 +79,16 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
   const revealing = useOpponentReveal(pod !== null && mine && current ? (table?.id ?? null) : null);
 
   const matchId = table?.matchId ?? null;
-  /**
-   * A table that has been seen `sideboarding` reaches its next game by a press — the `TableCard`
-   * below already draws "Return to game" the instant `matchId` is set — not by this effect. A pod
-   * round's FRESH pairing never passes through `sideboarding` (its table is born `matchId === null`
-   * and goes straight to a live match, no sideboard step), so `sawSideboarding` stays false for it.
-   */
-  const sawSideboarding = useRef(false);
-  if (mine && matchId === null && table?.series.phase === 'sideboarding') sawSideboarding.current = true;
+  // A pod round's FRESH pairing never passes through `sideboarding` (its table is born with no match and
+  // goes straight to a live one), so it is still followed in; a series' next game waits for a press.
+  if (mine && table !== undefined && matchId === null && table.series.phase === 'sideboarding') noteSideboarding(table.id, table.series.games.length);
+  const pressToEnter = mine && table !== undefined && awaitsPress(table.id, table.series.games.length, matchId);
   useEffect(() => {
-    if (matchId !== null && !revealing && !sawSideboarding.current) followMatchOnce(matchId, false);
-  }, [matchId, revealing]);
+    if (matchId !== null && !revealing && !pressToEnter) followMatchOnce(matchId, false);
+  }, [matchId, revealing, pressToEnter]);
 
   if (table === undefined) return null;
-  const sideboarding = mine && matchId === null && table.series.phase === 'sideboarding';
+  const sideboarding = (mine && matchId === null && table.series.phase === 'sideboarding') || pressToEnter;
   const pairing = pod?.pairings.find((p) => p.tableId === table.id)?.players;
   // A pairing names the AI too; a table seats only its humans, and its AI's place is always the last
   // seat (`room/lobby.ts`'s `#newPodTable`), which the series' wins and the seats' Ready are counted by.

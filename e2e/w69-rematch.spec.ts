@@ -16,9 +16,9 @@
  */
 import { readFileSync } from 'node:fs';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-import { enterMatch, makeTitled, pressEnterGame, readyFromSideboard, serverLog } from './play/board.ts';
+import { enterMatch, makeTitled, press, pressEnterGame, readyFromSideboard, serverLog } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { twoLegalDecks } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
@@ -34,13 +34,6 @@ const rematch = (f: Friend) => f.page.getByTestId('game-result-rematch');
 /** The face on `f`'s result screen: their own (`you`) or the other player's. */
 const face = (f: Friend, whose: 'you' | 'other') => f.page.locator(`[data-testid="game-result-face"][data-you="${whose === 'you'}"]`);
 const check = (f: Friend, whose: 'you' | 'other') => face(f, whose).getByTestId('game-result-check');
-
-/** A real press: the mouse moves to the button's centre and clicks there. */
-async function press(page: Page, testId: string): Promise<void> {
-  const box = await page.getByTestId(testId).boundingBox();
-  if (box === null) throw new Error(`${testId} is not on the screen`);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-}
 
 /** How many matches the server has started from a room. */
 function matchesStarted(stack: PlayStack): number {
@@ -286,6 +279,7 @@ test(titled('against the AI in Classic: a Rematch keeps the bot’s deck, after 
     // The AI took the Bo3 2-0. Rematch on its result screen: a new series, the same bot deck.
     await expect(rematch(alice)).toBeEnabled({ timeout: 15_000 });
     await press(alice.page, 'game-result-rematch');
+    await pressEnterGame(alice.page);
     const game3 = await onNewBoard(game2);
     expect(botOf(game3), 'a Rematch after a decided Bo3 plays the same bot deck').toEqual({ deck: first.deck, from: 'kept' });
     await concede();

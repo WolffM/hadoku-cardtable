@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, resizeWindow, twoLegalDecks } from './play/board.ts';
+import { makeTitled, press, resizeWindow, twoLegalDecks } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -94,7 +94,11 @@ test(
       await bob.page.getByTestId('live-concede').click();
       await bob.page.getByTestId('live-concede-yes').click();
       for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result'), `${f.name}: result`).toBeVisible({ timeout: 45_000 });
-      await alice.page.getByTestId('game-result-next').click();
+      // A Bo1 goes on to sideboarding once both press Rematch (it becomes a Bo3).
+      for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result-rematch'), `${f.name}: Rematch offered`).toBeEnabled({ timeout: 15_000 });
+      for (const f of [alice, bob]) await press(f.page, 'game-result-rematch');
+      await expect(alice.page.getByTestId('game-result-next'), 'alice: outcome with Next').toBeVisible({ timeout: 20_000 });
+      await press(alice.page, 'game-result-next');
       await expect(alice.page.getByTestId('sideboard-step'), 'alice: in-game sideboard step').toBeVisible({ timeout: 20_000 });
       await alice.page.screenshot({ path: fileURLToPath(new URL('../docs/handoff/w123-F/desktop-ingame-sideboard.png', import.meta.url)) });
 

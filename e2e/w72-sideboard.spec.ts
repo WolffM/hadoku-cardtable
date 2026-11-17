@@ -12,9 +12,9 @@
  * `[w72-sideboard]` lines are the evidence: which screen pressed what, and
  * what each saw.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-import { makeTitled, serverLog, twoLegalDecks } from './play/board.ts';
+import { makeTitled, press, serverLog, twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -27,13 +27,6 @@ const MATCH_URL = /#\/match\/(m-[0-9a-f]{12})$/;
 
 const result = (f: Friend) => f.page.getByTestId('game-result');
 const rematch = (f: Friend) => f.page.getByTestId('game-result-rematch');
-
-/** A real press: the mouse moves to the button's centre and clicks there — the same discipline `w69-rematch.spec.ts` uses, since a driver presses by state, not text. */
-async function press(page: Page, testId: string): Promise<void> {
-  const box = await page.getByTestId(testId).boundingBox();
-  if (box === null) throw new Error(`${testId} is not on the screen`);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-}
 
 /**
  * Alice makes a room, bob joins, each loads a legal deck, and both ready —

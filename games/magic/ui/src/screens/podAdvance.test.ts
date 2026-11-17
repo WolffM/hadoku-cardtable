@@ -389,6 +389,38 @@ describe('my table’s page is where a player comes back to', () => {
     await vi.waitFor(() => expect(asked.filter((a) => a.endsWith('/play/matches'))).toEqual([expect.stringContaining('POST')]));
   });
 
+  it('once my table was sideboarding, its next game waits for my press, even on a page drawn afresh', async () => {
+    const DCK = '[metadata]\nName=Mine\n[main]\n40 Plains\n';
+    let matchId: string | null = null;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.includes('/tables/rooms/') && (init?.method ?? 'GET') === 'GET') {
+        const you = { seat: 0, name: 'Alice', you: true, ready: matchId !== null, deck: { name: 'Mine', rulesName: 'pool', legal: true, issueCount: 0, choice: { deck: { dck: DCK }, rules: { kind: 'draft', draftId: ROOM } } } };
+        const them = { seat: 1, name: 'Bob', you: false, ready: matchId !== null };
+        return Promise.resolve(new Response(JSON.stringify({ room: { id: ROOM, name: 'Cube night', format: `draft:${ROOM}`, matchId, locked: matchId !== null, phase: matchId === null ? 'sideboarding' : 'playing' }, players: [you, them] }), { status: 200 }));
+      }
+      if (url.endsWith(`/drafts/${ROOM}/mine`)) return Promise.resolve(new Response(JSON.stringify({ pool: [], deck: DCK }), { status: 200 }));
+      return new Promise(() => {});
+    });
+    const game1 = [{ matchId: 'm-000000000001', winner: 1 as const }];
+    let mounted = mountPod('t-2');
+    mounted.draft.send(complete());
+    mounted.room.read(ctxOf(rounds('t-2'), [{ id: 't-2', players, matchId: null, series: series('sideboarding', game1) }]));
+    await vi.waitFor(() => expect(screen.getByTestId('sideboard-step')).toBeTruthy());
+
+    // Both ready: game 2 exists. The screen that drew the step is gone; the one drawn in its place
+    // must not walk me in by itself.
+    cleanup();
+    matchId = 'm-000000000008';
+    mounted = mountPod('t-2');
+    mounted.draft.send(complete());
+    mounted.room.read(ctxOf(rounds('t-2'), [{ id: 't-2', players, matchId, series: series('playing', game1) }]));
+    await vi.waitFor(() => expect(screen.getByTestId('game-result-enter')).toBeTruthy());
+    expect(route()).not.toEqual({ kind: 'match', matchId });
+    act(() => screen.getByTestId('game-result-enter').click());
+    expect(route()).toEqual({ kind: 'match', matchId });
+  });
+
   it('starts my game again when it died mid-series (`playing`, no match)', async () => {
     const posts: string[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {

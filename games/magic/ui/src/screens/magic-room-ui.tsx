@@ -185,7 +185,7 @@ import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodVi
 
 import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
-import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
+import { awaitsPress, followMatchOnce, noteSideboarding, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
 import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
@@ -1590,6 +1590,9 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   const myTable: SharedRoomTable | null = tournament ? (myTournamentTable ?? null) : (view?.tables[0] ?? null);
   /** Between games of my series: the room links to my table's page, where the sideboard step is (`TablePage`). */
   const mySideboarding = myTable !== null && myTable.matchId === null && myTable.series.phase === 'sideboarding';
+  if (mySideboarding) noteSideboarding(myTable.id, myTable.series.games.length);
+  /** My table's next game exists and waits for my press: the step stays drawn, now as its Enter gate. */
+  const myNextAwaitsPress = myTable !== null && awaitsPress(myTable.id, myTable.series.games.length, myTable.matchId);
   const streamed = modeRef.current === 'streamed';
   /** The room's name as soon as either read has it; the id is never a title. */
   const roomTitle = streamed ? view?.name : (table?.room.name ?? view?.name);
@@ -1898,8 +1901,8 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   const sawSideboarding = useRef(false);
   if (table !== null && table.room.matchId === null && table.room.phase === 'sideboarding') sawSideboarding.current = true;
   useEffect(() => {
-    if (!tournament && matchId !== null && !sawSideboarding.current) followMatchOnce(matchId, sawNoMatch.current);
-  }, [tournament, matchId]);
+    if (!tournament && matchId !== null && !sawSideboarding.current && !myNextAwaitsPress) followMatchOnce(matchId, sawNoMatch.current);
+  }, [tournament, matchId, myNextAwaitsPress]);
 
   const startVsBot = (): void => {
     setStartRefusal(null);
@@ -2875,7 +2878,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
     !streamed &&
     !draftRoom &&
     tableId !== undefined &&
-    mySideboarding &&
+    (mySideboarding || myNextAwaitsPress) &&
     myTable?.id === tableId &&
     (tournament || mine !== null) &&
     locked === null &&

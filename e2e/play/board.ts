@@ -1153,6 +1153,13 @@ export async function readyFromSideboard(page: Page): Promise<void> {
   await ready.click();
 }
 
+/** A real press: the mouse moves to the button's centre and clicks there (a driver presses by state, not text). */
+export async function press(page: Page, testId: string): Promise<void> {
+  const box = await page.getByTestId(testId).boundingBox();
+  if (box === null) throw new Error(`${testId} is not on the screen`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 /**
  * The operator: *"the next game does not open by itself; players click to enter
  * it."* Once the next game exists on THIS screen — every seat has readied the sideboard step (or a

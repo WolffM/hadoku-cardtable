@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, pressIntoGame2, resizeWindow, serverLog, twoLegalDecks } from './play/board.ts';
+import { makeTitled, press, pressIntoGame2, resizeWindow, serverLog, twoLegalDecks } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -35,13 +35,6 @@ const PREFIX = '/cardtable';
 const MATCH_URL = /#\/match\/(m-[0-9a-f]{12})$/;
 
 const say = (line: string): void => console.log(`[w122f-lobby] ${line}`);
-
-/** A real press: the mouse moves to the button's centre and clicks there (a driver presses by state, not text). */
-async function press(page: Page, testId: string): Promise<void> {
-  const box = await page.getByTestId(testId).boundingBox();
-  if (box === null) throw new Error(`${testId} is not on the screen`);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-}
 
 test(
   titled(

@@ -17,6 +17,25 @@ import type { LiveMatch } from './match.ts';
 const sounded = new Set<string>();
 /** Every match this page has been carried into, by a room or a start. */
 const followed = new Set<string>();
+/**
+ * Every table this page has seen between two games of its series (`sideboarding`), keyed by the
+ * games it had played then — a series records a game when it ends, so its next game starts at the
+ * same count, and a table id that comes back for a fresh pairing starts again at none. Its next game
+ * opens on a press (the operator, 2026-11-16: *"let's not automatically go past that screen, allow
+ * players to click to enter the game"*), never by a follow. Page-wide, not a component's ref: the
+ * screen that drew the sideboard step is replaced by another the moment the next game exists, and a
+ * fresh mount must not forget it.
+ */
+const sideboarded = new Set<string>();
+
+export function noteSideboarding(tableId: string, played: number): void {
+  sideboarded.add(`${tableId}#${played}`);
+}
+
+/** Whether `matchId` is a table's next game that waits for this page's press: seen sideboarding, not yet entered. */
+export function awaitsPress(tableId: string, played: number, matchId: string | null): boolean {
+  return matchId !== null && sideboarded.has(`${tableId}#${played}`) && !followed.has(matchId);
+}
 /** Every table of a room's rounds this page has been carried to. */
 const tablesFollowed = new Set<string>();
 
@@ -209,6 +228,7 @@ function enter(matchId: string): void {
 /** A fresh page's memory — what each test stands for. */
 export function forgetMatchesFollowed(): void {
   followed.clear();
+  sideboarded.clear();
   tablesFollowed.clear();
   for (const { match, opener: by } of warm.values()) by.close(match);
   warm.clear();
