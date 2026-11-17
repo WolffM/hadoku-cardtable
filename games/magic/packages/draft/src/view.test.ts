@@ -26,12 +26,24 @@ import {
   seatParticipant,
   seatRows,
   setSeatCapacity,
+  type SeatId,
   type SeatTable,
 } from '@wolffm/rooms-protocol';
 import { DraftViewSchema, type DraftCard, type PoolSource } from '@hadoku/shared';
 import { createDraft, packOf, pick, type DraftState } from './engine.ts';
 import { deal } from './deal.ts';
 import { spectatorView, viewFor } from './view.ts';
+
+/**
+ * `seatRows` itself, trimmed to `id`+`occupant` — the shape `viewFor`'s own `seatView` draws from
+ * a row (wave 120 §S2's `@wolffm/rooms-protocol@0.45.99` added `closed` to every row, for
+ * cardtable's draft pods' own closed seats; this engine has no closed-seat idea and `seatView`
+ * never reads the field, so the wire (`DraftSeatView`) is unchanged — only this comparison needed
+ * to stop assuming the two shapes were identical).
+ */
+function idOccupant(rows: readonly { id: SeatId; occupant: unknown }[]) {
+  return rows.map(({ id, occupant }) => ({ id, occupant }));
+}
 
 function makePool(size: number): DraftCard[] {
   const colours = ['W', 'U', 'B', 'R', 'G'] as const;
@@ -103,7 +115,7 @@ describe('a pod whose table is bigger than what the engine dealt', () => {
     // Row for row with the package, which is what `apps/server` asserts of the
     // wire too — so the two cannot drift into two answers.
     expect(view.seats.map((s) => ({ id: s.id, occupant: s.occupant }))).toEqual(
-      seatRows(state.table),
+      idOccupant(seatRows(state.table)),
     );
     // The spectator arm is the same rows, built from the same `common`.
     expect(spectatorView(state).seats).toEqual(view.seats);
@@ -178,7 +190,7 @@ describe('a table carrying more seats than its capacity', () => {
     expect(view.seats.length).toBe(5);
     expect(view.seats.filter((s) => s.occupant !== null).length).toBe(5);
     expect(view.seats.map((s) => ({ id: s.id, occupant: s.occupant }))).toEqual(
-      seatRows(state.table),
+      idOccupant(seatRows(state.table)),
     );
   });
 

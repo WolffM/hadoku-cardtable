@@ -850,6 +850,14 @@ describe('the wire seat rows agree with seatRows, row for row', () => {
 	 */
 	const rowsOf = (room: DraftRoom, who: string) =>
 		viewForParticipant(room, who).seats.map(({ id, occupant }) => ({ id, occupant }));
+	/**
+	 * `seatRows` itself, trimmed to the same `id`+`occupant` shape `rowsOf` already is: wave 120
+	 * §S2's `@wolffm/rooms-protocol@0.45.99` added `closed` to every row (cardtable's draft pods'
+	 * own closed seats), which this draft room type never sets — `view.ts`'s hand-rolled render
+	 * never carried it either, so the equivalence this test pins stays about `id`+`occupant`, same
+	 * as always, not a new field neither side of the swap this test guards has an opinion on.
+	 */
+	const idOccupant = <T extends { id: SeatId; occupant: unknown }>(rows: readonly T[]) => rows.map(({ id, occupant }) => ({ id, occupant }));
 
 	it('is capacity-many rows, because the engine pre-pads the table', () => {
 		const r = rooms();
@@ -858,7 +866,7 @@ describe('the wire seat rows agree with seatRows, row for row', () => {
 		// stops holding, the payload is short or a seat vanishes from it.
 		expect(room.seats.seats).toHaveLength(8);
 		expect(room.seats.capacity).toBe(8);
-		expect(rowsOf(room, CAROL)).toEqual(seatRows(room.seats));
+		expect(rowsOf(room, CAROL)).toEqual(idOccupant(seatRows(room.seats)));
 		expect(rowsOf(room, CAROL)).toHaveLength(room.seats.capacity ?? -1);
 	});
 
@@ -867,18 +875,18 @@ describe('the wire seat rows agree with seatRows, row for row', () => {
 		const room = r.open('pod-1');
 		joinDraftRoom(room, 'sock-a', ALICE, 'friend');
 		joinDraftRoom(room, 'sock-b', BOB, 'friend');
-		expect(rowsOf(room, ALICE)).toEqual(seatRows(room.seats));
+		expect(rowsOf(room, ALICE)).toEqual(idOccupant(seatRows(room.seats)));
 
 		// An empty seat is emptied in place, never spliced out — which is what
 		// keeps the table capacity-many and the hand-rolled pad honest.
 		releaseSeat(room, ALICE);
 		expect(room.seats.seats).toHaveLength(8);
-		expect(rowsOf(room, BOB)).toEqual(seatRows(room.seats));
+		expect(rowsOf(room, BOB)).toEqual(idOccupant(seatRows(room.seats)));
 		expect(rowsOf(room, BOB)[0]).toEqual({ id: 0, occupant: null });
 
 		leaveDraftRoom(room, 'sock-b');
 		expect(room.seats.seats).toHaveLength(8);
-		expect(rowsOf(room, CAROL)).toEqual(seatRows(room.seats));
+		expect(rowsOf(room, CAROL)).toEqual(idOccupant(seatRows(room.seats)));
 	});
 
 	it('names every occupant the table names, and invents none', () => {
