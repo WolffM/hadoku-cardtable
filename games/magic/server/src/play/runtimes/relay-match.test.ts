@@ -105,18 +105,19 @@ describe('RelayMatch: the end recorded by the shell', () => {
 	});
 });
 
-describe('RelayMatch: only the leader ends it', () => {
-	it("a seat that isn't the leader's sends over: refused and logged, relayed to nobody, and the match goes on", () => {
+describe('RelayMatch: only the leader or the round\'s host ends it', () => {
+	it("a seat that is neither the leader's nor the round's host sends over: refused and logged, relayed to nobody, and the match goes on", () => {
 		const logs: Record<string, unknown>[] = [];
 		const m = createRelayMatch('m1', 2, deps({ log: (e) => logs.push(e) }));
 		const s = sink();
 		const session = m.attach(s, () => {});
+		// Nobody has joined (roleOf) yet, so there is no host seat either — seat 1 is refused on both counts.
 		session.fromSeat(1, { t: 'over', winners: [1] });
 		expect(m.status).toBe('running');
 		expect(session.isEnded).toBe(false);
 		expect(s.toSeat).not.toHaveBeenCalled();
 		expect(s.toWatchers).not.toHaveBeenCalled();
-		expect(logs).toContainEqual({ evt: 'relay-over-refused', matchId: 'm1', seat: 1, leaderSeat: 0 });
+		expect(logs).toContainEqual({ evt: 'relay-over-refused', matchId: 'm1', seat: 1, leaderSeat: 0, hostSeat: null });
 		// A refused over does not start the match either: the last result is still told.
 		session.fromSeat(0, { t: 'over', winners: [0] });
 		expect(m.status).toBe('over');
@@ -131,6 +132,36 @@ describe('RelayMatch: only the leader ends it', () => {
 		session.seatLeft(0);
 		session.seatLeft(1);
 		expect(m.status).toBe('over');
+	});
+
+	it("the round's HOST seat — the first to join, never only the leader (§G.3, bm1-BR) — ends it even when a DIFFERENT seat leads the room and never sends anything", () => {
+		// Leader is seat 0 (alice), but bob (seat 1) joins first: he is this round's host. Alice
+		// never sends anything at all, so bob's own `over` can only succeed through the HOST path.
+		const m = createRelayMatch('m1', 2, deps({ leaderSeat: () => 0 }));
+		const session = m.attach(sink(), () => {});
+		expect(m.roleOf(BOB)).toBe(1);
+		expect(m.hostSeat).toBe(1);
+		session.fromSeat(1, { t: 'over', winners: [1] });
+		expect(m.status).toBe('over');
+	});
+
+	it('the host and the leader can be two different seats; EITHER one alone ends the match (two separate matches isolate each path)', () => {
+		// Bob (seat 1) is the host of this match; the leader (seat 0, alice) never joins or sends
+		// anything — bob's over succeeds through the HOST path alone.
+		const hostEnds = createRelayMatch('m1', 2, deps({ leaderSeat: () => 0 }));
+		const hostSession = hostEnds.attach(sink(), () => {});
+		expect(hostEnds.roleOf(BOB)).toBe(1);
+		hostSession.fromSeat(1, { t: 'over', winners: [1] });
+		expect(hostEnds.status).toBe('over');
+
+		// A second, independent match: bob is again the host (seat 1), but this time it is the
+		// LEADER's own seat (0, alice — never joined at all) that sends `over`, through the LEADER
+		// path alone, with no participant ever occupying it.
+		const leaderEnds = createRelayMatch('m2', 2, deps({ leaderSeat: () => 0 }));
+		const leaderSession = leaderEnds.attach(sink(), () => {});
+		expect(leaderEnds.roleOf(BOB)).toBe(1);
+		leaderSession.fromSeat(0, { t: 'over', winners: [0] });
+		expect(leaderEnds.status).toBe('over');
 	});
 });
 
@@ -210,6 +241,44 @@ describe('RelayMatch: a seat past its own rejoin grace', () => {
 		m.seatDisconnected(0);
 		expect(logged.filter((e) => String(e.evt).startsWith('relay-seat-'))).toEqual([]);
 	});
+
+	it("a seat that reconnects AFTER its own hold already expired is RE-ADMITTED to the still-running match, never muted forever (§G.3, bm1-BR: 'a seat past its relay hold was muted')", () => {
+		const logged: Record<string, unknown>[] = [];
+		const m = createRelayMatch('m1', 2, deps({ seatRejoinGraceMs: 1000, log: (e) => logged.push(e) }));
+		const s = sink();
+		const session = m.attach(s, () => {});
+		m.roleOf(ALICE);
+		m.roleOf(BOB);
+		m.seatConnected(0);
+		m.seatConnected(1);
+		m.seatDisconnected(0);
+		// Past the hold with no reconnect: seat 0 is conceded (`RelaySession.seatLeft`); the match
+		// stays running because seat 1 (bob) is still here.
+		vi.advanceTimersByTime(1001);
+		expect(m.status).toBe('running');
+		// Seat 0 comes back late. Without the fix this reconnect is a silent no-op at the session
+		// level: `seatConnected` finds no pending timer to clear (it already fired) and does
+		// nothing else, so `fromSeat(0, …)` below would still be dropped by `this.left.has(0)`.
+		m.seatConnected(0);
+		expect(logged).toContainEqual({ evt: 'relay-seat-readmitted', matchId: 'm1', seat: 0 });
+		session.fromSeat(0, { t: 'hello-again' });
+		expect(s.toSeat).toHaveBeenCalledWith(1, { t: 'hello-again' });
+	});
+
+	it('reconnecting WITHIN the hold never touches readmit at all: the pending timer is cleared, nothing was ever conceded', () => {
+		const logged: Record<string, unknown>[] = [];
+		const m = createRelayMatch('m1', 2, deps({ seatRejoinGraceMs: 1000, log: (e) => logged.push(e) }));
+		m.attach(sink(), () => {});
+		m.roleOf(ALICE);
+		m.roleOf(BOB);
+		m.seatConnected(0);
+		m.seatConnected(1);
+		m.seatDisconnected(0);
+		vi.advanceTimersByTime(500);
+		m.seatConnected(0);
+		expect(logged.filter((e) => e.evt === 'relay-seat-readmitted')).toEqual([]);
+		expect(logged).toContainEqual({ evt: 'relay-seat-back', matchId: 'm1', seat: 0 });
+	});
 });
 
 describe('RelayMatch.serverStopping', () => {
@@ -229,13 +298,28 @@ describe('RelayMatch.serverStopping', () => {
 });
 
 describe('createRelayMatchRegistry', () => {
-	it('register() then get() returns the same match; a second register() under the same id replaces it', () => {
+	it('register() then get() returns the same match', () => {
 		const reg = createRelayMatchRegistry();
 		const first = reg.register('m1', 2, deps());
 		expect(reg.get('m1')).toBe(first);
+	});
+
+	it("two concurrent starts register the SAME id before either's match has ended: the second gets the first's match, never a second, orphaned one (G.3)", () => {
+		const reg = createRelayMatchRegistry();
+		const first = reg.register('m1', 2, deps());
 		const second = reg.register('m1', 2, deps());
-		expect(reg.get('m1')).toBe(second);
-		expect(reg.get('m1')).not.toBe(first);
+		expect(second).toBe(first);
+		expect(reg.get('m1')).toBe(first);
+	});
+
+	it('once a match has ended, a late register() of the same id (a duplicate start arriving after it) gets the room\'s CURRENT match — never a third one, and never the ended one back', () => {
+		const reg = createRelayMatchRegistry();
+		const first = reg.register('m1', 2, deps());
+		first.attach(sink(), () => {}).fromSeat(0, { t: 'over', winners: [0] });
+		const current = reg.get('m1');
+		expect(current).not.toBe(first);
+		const late = reg.register('m1', 2, deps());
+		expect(late).toBe(current);
 	});
 
 	it("registers the room's next match the moment one ends, with the same seats, and still tells the caller's own `ended` hook", () => {
@@ -291,12 +375,16 @@ describe('createRelayMatchRegistry', () => {
 		expect(reg.get('m1')?.lastEnded()).toEqual({ winners: null });
 	});
 
-	it('a match the room has already replaced does not replace its replacement when it ends', () => {
+	it("each end replaces the room's match with exactly one next one, never two and never the one it replaced — the idempotency guard above only ever holds a LIVE match, so a genuinely new generation still gets made every time one ends", () => {
 		const reg = createRelayMatchRegistry();
-		const stale = reg.register('m1', 2, deps());
-		const current = reg.register('m1', 2, deps());
-		stale.attach(sink(), () => {}).fromSeat(0, { t: 'over', winners: [0] });
-		expect(reg.get('m1')).toBe(current);
+		const gen1 = reg.register('m1', 2, deps());
+		gen1.attach(sink(), () => {}).fromSeat(0, { t: 'over', winners: [0] });
+		const gen2 = reg.get('m1');
+		expect(gen2).not.toBe(gen1);
+		gen2?.attach(sink(), () => {}).fromSeat(0, { t: 'over', winners: [1] });
+		const gen3 = reg.get('m1');
+		expect(gen3).not.toBe(gen2);
+		expect(gen3).not.toBe(gen1);
 	});
 
 	it('get() of an unregistered id is undefined', () => {
@@ -407,7 +495,7 @@ describe("room/lobby.ts's own hook (the ≤30-line start call site)", () => {
 		expect(match.roleOf(ALICE_MEMBER.id)).toBe(0);
 	});
 
-	it("the leader leaves mid-match: leadership passes on (ruling 6), the new leader's over ends the match and the old one's is refused", async () => {
+	it("the leader leaves mid-match: leadership passes on (ruling 6); the NEW leader's over ends it, and so does the round's HOST — the old leader's seat, which started this round and never stopped being able to end it (§G.3)", async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		wireRelay(lobby);
 		const bob = { id: 'fk:2222222222222222', name: 'bob', userId: 'uid-bob' };
@@ -417,19 +505,44 @@ describe("room/lobby.ts's own hook (the ≤30-line start call site)", () => {
 		expect(lobby.join(roomId, bob).ok).toBe(true);
 		const match = relayMatches.get(roomId);
 		if (match === undefined) throw new Error('no match registered');
+		// Alice joins (roleOf) first: she is both the room's leader and this round's host.
 		expect(match.roleOf(ALICE_MEMBER.id)).toBe(0);
 		expect(match.roleOf(bob.id)).toBe(1);
+		expect(match.hostSeat).toBe(0);
 		const session = match.attach(sink(), () => {});
+		// Bob is neither the leader nor the host yet: refused.
 		session.fromSeat(1, { t: 'over', winners: [1] });
 		expect(match.status).toBe('running');
 
 		expect(lobby.leave(roomId, ALICE_MEMBER.id).ok).toBe(true);
 		expect(lobby.get(roomId)?.leader).toBe(bob.id);
-		session.fromSeat(0, { t: 'over', winners: [0] });
-		expect(match.status).toBe('running');
+		// Bob is now the leader: his own over ends it.
 		session.fromSeat(1, { t: 'over', winners: [1] });
 		expect(match.status).toBe('over');
 		expect(match.result).toEqual({ winners: [1] });
+	});
+
+	it("the round's host keeps ending authority after leaving the room's leadership — a SEPARATE match proves it in isolation from bob's own leader path above", async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		wireRelay(lobby);
+		const bob = { id: 'fk:2222222222222222', name: 'bob', userId: 'uid-bob' };
+		const made = lobby.create(ALICE_MEMBER, { name: 'relay host outlives leadership test', gameType: RELAY_LOBBY_TEST_TYPE.id, clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		const roomId = made.room.id;
+		expect(lobby.join(roomId, bob).ok).toBe(true);
+		const match = relayMatches.get(roomId);
+		if (match === undefined) throw new Error('no match registered');
+		expect(match.roleOf(ALICE_MEMBER.id)).toBe(0);
+		expect(match.roleOf(bob.id)).toBe(1);
+		const session = match.attach(sink(), () => {});
+
+		expect(lobby.leave(roomId, ALICE_MEMBER.id).ok).toBe(true);
+		expect(lobby.get(roomId)?.leader).toBe(bob.id);
+		// Alice is no longer the room's leader, but her seat started this round, so it still ends
+		// it — the exact gap bm1-BR found (a non-leader host's `over` was refused before this fix).
+		session.fromSeat(0, { t: 'over', winners: [0] });
+		expect(match.status).toBe('over');
+		expect(match.result).toEqual({ winners: [0] });
 	});
 
 	it('an ordinary (non-relay) room registers no `RelayMatch` at all', async () => {

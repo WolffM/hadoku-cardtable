@@ -163,7 +163,7 @@ describe('the pod seat grid', () => {
       createElement(PodSeats, {
         seats,
         myMemberId: 'u-me',
-        leaderId: '',
+        leaderId: 'u-me',
         readyOf: () => false,
         faceOf: () => ({ id: null }),
         onSit: () => undefined,
@@ -489,5 +489,34 @@ describe('the leader removes a seated member, or puts the bot in their place', (
     );
     expect(screen.queryByTestId('pod-seat-remove')).toBeNull();
     expect(screen.queryByTestId('pod-seat-bot-replace')).toBeNull();
+  });
+});
+
+// bm1-closing (carried to this wave, §G.4): "SeatList 0.1.x renders the AI button for
+// non-leaders (press is a no-op); onBotReplace not wired." The AI/Remove-AI controls draw on an
+// OPEN seat and on a bot-held one — distinct from the member Remove/Bot pair just above, which
+// were already correctly gated before this fix.
+describe('AI / Remove-AI render only for the leader', () => {
+  it('a non-leader sees no AI button on an open seat, and no Remove on a bot-held one; the leader sees both', () => {
+    const seats = emptySeats();
+    seats[1] = { memberId: POD_AI, name: 'AI' };
+    const propsFor = (myMemberId: string) => ({
+      seats,
+      myMemberId,
+      leaderId: 'u-alice',
+      readyOf: () => false,
+      faceOf: () => ({ id: null }),
+      onSit: () => undefined,
+      onAi: vi.fn(),
+      onClose: () => undefined,
+    });
+
+    const { rerender } = render(createElement(PodSeats, propsFor('u-bob')));
+    expect(screen.queryByTestId('pod-seat-ai'), 'no AI button on the open seat for a non-leader').toBeNull();
+    expect(screen.queryByTestId('pod-seat-ai-remove'), 'no Remove on the bot seat for a non-leader').toBeNull();
+
+    rerender(createElement(PodSeats, propsFor('u-alice')));
+    expect(screen.getAllByTestId('pod-seat-ai').length, 'the leader sees AI on every open seat').toBeGreaterThan(0);
+    expect(screen.getByTestId('pod-seat-ai-remove'), 'and the leader sees Remove on the bot seat').toBeTruthy();
   });
 });

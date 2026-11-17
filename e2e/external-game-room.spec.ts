@@ -197,3 +197,70 @@ test(titled('a configured external-game room, made through Create room with Expe
     await stack.stop();
   }
 });
+
+// Wave s3 §G.3 (bm1-BR's regression: "a seat past its relay hold was muted"): a seat gone past its
+// own `seatRejoinGraceMs` is conceded (`RelaySession.seatLeft`), and before this fix that mark was
+// permanent — a late-but-real reconnect to a match still running for whoever stayed spoke to
+// nobody, silently, forever. This case waits the real hold out (the toy entry's own
+// `seatRejoinGraceMs`, `SEAT_HOLD_MS` above — there is no shorter one to configure here) rather
+// than faking it, because the grace timer is the SERVER's, not anything Playwright's clock can
+// fake from the browser.
+test(titled('a seat that reconnects AFTER its own relay hold already expired is re-admitted to the still-running match, not muted forever'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge, { env: { CARDTABLE_EXPERIMENTAL_GAMES: '1', CARDTABLE_E2E_TOY_GAMES: '1' } });
+  try {
+    const alice = await openFriend(browser, 'alice');
+    const bob = await openFriend(browser, 'bob');
+    await stubExternalGameEmbed(alice.context);
+    await stubExternalGameEmbed(bob.context);
+    await enableE2eToyGames(alice.context);
+    await enableE2eToyGames(bob.context);
+
+    await alice.page.goto(`${stack.origin}${PREFIX}/`);
+    await openCreateRoom(alice.page);
+    await alice.page.getByTestId('room-create-close').click();
+    const experimental = (await openSettings(alice.page)).getByTestId('settings-experimental-features');
+    await experimental.click();
+    await closeSettings(alice.page);
+    await openCreateRoom(alice.page);
+    await alice.page.getByTestId('room-create-name').fill(`e2e rejoin-after-hold ${Date.now()}`);
+    await alice.page.getByTestId(`room-create-type-${EXTERNAL_GAME_TYPE}`).click();
+    await alice.page.getByTestId('room-create-submit').click();
+    const roomId = await roomIdFromAddress(alice.page);
+    await assertNoRoomMissing(alice.page);
+
+    let bobPage = bob.page;
+    await bobPage.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
+    await expect(fixturePanel(alice.page)).toHaveAttribute('data-has-channel', 'true', { timeout: 15_000 });
+    await expect(fixturePanel(bobPage)).toHaveAttribute('data-has-channel', 'true', { timeout: 15_000 });
+    const joined = () => serverLog(stack).filter((r) => r.matchId === roomId && r.evt === 'relay-joined').length;
+    await expect.poll(joined, { timeout: 15_000 }).toBe(2);
+
+    // Bob drops and this time waits PAST the hold — no reconnect inside it, unlike the main spec's
+    // case above.
+    const relay = () => serverLog(stack).filter((r) => r.matchId === roomId && typeof r.evt === 'string' && r.evt.startsWith('relay-'));
+    await bobPage.close();
+    await expect.poll(() => relay().filter((r) => r.evt === 'relay-seat-held'), { timeout: 15_000 }).toHaveLength(1);
+    const held = relay().find((r) => r.evt === 'relay-seat-held');
+    expect(held?.graceMs).toBe(SEAT_HOLD_MS);
+    // The grace itself, for real — the server's timer, not the browser's: nothing here can fake it.
+    await expect.poll(() => relay().filter((r) => r.evt === 'relay-seat-left'), { timeout: SEAT_HOLD_MS + 15_000 }).toHaveLength(1);
+
+    // Bob comes back AFTER his seat already conceded. Without the fix his messages from here on
+    // would be silently dropped forever (`RelaySession.fromSeat`'s own `this.left.has(seat)` guard).
+    bobPage = await bob.context.newPage();
+    await bobPage.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
+    await expect(fixturePanel(bobPage)).toHaveAttribute('data-has-channel', 'true', { timeout: 15_000 });
+    await assertNoRoomMissing(bobPage);
+    await expect.poll(() => relay().filter((r) => r.evt === 'relay-seat-readmitted').map((r) => r.seat), { timeout: 15_000 }).toEqual([held?.seat]);
+
+    await alice.page.getByTestId('external-game-fixture-send').click();
+    await expect(messages(bobPage), 'bob, back past his own hold, still hears alice — re-admitted, not muted').toHaveCount(1, { timeout: 15_000 });
+    await bobPage.getByTestId('external-game-fixture-send').click();
+    await expect(messages(alice.page), 'and alice hears bob again too, his own send no longer dropped').toHaveCount(1, { timeout: 15_000 });
+  } finally {
+    await stack.stop();
+  }
+});

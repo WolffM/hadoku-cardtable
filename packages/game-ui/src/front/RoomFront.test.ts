@@ -5,9 +5,15 @@
  * contract's own words, `docs/planning/wave120-2026-11-17.md` §F).
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+
+// RoomFront's own `playRole('ui.select')` on Create-room-open/submit/deny needs a registered
+// `Sound` instance (`../composition.tsx`'s own job in a real app); this file tests RoomFront in
+// isolation, so it stubs the one function RoomFront.tsx actually imports from it rather than
+// wiring a whole role registry and sound client just to open the dialog in a test.
+vi.mock('../sound/index.ts', () => ({ playRole: () => undefined }));
 
 import { RoomFront, type RoomFrontClient, type RoomFrontRoom } from './RoomFront.tsx';
 
@@ -90,5 +96,35 @@ describe('RoomFront with no slots', () => {
     expect(container.querySelector('nav')).toBeNull();
     expect(container.children).toHaveLength(1);
     expect(screen.getByTestId('rooms')).toBe(container.firstElementChild);
+  });
+});
+
+describe('createPanelClassName', () => {
+  it("defaults to this module's own unstyled block, and a caller's own class string replaces it on the create dialog's panel (docs/planning/s3-2026-11-17.md §G.5)", async () => {
+    const { unmount } = render(
+      createElement(RoomFront<ToyRoom>, {
+        rooms: toyClient(),
+        gameTypes: [{ id: 'toy', label: 'Toy' }],
+        onOpenRoom: () => undefined,
+      }),
+    );
+    await waitFor(() => expect(screen.getByTestId('rooms-empty')).toBeTruthy());
+    screen.getByTestId('room-create-open').click();
+    await waitFor(() => expect(screen.getByTestId('room-create')).toBeTruthy());
+    expect(screen.getByTestId('room-create').className).toBe('room-front-create');
+    unmount();
+
+    render(
+      createElement(RoomFront<ToyRoom>, {
+        rooms: toyClient(),
+        gameTypes: [{ id: 'toy', label: 'Toy' }],
+        onOpenRoom: () => undefined,
+        createPanelClassName: 'rooms__create ct-surface ct-panel',
+      }),
+    );
+    await waitFor(() => expect(screen.getByTestId('rooms-empty')).toBeTruthy());
+    screen.getByTestId('room-create-open').click();
+    await waitFor(() => expect(screen.getByTestId('room-create')).toBeTruthy());
+    expect(screen.getByTestId('room-create').className).toBe('rooms__create ct-surface ct-panel');
   });
 });

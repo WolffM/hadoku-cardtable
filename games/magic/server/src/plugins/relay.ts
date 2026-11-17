@@ -23,6 +23,7 @@
  */
 import { gameTypeSpec, registerGameType } from '@hadoku/shared';
 import { CONFIG } from '@hadoku/game-server/config';
+import { gateSocketIo } from '@hadoku/game-server/gate';
 import { attachRelay } from '@hadoku/game-server/play/relay-socket';
 import { relayMatches } from '@hadoku/game-server/play/runtimes/relay-match';
 import { MAGIC_CONFIG } from '../config.js';
@@ -63,10 +64,16 @@ export const relayPlugin: CardtablePlugin = {
 				...(seatRejoinGraceMs === undefined ? {} : { seatRejoinGraceMs }),
 			});
 		});
+		// `gate` passed explicitly, not left to `attachRelay`'s own default
+		// (`docs/planning/s3-2026-11-17.md` §G.3): that default is now a generic, safe-by-default
+		// one (never reads any ONE app's env var, bomberman's included), so cardtable's own
+		// bare-local hatch (`CARDTABLE_INSECURE_NO_EDGE_AUTH`) needs this app's OWN gate — the
+		// same binding (`../gate.ts`) every other socket on this server already uses.
 		const relay = attachRelay(ctx.io, {
 			minTier: CONFIG.minTier,
 			rosterOf: (matchId) => relayMatches.get(matchId),
 			log,
+			gate: { gateSocketIo },
 		});
 		return {
 			shutdown: () => {

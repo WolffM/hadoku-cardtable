@@ -131,6 +131,22 @@ export class RelaySession implements GameSession<RelayLine, RelayCommand> {
 		if (this.left.size >= this.seatCount) this.finish(null);
 	}
 
+	/**
+	 * Undo a `seatLeft` for `seat`: a reconnect AFTER its hold already expired (`relay-match.ts`'s
+	 * own grace timer already fired `seatLeft` by then), not one inside the grace — that path never
+	 * calls `seatLeft` at all and so never needs this (`relay-match.ts`'s `seatConnected` clears the
+	 * pending timer before it fires). Without this, a seat that comes back late to a match still
+	 * running for whoever stayed stays muted forever: `fromSeat` drops anything it sends, silently,
+	 * because `this.left` still has it (bm1-BR, `docs/planning/s3-2026-11-17.md` §G.3). A session
+	 * already closed (every seat gone, or the leader's `over`) has nothing left to re-admit into —
+	 * same no-op shape as every other method here once `closed`.
+	 */
+	readmit(seat: number): boolean {
+		if (this.closed || !this.left.has(seat)) return false;
+		this.left.delete(seat);
+		return true;
+	}
+
 	private finish(outcome: RelayOutcome | null): void {
 		if (this.closed) return;
 		this.closed = true;

@@ -89,16 +89,37 @@ export interface BundleSlotProps {
   onClose?: () => void;
 }
 
-/** The name of the member holding seat `seat`, or null for an open seat. */
-function seatHolderName(view: RoomViewBase, seat: number): string | null {
+/** The member holding seat `seat`, or null for an open seat. */
+function seatHolder(view: RoomViewBase, seat: number): RoomViewBase['members'][number] | null {
   const holder = view.seats[seat];
-  return view.members.find((m) => m.id === holder)?.name ?? null;
+  return view.members.find((m) => m.id === holder) ?? null;
 }
 
+/** The name of the member holding seat `seat`, or null for an open seat. */
+function seatHolderName(view: RoomViewBase, seat: number): string | null {
+  return seatHolder(view, seat)?.name ?? null;
+}
+
+/**
+ * `SeatInfo` widened with `sprite` — `@wolffm/rooms-protocol` is pinned to 0.45.99 here as of
+ * this wave (`docs/planning/s3-2026-11-17.md` §G.3's last bullet), which has no such field; this
+ * is a LOCAL structural type so this file compiles against either version, never a reason to
+ * bump the pin or touch a lockfile from this file. Once the pin moves to 0.45.100 (published
+ * carrying `SeatInfo.sprite?: string | null`), `SeatInfo` itself carries the field and this alias
+ * is exactly `SeatInfo` — delete it then, with no other code change here.
+ */
+type SeatInfoWithSprite = SeatInfo & { sprite?: string | null };
+
 function matchOf(view: RoomViewBase, myId: string): MatchInfo {
-  const seats: SeatInfo[] = view.seats.flatMap((_, seat) => {
-    const name = seatHolderName(view, seat);
-    return name === null ? [] : [{ seat, userId: name, name }];
+  const seats: SeatInfoWithSprite[] = view.seats.flatMap((_, seat) => {
+    const holder = seatHolder(view, seat);
+    if (holder === null) return [];
+    // Spread, not `sprite: holder.avatarId`: the key is ABSENT for a member with none, the same
+    // convention `room/lobby.ts`'s own member record follows — so a room where nobody has picked
+    // a character stays byte-identical to before this field existed, and a member who has one
+    // now reaches the bundle and the match roster with it, never just the viewer's own (bm1-BR's
+    // regression: rooms-protocol's `SeatInfo` had no field to carry it at all).
+    return [{ seat, userId: holder.name, name: holder.name, ...(holder.avatarId === undefined ? {} : { sprite: holder.avatarId }) }];
   });
   const seat = view.seats.indexOf(myId);
   return { id: view.id, seat: seat === -1 ? null : seat, seats };

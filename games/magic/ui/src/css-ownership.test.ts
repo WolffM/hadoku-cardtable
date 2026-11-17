@@ -245,8 +245,16 @@ for (const [sheet, p] of parsed) for (const c of p.classes.keys()) for (const o 
 const LITERAL = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g;
 /** A literal that is nothing but class names (a template's holes aside). */
 const CLASS_LIST = /^\s*-?[_a-zA-Z][\w-]*(\s+-?[_a-zA-Z][\w-]*)*\s*$/;
-/** Where a bare word is a class: an attribute, a class list call, or an open `className={…}`. */
-const CLASS_AT = /(?:className|class)\s*=\s*$|classList\.\w+\(\s*$|\.className\s*=\s*$/;
+/**
+ * Where a bare word is a class: an attribute, a class list call, or an open `className={…}`.
+ * `\w*[cC]lassName` (not the bare `className|class` this used to be, `docs/planning/s3-2026-11-17.md`
+ * §G.5): a prop named `createPanelClassName`, `surfaceClassName`, … is still a class list by this
+ * same convention — JSX's own `className`, just with a caller's own camelCase prefix saying WHICH
+ * class this is (RoomFront's own `createPanelClassName` is exactly this). `[cC]` keeps the bare,
+ * lowercase `className=` and `.className = ` (a DOM property write) matching too, since `\w*` is
+ * happy to match zero characters.
+ */
+const CLASS_AT = /\w*[cC]lassName\s*=\s*$|class\s*=\s*$|classList\.\w+\(\s*$/;
 
 interface Draw extends Site {
   /** Whether the literal is a class for certain: a class context, or a name with `__` or `--`. */

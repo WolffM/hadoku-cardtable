@@ -43,9 +43,25 @@ describe('the published manifest', () => {
 	it('maps a wildcard export, with and without the extension in the specifier', () => {
 		expect(publishManifest(read('game-server'), versions).exports).toEqual({ './*': { types: './dist/*.d.ts', import: './dist/*.js' } });
 		expect(publishManifest(read('game-ui'), versions).exports).toEqual({
+			// game-ui's own extensionless named exports (wave s3 §G.5) — `.tsx` sources, same dist
+			// pair shape as a `.ts` one.
+			'./front/Gallery': { types: './dist/front/Gallery.d.ts', import: './dist/front/Gallery.js' },
+			'./front/icons': { types: './dist/front/icons.d.ts', import: './dist/front/icons.js' },
+			'./front/LobbyShell': { types: './dist/front/LobbyShell.d.ts', import: './dist/front/LobbyShell.js' },
+			'./front/PatchNotesCard': { types: './dist/front/PatchNotesCard.d.ts', import: './dist/front/PatchNotesCard.js' },
+			'./front/RoomFront': { types: './dist/front/RoomFront.d.ts', import: './dist/front/RoomFront.js' },
+			'./seats/SeatChip': { types: './dist/seats/SeatChip.d.ts', import: './dist/seats/SeatChip.js' },
+			'./seats/SpectatorRow': { types: './dist/seats/SpectatorRow.d.ts', import: './dist/seats/SpectatorRow.js' },
 			'./*.ts': { types: './dist/*.d.ts', import: './dist/*.js' },
 			'./*.tsx': { types: './dist/*.d.ts', import: './dist/*.js' },
 			'./*.css': './dist/*.css',
+		});
+	});
+
+	it("maps the extensionless ./front/RoomFront export to its dist pair (wave s3 §G.5, re-cut #3: a .tsx source, not only a .ts one)", () => {
+		expect(publishManifest(read('game-ui'), versions).exports['./front/RoomFront']).toEqual({
+			types: './dist/front/RoomFront.d.ts',
+			import: './dist/front/RoomFront.js',
 		});
 	});
 

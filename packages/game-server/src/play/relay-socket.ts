@@ -38,9 +38,9 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 import type { RateLimitConfig } from '@wolffm/rooms-server';
-import type { Gate } from '@hadoku/service-kernel/http';
+import { createEdgeAuth, rankOf, tierOf } from '@hadoku/service-kernel/auth';
+import { createGate, type Gate } from '@hadoku/service-kernel/http';
 
-import { gateSocketIo } from '../gate.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { costlyActLimit } from '../http/request.js';
 import { type RelayMessage, type RelayOutcome, type RelaySession, type RelaySink } from './runtimes/relay.js';
@@ -106,8 +106,14 @@ export interface RelayDeps {
 	/** The tier floor; `CONFIG.minTier` in production. */
 	minTier: string;
 	/**
-	 * The handshake gate: the game's own binding of the kernel's `createGate` (its edge secret, its
-	 * bare-local hatch, its seal-refusal report). Absent: cardtable's (`../gate.ts`).
+	 * The handshake gate: the CONSUMER's own binding of the kernel's `createGate` (its edge
+	 * secret, its bare-local hatch, its seal-refusal report) — bomberman builds its own
+	 * (`floorGateFor`) and passes it here for exactly this reason. Absent: {@link defaultRelayGate},
+	 * built fresh from nothing but the shared, unprefixed `EDGE_AUTH_SECRET` and `deps` — never
+	 * `../gate.ts`'s own binding, which is cardtable's `CONFIG` (envPrefix `CARDTABLE`) and, inside
+	 * a SECOND app built on this package, is still bound to that same prefix regardless of that
+	 * app's own env (bm1-BS, `docs/planning/s3-2026-11-17.md` §G.3: omitting `gate` sanitized every
+	 * bomberman handshake to public under bomberman's own env and refused every tier, measured).
 	 */
 	gate?: Pick<Gate, 'gateSocketIo'>;
 	/** This match's roster, or `undefined` for a matchId nothing is running — refused as `unknown-match`. */
@@ -139,13 +145,42 @@ function readMatchId(payload: unknown): string | null {
 }
 
 /**
+ * The gate used when a caller omits `deps.gate` — built fresh, every call, from nothing this
+ * package's own `CONFIG` owns: the shared `EDGE_AUTH_SECRET` (unprefixed, the edge's own secret,
+ * common to every app behind it — not per-game, same as `config.ts`'s own field of that name) and
+ * `deps.log` for refusals. `allowUnverifiedEdge` is always `false` here: the bare-local dev hatch
+ * is an explicit per-app opt-in (`CARDTABLE_INSECURE_NO_EDGE_AUTH`, `BOMBERMAN_INSECURE_NO_EDGE_AUTH`,
+ * …, each its OWN app's prefix), and a generic default has no prefix of its own to read one
+ * under — reading any ONE app's by guessing would be exactly the bug this replaces. A caller that
+ * wants the hatch passes its own `gate` (as bomberman's `floorGateFor` does).
+ */
+function defaultRelayGate(deps: Pick<RelayDeps, 'minTier' | 'log'>): Pick<Gate, 'gateSocketIo'> {
+	const edgeAuth = createEdgeAuth({
+		edgeAuthSecret: () => process.env.EDGE_AUTH_SECRET ?? '',
+		allowUnverifiedEdge: () => false,
+		devTier: () => deps.minTier,
+	});
+	return createGate({
+		sanitizeHeaders: edgeAuth.sanitizeHeaders,
+		edgeProvenance: edgeAuth.edgeProvenance,
+		tierOf,
+		rankOf,
+		reportSealRefused: (surface, headers, path) => {
+			const tier = headers['x-hadoku-tier'];
+			deps.log?.({ evt: 'seal-refused', surface, path, tier: typeof tier === 'string' ? tier : 'public' });
+		},
+		minTier: () => deps.minTier,
+	});
+}
+
+/**
  * Attaches the relay's `connection`/`relay:join`/`relay:message` handlers to
  * `io`. Safe to call once per process; a second call on the same `io` would
  * install the gate twice (harmless, same precedent as `play/socket.ts`) and
  * a second, independent `live` map, so callers should not do that.
  */
 export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
-	(deps.gate ?? { gateSocketIo }).gateSocketIo(io, { minTier: deps.minTier, surface: 'play-socket' });
+	(deps.gate ?? defaultRelayGate(deps)).gateSocketIo(io, { minTier: deps.minTier, surface: 'play-socket' });
 	const log = deps.log ?? ((): void => {});
 	const live = new Map<string, LiveMatch>();
 

@@ -81,8 +81,44 @@ interface IdentityInputs {
  * Bound once, at module scope. The factory shape is deliberate upstream: a
  * `(input, domain)` function would let a call site mint a second identity space
  * for the same person by passing a different string.
+ *
+ * `let`, not `const`: {@link configureParticipantIdDomain} is the one sanctioned way to
+ * rebind it, and only before this module has derived its first id.
  */
-const derive = createParticipantIdDeriver(PARTICIPANT_ID_DOMAIN);
+let derive = createParticipantIdDeriver(PARTICIPANT_ID_DOMAIN);
+
+let participantIdDomainConfigured = false;
+let participantIdDerived = false;
+
+/**
+ * Swap the domain {@link deriveParticipantId}/{@link identityFromHeaders} close over, for a
+ * SECOND app built on this package (bomberman) whose own participant ids must not collide with
+ * — or be byte-identical to — cardtable's own (the exact thing {@link PARTICIPANT_ID_DOMAIN}'s
+ * domain separation exists to prevent, see this module's header). Cardtable itself never calls
+ * this: its ids are the default domain, unconfigured, exactly as before this function existed.
+ *
+ * Callable at most once per process, and only before this module has minted a single id under
+ * whichever domain is bound at the time — a swap after a derive would mean some callers already
+ * saw an id from one domain and the rest see another, the exact "two domains disagreeing" bug
+ * this whole scheme exists to rule out. Both failures throw rather than silently doing nothing,
+ * because a caller that thinks it configured the domain and did not would re-identify nobody
+ * visibly — it would simply mint cardtable's ids under its own app's name, forever.
+ *
+ * This is cardtable's own fix for the exact gap bomberman's
+ * `patches/@hadoku__game-server@0.1.15.patch` patched around (w120 carry-over,
+ * `docs/planning/s3-2026-11-17.md` §G.1): once this ships, that patch's job is done and bomberman
+ * drops it as part of its own version bump — no code change on either side beyond that.
+ */
+export function configureParticipantIdDomain(domain: string): void {
+	if (participantIdDomainConfigured) {
+		throw new Error('configureParticipantIdDomain: already configured once for this process');
+	}
+	if (participantIdDerived) {
+		throw new Error('configureParticipantIdDomain: a participant id was already derived under the default domain; too late to swap it');
+	}
+	derive = createParticipantIdDeriver(domain);
+	participantIdDomainConfigured = true;
+}
 
 /**
  * Mint an id for one connection.
@@ -92,6 +128,7 @@ const derive = createParticipantIdDeriver(PARTICIPANT_ID_DOMAIN);
  * different question from which material the id was minted from.
  */
 export function deriveParticipantId(input: IdentityInputs): ParticipantId {
+	participantIdDerived = true;
 	return derive(input).id;
 }
 

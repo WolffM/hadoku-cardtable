@@ -104,6 +104,15 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 	endedAt: number | null = null;
 	private sessionRef: RelaySession | null = null;
 	private readonly seatGrace = new Map<number, ReturnType<typeof setTimeout>>();
+	/**
+	 * Who started THIS round — the first seat (never a watcher) to join it, set once and never
+	 * reassigned for this match's lifetime. `mayEnd` honours this seat's `over` the same as the
+	 * leader's (§G.3): the leader is the ROOM's host, but a relay match has no separate "Start" a
+	 * non-Magic room's UI ever presses (this file's own header) — the first seat to actually join
+	 * IS the one who started this round, bomberman's own rule (`AGENTS.md`: "who started it"). A
+	 * watcher never sets it: only a real seat starts a round.
+	 */
+	private hostSeatRef: number | null = null;
 	declare protected readonly deps: RelayMatchInternalDeps;
 
 	constructor(
@@ -134,6 +143,11 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 		return this.seats.length;
 	}
 
+	/** Who started this round — see {@link hostSeatRef}'s own doc. Null until a seat has joined. */
+	get hostSeat(): number | null {
+		return this.hostSeatRef;
+	}
+
 	/**
 	 * `RelayRoster.roleOf`: the seat the room has this participant in (`deps.roomSeatOf`), read
 	 * fresh on every join, or null — a watcher — for one the room seats nowhere. The seat's owner
@@ -151,6 +165,10 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 			seat.owner = participantId;
 			this.remember();
 			this.deps.log({ evt: 'seat-claimed', matchId: this.id, seat: seat.seat, participantId });
+		}
+		if (this.hostSeatRef === null) {
+			this.hostSeatRef = seat.seat;
+			this.deps.log({ evt: 'relay-host-seat', matchId: this.id, seat: seat.seat });
 		}
 		return seat.seat;
 	}
@@ -182,11 +200,17 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 		return session;
 	}
 
-	/** Only the leader's seat ends the match; anyone else's `over` is refused and logged. */
+	/**
+	 * The leader's seat ends the match, same as before; so does the round's own HOST seat — the
+	 * one who started it (§G.3: bm1-BR found a non-leader host's `over` refused). The two usually
+	 * agree (the leader is almost always first to join their own room's match), but differ once the
+	 * leader has moved on: the room's leadership can pass to someone who was never in this round at
+	 * all (`Lobby.leave`'s ruling 6), while the round still belongs to whoever is actually playing it.
+	 */
 	private mayEnd(seat: number): boolean {
 		const leaderSeat = this.deps.leaderSeat();
-		if (seat === leaderSeat) return true;
-		this.deps.log({ evt: 'relay-over-refused', matchId: this.id, seat, leaderSeat });
+		if (seat === leaderSeat || seat === this.hostSeatRef) return true;
+		this.deps.log({ evt: 'relay-over-refused', matchId: this.id, seat, leaderSeat, hostSeat: this.hostSeatRef });
 		return false;
 	}
 
@@ -222,6 +246,14 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 			clearTimeout(timer);
 			this.seatGrace.delete(seat);
 			this.deps.log({ evt: 'relay-seat-back', matchId: this.id, seat });
+			return;
+		}
+		// The grace already fired (or none was armed at all): if the session had marked this seat
+		// gone for good, a reconnect to a match still running for whoever stayed is re-admitted,
+		// never muted forever (§G.3). A no-op when there was nothing to undo (a fresh join, or a
+		// seat that was never marked left), so this is safe to run on every connect unconditionally.
+		if (this.sessionRef?.readmit(seat) === true) {
+			this.deps.log({ evt: 'relay-seat-readmitted', matchId: this.id, seat });
 		}
 	}
 
@@ -287,6 +319,17 @@ export interface RelayMatchRegistry {
 export function createRelayMatchRegistry(): RelayMatchRegistry {
 	const matches = new Map<string, RelayMatch>();
 	function register(id: string, seatCount: number, deps: RelayMatchDeps, previous?: RelayEnded): RelayMatch {
+		// Two concurrent starts (`docs/planning/s3-2026-11-17.md` §G.3): `register` called twice for
+		// the same id before either call's match has ended — the external caller never passes
+		// `previous` (only this function's own `ended` closure below does, once a match genuinely
+		// has one to carry) — gets the SAME, already-live match back rather than a second one that
+		// silently orphans whatever already attached to the first (a socket that already joined it
+		// would speak to a `RelayMatch` nothing else can ever find again). Once a match has ended
+		// (`status === 'over'`), registering the id again — the internal next-round call, or a late
+		// duplicate start arriving after the fact — DOES get a fresh one: idempotency only ever
+		// holds a match that is still live.
+		const existing = matches.get(id);
+		if (existing !== undefined && existing.status !== 'over' && previous === undefined) return existing;
 		const match = createRelayMatch(
 			id,
 			seatCount,

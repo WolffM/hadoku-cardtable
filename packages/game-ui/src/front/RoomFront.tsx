@@ -173,18 +173,26 @@ export interface RoomFrontProps<V extends RoomFrontRoom> {
   /** The list's own `<section>`, the moment it mounts and again on unmount — a caller's own tooltip or scroll mechanism attaches here, same as it would to any other section it owns. */
   onSectionRef?: (el: HTMLElement | null) => void;
   /**
-   * The create dialog's own panel `className` (default: an unstyled block of this module's own,
+   * The create dialog's own panel class (default: an unstyled block of this module's own,
    * `room-front-create`). A caller with its own "raised surface" convention supplies its exact
    * class string here rather than this file hard-coding one — Magic's `RoomList.tsx` passes
    * `"rooms__create ct-surface ct-panel"`, the same classes base's own `CreateRoomDialog` always
    * drew, from the one file (`RoomList.tsx`, through `CreateEventDialog.tsx`'s own import of
    * `Modal.tsx`) `css-ownership.test.ts` already knows reaches the tree that owns `.ct-surface` —
-   * this module never does, and must not have to. Named exactly `className` (not, say,
-   * `createDialogClassName`): `css-ownership.test.ts`'s own "is this really a class list" check
-   * only recognises a literal that sits in a real `className=`/`class=` attribute position, which
-   * a camelCase prefix or suffix always breaks.
+   * this module never does, and must not have to.
+   *
+   * Named `createPanelClassName`, not the bare `className` an earlier draft of this prop used
+   * (`docs/planning/s3-2026-11-17.md` §G.5): a plain `className` on a component that is not a
+   * simple DOM wrapper reads as "the root element's own class", when this is actually one nested
+   * CREATE DIALOG panel's — a different, narrower thing a careless caller could otherwise pass
+   * believing it styled the whole list. `css-ownership.test.ts`'s own "is this really a class
+   * list" check (`CLASS_AT`) used to recognise ONLY a literal sitting right after a bare
+   * `className=`/`class=`, which is exactly why that draft kept the confusing name — any camelCase
+   * prefix broke the check. `CLASS_AT` now also matches `\w*ClassName=` generically, so a
+   * caller's own call-site literal (`<RoomFront createPanelClassName="rooms__create ct-surface
+   * ct-panel" />`) is still recognised as a real class list, the same as a bare `className=` is.
    */
-  className?: string;
+  createPanelClassName?: string;
 }
 
 type ListState<V> =
@@ -257,7 +265,7 @@ export function RoomFront<V extends RoomFrontRoom>({
   testingStorageKey = DEFAULT_TESTING_KEY,
   defaultName,
   onSectionRef,
-  className: createSurfaceClassName = 'room-front-create',
+  createPanelClassName: createSurfaceClassName = 'room-front-create',
 }: RoomFrontProps<V>) {
   const [state, setState] = useState<ListState<V>>({ kind: 'loading' });
   const [creating, setCreating] = useState(false);

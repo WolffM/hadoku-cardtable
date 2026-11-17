@@ -130,6 +130,22 @@ describe('BundleSlot', () => {
     });
   });
 
+  it("carries a seated member's own character to the bundle's match roster, and leaves the key off a member with none (bm1-BR's regression)", async () => {
+    const members = [{ id: 'u1', name: 'Ann', avatarId: 'mage' }, { id: 'u2', name: 'Bob' }];
+    renderSlot({ view: aView(members), me: { userId: 'u1', isLeader: true } });
+
+    await waitFor(() => expect(fixture.calls.length).toBeGreaterThan(0));
+    const ctx = (fixture.calls[0] as ['mount', GameBundleContext])[1];
+    expect(ctx.match).toEqual({
+      id: 'room-a',
+      seat: 0,
+      seats: [
+        { seat: 0, userId: 'Ann', name: 'Ann', sprite: 'mage' },
+        { seat: 1, userId: 'Bob', name: 'Bob' },
+      ],
+    });
+  });
+
   it("tells a member the room seats nowhere that they watch: a third member of a two-seat room is no seat, and the seats are the room's", async () => {
     who = { userId: 'u3', tier: 'friend', name: 'Cat' };
     const members = [{ id: 'u1', name: 'Ann' }, { id: 'u2', name: 'Bob' }, { id: 'u3', name: 'Cat' }];

@@ -18,7 +18,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PARTICIPANT_HANDLE_LENGTH, PARTICIPANT_ID_DIGEST_LENGTH, participantIdTier } from '@wolffm/rooms-protocol';
 
 import { PARTICIPANT_ID_DOMAIN, deriveParticipantId, identityFromHeaders, participantHandle } from './identity.js';
@@ -84,5 +84,43 @@ describe('identityFromHeaders', () => {
 describe('participantHandle', () => {
 	it('says so rather than throwing when handed something that is not an id', () => {
 		expect(participantHandle('not-an-id')).toBe('unknown');
+	});
+});
+
+/**
+ * `configureParticipantIdDomain` (`docs/planning/s3-2026-11-17.md` §G.1): the API
+ * `patches/@hadoku__game-server@0.1.15.patch` added for bomberman, now upstream. Every case here
+ * does `vi.resetModules()` then a fresh dynamic `import('./identity.js')` — the derive/configure
+ * state is module-scoped, so a shared module instance would make these cases order-dependent on
+ * each other (and on the GOLDEN-id cases above, which already derive under the default domain).
+ */
+describe('configureParticipantIdDomain', () => {
+	it('throws if called a second time', async () => {
+		vi.resetModules();
+		const mod = await import('./identity.js');
+		mod.configureParticipantIdDomain('a-test-domain');
+		expect(() => mod.configureParticipantIdDomain('another-domain')).toThrow(/already configured/);
+	});
+
+	it('throws once this module has derived an id under whichever domain is already bound', async () => {
+		vi.resetModules();
+		const mod = await import('./identity.js');
+		mod.deriveParticipantId({ accountId: USER_ID, socketId: 'sock' });
+		expect(() => mod.configureParticipantIdDomain('too-late')).toThrow(/already derived/);
+	});
+
+	it('mints a second app its own ids, distinct from cardtable’s GOLDEN one, and leaves a module that never calls it deriving cardtable’s own', async () => {
+		vi.resetModules();
+		const bomberman = await import('./identity.js');
+		bomberman.configureParticipantIdDomain('hadoku.bomberman.participant.v2');
+		expect(bomberman.deriveParticipantId({ accountId: USER_ID, socketId: 'sock' })).not.toBe(GOLDEN_ACCOUNT_ID);
+
+		vi.resetModules();
+		const cardtable = await import('./identity.js');
+		expect(cardtable.deriveParticipantId({ accountId: USER_ID, socketId: 'sock' })).toBe(GOLDEN_ACCOUNT_ID);
+	});
+
+	it('the default domain, unconfigured, is exactly PARTICIPANT_ID_DOMAIN — cardtable’s own ids stay byte-identical', () => {
+		expect(PARTICIPANT_ID_DOMAIN).toBe('hadoku.cardtable.participant.v1');
 	});
 });

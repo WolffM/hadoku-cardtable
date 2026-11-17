@@ -41,7 +41,13 @@ export interface SeatSlot {
 
 export interface SeatListProps {
   slots: readonly SeatSlot[];
-  /** Whether the viewer leads the room: gates Close/Open, Remove/Bot on a member's seat, and an open seat's Close past `realSeatCount`. */
+  /**
+   * Whether the viewer leads the room: gates every seat-shaping control — AI/Remove-AI on an open
+   * or bot-held seat, Close/Open, and Remove/Bot on a member's seat — and an open seat's Close
+   * past `realSeatCount`. Before this field gated AI and Remove-AI too, bm1 saw the AI button
+   * offered to, and clickable by, a non-leader (a no-op server-side, but a control nobody but the
+   * leader should ever see at all — Close/Open and the member Remove/Bot were already gated).
+   */
   iLead: boolean;
   /** An event's room before its seats open: nobody sits, nor gives a seat to the bot. */
   shut?: boolean;
@@ -96,12 +102,12 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
                 </svg>
               </ActionButton>
               <span className="pod-seats__label">Open</span>
-              {!fieldFixed && (
+              {!fieldFixed && iLead && (
                 <span className="pod-seats__actions">
                   <ActionButton action="ai" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} disabled={shut} onPress={() => onBotOn?.(seat)}>
                     AI
                   </ActionButton>
-                  {iLead && seat < realSeatCount && (
+                  {seat < realSeatCount && (
                     <ActionButton action="close" className="pod-seats__action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onPress={() => onCloseSeat?.(seat)}>
                       Close
                     </ActionButton>
@@ -136,7 +142,7 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
                 <Avatar id={occupant.avatarId} fallback="mark" className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
               </span>
               <span className="pod-seats__label">{occupant.name}</span>
-              {!fieldFixed && (
+              {!fieldFixed && iLead && (
                 <span className="pod-seats__actions">
                   <ActionButton action="ai-remove" className="pod-seats__action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onPress={() => onBotOff?.(seat)}>
                     Remove

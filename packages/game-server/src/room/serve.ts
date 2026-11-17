@@ -159,9 +159,33 @@ export interface ServeDeps<V extends ServeRoomView> {
 	onEvent?: (level: 'info' | 'warn' | 'debug', event: string, fields: Record<string, unknown>) => void;
 }
 
+/**
+ * The `/room` handshake floor — refused HERE, a forged or headerless socket never reaches
+ * `connection` at all. `serveRoom`'s own `admit` is called only once a client has CONNECTED and
+ * sent `join`; before this existed, that was the one tier check this namespace had, so a socket
+ * that simply never sent `join` stayed connected with no refusal ever reaching it (bm1-BS: a
+ * headerless `socket.io-client` connect to this namespace succeeded). `gate.ts`'s own
+ * `gateSocketIo` cannot cover this either — `io.use` is Socket.IO's shortcut for
+ * `io.of('/').use`, the DEFAULT namespace only, never one this file names of its own
+ * (`docs/planning/s3-2026-11-17.md` §G.2). `next(new Error('not found'))` is the same refusal
+ * shape `gateSocketIo` uses for the default namespace: a `connect_error` on the client, never a
+ * reason string that confirms this namespace exists to a caller never meant to reach it.
+ */
+function gateRoomHandshake(namespace: ReturnType<SocketIOServer['of']>, minTier: string, onEvent: ServeDeps<ServeRoomView>['onEvent']): void {
+	namespace.use((socket, next) => {
+		if (rankOf(handshakeTier(socket.request.headers)) < rankOf(minTier)) {
+			onEvent?.('warn', 'room.refused', { sid: socket.id, gate: 'tier' });
+			next(new Error('not found'));
+			return;
+		}
+		next();
+	});
+}
+
 /** Mount a game's rooms on `io` (see this file's header). */
 export async function attachServedRoom<V extends ServeRoomView>(io: SocketIOServer, deps: ServeDeps<V>): Promise<ServedRoom<string, RoomChatMessage>> {
 	const { lobby, people } = deps;
+	gateRoomHandshake(io.of(deps.namespace ?? '/room'), deps.minTier, deps.onEvent);
 	const store = createChatHistoryStore<RoomChatMessage>({
 		stateDir: deps.stateDir,
 		maxMessages: MAX_MESSAGES_PER_ROOM,
@@ -184,11 +208,13 @@ export async function attachServedRoom<V extends ServeRoomView>(io: SocketIOServ
 			// socket on this same `io`) before any namespace's `connection` fires.
 			const headers = socket.request.headers;
 			// Which gate refused, and the key it refused: a refusal the log cannot explain is one nobody can fix.
-			const refuse = (gate: 'tier' | 'no-place' | 'not-member'): null => {
+			// No 'tier' case here any more: `gateRoomHandshake` above refuses a below-floor socket before
+			// it ever reaches `connection`, so nothing that sends `join` at all can be under the floor —
+			// one gate for it, not two copies of "sanitize then rank" agreeing by construction.
+			const refuse = (gate: 'no-place' | 'not-member'): null => {
 				deps.onEvent?.('warn', 'room.refused', { sid: socket.id, room_key: join.room_key, gate });
 				return null;
 			};
-			if (rankOf(handshakeTier(headers)) < rankOf(deps.minTier)) return refuse('tier');
 			const place = placeOfKey(lobby, deps.isMatch, deps.appId, join.room_key, deps.roomIdRe);
 			if (place === null) return refuse('no-place');
 			const participantId = identityFromHeaders(headers, socket.id);

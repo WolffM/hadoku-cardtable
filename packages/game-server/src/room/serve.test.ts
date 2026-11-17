@@ -171,6 +171,17 @@ function joinRoom(port: number, headers: Record<string, string>, roomKey: string
 	});
 }
 
+/** Connects to `/room` with `headers` and resolves with whether the HANDSHAKE itself succeeded
+ *  or was refused — never sends `join`, so this is `gateRoomHandshake`'s own refusal, not `admit`'s. */
+function connectAttempt(port: number, headers: Record<string, string>): Promise<{ outcome: 'connected' | 'refused'; message?: string }> {
+	return new Promise((resolve) => {
+		const socket = ioClient(`http://127.0.0.1:${port}/room`, { path: '/socket.io/', transports: ['polling'], extraHeaders: headers, forceNew: true, reconnection: false });
+		openPeers.push(socket);
+		socket.on('connect', () => resolve({ outcome: 'connected' }));
+		socket.on('connect_error', (err) => resolve({ outcome: 'refused', message: err.message }));
+	});
+}
+
 const lastRoster = (peer: Peer): Array<Record<string, unknown>> => peer.presence.at(-1) ?? [];
 
 afterEach(() => {
@@ -279,17 +290,30 @@ describe('attachServedRoom', () => {
 		}
 	});
 
-	it('a below-floor tier is refused even as a member, and so is a key for a room nobody has', async () => {
+	it('a below-floor tier never reaches connection at all — refused at the handshake, even as a member; a key for a room nobody has connects fine and is refused only at join', async () => {
 		const h = await boot();
 		try {
 			h.lobby.join(h.roomId, { id: participantIdFor('anon'), name: 'anon', userId: null });
-			const anon = await joinRoom(h.port, edgeHeaders('anon', 'public'), `${APP_ID}-${h.roomId}`);
+			const anon = await connectAttempt(h.port, edgeHeaders('anon', 'public'));
+			expect(anon.outcome).toBe('refused');
 			const lost = await joinRoom(h.port, edgeHeaders('alice'), `${APP_ID}-r-doesnotexist00`);
-			await vi.waitFor(() => expect([anon.errors[0]?.code, lost.errors[0]?.code]).toEqual(['auth/forbidden', 'auth/forbidden']));
-			expect([anon.snapshots, lost.snapshots]).toEqual([0, 0]);
-			// Each refusal says which key and which gate.
-			const refused = h.events.filter((e) => e.event === 'room.refused').map((e) => [e.fields.room_key, e.fields.gate]);
-			expect(refused).toEqual(expect.arrayContaining([[`${APP_ID}-${h.roomId}`, 'tier'], [`${APP_ID}-r-doesnotexist00`, 'no-place']]));
+			await vi.waitFor(() => expect(lost.errors[0]?.code).toBe('auth/forbidden'));
+			expect(lost.snapshots).toBe(0);
+			// The handshake gate logs its own refusal (no room_key: it refuses before any `join` is read).
+			expect(h.events.find((e) => e.event === 'room.refused' && e.fields.gate === 'tier')).toBeTruthy();
+			// `admit`'s own refusal still says which key and which gate.
+			const refused = h.events.filter((e) => e.event === 'room.refused' && e.fields.room_key !== undefined).map((e) => [e.fields.room_key, e.fields.gate]);
+			expect(refused).toEqual([[`${APP_ID}-r-doesnotexist00`, 'no-place']]);
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('a headerless connect — no edge headers at all — is refused at the handshake the same way a forged below-floor tier is (bm1-BS)', async () => {
+		const h = await boot();
+		try {
+			const headerless = await connectAttempt(h.port, {});
+			expect(headerless.outcome).toBe('refused');
 		} finally {
 			await h.close();
 		}

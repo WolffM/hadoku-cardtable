@@ -331,7 +331,7 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
         // `RoomFront.tsx`, so `.ct-surface` is still drawn by a tree that reaches the one that
         // owns it (`./CreateEventDialog.tsx`'s own import of `Modal.tsx`), exactly as it was
         // before this module existed (`css-ownership.test.ts`'s rule B).
-        className="rooms__create ct-surface ct-panel"
+        createPanelClassName="rooms__create ct-surface ct-panel"
         testingStorageKey="cardtable.rooms.testingFolded"
         onOpenRoom={(roomId) => navigate({ kind: 'room', roomId })}
       />

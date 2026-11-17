@@ -58,7 +58,10 @@ export function publishedExports(name: string, exports: Record<string, Target>):
 	const out: Record<string, Target> = {};
 	for (const [sub, target] of Object.entries(exports)) {
 		if (typeof target !== 'string') throw new Error(`${name}: export ${sub} is not a source path`);
-		const ts = /^\.\/src\/(.+)\.ts$/.exec(target);
+		// `.tsx` too, not only `.ts` (wave s3 §G.5: game-ui's extensionless `./front/RoomFront` and
+		// its siblings are React components) — `build.ts` compiles either extension to the same
+		// `dist/<stem>.js` + `.d.ts` pair, so one dist shape serves both.
+		const ts = /^\.\/src\/(.+)\.tsx?$/.exec(target);
 		if (ts !== null) {
 			out[sub] = distPair(ts[1]!);
 			continue;

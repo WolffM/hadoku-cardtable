@@ -172,6 +172,20 @@ describe('relay:join', () => {
 		await expect(connect(h.port, {})).rejects.toBeDefined();
 	});
 
+	it("the default gate (deps.gate omitted) never opens via an app-specific insecure-hatch env var — generic, not game-server's own CARDTABLE config (bm1-BS, §G.3): with no real secret at all, a headerless caller stays refused even with CARDTABLE's own hatch var set", async () => {
+		delete process.env.EDGE_AUTH_SECRET; // no real secret: the one condition under which any hatch could ever open
+		process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH = '1';
+		process.env.BOMBERMAN_INSECURE_NO_EDGE_AUTH = '1';
+		try {
+			const h = await boot({});
+			await expect(connect(h.port, {})).rejects.toBeDefined();
+		} finally {
+			process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
+			delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
+			delete process.env.BOMBERMAN_INSECURE_NO_EDGE_AUTH;
+		}
+	});
+
 	it("installs a game's own gate in place of cardtable's, at the floor it is given", async () => {
 		const asked: { minTier: string; surface: string }[] = [];
 		const h = await boot(
