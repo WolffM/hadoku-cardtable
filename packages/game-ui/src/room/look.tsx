@@ -108,10 +108,16 @@ function decorHost(face: Element): Element | null {
   const size = Math.max(face.getBoundingClientRect().width, 1);
   let host: Element | null = null;
   for (let box = face.parentElement; box !== null && box.parentElement !== null; box = box.parentElement) {
-    if (box.getBoundingClientRect().width > size * 1.6) break;
+    const rect = box.getBoundingClientRect();
+    if (rect.width > size * 1.6) break;
     const style = getComputedStyle(box);
     // A face that turns away (a coin's sides) hides what it holds: its overlay stays inside it.
     if (style.backfaceVisibility === 'hidden') break;
+    // A box clipped down to nothing (a screen-reader-only list, e.g. `rooms.css`'s `.rooms__sr`:
+    // `width:1px;height:1px;overflow:hidden`) means to hide everything inside it, not merely trim a
+    // seat's ring: the overlay must not escape past it onto the visible page (a spectator's halo
+    // once leaked out of a front-page room card's hidden member list, under the room's own name).
+    if (rect.width <= 2 || rect.height <= 2) break;
     if ([style.overflow, style.overflowX, style.overflowY].some((o) => o !== '' && o !== 'visible')) host = box.parentElement;
   }
   return host;
