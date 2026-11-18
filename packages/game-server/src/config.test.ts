@@ -91,3 +91,20 @@ describe('createConfig: two configs, two prefixes, one process', () => {
     expect(createConfig({ envPrefix: 'BETA', env: { BETA_MIN_TIER: 'friend' } }).minTier).toBe('friend');
   });
 });
+
+describe('createConfig: a game’s own root, defaults and floor', () => {
+  it('reads a game’s defaults for what the env leaves unset, resolving its dirs under its own root', async () => {
+    const { createConfig } = await import('./config.ts');
+    const config = createConfig({ envPrefix: 'GAME', root: '/srv/game/apps/server', defaults: { PORT: '9123', BASE_PREFIX: '/game', STATE_DIR: 'state' }, env: { GAME_PORT: '9200' } });
+    expect(config.port).toBe(9200);
+    expect(config.basePrefix).toBe('/game');
+    expect(config.roomsDir).toBe('/srv/game/apps/server/state/rooms');
+    expect(config.callersSeenFile).toBe('/srv/game/apps/server/state/callers-seen.json');
+  });
+
+  it('refuses a public floor unless the game says it is public', async () => {
+    const { createConfig } = await import('./config.ts');
+    expect(() => createConfig({ envPrefix: 'GAME', env: { GAME_MIN_TIER: 'public' } })).toThrow('GAME_MIN_TIER=public');
+    expect(createConfig({ envPrefix: 'GAME', allowPublic: true, env: { GAME_MIN_TIER: 'public' } }).minTier).toBe('public');
+  });
+});

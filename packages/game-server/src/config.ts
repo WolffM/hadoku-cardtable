@@ -62,6 +62,8 @@ export interface CreateConfigOptions {
 	 * `ROOMS_DIR: 'state/rooms'`): what a variable the environment leaves unset reads as.
 	 */
 	defaults?: Readonly<Record<string, string>>;
+	/** Admit `public` as the floor: a game the edge serves to everyone. Default false: `public` refuses boot. */
+	allowPublic?: boolean;
 }
 
 export interface GameServerConfig {
@@ -186,7 +188,7 @@ export function createConfig(options: CreateConfigOptions = {}): GameServerConfi
 	const dataDir = stateDir || resolve(logDir, '../data');
 
 	const minTierRaw = read('MIN_TIER') || 'friend';
-	const minTier = kernelAssertFloor(minTierRaw, { envPrefix: prefix, allowPublic: false });
+	const minTier = kernelAssertFloor(minTierRaw, { envPrefix: prefix, allowPublic: options.allowPublic === true });
 
 	return {
 		port: parseInt(read('PORT') || '9008', 10),

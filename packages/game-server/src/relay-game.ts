@@ -118,6 +118,8 @@ export interface RelayGameOptions {
 	repoRoot: string;
 	/** The game's own config defaults by unprefixed name (`PORT`, `BASE_PREFIX`, `ROOMS_DIR`, …). */
 	defaults: Readonly<Record<string, string>>;
+	/** A game the edge serves to everyone may set its floor to `public`; any other refuses it at boot. */
+	allowPublic?: boolean;
 	/** The participant-id domain, so ids are this game's own and never another's (`room/identity.ts`). */
 	participantDomain: string;
 	gameType: string;
@@ -156,7 +158,7 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 	configureParticipantIdDomain(options.participantDomain);
 	const { id, envPrefix } = options;
 	const env = process.env;
-	const config = createConfig({ envPrefix, root: options.root, defaults: options.defaults });
+	const config = createConfig({ envPrefix, root: options.root, defaults: options.defaults, ...(options.allowPublic === true ? { allowPublic: true } : {}) });
 	const auth = createGameAuth(config, { svc: id });
 	mkdirSync(config.logDir, { recursive: true });
 
