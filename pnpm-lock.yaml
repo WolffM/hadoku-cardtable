@@ -69,11 +69,11 @@ importers:
         specifier: ^2.6.2
         version: 2.6.2
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
       '@wolffm/rooms-server':
-        specifier: npm:@hadoku/rooms-server@0.45.109
-        version: '@hadoku/rooms-server@0.45.109(socket.io@4.8.3)'
+        specifier: npm:@hadoku/rooms-server@0.45.110
+        version: '@hadoku/rooms-server@0.45.110(socket.io@4.8.3)'
       express:
         specifier: ^5.1.0
         version: 5.2.1
@@ -118,8 +118,8 @@ importers:
         specifier: npm:@hadoku/prefs-client@1.1.27
         version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
       '@wolffm/task-ui-components':
         specifier: npm:@hadoku/task-ui-components@4.23.35
         version: '@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
@@ -127,8 +127,8 @@ importers:
         specifier: npm:@hadoku/themes@5.14.4
         version: '@hadoku/themes@5.14.4(react@19.2.8)'
       '@wolffm/watchparty-ui':
-        specifier: npm:@hadoku/watchparty-ui@0.45.109
-        version: '@hadoku/watchparty-ui@0.45.109(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
+        specifier: npm:@hadoku/watchparty-ui@0.45.110
+        version: '@hadoku/watchparty-ui@0.45.110(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -194,8 +194,8 @@ importers:
         specifier: workspace:*
         version: link:../../../../packages/shared
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
 
   games/magic/packages/forge-wire:
     dependencies:
@@ -239,11 +239,11 @@ importers:
         specifier: npm:@hadoku/prefs-client@1.1.27
         version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
       '@wolffm/rooms-server':
-        specifier: npm:@hadoku/rooms-server@0.45.109
-        version: '@hadoku/rooms-server@0.45.109(socket.io@4.8.3)'
+        specifier: npm:@hadoku/rooms-server@0.45.110
+        version: '@hadoku/rooms-server@0.45.110(socket.io@4.8.3)'
       express:
         specifier: ^5.1.0
         version: 5.2.1
@@ -294,17 +294,17 @@ importers:
         specifier: npm:@hadoku/prefs-client@1.1.27
         version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-client':
-        specifier: npm:@hadoku/rooms-client@0.45.109
-        version: '@hadoku/rooms-client@0.45.109(react@19.2.8)(socket.io-client@4.8.3)'
+        specifier: npm:@hadoku/rooms-client@0.45.110
+        version: '@hadoku/rooms-client@0.45.110(react@19.2.8)(socket.io-client@4.8.3)'
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
       '@wolffm/themes':
         specifier: npm:@hadoku/themes@5.14.4
         version: '@hadoku/themes@5.14.4(react@19.2.8)'
       '@wolffm/watchparty-ui':
-        specifier: npm:@hadoku/watchparty-ui@0.45.109
-        version: '@hadoku/watchparty-ui@0.45.109(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
+        specifier: npm:@hadoku/watchparty-ui@0.45.110
+        version: '@hadoku/watchparty-ui@0.45.110(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -358,11 +358,11 @@ importers:
         specifier: npm:@hadoku/prefs-client@1.1.27
         version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
       '@wolffm/rooms-server':
-        specifier: npm:@hadoku/rooms-server@0.45.109
-        version: '@hadoku/rooms-server@0.45.109(socket.io@4.8.3)'
+        specifier: npm:@hadoku/rooms-server@0.45.110
+        version: '@hadoku/rooms-server@0.45.110(socket.io@4.8.3)'
       express:
         specifier: ^5.1.0
         version: 5.2.1
@@ -392,11 +392,11 @@ importers:
         specifier: npm:@hadoku/prefs-client@1.1.27
         version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-client':
-        specifier: npm:@hadoku/rooms-client@0.45.109
-        version: '@hadoku/rooms-client@0.45.109(react@19.2.8)(socket.io-client@4.8.3)'
+        specifier: npm:@hadoku/rooms-client@0.45.110
+        version: '@hadoku/rooms-client@0.45.110(react@19.2.8)(socket.io-client@4.8.3)'
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
       '@wolffm/task-ui-components':
         specifier: npm:@hadoku/task-ui-components@4.23.35
         version: '@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
@@ -404,8 +404,8 @@ importers:
         specifier: npm:@hadoku/themes@5.14.4
         version: '@hadoku/themes@5.14.4(react@19.2.8)'
       '@wolffm/watchparty-ui':
-        specifier: npm:@hadoku/watchparty-ui@0.45.109
-        version: '@hadoku/watchparty-ui@0.45.109(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
+        specifier: npm:@hadoku/watchparty-ui@0.45.110
+        version: '@hadoku/watchparty-ui@0.45.110(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
       socket.io-client:
         specifier: ^4.8.3
         version: 4.8.3
@@ -452,17 +452,17 @@ importers:
   packages/room-ask:
     dependencies:
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
 
   packages/service-kernel:
     dependencies:
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
       '@wolffm/rooms-server':
-        specifier: npm:@hadoku/rooms-server@0.45.109
-        version: '@hadoku/rooms-server@0.45.109(socket.io@4.8.3)'
+        specifier: npm:@hadoku/rooms-server@0.45.110
+        version: '@hadoku/rooms-server@0.45.110(socket.io@4.8.3)'
       express:
         specifier: ^5.1.0
         version: 5.2.1
@@ -486,8 +486,8 @@ importers:
         specifier: workspace:*
         version: link:../platform-wire
       '@wolffm/rooms-protocol':
-        specifier: npm:@hadoku/rooms-protocol@0.45.109
-        version: '@hadoku/rooms-protocol@0.45.109'
+        specifier: npm:@hadoku/rooms-protocol@0.45.110
+        version: '@hadoku/rooms-protocol@0.45.110'
       zod:
         specifier: 4.5.4
         version: 4.5.4
@@ -825,8 +825,8 @@ packages:
       react:
         optional: true
 
-  '@hadoku/rooms-client@0.45.109':
-    resolution: {integrity: sha512-2kvd+FJggbo6sExB9xQ3e14dezK57aChkQCZjtD8mYdNKsTFWoxcisqvhgzX/Bj9ZDDYO//a51FEfSzNZr+p/w==}
+  '@hadoku/rooms-client@0.45.110':
+    resolution: {integrity: sha512-fCABEtCP2H0lrPQimIdFywK7PEhnyS/ENX2Pqgtgo05ecxUrY5jAAV+Dg+XGq6D10zEJsxJWcRlE5SgHlNheEA==}
     peerDependencies:
       react: '>=18'
       socket.io-client: ^4.8.3
@@ -834,11 +834,11 @@ packages:
       react:
         optional: true
 
-  '@hadoku/rooms-protocol@0.45.109':
-    resolution: {integrity: sha512-m81EJJnSF6cEyCw39KdqpyKkBD8sqKVR4GJf2pJSj+/wvAbWdUYuiHBCwwiQ5AuBeNDTMIQWPoj1WCqw2JsdAQ==}
+  '@hadoku/rooms-protocol@0.45.110':
+    resolution: {integrity: sha512-+ctuZOoXHHUtLe0BtzYogz/vX+GPPiqUhi/Lw/GeIWb6e0UBBj0ogdctx97Fgld7Ace/mdP1+gnw4eUPob9m6A==}
 
-  '@hadoku/rooms-server@0.45.109':
-    resolution: {integrity: sha512-6Ggbjuv3XC2a9ddBZ/jds0GAIqLvwV0E6s+kGTRv7/hivddctFnPVXRyN9nFOz4I9/RZ4aeuFyT5RmvK5yWD8A==}
+  '@hadoku/rooms-server@0.45.110':
+    resolution: {integrity: sha512-LnmD6YUeExadQUrcnJOA8xd4T0AFANZ7vvauGppMgAxsyY9yXDikoIuDUHRKvM8kyon/KsJ2fdKBZWRQXsKUew==}
     peerDependencies:
       socket.io: ^4.8.3
 
@@ -858,8 +858,8 @@ packages:
       react:
         optional: true
 
-  '@hadoku/watchparty-ui@0.45.109':
-    resolution: {integrity: sha512-8ccf+qSXEfaJwpJS+HNduPMssefUoyLgIbyy5Xo7mIJHVEuKlu1UVTT89pVip+TXMuIyfF0aKMOlWDHz3VNoKg==}
+  '@hadoku/watchparty-ui@0.45.110':
+    resolution: {integrity: sha512-OI0DQxcCAsJJUE6jnuSEeo/hhyyANaVh4nPvIB9DWZ3Py59VUZYQgFs4EgeeUhwtiB+3nuF/Nj0lyzQzJsoszQ==}
     peerDependencies:
       '@wolffm/task-ui-components': '>=4.23.27'
       react: ^19.2.0
@@ -2720,18 +2720,18 @@ snapshots:
     optionalDependencies:
       react: 19.2.8
 
-  '@hadoku/rooms-client@0.45.109(react@19.2.8)(socket.io-client@4.8.3)':
+  '@hadoku/rooms-client@0.45.110(react@19.2.8)(socket.io-client@4.8.3)':
     dependencies:
-      '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.109'
+      '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.110'
       socket.io-client: 4.8.3
     optionalDependencies:
       react: 19.2.8
 
-  '@hadoku/rooms-protocol@0.45.109': {}
+  '@hadoku/rooms-protocol@0.45.110': {}
 
-  '@hadoku/rooms-server@0.45.109(socket.io@4.8.3)':
+  '@hadoku/rooms-server@0.45.110(socket.io@4.8.3)':
     dependencies:
-      '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.109'
+      '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.110'
       socket.io: 4.8.3
 
   '@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
@@ -2747,11 +2747,11 @@ snapshots:
     optionalDependencies:
       react: 19.2.8
 
-  '@hadoku/watchparty-ui@0.45.109(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@hadoku/watchparty-ui@0.45.110(@hadoku/task-ui-components@4.23.35(@hadoku/themes@5.14.4(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@wolffm/cdn-client': '@hadoku/cdn-client@2.1.1(react@19.2.8)'
       '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
-      '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.109'
+      '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.110'
       '@wolffm/themes': '@hadoku/themes@5.14.4(react@19.2.8)'
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
