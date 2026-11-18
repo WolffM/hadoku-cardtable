@@ -66,8 +66,12 @@ before planning cross-game work.
   wrapper — not ours to flip) is member too; both moved on 2026-11-02
   (hadoku_site 20b9f8f84). `config.ts` still defaults to friend, so a wrapper
   that loses the variable fails closed. Membership is
-  free and open. Never add a public or anonymous tier, not even "just for
-  drafting". Friend-only features (the music review, admin writes) check their
+  free and open. **Since 2026-11-18 a visitor gets the account
+  automatically** (operator: *"member IS public. anyone who visits the page
+  gets an unverified member account"*): the edge's sign-in wall signs a
+  signed-out browser up as "Player NNNNN" and sends it on (hadoku_site
+  dc0a65f38). So the floor stays member and every request still carries an
+  identity; never add a tier below it, not even "just for drafting". Friend-only features (the music review, admin writes) check their
   own tier rather than lean on the floor; making rooms, events and matches is
   rate limited per caller (`perCallerLimit`). `docs/LICENSING.md` §2 has D24.
   **One exception, a room's link preview** (operator, 2026-11-08): the edge

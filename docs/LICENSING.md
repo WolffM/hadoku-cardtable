@@ -219,6 +219,24 @@ account is cheap to make. **Not done by D24:** flipping `CARDTABLE_MIN_TIER`.
 That is a config change on hadoku_site's wrapper, made on PPE first, and it is
 the operator's.
 
+**Amended 2026-11-18 by the operator: member is the public floor.** Asked
+whether a room link should bounce a stranger to the sign-in page:
+
+> *"member IS public. anyone who visits the page gets an unverified member
+> account"*
+
+So the edge's sign-in wall, on any route that admits members, now makes that
+account itself: a browser with no session is signed up under a generated name
+("Player NNNNN", renamable) through the same sign-up path, bot check and per-IP
+limit as the form, and lands where it was going (hadoku_site dc0a65f38,
+`authPage.ts` `autoJoin`). A browser that has signed in before gets the form
+instead, so a lapsed session does not quietly make a second account. What
+D24 spent, this spends further: "a login in front of every request" is now
+"an account behind every request", made for you on the first visit. Still
+true: no money, no anonymous caller reaches cardtable (every request carries a
+member identity, so `perCallerLimit` and the telemetry still name someone),
+no indexing, and a crawler (which runs no script) still gets the sign-in page.
+
 ### Room link previews · 2026-11-08 · operator
 
 The one thing an anonymous caller can get. The operator asked for a room link
