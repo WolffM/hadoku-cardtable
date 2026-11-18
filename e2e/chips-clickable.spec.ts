@@ -38,7 +38,7 @@ interface Sampled {
   /** This board's clickable battlefield cards, each time they changed (wall-clock ms). */
   clickable: { at: number; ids: number[] }[];
   /** Which standing chip stood over which battlefield card, each time that changed (wall-clock ms). */
-  over: { at: number; pairs: [string, number][] }[];
+  over: { at: number; pairs: [string, number][]; boxes: string[]; frames: number }[];
   frames: number;
   peak: number;
 }
@@ -64,6 +64,8 @@ async function startSampler(page: Page): Promise<void> {
         w.__chips.clickable.push({ at, ids: clickable });
       }
       const pairs: [string, number][] = [];
+      const boxes: string[] = [];
+      const fmt = (r: DOMRect): string => `${Math.round(r.width)}×${Math.round(r.height)}@${Math.round(r.left)},${Math.round(r.top)}`;
       for (const chip of chips) {
         const a = chip.getBoundingClientRect();
         const placed = chip.closest('[data-placed-spell]');
@@ -75,6 +77,8 @@ async function startSampler(page: Page): Promise<void> {
           if (x <= 0 || y <= 0) continue;
           const cardId = Number(card.getAttribute('data-board-card'));
           pairs.push([id, cardId]);
+          const held = ['data-placed-held', 'data-placed-waiting'].filter((m) => placed?.hasAttribute(m) === true).map((m) => m.slice(12));
+          boxes.push(`${fmt(a)}${held.length > 0 ? ` ${held.join(',')}` : ''} on ${fmt(b)}`);
           if (!card.hasAttribute('data-selectable')) continue;
           const marks = ['data-placed-held', 'data-placed-waiting'].filter((m) => placed?.hasAttribute(m) === true).map((m) => m.slice(12));
           w.__chips.covers.push({
@@ -89,7 +93,10 @@ async function startSampler(page: Page): Promise<void> {
       const key = pairs.map((p) => p.join(':')).join(',');
       if (key !== overKey) {
         overKey = key;
-        w.__chips.over.push({ at, pairs });
+        w.__chips.over.push({ at, pairs, boxes, frames: 1 });
+      } else {
+        const last = w.__chips.over.at(-1);
+        if (last !== undefined) last.frames += 1;
       }
       requestAnimationFrame(tick);
     };
@@ -115,12 +122,12 @@ function peerCovers(screen: Sampled, other: Sampled, until: number): string[] {
   const firstClickable = new Map<number, number>();
   for (const { at, ids } of other.clickable) for (const id of ids) if (!firstClickable.has(id)) firstClickable.set(id, at);
   const out: string[] = [];
-  screen.over.forEach(({ at, pairs }, i) => {
+  screen.over.forEach(({ at, pairs, boxes, frames }, i) => {
     const end = screen.over[i + 1]?.at ?? until;
-    for (const [chip, card] of pairs) {
+    pairs.forEach(([chip, card], k) => {
       const since = firstClickable.get(card);
-      if (since !== undefined && end > since + RELAY_GRACE_MS) out.push(`chip ${chip} over card ${card} from ${Math.round(Math.max(at, since + RELAY_GRACE_MS)) % 100_000} to ${Math.round(end) % 100_000}`);
-    }
+      if (since !== undefined && end > since + RELAY_GRACE_MS) out.push(`chip ${chip} over card ${card} from ${Math.round(Math.max(at, since + RELAY_GRACE_MS)) % 100_000} to ${Math.round(end) % 100_000}, ${frames} frames, ${boxes[k]}`);
+    });
   });
   return out;
 }
