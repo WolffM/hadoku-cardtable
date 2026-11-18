@@ -80,6 +80,16 @@ function field<T>(check: (v: unknown) => v is T, message: string): { safeParse(b
 
 const removeFromSeatBody = field((v): v is { memberId: string } => typeof v === 'object' && v !== null && typeof (v as { memberId?: unknown }).memberId === 'string', 'memberId must be a string');
 const lowerCapacityBody = field((v): v is { count: number } => typeof v === 'object' && v !== null && Number.isInteger((v as { count?: unknown }).count), 'count must be an integer');
+const sitSeatBody = field(
+	(v): v is { seat?: number } => typeof v === 'object' && v !== null && ((v as { seat?: unknown }).seat === undefined || (Number.isInteger((v as { seat?: unknown }).seat) && ((v as { seat: number }).seat >= 0))),
+	'seat must be a non-negative integer, or absent',
+);
+const emptyBody = field((v): v is Record<string, never> => typeof v === 'object' && v !== null && Object.keys(v).length === 0, 'expected an empty body');
+const closeSeatBody = field(
+	(v): v is { seat: number; closed: boolean } =>
+		typeof v === 'object' && v !== null && Number.isInteger((v as { seat?: unknown }).seat) && (v as { seat: number }).seat >= 0 && typeof (v as { closed?: unknown }).closed === 'boolean',
+	'seat must be a non-negative integer and closed a boolean',
+);
 const botReplacesHumanBody = field((v): v is { seat: number } => typeof v === 'object' && v !== null && Number.isInteger((v as { seat?: unknown }).seat), 'seat must be an integer');
 
 /** Every one of the leader's three seat ops' own refusal, mapped to a status. `'no-room'`/`no such room` reuses the create/join answer on purpose: never telling a non-member whether a room id exists. */
@@ -148,7 +158,26 @@ export const ROOM_CREATE_RATE_LIMIT: RateLimitConfig = {
 	refillIntervalMs: 60_000,
 };
 
+/**
+ * The seat ops every member and the leader take on a room's own game seats (`room/lobby.ts`'s
+ * `RoomLobby`): sit, stand, close or open an empty seat, give the AI one or take it back. A game whose
+ * room IS its seats (`plainRoomType`) hands its lobby to `RoomCoreDeps.seatRoutes`; Magic seats its
+ * pods through routes of its own and does not.
+ */
+export interface SeatRouteLobby<V> {
+	sitSeat(roomId: string, callerId: string, seat?: number): { ok: true; room: V } | { ok: false; reason: string };
+	standSeat(roomId: string, callerId: string): { ok: true; room: V } | { ok: false; reason: string };
+	closeSeat(roomId: string, callerId: string, seat: number, closed: boolean): { ok: true; room: V } | { ok: false; reason: string };
+	aiSeat(roomId: string, callerId: string, seat: number, on: boolean): { ok: true; room: V } | { ok: false; reason: string };
+}
+
 export interface RoomCoreDeps<V extends RoomViewCore, C, P extends object, G = never> {
+	/**
+	 * Serve the seat routes on this lobby: `/:id/seats/sit` `{ seat? }`, `/:id/seats/stand` `{}`,
+	 * `/:id/seats/close` `{ seat, closed }` (the leader's) and `/:id/seats/bot-off` `{ seat }` (the
+	 * leader's; `/seats/bot` puts one in). Absent: none of the four is registered.
+	 */
+	seatRoutes?: SeatRouteLobby<V>;
 	lobby: LobbyCore<V, C>;
 	wire: RoomCoreWire<C, P>;
 	/** Structured log lines. Never carries a password, hash or salt. */
@@ -425,6 +454,28 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		if (!result.ok) return seatOpStatus(res, result.reason);
 		res.json({ ...roomBody(result.room, caller.id), evicted: result.evicted });
 	});
+
+	const seats = deps.seatRoutes;
+	if (seats !== undefined) {
+		// Opted in (`RoomCoreDeps.seatRoutes`): a member sits and stands; the leader closes, opens and takes the AI back out.
+		const seatRoute = (path: string, schema: typeof sitSeatBody | typeof emptyBody | typeof closeSeatBody | typeof botReplacesHumanBody, leaders: boolean, run: (id: string, callerId: string, body: never) => { ok: true; room: V } | { ok: false; reason: string }): void => {
+			rooms.post(`/:id/seats/${path}`, (req: Request, res: Response) => {
+				const body = parseBody(schema, req, res);
+				// The leader's ops spend the seat-op limit, as `remove`/`capacity`/`bot` do; a member's own sit and stand do not.
+				if (body === null || (leaders && !seatOpLimit(req, res))) return;
+				const caller = callerOf(req);
+				const id = String(req.params.id);
+				if (!wire.roomIdRe.test(id)) return noMatch(res);
+				const result = run(id, caller.id, body as never);
+				if (!result.ok) return seatOpStatus(res, result.reason);
+				res.json(roomBody(result.room, caller.id));
+			});
+		};
+		seatRoute('sit', sitSeatBody, false, (id, callerId, body: { seat?: number }) => seats.sitSeat(id, callerId, body.seat));
+		seatRoute('stand', emptyBody, false, (id, callerId) => seats.standSeat(id, callerId));
+		seatRoute('close', closeSeatBody, true, (id, callerId, body: { seat: number; closed: boolean }) => seats.closeSeat(id, callerId, body.seat, body.closed));
+		seatRoute('bot-off', botReplacesHumanBody, true, (id, callerId, body: { seat: number }) => seats.aiSeat(id, callerId, body.seat, false));
+	}
 
 	// The leader hands the room to another member, seated or watching. Spends the seat-op limit.
 	rooms.post('/:id/leader', (req: Request, res: Response) => {

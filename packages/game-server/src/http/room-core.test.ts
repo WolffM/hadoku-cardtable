@@ -128,7 +128,7 @@ interface Harness {
 const dirs: string[] = [];
 let http: HttpServer | undefined;
 
-async function boot(): Promise<Harness> {
+async function boot(opts: { seatRoutes?: boolean } = {}): Promise<Harness> {
 	const dir = await mkdtemp(join(tmpdir(), 'w119s-room-core-test-'));
 	dirs.push(dir);
 	const lobby = new lobbyMod.RoomLobby<ToyView, RoomCreateInput>({
@@ -147,6 +147,7 @@ async function boot(): Promise<Harness> {
 	api.use(express.json());
 	roomCoreMod.attachRoomCore(api, {
 		lobby: asLobbyCore(lobby),
+		...(opts.seatRoutes === true ? { seatRoutes: lobby } : {}),
 		wire: {
 			roomIdRe: ROOM_ID_RE,
 			createRoomBody: CREATE_BODY,
@@ -266,6 +267,58 @@ describe('the leader’s seat-op routes', () => {
 			let last: { status: number } = { status: 200 };
 			for (let i = 0; i < 11; i++) last = await post(h, `/${id}/seats/remove`, edgeHeaders('alice'), { memberId: bob });
 			expect(last.status).toBe(429);
+		} finally {
+			await h.close();
+		}
+	});
+});
+
+describe('the opt-in seat routes (`seatRoutes`)', () => {
+	it('are absent unless a lobby is handed in', async () => {
+		const h = await boot();
+		try {
+			const made = h.lobby.create({ id: participantIdFor('alice'), name: 'alice', userId: 'u-alice' }, { name: 'room', gameType: TOY });
+			if (!made.ok) throw new Error('not made');
+			const res = await fetch(`http://127.0.0.1:${h.port}/api/rooms/${made.room.id}/seats/stand`, { method: 'POST', headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' }, body: '{}' });
+			expect(res.status).toBe(404);
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('sit, stand, close/open and bot-off, each answering the room; the leader’s two refused to anyone else', async () => {
+		const h = await boot({ seatRoutes: true });
+		try {
+			const alice = participantIdFor('alice');
+			const bob = participantIdFor('bob');
+			const made = h.lobby.create({ id: alice, name: 'alice', userId: 'u-alice' }, { name: 'room', gameType: TOY });
+			if (!made.ok) throw new Error('not made');
+			const id = made.room.id;
+			h.lobby.join(id, { id: bob, name: 'bob', userId: 'u-bob' });
+			expect(h.lobby.get(id)?.seats).toEqual([alice, bob]);
+
+			const stood = await post(h, `/${id}/seats/stand`, edgeHeaders('bob'), {});
+			expect(stood.status).toBe(200);
+			expect(stood.json.seats).toEqual([alice, null]);
+			const sat = await post(h, `/${id}/seats/sit`, edgeHeaders('bob'), { seat: 1 });
+			expect(sat.json.seats).toEqual([alice, bob]);
+			expect((await post(h, `/${id}/seats/sit`, edgeHeaders('bob'), { seat: -1 })).status).toBe(400);
+
+			// Sitting one past the last grows the room; the leader closes that seat and opens it again.
+			await post(h, `/${id}/seats/sit`, edgeHeaders('bob'), { seat: 2 });
+			expect((await post(h, `/${id}/seats/close`, edgeHeaders('bob'), { seat: 1, closed: true })).status).toBe(403);
+			const closed = await post(h, `/${id}/seats/close`, edgeHeaders('alice'), { seat: 1, closed: true });
+			expect(closed.json.seats).toEqual([alice, 'closed', bob]);
+			const opened = await post(h, `/${id}/seats/close`, edgeHeaders('alice'), { seat: 1, closed: false });
+			expect(opened.json.seats).toEqual([alice, null, bob]);
+
+			// The AI in (room-core's `seats/bot`) and back out.
+			await post(h, `/${id}/seats/bot`, edgeHeaders('alice'), { seat: 1 });
+			expect(h.lobby.get(id)?.seats).toEqual([alice, 'ai', bob]);
+			expect((await post(h, `/${id}/seats/bot-off`, edgeHeaders('bob'), { seat: 1 })).status).toBe(403);
+			const off = await post(h, `/${id}/seats/bot-off`, edgeHeaders('alice'), { seat: 1 });
+			expect(off.status).toBe(200);
+			expect(off.json.seats).toEqual([alice, null, bob]);
 		} finally {
 			await h.close();
 		}
