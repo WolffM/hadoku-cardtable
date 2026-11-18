@@ -20,13 +20,12 @@
  * position is calculated is not agreed on by both clients?": alice's and bob's windows are
  * deliberately DIFFERENT sizes (never equal, the realistic case), and step 1 traces
  * both screens' own board-fraction read of the dragged item every frame (`startFracTrack`), named
- * in px on each screen's own board. Measured (claw-equivalent runs, both window sizes equal and
- * different): a transient gap of 25-45px while the drag is still moving — the deliberate
- * `PRESENCE_SEND_MS` throttle and `GLIDE_MS` hand-off ease, already in place to fix a WORSE, older
- * regression (2026-10-10, "weirdly visually laggy") — but the FINAL, settled position always
- * agreed to within rounding (0.0px) in every run, on both window sizes. No persistent position
- * miscalculation was found; `finalFracDisagreementPx`'s assertion below is a regression guard on
- * that invariant, not a fix for a reproduced bug.
+ * in px on each screen's own board. Measured on CI: a transient gap of 16-28px while the drag is
+ * still moving (the relay's `PRESENCE_SEND_MS` throttle, its catch-up, and a loaded runner's frame
+ * timing), but the FINAL, settled position always agreed to within rounding (0.0px), on both window
+ * sizes. `finalFracDisagreementPx`'s assertion below guards that invariant; the in-flight lag's
+ * fine bound is `placed.test.ts`'s deterministic relayed drag, and this spec guards only its gross
+ * shape (`IN_FLIGHT_SHARE`).
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -40,12 +39,15 @@ const titled = makeTitled(forge);
 type Box = { x: number; y: number };
 
 /**
- * The widest the two screens' own board-fraction read of a moving drag may disagree, in px, while
- * it is still in flight — well under the 25-50px measured against the old flat relay ease (see
- * the assertion below). Not the settled bound (3px, below): a drag in motion is never perfectly
- * synchronized, only bounded far from the operator's "glitchy".
+ * The widest the watcher's copy of a moving drag may trail the dragger's, as a share of how far the
+ * drag itself went on that same board — a gross guard (a copy that waits for the drop trails by the
+ * whole drag, 1.0), read in each board's own units so a bigger board does not read the same lag
+ * bigger. The fine bound on in-flight lag is `placed.test.ts`'s deterministic relayed drag (15 px):
+ * on CI this e2e reading is dominated by relay and frame timing on a loaded runner, and measured
+ * the base code (21-26 px) and the fixed code (16-28 px) in the same range (issue #69), so a px
+ * bound here only ever tested the runner. Measured worst on CI: 0.17 of the drag.
  */
-const IN_FLIGHT_BOUND_PX = 23;
+const IN_FLIGHT_SHARE = 0.4;
 
 /** Where stack item `id` is drawn on `page`, its centre; null when it is not drawn there. */
 async function itemAt(page: Page, id: string): Promise<Box | null> {
@@ -260,6 +262,14 @@ function maxFracDisagreementPx(a: readonly [number, number, number][], b: readon
   return worst;
 }
 
+/** How far the item went over track `a`, first sample to last, in px on `refBox`. */
+function dragLengthPx(a: readonly [number, number, number][], refBox: { width: number; height: number }): number {
+  if (a.length < 2) return 0;
+  const [, x0, y0] = a[0]!;
+  const [, x1, y1] = a[a.length - 1]!;
+  return Math.hypot((x1 - x0) * refBox.width, (y1 - y0) * refBox.height);
+}
+
 /** The gap, in px, between `a`'s LAST sample and `b`'s nearest in time — whether it ever settled, not the worst moment of it moving. */
 function finalFracDisagreementPx(a: readonly [number, number, number][], b: readonly [number, number, number][], refBox: { width: number; height: number }): number {
   if (a.length === 0 || b.length === 0) return 0;
@@ -353,19 +363,18 @@ test(titled('either seat drags any stack item; both at once neither flicker nor 
     const worstOnBob1 = maxFracDisagreementPx(bobFrac1, aliceFrac1, bobBox1, 300);
     const finalOnAlice1 = finalFracDisagreementPx(aliceFrac1, bobFrac1, aliceBox1);
     const finalOnBob1 = finalFracDisagreementPx(bobFrac1, aliceFrac1, bobBox1);
+    const [dragOnAlice1, dragOnBob1] = [dragLengthPx(bobFrac1, aliceBox1), dragLengthPx(bobFrac1, bobBox1)];
     console.log(
-      `[drag] 1 position: alice's board ${aliceBox1.width}x${aliceBox1.height}, bob's ${bobBox1.width}x${bobBox1.height}; ` +
+      `[drag] 1 position: bob's drag went ${dragOnAlice1.toFixed(1)}px on alice's board, ${dragOnBob1.toFixed(1)}px on his own; alice's board ${aliceBox1.width}x${aliceBox1.height}, bob's ${bobBox1.width}x${bobBox1.height}; ` +
         `worst disagreement read on alice's board = ${worstOnAlice1.px.toFixed(1)}px at +${worstOnAlice1.at}ms; on bob's board = ${worstOnBob1.px.toFixed(1)}px at +${worstOnBob1.at}ms; ` +
         `FINAL (settled, ~1.2s after mouse-up) on alice's board = ${finalOnAlice1.toFixed(1)}px; on bob's board = ${finalOnBob1.toFixed(1)}px`,
     );
-    // The operator: "dragging opponents effect around is glitchy". The old code measured 25-50px of
-    // transient disagreement here (a flat ease to a relay two throttles behind, `placed.ts`'s old
-    // `RELAYED_EASE_MS`); the fix (`gripStackItem`'s relayed hand now catches up over ONE relay
-    // interval and then extrapolates its own velocity, never GLIDE_MS or PRESENCE_SEND_MS itself)
-    // keeps a watcher's copy on the dragging seat's actual path instead of a stale point. This bounds
-    // the IN-FLIGHT gap, not only the settled one below.
-    expect(worstOnAlice1.px, `the in-flight gap on alice's board stays well under the old 25-50px`).toBeLessThan(IN_FLIGHT_BOUND_PX);
-    expect(worstOnBob1.px, `and on bob's board, a different size from alice's`).toBeLessThan(IN_FLIGHT_BOUND_PX);
+    // The operator: "dragging opponents effect around is glitchy". While bob's hand moves it, alice's
+    // copy follows it (`gripStackItem`'s relayed catch-up and extrapolation) rather than waiting for
+    // the drop; how closely is `placed.test.ts`'s to bound (see `IN_FLIGHT_SHARE`).
+    expect(dragOnAlice1, 'bob’s drag moved the item').toBeGreaterThan(40);
+    expect(worstOnAlice1.px / dragOnAlice1, `alice’s copy follows bob’s drag while it moves, on her board`).toBeLessThan(IN_FLIGHT_SHARE);
+    expect(worstOnBob1.px / dragOnBob1, `and read on bob’s board, a different size from alice’s`).toBeLessThan(IN_FLIGHT_SHARE);
     // Whatever the transient relay lag is while bob's hand is still moving it, the two screens' own
     // read of where it finally stands must agree — a regression guard on the position CONTRACT
     // itself, proved here on two screens of deliberately DIFFERENT sizes (the operator's own, from
