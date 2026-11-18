@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { io as ioClient } from 'socket.io-client';
 
 import { startRelayGame, type RelayGameState } from './relay-game.ts';
 import type { GameServer } from '@hadoku/service-kernel/server';
@@ -102,6 +103,26 @@ describe('startRelayGame', () => {
 		expect(started.status).toBe(200);
 		expect(started.json.start).toMatchObject({ hostId: (made.json.you as { id: string }).id });
 		expect((started.json.start as { startsInMs: number }).startsInMs).toBeGreaterThan(0);
+	});
+
+	it('a Start pings the room’s watchers: a pending start is no lobby write, so nothing else would', async () => {
+		const made = await call('POST', '/api/rooms', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', { name: 'Feed', gameType: 'toy' });
+		const id = made.json.id as string;
+		const socket = ioClient(base, { transports: ['websocket'], reconnection: false, forceNew: true, extraHeaders: asMember('cccccccc-cccc-4ccc-8ccc-cccccccccccc') });
+		try {
+			const heard: unknown[] = [];
+			socket.on('room-feed:changed', (m: unknown) => heard.push(m));
+			await new Promise<void>((resolve, reject) => {
+				socket.on('connect', () => resolve());
+				socket.on('connect_error', reject);
+			});
+			await socket.timeout(3000).emitWithAck('room-feed:watch', { rooms: [id], list: false });
+			heard.length = 0;
+			expect((await call('POST', `/api/rooms/${id}/start`, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', {})).status).toBe(200);
+			await expect.poll(() => heard, { timeout: 3000 }).toContainEqual({ room: id });
+		} finally {
+			socket.close();
+		}
 	});
 
 	it('takes a seated player’s round result, and refuses one without its round id', async () => {
