@@ -41,13 +41,16 @@ interface Sampled {
   over: { at: number; pairs: [string, number][]; boxes: string[]; frames: number }[];
   frames: number;
   peak: number;
+  /** Every chip's and battlefield card's box, each time it changed (diagnostic, #72). */
+  moves: { at: number; who: string; box: string }[];
 }
 
 /** Every frame until `window.__chipsStop`. */
 async function startSampler(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as unknown as { __chips: Sampled; __chipsStop: boolean };
-    w.__chips = { covers: [], clickable: [], over: [], frames: 0, peak: 0 };
+    w.__chips = { covers: [], clickable: [], over: [], frames: 0, peak: 0, moves: [] };
+    const lastBox = new Map<string, string>();
     w.__chipsStop = false;
     let clickableKey = '';
     let overKey = '';
@@ -90,6 +93,14 @@ async function startSampler(page: Page): Promise<void> {
           });
         }
       }
+      const note = (who: string, el: HTMLElement): void => {
+        const box = `${fmt(el.getBoundingClientRect())} ${['data-placed-held', 'data-placed-pending', 'data-placed-leaving'].filter((m) => el.closest('.placed')?.hasAttribute(m) === true).map((m) => m.slice(12)).join(',')}`;
+        if (lastBox.get(who) === box) return;
+        lastBox.set(who, box);
+        w.__chips.moves.push({ at, who, box });
+      };
+      for (const chip of document.querySelectorAll<HTMLElement>('.placed [data-ability-chip]')) note(`chip ${chip.closest('[data-placed-spell]')?.getAttribute('data-placed-spell') ?? '?'}`, chip);
+      for (const card of cards) note(`card ${card.getAttribute('data-board-card')}`, card);
       const key = pairs.map((p) => p.join(':')).join(',');
       if (key !== overKey) {
         overKey = key;
@@ -160,6 +171,15 @@ test(titled('Breakfast, six rounds deep against a seat with a window of its own:
       expect(await ownCovers(bob, 'bob', when), `${when}: bob's screen drew no chip over a card he can click`).toEqual([]);
       const [a, b] = [await sampled(page), await sampled(bob)];
       const now = Date.now();
+      for (const [screen, other, who] of [[a, b, 'alice'], [b, a, 'bob']] as const) {
+        for (const line of peerCovers(screen, other, now).slice(0, 2)) {
+          const m = /chip (\S+) over card (\d+) from (\d+)/.exec(line);
+          if (m === null) continue;
+          const from = Number(m[3]);
+          const near = screen.moves.filter((v) => (v.who === `chip ${m[1]}` || v.who === `card ${m[2]}`) && Math.abs((Math.round(v.at) % 100_000) - from) < 600);
+          console.log(`[chips] ${who} trajectory for ${line}:\n${near.map((v) => `  ${Math.round(v.at) % 100_000} ${v.who} ${v.box}`).join('\n')}`);
+        }
+      }
       expect(peerCovers(a, b, now).slice(0, 8), `${when}: alice's screen drew no chip over a card bob can click`).toEqual([]);
       expect(peerCovers(b, a, now).slice(0, 8), `${when}: bob's screen drew no chip over a card alice can click`).toEqual([]);
     };
