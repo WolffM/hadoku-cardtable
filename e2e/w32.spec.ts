@@ -268,7 +268,7 @@ async function aliceWears(alice: Friend, bob: Friend, sprite: string, when: stri
     const face = aliceFaceOn(alice, f);
     console.log(`[w32 restart] ${when}: ${f.name}'s board draws alice as ${(await face.getAttribute('data-avatar', { timeout: 30_000 }).catch(() => null)) ?? '(none)'}`);
     await expect(face, `${f.name}: alice's face is ${sprite} ${when}`).toHaveAttribute('data-avatar', sprite, { timeout: 20_000 });
-    await expect(face.getByTestId('seat-avatar'), `${f.name}: the face draws that avatar's image`).toHaveAttribute('src', new RegExp(`square_${sprite}\\.png$`));
+    await expect(face.getByTestId('seat-avatar'), `${f.name}: the face draws that avatar's image`).toHaveAttribute('src', new RegExp(`square_${sprite}\\.png(\\?v=\\d+)?$`));
   }
 }
 
@@ -316,7 +316,7 @@ test(titled('a player who never picked wears the character their account was giv
       expect(own, `${f.name}'s face is their account's character`).toBe(f === alice ? theirs.alice : theirs.bob);
       await expect(theirFace(other), `${other.name}'s screen draws ${f.name}'s face with the same avatar`).toHaveAttribute('data-avatar', own);
       for (const face of [ownFace(f), theirFace(other)]) {
-        await expect(face.getByTestId('seat-avatar'), `${f.name}'s face is that character's image`).toHaveAttribute('src', new RegExp(`square_${own}\\.png$`));
+        await expect(face.getByTestId('seat-avatar'), `${f.name}'s face is that character's image`).toHaveAttribute('src', new RegExp(`square_${own}\\.png(\\?v=\\d+)?$`));
       }
     }
 

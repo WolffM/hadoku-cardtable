@@ -16,6 +16,7 @@
  */
 
 import { AVATAR_ID_MAX } from '@hadoku/platform-wire/look';
+import { avatarPortraitPath } from '@wolffm/rooms-protocol';
 
 /**
  * Watchparty's server, on whatever origin serves this page. In production that
@@ -33,13 +34,14 @@ export function watchpartyOrigin(): string {
 /**
  * The image that draws one avatar, or null when there is nothing to draw.
  *
- * `square_<id>.png` under the chrome's own `serverOrigin` is watchparty's own
- * media convention, not ours: every id in `@wolffm/rooms-protocol`'s `AVATAR_POOL` has
- * one (checked 2026-11-01), and `@wolffm/prefs-client/avatar`'s `ResolvedAvatar`
- * carries no URL for a `sprite` source by design — "the app that owns the art
- * … owns its URL and revision" (its own `.d.ts`). So this stays the one place
- * that builds the path, same-origin by construction (no host written down,
- * so a local e2e stays local).
+ * The path is watchparty's own media convention, not ours, and it is the room
+ * protocol's to spell: `@wolffm/rooms-protocol`'s `avatarPortraitPath`
+ * (`square_<id>.png`, plus `?v=<rev>` for art redrawn in place — the sprites are
+ * served immutable for a year, so without it a redrawn character kept its old
+ * face here). `@wolffm/prefs-client/avatar`'s `ResolvedAvatar` carries no URL
+ * for a `sprite` source by design — "the app that owns the art … owns its URL
+ * and revision" (its own `.d.ts`). This prefixes the origin, same-origin by
+ * construction (no host written down, so a local e2e stays local).
  *
  * Null for an absent, blank or over-long id rather than a URL ending
  * `square_.png`, which is a 404 drawn as a broken image where the caller wanted
@@ -51,7 +53,7 @@ export function watchpartyOrigin(): string {
 export function avatarSquareUrl(avatarId: string | null | undefined, origin?: string): string | null {
   const id = normalizeAvatarId(avatarId);
   if (id === null) return null;
-  return `${(origin ?? watchpartyOrigin()).replace(/\/$/, '')}/media/sprites/square_${encodeURIComponent(id)}.png`;
+  return `${(origin ?? watchpartyOrigin()).replace(/\/$/, '')}${avatarPortraitPath(id)}`;
 }
 
 /** The same two-state reading the server does, so a client cannot send what it would refuse. */

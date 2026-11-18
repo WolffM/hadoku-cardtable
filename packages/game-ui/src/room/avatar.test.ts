@@ -42,6 +42,13 @@ describe('the sprite URL', () => {
     expect(avatarSquareUrl('mage', `${ORIGIN}/`)).toBe(`${ORIGIN}/media/sprites/square_mage.png`);
   });
 
+  // The sprites are served immutable for a year: a portrait redrawn in place carries its revision,
+  // or a browser that saw the old art keeps it (rooms-protocol's AVATAR_ART_REV).
+  it('versions a redrawn portrait, as watchparty does', () => {
+    expect(avatarSquareUrl('doll', ORIGIN)).toBe(`${ORIGIN}/media/sprites/square_doll.png?v=2`);
+    expect(avatarSquareUrl('walker', ORIGIN)).toBe(`${ORIGIN}/media/sprites/square_walker.png?v=2`);
+  });
+
   it('is null rather than a URL ending square_.png when there is nothing to draw', () => {
     for (const nothing of [null, undefined, '', '   ', 'x'.repeat(AVATAR_ID_MAX + 1)]) {
       expect(avatarSquareUrl(nothing, ORIGIN)).toBeNull();

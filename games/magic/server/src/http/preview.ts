@@ -30,6 +30,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { Resvg } from "@resvg/resvg-js";
+import { avatarPortraitPath } from "@wolffm/rooms-protocol";
 import type { RateLimitConfig } from "@wolffm/rooms-server";
 import type { Request, Response, Router } from "express";
 import { planDisplayName, ROOM_ID_RE, type DraftPlan, type RoomMember } from "@hadoku/shared";
@@ -92,7 +93,7 @@ export interface PreviewDeps {
     usersOf(roomId: string): { memberId: string; userId: string }[];
   };
   people: Pick<People, "resolve">;
-  /** Watchparty's own origin, whose `/media/sprites/square_<id>.png` draws a character. */
+  /** Watchparty's own origin, whose portraits (`avatarPortraitPath`, `/media/sprites/square_<id>.png`) draw a character. */
   watchpartyBase: string;
   /** The OFL faces the card is set in (Cinzel), beside the system's sans. */
   fontFiles: readonly string[];
@@ -201,7 +202,8 @@ function allowedPicture(url: string | undefined): string | null {
 
 function spriteUrl(base: string, id: string | null | undefined): string | null {
   if (typeof id !== "string" || !/^[a-z0-9_-]{1,32}$/i.test(id)) return null;
-  return `${base.replace(/\/$/, "")}/media/sprites/square_${encodeURIComponent(id)}.png`;
+  // The portrait's own revision rides in the URL (`avatarPortraitPath`): the edge caches the sprite for a year.
+  return `${base.replace(/\/$/, "")}${avatarPortraitPath(id)}`;
 }
 
 function faceOf(

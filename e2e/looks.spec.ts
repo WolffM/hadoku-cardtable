@@ -56,7 +56,7 @@ test(titled('a picture, an overlay and a name effect show on the room seat, on t
     await expect(seat.locator('.pod-seats__label[data-dressed] .hc-name'), 'alice’s name wears its effect').toHaveCount(1);
     // Bob wears nothing: his own seat is his character and a plain name.
     const bobSeat = bob.page.locator('[data-testid^="room-seat-"][data-mine]');
-    await expect(bobSeat.locator('img')).toHaveAttribute('src', /square_[a-z]+\.png$/);
+    await expect(bobSeat.locator('img')).toHaveAttribute('src', /square_[a-z]+\.png(\?v=\d+)?$/);
     await expect(bobSeat.locator('[data-dressed]')).toHaveCount(0);
 
     // The board: bob readies, the match starts, and alice's face is the same.

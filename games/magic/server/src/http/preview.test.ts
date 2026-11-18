@@ -160,6 +160,20 @@ describe("GET /preview/room/:id.{html,png}", () => {
       }),
     );
     rooms.set(
+      "r-doll",
+      room({
+        members: [
+          {
+            id: "fk:host",
+            name: "friend",
+            joinedAt: "",
+            ready: false,
+            avatarId: "doll",
+          },
+        ],
+      }),
+    );
+    rooms.set(
       "r-evil",
       room({
         members: [
@@ -184,7 +198,7 @@ describe("GET /preview/room/:id.{html,png}", () => {
                 {
                   memberId: "fk:host",
                   userId:
-                    id === "r-evil" || id === "r-unnamed" ? "u-gone" : "u-host",
+                    id === "r-evil" || id === "r-unnamed" || id === "r-doll" ? "u-gone" : "u-host",
                 },
               ]
             : [],
@@ -240,6 +254,12 @@ describe("GET /preview/room/:id.{html,png}", () => {
     const res = await fetch(`${base}/preview/room/r-evil.png`);
     expect(res.status).toBe(200);
     expect(fetched).toEqual([]);
+  });
+
+  // The edge caches a sprite for a year: a portrait redrawn in place is asked for at its revision.
+  it("asks for a redrawn character's portrait at its revision", async () => {
+    const faces = await facesOf("r-doll", rooms.get("r-doll")!, deps);
+    expect(faces?.left.picture).toBe("https://hadoku.me/watchparty/media/sprites/square_doll.png?v=2");
   });
 
   it("never prints the room's placeholder name, and keeps no card drawn without the person", async () => {

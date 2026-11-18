@@ -66,7 +66,8 @@ function square(size: number): Buffer {
 async function serveSprites(f: Friend): Promise<Set<string>> {
   const asked = new Set<string>();
   const png = square(16);
-  await f.context.route('**/watchparty/media/sprites/square_*.png', (route) => {
+  // `*` after `.png`: a redrawn portrait is asked for at its revision (`?v=2`, rooms-protocol's avatarPortraitPath).
+  await f.context.route('**/watchparty/media/sprites/square_*.png*', (route) => {
     const id = /square_([^/]+)\.png$/.exec(new URL(route.request().url()).pathname)?.[1];
     if (id !== undefined) asked.add(decodeURIComponent(id));
     return route.fulfill({ status: 200, contentType: 'image/png', body: png });
