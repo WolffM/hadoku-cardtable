@@ -49,7 +49,8 @@ import { leaveSeat, readySeat, seatList, sitAt, type TableSeats } from '@hadoku/
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { loadPool } from '../room/pool.js';
 import { act, choose, drawGauntlet, gameOver, gauntletEras, newGauntlet, startBanpick, viewOfGauntlet, type GauntletState } from '../room/gauntlet.js';
-import { createKeyBook, createMatchStats, createStatsReporter } from '../stats/index.js';
+import { createStatsReporter } from '@hadoku/game-server/stats/reporter';
+import { createKeyBook, createMatchStats } from '../stats/index.js';
 import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
 import { LIBRARY, formatIdOf, type LibraryCollection } from '@hadoku/deck/library';
@@ -575,7 +576,13 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory<BridgeLin
 	const stats = createMatchStats({
 		keys,
 		log: (e) => statsLogs.push(e),
-		reporter: createStatsReporter({ record: async (r) => (reports.push(r), { duplicate: false }), log: (e) => statsLogs.push(e) }),
+		reporter: createStatsReporter({
+			gameId: 'cardtable',
+			serviceKey: 'k',
+			record: async (_opts, r) => (reports.push(r), { matchId: r.matchId, duplicate: false, ratings: {} }),
+			log: (e) => statsLogs.push(e),
+			retryDelaysMs: [],
+		}),
 		startOf: tables.matchStart,
 	});
 	const play = playMod.attachPlay(io, api, {

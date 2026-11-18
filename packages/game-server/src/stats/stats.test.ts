@@ -42,10 +42,18 @@ describe('createStatsReporter', () => {
 		expect(reporter.report(REPORT)).toBeUndefined();
 		await reporter.idle();
 		expect(calls).toHaveLength(1);
-		expect(calls[0]?.opts).toMatchObject({ gameId: 'toy', serviceKey: 'svc-key' });
+		expect(calls[0]?.opts).toEqual({ gameId: 'toy', serviceKey: 'svc-key' });
 		expect(lines.at(-1)?.evt).toBe('stats-recorded');
 		expect(JSON.stringify(lines)).not.toContain('friend-key');
 		expect(JSON.stringify(lines)).not.toContain('svc-key');
+	});
+
+	it('posts to the game’s own stats mount when it names one', async () => {
+		const { calls, record } = recorder(['ok']);
+		const reporter = createStatsReporter({ gameId: 'toy', serviceKey: 'k', baseUrl: 'https://example.test/prefs', log: () => {}, record, retryDelaysMs: [] });
+		reporter.report(REPORT);
+		await reporter.idle();
+		expect(calls[0]?.opts).toEqual({ gameId: 'toy', serviceKey: 'k', baseUrl: 'https://example.test/prefs' });
 	});
 
 	it('retries a transient failure with the same matchId, and stops at the bound', async () => {

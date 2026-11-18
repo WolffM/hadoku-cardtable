@@ -18,10 +18,9 @@ import type { SeriesEnd } from '../room/pods.js';
 import { matchFacts } from './facts.js';
 import type { KeyBook } from './keys.js';
 import { buildMatchReport, buildSeriesReport, type MatchStart, type SeatStart, type SeriesSeatStart } from './report.js';
-import type { StatsReporter } from './reporter.js';
+import type { StatsReporter } from '@hadoku/game-server/stats/reporter';
 
 export { createKeyBook, type KeyBook } from './keys.js';
-export { createStatsReporter, type RecordFn, type StatsReporter } from './reporter.js';
 export { summarizeDeck, type DeckSummary, type MatchStart } from './report.js';
 
 /** A seat as the room knows it: Forge's AI, or the member holding it (whose key the book holds). */

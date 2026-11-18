@@ -25,6 +25,8 @@ export interface StatsReporterOptions {
   serviceKey: string | undefined;
   /** The env var that sets it, named in the one line that says reporting is off. */
   serviceKeyEnvVar?: string;
+  /** The prefs mount the store is under, without `/api/v1`. Default: prefs-client's own (hadoku.me). */
+  baseUrl?: string;
   log: (line: Record<string, unknown>) => void;
   /** Injected by tests. `recordMatch` from @wolffm/prefs-client/games otherwise. */
   record?: RecordMatch;
@@ -84,7 +86,7 @@ export function createStatsReporter(opts: StatsReporterOptions): StatsReporter {
   const send = async (report: MatchReport): Promise<void> => {
     for (let attempt = 0; ; attempt += 1) {
       try {
-        const res = await record({ gameId: opts.gameId, serviceKey }, report);
+        const res = await record({ gameId: opts.gameId, serviceKey, ...(opts.baseUrl === undefined ? {} : { baseUrl: opts.baseUrl }) }, report);
         log({
           evt: 'stats-recorded',
           matchId: report.matchId,

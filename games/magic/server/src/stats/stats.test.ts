@@ -3,7 +3,7 @@
  * played through a real `Match`, then carried past turn 1 by hand-written
  * deltas in the transcript's own shape: what a finished match is read as
  * (`facts.ts`), what is reported (`report.ts`), how the report is sent
- * (`reporter.ts`), and who it names (`keys.ts`, `index.ts`).
+ * (game-server's `stats/reporter`), and who it names (`keys.ts`, `index.ts`).
  */
 
 
@@ -20,7 +20,8 @@ import type { BridgeLine } from '../play/bridge-protocol.js';
 import { createMatchRegistry, type Match } from '../play/match.js';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
 import { matchFacts } from './facts.js';
-import { createKeyBook, createMatchStats, createStatsReporter, summarizeDeck, type MatchStart } from './index.js';
+import { createStatsReporter } from '@hadoku/game-server/stats/reporter';
+import { createKeyBook, createMatchStats, summarizeDeck, type MatchStart } from './index.js';
 import { buildMatchReport } from './report.js';
 import { REPO_ROOT } from '../root.js';
 
@@ -91,6 +92,18 @@ const START: MatchStart = {
 		{ kind: 'guest', displayName: 'Bob', deck: { name: 'Eternal Thirst', colors: ['U', 'B'], cards: 60, basicLands: 22 } },
 	],
 };
+
+
+/** game-server's reporter, recording into `sent` with no network and no retry waits. */
+function reporterInto(sent: MatchReport[], log: (e: Record<string, unknown>) => void) {
+	return createStatsReporter({
+		gameId: 'cardtable',
+		serviceKey: 'k',
+		record: async (_opts, r) => (sent.push(r), { matchId: r.matchId, duplicate: false, ratings: {} }),
+		log,
+		retryDelaysMs: [],
+	});
+}
 
 describe('what a finished match is read as', () => {
 	it('is null until Forge says the game is over', () => {
@@ -288,46 +301,6 @@ describe("a deck's summary", () => {
 	});
 });
 
-describe('the reporter', () => {
-	const REPORT = { matchId: 'm-0123456789ab', endedAt: 1, seats: [] } as MatchReport;
-
-	it('without a key, records nothing and says so once', async () => {
-		const logs: Record<string, unknown>[] = [];
-		const reporter = createStatsReporter({ record: null, log: (e) => logs.push(e) });
-		await reporter.report(REPORT);
-		await reporter.report(REPORT);
-		expect(logs).toEqual([{ evt: 'stats-disabled', reason: 'CARDTABLE_SERVICE_KEY is not set' }]);
-	});
-
-	it('retries a server error, spaced, and logs the match id only', async () => {
-		const logs: Record<string, unknown>[] = [];
-		const waits: number[] = [];
-		const record = vi
-			.fn()
-			.mockRejectedValueOnce(Object.assign(new Error('HTTP 502'), { status: 502 }))
-			.mockRejectedValueOnce(new Error('fetch failed'))
-			.mockResolvedValueOnce({ duplicate: false });
-		const reporter = createStatsReporter({ record, log: (e) => logs.push(e), delayMs: 10, sleep: async (ms) => void waits.push(ms) });
-		await reporter.report(REPORT);
-		expect(record).toHaveBeenCalledTimes(3);
-		expect(waits).toEqual([10, 20]);
-		expect(logs.map((l) => l.evt)).toEqual(['stats-retry', 'stats-retry', 'stats-recorded']);
-		expect(logs.every((l) => l.matchId === REPORT.matchId)).toBe(true);
-	});
-
-	it('gives up at once on a request the store refused, and after the last attempt otherwise — never throwing', async () => {
-		const logs: Record<string, unknown>[] = [];
-		const refused = vi.fn().mockRejectedValue(Object.assign(new Error('seat 0: unknown key'), { status: 400 }));
-		await createStatsReporter({ record: refused, log: (e) => logs.push(e), sleep: async () => undefined }).report(REPORT);
-		expect(refused).toHaveBeenCalledTimes(1);
-		expect(logs).toEqual([{ evt: 'stats-failed', matchId: REPORT.matchId, attempt: 1, status: 400, error: 'seat 0: unknown key' }]);
-
-		const down = vi.fn().mockRejectedValue(new Error('fetch failed'));
-		await expect(createStatsReporter({ record: down, log: () => undefined, attempts: 2, sleep: async () => undefined }).report(REPORT)).resolves.toBeUndefined();
-		expect(down).toHaveBeenCalledTimes(2);
-	});
-});
-
 describe('who a report names', () => {
 	function requestWith(key: string | undefined): Request {
 		// The edge stamps the key beside the userId it signs in; `user-<name>` for `k-<name>`.
@@ -361,7 +334,7 @@ describe('who a report names', () => {
 		const stats = createMatchStats({
 			keys: book,
 			log: (e) => logs.push(e),
-			reporter: createStatsReporter({ record: async (r) => (sent.push(r), { duplicate: false }), log: (e) => logs.push(e) }),
+			reporter: reporterInto(sent, (e) => logs.push(e)),
 			startOf: (m) =>
 				m.id !== h.match.id
 					? null
@@ -392,7 +365,7 @@ describe('who a report names', () => {
 		const stats = createMatchStats({
 			keys: createKeyBook(),
 			log: (e) => logs.push(e),
-			reporter: createStatsReporter({ record, log: (e) => logs.push(e) }),
+			reporter: createStatsReporter({ gameId: 'cardtable', serviceKey: 'k', record, log: (e) => logs.push(e) }),
 			startOf: () => null,
 		});
 		const h = harness();
@@ -419,7 +392,7 @@ describe('a series result', () => {
 		const stats = createMatchStats({
 			keys: book,
 			log: () => undefined,
-			reporter: createStatsReporter({ record: async (r) => (sent.push(r), { duplicate: false }), log: () => undefined }),
+			reporter: reporterInto(sent, () => undefined),
 			startOf: () => null,
 		});
 		return { stats, sent };
