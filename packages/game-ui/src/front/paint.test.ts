@@ -54,9 +54,6 @@ const HOST: Record<string, string> = {
   'ct-panel': 'the trim hook: ui-shell’s `trim.css` decorates it only when a trim is chosen',
   'ct-panel__title': 'the trim hook’s title, decorated only when a trim is chosen',
   'ct-error': 'the host’s error-line class, beside `rooms__error` (which this package paints)',
-  pill: 'StatusPill’s own block: its paint is still cardtable’s `screens.css`, not this package’s (see the closing report)',
-  'pill--ready': 'StatusPill, as above',
-  pill__mark: 'StatusPill, as above',
   'hdk-icon': '`@wolffm/themes`’ own icon (the dialog’s close), painted by the themes package',
 };
 
@@ -99,15 +96,42 @@ const mount = (el: ReactElement): void => {
   render(el);
 };
 
-describe('the front page’s and the seats’ stylesheets', () => {
+/** Every stylesheet under game-ui's and ui-shell's `src`, comments blanked. */
+function packageSheets(): { rel: string; css: string }[] {
+  const out: { rel: string; css: string }[] = [];
+  const walk = (dir: string, root: string): void => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p, root);
+      else if (e.name.endsWith('.css')) out.push({ rel: p.slice(root.length + 1), css: readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '') });
+    }
+  };
+  for (const r of ROOTS) walk(r, resolve(r, '../..'));
+  return out;
+}
+
+/**
+ * The hooks a platform sheet offers a game: read with a default of the sheet's own, never required.
+ * `--z-*` is the host's stacking scale, read with its number.
+ */
+const HOOKS = ['--room-front-', '--lobby-shell-', '--seat-', '--conn-', '--bundle-slot-', '--z-'];
+
+describe('every platform stylesheet', () => {
   // Any game draws these, and a game has the theme's tokens (`@wolffm/themes`) and nothing else:
-  // cardtable's own `--ink`/`--danger` aliases resolve to nothing on bomberman's page.
-  it('read the theme’s own tokens and their own hooks, never a host app’s aliases', () => {
-    const OWN = /^--(color-|hdk-|z-modal$|room-front-|lobby-shell-|seat-)/;
-    const sheets = ['front/RoomFront.css', 'front/LobbyShell.css', 'seats/SeatChip.css'];
-    const foreign = sheets.flatMap((rel) =>
-      [...readFileSync(resolve(HERE, '..', rel), 'utf8').matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]!).filter((name) => !OWN.test(name)).map((name) => `${rel}: ${name}`),
-    );
+  // cardtable's own `--ink`/`--danger`/`--radius` aliases resolve to nothing on bomberman's page.
+  it('reads the theme’s own tokens, its own properties, or a hook with a default, never a host app’s aliases', () => {
+    const sheets = packageSheets();
+    const declared = new Set(sheets.flatMap(({ css }) => [...css.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]!)));
+    const foreign: string[] = [];
+    for (const { rel, css } of sheets) {
+      for (const m of css.matchAll(/var\(\s*(--[\w-]+)\s*(,)?/g)) {
+        const name = m[1]!;
+        if (/^--(color|hdk)-/.test(name) || declared.has(name)) continue;
+        if (m[2] === ',' && HOOKS.some((h) => name.startsWith(h))) continue;
+        foreign.push(`${rel}: ${name}${m[2] === ',' ? '' : ' (no default)'}`);
+      }
+    }
+    expect(sheets.length).toBeGreaterThan(10);
     expect(foreign).toEqual([]);
   });
 });

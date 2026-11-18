@@ -67,7 +67,7 @@
  */
 .reveal__skeleton .ghost {
   color: transparent;
-  background: color-mix(in srgb, var(--ink-faint) 22%, var(--bg-card));
+  background: color-mix(in srgb, var(--color-text-secondary) 22%, var(--color-bg-hover));
   border-color: transparent;
   box-shadow: none;
 }

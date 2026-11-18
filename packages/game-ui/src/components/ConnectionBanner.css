@@ -1,7 +1,7 @@
 /*
- * The connection banner (`ConnectionBanner.tsx`). It CONSUMES the palette on
- * `:root` and redefines none of it; a fallback is given on each `var()` that
- * needs one so a banner rendered outside the app is still legible.
+ * The connection banner (`ConnectionBanner.tsx`). Theme tokens only, so it reads the same in any
+ * game. The recovered edge is the theme's success unless a game names its own
+ * (`--conn-recovered-edge`: cardtable's colour-pie green).
  */
 
 .conn {
@@ -9,26 +9,26 @@
   gap: 10px;
   align-items: flex-start;
   padding: 10px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--color-border);
   border-left-width: 3px;
-  border-radius: var(--radius, 8px);
-  background: var(--bg-raised);
-  color: var(--ink);
+  border-radius: var(--hdk-radius-lg);
+  background: var(--color-bg-card);
+  color: var(--color-text);
 }
 
 /* The phase, as a colour. Never the only signal — the label says it in words. */
 .conn--connecting,
 .conn--reconnecting,
 .conn--resyncing {
-  border-left-color: var(--accent);
+  border-left-color: var(--color-primary);
 }
 
 .conn--offline {
-  border-left-color: var(--warn);
+  border-left-color: var(--color-warning);
 }
 
 .conn--recovered {
-  border-left-color: var(--c-green);
+  border-left-color: var(--conn-recovered-edge, var(--color-success));
 }
 
 .conn__dot {
@@ -73,5 +73,5 @@
 }
 
 .conn__detail {
-  color: var(--ink-dim);
+  color: var(--color-text-secondary);
 }

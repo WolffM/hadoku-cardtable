@@ -27,7 +27,7 @@
 
 .ct-action--danger:hover,
 .ct-action--danger:focus-visible {
-  background: var(--danger);
-  color: var(--on-danger);
-  border-color: var(--danger);
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+  border-color: var(--color-danger);
 }

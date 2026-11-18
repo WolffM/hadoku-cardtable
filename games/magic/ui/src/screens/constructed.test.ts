@@ -29,6 +29,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -142,15 +143,17 @@ afterEach(() => {
 });
 
 const SCREENS_CSS = readFileSync(resolve(import.meta.dirname ?? 'games/magic/ui/src/screens', 'screens.css'), 'utf8');
+/** The pill's own paint: game-ui's, with `StatusPill`. */
+const PILL_CSS = readFileSync(createRequire(import.meta.url).resolve('@hadoku/game-ui/components/StatusPill.css'), 'utf8');
 
 /**
- * `screens.css` on the document for this test, and a reader of what the cascade
- * gives a rendered element — so "colour is not the only signal" is asserted on
- * the pills actually drawn. jsdom resolves the cascade but lays nothing out.
+ * `screens.css` and the pill's sheet on the document for this test, and a reader of what the
+ * cascade gives a rendered element — so "colour is not the only signal" is asserted on the pills
+ * actually drawn. jsdom resolves the cascade but lays nothing out.
  */
 function styled(): (el: Element, property: string) => string {
   const sheet = document.createElement('style');
-  sheet.textContent = SCREENS_CSS;
+  sheet.textContent = `${PILL_CSS}\n${SCREENS_CSS}`;
   document.head.append(sheet);
   onTestFinished(() => sheet.remove());
   return (el, property) => getComputedStyle(el).getPropertyValue(property).trim();

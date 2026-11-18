@@ -204,6 +204,8 @@
   --c-red: #d4715f;
   --c-green: #6da879;
   --c-generic: #565d68;
+  /* game-ui's connection banner, once a dropped connection is back: our green, not the theme's success. */
+  --conn-recovered-edge: var(--c-green);
 
   /* Discord's own dark-client colours: the front page's chat card is a picture of Discord (the operator, 2026-10-28). */
   --discord-bg: #313338;

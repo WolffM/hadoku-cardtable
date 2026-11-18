@@ -120,6 +120,13 @@ describe('roomCoreClient', () => {
     expect(await client(fake(403, { error: 'not yours' })).reset('r-1')).toEqual({ ok: false, message: 'Could not reset the room: not yours.' });
   });
 
+  it('binds a host’s room to one of this game’s, through room-core’s own route', async () => {
+    const f = fake(200, { id: 'r-9', name: 'Nine' });
+    expect(await client(f).bindWatchparty('wp-room')).toEqual({ ok: true, room: { id: 'r-9', name: 'Nine', start: null } });
+    expect(f.sent[0]).toEqual({ url: '/game/api/rooms/watchparty', method: 'POST', body: { room: 'wp-room' } });
+    expect(await client(fake(403, { error: 'no' })).bindWatchparty('wp-room')).toEqual({ ok: false, message: 'Could not open this room’s table: no.' });
+  });
+
   it('carries a game’s own route with the same refusals', async () => {
     const f = fake(400, { error: 'not now' });
     expect(await client(f).write('/r-1/start', {}, 'Could not start')).toEqual({ ok: false, message: 'Could not start: not now.' });

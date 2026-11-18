@@ -53,6 +53,8 @@ export interface SeatListProps {
   iLead: boolean;
   /** An event's room before its seats open: nobody sits, nor gives a seat to the bot. */
   shut?: boolean;
+  /** `false` for a game with no Ready step (its Start is a press): no seat draws a ready pill. */
+  readiness?: boolean;
   /** A fixed field (a Challenge's): no seat is grown, given to the bot, taken from it or closed. */
   fieldFixed?: boolean;
   /** How many of `slots` are seats the room has today — the rest are one caller-grown "+1" slot. An open seat at or past this index offers Sit to nobody already seated, and Close to nobody at all. */
@@ -85,7 +87,7 @@ export interface SeatListProps {
 }
 
 /** A strip of seats, one `<li>` each: dashed-open / "×"-closed / the bot's own look / a member's avatar, a label underneath, every action its own always-visible button. */
-export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realSeatCount, mySeat, onSit, onBotOn, onBotOff, onCloseSeat, onOpenSeat, onRemoveMember, onBotReplace, onMakeLeader }: SeatListProps) {
+export function SeatList({ slots, iLead, shut = false, readiness = true, fieldFixed = false, realSeatCount, mySeat, onSit, onBotOn, onBotOff, onCloseSeat, onOpenSeat, onRemoveMember, onBotReplace, onMakeLeader }: SeatListProps) {
   return (
     <ul className="pod-seats" data-testid="pod-seats">
       {slots.map(({ seat, occupant }) => {
@@ -172,7 +174,7 @@ export function SeatList({ slots, iLead, shut = false, fieldFixed = false, realS
               )}
             </span>
             <PlayerName name={name} face={face} className="pod-seats__label" />
-            <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />
+            {readiness && <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />}
             {iLead && !mine && (onRemoveMember !== undefined || onBotReplace !== undefined || onMakeLeader !== undefined) && (
               <span className="pod-seats__actions">
                 {onRemoveMember !== undefined && (

@@ -320,7 +320,7 @@
 .cardtable-chrome .deck,
 .cardtable-chrome .rooms,
 .cardtable-chrome .spectate {
-  background-color: var(--bg);
+  background-color: var(--color-bg);
 }
 
 .cardtable-chrome .draft,
@@ -332,5 +332,5 @@
 .cardtable-chrome .conn,
 .cardtable-chrome .prompt,
 .cardtable-chrome .confirm {
-  color: var(--ink);
+  color: var(--color-text);
 }

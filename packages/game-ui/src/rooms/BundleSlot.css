@@ -17,9 +17,9 @@
   position: relative;
   flex: 1;
   min-height: 320px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-lg);
+  background: var(--color-bg-card);
 }
 
 .room-bundle-slot__result {
@@ -29,5 +29,6 @@
 
 .room-bundle-slot__error {
   margin: 0;
-  color: var(--danger);
+  /* The theme's danger as the line's ink, a game may give its own (`--bundle-slot-error-ink`). */
+  color: var(--bundle-slot-error-ink, var(--color-danger));
 }

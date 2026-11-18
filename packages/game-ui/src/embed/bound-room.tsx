@@ -15,27 +15,23 @@ import type { HadokuThemeValue } from '@wolffm/themes';
 import { THEME_FAMILIES } from '@wolffm/themes';
 import { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
 
-import { apiUrl, bodyOf, isRecord, pageFetch, sendJson, serverMessage, type Fetch } from '../http.ts';
+import { isRecord, pageFetch, type Fetch } from '../http.ts';
+import { roomCoreClient } from '../rooms/room-core-client.ts';
 
 export type BindOutcome = { ok: true; roomId: string } | { ok: false; message: string };
 
 /** Which of this game's rooms a host room plays in. Never throws: a failure is an outcome the embed renders. */
 export type BindRoom = (hostRoom: string) => Promise<BindOutcome>;
 
-/** The game server's own answer, over `fetchImpl`. */
+/** A bound room's id, and only one this game's server could have made (`ROOM_ID_RE`): anything else is not a room. */
+const boundRoomId = (body: unknown): string | null => (isRecord(body) && typeof body.id === 'string' && ROOM_ID_RE.test(body.id) ? body.id : null);
+
+/** The game server's own answer (room-core's binding, through game-ui's room client), over `fetchImpl`. */
 export function bindWatchpartyRoom(fetchImpl: Fetch = pageFetch): BindRoom {
+  const rooms = roomCoreClient({ parse: boundRoomId, fetch: fetchImpl });
   return async (hostRoom) => {
-    let res: Response;
-    try {
-      res = await sendJson(apiUrl('rooms/watchparty'), 'POST', { room: hostRoom }, fetchImpl);
-    } catch {
-      return { ok: false, message: 'Could not reach the server.' };
-    }
-    const body = await bodyOf(res);
-    if (!res.ok) return { ok: false, message: `Could not open this room’s table: ${serverMessage(body, res.status)}.` };
-    const roomId = isRecord(body) ? body.id : undefined;
-    if (typeof roomId !== 'string' || !ROOM_ID_RE.test(roomId)) return { ok: false, message: 'The server answered with something that is not a room.' };
-    return { ok: true, roomId };
+    const outcome = await rooms.bindWatchparty(hostRoom);
+    return outcome.ok ? { ok: true, roomId: outcome.room } : outcome;
   };
 }
 

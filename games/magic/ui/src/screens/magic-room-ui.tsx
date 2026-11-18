@@ -3223,7 +3223,7 @@ function PlayerRow({
       ) : (
         <ActionButton
           action={player.ready ? 'unready' : 'ready'}
-          className="pill pill--ready pill--button"
+          className="pill pill--button"
           data-testid="ready-toggle"
           data-state={player.ready ? 'yes' : 'no'}
           data-mark={player.ready ? 'tick' : 'ring'}
