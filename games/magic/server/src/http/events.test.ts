@@ -534,6 +534,27 @@ describe('who organized an event, and who attached a form (R12)', () => {
 		expect(FormListSchema.parse((await call(base, 'bob', 'GET', '/events/forms')).body).forms.map((f) => f.attachedBy)).toEqual(['Alice Now']);
 	});
 
+	it('an event made from a form is its creator’s, whoever sends the request, and the creator moves it', async () => {
+		const clock = { now: Date.UTC(2026, 10, 10, 12) };
+		const START = '2026-11-29T22:30:00.000Z';
+		const rally = { mine: rallyForm('mine', { createdById: 'user-mika' }), anon: rallyForm('anon') };
+		const { base, file, lobby } = await openApp(clock, rally, { people: { 'user-mika': 'Mika Now', 'user-svc': 'cardtable-service-key' } });
+		const made = await call(base, 'svc', 'POST', '/events', { ...tournament('Major', START, { gameType: 'draft' }), formId: 'mine' });
+		expect(made.status).toBe(201);
+		expect(EventViewSchema.parse(made.body)).toMatchObject({ organizer: 'Mika Now', mine: false });
+		const id = EventViewSchema.parse(made.body).id;
+		await vi.waitFor(async () => expect(JSON.parse(await readFile(file, 'utf8')).events).toHaveLength(1));
+		expect(JSON.parse(await readFile(file, 'utf8'))).toMatchObject({ events: [{ organizerUserId: 'user-mika' }] });
+		const room = EventViewSchema.parse(made.body).roomId!;
+		expect(lobby.usersOf(room).map((u) => u.userId), 'the room is the creator’s; the service caller never sits in it').toEqual(['user-mika']);
+		expect(EventListSchema.parse((await call(base, 'mika', 'GET', '/events')).body).events).toMatchObject([{ organizer: 'Mika Now', mine: true }]);
+		expect((await call(base, 'svc', 'PATCH', `/events/${id}`, { startsAt: '2026-11-29T23:00:00.000Z' })).status).toBe(403);
+		expect((await call(base, 'mika', 'PATCH', `/events/${id}`, { startsAt: '2026-11-29T23:00:00.000Z' })).status).toBe(200);
+		// Rally names nobody (an anonymous creator): the caller organizes it.
+		const own = await call(base, 'alice', 'POST', '/events', { ...tournament('Own', START, { gameType: 'draft' }), formId: 'anon' });
+		expect(EventViewSchema.parse(own.body)).toMatchObject({ organizer: 'user-alice', mine: true });
+	});
+
 	it('a record from before userIds were kept still shows the name it stored', async () => {
 		const clock = { now: Date.UTC(2026, 9, 28, 12) };
 		const legacy = { events: [], forms: [{ formId: 'abc123', attachedById: 'fk:1111111111111111', attachedByName: 'Old Alice', attachedAt: clock.now }] };

@@ -53,6 +53,7 @@ import {
 import type { DiscordEvents } from '@hadoku/game-server/room/discord-events';
 import type { EventRecord, Events, FormRecord } from '@hadoku/game-server/room/events';
 import { callerOf, httpCaller, parseBody, perCallerLimit } from '@hadoku/game-server/http/request';
+import { deriveParticipantId } from '@hadoku/game-server/room/identity';
 import type { People, Person } from '@hadoku/game-server/people';
 import { type Lobby, type MagicRoomView } from '../room/lobby.js';
 import { magicView } from '../room/magic-view.js';
@@ -325,6 +326,8 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (startsAt < now() - STARTS_AT_GRACE_MS) return res.status(400).json({ error: 'startsAt must not be in the past' });
 		// The form is checked before the room exists too: only a sign-up form Rally knows is linked.
 		let formClosed = false;
+		// An event made from a form is its creator's, whoever sends the request (the service key, a friend).
+		let organizer = { id: caller.id, userId: caller.userId };
 		if (body.formId !== undefined) {
 			const found = await summary(body.formId);
 			if (!found.ok || !isEventSignupForm(found.summary)) {
@@ -334,6 +337,8 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 				return res.status(502).json({ error: 'Rally did not answer; try again in a moment' });
 			}
 			formClosed = found.summary.status === 'closed';
+			const creator = found.summary.createdById;
+			if (creator !== undefined) organizer = { id: deriveParticipantId({ accountId: creator, socketId: '' }), userId: creator };
 		}
 		if (!createLimit(req, res)) return;
 
@@ -341,21 +346,26 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		const verdict = body.plan === undefined ? null : await deps.checkPlan(body.plan);
 		if (verdict !== null && !verdict.ok) return res.status(409).json({ verdict });
 
-		const created = lobby.create(caller, { ...body.room, scheduledFor: startsAt });
+		// The room is the organizer's too: a service caller making it for a form's creator never sits in it.
+		// Their name comes from their account once the room is made (`attachPeople`).
+		const host = organizer.id === caller.id ? caller : { ...caller, ...organizer, name: UNNAMED };
+		const created = lobby.create(host, { ...body.room, scheduledFor: startsAt });
 		if (!created.ok) return res.status(403).json({ error: 'the edge did not name you, so you cannot organize an event' });
 		const roomId = created.room.id;
 		const constructed = body.room.gameType === 'constructed-1v1';
-		if (body.format !== undefined) lobby.setFormat(roomId, caller.id, body.format);
+		if (body.format !== undefined) lobby.setFormat(roomId, organizer.id, body.format);
 		const settings = constructed ? { ...body.settings, tournament: true } : body.settings;
-		if (Object.keys(settings).length > 0) lobby.setSettings(roomId, caller.id, settings);
-		if (body.plan !== undefined && verdict !== null) lobby.setPodPlan(roomId, caller.id, body.plan, verdict);
+		if (Object.keys(settings).length > 0) lobby.setSettings(roomId, organizer.id, settings);
+		if (body.plan !== undefined && verdict !== null) lobby.setPodPlan(roomId, organizer.id, body.plan, verdict);
 
-		const event = events.create({ roomId, startsAt, organizerId: caller.id, organizerUserId: caller.userId, ...(body.formId === undefined ? {} : { formId: body.formId }) }, now());
+		const event = events.create({ roomId, startsAt, organizerId: organizer.id, organizerUserId: organizer.userId, ...(body.formId === undefined ? {} : { formId: body.formId }) }, now());
 		// A closed poll was kept only so its event could be made: made, it goes.
 		if (formClosed && body.formId !== undefined) events.forgetForms([body.formId]);
 		void deps.discord?.sync(event.id);
 		// The create body takes only Magic's game types (`CreateRoomBodySchema`).
-		res.status(201).json(view(event, magicView(lobby.get(roomId))!, caller.id, () => caller.name, await signedUpOf(event)));
+		const [nameOf, signedUp] = await Promise.all([namesOf([event.organizerUserId]), signedUpOf(event)]);
+		const shown = (userId: string | null | undefined, kept: string | undefined) => nameOf(userId, kept ?? (organizer.id === caller.id ? caller.name : undefined));
+		res.status(201).json(view(event, magicView(lobby.get(roomId))!, caller.id, shown, signedUp));
 	});
 
 	api.patch('/events/:id', async (req: Request, res: Response) => {

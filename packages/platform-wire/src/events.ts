@@ -109,6 +109,8 @@ export const RallyFormSummarySchema = z.object({
   closesAt: z.string().nullable(),
   url: z.string(),
   createdBy: z.string().nullable(),
+  /** Service callers only: the creator's userId, who organizes an event made from this form. */
+  createdById: z.string().optional(),
   schema: z.object({ name: z.string(), version: z.number().int() }),
   availability: RallyAvailabilitySchema.optional().catch(undefined),
 });
