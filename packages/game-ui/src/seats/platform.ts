@@ -35,7 +35,14 @@ export interface PlatformSeats {
   spectators: { id: string; name: string; avatarId?: string; look?: Look }[];
 }
 
-export function platformSeats(room: PlatformSeatRoom, myId: string | null, opts: { ceiling: number }): PlatformSeats {
+export interface PlatformSeatsOptions {
+  /** The most seats the room can grow to: no "+1" slot at or past it. */
+  ceiling: number;
+  /** `false` for a game with no Ready step (its Start is a press, never a readiness gate): every member reads ready, so no ring says "not ready" for no reason. */
+  readiness?: boolean;
+}
+
+export function platformSeats(room: PlatformSeatRoom, myId: string | null, opts: PlatformSeatsOptions): PlatformSeats {
   const memberOf = (id: string) => room.members.find((m) => m.id === id);
   const occupantOf = (holder: string | null, seat: number): SeatOccupant => {
     if (holder === null) return { kind: 'open' };
@@ -53,7 +60,7 @@ export function platformSeats(room: PlatformSeatRoom, myId: string | null, opts:
       name: member.name,
       ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }),
       ...(member.look === undefined ? {} : { look: member.look }),
-      ready: member.ready === true,
+      ready: opts.readiness === false || member.ready === true,
       leader: member.id === room.leader,
       mine: member.id === myId,
     };

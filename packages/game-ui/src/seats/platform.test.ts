@@ -39,4 +39,10 @@ describe('platformSeats', () => {
     const { slots } = platformSeats(room({ seats: ['gone', AI_SEAT], aiSeats: undefined }), null, { ceiling: 2 });
     expect(slots.map((s) => s.occupant)).toEqual([{ kind: 'open' }, { kind: 'bot', name: 'Bot' }]);
   });
+
+  it('readiness: false reads every member ready', () => {
+    const r = room({ seats: ['bo', null] });
+    expect(platformSeats(r, null, { ceiling: 2 }).slots[0]!.occupant).toMatchObject({ ready: false });
+    expect(platformSeats(r, null, { ceiling: 2, readiness: false }).slots[0]!.occupant).toMatchObject({ ready: true });
+  });
 });
