@@ -238,11 +238,6 @@ export async function removeFromPodSeat(roomId: string, memberId: string): Promi
   return podOutcome(await core.removeFromSeat(roomId, memberId));
 }
 
-/** The leader closes seats from the top down until `count` are open, evicting any occupant first. */
-export async function lowerPodSeatCapacity(roomId: string, count: number): Promise<PodActionOutcome> {
-  return podOutcome(await core.lowerSeatCapacity(roomId, count));
-}
-
 /** The leader hands the room to another member, seated or watching. */
 export async function passRoomLeader(roomId: string, memberId: string): Promise<PodActionOutcome> {
   return podOutcome(await core.makeLeader(roomId, memberId));

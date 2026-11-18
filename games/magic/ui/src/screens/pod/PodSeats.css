@@ -1,7 +1,7 @@
 /*
  * Magic's own seat layouts around `@hadoku/game-ui/seats/SeatChip.css` (the strip itself, its
  * avatars, labels and buttons, and the spectator row): the constructed table's two wider seats,
- * a table page's face-off, and the pod lobby's own "Fewer seats".
+ * and a table page's face-off.
  */
 
 /*
@@ -50,13 +50,3 @@
   --seat-list-margin: 0;
 }
 
-/* The leader's "Fewer seats" (`PodLobby.tsx`, wave 120 §S2), beside the Players heading: a seat
-   button's size (`.pod-seats__action`), at the heading's weight. Colour and hover are `.ct-action`. */
-.pod-lobby__fewer {
-  font: inherit;
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.2;
-  border-radius: var(--hdk-radius-sm);
-  padding: 2px 6px;
-}
