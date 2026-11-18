@@ -53,7 +53,7 @@ export interface SeatListProps {
   iLead: boolean;
   /** An event's room before its seats open: nobody sits, nor gives a seat to the bot. */
   shut?: boolean;
-  /** `false` for a game with no Ready step (its Start is a press): no seat draws a ready pill. */
+  /** `false` for a game with no Ready step (its Start is a press): no seat draws a ready pill or ring. */
   readiness?: boolean;
   /** A fixed field (a Challenge's): no seat is grown, given to the bot, taken from it or closed. */
   fieldFixed?: boolean;
@@ -163,7 +163,7 @@ export function SeatList({ slots, iLead, shut = false, readiness = true, fieldFi
         return (
           <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-mine={mine ? '' : undefined}>
             <span className="pod-seats__avatar-wrap">
-              <span className="pod-seats__avatar" data-ready={ready ? 'true' : 'false'}>
+              <span className="pod-seats__avatar" data-ready={readiness ? (ready ? 'true' : 'false') : undefined}>
                 <Avatar {...face} fallback="initial" name={name} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
               </span>
               {leader && (

@@ -22,12 +22,15 @@ describe('the seat strip', () => {
     render(strip());
     expect(screen.getByTestId('pod-seat-0-ready').dataset.state).toBe('yes');
     expect(screen.getByTestId('pod-seat-1-ready').dataset.state).toBe('no');
+    expect(document.querySelectorAll('[data-ready]')).toHaveLength(2);
   });
 
-  it('draws no ready pill for a game with no Ready step', () => {
+  it('draws no ready pill and no ring for a game with no Ready step', () => {
     render(strip(false));
     expect(screen.queryByTestId('pod-seat-0-ready')).toBeNull();
     expect(screen.queryByTestId('pod-seat-1-ready')).toBeNull();
     expect(screen.getByTestId('pod-seat-1').textContent).toContain('Bo');
+    // Nor a ring: no avatar says ready or not.
+    expect(document.querySelector('[data-ready]')).toBeNull();
   });
 });
