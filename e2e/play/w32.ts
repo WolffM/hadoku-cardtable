@@ -18,7 +18,7 @@ import { inMenu } from './phone.ts';
 export const settingsPopover = (page: Page): Locator => page.locator('.settings-popout__panel, [data-testid="settings"]');
 
 /** The game's tabs in the header's popout, and the section each one opens on. */
-const TAB_SECTION = { Game: 'settings-game', Sound: 'settings-sound', Display: 'settings-display' } as const;
+const TAB_SECTION = { Game: 'settings-game', Sound: 'settings-sound' } as const;
 export type SettingsTab = keyof typeof TAB_SECTION;
 
 /**

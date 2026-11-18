@@ -46,15 +46,19 @@ export interface SettingsParts {
 const parts = registered<SettingsParts>('settings');
 export const registerSettings = parts.set;
 
-/** The settings as tabs, in the order a player looks for them: how the game plays first, one slider last. */
+/** The settings as tabs, in the order a player looks for them: how the game plays (and the UI scale, under it), then sound. */
 export const CARDTABLE_SETTINGS_TABS: AppSettingsTab[] = [
   {
     id: 'game',
     label: 'Game',
-    render: () => <div className="ct-settings__tab">{createElement(parts.get().Game)}</div>,
+    render: () => (
+      <div className="ct-settings__tab">
+        {createElement(parts.get().Game)}
+        <DisplaySettings />
+      </div>
+    ),
   },
   { id: 'sound', label: 'Sound', render: () => <div className="ct-settings__tab">{createElement(parts.get().Sound)}</div> },
-  { id: 'display', label: 'Display', render: () => <div className="ct-settings__tab"><DisplaySettings /></div> },
 ];
 
 /** Every tab's sections one under another, for a popout with no tabs of its own. */
