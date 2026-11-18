@@ -34,6 +34,7 @@ import { MAX_ROOM_GHOSTS } from './shape.ts';
 import { ConstructedIcon, LockIcon, PersonIcon } from './icons.tsx';
 import { useWhoami } from '../room/whoami.ts';
 import { playRole } from '../sound/index.ts';
+import type { Look } from '@hadoku/platform-wire/look';
 
 /* ── the generic room shape ──────────────────────────────────────────── */
 
@@ -41,6 +42,8 @@ export interface RoomFrontMember {
   id: string;
   name: string;
   avatarId?: string;
+  /** Their picture and cosmetics: drawn instead of the character, as chat and the seats draw them. */
+  look?: Look;
 }
 
 /** Every number and label a row draws besides its name, its lock and its roster — a game's own derivation, computed before the room reaches this file. */
