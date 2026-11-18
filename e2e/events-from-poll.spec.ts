@@ -70,8 +70,9 @@ test('Create event on a closed poll fills the tournament from the form and sends
   try {
     await page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
     await expect(page.getByTestId('front-upcoming-title')).toHaveText('Calendar', { timeout: 30_000 });
-    // Rally's count, not the one person in the room.
-    await expect(page.getByTestId('front-calendar-signed-up')).toHaveText('8');
+    // Rally's count, not the one person in the room. The number ends the count; the person
+    // icon's own title ("Signed up") is text before it.
+    await expect(page.getByTestId('front-calendar-signed-up')).toHaveText(/(^|\D)8$/);
 
     await page.getByTestId('front-upcoming-next').click();
     await expect(page.getByTestId('front-upcoming-title')).toHaveText('Polls');

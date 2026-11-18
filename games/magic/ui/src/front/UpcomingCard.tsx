@@ -231,8 +231,8 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
         <span className="front-card__event-head">
           <span className="front-card__event-title">{event.title}</span>
           {facts !== null && (
-            <span className="front-card__event-count" data-testid="front-calendar-signed-up" aria-label={`${String(facts.signedUp)} signed up`}>
-              <PersonIcon size={12} />
+            <span className="front-card__event-count" data-testid="front-calendar-signed-up">
+              <PersonIcon size={12} label="Signed up" />
               {facts.signedUp}
             </span>
           )}

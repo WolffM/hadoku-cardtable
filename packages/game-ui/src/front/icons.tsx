@@ -85,10 +85,10 @@ export function LockIcon({ size = 15 }: { size?: number }) {
   );
 }
 
-/** A seat count. */
-export function PersonIcon({ size = 14 }: { size?: number }) {
+/** A count of people: a room's seats unless `label` says what it counts. */
+export function PersonIcon({ size = 14, label = 'Seats' }: { size?: number; label?: string }) {
   return (
-    <Glyph label="Seats" size={size}>
+    <Glyph label={label} size={size}>
       <circle cx="12" cy="8" r="3.2" />
       <path d="M5.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" />
     </Glyph>
