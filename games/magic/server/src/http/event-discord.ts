@@ -1,6 +1,6 @@
 /*
  * How a Magic event reads in the Discord server's Events tab (`@hadoku/game-server/room/discord-events`):
- * its room's name, the room's line from its link preview ("Modern Gauntlet 1v1", "Cube Draft"), who
+ * its room's name, the room's line from its link preview ("Modern Gauntlet 1v1", "Draft · Bloomburrow · Set-cube"), who
  * organized it, and the room's link, which Discord unfurls as that preview.
  *
  * Only what the room's public link preview already shows goes to Discord. A room with a password or a

@@ -32,7 +32,7 @@ import { join } from "node:path";
 import { Resvg } from "@resvg/resvg-js";
 import type { RateLimitConfig } from "@wolffm/rooms-server";
 import type { Request, Response, Router } from "express";
-import { ROOM_ID_RE, type RoomMember } from "@hadoku/shared";
+import { planDisplayName, ROOM_ID_RE, type DraftPlan, type RoomMember } from "@hadoku/shared";
 
 import type { People, Person } from "@hadoku/game-server/people";
 import { magicView } from "../room/magic-view.js";
@@ -73,7 +73,14 @@ export interface PreviewRoom {
   leader: string;
   creator: string;
   /** Magic's part of the room, the fields of it the card draws: absent for a room of another game. */
-  game?: { format: string; mode?: unknown; modeOptions?: unknown; ai?: { name: string; avatarId: string } };
+  game?: {
+    format: string;
+    mode?: unknown;
+    modeOptions?: unknown;
+    ai?: { name: string; avatarId: string };
+    /** A draft room's pod: what its three rounds draft, and each round's bare name. */
+    pod?: { plan: DraftPlan | null; roundNames: readonly [string, string, string] | null } | null;
+  };
   members: readonly RoomMember[];
   /** Each table's seated players: the first table's other player is the host's opponent. Absent for a room of another game. */
   tables?: readonly { players: readonly { memberId: string }[] }[];
@@ -148,10 +155,16 @@ function formatOf(
 
 /**
  * `[Format] [Mode] [Year] 1v1`, leaving out what the room has not chosen: a Gauntlet limited to Modern
- * with no year is "Modern Gauntlet 1v1". A draft room is a Cube Draft.
+ * with no year is "Modern Gauntlet 1v1". A draft room names what its pod drafts ("Draft · Bloomburrow · Set-cube"),
+ * or is a Cube Draft before it has a plan.
  */
 export function describeRoom(room: PreviewRoom): string {
-  if (room.gameType === "draft") return "Cube Draft";
+  if (room.gameType === "draft") {
+    const pod = room.game?.pod;
+    return pod?.plan == null || pod.roundNames == null
+      ? "Cube Draft"
+      : `Draft · ${planDisplayName(pod.plan, pod.roundNames)}`;
+  }
   const mode = typeof room.game?.mode === "string" ? room.game.mode : null;
   const { family, year } = formatOf(room, mode);
   return [

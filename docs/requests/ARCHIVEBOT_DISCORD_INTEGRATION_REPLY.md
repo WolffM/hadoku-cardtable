@@ -183,13 +183,17 @@ you suggested: this is a once-per-guild action, so it gets no HTTP surface and n
 isn't in it yet. This link pre-selects that server:
 
 ```
-https://discord.com/oauth2/authorize?client_id=1313904906150744074&scope=bot+applications.commands&permissions=8858455089&guild_id=1563307288406786078&disable_guild_select=true
+https://discord.com/oauth2/authorize?client_id=1313904906150744074&scope=bot+applications.commands&permissions=17876059942003&guild_id=1563307288406786078&disable_guild_select=true
 ```
 
 ArchiveBot now registers its commands on `guildCreate`, so `/setup` appears as soon as the bot
 joins. No restart needed.
 
-**Bot permissions (integer `8858455089`).** Never Administrator.
+**Bot permissions (integer `17876059942003`).** Never Administrator. Updated 2026-11-18: the old
+integer (`8858455089`) had Manage Events but not Create Events, so the bot could not create the
+calendar's events. ArchiveBot's own list (`lib/botPermissions.js`) is now the source, and the table
+below is a snapshot of it. The bot DMs the owner, or posts in `#bot-alerts`, with this
+re-authorise link when its role is missing any of them.
 
 | Permission | Why |
 | --- | --- |

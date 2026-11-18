@@ -79,6 +79,10 @@ describe("describeRoom: [Format] [Mode] [Year] 1v1", () => {
 
   it("calls a draft room a Cube Draft", () => {
     expect(describeRoom(room({ gameType: "draft" }))).toBe("Cube Draft");
+    const set = { kind: "set" as const, code: "BLB", style: "set-cube" as const };
+    const planned = room({ gameType: "draft" });
+    planned.game = { ...planned.game!, pod: { plan: { rounds: [set, set, set] }, roundNames: ["Bloomburrow", "Bloomburrow", "Bloomburrow"] } };
+    expect(describeRoom(planned)).toBe("Draft · Bloomburrow · Set-cube");
   });
 });
 

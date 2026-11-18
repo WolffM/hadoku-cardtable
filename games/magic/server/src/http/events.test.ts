@@ -306,7 +306,8 @@ describe('the Discord server mirrors /api/events', () => {
 		expect(bot.live()[0]).toMatchObject({
 			name: 'Friday cube',
 			startTime: startsAt,
-			description: `Cube Draft, organized by Alice.\nhttps://hadoku.me/cardtable/room/${event.roomId}`,
+			// The same pool line the calendar shows ("Bloomburrow · Set-cube"): here the default cube's.
+			description: `Draft · ${event.room!.pool!}, organized by Alice.\nhttps://hadoku.me/cardtable/room/${event.roomId}`,
 			location: `hadoku.me/cardtable/room/${event.roomId}`,
 			sourceKey: `cardtable-event-${event.id}`,
 		});
