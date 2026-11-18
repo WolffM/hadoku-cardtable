@@ -50,6 +50,7 @@ import { sameLook, type Look } from '@hadoku/platform-wire/look';
 import { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
 
 import { replaceIds } from '../erase/anonymise.ts';
+import { seatPersonas, type AiPersona } from './ai-faces.ts';
 import { avatarIdOf } from './avatar.ts';
 import type { Caller } from './caller.ts';
 import { ROOM_STALE_MS, UNNAMED } from './constants.ts';
@@ -621,11 +622,14 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		if (this.seatsShut(room) !== null) return;
 		const players = this.playersOf(room);
 		if (room.members.some((m) => m.id !== memberId && !players.includes(m.id))) return;
-		const how = this.hooksOf(room).autoSeat?.(room, memberId) ?? 'game-seat';
+		const hooks = this.hooksOf(room);
+		const how = hooks.autoSeat?.(room, memberId) ?? 'game-seat';
 		if (how !== 'game-seat') return;
 		const open = room.seats.indexOf(null);
 		if (open === -1) return;
 		setGameSeat(room, open, memberId);
+		// As every other seat op does: a type that keeps a seat open (`plainRoomType`'s `keepOneOpen`) grows here.
+		hooks.trimSeats(room);
 		this.log({ event: 'seat-auto', roomId: room.id, seat: open, memberId });
 	}
 
@@ -1258,13 +1262,49 @@ function isStoredSeats(v: unknown): v is GameSeats {
 	return Array.isArray(v) && v.every((s) => s === null || typeof s === 'string');
 }
 
+/** How a plain room is sized, and which of the platform's seat behaviours it opts into. */
+export interface PlainRoomSize {
+	/** The seats a new room opens with; trimming never takes it below this. */
+	seats: number;
+	/** The most seats it grows to. */
+	max: number;
+	/** A relay room's match seat count: set when the room IS its relay match. */
+	relaySeats?: number;
+	/**
+	 * Report seats as stored — `AI_SEAT` and `CLOSED_SEAT` included — rather than `memberSeats`'
+	 * reading, which shows both as open. A game whose seat list draws bots and closed seats wants
+	 * this; neither marker is ever a member id, so `gameSeatOf` still only matches a member's own seat.
+	 */
+	markedSeats?: boolean;
+	/**
+	 * Keep one seat open: whenever every seat is taken (no open and no closed one), add another,
+	 * up to `max`. The room grows by itself; nobody presses a "+" to make room for the next player,
+	 * and a seat the leader closed is never reopened by it.
+	 */
+	keepOneOpen?: boolean;
+}
+
+/** What a plain room's view adds to the platform's: the AI at each seat, `seatPersonas`'s draw. */
+export interface PlainRoomView {
+	/** In seat order; null where no AI sits. */
+	aiSeats: (AiPersona | null)[];
+}
+
 /**
  * The room type of a game that keeps nothing of its own in the room (bomberman): no game part, its
  * players in the platform's game seats, opened with `seats` of them and growing to `max`, an AI or a
  * closed seat in any open one. `relaySeats` when the room is its own relay match.
+ *
+ * A member who leaves the room gives up their seat (`leaving`): `RoomLobby.leave` drops only the
+ * membership, so without it the departed id stayed in the seat for good.
  */
-export function plainRoomType<I extends RoomCreateInput>(size: { seats: number; max: number; relaySeats?: number }): RoomTypeHooks<Record<string, never>, I> {
+export function plainRoomType<I extends RoomCreateInput>(size: PlainRoomSize): RoomTypeHooks<Record<string, never>, I> {
 	const open = (): GameSeats => new Array<string | null>(size.seats).fill(null);
+	const full = (seats: GameSeats): boolean => !seats.some((s) => s === null || s === CLOSED_SEAT);
+	const trim = (room: { seats: GameSeats }): void => {
+		while (room.seats.length > size.seats && room.seats.at(-1) === null) room.seats = room.seats.slice(0, -1);
+		if (size.keepOneOpen === true && room.seats.length < size.max && full(room.seats)) room.seats = [...room.seats, null];
+	};
 	return {
 		newGame: () => ({ seats: open(), game: {} }),
 		encode: () => ({}),
@@ -1273,7 +1313,7 @@ export function plainRoomType<I extends RoomCreateInput>(size: { seats: number; 
 			return { seats: app.seats === undefined ? open() : [...app.seats], game: {} };
 		},
 		restore: () => ({ dropHolds: false, game: () => ({}) }),
-		view: () => ({}),
+		view: (room): PlainRoomView => ({ aiSeats: seatPersonas(room, AI_SEAT) }),
 		busy: NO_BUSY_HOOK,
 		liveMatches: () => [],
 		usesSeats: () => true,
@@ -1282,9 +1322,14 @@ export function plainRoomType<I extends RoomCreateInput>(size: { seats: number; 
 		growSeats(room, seat) {
 			while (room.seats.length <= seat) room.seats = [...room.seats, null];
 		},
-		trimSeats(room) {
-			while (room.seats.length > size.seats && room.seats.at(-1) === null) room.seats = room.seats.slice(0, -1);
+		trimSeats: trim,
+		leaving(room, memberId) {
+			const seat = room.seats.indexOf(memberId);
+			if (seat === -1) return;
+			room.seats = room.seats.map((s, i) => (i === seat ? null : s));
+			trim(room);
 		},
+		...(size.markedSeats === true ? { seatsView: (room: LobbyRoom<Record<string, never>>) => room.seats } : {}),
 		...(size.relaySeats === undefined ? {} : { relaySeats: size.relaySeats }),
 	};
 }

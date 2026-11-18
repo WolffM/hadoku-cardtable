@@ -11,7 +11,6 @@
  */
 
 import { readyParticipants } from '@wolffm/rooms-server';
-import { AVATAR_POOL } from '@wolffm/rooms-protocol';
 import {
 	gameTypeSpec,
 	POD_MAX_SEATS,
@@ -28,6 +27,7 @@ import { botSeatAcross, rankedStandings, rngFromSeed, roundsFor, shuffle, type M
 import { isGauntletState, type GauntletState } from './gauntlet.ts';
 import { roundNamesOf } from './plan.ts';
 import type { SeriesGame, SeriesRoom } from './series.ts';
+import { drawAvatar, personaOf, type AiPersona } from '@hadoku/game-server/room/ai-faces';
 import { AI_SEAT, CLOSED_SEAT, memberSeats } from '@hadoku/game-server/room/record';
 import type { MagicRoomGame, RoomRecord } from './lobby-codec.ts';
 
@@ -35,35 +35,6 @@ import type { MagicRoomGame, RoomRecord } from './lobby-codec.ts';
 export type MagicRoomShape<K extends keyof MagicRoomGame> = Pick<RoomRecord, 'gameType'> & { game: Pick<MagicRoomGame, K> };
 
 type Face = string | null | undefined;
-
-/** FNV-1a: a stable 32-bit number for a string, so a seeded pick is the same on every run. */
-function seedOf(text: string): number {
-	let h = 0x811c9dc5;
-	for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
-	return h >>> 0;
-}
-
-/**
- * A character drawn at random — seeded by `seed`, so the same room and seat
- * always draws the same face — from the pool's least-used ones. `tiers` are
- * compared in turn: a character that appears fewer times in the first is
- * preferred, a tie goes to the next tier, and what is still tied is drawn
- * from. So nobody shares a face while one is free, and past all 23 the pool
- * cycles rather than repeating one face (the operator, 2026-11-01).
- */
-export function drawAvatar(seed: string, ...tiers: readonly (readonly Face[])[]): string {
-	const counts = tiers.map((faces) => {
-		const n = new Map<string, number>();
-		for (const f of faces) if (f !== null && f !== undefined) n.set(f, (n.get(f) ?? 0) + 1);
-		return n;
-	});
-	let least: string[] = [...AVATAR_POOL];
-	for (const n of counts) {
-		const min = Math.min(...least.map((a) => n.get(a) ?? 0));
-		least = least.filter((a) => (n.get(a) ?? 0) === min);
-	}
-	return least[seedOf(seed) % least.length]!;
-}
 
 /** A Split & randomize (`RoomRecord.podSplit`). */
 export interface PodSplit {
@@ -334,21 +305,10 @@ export function seatsFixed(room: RoomRecord): boolean {
 	return room.game.draftStartedAt !== null || heldSplit(room) !== null;
 }
 
-/** An AI seat as a player: one of the room's characters, by its own name (the operator, 2026-10-19). */
-export interface AiPersona {
-	name: string;
-	avatarId: string;
-}
-
 /** A tournament table's two entrants, the AI's last, and — at a vs-AI table — the character this round's AI plays as, not the room's own `ai`. */
 export interface TournamentPairing {
 	entrants: [string, string];
 	ai?: AiPersona;
-}
-
-/** `knight` → Knight. */
-export function personaOf(avatarId: string): AiPersona {
-	return { name: avatarId.charAt(0).toUpperCase() + avatarId.slice(1), avatarId };
 }
 
 /** The face at a pod seat: its AI's character or its member's. */

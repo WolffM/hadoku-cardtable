@@ -128,3 +128,27 @@ describe('createPanelClassName', () => {
     expect(screen.getByTestId('room-create').className).toBe('rooms__create ct-surface ct-panel');
   });
 });
+
+describe('the create form’s game type', () => {
+  async function openCreate(gameTypes: { id: string; label: string }[]): Promise<void> {
+    render(createElement(RoomFront<ToyRoom>, { rooms: toyClient(), gameTypes, onOpenRoom: () => undefined }));
+    await waitFor(() => expect(screen.getByTestId('rooms-empty')).toBeTruthy());
+    screen.getByTestId('room-create-open').click();
+    await waitFor(() => expect(screen.getByTestId('room-create')).toBeTruthy());
+  }
+
+  it('is not asked when the game has one room type', async () => {
+    await openCreate([{ id: 'toy', label: 'Toy' }]);
+    expect(screen.queryByText('Game type')).toBeNull();
+    expect(screen.queryByTestId('room-create-type-toy')).toBeNull();
+  });
+
+  it('is a radio when there is a choice', async () => {
+    await openCreate([
+      { id: 'toy', label: 'Toy' },
+      { id: 'other', label: 'Other' },
+    ]);
+    expect(screen.getByTestId('room-create-type-toy')).toBeTruthy();
+    expect(screen.getByTestId('room-create-type-other')).toBeTruthy();
+  });
+});

@@ -17,11 +17,8 @@ import type { MemberRow } from './membership.ts';
  */
 export type GameSeats = (string | null)[];
 
-/** The marker of a seat an AI holds. */
-export const AI_SEAT = 'ai';
-
-/** The marker of a seat its room's leader closed: nobody sits there, and the game is a seat smaller. */
-export const CLOSED_SEAT = 'closed';
+/** The seat markers: defined in `@hadoku/platform-wire/seats`, which every game's page reads too. */
+export { AI_SEAT, CLOSED_SEAT } from '@hadoku/platform-wire/seats';
 
 /** What every member record has, whatever the game. */
 export interface PlatformMember extends MemberRow {

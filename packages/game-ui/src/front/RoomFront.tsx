@@ -131,7 +131,7 @@ export interface RoomFrontRowExtras {
 
 export interface RoomFrontProps<V extends RoomFrontRoom> {
   rooms: RoomFrontClient<V>;
-  /** The create form's own radio: every type a caller may make, id and label, at least one. */
+  /** The create form's own radio: every type a caller may make, id and label, at least one. With only one, no radio is drawn. */
   gameTypes: readonly RoomFrontGameType[];
   createFields?: (kind: string) => RoomFrontCreateSlot | null;
   rowExtras?: (room: V) => RoomFrontRowExtras;
@@ -833,8 +833,13 @@ function CreateRoomDialog<V extends RoomFrontRoom>({
             </button>
           </div>
 
-          <span className="rooms__caption">Game type</span>
-          <RadioCards name="room-create-type" label="Game type" options={kindOptions} value={kind} onChange={setKind} testId="room-create-type" />
+          {/* One type is no choice: a game with a single room type asks nothing (the operator, 2026-11-18). */}
+          {kindOptions.length > 1 && (
+            <>
+              <span className="rooms__caption">Game type</span>
+              <RadioCards name="room-create-type" label="Game type" options={kindOptions} value={kind} onChange={setKind} testId="room-create-type" />
+            </>
+          )}
 
           {!nameless && (
             <>

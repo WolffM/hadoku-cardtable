@@ -7,7 +7,8 @@
 import { isMagicGameType, type MagicRoomGame, type RoomView as PublicRoomView } from '@hadoku/shared';
 
 import type { RoomRecord } from './lobby-codec.ts';
-import { podViewOf, roomAi, usesPod, type AiPersona, type GameHooks } from './pods.ts';
+import type { AiPersona } from '@hadoku/game-server/room/ai-faces';
+import { podViewOf, roomAi, usesPod, type GameHooks } from './pods.ts';
 
 /** The public view's fields only a room Magic plays has: a hosted room of another game has none of them. */
 export type MagicRoomKeys = 'tables' | 'settings' | 'locks' | 'matchId';

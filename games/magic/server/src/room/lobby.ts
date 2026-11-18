@@ -56,13 +56,13 @@ import { RoomLobby, type CreateResult, type LobbyLog, type LobbyMember, type Lob
 import type { RoomBusyHook } from '@hadoku/game-server/room/room-list';
 import { isMemberReady } from '@hadoku/game-server/room/membership';
 import { setGameSeat } from '@hadoku/game-server/room/record';
+import { drawAvatar, personaOf } from '@hadoku/game-server/room/ai-faces';
 // Pods, tournaments, AI seats and their view (`PodView`) — split out, wave 99 §L.
 import {
 	aiEntrantSeat,
 	copySplit,
 	dealGate,
 	draftEntrants,
-	drawAvatar,
 	entrantPersona,
 	freeAiAvatar,
 	grownSeats,
@@ -74,7 +74,6 @@ import {
 	isTournamentRoom,
 	memberDraftId,
 	NO_GAME_HOOKS,
-	personaOf,
 	gameSeatsOf,
 	playersOf,
 	podDraftId,

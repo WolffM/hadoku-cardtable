@@ -15,7 +15,8 @@
     "./random": "./src/random.ts",
     "./events": "./src/events.ts",
     "./tables": "./src/tables.ts",
-    "./envelope": "./src/envelope.ts"
+    "./envelope": "./src/envelope.ts",
+    "./seats": "./src/seats.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
