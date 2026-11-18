@@ -241,14 +241,15 @@ async function standInFleet(f: Friend): Promise<void> {
 }
 
 /**
- * Alice picks `sprite` as a player does: the header's gear, Profile, the Avatar row's Change, then
+ * Alice picks `sprite` as a player does: the header's gear, Account (task-ui-components 4.23.40 folded
+ * Profile into it), the Avatar row's Change, then
  * the character in the fleet's AvatarPicker. The popout saves it to her account (prefs-api's
  * stand-in) and fires its own avatar event on the page; nothing here dispatches one.
  */
 async function pickSprite(alice: Friend, sprite: string): Promise<void> {
   const { page } = alice;
   await page.getByRole('button', { name: /^User settings/ }).click();
-  await settingsPopover(page).getByRole('tab', { name: 'Profile', exact: true }).click();
+  await settingsPopover(page).getByRole('tab', { name: 'Account', exact: true }).click();
   await settingsPopover(page).getByRole('button', { name: 'Change', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Avatar' });
   const character = dialog.getByRole('radiogroup', { name: 'Character' }).getByRole('radio', { name: sprite, exact: true });
