@@ -29,6 +29,7 @@ import { countdown } from '@hadoku/game-ui/front/countdown.ts';
 import { EVENT_KIND_LABELS, eventsApi, fromLocalInput, refreshEvents, toLocalInput, upcoming, useEvents, whenLabel } from './events.ts';
 import { formatEraLabel } from './formatLabel.ts';
 import { ArrowGlyph, Gallery } from '@hadoku/game-ui/front/Gallery.tsx';
+import { PersonIcon } from '@hadoku/game-ui/front/icons.tsx';
 import { upcomingOpensOn } from '@hadoku/game-ui/front/gallery.ts';
 import { FrontGateContext, usePartShown } from '@hadoku/game-ui/front/gate.ts';
 import { usePolls, type Poll } from '@hadoku/game-ui/front/polls.ts';
@@ -47,15 +48,15 @@ function DateBlock({ at }: { at: string }) {
 
 /**
  * The room's own state, as the room is now: its pool (a draft's plan, a constructed room's format) and how many have signed up — those who
- * said on its Rally form they can make it, for an event made from one; else those in its room.
+ * said on its Rally form they can make it, for an event made from one; else those in its room. `null` for an event with no room.
  */
-function roomLine(event: EventView): string | null {
+function roomFacts(event: EventView): { pool: string | null; signedUp: number } | null {
   const room = event.room ?? null;
   if (room === null) return null;
-  const signedUp = event.signedUp ?? (room.phase === null ? room.members : room.entrants);
-  const pool = room.pool ?? (room.format === '' ? null : formatEraLabel(room.format));
-  const parts = [pool, `${String(signedUp)} signed up`];
-  return parts.filter((p): p is string => p !== null).join(' · ');
+  return {
+    pool: room.pool ?? (room.format === '' ? null : formatEraLabel(room.format)),
+    signedUp: event.signedUp ?? (room.phase === null ? room.members : room.entrants),
+  };
 }
 
 /** The gallery as it opens, on Calendar, with `count` rows of placeholders (none: the empty line's). */
@@ -94,7 +95,10 @@ function UpcomingSkeleton({ count }: { count: number }) {
                     <span className="ghost ghost--text">Sat 1 Nov, 20:00 · in 2 days</span>
                   </span>
                   <span className="front-card__event-detail">
-                    <span className="ghost ghost--text">Draft · someone · 3 signed up</span>
+                    <span className="ghost ghost--text">Draft pod · someone</span>
+                  </span>
+                  <span className="front-card__event-detail">
+                    <span className="ghost ghost--text">A set · Set-cube</span>
                   </span>
                   <span className="front-card__event-actions">
                     <span className="button ghost">View</span>
@@ -180,7 +184,7 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
   const [startsAt, setStartsAt] = useState(toLocalInput(event.startsAt));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const line = roomLine(event);
+  const facts = roomFacts(event);
 
   const failed = (message: string): void => {
     playRole('ui.deny');
@@ -224,14 +228,22 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
     <li className="front-card__event" data-testid="front-calendar-event" data-event={event.id}>
       <DateBlock at={event.startsAt} />
       <span className="front-card__event-text">
-        <span className="front-card__event-title">{event.title}</span>
+        <span className="front-card__event-head">
+          <span className="front-card__event-title">{event.title}</span>
+          {facts !== null && (
+            <span className="front-card__event-count" data-testid="front-calendar-signed-up" aria-label={`${String(facts.signedUp)} signed up`}>
+              <PersonIcon size={12} />
+              {facts.signedUp}
+            </span>
+          )}
+        </span>
         <span className="front-card__event-detail">
           {whenLabel(event.startsAt)} · {countdown(event.startsAt, now)}
         </span>
         <span className="front-card__event-detail">
           {EVENT_KIND_LABELS[event.kind] ?? 'Event'} · {event.organizer}
-          {line !== null && ` · ${line}`}
         </span>
+        {facts !== null && facts.pool !== null && <span className="front-card__event-detail">{facts.pool}</span>}
         {moving ? (
           <form className="front-card__event-actions" onSubmit={(e) => void move(e)}>
             <input aria-label="Starts" data-testid="front-calendar-starts" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />

@@ -1,10 +1,9 @@
 /*
- * The front cards' manual gallery (`./gallery.ts`): arrows and dots wrap, a swipe is a mostly
- * sideways drag past a threshold, and a page list that shrinks keeps the reader where they were.
+ * The front cards' manual gallery (`./gallery.ts`): arrows and dots wrap, and a page list that shrinks keeps the reader where they were.
  */
 import { describe, expect, it } from 'vitest';
 
-import { keepPage, stepPage, swipeStep, SWIPE_PX, upcomingOpensOn } from './gallery.ts';
+import { keepPage, stepPage, upcomingOpensOn } from './gallery.ts';
 
 describe('stepPage', () => {
   it('moves one page either way and wraps at both ends', () => {
@@ -16,17 +15,6 @@ describe('stepPage', () => {
   it('stays at 0 with one page or none', () => {
     expect(stepPage(0, 1, 1)).toBe(0);
     expect(stepPage(0, -1, 0)).toBe(0);
-  });
-});
-
-describe('swipeStep', () => {
-  it('a drag left past the threshold is the next page, right the previous', () => {
-    expect(swipeStep(-SWIPE_PX - 1, 4)).toBe(1);
-    expect(swipeStep(SWIPE_PX + 1, -6)).toBe(-1);
-  });
-  it('a short drag, or one more vertical than sideways (scrolling the list), is no step', () => {
-    expect(swipeStep(-SWIPE_PX + 1, 0)).toBe(0);
-    expect(swipeStep(-SWIPE_PX - 10, SWIPE_PX + 20)).toBe(0);
   });
 });
 

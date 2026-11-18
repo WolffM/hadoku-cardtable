@@ -254,7 +254,6 @@
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  touch-action: pan-y;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -341,14 +340,38 @@
   min-width: 0;
 }
 
+.front-card__event-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
 .front-card__event-title {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
 }
 
+/* Who has signed up, as the room cards count their seats: a person and a number, at the title's end. */
+.front-card__event-count {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+/* One fact per line, never wrapped: a line too long for the card ends in an ellipsis. */
 .front-card__event-detail {
   font-size: 12px;
   color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .front-card__event-actions {

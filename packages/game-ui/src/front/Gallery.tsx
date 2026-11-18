@@ -1,14 +1,15 @@
 /*
  * A front card as a manual gallery (`./gallery.ts`): one page at a time, its title in the card's
  * head with the arrows beside it, its own action in the foot with the dots. The reader turns it
- * with the arrows, a dot or a sideways swipe; it never turns itself. Upcoming (Calendar | Polls)
+ * with the arrows or a dot; it never turns itself, and a drag across a page selects its text
+ * (the operator, 2026-11-18: the swipe that once turned it took every highlight). Upcoming (Calendar | Polls)
  * and the wildcard are both one.
  */
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { playRole } from '../sound/index.ts';
-import { keepPage, stepPage, swipeStep } from './gallery.ts';
+import { keepPage, stepPage } from './gallery.ts';
 
 /**
  * The arrow inside a gallery's round button, drawn, not typed: a text ‹ › sits wherever its font
@@ -40,7 +41,6 @@ export function Gallery({ testId, pages, opening }: { testId: string; pages: rea
     0,
   );
   const page = pages[at];
-  const down = useRef<{ x: number; y: number } | null>(null);
   if (page === undefined) return null;
 
   const turn = (to: number): void => {
@@ -68,25 +68,7 @@ export function Gallery({ testId, pages, opening }: { testId: string; pages: rea
           </span>
         )}
       </header>
-      <div
-        key={page.key}
-        className="gallery__page"
-        data-testid={`${testId}-page`}
-        data-page={page.key}
-        onPointerDown={(e) => {
-          down.current = { x: e.clientX, y: e.clientY };
-        }}
-        onPointerUp={(e) => {
-          const from = down.current;
-          down.current = null;
-          if (from === null || !many) return;
-          const step = swipeStep(e.clientX - from.x, e.clientY - from.y);
-          if (step !== 0) turn(stepPage(at, step, pages.length));
-        }}
-        onPointerCancel={() => {
-          down.current = null;
-        }}
-      >
+      <div key={page.key} className="gallery__page" data-testid={`${testId}-page`} data-page={page.key}>
         {page.body}
       </div>
       {(many || page.action !== undefined) && (
