@@ -1630,7 +1630,7 @@ describe('receiving', () => {
     handle.dispose();
   });
 
-  it('this board’s clickable battlefield cards go out as `forge:offered`, at most once per `PRESENCE_SEND_MS`, the latest set winning; the other seat’s come in to `placed.ts`', () => {
+  it('this board’s clickable battlefield cards go out as `forge:offered`, at most once per `PRESENCE_SEND_MS`, each carrying every card drawn clickable since the last; the other seat’s come in to `placed.ts`', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const t = fakeTransport();
@@ -1638,11 +1638,14 @@ describe('receiving', () => {
     const offered = () => t.sent.filter((m) => m.event === OFFERED_EVENT).map((m) => (m.payload as { cards: number[] }).cards);
     ownClickableBox.current!([4, 5]);
     expect(offered(), 'the first set goes at once').toEqual([[4, 5]]);
-    ownClickableBox.current!([5]);
+    ownClickableBox.current!([3]);
     ownClickableBox.current!([5, 9]);
     expect(offered(), 'held for the rest of the window').toHaveLength(1);
     vi.advanceTimersByTime(PRESENCE_SEND_MS);
-    expect(offered(), 'then the set that stands').toEqual([[4, 5], [5, 9]]);
+    expect(offered(), 'then every card clickable in it, the target pressed at once (3) too').toEqual([[4, 5], [3, 5, 9]]);
+    ownClickableBox.current!([]);
+    vi.advanceTimersByTime(PRESENCE_SEND_MS);
+    expect(offered(), 'and nothing carries past a send').toEqual([[4, 5], [3, 5, 9], []]);
     expect(t.sent.find((m) => m.event === OFFERED_EVENT)!.payload).toEqual({ matchId: 'm-1', type: 'offered', cards: [4, 5] });
     t.receiveOffered({ matchId: 'm-1', type: 'offered', seat: 1, cards: [7] });
     expect(placedMod.setPeerClickable).toHaveBeenCalledWith(1, [7]);
@@ -1652,7 +1655,7 @@ describe('receiving', () => {
     const watcher = installPresence({ canvas, host: host(t, null) });
     ownClickableBox.current!([1]);
     vi.advanceTimersByTime(PRESENCE_SEND_MS);
-    expect(offered(), 'a watcher clicks nothing and says nothing').toHaveLength(2);
+    expect(offered(), 'a watcher clicks nothing and says nothing').toHaveLength(3);
     watcher.dispose();
   });
 

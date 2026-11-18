@@ -1581,8 +1581,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /**
    * The battlefield cards this board draws clickable go to the other screens, and theirs come to
    * `placed.ts`, so the chips on every screen keep clear of what either player can click
-   * (`@hadoku/shared`'s `offered.ts`). The latest set wins, at most one every `PRESENCE_SEND_MS`,
-   * so a burst of prompts never meets the server's cap and loses the set that stands.
+   * (`@hadoku/shared`'s `offered.ts`). At most one goes every `PRESENCE_SEND_MS`, so a burst of
+   * prompts never meets the server's cap, and it carries every card drawn clickable since the last
+   * one: a target pressed at once is clickable for less than the window, and a latest-wins send
+   * dropped it, so the other screen slid a chip across it (#72). The other screen keeps them clear
+   * for the turn either way (`placed.ts`'s `clickable`).
    */
   let offeredDue: readonly number[] | null = null;
   let offeredTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1596,7 +1599,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
   const unwatchOwnClickable = onOwnClickable((cards) => {
     if (!live || host.seat === null) return;
-    offeredDue = cards;
+    offeredDue = offeredDue === null ? cards : [...new Set([...offeredDue, ...cards])];
     if (offeredTimer !== null) return;
     const wait = PRESENCE_SEND_MS - (Date.now() - offeredSent);
     if (wait <= 0) sendOffered();
