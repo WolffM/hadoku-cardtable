@@ -1,6 +1,6 @@
 ## Changed
 
-- The calendar shows each event's facts one per line, with the sign-up count beside its title, so nothing wraps.
+- The calendar shows each event's facts one per line, so nothing wraps.
 
 ## Fixed
 

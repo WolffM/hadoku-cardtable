@@ -47,7 +47,11 @@ const EVENT = {
   mine: true,
   joined: true,
   roomId: 'r-b97bb1051d2a',
-  room: { gameType: 'constructed-1v1', mode: 'classic', format: 'free', pool: null, locked: false, phase: 'lobby', members: 1, entrants: 1 },
+  room: { gameType: 'constructed-1v1', mode: 'classic', format: 'free', pool: null, locked: false, phase: 'lobby' },
+  signups: [
+    { name: 'user-alice', avatarId: 'sage', inRoom: true },
+    { name: 'Ada', inRoom: false },
+  ],
 };
 
 const TABLE = {

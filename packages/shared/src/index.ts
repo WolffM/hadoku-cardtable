@@ -568,6 +568,7 @@ export {
   isEventSignupForm,
   rallyFormIdOf,
   rallyReturnOf,
+  type EventSignup,
   type RallyFormSummary,
   type RallyWindow,
   type RallyAvailability,

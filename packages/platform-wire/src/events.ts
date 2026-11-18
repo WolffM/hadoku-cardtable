@@ -7,6 +7,8 @@
 
 import { z } from 'zod';
 
+import { PersonFaceSchema } from './look.ts';
+
 // eslint-disable-next-line no-control-regex
 const CONTROL = /[\u0000-\u001f\u007f]/;
 
@@ -46,6 +48,17 @@ export const strictBody = <S extends z.ZodRawShape>(shape: S) =>
  */
 export const updateEventBodySchema = (titleMax: number) => strictBody({ title: eventTitleSchema(titleMax).optional(), startsAt: StartsAtSchema });
 
+/**
+ * One person signed up for an event, as the calendar and the room draw them: their name and face now
+ * (a Rally respondent with no account, the name they typed and no face), and whether they are in the
+ * event's room.
+ */
+export const EventSignupSchema = PersonFaceSchema.extend({
+  name: z.string(),
+  inRoom: z.boolean().catch(false),
+});
+export type EventSignup = z.infer<typeof EventSignupSchema>;
+
 /** One event as `GET /api/events` sends it, scoped to the caller (`mine`): the game's `kind` and `room`. */
 export const eventViewSchema = <K extends z.ZodType, R extends z.ZodType>(kind: K, room: R) =>
   z.object({
@@ -65,11 +78,10 @@ export const eventViewSchema = <K extends z.ZodType, R extends z.ZodType>(kind: 
     /** The room as it is now. Always sent; optional only so a reader's fixture may leave it out. */
     room: room.nullable().catch(null).optional(),
     /**
-     * How many said on the event's Rally form that they can make it: respondents free for the
-     * form's whole length from `startsAt`. Null for an event made without a form, or while Rally
-     * cannot say.
+     * Who has signed up: everyone who submitted the event's Rally form and everyone in its room,
+     * once each by account. Its length is the event's sign-up count.
      */
-    signedUp: z.number().int().min(0).nullable().catch(null).optional(),
+    signups: z.array(EventSignupSchema).catch([]),
   });
 
 export const eventListSchema = <V extends z.ZodType>(view: V) => z.object({ events: z.array(view).catch([]) });
@@ -101,7 +113,7 @@ export const RallyAvailabilitySchema = z.object({
 });
 export type RallyAvailability = z.infer<typeof RallyAvailabilitySchema>;
 
-/** Rally's `GET /rally/api/forms/{id}/summary`, its `data`. `availability` comes to a service caller only. */
+/** Rally's `GET /rally/api/forms/{id}/summary`, its `data`. `availability` and `respondents` come to a service caller only. */
 export const RallyFormSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -113,6 +125,11 @@ export const RallyFormSummarySchema = z.object({
   createdById: z.string().optional(),
   schema: z.object({ name: z.string(), version: z.number().int() }),
   availability: RallyAvailabilitySchema.optional().catch(undefined),
+  /** Service callers only: who submitted a response, earliest first, by the name they gave and their userId (null for an anonymous one). */
+  respondents: z
+    .array(z.object({ name: z.string(), userId: z.string().nullable() }))
+    .optional()
+    .catch(undefined),
 });
 export type RallyFormSummary = z.infer<typeof RallyFormSummarySchema>;
 
@@ -126,7 +143,7 @@ export const AttachFormBodySchema = strictBody({ formId: RallyFormIdSchema });
 export type AttachFormBody = z.output<typeof AttachFormBodySchema>;
 
 /** An attached form as `GET /api/events/forms` and `POST /api/events/forms` send it: Rally's summary, and who attached it. */
-export const AttachedFormSchema = RallyFormSummarySchema.omit({ availability: true }).extend({
+export const AttachedFormSchema = RallyFormSummarySchema.omit({ availability: true, respondents: true }).extend({
   attachedBy: z.string(),
   /** Whether the caller attached it: only they may detach it, or make an event from it. */
   mine: z.boolean().catch(false),

@@ -53,7 +53,7 @@ export const CreateEventBodySchema = strictBody({
   title: eventTitleSchema(ROOM_NAME_MAX),
   startsAt: StartsAtSchema,
   room: TournamentRoomSchema.prefault({}),
-  /** The Rally sign-up form it was made from: its count of who can make it shows as the event's `signedUp`. */
+  /** The Rally sign-up form it was made from: whoever submitted it is listed in the event's `signups`. */
   formId: RallyFormIdSchema.optional(),
 }).transform(({ title, startsAt, formId, room: { format, settings, plan, ...fields } }, ctx) => {
   const room = CreateRoomBodySchema.safeParse({ ...fields, name: title });
@@ -89,10 +89,6 @@ export const EventRoomSchema = z.object({
   locked: z.boolean().catch(false),
   /** The pod's phase, or null for a room with no pod. */
   phase: PodPhaseSchema.nullable().catch(null),
-  /** Everybody in the room. */
-  members: z.number().int().min(0).catch(0),
-  /** Members sitting in the pod (in `lobby`), or drafting it (past `lobby`). */
-  entrants: z.number().int().min(0).catch(0),
 });
 export type EventRoom = z.infer<typeof EventRoomSchema>;
 

@@ -21,9 +21,10 @@
  *
  * A form is checked through Rally's summary with this server's service key (signed-in callers
  * only on Rally's side), and only an `event-signup@1` form is attached. Being a service caller,
- * this server also reads the form's availability as counts: an attached form lists its best
- * windows, and an event made from a form (`formId`) shows how many can make its start
- * (`signedUp`), live, so a later answer counts too.
+ * this server also reads the form's availability as counts and who submitted it: an attached
+ * form lists its best windows, and an event's `signups` are everyone who submitted the form it
+ * was made from (`formId`) and everyone in its room, once each by account, read live, so a later
+ * answer or join counts too.
  *
  * A poll closing is when its event gets made, so a closed form stays listed to whoever attached
  * it, with its windows, until an event is made from it or `CLOSED_FORM_KEPT_MS` after it closed;
@@ -37,7 +38,6 @@ import {
 	AttachFormBodySchema,
 	CreateEventBodySchema,
 	isEventSignupForm,
-	isPodAi,
 	planDisplayName,
 	RallyFormSummarySchema,
 	UpdateEventBodySchema,
@@ -45,6 +45,7 @@ import {
 	type DraftPlan,
 	type EventKind,
 	type EventRoom,
+	type EventSignup,
 	type EventView,
 	type PoolVerdict,
 	type RallyFormSummary,
@@ -54,7 +55,7 @@ import type { DiscordEvents } from '@hadoku/game-server/room/discord-events';
 import type { EventRecord, Events, FormRecord } from '@hadoku/game-server/room/events';
 import { callerOf, httpCaller, parseBody, perCallerLimit } from '@hadoku/game-server/http/request';
 import { deriveParticipantId } from '@hadoku/game-server/room/identity';
-import type { People, Person } from '@hadoku/game-server/people';
+import { faceOfPerson, type People, type Person } from '@hadoku/game-server/people';
 import { type Lobby, type MagicRoomView } from '../room/lobby.js';
 import { magicView } from '../room/magic-view.js';
 import { UNNAMED } from '@hadoku/game-server/room/constants';
@@ -181,7 +182,6 @@ function kindOf(room: MagicRoomView): EventKind {
 
 function roomState(room: MagicRoomView): EventRoom {
 	const pod = room.game?.pod ?? null;
-	const entrants = pod === null ? 0 : pod.phase === 'lobby' ? pod.seats.filter((s) => s !== null && !isPodAi(s.memberId)).length : pod.drafters.length;
 	return {
 		gameType: room.gameType,
 		mode: room.game?.mode ?? null,
@@ -191,9 +191,50 @@ function roomState(room: MagicRoomView): EventRoom {
 		pool: pod?.plan == null || pod.roundNames == null ? null : planDisplayName(pod.plan, pod.roundNames),
 		locked: room.locked,
 		phase: pod?.phase ?? null,
-		members: room.members.length,
-		entrants,
 	};
+}
+
+/**
+ * Who has signed up for an event: everyone who submitted its form (`respondents`, earliest first),
+ * then everyone in its room who did not, once each by account. A respondent in the room is drawn
+ * as the room draws them; one elsewhere by their account now (`found`), or, with no account, by
+ * the name they typed and no face. Exported for its test.
+ */
+export function signupsOf(
+	respondents: NonNullable<RallyFormSummary['respondents']>,
+	room: Pick<MagicRoomView, 'members'>,
+	users: readonly { memberId: string; userId: string }[],
+	found: ReadonlyMap<string, Person>,
+): EventSignup[] {
+	const memberOf = new Map(users.map((u) => [u.userId, u.memberId]));
+	const inRoom = (m: MagicRoomView['members'][number]): EventSignup => ({
+		name: m.name,
+		...(m.avatarId === undefined ? {} : { avatarId: m.avatarId }),
+		...(m.look === undefined ? {} : { look: m.look }),
+		inRoom: true,
+	});
+	const listed = new Set<string>();
+	const seen = new Set<string>();
+	const out: EventSignup[] = [];
+	for (const r of respondents) {
+		if (r.userId === null) {
+			out.push({ name: r.name, inRoom: false });
+			continue;
+		}
+		if (seen.has(r.userId)) continue;
+		seen.add(r.userId);
+		const memberId = memberOf.get(r.userId);
+		const member = room.members.find((m) => m.id === memberId);
+		if (member !== undefined) {
+			listed.add(member.id);
+			out.push(inRoom(member));
+			continue;
+		}
+		const person = found.get(r.userId);
+		out.push({ name: person?.name ?? r.name, ...faceOfPerson(person), inRoom: false });
+	}
+	for (const m of room.members) if (!listed.has(m.id)) out.push(inRoom(m));
+	return out;
 }
 
 export function attachEvents(api: Router, deps: EventsDeps): void {
@@ -201,43 +242,45 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 	const now = deps.now ?? Date.now;
 	const summary = rallySummaries(deps.rally, now, deps.log);
 
-	/**
-	 * Each person's name now, by userId (R4: a name is looked up, never kept). A record from before
-	 * userIds were kept shows the name it stored; one with neither, the word an unnamed caller gets.
-	 */
-	const namesOf = async (userIds: readonly (string | null | undefined)[]): Promise<(userId: string | null | undefined, kept: string | undefined) => string> => {
-		const ids = userIds.filter((id): id is string => typeof id === 'string');
-		const found = deps.people === undefined || ids.length === 0 ? new Map<string, Person>() : await deps.people.resolve(ids);
-		return (userId, kept) => (userId == null ? undefined : found.get(userId)?.name) ?? kept ?? UNNAMED;
+	/** Each person as they are now, by userId (R4: a name is looked up, never kept). */
+	const peopleOf = async (userIds: readonly (string | null | undefined)[]): Promise<Map<string, Person>> => {
+		const ids = [...new Set(userIds.filter((id): id is string => typeof id === 'string'))];
+		return deps.people === undefined || ids.length === 0 ? new Map<string, Person>() : deps.people.resolve(ids);
 	};
 
 	/**
-	 * How many said on the event's form that they can make it: Rally's count of respondents free for
-	 * the form's whole length from the event's start (0 at a start nobody can make). Null without a
-	 * form, or while Rally cannot say; an expired answer is shown while the next is read.
+	 * Each person's name from `found`. A record from before userIds were kept shows the name it
+	 * stored; one with neither, the word an unnamed caller gets.
 	 */
-	const signedUpOf = async (e: EventRecord): Promise<number | null> => {
-		if (e.formId === undefined) return null;
+	const nameIn = (found: Map<string, Person>) => (userId: string | null | undefined, kept: string | undefined): string => (userId == null ? undefined : found.get(userId)?.name) ?? kept ?? UNNAMED;
+	const namesOf = async (userIds: readonly (string | null | undefined)[]) => nameIn(await peopleOf(userIds));
+
+	/** Who submitted the event's form; none without a form, or while Rally cannot say (an expired answer is used while the next is read). */
+	const respondentsOf = async (e: EventRecord): Promise<NonNullable<RallyFormSummary['respondents']>> => {
+		if (e.formId === undefined) return [];
 		const found = await summary(e.formId, true);
-		const availability = found.ok ? found.summary.availability : undefined;
-		if (availability === undefined) return null;
-		return availability.starts.find((s) => Date.parse(s.at) === e.startsAt)?.free ?? 0;
+		return (found.ok ? found.summary.respondents : undefined) ?? [];
 	};
 
-	const view = (e: EventRecord, room: MagicRoomView, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string, signedUp: number | null): EventView => ({
-		id: e.id,
-		kind: kindOf(room),
-		title: room.name,
-		startsAt: new Date(e.startsAt).toISOString(),
-		organizer: nameOf(e.organizerUserId, e.organizerName),
-		mine: e.organizerId === callerId,
-		joined: lobby.isMember(room.id, callerId),
-		roomId: room.id,
-		room: roomState(room),
-		signedUp,
-	});
+	const views = async (shown: readonly { e: EventRecord; room: MagicRoomView }[], callerId: string, kept: (e: EventRecord) => string | undefined = (e) => e.organizerName): Promise<EventView[]> => {
+		const respondents = await Promise.all(shown.map(({ e }) => respondentsOf(e)));
+		const found = await peopleOf([...shown.map(({ e }) => e.organizerUserId), ...respondents.flat().map((r) => r.userId)]);
+		const nameOf = nameIn(found);
+		return shown.map(({ e, room }, i) => ({
+			id: e.id,
+			kind: kindOf(room),
+			title: room.name,
+			startsAt: new Date(e.startsAt).toISOString(),
+			organizer: nameOf(e.organizerUserId, kept(e)),
+			mine: e.organizerId === callerId,
+			joined: lobby.isMember(room.id, callerId),
+			roomId: room.id,
+			room: roomState(room),
+			signups: signupsOf(respondents[i]!, room, lobby.usersOf(room.id), found),
+		}));
+	};
 
-	const formView = (f: FormRecord, { availability, ...s }: RallyFormSummary, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string): AttachedForm => ({
+	const formView = (f: FormRecord, { availability, respondents: _respondents, ...s }: RallyFormSummary, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string): AttachedForm => ({
 		...s,
 		attachedBy: nameOf(f.attachedByUserId, f.attachedByName),
 		mine: f.attachedById === callerId,
@@ -313,8 +356,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 			const room = magicView(lobby.get(e.roomId));
 			return room === undefined ? [] : [{ e, room }];
 		});
-		const [nameOf, signedUp] = await Promise.all([namesOf(upcoming.map(({ e }) => e.organizerUserId)), Promise.all(upcoming.map(({ e }) => signedUpOf(e)))]);
-		res.json({ events: upcoming.map(({ e, room }, i) => view(e, room, me, nameOf, signedUp[i]!)) });
+		res.json({ events: await views(upcoming, me) });
 	});
 
 	api.post('/events', async (req: Request, res: Response) => {
@@ -363,9 +405,8 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (formClosed && body.formId !== undefined) events.forgetForms([body.formId]);
 		void deps.discord?.sync(event.id);
 		// The create body takes only Magic's game types (`CreateRoomBodySchema`).
-		const [nameOf, signedUp] = await Promise.all([namesOf([event.organizerUserId]), signedUpOf(event)]);
-		const shown = (userId: string | null | undefined, kept: string | undefined) => nameOf(userId, kept ?? (organizer.id === caller.id ? caller.name : undefined));
-		res.status(201).json(view(event, magicView(lobby.get(roomId))!, caller.id, shown, signedUp));
+		const [made] = await views([{ e: event, room: magicView(lobby.get(roomId))! }], caller.id, (e) => e.organizerName ?? (organizer.id === caller.id ? caller.name : undefined));
+		res.status(201).json(made);
 	});
 
 	api.patch('/events/:id', async (req: Request, res: Response) => {
@@ -384,8 +425,8 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (!result.ok) return refuse(res, result.reason);
 		lobby.reschedule(room.id, startsAt);
 		void deps.discord?.sync(existing.id);
-		const [nameOf, signedUp] = await Promise.all([namesOf([result.event.organizerUserId]), signedUpOf(result.event)]);
-		res.json(view(result.event, magicView(lobby.get(room.id)) ?? room, me, nameOf, signedUp));
+		const [moved] = await views([{ e: result.event, room: magicView(lobby.get(room.id)) ?? room }], me);
+		res.json(moved);
 	});
 
 	api.delete('/events/:id', (req: Request, res: Response) => {

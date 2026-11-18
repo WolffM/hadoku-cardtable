@@ -1,10 +1,11 @@
 /**
- * An event made from a Rally poll, and the count of who signed up on it.
+ * An event made from a Rally poll, and who signed up on it.
  *
  * Whoever attached a poll makes its event from the Polls page's Create event: the dialog opens as a
  * tournament filled in from the form — its title, its best windows with how many can make each, and
  * the pool the people free for the chosen window ranked first — every field still editable, and it
- * sends the form along. The calendar then shows Rally's count of who can make the event's start.
+ * sends the form along. The calendar then shows who signed up: everyone who submitted the form, and
+ * everyone in the room.
  * The poll here has already closed, as one usually has by the time its event is made: it still
  * lists to whoever attached it, marked closed, with Create event.
  *
@@ -53,8 +54,8 @@ test('Create event on a closed poll fills the tournament from the form and sends
     organizer: 'carol',
     mine: false,
     roomId: 'r-000000000001',
-    room: { gameType: 'draft', mode: null, format: '', settings: {}, pool: null, locked: false, phase: 'lobby', members: 1, entrants: 0 },
-    signedUp: 8,
+    room: { gameType: 'draft', mode: null, format: '', settings: {}, pool: null, locked: false, phase: 'lobby' },
+    signups: Array.from({ length: 8 }, (_, i) => ({ name: `Player ${String(i + 1)}`, inRoom: i === 0 })),
   };
   const sent: unknown[] = [];
   await context.route(/\/api\/events(\?.*)?$/, async (route) => {
@@ -70,9 +71,7 @@ test('Create event on a closed poll fills the tournament from the form and sends
   try {
     await page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
     await expect(page.getByTestId('front-upcoming-title')).toHaveText('Calendar', { timeout: 30_000 });
-    // Rally's count, not the one person in the room. The number ends the count; the person
-    // icon's own title ("Signed up") is text before it.
-    await expect(page.getByTestId('front-calendar-signed-up')).toHaveText(/(^|\D)8$/);
+    await expect(page.getByTestId('front-calendar-event').getByTestId('event-signups')).toContainText('8 signed up');
 
     await page.getByTestId('front-upcoming-next').click();
     await expect(page.getByTestId('front-upcoming-title')).toHaveText('Polls');

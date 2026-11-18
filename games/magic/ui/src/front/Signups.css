@@ -1,0 +1,115 @@
+/*
+ * `./Signups.tsx`: the chip (the first faces overlapped, then the count) and the list it opens, in
+ * `../components/Modal.tsx`'s panel.
+ */
+
+.signups__chip {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.signups__chip:hover,
+.signups__chip:focus-visible {
+  border-color: var(--accent);
+}
+
+.signups__chip strong {
+  font-weight: 700;
+}
+
+.signups__faces {
+  display: flex;
+}
+
+.signups__face {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.signups__faces .signups__face {
+  border: 2px solid var(--line);
+}
+
+.signups__faces .signups__face + .signups__face {
+  margin-left: -8px;
+}
+
+.signups__face-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.signups__event {
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.signups__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: min(420px, 60dvh);
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.signups__person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 0;
+}
+
+.signups__person .signups__face {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.signups__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.signups__tag {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}

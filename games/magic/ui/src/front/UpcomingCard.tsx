@@ -5,8 +5,9 @@
  *
  *   - **Calendar** — every scheduled event, soonest first, in one scrolling list (`./events.ts`):
  *     a date block, its title, when, and its room as the room is now (`GET /api/events` reads each
- *     event's room live, so an edit in the room shows here at once). View opens the room, Sign up
- *     joins it; the organizer moves or cancels their own instead.
+ *     event's room live, so an edit in the room shows here at once), and who has signed up
+ *     (`./Signups.tsx`). View opens the room, Sign up joins it; the organizer moves or cancels
+ *     their own instead.
  *   - **Polls** — the open Rally forms attached to events (`./polls.ts`), and to whoever attached it a closed one still waiting for its event, each with Open to Rally;
  *     whoever attached one may make its event from it (Create event, filled in from the form).
  *
@@ -28,8 +29,8 @@ import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import { countdown } from '@hadoku/game-ui/front/countdown.ts';
 import { EVENT_KIND_LABELS, eventsApi, fromLocalInput, refreshEvents, toLocalInput, upcoming, useEvents, whenLabel } from './events.ts';
 import { formatEraLabel } from './formatLabel.ts';
+import { SignupsChip } from './Signups.tsx';
 import { ArrowGlyph, Gallery } from '@hadoku/game-ui/front/Gallery.tsx';
-import { PersonIcon } from '@hadoku/game-ui/front/icons.tsx';
 import { upcomingOpensOn } from '@hadoku/game-ui/front/gallery.ts';
 import { FrontGateContext, usePartShown } from '@hadoku/game-ui/front/gate.ts';
 import { usePolls, type Poll } from '@hadoku/game-ui/front/polls.ts';
@@ -46,17 +47,11 @@ function DateBlock({ at }: { at: string }) {
   );
 }
 
-/**
- * The room's own state, as the room is now: its pool (a draft's plan, a constructed room's format) and how many have signed up — those who
- * said on its Rally form they can make it, for an event made from one; else those in its room. `null` for an event with no room.
- */
-function roomFacts(event: EventView): { pool: string | null; signedUp: number } | null {
+/** The room's pool as it is now: a draft's plan, a constructed room's format. */
+function poolOf(event: EventView): string | null {
   const room = event.room ?? null;
   if (room === null) return null;
-  return {
-    pool: room.pool ?? (room.format === '' ? null : formatEraLabel(room.format)),
-    signedUp: event.signedUp ?? (room.phase === null ? room.members : room.entrants),
-  };
+  return room.pool ?? (room.format === '' ? null : formatEraLabel(room.format));
 }
 
 /** The gallery as it opens, on Calendar, with `count` rows of placeholders (none: the empty line's). */
@@ -100,6 +95,7 @@ function UpcomingSkeleton({ count }: { count: number }) {
                   <span className="front-card__event-detail">
                     <span className="ghost ghost--text">A set · Set-cube</span>
                   </span>
+                  <span className="signups__chip ghost">3 signed up</span>
                   <span className="front-card__event-actions">
                     <span className="button ghost">View</span>
                     <span className="button ghost">Sign up</span>
@@ -184,7 +180,8 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
   const [startsAt, setStartsAt] = useState(toLocalInput(event.startsAt));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const facts = roomFacts(event);
+  const pool = poolOf(event);
+  const canSignUp = !event.mine && !event.joined;
 
   const failed = (message: string): void => {
     playRole('ui.deny');
@@ -228,22 +225,19 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
     <li className="front-card__event" data-testid="front-calendar-event" data-event={event.id}>
       <DateBlock at={event.startsAt} />
       <span className="front-card__event-text">
-        <span className="front-card__event-head">
-          <span className="front-card__event-title">{event.title}</span>
-          {facts !== null && (
-            <span className="front-card__event-count" data-testid="front-calendar-signed-up">
-              <PersonIcon size={12} label="Signed up" />
-              {facts.signedUp}
-            </span>
-          )}
-        </span>
+        <span className="front-card__event-title">{event.title}</span>
         <span className="front-card__event-detail">
           {whenLabel(event.startsAt)} · {countdown(event.startsAt, now)}
         </span>
         <span className="front-card__event-detail">
           {EVENT_KIND_LABELS[event.kind] ?? 'Event'} · {event.organizer}
         </span>
-        {facts !== null && facts.pool !== null && <span className="front-card__event-detail">{facts.pool}</span>}
+        {pool !== null && <span className="front-card__event-detail">{pool}</span>}
+        <SignupsChip
+          event={event}
+          busy={busy}
+          {...(roomId === null ? {} : { onView: () => navigate({ kind: 'room', roomId }), ...(canSignUp ? { onSignUp: () => void signUp(roomId) } : {}) })}
+        />
         {moving ? (
           <form className="front-card__event-actions" onSubmit={(e) => void move(e)}>
             <input aria-label="Starts" data-testid="front-calendar-starts" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
@@ -270,10 +264,10 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
                   </button>
                 </>
               ) : (
-                !event.joined && (
-                <button type="button" className="button front-card__more" data-testid="front-calendar-signup" disabled={busy} onClick={() => void signUp(roomId)}>
-                  Sign up
-                </button>
+                canSignUp && (
+                  <button type="button" className="button front-card__more" data-testid="front-calendar-signup" disabled={busy} onClick={() => void signUp(roomId)}>
+                    Sign up
+                  </button>
                 )
               )}
             </span>

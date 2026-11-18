@@ -18,6 +18,8 @@ export interface RoomShellProps {
   dataMembers: number | undefined;
   /** The room's own name, once either read has it. */
   roomTitle: string | undefined;
+  /** What the game type draws beside the title (a scheduled room's sign-ups); absent, nothing. */
+  titleAside?: ReactNode;
   /** The room answered with a refusal rather than useful data: nothing more to wait for, so the
    * title falls back to "Room" instead of staying a skeleton. */
   settled: boolean;
@@ -48,6 +50,7 @@ export function RoomShell({
   shellRef,
   dataMembers,
   roomTitle,
+  titleAside,
   settled,
   headerTools,
   streamed,
@@ -77,6 +80,7 @@ export function RoomShell({
         ) : (
           <span className="skeleton skeleton--title" />
         )}
+        {roomTitle !== undefined && titleAside}
         <div className="shell__tools">{headerTools}</div>
         {resolved && streamed && streamedSubLine}
       </header>

@@ -218,6 +218,7 @@ import { RoomHeader } from '../rooms/RoomHeader.tsx';
 import { gameRoomUiFor, registerGameRoomUi, type GameRoomUi, type GameSetupProps } from '@hadoku/game-ui/rooms/game-setup.ts';
 import { useGameClients } from '@hadoku/game-ui/rooms/game-clients.tsx';
 import { RoomShell } from '@hadoku/game-ui/rooms/screen/RoomShell.tsx';
+import { RoomSignups } from '../front/Signups.tsx';
 import { ClassicOptions, toggledFreePick, type Browse } from './constructed-mode/ClassicOptions.tsx';
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
@@ -2907,6 +2908,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
       shellRef={shellRef}
       dataMembers={view?.members.length ?? undefined}
       roomTitle={roomTitle}
+      titleAside={!streamed && view?.scheduledFor != null && <RoomSignups roomId={roomId} members={view.members.length} />}
       settled={settled}
       streamed={streamed}
       resolved={resolved}

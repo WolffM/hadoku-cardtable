@@ -166,7 +166,8 @@ describe('/api/events', () => {
 			settings: { tournament: true, tournamentDecks: 'per-round', clock: 'on', handSmoothing: false },
 		});
 		expect(room?.members.map((m) => m.name)).toEqual(['user-alice']);
-		expect(event.room).toMatchObject({ gameType: 'constructed-1v1', mode: 'classic', format: 'free', settings: { tournament: true, clock: 'on' }, locked: false, members: 1 });
+		expect(event.room).toMatchObject({ gameType: 'constructed-1v1', mode: 'classic', format: 'free', settings: { tournament: true, clock: 'on' }, locked: false });
+		expect(event.signups).toEqual([{ name: 'user-alice', inRoom: true }]);
 
 		const seen = EventListSchema.parse((await call(base, 'bob', 'GET', '/events')).body);
 		expect(seen.events.map((e) => [e.title, e.mine])).toEqual([['Pauper cup', false]]);
@@ -224,7 +225,8 @@ describe('/api/events', () => {
 
 		expect(await listed()).toMatchObject({ mine: false, joined: false });
 		expect(lobby.join(event.roomId!, { id: identityFromHeaders(headersFor('bob'), 'unused'), name: 'user-bob', userId: 'uid-user-bob' }).ok).toBe(true);
-		expect(await listed()).toMatchObject({ mine: false, joined: true, room: { members: 2 } });
+		expect(await listed()).toMatchObject({ mine: false, joined: true });
+		expect((await listed())?.signups.map((p) => p.name)).toEqual(['user-alice', 'user-bob']);
 	});
 
 	it('lists soonest first and drops an event six hours after it starts', async () => {
@@ -435,26 +437,43 @@ describe('an event made from a Rally form', () => {
 		expect(byId.plain!.windows).toEqual([]);
 	});
 
-	it('shows how many can make its start, read live from Rally, and 0 at a start nobody can make', async () => {
+	it('signs up everyone who submitted its form and everyone in its room, once each by account, read live', async () => {
 		const clock = { now: Date.UTC(2026, 10, 10, 12) };
-		const rally: Record<string, RallyRow> = { poll: rallyForm('poll', { availability: AVAILABILITY }) };
-		const { base } = await openApp(clock, rally);
+		const respondents = [
+			{ name: 'Ada', userId: null },
+			{ name: 'Bobby', userId: 'uid-user-bob' },
+			{ name: 'Cy', userId: 'user-cy' },
+			{ name: 'Cy again', userId: 'user-cy' },
+		];
+		const rally: Record<string, RallyRow> = { poll: rallyForm('poll', { availability: AVAILABILITY, respondents }) };
+		const { base, lobby } = await openApp(clock, rally, { people: { 'user-cy': 'Cyrus', 'user-alice': 'Alice' } });
 		const made = await call(base, 'alice', 'POST', '/events', { ...tournament('Draft Major', START, { gameType: 'draft' }), formId: 'poll' });
 		expect(made.status).toBe(201);
 		const event = EventViewSchema.parse(made.body);
-		expect(event.signedUp).toBe(8);
 		await call(base, 'alice', 'POST', '/events', tournament('No form', START, { gameType: 'draft' }));
+		// Bob, who answered the form as "Bobby", joins the room: he is listed once, as the room has him.
+		expect(lobby.join(event.roomId!, { id: identityFromHeaders(headersFor('bob'), 'unused'), name: 'user-bob', userId: 'uid-user-bob' }).ok).toBe(true);
 
-		const signedUp = async () => Object.fromEntries(EventListSchema.parse((await call(base, 'bob', 'GET', '/events')).body).events.map((e) => [e.title, e.signedUp]));
-		expect(await signedUp()).toEqual({ 'Draft Major': 8, 'No form': null });
+		const signups = async () => Object.fromEntries(EventListSchema.parse((await call(base, 'dee', 'GET', '/events')).body).events.map((e) => [e.title, e.signups]));
+		const listed = await signups();
+		expect(listed['Draft Major']).toEqual([
+			// No account: the name typed on the form, no face.
+			{ name: 'Ada', inRoom: false },
+			{ name: 'user-bob', inRoom: true },
+			// An account outside the room: its name now, not the one typed.
+			{ name: 'Cyrus', inRoom: false },
+			// The organizer, in the room, who never answered the form.
+			{ name: 'user-alice', inRoom: true },
+		]);
+		expect(listed['No form']).toEqual([{ name: 'user-alice', inRoom: true }]);
 
 		// A later answer counts once Rally's answer is re-read.
-		rally.poll = rallyForm('poll', { availability: { ...AVAILABILITY, starts: [{ at: START, free: 9 }] } });
+		rally.poll = rallyForm('poll', { availability: AVAILABILITY, respondents: [...respondents, { name: 'Eve', userId: null }] });
 		clock.now += 6 * 60_000;
-		await vi.waitFor(async () => expect((await signedUp())['Draft Major']).toBe(9));
-
-		const moved = await call(base, 'alice', 'PATCH', `/events/${event.id}`, { startsAt: '2026-11-29T23:30:00.000Z' });
-		expect(EventViewSchema.parse(moved.body).signedUp).toBe(0);
+		await vi.waitFor(async () => expect((await signups())['Draft Major']).toHaveLength(5));
+		// The calendar's polls list never carries who answered.
+		await call(base, 'alice', 'POST', '/events/forms', { formId: 'poll' });
+		expect(JSON.stringify((await call(base, 'alice', 'GET', '/events/forms')).body)).not.toContain('Ada');
 	});
 
 	it('a closed poll stays creatable to its attacher until its event is made, or two weeks after it closed', async () => {
@@ -478,7 +497,7 @@ describe('an event made from a Rally form', () => {
 
 		const made = await call(base, 'alice', 'POST', '/events', { ...tournament('Draft Major', START, { gameType: 'draft' }), formId: 'poll' });
 		expect(made.status).toBe(201);
-		expect(EventViewSchema.parse(made.body).signedUp).toBe(8);
+		expect(EventViewSchema.parse(made.body).signups.map((p) => p.name)).toEqual(['user-alice']);
 		expect((await forms('alice')).map((f) => f.id)).toEqual(['idle']);
 		await vi.waitFor(async () => expect(JSON.parse(await readFile(file, 'utf8')).forms.map((f: { formId: string }) => f.formId)).toEqual(['idle']));
 

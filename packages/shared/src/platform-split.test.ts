@@ -41,9 +41,11 @@ const EVENT = {
     pool: null,
     locked: false,
     phase: 'lobby',
-    members: 1,
-    entrants: 1,
   },
+  signups: [
+    { name: 'user-alice', avatarId: 'sage', inRoom: true },
+    { name: 'Ada', inRoom: false },
+  ],
 };
 
 describe('Magic on platform-wire round trip', () => {

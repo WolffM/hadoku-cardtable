@@ -25,7 +25,7 @@ const EventRecordSchema = z.object({
 	organizerUserId: z.string().nullable().optional(),
 	/** Read only, from a record written before `organizerUserId`: never written again. */
 	organizerName: z.string().optional(),
-	/** The Rally sign-up form it was made from: Rally counts who can make it (`EventView.signedUp`). */
+	/** The Rally sign-up form it was made from: whoever submitted it is signed up (`EventView.signups`). */
 	formId: z.string().optional(),
 	/** What the Discord server's calendar holds for it, as last sent (`discord-events.ts`): absent while it has none. */
 	discord: z.object({ eventId: z.string(), sent: z.string() }).optional(),
