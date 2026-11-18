@@ -1208,6 +1208,10 @@ test(
 
       /* ── Ready: game 2, against the AI again ─────────────────────────── */
       await alice.page.getByTestId('sideboard-ready').click();
+      // The next game waits for her press (AF639: "allow players to click to enter the game").
+      const enter = alice.page.getByTestId('game-result-enter');
+      await expect(enter, 'game 2 exists; "Enter game" is offered').toBeVisible({ timeout: 120_000 });
+      await enter.click();
       await alice.page.waitForURL((url) => matchUrl.test(url.toString()) && url.toString() !== game1, { timeout: 120_000 });
       await expect(alice.page.locator('[aria-label="Game board"]'), 'game 2 is drawn').toBeVisible({ timeout: 30_000 });
       await pressIntoTurnOne([alice.page]);

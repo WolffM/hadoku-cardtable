@@ -260,7 +260,8 @@ test(titled('a mode change during sideboarding interrupts the Bo3: the sideboard
     await expect(alice.page.getByTestId('sideboard-step'), "alice's room draws no sideboard step").toHaveCount(0);
     await alice.page.getByTestId('room-table-link').click();
     await expect(alice.page.getByTestId('sideboard-step'), "alice's table page shows her sideboard step").toBeVisible({ timeout: 30_000 });
-    await alice.page.getByTestId('table-hub').click();
+    // The step is drawn alone, as in-game (AF628), so its way back is the in-game step's own.
+    await alice.page.getByTestId('game-result-room').click();
     await expect(alice.page.getByTestId('room-table-link'), 'back in the room, the way to her table').toBeVisible({ timeout: 30_000 });
 
     const res = await alice.context.request.patch(`${stack.origin}${PREFIX}/api/rooms/${roomId}`, { data: { mode: 'random', modeOptions: { pool: 'full' } } });

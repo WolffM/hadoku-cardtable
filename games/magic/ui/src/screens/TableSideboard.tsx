@@ -30,7 +30,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 
-import { myChoice, rematchOf, SeriesEnterNext, SeriesSideboardPanel, startNextGame, useSideboardInputs } from '../play/live/series/GameResultScreen.tsx';
+import { myChoice, rematchOf, SeriesEnterNext, SeriesSideboardPanel, startNextGame, useMatchExits, useSideboardInputs } from '../play/live/series/GameResultScreen.tsx';
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { roomFeed } from '../rooms/follow.ts';
 import { tablesClient, type RoomTable, type SeatChoice, type TablesClient } from './tables.ts';
@@ -56,6 +56,10 @@ export function TableSideboard({ roomId, tableId, refresh, tables: given }: Tabl
   const [refusal, setRefusal] = useState<string | null>(null);
   const titleId = useId();
   const shellRef = useChromeShell('match');
+  // The in-game step's own ways off (Back to room, Main menu): the room draws this panel alone in the
+  // match's frame, with no room chrome around it, so without them a player who opened it from the
+  // room had no way back but the browser's.
+  const { exits } = useMatchExits(roomId);
 
   const readTable = useCallback((): Promise<void> => {
     return tables.table(roomId, tableId).then(
@@ -119,7 +123,7 @@ export function TableSideboard({ roomId, tableId, refresh, tables: given }: Tabl
   if (next !== null) {
     return (
       <div className="table-sideboard-frame" data-testid="table-sideboard" ref={shellRef}>
-        <SeriesEnterNext titleId={titleId} title="Sideboard" onEnter={() => openNewMatch(next)} />
+        <SeriesEnterNext titleId={titleId} title="Sideboard" onEnter={() => openNewMatch(next)} exits={exits} />
       </div>
     );
   }
@@ -136,6 +140,7 @@ export function TableSideboard({ roomId, tableId, refresh, tables: given }: Tabl
         inputs={inputs}
         title="Sideboard"
         refusal={refusal}
+        exits={exits}
       />
     </div>
   );

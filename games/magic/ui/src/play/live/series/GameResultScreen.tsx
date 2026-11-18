@@ -379,9 +379,10 @@ export function SideboardStep({
  * The ONE sideboard-step wrapper: `GameResultScreen`'s own "Next" branch and
  * `TableSideboard.tsx` (the room lobby's "Sideboard" link) both draw THIS, not a lookalike each —
  * same classes, same markup, so a screenshot diff of the two paths has nothing left to find in the
- * panel itself. `title` and `exits` are each caller's own (an outcome's name here, a plain
- * "Sideboard" label there; the in-game exits here, none from the lobby — `TableSideboard` is
- * already IN the room, so there is no "Back to room" to offer).
+ * panel itself. `title` is each caller's own (an outcome's name here, a plain "Sideboard" label
+ * there); `exits` are the same from both (`useMatchExits`): the lobby path draws the panel alone in
+ * the match's frame, with no room chrome around it, so it needs its own way off as much as the
+ * in-game one does.
  */
 export function SeriesSideboardPanel({
   roomId,
@@ -464,9 +465,9 @@ export function SeriesEnterNext({
 
 /**
  * The two ways off a match that is over: Back to room, and Main menu (which leaves the room). The
- * result screen and the ended notice both end in them.
+ * result screen, the ended notice and the lobby's sideboard step (`TableSideboard.tsx`) all end in them.
  */
-function useMatchExits(roomId: string | null): { leaving: boolean; onBackToRoom: () => void; exits: ReactNode } {
+export function useMatchExits(roomId: string | null): { leaving: boolean; onBackToRoom: () => void; exits: ReactNode } {
   const [leaving, setLeaving] = useState(false);
   // The room itself (the operator, 2026-10-23: back in the room mid-series, "a small box that lets me return"
   // to the table, not the sideboard step there); the table's page is one press from it.

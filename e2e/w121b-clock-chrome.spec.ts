@@ -28,6 +28,9 @@ const titled = makeTitled(forge);
 
 const say = (line: string): void => console.log(`[w121b-clock] ${line}`);
 
+/** `play/match.ts`'s `NEW_GAME_CLOCK_GRACE_MS`: no seat's clock runs before this many ms of a new game have passed. */
+const GRACE_MS = 60_000;
+
 /** Whether `[data-testid="match-clock"]` inside the viewer's own seat, or the other one, is running. */
 function clockRunning(page: Page, side: 'you' | 'them'): Promise<boolean | null> {
   return page.evaluate((side) => {
@@ -71,7 +74,7 @@ test(titled("AF629: the opponent's running clock outlines in the theme's danger,
     seated = await startScenarioMatch(browser, stack, 'w121b-bolt-ai', { clockMs: [20 * 60_000, 20 * 60_000] });
     const { alice, bob } = seated;
 
-    await expect.poll(() => clockRunning(bob.page, 'you'), { timeout: 20_000, message: "bob's own clock runs on his screen" }).toBe(true);
+    await expect.poll(() => clockRunning(bob.page, 'you'), { timeout: GRACE_MS + 20_000, message: "bob's own clock runs on his screen" }).toBe(true);
     await expect.poll(() => clockRunning(alice.page, 'them'), { timeout: 10_000, message: "bob's clock runs on alice's screen too (he is 'them' there)" }).toBe(true);
     expect(await clockRunning(alice.page, 'you'), "alice's own clock is not running while bob holds priority").toBe(false);
 
@@ -97,7 +100,7 @@ test(titled('AF633: the life total and the clock no longer draw as the same badg
   try {
     seated = await startScenarioMatch(browser, stack, 'bolt-player', { clockMs: [20 * 60_000, 20 * 60_000] });
     const { alice } = seated;
-    await expect.poll(() => clockRunning(alice.page, 'you'), { timeout: 20_000, message: "alice's own clock runs" }).toBe(true);
+    await expect.poll(() => clockRunning(alice.page, 'you'), { timeout: GRACE_MS + 20_000, message: "alice's own clock runs" }).toBe(true);
 
     const shapes = await alice.page.evaluate(() => {
       const life = document.querySelector('.seat[data-viewer] [data-testid="life"]');

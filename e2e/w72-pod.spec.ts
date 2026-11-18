@@ -23,7 +23,7 @@ import { arrangePod, draftUntilDone, readyPod } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
-import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
+import { makeTitled, pressEnterGame, pressIntoGame2, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openHub, openMyTable, submitCreateRoom } from './play/rooms.ts';
@@ -191,8 +191,12 @@ test(
           // Q's sideboard layout fix (`8fc0f75f`) put the Ready button back
           // in the viewport — a real click again, not `dispatchEvent`.
           for (const p of seated) await p.page.getByTestId('sideboard-ready').click();
-          // Game 2 starts from the two Readys, and the room carries the loser into it.
-          await loser.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
+          // Game 2 starts from the two Readys; each player enters it with a press (AF639), the winner
+          // from the finished game's own gate, the loser from whichever gate their table page draws.
+          const game1Url = winner.page.url();
+          await pressEnterGame(winner.page);
+          await pressIntoGame2(loser.page, matchUrl, UI_TIMEOUT);
+          await winner.page.waitForURL((url) => matchUrl.test(url.toString()) && url.toString() !== game1Url, { timeout: UI_TIMEOUT });
           await expect(loser.page.locator('[aria-label="Game board"]'), 'the loser is back at the table for game 2').toBeVisible({ timeout: UI_TIMEOUT });
           // Game 2: the loser of game 1 is asked play or draw — no coin (the operator, 2026-10-19: "please check").
           await expect(loser.page.getByTestId('live-play-or-draw-host'), 'game 1’s loser chooses play or draw').toBeVisible({ timeout: 30_000 });

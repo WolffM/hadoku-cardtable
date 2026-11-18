@@ -2244,6 +2244,11 @@ describe('the table’s pool', () => {
     expect(screen.queryByTestId('room-name')).toBeNull();
     expect(screen.queryByTestId('match-rules')).toBeNull();
     expect(screen.queryByTestId('room-players')).toBeNull();
+    // With the room's chrome gone, the step carries the in-game one's own ways off, or a player who
+    // opened it from the room had no way back but the browser's.
+    expect(screen.getByTestId('game-result-menu')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('game-result-room'));
+    expect(currentRoute()).toEqual({ kind: 'room', roomId: ROOM });
   });
 
   it('Free pick reads as its name to a non-leader, whose toggle is disabled', async () => {
