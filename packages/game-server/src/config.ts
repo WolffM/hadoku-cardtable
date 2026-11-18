@@ -46,7 +46,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const APP_ROOT = basename(HERE) === 'dist' ? dirname(HERE) : resolve(HERE, '../../../apps/server');
 
 /** Resolve a configured path against the package root unless it is absolute. */
-const resolveDir = (value: string): string => (isAbsolute(value) ? value : resolve(APP_ROOT, value));
 
 /** The in-clone paths a state dir replaces, for the boot move (`state-dir.ts`). */
 export const LEGACY_STATE = { dataDir: resolve(APP_ROOT, 'data'), logDir: resolve(APP_ROOT, 'logs') } as const;
@@ -56,6 +55,13 @@ export interface CreateConfigOptions {
 	envPrefix?: string;
 	/** The environment to read. Default `process.env` — override to build a second config in one process (a test, or a second game). */
 	env?: NodeJS.ProcessEnv;
+	/** What a relative directory resolves against: the game server's own package root. Default: cardtable's `apps/server`. */
+	root?: string;
+	/**
+	 * A game's own defaults, by unprefixed name (`PORT: '9010'`, `BASE_PREFIX: '/bomberman'`,
+	 * `ROOMS_DIR: 'state/rooms'`): what a variable the environment leaves unset reads as.
+	 */
+	defaults?: Readonly<Record<string, string>>;
 }
 
 export interface GameServerConfig {
@@ -170,7 +176,9 @@ export interface GameServerConfig {
 export function createConfig(options: CreateConfigOptions = {}): GameServerConfig {
 	const prefix = options.envPrefix ?? 'CARDTABLE';
 	const env = options.env ?? process.env;
-	const read = (name: string): string | undefined => env[`${prefix}_${name}`];
+	const read = (name: string): string | undefined => env[`${prefix}_${name}`] ?? options.defaults?.[name];
+	const root = options.root ?? APP_ROOT;
+	const resolveDir = (value: string): string => (isAbsolute(value) ? value : resolve(root, value));
 
 	const stateDirRaw = read('STATE_DIR');
 	const stateDir = stateDirRaw ? resolveDir(stateDirRaw) : '';
@@ -197,13 +205,13 @@ export function createConfig(options: CreateConfigOptions = {}): GameServerConfi
 		prefsBaseUrl: read('PREFS_BASE_URL') || 'https://hadoku.me/prefs',
 		monitoringBaseUrl: read('MONITORING_BASE_URL') || 'https://hadoku.me',
 		watchpartyBaseUrl: read('WATCHPARTY_BASE_URL') || 'https://hadoku.me/watchparty',
-		callersSeenFile: read('CALLERS_SEEN_FILE') ?? join(dataDir, 'callers-seen.json'),
+		callersSeenFile: resolveDir(read('CALLERS_SEEN_FILE') ?? join(dataDir, 'callers-seen.json')),
 		statsBaseUrl: read('STATS_BASE_URL') || 'https://hadoku.me/prefs',
 		stateDir,
 		logDir,
 		dataDir,
 		eventsFile: read('EVENTS_FILE') ?? join(dataDir, 'events.json'),
-		roomsDir: read('ROOMS_DIR') ?? join(dataDir, 'rooms'),
+		roomsDir: resolveDir(read('ROOMS_DIR') ?? join(dataDir, 'rooms')),
 		alertWebhook: env[`DISCORD_${prefix}_ALERT_WEBHOOK`] || '',
 		backstopForceFile: read('BACKSTOP_FORCE_FILE') ?? join(dataDir, 'backstop-force.json'),
 		testNoRateLimits: read('E2E_NO_RATE_LIMITS') === '1',

@@ -46,4 +46,16 @@ describe('hadoku health v1', () => {
 		expect(body).toMatchObject({ status: 'degraded', service: 'some-app', commit: null, commit_error: 'no git', bundle: 'unprefixed' });
 		expect(body.reason).toContain('unprefixed');
 	});
+
+	it('adds a game’s own fields, and any problem it names answers 503 degraded with it as the reason', () => {
+		const commit = { commit: 'a'.repeat(40) };
+		const now = new Date('2026-11-18T00:00:00Z');
+		const ok = healthResponse({ service: 'g', commit, bundle: { ok: true, reason: 'ok' }, game: { fields: { rooms: 2, game: 'built' } } }, now);
+		expect(ok.code).toBe(200);
+		expect(ok.body).toMatchObject({ status: 'ok', rooms: 2, game: 'built' });
+		const down = healthResponse({ service: 'g', commit, bundle: { ok: true, reason: 'ok' }, game: { fields: { game: 'missing' }, problems: ['no game bundle is built'] } }, now);
+		expect(down.code).toBe(503);
+		expect(down.body).toMatchObject({ status: 'degraded', reason: 'no game bundle is built', game: 'missing' });
+	});
 });
+

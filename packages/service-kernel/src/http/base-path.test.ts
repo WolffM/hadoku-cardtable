@@ -43,9 +43,10 @@ describe('reading is not serving', () => {
 		expect(checkBasePath(dotted, PREFIX).ok).toBe(true);
 	});
 
-	it('sendIndex (via probeIndex) serves the plain tree and refuses the dotted one', async () => {
+	it('sendIndex (via probeIndex) serves both: a dot-directory above the bundle (an agent worktree) is no bar', async () => {
 		expect(await probeIndex(plain)).toBe(200);
-		expect(await probeIndex(dotted)).toBe(404);
+		// It used to 404 here: `send` refused the whole absolute path for its `.worktrees` segment.
+		expect(await probeIndex(dotted)).toBe(200);
 	});
 });
 
@@ -56,12 +57,10 @@ describe('checkBundle', () => {
 		expect(verdict.reason).toBe('ok');
 	});
 
-	it('is unservable under a dot-directory, and names the segment', async () => {
+	it('is ok under a dot-directory too: an agent worktree serves its own bundle', async () => {
 		const verdict = await checkBundle(dotted, PREFIX);
-		expect(verdict.ok).toBe(false);
-		expect(verdict.reason).toBe('unservable');
-		expect(verdict.detail).toContain('.worktrees');
-		expect(verdict.detail).toContain('404');
+		expect(verdict.ok).toBe(true);
+		expect(verdict.reason).toBe('ok');
 	});
 
 	it('still reports the cheaper failures first: missing, then unprefixed', async () => {

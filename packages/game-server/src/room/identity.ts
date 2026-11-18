@@ -87,7 +87,7 @@ interface IdentityInputs {
  */
 let derive = createParticipantIdDeriver(PARTICIPANT_ID_DOMAIN);
 
-let participantIdDomainConfigured = false;
+let participantIdDomainConfigured: string | null = null;
 let participantIdDerived = false;
 
 /**
@@ -110,14 +110,16 @@ let participantIdDerived = false;
  * drops it as part of its own version bump — no code change on either side beyond that.
  */
 export function configureParticipantIdDomain(domain: string): void {
-	if (participantIdDomainConfigured) {
+	// The same domain again is the same derivation: a no-op (a game's boot, then its tests' second boot).
+	if (participantIdDomainConfigured === domain) return;
+	if (participantIdDomainConfigured !== null) {
 		throw new Error('configureParticipantIdDomain: already configured once for this process');
 	}
 	if (participantIdDerived) {
 		throw new Error('configureParticipantIdDomain: a participant id was already derived under the default domain; too late to swap it');
 	}
 	derive = createParticipantIdDeriver(domain);
-	participantIdDomainConfigured = true;
+	participantIdDomainConfigured = domain;
 }
 
 /**

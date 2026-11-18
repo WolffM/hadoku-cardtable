@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { sep } from 'node:path';
+import { basename, dirname, sep } from 'node:path';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import type { Server as SocketIOServer } from 'socket.io';
@@ -208,7 +208,13 @@ export function isEmbedEntry(filePath: string, embedEntries: readonly string[]):
  * for: change an option here and the boot check changes with it.
  */
 export function sendIndex(res: Response, indexHtmlPath: string, done: (err?: Error) => void): void {
-	res.set('Cache-Control', 'no-store').type('html').sendFile(indexHtmlPath, (err?: Error) => done(err));
+	// `root` + the bare file name: `send` refuses a path with any dot-segment in it (`dotfiles:
+	// 'ignore'`), so an absolute path under a dot-directory — every agent worktree,
+	// `.claude/worktrees/<task>/…` — 404ed the page. With `root`, only the name is checked.
+	res
+		.set('Cache-Control', 'no-store')
+		.type('html')
+		.sendFile(basename(indexHtmlPath), { root: dirname(indexHtmlPath) }, (err?: Error) => done(err));
 }
 
 /**
@@ -255,8 +261,7 @@ export async function checkBundle(indexHtmlPath: string, basePrefix: string): Pr
 		detail:
 			`index.html is at ${indexHtmlPath} and reads fine, but serving it answered ${status}. ` +
 			(dotSegments.length > 0
-				? `The path has a dot-segment (${dotSegments.join(', ')}), and express's sendFile refuses those ` +
-					`(send's dotfiles: 'ignore'). Run the server from a copy outside it — an e2e harness usually does.`
+				? `The path has a dot-segment (${dotSegments.join(', ')}); sendIndex serves from the file's own directory, so check that the file name itself is not a dotfile.`
 				: `express's sendFile refused a file that exists; check its permissions and sendIndex's options.`),
 	};
 }

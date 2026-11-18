@@ -484,15 +484,15 @@ describe('a server started from a path', () => {
 		});
 	}, 60_000);
 
-	it('under a dot-directory reports degraded, and says why on the page instead of a 404', async () => {
+	it('under a dot-directory (an agent worktree) is healthy and serves the page', async () => {
 		const { health, page } = await boot(join(root, 'repo', '.claude', 'worktrees', 'w', 'apps', 'ui', 'dist'));
 		// The invariant first: green /health and a failing page may never coexist.
 		expect(health.body.status === 'ok').toBe(page.status === 200);
-
-		expect(health.status).toBe(503);
-		expect(health.body).toMatchObject({ status: 'degraded', service: 'cardtable', bundle: 'unservable' });
-		expect(health.body.reason).toContain('unservable');
-		expect(page.status).toBe(503);
-		expect(page.body).toContain('.claude');
+		// It used to be 503 here: `sendIndex` handed `send` the whole absolute path, which it
+		// refuses for any dot-segment. It serves from the file's own directory now.
+		expect(health.status).toBe(200);
+		expect(health.body).toMatchObject({ status: 'ok', service: 'cardtable', bundle: 'ok' });
+		expect(page.status).toBe(200);
+		expect(page.body).toContain('fixture');
 	}, 60_000);
 });

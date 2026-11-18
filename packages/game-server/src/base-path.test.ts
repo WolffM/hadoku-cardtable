@@ -2,11 +2,12 @@
  * The boot verdict against real files on disk, served by real express.
  *
  * The trap this pins: `checkBasePath` READS index.html with `readFileSync`,
- * the SPA fallback SERVES it with `res.sendFile`, and the two disagree about a
- * path with a dot-segment in it — `send`'s `dotfiles: 'ignore'` refuses it, so
- * every page 404s while a read-only check says all is well. Two fixture trees,
- * identical but for one `.`-prefixed directory, and one invariant over both:
- * the verdict is `ok` exactly when `sendIndex` answers 200.
+ * the SPA fallback SERVES it with `res.sendFile`, and the two once disagreed
+ * about a path with a dot-segment in it (`send`'s `dotfiles: 'ignore'` refused
+ * the whole absolute path, so every page 404ed while a read-only check said all
+ * was well). `sendIndex` now serves from the file's own directory, so both
+ * trees serve; the invariant over both stays: the verdict is `ok` exactly when
+ * `sendIndex` answers 200.
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -55,9 +56,9 @@ describe('reading is not serving', () => {
 		expect(checkBasePath(dotted, PREFIX).ok).toBe(true);
 	});
 
-	it('sendIndex serves the plain tree and refuses the dotted one', async () => {
+	it('sendIndex serves both trees: a dot-directory above the bundle (an agent worktree) is no bar', async () => {
 		expect(await probeIndex(plain)).toBe(200);
-		expect(await probeIndex(dotted)).toBe(404);
+		expect(await probeIndex(dotted)).toBe(200);
 	});
 });
 
@@ -68,12 +69,10 @@ describe('checkBundle', () => {
 		expect(verdict.reason).toBe('ok');
 	});
 
-	it('is unservable under a dot-directory, and names the segment', async () => {
+	it('is ok under a dot-directory too: a worktree serves its own bundle', async () => {
 		const verdict = await checkBundle(dotted, PREFIX);
-		expect(verdict.ok).toBe(false);
-		expect(verdict.reason).toBe('unservable');
-		expect(verdict.detail).toContain('.claude');
-		expect(verdict.detail).toContain('404');
+		expect(verdict.ok).toBe(true);
+		expect(verdict.reason).toBe('ok');
 	});
 
 	it('never says ok while sendIndex would not answer 200', async () => {

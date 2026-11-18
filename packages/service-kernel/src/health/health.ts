@@ -47,18 +47,29 @@ export interface HealthInput {
 	commit: Commit;
 	/** The base-path verdict (the app's own bundle/base-path check); `ok: false` is the one not-ready state. */
 	bundle: { ok: boolean; reason: string };
+	/** What the game adds (`GameServerConfig.health`): its own fields, and anything else that keeps it from serving. */
+	game?: HealthExtra;
 }
 
-/** The HTTP status and body `/health` answers. */
-export function healthResponse({ service, commit, bundle }: HealthInput, now = new Date()): { code: number; body: Record<string, unknown> } {
+/** A game's part of `/health`: fields beside the kernel's, and the problems that make it degraded. */
+export interface HealthExtra {
+	fields?: Record<string, unknown>;
+	/** Each one a sentence; any at all answers 503 `degraded`, as a bundle nobody can load does. */
+	problems?: readonly string[];
+}
+
+export function healthResponse({ service, commit, bundle, game }: HealthInput, now = new Date()): { code: number; body: Record<string, unknown> } {
+	const reasons = [...(bundle.ok ? [] : [`the UI bundle is not servable (bundle: ${bundle.reason})`]), ...(game?.problems ?? [])];
+	const healthy = reasons.length === 0;
 	const body: Record<string, unknown> = {
-		status: bundle.ok ? 'ok' : 'degraded',
+		status: healthy ? 'ok' : 'degraded',
 		service,
 		commit: commit.commit,
 		...(commit.commit === null ? { commit_error: commit.commit_error } : {}),
-		...(bundle.ok ? {} : { reason: `the UI bundle is not servable (bundle: ${bundle.reason})` }),
+		...(healthy ? {} : { reason: reasons.join('; ') }),
 		bundle: bundle.reason,
+		...game?.fields,
 		timestamp: now.toISOString(),
 	};
-	return { code: bundle.ok ? 200 : 503, body };
+	return { code: healthy ? 200 : 503, body };
 }

@@ -58,7 +58,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { callerIdOf, tierOf, userIdOf, type EdgeAuth } from '../auth/index.ts';
 import { capacitySampler } from '../capacity/index.ts';
 import { createAccountErase, ERASE_PATH, type EraseStep } from '../erase/index.ts';
-import { healthResponse, readCommit, serviceIdOf } from '../health/index.ts';
+import { healthResponse, readCommit, serviceIdOf, type HealthExtra } from '../health/index.ts';
 import { checkBundle, isEmbedEntry, stampOrigin, type BasePathVerdict, type Gate } from '../http/index.ts';
 import { bootClock, busyHandler, closeConnections, sendThenFlush, type BusyRun } from '../lifecycle/index.ts';
 import type { JsonLog } from '../log/index.ts';
@@ -99,6 +99,8 @@ export interface GameServerConfig {
 	bundle: { indexHtml: string; webDir: string; embedEntries: readonly string[] };
 	/** This instance's checkout, for `/health`'s commit. */
 	repoRoot: string;
+	/** The game's part of `/health`, read on every probe: its own fields, and what else keeps it from serving. */
+	health?: () => HealthExtra;
 	/** The socket event that tells every client the server is restarting. */
 	restartEvent: string;
 	/** Built and installed after the `bundle` phase, before any plugin's route. Absent: events go nowhere. */
@@ -233,7 +235,8 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 	});
 	// Public: the monitoring probe has no key. A server up but serving a bundle nobody can load says so.
 	app.get('/health', (_req: Request, res: Response) => {
-		const { code, body } = healthResponse({ service, commit, bundle: verdict ?? { ok: false, reason: 'missing' } });
+		const game = config.health?.();
+		const { code, body } = healthResponse({ service, commit, bundle: verdict ?? { ok: false, reason: 'missing' }, ...(game === undefined ? {} : { game }) });
 		res.status(code).json(body);
 	});
 	// Local only, and a bare 404 to anyone else: the deploy asks it before stopping us.
