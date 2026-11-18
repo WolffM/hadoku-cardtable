@@ -28,6 +28,7 @@ import { podPlayers, POD_CLOSED, type PodView } from './wire.ts';
 import { faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
 import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
 import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
+import { useLeaderAsk } from '../leader/LeaderAsk.tsx';
 import '@hadoku/game-ui/components/Button.css';
 
 /**
@@ -81,6 +82,10 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
   };
 
   const iLead = myMemberId !== null && myMemberId === leaderId;
+  const leaderAsk = useLeaderAsk(
+    (id) => members.find((m) => m.id === id)?.name,
+    (id) => act(() => passRoomLeader(roomId, id)),
+  );
   // Open seats as the server counts them for `lowerSeatCapacity`: every seat but a closed one — occupied, AI or empty alike.
   const openSeats = pod === null ? 0 : pod.seats.filter((s) => s?.memberId !== POD_CLOSED).length;
 
@@ -149,7 +154,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
                   onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}
                   onRemoveMember={(_seat, memberId) => act(() => removeFromPodSeat(roomId, memberId))}
                   onBotReplace={(seat) => act(() => botReplacesPodSeat(roomId, seat))}
-                  onMakeLeader={(memberId) => act(() => passRoomLeader(roomId, memberId))}
+                  onMakeLeader={leaderAsk.ask}
                 />
               </div>
             )}
@@ -167,12 +172,13 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
               myId={myMemberId}
               leaderId={leaderId}
               {...(myMemberId !== null && podPlayers(pod).has(myMemberId) ? { onWatch: () => act(() => standPod(roomId)) } : {})}
-              {...(iLead ? { onMakeLeader: (memberId: string) => act(() => passRoomLeader(roomId, memberId)) } : {})}
+              {...(iLead ? { onMakeLeader: leaderAsk.ask } : {})}
             />
           )}
         </>
       )}
       {children}
+      {leaderAsk.sheet}
     </section>
   );
 }

@@ -1,0 +1,19 @@
+/*
+ * The Pass leader sheet (`LeaderAsk.tsx`), centred over the viewport with the
+ * room dimmed behind it. Fixed, not absolute: the room page has no positioned
+ * box the sheet should be bound to, and the crown it guards can be anywhere in it.
+ */
+.leader-ask {
+  position: fixed;
+  z-index: var(--z-popover, 40);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--scrim) 70%, transparent);
+}
+
+.leader-ask > .confirm {
+  width: min(24rem, calc(100% - 32px));
+  box-shadow: 0 6px 24px var(--shadow);
+}

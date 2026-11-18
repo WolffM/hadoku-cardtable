@@ -227,6 +227,7 @@ import { RoomSpectators } from './RoomSpectators.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '@hadoku/game-ui/components/StatusPill.tsx';
+import { useLeaderAsk } from './leader/LeaderAsk.tsx';
 import { entrantLookup, heldFor, myCurrentTable, passRoomLeader, relayedPodSource, useFollowMyTable, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
@@ -2318,12 +2319,16 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
       .finally(() => setBusy(false));
   };
   /** The leader hands the room to another member; the room's feed carries the new crown. */
-  const makeLeader = (memberId: string): void => {
-    setActionError(null);
-    void passRoomLeader(roomId, memberId).then((outcome) => {
-      if (!outcome.ok) setActionError(outcome.message);
-    });
-  };
+  const leaderAsk = useLeaderAsk(
+    (id) => members.find((m) => m.id === id)?.name,
+    (memberId) => {
+      setActionError(null);
+      void passRoomLeader(roomId, memberId).then((outcome) => {
+        if (!outcome.ok) setActionError(outcome.message);
+      });
+    },
+  );
+  const makeLeader = leaderAsk.ask;
 
   const standUp = (): void => {
     if (queued(() => standUp())) return;
@@ -2967,6 +2972,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
           a draft room draws only its `setup` (the lobby). */}
       {gameRoomUiFor(view?.gameType ?? gameType)?.setup?.(gameUiProps)}
       {!draftRoom && gameRoomUiFor(view?.gameType ?? gameType)?.game(gameUiProps)}
+      {leaderAsk.sheet}
     </RoomShell>
     </MagicRoomUiContext.Provider>
   );
