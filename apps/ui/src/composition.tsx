@@ -16,6 +16,7 @@ import { registerSettings } from '@hadoku/game-ui/settings/Settings.tsx';
 import { SoundSettings } from '@hadoku/magic-ui/settings/SoundSettings.tsx';
 import { soundsClient, type SoundsClient } from '@hadoku/magic-ui/sound/builderClient.ts';
 import { registerSound } from '@hadoku/game-ui/sound/index.ts';
+import { registerWhoamiTier, tierOfWhoami } from '@hadoku/game-ui/room/whoami.ts';
 import { SOUND_REGISTRY } from '@hadoku/magic-ui/sound/registry.ts';
 
 const GameTab = () => (<><GameSettings /><MatchSettings /><ExperimentalSettings /></>);
@@ -23,6 +24,8 @@ const GameTab = () => (<><GameSettings /><MatchSettings /><ExperimentalSettings 
 export function composeGame(): void {
   registerSettings({ Game: GameTab, Sound: SoundSettings, prefs: getPlayPrefsClient, defaultScale: PLAY_PREFS_DEFAULTS.uiScale, onScaled: forgetCardWidths });
   registerPlayerMark(PlayerMark);
+  // A member the operator has verified is a friend here (`tierOfWhoami`).
+  registerWhoamiTier(tierOfWhoami);
   registerEmbedAddress((catalogue, view) => RallyCatalogueSchema.safeParse(catalogue).success && RallyViewSchema.safeParse(view).success);
   // Built on first play, like the mixer itself. `ui.*` roles logged one by one as they sound stay out of the interface tally.
   let client: SoundsClient | undefined;

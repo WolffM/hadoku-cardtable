@@ -10,6 +10,7 @@
     "./chrome": "./src/chrome/index.ts",
     "./chrome/shell": "./src/chrome/shell.ts",
     "./embed": "./src/embed/index.ts",
+    "./embed/vite": "./src/embed/vite.ts",
     "./trim": "./src/trim/index.ts",
     "./theme": "./src/theme/index.ts",
     "./settings": "./src/settings/index.ts",

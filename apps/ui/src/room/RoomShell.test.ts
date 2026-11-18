@@ -97,7 +97,7 @@ vi.mock('@wolffm/themes', async (importOriginal) => ({
 // transform, so the mocked modules are in place before RoomShell loads them.
 import { THEMES } from '@wolffm/themes';
 
-import { RoomShell, cardtableOrigin, roomKeyFor, watchpartyTheme } from '@hadoku/game-ui/room/RoomShell.tsx';
+import { RoomShell, appOrigin, roomKeyFor, watchpartyTheme } from '@hadoku/game-ui/room/RoomShell.tsx';
 import { roomIdFor } from '../App.tsx';
 import { parseRoute } from '@hadoku/game-ui/screens/route.ts';
 
@@ -116,7 +116,7 @@ describe('roomOrigin (the room served by cardtable)', () => {
     render(createElement(RoomShell, { roomId: 'm-test', children: createElement('div', null, 'content') }));
     const chrome = await waitFor(() => screen.getByTestId('room-chrome'));
     const { serverOrigin, roomOrigin } = chrome.dataset;
-    expect(roomOrigin).toBe(cardtableOrigin());
+    expect(roomOrigin).toBe(appOrigin());
     expect(roomOrigin).not.toBe(serverOrigin);
     expect(roomOrigin).not.toMatch(/\/watchparty$/);
   });

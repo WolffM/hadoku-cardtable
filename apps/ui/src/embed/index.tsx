@@ -2,15 +2,14 @@
  * The game bundle watchparty imports (D21): `/cardtable/embed/cardtable-embed.js`.
  *
  * `mount(el, ctx)` draws cardtable inside a shadow root on `el` and hands back
- * `{ update, unmount }`. Everything the standalone page gets from owning the
- * document is set up here instead, and taken down again by `unmount`:
+ * `{ update, unmount }`: `@hadoku/ui-shell/embed`'s `mountEmbed`, which every
+ * game's embed shares (and whose header has the whole sequence). Cardtable's
+ * part of it, all of which `unmount` takes down again:
  *
- * - **Styles** — fetched once and adopted by the shadow root, with the fleet's
- *   cosmetics sheet beside them (`./styles.ts`, which also says what has to
- *   live on the document and why).
- * - **The theme on `el` itself** (`data-theme`), before the styles land, so the
- *   host is painted in the host's theme rather than the light default
- *   (`withHostTheme` in `../../vite.embed.config.ts`). Restored on unmount.
+ * - **Styles** — with the fleet's cosmetics sheet beside them.
+ * - **The theme on `el` itself** (`data-theme`, `hostTheme`), before the styles
+ *   land, so the host is painted in the host's theme rather than the light
+ *   default (the build's `hostTheme`, `../../vite.embed.config.ts`).
  * - **The route** — in memory (`routeInMemory`); watchparty owns the URL.
  * - **Lookups and hit tests** — `setDocumentScope` points the app's
  *   document-wide queries at the shadow root (`../dom.ts`).
@@ -22,7 +21,7 @@
  * The route, the document scope and a few modules below the screens (the
  * board's placement preview, the sound engine) are module singletons, exactly
  * as they are standalone, where "one chrome per page" already holds. A second
- * concurrent mount is refused loudly rather than half-sharing the first's.
+ * concurrent mount is refused loudly (`mountEmbed`).
  *
  * Built by `../../vite.embed.config.ts`; served with `no-cache` (the name does
  * not change between builds) by `apps/server/src/index.ts`.
@@ -31,8 +30,7 @@
 import { configureShell } from '@hadoku/ui-shell/app-id';
 // Every sheet the table reaches, the lazy screens' too, in source order (`../../stylesheet.ts`).
 import 'virtual:cardtable-stylesheet';
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createElement } from 'react';
 import { cosmeticsCss } from '@wolffm/prefs-client/cosmetics';
 
 import { APP_ID } from '../../app-name.ts';
@@ -40,8 +38,8 @@ import { setDocumentScope } from '@hadoku/game-ui/dom.ts';
 import { navigate, parseRoute, routeInMemory } from '@hadoku/game-ui/screens/route.ts';
 import { preloadLikelyScreens } from '../screens/Screen.tsx';
 import { EmbedApp } from './EmbedApp.tsx';
-import { adoptStyles, fetchStyles } from '@hadoku/ui-shell/embed';
-import type { GameBundleContext, GameBundleModule, MountedGameBundle } from './contract.ts';
+import { mountEmbed } from '@hadoku/ui-shell/embed';
+import type { GameBundleModule } from './contract.ts';
 
 // The same tiers, in the same order, as `main.tsx` — minus the header's two
 // sheets, because there is no header. Every sheet the app imports below this
@@ -55,91 +53,23 @@ import '@hadoku/ui-shell/chrome';
 // Every storage key, event name and chat prefix the shell writes is built from this.
 configureShell({ appId: APP_ID });
 
-/** Beside the entry, under the app's base — the API base resolves from the same `BASE_URL`. */
-const STYLESHEET = `${import.meta.env.BASE_URL}embed/cardtable-embed.css`;
-
-let active = false;
-
-/** Put `theme` on the host element. Returns the undo, which restores what was there. */
-function themeHost(el: HTMLElement): { set: (theme: string) => void; undo: () => void } {
-  const before = el.getAttribute('data-theme');
-  return {
-    set: (theme) => el.setAttribute('data-theme', theme),
-    undo: () => (before === null ? el.removeAttribute('data-theme') : el.setAttribute('data-theme', before)),
-  };
-}
-
-/** Route a click on an in-app hash link in memory. Returns the undo. */
-function followHashLinks(shadow: ShadowRoot): () => void {
-  const onClick = (event: Event): void => {
-    if (event.defaultPrevented) return;
-    const link = event.composedPath().find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement);
-    const href = link?.getAttribute('href');
-    if (href === undefined || href === null || !href.startsWith('#')) return;
-    event.preventDefault();
-    navigate(parseRoute(href));
-  };
-  shadow.addEventListener('click', onClick);
-  return () => shadow.removeEventListener('click', onClick);
-}
-
-async function mountCardtable(el: HTMLElement, ctx: GameBundleContext): Promise<MountedGameBundle> {
-  if (active) throw new Error('cardtable embed: already mounted on this page — unmount it before mounting again');
-  active = true;
-  const undo: (() => void)[] = [];
-  const teardown = (): void => {
-    for (const step of undo.reverse()) step();
-    undo.length = 0;
-    active = false;
-  };
-  try {
-    const hostTheme = themeHost(el);
-    hostTheme.set(ctx.theme);
-    undo.push(hostTheme.undo);
-    const shadow = el.shadowRoot ?? el.attachShadow({ mode: 'open' });
-    // A table is what the embed is mounted to show: its screens load beside the stylesheet.
-    preloadLikelyScreens();
-    // The fleet's cosmetics sheet (faces' overlays, names' effects) rides in the
-    // shadow sheet: `room/look.tsx` writes it to the document only standalone.
-    undo.push(adoptStyles(shadow, `${await fetchStyles(STYLESHEET)}\n${cosmeticsCss()}`));
-
-    const container = document.createElement('div');
-    // `hdk-controls` here, not on the host's <html>: a shadow root's selectors cannot see past it.
-    container.className = 'cardtable-embed hdk-controls';
-    shadow.append(container);
-    undo.push(() => container.remove());
-
-    undo.push(setDocumentScope(shadow));
-    undo.push(routeInMemory({ kind: 'lobby' }));
-    undo.push(followHashLinks(shadow));
-
-    const root = createRoot(container);
-    const render = (next: GameBundleContext): void =>
-      root.render(
-        <StrictMode>
-          <EmbedApp ctx={next} />
-        </StrictMode>,
-      );
-    undo.push(() => root.unmount());
-    render(ctx);
-
-    let mounted = true;
-    return {
-      update: (next) => {
-        if (!mounted) return;
-        hostTheme.set(next.theme);
-        render(next);
-      },
-      unmount: () => {
-        if (!mounted) return;
-        mounted = false;
-        teardown();
-      },
-    };
-  } catch (err) {
-    teardown();
-    throw err;
-  }
-}
-
-export const mount: GameBundleModule['mount'] = mountCardtable;
+export const mount: GameBundleModule['mount'] = mountEmbed({
+  name: APP_ID,
+  // Beside the entry, under the app's base — the API base resolves from the same `BASE_URL`.
+  stylesheet: `${import.meta.env.BASE_URL}embed/cardtable-embed.css`,
+  // The fleet's cosmetics sheet (faces' overlays, names' effects) rides in the
+  // shadow sheet: `room/look.tsx` writes it to the document only standalone.
+  extraCss: cosmeticsCss,
+  // `hdk-controls` here, not on the host's <html>: a shadow root's selectors cannot see past it.
+  containerClass: 'cardtable-embed hdk-controls',
+  // A table is what the embed is mounted to show: its screens load beside the stylesheet.
+  prefetch: preloadLikelyScreens,
+  hostTheme: true,
+  // An `<a href="#/…">` inside the table would rewrite watchparty's own address bar.
+  followHashLink: (href) => navigate(parseRoute(href)),
+  setup: ({ shadow, cleanup }) => {
+    cleanup(setDocumentScope(shadow));
+    cleanup(routeInMemory({ kind: 'lobby' }));
+  },
+  render: (ctx) => createElement(EmbedApp, { ctx }),
+});

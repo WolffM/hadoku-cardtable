@@ -18,7 +18,20 @@ import { createSound, type SoundConfig } from '@hadoku/ui-shell/sound';
 import { registered } from '../registered.ts';
 
 type Sound = ReturnType<typeof createSound<string>>;
-const sound = registered<Sound>('sound');
+/**
+ * A game with no sound of its own registers nothing and gets {@link SILENT_SOUND}: no roles, a client
+ * nothing asks anything of. A role nobody has assigned plays nothing, so that is the whole of what a
+ * real registry would do for it.
+ */
+export const SILENT_SOUND: SoundConfig<string> = {
+  registry: { roles: new Map(), fallback: {}, reversed: {} },
+  client: {
+    takeUrl: (file) => file,
+    loadAssignments: () => Promise.resolve({ cells: {}, gains: {}, names: {}, versions: {}, pack: '' }),
+    loadPack: () => Promise.resolve(undefined),
+  },
+};
+const sound = registered<Sound>('sound', () => createSound(SILENT_SOUND));
 export const registerSound = (config: SoundConfig<string>): void => sound.set(createSound(config));
 
 /** Each name calls the registered instance when it is called, so an importer can bind it before the composition root runs. */

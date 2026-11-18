@@ -34,16 +34,17 @@
  * ## Routes
  *
  * In memory (`routeInMemory`, set up by `./index.tsx`), never the page's hash.
+ * The binding and the redirect are every game's (`@hadoku/game-ui/embed/bound-room.tsx`).
  * The routes that are not a table — the room list, the stats page,
  * the format picker, the sound tools — go to the bound room
  * instead: in a watchparty room there is exactly one table, and "back to the
  * lobby" means it.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { HadokuThemeProvider, THEME_FAMILIES, type HadokuThemeValue } from '@wolffm/themes';
+import { useCallback, useMemo, useRef } from 'react';
+import { HadokuThemeProvider } from '@wolffm/themes';
 
-import { roomsClient, type RoomBindClient } from '@hadoku/magic-ui/rooms/api.ts';
+import { bindWatchpartyRoom, hostThemeValue, ToRoom, useBoundRoom, type BindRoom } from '@hadoku/game-ui/embed/bound-room.tsx';
 import { Screen } from '../screens/Screen.tsx';
 import { navigate, useRoute, type Route } from '@hadoku/game-ui/screens/route.ts';
 import { useUiScale } from '@hadoku/game-ui/settings/Settings.tsx';
@@ -57,56 +58,19 @@ composeGame();
 
 const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'decks', 'play', 'sounds', 'sounds-sandbox', 'sounds-music', 'ui']);
 
+const BIND = bindWatchpartyRoom();
+const toRoom = (roomId: string): void => navigate({ kind: 'room', roomId });
+
 export interface EmbedAppProps {
   ctx: GameBundleContext;
   /** Tests pass a stub. Production passes nothing. */
-  rooms?: RoomBindClient;
+  bind?: BindRoom;
 }
 
-type Binding = { state: 'binding' } | { state: 'bound'; roomId: string } | { state: 'failed'; message: string };
-
-function useBoundRoom(watchpartyRoom: string, rooms: RoomBindClient): Binding {
-  const [binding, setBinding] = useState<Binding>({ state: 'binding' });
-  useEffect(() => {
-    let live = true;
-    setBinding({ state: 'binding' });
-    void rooms.bindWatchparty(watchpartyRoom).then((outcome) => {
-      if (!live) return;
-      setBinding(outcome.ok ? { state: 'bound', roomId: outcome.room.id } : { state: 'failed', message: outcome.message });
-      if (outcome.ok) navigate({ kind: 'room', roomId: outcome.room.id });
-    });
-    return () => {
-      live = false;
-    };
-  }, [watchpartyRoom, rooms]);
-  return binding;
-}
-
-function themeValue(theme: string): HadokuThemeValue {
-  return {
-    theme,
-    setTheme: () => undefined,
-    themeFamilies: [...THEME_FAMILIES],
-    getThemeIcon: () => null,
-    isDarkTheme: theme === 'dark' || theme.endsWith('-dark'),
-    isThemeReady: true,
-    isInitialThemeLoad: false,
-  };
-}
-
-/** A route that is not a table goes to the bound one. An effect, for the reason `LegacyDraftRedirect` gives. */
-function ToRoom({ roomId }: { roomId: string }) {
-  useEffect(() => {
-    navigate({ kind: 'room', roomId });
-  }, [roomId]);
-  return null;
-}
-
-export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
-  const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
-  const binding = useBoundRoom(ctx.roomKey, rooms);
+export function EmbedApp({ ctx, bind = BIND }: EmbedAppProps) {
+  const binding = useBoundRoom(ctx.roomKey, bind);
   const route = useRoute();
-  const theme = useMemo(() => themeValue(ctx.theme), [ctx.theme]);
+  const theme = useMemo(() => hostThemeValue(ctx.theme), [ctx.theme]);
   // Embedded, the tokens resolve on the shadow host (`:root` is rewritten as `:host`).
   const main = useRef<HTMLElement>(null);
   useUiScale(useCallback(() => (main.current === null ? null : scaleRootOf(main.current)), []));
@@ -122,7 +86,7 @@ export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
       </p>
     );
   } else if (binding.state === 'bound') {
-    body = NOT_A_TABLE.has(route.kind) ? <ToRoom roomId={binding.roomId} /> : <Screen />;
+    body = NOT_A_TABLE.has(route.kind) ? <ToRoom roomId={binding.roomId} go={toRoom} /> : <Screen />;
   }
 
   return (

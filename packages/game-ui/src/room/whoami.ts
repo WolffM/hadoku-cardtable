@@ -11,29 +11,60 @@
  * decides what a table with nobody known at it looks like.
  */
 
-import { useEffect, useState } from 'react';
+import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from 'react';
 import { whoami as hadokuWhoami } from '@wolffm/prefs-client';
+
+import { registered } from '../registered.ts';
 
 export interface Who {
   userId: string;
   /** The fleet's own tier list, so a tier it adds (`member`) is not a type error here. */
-  tier: Awaited<ReturnType<typeof hadokuWhoami>>['userType'];
+  tier: WhoamiAnswer['userType'];
   /** The viewer's display name. Null when the fleet has none for them. */
   name: string | null;
 }
+
+type WhoamiAnswer = Awaited<ReturnType<typeof hadokuWhoami>>;
+
+/** The viewer, `null` when the fleet could not say, `'pending'` while it is asked. */
+export type WhoState = Who | null | 'pending';
+
+/**
+ * How a game reads the fleet's tier for the viewer. Default: as the fleet answered it. Cardtable's
+ * composition root registers {@link tierOfWhoami}.
+ */
+const whoamiTier = registered<(r: Pick<WhoamiAnswer, 'userType' | 'verified'>) => Who['tier']>('whoami tier', () => (r) => r.userType);
+export const registerWhoamiTier = whoamiTier.set;
 
 /**
  * The viewer's tier as cardtable treats it: a member the operator has verified IS a friend here (the
  * operator, 2026-11-05: *"for cardtable they will be equivalent"*). The server's `tierOf` makes the
  * same call for every gate; this is the tier the fleet chrome is handed to show.
  */
-export function tierOfWhoami(r: Pick<Awaited<ReturnType<typeof hadokuWhoami>>, 'userType' | 'verified'>): Who['tier'] {
+export function tierOfWhoami(r: Pick<WhoamiAnswer, 'userType' | 'verified'>): Who['tier'] {
   return r.userType === 'member' && r.verified === true ? 'friend' : r.userType;
 }
 
-export function useWhoami(): Who | null | 'pending' {
-  const [who, setWho] = useState<Who | null | 'pending'>('pending');
+/** The page's one resolution, when an app shell above has made it (`../app/GameAppShell.tsx`). */
+const WhoContext = createContext<WhoState | undefined>(undefined);
+
+/** Hands `who` to every `useWhoami` below, which then asks nothing of its own. */
+export function WhoProvider({ who, children }: { who: WhoState; children: ReactNode }) {
+  return createElement(WhoContext.Provider, { value: who }, children);
+}
+
+/** The viewer: the app shell's answer when there is one above, else this hook's own. */
+export function useWhoami(): WhoState {
+  const given = useContext(WhoContext);
+  const own = useResolvedWhoami(given === undefined);
+  return given ?? own;
+}
+
+/** Asks the fleet once, while `enabled`. */
+export function useResolvedWhoami(enabled = true): WhoState {
+  const [who, setWho] = useState<WhoState>('pending');
   useEffect(() => {
+    if (!enabled) return;
     let live = true;
     // Same-origin on purpose. `whoami()` defaults to the edge-router origin,
     // which in production IS this page's origin — but hard-coding it makes the
@@ -44,7 +75,7 @@ export function useWhoami(): Who | null | 'pending' {
     hadokuWhoami({ whoamiUrl: `${globalThis.location.origin}/session/whoami` })
       .then((r) => {
         if (!live) return;
-        setWho({ userId: r.userId, tier: tierOfWhoami(r), name: r.name ?? null });
+        setWho({ userId: r.userId, tier: whoamiTier.get()(r), name: r.name ?? null });
       })
       .catch(() => {
         if (live) setWho(null);
@@ -52,6 +83,6 @@ export function useWhoami(): Who | null | 'pending' {
     return () => {
       live = false;
     };
-  }, []);
+  }, [enabled]);
   return who;
 }

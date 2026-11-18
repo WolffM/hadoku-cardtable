@@ -301,16 +301,6 @@ function refusalVerdict(body: unknown): PoolVerdict | null {
 }
 
 /**
- * The embed's one room call (D21), not a
- * screen's: the table a watchparty room's game slot is bound to, made on first
- * use and joined after. `watchpartyRoom` names the watchparty room; the server
- * derives the cardtable room id from it, so every member arrives at one table.
- */
-export interface RoomBindClient {
-  bindWatchparty(watchpartyRoom: string): Promise<RoomOutcome>;
-}
-
-/**
  * The match screen's one room call: which room started this match. Its route
  * carries only the match id, and the result screen readies at that room's
  * table for a Rematch. The server remembers a room's recent matches past their
@@ -341,7 +331,7 @@ export function onRoomList(listener: RoomListListener): () => void {
 export function roomsClient(
   fetchImpl: Fetch = (i, init) => fetch(i, init),
   base: string = apiBase(),
-): RoomsClient & RoomBindClient & RoomOfMatchClient {
+): RoomsClient & RoomOfMatchClient {
   const url = (path: string): string => `${base}rooms${path}`;
 
   /**
@@ -518,10 +508,6 @@ export function roomsClient(
       const room = parseRoomView(body);
       if (room === null) return { ok: false, message: 'The server answered with something that is not a room.', verdict: null };
       return { ok: true, room };
-    },
-
-    bindWatchparty(watchpartyRoom) {
-      return write('/watchparty', { room: watchpartyRoom }, 'Could not open this room’s table');
     },
   };
 }

@@ -65,14 +65,13 @@
  * `parseRoute`, `routeHash`, `routeAddress`, `routeUrl` and `canonicalAddress`
  * take their inputs as arguments and touch no globals, so the interesting behaviour — what a mangled hash means,
  * what an invite URL looks like under the `/cardtable/` prefix — is testable
- * without a DOM. Only `navigate`, `subscribeToHash`, `currentHash` and
+ * without a DOM. The browser half is `./router.ts`'s, shared by every game: only it and
  * `appLocation` know `window` exists — and `routeInMemory` is how the embed
- * (D21) tells them the address bar is not the app's.
+ * (D21) tells it the address bar is not the app's.
  */
 
-import { useMemo, useSyncExternalStore } from 'react';
-
 import { registered } from '../registered.ts';
+import { createHashRouter } from './router.ts';
 
 /** Whether `#/embed/<catalogue>/<id>/<view>` is one of the game's pages; any other is the lobby. */
 const embedAddress = registered<(catalogue: string, view: string) => boolean>('embed address');
@@ -267,126 +266,34 @@ export function canonicalAddress(
   return next === `${location.pathname}${location.search}${location.hash}` ? null : next;
 }
 
-/** Puts this page on its route's own address, before anything reads the route and after each move. */
-export function canonicalizeAddress(): void {
-  const next = canonicalAddress(globalThis.location, import.meta.env.BASE_URL);
-  if (next !== null) globalThis.history.replaceState(globalThis.history.state, '', next);
-}
-
-/* ── the browser half ────────────────────────────────────────────────── */
-
-const listeners = new Set<() => void>();
+/* ── the browser half: `./router.ts`, with a room's page at its path ── */
 
 /**
- * The route when the app does not own the address bar, or null when it does.
- *
- * Embedded in a watchparty room (D21) the URL is watchparty's: a hash written
- * there would rewrite THEIR page's route and land in their history. So the
- * embed holds its route here instead, and `navigate` / `useRoute` read and
- * write this rather than `location.hash`. One per page, like everything else
- * the chrome owns ("exactly one chrome per page", `chrome/AppChrome.tsx`).
+ * Embedded in a watchparty room (D21) the URL is watchparty's: a hash written there would rewrite
+ * THEIR page's route and land in their history. So the embed holds its route in memory
+ * (`routeInMemory`), and `navigate` / `useRoute` read and write that rather than the address bar.
  */
-let inMemory: { hash: string } | null = null;
+const router = createHashRouter<Route>({
+  parse: parseRoute,
+  toHash: routeHash,
+  paths: { toAddress: routeAddress, fromLocation: locationRoute, canonical: canonicalAddress },
+});
 
-function notify(): void {
-  for (const listener of [...listeners]) listener();
-}
-
-/** The address bar moved on its own (Back, Forward, a `#` link): put it on its route's address, then re-read it. */
-function moved(): void {
-  canonicalizeAddress();
-  notify();
-}
-
-/** Whether `hashchange` and `popstate` are subscribed — only ever while the address bar is ours. */
-let listening = false;
-
-function syncHashListener(): void {
-  const want = inMemory === null && listeners.size > 0;
-  if (want === listening) return;
-  listening = want;
-  for (const event of ['hashchange', 'popstate'] as const) {
-    if (want) globalThis.addEventListener(event, moved);
-    else globalThis.removeEventListener(event, moved);
-  }
-}
-
-function subscribeToHash(listener: () => void): () => void {
-  listeners.add(listener);
-  syncHashListener();
-  return () => {
-    listeners.delete(listener);
-    syncHashListener();
-  };
-}
-
-/** The current route as its hash: one string, so the snapshot compares by value. */
-function currentHash(): string {
-  if (inMemory !== null) return inMemory.hash;
-  const location = globalThis.location;
-  if (location === undefined) return '';
-  return routeHash(locationRoute(location, import.meta.env.BASE_URL));
-}
+export const {
+  useRoute,
+  currentRoute,
+  routeInMemory,
+  /** Puts this page on its route's own address, before anything reads the route and after each move. */
+  canonicalize: canonicalizeAddress,
+} = router;
 
 /**
- * Route in memory from here on, starting at `start`; the returned function
- * gives the address bar back. The embed calls this before it renders.
+ * Go somewhere: a history entry standalone (`replace` swaps the current one, for a screen that
+ * forwards on its own), the in-memory route embedded.
  */
-export function routeInMemory(start: Route): () => void {
-  const mine = { hash: routeHash(start) };
-  inMemory = mine;
-  syncHashListener();
-  notify();
-  return () => {
-    if (inMemory !== mine) return;
-    inMemory = null;
-    syncHashListener();
-  };
-}
+export const navigate: (route: Route, options?: { replace?: boolean }) => void = router.navigate;
 
 /** The page an invite link is built on: the app's own base, standalone or embedded (`routeUrl`). */
 export function appLocation(): { origin: string; pathname: string } {
   return { origin: globalThis.location?.origin ?? '', pathname: import.meta.env?.BASE_URL ?? '/' };
-}
-
-/**
- * Go somewhere.
- *
- * Writing the route's address with `history.pushState` is what puts it in the address bar and in
- * the back/forward history; the browser dispatches nothing for that, so this tells the subscribers
- * itself. Back and Forward arrive as `popstate` (and `hashchange`), which `moved` handles.
- *
- * `replace` swaps the current history entry instead of adding one, for a
- * screen that forwards on its own: Back from where it forwarded to must not
- * land on it again and be forwarded straight back. Arriving at the route this page already
- * shows only corrects its address, and adds no entry.
- */
-export function navigate(route: Route, { replace = false }: { replace?: boolean } = {}): void {
-  if (inMemory !== null) inMemory.hash = routeHash(route);
-  else {
-    const location = globalThis.location;
-    const { path, hash } = routeAddress(route, import.meta.env.BASE_URL);
-    const next = `${path}${location.search}${hash}`;
-    if (next !== `${location.pathname}${location.search}${location.hash}`) {
-      const same = currentHash() === routeHash(route);
-      if (replace || same) globalThis.history.replaceState(globalThis.history.state, '', next);
-      else globalThis.history.pushState(null, '', next);
-    }
-  }
-  notify();
-}
-
-/** The route this page is on now, read once: what `useRoute` renders, for a caller outside React. */
-export function currentRoute(): Route {
-  return parseRoute(currentHash());
-}
-
-/** The current route, re-rendering the caller when it changes. */
-export function useRoute(): Route {
-  const hash = useSyncExternalStore(
-    subscribeToHash,
-    currentHash,
-    () => '',
-  );
-  return useMemo(() => parseRoute(hash), [hash]);
 }

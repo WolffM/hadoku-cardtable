@@ -1,5 +1,5 @@
 /*
- * Cardtable's stylesheet, inside a shadow root.
+ * A game embed's stylesheet, inside a shadow root.
  *
  * The embed build (`../../vite.embed.config.ts`) emits every sheet the app
  * imports as ONE file, `embed/cardtable-embed.css`, with `:root`, `html` and
@@ -45,6 +45,6 @@ export function adoptStyles(shadow: ShadowRoot, css: string): () => void {
 /** The embed's stylesheet text. A failure is the mount's failure: a table with no styles is not a table. */
 export async function fetchStyles(href: string): Promise<string> {
   const res = await fetch(href, { credentials: 'same-origin' });
-  if (!res.ok) throw new Error(`cardtable embed: ${href} answered ${res.status}`);
+  if (!res.ok) throw new Error(`embed: ${href} answered ${res.status}`);
   return res.text();
 }

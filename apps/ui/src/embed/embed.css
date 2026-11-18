@@ -2,14 +2,9 @@
  * The embed's frame (D21). Standalone, the chrome is the WINDOW's height on a
  * table route (`chrome/chrome.css`, `100dvh`); embedded, the window is
  * watchparty's and the table gets the slot it was mounted in — `:host` is that
- * element, and the frame fills it.
+ * element (its own rules are `mountEmbed`'s, `@hadoku/ui-shell/embed`), and the
+ * frame fills it.
  */
-
-:host {
-  display: block;
-  height: 100%;
-  min-height: 0;
-}
 
 .cardtable-embed {
   height: 100%;

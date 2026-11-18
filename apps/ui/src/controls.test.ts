@@ -23,7 +23,7 @@ describe('native controls take the theme’s accent from the fleet, at the root'
     expect(read('main.tsx')).toContain("import '@wolffm/task-ui-components/controls.css';");
     const embed = read('embed/index.tsx');
     expect(embed).toContain("import '@wolffm/task-ui-components/controls.css';");
-    expect(embed).toMatch(/container\.className = '[^']*\bhdk-controls\b/);
+    expect(embed).toMatch(/containerClass: '[^']*\bhdk-controls\b/);
   });
 
   it('no stylesheet of ours sets accent-color', () => {

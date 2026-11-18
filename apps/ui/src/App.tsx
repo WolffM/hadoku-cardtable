@@ -33,7 +33,6 @@
 
 import { useEffect, useState } from 'react';
 
-import { AppHeader } from '@wolffm/task-ui-components';
 import { RouteLink } from '@hadoku/magic-ui/screens/BackLink.tsx';
 import { Screen, type ScreenProps } from './screens/Screen.tsx';
 import { useRoute } from '@hadoku/game-ui/screens/route.ts';
@@ -42,7 +41,7 @@ import { AppChrome } from '@hadoku/ui-shell/chrome';
 import { HeaderLinks } from '@hadoku/game-ui/chrome/HeaderLinks.tsx';
 import { RoomShell } from '@hadoku/game-ui/room/RoomShell.tsx';
 import { SessionPrompt, sessionBlocks, useRoomSession } from '@hadoku/game-ui/room/SessionPrompt.tsx';
-import { useWhoami } from '@hadoku/game-ui/room/whoami.ts';
+import { GameHeader } from '@hadoku/game-ui/app/GameAppShell.tsx';
 import { knownRoomOfMatch, roomOfMatch } from '@hadoku/magic-ui/play/live/matchStart.ts';
 import { useJoined } from '@hadoku/magic-ui/rooms/joined.ts';
 import { CARDTABLE_SETTINGS_TABS, HostDrawsSettingsProvider, useUiScale } from '@hadoku/game-ui/settings/Settings.tsx';
@@ -183,20 +182,13 @@ export function App({ transport }: AppProps) {
   const silent = route.kind === 'sounds' || route.kind === 'sounds-sandbox' || route.kind === 'sounds-music' || route.kind === 'rally-embed';
   useEffect(() => setScreenMusic(silent ? null : 'music.lobby'), [silent]);
 
-  // The fleet's identity, read once here and threaded down. `RoomShell` reads
-  // the same hook for its own use; `whoami()` shares one in-flight promise per
-  // page (`globalThis.__hadokuWhoami`), so this is one identity path with two
-  // consumers, not two paths. See `chrome/AppChrome.tsx`.
-  const who = useWhoami();
-  const viewer = who === 'pending' || who === null ? null : who;
-
   // The shared header, authored HERE at the root because that is the fleet's
   // convention and what its audit reads: the app root mounts the header, the
   // chrome frame slots it in inside the theme provider. The title is the
   // catalogue's name for this app, filled at build time — see app-name.ts, and
   // the tab title is the same string.
   const header = (
-    <AppHeader
+    <GameHeader
       // The title is the way HOME. The operator, 2026-09-26: *"'Card Table' at
       // the top should be clickable and bring you back to the entry page."*
       //
@@ -226,10 +218,8 @@ export function App({ transport }: AppProps) {
       // The slot holds the Discord and GitHub links instead, until the header's `links`
       // slot ships — see `chrome/HeaderLinks.tsx`.
       status={<HeaderLinks />}
-      // Identity the page already knows, so the popout does not re-resolve it.
-      // `ConnectedSettings` otherwise calls its own `whoami()` against
-      // `/session/whoami`, which is a second identity path to the same fact.
-      settingsProps={viewer === null ? undefined : { userType: viewer.tier, name: viewer.name }}
+      // Identity the page already knows (`GameHeader` reads the same `useWhoami` `RoomShell` does;
+      // `whoami()` shares one in-flight promise per page), so the popout does not re-resolve it.
       // The game's settings as the popout's own tabs, after the site's (the operator, 2026-10-30):
       // the one gear at the top of every screen, a match included. `settings/Settings.tsx`.
       appTabs={CARDTABLE_SETTINGS_TABS}

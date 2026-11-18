@@ -13,4 +13,19 @@ describe('registered', () => {
     part.set(value);
     expect(part.get()).toBe(value);
   });
+
+  it('builds its fallback once, on first read, when nothing registered it', () => {
+    let built = 0;
+    const part = registered<{ n: number }>('part', () => ({ n: ++built }));
+    expect(built).toBe(0);
+    expect(part.get()).toEqual({ n: 1 });
+    expect(part.get()).toEqual({ n: 1 });
+    expect(built).toBe(1);
+  });
+
+  it('prefers what was registered over its fallback', () => {
+    const part = registered<{ n: number }>('part', () => ({ n: 0 }));
+    part.set({ n: 2 });
+    expect(part.get()).toEqual({ n: 2 });
+  });
 });

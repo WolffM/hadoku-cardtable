@@ -18,7 +18,7 @@
  * ## The room is ours; only the art is theirs
  *
  * `roomOrigin` points the chrome's whole room socket — join, roster, identity,
- * chat — at `cardtableOrigin()`: this app's own `/room` namespace
+ * chat — at `appOrigin()`: this app's own `/room` namespace
  * (`games/magic/server/src/room/serve.ts`), behind cardtable's member gate, with the
  * roster read from the same presence tracker our seats use. Watchparty never
  * hears of a cardtable room, so it neither counts one nor holds a deploy for
@@ -44,10 +44,11 @@
  * worse than no room.
  */
 
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { RoomChrome } from '@wolffm/watchparty-ui/room-chrome';
+import type { RoomChrome as RoomChromeComponent } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
+import { ANON_USER_ID } from '@wolffm/prefs-client';
 import { useHadokuTheme, type Theme } from '@wolffm/themes';
 import { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
 import { appId } from '@hadoku/ui-shell/app-id';
@@ -60,6 +61,52 @@ import { useRoomFrame } from '@hadoku/ui-shell/chrome/shell';
 // of one origin is how the chrome and the faces come to disagree about it.
 import { watchpartyOrigin } from './avatar.ts';
 import { useWhoami } from './whoami.ts';
+
+type RoomChromeType = typeof RoomChromeComponent;
+
+/*
+ * Their chrome, in its own chunk: only a room needs it, and a game's front door is lighter by the
+ * whole of it. Loaded as soon as a RoomShell first draws (one per page, from the app's root), so by
+ * the time a room's route is shown it is usually here; until it is, the room waits exactly as it
+ * waits for whoami.
+ */
+let chromeLoad: Promise<RoomChromeType> | null = null;
+let loadedChrome: RoomChromeType | null = null;
+
+/** Starts loading the chrome's chunk, once per page; a front door may call it to fetch it early. */
+export function loadRoomChrome(): Promise<RoomChromeType> {
+  chromeLoad ??= import('@wolffm/watchparty-ui/room-chrome').then(
+    (m) => (loadedChrome = m.RoomChrome),
+    (err: unknown) => {
+      // The next RoomShell to draw asks again.
+      chromeLoad = null;
+      throw err;
+    },
+  );
+  return chromeLoad;
+}
+
+/** The chrome's component once its chunk is here, else null. */
+function useRoomChrome(): RoomChromeType | null {
+  const [chrome, setChrome] = useState<RoomChromeType | null>(() => loadedChrome);
+  useEffect(() => {
+    if (chrome !== null) return;
+    let live = true;
+    loadRoomChrome().then(
+      (loaded) => {
+        if (live) setChrome(() => loaded);
+      },
+      (err: unknown) => {
+        // The room renders without its chat: a degraded room, not an outage.
+        console.error('room chrome: its chunk did not load', err);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [chrome]);
+  return chrome;
+}
 
 /**
  * The page's resolved theme, handed to the chrome as-is.
@@ -149,7 +196,7 @@ export function roomKeyFor(id: string): string | null {
  * path, `/cardtable[-ppe]/socket.io/`, from its pathname, so passing the
  * bare base is enough — no `roomSocketPath` override needed.
  */
-export function cardtableOrigin(): string {
+export function appOrigin(): string {
   const base = import.meta.env?.BASE_URL;
   const prefix = typeof base === 'string' && base !== '' ? base : '/';
   return `${globalThis.location.origin}${prefix}`.replace(/\/$/, '');
@@ -173,13 +220,17 @@ export function cardtableOrigin(): string {
  * into a node that moves into the chrome when it draws and out when it goes. That
  * node and the slot holding it are both `.chrome-slot` (`display: contents`), and
  * the chrome's rules for its content's own child reach through exactly those two
- * (`@hadoku/ui-shell`'s `chrome.css`). While whoami is in flight on a room's route, before they have
- * first mounted, they wait for it: their first frame is already inside.
+ * (`@hadoku/ui-shell`'s `chrome.css`; `display: contents` is also set on them here, for a game
+ * that loads no such sheet). While whoami or the chrome's chunk is in flight on a room's route,
+ * before they have first mounted, they wait for it, showing `fallback`: their first frame is already
+ * inside. After that, they show bare while the chrome is not drawn.
  */
 export function RoomShell({
   roomId,
   collapsible = true,
   inert = false,
+  fallback = null,
+  requireIdentified = false,
   children,
 }: {
   /** The room this viewer is in: the chat and roster the chrome joins, and where their avatar is asserted. */
@@ -190,9 +241,17 @@ export function RoomShell({
   collapsible?: boolean;
   /** Behind a question the page must answer first (`./SessionPrompt.tsx`): the chat cannot be reached. */
   inert?: boolean;
+  /** What a room's route shows while it waits, before its content first mounts. Default: nothing. */
+  fallback?: ReactNode;
+  /**
+   * No chrome for a viewer the fleet could not name (`ANON_USER_ID`): the room's server turns an
+   * anonymous join away, and a chat column that can only fail reads as a broken room. Default off.
+   */
+  requireIdentified?: boolean;
   children: ReactNode;
 }) {
   const who = useWhoami();
+  const RoomChrome = useRoomChrome();
   // Always inside `AppChrome`'s `HadokuThemeRoot` — see chrome/AppChrome.tsx,
   // which mounts this component. `useHadokuTheme()` throws with no provider
   // on purpose (a silent fallback is the bug this removes), so a caller that
@@ -202,14 +261,17 @@ export function RoomShell({
   const roomFrameRef = useRoomFrame();
   const [host] = useState(createHost);
   const mounted = useRef(false);
-  const waiting = key !== null && who === 'pending';
-  if (!waiting) mounted.current = true;
+  const unknown = who === null || (requireIdentified && who !== 'pending' && who.userId === ANON_USER_ID);
+  const waiting = key !== null && !unknown && (who === 'pending' || RoomChrome === null);
+  // Waiting before the first mount shows the fallback; after it, the content stays where it is.
+  const holding = waiting && !mounted.current;
+  if (!holding) mounted.current = true;
   // One keyed element in every branch below, so React keeps the children; last, so the slot has
   // taken the host in before their layout effects run.
   const content = mounted.current ? createPortal(children, host, 'content') : null;
 
-  if (waiting) return <>{content}</>;
-  if (key === null || who === null || who === 'pending')
+  if (holding) return <>{fallback}</>;
+  if (key === null || unknown || who === 'pending' || RoomChrome === null)
     return (
       <>
         <Slot key="bare" host={host} />
@@ -235,7 +297,7 @@ export function RoomShell({
         <RoomChrome
           roomKey={key}
           serverOrigin={watchpartyOrigin()}
-          roomOrigin={cardtableOrigin()}
+          roomOrigin={appOrigin()}
           userType={who.tier}
           userId={who.userId}
           theme={watchpartyTheme(theme)}
@@ -255,8 +317,11 @@ export function RoomShell({
 function createHost(): HTMLDivElement {
   const host = document.createElement('div');
   host.className = 'chrome-slot';
+  host.style.display = 'contents';
   return host;
 }
+
+const SLOT_STYLE = { display: 'contents' } as const;
 
 /** Where the children stand now: the host is moved in when this mounts. */
 function Slot({ host }: { host: HTMLDivElement }) {
@@ -266,5 +331,5 @@ function Slot({ host }: { host: HTMLDivElement }) {
     },
     [host],
   );
-  return <div ref={place} className="chrome-slot" />;
+  return <div ref={place} className="chrome-slot" style={SLOT_STYLE} />;
 }

@@ -6,14 +6,12 @@
  * styles, the fonts, the leak counts, a match — is `e2e/embed.spec.ts`.
  */
 
-import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
-import { toShadowSelector, withHostTheme } from '../../vite.embed.config.ts';
 import { eventTarget, hitAt, scopeOf } from '@hadoku/game-ui/dom.ts';
-import type { RoomBindClient, RoomOutcome, RoomView } from '@hadoku/magic-ui/rooms/api.ts';
+import type { BindOutcome, BindRoom } from '@hadoku/game-ui/embed/bound-room.tsx';
 import { appLocation, navigate, routeInMemory } from '@hadoku/game-ui/screens/route.ts';
 import type { GameBundleContext } from './contract.ts';
 import { EmbedApp } from './EmbedApp.tsx';
@@ -27,25 +25,7 @@ vi.mock('@wolffm/prefs-client', () => ({
   createPrefsClient: () => ({ read: () => Promise.resolve({}), subscribe: () => () => undefined, save: () => Promise.resolve() }),
 }));
 
-const ROOM: RoomView = {
-  id: 'wp-0123456789abcdef0123',
-  name: 'Watchparty table',
-  creator: 'fk:alice',
-  leader: 'fk:alice',
-  gameType: 'constructed-1v1',
-  game: { format: 'unavailable', mode: null, modeOptions: null, clientMode: 'builtin', draftStartedAt: null, pod: null },
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
-  locks: { ...OPEN_ROOM_LOCKS },
-  you: { id: 'http-a', leader: true, ready: false },
-  locked: false,
-  members: [],
-  seats: [],
-  matchId: null,
-  createdAt: '',
-  tables: [],
-  testing: false,
-  scheduledFor: null,
-};
+const ROOM = { id: 'wp-0123456789abcdef0123' };
 
 function ctx(over: Partial<GameBundleContext> = {}): GameBundleContext {
   return {
@@ -58,15 +38,13 @@ function ctx(over: Partial<GameBundleContext> = {}): GameBundleContext {
   };
 }
 
-function binder(outcome: RoomOutcome = { ok: true, room: ROOM }): RoomBindClient & { asked: string[] } {
+function binder(outcome: BindOutcome = { ok: true, roomId: ROOM.id }): BindRoom & { asked: string[] } {
   const asked: string[] = [];
-  return {
-    asked,
-    bindWatchparty: (room) => {
-      asked.push(room);
-      return Promise.resolve(outcome);
-    },
+  const bind = (room: string) => {
+    asked.push(room);
+    return Promise.resolve(outcome);
   };
+  return Object.assign(bind, { asked });
 }
 
 let releaseRoute: () => void = () => undefined;
@@ -96,7 +74,7 @@ afterEach(() => {
 describe('EmbedApp', () => {
   it('binds the watchparty room, lands on its table, and never touches the page’s hash', async () => {
     const rooms = binder();
-    render(createElement(EmbedApp, { ctx: ctx(), rooms }));
+    render(createElement(EmbedApp, { ctx: ctx(), bind: rooms }));
     const frame = screen.getByTestId('cardtable-embed');
     await waitFor(() => expect(frame.getAttribute('data-bound-room')).toBe(ROOM.id));
     expect(rooms.asked).toEqual(['movie-night']);
@@ -106,7 +84,7 @@ describe('EmbedApp', () => {
   });
 
   it('sends a route that is not a table back to the bound one', async () => {
-    render(createElement(EmbedApp, { ctx: ctx(), rooms: binder() }));
+    render(createElement(EmbedApp, { ctx: ctx(), bind: binder() }));
     await waitFor(() => expect(screen.getByTestId('constructed')).toBeTruthy());
     act(() => navigate({ kind: 'lobby' }));
     await waitFor(() => expect(screen.getByTestId('constructed')).toBeTruthy());
@@ -114,7 +92,7 @@ describe('EmbedApp', () => {
   });
 
   it('sends the stats route back to the bound room, with no lobby under it', async () => {
-    render(createElement(EmbedApp, { ctx: ctx(), rooms: binder() }));
+    render(createElement(EmbedApp, { ctx: ctx(), bind: binder() }));
     await waitFor(() => expect(screen.getByTestId('constructed')).toBeTruthy());
     act(() => navigate({ kind: 'stats', player: 'bob' }));
     await waitFor(() => expect(screen.getByTestId('constructed')).toBeTruthy());
@@ -124,16 +102,16 @@ describe('EmbedApp', () => {
   });
 
   it('says why when the table cannot be opened', async () => {
-    render(createElement(EmbedApp, { ctx: ctx(), rooms: binder({ ok: false, message: 'Could not open this room’s table: nope.' }) }));
+    render(createElement(EmbedApp, { ctx: ctx(), bind: binder({ ok: false, message: 'Could not open this room’s table: nope.' }) }));
     await waitFor(() => expect(screen.getByTestId('embed-error').textContent).toContain('nope'));
   });
 
   it('wears the context’s theme, and follows it', async () => {
-    const view = render(createElement(EmbedApp, { ctx: ctx(), rooms: binder() }));
+    const view = render(createElement(EmbedApp, { ctx: ctx(), bind: binder() }));
     const frame = screen.getByTestId('cardtable-embed');
     expect(frame.getAttribute('data-theme')).toBe('ocean-dark');
     expect(frame.getAttribute('data-dark-theme')).toBe('true');
-    view.rerender(createElement(EmbedApp, { ctx: ctx({ theme: 'light' }), rooms: binder() }));
+    view.rerender(createElement(EmbedApp, { ctx: ctx({ theme: 'light' }), bind: binder() }));
     expect(frame.getAttribute('data-theme')).toBe('light');
     expect(frame.getAttribute('data-dark-theme')).toBe('false');
     await waitFor(() => expect(frame.getAttribute('data-bound-room')).toBe(ROOM.id));
@@ -173,24 +151,5 @@ describe('across a shadow boundary', () => {
 
   it('answers no hit where there is no layout', () => {
     expect(hitAt(document, 1, 1)).toBeNull();
-  });
-});
-
-describe('the embed stylesheet’s selectors', () => {
-  it('turns the document roots into the shadow host and leaves look-alikes alone', () => {
-    expect(toShadowSelector(':root')).toBe(':host');
-    expect(toShadowSelector(':root, [data-theme]')).toBe(':host, [data-theme]');
-    expect(toShadowSelector('body')).toBe(':host');
-    expect(toShadowSelector('body > .x')).toBe(':host > .x');
-    expect(toShadowSelector('.prompt__body')).toBe('.prompt__body');
-    expect(toShadowSelector('.body-row, tbody')).toBe('.body-row, tbody');
-  });
-
-  it('lets every bare theme selector theme the host too, once', () => {
-    expect(withHostTheme(['[data-theme=dark]'])).toEqual(['[data-theme=dark]', ':host([data-theme=dark])']);
-    expect(withHostTheme([':host', '[data-theme]', '.cardtable-chrome'])).toEqual([':host', '[data-theme]', ':host([data-theme])', '.cardtable-chrome']);
-    expect(withHostTheme(['[data-theme=dark] .x', '.a[data-theme=dark]'])).toEqual(['[data-theme=dark] .x', '.a[data-theme=dark]']);
-    const once = withHostTheme(['[data-theme=light]']);
-    expect(withHostTheme(once), 'postcss revisits a changed rule').toEqual(once);
   });
 });
