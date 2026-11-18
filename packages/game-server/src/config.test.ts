@@ -84,6 +84,12 @@ describe('createConfig: two configs, two prefixes, one process', () => {
     expect(alphaAgain.port).toBe(7001);
   });
 
+  it('takes CARDTABLE_MIN_TIER=guest, and member (what the wrapper passes today) still works', async () => {
+    const { createConfig } = await import('./config.ts');
+    expect(createConfig({ envPrefix: 'CARDTABLE', env: { CARDTABLE_MIN_TIER: 'guest' } }).minTier).toBe('guest');
+    expect(createConfig({ envPrefix: 'CARDTABLE', env: { CARDTABLE_MIN_TIER: 'member' } }).minTier).toBe('member');
+  });
+
   it('fails closed on a floor this build does not know, independent of any other config in the process', async () => {
     const { createConfig } = await import('./config.ts');
     expect(() => createConfig({ envPrefix: 'ALPHA', env: { ALPHA_MIN_TIER: 'visitor' } })).toThrow('ALPHA_MIN_TIER=visitor is not a tier floor this build knows');

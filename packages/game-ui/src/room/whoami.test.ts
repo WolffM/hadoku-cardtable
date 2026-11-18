@@ -9,7 +9,7 @@ describe('tierOfWhoami', () => {
 
   it('leaves a plain member a member, and with the flag promotes nobody but a member', () => {
     expect(tierOfWhoami({ userType: 'member' })).toBe('member');
-    for (const userType of ['public', 'member', 'friend', 'service', 'wife', 'admin'] as const) {
+    for (const userType of ['public', 'guest', 'member', 'friend', 'service', 'wife', 'admin'] as const) {
       expect(tierOfWhoami({ userType, verified: true }), userType).toBe(userType === 'member' ? 'friend' : userType);
     }
   });

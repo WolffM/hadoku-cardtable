@@ -70,8 +70,13 @@ before planning cross-game work.
   automatically** (operator: *"member IS public. anyone who visits the page
   gets an unverified member account"*): the edge's sign-in wall signs a
   signed-out browser up as "Player NNNNN" and sends it on (hadoku_site
-  dc0a65f38). So the floor stays member and every request still carries an
-  identity; never add a tier below it, not even "just for drafting". Friend-only features (the music review, admin writes) check their
+  dc0a65f38). Every request still carries an identity. **Since 2026-11-18 that
+  auto-made account is `guest`** (the fleet ladder is
+  `public < guest < member < friend < …`; `member` is a guest the operator
+  verified): the kernel knows `guest`, the server accepts `CARDTABLE_MIN_TIER=guest`,
+  and hadoku_site moves the edge route and the wrapper's floor from member to
+  guest together, so a guest gets exactly what an unverified member got. Never
+  add a tier below guest, not even "just for drafting". Friend-only features (the music review, admin writes) check their
   own tier rather than lean on the floor; making rooms, events and matches is
   rate limited per caller (`perCallerLimit`). `docs/LICENSING.md` §2 has D24.
   **One exception, a room's link preview** (operator, 2026-11-08): the edge

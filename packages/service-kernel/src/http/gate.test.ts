@@ -36,6 +36,18 @@ describe('createGate: knows no game, every dependency is injected', () => {
 		expect(gate.floor(headers, 'friend')).toEqual({ ok: true, tier: 'friend' });
 	});
 
+	it('a guest floor admits a guest exactly as it admits an unverified member; a member floor refuses the guest', () => {
+		const { gate } = newGate('guest');
+		const guest = () => ({ 'x-edge-auth': 'ok', 'x-hadoku-tier': 'guest' });
+		const member = () => ({ 'x-edge-auth': 'ok', 'x-hadoku-tier': 'member' });
+		expect(gate.floor(guest(), 'guest')).toEqual({ ok: true, tier: 'guest' });
+		expect(gate.floor(member(), 'guest')).toEqual({ ok: true, tier: 'member' });
+		expect(gate.floor({ 'x-edge-auth': 'ok', 'x-hadoku-tier': 'public' }, 'guest')).toEqual({ ok: false, tier: 'public' });
+		expect(gate.floor({ 'x-hadoku-tier': 'guest' }, 'guest')).toEqual({ ok: false, tier: 'public' });
+		expect(gate.floor(guest(), 'member')).toEqual({ ok: false, tier: 'guest' });
+		expect(gate.floor({ ...guest(), 'x-hadoku-verified': '1' }, 'friend')).toEqual({ ok: false, tier: 'guest' });
+	});
+
 	it('requireMinTier reads minTier live: a floor the app changes at runtime takes effect on the next call', () => {
 		let minTier = 'friend';
 		const reportSealRefused = vi.fn();

@@ -23,10 +23,11 @@ import type { NextFunction, Request, Response } from 'express';
 /**
  * The platform tier ladder, complete. `wife` sits above `service` and below
  * `admin` deliberately: full reach across the apps, none of the
- * credential-management surface. `member` is a self-signed-up account: a
- * passkey and a name, no key anyone handed out.
+ * credential-management surface. `guest` is an account a visitor made
+ * themselves (or the edge made on arrival): a passkey and a name, no key
+ * anyone handed out. `member` is a guest the operator has verified.
  */
-export const TIER_ORDER = ['public', 'member', 'friend', 'service', 'wife', 'admin'] as const;
+export const TIER_ORDER = ['public', 'guest', 'member', 'friend', 'service', 'wife', 'admin'] as const;
 export type Tier = (typeof TIER_ORDER)[number];
 
 export interface AssertFloorOptions {
@@ -173,7 +174,8 @@ export function createEdgeAuth(config: EdgeAuthConfig): EdgeAuth {
  * The caller's tier as the app's headers carry it, except that a verified
  * member IS a friend here: an app that admits members alongside the tiers it
  * hands out may choose to treat its own verification the same as a vouch.
- * Never above friend: admin stays admin's. Pure — only `sanitizeHeaders`
+ * Never above friend: admin stays admin's, and a guest is never promoted, flag
+ * or not (only a `member` with the flag is). Pure — only `sanitizeHeaders`
  * decides whether a header is trustworthy in the first place.
  */
 export function tierOf(req: Request): string {

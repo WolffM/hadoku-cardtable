@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CONFIG } from './config.ts';
-import { TIER_ORDER, assertFloor, edgeProvenance, rankOf, requireMinTier, sanitizeHeaders, tierOf, verifiedOf } from './edge-auth.ts';
+import { TIER_ORDER, type Tier, assertFloor, edgeProvenance, rankOf, requireMinTier, sanitizeHeaders, tierOf, verifiedOf } from './edge-auth.ts';
 
 describe('the tier floor', () => {
 	it('admits a member above public and below friend', () => {
@@ -9,7 +9,13 @@ describe('the tier floor', () => {
 		expect(rankOf('member')).toBeLessThan(rankOf('friend'));
 	});
 
-	it('accepts member and friend floors', () => {
+	it('admits a guest above public and below member', () => {
+		expect(rankOf('guest')).toBeGreaterThan(rankOf('public'));
+		expect(rankOf('guest')).toBeLessThan(rankOf('member'));
+	});
+
+	it('accepts guest, member and friend floors', () => {
+		expect(assertFloor('guest')).toBe('guest');
 		expect(assertFloor('member')).toBe('member');
 		expect(assertFloor('friend')).toBe('friend');
 	});
@@ -143,5 +149,55 @@ describe('the floor at friend admits a verified member', () => {
 		expect(passes({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member', 'x-hadoku-verified': '1' })).toBe(true);
 		expect(passes({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member' })).toBe(false);
 		expect(passes({ 'x-hadoku-tier': 'member', 'x-hadoku-verified': '1' })).toBe(false);
+	});
+});
+
+describe('a guest gets exactly what an unverified member gets', () => {
+	const config = CONFIG as { -readonly [K in keyof typeof CONFIG]: (typeof CONFIG)[K] };
+	const saved = { secret: config.edgeAuthSecret, floor: config.minTier };
+	afterEach(() => {
+		config.edgeAuthSecret = saved.secret;
+		config.minTier = saved.floor;
+	});
+	const SECRET = 'edge-secret-for-the-guest-test';
+	const passesAt = (floor: Tier, headers: Record<string, unknown>): boolean => {
+		config.edgeAuthSecret = SECRET;
+		config.minTier = floor;
+		const req = { headers, path: '/x' } as unknown as Request;
+		edgeProvenance(req, {} as Response, () => undefined);
+		let passed = false;
+		const res = { status: () => res, type: () => res, send: () => res } as unknown as Response;
+		requireMinTier(req, res, () => {
+			passed = true;
+		});
+		return passed;
+	};
+	const guest = () => ({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'guest' });
+	const unverifiedMember = () => ({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member' });
+
+	it('at the guest floor both pass; public and a forged guest do not', () => {
+		expect(passesAt('guest', guest())).toBe(true);
+		expect(passesAt('guest', unverifiedMember())).toBe(true);
+		expect(passesAt('guest', { 'x-edge-auth': SECRET, 'x-hadoku-tier': 'public' })).toBe(false);
+		expect(passesAt('guest', { 'x-hadoku-tier': 'guest' })).toBe(false);
+	});
+
+	it('at the friend floor both are refused, and a verification flag does not lift a guest', () => {
+		expect(passesAt('friend', guest())).toBe(false);
+		expect(passesAt('friend', unverifiedMember())).toBe(false);
+		expect(passesAt('friend', { ...guest(), 'x-hadoku-verified': '1' })).toBe(false);
+	});
+
+	it('the member floor the wrapper still sets refuses a guest: hadoku_site moves the floor and the edge together', () => {
+		expect(passesAt('member', unverifiedMember())).toBe(true);
+		expect(passesAt('member', guest())).toBe(false);
+	});
+
+	it('a guest is read as a guest, never promoted', () => {
+		config.edgeAuthSecret = SECRET;
+		const headers: Record<string, unknown> = { ...guest(), 'x-hadoku-verified': '1' };
+		sanitizeHeaders(headers);
+		expect(tierOf({ headers } as unknown as Request)).toBe('guest');
+		expect(verifiedOf({ headers } as unknown as Request)).toBe(true);
 	});
 });

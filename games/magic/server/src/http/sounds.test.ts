@@ -631,7 +631,7 @@ describe('every /api/sounds route is friend tier and above', () => {
 		await writeTakeFile(dir, TAKE.file);
 		const h = await openApp(dir);
 		const below = TIER_ORDER.filter((t) => TIER_ORDER.indexOf(t) < TIER_ORDER.indexOf('friend'));
-		expect(below).toEqual(['public', 'member']);
+		expect(below).toEqual(['public', 'guest', 'member']);
 		for (const r of ROUTES) {
 			for (const tier of [...below, 'not-a-tier']) {
 				const res = await call(h, r.method, r.path, { tier, body: r.body });

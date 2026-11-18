@@ -20,8 +20,13 @@ import {
 const reqOf = (headers: Record<string, unknown>) => ({ headers }) as unknown as Request;
 
 describe('the full platform ladder', () => {
-	it('is public < member < friend < service < wife < admin, complete', () => {
-		expect(TIER_ORDER).toEqual(['public', 'member', 'friend', 'service', 'wife', 'admin']);
+	it('is public < guest < member < friend < service < wife < admin, complete', () => {
+		expect(TIER_ORDER).toEqual(['public', 'guest', 'member', 'friend', 'service', 'wife', 'admin']);
+	});
+
+	it('ranks a guest above public and below member', () => {
+		expect(rankOf('guest')).toBeGreaterThan(rankOf('public'));
+		expect(rankOf('guest')).toBeLessThan(rankOf('member'));
 	});
 
 	it('ranks every tier strictly above the one before it', () => {
@@ -36,6 +41,10 @@ describe('the full platform ladder', () => {
 });
 
 describe('assertFloor', () => {
+	it('accepts a guest floor', () => {
+		expect(assertFloor('guest', { envPrefix: 'GAME' })).toBe('guest');
+	});
+
 	it('accepts every tier this build knows (except public, by default)', () => {
 		for (const tier of TIER_ORDER) {
 			if (tier === 'public') continue;
@@ -145,6 +154,11 @@ describe('tierOf: a verified member is promoted to friend, nobody else is touche
 
 	it('leaves an unverified member as member', () => {
 		expect(tierOf(reqOf({ 'x-hadoku-tier': 'member' }))).toBe('member');
+	});
+
+	it('never promotes a guest, even one carrying X-Hadoku-Verified', () => {
+		expect(tierOf(reqOf({ 'x-hadoku-tier': 'guest', 'x-hadoku-verified': '1' }))).toBe('guest');
+		expect(tierOf(reqOf({ 'x-hadoku-tier': 'guest' }))).toBe('guest');
 	});
 
 	it('promotes nobody but a member, and nobody past friend', () => {
