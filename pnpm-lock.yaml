@@ -288,8 +288,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/ui-shell
       '@wolffm/game-stats-ui':
-        specifier: npm:@hadoku/game-stats-ui@0.1.12
-        version: '@hadoku/game-stats-ui@0.1.12(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)'
+        specifier: npm:@hadoku/game-stats-ui@0.1.13
+        version: '@hadoku/game-stats-ui@0.1.13(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)'
       '@wolffm/prefs-client':
         specifier: npm:@hadoku/prefs-client@1.1.27
         version: '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
@@ -809,6 +809,14 @@ packages:
 
   '@hadoku/game-stats-ui@0.1.12':
     resolution: {integrity: sha512-YQjKjErh8AjbjgzVVyWOLVLH7HTrl7yVGyXW2oRlVCPcaIZ8622oR8fYFNiNyv7dQ5G28sIDEDj7LhHzk1AkcA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@wolffm/prefs-client': ^1.0.0
+      '@wolffm/themes': ^5.8.0
+      react: ^18.0.0 || ^19.0.0
+
+  '@hadoku/game-stats-ui@0.1.13':
+    resolution: {integrity: sha512-i3AbDYMrzjPkqL3A7FTYNEGdkvCxGoWmyx6KDtkaL1led0uWYZte0COKLcXxcc7Glndszc/7kW6fMT9TBkTU2Q==}
     engines: {node: '>=18'}
     peerDependencies:
       '@wolffm/prefs-client': ^1.0.0
@@ -2709,6 +2717,12 @@ snapshots:
       react: 19.2.8
 
   '@hadoku/game-stats-ui@0.1.12(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
+      '@wolffm/themes': '@hadoku/themes@5.14.4(react@19.2.8)'
+      react: 19.2.8
+
+  '@hadoku/game-stats-ui@0.1.13(@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.4(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.27(react@19.2.8)(zod@4.5.4)'
       '@wolffm/themes': '@hadoku/themes@5.14.4(react@19.2.8)'

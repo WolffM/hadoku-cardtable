@@ -12,7 +12,7 @@ import { HeadToHead, MatchFeed, ProfileHeader, RatingHistory, useStatsLoad } fro
 
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { Colours } from './Colours.tsx';
-import { renderAvatar } from './face.tsx';
+import { renderAvatar } from './renderAvatar.ts';
 import { COUNTER_LABELS, MATCH_META, renderName, SEAT_ATTRS } from './magic.tsx';
 import { FEED_PAGE, onePlayer, STATS_MODE, type StatsSource } from './source.ts';
 import { DecksTable, renderAttr } from './StatsDecks.tsx';

@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { Chips, MatchFeed, Rankings } from '@wolffm/game-stats-ui';
 
 import { Colours } from './Colours.tsx';
-import { renderAvatar } from './face.tsx';
+import { renderAvatar } from './renderAvatar.ts';
 import { COUNTER_LABELS, MATCH_META, renderName, SEAT_ATTRS } from './magic.tsx';
 import { everyone, FEED_PAGE, STATS_MODE, type StatsSource } from './source.ts';
 import { matchFormats, NO_STATS_FILTER, renderAttr, WinningDecks, type StatsRoom } from './StatsDecks.tsx';
