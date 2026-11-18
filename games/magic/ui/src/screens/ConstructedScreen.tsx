@@ -18,7 +18,7 @@ import { useMemo } from 'react';
 
 import type { DraftTransport } from '../draft/socket.ts';
 import { type MyDecksClient } from '../deck/myDecks.ts';
-import { roomFeed, type RoomFeed } from '../rooms/follow.ts';
+import { roomFeed, type RoomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { type Fetch, type RoomsClient } from '../rooms/api.ts';
 import { GameClientsProvider } from '@hadoku/game-ui/rooms/game-clients.tsx';
 import { secureRandom, tablesClient, type TablesClient } from './tables.ts';

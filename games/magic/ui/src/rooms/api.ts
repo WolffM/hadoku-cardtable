@@ -57,6 +57,7 @@ import {
 } from '@hadoku/shared';
 
 import { apiBase, appBase, bodyOf, forgetRead, getJson, isRecord, pageFetch, readOnce, sendJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
+import { roomCoreClient } from '@hadoku/game-ui/rooms/room-core-client.ts';
 import { clearJoined, markJoined } from './joined.ts';
 
 export type { ClientMode, Fetch, GameType, RoomSettings };
@@ -332,90 +333,27 @@ export function roomsClient(
   fetchImpl: Fetch = (i, init) => fetch(i, init),
   base: string = apiBase(),
 ): RoomsClient & RoomOfMatchClient {
-  const url = (path: string): string => `${base}rooms${path}`;
-
-  /**
-   * The room writes that answer with the room. Same shape, same refusals.
-   *
-   * The method is a parameter because the pool's setter is a PATCH on the room
-   * itself while readiness and the start are POSTs to sub-paths; everything
-   * after the request is identical, including the refusal wording, so there is
-   * one of these and not two.
-   */
-  const write = async (path: string, payload: unknown, whatFailed: string, method: 'POST' | 'PATCH' = 'POST'): Promise<RoomOutcome> => {
-    let res: Response;
-    try {
-      res = await sendJson(url(path), method, payload, fetchImpl);
-    } catch {
-      return { ok: false, message: 'Could not reach the server.' };
-    }
-    const body = await bodyOf(res);
-    if (!res.ok) return { ok: false, message: `${whatFailed}: ${serverMessage(body, res.status)}.` };
-    const room = parseRoomView(body);
-    if (room === null) return { ok: false, message: 'The server answered with something that is not a room.' };
-    return { ok: true, room };
-  };
-
-  /** A room ended for everyone — closed by its leader, or a testing room reset — answered with no room. */
-  const end = async (roomId: string, verb: 'close' | 'reset', whatFailed: string): Promise<{ ok: true } | { ok: false; message: string }> => {
-    let res: Response;
-    try {
-      res = await sendJson(url(`/${encodeURIComponent(roomId)}/${verb}`), 'POST', {}, fetchImpl);
-    } catch {
-      return { ok: false, message: 'Could not reach the server.' };
-    }
-    if (res.ok) return { ok: true };
-    return { ok: false, message: `${whatFailed}: ${serverMessage(await bodyOf(res), res.status)}.` };
-  };
-
-  /** One room's view: `null` on the server's usual 404, a thrown sentence for anything else. */
-  const read = async (path: string): Promise<RoomView | null> => {
-    let res: Response;
-    try {
-      res = await getJson(url(path), fetchImpl);
-    } catch {
-      throw new Error('Could not reach the server.');
-    }
-    if (res.status === 404) return null;
-    const body = await bodyOf(res);
-    if (!res.ok) throw new Error(`Could not load the room: ${serverMessage(body, res.status)}.`);
-    const room = parseRoomView(body);
-    if (room === null) throw new Error('The server sent something that is not a room.');
-    return room;
-  };
+  // game-ui's client for room-core's routes, reading Magic's room body; Magic's own routes below
+  // ride its `write` and `read`, so every refusal reads the same way.
+  const core = roomCoreClient({ parse: parseRoomView, fetch: fetchImpl, base });
+  const room = (roomId: string, path = ''): string => `/${encodeURIComponent(roomId)}${path}`;
 
   return {
     async list() {
-      let res: Response;
-      try {
-        res = await getJson(url(''), fetchImpl);
-      } catch {
-        throw new Error('Could not reach the server.');
-      }
-      const body = await bodyOf(res);
-      if (!res.ok) throw new Error(`Could not load the rooms: ${serverMessage(body, res.status)}.`);
-      if (!isRecord(body) || !Array.isArray(body.rooms)) {
-        throw new Error('Could not load the rooms: the server sent something that is not a room list.');
-      }
-      const rooms = body.rooms.map(parseRoomView).filter((r): r is RoomView => r !== null);
+      const { rooms, body } = await core.list();
       lastRoomList = rooms;
       for (const listener of roomListListeners) listener(rooms);
       return { rooms, featured: parseFeatured(body.featured) };
     },
 
-    get(roomId) {
-      return read(`/${encodeURIComponent(roomId)}`);
-    },
-
-    roomOfMatch(matchId) {
-      return read(`/of-match/${encodeURIComponent(matchId)}`);
-    },
+    get: (roomId) => core.get(roomId),
+    roomOfMatch: (matchId) => core.read(`/of-match/${encodeURIComponent(matchId)}`),
 
     // Every create, join and leave goes through here, so this is where `rooms/joined.ts` learns of
     // them: a caller that navigates into the room afterwards finds it marked on the room route's
     // first render, and the chat (App.tsx's gate) never wraps the lobby late and remounts it.
     async create(req) {
-      const outcome = await write('', { name: req.name, ...createRoomFields(req) }, 'Could not create the room');
+      const outcome = await core.create({ name: req.name, ...createRoomFields(req) });
       if (outcome.ok) markJoined(outcome.room.id);
       return outcome;
     },
@@ -423,7 +361,7 @@ export function roomsClient(
     async challenges() {
       let res: Response;
       try {
-        res = await getJson(url('/challenges'), fetchImpl);
+        res = await getJson(`${base}rooms/challenges`, fetchImpl);
       } catch {
         throw new Error('Could not reach the server.');
       }
@@ -434,69 +372,37 @@ export function roomsClient(
     },
 
     async createChallenge(req) {
-      const outcome = await write('/challenge', req, 'Could not create the room');
+      const outcome = await core.write('/challenge', req, 'Could not create the room');
       if (outcome.ok) markJoined(outcome.room.id);
       return outcome;
     },
 
     async join(roomId, password) {
-      let res: Response;
-      try {
-        res = await sendJson(url(`/${encodeURIComponent(roomId)}/join`), 'POST', password === undefined || password === '' ? {} : { password }, fetchImpl);
-      } catch {
-        return { ok: false, reason: 'error', message: 'Could not reach the server.' };
-      }
-      const body = await bodyOf(res);
-      if (res.status === 403 || res.status === 404) return { ok: false, reason: 'refused' };
-      if (res.status === 429) return { ok: false, reason: 'rate-limited' };
-      if (!res.ok) return { ok: false, reason: 'error', message: `Could not join: ${serverMessage(body, res.status)}.` };
-      const room = parseRoomView(body);
-      if (room === null) return { ok: false, reason: 'error', message: 'The server answered the join with something that is not a room.' };
-      markJoined(roomId);
-      return { ok: true, room };
+      const outcome = await core.join(roomId, password);
+      if (outcome.ok) markJoined(roomId);
+      return outcome;
     },
 
-    ready(roomId, ready) {
-      return write(`/${encodeURIComponent(roomId)}/ready`, { ready }, 'Could not change your readiness');
-    },
+    ready: (roomId, ready) => core.ready(roomId, ready),
 
     async leave(roomId) {
-      const outcome = await write(`/${encodeURIComponent(roomId)}/leave`, {}, 'Could not leave the room');
+      const outcome = await core.leave(roomId);
       if (outcome.ok) clearJoined(roomId);
       return outcome;
     },
 
-    close(roomId) {
-      return end(roomId, 'close', 'Could not close the room');
-    },
-
-    reset(roomId) {
-      return end(roomId, 'reset', 'Could not reset the room');
-    },
-
-    setFormat(roomId, format) {
-      return write(`/${encodeURIComponent(roomId)}`, { format }, 'Could not change the pool', 'PATCH');
-    },
-
-    setSettings(roomId, settings) {
-      return write(`/${encodeURIComponent(roomId)}`, { settings }, 'Could not change the room settings', 'PATCH');
-    },
-
-    setRoomMode(roomId, mode) {
-      return write(`/${encodeURIComponent(roomId)}`, mode, 'Could not change the room mode', 'PATCH');
-    },
-    setGameType(roomId, gameType) {
-      return write(`/${encodeURIComponent(roomId)}`, { gameType }, 'Could not change the game type', 'PATCH');
-    },
-
-    start(roomId) {
-      return write(`/${encodeURIComponent(roomId)}/start`, {}, 'Could not start the draft');
-    },
+    close: (roomId) => core.close(roomId),
+    reset: (roomId) => core.reset(roomId),
+    setFormat: (roomId, format) => core.write(room(roomId), { format }, 'Could not change the pool', 'PATCH'),
+    setSettings: (roomId, settings) => core.write(room(roomId), { settings }, 'Could not change the room settings', 'PATCH'),
+    setRoomMode: (roomId, mode) => core.write(room(roomId), mode, 'Could not change the room mode', 'PATCH'),
+    setGameType: (roomId, gameType) => core.write(room(roomId), { gameType }, 'Could not change the game type', 'PATCH'),
+    start: (roomId) => core.write(room(roomId, '/start'), {}, 'Could not start the draft'),
 
     async setPlan(roomId, plan) {
       let res: Response;
       try {
-        res = await sendJson(url(`/${encodeURIComponent(roomId)}/pod/plan`), 'PUT', { plan }, fetchImpl);
+        res = await sendJson(`${base}rooms${room(roomId, '/pod/plan')}`, 'PUT', { plan }, fetchImpl);
       } catch {
         return { ok: false, message: 'Could not reach the server.', verdict: null };
       }
@@ -505,9 +411,9 @@ export function roomsClient(
         return { ok: false, message: 'That pool is not Forge-playable.', verdict: refusalVerdict(body) };
       }
       if (!res.ok) return { ok: false, message: `Could not set the pool: ${serverMessage(body, res.status)}.`, verdict: null };
-      const room = parseRoomView(body);
-      if (room === null) return { ok: false, message: 'The server answered with something that is not a room.', verdict: null };
-      return { ok: true, room };
+      const parsed = parseRoomView(body);
+      if (parsed === null) return { ok: false, message: 'The server answered with something that is not a room.', verdict: null };
+      return { ok: true, room: parsed };
     },
   };
 }

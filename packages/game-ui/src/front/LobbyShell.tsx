@@ -11,6 +11,10 @@
  * Content Policy line) and hands them in as children/props. What stays here is what was already
  * game-agnostic: the shell chrome, the page-reveal gate (`./gate.ts`) and the trim-loaded settle.
  *
+ * Its paint is `./LobbyShell.css`, on its own `lobby-shell` class: the `shell` block is the host
+ * app's screen shell (cardtable's `screens.css` draws every screen with it), so this module adds to
+ * it rather than restyling it.
+ *
  * `LobbyScreen.tsx`'s own DOM is unchanged by this lift: it still always passes a `navTools` and
  * a `disclaimer`, so its rendered markup is the same `<nav>`/`<p className="shell__disclaimer">`
  * it always drew (this lane's closing note has the render diff). A caller that omits either slot
@@ -22,6 +26,7 @@ import { useEffect, type ReactNode } from 'react';
 import { FrontGateContext, useFrontGateState } from './gate.ts';
 import { useSiteTrim } from '../settings/siteTrim.ts';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
+import './LobbyShell.css';
 
 export interface LobbyShellProps {
   /** The header's own tools row (settings, decks, stats, …) — omitted renders no `<nav>` at all. */
@@ -43,7 +48,7 @@ export function LobbyShell({ navTools, banner, children, disclaimer }: LobbyShel
     if (trimLoaded) settle('trim');
   }, [trimLoaded, settle]);
   return (
-    <div ref={shellRef} className="shell shell--fit" data-testid="lobby">
+    <div ref={shellRef} className="shell shell--fit lobby-shell" data-testid="lobby">
       {navTools !== undefined && <nav className="shell__tools">{navTools}</nav>}
       <FrontGateContext.Provider value={gate}>
         <main className="front" aria-busy={!gate.revealed}>

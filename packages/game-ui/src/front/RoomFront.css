@@ -1,0 +1,663 @@
+/*
+ * The front page's room list and its create dialog (`./RoomFront.tsx`): the paint for every class
+ * that file draws, so a game gets a finished list by importing the component, not by copying a
+ * stylesheet. Theme tokens only (`--color-*`, `--hdk-*`), never a literal colour.
+ *
+ * The defaults are cardtable's own front page (a grid of tinted symbol cards). Everything a game
+ * tunes is a custom property below, set by the game on any ancestor (the dialog portals into
+ * `<body>`, so its properties are read from `:root`): bomberman's single column of flat rows is
+ * these same rules with its own values. A row's own colours come from the game per row
+ * (`RoomFrontRowExtras.vars`): its format's tint, its state's dot.
+ *
+ * Named hooks, all optional:
+ *   panel   --room-front-bg, -border, -radius, -padding, -gap, -flex, -min-height
+ *   head    --room-front-head-align, -head-gap, -title-size, -title-weight, -title-margin,
+ *           -actions-align, -actions-gap
+ *   button  --room-front-go-* (the Create buttons, `.room-front__go`)
+ *   list    --room-front-columns, -list-gap, -list-display, -list-direction, -list-overflow,
+ *           -list-min-height
+ *   card    --room-front-card-bg, -card-border, -card-radius, -card-hover-lift, -card-hover-border,
+ *           -card-hover-shadow, -card-padding, -card-gap, -card-display, -row-gap, -row-align,
+ *           -row-wrap, -name-weight, -seats-size, -seats-ink, -state-size, -state-ink,
+ *           -state-align, -dot-size, -dot, -detail-size, -detail-ink
+ *   roster  --room-front-roster-* (shown, or kept for assistive tech only: the default)
+ *   enter   --room-front-enter-* (Join, Watch, Reset)
+ *   per row --room-front-tint, --room-front-dot, --room-front-state-ink
+ *   dialog  --room-front-create-* (on `:root`: the dialog is not inside the page)
+ */
+
+/* ── the panel ───────────────────────────────────────────────────────── */
+
+.rooms {
+  display: flex;
+  flex: var(--room-front-flex, 0 1 auto);
+  flex-direction: column;
+  gap: var(--room-front-gap, 14px);
+  min-height: var(--room-front-min-height, auto);
+  padding: var(--room-front-padding, 20px);
+  border: var(--room-front-border, 1px solid var(--color-border));
+  border-radius: var(--room-front-radius, 8px);
+  background: var(--room-front-bg, var(--color-bg-card));
+}
+
+/* Title on the left, the actions at the right edge; `wrap` drops them under a long title. */
+.rooms__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: var(--room-front-head-align, baseline);
+  justify-content: space-between;
+  gap: var(--room-front-head-gap, 8px 12px);
+}
+
+.rooms__title {
+  margin: var(--room-front-title-margin, 0);
+  font-size: var(--room-front-title-size, 19px);
+  font-weight: var(--room-front-title-weight, 600);
+}
+
+/* Create room, and a game's own actions beside it. */
+.rooms__actions {
+  display: flex;
+  align-items: var(--room-front-actions-align, normal);
+  gap: var(--room-front-actions-gap, 8px);
+}
+
+/* ── the Create buttons ──────────────────────────────────────────────── */
+
+.room-front__go {
+  align-self: var(--room-front-go-align, flex-start);
+  padding: var(--room-front-go-padding, 10px 18px);
+  border: 0;
+  border-radius: var(--room-front-go-radius, var(--hdk-radius));
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--room-front-go-size, 14px);
+  font-weight: var(--room-front-go-weight, 600);
+  cursor: pointer;
+}
+
+.room-front__go:hover:not(:disabled),
+.room-front__go:focus-visible:not(:disabled) {
+  background: var(--room-front-go-hover-bg, var(--color-primary));
+  filter: var(--room-front-go-hover-filter, brightness(1.08));
+}
+
+/* The focus ring: the theme's own (an outline) unless a game draws a shadow instead. */
+.room-front__go:focus-visible {
+  outline-style: var(--room-front-go-focus-outline, solid);
+  box-shadow: var(--room-front-go-focus-shadow, none);
+}
+
+/* A dead button must look dead: an outline on the page's own fill, unless a game dims it instead. */
+.room-front__go:disabled {
+  background: var(--room-front-go-disabled-bg, var(--color-bg-alt));
+  color: var(--room-front-go-disabled-ink, var(--color-text-secondary));
+  box-shadow: var(--room-front-go-disabled-shadow, inset 0 0 0 1px var(--color-border-light));
+  opacity: var(--room-front-go-disabled-opacity, 1);
+  cursor: var(--room-front-go-disabled-cursor, not-allowed);
+}
+
+/* ── the Testing fold ────────────────────────────────────────────────── */
+
+/* The whole title is the button, a chevron before it turned down while open: no button chrome. */
+.rooms__fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rooms__fold:hover .rooms__fold-chevron {
+  color: var(--color-text);
+}
+
+.rooms__fold:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.rooms__fold-chevron {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--color-text-secondary);
+}
+
+.rooms__fold[aria-expanded='true'] .rooms__fold-chevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rooms__fold-chevron {
+    transition:
+      transform 0.12s ease,
+      color 0.12s ease;
+  }
+}
+
+/* ── status lines ────────────────────────────────────────────────────── */
+
+/* The skeleton and the list itself (`Reveal`), each laid out as the panel lays out its own. */
+.rooms__layer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--room-front-gap, 14px);
+}
+
+.rooms__status {
+  margin: 0;
+  color: var(--room-front-status-ink, var(--color-text-secondary));
+  font-size: var(--room-front-status-size, inherit);
+}
+
+.rooms__status--bad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--room-front-bad-gap, 10px);
+  padding: var(--room-front-bad-padding, 0);
+  border-radius: var(--room-front-bad-radius, 0);
+  background: var(--room-front-bad-bg, transparent);
+  color: var(--room-front-bad-ink, var(--color-warning));
+}
+
+.rooms__status--bad p {
+  margin: 0;
+}
+
+.rooms__stale {
+  margin: 0;
+  color: var(--room-front-stale-ink, var(--color-text-secondary));
+  font-size: var(--room-front-stale-size, 13px);
+}
+
+/* ── the list ────────────────────────────────────────────────────────── */
+
+/*
+ * `will-change: transform`: the grid is its own compositor layer, so scrolling the page moves it
+ * rather than redrawing every card's gradient each frame (measured in cardtable: headless Firefox
+ * 11–12 ms of CPU per scrolled frame at 40 rooms, 6 ms with it). On the list, not the panel: the
+ * panel holds the dialog's fixed backdrop and the fixed tip layer, which a transform would re-anchor.
+ */
+.rooms__list {
+  display: var(--room-front-list-display, grid);
+  flex-direction: var(--room-front-list-direction, row);
+  grid-template-columns: var(--room-front-columns, repeat(auto-fill, minmax(320px, 1fr)));
+  gap: var(--room-front-list-gap, 12px);
+  min-width: var(--room-front-list-min-width, auto);
+  min-height: var(--room-front-list-min-height, auto);
+  margin: 0;
+  padding: 0;
+  overflow: var(--room-front-list-overflow, visible);
+  list-style: none;
+  will-change: transform;
+}
+
+/* ── one card ────────────────────────────────────────────────────────── */
+
+/*
+ * Four rows (type/name/seats, mode, state, the way in) over the room's tint and its faint scene.
+ * `overflow: hidden` clips the scene; the body is raised above it. The tint is the game's per row
+ * (`--room-front-tint`); with none, a neutral wash.
+ */
+.room-card {
+  --room-front-tint-default: var(--color-neutral);
+
+  position: relative;
+  display: var(--room-front-card-display, list-item);
+  flex-direction: var(--room-front-card-direction, row);
+  gap: var(--room-front-card-gap, normal);
+  padding: var(--room-front-card-outer-padding, 0);
+  overflow: var(--room-front-card-overflow, hidden);
+  border: var(--room-front-card-border, 1px solid var(--color-border));
+  border-radius: var(--room-front-card-radius, 8px);
+  background: var(
+    --room-front-card-bg,
+    radial-gradient(in srgb circle at 85% 15%, color-mix(in srgb, var(--room-front-tint, var(--room-front-tint-default)) 38%, transparent) 0%, transparent 65%),
+    linear-gradient(160deg, color-mix(in srgb, var(--room-front-tint, var(--room-front-tint-default)) 16%, var(--color-bg)) 0%, var(--color-bg) 75%)
+  );
+  color: var(--room-front-card-ink, inherit);
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.2s ease;
+}
+
+.room-card:hover,
+.room-card:focus-within {
+  transform: translateY(var(--room-front-card-hover-lift, -2px));
+  border-color: var(--room-front-card-hover-border, var(--color-primary));
+  box-shadow: var(--room-front-card-hover-shadow, 0 6px 20px color-mix(in srgb, var(--color-bg-overlay) 60%, transparent));
+}
+
+/*
+ * A room that does not match every filter that is ON: faded and shaded, never hidden; its buttons
+ * still work through the shade. A shade over the card, never a `filter` on it.
+ */
+.room-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  background: var(--color-bg-overlay);
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.room-card[data-match='false'] {
+  opacity: 0.45;
+}
+
+.room-card[data-match='false']::after {
+  opacity: 0.5;
+}
+
+/* The room's own scene, large and faint in the corner. */
+.room-card__mark {
+  position: absolute;
+  right: -6px;
+  bottom: -10px;
+  opacity: 0.1;
+  color: var(--color-text);
+  pointer-events: none;
+  transition:
+    transform 0.4s ease,
+    opacity 0.2s ease;
+}
+
+.room-card:hover .room-card__mark,
+.room-card:focus-within .room-card__mark {
+  transform: scale(1.06) rotate(-3deg);
+  opacity: 0.14;
+}
+
+.room-card__body {
+  position: relative;
+  z-index: 1;
+  display: var(--room-front-body-display, flex);
+  flex-direction: column;
+  gap: var(--room-front-row-stack-gap, 6px);
+  box-sizing: border-box;
+  height: var(--room-front-body-height, 100%);
+  padding: var(--room-front-card-padding, 12px 14px);
+}
+
+.room-card__row1,
+.room-card__row2,
+.room-card__row3,
+.room-card__row4 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: var(--room-front-row-align, center);
+  gap: var(--room-front-row-gap, 8px);
+}
+
+/* The title row never wraps: the name ellipsises instead of pushing the icon to its own line. */
+.room-card__row1 {
+  flex-wrap: var(--room-front-row1-wrap, nowrap);
+}
+
+/* Nor the chips: a long mode ellipsises in its chip, so every card is the same height. */
+.room-card__row2 {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* The state and its detail: one row that never wraps, two sizes of text on one baseline. */
+.room-card__row3 {
+  flex-wrap: var(--room-front-row3-wrap, nowrap);
+  align-items: baseline;
+  min-width: 0;
+}
+
+/* Pinned to the card's foot, so every card's buttons in a grid row share a baseline. */
+.room-card__row4 {
+  align-items: var(--room-front-row4-align, center);
+  margin-top: auto;
+}
+
+.room-card__type-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+}
+
+.room-card__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--room-front-name-weight, 600);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A game's own trophy glyph (a tournament, say): an icon in the theme's gold, never text. */
+.room-card__trophy {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--room-front-trophy-ink, var(--color-warning));
+}
+
+/* The lock leads the primary button's own label, not the title row. */
+.room-card__lock {
+  display: inline-flex;
+}
+
+.room-card__seats {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--room-front-seats-gap, 4px);
+  color: var(--room-front-seats-ink, var(--color-text-secondary));
+  font-size: var(--room-front-seats-size, 12px);
+  white-space: nowrap;
+}
+
+.room-card__mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.room-card__mode-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-card__series-chip {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.room-card__state {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: var(--room-front-state-align, baseline);
+  gap: var(--room-front-state-gap, 6px);
+  color: var(--room-front-state-ink, inherit);
+  font-size: var(--room-front-state-size, 13px);
+}
+
+/* The dot has no text to sit on: centred on the label beside it. The game colours it per state. */
+.room-card__dot {
+  align-self: center;
+  width: var(--room-front-dot-size, 8px);
+  height: var(--room-front-dot-size, 8px);
+  border-radius: 50%;
+  background: var(--room-front-dot, var(--color-text-secondary));
+}
+
+.room-card__state-detail {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--room-front-detail-ink, var(--color-text-secondary));
+  font-size: var(--room-front-detail-size, 12px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A game's own trailing line (a streamed client's label), at the end of row 4 so it never adds a row. */
+.room-card__legacy {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+/* Words kept for assistive tech and tests, out of sight (a game's own label in `legacyMeta`, say). */
+.rooms__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/*
+ * The roster: the faces and names, out of sight by default (the card's seat count says it
+ * visually). A game that shows it sets the `--room-front-roster-*` below.
+ */
+.rooms__members.rooms__sr {
+  position: var(--room-front-roster-position, absolute);
+  display: var(--room-front-roster-display, block);
+  flex-wrap: var(--room-front-roster-flex-wrap, nowrap);
+  align-items: var(--room-front-roster-align, normal);
+  gap: var(--room-front-roster-gap, normal);
+  width: var(--room-front-roster-size, 1px);
+  height: var(--room-front-roster-size, 1px);
+  overflow: var(--room-front-roster-overflow, hidden);
+  clip: var(--room-front-roster-clip, rect(0 0 0 0));
+  color: var(--room-front-roster-ink, inherit);
+  font-size: var(--room-front-roster-text, inherit);
+  white-space: var(--room-front-roster-wrap, nowrap);
+}
+
+/* A member's character beside their name; pixelated, because these are small sprites. */
+.rooms__face {
+  width: 18px;
+  height: 18px;
+  margin-right: var(--room-front-face-gap, 4px);
+  border-radius: var(--room-front-face-radius, 3px);
+  vertical-align: -4px;
+  image-rendering: pixelated;
+}
+
+/* ── the way in ──────────────────────────────────────────────────────── */
+
+/* Join, Watch and Reset, and the list's own Retry and the password's Enter: one bordered button. */
+.rooms__enter,
+.rooms__password button,
+.rooms__status--bad button {
+  padding: var(--room-front-enter-padding, 8px 16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--room-front-enter-radius, 8px);
+  background: var(--room-front-enter-bg, var(--color-bg-hover));
+  color: var(--color-text);
+  font-size: var(--room-front-enter-size, 14px);
+  cursor: pointer;
+}
+
+/* A row's own buttons: the primary fills with the accent on hover, Watch glows the danger. */
+.room-card__go {
+  display: var(--room-front-enter-display, inline-flex);
+  flex: var(--room-front-enter-flex, 0 0 auto);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: var(--room-front-enter-weight, 600);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.room-card__go:hover:not(:disabled),
+.room-card__go:focus-visible {
+  border-color: var(--room-front-enter-hover-border, var(--color-primary));
+  background: var(--room-front-enter-hover-bg, var(--color-primary));
+  color: var(--room-front-enter-hover-ink, var(--color-on-primary));
+}
+
+.room-card__go--watch:hover:not(:disabled),
+.room-card__go--watch:focus-visible {
+  border-color: var(--color-danger);
+  background: var(--color-bg-hover);
+  color: color-mix(in srgb, var(--color-danger) 50%, var(--color-text));
+  box-shadow: 0 0 0 3px var(--color-danger-bg);
+}
+
+.rooms__enter:disabled {
+  opacity: var(--room-front-enter-disabled-opacity, 1);
+  cursor: var(--room-front-enter-disabled-cursor, pointer);
+}
+
+/* The password prompt, in place of the row's buttons. */
+.rooms__password {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.rooms__password label,
+.rooms__caption {
+  flex-basis: 100%;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rooms__password input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.rooms__error {
+  flex-basis: 100%;
+  margin: var(--room-front-error-margin, 0);
+  padding: var(--room-front-error-padding, 0);
+  border-radius: var(--room-front-error-radius, 0);
+  background: var(--room-front-error-bg, transparent);
+  color: var(--room-front-error-ink, var(--color-danger));
+  font-size: var(--room-front-error-size, inherit);
+}
+
+/* ── the create dialog ───────────────────────────────────────────────── */
+
+/*
+ * Not under `.rooms`: the dialog portals into `<body>` (`OverPage`), so no rule here may be scoped
+ * under the page, and its custom properties are read from `:root`.
+ */
+.rooms__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--room-front-create-z, var(--z-modal, 50));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--room-front-create-inset, 16px);
+  background: var(--color-bg-overlay);
+}
+
+/*
+ * The panel. Its surface (fill, edge, shadow) is `:where()`-light, so a game's own raised-surface
+ * class passed as `createPanelClassName` draws over it regardless of which sheet loads first.
+ */
+.room-front-create {
+  display: flex;
+  flex-direction: column;
+  gap: var(--room-front-create-gap, 6px);
+  box-sizing: var(--room-front-create-box, border-box);
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: var(--room-front-create-padding, 16px 20px 20px);
+  border-radius: var(--room-front-create-radius, var(--hdk-radius-lg));
+  color: var(--room-front-create-ink, inherit);
+  font-family: var(--room-front-create-font, inherit);
+}
+
+:where(.room-front-create) {
+  border: var(--room-front-create-border, 1px solid var(--color-border));
+  background: var(--room-front-create-bg, var(--color-bg-card));
+  box-shadow: var(--room-front-create-shadow, var(--hdk-shadow-lg));
+}
+
+.rooms__create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--room-front-create-head-gap, 4px);
+}
+
+.rooms__create-head h3 {
+  margin: 0;
+  font-size: var(--room-front-create-title-size, 16px);
+  font-weight: var(--room-front-create-title-weight, 600);
+}
+
+.rooms__create-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--room-front-create-close-padding, 4px);
+  border: var(--room-front-create-close-border, 1px solid transparent);
+  border-radius: var(--hdk-radius-sm);
+  background: transparent;
+  color: var(--room-front-create-close-ink, inherit);
+  cursor: pointer;
+}
+
+.rooms__create-close:hover,
+.rooms__create-close:focus-visible {
+  border-color: var(--room-front-create-close-hover-border, var(--color-border));
+  background: var(--room-front-create-close-hover-bg, transparent);
+  color: var(--room-front-create-close-hover-ink, inherit);
+}
+
+.room-front-create label[for],
+.room-front-create .rooms__caption {
+  flex-basis: var(--room-front-create-label-basis, 100%);
+  color: var(--room-front-create-label-ink, var(--color-text-secondary));
+  font-size: var(--room-front-create-label-size, 12px);
+  font-weight: var(--room-front-create-label-weight, inherit);
+  letter-spacing: var(--room-front-create-label-spacing, 0.06em);
+  text-transform: var(--room-front-create-label-case, uppercase);
+}
+
+.room-front-create input,
+.room-front-create select {
+  min-width: 0;
+  padding: var(--room-front-create-input-padding, 9px 10px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--room-front-create-input-radius, 8px);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.room-front-create .room-front__go {
+  margin-top: var(--room-front-create-go-gap, 6px);
+  font-family: var(--room-front-create-go-font, inherit);
+}
+
+.room-front-create input:focus-visible,
+.room-front-create .rooms__create-close:focus-visible {
+  outline-style: var(--room-front-create-focus-outline, solid);
+  box-shadow: var(--room-front-create-focus-shadow, none);
+}

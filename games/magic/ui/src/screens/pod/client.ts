@@ -19,9 +19,10 @@ import { useEffect, useRef, useState } from 'react';
 import { magicGame, type Look, type RoomTable, type SeriesPhase, type TableGame } from '@hadoku/shared';
 
 import { followTableOnce } from '../../play/live/matchStart.ts';
-import { roomFeed } from '../../rooms/follow.ts';
+import { roomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { latestReads } from '../../rooms/latest.ts';
-import { roomsClient, type RoomsClient, type RoomView } from '../../rooms/api.ts';
+import { parseRoomView, roomsClient, type RoomsClient, type RoomView } from '../../rooms/api.ts';
+import { roomCoreClient, type RoomEndOutcome } from '@hadoku/game-ui/rooms/room-core-client.ts';
 import { apiUrl, bodyOf, isRecord, sendJson } from '@hadoku/game-ui/http.ts';
 import { tablesClient } from '../tables.ts';
 import { useQueuePlace } from '../queue-place.ts';
@@ -225,30 +226,31 @@ export function splitPod(roomId: string): Promise<PodActionOutcome> {
 }
 
 /*
- * The leader's three atomic seat ops (wave 119 §S, wave 120 §S2) are `game-server`'s GENERIC
- * `/api/rooms/:id/seats/*` routes (`packages/game-server/src/http/room-core.ts`), never Magic's
- * own `pod/<action>` ones `postPod` sends — `postRoom` is the same raw POST either way, just a
- * different path.
+ * The leader's atomic seat ops (wave 119 §S, wave 120 §S2) are `game-server`'s GENERIC
+ * `/api/rooms/:id/seats/*` routes, through game-ui's one client for them
+ * (`@hadoku/game-ui/rooms/room-core-client.ts`), never Magic's own `pod/<action>` ones `postPod` sends.
  */
+const core = roomCoreClient({ parse: parseRoomView });
+const podOutcome = (outcome: RoomEndOutcome): PodActionOutcome => (outcome.ok ? { ok: true, message: null } : { ok: false, message: outcome.message });
 
 /** The leader removes a seated member to the spectator row, still a member. */
-export function removeFromPodSeat(roomId: string, memberId: string): Promise<PodActionOutcome> {
-  return postRoom(roomId, 'seats/remove', { memberId });
+export async function removeFromPodSeat(roomId: string, memberId: string): Promise<PodActionOutcome> {
+  return podOutcome(await core.removeFromSeat(roomId, memberId));
 }
 
 /** The leader closes seats from the top down until `count` are open, evicting any occupant first. */
-export function lowerPodSeatCapacity(roomId: string, count: number): Promise<PodActionOutcome> {
-  return postRoom(roomId, 'seats/capacity', { count });
+export async function lowerPodSeatCapacity(roomId: string, count: number): Promise<PodActionOutcome> {
+  return podOutcome(await core.lowerSeatCapacity(roomId, count));
 }
 
 /** The leader hands the room to another member, seated or watching. */
-export function passRoomLeader(roomId: string, memberId: string): Promise<PodActionOutcome> {
-  return postRoom(roomId, 'leader', { memberId });
+export async function passRoomLeader(roomId: string, memberId: string): Promise<PodActionOutcome> {
+  return podOutcome(await core.makeLeader(roomId, memberId));
 }
 
 /** The leader puts the bot in `seat`, evicting its human occupant first. */
-export function botReplacesPodSeat(roomId: string, seat: number): Promise<PodActionOutcome> {
-  return postRoom(roomId, 'seats/bot', { seat });
+export async function botReplacesPodSeat(roomId: string, seat: number): Promise<PodActionOutcome> {
+  return podOutcome(await core.bot(roomId, seat));
 }
 
 /** The leader's Start draft for a split room: the server deals each pod its draft, and the room's feed carries it to everyone. */

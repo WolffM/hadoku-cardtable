@@ -65,9 +65,9 @@ vi.mock('./pod/client.ts', async (importOriginal) => ({
  * The page's own feed (`roomFeed()`): a test that counts every read on the page puts every
  * follower on its own stepped feed, a pod's included. Absent, the real one.
  */
-const pageFeed = vi.hoisted(() => ({ current: null as import('../rooms/follow.ts').RoomFeed | null }));
-vi.mock('../rooms/follow.ts', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../rooms/follow.ts')>();
+const pageFeed = vi.hoisted(() => ({ current: null as import('@hadoku/game-ui/rooms/feed.ts').RoomFeed | null }));
+vi.mock('@hadoku/game-ui/rooms/feed.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@hadoku/game-ui/rooms/feed.ts')>();
   return { ...real, roomFeed: () => pageFeed.current ?? real.roomFeed() };
 });
 
@@ -109,7 +109,7 @@ import { cardIndex, suggestBasics } from '../deck/build.ts';
 import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
 import { takeWarmRoom, warmRoom } from '../rooms/warm.ts';
-import type { RoomFeed } from '../rooms/follow.ts';
+import type { RoomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { withMagicGame } from '../rooms/room-body.testing.ts';
 import {
   RANDOM_DECK,
@@ -3354,7 +3354,7 @@ describe('a room read that overlapped the leader’s own write', () => {
    * …/deck` (choosing HER drafted pool, which also sets the room's format
    * through `choosePool`'s own write) was landing — so bob's OWN room read,
    * issued at mount before alice's write, raced a SECOND read of his own
-   * (`rooms/follow.ts`'s "once when it starts following… once more when the
+   * (`@hadoku/game-ui/rooms/feed.ts`'s "once when it starts following… once more when the
    * server confirms it is watching" — two of a screen's own reads, close
    * together, nothing unusual about it). The `writes.current` guard above
    * only drops a read that overlapped THIS SCREEN's own write; it does

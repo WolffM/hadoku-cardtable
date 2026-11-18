@@ -1,8 +1,8 @@
 /*
  * Following a room, or the room list, without polling it.
  *
- * The server says when a room changed (`packages/game-server/src/room/watching.ts`) and a screen reads it
- * then. The pings come from the rooms core's feed client (`@wolffm/rooms-client`'s
+ * The server says when a room changed (`@hadoku/game-server/room/watching`'s `attachRoomFeed`, on the
+ * default socket.io namespace) and a screen reads it then. The pings come from the rooms core's feed client (`@wolffm/rooms-client`'s
  * `createFeedPings`): one socket per page, shared by every follower, opened by the first and
  * closed once the commit that let go of the last is over (`e2e/embed.spec.ts` counts them), and a
  * `heard` ping whenever the server confirms the watch — at the start and after every reconnect,
@@ -24,8 +24,8 @@ import { io } from 'socket.io-client';
 import { ROOM_FEED_CHANNEL, parseRoomChanged } from '@wolffm/rooms-protocol';
 import { createFeedPings, type FeedSocket, type FeedTarget, type PingSource } from '@wolffm/rooms-client';
 
-import { socketOptions } from '@hadoku/game-ui/room/socket-options.ts';
-import { documentVisibility, rereadWhileVisible, type RereadDeps } from '@hadoku/game-ui/visible.ts';
+import { socketOptions } from '../room/socket-options.ts';
+import { documentVisibility, rereadWhileVisible, type RereadDeps } from '../visible.ts';
 
 export type { FeedTarget, PingReason, PingSource } from '@wolffm/rooms-client';
 

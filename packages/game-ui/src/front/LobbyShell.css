@@ -1,0 +1,56 @@
+/*
+ * The front page's shell (`./LobbyShell.tsx`): a column that fits the window and scrolls inside
+ * it, its tools row, the page's main column and its footer line. Theme tokens only.
+ *
+ * Under its own `lobby-shell` class, never `.shell`'s: `shell` is the host's own screen shell, and
+ * where the host styles it (cardtable's `screens.css`, which wins on `.shell.shell--fit`) these
+ * rules only fill in what it leaves out. The defaults are cardtable's front page; a game sets:
+ *
+ *   --lobby-shell-padding, --lobby-shell-max-width, --lobby-shell-gap, --lobby-shell-flex,
+ *   --lobby-shell-overflow   the shell itself (overflow: where the page scrolls)
+ *   --lobby-shell-tools-gap, --lobby-shell-tools-padding
+ *   --lobby-shell-front-gap, --lobby-shell-front-flex, --lobby-shell-front-overflow,
+ *   --lobby-shell-front-min-height
+ */
+
+.lobby-shell {
+  display: flex;
+  flex: var(--lobby-shell-flex, 0 1 auto);
+  flex-direction: column;
+  gap: var(--lobby-shell-gap, 24px);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--lobby-shell-max-width, 1400px);
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  padding: var(--lobby-shell-padding, 24px);
+  overflow-y: var(--lobby-shell-overflow, auto);
+}
+
+/* The header's tools, at the right end, holding their size. */
+.lobby-shell > .shell__tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--lobby-shell-tools-gap, 8px);
+  padding: var(--lobby-shell-tools-padding, 0);
+}
+
+/* The page's footer line (a licensing disclaimer), pushed to the foot of a short page. */
+.lobby-shell > .shell__disclaimer {
+  margin: auto 0 0;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+/* The page's own column: banner, rooms, whatever a game adds. */
+.front {
+  display: flex;
+  flex: var(--lobby-shell-front-flex, 0 1 auto);
+  flex-direction: column;
+  gap: var(--lobby-shell-front-gap, 24px);
+  min-height: var(--lobby-shell-front-min-height, auto);
+  overflow: var(--lobby-shell-front-overflow, visible);
+}

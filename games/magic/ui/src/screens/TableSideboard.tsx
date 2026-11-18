@@ -32,7 +32,7 @@ import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 
 import { myChoice, rematchOf, SeriesEnterNext, SeriesSideboardPanel, startNextGame, useMatchExits, useSideboardInputs } from '../play/live/series/GameResultScreen.tsx';
 import { openNewMatch } from '../play/live/matchStart.ts';
-import { roomFeed } from '../rooms/follow.ts';
+import { roomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { tablesClient, type RoomTable, type SeatChoice, type TablesClient } from './tables.ts';
 import './TableSideboard.css';
 

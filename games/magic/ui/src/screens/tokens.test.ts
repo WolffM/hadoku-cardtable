@@ -276,10 +276,13 @@ describe('no hardcoded colours', () => {
     expect(found).toEqual([]);
   });
 
+  // Magic's own sheets only: the aliases are `styles.css`'s, and a platform package's sheet is drawn
+  // by games that have none of them, so it reads the theme's own tokens (game-ui's `front/paint.test.ts`
+  // holds its front page and seat sheets to that).
   it('a state colour is read through its alias (`--success`, `--danger`, `--warn` and their pairings), never the theme’s own name, outside the two global sheets', () => {
     const found: string[] = [];
     for (const rel of sheets) {
-      if (rel === 'games/magic/ui/src/styles.css' || rel === 'packages/ui-shell/src/chrome/chrome.css') continue;
+      if (rel === 'games/magic/ui/src/styles.css' || rel.startsWith('packages/')) continue;
       for (const m of readFileSync(new URL(rel, root), 'utf8').matchAll(/var\(--color-(?:on-)?(?:success|danger|warning)[a-z-]*\)/g)) found.push(`${rel}: ${m[0]}`);
     }
     expect(found).toEqual([]);

@@ -18,7 +18,7 @@
  *
  * ## Freshness
  *
- * Read again whenever the server says a room changed (`./follow.ts`), and once when the tab is
+ * Read again whenever the server says a room changed (`@hadoku/game-ui/rooms/feed.ts`), and once when the tab is
  * shown again. A friend's new room shows up without a reload.
  */
 
@@ -33,7 +33,6 @@ import {
   type RoomFrontClient,
   type RoomFrontCreateOutcome,
   type RoomFrontCreateSlot,
-  type RoomFrontFeed,
   type RoomFrontGameType,
   type RoomFrontRowExtras,
 } from '@hadoku/game-ui/front/RoomFront.tsx';
@@ -41,7 +40,7 @@ import { ConstructedIcon, DecksFacingScene, DieIcon, DraftIcon, PodScene, Stairc
 import { tablesClient } from '../screens/tables.ts';
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { warmRoom } from './warm.ts';
-import { roomFeed, type RoomFeed } from './follow.ts';
+import type { RoomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import {
   clientModeLabel,
@@ -68,7 +67,7 @@ import './rooms.css';
 export interface RoomListProps {
   /** Tests pass a client over a stubbed fetch. Production passes nothing. */
   client?: RoomsClient;
-  /** What says the list changed. Tests pass their own; production passes nothing. */
+  /** What says the list changed. Tests pass their own; production passes nothing, and `RoomFront` follows the page's room feed. */
   feed?: RoomFeed;
   /**
    * Told every time a fresh list lands, with the server's own pick for the banner's live slot
@@ -88,7 +87,8 @@ function frontView(room: RoomView, mine: boolean) {
   const view = roomCardView(room, mine);
   return {
     seatsFilled: view.seatsFilled,
-    seatsCapacity: view.seatsCapacity,
+    // A tournament grows past its draft size, so its open seats say nothing: the card counts its players.
+    seatsCapacity: view.tournament ? null : view.seatsCapacity,
     state: view.state,
     primaryAction: view.primaryAction,
     extraWatch: view.extraWatch,
@@ -116,17 +116,41 @@ function e2eToyGamesEnabled(): boolean {
   return (globalThis as { __cardtableE2eToyGames?: boolean }).__cardtableE2eToyGames === true;
 }
 
+/** A card's wash, by its format family: the colour-pie hues (`styles.css`), the same in every theme. */
+const FAMILY_TINT: Readonly<Record<string, string>> = {
+  standard: 'var(--c-blue)',
+  modern: 'color-mix(in srgb, var(--c-blue) 50%, var(--c-red))',
+  legacy: 'var(--c-red)',
+  draft: 'var(--c-green)',
+};
+
+/** A card's state dot, by the state `roomCardView` names: lobby and done stay neutral. */
+const STATE_DOT: Readonly<Record<string, string>> = {
+  drafting: 'var(--color-primary)',
+  building: 'var(--color-warning)',
+  sideboarding: 'var(--color-warning)',
+  playing: 'var(--color-danger)',
+  rounds: 'var(--color-danger)',
+};
+
+/** The row's own colours (`@hadoku/game-ui/front/RoomFront.css`'s per-row custom properties). */
+function rowVars(family: string, state: string): NonNullable<RoomFrontRowExtras['vars']> {
+  const dot = STATE_DOT[state];
+  return {
+    '--room-front-tint': FAMILY_TINT[family] ?? 'var(--c-generic)',
+    ...(dot === undefined ? {} : { '--room-front-dot': dot }),
+    ...(state === 'done' ? { '--room-front-state-ink': 'var(--color-text-secondary)' } : {}),
+  };
+}
+
 /** Every external game cardtable may draw a room for, offered on the create form only with Experimental features on (the same gate Challenge uses) — an `e2eOnly` entry only on top of that, and only for the e2e harness. */
 function externalGameTypes(): readonly RoomFrontGameType[] {
   const toyGames = e2eToyGamesEnabled();
   return EXTERNAL_GAMES.filter((g) => g.e2eOnly !== true || toyGames).map((g) => ({ id: g.id, label: g.label }));
 }
 
-export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomListProps) {
+export function RoomList({ client: given, feed, onFeatured }: RoomListProps) {
   const client = useRef(given ?? roomsClient()).current;
-  // `RoomFront` only ever follows the one target this list is ('list'); `RoomFeed.follow` takes
-  // `@wolffm/rooms-client`'s own `FeedTarget` ('list' | { room }), not a bare `string`.
-  const frontFeed = useMemo<RoomFrontFeed>(() => ({ follow: (_target, refresh) => feed.follow('list', refresh) }), [feed]);
 
   /** The viewer's own filters (ruling 6), remembered per-browser. */
   const [filters, setFilters] = useState<RoomFilters>(() => loadRoomFilters());
@@ -239,13 +263,14 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
             {gameTypeLabel(room.gameType)}
           </span>
           {magicGame(room).clientMode === 'streamed' && (
-            <span className="rooms__mode" data-testid="room-mode" data-mode="streamed">
+            <span className="room-client-mode" data-testid="room-mode" data-mode="streamed">
               {clientModeLabel('streamed')}
             </span>
           )}
         </>
       ),
       family: view.family,
+      vars: rowVars(view.family, room.view.state.key),
     };
   }, []);
 
@@ -323,15 +348,14 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
           </button>
         }
         matches={matches}
-        feed={frontFeed}
+        feed={feed}
         beforeOpenRoom={beforeOpenRoom}
         defaultName={defaultName}
         onSectionRef={onSectionRef}
-        // The same panel classes base's own `CreateRoomDialog` always drew — kept here, not in
+        // The raised surface and its trim, added to the dialog's own panel — kept here, not in
         // `RoomFront.tsx`, so `.ct-surface` is still drawn by a tree that reaches the one that
-        // owns it (`./CreateEventDialog.tsx`'s own import of `Modal.tsx`), exactly as it was
-        // before this module existed (`css-ownership.test.ts`'s rule B).
-        createPanelClassName="rooms__create ct-surface ct-panel"
+        // owns it (`./CreateEventDialog.tsx`'s own import of `Modal.tsx`, `css-ownership.test.ts`'s rule B).
+        createPanelClassName="ct-surface ct-panel"
         testingStorageKey="cardtable.rooms.testingFolded"
         onOpenRoom={(roomId) => navigate({ kind: 'room', roomId })}
       />

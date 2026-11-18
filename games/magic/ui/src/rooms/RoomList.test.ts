@@ -19,7 +19,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 
 import { RoomList } from './RoomList.tsx';
 import { roomsClient, type Fetch, type RoomView } from './api.ts';
-import type { RoomFeed } from './follow.ts';
+import type { RoomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import type { ScrollWatchHost } from './scroll-watch.ts';
 
 afterEach(() => {
@@ -139,5 +139,33 @@ describe('the room list’s scroll telemetry', () => {
     render(createElement(RoomList, { client: roomsClient(fetchImpl, '/cardtable/api/'), feed: quietFeed }));
     await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
     expect(scrollWatch.hosts[0]!.rooms()).toBe(1);
+  });
+});
+
+describe('a card’s colours', () => {
+  it('are Magic’s, handed to RoomFront per row: one wash per format family, the same for the same family', async () => {
+    const rooms = [room({ id: 'r-d1', name: 'D1', gameType: 'draft' }), room({ id: 'r-d2', name: 'D2', gameType: 'draft' }), room({ id: 'r-c', name: 'C' })];
+    const fetchImpl: Fetch = async () => new Response(JSON.stringify({ rooms }), { status: 200, headers: { 'content-type': 'application/json' } });
+    render(createElement(RoomList, { client: roomsClient(fetchImpl, '/cardtable/api/'), feed: quietFeed }));
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(3));
+    const tint = (id: string): string => document.querySelector<HTMLElement>(`[data-room-id="${id}"]`)!.style.getPropertyValue('--room-front-tint');
+    expect(tint('r-d1')).not.toBe('');
+    expect(tint('r-c')).not.toBe('');
+    expect(tint('r-d1')).toBe(tint('r-d2'));
+    expect(tint('r-d1')).not.toBe(tint('r-c'));
+  });
+});
+
+describe('a card’s player count', () => {
+  it('is the members alone for a tournament, which grows past its seats, and members of seats for a duel', async () => {
+    const tournament = room({ id: 'r-t', name: 'T', gameType: 'draft', seats: ['http-a', null, null, null, null, null, null, null] });
+    const duel = room({ id: 'r-1v1', name: 'Duel', seats: ['http-a', null] });
+    const fetchImpl: Fetch = async () => new Response(JSON.stringify({ rooms: [tournament, duel] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    render(createElement(RoomList, { client: roomsClient(fetchImpl, '/cardtable/api/'), feed: quietFeed }));
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(2));
+    // The count, after the seat icon's own title.
+    const seats = (id: string): string => /[\d/]+$/.exec(document.querySelector(`[data-room-id="${id}"] [data-testid="room-seats"]`)!.textContent ?? '')?.[0] ?? '';
+    expect(seats('r-t')).toBe('1');
+    expect(seats('r-1v1')).toBe('1/2');
   });
 });

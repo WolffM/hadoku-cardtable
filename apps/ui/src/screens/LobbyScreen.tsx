@@ -50,7 +50,7 @@ import { Banner } from '@hadoku/magic-ui/front/Banner.tsx';
 import { LobbyShell } from '@hadoku/game-ui/front/LobbyShell.tsx';
 import { RoomList } from '@hadoku/magic-ui/rooms/RoomList.tsx';
 import type { FeaturedPick, RoomsClient } from '@hadoku/magic-ui/rooms/api.ts';
-import type { RoomFeed } from '@hadoku/magic-ui/rooms/follow.ts';
+import type { RoomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
 import { StatsButton } from '@hadoku/magic-ui/stats/StatsButton.tsx';
 import type { StatsSource } from '@hadoku/magic-ui/stats/source.ts';

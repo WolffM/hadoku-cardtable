@@ -1,0 +1,256 @@
+/*
+ * The seats (`./SeatChip.tsx`'s `SeatList`) and the spectators beside them (`./SpectatorRow.tsx`):
+ * a strip of round avatars, each with its label and its own always-visible buttons. Theme tokens
+ * only. Colour and hover of a seat's buttons are `.ct-action` (`../components/Button.css`); this
+ * sheet sizes them.
+ *
+ * The defaults are cardtable's pod lobby: a flex row that wraps, and below 560px one row that
+ * scrolls sideways on its own (never the page). A game drawing the seats somewhere else — over its
+ * board, at its own scale — sets these on any ancestor (bomberman's overlay does):
+ *
+ *   strip    --seat-list-gap, -list-justify, -list-align, -list-min-width, -list-margin,
+ *            --seat-list-narrow-wrap, -narrow-overflow-x, -narrow-overflow-y, -narrow-padding,
+ *            -narrow-tail (the trailing spacer's `content`)
+ *   seat     --seat-position, -gap, -width, -min-width, -flex, -wrap-position, -wrap-display
+ *   avatar   --seat-avatar-display, -size, -border, -edge, -radius, -bg, -ink, -text, -weight,
+ *            -overflow, -flex, -fit, -rendering, --seat-ready-ring, --seat-unready-edge
+ *   inside   --seat-img-display, -img-size, -img-border, -img-radius, -img-bg, -img-fit,
+ *            -img-rendering (the picture and the fallback alike)
+ *   kinds    --seat-kind-display, -kind-cursor, --seat-open-edge, -open-ink, -open-bg, --seat-closed-bg, -closed-ink, -closed-edge,
+ *            --seat-ai-bg, -ai-ink, -ai-edge-style, -ai-opacity, -ai-mark-size
+ *   crown    --seat-crown-top, -crown-left, -crown-right, -crown-size, -crown-padding,
+ *            -crown-radius, -crown-bg, -crown-fill, -crown-ink, -crown-filter, -crown-transform
+ *   label    --seat-label-text, -label-weight, -label-ink, -label-max, -label-shadow,
+ *            --seat-mine-label-ink
+ *   actions  --seat-actions-gap, -actions-wrap, -actions-justify, --seat-action-* (size and paint)
+ *   heading  --seat-side-align, -side-gap, -side-margin, --seat-heading-*
+ */
+
+.pod-seats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: var(--seat-list-align, normal);
+  justify-content: var(--seat-list-justify, normal);
+  gap: var(--seat-list-gap, 14px);
+  min-width: var(--seat-list-min-width, 0);
+  margin: var(--seat-list-margin, 0);
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * Below 560px, eight wrapped seats (each with its buttons under it) filled a phone's whole first
+ * screen, so the strip becomes one row that scrolls sideways. The scroller clips at its padding
+ * edge, so 6px clears the ready ring's 3px and a focus outline; the trailing spacer is a real flex
+ * item because Chromium does not count a scroller's own trailing padding toward its extent.
+ */
+@media (max-width: 560px) {
+  .pod-seats {
+    flex-wrap: var(--seat-list-narrow-wrap, nowrap);
+    overflow-x: var(--seat-list-narrow-overflow-x, auto);
+    overflow-y: var(--seat-list-narrow-overflow-y, hidden);
+    padding: var(--seat-list-narrow-padding, 6px 0 6px 6px);
+  }
+
+  .pod-seats::after {
+    content: var(--seat-list-narrow-tail, '');
+    flex: none;
+    width: 6px;
+  }
+}
+
+.pod-seats__seat {
+  position: var(--seat-position, static);
+  display: flex;
+  flex: var(--seat-flex, none);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--seat-gap, 4px);
+  width: var(--seat-width, 76px);
+  min-width: var(--seat-min-width, auto);
+}
+
+.pod-seats__avatar-wrap {
+  position: var(--seat-wrap-position, relative);
+  display: var(--seat-wrap-display, flex);
+}
+
+.pod-seats__avatar {
+  display: var(--seat-avatar-display, flex);
+  flex: var(--seat-avatar-flex, none);
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--seat-avatar-size, 44px);
+  height: var(--seat-avatar-size, 44px);
+  overflow: var(--seat-avatar-overflow, hidden);
+  border: var(--seat-avatar-border, 2px solid) var(--seat-avatar-edge, transparent);
+  border-radius: var(--seat-avatar-radius, 999px);
+  background-color: var(--seat-avatar-bg, var(--color-bg-hover));
+  color: var(--seat-avatar-ink, var(--color-text));
+  font-size: var(--seat-avatar-text, 15px);
+  font-weight: var(--seat-avatar-weight, 600);
+  object-fit: var(--seat-avatar-fit, fill);
+  image-rendering: var(--seat-avatar-rendering, auto);
+}
+
+/* The member's picture filling the ring, or `Avatar`'s fallback (an initial, or the mark) centred in it. */
+.pod-seats__avatar-img,
+.pod-seats__avatar-fallback {
+  display: var(--seat-img-display, flex);
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--seat-img-size, 100%);
+  height: var(--seat-img-size, 100%);
+  border: var(--seat-img-border, 0 none);
+  border-radius: var(--seat-img-radius, 0);
+  background: var(--seat-img-bg, transparent);
+  object-fit: var(--seat-img-fit, fill);
+  image-rendering: var(--seat-img-rendering, auto);
+}
+
+.pod-seats__avatar-img {
+  object-fit: var(--seat-img-fit, cover);
+}
+
+.pod-seats__avatar[data-ready='true'] {
+  box-shadow: var(--seat-ready-ring, 0 0 0 3px var(--color-success));
+}
+
+.pod-seats__avatar[data-ready='false'] {
+  border-color: var(--seat-unready-edge, var(--color-border-light));
+}
+
+.pod-seats__avatar--open {
+  display: var(--seat-kind-display, flex);
+  border-style: dashed;
+  border-color: var(--seat-open-edge, var(--color-border-light));
+  background-color: var(--seat-open-bg, transparent);
+  color: var(--seat-open-ink, var(--color-text-tertiary));
+  cursor: pointer;
+}
+
+.pod-seats__avatar--open:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pod-seats__avatar--closed {
+  display: var(--seat-kind-display, flex);
+  border-color: var(--seat-closed-edge, var(--color-border-light));
+  background-color: var(--seat-closed-bg, var(--color-bg-alt));
+  color: var(--seat-closed-ink, var(--color-text-tertiary));
+  cursor: var(--seat-kind-cursor, auto);
+}
+
+.pod-seats__avatar--ai {
+  display: var(--seat-kind-display, flex);
+  border-style: var(--seat-ai-edge-style, solid);
+  background-color: var(--seat-ai-bg, var(--color-primary-bg));
+  color: var(--seat-ai-ink, var(--color-on-primary-bg));
+  opacity: var(--seat-ai-opacity, 1);
+  cursor: var(--seat-kind-cursor, auto);
+}
+
+.pod-seats__avatar--ai .pod-seats__avatar-fallback {
+  width: var(--seat-ai-mark-size, 60%);
+  height: var(--seat-ai-mark-size, 60%);
+}
+
+/* The room's owner: a small crown on the avatar's corner. */
+.pod-seats__crown {
+  position: absolute;
+  top: var(--seat-crown-top, -4px);
+  right: var(--seat-crown-right, -4px);
+  left: var(--seat-crown-left, auto);
+  width: var(--seat-crown-size, 14px);
+  height: var(--seat-crown-size, 14px);
+  padding: var(--seat-crown-padding, 1px);
+  border-radius: var(--seat-crown-radius, 999px);
+  background: var(--seat-crown-bg, var(--color-bg-card));
+  color: var(--seat-crown-ink, inherit);
+  fill: var(--seat-crown-fill, var(--color-primary));
+  filter: var(--seat-crown-filter, none);
+  transform: var(--seat-crown-transform, none);
+}
+
+.pod-seats__label {
+  max-width: var(--seat-label-max, 76px);
+  overflow: hidden;
+  color: var(--seat-label-ink, var(--color-text-secondary));
+  font-size: var(--seat-label-text, 12px);
+  font-weight: var(--seat-label-weight, inherit);
+  text-overflow: ellipsis;
+  text-shadow: var(--seat-label-shadow, none);
+  white-space: nowrap;
+}
+
+.pod-seats__seat[data-mine] .pod-seats__label {
+  color: var(--seat-mine-label-ink, var(--seat-label-ink, var(--color-text-secondary)));
+}
+
+.pod-seats__actions {
+  display: flex;
+  flex-wrap: var(--seat-actions-wrap, wrap);
+  justify-content: var(--seat-actions-justify, center);
+  gap: var(--seat-actions-gap, 3px);
+}
+
+/* The size of a seat's button; its colour and hover are `.ct-action`, unless a game paints its own. */
+.pod-seats__action {
+  padding: var(--seat-action-padding, 2px 6px);
+  border-radius: var(--seat-action-radius, var(--hdk-radius-sm));
+  font: inherit;
+  font-size: var(--seat-action-text, 11px);
+  font-weight: var(--seat-action-weight, inherit);
+  line-height: var(--seat-action-line, 1.2);
+}
+
+.pod-seats__action:not(:hover, :focus-visible) {
+  border-color: var(--seat-action-edge, var(--color-border));
+  background: var(--seat-action-bg, var(--color-bg));
+  color: var(--seat-action-ink, var(--color-text));
+}
+
+.pod-seats__action:is(:hover, :focus-visible) {
+  border-color: var(--seat-action-hover-edge, var(--color-primary));
+  background: var(--seat-action-hover-bg, var(--color-primary));
+  color: var(--seat-action-hover-ink, var(--color-on-primary));
+}
+
+/* The leader's hand-off: the crown the leader wears, as a button. */
+.pod-seats__action-icon {
+  display: block;
+  width: 12px;
+  height: 13px;
+  fill: currentColor;
+}
+
+/* ── the spectators, beside or under the seats ───────────────────────── */
+
+.table-side {
+  display: flex;
+  flex-direction: column;
+  align-items: var(--seat-side-align, normal);
+  gap: var(--seat-side-gap, 6px);
+  min-width: 0;
+  margin: var(--seat-side-margin, 0);
+}
+
+.table-side__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--seat-heading-ink, var(--color-text-tertiary));
+  font-size: var(--seat-heading-text, 12px);
+  font-weight: var(--seat-heading-weight, 600);
+  letter-spacing: var(--seat-heading-spacing, normal);
+  text-transform: var(--seat-heading-case, none);
+}
+
+/* Under a pod's strip: apart from the strip above and what follows. */
+.table-side--under {
+  margin: 0.75rem 0 1rem;
+}

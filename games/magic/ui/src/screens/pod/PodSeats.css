@@ -1,191 +1,17 @@
 /*
- * The pod's 8 seats, as a strip of avatars — AF305 §B. A flex row that wraps
- * (never a fixed grid): at 1280px wide it is one row of 8, and it folds to
- * fewer per row as the viewport narrows. Below 560px wide, 8 wrapped seats
- * (each with its "AI"/"Close" buttons under it) fill the whole first screen
- * on a phone — found live (the tracker's screenshot review) — so the strip
- * switches to one horizontally scrolling row there instead: `overflow-x` on
- * THIS element only, never the page (`e2e/lobby-fit.spec.ts` measures that
- * only the room's own shell scrolls). Every seat action stays a plain,
- * always-visible button either way — nothing here is reachable by hover
- * alone.
+ * Magic's own seat layouts around `@hadoku/game-ui/seats/SeatChip.css` (the strip itself, its
+ * avatars, labels and buttons, and the spectator row): the constructed table's two wider seats,
+ * a table page's face-off, and the pod lobby's own "Fewer seats".
  */
-
-.pod-seats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  min-width: 0;
-}
-
-.pod-seats__seat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: 76px;
-  flex: none;
-}
-
-@media (max-width: 560px) {
-  .pod-seats {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    /* The scroller clips at its own padding edge: without room on every side, it cut the ready
-       ring's top (every seat) and the first seat's left (the operator, "the circles around the
-       ready players is cutoff"). 6px clears the ring's 3px box-shadow plus a focus outline.
-       Right is 0 here — Chromium does not count a scroll container's own TRAILING padding
-       toward its scrollable extent, so at max scroll the last seat's ring still touched the
-       edge; `::after` below is a real flex item, which does count. */
-    padding: 6px 0 6px 6px;
-  }
-
-  .pod-seats::after {
-    content: '';
-    flex: none;
-    width: 6px;
-  }
-}
-
-.pod-seats__avatar-wrap {
-  position: relative;
-  display: flex;
-}
-
-.pod-seats__avatar {
-  width: 44px;
-  height: 44px;
-  flex: none;
-  box-sizing: border-box;
-  overflow: hidden;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 15px;
-  background: var(--color-bg-hover);
-  color: var(--color-text);
-  border: 2px solid transparent;
-}
-
-/* The seated member's real watchparty avatar (`Avatar`'s own `<img>`), filling the ring. */
-.pod-seats__avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* No avatar: `Avatar`'s own fallback — an initial (a `<span>`) or the mark (an `<svg>`) — centred and sized to the ring either way. */
-.pod-seats__avatar-fallback {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.pod-seats__avatar[data-ready='true'] {
-  box-shadow: 0 0 0 3px var(--success);
-}
-
-.pod-seats__avatar[data-ready='false'] {
-  border-color: var(--color-border-light);
-}
-
-.pod-seats__avatar--open {
-  background: transparent;
-  border: 2px dashed var(--color-border-light);
-  color: var(--color-text-tertiary);
-  cursor: pointer;
-}
-
-.pod-seats__avatar--open:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
-.pod-seats__avatar--closed {
-  background: var(--color-bg-alt);
-  color: var(--color-text-tertiary);
-  border-color: var(--color-border-light);
-}
-
-.pod-seats__avatar--ai {
-  background: var(--color-primary-bg);
-  color: var(--color-on-primary-bg);
-}
-
-.pod-seats__avatar--ai .pod-seats__avatar-fallback {
-  width: 60%;
-  height: 60%;
-}
-
-.pod-seats__crown {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 14px;
-  height: 14px;
-  padding: 1px;
-  border-radius: 999px;
-  background: var(--color-bg-card);
-  fill: var(--color-primary);
-}
-
-.pod-seats__label {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  max-width: 76px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pod-seats__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 3px;
-}
-
-/* The same small size as `.table-side__action` below. Colour/hover are `.ct-action`
-   (imported in `SeatChip.tsx`, which draws this block); this is the size only. */
-.pod-seats__action,
-.table-side__action {
-  font: inherit;
-  font-size: 11px;
-  line-height: 1.2;
-  border-radius: var(--hdk-radius-sm);
-  padding: 2px 6px;
-}
-
-/* The leader's hand-off: the crown the leader wears, as a button. */
-.pod-seats__action-icon {
-  display: block;
-  width: 12px;
-  height: 13px;
-  fill: currentColor;
-}
 
 /*
- * The constructed table's two seats, drawn as the pod's (`ConstructedScreen.tsx`'s `PlayerRow`):
- * wider, for the Ready button under the name.
+ * The constructed table's two seats, drawn as the pod's (`magic-room-ui.tsx`'s `PlayerRow`), whose
+ * paint is `@hadoku/game-ui/seats/SeatChip.css`: wider, for the Ready button under the name.
  */
-.pod-seats--table {
-  margin: 0 0 1rem;
-}
-
-.pod-seats--table .pod-seats__seat {
-  width: 132px;
-}
-
-.pod-seats--table .pod-seats__label {
-  max-width: 100%;
+.table-seats {
+  --seat-width: 132px;
+  --seat-label-max: 100%;
+  --seat-list-margin: 0 0 1rem;
 }
 
 /* A table page's two players face to face (`FaceOff.tsx`), and my Ready under them. */
@@ -195,7 +21,6 @@
   align-items: center;
   gap: 4px;
 }
-
 
 /* A table page's way back to the room's lobby, and beside it the round it is in: a heading, not a link. */
 .table-page__title {
@@ -209,7 +34,6 @@
   font-size: 18px;
 }
 
-
 /*
  * The 1v1 table's two sides (`ConstructedScreen.tsx`): its players, then its spectators
  * (`TableSpectators.tsx`), on one line while it has the width, one under the other when it does not.
@@ -222,34 +46,17 @@
   margin: 0 0 1rem;
 }
 
-.table-sides .pod-seats--table {
-  margin: 0;
+.table-sides .table-seats {
+  --seat-list-margin: 0;
 }
 
-.table-side {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.table-side__heading {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-tertiary);
-}
-
-/* The leader's "Fewer seats" (`PodLobby.tsx`, wave 120 §S2) — the box and hover are grouped
-   with `.pod-seats__action` above; this is its one difference. */
-.table-side__action {
+/* The leader's "Fewer seats" (`PodLobby.tsx`, wave 120 §S2), beside the Players heading: a seat
+   button's size (`.pod-seats__action`), at the heading's weight. Colour and hover are `.ct-action`. */
+.pod-lobby__fewer {
+  font: inherit;
+  font-size: 11px;
   font-weight: 400;
-}
-
-/* A pod lobby's spectators, under its seat strip (`PodLobby.tsx`): apart from the strip above and the pool below. */
-.table-side--under {
-  margin: 0.75rem 0 1rem;
+  line-height: 1.2;
+  border-radius: var(--hdk-radius-sm);
+  padding: 2px 6px;
 }

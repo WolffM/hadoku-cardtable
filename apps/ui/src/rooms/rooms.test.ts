@@ -39,7 +39,7 @@ import {
   type Fetch,
   type RoomView,
 } from '@hadoku/magic-ui/rooms/api.ts';
-import type { FeedTarget, RoomFeed } from '@hadoku/magic-ui/rooms/follow.ts';
+import type { FeedTarget, RoomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import SERVER_BODIES from '@hadoku/magic-ui/rooms/room-bodies.fixture.json';
 
 afterEach(() => {
@@ -178,7 +178,7 @@ vi.mock('@wolffm/prefs-client', async (importOriginal) => ({
  * No socket in a unit test: the page's own feed reads once and never pings.
  * `manualFeed` is the one a test drives by hand. `./feed.test.ts` tests the real one.
  */
-vi.mock('@hadoku/magic-ui/rooms/follow.ts', async (importOriginal) => {
+vi.mock('@hadoku/game-ui/rooms/feed.ts', async (importOriginal) => {
   // One object, as the page's own is: a new feed per render would re-follow on every render.
   const quiet: RoomFeed = {
     follow: (_target, refresh) => {
@@ -186,7 +186,7 @@ vi.mock('@hadoku/magic-ui/rooms/follow.ts', async (importOriginal) => {
       return () => undefined;
     },
   };
-  return { ...(await importOriginal<typeof import('@hadoku/magic-ui/rooms/follow.ts')>()), roomFeed: () => quiet };
+  return { ...(await importOriginal<typeof import('@hadoku/game-ui/rooms/feed.ts')>()), roomFeed: () => quiet };
 });
 
 function manualFeed(): RoomFeed & { ping(): void; targets(): FeedTarget[] } {

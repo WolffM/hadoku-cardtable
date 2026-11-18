@@ -10,8 +10,8 @@
  * `pod-seats__seat`, `pod-seat-<n>`, … — unchanged: cardtable's existing CSS (`PodSeats.css`) and
  * its own extensive DOM-contract tests (`PodSeats.test.ts`) both key off them, and the DOM a
  * caller already had must stay byte-identical after this lift (wave 119 §U.2's own "done when").
- * A future caller styling this chip under a different block name does so with its own CSS; this
- * file draws the shapes, never the paint.
+ * Its paint is `./SeatChip.css`, after `.ct-action`'s: a game drawing the seats at its own scale
+ * (bomberman's overlay, over its board) sets that file's custom properties, never a copy of it.
  */
 
 import { ActionButton } from '../components/ActionButton.tsx';
@@ -20,6 +20,7 @@ import { PlayerName } from '../room/look.tsx';
 import { StatusPill } from '../components/StatusPill.tsx';
 import type { Look } from '@hadoku/platform-wire/look';
 import '../components/Button.css';
+import './SeatChip.css';
 
 /** The same crown `magic-room-ui.tsx` draws for its own direct uses — duplicated, not imported, so this file pulls in nothing of Magic's. */
 export const SEAT_CROWN_PATH = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';

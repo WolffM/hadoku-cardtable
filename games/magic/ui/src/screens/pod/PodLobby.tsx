@@ -131,7 +131,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
                   {iLead && !fieldFixed && (
                     <ActionButton
                       action="lower-capacity"
-                      className="table-side__action ct-action"
+                      className="pod-lobby__fewer ct-action"
                       data-testid="pod-lower-capacity"
                       aria-label="Reduce the room to one fewer seat"
                       disabled={openSeats <= MIN_OPEN_SEATS}

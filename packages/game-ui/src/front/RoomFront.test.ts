@@ -15,6 +15,24 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 // wiring a whole role registry and sound client just to open the dialog in a test.
 vi.mock('../sound/index.ts', () => ({ playRole: () => undefined }));
 
+// The page's one room feed (`roomFeed()` answers the same one every call), as `RoomFront` follows it
+// by default: a test pings it by hand.
+const feedPings = vi.hoisted(() => {
+  const state = { targets: [] as unknown[], refreshes: [] as (() => void)[] };
+  const feed = {
+    follow(target: unknown, refresh: () => void) {
+      state.targets.push(target);
+      state.refreshes.push(refresh);
+      refresh();
+      return () => {
+        state.refreshes = state.refreshes.filter((r) => r !== refresh);
+      };
+    },
+  };
+  return Object.assign(state, { feed });
+});
+vi.mock('../rooms/feed.ts', () => ({ roomFeed: () => feedPings.feed }));
+
 import { RoomFront, type RoomFrontClient, type RoomFrontRoom } from './RoomFront.tsx';
 
 afterEach(cleanup);
@@ -100,7 +118,7 @@ describe('RoomFront with no slots', () => {
 });
 
 describe('createPanelClassName', () => {
-  it("defaults to this module's own unstyled block, and a caller's own class string replaces it on the create dialog's panel (docs/planning/s3-2026-11-17.md §G.5)", async () => {
+  it("is this module's own styled block, and a caller's own classes are added to it, never in its place", async () => {
     const { unmount } = render(
       createElement(RoomFront<ToyRoom>, {
         rooms: toyClient(),
@@ -119,13 +137,13 @@ describe('createPanelClassName', () => {
         rooms: toyClient(),
         gameTypes: [{ id: 'toy', label: 'Toy' }],
         onOpenRoom: () => undefined,
-        createPanelClassName: 'rooms__create ct-surface ct-panel',
+        createPanelClassName: 'ct-surface ct-panel',
       }),
     );
     await waitFor(() => expect(screen.getByTestId('rooms-empty')).toBeTruthy());
     screen.getByTestId('room-create-open').click();
     await waitFor(() => expect(screen.getByTestId('room-create')).toBeTruthy());
-    expect(screen.getByTestId('room-create').className).toBe('rooms__create ct-surface ct-panel');
+    expect(screen.getByTestId('room-create').className).toBe('room-front-create ct-surface ct-panel');
   });
 });
 
@@ -150,5 +168,45 @@ describe('the create form’s game type', () => {
     ]);
     expect(screen.getByTestId('room-create-type-toy')).toBeTruthy();
     expect(screen.getByTestId('room-create-type-other')).toBeTruthy();
+  });
+});
+
+describe('the list follows the page’s room feed', () => {
+  it('by default: it reads the list again on every ping, with no timer of its own', async () => {
+    feedPings.targets = [];
+    let reads = 0;
+    const rooms: RoomFrontClient<ToyRoom> = { ...toyClient(), list: () => ((reads += 1), Promise.resolve({ rooms: [] })) };
+    render(createElement(RoomFront<ToyRoom>, { rooms, gameTypes: [{ id: 'toy', label: 'Toy' }], onOpenRoom: () => undefined }));
+    await waitFor(() => expect(screen.getByTestId('rooms-empty')).toBeTruthy());
+    expect(feedPings.targets).toEqual(['list']);
+    expect(reads).toBe(1);
+    for (const refresh of feedPings.refreshes) refresh();
+    await waitFor(() => expect(reads).toBe(2));
+  });
+});
+
+describe('a row’s own colours', () => {
+  it('are the game’s custom properties, set on the row itself', async () => {
+    const vars = { '--room-front-tint': 'var(--c-green)', '--room-front-dot': 'var(--color-primary)' } as const;
+    const room: ToyRoom = {
+      id: 'r-1',
+      name: 'One',
+      gameType: 'toy',
+      locked: false,
+      members: [],
+      you: { id: 'me' },
+      view: { seatsFilled: 0, seatsCapacity: 2, state: { key: 'drafting', label: 'Drafting', detail: null }, primaryAction: 'Join', extraWatch: false },
+    };
+    render(
+      createElement(RoomFront<ToyRoom>, {
+        rooms: toyClient([room]),
+        gameTypes: [{ id: 'toy', label: 'Toy' }],
+        onOpenRoom: () => undefined,
+        rowExtras: () => ({ vars }),
+      }),
+    );
+    const row = await screen.findByTestId('room-row');
+    expect(row.style.getPropertyValue('--room-front-tint')).toBe(vars['--room-front-tint']);
+    expect(row.style.getPropertyValue('--room-front-dot')).toBe(vars['--room-front-dot']);
   });
 });

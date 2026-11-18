@@ -103,7 +103,7 @@
  *
  * The table — your own deck and verdict, and whether each player is ready —
  * is read from the room again whenever the server says it changed
- * (`../rooms/follow.ts`): no timer reads it.
+ * (`@hadoku/game-ui/rooms/feed.ts`): no timer reads it.
  * When both are ready either browser asks the server to start; the
  * server answers one match to both, and `matchId` appearing on the table is
  * what sends each player to `#/match/<id>` — including a player who never
@@ -263,7 +263,7 @@ import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
 import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
 import { takeWarmRoom } from '../rooms/warm.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
-import type { RoomFeed } from '../rooms/follow.ts';
+import type { RoomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { clearJoined, markJoined } from '../rooms/joined.ts';
 import { latestReads } from '../rooms/latest.ts';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
@@ -1310,7 +1310,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   }, [client, draftRoom]);
 
   // The room's table: read now, and again whenever the feed says the room
-  // changed (`../rooms/follow.ts` — never on a fast timer).
+  // changed (`@hadoku/game-ui/rooms/feed.ts` — never on a fast timer).
   //
   // ## Entering a room joins it
   //
@@ -2685,7 +2685,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
             <div className="table-sides">
               <div className="table-side">
                 <h3 className="table-side__heading">Players</h3>
-                <ul className="pod-seats pod-seats--table" data-testid="room-players">
+                <ul className="pod-seats pod-seats--table table-seats" data-testid="room-players">
                   {[0, 1].map((seat) => {
                     const player = players.find((p) => p.seat === seat);
                     if (aiSeat?.seat === seat) {
@@ -3260,7 +3260,7 @@ function RoomSkeleton() {
         <div className="lobby__deckhead">
           <span className="skeleton skeleton--heading" />
         </div>
-        <ul className="pod-seats pod-seats--table">
+        <ul className="pod-seats pod-seats--table table-seats">
           <li className="skeleton skeleton--seat" />
           <li className="skeleton skeleton--seat" />
         </ul>

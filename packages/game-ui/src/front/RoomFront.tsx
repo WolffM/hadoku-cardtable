@@ -15,9 +15,9 @@
  *
  * Platform: imports nothing from `@hadoku/magic-ui`, any `games/**` package, or `@hadoku/shared`
  * (the layer ratchet resolves that package as Magic even through `/platform`, bar the handful of
- * files it whitelists itself). No CSS is imported here either: a caller's own stylesheet draws these
- * classes (cardtable's `games/magic/ui/src/rooms/rooms.css`, unmoved, still does for cardtable's own
- * app) — the DOM this file emits is exactly the markup `rooms.css` was already written against.
+ * files it whitelists itself). Its paint is `./RoomFront.css`, imported here: a game tunes it with
+ * that file's custom properties (on the page for the list, on `:root` for the dialog, which portals
+ * into `<body>`) and a row's own colours with `RoomFrontRowExtras.vars`, never with a copy of it.
  */
 
 import { useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -34,7 +34,9 @@ import { MAX_ROOM_GHOSTS } from './shape.ts';
 import { ConstructedIcon, LockIcon, PersonIcon } from './icons.tsx';
 import { useWhoami } from '../room/whoami.ts';
 import { playRole } from '../sound/index.ts';
+import { roomFeed, type RoomFeed } from '../rooms/feed.ts';
 import type { Look } from '@hadoku/platform-wire/look';
+import './RoomFront.css';
 
 /* ── the generic room shape ──────────────────────────────────────────── */
 
@@ -49,7 +51,8 @@ export interface RoomFrontMember {
 /** Every number and label a row draws besides its name, its lock and its roster — a game's own derivation, computed before the room reaches this file. */
 export interface RoomFrontView {
   seatsFilled: number;
-  seatsCapacity: number;
+  /** `null` draws the count alone: a room whose seats grow (a tournament) has no capacity worth showing. */
+  seatsCapacity: number | null;
   state: { key: string; label: string; detail: string | null };
   primaryAction: 'Join' | 'Watch';
   /** A second, explicit Watch beside the primary action (the room is in progress, say). */
@@ -85,17 +88,13 @@ export interface RoomFrontClient<V extends RoomFrontRoom> {
   reset?(roomId: string): Promise<{ ok: true } | { ok: false; message: string }>;
 }
 
-/** What says the list changed, without polling it (`games/magic/ui/src/rooms/follow.ts`'s shape). Defaults to reading once and never again. */
-export interface RoomFrontFeed {
-  follow(target: string, refresh: () => void): () => void;
-}
-
-const NEVER_FOLLOWED: RoomFrontFeed = {
-  follow(_target, refresh) {
-    refresh();
-    return () => undefined;
-  },
-};
+/**
+ * What says the list changed, without polling it. Defaults to the page's room feed
+ * (`../rooms/feed.ts`'s `roomFeed()`: game-server's `attachRoomFeed` pings, a read when the tab is
+ * shown again, and a long resilience read), so a game that attached the feed server-side needs no
+ * timer of its own.
+ */
+export type RoomFrontFeed = RoomFeed;
 
 export interface RoomFrontGameType {
   id: string;
@@ -128,8 +127,14 @@ export interface RoomFrontRowExtras {
   seriesChip?: ReactNode;
   /** The row's trailing, screen-reader-mostly line (a streamed client's own label, say). */
   legacyMeta?: ReactNode;
-  /** `data-family` on the row — which background gradient it draws (`rooms.css`). */
+  /** `data-family` on the row: the game's own name for its kind (a format family, say), for its tests and its telemetry. */
   family?: string;
+  /**
+   * The row's own custom properties (`./RoomFront.css`): `--room-front-tint` (the card's wash),
+   * `--room-front-dot` (its state's dot), `--room-front-state-ink` (its state's label). A game's own
+   * reading of its room, so the colours of a "drafting" or a "done" room are the game's, not this module's.
+   */
+  vars?: Readonly<Record<`--room-front-${string}`, string>>;
 }
 
 export interface RoomFrontProps<V extends RoomFrontRoom> {
@@ -176,13 +181,11 @@ export interface RoomFrontProps<V extends RoomFrontRoom> {
   /** The list's own `<section>`, the moment it mounts and again on unmount — a caller's own tooltip or scroll mechanism attaches here, same as it would to any other section it owns. */
   onSectionRef?: (el: HTMLElement | null) => void;
   /**
-   * The create dialog's own panel class (default: an unstyled block of this module's own,
-   * `room-front-create`). A caller with its own "raised surface" convention supplies its exact
-   * class string here rather than this file hard-coding one — Magic's `RoomList.tsx` passes
-   * `"rooms__create ct-surface ct-panel"`, the same classes base's own `CreateRoomDialog` always
-   * drew, from the one file (`RoomList.tsx`, through `CreateEventDialog.tsx`'s own import of
-   * `Modal.tsx`) `css-ownership.test.ts` already knows reaches the tree that owns `.ct-surface` —
-   * this module never does, and must not have to.
+   * Classes added to the create dialog's panel, after its own `room-front-create` (which lays it
+   * out and draws a plain surface `./RoomFront.css` keeps low enough for these to draw over). A
+   * caller with its own "raised surface" convention supplies it here rather than this file
+   * hard-coding one: Magic's `RoomList.tsx` passes `"ct-surface ct-panel"`, from the one file
+   * `css-ownership.test.ts` already knows reaches the tree that owns `.ct-surface`.
    *
    * Named `createPanelClassName`, not the bare `className` an earlier draft of this prop used
    * (`docs/planning/s3-2026-11-17.md` §G.5): a plain `className` on a component that is not a
@@ -192,8 +195,8 @@ export interface RoomFrontProps<V extends RoomFrontRoom> {
    * list" check (`CLASS_AT`) used to recognise ONLY a literal sitting right after a bare
    * `className=`/`class=`, which is exactly why that draft kept the confusing name — any camelCase
    * prefix broke the check. `CLASS_AT` now also matches `\w*ClassName=` generically, so a
-   * caller's own call-site literal (`<RoomFront createPanelClassName="rooms__create ct-surface
-   * ct-panel" />`) is still recognised as a real class list, the same as a bare `className=` is.
+   * caller's own call-site literal (`<RoomFront createPanelClassName="ct-surface ct-panel" />`)
+   * is still recognised as a real class list, the same as a bare `className=` is.
    */
   createPanelClassName?: string;
 }
@@ -260,7 +263,7 @@ export function RoomFront<V extends RoomFrontRoom>({
   onOpenRoom,
   headExtras,
   actionsExtras,
-  feed = NEVER_FOLLOWED,
+  feed = roomFeed(),
   matches: matchesFilter,
   beforeOpenRoom,
   nameMaxLength = DEFAULT_NAME_MAX,
@@ -268,7 +271,7 @@ export function RoomFront<V extends RoomFrontRoom>({
   testingStorageKey = DEFAULT_TESTING_KEY,
   defaultName,
   onSectionRef,
-  createPanelClassName: createSurfaceClassName = 'room-front-create',
+  createPanelClassName,
 }: RoomFrontProps<V>) {
   const [state, setState] = useState<ListState<V>>({ kind: 'loading' });
   const [creating, setCreating] = useState(false);
@@ -342,7 +345,7 @@ export function RoomFront<V extends RoomFrontRoom>({
           <span className="rooms__actions">
             <button
               type="button"
-              className="lobby__go"
+              className="room-front__go"
               data-testid="room-create-open"
               aria-haspopup="dialog"
               onClick={() => {
@@ -381,7 +384,7 @@ export function RoomFront<V extends RoomFrontRoom>({
           )}
 
           {state.kind === 'ready' && testing.length > 0 && (
-            <div className="rooms__testing" data-testid="rooms-testing">
+            <div data-testid="rooms-testing">
               <h3 className="rooms__title ct-panel__title">
                 <button
                   type="button"
@@ -424,7 +427,7 @@ export function RoomFront<V extends RoomFrontRoom>({
             beforeOpenRoom={beforeOpenRoom}
             nameMaxLength={nameMaxLength}
             defaultName={defaultName}
-            surfaceClassName={createSurfaceClassName}
+            surfaceClassName={createPanelClassName === undefined ? 'room-front-create' : `room-front-create ${createPanelClassName}`}
           />
         )}
         <TopLayer fixed />
@@ -599,6 +602,7 @@ function RoomRow<V extends RoomFrontRoom>({
       data-mine={isMine(room) ? '' : undefined}
       data-match={matches(room) ? undefined : 'false'}
       data-family={extras.family}
+      style={extras.vars}
     >
       {extras.scene !== undefined && (
         <span className="room-card__mark" aria-hidden="true">
@@ -624,7 +628,7 @@ function RoomRow<V extends RoomFrontRoom>({
           {extras.trophy !== undefined && <span className="room-card__trophy">{extras.trophy}</span>}
           <span className="room-card__seats" data-testid="room-seats">
             <PersonIcon />
-            {view.seatsFilled}/{view.seatsCapacity}
+            {view.seatsCapacity === null ? view.seatsFilled : `${view.seatsFilled}/${view.seatsCapacity}`}
           </span>
         </div>
 
@@ -681,7 +685,7 @@ function RoomRow<V extends RoomFrontRoom>({
             </button>
           )}
 
-          {extras.legacyMeta !== undefined && <div className="rooms__meta room-card__legacy">{extras.legacyMeta}</div>}
+          {extras.legacyMeta !== undefined && <div className="room-card__legacy">{extras.legacyMeta}</div>}
         </div>
       </div>
 
@@ -865,7 +869,7 @@ function CreateRoomDialog<V extends RoomFrontRoom>({
 
           {slot?.node}
 
-          <button type="submit" className="lobby__go" data-testid="room-create-submit" disabled={busy || !ready}>
+          <button type="submit" className="room-front__go" data-testid="room-create-submit" disabled={busy || !ready}>
             Create room
           </button>
 

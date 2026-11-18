@@ -11,7 +11,7 @@
 import { useEffect } from 'react';
 
 import { roomsClient, type RoomView } from '../rooms/api.ts';
-import { roomFeed } from '../rooms/follow.ts';
+import { roomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { navigate, type Route } from '@hadoku/game-ui/screens/route.ts';
 
 /** Where a screen showing `matchId`, last seen at `tableId`, goes now; null: stay. */

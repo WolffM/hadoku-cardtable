@@ -54,7 +54,7 @@ export function SpectatorRow({ spectators, myId, leaderId, onWatch, watchDisable
             <PlayerName name={member.name} face={faceOf(member)} className="pod-seats__label" />
             {onMakeLeader !== undefined && member.id !== myId && (
               <span className="pod-seats__actions">
-                <ActionButton action="make-leader" className="pod-seats__action" data-testid="spectator-make-leader" data-member={member.id} aria-label={`Make ${member.name} the room leader`} onPress={() => onMakeLeader(member.id)}>
+                <ActionButton action="make-leader" className="pod-seats__action ct-action" data-testid="spectator-make-leader" data-member={member.id} aria-label={`Make ${member.name} the room leader`} onPress={() => onMakeLeader(member.id)}>
                   <svg className="pod-seats__action-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d={SEAT_CROWN_PATH} /></svg>
                 </ActionButton>
               </span>

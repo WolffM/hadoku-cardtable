@@ -1,12 +1,12 @@
 /*
  * When a following screen reads. The socket under it is the rooms core's (`@wolffm/rooms-client`,
- * tested there); the server half is `games/magic/server/src/room/watching.test.ts`.
+ * tested there); the server half is `packages/game-server/src/room/watching.ts`'s.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import type { PageVisibility } from '@hadoku/game-ui/visible.ts';
-import { createRoomFeed, FALLBACK_MS, type FeedTarget, type PingReason, type PingSource } from './follow.ts';
+import type { PageVisibility } from '../visible.ts';
+import { createRoomFeed, FALLBACK_MS, type FeedTarget, type PingReason, type PingSource } from './feed.ts';
 
 /** A page whose visibility a test flips, telling every listener as a browser does. */
 function page(): PageVisibility & { setHidden(hidden: boolean): void } {

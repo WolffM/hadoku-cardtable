@@ -16,7 +16,7 @@ vi.mock('@hadoku/magic-ui/play/live/LiveBoard.tsx', async () => {
   return { LiveBoard: ({ roomId }: { roomId: string | null }) => h('output', { 'data-testid': 'board-room' }, roomId ?? 'none') };
 });
 // No socket in jsdom: a room nobody pings.
-vi.mock('@hadoku/magic-ui/rooms/follow.ts', async (importOriginal) => ({
+vi.mock('@hadoku/game-ui/rooms/feed.ts', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   roomFeed: () => ({ follow: () => () => undefined }),
 }));
