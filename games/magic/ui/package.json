@@ -22,7 +22,7 @@
     "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.30",
     "@wolffm/rooms-client": "npm:@hadoku/rooms-client@0.45.121",
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.121",
-    "@wolffm/themes": "npm:@hadoku/themes@5.14.11",
+    "@wolffm/themes": "npm:@hadoku/themes@5.14.12",
     "@wolffm/watchparty-ui": "npm:@hadoku/watchparty-ui@0.45.121",
     "react": "19.2.8",
     "react-dom": "19.2.8",
