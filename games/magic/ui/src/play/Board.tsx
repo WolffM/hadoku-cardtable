@@ -3291,7 +3291,8 @@ function ZoneShell({
   count: number;
   /**
    * A pile holding a card Forge offers to be played from it (flashback, a library top under
-   * Courser): the pile carries the card's own glow, so a card buried in it is never missed.
+   * Courser). A library wears the ring on its box; a graveyard or exile pile only says so
+   * (`data-can-act`), the ring being on the offered card's own strip (`board.css`).
    */
   canAct?: boolean;
   /** A pile's opener — see `Zone`'s `onOpen`. */

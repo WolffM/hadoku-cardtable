@@ -1741,6 +1741,32 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(css(zone(0, 'exile'), 'display'), 'one card, and it is').not.toBe('none');
   });
 
+  /*
+   * The operator, 2026-11-19: *"there seems to be a stray outline in the graveyard when a card is
+   * playable. it seems like behind the top card in the gy it shows the outline but then the actual
+   * card that is playable also has an outline"*. One mark, on the card: its strip of the pile is
+   * ringed, the pile's own box is not, and the card's glow (clipped by the pile) is not drawn under it.
+   */
+  it('a card Forge offers in a pile is the one thing outlined there: its own strip, not the pile’s box as well', () => {
+    const viewer = view.players.find((p) => p.isViewer)!;
+    const seed = viewer.battlefield[0]!;
+    const yard = [7000, 7001, 7002].map((id) => ({ ...seed, id }));
+    const piled = { ...view, players: view.players.map((p) => (p.isViewer ? { ...p, graveyard: yard } : p)) };
+    const { zone } = renderBoard(piled, spyInteraction([7001], [], false, [7001]).interaction);
+    const css = styled();
+    const pile = zone(viewer.id, 'graveyard');
+    const exile = zone(viewer.id, 'exile');
+    expect(css(pile, 'outline'), 'the pile’s box draws no outline of its own').toBe(css(exile, 'outline'));
+    expect(css(pile, 'box-shadow'), 'nor a glow').toBe(css(exile, 'box-shadow'));
+    const offered = pile.querySelectorAll('[data-board-card][data-can-act]');
+    expect([...offered].map((el) => el.getAttribute('data-board-card')), 'the offered card alone is marked').toEqual(['7001']);
+    expect(css(offered[0]!.querySelector('.card')!, 'box-shadow'), 'its face draws no second ring under the strip’s').toBe('none');
+    const ring = /\.board \.seat :is\(\.zone--graveyard, \.zone--exile\) \.board-card\[data-can-act\]::after \{([^}]*)\}/.exec(BOARD_CSS)?.[1] ?? '';
+    expect(ring, 'the strip is ringed in the accent').toContain('outline: 2px solid var(--accent)');
+    expect(ring, 'inside its own box, which the pile clips').toContain('outline-offset: -2px');
+    expect(ring).toContain('pointer-events: none');
+  });
+
   it('marks a pile that holds a card Forge offers, however deep, and opens it with that card first', () => {
     // The operator, 2026-10-11, on Snapcaster Mage: "lets make sure that works smoothly even if the graveyard is very large."
     const viewer = view.players.find((p) => p.isViewer)!;
@@ -1755,8 +1781,6 @@ describe('the seat’s vertical bar (#9)', () => {
     const pile = zone(viewer.id, 'graveyard');
     expect(pile.hasAttribute('data-can-act')).toBe(true);
     expect(zone(viewer.id, 'exile').hasAttribute('data-can-act')).toBe(false);
-    const css = styled();
-    expect(css(pile, 'outline'), 'the offered pile is outlined').not.toBe(css(zone(viewer.id, 'exile'), 'outline'));
     fireEvent.click(pile.querySelector(`[data-board-card="${7059}"]`)!);
     const opened = [...container.querySelectorAll('[data-testid="pile-view"] [data-board-card]')].map((el) => Number(el.getAttribute('data-board-card')));
     expect(opened.length).toBe(60);
