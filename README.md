@@ -1,5 +1,7 @@
 # hadoku-cardtable
 
+**Guide:** [overview](docs/guide/index.md) · [features](docs/guide/features.md) · [contributing](docs/guide/contributing.md) · [history](docs/guide/history.md) · [trivia](docs/guide/trivia.md)
+
 Cube drafting and Magic play for a small group of friends — a fork of
 [Forge](https://github.com/Card-Forge/forge) for the rules engine, with the room
 and networking layer from hadoku-watchparty (a private repo)
