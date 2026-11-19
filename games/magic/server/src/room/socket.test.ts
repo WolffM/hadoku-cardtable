@@ -942,6 +942,13 @@ describe('the draft rope', () => {
 		if (next?.viewer.kind !== 'seat') throw new Error('alice should be seated');
 		expect(next.viewer.pack).toHaveLength(14);
 		expect(next.viewer.timer?.totalMs).toBe(pickTimeMs(14, 4));
+		// Each deadline is logged when it is set, with the pick it replaced: the line a late rope is read against.
+		const seat = next.viewer.seatId;
+		const set = lines().filter((l) => l.evt === 'rope-set' && l.seat === seat);
+		expect(set.map((l) => [l.key, l.was, l.totalMs])).toEqual([
+			['1:0', null, pickTimeMs(15, 4)],
+			['1:1', '1:0', pickTimeMs(14, 4)],
+		]);
 	});
 
 	it("gives a seat whose time ran out the draft bot's pick, with nothing from its browser", async () => {

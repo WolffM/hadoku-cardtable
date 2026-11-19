@@ -515,12 +515,16 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			const left = packOf(state, seat).length;
 			const totalMs = isBotSeat(state, seat) ? null : pickTimeMs(left, speed);
 			if (totalMs === null) {
+				const dropped = rope.get(seat);
+				if (dropped !== undefined) log({ evt: 'rope-dropped', draftId, seat, key: dropped.key, left, seq: state.seq });
 				rope.delete(seat);
 				continue;
 			}
 			const key = `${state.packNumber}:${state.roundPicks[seat] ?? 0}`;
 			let deadline = rope.get(seat);
 			if (deadline?.key !== key) {
+				// Logged, so a deadline that ends later than the one the seat's page was given (#76) names when it was set.
+				log({ evt: 'rope-set', draftId, seat, key, was: deadline?.key ?? null, left, totalMs, endsAt: now + totalMs, seq: state.seq });
 				deadline = { key, endsAt: now + totalMs, totalMs };
 				rope.set(seat, deadline);
 			}

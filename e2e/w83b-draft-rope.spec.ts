@@ -284,6 +284,10 @@ test('the rope runs out when the timeout pick lands, however many envelopes arri
     const emptied = await ropeEmptied(bob.page);
     const timeouts = serverLog({ serverLogFile: resolve(RUN_DIR, 'server.jsonl') }).filter((l) => l.evt === 'pick-timeout' && l.draftId === roomId && l.seat === 1);
     const midPick = views(bob).length;
+    const ropeSet = serverLog({ serverLogFile: resolve(RUN_DIR, 'server.jsonl') })
+      .filter((l) => (l.evt === 'rope-set' || l.evt === 'rope-dropped') && l.draftId === roomId && l.seat === 1)
+      .map((l) => ({ evt: l.evt, key: l.key, was: l.was, left: l.left, endsAt: l.endsAt, seq: l.seq, t: l.t }));
+    console.log(`[w83b] bob's deadlines ${JSON.stringify(ropeSet)}`);
     console.log(`[w83b] rope emptied ${JSON.stringify(emptied)} picks landed ${JSON.stringify(landed)} gaps ${JSON.stringify(landed.map((l, i) => l.at - (emptied[i] ?? NaN)))} server lateMs ${JSON.stringify(timeouts.map((t) => t.lateMs))} of it the event loop's ${JSON.stringify(timeouts.map((t) => t.loopLateMs))} bob views ${midPick}`);
     expect(emptied.length, 'the rope ran out once per pick').toBeGreaterThanOrEqual(2);
     for (const [i, l] of landed.entries()) {
