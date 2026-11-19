@@ -14,7 +14,7 @@
  * last two stay open, and any turn opens from its header or its number in the
  * strip along the top.
  */
-import { memo, useCallback, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 
 import { ManaPip } from '../../../components/ManaPip.tsx';
 import { plainRulesText } from '../../prompts/lookup.ts';
@@ -22,6 +22,7 @@ import type { BoardView } from '../../adapter.ts';
 import type { Say } from '../match.ts';
 import { buildLog, type LogItem, type LogNode, type LogPlayer, type LogRow, type LogTurn, type RowKind } from './model.ts';
 import { cardIdsNamedInView, piecesOf } from './names.ts';
+import { revealScroll } from './reveal.ts';
 
 import './log.css';
 
@@ -290,7 +291,10 @@ export function GameLog({ says, view, listRef }: GameLogProps) {
 
   const [flipped, setFlipped] = useState<ReadonlySet<number>>(new Set());
   const isOpen = (index: number): boolean => (index >= turns.length - OPEN_TURNS) !== flipped.has(index);
+  /** The turn a press last opened or folded, until the layout that follows it has brought it into view. */
+  const pressed = useRef<number | null>(null);
   const toggle = useCallback((index: number) => {
+    pressed.current = index;
     setFlipped((was) => {
       const next = new Set(was);
       if (next.has(index)) next.delete(index);
@@ -299,6 +303,20 @@ export function GameLog({ says, view, listRef }: GameLogProps) {
     });
   }, []);
   const scrollBox = useRef<HTMLDivElement | null>(null);
+  /*
+   * The operator, 2026-11-19: *"i would expect it to always scroll to the bottom if the displayed text
+   * is offscreen."* A turn opened near the foot of the box shows its rows, and one folded from deep
+   * in its rows keeps its header, by scrolling as far as that takes (`./reveal.ts`).
+   */
+  useLayoutEffect(() => {
+    const index = pressed.current;
+    pressed.current = null;
+    const box = scrollBox.current;
+    const turn = index === null ? null : box?.querySelector(`[data-log-turn-index="${index}"]`);
+    if (box === null || turn === null || turn === undefined) return;
+    const by = revealScroll(box.getBoundingClientRect(), turn.getBoundingClientRect());
+    if (by !== 0) box.scrollTop += by;
+  }, [flipped]);
   const jump = (index: number): void => {
     if (!isOpen(index)) toggle(index);
     requestAnimationFrame(() => scrollBox.current?.querySelector(`[data-log-turn-index="${index}"]`)?.scrollIntoView({ block: 'start' }));
