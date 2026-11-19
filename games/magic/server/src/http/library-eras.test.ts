@@ -35,7 +35,9 @@ const SLOW_TIMEOUT = process.env.CI ? 60_000 : 20_000;
 // @reads decks/
 
 describe('the picker offers exactly the catalogued eras', () => {
-	it('loadTablesLibrary(repoRoot) answers one format per catalogued era id, no more', () => {
+	// Reads every catalogued era's pool from the real decks/ tree: 1.5–2 s on an idle box, past the
+	// default 5 s on a loaded one (seen at load 50–97), so it gets the slow budget its neighbour has.
+	it('loadTablesLibrary(repoRoot) answers one format per catalogued era id, no more', { timeout: SLOW_TIMEOUT }, () => {
 		const library = loadTablesLibrary(REPO_ROOT);
 		expect(library.faults).toEqual([]);
 		// Derived from LIBRARY's own ids, never a hardcoded count: wave 34 pinned
