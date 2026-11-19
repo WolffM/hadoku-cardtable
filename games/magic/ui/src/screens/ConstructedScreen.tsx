@@ -47,6 +47,8 @@ export interface ConstructedScreenProps {
   roomId?: string;
   /** One table of the room's rounds, from `#/room/<id>/table/<table>` (`pod/TablePage.tsx`); absent is the hub. */
   tableId?: string;
+  /** That table's full-screen step, from `#/room/<id>/table/<table>/<step>`: `sideboard`. */
+  step?: string;
   /** What says the room changed. Tests pass their own; production passes nothing. */
   feed?: RoomFeed;
   /** Tests pass a rooms client so the join-on-entry can be driven. Production passes nothing. */
@@ -70,6 +72,7 @@ export function ConstructedScreen({
   client: given,
   roomId,
   tableId,
+  step,
   feed = roomFeed(),
   rooms,
   streamFetch,
@@ -87,7 +90,7 @@ export function ConstructedScreen({
     <NoRoom />
   ) : (
     <GameClientsProvider value={clients}>
-      <RoomTableScreen roomId={roomId} tableId={tableId} />
+      <RoomTableScreen roomId={roomId} tableId={tableId} step={step} />
     </GameClientsProvider>
   );
 }

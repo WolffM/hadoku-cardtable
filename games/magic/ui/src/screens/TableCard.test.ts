@@ -19,6 +19,7 @@ const GAME: TableGame = {
     { name: 'Esper Control', colors: ['W', 'U', 'B'], art: null },
   ],
   live: { turn: 7, active: 1, life: [14, 9], hand: [2, 4] },
+  entered: [true, true],
 };
 
 function card(over: Partial<TableCardProps> = {}) {
@@ -83,7 +84,7 @@ describe('TableCard', () => {
   });
 
   it('a seat whose deck the server never saw draws its player alone', () => {
-    card({ game: { decks: [GAME.decks[0], null], live: null }, matchId: null, series: { length: 1, wins: [0, 0], played: 0, phase: 'seating' } });
+    card({ game: { decks: [GAME.decks[0], null], live: null, entered: [false, false] }, matchId: null, series: { length: 1, wins: [0, 0], played: 0, phase: 'seating' } });
     expect(document.querySelectorAll('.table-card__deck')).toHaveLength(1);
     expect(document.querySelector('.table-card__of')).toBeNull();
   });

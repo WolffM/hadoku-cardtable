@@ -86,6 +86,11 @@ export class EndedMatch {
 	live(): null {
 		return null;
 	}
+
+	/** It is over: there is nothing left to enter. */
+	entered(): boolean[] {
+		return this.seats.map(() => true);
+	}
 }
 
 /** What {@link MatchRegistry.restore} did: back to the start of turn `turn`, or a fresh game from the match's spec. */

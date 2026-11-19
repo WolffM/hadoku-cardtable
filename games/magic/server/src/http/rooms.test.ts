@@ -476,7 +476,7 @@ describe('POST /api/rooms', () => {
 
 describe('a room body’s table games', () => {
 	it('carries each table’s game by table id, for the table card, on every read', async () => {
-		const game: import('@hadoku/shared').TableGame = { decks: [{ name: 'Goblins', colors: ['R'], art: 'Goblin Matron' }, null], live: { turn: 3, active: 0, life: [20, 17], hand: [5, 6] } };
+		const game: import('@hadoku/shared').TableGame = { decks: [{ name: 'Goblins', colors: ['R'], art: 'Goblin Matron' }, null], live: { turn: 3, active: 0, life: [20, 17], hand: [5, 6] }, entered: [true, false] };
 		const h = await openApp(await tempDir(), { tableGames: (room) => ({ [magicView(room)!.tables[0]!.id]: game }) });
 		const made = (await call(h, 'POST', '/api/rooms', { body: { name: 'Kitchen table' } })).json() as { id: string; tables: { id: string }[]; tableGames?: unknown };
 		expect(made.tableGames).toEqual({ [made.tables[0]!.id]: game });

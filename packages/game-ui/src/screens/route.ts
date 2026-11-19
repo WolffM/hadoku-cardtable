@@ -22,7 +22,8 @@
  *
  *   `#/`                 the lobby — the list of rooms, and the only front door
  *   `room/<roomId>`      a room, at that PATH: who is here, readiness, and the game it is for; once rounds start, the hub
- *   `#/room/<roomId>/table/<tableId>`  one match of a room's rounds: its deck pick, Ready, sideboard and game
+ *   `#/room/<roomId>/table/<tableId>`  one match of a room's rounds: who plays it, where it stands and the way in
+ *   `#/room/<roomId>/table/<tableId>/<step>`  a step of that table that takes the whole screen (the game's own word, `sideboard`)
  *   `#/draft/<draftId>`  LEGACY — redirects to `#/room/<draftId>`. See below.
  *   `#/deck/<draftId>`   the deck built out of that draft's pool
  *   `#/play`             constructed: pick a format and a deck, start a match
@@ -87,8 +88,11 @@ export type Route =
   | { kind: 'match'; matchId: string }
   /** A recorded match, played back through the transport bar (wave 77 §B). */
   | { kind: 'replay'; matchId: string }
-  /** `tableId` is one table of the room's rounds (`screens/room/TablePage.tsx`); absent is the room itself. */
-  | { kind: 'room'; roomId: string; tableId?: string }
+  /**
+   * `tableId` is one table of the room's rounds (`screens/room/TablePage.tsx`); absent is the room itself.
+   * `step` is a full-screen step of that table, named by its game.
+   */
+  | { kind: 'room'; roomId: string; tableId?: string; step?: string }
   /** Friend tier and above: each screen renders nothing until the server's `/api/sounds` answers (`canView`). */
   | { kind: 'sounds' }
   | { kind: 'sounds-sandbox' }
@@ -131,9 +135,12 @@ export function parseRoute(hash: string): Route {
     const id = decodeSegment(parts[2]!);
     return embedAddress.get()(catalogue, view) && id !== '' ? { kind: 'rally-embed', catalogue, id, view } : { kind: 'lobby' };
   }
-  if (parts.length === 4 && parts[0] === 'room' && parts[2] === 'table') {
+  if ((parts.length === 4 || parts.length === 5) && parts[0] === 'room' && parts[2] === 'table') {
     const [roomId, tableId] = [decodeSegment(parts[1]!), decodeSegment(parts[3]!)];
-    return roomId === '' ? { kind: 'lobby' } : tableId === '' ? { kind: 'room', roomId } : { kind: 'room', roomId, tableId };
+    if (roomId === '') return { kind: 'lobby' };
+    if (tableId === '') return { kind: 'room', roomId };
+    const step = parts[4];
+    return step !== undefined && TABLE_STEP.test(step) ? { kind: 'room', roomId, tableId, step } : { kind: 'room', roomId, tableId };
   }
   if (parts.length !== 2) return { kind: 'lobby' };
   const [head, raw] = parts;
@@ -196,7 +203,7 @@ export function routeHash(route: Route): string {
     case 'replay':
       return `#/replay/${encodeURIComponent(route.matchId)}`;
     case 'room':
-      return `#/room/${encodeURIComponent(route.roomId)}${route.tableId === undefined ? '' : `/table/${encodeURIComponent(route.tableId)}`}`;
+      return `#/room/${encodeURIComponent(route.roomId)}${route.tableId === undefined ? '' : `/table/${encodeURIComponent(route.tableId)}${route.step === undefined ? '' : `/${route.step}`}`}`;
     case 'stats':
       if (route.player !== undefined) return `#/stats/${encodeURIComponent(route.player)}`;
       return route.tab === undefined ? '#/stats' : `#/${route.tab}`;
@@ -208,6 +215,9 @@ export function routeHash(route: Route): string {
       return `#/embed/${route.catalogue}/${encodeURIComponent(route.id)}/${route.view}`;
   }
 }
+
+/** A table's step in an address: a plain word. */
+const TABLE_STEP = /^[a-z][a-z-]*$/;
 
 /** A room's own page, not one of its tables: the one route whose address is a path. */
 function roomPage(route: Route): string | null {

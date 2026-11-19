@@ -59,8 +59,8 @@ import { BackLink } from './BackLink.tsx';
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { DeckManage } from './DeckManage.tsx';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
-import { livePodSource, myCurrentTable, playPod, startMyTable, usePodContext, type PodSource } from './pod/client.ts';
-import { followMatchOnce, followTableOnce, openNewMatch } from '../play/live/matchStart.ts';
+import { livePodSource, myCurrentTable, playPod, usePodContext, type PodSource } from './pod/client.ts';
+import { followTableOnce } from '../play/live/matchStart.ts';
 import { roomsClient, type RoomsClient } from '../rooms/api.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
@@ -157,13 +157,11 @@ export function DeckScreen({
   // The build as it stands is saved first: the editor's own save is debounced,
   // and the pod seats whatever was saved last.
   /**
-   * Play: saved, marked done, and then straight to wherever this player ends
-   * up — the game itself when my table can start now (the last Play of the pod,
-   * or a game against the AI), the room only while others are still building.
-   * The operator, 2026-10-19: *"when clicking play we should look to see where
-   * the player will end up, if they can go straight into the game then we
-   * should put them there. if the other player isn't ready yet then we can
-   * show the lobby"* — not three screens in a row.
+   * Play: saved, marked done, and then to my table's page when the rounds have me paired — the
+   * face-off, and Enter game — or to the room while others are still building. The operator,
+   * 2026-11-19, of Play putting them on the board against an AI: *"i expected to see the animation of
+   * the two characters going head-to-head and then me clicking to enter the game"* (this replaces the
+   * 2026-10-19 ruling that Play went straight into a game that could start).
    */
   const play = (dck: string): void => {
     setPlayError(null);
@@ -182,14 +180,9 @@ export function DeckScreen({
       const pod = room === null ? null : magicGame(room).pod;
       const mine = room !== null && pod?.phase === 'rounds' ? myCurrentTable(pod, room.tables, room.you.id) : undefined;
       if (mine === undefined) return toRoom();
-      // Straight past my table's page, which this stands in for: the hub has carried me there already.
+      // The hub would carry me to my table too; this is that carry, taken now.
       followTableOnce(draftId, mine.id, mine.id);
-      if (mine.matchId !== null) return followMatchOnce(mine.matchId, false);
-      const started = await startMyTable(draftId, mine);
-      if (started.ok && started.matchId !== null) openNewMatch(started.matchId);
-      // The other player's table page started it in the same moment, or it is still to start: my table's
-      // page follows its game in. The hub would not carry me there, since the table counts as visited.
-      else navigate({ kind: 'room', roomId: draftId, tableId: mine.id });
+      navigate({ kind: 'room', roomId: draftId, tableId: mine.id });
     })().catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
   };
 

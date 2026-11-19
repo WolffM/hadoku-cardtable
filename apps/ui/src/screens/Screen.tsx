@@ -104,7 +104,7 @@ function RouteScreen({ transport }: ScreenProps) {
     case 'replay':
       return <ReplayScreen matchId={route.matchId} />;
     case 'room':
-      return <ConstructedScreen roomId={route.roomId} tableId={route.tableId} makeTransport={transport} />;
+      return <ConstructedScreen roomId={route.roomId} tableId={route.tableId} step={route.step} makeTransport={transport} />;
     case 'lobby':
       return <LobbyScreen />;
     case 'stats':

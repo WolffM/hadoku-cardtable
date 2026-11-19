@@ -49,8 +49,14 @@ describe('a toy, non-Forge game plays a whole match through HostedMatch + the in
 
 		expect(match.claim(ALICE)).toEqual({ ok: true, seat: 0, fresh: true });
 		expect(match.claim(BOB)).toEqual({ ok: true, seat: 1, fresh: true });
+		// Holding a seat is not being at the game: a seat has entered once a connection of its person reached it, and stays so.
+		expect(match.entered()).toEqual([false, false]);
 		match.seatConnected(0);
+		expect(match.entered()).toEqual([true, false]);
 		match.seatConnected(1);
+		match.seatDisconnected(0);
+		expect(match.entered()).toEqual([true, true]);
+		match.seatConnected(0);
 
 		// A watcher joins: a third participant is refused a seat outright (both are taken), the same
 		// generic `claim` every seated game shares — and with no seat, nothing she sends could ever

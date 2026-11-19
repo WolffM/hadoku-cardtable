@@ -185,7 +185,7 @@ import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodVi
 
 import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
-import { awaitsPress, followMatchOnce, noteSideboarding, openNewMatch } from '../play/live/matchStart.ts';
+import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
 import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
@@ -233,6 +233,7 @@ import { useLeaderAsk } from './leader/LeaderAsk.tsx';
 import { entrantLookup, heldFor, myCurrentTable, passRoomLeader, relayedPodSource, useFollowMyTable, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
+import { doorGo, tableDoor } from './tableDoor.ts';
 import { useRoomSounds } from './roomSounds.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
 import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
@@ -1083,7 +1084,7 @@ export interface MagicRoomClients {
   myDecks?: MyDecksClient;
 }
 
-export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: string | undefined }) {
+export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tableId: string | undefined; step?: string | undefined }) {
   const {
     client,
     feed,
@@ -1593,9 +1594,22 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   const myTable: SharedRoomTable | null = tournament ? (myTournamentTable ?? null) : (view?.tables[0] ?? null);
   /** Between games of my series: the room links to my table's page, where the sideboard step is (`TablePage`). */
   const mySideboarding = myTable !== null && myTable.matchId === null && myTable.series.phase === 'sideboarding';
-  if (mySideboarding) noteSideboarding(myTable.id, myTable.series.games.length);
-  /** My table's next game exists and waits for my press: the step stays drawn, now as its Enter gate. */
-  const myNextAwaitsPress = myTable !== null && awaitsPress(myTable.id, myTable.series.games.length, myTable.matchId);
+  /** My table's one way on (`tableDoor.ts`), by my seat at it. */
+  const mySeatAtTable = myTable?.players.findIndex((p) => p.memberId === view?.you.id) ?? -1;
+  const myDoor = myTable !== null && mySeatAtTable >= 0 ? tableDoor(myTable, view?.tableGames?.[myTable.id], mySeatAtTable) : null;
+  /**
+   * The route's table at its full-screen step (`…/table/<id>/sideboard`), for a player of it, in
+   * every kind of room: between its games, or with the next one up and not yet entered. Any other
+   * state of the table has no such step, and the address goes back to the table's page.
+   */
+  const stepTable = step === 'sideboard' && tableId !== undefined ? (view?.tables.find((t) => t.id === tableId) ?? null) : null;
+  const stepSeat = stepTable?.players.findIndex((p) => p.memberId === view?.you.id) ?? -1;
+  const stepDoor = stepTable !== null && stepSeat >= 0 ? tableDoor(stepTable, view?.tableGames?.[stepTable.id], stepSeat) : null;
+  const atSideboard = stepDoor?.kind === 'sideboard' || stepDoor?.kind === 'enter';
+  const noSuchStep = step !== undefined && tableId !== undefined && view !== null && !atSideboard;
+  useEffect(() => {
+    if (noSuchStep) navigate({ kind: 'room', roomId, tableId: tableId! }, { replace: true });
+  }, [noSuchStep, roomId, tableId]);
   const streamed = modeRef.current === 'streamed';
   /** The room's name as soon as either read has it; the id is never a title. */
   const roomTitle = streamed ? view?.name : (table?.room.name ?? view?.name);
@@ -1891,21 +1905,14 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
   const sawNoMatch = useRef(false);
   if (table !== null && matchId === null) sawNoMatch.current = true;
   /**
-   * Once this room has drawn `mySideboarding`'s `TableCard` (below), the next game is entered by a
-   * press — that card's own "Sideboard" link, or `TablePage`'s own "Return to game" — never by this
-   * effect walking in on its own. Game 1's own start (`startAs`, just below) never passes through
-   * `sideboarding`, so it is untouched.
-   *
-   * Latched off `table` (`client.table`'s own read, below), the SAME read `matchId` comes from —
-   * NOT `mySideboarding` (`view.tables[0]`, the generic room read): that one lagged `table` by
-   * minutes on a loaded host (measured), so `matchId` could turn non-null before a `mySideboarding`
-   * this slow ever saw `sideboarding` at all, and this effect walked in on its own regardless.
+   * Only a series' FIRST game is followed into, the one my own Ready started. Every later game is
+   * entered by my own press on the table's door (`tableDoor.ts`): the room's record says which game
+   * this is, so a reload or a slow read cannot walk me in.
    */
-  const sawSideboarding = useRef(false);
-  if (table !== null && table.room.matchId === null && table.room.phase === 'sideboarding') sawSideboarding.current = true;
+  const firstGame = myTable !== null && myTable.matchId === matchId && myTable.series.games.length === 0;
   useEffect(() => {
-    if (!tournament && matchId !== null && !sawSideboarding.current && !myNextAwaitsPress) followMatchOnce(matchId, sawNoMatch.current);
-  }, [tournament, matchId, myNextAwaitsPress]);
+    if (!tournament && matchId !== null && firstGame) followMatchOnce(matchId, sawNoMatch.current);
+  }, [tournament, matchId, firstGame]);
 
   const startVsBot = (): void => {
     setStartRefusal(null);
@@ -2625,8 +2632,6 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
                 nameOf={tNameOf}
                 avatarOf={tAvatarOf}
                 canStart={tCanStart}
-                refresh={view}
-                tables={client}
                 game={tableId === undefined ? undefined : view?.tableGames?.[tableId]}
                 ready={tGauntletReady}
                 away={view?.away}
@@ -2666,8 +2671,6 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
               nameOf={tNameOf}
               avatarOf={tAvatarOf}
               canStart={false}
-              refresh={view}
-              tables={client}
                 game={tableId === undefined ? undefined : view?.tableGames?.[tableId]}
             />
           ) : (
@@ -2792,20 +2795,20 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
                 onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
               />
             )
-          ) : spectating ? null : mySideboarding && players.some((p) => p.you) ? (
-            // Between games, the room's table is its card (`TableCard.tsx`), the way back to the table page's sideboard.
+          ) : spectating ? null : myDoor !== null && (mySideboarding || myTable!.series.games.length > 0) && players.some((p) => p.you) ? (
+            // From a series' second game on, the room's table is its card (`TableCard.tsx`) and the table's one way on.
             <TableCard
               testId="room-table-card"
-              tableId={myTable.id}
-              players={[myTable.players[0]?.memberId ?? '', myTable.players[1]?.memberId ?? POD_AI]}
+              tableId={myTable!.id}
+              players={[myTable!.players[0]?.memberId ?? '', myTable!.players[1]?.memberId ?? POD_AI]}
               nameOf={(id) => (id === POD_AI ? (roomAi?.name ?? tNameOf(id)) : tNameOf(id))}
               avatarOf={(id) => (id === POD_AI ? { id: roomAi?.avatarId ?? null } : tAvatarOf(id))}
               myMemberId={view?.you.id ?? null}
-              series={{ length: myTable.series.length, wins: myTable.series.wins, played: myTable.series.games.length, phase: myTable.series.phase }}
-              matchId={myTable.matchId}
-              game={view?.tableGames?.[myTable.id]}
-              go={{ label: 'Sideboard', href: routeHash({ kind: 'room', roomId, tableId: myTable.id }), testId: 'room-table-link' }}
-              onAbandon={() => resolveTable('abandon', roomId, myTable.id)}
+              series={{ length: myTable!.series.length, wins: myTable!.series.wins, played: myTable!.series.games.length, phase: myTable!.series.phase }}
+              matchId={myTable!.matchId}
+              game={view?.tableGames?.[myTable!.id]}
+              go={doorGo(myDoor, roomId, myTable!.id, 'room-table-link')}
+              onAbandon={() => resolveTable('abandon', roomId, myTable!.id)}
             />
           ) : mode !== 'classic' ? null : loaded === null ? (
             loadError === null && <DeckCardSkeleton />
@@ -2860,49 +2863,26 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
       ),
   };
   const magicRoomUi: MagicRoomUi = { draft: draftUi, constructed1v1: constructedUi };
-  if (!streamed && draftRoom && draftStartedAt !== null && locked === null) {
-    return (
-      <MagicRoomUiContext.Provider value={magicRoomUi}>{gameRoomUiFor('draft')!.game(gameUiProps)}</MagicRoomUiContext.Provider>
-    );
-  }
   /**
-   * The table's OWN page, between its games, for whichever of its own seats I hold — the same
-   * bypass the draft branch above takes for a dealt pod, and for the same reason: `RoomShell`
-   * draws the room's header, its settings and (through `TablePage`) the face-off ABOVE whatever
-   * it is given as children, so going through it at all put those between the player and the
-   * sideboard panel (the operator: "sideboarding entered from the room lobby is exactly the
-   * in-game sideboarding screen"; measured, the room's header and the face-off sat above the
-   * panel, below the fold, on a desktop viewport — not what either path draws once the match
-   * itself ends a game). `TableSideboard` holds the chrome shell as `'match'` itself
-   * (`TableSideboard.tsx`), so this gives it the SAME full frame `LiveBoard`'s own sideboard step
-   * draws in, nothing above it but the site's own header (unchanged either path, and hidden on a
-   * narrow phone by the same portrait rule `TableSideboard.css` already carries).
-   *
-   * `myTable?.id === tableId` rather than `mySideboarding` alone: a tournament room's hub
-   * (`tableId === undefined`) still draws the room the ordinary way, as does a watcher who opened
-   * someone ELSE's table while mine is the one sideboarding. `tournament ||` skips the room-player
-   * check for a tournament table because `mySideboarding` already came off `myTournamentTable`
-   * (`myCurrentTable`, keyed on MY member id) — a seat that is not mine never sets it.
+   * A table's sideboard step is its own full screen, in every kind of room (a draft pod's too): the
+   * in-game step's own panel in the match's own frame, with nothing of the room around it. The
+   * operator, 2026-11-19, of a pod's table page drawing it in what was left of a column: *"why is
+   * my sideboarding process showing in this weird little squished window?"*
    */
-  if (
-    !streamed &&
-    !draftRoom &&
-    tableId !== undefined &&
-    (mySideboarding || myNextAwaitsPress) &&
-    myTable?.id === tableId &&
-    (tournament || mine !== null) &&
-    locked === null &&
-    resolved
-  ) {
+  if (!streamed && atSideboard && stepTable !== null && locked === null) {
     return (
       <MagicRoomUiContext.Provider value={magicRoomUi}>
         {/* The match's own frame (`MatchScreen.tsx`'s `.shell.shell--match`, one viewport tall), so
-            `.table-sideboard-frame` fills it as `.live` does and the panel is the in-game one's size.
-            A bare `.shell` grows only to its content: the panel came out its 320px floor. */}
+            `.table-sideboard-frame` fills it as `.live` does and the panel is the in-game one's size. */}
         <div className="shell shell--match" data-testid="table-sideboard-page">
-          <TableSideboard key={`${tableId}:${myTable.series.games.length}`} roomId={roomId} tableId={tableId} refresh={view} tables={client} />
+          <TableSideboard key={`${stepTable.id}:${stepTable.series.games.length}`} roomId={roomId} tableId={stepTable.id} refresh={view} tables={client} />
         </div>
       </MagicRoomUiContext.Provider>
+    );
+  }
+  if (!streamed && draftRoom && draftStartedAt !== null && locked === null) {
+    return (
+      <MagicRoomUiContext.Provider value={magicRoomUi}>{gameRoomUiFor('draft')!.game(gameUiProps)}</MagicRoomUiContext.Provider>
     );
   }
 
