@@ -38,10 +38,10 @@ describe('the published manifest', () => {
 		expect(pkg.exports['./auth']).toEqual({ types: './dist/auth/index.d.ts', import: './dist/auth/index.js' });
 		expect(Object.keys(pkg.exports)).toEqual(Object.keys(read('service-kernel').exports));
 		// rooms-server is a peer: the app's own copy serves the kernel, so an app that builds its own
-		// (watchparty) installs no second one. Any 0.45.
+		// (watchparty) installs no second one. Any 0.45 or later: a floor, so the first 0.46 does not leave it out.
 		expect(pkg.dependencies?.['@wolffm/rooms-server']).toBeUndefined();
-		expect(pkg.peerDependencies?.['@wolffm/rooms-server']).toBe('^0.45.0');
-		expect(pkg.peerDependencies?.['@wolffm/rooms-protocol']).toBe('^0.45.0');
+		expect(pkg.peerDependencies?.['@wolffm/rooms-server']).toBe('>=0.45.0');
+		expect(pkg.peerDependencies?.['@wolffm/rooms-protocol']).toBe('>=0.45.0');
 	});
 
 	it('maps a wildcard export, with and without the extension in the specifier', () => {

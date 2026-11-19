@@ -32,8 +32,8 @@
     "@wolffm/rooms-server": "npm:@hadoku/rooms-server@^0.45.122"
   },
   "peerDependencies": {
-    "@wolffm/rooms-protocol": "^0.45.0",
-    "@wolffm/rooms-server": "^0.45.0"
+    "@wolffm/rooms-protocol": ">=0.45.0",
+    "@wolffm/rooms-server": ">=0.45.0"
   },
-  "//peerDependencies": "Peers, not dependencies: the app's own rooms-protocol/rooms-server serve the kernel too, so an app that builds them itself (watchparty, from its workspace) installs no second copy. Any 0.45 is enough: the kernel uses only rooms-server's MultiRateLimiter and rooms-protocol's ParticipantId type."
+  "//peerDependencies": "Peers, not dependencies: the app's own rooms-protocol/rooms-server serve the kernel too, so an app that builds them itself (watchparty, from its workspace) installs no second copy. Any 0.45 or later is enough (a floor, not a caret: a caret leaves every consumer outside the range at the first 0.46): the kernel uses only rooms-server's MultiRateLimiter and rooms-protocol's ParticipantId type."
 }
