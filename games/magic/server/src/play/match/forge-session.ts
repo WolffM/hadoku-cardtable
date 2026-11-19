@@ -654,7 +654,7 @@ export const WATCHER_SEAT = -1;
 type ShellView = Pick<
 	MatchShell<BridgeLine, BridgeCommand>,
 	'status' | 'failure' | 'replaying' | 'host' | 'concededBy' | 'clock' | 'runningWaiters' | 'syncClock' | 'watchConcede' | 'noteActivity' | 'tellRestart' | 'undoMoved' | 'armRejoinGrace' | 'fail'
-> & { clockGrace?(): boolean };
+> & { clockGrace?(seat: number): boolean };
 
 export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	readonly id: string;
@@ -1046,11 +1046,11 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 				const reading = this.shell.clock?.reading(this.now())[s.seat];
 				if (reading === undefined) return {};
 				// The new-game grace (`Match.clockGrace`, Magic's own concept — not every `ShellView`
-				// has it, hence the optional chain): both seats' clock readings carry it on EVERY
+				// has it, hence the optional chain): a seat's clock reading carries its own on EVERY
 				// `seatIdentities()` call, `tellRoster`'s realtime roster push included, not only the
 				// resend `socket.ts` sends a freshly (re)joined client — a screen already connected
 				// before the grace started must see it the same way.
-				return this.shell.clockGrace?.() === true ? { clock: { ...reading, grace: true } } : { clock: reading };
+				return this.shell.clockGrace?.(s.seat) === true ? { clock: { ...reading, grace: true } } : { clock: reading };
 			})(),
 		}));
 	}

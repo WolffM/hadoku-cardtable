@@ -278,10 +278,16 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 		if (this.clock === null || this.replaying) return;
 		const now = this.now();
 		const running = this.status === 'running' && this.timedOut === null;
-		const moved = this.clock.set([running && this.game.waitedOn(0), running && this.game.waitedOn(1)], now);
+		const runs = (seat: number): boolean => running && this.game.waitedOn(seat) && !this.clockHeld(seat);
+		const moved = this.clock.set([runs(0), runs(1)], now);
 		if (!moved) return;
 		this.armFlag(now);
 		this.game.tellRoster();
+	}
+
+	/** A seat whose clock a game's own rule holds still while it is waited on. None, unless a game says so. */
+	protected clockHeld(_seat: number): boolean {
+		return false;
 	}
 
 	/**

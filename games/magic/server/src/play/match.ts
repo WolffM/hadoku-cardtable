@@ -262,8 +262,11 @@ export interface MatchDeps extends HostedMatchDeps<BridgeLine, BridgeCommand> {
 }
 
 /**
- * The grace a NEW game's chess clock gets before it starts running at all (the operator: *"the
- * clock gives a 1-minute grace before it starts running"*). Keyed on
+ * The grace a NEW game's chess clock gives a seat that has not shown up to it (the operator: *"the
+ * clock gives a 1-minute grace before it starts running"*, and on 2026-11-19: *"the grace period is
+ * only relevant before the player has taken any actions (meaning if they haven't gone to their room
+ * yet even after the round has begun)"*). A seat's clock runs from its own first act of the game,
+ * or from the grace's end, whichever is first. Keyed on
  * {@link MatchShell.startedAt}, which a restore (`match/registry.ts`'s `restore`, a JVM lost
  * mid-game) and a take-back (`adopt`) both keep from the ORIGINAL game, so neither is re-graced —
  * only a game that is actually new (`create`, including a parked game's resume, which stamps a
@@ -296,6 +299,8 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	declare protected readonly deps: MatchDeps;
 	/** Armed once, while this game is inside {@link NEW_GAME_CLOCK_GRACE_MS}: wakes {@link syncClock} at the grace's end. */
 	private graceTimer: NodeJS.Timeout | null = null;
+	/** The seats that have acted in this game, by their own hand: the grace is over for them. */
+	private readonly acted: [boolean, boolean] = [false, false];
 
 	constructor(
 		id: string,
@@ -345,40 +350,38 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	}
 
 	/**
-	 * {@link MatchShell.syncClock}, with {@link NEW_GAME_CLOCK_GRACE_MS} ahead of it: while the game
-	 * is inside its grace, no seat's clock runs at all — `super.syncClock()` is never called, so
-	 * {@link ChessClock.set} never sees a seat as running, whatever Forge is actually waiting on
+	 * {@link MatchShell.syncClock}, with {@link NEW_GAME_CLOCK_GRACE_MS} ahead of it: inside the
+	 * grace a seat that has not acted is held ({@link clockHeld}), whatever Forge is waiting on
 	 * ({@link ForgeSession.waitedOn}). A single timer wakes this once, at the grace's end, to run
-	 * the real check against whatever is true by then; every call inside the grace besides the
-	 * first only confirms the timer is already armed. A game that ends inside the grace never
-	 * started its clock, which is correct: nobody is charged for time nobody could act in.
+	 * the check against whatever is true by then. A game that ends inside the grace with a seat
+	 * that never acted never started that seat's clock.
 	 */
 	override syncClock(): void {
 		const left = this.graceLeft();
-		if (left > 0) {
-			if (this.graceTimer === null) {
-				this.graceTimer = setTimeout(() => {
-					this.graceTimer = null;
-					this.syncClock();
-				}, left);
-				this.graceTimer.unref();
-			}
-			return;
+		if (left > 0 && this.graceTimer === null) {
+			this.graceTimer = setTimeout(() => {
+				this.graceTimer = null;
+				this.syncClock();
+			}, left);
+			this.graceTimer.unref();
 		}
 		super.syncClock();
 	}
 
+	protected override clockHeld(seat: number): boolean {
+		return this.clockGrace(seat);
+	}
+
 	/**
-	 * Whether THIS instant is still inside the new-game grace above — read by
-	 * {@link ForgeSession.seatIdentities} (through `ShellView`) to mark both seats' clock readings
-	 * on the roster, so a screen can draw the grace as its own state rather than guess it from a
-	 * clock that merely is not running yet (a seat waiting on the OTHER seat's turn looks
-	 * identical otherwise: `ms` unspent, `running: false`). Never the reason the real clock does
-	 * or does not run — {@link syncClock} above still owns that; this only reports what it already
-	 * decided.
+	 * Whether `seat` is inside the new-game grace at THIS instant: the game is younger than
+	 * {@link NEW_GAME_CLOCK_GRACE_MS} and the seat has not acted in it. Read by {@link syncClock}
+	 * (through {@link clockHeld}) and by {@link ForgeSession.seatIdentities} (through `ShellView`)
+	 * to mark the seat's clock reading on the roster, so a screen draws the grace as its own state
+	 * rather than guess it from a clock that merely is not running yet (a seat waiting on the
+	 * OTHER seat's turn looks identical otherwise: `ms` unspent, `running: false`).
 	 */
-	clockGrace(): boolean {
-		return this.graceLeft() > 0;
+	clockGrace(seat: number): boolean {
+		return this.graceLeft() > 0 && this.acted[seat] !== true;
 	}
 
 	/**
@@ -483,7 +486,13 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	}
 
 	fromClient(seat: number, frame: ClientFrame, input?: number): ClientOutcome {
-		return this.session.fromClient(seat, frame, input);
+		const outcome = this.session.fromClient(seat, frame, input);
+		// The seat is at its game: its grace is over, and its clock runs whenever it is waited on.
+		if (outcome.ok && (seat === 0 || seat === 1) && !this.acted[seat] && !(frame.kind === 'act' && frame.method === 'requestResync')) {
+			this.acted[seat] = true;
+			this.syncClock();
+		}
+		return outcome;
 	}
 
 	seatIdentities(waitingOnTold = false): SeatIdentity[] {

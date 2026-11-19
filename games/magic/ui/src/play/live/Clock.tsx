@@ -12,9 +12,9 @@
  * were not tellable apart at a glance. The badge below is its OWN shape (a rounded tag, not the
  * life pill's circle) and carries its own icon; `clock.css` has both.
  *
- * `grace` is a new game's own 1-minute hold before its clock starts at all: neither seat's clock
- * runs, which otherwise draws exactly like a clock idling on the OTHER seat's turn — nothing told
- * the two apart. `Board.tsx` passes `player.clock.grace` straight through; this file does not
+ * `grace` is a new game's own 1-minute hold on the clock of a seat that has not acted in it yet:
+ * that clock does not run, which otherwise draws exactly like a clock idling on the OTHER seat's
+ * turn — nothing told the two apart. `Board.tsx` passes `player.clock.grace` straight through; this file does not
  * derive it from `ms`/`running` itself — the server (`Match.clockGrace`, cardtable's server) is
  * what actually knows whether this instant is inside the grace, and rides it on `SeatIdentity.clock`
  * (`adapter.ts`'s `PlayerClock.grace`).

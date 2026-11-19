@@ -8,6 +8,9 @@
  * gives a 1-minute grace before it starts running."* `NEW_GAME_CLOCK_GRACE_MS` (`play/match.ts`) is
  * 60 s, for every new game, this scenario match included — not only a series' second game — so this
  * spec reads full, not-running clocks for the first beat and only then waits for alice's to start.
+ * The grace is a seat's own and ends at that seat's first act (the operator, 2026-11-19: *"the grace
+ * period is only relevant before the player has taken any actions"*); here neither seat acts, so both
+ * keep the whole minute. `match.test.ts`'s "ends for a seat at its own first act" holds the other half.
  *
  * A short, test-only clock (`clockMs` on the start body; a room's own is 20 minutes). Alice holds
  * priority in her main phase with a castable Lightning Bolt (`bolt-player`) and does nothing. Her
