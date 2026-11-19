@@ -1,7 +1,7 @@
 /*
  * BundleSlot — mounts a same-origin game bundle (a module exporting `GameBundleModule`) inside
  * the room screen, the way watchparty mounts one inside its own room: through
- * `@wolffm/rooms-client`'s `mountGameBundle`, never by importing the bundle's own code here. A
+ * `@wolffm/rooms-client/react`'s `useGameBundle` (over its `mountGameBundle`), never by importing the bundle's own code here. A
  * game type registers it as its `GameRoomUi.game` (`./external-games.tsx`, one of cardtable's
  * configured external games, today bomberman); this file knows nothing about bomberman or any
  * other bundle, only the contract.
@@ -53,8 +53,8 @@
  * is a fresh mount, exactly as on first entering the room.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { mountGameBundle, type GameBundleHandle } from '@wolffm/rooms-client';
+import { useEffect, useMemo, useState } from 'react';
+import { useGameBundle } from '@wolffm/rooms-client/react';
 import type { GameBundleContext, MatchInfo, SeatInfo } from '@wolffm/rooms-protocol';
 import { useHadokuTheme } from '@wolffm/themes';
 // A relative cross-package import, not `@hadoku/shared`'s own barrel: the layer ratchet
@@ -126,8 +126,6 @@ function matchOf(view: RoomViewBase, myId: string): MatchInfo {
 }
 
 export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const handleRef = useRef<GameBundleHandle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { theme } = useHadokuTheme();
   const who = useWhoami();
@@ -171,35 +169,14 @@ export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
   }, [view, who, theme, me.isLeader, me.userId, onClose, channel]);
 
   const ready = ctx !== null;
+  const load = useMemo(() => () => import(/* @vite-ignore */ src), [src]);
 
-  // Mount once the context first becomes available, and afresh for each relay match after the
-  // first; any other context change goes through update() below, never a remount (a seat change
-  // is not a new game).
-  const ctxRef = useRef(ctx);
-  ctxRef.current = ctx;
-
-  useEffect(() => {
-    const el = hostRef.current;
-    const mountCtx = ctxRef.current;
-    if (el === null || mountCtx === null) return;
-    setError(null);
-    const handle = mountGameBundle({
-      load: () => import(/* @vite-ignore */ src),
-      el,
-      ctx: mountCtx,
-      onError: (message) => setError(message),
-    });
-    handleRef.current = handle;
-    return () => {
-      handle.dispose();
-      handleRef.current = null;
-    };
-    // Deliberately not ctx: mounts on readiness and on a new match, not on every later ctx change.
-  }, [src, ready, matchesEnded]);
-
-  useEffect(() => {
-    if (ctx !== null) handleRef.current?.update(ctx);
-  }, [ctx]);
+  // Mounted once the context first becomes available, and afresh for each relay match after the
+  // first (`mountKey`); any other context change goes to the bundle's update(), never a remount
+  // (a seat change is not a new game). The platform's hook, watchparty's slot's too.
+  const hostRef = useGameBundle({ load, ctx, mountKey: matchesEnded, onError: (message) => setError(message) });
+  // A fresh mount starts with no error of the last one's.
+  useEffect(() => setError(null), [load, ready, matchesEnded]);
 
   if (!ready) return <div className="room-bundle-slot" data-testid="room-bundle-slot" />;
 
