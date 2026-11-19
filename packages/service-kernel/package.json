@@ -28,8 +28,8 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@^0.45.122",
-    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@^0.45.122"
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.123",
+    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.123"
   },
   "peerDependencies": {
     "@wolffm/rooms-protocol": ">=0.45.0",
