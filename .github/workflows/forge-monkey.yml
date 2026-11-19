@@ -1,0 +1,156 @@
+name: Forge monkey
+
+# The monkey seat fuzzer, nightly, in a slot of its own.
+#
+# `games/magic/server/src/play/monkey/` (`docs/MONKEY.md`) joins real vs-AI matches
+# on a real running server, over the real socket protocol, and answers every
+# ask with a random LEGAL choice instead of a scripted plan — looking for a
+# soft lock no scripted scenario would reach (the operator, 2026-10-26: "how
+# can we unify the behavior better so that we don't soft lock"). It runs every
+# night regardless of what changed.
+#
+# ITS OWN WORKFLOW, NOT A JOB IN `forge.yml` (2026-11-19). It used to start with
+# forge.yml's nightly full run at 10:00Z, beside five e2e shards and three jvm
+# shards that all want the same four lane-forge claws. They filled the claws, so
+# the monkey overflowed to hokon, the backstop, and ran there for 90 minutes in
+# the middle of the night (2026-11-19, run 44502081933: cgroup-OOM-killed at
+# hokon's 8 GiB per-unit cap). 07:30Z is the quietest hour the dispatch log has
+# for both: over 2026-11-12..19, hokon took 3 jobs in the 07Z hour and the
+# forge claws 13 forge jobs, against 71 forge jobs at 10Z. A free claw wins the
+# walk over the backstop, so this lands on a claw without any placement rule.
+# Nothing GUARANTEES it: a claw-full night still overflows to hokon.
+#
+# Why not a third cron in `forge.yml`: its `changes` job decides each two-hourly
+# run from "the newest scheduled run on this sha that ran anything". A run that
+# ran only the monkey would read as covering the sha, so a green or still-running
+# monkey would skip the e2e and jvm sets it never ran.
+#
+# Gates nothing, and reports to no fleet alert: a flagged run shows red on the
+# Actions tab and in this workflow's own history. That alerting policy is for the
+# operator to decide; today it would alert on EVERY flag, including one that
+# turns out to be a deck-specific Forge quirk rather than a UI soft lock.
+
+on:
+  schedule:
+    - cron: '30 7 * * *'
+  workflow_dispatch:
+    inputs:
+      runs_on:
+        description: >-
+          Leave this empty. It is for `fleet prove-job` only, which mints a
+          runner carrying a label unique to that one proof and passes
+          `["self-hosted","<that label>"]` here. Empty = the usual jdk21 pool.
+        required: false
+        default: ''
+      monkey_seed:
+        description: 'A specific seed, for reproducing a reported run. Empty = a fresh one, printed in the log.'
+        required: false
+        default: ''
+      monkey_sample:
+        description: 'How many random library decks to cover. Empty = 8 on a dispatch, every deck on the nightly schedule.'
+        required: false
+        default: ''
+      monkey_deck:
+        description: 'One library deck id, instead of a sample — for reproducing a reported run exactly.'
+        required: false
+        default: ''
+
+# Every run is its own group: a dispatch is somebody's proof run and never waits
+# on the nightly, nor the nightly on it.
+concurrency:
+  group: forge-monkey-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  forge-monkey:
+    name: forge-monkey
+    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21","lane-forge"]') }}
+    # A sampled dispatch run is a handful of matches. The nightly takes the
+    # whole library (1,523 decks at this writing, hours of play at two at a
+    # time) in a seed-shuffled order and plays for as long as its budget
+    # (`--budget-ms`, below) lasts, so each night covers a different slice and
+    # the report is always written before this timeout.
+    timeout-minutes: ${{ github.event_name == 'schedule' && 90 || 30 }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+
+      - name: Build the bundle
+        run: pnpm --filter @hadoku/ui build
+
+      - name: Build the server
+        run: pnpm --filter @hadoku/server build
+
+      # Per-pin bundle — see the identical step in forge.yml's `forge-e2e`/`forge-jvm`.
+      # This is what keeps the monkey's jar and res matched to THIS commit's
+      # own pin: a mismatch between a worktree's bridge source and a jar built
+      # for a different pin fails the JVM's own compile step (measured
+      # locally while proving this job — `bridge.stderr.txt` names the exact
+      # Forge API that moved), never Forge's own card logic.
+      - name: Resolve the Forge bundle for this commit's pin
+        run: bash scripts/forge-bundle.sh >> "$GITHUB_ENV"
+
+      - name: Forge is present, or the monkey can never start a match
+        run: |
+          test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR"; exit 1; }
+          test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES"; exit 1; }
+
+      # TWO MATCHES AT A TIME, EACH JVM CAPPED AT 1 GiB OF HEAP. The server's
+      # default heap (`JVM_HEAP_MB` = 2048, packages/game-server/src/play/local-jvm.ts)
+      # is sized for a JVM hosting 25 matches, and G1 never hands committed heap
+      # back, so a monkey JVM ratcheted to 2.5–2.8 GB of RSS. At three matches
+      # that was three or four such JVMs plus ~1.8 GB of Node: cgroup-OOM-killed
+      # at 6.2 GiB on claw-9 (2026-11-17) and at 8 GiB on hokon (2026-11-19).
+      # 1 GiB is the heap the play README measured a single-match JVM at
+      # (745–853 MB RSS running); an `-Xmx` in CARDTABLE_PLAY_JVM_OPTS beats the
+      # default.
+      - name: Monkey — play every (or a sample of) library deck's matches
+        env:
+          CARDTABLE_PLAY_JVM_OPTS: -Xmx1g
+        run: |
+          echo "host at start: $(uptime)"; free -m | sed -n 2p
+          args=()
+          [ -n "${{ inputs.monkey_seed }}" ] && args+=(--seed "${{ inputs.monkey_seed }}")
+          if [ -n "${{ inputs.monkey_deck }}" ]; then
+            args+=(--deck "${{ inputs.monkey_deck }}")
+          elif [ -n "${{ inputs.monkey_sample }}" ]; then
+            args+=(--sample "${{ inputs.monkey_sample }}")
+          elif [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then
+            args+=(--sample 8)
+          fi
+          # A nightly run with no sample/deck given takes every library deck in an order its seed
+          # picks, for as long as its budget lasts. The budget stops new matches well inside the
+          # job's timeout, so the matches still playing finish and the report is written and
+          # uploaded: a run the timeout kills uploads nothing. A match still playing 8 min past the
+          # budget is conceded (cli.ts BUDGET_GRACE_MS), so 75+8 fits 90 and 17+8 fits 30.
+          budget_ms=$(( ${{ github.event_name == 'schedule' && 75 || 17 }} * 60 * 1000 ))
+          set -x
+          apps/server/node_modules/.bin/tsx games/magic/server/src/play/monkey/cli.ts \
+            --matches-per-deck 1 --concurrency 2 --budget-ms "$budget_ms" \
+            --out "${{ runner.temp }}/monkey-report.json" \
+            "${args[@]}"
+
+      - uses: ./.github/actions/upload-artifact-retry
+        if: always()
+        # Its own cap — see forge.yml's forge-e2e "E2E evidence" step.
+        timeout-minutes: 5
+        with:
+          name: monkey-report-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/monkey-report.json
+          if-no-files-found: warn
+          retention-days: 30

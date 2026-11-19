@@ -147,16 +147,22 @@ Mutation evidence, each reverted before landing:
 
 ## CI
 
-`.github/workflows/forge.yml`'s `forge-monkey` job: the library in a
-seed-shuffled order for a 75-minute budget, nightly (the `0 10 * * *` cron, beside the existing full-run schedule), on
-the per-pin bundle `scripts/forge-bundle.sh` resolves for whatever commit is
-on `main` that night. A manual dispatch with `monkey: true` runs a sample of
-8 by default (`monkey_sample`/`monkey_seed`/`monkey_deck` inputs to narrow or
-reproduce). Gates nothing — same as every other job in this file — and is
-deliberately NOT in the `report` job's `needs`, so a flag shows red on the
-Actions tab and in the schedule history without reaching the fleet's Discord
-alert; that alerting decision is the operator's to make once this has run a
-few nights for real.
+`.github/workflows/forge-monkey.yml`, a workflow of its own: the library in a
+seed-shuffled order for a 75-minute budget, nightly at 07:30Z (the `30 7 * * *`
+cron), two matches at a time with each Forge JVM capped at `-Xmx1g`
+(`CARDTABLE_PLAY_JVM_OPTS`), on the per-pin bundle `scripts/forge-bundle.sh`
+resolves for whatever commit is on `main` that night. A manual dispatch of that
+workflow runs a sample of 8 by default (`monkey_sample`/`monkey_seed`/`monkey_deck`
+inputs to narrow or reproduce). It gates nothing and reaches no fleet alert: a
+flag shows red on the Actions tab and in the workflow's own history; that
+alerting decision is the operator's to make.
+
+Until 2026-11-19 it was a job in `forge.yml`, started by the 10:00Z nightly
+full run, three matches at a time on the server's 2 GiB default heap. The full
+run's e2e and jvm shards filled the lane-forge claws, so the monkey overflowed to
+hokon, and its JVMs (2.5–2.8 GB RSS each) were cgroup-OOM-killed on claw-9
+(2026-11-17) and hokon (2026-11-19). The workflow's header has the measurements
+behind the new slot.
 
 ## What it does not do yet
 
