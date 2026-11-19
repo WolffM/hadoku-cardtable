@@ -6,7 +6,7 @@
 import type { Request, Response } from 'express';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '@hadoku/game-server/config';
-import { tierOf, userIdOf, verifiedOf } from '@hadoku/game-server/edge-auth';
+import { tierOf, userIdOf } from '@hadoku/game-server/edge-auth';
 import { createStatsReporter } from '@hadoku/game-server/stats/reporter';
 import { createKeyBook, createMatchStats } from '../stats/index.js';
 import type { CardtablePlugin } from './state.js';
@@ -21,7 +21,7 @@ export const statsPlugin: CardtablePlugin = {
 		api.get('/whoami', (req: Request, res: Response) => {
 			// Handed straight through from the edge, post-sanitize: the first thing to curl when wiring
 			// the tunnel up, since it proves provenance end to end.
-			res.json({ userId: userIdOf(req), tier: tierOf(req), verified: verifiedOf(req) });
+			res.json({ userId: userIdOf(req), tier: tierOf(req) });
 		});
 
 		// A finished room match is reported with this server's service key; without one, nothing is

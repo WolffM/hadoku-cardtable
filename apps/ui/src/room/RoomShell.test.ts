@@ -42,7 +42,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 const { UNKNOWN_THEME, viewer } = vi.hoisted(() => ({
   UNKNOWN_THEME: 'aurora-dusk',
   /** The tier whoami answers with; a spec sets it before rendering. */
-  viewer: { tier: 'friend' as 'friend' | 'member' },
+  viewer: { tier: 'friend' as 'friend' | 'guest' },
 }));
 
 vi.mock('@wolffm/prefs-client', () => ({
@@ -126,12 +126,12 @@ describe('the viewer\'s tier', () => {
   /*
    * The chrome reads `public` as signed out: no display name for chat (`Md()` in
    * `dist/chunks/index-*.js`, 0.45.13) and a sign-in redirect on hadoku.me. A
-   * member is signed in, so the chrome must hear `member`, which it ranks itself.
+   * guest is signed in, so the chrome must hear `guest`, which it ranks itself.
    */
-  it('reaches the chrome as the tier whoami answered, a member included', async () => {
-    viewer.tier = 'member';
+  it('reaches the chrome as the tier whoami answered, a guest included', async () => {
+    viewer.tier = 'guest';
     render(createElement(RoomShell, { roomId: 'm-test', children: createElement('div', null, 'content') }));
-    await waitFor(() => expect(screen.getByTestId('room-chrome').dataset.userType).toBe('member'));
+    await waitFor(() => expect(screen.getByTestId('room-chrome').dataset.userType).toBe('guest'));
   });
 });
 

@@ -73,13 +73,14 @@ export function edgeHeaders(
   const friend = FRIENDS[sessionOf(inbound) ?? ''];
   if (friend !== undefined) {
     out['x-edge-auth'] = secret;
-    // A player is a member, as on hadoku.me since D24; an identity names a higher tier itself.
-    out['x-hadoku-tier'] = friend.tier ?? 'member';
+    // A player is a guest, as every visitor's account on hadoku.me is; an identity names a higher tier itself.
+    out['x-hadoku-tier'] = friend.tier ?? 'guest';
     out['x-user-id'] = friend.userId;
     out['x-user-name'] = friend.name;
     out['x-user-key'] = friend.key;
-    // The real edge's `isVerified`: every tier above member, and a member with the registry's flag.
-    if (out['x-hadoku-tier'] !== 'member' || friend.verified === true) out['x-hadoku-verified'] = '1';
+    // The real edge still sends X-Hadoku-Verified for member and up until every repo stops reading
+    // it; cardtable reads the tier alone, and stamping it here keeps that proven.
+    if (out['x-hadoku-tier'] !== 'guest') out['x-hadoku-verified'] = '1';
   }
   return out;
 }

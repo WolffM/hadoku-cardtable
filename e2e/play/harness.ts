@@ -666,8 +666,8 @@ export async function startPlayStack(forge: { jar: string; res: string }, opts: 
         CARDTABLE_FORGE_RES: forge.res,
         CARDTABLE_PLAY_PROBE: '1',
         // One test identity makes every room and starts every match of a run (`config.ts`).
-        // Production's floor (D24): every player is a member, and the server's own seal says so too.
-        CARDTABLE_MIN_TIER: 'member',
+        // Production's floor: every player is at least a guest, and the server's own seal says so too.
+        CARDTABLE_MIN_TIER: 'guest',
         CARDTABLE_E2E_NO_RATE_LIMITS: '1',
         // People's prefs rows and looks from this stack's own edge (its prefs stand-in), never hadoku.me.
         CARDTABLE_PREFS_BASE_URL: `${PLAY_EDGE_ORIGIN}${PREFS_MOUNT}`,

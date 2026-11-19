@@ -33,16 +33,17 @@ export type WhoState = Who | null | 'pending';
  * How a game reads the fleet's tier for the viewer. Default: as the fleet answered it. Cardtable's
  * composition root registers {@link tierOfWhoami}.
  */
-const whoamiTier = registered<(r: Pick<WhoamiAnswer, 'userType' | 'verified'>) => Who['tier']>('whoami tier', () => (r) => r.userType);
+const whoamiTier = registered<(r: Pick<WhoamiAnswer, 'userType'>) => Who['tier']>('whoami tier', () => (r) => r.userType);
 export const registerWhoamiTier = whoamiTier.set;
 
 /**
- * The viewer's tier as cardtable treats it: a member the operator has verified IS a friend here (the
- * operator, 2026-11-05: *"for cardtable they will be equivalent"*). The server's `tierOf` makes the
- * same call for every gate; this is the tier the fleet chrome is handed to show.
+ * The viewer's tier as cardtable treats it: a member (a guest the operator has verified) IS a friend
+ * here (the operator, 2026-11-05: *"for cardtable they will be equivalent"*); a guest is never
+ * promoted. Read from the tier alone, never the fleet's `verified` flag. The server's `tierOf` makes
+ * the same call for every gate; this is the tier the fleet chrome is handed to show.
  */
-export function tierOfWhoami(r: Pick<WhoamiAnswer, 'userType' | 'verified'>): Who['tier'] {
-  return r.userType === 'member' && r.verified === true ? 'friend' : r.userType;
+export function tierOfWhoami(r: Pick<WhoamiAnswer, 'userType'>): Who['tier'] {
+  return r.userType === 'member' ? 'friend' : r.userType;
 }
 
 /** The page's one resolution, when an app shell above has made it (`../app/GameAppShell.tsx`). */

@@ -13,9 +13,4 @@ export interface Caller {
 	id: string;
 	name: string;
 	userId: string | null;
-	/**
-	 * The edge's `X-Hadoku-Verified`: the operator verifies this person (`verifiedOf`). Absent is
-	 * not verified, as the header's own absence is: a restored or synthetic caller verifies nobody.
-	 */
-	verified?: boolean;
 }

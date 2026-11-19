@@ -9,7 +9,7 @@ vi.mock('@wolffm/prefs-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wolffm/prefs-client')>()),
   whoami: () => {
     asked.count += 1;
-    return Promise.resolve({ userId: 'u-1', userType: 'member' as const, verified: true, name: 'Pat' });
+    return Promise.resolve({ userId: 'u-1', userType: 'member' as const, name: 'Pat' });
   },
 }));
 vi.mock('@wolffm/task-ui-components', async (importOriginal) => ({

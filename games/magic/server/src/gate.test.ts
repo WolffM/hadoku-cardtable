@@ -9,7 +9,7 @@
  * production wiring.
  *
  * Each surface is asked the same three questions:
- *   1. does it refuse one tier below the floor, and admit at it;
+ *   1. does it refuse below the floor (a guest), and admit a member and a friend;
  *   2. does it refuse a caller the edge never vouched for, and one carrying a
  *      forged seal;
  *   3. does it report `seal-refused` exactly once, with today's fields.
@@ -251,8 +251,9 @@ function surfaces(): Array<[surface: 'http' | 'draft-socket' | 'play-socket' | '
 }
 
 describe('the one gate: every surface refuses below the floor and admits at it', () => {
-	it.each(surfaces())('%s refuses one tier below the floor (member), and admits at it (friend)', async (_surface, _path, h) => {
-		expect(await h().admitted(edgeHeaders('member'))).toBe(false);
+	it.each(surfaces())('%s refuses below the floor (a guest; a member reads as friend), and admits at it (friend)', async (_surface, _path, h) => {
+		expect(await h().admitted(edgeHeaders('guest'))).toBe(false);
+		expect(await h().admitted(edgeHeaders('member'))).toBe(true);
 		expect(await h().admitted(edgeHeaders('friend'))).toBe(true);
 	});
 
@@ -265,10 +266,10 @@ describe('the one gate: every surface refuses below the floor and admits at it',
 	});
 
 	it.each(surfaces())('%s reports seal-refused exactly once, with today\'s fields', async (surface, path, h) => {
-		await h().admitted(edgeHeaders('member'));
+		await h().admitted(edgeHeaders('guest'));
 		const refusals = sealRefusals();
 		expect(refusals, JSON.stringify(refusals)).toHaveLength(1);
-		expect(refusals[0]).toMatchObject({ surface, path, via: 'edge', tier: 'member', userId: 'user-gate-test' });
+		expect(refusals[0]).toMatchObject({ surface, path, via: 'edge', tier: 'guest', userId: 'user-gate-test' });
 	});
 
 	it.each(surfaces())('%s reports nothing on an admitted handshake', async (_surface, _path, h) => {

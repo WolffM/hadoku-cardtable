@@ -7,7 +7,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import express from 'express';
+import express, { type Request } from 'express';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -86,10 +86,12 @@ describe('/api/trim', () => {
 		const file = await trimFile();
 		const base = await openApp(file);
 		// Every tier below admin, public included: below the app's floor the
-		// request never reaches the route (404), at or above it the route refuses (403).
+		// request never reaches the route (404), at or above it the route refuses (403). A tier is ranked
+		// as `tierOf` reads it, so a member counts as the friend it is here.
 		const floor = edgeMod.rankOf((await import('../config.ts')).CONFIG.minTier);
+		const read = (tier: string) => edgeMod.rankOf(edgeMod.tierOf({ headers: { 'x-hadoku-tier': tier } } as unknown as Request));
 		for (const tier of edgeMod.TIER_ORDER.slice(0, edgeMod.TIER_ORDER.indexOf('admin'))) {
-			expect((await call(base, 'PUT', tier, { trim: { frame: 'hud' } })).status, tier).toBe(edgeMod.rankOf(tier) < floor ? 404 : 403);
+			expect((await call(base, 'PUT', tier, { trim: { frame: 'hud' } })).status, tier).toBe(read(tier) < floor ? 404 : 403);
 		}
 		expect((await call(base, 'GET', 'friend')).json.trim).toBeNull();
 	});

@@ -515,11 +515,16 @@ test('the friend gate still bites: no session, no page and no socket', async ({ 
   await alice.addCookies([{ name: SESSION_COOKIE, value: 'alice', domain: '127.0.0.1', path: '/' }]);
   const who = await alice.request.get(`${EDGE_ORIGIN}${PREFIX}/api/whoami`);
   expect(who.status()).toBe(200);
-  // A plain member: the operator verifies nobody the edge did not say so of.
-  expect(await who.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'member', verified: false });
-  // A verification the browser sends itself is the edge's to strip, like every identity header.
+  // A guest: the account every visitor gets, which the operator has not verified.
+  expect(await who.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'guest' });
+  // A verification the browser sends itself is the edge's to strip, and promotes nobody anyway.
   const forgedVerified = await alice.request.get(`${EDGE_ORIGIN}${PREFIX}/api/whoami`, { headers: { 'x-hadoku-verified': '1' } });
-  expect(await forgedVerified.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'member', verified: false });
+  expect(await forgedVerified.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'guest' });
+  // A member (a guest the operator verified) is a friend here, read from the tier alone.
+  const erin = await browser.newContext();
+  await erin.addCookies([{ name: SESSION_COOKIE, value: 'erin', domain: '127.0.0.1', path: '/' }]);
+  expect(await (await erin.request.get(`${EDGE_ORIGIN}${PREFIX}/api/whoami`)).json()).toEqual({ userId: FRIENDS.erin.userId, tier: 'friend' });
+  await erin.close();
 
   await stranger.close();
   await alice.close();

@@ -16,7 +16,7 @@ test("Create room opens prefilled with the viewer's name and a word from the lis
   try {
     await context.addCookies([{ name: SESSION_COOKIE, value: 'alice', domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
     await keepPrefsLocal(context, EDGE_ORIGIN);
-    await context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.userId, userType: 'member', name: me.name } }));
+    await context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.userId, userType: 'guest', name: me.name } }));
     const page = await context.newPage();
     const created: Record<string, unknown>[] = [];
     page.on('request', (req) => {

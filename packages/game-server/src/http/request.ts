@@ -27,7 +27,7 @@ import {
 	type BodySchema,
 } from '@hadoku/service-kernel/limits';
 
-import { accountIdOf, userNameOf, verifiedOf } from '../edge-auth.js';
+import { accountIdOf, userNameOf } from '../edge-auth.js';
 import { identityFromHeaders } from '../room/identity.js';
 
 export { bodyErrors, parseBody, readBody };
@@ -46,10 +46,10 @@ const UNNAMED = 'friend';
 /**
  * Who is asking, for a lobby call: the id, the DISPLAY NAME (`X-User-Name`, never the opaque
  * userId — a roster is for humans; a key the edge sent no name for gets `UNNAMED`), and the userId
- * a saved room keeps instead of the name (R12), and whether the operator verifies them.
+ * a saved room keeps instead of the name (R12).
  */
 export function callerOf(req: Request) {
-	return { id: httpCaller(req), name: userNameOf(req) ?? UNNAMED, userId: accountIdOf(req), verified: verifiedOf(req) };
+	return { id: httpCaller(req), name: userNameOf(req) ?? UNNAMED, userId: accountIdOf(req) };
 }
 
 /**

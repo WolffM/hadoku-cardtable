@@ -30,18 +30,18 @@ describe('createGate: knows no game, every dependency is injected', () => {
 		expect(gate.floor({ 'x-hadoku-tier': 'admin' }, 'friend')).toEqual({ ok: false, tier: 'public' });
 	});
 
-	it('floor promotes a verified member to friend, same as the auth module does', () => {
+	it('floor promotes a member to friend, same as the auth module does', () => {
 		const { gate } = newGate('friend');
-		const headers = { 'x-edge-auth': 'ok', 'x-hadoku-tier': 'member', 'x-hadoku-verified': '1' };
+		const headers = { 'x-edge-auth': 'ok', 'x-hadoku-tier': 'member' };
 		expect(gate.floor(headers, 'friend')).toEqual({ ok: true, tier: 'friend' });
 	});
 
-	it('a guest floor admits a guest exactly as it admits an unverified member; a member floor refuses the guest', () => {
+	it('a guest floor admits a guest and a member (read as friend); a member floor refuses the guest', () => {
 		const { gate } = newGate('guest');
 		const guest = () => ({ 'x-edge-auth': 'ok', 'x-hadoku-tier': 'guest' });
 		const member = () => ({ 'x-edge-auth': 'ok', 'x-hadoku-tier': 'member' });
 		expect(gate.floor(guest(), 'guest')).toEqual({ ok: true, tier: 'guest' });
-		expect(gate.floor(member(), 'guest')).toEqual({ ok: true, tier: 'member' });
+		expect(gate.floor(member(), 'guest')).toEqual({ ok: true, tier: 'friend' });
 		expect(gate.floor({ 'x-edge-auth': 'ok', 'x-hadoku-tier': 'public' }, 'guest')).toEqual({ ok: false, tier: 'public' });
 		expect(gate.floor({ 'x-hadoku-tier': 'guest' }, 'guest')).toEqual({ ok: false, tier: 'public' });
 		expect(gate.floor(guest(), 'member')).toEqual({ ok: false, tier: 'guest' });
@@ -52,7 +52,7 @@ describe('createGate: knows no game, every dependency is injected', () => {
 		let minTier = 'friend';
 		const reportSealRefused = vi.fn();
 		const gate = createGate({ sanitizeHeaders, edgeProvenance, tierOf, rankOf, reportSealRefused, minTier: () => minTier });
-		const req = { headers: { 'x-edge-auth': 'ok', 'x-hadoku-tier': 'member' }, path: '/x' } as unknown as Request;
+		const req = { headers: { 'x-edge-auth': 'ok', 'x-hadoku-tier': 'guest' }, path: '/x' } as unknown as Request;
 		let passed = false;
 		const res = { status: () => res, type: () => res, send: () => res } as unknown as Response;
 		gate.requireMinTier(req, res, () => {
@@ -60,7 +60,7 @@ describe('createGate: knows no game, every dependency is injected', () => {
 		});
 		expect(passed).toBe(false);
 
-		minTier = 'member';
+		minTier = 'guest';
 		gate.requireMinTier(req, res, () => {
 			passed = true;
 		});

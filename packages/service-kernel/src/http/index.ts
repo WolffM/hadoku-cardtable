@@ -38,7 +38,7 @@ export interface GateDeps {
 	sanitizeHeaders(headers: Record<string, unknown>): void;
 	/** Express/engine.io middleware that does the same, for a socket's handshake (the app's `createEdgeAuth(...).edgeProvenance`). */
 	edgeProvenance(req: Request, res: Response, next: NextFunction): void;
-	/** The app's own `tierOf` (its auth binding's, so a verified-member promotion if any applies). */
+	/** The app's own `tierOf` (its auth binding's, so a member-to-friend promotion if any applies). */
 	tierOf(req: Request): string;
 	rankOf(tier: string): number;
 	reportSealRefused: SealRefusedReporter;

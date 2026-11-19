@@ -155,6 +155,8 @@ export function createEdgeAuth(config: EdgeAuthConfig): EdgeAuth {
 		delete headers['x-user-id'];
 		delete headers['x-user-name'];
 		delete headers['x-user-key'];
+		// Nothing here reads X-Hadoku-Verified any more (the tier says it), but the edge still sends it
+		// until every repo has stopped reading it; a forged copy must never survive an unproven request.
 		delete headers['x-hadoku-verified'];
 	}
 
@@ -171,31 +173,18 @@ export function createEdgeAuth(config: EdgeAuthConfig): EdgeAuth {
 }
 
 /**
- * The caller's tier as the app's headers carry it, except that a verified
- * member IS a friend here: an app that admits members alongside the tiers it
- * hands out may choose to treat its own verification the same as a vouch.
- * Never above friend: admin stays admin's, and a guest is never promoted, flag
- * or not (only a `member` with the flag is). Pure — only `sanitizeHeaders`
- * decides whether a header is trustworthy in the first place.
+ * The caller's tier as the app's headers carry it, except that a member IS a
+ * friend here: `member` is a guest the operator has verified, and an app that
+ * admits members alongside the tiers it hands out may treat that verification
+ * the same as a vouch. Never above friend: admin stays admin's, and a guest is
+ * never promoted. Read from the tier alone; the edge's `X-Hadoku-Verified` says
+ * nothing the tier does not. Pure — only `sanitizeHeaders` decides whether a
+ * header is trustworthy in the first place.
  */
 export function tierOf(req: Request): string {
 	const t = req.headers['x-hadoku-tier'];
 	const tier = typeof t === 'string' && t !== '' ? t : 'public';
-	return tier === 'member' && verifiedOf(req) ? 'friend' : tier;
-}
-
-/**
- * Is this caller verified (`X-Hadoku-Verified: 1`)? Absent means not
- * verified. Pure: trustworthiness is `sanitizeHeaders`'s job, done before this
- * is ever read.
- */
-export function verifiedOf(req: Request): boolean {
-	return verifiedFromHeaders(req.headers);
-}
-
-/** `verifiedOf` for a socket's handshake, whose headers went through the same sanitizing. */
-export function verifiedFromHeaders(headers: IncomingHttpHeaders): boolean {
-	return headers['x-hadoku-verified'] === '1';
+	return tier === 'member' ? 'friend' : tier;
 }
 
 /** The caller's userId as the edge stamped it; null when the edge named nobody. */

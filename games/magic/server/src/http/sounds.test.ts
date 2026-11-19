@@ -249,8 +249,9 @@ describe('GET /api/sounds/assignments', () => {
 		// remembering to list it (hadoku_site's tier audit, 2026-10-07).
 		for (const tier of TIER_ORDER) {
 			const res = await call(h, 'GET', '/api/sounds/assignments', { tier });
-			if (TIER_ORDER.indexOf(tier) < TIER_ORDER.indexOf('friend')) {
-				// Below the default friend floor (public, member): refused outright,
+			// A member reads as friend here (`tierOf`), so only public and guest are below the floor.
+			if (TIER_ORDER.indexOf(tier) < TIER_ORDER.indexOf('member')) {
+				// Below the default friend floor (public, guest): refused outright,
 				// never a read with canEdit false.
 				expect(res.status, tier).toBe(404);
 				continue;
@@ -625,13 +626,14 @@ describe('every /api/sounds route is friend tier and above', () => {
 		{ method: 'GET', path: '/api/sounds/music-review' },
 	];
 
-	it('below friend is refused before any route runs; friend and above get past the gate', async () => {
+	it('below friend is refused before any route runs; a member (read as friend) and above get past the gate', async () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);
 		await writeTakeFile(dir, TAKE.file);
 		const h = await openApp(dir);
-		const below = TIER_ORDER.filter((t) => TIER_ORDER.indexOf(t) < TIER_ORDER.indexOf('friend'));
-		expect(below).toEqual(['public', 'guest', 'member']);
+		// A member reads as friend here (`tierOf`), so it is not below.
+		const below = TIER_ORDER.filter((t) => TIER_ORDER.indexOf(t) < TIER_ORDER.indexOf('member'));
+		expect(below).toEqual(['public', 'guest']);
 		for (const r of ROUTES) {
 			for (const tier of [...below, 'not-a-tier']) {
 				const res = await call(h, r.method, r.path, { tier, body: r.body });
@@ -642,25 +644,27 @@ describe('every /api/sounds route is friend tier and above', () => {
 		// Nothing a refused caller sent reached the disk.
 		expect((await readdir(dir)).sort()).toEqual(['catalogue.json', 'takes']);
 		for (const r of ROUTES) {
-			const res = await call(h, r.method, r.path, { tier: 'friend', body: r.body });
-			expect(res.status, `friend ${r.method} ${r.path}`).not.toBe(404);
+			for (const tier of ['member', 'friend']) {
+				const res = await call(h, r.method, r.path, { tier, body: r.body });
+				expect(res.status, `${tier} ${r.method} ${r.path}`).not.toBe(404);
+			}
 		}
 	});
 });
 
-describe('the music review is friend tier and above even when the app lets members in', () => {
+describe('the music review is friend tier and above even when the app lets guests in', () => {
 	let mods: { sounds: typeof import('./sounds.ts'); edge: typeof import('@hadoku/game-server/edge-auth') };
 	let savedMinTier: string | undefined;
 
 	beforeAll(async () => {
 		savedMinTier = process.env.CARDTABLE_MIN_TIER;
-		process.env.CARDTABLE_MIN_TIER = 'member';
+		process.env.CARDTABLE_MIN_TIER = 'guest';
 		vi.resetModules();
 		mods = { sounds: await import('./sounds.ts'), edge: await import('@hadoku/game-server/edge-auth') };
-		// `CARDTABLE_MIN_TIER` stays 'member' for every `it` below, not only for this import: `CONFIG`
+		// `CARDTABLE_MIN_TIER` stays 'guest' for every `it` below, not only for this import: `CONFIG`
 		// is lazy (w120 §K) and reads it on the HTTP app's first request, not at this import, so
 		// restoring it here — before either `it` runs a single request — would read back the SAVED
-		// floor instead, and every "member passes the general floor, the feature's own friend-gate
+		// floor instead, and every "a guest passes the general floor, the feature's own friend-gate
 		// still refuses them" assertion would see a 404 (the general floor) where it expects 403 (the
 		// feature). Restored in `afterAll`, once both `it`s are done with it.
 	});
@@ -670,36 +674,37 @@ describe('the music review is friend tier and above even when the app lets membe
 		else process.env.CARDTABLE_MIN_TIER = savedMinTier;
 	});
 
-	it('a member gets 403 from the music-review routes and writes nothing; the takes themselves stay open to them', async () => {
+	it('a guest gets 403 from the music-review routes and writes nothing; the takes themselves stay open to them', async () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);
 		const h = await openApp(dir, mods);
-		const post = await call(h, 'POST', '/api/sounds/music-review', { tier: 'member', body: { slots: {} } });
-		const mine = await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member' });
+		const post = await call(h, 'POST', '/api/sounds/music-review', { tier: 'guest', body: { slots: {} } });
+		const mine = await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'guest' });
 		expect(post.status).toBe(403);
 		expect(mine.status).toBe(403);
-		expect((await call(h, 'GET', '/api/sounds/music-review', { tier: 'member' })).status).toBe(403);
+		expect((await call(h, 'GET', '/api/sounds/music-review', { tier: 'guest' })).status).toBe(403);
 		expect(h.prefs.rows(MUSIC_REVIEW_APP_ID).size).toBe(0);
 		expect((await readdir(dir)).sort()).toEqual(['catalogue.json']);
-		expect((await call(h, 'GET', '/api/sounds/catalogue', { tier: 'member' })).status).toBe(200);
+		expect((await call(h, 'GET', '/api/sounds/catalogue', { tier: 'guest' })).status).toBe(200);
 		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'friend' })).status).toBe(200);
 	});
 
-	it('a member the operator verifies passes the friend gate exactly as a friend; a forged verification past the edge does not', async () => {
+	it('a member (a guest the operator verified) passes the friend gate exactly as a friend, by the tier alone; a guest with the verification header does not', async () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);
 		const h = await openApp(dir, mods);
 		const verified = { 'x-hadoku-verified': '1' };
+		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member' })).status).toBe(200);
 		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: verified })).status).toBe(200);
-		expect((await call(h, 'POST', '/api/sounds/music-review', { tier: 'member', headers: verified, body: { slots: {} } })).status).not.toBe(403);
-		// A plain member is refused as before.
-		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member' })).status).toBe(403);
-		// No X-Edge-Auth: the verification is stripped with the rest, and the floor answers first.
-		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: { ...verified, 'x-edge-auth': '' } })).status).toBe(404);
-		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: { ...verified, 'x-edge-auth': 'forged' } })).status).toBe(404);
-		// Admin stays admin's: a verification is not a promotion past friend (everyone's reviews, a mark).
-		expect((await call(h, 'GET', '/api/sounds/music-review', { tier: 'member', headers: verified })).status).toBe(403);
-		expect((await call(h, 'PUT', '/api/sounds/marks', { tier: 'member', headers: verified, body: {} })).status).toBe(403);
+		expect((await call(h, 'POST', '/api/sounds/music-review', { tier: 'member', body: { slots: {} } })).status).not.toBe(403);
+		// The header promotes nobody: a guest carrying it, even behind the edge's seal, is refused as before.
+		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'guest', headers: verified })).status).toBe(403);
+		// No X-Edge-Auth: the identity is stripped with the rest, and the floor answers first.
+		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: { 'x-edge-auth': '' } })).status).toBe(404);
+		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: { 'x-edge-auth': 'forged' } })).status).toBe(404);
+		// Admin stays admin's: a member is not promoted past friend (everyone's reviews, a mark).
+		expect((await call(h, 'GET', '/api/sounds/music-review', { tier: 'member' })).status).toBe(403);
+		expect((await call(h, 'PUT', '/api/sounds/marks', { tier: 'member', body: {} })).status).toBe(403);
 	});
 });
 

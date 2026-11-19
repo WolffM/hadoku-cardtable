@@ -24,7 +24,7 @@ const GameTab = () => (<><GameSettings /><MatchSettings /><ExperimentalSettings 
 export function composeGame(): void {
   registerSettings({ Game: GameTab, Sound: SoundSettings, prefs: getPlayPrefsClient, defaultScale: PLAY_PREFS_DEFAULTS.uiScale, onScaled: forgetCardWidths });
   registerPlayerMark(PlayerMark);
-  // A member the operator has verified is a friend here (`tierOfWhoami`).
+  // A member (a guest the operator has verified) is a friend here (`tierOfWhoami`).
   registerWhoamiTier(tierOfWhoami);
   registerEmbedAddress((catalogue, view) => RallyCatalogueSchema.safeParse(catalogue).success && RallyViewSchema.safeParse(view).success);
   // Built on first play, like the mixer itself. `ui.*` roles logged one by one as they sound stay out of the interface tally.

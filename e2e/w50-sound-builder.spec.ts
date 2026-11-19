@@ -1,8 +1,8 @@
 /**
  * The sound builder, end to end, against the REAL built server — admin can
- * place a take and have it survive a reload; a member gets the screens to
+ * place a take and have it survive a reload; a guest gets the screens to
  * listen to and no editor. Then the match-music review (`#/sounds/music`): a
- * member is refused, and a friend picks, submits, and finds the submission
+ * guest is refused, and a friend picks, submits, and finds the submission
  * restored and on disk.
  *
  * Operator, 2026-10-05: *"somewhat concerned about this being an artifact
@@ -41,9 +41,9 @@
  * ## The admin identity
  *
  * `identities.ts` carries an optional `tier` per identity (`edge.ts` stamps
- * `identity.tier ?? 'member'`): `admin` for the editor, `dana` at friend tier for
- * the music review, `erin` a member the operator verifies (a friend here), and every other
- * identity a member.
+ * `identity.tier ?? 'guest'`): `admin` for the editor, `dana` at friend tier for
+ * the music review, `erin` a member (a guest the operator verified, so a friend here), and every
+ * other identity a guest.
  *
  * ## What is NOT proven here
  *
@@ -161,9 +161,9 @@ async function open(browser: Browser, name: string): Promise<Friend> {
   return { context, page };
 }
 
-test('admin can place a take and reload to find it saved; a member listens and edits nothing', async ({ browser }) => {
+test('admin can place a take and reload to find it saved; a guest listens and edits nothing', async ({ browser }) => {
   const admin = await open(browser, 'admin');
-  const member = await open(browser, 'bob');
+  const guest = await open(browser, 'bob');
 
   // Nothing on this page should ever throw as an uncaught page-level error —
   // in particular, clicking a pill whose bytes are not real audio must stay
@@ -174,20 +174,20 @@ test('admin can place a take and reload to find it saved; a member listens and e
   admin.page.on('pageerror', (err) => pageErrors.push(err));
 
   try {
-    // ── the member first: the screens are open to members, writes are not ────
-    await member.page.goto(`${PREFIX}/#/sounds`);
-    await expect(member.page.getByRole('heading', { name: 'Sound Builder' })).toBeVisible();
+    // ── the guest first: the screens are open to guests, writes are not ────
+    await guest.page.goto(`${PREFIX}/#/sounds`);
+    await expect(guest.page.getByRole('heading', { name: 'Sound Builder' })).toBeVisible();
     // A pill to hear, and nothing that picks up, removes, levels or queues.
-    await expect(member.page.getByRole('button', { name: 'w50 test · a: play' })).toBeVisible();
-    await expect(member.page.getByRole('button', { name: /play and pick up/ })).toHaveCount(0);
-    await expect(member.page.getByRole('button', { name: 'Queue' })).toHaveCount(0);
-    await expect(member.page.locator('.sound-builder__pill-remove')).toHaveCount(0);
-    await expect(member.page.locator('input[type="range"]')).toHaveCount(0);
+    await expect(guest.page.getByRole('button', { name: 'w50 test · a: play' })).toBeVisible();
+    await expect(guest.page.getByRole('button', { name: /play and pick up/ })).toHaveCount(0);
+    await expect(guest.page.getByRole('button', { name: 'Queue' })).toHaveCount(0);
+    await expect(guest.page.locator('.sound-builder__pill-remove')).toHaveCount(0);
+    await expect(guest.page.locator('input[type="range"]')).toHaveCount(0);
     // And the gate is the SERVER's, not just the screen's own choice not to
-    // render: the member's own request for the assignments says so too.
-    const memberAssignments = await member.page.request.get(`${PREFIX}/api/sounds/assignments`);
-    expect(memberAssignments.ok()).toBe(true);
-    expect((await memberAssignments.json()).canEdit).toBe(false);
+    // render: the guest's own request for the assignments says so too.
+    const guestAssignments = await guest.page.request.get(`${PREFIX}/api/sounds/assignments`);
+    expect(guestAssignments.ok()).toBe(true);
+    expect((await guestAssignments.json()).canEdit).toBe(false);
 
     // ── the admin: the real editor, with the real synthetic catalogue ────
     await admin.page.goto(`${PREFIX}/#/sounds`);
@@ -226,9 +226,9 @@ test('admin can place a take and reload to find it saved; a member listens and e
     await reloadedPlaced.click();
 
     // ── the sandbox: the same assignments, played as a scenario ──────────
-    await member.page.goto(`${PREFIX}/#/sounds/sandbox`);
-    await expect(member.page.getByRole('heading', { name: 'Sound Sandbox' })).toBeVisible();
-    await expect(member.page.getByRole('columnheader', { name: 'Gain' })).toHaveCount(0);
+    await guest.page.goto(`${PREFIX}/#/sounds/sandbox`);
+    await expect(guest.page.getByRole('heading', { name: 'Sound Sandbox' })).toBeVisible();
+    await expect(guest.page.getByRole('columnheader', { name: 'Gain' })).toHaveCount(0);
 
     await admin.page.getByRole('link', { name: 'Sandbox' }).click();
     await expect(admin.page.getByRole('heading', { name: 'Sound Sandbox' })).toBeVisible();
@@ -244,19 +244,19 @@ test('admin can place a take and reload to find it saved; a member listens and e
     expect(pageErrors).toEqual([]);
   } finally {
     await admin.context.close();
-    await member.context.close();
+    await guest.context.close();
   }
 });
 
 test('a friend reviews the match music: picks both lanes, submits, finds it restored and in their prefs row, then resets to a blank round', async ({ browser }) => {
   const friend = await open(browser, 'dana');
-  const member = await open(browser, 'bob');
+  const guest = await open(browser, 'bob');
   const pageErrors: Error[] = [];
   friend.page.on('pageerror', (err) => pageErrors.push(err));
   try {
-    // The review is friend tier, above the member floor: a member's submission is refused by the server.
-    const refused = await member.page.request.post(`${PREFIX}/api/sounds/music-review`, { data: {} });
-    expect(refused.status(), 'a member may not submit a music review').toBe(403);
+    // The review is friend tier, above the guest floor: a guest's submission is refused by the server.
+    const refused = await guest.page.request.post(`${PREFIX}/api/sounds/music-review`, { data: {} });
+    expect(refused.status(), 'a guest may not submit a music review').toBe(403);
 
     await friend.page.goto(`${PREFIX}/#/sounds`);
     await friend.page.getByRole('link', { name: 'Music' }).click();
@@ -311,19 +311,19 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     expect(pageErrors).toEqual([]);
   } finally {
     await friend.context.close();
-    await member.context.close();
+    await guest.context.close();
   }
 });
 
-test('a member the operator verifies opens the match-music review exactly as a friend does', async ({ browser }) => {
-  const verified = await open(browser, 'erin');
+test('a member (a guest the operator verified) opens the match-music review exactly as a friend does', async ({ browser }) => {
+  const member = await open(browser, 'erin');
   try {
-    expect((await verified.page.request.get(`${PREFIX}/api/sounds/music-review/mine`)).status(), 'the server lets her review').toBe(200);
-    await verified.page.goto(`${PREFIX}/#/sounds`);
-    await verified.page.getByRole('link', { name: 'Music' }).click();
-    await expect(verified.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
-    await expect(verified.page.getByTestId('music-review-slot')).toHaveCount(15);
+    expect((await member.page.request.get(`${PREFIX}/api/sounds/music-review/mine`)).status(), 'the server lets her review').toBe(200);
+    await member.page.goto(`${PREFIX}/#/sounds`);
+    await member.page.getByRole('link', { name: 'Music' }).click();
+    await expect(member.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
+    await expect(member.page.getByTestId('music-review-slot')).toHaveCount(15);
   } finally {
-    await verified.context.close();
+    await member.context.close();
   }
 });

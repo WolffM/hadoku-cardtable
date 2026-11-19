@@ -153,7 +153,7 @@ test('the embed binds one watchparty room to one table and leaves the host page 
   // The e2e edge stamps identity but serves no `/session/whoami`; answer it the
   // way hadoku.me does for a friend, because the avatar hop keys on that answer.
   for (const [context, who] of [[alice, 'alice'], [bob, 'bob']] as const) {
-    await context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: `e2e-${who}-id`, userType: 'member', name: `e2e-${who}` } }));
+    await context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: `e2e-${who}-id`, userType: 'guest', name: `e2e-${who}` } }));
   }
   // Dressed by her own key (`e2e/identities.ts`), the way her own account answers the
   // embed's GET for it — not the `whoami` mock above, which only the room hop reads.

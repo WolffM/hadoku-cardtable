@@ -13,8 +13,6 @@ import {
 	userKeyOf,
 	userNameFromHeaders,
 	userNameOf,
-	verifiedFromHeaders,
-	verifiedOf,
 } from './index.ts';
 
 const reqOf = (headers: Record<string, unknown>) => ({ headers }) as unknown as Request;
@@ -147,23 +145,21 @@ describe('createEdgeAuth: provenance is believed only behind the shared secret',
 	});
 });
 
-describe('tierOf: a verified member is promoted to friend, nobody else is touched', () => {
-	it('promotes a verified member to friend', () => {
+describe('tierOf: a member (a guest the operator verified) is a friend, read from the tier alone', () => {
+	it('promotes a member to friend, with or without X-Hadoku-Verified', () => {
+		expect(tierOf(reqOf({ 'x-hadoku-tier': 'member' }))).toBe('friend');
 		expect(tierOf(reqOf({ 'x-hadoku-tier': 'member', 'x-hadoku-verified': '1' }))).toBe('friend');
 	});
 
-	it('leaves an unverified member as member', () => {
-		expect(tierOf(reqOf({ 'x-hadoku-tier': 'member' }))).toBe('member');
-	});
-
-	it('never promotes a guest, even one carrying X-Hadoku-Verified', () => {
-		expect(tierOf(reqOf({ 'x-hadoku-tier': 'guest', 'x-hadoku-verified': '1' }))).toBe('guest');
+	it('never promotes a guest, with or without X-Hadoku-Verified', () => {
 		expect(tierOf(reqOf({ 'x-hadoku-tier': 'guest' }))).toBe('guest');
+		expect(tierOf(reqOf({ 'x-hadoku-tier': 'guest', 'x-hadoku-verified': '1' }))).toBe('guest');
 	});
 
-	it('promotes nobody but a member, and nobody past friend', () => {
+	it('promotes nobody but a member, and nobody past friend, whatever the header says', () => {
 		for (const tier of TIER_ORDER) {
 			const want = tier === 'member' ? 'friend' : tier;
+			expect(tierOf(reqOf({ 'x-hadoku-tier': tier })), tier).toBe(want);
 			expect(tierOf(reqOf({ 'x-hadoku-tier': tier, 'x-hadoku-verified': '1' })), tier).toBe(want);
 		}
 	});
@@ -171,15 +167,6 @@ describe('tierOf: a verified member is promoted to friend, nobody else is touche
 	it('defaults to public when the header is absent or empty', () => {
 		expect(tierOf(reqOf({}))).toBe('public');
 		expect(tierOf(reqOf({ 'x-hadoku-tier': '' }))).toBe('public');
-	});
-});
-
-describe('verifiedOf / verifiedFromHeaders', () => {
-	it('is true only for the exact string "1"', () => {
-		expect(verifiedOf(reqOf({ 'x-hadoku-verified': '1' }))).toBe(true);
-		expect(verifiedOf(reqOf({ 'x-hadoku-verified': 'true' }))).toBe(false);
-		expect(verifiedOf(reqOf({}))).toBe(false);
-		expect(verifiedFromHeaders({ 'x-hadoku-verified': '1' })).toBe(true);
 	});
 });
 
@@ -218,7 +205,7 @@ describe('the header readers', () => {
 	it('isAdmin is the one admin check: rankOf(tierOf(req)) >= rankOf("admin")', () => {
 		expect(isAdmin(reqOf({ 'x-hadoku-tier': 'admin' }))).toBe(true);
 		expect(isAdmin(reqOf({ 'x-hadoku-tier': 'wife' }))).toBe(false);
-		// Even a verified member (promoted to friend) does not reach admin.
-		expect(isAdmin(reqOf({ 'x-hadoku-tier': 'member', 'x-hadoku-verified': '1' }))).toBe(false);
+		// Even a member (promoted to friend) does not reach admin.
+		expect(isAdmin(reqOf({ 'x-hadoku-tier': 'member' }))).toBe(false);
 	});
 });

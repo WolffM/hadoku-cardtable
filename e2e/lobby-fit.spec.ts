@@ -68,7 +68,7 @@ interface Fit {
 /** The chat aside renders for a signed-in viewer: answer whoami the way the edge does for a friend. */
 async function signIn(f: Friend): Promise<void> {
   await f.page.route('**/session/whoami', (route) =>
-    route.fulfill({ json: { valid: true, userId: `e2e-${f.name}`, userType: 'member', name: f.name } }),
+    route.fulfill({ json: { valid: true, userId: `e2e-${f.name}`, userType: 'guest', name: f.name } }),
   );
 }
 
@@ -250,7 +250,7 @@ test(titled('in a draft pod’s room the chat is the window’s height on the pi
     };
     const me = room.members.find((m) => m.name === 'e2e-alice');
     if (me === undefined) throw new Error('alice is not among the room’s members');
-    await page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'member', name: 'e2e-alice' } }));
+    await page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'guest', name: 'e2e-alice' } }));
     await page.reload();
     await sitPodAt(page, 0);
     await readyPod(page);

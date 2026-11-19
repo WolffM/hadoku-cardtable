@@ -235,7 +235,7 @@ const CHARACTERS = {
 async function standInFleet(f: Friend): Promise<void> {
   const me = FRIENDS[f.name];
   if (me === undefined) throw new Error(`${f.name} is not one of the e2e friends`);
-  await f.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.userId, userType: 'member', name: me.name } }));
+  await f.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.userId, userType: 'guest', name: me.name } }));
   await f.context.route('**/watchparty/media/sprites/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SPRITE }));
   await f.context.route('**/watchparty/api/characters', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CHARACTERS) }));
 }

@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CONFIG } from './config.ts';
-import { TIER_ORDER, type Tier, assertFloor, edgeProvenance, rankOf, requireMinTier, sanitizeHeaders, tierOf, verifiedOf } from './edge-auth.ts';
+import { TIER_ORDER, type Tier, assertFloor, edgeProvenance, rankOf, requireMinTier, sanitizeHeaders, tierOf } from './edge-auth.ts';
 
 describe('the tier floor', () => {
 	it('admits a member above public and below friend', () => {
@@ -34,7 +34,9 @@ describe('the tier floor', () => {
 	});
 });
 
-describe('X-Hadoku-Verified is believed only behind edge auth', () => {
+// Nothing reads X-Hadoku-Verified (the tier says it), but the edge still sends it until every repo
+// stops reading it, so a forged copy must still never survive an unproven request.
+describe('a forged X-Hadoku-Verified never survives an unproven request', () => {
 	const config = CONFIG as { -readonly [K in keyof typeof CONFIG]: (typeof CONFIG)[K] };
 	const saved = { secret: config.edgeAuthSecret, hatch: config.allowUnverifiedEdge };
 	afterEach(() => {
@@ -42,21 +44,19 @@ describe('X-Hadoku-Verified is believed only behind edge auth', () => {
 		config.allowUnverifiedEdge = saved.hatch;
 	});
 	const SECRET = 'edge-secret-for-the-verified-test';
-	const reqOf = (headers: Record<string, unknown>) => ({ headers }) as unknown as Request;
 
-	it('strips a forged header from a direct hit with no edge auth', () => {
+	it('strips it from a direct hit with no edge auth', () => {
 		config.edgeAuthSecret = SECRET;
 		const headers: Record<string, unknown> = { 'x-user-id': 'u1', 'x-hadoku-verified': '1' };
 		sanitizeHeaders(headers);
 		expect(headers['x-hadoku-verified']).toBeUndefined();
-		expect(verifiedOf(reqOf(headers))).toBe(false);
 	});
 
 	it('strips it when the edge auth is wrong', () => {
 		config.edgeAuthSecret = SECRET;
 		const headers: Record<string, unknown> = { 'x-edge-auth': 'nope', 'x-hadoku-verified': '1' };
 		sanitizeHeaders(headers);
-		expect(verifiedOf(reqOf(headers))).toBe(false);
+		expect(headers['x-hadoku-verified']).toBeUndefined();
 	});
 
 	it('strips it when no secret is configured and the dev hatch is shut', () => {
@@ -64,19 +64,7 @@ describe('X-Hadoku-Verified is believed only behind edge auth', () => {
 		config.allowUnverifiedEdge = false;
 		const headers: Record<string, unknown> = { 'x-hadoku-verified': '1' };
 		sanitizeHeaders(headers);
-		expect(verifiedOf(reqOf(headers))).toBe(false);
-	});
-
-	it('keeps it behind a valid edge auth', () => {
-		config.edgeAuthSecret = SECRET;
-		const headers: Record<string, unknown> = { 'x-edge-auth': SECRET, 'x-hadoku-verified': '1' };
-		sanitizeHeaders(headers);
-		expect(verifiedOf(reqOf(headers))).toBe(true);
-	});
-
-	it('reads anything but "1" as not verified', () => {
-		expect(verifiedOf(reqOf({}))).toBe(false);
-		expect(verifiedOf(reqOf({ 'x-hadoku-verified': 'true' }))).toBe(false);
+		expect(headers['x-hadoku-verified']).toBeUndefined();
 	});
 
 	it('leaves the local-dev hatch as it was: no verification is granted', () => {
@@ -86,11 +74,11 @@ describe('X-Hadoku-Verified is believed only behind edge auth', () => {
 		sanitizeHeaders(headers);
 		expect(headers['x-hadoku-tier']).toBe(config.devTier);
 		expect(headers['x-user-id']).toBe('local-dev');
-		expect(verifiedOf(reqOf(headers))).toBe(false);
+		expect(headers['x-hadoku-verified']).toBeUndefined();
 	});
 });
 
-describe('a verified member is a friend here', () => {
+describe('a member (a guest the operator verified) is a friend here', () => {
 	const config = CONFIG as { -readonly [K in keyof typeof CONFIG]: (typeof CONFIG)[K] };
 	const saved = config.edgeAuthSecret;
 	afterEach(() => {
@@ -103,28 +91,34 @@ describe('a verified member is a friend here', () => {
 		return { headers } as unknown as Request;
 	};
 
-	it('reads a verified member as friend, a plain member as member', () => {
+	it('reads a member as friend, with or without X-Hadoku-Verified', () => {
+		expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member' }))).toBe('friend');
 		expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member', 'x-hadoku-verified': '1' }))).toBe('friend');
-		expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member' }))).toBe('member');
+	});
+
+	it('never promotes a guest, with or without X-Hadoku-Verified', () => {
+		expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'guest' }))).toBe('guest');
+		expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'guest', 'x-hadoku-verified': '1' }))).toBe('guest');
 	});
 
 	it('promotes nobody but a member, and nobody past friend: every other tier stays as the edge said', () => {
 		for (const tier of TIER_ORDER) {
 			const want = tier === 'member' ? 'friend' : tier;
+			expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': tier })), tier).toBe(want);
 			expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': tier, 'x-hadoku-verified': '1' })), tier).toBe(want);
 		}
 	});
 
-	it('reads nothing from the old header name: the edge no longer strips X-Hadoku-Vouched, so a member who sends it stays a member', () => {
-		expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member', 'x-hadoku-vouched': '1' }))).toBe('member');
+	it('reads nothing from the old header name: a guest who sends X-Hadoku-Vouched stays a guest', () => {
+		expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'guest', 'x-hadoku-vouched': '1' }))).toBe('guest');
 	});
 
-	it('believes no verification a direct hit forged', () => {
+	it('believes no tier a direct hit forged', () => {
 		expect(tierOf(sanitized({ 'x-hadoku-tier': 'member', 'x-hadoku-verified': '1' }))).toBe('public');
 	});
 });
 
-describe('the floor at friend admits a verified member', () => {
+describe('the floor at friend admits a member', () => {
 	const config = CONFIG as { -readonly [K in keyof typeof CONFIG]: (typeof CONFIG)[K] };
 	const saved = { secret: config.edgeAuthSecret, floor: config.minTier };
 	afterEach(() => {
@@ -145,14 +139,15 @@ describe('the floor at friend admits a verified member', () => {
 		return passed;
 	};
 
-	it('passes a verified member, refuses a plain one and a forged verification', () => {
-		expect(passes({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member', 'x-hadoku-verified': '1' })).toBe(true);
-		expect(passes({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member' })).toBe(false);
+	it('passes a member, refuses a guest (flag or not) and a forged member', () => {
+		expect(passes({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member' })).toBe(true);
+		expect(passes({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'guest' })).toBe(false);
+		expect(passes({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'guest', 'x-hadoku-verified': '1' })).toBe(false);
 		expect(passes({ 'x-hadoku-tier': 'member', 'x-hadoku-verified': '1' })).toBe(false);
 	});
 });
 
-describe('a guest gets exactly what an unverified member gets', () => {
+describe('a guest gets what an unverified member got', () => {
 	const config = CONFIG as { -readonly [K in keyof typeof CONFIG]: (typeof CONFIG)[K] };
 	const saved = { secret: config.edgeAuthSecret, floor: config.minTier };
 	afterEach(() => {
@@ -173,23 +168,22 @@ describe('a guest gets exactly what an unverified member gets', () => {
 		return passed;
 	};
 	const guest = () => ({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'guest' });
-	const unverifiedMember = () => ({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member' });
+	const member = () => ({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member' });
 
-	it('at the guest floor both pass; public and a forged guest do not', () => {
+	it('at the guest floor a guest and a member pass; public and a forged guest do not', () => {
 		expect(passesAt('guest', guest())).toBe(true);
-		expect(passesAt('guest', unverifiedMember())).toBe(true);
+		expect(passesAt('guest', member())).toBe(true);
 		expect(passesAt('guest', { 'x-edge-auth': SECRET, 'x-hadoku-tier': 'public' })).toBe(false);
 		expect(passesAt('guest', { 'x-hadoku-tier': 'guest' })).toBe(false);
 	});
 
-	it('at the friend floor both are refused, and a verification flag does not lift a guest', () => {
+	it('at the friend floor a guest is refused, and a verification flag does not lift it', () => {
 		expect(passesAt('friend', guest())).toBe(false);
-		expect(passesAt('friend', unverifiedMember())).toBe(false);
 		expect(passesAt('friend', { ...guest(), 'x-hadoku-verified': '1' })).toBe(false);
 	});
 
-	it('the member floor the wrapper still sets refuses a guest: hadoku_site moves the floor and the edge together', () => {
-		expect(passesAt('member', unverifiedMember())).toBe(true);
+	it('a member floor refuses a guest: hadoku_site moves the floor and the edge together', () => {
+		expect(passesAt('member', member())).toBe(true);
 		expect(passesAt('member', guest())).toBe(false);
 	});
 
@@ -198,6 +192,5 @@ describe('a guest gets exactly what an unverified member gets', () => {
 		const headers: Record<string, unknown> = { ...guest(), 'x-hadoku-verified': '1' };
 		sanitizeHeaders(headers);
 		expect(tierOf({ headers } as unknown as Request)).toBe('guest');
-		expect(verifiedOf({ headers } as unknown as Request)).toBe(true);
 	});
 });
