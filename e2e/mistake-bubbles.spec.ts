@@ -54,7 +54,7 @@ test(titled('a press without priority and a summoning-sick creature each say the
   }
 });
 
-test(titled('a cost nothing can pay, cancelled for the seat, says the mana line'), async ({ browser }) => {
+test(titled('a cost another player’s permanent asks, cancelled for the seat, says nothing: the seat tried no such thing'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(2 * 60_000);
@@ -73,10 +73,23 @@ test(titled('a cost nothing can pay, cancelled for the seat, says the mana line'
     await expect(armadillo).toHaveAttribute('data-selectable', /.*/, { timeout: 10_000 });
     expect(await pressOffered(armadillo.first()), 'Armored Armadillo pressed as the target').toBe(true);
 
-    const bubble = alice.page.locator(MISTAKE_BUBBLE);
-    await expect(bubble, 'the mana line, on alice’s screen').toHaveText("I don't have enough mana for that.", { timeout: 10_000 });
-    expect(await bubble.getAttribute('data-mistake')).toBe('mana');
-    await expect(bob.page.locator(MISTAKE_BUBBLE), 'never on bob’s screen').toHaveCount(0);
+    // The Ward's {1} is the Armadillo's ask, not a play of alice's (the operator, 2026-11-19, of Mana
+    // Tithe: "it shouldn't show that error text unless i was trying to do something"): the server
+    // cancels it and Doom Blade is countered, with no line on either screen from the ask to the end.
+    const bubbles = async (): Promise<number> => (await alice.page.locator(MISTAKE_BUBBLE).count()) + (await bob.page.locator(MISTAKE_BUBBLE).count());
+    const doomBlade = alice.page.locator('[data-placed-spell][aria-label*="Doom Blade"]');
+    await expect(doomBlade, 'Doom Blade is drawn on the stack').not.toHaveCount(0, { timeout: 20_000 });
+    let seen = 0;
+    await expect
+      .poll(
+        async () => {
+          seen += await bubbles();
+          return doomBlade.count();
+        },
+        { timeout: 20_000, intervals: [100], message: 'Doom Blade, countered, left the stack' }
+      )
+      .toBe(0);
+    expect(seen + (await bubbles()), 'no mistake line on either screen').toBe(0);
   } finally {
     await stack.stop();
   }

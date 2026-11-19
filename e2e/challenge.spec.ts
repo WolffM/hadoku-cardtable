@@ -8,6 +8,7 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { enterMyGame } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
@@ -19,7 +20,7 @@ const titled = (t: string) => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}
 const PREFIX = '/cardtable';
 const UI_TIMEOUT = 30_000;
 
-test(titled('a Challenge made from Create room seats the real top 8, and Ready opens round 1 against the real player it paired'), async ({ browser }) => {
+test(titled('a Challenge made from Create room seats the real top 8, and Ready pairs round 1 against the real player: my match is lit, and my press enters it'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -57,6 +58,7 @@ test(titled('a Challenge made from Create room seats the real top 8, and Ready o
     await expect(offered).toContainText('Ozymandias17');
     await expect(page.getByTestId('ready-toggle')).toBeEnabled({ timeout: UI_TIMEOUT });
     await ready(alice);
+    await enterMyGame(page, /#\/match\//, 2 * UI_TIMEOUT);
     await expect(page.getByTestId('match'), 'round 1 is a live match against the real player').toContainText('TeaW1thRum', { timeout: 2 * UI_TIMEOUT });
   } finally {
     await stack.stop();
