@@ -230,7 +230,7 @@ import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '@hadoku/game-ui/components/StatusPill.tsx';
 import { useLeaderAsk } from './leader/LeaderAsk.tsx';
-import { entrantLookup, heldFor, myCurrentTable, passRoomLeader, relayedPodSource, useFollowMyTable, type HeldAt } from './pod/client.ts';
+import { entrantLookup, heldFor, myCurrentTable, passRoomLeader, relayedPodSource, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { doorGo, tableDoor } from './tableDoor.ts';
@@ -2384,7 +2384,6 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   const tNameOf = (id: string): string => entrants.names[id] ?? id;
   const tAvatarOf = (id: string): Face => entrants.avatars[id] ?? NO_FACE;
 
-  useFollowMyTable(roomId, tournament ? pod : null, view?.tables ?? [], view?.you.id ?? null, tableId);
 
   /**
    * Classic's "Each round": my CURRENT round's own table, read fresh

@@ -1,7 +1,8 @@
 ## Changed
 
 - A table's page is now a doorway: the two players, the score and one button that says where it takes you (Enter game, Return to game, Sideboard or Watch).
-- Play on a drafted deck takes you to your table: the face-off plays, then you press Enter game.
+- The room's page is where you land: Play on a drafted deck takes you there, to the bracket and every match.
+- Your own match lights up on the bracket when it is ready. Press it for the face-off, then Enter game. Nothing moves you to a table by itself any more.
 - Every game is entered by your own press. Nothing walks you onto the board any more, from the table, the lobby or the bracket.
 - Sideboarding between games is always the full-screen step, in draft pods too, and the lobby, the bracket and the table all open the same one.
 

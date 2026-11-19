@@ -26,14 +26,12 @@ import { DeckEditor, type SaveOutcome } from './DeckEditor.tsx';
 import { DeckScreen } from '../screens/DeckScreen.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
-import type { RoomsClient } from '../rooms/api.ts';
 import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
 import type { DeckStoreClient, Mine } from './deckStore.ts';
 import type { Fetch } from '@hadoku/game-ui/http.ts';
 import { tablesClient, type Verdict } from '../screens/tables.ts';
 import { draftedSeat, cardIndex, mainSummary, libraryDeckPool, libraryDeckText, suggestBasics } from './build.ts';
 import { splitBasics } from '../draft/deckFromPool.ts';
-import { withMagicGame } from '../rooms/room-body.testing.ts';
 
 // A card known by its name is answered as the server answers it (`GET /api/cards/art`).
 beforeEach(serveNamedArt);
@@ -868,44 +866,20 @@ describe('DeckScreen', () => {
     expect(currentRoute()).toEqual({ kind: 'decks' });
   });
 
-  // The operator, 2026-10-19: "when clicking play we should look to see where the player will end
-  // up, if they can go straight into the game then we should put them there".
-  describe('Play goes where the player ends up', () => {
-    const roomAt = (phase: 'building' | 'rounds') =>
-      withMagicGame({
-        gameType: 'draft',
-        you: { id: 'u-me', leader: true, ready: false },
-        pod: { phase, pairings: phase === 'rounds' ? [{ tableId: 't-1', players: ['u-me', 'ai'] }] : [] },
-        tables: [{ id: 't-1', players: [{ seat: 0, memberId: 'u-me', name: 'Me' }], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } }],
-      }) as unknown;
-
-    it('to my table’s page when the last Play deals round 1: the face-off and Enter game, and this screen starts no game', async () => {
-      const { store } = stubStore({ pool: POOL, deck: savedWith(POOL, 23, { Plains: 17 }) });
-      const posted: string[] = [];
-      vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
-        if (init?.method === 'POST') posted.push(String(input));
-        return Promise.resolve(new Response('{}', { status: 200 }));
-      });
-      const room = roomAt('rounds');
-      const rooms = { get: async () => room } as unknown as RoomsClient;
-      render(createElement(DeckScreen, { draftId: DRAFT_ID, store, rooms, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
-      await screen.findByTestId('deck-editor');
-      await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
-      fireEvent.click(screen.getByTestId('play-deck'));
-      await vi.waitFor(() => expect(currentRoute()).toMatchObject({ kind: 'room', roomId: DRAFT_ID, tableId: expect.any(String) }));
-      expect(posted.some((url) => url.endsWith('/play/matches')), 'the table’s page starts the game; Play does not').toBe(false);
+  // The operator, 2026-11-19: "the main room page should be the default landing zone for whenever things are done".
+  it('Play lands on the room’s page whether or not the rounds have begun, and starts no game', async () => {
+    const { store } = stubStore({ pool: POOL, deck: savedWith(POOL, 23, { Plains: 17 }) });
+    const posted: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      if (init?.method === 'POST') posted.push(String(input));
+      return Promise.resolve(new Response('{}', { status: 200 }));
     });
-
-    it('to the room while somebody else is still building', async () => {
-      const { store } = stubStore({ pool: POOL, deck: savedWith(POOL, 23, { Plains: 17 }) });
-      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{}', { status: 200 }));
-      const rooms = { get: async () => roomAt('building') } as unknown as RoomsClient;
-      render(createElement(DeckScreen, { draftId: DRAFT_ID, store, rooms, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
-      await screen.findByTestId('deck-editor');
-      await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
-      fireEvent.click(screen.getByTestId('play-deck'));
-      await vi.waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: DRAFT_ID }));
-    });
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
+    await screen.findByTestId('deck-editor');
+    await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId('play-deck'));
+    await vi.waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: DRAFT_ID }));
+    expect(posted.some((url) => url.endsWith('/play/matches')), 'the table’s page starts the game; Play does not').toBe(false);
   });
 
   it('Play stays on the build and says why when the pod refuses it', async () => {

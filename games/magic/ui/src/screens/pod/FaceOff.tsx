@@ -10,7 +10,7 @@
  * clash? at the top show 'Hadoku vs Sage'"*, then *"let's not snap back to the old ready ui afterwards.
  * have them bounce off eachother then show the ready button underneath"*).
  *
- * Once per table per page, like the carry to it (`followTableOnce`): back on the table page by choice,
+ * Once per table per page: back on the table page by choice,
  * a watcher, or a viewer who asked for less motion, sees it at rest. The page follows into the table's
  * game only once the reveal is over, so a start that is quicker than it does not cut it short.
  */

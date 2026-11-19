@@ -336,3 +336,38 @@ button.swiss__row {
     animation: none;
   }
 }
+
+/*
+ * My own table, waiting for me: lit, and it stays lit until I go (the operator, 2026-11-19: "when
+ * your next match is ready it should light up"). The glow is a ring of its own whose opacity is all
+ * that moves, so the card's box never does and the loop stays on the compositor.
+ */
+.swiss__card[data-call] {
+  border-color: var(--accent);
+}
+
+.swiss__card[data-call]::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
+  pointer-events: none;
+  animation: swiss-call 1.6s ease-in-out infinite;
+}
+
+@keyframes swiss-call {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swiss__card[data-call]::after {
+    animation: none;
+  }
+}

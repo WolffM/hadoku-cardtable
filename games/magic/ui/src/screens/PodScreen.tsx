@@ -49,7 +49,7 @@
  * until my opponent is ready"*), not back in the builder.
  *
  * The rounds are the room's hub (`pod/RoomHub.tsx`) and one page per table
- * (`pod/TablePage.tsx`, `tableId`), which a paired player is carried to once.
+ * (`pod/TablePage.tsx`, `tableId`), which a paired player reaches from their own card on the bracket, lit while it waits for them.
  *
  * `mountInspector` is mounted ONCE here, over this screen's whole root, rather
  * than inside `DraftScreen` — this is the one component the pick screen and
@@ -76,7 +76,7 @@ import { mountInspector } from '../play/inspect/index.ts';
 import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
 import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
-import { livePodSource, useFollowMyTable, usePodContext, type PodSource } from './pod/client.ts';
+import { livePodSource, usePodContext, type PodSource } from './pod/client.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
@@ -209,7 +209,6 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
     if (toBuilder) navigate({ kind: 'deck', draftId }, { replace: true });
   }, [toBuilder, draftId]);
 
-  useFollowMyTable(draftId, ctx?.pod ?? null, ctx?.tables ?? [], myMemberId, tableId);
 
   /** The room's bar: on top of the pod, or at the top of the draft's side column while drafting. */
   const bar = (

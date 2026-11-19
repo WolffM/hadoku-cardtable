@@ -291,7 +291,7 @@ describe('the pod names its spectators', () => {
 
 /* ── into the game, with nobody pressing anything ───────────────────── */
 
-describe('in rounds, I am carried to my table page once, and my table starts by itself there', () => {
+describe('in rounds, my table is lit on the bracket for my press, and it starts by itself on its own page', () => {
   const myTable = { id: 't-2', players: [{ seat: 0 as const, memberId: 'u-alice', name: 'Alice' }], matchId: null, series: { length: 3 as const, wins: [0, 0] as [number, number], games: [], phase: 'seating' as const } };
   const roomsDefault = { ...myTable, id: 't-1', players: [] };
 
@@ -300,7 +300,7 @@ describe('in rounds, I am carried to my table page once, and my table starts by 
    * not its member id, and on 2026-10-19 (r-25e3eb4baa00) the table was
    * never found and the AI game never started.
    */
-  it('finds my table by the room’s own id for me, and the hub sends me to its page without starting anything', () => {
+  it('finds my table by the room’s own id for me and lights it on the hub, which moves me nowhere and starts nothing', () => {
     const posts: string[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       if (init?.method === 'POST') posts.push(String(input));
@@ -309,7 +309,9 @@ describe('in rounds, I am carried to my table page once, and my table starts by 
     const { draft, room } = mountPod();
     draft.send(complete());
     room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, pairings: [{ tableId: 't-2', players: ['u-alice', 'ai'] }] }), [roomsDefault, myTable]));
-    expect(route()).toEqual({ kind: 'room', roomId: ROOM, tableId: 't-2' });
+    expect(route()).toEqual({ kind: 'room', roomId: ROOM });
+    const lit = screen.getAllByTestId('pod-tables-row').filter((row) => row.dataset.call !== undefined);
+    expect(lit.map((row) => row.dataset.tableId)).toEqual(['t-2']);
     expect(posts).toEqual([]);
   });
 

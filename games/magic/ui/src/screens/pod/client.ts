@@ -18,7 +18,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { magicGame, type Look, type RoomTable, type SeriesPhase, type TableGame } from '@hadoku/shared';
 
-import { followTableOnce } from '../../play/live/matchStart.ts';
 import { roomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { latestReads } from '../../rooms/latest.ts';
 import { parseRoomView, roomsClient, type RoomsClient, type RoomView } from '../../rooms/api.ts';
@@ -375,16 +374,4 @@ export function useTableStart(roomId: string, table: RoomTable | undefined, canS
   };
   const queuePlace = useQueuePlace(starting && table?.matchId === null, tableClient.queuePlace);
   return { error, retry, queuePlace };
-}
-
-/**
- * Carries a paired player to their own table page, once per pairing
- * (`followTableOnce`), from the hub or from last round's table. `atTable` is
- * the route's table.
- */
-export function useFollowMyTable(roomId: string, pod: PodView | null, tables: readonly RoomTable[], memberId: string | null, atTable: string | undefined): void {
-  const mine = pod?.phase === 'rounds' ? myCurrentTable(pod, tables, memberId)?.id : undefined;
-  useEffect(() => {
-    if (mine !== undefined) followTableOnce(roomId, mine, atTable);
-  }, [roomId, mine, atTable]);
 }

@@ -202,6 +202,7 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
       data-table-id={tableId}
       data-phase={phase}
       data-mine={mine ? '' : undefined}
+      data-call={mine && go !== null ? '' : undefined}
       data-live={live ? '' : undefined}
       data-focus={focus !== null && players.includes(focus) ? '' : undefined}
       data-dim={dim ? '' : undefined}

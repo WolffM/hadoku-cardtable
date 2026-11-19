@@ -50,7 +50,6 @@
  * them, so production gets the real API.
  */
 
-import { magicGame } from '@hadoku/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DeckEditor } from '../deck/DeckEditor.tsx';
@@ -59,9 +58,7 @@ import { BackLink } from './BackLink.tsx';
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { DeckManage } from './DeckManage.tsx';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
-import { livePodSource, myCurrentTable, playPod, usePodContext, type PodSource } from './pod/client.ts';
-import { followTableOnce } from '../play/live/matchStart.ts';
-import { roomsClient, type RoomsClient } from '../rooms/api.ts';
+import { livePodSource, playPod, usePodContext, type PodSource } from './pod/client.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
@@ -85,8 +82,6 @@ export interface DeckScreenProps {
   standalone?: boolean;
   /** The Decks page's client, for the standalone head's name, rename and delete. Tests pass a stub. */
   decks?: MyDecksClient;
-  /** Read after Play, to go straight to the game when it can start. Tests pass a stub. */
-  rooms?: RoomsClient;
 }
 
 type Loaded = { kind: 'no-seat' } | { kind: 'ready'; mine: Mine };
@@ -100,10 +95,8 @@ export function DeckScreen({
   podSource = livePodSource,
   standalone = false,
   decks: givenDecks,
-  rooms: givenRooms,
 }: DeckScreenProps) {
   const shellRef = useChromeShell('fit');
-  const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const store = useMemo(() => givenStore ?? deckStoreClient(), [givenStore]);
   const client = useMemo(() => givenClient ?? tablesClient(), [givenClient]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -157,11 +150,11 @@ export function DeckScreen({
   // The build as it stands is saved first: the editor's own save is debounced,
   // and the pod seats whatever was saved last.
   /**
-   * Play: saved, marked done, and then to my table's page when the rounds have me paired — the
-   * face-off, and Enter game — or to the room while others are still building. The operator,
-   * 2026-11-19, of Play putting them on the board against an AI: *"i expected to see the animation of
-   * the two characters going head-to-head and then me clicking to enter the game"* (this replaces the
-   * 2026-10-19 ruling that Play went straight into a game that could start).
+   * Play: saved, marked done, and then to the room's page: the bracket, every match, and mine lit
+   * once it is ready (the operator, 2026-11-19: *"the main room page should be the default landing
+   * zone for whenever things are done. after building and after finishing a match it would be nice
+   * to go back there. then when your next match is ready it should light up"*). It starts no game
+   * and walks into none: the table's page does the first, the player's own press the second.
    */
   const play = (dck: string): void => {
     setPlayError(null);
@@ -176,13 +169,8 @@ export function DeckScreen({
       if (!saved.ok) return fail(saved.issues.join(' '));
       const marked = await playPod(draftId);
       if (!marked.ok) return fail(marked.message ?? 'The pod refused that.');
-      const room = await rooms.get(draftId).catch(() => null);
-      const pod = room === null ? null : magicGame(room).pod;
-      const mine = room !== null && pod?.phase === 'rounds' ? myCurrentTable(pod, room.tables, room.you.id) : undefined;
-      if (mine === undefined) return toRoom();
-      // The hub would carry me to my table too; this is that carry, taken now.
-      followTableOnce(draftId, mine.id, mine.id);
-      navigate({ kind: 'room', roomId: draftId, tableId: mine.id });
+      // The room's page is where everything lands: the bracket, and my own match lit on it once it is ready.
+      toRoom();
     })().catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
   };
 
