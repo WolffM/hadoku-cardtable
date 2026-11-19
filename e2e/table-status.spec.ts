@@ -7,13 +7,14 @@
  *
  * - Watching a series between games: the table says it is sideboarding before game 2, waits on its
  *   player, who has no screen open (away), lists game 1, and counts the round's matches.
- * - A "your series" room: the first admin in takes the seeded seat, 1–0 up, and is carried to the
- *   sideboard step (full size: a player's own table between games is the sideboard, the status is a
- *   watcher's); going away and coming back carries them there again.
+ * - A "your series" room: the first admin in takes the seeded seat, 1–0 up, and is carried to their
+ *   table's page, whose one way on is Sideboard: the step is its own full screen. Going away and
+ *   coming back carries them to the table again.
  */
 import { expect, test, type Page } from '@playwright/test';
 
 import { EDGE_ORIGIN, PREFIX } from './identities.ts';
+import { door, sideboardFromTablePage } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 
 const UI_TIMEOUT = 30_000;
@@ -43,19 +44,21 @@ test('watching a series between games: the step, who it waits on and that they a
     await expect(admin.page.getByTestId('table-status-games')).toHaveText('Game 1 Testing won');
     await expect(admin.page.getByTestId('table-status-round')).toHaveText('Round 1 · 0 of 1 matches done');
     await expect(admin.page.getByTestId('table-sideboard')).toHaveCount(0);
+    await expect(door(admin.page), 'no game is up: a watcher has no way in').toHaveCount(0);
   } finally {
     await admin.context.close();
   }
 });
 
-test('a "your series" room hands the admin the seat mid-sideboard, and coming back lands there again', async ({ browser }) => {
+test('a "your series" room hands the admin the seat mid-sideboard: its table page offers Sideboard, a screen of its own, and coming back lands at the table again', async ({ browser }) => {
   const admin = await openFriend(browser, 'admin');
   try {
     // A paired player is carried to their own table, as a real entrant coming in is.
     await openSeeded(admin.page, SIDEBOARDING);
-    await admin.page.waitForURL(/\/room\/r-[0-9a-f]{12}\/table\//, { timeout: UI_TIMEOUT });
-    // The player's own table between games is the sideboard itself, full size: the status is a watcher's.
-    await expect(admin.page.getByTestId('table-sideboard')).toBeVisible({ timeout: UI_TIMEOUT });
+    await admin.page.waitForURL(/\/room\/r-[0-9a-f]{12}\/table\/[^/]+$/, { timeout: UI_TIMEOUT });
+    const tableUrl = admin.page.url();
+    // The player's own table between games offers Sideboard, and the step is its own full screen.
+    await sideboardFromTablePage(admin.page, UI_TIMEOUT);
     // The seat, the lead and the 1–0 are the admin's now.
     const roomId = /\/room\/(r-[0-9a-f]{12})/.exec(admin.page.url())![1]!;
     const room = await admin.page.evaluate(async (path) => {
@@ -67,11 +70,10 @@ test('a "your series" room hands the admin the seat mid-sideboard, and coming ba
     expect(mine?.series).toMatchObject({ wins: [1, 0], phase: 'sideboarding' });
 
     // Away and back: the front page, then the room again.
-    const tableUrl = admin.page.url();
     await admin.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
     await openSeeded(admin.page, SIDEBOARDING);
     await expect(admin.page).toHaveURL(tableUrl, { timeout: UI_TIMEOUT });
-    await expect(admin.page.getByTestId('table-sideboard')).toBeVisible({ timeout: UI_TIMEOUT });
+    await sideboardFromTablePage(admin.page, UI_TIMEOUT);
   } finally {
     await admin.context.close();
   }

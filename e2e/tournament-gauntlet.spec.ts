@@ -24,6 +24,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 import type { GauntletView } from '../packages/shared/src/gauntlet.ts';
 import type { PodView } from '../packages/shared/src/pod.ts';
 
+import { enterFromTablePage } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -193,15 +194,18 @@ test(
       const seated = (seats: Map<number, typeof aliceApi>, who: [typeof aliceApi, Player['page']][]): Seat[] =>
         [...seats.entries()].map(([seat, api]) => ({ api, seat, page: who.find(([a]) => a === api)![1] }));
       // Every human at the table chooses their own next pick (the AI chooses its own), the game is
-      // dealt, every human's page follows it, and `loser` concedes.
+      // dealt, every human enters it from the table's page by their own press, and `loser` concedes.
       const playOneGame = async (tableId: string, humans: Seat[], loser: Seat): Promise<void> => {
         for (const h of humans) {
           const mine = (await view(h.api, tableId)).decks.find((d) => d.status === 'picked' && d.by === h.seat && !d.played)!.id;
           expect((await h.api('POST', `/tables/rooms/${roomId}/gauntlet/choose`, { deck: mine, table: tableId })).status).toBe(200);
         }
         await expect.poll(async () => (await view(loser.api, tableId)).phase, { timeout: 30_000, message: `${tableId}: every choice in, the game is dealt` }).toBe('playing');
-        // The table's own page follows its game.
-        for (const h of humans) await h.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}/table/${tableId}`);
+        // The table's own page offers its game: Enter game, each human's own press.
+        for (const h of humans) {
+          await h.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}/table/${tableId}`);
+          await enterFromTablePage(h.page, /#\/match\/m-[0-9a-f]{12}$/);
+        }
         await loser.page.getByTestId('live-concede').click({ timeout: 30_000 });
         await loser.page.getByTestId('live-concede-yes').click();
         await expect(loser.page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });

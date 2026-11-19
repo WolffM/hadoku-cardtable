@@ -10,9 +10,9 @@
  * (`@hadoku/game-ui/rooms/screen/RoomShell.tsx`) draws its own header and, through `TablePage`,
  * the face-off, regardless of what step the table is on.
  *
- * This proves the fix: once my own table is `sideboarding`, the room screen never reaches
- * `RoomShell` at all for that table's page — the same bypass a dealt draft pod already takes
- * (`magic-room-ui.tsx`'s own early return) — so the room's header (`data-testid="room-name"`),
+ * This proves the fix: the sideboard step is its own screen (`…/table/<id>/sideboard`), which the
+ * room's card links to and which never reaches `RoomShell` at all (`magic-room-ui.tsx`'s own
+ * early return) — so the room's header (`data-testid="room-name"`),
  * its settings gear (`data-testid="match-rules"`) and the face-off (`data-testid="table-seats"`)
  * are absent from the DOM, not merely hidden, on both a desktop viewport and a phone. The site's
  * own header (`AppHeader`, `.cardtable-chrome > .app-header`) is a different layer `RoomShell`
@@ -104,9 +104,10 @@ test(
 
       await bob.page.goto(roomUrl);
       await expect(bob.page.getByTestId('room-table-link'), 'bob: the room draws Sideboard, not the board').toBeVisible({ timeout: 20_000 });
+      await expect(bob.page.getByTestId('room-table-link'), 'bob: the card’s way on is the sideboard step').toHaveAttribute('data-door', 'sideboard');
       await bob.page.getByTestId('room-table-link').click();
-      await bob.page.waitForURL(/\/room\/r-[0-9a-f]{12}\/table\/t-[0-9a-f]+$/, { timeout: 20_000 });
-      await expect(bob.page.getByTestId('table-sideboard'), 'bob: the table page opens the sideboard step').toBeVisible({ timeout: 20_000 });
+      await bob.page.waitForURL(/\/room\/r-[0-9a-f]{12}\/table\/t-[0-9a-f]+\/sideboard$/, { timeout: 20_000 });
+      await expect(bob.page.getByTestId('table-sideboard-page').getByTestId('table-sideboard'), 'bob: the sideboard step, on its own screen').toBeVisible({ timeout: 20_000 });
       await expect(bob.page.getByTestId('sideboard-step'), 'bob: the lobby path reaches the same sideboard step').toBeVisible({ timeout: 20_000 });
       await bob.page.screenshot({ path: fileURLToPath(new URL('../docs/handoff/w123-F/desktop-lobby-sideboard.png', import.meta.url)) });
       say('both reached the sideboard step, at 1600x1000');

@@ -108,9 +108,11 @@ test(
       // a plain Playwright `.click()`, not the `press()` helper above (that one is for the ActionButtons
       // `w69-rematch.spec.ts`'s own discipline covers; a synthetic mouse click at a computed bounding box
       // does not reliably carry an anchor's own navigation).
+      await expect(bob.page.getByTestId('room-table-link'), 'bob: the card’s way on is the sideboard step').toHaveAttribute('data-door', 'sideboard');
       await bob.page.getByTestId('room-table-link').click();
-      await bob.page.waitForURL(new RegExp(`/room/${roomId}/table/`), { timeout: 20_000 });
-      await expect(bob.page.getByTestId('table-sideboard'), 'bob: the table page opens the sideboard step').toBeVisible({ timeout: 20_000 });
+      await bob.page.waitForURL(new RegExp(`/room/${roomId}/table/[^/]+/sideboard$`), { timeout: 20_000 });
+      await expect(bob.page.getByTestId('table-sideboard-page').getByTestId('table-sideboard'), 'bob: the sideboard step, on its own screen').toBeVisible({ timeout: 20_000 });
+      await expect(bob.page.getByTestId('table-page'), 'bob: the step is not held by the table page').toHaveCount(0);
       await expect(bob.page.getByTestId('sideboard-step'), 'bob: the lobby path reaches the same sideboard step').toBeVisible({ timeout: 20_000 });
       const bobDom = await bob.page.getByTestId('game-result').evaluate((el) => ({
         tag: el.tagName,
@@ -158,27 +160,14 @@ test(
       const aliceEnter = alice.page.getByTestId('game-result-enter');
       await expect(aliceEnter, 'alice: Enter game is offered').toBeVisible({ timeout: 90_000 });
 
-      // Bob's own gate races two paths to the SAME guarantee (a press, never an
-      // auto-navigate) — `TableSideboard`'s own `SeriesEnterNext` (its feed-driven table read), or
-      // `TablePage`'s pre-existing `TableCard` ("Return to game", `table-match-link`) once the
-      // room's OUTER, much slower table read catches up and swaps `TableSideboard` out from under
-      // it. Both are presses the operator's own words are satisfied by; which one wins is not
-      // asserted, only that one of them is there and nothing navigated on its own.
-      const bobEnter = bob.page.getByTestId('game-result-enter');
-      const bobCard = bob.page.getByTestId('table-match-link');
-      await expect(bobEnter.or(bobCard), 'bob: a press-only way into game 2 is offered').toBeVisible({ timeout: 90_000 });
+      // Bob's sideboard screen draws the same `SeriesEnterNext`, off its own feed-driven table read.
+      await expect(bob.page.getByTestId('game-result-enter'), 'bob: Enter game is offered').toBeVisible({ timeout: 90_000 });
       // Alice is still on game 1's URL; bob is still on the room's.
       expect(alice.page.url(), 'alice: no auto-navigate from the match screen').not.toMatch(/#\/match\/(?!m-[0-9a-f]{12}$)/);
       expect(MATCH_URL.exec(alice.page.url())?.[1], 'alice: still game 1’s own URL').toBe(match1);
-      expect(bob.page.url(), 'bob: no auto-navigate from the room screen').toContain(`/room/${roomId}`);
+      expect(bob.page.url(), 'bob: no auto-navigate from the sideboard screen').toMatch(new RegExp(`/room/${roomId}/table/[^/]+/sideboard$`));
       say('game 2 exists; neither screen navigated — each offers its own way in');
 
-      // Both at once, not alice-then-bob: pressing alice's own first can be the very room update
-      // that finally reaches bob's `TablePage` (its OUTER table read, measured far slower than
-      // `TableSideboard`'s own), swapping bob's screen from `SeriesEnterNext` to `TableCard` — or
-      // back — AFTER a click is already travelling to one of them, detaching it mid-flight.
-      // `pressIntoGame2` presses by STATE, re-reading which gate is there on every pass, rather
-      // than one visibility snapshot (the wait above) followed by a blind click.
       await Promise.all([aliceEnter.click(), pressIntoGame2(bob.page, MATCH_URL, 60_000)]);
       const isNewMatch = (url: string): boolean => {
         const id = MATCH_URL.exec(url)?.[1];

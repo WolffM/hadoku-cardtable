@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test } from '@playwright/test';
 
-import { makeTitled, pressEnterGame, readyFromSideboard } from './play/board.ts';
+import { makeTitled, pressDoor, pressEnterGame, readyFromSideboard } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
@@ -68,12 +68,14 @@ test(titled('the result screen has Rematch, Back to room and Main menu; Back to 
     // Bob asks for a rematch from his result screen; alice readies in the room, then sideboards at her table.
     await bob.page.getByTestId('game-result-rematch').click();
     await alice.page.getByTestId('ready-toggle').click();
-    // Between games the room offers the way back to her table, whose page holds her sideboard step
+    // Between games the room's table card is the way to her sideboard step, its own screen
     // (the operator, 2026-10-23: "a small box that lets me return").
-    await alice.page.getByTestId('room-table-link').click();
+    await expect(alice.page.getByTestId('room-table-link'), 'the room’s table card says Sideboard').toHaveAttribute('data-door', 'sideboard', { timeout: 30_000 });
+    await pressDoor(alice.page, 'sideboard');
+    await alice.page.waitForURL(/\/table\/[^/]+\/sideboard$/, { timeout: 30_000 });
     for (const f of [alice, bob]) await readyFromSideboard(f.page);
     // The next game exists once both are ready, but neither screen opens it by itself —
-    // alice's from the room's table page, bob's from his own result screen.
+    // alice's from her table's sideboard screen, bob's from his own result screen.
     for (const f of [alice, bob]) await pressEnterGame(f.page);
     for (const f of [alice, bob]) {
       await expect.poll(() => MATCH_URL.exec(f.page.url())?.[1], { message: `${f.name} reaches a new match`, timeout: 120_000 }).not.toBe(matchId);

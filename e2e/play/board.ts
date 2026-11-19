@@ -1173,35 +1173,75 @@ export async function pressEnterGame(page: Page): Promise<void> {
   await enter.click();
 }
 
+/** Which way in a table's one link is (`tableDoor.ts`), as its `data-door` says. */
+export type DoorKind = 'enter' | 'return' | 'sideboard' | 'watch';
+
 /**
- * A room-side gate into a series' next game: `TableSideboard`'s own "Enter game"
- * (`game-result-enter`) or `TablePage`'s pre-existing `TableCard` ("Return to game",
- * `table-match-link`) — whichever the room's own table read is currently drawing. The two can
- * swap under a press already travelling to one of them: the room's OUTER table read (slower)
- * catches up and `magic-room-ui.tsx`'s own sideboarding bypass hands the frame to the other,
- * detaching whichever element a click was aimed at mid-flight. So this presses by STATE, never a
- * single visibility snapshot followed by a blind click: each pass re-reads which gate (if either)
- * is there right now, clicks it with its own short timeout, and swallows only a detach or a
- * timeout from that click — any other error is a real failure and is rethrown. Returns once the
- * page's own URL matches `matchUrl` (which must anchor the match route, e.g. `/#\/match\//`).
+ * A table's one way in, on its page (`table-match-link`) or a plain room's lobby
+ * (`room-table-link`): read by state (`data-door`), never by its words. A bracket's card
+ * (`pod-tables-play`, `pod-tables-watch`) is the same door but carries no `data-door`; a spec reads
+ * that one by its `href`.
+ */
+export function door(page: Page, kind?: DoorKind): Locator {
+  return page.locator(kind === undefined ? 'a[data-door]' : `a[data-door="${kind}"]`);
+}
+
+/** Presses the door once it says `kind`. A game is never walked into: Enter game is a press. */
+export async function pressDoor(page: Page, kind: DoorKind, timeout = 30_000): Promise<void> {
+  const link = door(page, kind);
+  await expect(link, `the table's way in says ${kind}`).toBeVisible({ timeout });
+  await link.click();
+}
+
+/**
+ * A paired player on their table's page: after the face-off it offers one way on, Enter game, and
+ * nothing carries them into the game but that press.
+ */
+export async function enterFromTablePage(page: Page, matchUrl: RegExp, timeout = 30_000): Promise<void> {
+  await expect(page.getByTestId('table-page'), 'on the table page, not walked into the game').toBeVisible({ timeout });
+  await expect(door(page, 'enter'), 'the table page offers Enter game').toBeVisible({ timeout });
+  await expect(door(page), 'the table page has one way in').toHaveCount(1);
+  await door(page, 'enter').click();
+  await page.waitForURL(matchUrl, { timeout });
+}
+
+/**
+ * A player on their table's page between two games of their series: the page offers Sideboard and
+ * never holds the step itself, which is its own full screen at `…/table/<id>/sideboard`.
+ */
+export async function sideboardFromTablePage(page: Page, timeout = 30_000): Promise<void> {
+  await expect(page.getByTestId('table-page'), 'between games the table page is still the table page').toBeVisible({ timeout });
+  await expect(door(page, 'sideboard'), 'the table page offers Sideboard').toBeVisible({ timeout });
+  await expect(door(page), 'the table page has one way in').toHaveCount(1);
+  await expect(page.getByTestId('table-sideboard'), 'the table page never holds the sideboard step').toHaveCount(0);
+  await door(page, 'sideboard').click();
+  await page.waitForURL(/\/table\/[^/]+\/sideboard$/, { timeout });
+  await expect(page.getByTestId('table-sideboard-page').getByTestId('table-sideboard'), 'the sideboard step, on its own screen').toBeVisible({ timeout });
+}
+
+/**
+ * A board whose game its room replaced (a leader's Reset game, a game whose JVM died) goes on by
+ * itself: to the table's next game when that is already up, or to the table's page, which starts it
+ * and offers Enter game. Returns once the page's hash is that next game's (`fresh`).
+ */
+export async function intoReplacedGame(page: Page, fresh: (hash: string) => boolean, timeout: number): Promise<void> {
+  const arrived = (): boolean => fresh(new URL(page.url()).hash);
+  const enter = door(page, 'enter');
+  await expect.poll(async () => arrived() || (await enter.isVisible()), { timeout, message: 'the next game’s board, or its table’s Enter game' }).toBe(true);
+  if (!arrived()) await enter.click();
+  await page.waitForURL((url) => fresh(url.hash), { timeout });
+}
+
+/**
+ * Into a series' next game from outside the board, by whichever gate this screen has: the sideboard
+ * step's own "Enter game" (`game-result-enter`) or the table's door once it says Enter game. Returns
+ * once the page's own URL matches `matchUrl` (which must anchor the match route, e.g. `/#\/match\//`).
  */
 export async function pressIntoGame2(page: Page, matchUrl: RegExp, timeout: number): Promise<void> {
-  const deadline = Date.now() + timeout;
-  for (;;) {
-    if (matchUrl.test(page.url())) return;
-    if (Date.now() > deadline) throw new Error(`pressIntoGame2: ${page.url()} never reached a match URL within ${timeout}ms`);
-    const enter = page.getByTestId('game-result-enter');
-    const card = page.getByTestId('table-match-link');
-    try {
-      if (await enter.isVisible().catch(() => false)) await enter.click({ timeout: 1_000 });
-      else if (await card.isVisible().catch(() => false)) await card.click({ timeout: 1_000 });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (!/detached|Timeout/i.test(message)) throw err;
-    }
-    if (matchUrl.test(page.url())) return;
-    await page.waitForTimeout(200);
-  }
+  const gate = page.getByTestId('game-result-enter').or(door(page, 'enter'));
+  await expect(gate, 'the next game exists; a way into it is offered').toBeVisible({ timeout });
+  await gate.click();
+  await page.waitForURL(matchUrl, { timeout });
 }
 
 /** Draw a box from empty table around every card in `ids`, and let go. */

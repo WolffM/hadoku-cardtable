@@ -19,7 +19,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { sitPodAt } from './podSeats.ts';
 
 import { PREFIX } from './identities.ts';
-import { makeTitled, pressIntoGame2, resizeWindow, roomIdFromAddress } from './play/board.ts';
+import { enterFromTablePage, makeTitled, pressIntoGame2, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -83,7 +83,7 @@ async function concedeToResult(loser: Player, winner: Player): Promise<void> {
 }
 
 test(
-  titled('a tournament’s rounds are a hub of match links; each match is a table page that starts the game, and the hub keeps whoever goes back to it'),
+  titled('a tournament’s rounds are a hub of match links; each match is a table page that starts the game and offers the one way into it, and the hub keeps whoever goes back to it'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -112,8 +112,8 @@ test(
       await sitPickReady(alice, 0);
       await sitPickReady(bob, 1);
 
-      /* ── paired: each player passes through their own table page into the match, with no press ── */
-      for (const p of [alice, bob]) await p.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
+      /* ── paired: each player is carried to their own table page, which starts the game; Enter game is their own press ── */
+      for (const p of [alice, bob]) await enterFromTablePage(p.page, matchUrl, UI_TIMEOUT);
       const tablesOf = await Promise.all([alice, bob].map(async (p) => (await hashes(p.page)).map((h) => tableHash.exec(h)?.[1]).filter((t) => t !== undefined)));
       console.log(`[room-hub] table pages passed through: alice=${JSON.stringify(tablesOf[0])} bob=${JSON.stringify(tablesOf[1])}`);
       expect(tablesOf[0], 'alice: carried to her table page once').toHaveLength(1);
@@ -122,13 +122,14 @@ test(
       for (const p of [alice, bob]) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: in the match`).toBeVisible({ timeout: UI_TIMEOUT });
       const matchId = matchUrl.exec(alice.page.url())![1]!;
 
-      /* ── Carol, never seated: the hub, then the match through its card ── */
+      /* ── Carol, never seated: the hub, then straight to the match from its card ── */
       await carol.page.goto(roomUrl);
       await expect(carol.page.getByTestId('pod-rounds'), 'carol: the hub').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(carol.page.getByTestId('pod-tables-play'), 'carol plays at no table').toHaveCount(0);
       await expect(carol.page.getByTestId('pod-tables-watch')).toHaveText('Watch');
+      await expect(carol.page.getByTestId('pod-tables-watch'), 'a game is up: Watch is the game itself').toHaveAttribute('href', `#/match/${matchId}`);
       // The whole card is the way in (the operator: "any spectator can click on any active game and enter it
-      // that way"): a press on the card's body, away from its Watch, still opens the table.
+      // that way"): a press on the card's body, away from its Watch, still opens the game.
       const card = carol.page.locator(`[data-testid="pod-tables-row"][data-table-id="${tableId}"]`);
       // The card's own link covers it edge to edge, so a press anywhere on it is that link's. Mid-height,
       // not a fixed y: the compact strip's own height is content-driven (wave 90 lane B, item 6's fix), so a
@@ -136,7 +137,7 @@ test(
       const cardBox = (await card.boundingBox())!;
       await card.click({ position: { x: 20, y: Math.round(cardBox.height / 2) } });
       await carol.page.waitForURL(new RegExp(`#/match/${matchId}$`), { timeout: UI_TIMEOUT });
-      expect((await hashes(carol.page)).some((h) => h.endsWith(`/table/${tableId}`)), 'carol: through the table page').toBe(true);
+      expect((await hashes(carol.page)).some((h) => h.endsWith(`/table/${tableId}`)), 'carol: straight to the game, not through the table page').toBe(false);
       await expect(carol.page.locator('[aria-label="Game board"]'), 'carol is watching').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(carol.page.locator('.live[data-role="watcher"]'), 'carol is in as a watcher').toBeVisible({ timeout: UI_TIMEOUT });
       for (const id of ['live-concede', 'live-button-end-turn']) {
@@ -158,7 +159,7 @@ test(
       await expect(alice.page.locator('.live[data-role="watcher"]'), 'alice is back in her seat, not watching').toHaveCount(0);
       await expect(alice.page.locator('[aria-label="Game board"]'), 'alice: back in her game').toBeVisible({ timeout: UI_TIMEOUT });
 
-      /* ── game 1 to Alice, conceded from Bob's card on the hub; the sideboard step is on the table page ── */
+      /* ── game 1 to Alice, conceded from Bob's card on the hub; the sideboard step is its own screen ── */
       // The operator: "it would be nice if the 'Return to game' button had options for concede … that would
       // allow us to resolve games without having to close rooms". The confirm shows the score it leaves.
       await bob.page.evaluate((hash) => (window.location.hash = hash), `#/room/${roomId}`);
@@ -169,25 +170,18 @@ test(
       await expect(bob.page.getByTestId('pod-tables-row-concede-confirm')).toContainText('0–0→1–0');
       await bob.page.getByTestId('pod-tables-row-concede-yes').click();
       await expect(alice.page.getByTestId('game-result'), 'alice wins game 1 by bob’s concede').toBeVisible({ timeout: UI_TIMEOUT });
-      // His card is now the way to the table's sideboard.
-      await expect(bob.page.getByTestId('pod-tables-play')).toHaveText('Play', { timeout: UI_TIMEOUT });
+      // His card is now the way to the table's sideboard step, a screen of its own.
+      await expect(bob.page.getByTestId('pod-tables-play')).toHaveAttribute('href', `#/room/${roomId}/table/${tableId}/sideboard`, { timeout: UI_TIMEOUT });
+      await expect(bob.page.getByTestId('pod-tables-play')).toHaveText('Sideboard');
       await bob.page.getByTestId('pod-tables-play').click();
-      await bob.page.waitForURL(new RegExp(`#/room/${roomId}/table/${tableId}$`), { timeout: UI_TIMEOUT });
-      await expect(bob.page.getByTestId('table-sideboard'), 'bob: the sideboard step, on the table page').toBeVisible({ timeout: UI_TIMEOUT });
+      await bob.page.waitForURL(new RegExp(`#/room/${roomId}/table/${tableId}/sideboard$`), { timeout: UI_TIMEOUT });
+      await expect(bob.page.getByTestId('table-sideboard-page').getByTestId('table-sideboard'), 'bob: the sideboard step, on its own screen').toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(bob.page.getByTestId('table-page'), 'bob: nothing of the table page around it').toHaveCount(0);
       await alice.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('sideboard-step')).toBeVisible({ timeout: UI_TIMEOUT });
       for (const p of [alice, bob]) await p.page.getByTestId('sideboard-ready').click();
       // The next game exists once both are ready, but neither screen opens it by itself —
-      // alice's own result screen, bob's room table page.
-      //
-      // Bob's own gate races two paths to the SAME guarantee (a press, never an auto-navigate):
-      // `TableSideboard`'s own `SeriesEnterNext` (its feed-driven table read), or `TablePage`'s
-      // pre-existing `TableCard` ("Return to game", `table-match-link`) once the room's OUTER,
-      // much slower table read catches up and swaps `TableSideboard` out from under it
-      // (`e2e/w122f-sideboard-lobby.spec.ts` names the same race) — including AFTER a press has
-      // already been aimed at one of them, which detaches it mid-click. `pressIntoGame2` presses
-      // by state, re-reading which gate is there on every pass, rather than one visibility
-      // snapshot followed by a blind click.
+      // alice's own result screen, bob's sideboard screen: each draws Enter game.
       await expect(alice.page.getByTestId('game-result-enter'), 'alice: Enter game is offered').toBeVisible({ timeout: UI_TIMEOUT });
       await Promise.all([alice.page.getByTestId('game-result-enter').click(), pressIntoGame2(bob.page, matchUrl, UI_TIMEOUT)]);
       await bob.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });

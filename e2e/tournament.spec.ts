@@ -40,6 +40,7 @@ import { makeTitled } from './play/board.ts';
 import { type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openMyTable } from './play/rooms.ts';
+import { enterFromTablePage, sideboardFromTablePage } from './play/board.ts';
 import { concedeToResult, enableTournament, openRoomWithLeader, pickDeck, ready, sit, sitPickReady } from './play/tournament.ts';
 
 const forge = forgeAvailability();
@@ -78,8 +79,8 @@ test(
       // itself, with nothing for anyone to press (ruling 7).
       await sitPickReady(bob, 1);
 
-      /* ── round 1 pairs the only two entrants: both reach their table ──── */
-      for (const p of [alice, bob]) await p.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
+      /* ── round 1 pairs the only two entrants: both reach their table, and enter its game by their own press ──── */
+      for (const p of [alice, bob]) await enterFromTablePage(p.page, matchUrl, UI_TIMEOUT);
       for (const p of [alice, bob]) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: carried to the tournament table`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── settle the round by concede, twice, the same winner — 2-0, no game 3 ── */
@@ -90,8 +91,9 @@ test(
         await p.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
         await expect(p.page.getByTestId('sideboard-step'), `${p.name}: Next opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
       }
+      // The loser leaves and comes back by their table's page: its one way on is the sideboard step.
       await openMyTable(loser.page, roomUrl);
-      await expect(loser.page.getByTestId('table-sideboard'), 'the loser’s table page opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
+      await sideboardFromTablePage(loser.page, UI_TIMEOUT);
       for (const p of [winner, loser]) await p.page.getByTestId('sideboard-ready').click();
       // The next game exists once both are ready, but neither screen opens it by itself.
       for (const p of [winner, loser]) {
@@ -248,7 +250,8 @@ test(
         await expect(alice!.page.getByTestId('table-round'), `round ${round} is current`).toHaveText(`Round ${round} of 2`, { timeout: UI_TIMEOUT });
         await expect(alice!.page.getByTestId('deck-mine'), `round ${round}: the round’s OWN deck chooser — never tables[0]’s`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('deck-mine').getByTestId('deck-option').first().click();
-        await alice!.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
+        // The pick starts the game; she enters it by her own press.
+        await enterFromTablePage(alice!.page, matchUrl, UI_TIMEOUT);
         await expect(alice!.page.locator('[aria-label="Game board"]'), `round ${round}: carried to the round’s own table`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('live-concede').click();
         await alice!.page.getByTestId('live-concede-yes').click();
@@ -256,7 +259,7 @@ test(
         await alice!.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
         await expect(alice!.page.getByTestId('sideboard-step'), `round ${round}: game 1 alone is a Bo1 — Next opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
         await openMyTable(alice!.page, roomUrl);
-        await expect(alice!.page.getByTestId('table-sideboard'), `round ${round}: the table page opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
+        await sideboardFromTablePage(alice!.page, UI_TIMEOUT);
         await alice!.page.getByTestId('sideboard-ready').click();
         // Even alone against the AI, the next game does not open by itself.
         const enter = alice!.page.getByTestId('game-result-enter');

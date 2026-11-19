@@ -14,7 +14,7 @@
  */
 import { expect, test, type Browser } from '@playwright/test';
 
-import { makeTitled, roomIdOfUrl } from './play/board.ts';
+import { enterFromTablePage, makeTitled, pressDoor, roomIdOfUrl, sideboardFromTablePage } from './play/board.ts';
 import { type Friend } from './play/browser.ts';
 import { forgeAvailability, matchPid, startPlayStack, type PlayStack } from './play/harness.ts';
 import { openMyTable } from './play/rooms.ts';
@@ -39,7 +39,7 @@ async function intoRoundOne(browser: Browser, stack: PlayStack, label: string): 
   await enableTournament(alice, bob, 'locked');
   await sitPickReady(alice, 0);
   await sitPickReady(bob, 1);
-  for (const p of [alice, bob]) await p.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
+  for (const p of [alice, bob]) await enterFromTablePage(p.page, matchUrl, UI_TIMEOUT);
   for (const p of [alice, bob]) await expect(board(p), `${p.name}: on round 1’s board`).toBeVisible({ timeout: UI_TIMEOUT });
   const matchId = matchUrl.exec(alice.page.url())![1]!;
   expect(matchUrl.exec(bob.page.url())![1], 'both in one match').toBe(matchId);
@@ -71,6 +71,7 @@ async function finishRound(r: Round, loser: Friend, winner: Friend): Promise<voi
     if (next === 'done') break;
     for (const p of [winner, loser]) {
       await openMyTable(p.page, r.roomUrl);
+      await sideboardFromTablePage(p.page, UI_TIMEOUT);
       await p.page.getByTestId('sideboard-ready').click({ timeout: UI_TIMEOUT });
     }
     // The next game exists once both are ready, but neither screen opens it by itself.
@@ -101,6 +102,8 @@ test(titled('players reconnecting mid-round: a reload, then a tab closed for two
     await r.bob.page.waitForTimeout(120_000);
     r.alice.page = await r.alice.context.newPage();
     await r.alice.page.goto(r.roomUrl);
+    // A fresh page is carried to her table, not into its game: she had been at it, so the way on is Return to game.
+    await pressDoor(r.alice.page, 'return', UI_TIMEOUT);
     await r.alice.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
     await expect(board(r.alice), 'alice: back on the board after two minutes away').toBeVisible({ timeout: UI_TIMEOUT });
     expect(matchUrl.exec(r.alice.page.url())?.[1], 'alice: the same match').toBe(r.matchId);
@@ -147,7 +150,7 @@ test(titled('a tournament match whose Forge dies: both screens say so, the table
     // The game had no result, so the series stands where it was and its table deals the game again.
     for (const p of [r.alice, r.bob]) await openMyTable(p.page, r.roomUrl);
     for (const p of [r.alice, r.bob]) {
-      await p.page.waitForURL(matchUrl, { timeout: 60_000 });
+      await enterFromTablePage(p.page, matchUrl, 60_000);
       await expect(board(p), `${p.name}: a new game at the same table`).toBeVisible({ timeout: UI_TIMEOUT });
     }
     const replay = matchUrl.exec(r.alice.page.url())![1]!;

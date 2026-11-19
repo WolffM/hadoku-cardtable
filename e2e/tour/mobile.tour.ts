@@ -6,7 +6,7 @@
 import { test, type Page } from '@playwright/test';
 
 import { PREFIX } from '../identities.ts';
-import { clickHandCard, enabledOk, handCardNamed, offeredNamed, pressPaymentAuto, says, stackCount, twoLegalDecks } from '../play/board.ts';
+import { clickHandCard, door, enabledOk, handCardNamed, offeredNamed, pressPaymentAuto, says, stackCount, twoLegalDecks } from '../play/board.ts';
 import { answerPrompt } from '../play/prompts.ts';
 import { keepBothHands, matchUrl, readScenario } from '../play/scenario.ts';
 import type { Friend } from '../play/browser.ts';
@@ -771,7 +771,11 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
       await shot(alice.page, 'tourney2-lobby-deck', T('#/room/<id>', 'Classic tournament lobby, deck chosen'), { full: true });
       for (const f of [alice, bob]) await tapOn(f.page.getByTestId('ready-toggle'));
       const matchRe = /#\/match\/m-[0-9a-f]{12}$/;
-      for (const f of [alice, bob]) await f.page.waitForURL(matchRe, { timeout: 60_000 });
+      // Paired: each is carried to their table's page, and enters its game by their own press.
+      for (const f of [alice, bob]) {
+        await tapOn(door(f.page, 'enter'), { timeout: 60_000 });
+        await f.page.waitForURL(matchRe, { timeout: 60_000 });
+      }
       for (let game = 0; game < 2; game++) {
         await openActionMenuIfPresent(bob.page);
         await tapOn(bob.page.getByTestId('live-concede'));

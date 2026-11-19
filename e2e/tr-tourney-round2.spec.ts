@@ -19,7 +19,7 @@ import type { GauntletView } from '../packages/shared/src/gauntlet.ts';
 import type { PodView } from '../packages/shared/src/pod.ts';
 
 import { PREFIX } from './identities.ts';
-import { roomIdFromAddress } from './play/board.ts';
+import { enterFromTablePage, roomIdFromAddress } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -92,9 +92,9 @@ test(forge.ok ? 'an admin opens the seeded Gauntlet round-2 room, sees round 1 d
     expect((await api('POST', `/tables/rooms/${roomId}/gauntlet/choose`, { deck: mine, table: tableId })).status).toBe(200);
     await expect.poll(async () => (await gauntletView(tableId)).body.phase, { timeout: 30_000, message: 'the AI’s own choice deals the game' }).toBe('playing');
 
-    /* ── the table's own page follows the dealt game into a real Forge match ── */
+    /* ── the table's own page starts the dealt game, a real Forge match, and Enter game is the way into it ── */
     await admin.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}/table/${tableId}`);
-    await admin.page.waitForURL(/#\/match\/m-[0-9a-f]{12}$/, { timeout: 30_000 });
+    await enterFromTablePage(admin.page, /#\/match\/m-[0-9a-f]{12}$/);
     await expect(admin.page.locator('[aria-label="Game board"]'), 'the admin is in a real match, playing round 2').toBeVisible({ timeout: 30_000 });
   } finally {
     await admin.context.close();

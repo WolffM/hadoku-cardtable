@@ -1271,7 +1271,9 @@ describe('a room’s table', () => {
     await mountRoom({ players: [opponent({ ready: true }), opponent({ you: true, name: 'user-alice', seat: 1 })], matchId: MATCH });
     const link = await screen.findByTestId('room-match-link');
     expect(link.getAttribute('href')).toBe(`#/match/${MATCH}`);
-    expect(link.textContent).toBe('Play');
+    // The table's one door, by the room's record: this stub's carries no game summary, so the game reads as not entered.
+    expect(link.dataset.door).toBe('enter');
+    expect(link.textContent).toBe('Enter game');
     expect(currentRoute()).toEqual({ kind: 'room', roomId: ROOM });
   });
 

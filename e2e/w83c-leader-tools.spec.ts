@@ -16,6 +16,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
+import { door, intoReplacedGame } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -75,14 +76,16 @@ function tableOf(room: RoomBody, memberId: string): RoomBody['tables'][number] {
   return table;
 }
 
-/** Into my table's game: the table page starts it by itself; returns its match id. */
+/** Into my table's game by its page's one way on: the page starts the game by itself and walks nobody in; returns its match id. */
 async function intoGame(p: Friend, origin: string, roomId: string, tableId: string): Promise<string> {
   await p.page.goto(`${origin}${PREFIX}/#/room/${roomId}/table/${tableId}`);
-  // Between games of the series, the sideboard step first.
-  const sideboard = p.page.getByTestId('sideboard-ready');
-  await expect.poll(async () => matchUrl.test(p.page.url()) || (await sideboard.isVisible()), { timeout: UI_TIMEOUT, message: `${p.name}: a game or its sideboard step` }).toBe(true);
-  if (!matchUrl.test(p.page.url())) {
-    await sideboard.click();
+  const way = door(p.page);
+  await expect(way, `${p.name}: the table page's one way on`).toHaveCount(1, { timeout: UI_TIMEOUT });
+  // Between games of the series, the sideboard step first, on its own screen.
+  const sideboarding = (await way.getAttribute('data-door')) === 'sideboard';
+  await way.click();
+  if (sideboarding) {
+    await p.page.getByTestId('sideboard-ready').click({ timeout: UI_TIMEOUT });
     // Even alone against the AI, the next game does not open by itself.
     await p.page.getByTestId('game-result-enter').click({ timeout: UI_TIMEOUT });
   }
@@ -150,8 +153,8 @@ test(titled('a watching leader resets a game (the score stands, a fresh game fol
     await alice.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
     await expect(card(alice.page, carols.id)).toBeVisible({ timeout: UI_TIMEOUT });
     await confirmOnCard(alice.page, carols.id, /^Reset game$/);
-    // Carol is carried to a fresh game 2: a new match, the series still 0–1.
-    await carol.page.waitForURL((u) => matchUrl.test(u.hash) && !u.hash.endsWith(game2), { timeout: UI_TIMEOUT });
+    // Carol's board lets go of the reset game and she is in a fresh game 2: a new match, the series still 0–1.
+    await intoReplacedGame(carol.page, (hash) => matchUrl.test(hash) && !hash.endsWith(game2), UI_TIMEOUT);
     await expect(carol.page.locator('[aria-label="Game board"]'), 'carol: a fresh game').toBeVisible({ timeout: UI_TIMEOUT });
     r = await room();
     const afterReset = tableOf(r, carolId);
@@ -207,14 +210,14 @@ test(titled('a seated leader resets their own game and both seats are back in a 
     await Promise.all([intoGame(alice, stack.origin, roomId, table.id), intoGame(bob, stack.origin, roomId, table.id)]);
     const game1 = tableOf(await room(), bobId).matchId!;
 
-    // Alice, seated, steps out to the hub and resets it there; Bob's board follows to the fresh game, and hers starts from her table.
+    // Alice, seated, steps out to the hub and resets it there; Bob's board lets go of the reset game for the fresh one, and hers starts from her table.
     await alice.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
     await expect(card(alice.page, table.id)).toBeVisible({ timeout: UI_TIMEOUT });
     await expect((await tools(alice.page, table.id)).getByRole('menuitem', { name: /^Drop match$/ }), 'her own tools beside the leader’s').toBeVisible();
     await confirmOnCard(alice.page, table.id, /^Reset game$/);
     await intoGame(alice, stack.origin, roomId, table.id);
-    await bob.page.waitForURL((u) => matchUrl.test(u.hash) && !u.hash.endsWith(game1), { timeout: UI_TIMEOUT });
-    await expect(bob.page.locator('[aria-label="Game board"]'), 'bob: carried to the fresh game').toBeVisible({ timeout: UI_TIMEOUT });
+    await intoReplacedGame(bob.page, (hash) => matchUrl.test(hash) && !hash.endsWith(game1), UI_TIMEOUT);
+    await expect(bob.page.locator('[aria-label="Game board"]'), 'bob: in the fresh game').toBeVisible({ timeout: UI_TIMEOUT });
     expect(matchUrl.exec(alice.page.url())![1], 'both in the same fresh game').toBe(matchUrl.exec(bob.page.url())![1]);
     const after = tableOf(await room(), bobId);
     console.log(`[w83c] seated reset: ${game1} -> ${after.matchId} series ${JSON.stringify(after.series)}`);
