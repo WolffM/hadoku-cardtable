@@ -3,11 +3,14 @@
  * `hadoku.me/cardtable/room/<id>`.
  *
  *   GET /preview/room/<id>.html → og:title (the room's name), og:description ("Modern Gauntlet 1v1")
- *   GET /preview/room/<id>.png  → 1200×630: the host's face vs the other seat's, or a dashed "You?"
+ *   GET /preview/room/<id>.png  → 1200×630: a 1v1 room's host vs the other seat's face, or a dashed
+ *                                 "You?"; a tournament's or a draft's field, every seat a face
  *
  * The operator, 2026-11-08: *"something that looks inviting and fun to click on … maybe it shows 'my
  * avatar vs ?'"*, then *"just '[Constructed Format] [Mode] [Year] 1v1'"*, and a neutral card with the
- * VS in Cinzel (artifact S5Tz5GbsVUVPejvr8cnYtW, approved).
+ * VS in Cinzel (artifact S5Tz5GbsVUVPejvr8cnYtW, approved). And 2026-11-19: *"only … when it's a
+ * construct 1v1 room (gauntlet/classic/random) not when it's a tournament room"*, which is not one
+ * face against another: a room that plays a pod draws its whole field instead.
  *
  * ## Who can read it
  *
@@ -37,7 +40,7 @@ import { planDisplayName, ROOM_ID_RE, type DraftPlan, type RoomMember } from "@h
 
 import type { People, Person } from "@hadoku/game-server/people";
 import { magicView } from "../room/magic-view.js";
-import { POD_AI } from "../room/pods.js";
+import { POD_AI, POD_CLOSED } from "../room/pods.js";
 import { ASSETS_DIR } from "../root.js";
 import { UNNAMED } from "@hadoku/game-server/room/constants";
 import { perCallerLimit } from "@hadoku/game-server/http/request";
@@ -79,8 +82,19 @@ export interface PreviewRoom {
     mode?: unknown;
     modeOptions?: unknown;
     ai?: { name: string; avatarId: string };
-    /** A draft room's pod: what its three rounds draft, and each round's bare name. */
-    pod?: { plan: DraftPlan | null; roundNames: readonly [string, string, string] | null } | null;
+    /**
+     * The pod of a room that plays one (a draft, or a constructed tournament), null for a plain 1v1 room:
+     * what a draft's three rounds draft and each round's bare name, and the field. `seats` are the lobby's
+     * (an AI seat carries its own `avatarId`); past it the field is `drafters`, an AI entrant's face in `personas`.
+     */
+    pod?: {
+      plan: DraftPlan | null;
+      roundNames: readonly [string, string, string] | null;
+      phase?: string;
+      seats?: readonly ({ memberId: string; name: string; avatarId?: string } | null)[];
+      drafters?: readonly string[];
+      personas?: Readonly<Record<string, { name: string; avatarId: string }>>;
+    } | null;
   };
   members: readonly RoomMember[];
   /** Each table's seated players: the first table's other player is the host's opponent. Absent for a room of another game. */
@@ -154,10 +168,15 @@ function formatOf(
   return eraParts(room.game?.format);
 }
 
+/** Whether the room plays a pod, a draft or a constructed tournament, and not one table of two. */
+export function playsPod(room: PreviewRoom): boolean {
+  return room.gameType === "draft" || room.game?.pod != null;
+}
+
 /**
  * `[Format] [Mode] [Year] 1v1`, leaving out what the room has not chosen: a Gauntlet limited to Modern
- * with no year is "Modern Gauntlet 1v1". A draft room names what its pod drafts ("Draft · Bloomburrow · Set-cube"),
- * or is a Cube Draft before it has a plan.
+ * with no year is "Modern Gauntlet 1v1", and its tournament "Modern Gauntlet Tournament". A draft room
+ * names what its pod drafts ("Draft · Bloomburrow · Set-cube"), or is a Cube Draft before it has a plan.
  */
 export function describeRoom(room: PreviewRoom): string {
   if (room.gameType === "draft") {
@@ -172,7 +191,7 @@ export function describeRoom(room: PreviewRoom): string {
     family === null ? null : (FAMILY_NAMES[family] ?? null),
     mode === null ? null : (MODE_NAMES[mode] ?? null),
     year,
-    "1v1",
+    playsPod(room) ? "Tournament" : "1v1",
   ]
     .filter((w): w is string => w !== null)
     .join(" ");
@@ -225,25 +244,73 @@ export function seatsOf(room: PreviewRoom): {
 } {
   const host = room.leader || room.creator;
   // A room of a game Magic does not play has no tables.
-  const table = room.gameType === "draft" ? undefined : magicView(room)?.tables[0];
+  const table = playsPod(room) ? undefined : magicView(room)?.tables[0];
   const other =
     table?.players.find((p) => p.memberId !== host)?.memberId ?? null;
   return { host, other };
 }
 
-export async function facesOf(
+/** One place in a pod's field: a member, an AI's own character, or (null) a seat still open. */
+export type Entrant =
+  | { memberId: string }
+  | { ai: { name: string; avatarId: string } }
+  | null;
+
+/**
+ * A pod room's field, in seat order: the lobby's seats, open ones included and closed ones left out, and
+ * past the lobby everyone who entered. A room with no pod on it yet is its host alone.
+ */
+export function fieldOf(room: PreviewRoom): Entrant[] {
+  const pod = room.game?.pod;
+  const drafters = pod?.drafters ?? [];
+  if (drafters.length > 0)
+    return drafters.map((id) => {
+      const ai = pod?.personas?.[id];
+      return ai === undefined ? { memberId: id } : { ai };
+    });
+  const seats = (pod?.seats ?? []).filter((s) => s?.memberId !== POD_CLOSED);
+  if (seats.length === 0) return [{ memberId: room.leader || room.creator }];
+  return seats.map((s) =>
+    s === null
+      ? null
+      : s.avatarId === undefined
+        ? { memberId: s.memberId }
+        : { ai: { name: s.name, avatarId: s.avatarId } },
+  );
+}
+
+/** What the picture draws: a 1v1 room's two sides, or a pod room's field under its kind. */
+export type Card =
+  | { kind: "duel"; left: CardFace; right: CardFace | null }
+  | {
+      kind: "field";
+      label: string;
+      /** A null is an open seat. */
+      faces: (CardFace | null)[];
+      /** How many of the field the card has no room for. */
+      more: number;
+    };
+
+/** The most places a field draws: two rows of eight. */
+export const FIELD_FACES = 16;
+
+/** The room's card, or null when it has nobody to draw. `complete` is whether every person on it was found. */
+export async function cardOf(
   roomId: string,
   room: PreviewRoom,
   deps: PreviewDeps,
-): Promise<{
-  left: CardFace;
-  right: CardFace | null;
-  complete: boolean;
-} | null> {
+): Promise<{ card: Card; complete: boolean } | null> {
+  const pod = playsPod(room);
   const { host, other } = seatsOf(room);
+  const field = pod ? fieldOf(room) : [];
+  const shown = new Set(
+    pod
+      ? field.flatMap((e) => (e !== null && "memberId" in e ? [e.memberId] : []))
+      : [host, other],
+  );
   const users = deps.rooms.usersOf(roomId);
   const wanted = users
-    .filter((u) => u.memberId === host || u.memberId === other)
+    .filter((u) => shown.has(u.memberId))
     .map((u) => u.userId);
   // A saved room keeps no names (R12): a member a restart left unnamed is named from their account.
   let people = new Map<string, Person>();
@@ -254,18 +321,13 @@ export async function facesOf(
   }
   // Whether every seated person was found: a card drawn without them is not kept (see the route).
   let complete = true;
+  const aiFace = (ai: { name: string; avatarId: string }): CardFace =>
+    faceOf(ai.name, undefined, ai.avatarId, deps.watchpartyBase);
   const face = (memberId: string): CardFace | null => {
     const member = room.members.find((m) => m.id === memberId);
     if (member === undefined) {
       const ai = room.game?.ai;
-      if (ai !== undefined && memberId === POD_AI)
-        return faceOf(
-          ai.name,
-          undefined,
-          ai.avatarId,
-          deps.watchpartyBase,
-        );
-      return null;
+      return ai !== undefined && memberId === POD_AI ? aiFace(ai) : null;
     }
     const userId = users.find((u) => u.memberId === memberId)?.userId;
     const person = userId === undefined ? undefined : people.get(userId);
@@ -279,10 +341,29 @@ export async function facesOf(
       deps.watchpartyBase,
     );
   };
-  const left = face(host);
-  if (left === null) return null;
-  const right = other === null ? null : face(other);
-  return { left, right, complete };
+  if (!pod) {
+    const left = face(host);
+    if (left === null) return null;
+    const right = other === null ? null : face(other);
+    return { card: { kind: "duel", left, right }, complete };
+  }
+  // An entrant who has left the room has no face to draw, and is not an open seat either.
+  const faces = field.flatMap((e): (CardFace | null)[] => {
+    if (e === null) return [null];
+    const f = "ai" in e ? aiFace(e.ai) : face(e.memberId);
+    return f === null ? [] : [f];
+  });
+  if (!faces.some((f) => f !== null)) return null;
+  const more = faces.length > FIELD_FACES ? faces.length - (FIELD_FACES - 1) : 0;
+  return {
+    card: {
+      kind: "field",
+      label: room.gameType === "draft" ? "Draft" : "Tournament",
+      faces: more === 0 ? faces : faces.slice(0, FIELD_FACES - 1),
+      more,
+    },
+    complete,
+  };
 }
 
 /* ── the picture ───────────────────────────────────────────────────── */
@@ -313,50 +394,110 @@ function fit(name: string): string {
     : `${chars.slice(0, 15).join("")}…`;
 }
 
+const px = (n: number): number => Math.round(n * 100) / 100;
+
+/** One circle of radius `r`: a face's picture or its initial, or for a null face a dashed open seat. */
 function drawFace(
   face: CardFace | null,
   cx: number,
+  cy: number,
+  r: number,
   clip: string,
   image: string | undefined,
 ): string {
+  const k = r / RADIUS;
   if (face === null) {
-    return `<circle cx="${cx}" cy="${CY}" r="${RADIUS}" fill="#26272c" stroke="${MUTE}" stroke-width="4" stroke-dasharray="18 12"/>
-<text x="${cx}" y="${CY + 48}" text-anchor="middle" font-family="${DISPLAY}" font-size="140" fill="${MUTE}">?</text>`;
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#26272c" stroke="${MUTE}" stroke-width="${px(Math.max(2, 4 * k))}" stroke-dasharray="${px(18 * k)} ${px(12 * k)}"/>
+<text x="${cx}" y="${px(cy + 48 * k)}" text-anchor="middle" font-family="${DISPLAY}" font-size="${px(140 * k)}" fill="${MUTE}">?</text>`;
   }
   const inner =
     image === undefined
-      ? `<circle cx="${cx}" cy="${CY}" r="${RADIUS}" fill="#33353b"/><text x="${cx}" y="${CY + 40}" text-anchor="middle" font-family="${DISPLAY}" font-size="110" fill="${INK}">${esc([...face.name][0]?.toUpperCase() ?? "?")}</text>`
-      : `<circle cx="${cx}" cy="${CY}" r="${RADIUS}" fill="#33353b"/><image x="${cx - RADIUS}" y="${CY - RADIUS}" width="${RADIUS * 2}" height="${RADIUS * 2}" href="${image}" clip-path="url(#${clip})" preserveAspectRatio="xMidYMid slice"${face.pixel ? ' image-rendering="optimizeSpeed"' : ""}/>`;
-  return `<g filter="url(#shadow)"><circle cx="${cx}" cy="${CY}" r="${RADIUS + 6}" fill="${INK}"/>${inner}</g>`;
+      ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#33353b"/><text x="${cx}" y="${px(cy + 40 * k)}" text-anchor="middle" font-family="${DISPLAY}" font-size="${px(110 * k)}" fill="${INK}">${esc([...face.name][0]?.toUpperCase() ?? "?")}</text>`
+      : `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#33353b"/><image x="${cx - r}" y="${cy - r}" width="${r * 2}" height="${r * 2}" href="${image}" clip-path="url(#${clip})" preserveAspectRatio="xMidYMid slice"${face.pixel ? ' image-rendering="optimizeSpeed"' : ""}/>`;
+  return `<g filter="url(#shadow)"><circle cx="${cx}" cy="${cy}" r="${px(r + Math.max(3, 6 * k))}" fill="${INK}"/>${inner}</g>`;
+}
+
+interface Circle {
+  face: CardFace | null;
+  cx: number;
+  cy: number;
+  r: number;
+  /** A field's last circle when it has more than fit: "+N" in place of a face. */
+  more?: number;
+}
+
+const FIELD_ROW = 8;
+const FIELD_WIDTH = 1040;
+const FIELD_CY = 365;
+const FIELD_MAX_R = 110;
+/** Two rows share the height one has. */
+const FIELD_TWO_ROW_R = 80;
+
+/** A field's circles: one row up to eight, then two, as large as the row allows. */
+function fieldCircles(faces: readonly (CardFace | null)[], more: number): Circle[] {
+  const n = faces.length + (more > 0 ? 1 : 0);
+  const rows = n > FIELD_ROW ? 2 : 1;
+  const perRow = Math.ceil(n / rows);
+  const pitch = Math.min(FIELD_WIDTH / perRow, (rows === 1 ? FIELD_MAX_R : FIELD_TWO_ROW_R) * 2.4);
+  const r = Math.round(pitch / 2.4);
+  const rowPitch = r * 2.5;
+  return Array.from({ length: n }, (_, i) => {
+    const row = Math.floor(i / perRow);
+    const inRow = row === rows - 1 ? n - perRow * row : perRow;
+    return {
+      face: faces[i] ?? null,
+      cx: px(PREVIEW_WIDTH / 2 + (i - perRow * row - (inRow - 1) / 2) * pitch),
+      cy: px(FIELD_CY + (row - (rows - 1) / 2) * rowPitch),
+      r,
+      ...(i >= faces.length ? { more } : {}),
+    };
+  });
 }
 
 /** The card, as SVG. `images` holds each face's picture as a data URI, by its URL; a missing one is drawn as an initial. */
 export function cardSvg(
-  left: CardFace,
-  right: CardFace | null,
+  card: Card,
   images: ReadonlyMap<string, string>,
 ): string {
   const img = (f: CardFace | null) =>
     f?.picture == null ? undefined : images.get(f.picture);
   const name = (text: string, cx: number, ink: string) =>
     `<text x="${cx}" y="${CY + RADIUS + 70}" text-anchor="middle" font-family="${SANS}" font-weight="600" font-size="38" fill="${ink}">${esc(fit(text))}</text>`;
+  const circles: Circle[] =
+    card.kind === "duel"
+      ? [
+          { face: card.left, cx: LEFT_X, cy: CY, r: RADIUS },
+          { face: card.right, cx: RIGHT_X, cy: CY, r: RADIUS },
+        ]
+      : fieldCircles(card.faces, card.more);
+  const drawn = circles.map((c, i) =>
+    c.more === undefined
+      ? drawFace(c.face, c.cx, c.cy, c.r, `clip-${i}`, img(c.face))
+      : `<circle cx="${c.cx}" cy="${c.cy}" r="${c.r}" fill="#26272c"/><text x="${c.cx}" y="${px(c.cy + c.r * 0.22)}" text-anchor="middle" font-family="${SANS}" font-weight="600" font-size="${px(c.r * 0.62)}" fill="${MUTE}">+${c.more}</text>`,
+  );
+  const words =
+    card.kind === "duel"
+      ? `${name(card.left.name, LEFT_X, INK)}
+${card.right === null ? name("You?", RIGHT_X, MUTE) : name(card.right.name, RIGHT_X, INK)}
+<rect x="599" y="${CY - 175}" width="2" height="105" fill="url(#above)"/>
+<rect x="599" y="${CY + 70}" width="2" height="105" fill="url(#below)"/>
+<text x="600" y="${CY + 30}" text-anchor="middle" font-family="${DISPLAY}" font-size="88" fill="${INK}" letter-spacing="4">VS</text>`
+      : `<rect x="110" y="109" width="190" height="2" fill="url(#toward)"/>
+<rect x="900" y="109" width="190" height="2" fill="url(#away)"/>
+<text x="600" y="132" text-anchor="middle" font-family="${DISPLAY}" font-size="64" fill="${INK}" letter-spacing="6">${esc(card.label)}</text>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${PREVIEW_WIDTH}" height="${PREVIEW_HEIGHT}" viewBox="0 0 ${PREVIEW_WIDTH} ${PREVIEW_HEIGHT}">
 <defs>
 <radialGradient id="ground" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="#2e3035"/><stop offset="1" stop-color="#1c1d21"/></radialGradient>
 <linearGradient id="above" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${INK}" stop-opacity="0"/><stop offset="1" stop-color="${INK}" stop-opacity="0.45"/></linearGradient>
 <linearGradient id="below" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${INK}" stop-opacity="0.45"/><stop offset="1" stop-color="${INK}" stop-opacity="0"/></linearGradient>
-<clipPath id="clip-left"><circle cx="${LEFT_X}" cy="${CY}" r="${RADIUS}"/></clipPath>
-<clipPath id="clip-right"><circle cx="${RIGHT_X}" cy="${CY}" r="${RADIUS}"/></clipPath>
+<linearGradient id="toward" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${INK}" stop-opacity="0"/><stop offset="1" stop-color="${INK}" stop-opacity="0.45"/></linearGradient>
+<linearGradient id="away" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${INK}" stop-opacity="0.45"/><stop offset="1" stop-color="${INK}" stop-opacity="0"/></linearGradient>
+${circles.map((c, i) => `<clipPath id="clip-${i}"><circle cx="${c.cx}" cy="${c.cy}" r="${c.r}"/></clipPath>`).join("\n")}
 <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="0.45"/></filter>
 </defs>
 <rect width="${PREVIEW_WIDTH}" height="${PREVIEW_HEIGHT}" fill="url(#ground)"/>
-${drawFace(left, LEFT_X, "clip-left", img(left))}
-${drawFace(right, RIGHT_X, "clip-right", img(right))}
-${name(left.name, LEFT_X, INK)}
-${right === null ? name("You?", RIGHT_X, MUTE) : name(right.name, RIGHT_X, INK)}
-<rect x="599" y="${CY - 175}" width="2" height="105" fill="url(#above)"/>
-<rect x="599" y="${CY + 70}" width="2" height="105" fill="url(#below)"/>
-<text x="600" y="${CY + 30}" text-anchor="middle" font-family="${DISPLAY}" font-size="88" fill="${INK}" letter-spacing="4">VS</text>
+${drawn.join("\n")}
+${words}
 </svg>`;
 }
 
@@ -439,21 +580,26 @@ export function attachPreview(router: Router, deps: PreviewDeps): void {
       res.type("html").send(previewHtml(room.name, describeRoom(room)));
       return;
     }
-    const faces = await facesOf(m[1], room, deps);
-    if (faces === null) return missing(res);
-    const key = JSON.stringify([faces.left, faces.right]);
+    const found = await cardOf(m[1], room, deps);
+    if (found === null) return missing(res);
+    const { card } = found;
+    const key = JSON.stringify(card);
     let png = kept.get(key);
     if (png === undefined) {
       if (!limit(req, res)) return;
+      const faces = card.kind === "duel" ? [card.left, card.right] : card.faces;
+      const pictures = [
+        ...new Set(faces.flatMap((f) => (f?.picture == null ? [] : [f.picture]))),
+      ];
+      const uris = await Promise.all(pictures.map((p) => fetchImage(p, doFetch)));
       const images = new Map<string, string>();
-      let drawn = faces.complete;
-      for (const f of [faces.left, faces.right]) {
-        if (f?.picture == null || images.has(f.picture)) continue;
-        const uri = await fetchImage(f.picture, doFetch);
+      let drawn = found.complete;
+      pictures.forEach((p, i) => {
+        const uri = uris[i];
         if (uri === undefined) drawn = false;
-        else images.set(f.picture, uri);
-      }
-      png = renderCard(cardSvg(faces.left, faces.right, images), fontFiles);
+        else images.set(p, uri);
+      });
+      png = renderCard(cardSvg(card, images), fontFiles);
       // A card missing a person or a picture (prefs or a CDN slow or down) is sent, but not kept by
       // us or the edge: the next crawler gets the real one.
       if (drawn) {

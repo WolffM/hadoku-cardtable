@@ -115,7 +115,9 @@ Card Table.
 
 **What it does.** Pasting a room's link into Discord, or any app that
 unfurls links, shows a generated card: the room's name, its format and
-mode, and the seated players' faces — or a dashed "You?" for an open seat.
+mode, and the seated players' faces. A 1v1 room is its host against the
+other seat, or a dashed "You?" while that seat is open; a tournament or a
+draft is its whole field, open seats dashed.
 
 **How to use it.** Nothing to click; it happens automatically whenever a
 room link is shared.
