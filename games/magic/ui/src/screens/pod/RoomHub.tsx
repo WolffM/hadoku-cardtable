@@ -8,11 +8,9 @@
  * The round, the bracket (each live match a link to its table page,
  * `TablePage.tsx`) and the standings under it; once the pod is done, its podium
  * over them. Who is watching is the chat's to say, not this page's. Nothing
- * here starts a game: the table page does. `children` is the one per-type
- * slot: a draft pod's building phase (who is ready, Edit deck).
+ * here starts a game: the table page does.
  */
 
-import type { ReactNode } from 'react';
 import type { RoomTable, TableGame } from '@hadoku/shared';
 
 import { PodBracket } from './PodBracket.tsx';
@@ -31,14 +29,12 @@ export interface RoomHubProps {
   leaderId: string;
   /** Each table's game (the room body's `tableGames`), for its card. */
   games?: Readonly<Record<string, TableGame>> | undefined;
-  children?: ReactNode;
 }
 
-export function RoomHub({ roomId, pod, tables, myMemberId, nameOf, avatarOf, leaderId, games, children }: RoomHubProps) {
-  const building = pod.phase === 'building';
+export function RoomHub({ roomId, pod, tables, myMemberId, nameOf, avatarOf, leaderId, games }: RoomHubProps) {
   return (
     <div className="pod__room">
-      <div className="pod__rounds" data-testid={building ? 'pod-ready' : pod.phase === 'rounds' ? 'pod-rounds' : 'pod-final'}>
+      <div className="pod__rounds" data-testid={pod.phase === 'rounds' ? 'pod-rounds' : 'pod-final'}>
         {pod.phase === 'done' ? (
           <>
             <PodPodium rows={pod.standings} results={pod.results} nameOf={nameOf} avatarOf={avatarOf} myMemberId={myMemberId} />
@@ -46,12 +42,11 @@ export function RoomHub({ roomId, pod, tables, myMemberId, nameOf, avatarOf, lea
           </>
         ) : (
           <h2 data-testid="pod-round">
-            Round {building ? 1 : pod.round} of {pod.rounds}
+            Round {pod.round} of {pod.rounds}
           </h2>
         )}
-        {children}
         <PodBracket roomId={roomId} pod={pod} tables={tables} myMemberId={myMemberId} leader={myMemberId !== null && myMemberId === leaderId} nameOf={nameOf} avatarOf={avatarOf} games={games} />
-        {!building && <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} avatarOf={avatarOf} myMemberId={myMemberId} dropped={pod.dropped} />}
+        <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} avatarOf={avatarOf} myMemberId={myMemberId} dropped={pod.dropped} />
       </div>
     </div>
   );

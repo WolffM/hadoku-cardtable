@@ -834,7 +834,7 @@ describe('DeckScreen', () => {
     expect(shell.querySelector('header, footer, h1')).toBeNull();
   });
 
-  it('Play saves the build as it stands, says I am done, and goes to the room — no room to make', async () => {
+  it('Play saves the build as it stands and says I am done; with nobody paired yet the builder stays — no room to make, no page to wait on', async () => {
     const built = savedWith(POOL, 23, { Plains: 17 });
     const { calls, store } = stubStore({ pool: POOL, deck: built });
     const posted: string[] = [];
@@ -845,8 +845,11 @@ describe('DeckScreen', () => {
     render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
     await screen.findByTestId('deck-editor');
     await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
+    const at = currentRoute();
     fireEvent.click(screen.getByTestId('play-deck'));
-    await vi.waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: DRAFT_ID }));
+    await vi.waitFor(() => expect(posted.filter((u) => u.endsWith(`/rooms/${DRAFT_ID}/pod/play`))).toHaveLength(1));
+    expect(currentRoute()).toEqual(at);
+    expect(screen.getByTestId('deck-editor')).toBeTruthy();
     expect(calls).toHaveLength(1);
     expect(mainDeckSizeOf(calls[0]!.dck)).toBe(40);
     expect(posted.filter((u) => u.endsWith(`/rooms/${DRAFT_ID}/pod/play`))).toHaveLength(1);
@@ -896,15 +899,20 @@ describe('DeckScreen', () => {
       expect(posted.some((url) => url.endsWith('/play/matches')), 'the table’s page starts the game; Play does not').toBe(false);
     });
 
-    it('to the room while somebody else is still building', async () => {
+    it('nowhere while somebody else is still building: the builder stays, my deck in it', async () => {
       const { store } = stubStore({ pool: POOL, deck: savedWith(POOL, 23, { Plains: 17 }) });
       vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{}', { status: 200 }));
-      const rooms = { get: async () => roomAt('building') } as unknown as RoomsClient;
+      const asked = vi.fn(async () => roomAt('building'));
+      const rooms = { get: asked } as unknown as RoomsClient;
       render(createElement(DeckScreen, { draftId: DRAFT_ID, store, rooms, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
       await screen.findByTestId('deck-editor');
       await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
+      const at = currentRoute();
       fireEvent.click(screen.getByTestId('play-deck'));
-      await vi.waitFor(() => expect(currentRoute()).toEqual({ kind: 'room', roomId: DRAFT_ID }));
+      await vi.waitFor(() => expect(asked).toHaveBeenCalled());
+      await Promise.resolve();
+      expect(currentRoute()).toEqual(at);
+      expect(screen.getByTestId('deck-editor')).toBeTruthy();
     });
   });
 

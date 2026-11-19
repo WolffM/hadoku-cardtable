@@ -200,21 +200,13 @@ describe('a finished draft goes straight to the builder', () => {
   });
 
   // The operator, 2026-10-20: "ideally it brings me to the game lobby until my opponent is ready".
-  it('keeps a drafter who has pressed Play on the pod — who is ready, the bracket, the way back to the deck — until round 1 is dealt', () => {
+  it('keeps a drafter who has pressed Play in the builder too, never on a page of the pod to wait on, until round 1 is dealt', () => {
     const { draft, room } = mountPod();
     draft.send(complete());
     room.read(ctxOf(pod({ phase: 'building', drafters: ['u-alice', 'u-bob'], built: ['u-alice'] })));
-    expect(route()).toEqual({ kind: 'room', roomId: ROOM });
-    expect(screen.getByTestId('pod-ready')).toBeTruthy();
-    expect(screen.getByTestId('pod-built-u-alice').hasAttribute('data-built')).toBe(true);
-    expect(screen.getByTestId('pod-built-u-bob').hasAttribute('data-built')).toBe(false);
-    expect(screen.getAllByTestId('pod-bracket-round').every((r) => r.dataset.state === 'next')).toBe(true);
-    expect(screen.getByTestId('pod-edit-deck').getAttribute('href')).toBe('#/deck/' + ROOM);
-
-    // Bob's Play deals round 1: the same screen becomes the rounds.
-    room.read(ctxOf(pod({ phase: 'rounds', round: 1, drafters: ['u-alice', 'u-bob'], built: ['u-alice', 'u-bob'] })));
-    expect(route()).toEqual({ kind: 'room', roomId: ROOM });
-    expect(screen.getByTestId('pod-rounds')).toBeTruthy();
+    expect(route()).toEqual({ kind: 'deck', draftId: ROOM });
+    expect(screen.queryByTestId('pod-ready')).toBeNull();
+    expect(screen.queryByTestId('pod-edit-deck')).toBeNull();
   });
 
   it('does not move a drafter who still has picks to make', () => {
@@ -520,5 +512,18 @@ describe('the builder carries the pod’s building phase', () => {
     expect(route()).toEqual(BUILDER);
     room.read(ctxOf(pod({ phase: 'rounds', round: 1, drafters: ['u-alice'], built: ['u-alice'] })));
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
+  });
+
+  it('carries a paired drafter from the builder straight to their table once rounds start, never by way of the room’s page', () => {
+    const room = mountDeck();
+    room.read(ctxOf(pod({ drafters: ['u-alice', 'u-bob'], built: ['u-alice'] })));
+    expect(route()).toEqual(BUILDER);
+    const players = [
+      { seat: 0 as const, memberId: 'u-alice', name: 'Alice' },
+      { seat: 1 as const, memberId: 'u-bob', name: 'Bob' },
+    ];
+    const paired = pod({ phase: 'rounds', round: 1, drafters: ['u-alice', 'u-bob'], built: ['u-alice', 'u-bob'], pairings: [{ tableId: 't-9', players: ['u-alice', 'u-bob'] }] });
+    room.read({ ...ctxOf(paired, [{ id: 't-9', players, matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } }]), me: 'u-alice' });
+    expect(route()).toEqual({ kind: 'room', roomId: ROOM, tableId: 't-9' });
   });
 });

@@ -61,8 +61,7 @@ function table(over: Partial<RoomTable> = {}): RoomTable {
   };
 }
 
-const hub = (p: PodView, children?: unknown) =>
-  render(createElement(RoomHub, { roomId: ROOM, pod: p, tables: [table()], myMemberId: 'u-alice', nameOf, avatarOf, leaderId: '' }, children as never));
+const hub = (p: PodView) => render(createElement(RoomHub, { roomId: ROOM, pod: p, tables: [table()], myMemberId: 'u-alice', nameOf, avatarOf, leaderId: '' }));
 
 describe('RoomHub', () => {
   it('heads with the round, and draws the bracket and the standings', () => {
@@ -83,13 +82,6 @@ describe('RoomHub', () => {
   it('names nobody watching under the bracket: the chat says who is in the room', () => {
     hub(pod());
     expect(screen.queryByTestId('pod-spectators')).toBeNull();
-  });
-
-  it('draws the building slot, and no standings, before round 1', () => {
-    hub(pod({ phase: 'building', pairings: [] }), createElement('div', { 'data-testid': 'stand-in-building' }));
-    expect(screen.getByTestId('pod-round').textContent).toBe('Round 1 of 2');
-    expect(screen.getByTestId('stand-in-building')).not.toBeNull();
-    expect(screen.queryByTestId('pod-standings')).toBeNull();
   });
 });
 
