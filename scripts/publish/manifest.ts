@@ -9,11 +9,13 @@
 // cardtable's own server; Vite serves the UI's), takes @wolffm/* through npmjs aliases because
 // cardtable installs without a GitHub token, and takes its platform siblings as `workspace:*`.
 // On GitHub Packages it is @wolffm/<name> like every fleet package, exports the dist/ that
-// `build.ts` made, and names its siblings at the exact versions this run published them as
-// (they publish together, in PUBLISHED's order). hadoku-actions/publish-npmjs renames it back to
+// `build.ts` made, and names its siblings at the exact versions this run gives them (they
+// publish together, in PUBLISHED's order). A sibling this run staged is not on GitHub Packages yet
+// (the workflow publishes there only after npmjs), so its version comes from the run itself:
+// `$PUBLISH_VERSIONS/<name>`, which the sibling's leg wrote; any other sibling, from the registry. hadoku-actions/publish-npmjs renames it back to
 // @hadoku/* for npmjs and turns its @wolffm/* dependencies into aliases again.
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
 /**
@@ -127,6 +129,22 @@ export function publishManifest(src: Manifest, versionOf: (published: string) =>
 	return pkg;
 }
 
+/**
+ * The version a sibling has in this run: the one its own leg staged (`<dir>/<name>`), else the
+ * registry's newest (a sibling this run left alone).
+ */
+export function siblingVersion(stagedDir: string | undefined, published: string, registry: (published: string) => string): string {
+	if (stagedDir !== undefined && stagedDir !== '') {
+		const file = join(stagedDir, basename(published));
+		if (existsSync(file)) {
+			const v = readFileSync(file, 'utf8').trim();
+			if (!/^\d+\.\d+\.\d+/.test(v)) throw new Error(`${file}: '${v}' is not a version`);
+			return v;
+		}
+	}
+	return registry(published);
+}
+
 /** The newest version the registry has of `published`. A sibling this run has not published yet fails. */
 function registryVersion(published: string): string {
 	try {
@@ -143,7 +161,7 @@ if (import.meta.main) {
 		process.exit(2);
 	}
 	const file = join(resolve(dir), 'package.json');
-	const pkg = publishManifest(JSON.parse(readFileSync(file, 'utf8')) as Manifest, registryVersion);
+	const pkg = publishManifest(JSON.parse(readFileSync(file, 'utf8')) as Manifest, (sibling) => siblingVersion(process.env.PUBLISH_VERSIONS, sibling, registryVersion));
 	writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
 	const siblings = Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies }).filter((d) => publishedName(d.replace('@wolffm/', '@hadoku/')) !== null);
 	console.log(`${basename(dir)}: manifest is ${pkg.name}, ${Object.keys(pkg.exports).length} exports from dist/${siblings.length > 0 ? `, siblings ${siblings.map((d) => `${d}@${pkg.dependencies?.[d] ?? pkg.peerDependencies?.[d]}`).join(' ')}` : ''}`);

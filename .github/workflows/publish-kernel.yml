@@ -1,8 +1,16 @@
 name: Publish platform packages
 
-# The MIT platform packages (scripts/publish/manifest.ts's PUBLISHED) → @wolffm/<name> on GitHub
-# Packages, where the fleet's games install them from (hadoku_site's templates/game), and
-# @hadoku/<name> on npmjs once that package's npmjs half is live. Cardtable itself never installs
+# The MIT platform packages (scripts/publish/manifest.ts's PUBLISHED) → @hadoku/<name> on npmjs,
+# where the fleet's consumers install them from (their @wolffm/* names are npmjs aliases), and
+# @wolffm/<name> on GitHub Packages.
+#
+# NPMJS FIRST, GITHUB PACKAGES LAST (#75). A version reaching GitHub Packages is what dispatches the
+# children's update-wolffm (packages_updated → hadoku_site → wolffm_published), and their wait for
+# npmjs to serve it is bounded (hadoku-actions update-wolffm, 390 s). Published per package the old
+# way, platform-wire was on GitHub Packages at 00:59 and on npmjs at 01:14 (run 44432731632), and
+# bomberman gave up. So `publish` only stages, `npmjs` publishes, and `github-packages` publishes
+# last, when every version is already on npmjs. A sibling's version is the one its leg staged
+# (the `publish-version-*` artifacts), since GitHub Packages does not have it yet. Cardtable itself never installs
 # them: its own server and UI import the workspace copies. The shape is hadoku-watchparty's
 # publish-packages.yml, and the npmjs half is hadoku_site's docs/operations/NPMJS_PUBLISHING.md.
 #
@@ -75,14 +83,24 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
+      # The versions earlier legs of this run staged: their siblings are not on
+      # GitHub Packages until the last job, so the manifest reads them here.
+      - name: Siblings this run staged
+        uses: actions/download-artifact@v7
+        with:
+          pattern: publish-version-*
+          path: ${{ runner.temp }}/versions
+          merge-multiple: true
+
       # BEFORE the version step: next-version reads the registry under the
-      # manifest's name, which is @wolffm/<name> only after this. It reads the
-      # registry too, for each sibling's version. Written in the runner's
-      # checkout, never committed back.
+      # manifest's name, which is @wolffm/<name> only after this. Each sibling's
+      # version is the one this run staged, else the registry's. Written in the
+      # runner's checkout, never committed back.
       - name: Write the published manifest
         run: node scripts/publish/manifest.ts "$DIR"
         env:
           NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+          PUBLISH_VERSIONS: ${{ runner.temp }}/versions
 
       # The version is CI's, never a commit's: one patch above the registry's
       # newest. A committed version above it is kept, so a deliberate minor
@@ -98,22 +116,44 @@ jobs:
       - name: Build
         run: node scripts/publish/build.ts "$DIR"
 
-      - name: List what the tarball carries
-        working-directory: ${{ env.DIR }}
-        run: |
-          set -euo pipefail
-          pnpm pack --pack-destination "$RUNNER_TEMP/pack" >/dev/null
-          tar tzf "$RUNNER_TEMP"/pack/*.tgz | sort
-          rm -rf "$RUNNER_TEMP/pack"
-
-      - name: Publish to GitHub Packages
-        if: steps.version.outputs.published != 'true'
+      # Packed here, published by `github-packages` after npmjs has it. The
+      # file is named by the leg's place in the matrix, which is PUBLISHED's
+      # order, so that job publishes a sibling before its dependents.
+      - name: Pack for GitHub Packages
         working-directory: ${{ env.DIR }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INDEX: ${{ strategy.job-index }}
+          PUBLISHED: ${{ steps.version.outputs.published }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          pnpm publish --no-git-checks
-          echo "📦 Published @wolffm/${{ matrix.package }}@${{ steps.version.outputs.version }}"
+          set -euo pipefail
+          out="$RUNNER_TEMP/ghpkg"
+          mkdir -p "$out" "$RUNNER_TEMP/version-out"
+          pnpm pack --pack-destination "$RUNNER_TEMP/pack" >/dev/null
+          tar tzf "$RUNNER_TEMP"/pack/*.tgz | sort
+          if [ "$PUBLISHED" != 'true' ]; then
+            mv "$RUNNER_TEMP"/pack/*.tgz "$out/$INDEX-${{ matrix.package }}.tgz"
+            echo "$VERSION" > "$RUNNER_TEMP/version-out/${{ matrix.package }}"
+          fi
+          rm -rf "$RUNNER_TEMP/pack"
+
+      - name: Stage ${{ matrix.package }} for GitHub Packages
+        if: steps.version.outputs.published != 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ghpkg-${{ matrix.package }}
+          path: ${{ runner.temp }}/ghpkg/${{ strategy.job-index }}-${{ matrix.package }}.tgz
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Hand ${{ matrix.package }}'s version to its dependents
+        if: steps.version.outputs.published != 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: publish-version-${{ matrix.package }}
+          path: ${{ runner.temp }}/version-out/${{ matrix.package }}
+          if-no-files-found: error
+          retention-days: 3
 
       # npmjs takes a package only once its trusted publisher exists, which
       # needs a first publish by hand (hadoku_site docs/requests/). Until the
@@ -187,5 +227,58 @@ jobs:
         with:
           job-name: cardtable:publish-kernel-npmjs
           outcome: ${{ needs.npmjs.result }}
+          service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+          started-at: ${{ env.JOB_STARTED_AT }}
+
+  # Last, so a version is on npmjs before GitHub Packages has it: GitHub Packages
+  # is what dispatches the children's update-wolffm, and their wait for npmjs is
+  # bounded (#75). Not after a failed npmjs publish, which would send children
+  # after a version npmjs will never serve; the next run publishes both.
+  github-packages:
+    needs: [publish, npmjs]
+    if: >-
+      always() && needs.publish.result == 'success' &&
+      (needs.npmjs.result == 'success' || needs.npmjs.result == 'skipped')
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 10
+    steps:
+      - name: Mark the start, so the reported duration is real
+        run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://npm.pkg.github.com
+          scope: '@wolffm'
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: ghpkg-*
+          path: ${{ runner.temp }}/ghpkg
+          merge-multiple: true
+
+      - name: Publish to GitHub Packages, in PUBLISHED's order
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/ghpkg"
+          shopt -s nullglob
+          files=("$dir"/*.tgz)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "Nothing was staged for GitHub Packages in this run."
+            exit 0
+          fi
+          for f in $(printf '%s\n' "${files[@]}" | sort -V); do
+            name=$(tar xzOf "$f" package/package.json | node -p 'const p = JSON.parse(require("fs").readFileSync(0, "utf8")); `${p.name}@${p.version}`')
+            npm publish "$f"
+            echo "📦 Published $name"
+          done
+
+      - name: Report the outcome so a silent failure can't hide
+        if: always()
+        uses: WolffM/hadoku-actions/report-job@v1
+        with:
+          job-name: cardtable:publish-github-packages
           service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
           started-at: ${{ env.JOB_STARTED_AT }}

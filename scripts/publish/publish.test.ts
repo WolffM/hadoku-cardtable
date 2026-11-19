@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { plan, renameSiblings, repointDeclaration } from './build.ts';
-import { PUBLISHED, publishManifest, publishedName, type Manifest } from './manifest.ts';
+import { PUBLISHED, publishManifest, publishedName, siblingVersion, type Manifest } from './manifest.ts';
 
 const REPO = join(import.meta.dirname, '..', '..');
 const read = (name: string): Manifest => JSON.parse(readFileSync(join(REPO, 'packages', name, 'package.json'), 'utf8')) as Manifest;
@@ -104,6 +104,23 @@ describe('the published manifest', () => {
 			for (const [dep, spec] of Object.entries({ ...workspace.dependencies, ...workspace.peerDependencies })) {
 				if (spec.startsWith('workspace:')) expect(PUBLISHED.indexOf(dep.replace('@hadoku/', '') as (typeof PUBLISHED)[number]), `${name} → ${dep}`).toBeLessThan(i);
 			}
+		}
+	});
+});
+
+describe('a sibling’s version', () => {
+	it('is the one this run staged when its leg wrote it, else the registry’s, and a staged file that is not a version fails', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'publish-versions-'));
+		try {
+			writeFileSync(join(dir, 'platform-wire'), '0.1.68\n');
+			const registry = (p: string) => (p === '@wolffm/host-wire' ? '0.1.40' : 'unexpected');
+			expect(siblingVersion(dir, '@wolffm/platform-wire', registry)).toBe('0.1.68');
+			expect(siblingVersion(dir, '@wolffm/host-wire', registry)).toBe('0.1.40');
+			expect(siblingVersion(undefined, '@wolffm/host-wire', registry)).toBe('0.1.40');
+			writeFileSync(join(dir, 'room-ask'), 'oops');
+			expect(() => siblingVersion(dir, '@wolffm/room-ask', registry)).toThrow(/not a version/);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 });
