@@ -1828,6 +1828,31 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
   });
 
   // The operator, 2026-10-07: "clicking outside of the log should close the log, also clicking ESC could close the log".
+  /*
+   * The operator, 2026-11-19: *"cards that are revealed on top of the library bleed on top of the log
+   * when the log is open"*. The table is no stacking context of its own (`board.css`, the focus layer),
+   * so every layer it declares is on the logbook's scale: the open log is over all of them, and under
+   * the overlay layer (the rail, the controls, a prompt).
+   */
+  it('the open logbook is over every layer the table declares, and under the overlay layer', () => {
+    const dir = import.meta.dirname ?? 'games/magic/ui/src/play/live';
+    const tokens = new Map([...readFileSync(resolve(dir, '../../styles.css'), 'utf8').matchAll(/(--z-[a-z-]+):\s*(\d+)/g)].map((m) => [m[1]!, Number(m[2])]));
+    /** A `z-index` value on the page's scale: a number, a `--z-*` token, or a token and an offset. */
+    const level = (value: string): number => {
+      const m = /^(?:calc\()?\s*(?:var\((--z-[a-z-]+)(?:,\s*\d+)?\)|(-?\d+))\s*(?:([+-])\s*(\d+))?\s*\)?$/.exec(value.trim());
+      if (m === null) throw new Error(`unread z-index: ${value}`);
+      const base = m[1] === undefined ? Number(m[2]) : tokens.get(m[1]);
+      if (base === undefined) throw new Error(`unknown token in ${value}`);
+      return base + (m[3] === undefined ? 0 : (m[3] === '+' ? 1 : -1) * Number(m[4]));
+    };
+    const overlay = tokens.get('--z-overlay')!;
+    const logbook = level(/z-index:\s*([^;]+);/.exec(declarations(liveCss(), '.live__logbook'))![1]!);
+    const table = [...readFileSync(resolve(dir, '../board.css'), 'utf8').matchAll(/^\s*z-index:\s*([^;]+);/gm)].map((m) => level(m[1]!)).filter((z) => z < overlay);
+    expect(table.length, 'the table declares layers of its own (a revealed library top, the focus layer)').toBeGreaterThan(0);
+    expect(logbook, 'over the table').toBeGreaterThan(Math.max(...table));
+    expect(logbook, 'under the overlay layer').toBeLessThan(overlay);
+  });
+
   it('the open logbook closes on a press outside it and on Escape, and stays open for a press inside it', async () => {
     const { getByTestId, container } = await liveBoard();
     const toggle = getByTestId('live-log-toggle') as HTMLButtonElement;
@@ -1882,8 +1907,8 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect(decls).toContain('bottom: 6px');
     expect(decls, 'a content cap would make the height indefinite again').not.toContain('max-height');
     expect(decls).toContain('overflow: hidden');
-    // Under lane A's overlay root at z 2, like the rail.
-    expect(decls).toContain('z-index: 1');
+    // One under the overlay layer: over the table (the next test), under the rail and a prompt.
+    expect(decls).toContain('z-index: calc(var(--z-overlay, 20) - 1)');
   });
 
   /*

@@ -60,6 +60,19 @@ const underAvatar = (page: Page, owner: 'you' | 'them'): Promise<string> =>
     const at = (r: DOMRect) => `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`;
     return ok ? 'under' : `top@${at(top)} avatar@${at(face)}`;
   }, owner);
+/** What `page` draws frontmost at the middle of `owner`'s library top: `the log` when the open logbook covers it. */
+const overTop = (page: Page, owner: 'you' | 'them'): Promise<string> =>
+  page.evaluate((selector) => {
+    const top = document.querySelector(selector)?.getBoundingClientRect();
+    if (top === undefined) return 'no library top';
+    const logbook = document.querySelector('[data-testid="live-logbook"]');
+    const book = logbook?.getBoundingClientRect();
+    const x = top.left + top.width / 2;
+    const y = top.top + top.height / 2;
+    if (book === undefined || x < book.left || x > book.right || y < book.top || y > book.bottom) return 'the log does not reach it';
+    const front = document.elementFromPoint(x, y);
+    return front !== null && logbook!.contains(front) ? 'the log' : `${front?.tagName.toLowerCase() ?? 'nothing'}.${front?.getAttribute('class') ?? ''}`;
+  }, library(owner));
 /** The names `page` draws face up in `owner`'s hand. */
 const handNames = (page: Page, owner: 'you' | 'them'): Promise<string[]> =>
   page.locator(`.seat [data-zone="hand"][data-owner="${owner}"] .card__name`).allTextContents().then((t) => t.map((s) => s.trim()).sort());
@@ -121,6 +134,17 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
         `server sent "Mountain" to alice ${received(alice, 'Mountain')}, to bob ${received(bob, 'Mountain')}; offered to alice: Mountain=${await offeredNamed(alice.page, 'Mountain')}`,
     );
     await bothShowTop(alice.page, bob.page, 'Mountain', 'Courser: play with the top card of your library revealed');
+    // The open log covers the revealed top (the operator, 2026-11-19: it "bleeds on top of the log"), on both screens.
+    for (const [page, owner] of [
+      [alice.page, 'you'],
+      [bob.page, 'them'],
+    ] as const) {
+      await page.getByTestId('live-log-toggle').click();
+      await expect(page.getByTestId('live-logbook')).toBeVisible();
+      expect(await overTop(page, owner), `what is drawn over ${owner}'s library top while the log is open`).toBe('the log');
+      await page.getByTestId('live-log-toggle').click();
+      await expect(page.getByTestId('live-logbook')).toBeHidden();
+    }
     const leaks = {
       mountainSentToBob: received(bob, 'Mountain'),
       bobTopOnAlice: await topOf(alice.page, 'them'),

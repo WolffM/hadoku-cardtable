@@ -982,8 +982,11 @@
  * looks free, so it stays visible rather than being deleted outright.
  *
  * Out of flow for the reason the phase rail is: the canvas is static, and an
- * overlay cannot move a grid track. `z-index: 1` puts it over the table's own
- * cards and under lane A's overlay root at z 2.
+ * overlay cannot move a grid track. The table is no stacking context of its
+ * own, so every layer it declares (a revealed library top's pile order, the
+ * focus layer and what it lifts — `board.css`) is on this panel's scale: one
+ * under the overlay layer puts the open log over all of them, and under the
+ * rail, the controls and a prompt.
  *
  * **Pointer events are OFF while collapsed and ON while open.** Collapsed, it
  * must not shadow the drag gesture on whatever board it covers — the same
@@ -1004,7 +1007,7 @@
  */
 .live__logbook {
   position: absolute;
-  z-index: 1;
+  z-index: calc(var(--z-overlay, 20) - 1);
   left: 6px;
   top: 6px;
   bottom: 6px;
@@ -1023,6 +1026,11 @@
 
 .live__logbook:not([hidden]) {
   pointer-events: auto;
+}
+
+/* A phone held upright layers its own bands (`portrait.css`: the HUD, the hand, the stack sheet) over the panel, as before. */
+:root[data-layout='portrait'] .live__logbook {
+  z-index: 1;
 }
 
 /*
