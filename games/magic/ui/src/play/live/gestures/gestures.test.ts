@@ -4018,6 +4018,18 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(canvas.querySelector('[data-cast-landing]')).toBeNull();
   });
 
+  it('a played card Forge puts where the board draws no zone (shuffled into the library) comes off at the park clock, never held until the next play', async () => {
+    const { s, m, canvas, card, rest } = await play(undefined, { holdClock: true });
+    // Out of the hand and into no zone this screen is told of, with nothing of it on the stack.
+    s.send(zones({ Hand: rest }));
+    s.send(prompt('Priority'));
+    await untilMatch(m, () => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(false));
+    expect(canvas.querySelector(`[data-cast-ghost="${card}"]`), 'still up: a card mid-cast reads the same').not.toBeNull();
+    vi.advanceTimersByTime(PARK_UNANSWERED_MS);
+    expect(canvas.querySelector('[data-cast-lift]')).toBeNull();
+    expect(canvas.querySelector('[data-cast-ghost]')).toBeNull();
+  });
+
   it('a play Forge never answers floats back to the hand after PARK_UNANSWERED_MS', async () => {
     const { s, m, canvas, card } = await play(undefined, { holdClock: true });
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;

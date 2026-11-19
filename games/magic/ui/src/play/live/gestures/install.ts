@@ -411,6 +411,11 @@ function whereIs(match: LiveMatch, id: number, home: CastZone): 'home' | 'drawn'
   return 'limbo';
 }
 
+/** The card's own spell, or an ability of it, is on the stack. */
+function onStackFrom(match: LiveMatch, id: number): boolean {
+  return match.view?.stack.some((item) => item.sourceCardId === id) === true;
+}
+
 /** Forge has a decision open for this seat: a question, a selection, or a payment. */
 function decisionOpen(match: LiveMatch): boolean {
   return match.asks.length > 0 || match.selectables !== null || payingMana(match);
@@ -1265,7 +1270,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   /**
    * `PARK_UNANSWERED_MS` after a park: if Forge has shown no sign of it, the
-   * card goes back.
+   * card goes back. The same clock is what guarantees every park ENDS: one
+   * whose card Forge put where no zone of this board draws it, with nothing of
+   * it left on the stack, comes off at the next tick (the operator, 2026-11-19,
+   * of Gutterbones held over the board for 106 s: *"make sure it's a structural
+   * fix to the whole system"*). `settleParkedIfResolved` cannot end that one
+   * itself, because a card mid-cast reads the same for a moment.
    *
    * Any decision open for this seat — a question, a selection, a payment — is
    * a sign: the operator, 2026-10-15, on Cavern of Souls floating home under
@@ -1285,12 +1295,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // has had its time. A card that left and came BACK (Forge took the play
     // and gave it up) is home, and is let go like any other it never took —
     // the clock keeps running until the park ends one way or another.
-    if (whereIs(match, parked.source, parked.zone) !== 'home' || decisionOpen(match)) {
+    const where = whereIs(match, parked.source, parked.zone);
+    // What keeps a park up, and nothing else does: a decision open, a zone the board draws (the
+    // landing or the settle is on its way), or the card's own spell or ability still on the stack.
+    if (decisionOpen(match) || where === 'drawn' || (where === 'limbo' && onStackFrom(match, parked.source))) {
       unansweredTimer = setTimeout(onParkUnanswered, PARK_UNANSWERED_MS);
       return;
     }
-    const p = endPark('floated-unanswered')!;
-    releaseParked(p, true);
+    // Home: Forge never took the play, and the card floats back. Nowhere the board draws, with
+    // nothing of it on the stack: Forge has finished with it somewhere this screen cannot show
+    // (shuffled into a library, another player's hand), and the lift comes off where it stands.
+    const p = endPark(where === 'home' ? 'floated-unanswered' : 'elsewhere')!;
+    releaseParked(p, where === 'home');
     paint();
   }
 
@@ -1490,7 +1506,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     if (decisionOpen(match)) return;
-    if (match.view?.stack.some((item) => item.sourceCardId === parked!.source)) return;
+    if (onStackFrom(match, parked.source)) return;
     if (where === 'limbo' || (where === 'home' && !parked.leftZone)) return;
     const p = endPark('settled')!;
     releaseParked(p, false);
