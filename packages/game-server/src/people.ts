@@ -8,15 +8,17 @@
  * customizations everywhere."* A person picks all of it in the fleet's avatar
  * settings, never here; this module only reads it.
  *
- * Resolved with this server's own service key. A failure answers nobody and
- * is logged, never thrown: a missing look costs a face its dressing, not a
- * join. Cached a minute, so a room's joins share one lookup; a person who has
+ * Resolved with this server's own service key, through prefs-client's shared
+ * people lookup (`createPeopleLookup`). A failure answers nobody and is logged,
+ * never thrown: a missing look costs a face its dressing, not a join. Cached a
+ * minute, so a room's joins share one lookup; a person who has
  * just changed theirs is read `fresh` (the served room's `account`, `room/serve.ts`).
  * The picture URL is relayed, never fetched: the browser loads it from
  * Discord, Steam or cdn.hadoku.me, all inside hadoku.me's img-src.
  */
 
-import { resolveAvatars, type ResolvedPerson } from '@wolffm/prefs-client/avatar';
+import type { ResolvedPerson } from '@wolffm/prefs-client/avatar';
+import { createPeopleLookup } from '@wolffm/prefs-client/people';
 import { cleanWorn } from '@wolffm/prefs-client/cosmetics';
 import { AVATAR_ID_MAX, LOOK_PICTURE_MAX, lookOrNone, type Look, type PersonFace } from '@hadoku/platform-wire/look';
 
@@ -56,7 +58,6 @@ export interface PeopleOptions {
 }
 
 const CACHE_TTL_MS = 60_000;
-const CACHE_PRUNE_THRESHOLD = 1024;
 const LOOKUP_TIMEOUT_MS = 5000;
 
 /** What one resolved entry means here. Exported for its test. */
@@ -70,58 +71,34 @@ export function personOf(r: ResolvedPerson | undefined): Person {
 	};
 }
 
-/** No key, no lookups: every answer is empty and nothing is called. */
+/**
+ * The lookup is prefs-client's (`createPeopleLookup`, the one every hadoku server shows people
+ * through: watchparty's too): cached a minute, one lookup per id at a time, a failure answers
+ * nobody and is not cached, and no key means no lookups. This adds only cardtable's reading of
+ * an answer (`personOf`).
+ */
 export function createPeople(opts: PeopleOptions): ForgetfulPeople {
-	const now = opts.now ?? Date.now;
-	const cache = new Map<string, { person: Person; expiresAt: number }>();
-	const baseUrl = opts.baseUrl.replace(/\/+$/, '');
-	// hadoku.me's WAF challenges a bare client user-agent, and a lookup that
-	// never answers must not hold a join's promise open.
-	const lookupFetch: typeof fetch = (input, init) =>
-		(opts.fetch ?? fetch)(input, {
-			...init,
-			headers: { ...(init?.headers as Record<string, string> | undefined), 'User-Agent': 'hadoku-cardtable-people/1' },
-			signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
-		});
-	let inflight: Promise<void> = Promise.resolve();
-
+	const lookup = createPeopleLookup({
+		baseUrl: opts.baseUrl,
+		serviceKey: opts.serviceKey,
+		...(opts.keyless === true ? { keyless: true } : {}),
+		userAgent: 'hadoku-cardtable-people/1',
+		ttlMs: CACHE_TTL_MS,
+		timeoutMs: LOOKUP_TIMEOUT_MS,
+		onError: (err, ids) => opts.log({ evt: 'people-resolve-failed', ids: ids.length, error: (err as Error).message }),
+		...(opts.fetch === undefined ? {} : { fetch: opts.fetch }),
+		...(opts.now === undefined ? {} : { now: opts.now }),
+	});
 	const peek = (userId: string): Person | undefined => {
-		const hit = cache.get(userId);
-		return hit !== undefined && hit.expiresAt > now() ? hit.person : undefined;
+		const hit = lookup.peek(userId);
+		return hit === undefined ? undefined : personOf(hit ?? undefined);
 	};
-
 	return {
 		peek,
-		forget: (userId) => (cache.delete(userId) ? 1 : 0),
-		async resolve(userIds, { fresh = false } = {}) {
+		forget: (userId) => lookup.forget(userId),
+		async resolve(userIds, options = {}) {
 			const out = new Map<string, Person>();
-			const missing: string[] = [];
-			for (const id of new Set(userIds)) {
-				const hit = fresh ? undefined : peek(id);
-				if (hit !== undefined) out.set(id, hit);
-				else missing.push(id);
-			}
-			if (missing.length === 0 || (opts.serviceKey === '' && opts.keyless !== true)) return out;
-			// One lookup at a time: a burst of joins after a restart asks once per
-			// id rather than once per join.
-			const run = inflight.then(async () => {
-				const still = fresh ? missing : missing.filter((id) => peek(id) === undefined);
-				if (still.length === 0) return;
-				try {
-					const answer = await resolveAvatars({ baseUrl, serviceKey: opts.serviceKey, fetch: lookupFetch }, still);
-					const at = now();
-					for (const id of still) cache.set(id, { person: personOf(answer[id]), expiresAt: at + CACHE_TTL_MS });
-					if (cache.size > CACHE_PRUNE_THRESHOLD) for (const [k, e] of cache) if (e.expiresAt <= at) cache.delete(k);
-				} catch (err) {
-					opts.log({ evt: 'people-resolve-failed', ids: still.length, error: (err as Error).message });
-				}
-			});
-			inflight = run;
-			await run;
-			for (const id of missing) {
-				const hit = cache.get(id);
-				if (hit !== undefined) out.set(id, hit.person);
-			}
+			for (const [id, answer] of await lookup.resolve(userIds, options)) out.set(id, personOf(answer ?? undefined));
 			return out;
 		},
 	};
