@@ -132,14 +132,9 @@ export function DeckScreen({
   const rounds = pod?.phase === 'rounds';
   /** Play is deciding where this player goes: the hand-off to the room below waits for it. */
   const playing = useRef(false);
-  const myTableId = rounds && ctx !== null ? (myCurrentTable(pod, ctx.tables, ctx.me)?.id ?? null) : null;
   useEffect(() => {
-    if (!rounds || standalone || playing.current) return;
-    // The rounds began while I was here (the last drafter's Play): straight to my table, never by way of the room's page.
-    if (myTableId === null) return navigate({ kind: 'room', roomId: draftId }, { replace: true });
-    followTableOnce(draftId, myTableId, myTableId);
-    navigate({ kind: 'room', roomId: draftId, tableId: myTableId }, { replace: true });
-  }, [rounds, myTableId, draftId, standalone]);
+    if (rounds && !standalone && !playing.current) navigate({ kind: 'room', roomId: draftId }, { replace: true });
+  }, [rounds, draftId, standalone]);
 
   /** The standalone head's deck — its name, and whether it may be renamed — once the Decks list has answered. */
   const decksClient = useMemo(() => givenDecks ?? myDecksClient(), [givenDecks]);
@@ -163,7 +158,7 @@ export function DeckScreen({
   // and the pod seats whatever was saved last.
   /**
    * Play: saved, marked done, and then to my table's page when the rounds have me paired — the
-   * face-off, and Enter game — or nowhere while others are still building: the builder stays, my deck in it, until the rounds begin. The operator,
+   * face-off, and Enter game — or to the room while others are still building. The operator,
    * 2026-11-19, of Play putting them on the board against an AI: *"i expected to see the animation of
    * the two characters going head-to-head and then me clicking to enter the game"* (this replaces the
    * 2026-10-19 ruling that Play went straight into a game that could start).
@@ -171,6 +166,7 @@ export function DeckScreen({
   const play = (dck: string): void => {
     setPlayError(null);
     playing.current = true;
+    const toRoom = (): void => navigate({ kind: 'room', roomId: draftId });
     const fail = (message: string): void => {
       playing.current = false;
       setPlayError(message);
@@ -183,11 +179,7 @@ export function DeckScreen({
       const room = await rooms.get(draftId).catch(() => null);
       const pod = room === null ? null : magicGame(room).pod;
       const mine = room !== null && pod?.phase === 'rounds' ? myCurrentTable(pod, room.tables, room.you.id) : undefined;
-      // Others are still building: I stay here, with my deck, and the hand-off above takes me on when the rounds begin.
-      if (mine === undefined) {
-        playing.current = false;
-        return;
-      }
+      if (mine === undefined) return toRoom();
       // The hub would carry me to my table too; this is that carry, taken now.
       followTableOnce(draftId, mine.id, mine.id);
       navigate({ kind: 'room', roomId: draftId, tableId: mine.id });

@@ -43,11 +43,10 @@
  * phase (`pod/PodBuilding.tsx`) and comes back here when rounds start. It waits
  * for the room's first read, so a reload during `rounds` stays on the tables.
  *
- * A drafter who has pressed Play stays in the builder too, with their deck in front of them and who
- * is still building beside it, until the last drafter's Play deals round 1 and the builder carries
- * them to their table (the operator, 2026-11-19, of the page that used to hold them here: *"i dont
- * even have a way of seeing my deck … delete the waiting page, keep me in the builder"*; it replaces
- * the 2026-10-20 ruling that they waited on the pod).
+ * A drafter who has pressed Play is done building: they wait here, on the pod —
+ * who is ready, and the rounds to come — until the last drafter's Play deals
+ * round 1 (the operator, 2026-10-20: *"ideally it brings me to the game lobby
+ * until my opponent is ready"*), not back in the builder.
  *
  * The rounds are the room's hub (`pod/RoomHub.tsx`) and one page per table
  * (`pod/TablePage.tsx`, `tableId`), which a paired player is carried to once.
@@ -74,10 +73,11 @@ import {
 import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen, DraftSkeleton } from '../components/DraftScreen.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
-import { navigate } from '@hadoku/game-ui/screens/route.ts';
+import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
 import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
 import { livePodSource, useFollowMyTable, usePodContext, type PodSource } from './pod/client.ts';
+import { PodBuilding } from './pod/PodBuilding.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
 import { TablePage } from './pod/TablePage.tsx';
@@ -201,8 +201,10 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
   const nameOf = (id: string): string => ctx?.names[id] ?? id;
   const avatarOf = (id: string): Face => ctx?.avatars[id] ?? NO_FACE;
 
-  /** A finished draft is in the builder until the pod plays: building, and waiting for the others to. */
-  const toBuilder = done && ctx !== null && !inRounds;
+  /** Pressed Play, and the rest of the pod is still building. */
+  const ready = phase === 'building' && myMemberId !== null && ctx?.pod?.built.includes(myMemberId) === true;
+  /** The header's own rule: a finished draft goes to the builder unless the pod is already playing, or I am done building. */
+  const toBuilder = done && ctx !== null && !inRounds && !ready;
   useEffect(() => {
     if (toBuilder) navigate({ kind: 'deck', draftId }, { replace: true });
   }, [toBuilder, draftId]);
@@ -256,7 +258,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
         </p>
       )}
 
-      {rounds && tableId !== undefined ? (
+      {(rounds || (done && ready)) && tableId !== undefined && ctx!.pod!.phase !== 'building' ? (
         <TablePage
           roomId={draftId}
           pod={ctx!.pod!}
@@ -267,7 +269,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           game={ctx!.games[tableId]}
           away={ctx!.away}
         />
-      ) : rounds ? (
+      ) : rounds || (done && ready) ? (
         <RoomHub
           roomId={draftId}
           pod={ctx!.pod!}
@@ -277,7 +279,24 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           nameOf={nameOf}
           avatarOf={avatarOf}
           leaderId={ctx!.leaderId}
-        />
+        >
+          {ctx!.pod!.phase === 'building' && (
+            <>
+              <PodBuilding pod={ctx!.pod!} nameOf={nameOf} />
+              <a
+                className="shell__link"
+                href={routeHash({ kind: 'deck', draftId })}
+                data-testid="pod-edit-deck"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate({ kind: 'deck', draftId });
+                }}
+              >
+                Edit deck
+              </a>
+            </>
+          )}
+        </RoomHub>
       ) : done || inRounds ? null : table === null ? (
         <DraftSkeleton side={side} seats={ctx?.pod?.drafters.length || undefined} />
       ) : (
