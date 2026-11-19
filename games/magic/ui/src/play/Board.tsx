@@ -2476,15 +2476,15 @@ function Counters({
 /**
  * The card's tag rail (`tag-rail.ts`): one row, right-aligned directly above the
  * P/T badge, the first tag nearest the corner, in this order: what a resolved ability left
- * waiting, the state Forge tracks a permanent is in, a held card's changed cost,
+ * waiting, the state Forge tracks a permanent is in,
  * what was chosen for a permanent, a flash an effect grants a held card, an eye
  * on a held card the opponent was shown, then each evergreen keyword the card
  * has NOW and was not printed with.
  *
  *   - Held changes (`BoardInteraction.held`), the operator: *"can we display
  *     modified costs on cards in hand using our applied overlay tags? should
- *     apply to anything that modifies anything in hand"*. The cost tag is its
- *     pips and sits over the printed cost it replaces.
+ *     apply to anything that modifies anything in hand"*. A granted flash is a
+ *     tag here; the changed cost is `CostNow`, over the printed one.
  *
  *   - Choices, the operator, 2026-10-12: *"any card that selects a color or
  *     makes a decision that becomes a permanent thing about it on the
@@ -2513,7 +2513,7 @@ function CardTags({
   choices,
   states,
   waiting,
-  held,
+  flash,
   seen = false,
 }: {
   entry: BoardCard;
@@ -2521,13 +2521,12 @@ function CardTags({
   /** What Forge tracks the permanent is in (`BoardCard.states`). */
   states: readonly BoardCardState[];
   waiting: readonly BoardCardWaiting[];
-  held?: HeldTags;
+  /** A flash an effect grants a held card (`HeldTags.flash`): its tip. */
+  flash?: string;
   /** Draw the eye: a card of the viewer's the opponent was shown (`BoardCard.seenByOpponent`). */
   seen?: boolean;
 }) {
   const keywords = keywordTags(entry.keywords, entry.card.oracleText);
-  const cost = held?.cost;
-  const flash = held?.flash;
   const waits = sameMarks(waiting, (w) => w.kind).map((group) => ({ kind: group[0]!.kind, count: group.length, tip: listed(group.map(waitingTip)) }));
   /** Each tag: its key, what the "+N" chip says for it, and its chip. */
   const tags: { key: string; said: string; chip: ReactNode }[] = [
@@ -2560,23 +2559,6 @@ function CardTags({
         </li>
       ),
     })),
-    ...(cost === undefined
-      ? []
-      : [
-          {
-            key: 'cost',
-            said: `costs ${cost.tokens.join(' ')}`,
-            chip: (
-              <li key="cost" className="board-card__tag" data-cost={cost.tokens.join(' ')} data-cost-change={cost.change} data-tip={cost.tip}>
-                {/* The tag already carries its own `data-tip` (why the cost changed);
-                    a native tooltip on one pip would only repeat the glyph it sits on. */}
-                {cost.tokens.map((token, i) => (
-                  <ManaPip key={`${token}-${i}`} token={token} titled={false} />
-                ))}
-              </li>
-            ),
-          },
-        ]),
     ...choices.map((choice, i) => ({
       key: `choice:${choice.kind}:${i}`,
       said: choiceTip(choice),
@@ -2623,6 +2605,30 @@ function CardTags({
         </li>
       )}
     </ul>
+  );
+}
+
+/**
+ * What a held card costs NOW (`HeldTags.cost`), as pips over the cost printed at the top of the card:
+ * the operator, 2026-11-19, *"it should be on top of the manacost at the top of the card"*. At least as
+ * wide as the printed cost (`--printed-pips`, `card.css`), so none of it shows beside the one that replaced it.
+ */
+function CostNow({ entry, cost }: { entry: BoardCard; cost: NonNullable<HeldTags['cost']> }) {
+  return (
+    <span
+      className="board-card__cost"
+      data-cost={cost.tokens.join(' ')}
+      data-cost-change={cost.change}
+      data-tip={cost.tip}
+      aria-label={`${entry.card.name} costs ${cost.tokens.join(' ')}`}
+      style={{ '--printed-pips': entry.card.manaCost.length } as CSSProperties}
+    >
+      {/* The capsule already carries its own `data-tip` (why the cost changed);
+          a native tooltip on one pip would only repeat the glyph it sits on. */}
+      {cost.tokens.map((token, i) => (
+        <ManaPip key={`${token}-${i}`} token={token} titled={false} />
+      ))}
+    </span>
   );
 }
 
@@ -2863,6 +2869,8 @@ const CardOnBoard = memo(function CardOnBoard({
    * cannot cover this and the fact is carried separately — see the field.
    */
   const onBattlefield = slot !== undefined && slot !== 'hand';
+  /** What continuous effects change about this card while it is held (`BoardInteraction.held`). */
+  const held = slot === 'hand' ? interaction?.held?.get(entry.id) : undefined;
   /** The one piece of the state layer that also reads off the battlefield — see `inExile`. */
   const showCounters = onBattlefield || inExile;
   const itsAttackToDeclare =
@@ -3044,10 +3052,11 @@ const CardOnBoard = memo(function CardOnBoard({
           choices={onBattlefield ? (entry.choices ?? []) : []}
           states={onBattlefield ? (entry.states ?? []) : []}
           waiting={onBattlefield ? (entry.waiting ?? []) : []}
-          held={slot === 'hand' ? interaction?.held?.get(entry.id) : undefined}
+          flash={held?.flash}
           seen={(slot === 'hand' || libraryTop) && entry.seenByOpponent === true}
         />
       )}
+      {held?.cost !== undefined && <CostNow entry={entry} cost={held.cost} />}
       {onBattlefield && <TypePill entry={entry} />}
       {/*
        * NOT gated on `onBattlefield`: the haunting card's own pill reads on
