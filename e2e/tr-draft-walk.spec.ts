@@ -4,7 +4,8 @@
  * pick left in draft, opponent concedes after turn1) that way i can see all of it."*
  *
  * An admin opens the seeded room from the front page and is its drafter: one card is in front of them,
- * the last of the draft. They take it, build, press Play, and enter game 1 from their table's page.
+ * the last of the draft. They take it, build and press Play, which lands on the room's page; their own
+ * table's card is lit there, and its press and then Enter game on the table's page open game 1.
  * The AI gives the game up at the start of its second turn (`play/ai-concedes.ts`), so the board ends
  * on a win nobody pressed Concede for; the sideboard step and game 2 follow, the AI gives that up too,
  * and the pod's round 2 is paired. Real Forge throughout: the turn the server reads and the end it
@@ -18,7 +19,7 @@ import type { PodView } from '../packages/shared/src/pod.ts';
 
 import { trimMainDeck } from './deckBuilder.ts';
 import { PREFIX } from './identities.ts';
-import { enabledOk, enterFromTablePage, grindPriority, makeTitled, pressIntoGame2, readyFromSideboard, resizeWindow, roomIdOfUrl, selectionOpen, serverLog } from './play/board.ts';
+import { enabledOk, enterMyGame, grindPriority, makeTitled, pressIntoGame2, readyFromSideboard, resizeWindow, roomIdOfUrl, selectionOpen, serverLog } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -103,9 +104,9 @@ test(titled('the walk room: an admin makes the draft’s last pick, builds, and 
     say(`room ${roomId}: the one pick made, the builder is open`);
     await trimMainDeck(page, 40, 'admin');
 
-    /* ── Play → my table's page → Enter game ─────────────────────────── */
+    /* ── Play → the room's page → my lit card → my table's page → Enter game ── */
     await page.getByTestId('play-deck').click();
-    await enterFromTablePage(page, MATCH_URL, UI_TIMEOUT);
+    await enterMyGame(page, MATCH_URL, UI_TIMEOUT);
     await expect(page.locator('[aria-label="Game board"]'), 'game 1').toBeVisible({ timeout: UI_TIMEOUT });
     const game1 = new URL(page.url()).hash;
     say(`entered ${game1}`);
