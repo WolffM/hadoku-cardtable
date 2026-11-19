@@ -23,12 +23,17 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.117",
-    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.117",
     "express": "^5.1.0",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6"
-  }
+    "@types/express": "^5.0.6",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.117",
+    "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.117"
+  },
+  "peerDependencies": {
+    "@wolffm/rooms-protocol": "^0.45.0",
+    "@wolffm/rooms-server": "^0.45.0"
+  },
+  "//peerDependencies": "Peers, not dependencies: the app's own rooms-protocol/rooms-server serve the kernel too, so an app that builds them itself (watchparty, from its workspace) installs no second copy. Any 0.45 is enough: the kernel uses only rooms-server's MultiRateLimiter and rooms-protocol's ParticipantId type."
 }
