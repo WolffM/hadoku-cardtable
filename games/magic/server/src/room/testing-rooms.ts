@@ -609,9 +609,10 @@ const nextTurn = (): Promise<void> => new Promise((resolve) => setImmediate(reso
 export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 	const { lobby } = deps;
 	const log = deps.log ?? noopLog;
-	// A saved room keeps no names (R12), and the seed never sends the request that names a member
-	// again: a room it stays in would call it `UNNAMED` after every restart.
+	// A saved room keeps no names (R12), and neither the seed nor a stand-in ever sends the request
+	// that names a member again: a room one stays in would call it `UNNAMED` after every restart.
 	lobby.rename(TESTING_SEED_CALLER);
+	lobby.rename(TESTING_STAND_IN);
 	const missing = (name: string): boolean => !lobby.list().some((r) => r.testing && r.name === name);
 	for (const spec of SPECS) {
 		await nextTurn();

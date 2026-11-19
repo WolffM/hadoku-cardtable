@@ -3121,13 +3121,15 @@ describe('the eight-player tournament rooms (admin only, seeded finished and mid
 		expect(members.map((m) => m.id)).toEqual([TESTING_SEED_CALLER.id]);
 	});
 
-	it('the seed keeps its name across a restart, though a saved room keeps none', async () => {
+	it('the seed and a stand-in keep their names across a restart, though a saved room keeps none', async () => {
 		const dir = await tempDir();
-		await seedTestingRooms({ lobby: await openLobby({ dir }), log: () => {} });
+		await seedTestingRooms({ lobby: await openLobby({ dir }), log: () => {}, library: TABLES_LIBRARY });
 		const reopened = await openLobby({ dir });
-		await seedTestingRooms({ lobby: reopened, log: () => {} });
+		await seedTestingRooms({ lobby: reopened, log: () => {}, library: TABLES_LIBRARY });
 		const room = reopened.list().find((r) => r.name === TESTING_TOURNAMENT_DONE_NAME);
 		expect(room?.members.find((m) => m.id === TESTING_SEED_CALLER.id)?.name).toBe(TESTING_SEED_CALLER.name);
+		const yours = reopened.list().find((r) => r.name === TESTING_SIDEBOARDING_NAME);
+		expect(yours?.members.find((m) => m.id === TESTING_STAND_IN.id)?.name).toBe(TESTING_STAND_IN.name);
 	});
 
 	it('a finished testing tournament never reaches the real Tournaments archive', async () => {
