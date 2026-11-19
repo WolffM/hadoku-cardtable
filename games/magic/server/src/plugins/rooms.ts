@@ -16,7 +16,8 @@ import { DEFAULT_PLAN, stateOf, type PoolSourceResolver, type DraftRooms } from 
 import { emitDraftUpdate, draftEmitPolicy } from '../room/emit.js';
 import { newestFormat } from '../room/lobby.js';
 import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
-import { seedTestingRooms } from '../room/testing-rooms.js';
+import { seedTestingRooms, TESTING_STAND_IN } from '../room/testing-rooms.js';
+import { seatOf } from '@wolffm/rooms-protocol';
 import { challenges, seedStandingChallenge } from '../room/challenge.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { CardtablePlugin } from './state.js';
@@ -110,6 +111,7 @@ export const roomsPlugin: CardtablePlugin = {
 				newestSetCode: async () => (await state.setsStore.list())[0]?.code ?? null,
 				checkPlan: state.checkDraftPlan,
 				library: state.library,
+				draftRooms,
 			});
 		// Challenge rooms (`room/challenge.ts`), and the one the operator may keep standing:
 		// `CARDTABLE_CHALLENGE_COLLECTION` names the event, `CARDTABLE_CHALLENGE_PLAYER` whose seat
@@ -145,8 +147,9 @@ export const roomsPlugin: CardtablePlugin = {
 			() =>
 				busyReport({
 					matches: () => state.play?.matches.active() ?? [],
+					// A testing room's pod its stand-in still holds is nobody's draft: seeded at boot, lost by no restart.
 					drafts: () =>
-						(draftRooms?.all() ?? []).map((r) => ({
+						(draftRooms?.all() ?? []).filter((r) => seatOf(r.seats, TESTING_STAND_IN.id) === null).map((r) => ({
 							id: r.roomId,
 							status: r.app.state?.status,
 							packNumber: r.app.state?.packNumber,

@@ -1019,6 +1019,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		built(podId, memberId) {
 			return builtDeckVerdict(podId, memberId) !== null;
 		},
+		handOverDraft(podId, from, to) {
+			deps.draftRooms?.handOver(podId, from, to);
+		},
 		seatState(podId, memberId) {
 			const built = builtDeckVerdict(podId, memberId);
 			if (built === null) return null;

@@ -1569,6 +1569,29 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		};
 	}
 
+	/**
+	 * The AI's player id: the one player of the game no seat opened a view as (an AI seat never opens
+	 * one, so its `SeatState.playerId` stays null). Null with no AI seat, and before Forge has dealt.
+	 */
+	aiPlayerId(): number | null {
+		if (!this.seats.some((s) => s.ai)) return null;
+		const seated = new Set(this.seats.map((s) => s.playerId));
+		const rest = [...this.watcher.projector.playerCounts().keys()].filter((id) => !seated.has(id));
+		return rest.length === 1 ? rest[0]! : null;
+	}
+
+	/**
+	 * Which of its own turns the AI is taking, 1-based: two players alternate, so the game's turn N is
+	 * its player's ⌈N/2⌉th. Null on a human's turn, with no AI seat, and while no game runs.
+	 */
+	aiTurn(): number | null {
+		if (this.shell.status !== 'running') return null;
+		const turn = this.watcher.projector.turnNumber();
+		const active = this.watcher.projector.activePlayer();
+		if (turn === null || active === null || active !== this.aiPlayerId()) return null;
+		return Math.ceil(turn / 2);
+	}
+
 	/** What {@link MatchDeps.liveChanged} is told on: the turn, whose it is, the life totals. */
 	private liveKey = '';
 

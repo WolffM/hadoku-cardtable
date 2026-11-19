@@ -14,6 +14,7 @@ import { httpDraftbot, type Draftbot } from '../room/draftbot.js';
 import { attachRoomFeed } from '@hadoku/game-server/room/watching';
 import { attachSessions, playsIn } from '@hadoku/game-server/room/session';
 import { attachDraftSocket } from '../room/socket.js';
+import { concedeForTestingRoom } from '../play/ai-concedes.js';
 import { parseDraftPresenceKey } from '../room/draftRooms.js';
 import type { CardtablePlugin } from './state.js';
 
@@ -127,6 +128,7 @@ export const playPlugin: CardtablePlugin = {
 			deckCosts: state.deckCosts,
 			// A table's game moved on: its room's screens read the room again for the table card.
 			liveChanged: (match) => {
+				concedeForTestingRoom(match, lobby);
 				const room = lobby.roomOfMatch(match.id);
 				if (room !== undefined) state.roomFeed.changed(room.id);
 				state.featured.refresh();

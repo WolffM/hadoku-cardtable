@@ -28,11 +28,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { isPodAi, magicGame, planDisplayName, RoomBodySchema, type DraftCard, type DraftPlan, type PoolSource, type PoolVerdict } from '@hadoku/shared';
 
 import { loadTablesLibrary } from './library.ts';
-import { createDraftRooms, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRooms.ts';
+import { createDraftRooms, DEFAULT_PLAN, joinDraftRoom, stateOf, type DraftRooms, type PoolSourceResolver } from '../room/draftRooms.ts';
 import { checkPlan as realCheckPlan, type CubeLookup, type ForgeChecker, type SetLookup } from '../room/plan.ts';
 import { openLobby } from '../room/lobby.ts';
 import { challenges } from '../room/challenge.ts';
-import { seedTestingRooms, TESTING_FIRST_GAME_NAME, TESTING_SIDEBOARDING_NAME, TESTING_WAITING_NAME, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME, TESTING_TOURNAMENT_DONE_NAME, TESTING_TOURNAMENT_MID_NAME, TESTING_SEED_CALLER } from '../room/testing-rooms.ts';
+import { seedTestingRooms, TESTING_FIRST_GAME_NAME, TESTING_SIDEBOARDING_NAME, TESTING_WAITING_NAME, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME, TESTING_TOURNAMENT_DONE_NAME, TESTING_TOURNAMENT_MID_NAME, TESTING_SEED_CALLER, TESTING_DRAFT_WALK_NAME, TESTING_STAND_IN } from '../room/testing-rooms.ts';
+import { packOf, pick } from '@hadoku/draft';
+import { seatOf } from '@wolffm/rooms-protocol';
 import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
 import { REPO_ROOT } from '../root.ts';
 import { magicView } from '../room/magic-view.js';
@@ -164,7 +166,7 @@ async function openApp(
  */
 async function openFullApp(
 	dir: string,
-	opts: { random?: () => number; schedule?: (fn: () => void, ms: number) => void } = {},
+	opts: { random?: () => number; schedule?: (fn: () => void, ms: number) => void; draftRooms?: DraftRooms } = {},
 ): Promise<Harness> {
 	const log = (entry: Record<string, unknown>): void => {
 		logged.push(entry);
@@ -178,7 +180,7 @@ async function openFullApp(
 	roomsMod.attachRooms(api, { lobby, log, challenges: challenges(lobby, REPO_ROOT), checkPlan: async (plan) => ({ ok: true, cards: plan.rounds.length * 10 }) });
 	routesMod.attachTables(api, {
 		library: TABLES_LIBRARY,
-		draftRooms: null,
+		draftRooms: opts.draftRooms ?? null,
 		rooms: lobby,
 		matches: () => null,
 		log,
@@ -2892,6 +2894,102 @@ describe('testing rooms (admin only, seeded)', () => {
 		for (const id of testingIds) expect(dropped).not.toContain(id);
 		const stillTesting = h.lobby.list().filter((r) => r.testing).map((r) => r.id);
 		expect(stillTesting.sort()).toEqual(testingIds.sort());
+	});
+});
+
+/**
+ * "Testing: Draft pod — one pick left" (the operator, 2026-11-19): dealt and drafted by the seed
+ * through the lobby and the server's own pods, as `plugins/rooms.ts` wires them.
+ */
+describe('the walk room: a pod drafted down to its last pick, against an AI that gives each game up', () => {
+	const admin = (as: string) => ({ as, headers: { 'x-hadoku-tier': 'admin' } });
+	const walkCard = (i: number): DraftCard => ({
+		cardId: `walk-${i}`,
+		name: `Walk card ${i}`,
+		manaCost: [],
+		manaValue: 0,
+		colors: [],
+		typeLine: 'Creature — Test',
+		oracleText: '',
+		setCode: 'WLK',
+		collectorNumber: String(i),
+		rarity: 'common',
+	});
+	const WALK_POOL = Array.from({ length: 400 }, (_, i) => walkCard(i));
+
+	async function seeded() {
+		const draftRooms = createDraftRooms({ presence: testPresence, resolver: { cards: () => WALK_POOL, name: () => 'Walk cube' }, defaultPlan: DEFAULT_PLAN });
+		const h = await openFullApp(await tempDir(), { draftRooms });
+		const seedLog: Record<string, unknown>[] = [];
+		const seed = (): Promise<void> => seedTestingRooms({ lobby: h.lobby, log: (e) => seedLog.push(e), draftRooms, checkPlan: async () => ({ ok: true, cards: WALK_POOL.length }) });
+		await seed();
+		const walk = (): string => h.lobby.list().find((r) => r.testing && r.name === TESTING_DRAFT_WALK_NAME)!.id;
+		return { h, draftRooms, seed, seedLog, walk };
+	}
+
+	it('is seeded with seven AI seats, the draft dealt and every pick made but the stand-in’s last', async () => {
+		const { h, draftRooms, seedLog, walk } = await seeded();
+		expect(seedLog).toContainEqual(expect.objectContaining({ event: 'testing-room-seeded', name: TESTING_DRAFT_WALK_NAME, picksLeft: 1 }));
+		const room = h.lobby.get(walk())!;
+		expect(room.members.map((m) => m.id)).toEqual([TESTING_STAND_IN.id]);
+		expect(room.game!.pod!.phase).toBe('drafting');
+		const state = stateOf(draftRooms.find(walk())!);
+		const seat = seatOf(state.table, TESTING_STAND_IN.id)!;
+		expect(state.seatCount).toBe(8);
+		expect(state.status).toBe('drafting');
+		expect(state.pools[seat]).toHaveLength(44);
+		expect(packOf(state, seat), 'the last card of the last pack is in front of it').toHaveLength(1);
+		expect(state.packNumber).toBe(3);
+		for (let s = 0; s < state.seatCount; s++) if (s !== seat) expect(state.pools[s], `AI seat ${s} has drafted`).toHaveLength(45);
+	});
+
+	it('the first admin in takes the seat and the pool it drafted, makes the one pick, and the pod is building', async () => {
+		const { h, draftRooms, walk } = await seeded();
+		const id = walk();
+		const joined = await call(h, 'POST', `/api/rooms/${id}/join`, admin('alice'));
+		expect(joined.status, joined.text).toBe(200);
+		const alice = (joined.json() as { you: { id: string; leader: boolean } }).you;
+		expect(alice.leader).toBe(true);
+		const draft = draftRooms.find(id)!;
+		expect(JSON.stringify([h.lobby.get(id), stateOf(draft)]), 'nothing still names the stand-in').not.toContain('testing-stand-in');
+		// Her own join of the draft: the seat is hers, under her name.
+		const { seat } = joinDraftRoom(draft, 'socket-alice', alice.id, 'admin', draftRooms.drafters(id));
+		expect(seat).not.toBeNull();
+		expect(stateOf(draft).displayNames[seat!]).toBe('user-alice');
+		expect(stateOf(draft).pools[seat!]).toHaveLength(44);
+		// The next admin in watches: the pod was dealt to its drafters.
+		const bob = (await call(h, 'POST', `/api/rooms/${id}/join`, admin('bob'))).json() as { you: { id: string } };
+		expect(joinDraftRoom(draft, 'socket-bob', bob.you.id, 'admin', draftRooms.drafters(id)).seat).toBeNull();
+
+		const last = packOf(stateOf(draft), seat!)[0]!;
+		const picked = pick(stateOf(draft), seat!, last.cardId);
+		expect(picked.ok).toBe(true);
+		draft.app.state = picked.state;
+		expect(picked.state.status).toBe('complete');
+		expect(picked.state.pools[seat!]).toHaveLength(45);
+		expect(h.lobby.get(id)!.game!.pod!.phase).toBe('building');
+	});
+
+	it('is skipped and logged on a server with no pods, and seeded again fresh once an admin has closed it', async () => {
+		const bare = await openFullApp(await tempDir());
+		const bareLog: Record<string, unknown>[] = [];
+		await seedTestingRooms({ lobby: bare.lobby, log: (e) => bareLog.push(e) });
+		expect(bareLog).toContainEqual(expect.objectContaining({ event: 'testing-room-seed-skipped', name: TESTING_DRAFT_WALK_NAME }));
+		expect(bare.lobby.list().some((r) => r.name === TESTING_DRAFT_WALK_NAME)).toBe(false);
+
+		const { h, draftRooms, seed, walk } = await seeded();
+		const first = walk();
+		await seed();
+		expect(h.lobby.list().filter((r) => r.name === TESTING_DRAFT_WALK_NAME), 'a second seed makes no second room').toHaveLength(1);
+		const alice = ((await call(h, 'POST', `/api/rooms/${first}/join`, admin('alice'))).json() as { you: { id: string } }).you;
+		expect((await call(h, 'POST', `/api/rooms/${first}/close`, admin('alice'))).status).toBe(200);
+		await seed();
+		const second = walk();
+		expect(second).not.toBe(first);
+		expect(h.lobby.get(second)!.members.map((m) => m.id), 'the stand-in again, not the admin who closed the last one').toEqual([TESTING_STAND_IN.id]);
+		expect(h.lobby.get(second)!.members.map((m) => m.id)).not.toContain(alice.id);
+		const state = stateOf(draftRooms.find(second)!);
+		expect(state.pools[seatOf(state.table, TESTING_STAND_IN.id)!]).toHaveLength(44);
 	});
 });
 

@@ -214,6 +214,8 @@ export interface RoomTypeHooks<G, I extends RoomCreateInput = RoomCreateInput> {
 	aiSeated?(room: LobbyRoom<G>, seat: number, on: boolean): void;
 	/** Every member id `ids` names, in the game part, before the record's ids are replaced (account erase). */
 	anonymise?(room: LobbyRoom<G>, ids: ReadonlySet<string>): void;
+	/** A testing room's stand-in gave `to` its place (`#handOver`): the record already names `to`; what the game keeps outside it follows. */
+	handedOver?(room: LobbyRoom<G>, from: string, to: string): void;
 	/** The room is about to be forgotten (a close or the sweep): keep what it played, settle what it owes. */
 	ending?(room: LobbyRoom<G>, why: 'close' | 'sweep' | 'forget'): void;
 	/** A relay room's match seat count: set for a type whose room IS its match (`onRelayRoomOpened`). */
@@ -783,6 +785,7 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 			member.userId = caller.userId;
 			member.name = caller.name;
 		}
+		this.hooksOf(room).handedOver?.(room, TESTING_STAND_IN_ID, caller.id);
 		this.persist(room);
 		this.log({ event: 'room-handed-over', roomId: room.id });
 	}

@@ -138,6 +138,8 @@ export interface MagicRoomGame {
 	gauntlets: Record<string, GauntletState>;
 	/** A board-state testing room's own scenario (`CreateRoomInput.scenario`'s doc). Absent for every room that is not one. */
 	scenario?: string;
+	/** A testing room whose AI gives every game up at the start of its second turn (`CreateRoomInput.aiConcedes`'s doc). */
+	aiConcedes?: boolean;
 	/** A historical-tournament replay room (`CreateRoomInput.historical`'s doc). Born locked. */
 	historical?: boolean;
 	/** Entrant id → library deck id, the decks the real event's players played (`CreateRoomInput.aiDeckAssignments`'s doc). */
@@ -221,6 +223,8 @@ interface StoredMagicGame {
 	gauntlets?: Record<string, GauntletState>;
 	/** Absent for a room written before board-state testing rooms existed, or that is not one: every such room has no scenario. */
 	scenario?: string;
+	/** Absent for every room not seeded with it (`RoomRecord.aiConcedes`'s doc). */
+	aiConcedes?: boolean;
 	/** Absent for every room that is not a historical replay (`RoomRecord.historical`'s doc). */
 	historical?: boolean;
 	/** A historical room's tournament structure (`RoomRecord.historicalStructure`'s doc). */
@@ -428,6 +432,7 @@ function decodeMagicGame(g: Record<string, unknown>, gameType: string): Omit<Sto
 		throw new Error('app.game.gauntlet is invalid');
 	}
 	if (g.scenario !== undefined && typeof g.scenario !== 'string') throw new Error('app.game.scenario is invalid');
+	if (g.aiConcedes !== undefined && typeof g.aiConcedes !== 'boolean') throw new Error('app.game.aiConcedes is invalid');
 	if (g.historical !== undefined && typeof g.historical !== 'boolean') throw new Error('app.game.historical is invalid');
 	if (
 		g.historicalStructure !== undefined &&
@@ -463,6 +468,7 @@ function decodeMagicGame(g: Record<string, unknown>, gameType: string): Omit<Sto
 		...(g.gauntlets !== undefined ? { gauntlets: { ...(g.gauntlets as Record<string, GauntletState>) } } : {}),
 		...(g.gauntlets === undefined && g.gauntlet !== undefined && g.gauntlet !== null ? { gauntlet: g.gauntlet as GauntletState } : {}),
 		...(g.scenario === undefined ? {} : { scenario: g.scenario as string }),
+		...(g.aiConcedes === true ? { aiConcedes: true } : {}),
 		...(g.historical === true ? { historical: true } : {}),
 		...(g.historicalStructure === undefined ? {} : { historicalStructure: { swiss: (g.historicalStructure as { swiss: number }).swiss, cut: (g.historicalStructure as { cut: number }).cut } }),
 		...(g.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...(g.aiDeckAssignments as Record<string, string>) } }),

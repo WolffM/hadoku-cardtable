@@ -268,6 +268,13 @@ interface CreateRoomInput extends RoomCreateInput {
 	 */
 	scenario?: string;
 	/**
+	 * A testing room whose AI opponent gives every game up at the start of its second turn
+	 * (`room/testing-rooms.ts`, so one person can walk a whole series and the rounds after it). Set
+	 * the way `scenario` is, by no client body, and kept only on a `testing` room: on any other
+	 * room it is dropped at create. `aiConcedesIn` is its one reader.
+	 */
+	aiConcedes?: boolean;
+	/**
 	 * A historical-tournament replay room (`scripts/` driver or `room/testing-rooms.ts`-style
 	 * seeding, never a client body — no field in `CreateRoomBodySchema`, the same rule as
 	 * `testing`). Born locked: every room control (`roomLocks` answers `'historical'` for all
@@ -421,6 +428,8 @@ export interface Lobby
 	 * `ROOM_MATCHES_KEPT` matches, on disk.
 	 */
 	roomOfMatch(matchId: string): MagicRoomView | undefined;
+	/** Whether `matchId` is a game of a testing room seeded with `aiConcedes` (`CreateRoomInput.aiConcedes`'s doc). */
+	aiConcedesIn(matchId: string): boolean;
 	/** The core's `create`. A room of one of Magic's own types comes back as Magic's view. */
 	create(caller: Caller, input: CreateRoomInput & { gameType: MagicGameType }): CreateResult<MagicRoomView>;
 	create(caller: Caller, input: CreateRoomInput): CreateResult<RoomView>;
@@ -839,6 +848,7 @@ function storedMagicGame(room: LobbyRoom<MagicRoomGame>): StoredApp['game'] {
 		lockedDecks: { ...game.lockedDecks },
 		gauntlets: Object.fromEntries(Object.entries(game.gauntlets).map(([t, g]) => [t, gauntletWithoutNames(g)])),
 		...(game.scenario === undefined ? {} : { scenario: game.scenario }),
+		...(game.aiConcedes === true ? { aiConcedes: true } : {}),
 		...(game.historical === true ? { historical: true } : {}),
 		...(game.historicalStructure === undefined ? {} : { historicalStructure: { ...game.historicalStructure } }),
 		...(game.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...game.aiDeckAssignments } }),
@@ -1206,6 +1216,11 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			aiSeated: (room, seat, on) => {
 				room.game.podAi = room.game.podAi.map((a, i) => (i === seat ? (on ? freeAiAvatar(room, seat) : null) : a));
 			},
+			handedOver: (room, from, to) => {
+				if (!isDraftRoom(room) || room.game.draftStartedAt === null) return;
+				const pods = room.game.podDrafts?.length ?? 1;
+				for (let pod = 0; pod < pods; pod++) this.#hooksFor(room.gameType).handOverDraft?.(podDraftId(room.id, pod), from, to);
+			},
 			anonymise: (room, ids) => {
 				// A Gauntlet keeps a leaver's name in memory (`gauntletNamed`); a saved one never has it.
 				for (const [tableId, g] of Object.entries(room.game.gauntlets)) {
@@ -1256,6 +1271,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			lockedDecks: {},
 			gauntlets: {},
 			...(input.scenario === undefined ? {} : { scenario: input.scenario }),
+			...(input.testing === true && input.aiConcedes === true ? { aiConcedes: true } : {}),
 			...(input.historical === true
 				? {
 						historical: true,
@@ -1322,6 +1338,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			lockedDecks: game.lockedDecks ?? {},
 			gauntlets: game.gauntlets ?? {},
 			...(game.scenario === undefined ? {} : { scenario: game.scenario }),
+			...(game.aiConcedes === true ? { aiConcedes: true } : {}),
 			...(game.historical === true ? { historical: true } : {}),
 			...(game.historicalStructure === undefined ? {} : { historicalStructure: { ...game.historicalStructure } }),
 			...(game.aiDeckAssignments === undefined ? {} : { aiDeckAssignments: { ...game.aiDeckAssignments } }),
@@ -1398,6 +1415,13 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			if (room.game.tables.some((t) => t.matchId === matchId) || room.game.matches.includes(matchId)) return this.#view(room);
 		}
 		return undefined;
+	}
+
+	aiConcedesIn(matchId: string): boolean {
+		for (const room of this.#rooms()) {
+			if (room.testing && room.game.aiConcedes === true && room.game.tables.some((t) => t.matchId === matchId)) return true;
+		}
+		return false;
 	}
 
 	stillPlaying(matchId: string, memberId: string): boolean {

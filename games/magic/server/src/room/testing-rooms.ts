@@ -35,6 +35,11 @@
  * pool. `index.ts` wires the real `newestSetCode` from `setsStore.list()`
  * (newest first) and the real `checkPlan` it already built for
  * `attachRooms`.
+ *
+ * ## The walk room needs the drafts
+ *
+ * "Testing: Draft pod — one pick left" is dealt and drafted here, so it needs the server's own
+ * `DraftRooms` and the plan check; without either it is skipped and logged, like the set draft.
  */
 
 import { readFileSync } from 'node:fs';
@@ -42,11 +47,14 @@ import { join } from 'node:path';
 
 import { checkSeat, legalLibraryDecks, publicVerdict } from '../http/gate.ts';
 import type { TablesLibrary } from '../http/library.ts';
+import { DEFAULT_PLAN, stateOf, type DraftRooms } from './draftRooms.ts';
 import type { Lobby } from './lobby.ts';
 import { SCENARIOS_DIR } from '../root.ts';
 import type { Caller } from '@hadoku/game-server/room/caller';
 import { TESTING_STAND_IN_ID } from '@hadoku/game-server/room/lobby';
+import { runBots, timeoutPick, type DraftState } from '@hadoku/draft';
 import type { DraftPlan, PoolVerdict, RoomMode } from '@hadoku/shared';
+import { seatOf } from '@wolffm/rooms-protocol';
 
 /**
  * A `dev:` identity (device tier — `isDurableParticipantId` admits it) no
@@ -159,6 +167,12 @@ export interface TestingRoomsDeps {
 	 * of this — `humanReady` there is just the room's own `ready` flag.
 	 */
 	library?: TablesLibrary;
+	/**
+	 * The server's own pods (`plugins/rooms.ts`), which {@link TESTING_DRAFT_WALK_NAME} is dealt into and
+	 * drafted in. Omitted or null (no cube on this server, and every unit test that never wires it):
+	 * that room is skipped and logged.
+	 */
+	draftRooms?: DraftRooms | null;
 }
 
 function noopLog(): void {}
@@ -496,6 +510,77 @@ async function seedBetweenGames(deps: TestingRoomsDeps, spec: BetweenGamesSpec, 
 	log({ event: 'testing-room-seeded', name, roomId });
 }
 
+/**
+ * The whole walk, alone (the operator, 2026-11-19: *"something that lets me get through every single
+ * phase (one pick left in draft, opponent concedes after turn1) that way i can see all of it"*): an
+ * eight-seat pod, seven of them the AI, drafted down to the stand-in's last pick, in a room whose AI
+ * opponent gives every game up at the start of its second turn (`play/ai-concedes.ts`). The first
+ * admin in takes the stand-in's seat and the pool it drafted.
+ *
+ * Every step is the one a drafter's own makes: the leader's plan, the AI button on each open seat,
+ * Ready, `startDraft`, the deal the first join does (`DraftRooms.open`), and then, pick by pick, the
+ * card a seat is given when its pick timer runs out (`timeoutPick`, the draft bot's choice for that
+ * seat) with the bots catching up as they do at `botPickMs: 0` (`runBots`).
+ */
+export const TESTING_DRAFT_WALK_NAME = 'Testing: Draft pod — one pick left';
+
+/** How many picks the stand-in leaves for the admin who takes its seat. */
+const DRAFT_WALK_PICKS_LEFT = 1;
+
+/** The pod's seats: the stand-in's, and the AI in every other. */
+const DRAFT_WALK_SEATS = 8;
+
+/** `seat` picks as a timed-out seat does until it has `left` picks to make, the bots keeping up. Null when a pick was refused or the seat was left with no pack. */
+function draftDownTo(start: DraftState, seat: number, left: number): DraftState | null {
+	const quiet = (): void => {};
+	const stopAt = start.packCount * start.packSize - left;
+	let state = runBots(start, quiet).state;
+	while ((state.pools[seat]?.length ?? 0) < stopAt) {
+		const taken = timeoutPick(state, seat);
+		if (taken === null || !taken.ok) return null;
+		state = runBots(taken.state, quiet).state;
+	}
+	return state;
+}
+
+async function seedDraftWalk(deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void): Promise<void> {
+	const { lobby } = deps;
+	const name = TESTING_DRAFT_WALK_NAME;
+	const drafts = deps.draftRooms ?? null;
+	if (drafts === null || deps.checkPlan === undefined) {
+		log({ event: 'testing-room-seed-skipped', name, reason: 'no drafts wired' });
+		return;
+	}
+	const verdict = await deps.checkPlan(DEFAULT_PLAN);
+	if (!verdict.ok) {
+		log({ event: 'testing-room-seed-skipped', name, reason: 'plan refused' });
+		return;
+	}
+	const seed = TESTING_STAND_IN;
+	const created = lobby.create(seed, { name, gameType: 'draft', clientMode: 'builtin', testing: true, aiConcedes: true });
+	if (!created.ok) {
+		log({ event: 'testing-room-seed-failed', name, reason: created.reason });
+		return;
+	}
+	const roomId = created.room.id;
+	const failed = (reason: string): void => log({ event: 'testing-room-seed-failed', name, roomId, reason });
+	if (!lobby.setPodPlan(roomId, seed.id, DEFAULT_PLAN, verdict).ok) return failed('plan-not-set');
+	if (!lobby.sitSeat(roomId, seed.id, 0).ok) return failed('seat-refused');
+	for (let seat = 1; seat < DRAFT_WALK_SEATS; seat++) {
+		if (!lobby.aiSeat(roomId, seed.id, seat, true).ok) return failed(`ai-seat-${seat}-refused`);
+	}
+	lobby.setReady(roomId, seed.id, true);
+	const started = lobby.startDraft(roomId, seed.id);
+	if (!started.ok) return failed(`draft-not-started: ${started.reason}`);
+	const draft = drafts.open(drafts.routeFor(roomId, seed.id));
+	const seat = seatOf(draft.seats, seed.id);
+	const drafted = seat === null ? null : draftDownTo(stateOf(draft), seat, DRAFT_WALK_PICKS_LEFT);
+	if (drafted === null) return failed('draft-did-not-reach-the-last-pick');
+	// One write of the pod, where each pick of a played draft is its own.
+	draft.app.state = drafted;
+	log({ event: 'testing-room-seeded', name, roomId, picksLeft: DRAFT_WALK_PICKS_LEFT });
+}
+
 /** One turn of the event loop: what {@link seedTestingRooms} gives way for before each room. */
 const nextTurn = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
@@ -538,6 +623,7 @@ export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 		[TESTING_GAUNTLET_ROUND2_NAME, seedTournamentRound2Gauntlet],
 		[TESTING_TOURNAMENT_DONE_NAME, seedTournamentDone],
 		[TESTING_TOURNAMENT_MID_NAME, seedTournamentMid],
+		[TESTING_DRAFT_WALK_NAME, seedDraftWalk],
 		...BETWEEN_GAMES.map((spec): [string, (deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void) => Promise<void>] => [spec.name, (d, l) => seedBetweenGames(d, spec, l)]),
 	];
 	const started: Promise<void>[] = [];

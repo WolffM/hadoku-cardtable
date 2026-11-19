@@ -413,12 +413,34 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	 * this moved behind the hook.
 	 */
 	protected forceConcede(seat: number): void {
-		const loser = this.seats[seat]?.playerId ?? null;
+		// An AI seat has no player id of its own to name the loser by: the game's other player is it.
+		const loser = this.seats[seat]?.playerId ?? (this.seats[seat]?.ai === true ? this.session.aiPlayerId() : null);
 		this.onLine({
 			t: 'gameover',
 			winner: this.spec.seats[seat === 0 ? 1 : 0]?.name ?? null,
 			...(loser === null ? {} : { losers: [loser], lost: [{ player: loser, reason: 'Conceded' }] }),
 		});
+	}
+
+	/** See {@link ForgeSession.aiTurn}. */
+	aiTurn(): number | null {
+		return this.session.aiTurn();
+	}
+
+	/**
+	 * The AI seat gives the game up (a testing room's `aiConcedes`, `play/ai-concedes.ts`). The bridge
+	 * takes a concede from a human seat's own controller and has none for the AI, so no act is sent:
+	 * the game ends as a concede Forge never answered does ({@link forceConcede}), the AI the loser,
+	 * and Forge's game is stopped with the match. False when there is no running game against an AI
+	 * to give up, or a seat already has.
+	 */
+	concedeAi(): boolean {
+		const seat = this.seats.findIndex((s) => s.ai);
+		if (seat < 0 || this.status !== 'running' || this.concededBy !== null) return false;
+		this.concededBy = seat;
+		this.deps.log({ evt: 'ai-conceded', matchId: this.id, seat, turn: this.session.live()?.turn ?? null });
+		this.forceConcede(seat);
+		return true;
 	}
 
 	protected onLine(line: BridgeLine): void {

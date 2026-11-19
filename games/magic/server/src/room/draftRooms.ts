@@ -466,6 +466,11 @@ export interface DraftRooms {
 	 * id's handle (`pods`). Each pod changed is saved.
 	 */
 	erase(participantId: ParticipantId, ids: ReadonlySet<string>, to: string): { decks: number; pods: number };
+	/**
+	 * A testing room's stand-in gave `to` its place in the room (`RoomLobby`'s hand-over): its seat in
+	 * this draft, with the pool it has drafted so far, is `to`'s too. Their next join names the seat.
+	 */
+	handOver(draftId: string, from: string, to: string): void;
 }
 
 /**
@@ -914,19 +919,17 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 				// No events: this is us removing the person, not a timeout deciding it.
 				app.presence.forget(draftPresenceKey(room.roomId, participantId));
 				const named = room.clientNames.delete(participantId);
-				const seats = app.state === null ? [] : humanSeatsOf(app.state).filter((s) => ids.has(s.participantId));
-				const replaced = replaceIds(room.seats, ids, to) + (app.state === null ? 0 : replaceIds(app.state, ids, to));
-				if (app.state !== null && seats.length > 0) {
-					const displayNames = { ...app.state.displayNames };
-					for (const { seat } of seats) displayNames[seat] = participantHandle(to as ParticipantId);
-					app.state = { ...app.state, displayNames };
-				}
+				const replaced = reseat(room, ids, to);
 				if (hadDeck) decks++;
 				if (!hadDeck && !named && replaced === 0) continue;
 				pods++;
 				app.persist(room);
 			}
 			return { decks, pods };
+		},
+		handOver(draftId, from, to) {
+			const room = find(draftId);
+			if (room !== undefined && reseat(room, new Set([from]), to) > 0) room.app.persist(room);
 		},
 		cacheRealisticRound(draftId, round, packs) {
 			let byRound = realisticByDraft.get(draftId);
@@ -937,6 +940,22 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			byRound.set(round, packs);
 		},
 	};
+}
+
+/**
+ * `to` holds every seat `ids` held in the pod, under its handle until a join names it. How many ids
+ * were replaced; the caller saves the pod.
+ */
+function reseat(room: DraftRoom, ids: ReadonlySet<string>, to: string): number {
+	const app = room.app;
+	const seats = app.state === null ? [] : humanSeatsOf(app.state).filter((s) => ids.has(s.participantId));
+	const replaced = replaceIds(room.seats, ids, to) + (app.state === null ? 0 : replaceIds(app.state, ids, to));
+	if (app.state !== null && seats.length > 0) {
+		const displayNames = { ...app.state.displayNames };
+		for (const { seat } of seats) displayNames[seat] = participantHandle(to as ParticipantId);
+		app.state = { ...app.state, displayNames };
+	}
+	return replaced;
 }
 
 /** The draft in a room. Absent is an invariant violation, not a case. */

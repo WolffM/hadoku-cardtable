@@ -1567,6 +1567,29 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 		expect(ended, 'settled at once: nothing is held open for a Rematch').toHaveLength(1);
 	});
 
+	it('`aiConcedes` is a testing room’s only: kept on one and across a restart, read by its table’s live match, dropped at create on any other room', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const seeded = lobby.create(ALICE, { name: 'Testing: walk', gameType: 'constructed-1v1', clientMode: 'builtin', testing: true, aiConcedes: true });
+		const plain = lobby.create(BOB, { name: 'Not a testing room', gameType: 'constructed-1v1', clientMode: 'builtin', aiConcedes: true });
+		if (!seeded.ok || !plain.ok) throw new Error('create failed');
+		for (const [made, who, matchId] of [[seeded, ALICE, 'm-walk-1'], [plain, BOB, 'm-plain-1']] as const) {
+			const tableId = made.room.tables[0]!.id;
+			lobby.sit(made.room.id, tableId, who.id);
+			expect(lobby.setTableMatch(made.room.id, tableId, matchId)).toBe(true);
+		}
+		expect(lobby.aiConcedesIn('m-walk-1')).toBe(true);
+		expect(lobby.aiConcedesIn('m-plain-1')).toBe(false);
+		expect(lobby.aiConcedesIn('m-nobody')).toBe(false);
+		const reopened = await openLobby({ dir });
+		expect(reopened.aiConcedesIn('m-walk-1'), 'restored with the room').toBe(true);
+		expect(reopened.aiConcedesIn('m-plain-1')).toBe(false);
+		// Every game of the series, not only the first: the next game's match reads the same.
+		const tableId = seeded.room.tables[0]!.id;
+		reopened.recordGameResult(seeded.room.id, tableId, { matchId: 'm-walk-1', winner: 0 });
+		expect(reopened.aiConcedesIn('m-walk-1'), 'a game that ended is no table’s live match').toBe(false);
+	});
+
 	/**
 	 * A chess clock is 20 minutes a game, not a series (the operator, 2026-11-07, after rhomancer's Bo3
 	 * ended on game 2's clock): running out loses that game, and the series goes on to the next.

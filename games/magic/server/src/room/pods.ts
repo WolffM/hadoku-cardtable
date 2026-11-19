@@ -627,6 +627,8 @@ export interface GameHooks {
 	seatTournamentDeck(roomId: string, tableId: string, entrant: string, deck: unknown | null): void;
 	/** The real player who played a library deck (its `pilot`): a Challenge AI's name. Absent, or `undefined`, keeps the seat's own character name. */
 	pilotOf?(deckId: string): string | undefined;
+	/** A testing room's stand-in gave `to` its place: its seat in the draft `podId` goes with it (`DraftRooms.handOver`). */
+	handOverDraft?(podId: string, from: string, to: string): void;
 	/** See this interface's own doc, last paragraph. Optional: absent plays no bot game. */
 	playBotGame?(ask: BotGameAsk): Promise<{ wins: [number, number]; gameMs: number[] } | null>;
 }

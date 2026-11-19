@@ -5203,6 +5203,81 @@ describe('live', () => {
 	});
 });
 
+/** A testing room's AI gives the game up (`play/ai-concedes.ts`): the turn it reads, and the end it makes. */
+describe('the AI seat gives the game up', () => {
+	function vsAi() {
+		const { factory, hosts } = replayFactory();
+		const logs: Record<string, unknown>[] = [];
+		const sent: Harness['sent'] = [];
+		const registry = createMatchRegistry({ host: factory, log: (e) => logs.push(e), overGraceMs: 60_000, emit: (_match, seat, envelope) => sent.push({ seat, envelope }) });
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1], ai: true }] });
+		match.claim(ALICE);
+		const host = hosts[0] as ReplayHost;
+		// The bridge sends an AI seat nothing: it never opens a view, so it has no player id of its own.
+		host.push(...TRANSCRIPT.filter((l) => !(l.t === 'frame' && l.seat === 1)));
+		const human = match.seats[0]!.playerId!;
+		const ai = match.session.aiPlayerId()!;
+		const game = String(deltaKeyOf(DELTA_TYPE.game, 1));
+		let seq = 990;
+		const turnTo = (turn: number, player: number): void => {
+			const objectDeltas = { [game]: { _type: DELTA_TYPE.game, _id: 1, Turn: { t: 'int', v: turn }, PlayerTurn: { t: 'int', v: player } } };
+			host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'applyDelta', payload: { packet: { seq: seq++, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] } } } } as BridgeLine);
+		};
+		return { match, host, logs, sent, human, ai, turnTo };
+	}
+
+	it('the AI is the one player no seat opened a view as; a game of two humans has none', () => {
+		const t = vsAi();
+		expect(t.match.status).toBe('running');
+		expect(t.match.seats[1]!.playerId).toBeNull();
+		expect(t.ai).not.toBe(t.human);
+		const h = harness();
+		h.host.push(...TRANSCRIPT);
+		expect(h.match.session.aiPlayerId()).toBeNull();
+		expect(h.match.aiTurn()).toBeNull();
+		expect(h.match.concedeAi()).toBe(false);
+	});
+
+	it('counts the AI’s own turns, on the play or on the draw, and is null on the human’s', () => {
+		const t = vsAi();
+		t.turnTo(1, t.ai);
+		expect(t.match.aiTurn(), 'on the play: turn 1 is its first').toBe(1);
+		t.turnTo(2, t.human);
+		expect(t.match.aiTurn()).toBeNull();
+		t.turnTo(3, t.ai);
+		expect(t.match.aiTurn(), 'on the play: turn 3 is its second').toBe(2);
+		t.turnTo(2, t.ai);
+		expect(t.match.aiTurn(), 'on the draw: turn 2 is its first').toBe(1);
+		t.turnTo(4, t.ai);
+		expect(t.match.aiTurn(), 'on the draw: turn 4 is its second').toBe(2);
+	});
+
+	it('ends the game at once as a concede does: the human wins, their board is told the AI lost by conceding, and Forge is sent no act', () => {
+		const t = vsAi();
+		t.turnTo(4, t.ai);
+		const mark = t.sent.length;
+		const commands = t.host.commands.length;
+		expect(t.match.concedeAi()).toBe(true);
+		expect(t.match.status).toBe('over');
+		expect(t.match.outcome()).toEqual({ kind: 'won', winner: 0, conceded: true });
+		expect(t.sent.slice(mark).map((x) => ({ seat: x.seat, frame: x.envelope.frame }))).toContainEqual({
+			seat: 0,
+			frame: { kind: 'notify', method: 'finishGame', losers: [t.ai], lost: [{ player: t.ai, reason: 'Conceded' }] },
+		});
+		expect(t.host.commands.slice(commands).filter((c) => c.t === 'act')).toEqual([]);
+		expect(t.logs.find((l) => l.evt === 'ai-conceded')).toMatchObject({ matchId: t.match.id, seat: 1, turn: 4 });
+		expect(t.match.aiTurn(), 'no game runs').toBeNull();
+		expect(t.match.concedeAi(), 'a game that is over has nothing to give up').toBe(false);
+	});
+
+	it('not after the human has conceded: that game is theirs to lose', () => {
+		const t = vsAi();
+		expect(t.match.fromClient(0, { kind: 'act', method: 'concede' })).toEqual({ ok: true });
+		expect(t.match.concedeAi()).toBe(false);
+		expect(t.match.concededBy).toBe(0);
+	});
+});
+
 /** What the front page's featured pick reads (`featured.ts`): the seconds in which the table changed. */
 describe('activity', () => {
 	it('counts each second the table changed once, and forgets what is older than the window', () => {
