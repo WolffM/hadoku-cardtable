@@ -68,6 +68,8 @@ interface Harness {
 	/** What the stand-in prefs-api says each account is called, by userId; change it to rename someone. */
 	names: Map<string, string>;
 	served: Awaited<ReturnType<typeof import('./serve.ts').attachServedRoom>>;
+	/** Every `onRoster` call, by room. */
+	rosterChanges: string[];
 	/** What the served room logged, `room.refused` among it. */
 	events: Array<{ event: string; fields: Record<string, unknown> }>;
 	close: () => Promise<void>;
@@ -113,6 +115,7 @@ async function boot(): Promise<Harness> {
 	const io = new SocketIOServer(http, { serveClient: false });
 	gateMod.gateSocketIo(io, { minTier: 'friend', surface: 'draft-socket' });
 	const events: Array<{ event: string; fields: Record<string, unknown> }> = [];
+	const rosterChanges: string[] = [];
 	const served = await serveMod.attachServedRoom(io, {
 		lobby,
 		presence,
@@ -123,6 +126,7 @@ async function boot(): Promise<Harness> {
 		appId: APP_ID,
 		roomIdRe: ROOM_ID_RE,
 		onEvent: (_level, event, fields) => events.push({ event, fields }),
+		onRoster: (roomId) => rosterChanges.push(roomId),
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	return {
@@ -135,6 +139,7 @@ async function boot(): Promise<Harness> {
 		names,
 		served,
 		events,
+		rosterChanges,
 		close: async () => {
 			served.close();
 			io.close();
@@ -247,6 +252,34 @@ describe('attachServedRoom', () => {
 			await vi.waitFor(() => expect(carol.broadcasts.some((b) => b.text === 'hello from alice')).toBe(true));
 			expect((await h.served.chat.store.recentMessages(h.roomId)).some((m) => m.text === 'hello from alice')).toBe(true);
 			expect([alice.errors, carol.errors]).toEqual([[], []]);
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('`here` names who has a room connection now, never a member who only joined once, and says when it changes', async () => {
+		const h = await boot();
+		try {
+			const [aliceId, carolId] = [participantIdFor('alice'), participantIdFor('carol')];
+			h.lobby.join(h.roomId, { id: aliceId, name: 'alice', userId: 'user-alice' });
+			h.lobby.join(h.roomId, { id: carolId, name: 'carol', userId: 'user-carol' });
+			// Both are members; neither has a screen on the room.
+			expect([...h.served.here(h.roomId)]).toEqual([]);
+			const key = `${APP_ID}-${h.roomId}`;
+			const alice = await joinRoom(h.port, edgeHeaders('alice'), key);
+			await vi.waitFor(() => expect([...h.served.here(h.roomId)]).toEqual([aliceId]));
+			expect(h.rosterChanges).toEqual([h.roomId]);
+			// Her second tab is still one person, and closing one of the two leaves her here.
+			const again = await joinRoom(h.port, edgeHeaders('alice'), key);
+			await vi.waitFor(() => expect(h.rosterChanges).toHaveLength(2));
+			again.socket.disconnect();
+			await vi.waitFor(() => expect(h.rosterChanges).toHaveLength(3));
+			expect([...h.served.here(h.roomId)]).toEqual([aliceId]);
+			alice.socket.disconnect();
+			await vi.waitFor(() => expect(h.rosterChanges).toHaveLength(4));
+			expect([...h.served.here(h.roomId)]).toEqual([]);
+			// The other room never heard of any of it.
+			expect([...h.served.here(h.lockedRoomId)]).toEqual([]);
 		} finally {
 			await h.close();
 		}

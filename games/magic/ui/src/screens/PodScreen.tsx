@@ -243,7 +243,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
   const side = (
     <div className="pod__bar pod__bar--side">
       {bar}
-      {ctx?.pod != null && <PodSpectators pod={ctx.pod} members={ctx.members} myId={myMemberId} leaderId={ctx.leaderId} />}
+      {ctx?.pod != null && <PodSpectators pod={ctx.pod} members={ctx.members} here={ctx.here} myId={myMemberId} leaderId={ctx.leaderId} />}
     </div>
   );
 

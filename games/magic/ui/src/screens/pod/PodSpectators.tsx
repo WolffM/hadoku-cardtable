@@ -1,5 +1,5 @@
 /*
- * Who is watching the draft: every room member who is not one of its players,
+ * Who is watching the draft: every room member in the room now who is not one of its players,
  * as one quiet line in the pod strip (AF305 §B — the operator: "i like
  * showing that there are spectators in the draft process. for in the room
  * its not necessary since we have the chat"). Watching takes no seat and no
@@ -12,6 +12,7 @@
 import type { Look } from '@hadoku/shared';
 import { faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
 import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
+import { membersHere } from '@hadoku/game-ui/seats/platform.ts';
 import { CROWN } from '../ConstructedScreen.tsx';
 import { podPlayers, type PodView } from './wire.ts';
 
@@ -19,14 +20,16 @@ export interface PodSpectatorsProps {
   pod: PodView;
   /** The room's members, in the room's order. */
   members: readonly { id: string; name: string; avatarId?: string; look?: Look }[];
+  /** The room body's `here`: the members in the room now. Absent: every member is. */
+  here?: readonly string[] | undefined;
   /** My member id here, or `null` before the room has said. */
   myId: string | null;
   leaderId: string;
 }
 
-export function PodSpectators({ pod, members, myId, leaderId }: PodSpectatorsProps) {
+export function PodSpectators({ pod, members, here, myId, leaderId }: PodSpectatorsProps) {
   const players = podPlayers(pod);
-  const spectators = members.filter((m) => !players.has(m.id));
+  const spectators = membersHere(members, here, myId).filter((m) => !players.has(m.id));
   if (spectators.length === 0) return null;
   return (
     <p className="pod-spectators" data-testid="pod-spectators">

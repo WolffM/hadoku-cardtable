@@ -76,6 +76,8 @@ export const routesPlugin: CardtablePlugin = {
 			forfeited: state.roomForfeited,
 			// Who has no cardtable screen open, from the one presence tracker (`plugins/rooms.ts`).
 			away: (memberId) => (state.seatPresence.isOnline(memberId) ? undefined : (state.seatPresence.lastSeen(memberId) ?? null)),
+			// Who has a screen open on THIS room, from the chat's own roster (`plugins/room.ts`).
+			here: (roomId) => state.servedRoom.here(roomId),
 			// "Reset = Close": the testing room `/:id/close` just forgot is recreated fresh under the same name.
 			reseedTesting: () => void state.runTestingRoomSeed(),
 			arrived: (roomId, caller) => {

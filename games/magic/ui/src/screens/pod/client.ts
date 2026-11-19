@@ -57,6 +57,8 @@ export interface PodContext {
   games: Record<string, TableGame>;
   /** The room body's `away`: who has no screen open, since when. */
   away: Record<string, string | null>;
+  /** The room body's `here`: the members in the room now. Absent: every member is. */
+  here?: readonly string[] | undefined;
   /** Every entrant's display name, by id (`entrantLookup`) — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
   names: Record<string, string>;
   /** The room's members, in the room's order. */
@@ -93,6 +95,7 @@ export function podContextOf(room: RoomView): PodContext {
     tables: room.tables,
     games: room.tableGames ?? {},
     away: room.away ?? {},
+    here: room.here,
     ...entrantLookup(pod, room.members),
     members: room.members.map((m) => ({ id: m.id, name: m.name })),
     leaderId: room.leader,

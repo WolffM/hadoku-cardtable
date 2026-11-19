@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AI_SEAT, CLOSED_SEAT } from '@hadoku/platform-wire/seats';
 
-import { platformSeats, type PlatformSeatRoom } from './platform.ts';
+import { membersHere, platformSeats, type PlatformSeatRoom } from './platform.ts';
 
 const look = { picture: 'https://cdn.discordapp.com/avatars/1/a.png' };
 const room = (over: Partial<PlatformSeatRoom> = {}): PlatformSeatRoom => ({
@@ -44,5 +44,23 @@ describe('platformSeats', () => {
     const r = room({ seats: ['bo', null] });
     expect(platformSeats(r, null, { ceiling: 2 }).slots[0]!.occupant).toMatchObject({ ready: false });
     expect(platformSeats(r, null, { ceiling: 2, readiness: false }).slots[0]!.occupant).toMatchObject({ ready: true });
+  });
+});
+
+describe('membersHere', () => {
+  const members = [{ id: 'ada' }, { id: 'bo' }, { id: 'cy' }];
+
+  it('keeps the members connected to the room, and always the viewer', () => {
+    expect(membersHere(members, ['cy'], 'ada')).toEqual([{ id: 'ada' }, { id: 'cy' }]);
+    expect(membersHere(members, [], null)).toEqual([]);
+  });
+
+  it('keeps everyone when the server did not say who is here', () => {
+    expect(membersHere(members, undefined, 'ada')).toEqual(members);
+  });
+
+  it('a member who only visited once is no spectator: the row names who is watching', () => {
+    const watching = { leader: 'ada', seats: ['ada', null], members: [{ id: 'ada', name: 'Ada' }, { id: 'bo', name: 'Bo' }, { id: 'cy', name: 'Cy' }], here: ['ada', 'cy'] };
+    expect(platformSeats(watching, 'ada', { ceiling: 2 }).spectators).toEqual([{ id: 'cy', name: 'Cy' }]);
   });
 });

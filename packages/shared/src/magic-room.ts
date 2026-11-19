@@ -149,6 +149,8 @@ export const RoomBodySchema = z
     tableGames: TableGamesSchema.optional().catch(undefined),
     /** Members with no screen open, by id: when they were last seen (ISO), or `null` when not since the server started. */
     away: z.record(z.string(), z.string().nullable()).optional().catch(undefined),
+    /** The members in the room now (a screen open on it or a game of it), by id; absent where the server cannot say. */
+    here: z.array(z.string()).optional().catch(undefined),
     /**
      * The room's AI as a server built before 2026-11-13 sent it, beside `game`. Read
      * `roomAiOf`, never this: a newer server sends it as `game.ai`, and stops sending this copy.

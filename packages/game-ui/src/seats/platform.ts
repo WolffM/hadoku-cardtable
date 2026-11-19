@@ -21,6 +21,8 @@ export interface PlatformSeatRoom {
   /** As stored: a member id, `AI_SEAT`, `CLOSED_SEAT` or null. */
   seats: readonly (string | null)[];
   members: readonly { id: string; name: string; ready?: boolean; avatarId?: string; look?: Look }[];
+  /** The room body's `here`: the members in the room now. Absent (a server that cannot say): every member is. */
+  here?: readonly string[];
   /** The bot at each seat, in seat order. Absent (an older server): a bot is drawn faceless, as "Bot". */
   aiSeats?: readonly (AiPersona | null)[];
 }
@@ -31,7 +33,7 @@ export interface PlatformSeats {
   realSeatCount: number;
   /** The viewer's seat, or null while watching. */
   mySeat: number | null;
-  /** Every member who holds no seat, as `SpectatorRow` takes them. */
+  /** Every member in the room now who holds no seat, as `SpectatorRow` takes them. */
   spectators: { id: string; name: string; avatarId?: string; look?: Look }[];
 }
 
@@ -40,6 +42,19 @@ export interface PlatformSeatsOptions {
   ceiling: number;
   /** `false` for a game with no Ready step (its Start is a press, never a readiness gate): every member reads ready, so no ring says "not ready" for no reason. */
   readiness?: boolean;
+}
+
+/**
+ * The members who are in the room now, of `members`: the ones a spectator row may name. A member
+ * stays one after their last screen closes (their seat and their sign-up are kept), but only
+ * someone connected to the room is watching it (the operator, 2026-11-19). `here` is the room
+ * body's, the chat's own roster; the viewer is always in, since their own screen is the proof and
+ * its room connection may open a moment after the body is read. Absent `here`: everyone.
+ */
+export function membersHere<M extends { id: string }>(members: readonly M[], here: readonly string[] | undefined, myId: string | null): M[] {
+  if (here === undefined) return [...members];
+  const inRoom = new Set(here);
+  return members.filter((m) => m.id === myId || inRoom.has(m.id));
 }
 
 export function platformSeats(room: PlatformSeatRoom, myId: string | null, opts: PlatformSeatsOptions): PlatformSeats {
@@ -73,7 +88,7 @@ export function platformSeats(room: PlatformSeatRoom, myId: string | null, opts:
   const full = slots.every((s) => s.occupant.kind !== 'open' && s.occupant.kind !== 'closed');
   if (full && realSeatCount < opts.ceiling) slots.push({ seat: realSeatCount, occupant: { kind: 'open' } });
   const seated = new Set(room.seats);
-  const spectators = room.members
+  const spectators = membersHere(room.members, room.here, myId)
     .filter((m) => !seated.has(m.id))
     .map((m) => ({ id: m.id, name: m.name, ...(m.avatarId === undefined ? {} : { avatarId: m.avatarId }), ...(m.look === undefined ? {} : { look: m.look }) }));
   return { slots, realSeatCount, mySeat, spectators };

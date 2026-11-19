@@ -41,6 +41,14 @@
  * what screens built before 2026-11-11 joined during a game, and is gated as its room is. A
  * refusal sends nothing of the room.
  *
+ * ## Who is in a room now
+ *
+ * `here(roomId)` is the chat's own roster by participant id: everyone with a live room connection to
+ * the room, at its lobby, a table of it or a game at one. A member with no screen on the room is a
+ * member still (their seat, their sign-up, their place in a locked room) and is not in it. The
+ * spectator row reads this (`http/room-core.ts`'s `here`), so it names who is watching, never who
+ * once visited (the operator, 2026-11-19). `onRoster` says a room's answer changed.
+ *
  * `appId` must agree with the UI's own app id; it is passed in rather than imported, since a
  * server importing UI source is the wrong direction for any app's layering.
  */
@@ -157,6 +165,14 @@ export interface ServeDeps<V extends ServeRoomView> {
 	/** Default `/room`. */
 	namespace?: string;
 	onEvent?: (level: 'info' | 'warn' | 'debug', event: string, fields: Record<string, unknown>) => void;
+	/** A lobby room's `here` changed: someone's room connection opened or closed. */
+	onRoster?: (roomId: string) => void;
+}
+
+/** The served rooms, and who is in each lobby room now. */
+export interface ServedRooms extends ServedRoom<string, RoomChatMessage> {
+	/** The participants with a live room connection to `roomId` (see this file's header). */
+	here(roomId: string): ReadonlySet<string>;
 }
 
 /**
@@ -183,8 +199,12 @@ function gateRoomHandshake(namespace: ReturnType<SocketIOServer['of']>, minTier:
 }
 
 /** Mount a game's rooms on `io` (see this file's header). */
-export async function attachServedRoom<V extends ServeRoomView>(io: SocketIOServer, deps: ServeDeps<V>): Promise<ServedRoom<string, RoomChatMessage>> {
+export async function attachServedRoom<V extends ServeRoomView>(io: SocketIOServer, deps: ServeDeps<V>): Promise<ServedRooms> {
 	const { lobby, people } = deps;
+	// Each admitted socket's lobby room (a table's and a game's key name their room's), and each
+	// lobby room's joined connections by socket id.
+	const lobbyRoomOf = new WeakMap<object, string>();
+	const joined = new Map<string, Map<string, string>>();
 	gateRoomHandshake(io.of(deps.namespace ?? '/room'), deps.minTier, deps.onEvent);
 	const store = createChatHistoryStore<RoomChatMessage>({
 		stateDir: deps.stateDir,
@@ -220,6 +240,7 @@ export async function attachServedRoom<V extends ServeRoomView>(io: SocketIOServ
 			const participantId = identityFromHeaders(headers, socket.id);
 			if (!mayJoin(lobby, place, participantId)) return refuse('not-member');
 			const roomId = place.roomId;
+			if (roomId !== null) lobbyRoomOf.set(socket, roomId);
 			const accountId = accountOfHeaders(headers);
 			return {
 				roomId: place.served,
@@ -235,6 +256,21 @@ export async function attachServedRoom<V extends ServeRoomView>(io: SocketIOServ
 					if (person !== undefined && roomId !== null) applyPerson(lobby, roomId, participantId, person);
 				},
 			};
+		},
+		onJoined(socket, admission) {
+			const roomId = lobbyRoomOf.get(socket);
+			if (roomId === undefined) return;
+			let sockets = joined.get(roomId);
+			if (sockets === undefined) joined.set(roomId, (sockets = new Map()));
+			sockets.set(socket.id, admission.key);
+			deps.onRoster?.(roomId);
+		},
+		onLeave(socket) {
+			const roomId = lobbyRoomOf.get(socket);
+			const sockets = roomId === undefined ? undefined : joined.get(roomId);
+			if (roomId === undefined || sockets === undefined || !sockets.delete(socket.id)) return;
+			if (sockets.size === 0) joined.delete(roomId);
+			deps.onRoster?.(roomId);
 		},
 		// Always read fresh. serveRoom asks without `fresh` only for a person it holds no copy of (their
 		// first join or line since this server started), and people's cache may predate a change they
@@ -259,5 +295,12 @@ export async function attachServedRoom<V extends ServeRoomView>(io: SocketIOServ
 		if (lobby.get(roomId) === undefined) void store.clearRoomChat(roomId);
 	});
 
-	return served;
+	return Object.assign(served, {
+		here(roomId: string): ReadonlySet<string> {
+			const here = new Set<string>();
+			// Live on the tracker too, as the chat's roster reads it: a connection gone silent is not here.
+			for (const [socketId, key] of joined.get(roomId) ?? []) if (deps.presence.keyOf(socketId) === key) here.add(key);
+			return here;
+		},
+	});
 }

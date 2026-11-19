@@ -26,6 +26,7 @@ import type { SetsStore } from '../pools/sets.js';
 import type { Events } from '@hadoku/game-server/room/events';
 import type { AnonymisableTournaments } from '../room/tournaments.js';
 import type { attachDraftSocket } from '../room/socket.js';
+import type { ServedRooms } from '@hadoku/game-server/room/serve';
 import type { attachRoomFeed } from '@hadoku/game-server/room/watching';
 import type { RoomStreams } from '@hadoku/game-server/stream/alloc';
 import type { StreamedMatchHost } from '@hadoku/game-server/play/runtimes/streamed';
@@ -112,6 +113,8 @@ export interface Cardtable {
 	// sockets
 	draftSocket: ReturnType<typeof attachDraftSocket>;
 	roomFeed: ReturnType<typeof attachRoomFeed>;
+	/** The chrome's room socket (`plugins/room.ts`): chat, and who is in each room now. */
+	servedRoom: ServedRooms;
 	clawHosts: Placement<BridgeLine, BridgeCommand> | null;
 	localHost: JvmHostFactory<BridgeLine, BridgeCommand> | null;
 	play: PlayHandle | null;

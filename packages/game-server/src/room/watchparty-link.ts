@@ -16,3 +16,12 @@ import { createHash } from 'node:crypto';
 export function watchpartyRoomId(watchpartyRoom: string): string {
 	return `wp-${createHash('sha256').update(watchpartyRoom).digest('hex').slice(0, 20)}`;
 }
+
+/**
+ * Whether `roomId` is one a watchparty room's game slot is bound to. Such a room is drawn inside
+ * watchparty's own page, whose chat and roster are watchparty's: nobody at it holds a connection to
+ * this server's room socket, so this server cannot say who is in it now.
+ */
+export function isWatchpartyRoomId(roomId: string): boolean {
+	return roomId.startsWith('wp-');
+}

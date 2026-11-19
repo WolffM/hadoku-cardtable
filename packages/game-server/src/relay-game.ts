@@ -252,6 +252,8 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 	// The room feed, from the `sockets` phase on: a pending start is no lobby write, so its route
 	// pings the room's watchers itself, or every page but the starter's missed the countdown.
 	let feedChanged: (roomId: string) => void = () => {};
+	// The chat's roster by room, once the room socket is up (`socketsPlugin`).
+	let roomHere: (roomId: string) => ReadonlySet<string> = () => new Set();
 
 	const roomsPlugin: RelayGamePlugin = {
 		name: 'rooms',
@@ -262,6 +264,7 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 				lobby,
 				wire: relayWire(options.gameType, options.roomIdRe),
 				seatRoutes: lobby,
+				here: (roomId) => roomHere(roomId),
 				arrived: (roomId, caller) => {
 					if (caller.userId !== null) arrived(roomId, caller.id, caller.userId);
 				},
@@ -350,9 +353,10 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 			// The room's own presence: its grace is not the relay seat's hold.
 			const presence = new PresenceTracker<string>({ idleMs: 2_000_000_000, graceMs: disconnectGraceMs });
 			const roomLog = jsonLogger(`${id}-room`);
-			await attachServedRoom(ctx.io, {
+			const served = await attachServedRoom(ctx.io, {
 				lobby,
 				presence,
+				onRoster: (roomId) => feedChanged(roomId),
 				people: ctx.state.people,
 				isMatch: (matchId) => relayMatches.get(matchId) !== undefined,
 				minTier: config.minTier,
@@ -374,6 +378,7 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 			});
 			const feed = attachRoomFeed(ctx.io, { lobby, log: jsonLogger(`${id}-feed`) });
 			feedChanged = (roomId) => feed.changed(roomId);
+			roomHere = served.here;
 			return {
 				shutdown: () => {
 					relay.close();

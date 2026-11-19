@@ -154,6 +154,16 @@ test('people who join fill the seats; the third is a spectator; a player moves t
     // The server, not the button, is the refusal: a third sit with the table full is a 409.
     const res = await bob.context.request.post(`${stack.origin}${PREFIX}/api/tables/rooms/${roomUrl.split('/room/')[1]}/sit`, { data: {} });
     expect(res.status(), 'a third sit is refused by the server').toBe(409);
+
+    // A spectator is someone in the room now (the operator, 2026-11-19: "i would only expect to see
+    // their name if they are connected to the room here"). Bob leaves the page: a member still,
+    // and no longer named. Back, he is named again.
+    const spectators = alice.page.locator('[data-testid="room-spectator"]');
+    await expect(spectators, 'bob is watching').toHaveCount(1, { timeout: 15_000 });
+    await bob.page.goto('about:blank');
+    await expect(spectators, 'bob left the page: nobody is watching').toHaveCount(0, { timeout: 15_000 });
+    await bob.page.goto(roomUrl);
+    await expect(spectators, 'bob is back, and named again').toHaveCount(1, { timeout: 30_000 });
   } finally {
     await stack.stop();
   }

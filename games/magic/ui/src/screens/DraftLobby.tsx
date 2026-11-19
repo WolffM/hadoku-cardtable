@@ -134,6 +134,7 @@ export function DraftLobby({
   roomId,
   pod,
   members,
+  here,
   leaderId,
   myId,
   scheduledFor = null,
@@ -150,6 +151,8 @@ export function DraftLobby({
   /** The room read's `RoomView.pod`; null for a body that carried none. */
   pod: PodView | null;
   members: RoomMember[];
+  /** The room body's `here`: the members in the room now. Absent: every member is. */
+  here?: readonly string[] | undefined;
   leaderId: string;
   /** My member id here (`RoomView.you.id`); `''` while unknown. */
   myId: string;
@@ -417,6 +420,7 @@ export function DraftLobby({
       roomId={roomId}
       pod={pod}
       members={members}
+      here={here}
       leaderId={leaderId}
       myMemberId={myMemberId}
       scheduledFor={scheduledFor}

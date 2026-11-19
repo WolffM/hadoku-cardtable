@@ -224,6 +224,7 @@ import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
 import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { seatFaces } from './gauntlet/seats.tsx';
+import { membersHere } from '@hadoku/game-ui/seats/platform.ts';
 import { RoomSpectators } from './RoomSpectators.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
@@ -2505,6 +2506,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
             roomId={roomId}
             pod={game?.pod ?? null}
             members={members}
+            here={view?.here}
             leaderId={view?.leader ?? ''}
             myId={view?.you.id ?? ''}
             scheduledFor={view?.scheduledFor ?? null}
@@ -2591,6 +2593,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
               roomId={roomId}
               pod={pod}
               members={members}
+              here={view?.here}
               leaderId={view?.leader ?? ''}
               myMemberId={view?.you.id ?? null}
               fieldFixed={view?.locks.gameType === 'historical'}
@@ -2763,7 +2766,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
                 </ul>
               </div>
               <RoomSpectators
-                spectators={members.filter((m) => !players.some((p) => p.name === m.name))}
+                spectators={membersHere(members, view?.here, view?.you.id ?? null).filter((m) => !players.some((p) => p.name === m.name))}
                 myId={view?.you.id ?? null}
                 leaderId={view?.leader ?? ''}
                 {...(seated ? { onWatch: standUp } : {})}

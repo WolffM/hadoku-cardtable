@@ -18,7 +18,7 @@ export const roomPlugin: CardtablePlugin = {
 	phase: 'sockets',
 	async setup(ctx) {
 		const { io, state } = ctx;
-		await attachServedRoom(io, {
+		state.servedRoom = await attachServedRoom(io, {
 			lobby: state.lobby,
 			presence: state.seatPresence,
 			people: state.people,
@@ -28,6 +28,8 @@ export const roomPlugin: CardtablePlugin = {
 			appId: 'cardtable',
 			roomIdRe: ROOM_ID_RE,
 			onEvent: (level, event, fields) => logRoom({ evt: event, level, ...fields }),
+			// Who a room's spectator row names moved (`roomBody`'s `here`): its open screens read it again.
+			onRoster: (roomId) => state.roomFeed.changed(roomId),
 		});
 		ctx.bootPhase('room');
 	},

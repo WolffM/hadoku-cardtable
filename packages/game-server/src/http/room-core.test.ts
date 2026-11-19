@@ -87,7 +87,7 @@ const JOIN_BODY = body((v): v is { password?: string } => typeof v === 'object' 
 const READY_BODY = body((v): v is { ready: boolean } => typeof v === 'object' && v !== null && typeof (v as { ready?: unknown }).ready === 'boolean');
 const WATCHPARTY_BODY = body((v): v is { room: string } => typeof v === 'object' && v !== null && typeof (v as { room?: unknown }).room === 'string');
 
-const ROOM_ID_RE = /^r-[0-9a-z]+$/;
+const ROOM_ID_RE = /^(r|wp)-[0-9a-z]+$/;
 
 /** The real `RoomLobby<ToyView, RoomCreateInput>`, loaded only after `EDGE_AUTH_SECRET` is set. */
 type ToyLobby = import('../room/lobby.ts').RoomLobby<ToyView, RoomCreateInput>;
@@ -128,7 +128,7 @@ interface Harness {
 const dirs: string[] = [];
 let http: HttpServer | undefined;
 
-async function boot(opts: { seatRoutes?: boolean; away?: (memberId: string) => number | null | undefined } = {}): Promise<Harness> {
+async function boot(opts: { seatRoutes?: boolean; away?: (memberId: string) => number | null | undefined; here?: (roomId: string) => ReadonlySet<string> } = {}): Promise<Harness> {
 	const dir = await mkdtemp(join(tmpdir(), 'w119s-room-core-test-'));
 	dirs.push(dir);
 	const lobby = new lobbyMod.RoomLobby<ToyView, RoomCreateInput>({
@@ -149,6 +149,7 @@ async function boot(opts: { seatRoutes?: boolean; away?: (memberId: string) => n
 		lobby: asLobbyCore(lobby),
 		...(opts.seatRoutes === true ? { seatRoutes: lobby } : {}),
 		...(opts.away === undefined ? {} : { away: opts.away }),
+		...(opts.here === undefined ? {} : { here: opts.here }),
 		wire: {
 			roomIdRe: ROOM_ID_RE,
 			createRoomBody: CREATE_BODY,
@@ -288,6 +289,36 @@ describe('who is away', () => {
 			h.lobby.join(made.room.id, { id: carol, name: 'carol', userId: 'u-carol' });
 			const res = await fetch(`http://127.0.0.1:${h.port}/api/rooms/${made.room.id}`, { headers: edgeHeaders('alice') });
 			expect(((await res.json()) as { away: unknown }).away).toEqual({ [bob]: '2026-11-19T01:00:00.000Z', [carol]: null });
+		} finally {
+			await h.close();
+		}
+	});
+});
+
+describe('who is in the room now', () => {
+	it('the room body lists the members connected to the room, in the room’s order; a connection that is no member’s is not listed', async () => {
+		const [alice, bob, carol] = [participantIdFor('alice'), participantIdFor('bob'), participantIdFor('carol')];
+		const h = await boot({ here: () => new Set([carol, alice, participantIdFor('passer-by')]) });
+		try {
+			const made = h.lobby.create({ id: alice, name: 'alice', userId: 'u-alice' }, { name: 'room', gameType: TOY });
+			if (!made.ok) throw new Error('not made');
+			h.lobby.join(made.room.id, { id: bob, name: 'bob', userId: 'u-bob' });
+			h.lobby.join(made.room.id, { id: carol, name: 'carol', userId: 'u-carol' });
+			const res = await fetch(`http://127.0.0.1:${h.port}/api/rooms/${made.room.id}`, { headers: edgeHeaders('alice') });
+			expect(((await res.json()) as { here: unknown }).here).toEqual([alice, carol]);
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('a room watchparty draws carries no `here`: its roster is watchparty’s, and this server cannot say', async () => {
+		const h = await boot({ here: () => new Set() });
+		try {
+			const bound = h.lobby.bindWatchparty({ id: participantIdFor('alice'), name: 'alice', userId: 'u-alice' }, 'some-watchparty-room');
+			if (!bound.ok) throw new Error('not bound');
+			const res = await fetch(`http://127.0.0.1:${h.port}/api/rooms/${bound.room.id}`, { headers: edgeHeaders('alice') });
+			expect(res.status).toBe(200);
+			expect((await res.json()) as object).not.toHaveProperty('here');
 		} finally {
 			await h.close();
 		}

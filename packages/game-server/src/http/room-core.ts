@@ -26,7 +26,7 @@ import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { isAdmin } from '../edge-auth.js';
 import { bodyErrors, callerOf, parseBody, perCallerLimit, type BodySchema } from './request.js';
-import { watchpartyRoomId } from '../room/watchparty-link.js';
+import { isWatchpartyRoomId, watchpartyRoomId } from '../room/watchparty-link.js';
 import { jsonLogger } from '../log.js';
 
 /** Who is asking — exactly what `callerOf` returns, never a redeclared shape. */
@@ -187,6 +187,8 @@ export interface RoomCoreDeps<V extends RoomViewCore, C, P extends object, G = n
 	forfeited?: (roomId: string, tableId: string, loser: string, matches: readonly string[]) => void;
 	/** Whether a member has a screen open (`undefined`), or since when they have not (ms, or `null` when not seen since boot). Absent: no `away` is sent. */
 	away?: (memberId: string) => number | null | undefined;
+	/** Who has a live room connection to `roomId` (`room/serve.ts`'s `here`). Absent, or a room watchparty draws (its roster is watchparty's): no `here` is sent. */
+	here?: (roomId: string) => ReadonlySet<string>;
 	/** "Reset = Close": runs AFTER `closed`, same as `index.ts`'s own `seedTestingRooms` boot call. */
 	reseedTesting?: () => void;
 	arrived?: (roomId: string, caller: CallerLike) => void;
@@ -204,6 +206,8 @@ export type RoomBody<V extends RoomViewCore, G = never> = V & {
 	tableGames?: Record<string, G>;
 	/** The members with no screen open now, each with when they were last seen (ISO), or `null` when this server has not seen them since it started. */
 	away?: Record<string, string | null>;
+	/** The members in the room now: those with a screen open on it, its lobby or any game of it. The spectator row lists only these. Absent where this server cannot say: every member is listed. */
+	here?: string[];
 };
 
 /** The members `seen` says have no screen open, each with when they were last seen. */
@@ -268,7 +272,15 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		const mine = room.members.find((m) => m.id === callerId);
 		const games = deps.tableGames?.(room);
 		const away = deps.away === undefined ? undefined : awayOf(room.members, deps.away);
-		return { ...room, you: { id: callerId, leader: room.leader === callerId, ready: mine?.ready === true }, ...(games === undefined ? {} : { tableGames: games }), ...(away === undefined ? {} : { away }) };
+		const inRoom = isWatchpartyRoomId(room.id) ? undefined : deps.here?.(room.id);
+		const here = inRoom === undefined ? undefined : room.members.filter((m) => inRoom.has(m.id)).map((m) => m.id);
+		return {
+			...room,
+			you: { id: callerId, leader: room.leader === callerId, ready: mine?.ready === true },
+			...(games === undefined ? {} : { tableGames: games }),
+			...(away === undefined ? {} : { away }),
+			...(here === undefined ? {} : { here }),
+		};
 	};
 
 	const rooms = Router();

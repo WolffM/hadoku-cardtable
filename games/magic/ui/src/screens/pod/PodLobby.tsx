@@ -21,6 +21,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { RoomMember } from '../../rooms/api.ts';
 import { aiPod, botReplacesPodSeat, closePod, passRoomLeader, removeFromPodSeat, sitPod, splitPod, standPod, startSplitDraft, type PodActionOutcome } from './client.ts';
 import { PodSeats } from './PodSeats.tsx';
+import { membersHere } from '@hadoku/game-ui/seats/platform.ts';
 import { RoomSpectators } from '../RoomSpectators.tsx';
 import { PodSplit, PodSplitAction, standingPods } from './PodSplit.tsx';
 import { ReadyToggle } from './ReadyToggle.tsx';
@@ -36,6 +37,8 @@ export interface PodLobbyProps {
   /** `null` for the one frame before the room's own read lands: Ready alone. */
   pod: PodView | null;
   members: RoomMember[];
+  /** The room body's `here`: the members in the room now. Absent: every member is. */
+  here?: readonly string[] | undefined;
   leaderId: string;
   myMemberId: string | null;
   /** `PodSeats`' own: a Challenge's field is the event's. */
@@ -50,7 +53,7 @@ export interface PodLobbyProps {
   children?: ReactNode;
 }
 
-export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, fieldFixed, scheduledFor = null, iAmReady, readyDisabled, onReady, note, children }: PodLobbyProps) {
+export function PodLobby({ testId, roomId, pod, members, here, leaderId, myMemberId, fieldFixed, scheduledFor = null, iAmReady, readyDisabled, onReady, note, children }: PodLobbyProps) {
   const shutUntil = useSeatsShutUntil(scheduledFor);
   const [seatError, setSeatError] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -143,7 +146,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, f
           {!splitStands && (
             <RoomSpectators
               under
-              spectators={members.filter((m) => !podPlayers(pod).has(m.id))}
+              spectators={membersHere(members, here, myMemberId).filter((m) => !podPlayers(pod).has(m.id))}
               myId={myMemberId}
               leaderId={leaderId}
               {...(myMemberId !== null && podPlayers(pod).has(myMemberId) ? { onWatch: () => act(() => standPod(roomId)) } : {})}
