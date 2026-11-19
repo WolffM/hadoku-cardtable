@@ -167,7 +167,7 @@ describe('/api/events', () => {
 		});
 		expect(room?.members.map((m) => m.name)).toEqual(['user-alice']);
 		expect(event.room).toMatchObject({ gameType: 'constructed-1v1', mode: 'classic', format: 'free', settings: { tournament: true, clock: 'on' }, locked: false });
-		expect(event.signups).toEqual([{ name: 'user-alice', inRoom: true }]);
+		expect(event.signups).toEqual([{ id: identityFromHeaders(headersFor('alice'), 'unused'), name: 'user-alice', inRoom: true, you: true }]);
 
 		const seen = EventListSchema.parse((await call(base, 'bob', 'GET', '/events')).body);
 		expect(seen.events.map((e) => [e.title, e.mine])).toEqual([['Pauper cup', false]]);
@@ -454,7 +454,7 @@ describe('an event made from a Rally form', () => {
 		// Bob, who answered the form as "Bobby", joins the room: he is listed once, as the room has him.
 		expect(lobby.join(event.roomId!, { id: identityFromHeaders(headersFor('bob'), 'unused'), name: 'user-bob', userId: 'uid-user-bob' }).ok).toBe(true);
 
-		const signups = async () => Object.fromEntries(EventListSchema.parse((await call(base, 'dee', 'GET', '/events')).body).events.map((e) => [e.title, e.signups]));
+		const signups = async () => Object.fromEntries(EventListSchema.parse((await call(base, 'dee', 'GET', '/events')).body).events.map((e) => [e.title, e.signups.map(({ id: _, ...rest }) => rest)]));
 		const listed = await signups();
 		expect(listed['Draft Major']).toEqual([
 			// No account: the name typed on the form, no face.
@@ -474,6 +474,41 @@ describe('an event made from a Rally form', () => {
 		// The calendar's polls list never carries who answered.
 		await call(base, 'alice', 'POST', '/events/forms', { formId: 'poll' });
 		expect(JSON.stringify((await call(base, 'alice', 'GET', '/events/forms')).body)).not.toContain('Ada');
+	});
+
+	it('the organizer removes a sign-up: a member leaves the room, a form answer is no longer listed, and a member who comes back is signed up again', async () => {
+		const clock = { now: Date.UTC(2026, 10, 10, 12) };
+		const respondents = [
+			{ name: 'Ada', userId: null },
+			{ name: 'Bobby', userId: 'user-bob' },
+			{ name: 'Cy', userId: 'user-cy' },
+		];
+		const { base, lobby, file } = await openApp(clock, { poll: rallyForm('poll', { respondents }) }, { people: { 'user-cy': 'Cyrus' } });
+		const event = EventViewSchema.parse((await call(base, 'alice', 'POST', '/events', { ...tournament('Draft Major', START, { gameType: 'draft' }), formId: 'poll' })).body);
+		const bob = { id: identityFromHeaders(headersFor('bob'), 'unused'), name: 'user-bob', userId: 'user-bob' };
+		expect(lobby.join(event.roomId!, bob).ok).toBe(true);
+		const listed = async () => EventListSchema.parse((await call(base, 'dee', 'GET', '/events')).body).events[0]!.signups;
+		const idOf = async (name: string) => (await listed()).find((p) => p.name === name)!.id;
+		expect((await listed()).map((p) => p.name)).toEqual(['Ada', 'user-bob', 'Cyrus', 'user-alice']);
+		// Bob's form answer and his place in the room are one sign-up, under his room id.
+		expect(await idOf('user-bob')).toBe(bob.id);
+
+		expect((await call(base, 'dee', 'POST', `/events/${event.id}/signups/remove`, { id: bob.id })).status).toBe(403);
+		expect((await call(base, 'alice', 'POST', `/events/${event.id}/signups/remove`, { id: await idOf('user-alice') })).status).toBe(400);
+		expect((await call(base, 'alice', 'POST', '/events/e-nope/signups/remove', { id: bob.id })).status).toBe(404);
+
+		const removed = await call(base, 'alice', 'POST', `/events/${event.id}/signups/remove`, { id: bob.id });
+		expect(removed.status).toBe(200);
+		expect(EventViewSchema.parse(removed.body).signups.map((p) => p.name)).toEqual(['Ada', 'Cyrus', 'user-alice']);
+		expect(lobby.isMember(event.roomId!, bob.id), 'removed from the room too').toBe(false);
+		await call(base, 'alice', 'POST', `/events/${event.id}/signups/remove`, { id: await idOf('Cyrus') });
+		await call(base, 'alice', 'POST', `/events/${event.id}/signups/remove`, { id: await idOf('Ada') });
+		expect((await listed()).map((p) => p.name)).toEqual(['user-alice']);
+		await vi.waitFor(async () => expect(JSON.parse(await readFile(file, 'utf8')).events[0].removed).toHaveLength(3));
+
+		// Not a ban: Bob opens the room again and is signed up again, as a member.
+		expect(lobby.join(event.roomId!, bob).ok).toBe(true);
+		expect((await listed()).map((p) => p.name)).toEqual(['user-bob', 'user-alice']);
 	});
 
 	it('a closed poll stays creatable to its attacher until its event is made, or two weeks after it closed', async () => {

@@ -65,6 +65,7 @@
     "POST /api/_account/erase",
     "POST /api/client-events/",
     "POST /api/events",
+    "POST /api/events/:id/signups/remove",
     "POST /api/events/forms",
     "POST /api/play/matches",
     "POST /api/play/matches",

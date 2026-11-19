@@ -43,8 +43,8 @@ const EVENT = {
     phase: 'lobby',
   },
   signups: [
-    { name: 'user-alice', avatarId: 'sage', inRoom: true },
-    { name: 'Ada', inRoom: false },
+    { id: 'fk:alice', name: 'user-alice', avatarId: 'sage', inRoom: true, you: true },
+    { id: 'anon:0', name: 'Ada', inRoom: false },
   ],
 };
 

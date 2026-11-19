@@ -39,6 +39,10 @@ export function eventsClient(fetchImpl: Fetch = defaultFetch) {
     async update(id: string, change: { startsAt: string }): Promise<EventOutcome> {
       return answer(await sendJson(apiUrl(`events/${encodeURIComponent(id)}`), 'PATCH', change, fetchImpl));
     },
+    /** The organizer takes someone off the sign-ups, and out of the room if they are in it. */
+    async removeSignup(id: string, signupId: string): Promise<EventOutcome> {
+      return answer(await sendJson(apiUrl(`events/${encodeURIComponent(id)}/signups/remove`), 'POST', { id: signupId }, fetchImpl));
+    },
     async cancel(id: string): Promise<EventDone> {
       const res = await fetchImpl(apiUrl(`events/${encodeURIComponent(id)}`), { method: 'DELETE', credentials: 'same-origin', headers: { accept: 'application/json' } });
       return res.ok ? { ok: true } : { ok: false, message: serverMessage(await bodyOf(res), res.status) };

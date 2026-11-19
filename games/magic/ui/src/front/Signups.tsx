@@ -11,7 +11,7 @@ import type { EventSignup, EventView } from '@hadoku/shared';
 import { Avatar } from '@hadoku/game-ui/components/Avatar.tsx';
 import { Modal } from '@hadoku/game-ui/components/Modal.tsx';
 import { playRole } from '@hadoku/game-ui/sound/index.ts';
-import { refreshEvents, useEvents, whenLabel } from './events.ts';
+import { eventsApi, refreshEvents, useEvents, whenLabel } from './events.ts';
 import './Signups.css';
 
 /** How many faces the chip overlaps before the count. */
@@ -87,7 +87,7 @@ export function SignupsModal({ event, onClose, onView, onSignUp, busy = false }:
       </p>
       <ul className="signups__list">
         {event.signups.map((p, i) => (
-          <li key={i} className="signups__person" data-testid="event-signups-person">
+          <li key={p.id === '' ? i : p.id} className="signups__person" data-testid="event-signups-person">
             <Face person={p} />
             <span className="signups__name">{p.name}</span>
             {p.inRoom && (
@@ -95,10 +95,41 @@ export function SignupsModal({ event, onClose, onView, onSignUp, busy = false }:
                 In room
               </span>
             )}
+            {event.mine && p.you !== true && p.id !== '' && <RemoveSignup eventId={event.id} signupId={p.id} />}
           </li>
         ))}
       </ul>
     </Modal>
+  );
+}
+
+/**
+ * The organizer's Remove on a row: a second press confirms. It takes them out of the room too
+ * (`POST /api/events/:id/signups/remove`); the list re-reads once the server has done it.
+ */
+function RemoveSignup({ eventId, signupId }: { eventId: string; signupId: string }) {
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const remove = async (): Promise<void> => {
+    setBusy(true);
+    const done = await eventsApi().removeSignup(eventId, signupId);
+    setBusy(false);
+    if (!done.ok) return setFailed(done.message);
+    await refreshEvents();
+  };
+  return (
+    <button
+      type="button"
+      className={armed ? 'button ghost signups__remove signups__remove--armed' : 'button ghost signups__remove'}
+      data-testid={armed ? 'event-signups-remove-confirm' : 'event-signups-remove'}
+      disabled={busy}
+      title={failed ?? undefined}
+      onClick={() => (armed ? void remove() : setArmed(true))}
+      onBlur={() => setArmed(false)}
+    >
+      {armed ? 'Confirm' : 'Remove'}
+    </button>
   );
 }
 

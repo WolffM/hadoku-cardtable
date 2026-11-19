@@ -563,6 +563,7 @@ export {
   RallyFormIdSchema,
   RallyFormSummarySchema,
   AttachFormBodySchema,
+  RemoveSignupBodySchema,
   AttachedFormSchema,
   FormListSchema,
   isEventSignupForm,
@@ -573,6 +574,7 @@ export {
   type RallyWindow,
   type RallyAvailability,
   type AttachFormBody,
+  type RemoveSignupBody,
   type AttachedForm,
 } from '@hadoku/platform-wire/events';
 export { DiscordMessageSchema, DiscordRecentSchema, type DiscordMessage, type DiscordRecent } from '@hadoku/platform-wire/discord';

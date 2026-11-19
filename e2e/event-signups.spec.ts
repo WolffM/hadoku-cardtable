@@ -2,7 +2,7 @@
  * Who has signed up for an event, against the real built server: the calendar row and the event's
  * room draw the same chip (the first faces and the count) and open the same list. Everyone in the
  * room is signed up, so the organizer is from the start, and the list's own Sign up joins the room
- * and counts the joiner on both screens.
+ * and counts the joiner on both screens. The organizer's Remove takes the joiner out again.
  *
  * Rally is never reached from this harness (`events.spec.ts`), so no form respondent is listed here;
  * `games/magic/server/src/http/events.test.ts` covers them against a stand-in Rally.
@@ -89,6 +89,26 @@ test('the calendar and the room open the same sign-up list, and its Sign up join
       { name: aliceName, inRoom: true },
       { name: bobName, inRoom: true },
     ]);
+    // Only the organizer removes, and never themselves.
+    await expect(bob.getByTestId('event-signups-remove')).toHaveCount(0);
+    await bob.keyboard.press('Escape');
+
+    // Alice removes Bob: a second press confirms, and he is out of the sign-ups and the room.
+    await roomChip.click();
+    const aliceRows = alice.getByTestId('event-signups-person');
+    await expect(aliceRows).toHaveCount(2);
+    await expect(aliceRows.nth(0).getByTestId('event-signups-remove')).toHaveCount(0);
+    await aliceRows.nth(1).getByTestId('event-signups-remove').click();
+    await aliceRows.nth(1).getByTestId('event-signups-remove-confirm').click();
+    await expect(alice.getByTestId('event-signups-modal')).toContainText('Signed up · 1');
+    expect(await names(alice)).toEqual([{ name: aliceName, inRoom: true }]);
+    await alice.keyboard.press('Escape');
+    await expect(roomChip).toContainText('1 signed up');
+    const members = await alice.evaluate(async (path) => {
+      const res = await fetch(path, { credentials: 'same-origin' });
+      return ((await res.json()) as { members: { name: string }[] }).members.map((m) => m.name);
+    }, `${PREFIX}/api/rooms/${alice.url().split('/room/')[1]!.split(/[?#]/)[0]!}`);
+    expect(members).toEqual([aliceName]);
   } finally {
     await alice.context().close();
     await bob.context().close();

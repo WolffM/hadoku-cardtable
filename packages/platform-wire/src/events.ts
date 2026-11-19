@@ -54,9 +54,16 @@ export const updateEventBodySchema = (titleMax: number) => strictBody({ title: e
  * event's room.
  */
 export const EventSignupSchema = PersonFaceSchema.extend({
+  /** Who this is to the event's organizer, to remove them by (`POST /api/events/:id/signups/remove`). */
+  id: z.string().catch(''),
   name: z.string(),
   inRoom: z.boolean().catch(false),
+  /** Whether this is the caller: the organizer removes anyone but themselves. */
+  you: z.boolean().optional().catch(undefined),
 });
+
+export const RemoveSignupBodySchema = z.object({ id: z.string().min(1).max(64) }).strict();
+export type RemoveSignupBody = z.infer<typeof RemoveSignupBodySchema>;
 export type EventSignup = z.infer<typeof EventSignupSchema>;
 
 /** One event as `GET /api/events` sends it, scoped to the caller (`mine`): the game's `kind` and `room`. */

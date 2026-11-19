@@ -13,11 +13,11 @@ import { RoomSignups, SignupsChip } from './Signups.tsx';
 afterEach(cleanup);
 
 const people: EventSignup[] = [
-  { name: 'Hadoku', avatarId: 'sage', inRoom: true },
-  { name: 'Ada', inRoom: false },
-  { name: 'Bo', inRoom: false },
-  { name: 'Cy', inRoom: true },
-  { name: 'Dee', inRoom: false },
+  { id: 'fk:hadoku', name: 'Hadoku', avatarId: 'sage', inRoom: true },
+  { id: 'anon:0', name: 'Ada', inRoom: false },
+  { id: 'fk:bo', name: 'Bo', inRoom: false },
+  { id: 'fk:cy', name: 'Cy', inRoom: true },
+  { id: 'fk:dee', name: 'Dee', inRoom: false },
 ];
 
 const event = (over: Partial<EventView> = {}): EventView => ({
@@ -75,6 +75,31 @@ describe('SignupsChip', () => {
     expect(chip.querySelector('.signups__faces')).toBeNull();
     fireEvent.click(chip);
     expect(screen.getByTestId('event-signups-modal').querySelector('.ct-modal__actions')).toBeNull();
+  });
+});
+
+describe('removing a sign-up', () => {
+  it('is the organizer’s, on everyone but themselves, and a second press removes them and re-reads the list', async () => {
+    cleanup();
+    render(createElement(SignupsChip, { event: event() }));
+    fireEvent.click(screen.getByTestId('event-signups'));
+    expect(screen.queryByTestId('event-signups-remove'), 'not the organizer: no Remove').toBeNull();
+    cleanup();
+
+    const mine = event({ mine: true, signups: people.map((p) => (p.name === 'Hadoku' ? { ...p, you: true } : p)) });
+    const removeSignup = vi.fn(async () => ({ ok: true as const, event: mine }));
+    const list = vi.fn(async () => [event({ mine: true, signups: people.filter((p) => p.name !== 'Cy') })]);
+    setEventsClient({ ...eventsClient(), list, removeSignup });
+    render(createElement(SignupsChip, { event: mine }));
+    fireEvent.click(screen.getByTestId('event-signups'));
+    const rows = screen.getAllByTestId('event-signups-person');
+    expect(rows.map((r) => r.querySelector('[data-testid="event-signups-remove"]') !== null)).toEqual([false, true, true, true, true]);
+
+    fireEvent.click(rows[3]!.querySelector('[data-testid="event-signups-remove"]')!);
+    expect(removeSignup, 'the first press only arms it').not.toHaveBeenCalled();
+    await act(async () => fireEvent.click(rows[3]!.querySelector('[data-testid="event-signups-remove-confirm"]')!));
+    expect(removeSignup).toHaveBeenCalledWith('e-1', 'fk:cy');
+    expect(list).toHaveBeenCalledTimes(1);
   });
 });
 

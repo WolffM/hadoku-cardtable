@@ -29,6 +29,11 @@ const EventRecordSchema = z.object({
 	formId: z.string().optional(),
 	/** What the Discord server's calendar holds for it, as last sent (`discord-events.ts`): absent while it has none. */
 	discord: z.object({ eventId: z.string(), sent: z.string() }).optional(),
+	/**
+	 * Sign-ups the organizer removed, by `EventSignup.id`: a form answer under one of these is not
+	 * listed. Someone removed from the room who joins it again is signed up again, as a member.
+	 */
+	removed: z.array(z.string()).optional(),
 	createdAt: z.number(),
 });
 export type EventRecord = z.infer<typeof EventRecordSchema>;
@@ -62,6 +67,8 @@ export interface Events {
 	create(event: NewEvent, now: number): EventRecord;
 	reschedule(id: string, callerId: string, startsAt: number): EventChange;
 	cancel(id: string, callerId: string): EventChange;
+	/** The organizer takes `signupId` off the event's sign-ups (`EventRecord.removed`). */
+	removeSignup(id: string, callerId: string, signupId: string): EventChange;
 	/** Record what Discord's calendar now holds for an event, or that it holds nothing (`undefined`). No-op for an event since cancelled. */
 	setDiscord(id: string, discord: EventRecord['discord']): void;
 	/** Every attached form, oldest first. */
@@ -150,6 +157,17 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 			log({ event: 'event-cancelled', id });
 			void save();
 			return found;
+		},
+		removeSignup(id, callerId, signupId) {
+			const found = owned(id, callerId);
+			if (!found.ok) return found;
+			const removed = found.event.removed ?? [];
+			if (removed.includes(signupId)) return found;
+			const event: EventRecord = { ...found.event, removed: [...removed, signupId] };
+			events = events.map((e) => (e.id === id ? event : e));
+			log({ event: 'event-signup-removed', id });
+			void save();
+			return { ok: true, event };
 		},
 		setDiscord(id, discord) {
 			const found = events.find((e) => e.id === id);

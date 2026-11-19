@@ -3,7 +3,7 @@
  * A name wears its effect, gradient and font; a name with none is plain text.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, render } from '@testing-library/react';
 
@@ -93,5 +93,55 @@ describe('FaceDecor near a screen-reader-only list', () => {
     );
     const decor = container.querySelector('[data-testid="face-decor"]');
     expect(decor?.parentElement?.className, 'a ring with no clip style still lets the overlay clear it').toBe('outer');
+  });
+});
+
+describe('FaceDecor in a scrolling list', () => {
+  /*
+   * The event sign-up list (`Signups.tsx`): each face is a round clip inside a row of a list that
+   * scrolls, inside a positioned modal. The overlay escapes the face's clip into the row, and was
+   * placed against the modal, so scrolling the list moved every face and left its overlay behind
+   * (operator, 2026-11-18: a sakura on thyeggman). The list itself must be what the overlay is
+   * placed against.
+   */
+  it('makes the list that scrolls between the face and its positioned modal the overlay’s reference', () => {
+    // jsdom lays nothing out: the row is wider than the face, as the modal draws it.
+    const real = Element.prototype.getBoundingClientRect;
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const w = this instanceof HTMLElement ? Number(this.dataset['w'] ?? 0) : 0;
+      return w > 0 ? new DOMRect(0, 0, w, w) : real.call(this);
+    });
+    const { container } = render(
+      createElement(
+        'div',
+        { style: { position: 'fixed' } },
+        createElement(
+          'ul',
+          { 'data-testid': 'list', style: { overflowY: 'auto' } },
+          createElement(
+            'li',
+            { 'data-w': '300' },
+            createElement('span', { 'data-w': '32', style: { overflow: 'hidden' } }, createElement('img', { 'data-w': '32' }), createElement(FaceDecor, { avatarId: 'p', look: { cosmetics: { overlay: 'overlay.halo' } } })),
+          ),
+        ),
+      ),
+    );
+    const list = container.querySelector<HTMLElement>('[data-testid="list"]');
+    const decor = container.querySelector('[data-testid="face-decor"]');
+    expect(list?.contains(decor), 'the overlay is inside the list').toBe(true);
+    expect(list?.style.position, 'the list scrolls the overlay with the face').toBe('relative');
+    rect.mockRestore();
+  });
+
+  it('leaves a clipping box that does not scroll, and a positioned one, as they are', () => {
+    const { container } = render(
+      createElement(
+        'div',
+        { 'data-testid': 'clip', style: { overflow: 'hidden' } },
+        createElement('div', { 'data-testid': 'placed', style: { position: 'absolute', overflowY: 'auto' } }, createElement('img', {}), createElement(FaceDecor, { avatarId: 'p', look: { cosmetics: { overlay: 'overlay.halo' } } })),
+      ),
+    );
+    expect(container.querySelector<HTMLElement>('[data-testid="placed"]')?.style.position).toBe('absolute');
+    expect(container.querySelector<HTMLElement>('[data-testid="clip"]')?.style.position).toBe('');
   });
 });

@@ -126,6 +126,24 @@ function decorHost(face: Element): Element | null {
 }
 
 /**
+ * Makes an overlay scroll with its face. An overlay is absolutely placed, against its nearest
+ * positioned ancestor; a list that scrolls between the two, and is not positioned itself, scrolls
+ * the face away while the overlay stays where it was put (the sign-up list's sakura, 2026-11-18).
+ * That list becomes the overlay's reference instead. A box that only clips (`hidden`) moves nothing
+ * and is left alone, so an overlay still clears it as before.
+ */
+function anchorToScroller(el: Element): void {
+  for (let box = el.parentElement; box !== null && box !== document.body; box = box.parentElement) {
+    const style = getComputedStyle(box);
+    if (style.position !== '' && style.position !== 'static') return;
+    if ([style.overflowX, style.overflowY].some((o) => o === 'auto' || o === 'scroll')) {
+      (box as HTMLElement).style.position = 'relative';
+      return;
+    }
+  }
+}
+
+/**
  * The overlay a person wears, laid over the face drawn just before it.
  *
  * Every face keeps its own `<img>` and the class that sizes it, so the overlay
@@ -150,6 +168,7 @@ export const FaceDecor = memo(function FaceDecor({ avatarId, look }: { avatarId:
     const el = ref.current;
     const face = anchor.current?.previousElementSibling;
     if (el === null || !(face instanceof Element)) return;
+    anchorToScroller(el);
     // From boxes, not `offsetLeft`: the fallback mark is an SVG, which has none,
     // and a scaled board (UI scale, the portrait fit) scales both boxes alike.
     const fit = (): void => {

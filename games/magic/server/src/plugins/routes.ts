@@ -111,7 +111,7 @@ export const routesPlugin: CardtablePlugin = {
 		// A set's name is known only once Forge answers after boot, so the boot sweep sent a draft's set as its code
 		// ("BLB"): sync again the moment the names arrive, rather than leave the code in Discord until the next sweep.
 		state.setsStore.onNamed(() => void discordCalendar.sweep());
-		attachEvents(api, { events: state.events, lobby, people, checkPlan: state.checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: state.roomsLog, closed: state.roomClosed, discord: discordCalendar, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
+		attachEvents(api, { events: state.events, lobby, people, checkPlan: state.checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: state.roomsLog, closed: state.roomClosed, forfeited: state.roomForfeited, discord: discordCalendar, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 		// The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
 		attachDiscord(api, { secret: state.archivebot.secret, archivebotUrl: state.archivebot.url, log: jsonLogger('cardtable-discord') });
 

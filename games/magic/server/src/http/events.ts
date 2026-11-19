@@ -6,6 +6,7 @@
  *   POST   /api/events            { title, startsAt, room, formId? } → 201 EventView | 400 | 403 | 404 | 409 { verdict } | 429 | 502
  *   PATCH  /api/events/:id        { startsAt, title? } → 200 EventView | 400 | 403 | 404
  *   DELETE /api/events/:id        → 200 { ok: true } | 403 | 404
+ *   POST   /api/events/:id/signups/remove { id } → 200 EventView | 400 | 403 | 404
  *   GET    /api/events/forms      → 200 { forms: AttachedForm[] }, closing soonest first: the open ones, and
  *                                    to whoever attached it a closed one no event is made from yet
  *   POST   /api/events/forms      { formId } → 201 AttachedForm | 200 (already attached) | 400 | 404 | 502
@@ -26,6 +27,10 @@
  * was made from (`formId`) and everyone in its room, once each by account, read live, so a later
  * answer or join counts too.
  *
+ * The organizer removes a sign-up by its `id`: someone in the room leaves it (a tournament entrant
+ * mid-round drops, as a leave does), and a form answer under that id is no longer listed. Removal
+ * is not a ban: someone who joins the room again is signed up again, as a member.
+ *
  * A poll closing is when its event gets made, so a closed form stays listed to whoever attached
  * it, with its windows, until an event is made from it or `CLOSED_FORM_KEPT_MS` after it closed;
  * everyone else stops seeing it when it closes.
@@ -39,6 +44,7 @@ import {
 	CreateEventBodySchema,
 	isEventSignupForm,
 	planDisplayName,
+	RemoveSignupBodySchema,
 	RallyFormSummarySchema,
 	UpdateEventBodySchema,
 	type AttachedForm,
@@ -78,6 +84,8 @@ export interface EventsDeps {
 	rally: RallyDeps;
 	/** A room an event's cancel closed, for its matches to be stopped as `/rooms/:id/close` does. */
 	closed?: (roomId: string, matches: readonly string[]) => void;
+	/** A removed entrant's match forfeited, for its games to be ended as `/rooms/:id/leave` does. */
+	forfeited?: (roomId: string, tableId: string, loser: string, matches: readonly string[]) => void;
 	/** Where a Rally call that failed is told. */
 	log: (entry: Record<string, unknown>) => void;
 	/** The Discord server's Events tab, kept to match each change here as it is made; absent, none is. */
@@ -194,20 +202,27 @@ function roomState(room: MagicRoomView): EventRoom {
 	};
 }
 
+/** A sign-up's id: a room member's id, a form answer's account as the room would name it, or an anonymous answer's place among the anonymous ones. */
+export const signupIdOf = (userId: string): string => deriveParticipantId({ accountId: userId, socketId: '' });
+
 /**
  * Who has signed up for an event: everyone who submitted its form (`respondents`, earliest first),
  * then everyone in its room who did not, once each by account. A respondent in the room is drawn
  * as the room draws them; one elsewhere by their account now (`found`), or, with no account, by
- * the name they typed and no face. Exported for its test.
+ * the name they typed and no face. A form answer the organizer `removed` is left out; a room
+ * member never is (removing one takes them out of the room). Exported for its test.
  */
 export function signupsOf(
 	respondents: NonNullable<RallyFormSummary['respondents']>,
 	room: Pick<MagicRoomView, 'members'>,
 	users: readonly { memberId: string; userId: string }[],
 	found: ReadonlyMap<string, Person>,
+	removed: readonly string[] = [],
 ): EventSignup[] {
 	const memberOf = new Map(users.map((u) => [u.userId, u.memberId]));
+	const gone = new Set(removed);
 	const inRoom = (m: MagicRoomView['members'][number]): EventSignup => ({
+		id: m.id,
 		name: m.name,
 		...(m.avatarId === undefined ? {} : { avatarId: m.avatarId }),
 		...(m.look === undefined ? {} : { look: m.look }),
@@ -216,9 +231,11 @@ export function signupsOf(
 	const listed = new Set<string>();
 	const seen = new Set<string>();
 	const out: EventSignup[] = [];
+	let anonymous = 0;
 	for (const r of respondents) {
 		if (r.userId === null) {
-			out.push({ name: r.name, inRoom: false });
+			const id = `anon:${String(anonymous++)}`;
+			if (!gone.has(id)) out.push({ id, name: r.name, inRoom: false });
 			continue;
 		}
 		if (seen.has(r.userId)) continue;
@@ -230,8 +247,10 @@ export function signupsOf(
 			out.push(inRoom(member));
 			continue;
 		}
+		const id = signupIdOf(r.userId);
+		if (gone.has(id)) continue;
 		const person = found.get(r.userId);
-		out.push({ name: person?.name ?? r.name, ...faceOfPerson(person), inRoom: false });
+		out.push({ id, name: person?.name ?? r.name, ...faceOfPerson(person), inRoom: false });
 	}
 	for (const m of room.members) if (!listed.has(m.id)) out.push(inRoom(m));
 	return out;
@@ -276,7 +295,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 			joined: lobby.isMember(room.id, callerId),
 			roomId: room.id,
 			room: roomState(room),
-			signups: signupsOf(respondents[i]!, room, lobby.usersOf(room.id), found),
+			signups: signupsOf(respondents[i]!, room, lobby.usersOf(room.id), found, e.removed).map((p) => (p.id === callerId ? { ...p, you: true } : p)),
 		}));
 	};
 
@@ -427,6 +446,26 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		void deps.discord?.sync(existing.id);
 		const [moved] = await views([{ e: result.event, room: magicView(lobby.get(room.id)) ?? room }], me);
 		res.json(moved);
+	});
+
+	api.post('/events/:id/signups/remove', async (req: Request, res: Response) => {
+		const body = parseBody(RemoveSignupBodySchema, req, res);
+		if (body === null) return;
+		const me = httpCaller(req);
+		const existing = events.get(String(req.params.id));
+		if (existing === undefined) return refuse(res, 'no-event');
+		if (existing.organizerId !== me) return refuse(res, 'not-organizer');
+		if (body.id === me) return res.status(400).json({ error: 'the organizer cannot remove themselves' });
+		const room = magicView(lobby.get(existing.roomId));
+		if (room === undefined) return res.status(404).json({ error: 'this event’s room has closed' });
+		const result = events.removeSignup(existing.id, me, body.id);
+		if (!result.ok) return refuse(res, result.reason);
+		if (lobby.isMember(room.id, body.id)) {
+			const left = lobby.leave(room.id, body.id);
+			if (left.ok && left.forfeited !== undefined) deps.forfeited?.(room.id, left.forfeited.tableId, body.id, left.forfeited.matchIds);
+		}
+		const [view] = await views([{ e: result.event, room: magicView(lobby.get(room.id)) ?? room }], me);
+		res.json(view);
 	});
 
 	api.delete('/events/:id', (req: Request, res: Response) => {
