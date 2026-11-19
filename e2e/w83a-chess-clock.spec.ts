@@ -4,13 +4,12 @@
  * never on the server's own auto-passes, and at zero that player loses the game, which the result
  * calls Out of Time.
  *
- * **The new-game grace:** the operator, of the flash into a series' next game, *"the clock
- * gives a 1-minute grace before it starts running."* `NEW_GAME_CLOCK_GRACE_MS` (`play/match.ts`) is
- * 60 s, for every new game, this scenario match included — not only a series' second game — so this
- * spec reads full, not-running clocks for the first beat and only then waits for alice's to start.
- * The grace is a seat's own and ends at that seat's first act (the operator, 2026-11-19: *"the grace
- * period is only relevant before the player has taken any actions"*); here neither seat acts, so both
- * keep the whole minute. `match.test.ts`'s "ends for a seat at its own first act" holds the other half.
+ * **The new-game grace:** a new game holds the clock of a player who has not come to it yet, for
+ * `NEW_GAME_CLOCK_GRACE_MS` (`play/match.ts`, 60 s). It is a seat's own and ends when its player
+ * arrives (the operator, 2026-11-19: *"the grace period is only relevant … if they haven't gone to
+ * their room yet even after the round has begun"*). Both players are at this game from its start, so
+ * neither clock is ever in it, and alice's runs at once; `match.test.ts`'s "ends for a seat when its
+ * player arrives" holds the seat that has not come.
  *
  * A short, test-only clock (`clockMs` on the start body; a room's own is 20 minutes). Alice holds
  * priority in her main phase with a castable Lightning Bolt (`bolt-player`) and does nothing. Her
@@ -66,31 +65,14 @@ test(titled('a seat that idles on priority runs out of time and loses; the other
     const started = Date.now();
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'bolt-player', { clockMs: [CLOCK_MS, CLOCK_MS] });
 
-    // Inside the grace neither clock runs, full and static on both screens — and both draw
-    // `data-grace`, the one state the operator asked for on the clock itself ("the clock gives a
-    // 1-minute grace before it starts running"): a held clock otherwise looks exactly like one
-    // merely waiting on the OTHER seat's turn, which this attribute is what tells apart.
-    const graceLeft = GRACE_MS - (Date.now() - started);
-    if (graceLeft > 5_000) {
-      const inGrace = await clocks(alice.page);
-      expect(inGrace.you?.running, "inside the grace, alice's own clock does not run").toBe(false);
-      expect(inGrace.them?.running, "inside the grace, bob's does not either").toBe(false);
-      expect(inGrace.you?.grace, "inside the grace, alice's own clock shows it").toBe(true);
-      expect(inGrace.them?.grace, "inside the grace, bob's shows it too").toBe(true);
-      say(`inside the grace (${graceLeft}ms left): alice ${inGrace.you?.text} grace=${inGrace.you?.grace}, bob ${inGrace.them?.text} grace=${inGrace.them?.grace}`);
-    }
-
-    // Both screens draw both clocks, and agree whose is running once the grace ends: alice's —
-    // and `data-grace` is gone from both the instant it is, not left drawn alongside the real run.
-    await expect
-      .poll(async () => (await clocks(alice.page)).you?.running, { timeout: GRACE_MS + 20_000, message: "alice's own clock runs on her screen, once the grace ends" })
-      .toBe(true);
+    // Both players are at the game: no grace holds either clock, and alice's runs at once on both screens.
+    await expect.poll(async () => (await clocks(alice.page)).you?.running, { timeout: 20_000, message: "alice's own clock runs on her screen" }).toBe(true);
     await expect.poll(async () => (await clocks(bob.page)).them?.running, { timeout: 10_000, message: "alice's clock runs on bob's screen" }).toBe(true);
-    expect(Date.now() - started, 'the clock did not start before the grace ended').toBeGreaterThanOrEqual(GRACE_MS - 1_000);
-    const afterGrace = await clocks(alice.page);
-    expect(afterGrace.you?.grace, "alice's own clock: the grace is over, not merely not running").toBeFalsy();
-    expect((await clocks(bob.page)).them?.grace, "bob's screen agrees the grace is over").toBeFalsy();
-    say(`grace ended: alice ${afterGrace.you?.text} grace=${afterGrace.you?.grace}`);
+    const running = await clocks(alice.page);
+    expect(running.you?.grace, "alice is at her game: her clock is not in the grace").toBeFalsy();
+    expect((await clocks(bob.page)).you?.grace, 'nor is bob\'s, on his own screen').toBeFalsy();
+    expect(Date.now() - started, 'the clock did not wait out a grace nobody was owed').toBeLessThan(GRACE_MS);
+    say(`at the game: alice ${running.you?.text} grace=${running.you?.grace}`);
 
     const bobAtStart = (await clocks(bob.page)).you;
     expect(bobAtStart, "bob's own clock is drawn").not.toBeNull();

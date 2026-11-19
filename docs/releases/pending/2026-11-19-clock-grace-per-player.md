@@ -1,6 +1,6 @@
 ## Changed
 
-- Your clock's one-minute grace at the start of a game now ends with your first action; it only holds for a player who has not shown up yet.
+- Your clock's one-minute grace at the start of a game now ends when you arrive at the game; it only holds for a player who has not shown up yet.
 
 ## Fixed
 

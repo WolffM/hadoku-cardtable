@@ -702,6 +702,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			departure: null,
 			here: false,
 			away: false,
+			entered: false,
 			fullControl: false,
 			autoYield: null,
 			phaseStop: null,

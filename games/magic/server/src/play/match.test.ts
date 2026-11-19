@@ -5381,21 +5381,21 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 			vi.useFakeTimers();
 			const h = clocked([60_000, 60_000]);
 			waitingOnSeat0(h);
-			// Seat 1 pressed its coin-toss bar: it is at the game, and only seat 0 is still graced.
-			expect(h.match.seatIdentities().map((s) => s.clock?.grace)).toEqual([true, undefined]);
+			// Nobody has come to the game: both seats are graced.
+			expect(h.match.seatIdentities().map((s) => s.clock?.grace)).toEqual([true, true]);
 			vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
 			expect(h.match.seatIdentities().map((s) => s.clock?.grace), 'absent, not `grace: false`, the same shape every other momentary flag here uses').toEqual([undefined, undefined]);
 		});
 
-		it("ends for a seat at its own first act: its clock runs inside the grace, the seat that has not shown up keeps its own", () => {
+		it("ends for a seat when its player arrives at the game: its clock runs inside the grace, the seat that has not shown up keeps its own", () => {
 			vi.useFakeTimers();
 			const h = clocked([60_000, 60_000]);
 			waitingOnSeat0(h);
-			expect(h.match.seatIdentities()[0]!.clock, 'seat 0 has done nothing yet').toEqual({ ms: 60_000, running: false, grace: true });
-			// Seat 0 answers its question, and is asked another: it is at its game now.
-			expect(h.match.fromClient(0, reply((PROBE_ASK.frame as { callId: string }).callId, true))).toEqual({ ok: true });
-			h.host.push({ ...PROBE_ASK, frame: { ...(PROBE_ASK.frame as object), callId: 'probe-2' } } as BridgeLine);
-			expect(h.match.seatIdentities()[0]!.clock, 'waited on again, inside the minute: its clock runs').toMatchObject({ running: true });
+			expect(h.match.seatIdentities()[0]!.clock, 'seat 0 has not come yet').toEqual({ ms: 60_000, running: false, grace: true });
+			// Seat 0's player opens the game: they are at it now.
+			h.match.seatConnected(0);
+			expect(h.match.seatIdentities()[0]!.clock, 'waited on, inside the minute: its clock runs').toMatchObject({ running: true });
+			expect(h.match.seatIdentities()[1]!.clock, 'seat 1 has not come').toMatchObject({ running: false, grace: true });
 			expect(h.match.seatIdentities()[0]!.clock).not.toHaveProperty('grace');
 			vi.advanceTimersByTime(5_000);
 			expect(h.match.clockLeft()![0]).toBeLessThanOrEqual(55_000);

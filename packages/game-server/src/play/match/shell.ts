@@ -78,6 +78,11 @@ export interface ShellSeat {
 	 * 2026-10-19). A seat nobody has joined yet is not away — it is starting.
 	 */
 	away: boolean;
+	/**
+	 * The person on this seat has been at this game: a connection of theirs reached it, once. Never
+	 * cleared. A seat is held from the match's making (`claim`), so holding one says nothing of this.
+	 */
+	entered: boolean;
 }
 
 /** What the shell is handed: the log, and the graces and hooks of a seat's presence, a restart and an ending. */
@@ -460,11 +465,17 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 		return this.seats.some((s) => s.here);
 	}
 
+	/** By seat: whether its person has been at this game (an AI seat has, always). */
+	entered(): boolean[] {
+		return this.seats.map((s) => s.ai || s.entered);
+	}
+
 	/** A connection for this seat is back: whatever `seatDisconnected` armed is off. */
 	seatConnected(seat: number): void {
 		const s = this.seats[seat];
 		if (s === undefined) return;
 		s.here = true;
+		s.entered = true;
 		if (s.away) {
 			s.away = false;
 			this.game.tellRoster();

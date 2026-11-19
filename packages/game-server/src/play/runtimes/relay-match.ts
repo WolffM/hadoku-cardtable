@@ -122,7 +122,7 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number; clockMs?: [number, number] },
 	) {
 		super(id, relaySpec(seatCount), deps, restore);
-		this.seats = Array.from({ length: seatCount }, (_, seat) => ({ seat, ai: false, owner: null, playerId: seat, departure: null, here: false, away: false }));
+		this.seats = Array.from({ length: seatCount }, (_, seat) => ({ seat, ai: false, owner: null, playerId: seat, departure: null, here: false, away: false, entered: false }));
 		for (const [seat, owner] of (restore?.owners ?? []).entries()) {
 			const s = this.seats[seat];
 			if (s !== undefined && owner !== null) s.owner = owner as ParticipantId;
