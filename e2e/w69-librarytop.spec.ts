@@ -247,7 +247,13 @@ const markOf = (page: Page, scope: string, id: number) =>
       return {
         selectable: li.hasAttribute('data-selectable'),
         canAct: li.hasAttribute('data-can-act'),
-        ring: card === null ? 'none' : getComputedStyle(card).boxShadow,
+        // One ring per playable card: its face's glow, or inside a pile the mark on its own visible strip.
+        ring: (() => {
+          const face = card === null ? 'none' : getComputedStyle(card).boxShadow;
+          if (face !== 'none') return face;
+          const strip = getComputedStyle(li, '::after');
+          return strip.outlineStyle === 'none' ? 'none' : `${strip.outlineStyle} ${strip.outlineColor}`;
+        })(),
       };
     },
     { scope, id },
