@@ -33,11 +33,12 @@ describe('seatDeck', () => {
 });
 
 describe('tableGame', () => {
-	it('carries both seats’ decks and the game under way', () => {
+	it('carries both seats’ decks, the game under way and who has been at it', () => {
 		const live: TableGameLive = { turn: 7, active: 1, life: [14, 9], hand: [2, 4] };
 		const match: TableGameSource = {
 			spec: { seats: [{ name: 'a', ai: false, deck: dck('Goblins', '4 Goblin Matron') }, { name: 'b', ai: false, deck: dck('Draw-Go', '4 Counterspell') }] },
 			live: () => live,
+			entered: () => [true, false],
 		};
 		expect(tableGame(match, costs)).toEqual({
 			decks: [
@@ -45,6 +46,7 @@ describe('tableGame', () => {
 				{ name: 'Draw-Go', colors: ['U'], art: 'Counterspell' },
 			],
 			live,
+			entered: [true, false],
 		});
 	});
 });

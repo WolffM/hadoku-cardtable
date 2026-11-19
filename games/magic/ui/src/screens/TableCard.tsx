@@ -61,6 +61,10 @@ export interface TableCardGo {
   label: string;
   href: string;
   testId: string;
+  /** Which way in this is (`tableDoor.ts`), for a test to read. */
+  door?: string;
+  /** Taken instead of following `href` on a plain press; a new tab still gets the address. */
+  onPress?: () => void;
 }
 
 export interface TableCardProps extends TableResolveHandlers {
@@ -115,7 +119,17 @@ export function TableCard({ players, nameOf, avatarOf, myMemberId, series, match
     );
   };
   const goLink = go !== null && (
-    <a className="table-card__go" data-testid={go.testId} href={go.href}>
+    <a
+      className="table-card__go"
+      data-testid={go.testId}
+      data-door={go.door}
+      href={go.href}
+      onClick={(event) => {
+        if (go.onPress === undefined || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+        event.preventDefault();
+        go.onPress();
+      }}
+    >
       {go.label}
     </a>
   );

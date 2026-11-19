@@ -55,6 +55,12 @@ export const TableGameSchema = z.strictObject({
   decks: z.tuple([TableSeatDeckSchema.nullable(), TableSeatDeckSchema.nullable()]),
   /** Null between games, and once the table's game is over. */
   live: TableGameLiveSchema.nullable(),
+  /**
+   * By table seat: whether its player has been at this game (an AI's seat has, always). It is what a
+   * table's way in reads: a game its player has not been at is entered by their own press, from any
+   * screen and after any reload, and one they have been at is returned to.
+   */
+  entered: z.tuple([z.boolean(), z.boolean()]),
 });
 export type TableGame = z.infer<typeof TableGameSchema>;
 

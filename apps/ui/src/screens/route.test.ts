@@ -55,6 +55,11 @@ describe('parseRoute', () => {
     expect(parseRoute('#/room/x/')).toEqual({ kind: 'room', roomId: 'x' });
     expect(parseRoute('#/room/x/table/t-1')).toEqual({ kind: 'room', roomId: 'x', tableId: 't-1' });
     expect(parseRoute('#/room//table/t-1')).toEqual({ kind: 'lobby' });
+    // A table's full-screen step: a plain word after the table; anything else is the table's page.
+    expect(parseRoute('#/room/x/table/t-1/sideboard')).toEqual({ kind: 'room', roomId: 'x', tableId: 't-1', step: 'sideboard' });
+    expect(routeHash({ kind: 'room', roomId: 'x', tableId: 't-1', step: 'sideboard' })).toBe('#/room/x/table/t-1/sideboard');
+    expect(parseRoute('#/room/x/table/t-1/Side%20board')).toEqual({ kind: 'room', roomId: 'x', tableId: 't-1' });
+    expect(parseRoute('#/room/x/table/t-1/')).toEqual({ kind: 'room', roomId: 'x', tableId: 't-1' });
     expect(parseRoute('#/deck/friday%20cube')).toEqual({
       kind: 'deck',
       draftId: 'friday cube',

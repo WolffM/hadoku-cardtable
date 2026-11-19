@@ -85,10 +85,15 @@ describe('PodBracket', () => {
     ]);
   });
 
-  it('makes every live table the way in: mine back into its running game, somebody else’s Watch through its table page; a finished one goes nowhere', () => {
-    const { rerender } = bracket();
+  it('makes every live table the way in: mine by its one door (Enter game, then Return to game), somebody else’s Watch straight at its game; a finished one goes nowhere', () => {
+    const at = (entered: [boolean, boolean]) => ({ 't-3': { decks: [null, null] as [null, null], live: null, entered } });
+    const { rerender } = bracket({ games: at([false, false]) });
+    const matchHref = `#/match/${midTables.find((t) => t.id === 't-3')!.matchId}`;
+    expect(screen.getByTestId('pod-tables-play').textContent).toBe('Enter game');
+    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe(matchHref);
+    rerender(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf, games: at([true, true]) }));
     expect(screen.getByTestId('pod-tables-play').textContent).toBe('Return to game');
-    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe(`#/match/${midTables.find((t) => t.id === 't-3')!.matchId}`);
+    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe(matchHref);
     expect(screen.queryByTestId('pod-tables-watch')).toBeNull();
     const mine = screen.getAllByTestId('pod-tables-row').find((r) => r.dataset.tableId === 't-3')!;
     expect(mine.dataset.mine).toBe('');
@@ -96,7 +101,7 @@ describe('PodBracket', () => {
     expect(mine.querySelector('.swiss__bar .swiss__game')?.textContent).toMatch(/^Game \d$/);
     expect(document.querySelector('.swiss__chip'), 'no record over a group: the rows carry the score').toBeNull();
     rerender(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-bob', nameOf, avatarOf }));
-    expect(screen.getByTestId('pod-tables-watch').getAttribute('href')).toBe('#/room/r-1/table/t-3');
+    expect(screen.getByTestId('pod-tables-watch').getAttribute('href')).toBe(matchHref);
     expect(screen.queryByTestId('pod-tables-play')).toBeNull();
     expect(screen.getAllByRole('link')).toHaveLength(1);
   });

@@ -130,7 +130,7 @@ describe('roomCardView — state, every phase', () => {
     const playing = room({
       tables: [table({ id: 't-1', series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-1', winner: 0 }], phase: 'playing' } })],
       matchId: 'm-2',
-      tableGames: { 't-1': { decks: [null, null], live: { turn: 7, active: 0, life: [18, 20], hand: [3, 4] } } },
+      tableGames: { 't-1': { decks: [null, null], live: { turn: 7, active: 0, life: [18, 20], hand: [3, 4] }, entered: [true, true] } },
       members: [{ id: 'm1', name: 'a', joinedAt: '', ready: false }, { id: 'm2', name: 'b', joinedAt: '', ready: false }],
     });
     expect(roomCardView(playing, false).state).toMatchObject({ key: 'playing', label: 'Playing', detail: 'Game 2 · turn 7' });

@@ -878,28 +878,22 @@ describe('DeckScreen', () => {
         pod: { phase, pairings: phase === 'rounds' ? [{ tableId: 't-1', players: ['u-me', 'ai'] }] : [] },
         tables: [{ id: 't-1', players: [{ seat: 0, memberId: 'u-me', name: 'Me' }], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } }],
       }) as unknown;
-    const routesSeen = (): string[] => {
-      const seen: string[] = [];
-      const on = (): void => void seen.push(globalThis.location.hash);
-      globalThis.addEventListener('hashchange', on);
-      return seen;
-    };
 
-    it('straight into the game when the last Play deals round 1 and my table can start', async () => {
+    it('to my table’s page when the last Play deals round 1: the face-off and Enter game, and this screen starts no game', async () => {
       const { store } = stubStore({ pool: POOL, deck: savedWith(POOL, 23, { Plains: 17 }) });
-      vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-        const url = String(input);
-        if (url.endsWith('/play/matches')) return Promise.resolve(new Response(JSON.stringify({ matchId: 'm-000000000042' }), { status: 201 }));
+      const posted: string[] = [];
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+        if (init?.method === 'POST') posted.push(String(input));
         return Promise.resolve(new Response('{}', { status: 200 }));
       });
-      const rooms = { get: async () => roomAt('rounds') } as unknown as RoomsClient;
-      const seen = routesSeen();
+      const room = roomAt('rounds');
+      const rooms = { get: async () => room } as unknown as RoomsClient;
       render(createElement(DeckScreen, { draftId: DRAFT_ID, store, rooms, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
       await screen.findByTestId('deck-editor');
       await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
       fireEvent.click(screen.getByTestId('play-deck'));
-      await vi.waitFor(() => expect(currentRoute()).toEqual({ kind: 'match', matchId: 'm-000000000042' }));
-      expect(seen.filter((h) => h.startsWith('#/room/')), 'no stop at the room on the way').toEqual([]);
+      await vi.waitFor(() => expect(currentRoute()).toMatchObject({ kind: 'room', roomId: DRAFT_ID, tableId: expect.any(String) }));
+      expect(posted.some((url) => url.endsWith('/play/matches')), 'the table’s page starts the game; Play does not').toBe(false);
     });
 
     it('to the room while somebody else is still building', async () => {

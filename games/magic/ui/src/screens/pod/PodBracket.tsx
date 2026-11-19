@@ -27,6 +27,7 @@ import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { dqPlayer, resolveTable } from '../tableActions.ts';
 import { tablePhase } from '../TableCard.tsx';
+import { doorGo, tableDoor } from '../tableDoor.ts';
 import { useTableResolve } from '../tableResolve.tsx';
 import { onPath, SWISS, swissLayout, type SwissMatch } from './swiss.ts';
 import { isPodAi, type PodView } from './wire.ts';
@@ -170,13 +171,14 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
   const matchId = table?.matchId ?? null;
   const live = match.live && table !== null;
   const tableId = table?.id;
+  // My own table's way on is the table's one door (`tableDoor.ts`), the same word its page says; a
+  // table with no game and no step yet (a round just paired) is opened at its page, as anyone else's is.
+  const door = live && mine ? doorGo(tableDoor(table, game, players.indexOf(myMemberId)), roomId, tableId!, 'pod-tables-play') : null;
   const go = !live
     ? null
     : mine
-      ? matchId !== null
-        ? { label: 'Return to game', href: routeHash({ kind: 'match', matchId }), testId: 'pod-tables-play' }
-        : { label: 'Play', href: routeHash({ kind: 'room', roomId, tableId: tableId! }), testId: 'pod-tables-play' }
-      : { label: 'Watch', href: routeHash({ kind: 'room', roomId, tableId: tableId! }), testId: 'pod-tables-watch' };
+      ? (door ?? { label: 'Play', href: routeHash({ kind: 'room', roomId, tableId: tableId! }), testId: 'pod-tables-play' })
+      : (doorGo(tableDoor(table, game, null), roomId, tableId!, 'pod-tables-watch') ?? { label: 'Watch', href: routeHash({ kind: 'room', roomId, tableId: tableId! }), testId: 'pod-tables-watch' });
   const series = { length: table?.series.length ?? 1, wins, played: table?.series.games.length ?? wins[0] + wins[1], phase };
   const resolve = useTableResolve({
     testId: 'pod-tables-row',

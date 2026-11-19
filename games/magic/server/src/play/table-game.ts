@@ -56,10 +56,12 @@ export interface TableGameSource {
 	spec: Pick<ForgeMatchSpec, 'seats' | 'format'>;
 	/** The game under way, or null once it is over. */
 	live(): TableGameLive | null;
+	/** By seat: whether its person has been at this game. */
+	entered(): boolean[];
 }
 
 export function tableGame(match: TableGameSource, costs: DeckCosts): TableGame {
-	return { decks: [seatDeck(match.spec, 0, costs), seatDeck(match.spec, 1, costs)], live: match.live() };
+	return { decks: [seatDeck(match.spec, 0, costs), seatDeck(match.spec, 1, costs)], live: match.live(), entered: [match.entered()[0] === true, match.entered()[1] === true] };
 }
 
 /**

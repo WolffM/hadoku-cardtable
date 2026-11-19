@@ -2214,24 +2214,24 @@ describe('the table’s pool', () => {
   // The rejoin audit, 2026-10-19: a player back in the room between games of a
   // series had no sideboard step there, and readying skipped sideboarding.
   // The operator, 2026-10-23: back in the room mid-series, "i would expect a small box that lets me return".
-  it('between games of a series, the room offers the way back to my table, not the sideboard step, in place of the deck card', async () => {
+  it('between games of a series, the room offers my table’s one way on, the sideboard’s own screen, in place of the deck card', async () => {
     const mine = { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } } as SeatChoice;
     await mountRoom({
       players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false, deck: { name: 'Jund (Emanuele Giusti)', rulesName: 'Standard (M11)', legal: true, issueCount: 0, choice: mine } }), opponent({ seat: 1, ready: false })],
       matchId: null,
       series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-0', winner: 0 }], phase: 'sideboarding' },
     });
-    expect((await screen.findByTestId('room-table-link')).getAttribute('href')).toBe(`#/room/${ROOM}/table/t-stub0001`);
+    expect((await screen.findByTestId('room-table-link')).getAttribute('href')).toBe(`#/room/${ROOM}/table/t-stub0001/sideboard`);
+    expect(screen.getByTestId('room-table-link').textContent).toBe('Sideboard');
     expect(screen.queryByTestId('table-sideboard')).toBeNull();
     expect(screen.queryByTestId('deck-mine')).toBeNull();
   });
 
-  // Between games of my own series, my table's own page IS the sideboard step — not `TablePage`'s
-  // own wrapper around it. The operator: "sideboarding entered from the room lobby is exactly the
-  // in-game sideboarding screen" — so the room's header, its settings gear, the face-off and
-  // `TablePage`'s own "Lobby" back-link are all ABSENT, not merely out of the way, the same bypass
-  // a dealt draft pod already takes (`magic-room-ui.tsx`'s own early return).
-  it('my table’s own page, between games of my series, is the sideboard step alone — no room chrome around it', async () => {
+  // The sideboard step is its own full screen, at its own address: the operator, "sideboarding
+  // entered from the room lobby is exactly the in-game sideboarding screen" — so the room's header,
+  // its settings gear, the face-off and `TablePage`'s own "Lobby" back-link are all ABSENT. The
+  // table's page itself is a doorway to it, and never holds it.
+  it('my table’s sideboard step, between games of my series, is the step alone — no room chrome around it; its table page is the doorway to it', async () => {
     const mine = { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } } as SeatChoice;
     const table: Table = {
       players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false, deck: { name: 'Jund (Emanuele Giusti)', rulesName: 'Standard (M11)', legal: true, issueCount: 0, choice: mine } }), opponent({ seat: 1, ready: false })],
@@ -2239,7 +2239,13 @@ describe('the table’s pool', () => {
       series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-0', winner: 0 }], phase: 'sideboarding' },
     };
     const server = stubServer(table);
-    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, myDecks: server.myDecks, roomId: ROOM, tableId: 't-stub0001', feed: everyMs(10) }));
+    const props = { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, myDecks: server.myDecks, roomId: ROOM, tableId: 't-stub0001', feed: everyMs(10) };
+    const page = render(createElement(ConstructedScreen, props));
+    expect((await screen.findByTestId('table-match-link')).getAttribute('href')).toBe(`#/room/${ROOM}/table/t-stub0001/sideboard`);
+    expect(screen.getAllByTestId('table-match-link')).toHaveLength(1);
+    expect(screen.queryByTestId('table-sideboard')).toBeNull();
+    page.unmount();
+    render(createElement(ConstructedScreen, { ...props, step: 'sideboard' }));
     expect(await screen.findByTestId('table-sideboard')).toBeTruthy();
     expect(screen.queryByTestId('table-page')).toBeNull();
     expect(screen.queryByTestId('table-hub')).toBeNull();
