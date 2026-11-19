@@ -2729,14 +2729,35 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		push(h, seat, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', me), 1);
 	}
 
-	it('presses Forge’s own Cancel on the payment, exactly once for that cost, and says nothing — the seat sees the refusal', () => {
+	/** The seat chooses the one ability of card 70 and Forge asks for its cost, with Auto dead and nothing to click. */
+	function unpayableOwnPlay(h: Harness): void {
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'ask', callId: 'ab-own', method: 'getAbilityToPlay', hostCard: { kind: 'card', id: 70 }, abilities: [{ kind: 'spellAbility', id: 9001 }, { kind: 'spellAbility', id: 9002 }], triggerEvent: null });
+		const ask = frames(h, 0).find((f) => f.kind === 'ask' && f.method === 'getAbilityToPlay');
+		if (ask === undefined || ask.kind !== 'ask') throw new Error('the ability ask never reached the seat');
+		expect(h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'reply', callId: ask.callId, method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9001 } }))).toEqual({ ok: true });
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] }, 1);
+		push(h, 0, autoBar(false, me), 1);
+		push(h, 0, prompt('Chain Lightning (70) - deals 3 damage.\n\nPay Mana Cost: {R}{R}', me, 70), 1);
+	}
+
+	it('the seat’s own play it cannot pay for is cancelled, and the seat sees it turned away', () => {
+		const h = harness();
+		unpayableOwnPlay(h);
+		expect(h.host.commands.filter(pressed)).toEqual([{ t: 'cancel-payment', seat: 0 }]);
+		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([{ evt: 'auto-cancelled', matchId: h.match.id, seat: 0, cost: '{R}{R}', own: true }]);
+		expect(frames(h, 0).filter((f) => f.method === 'flashIncorrectAction')).toEqual([{ kind: 'notify', method: 'flashIncorrectAction', cause: 'unpayable' }]);
+		expect(frames(h, 1).filter((f) => f.method === 'flashIncorrectAction')).toEqual([]);
+	});
+
+	it('presses Forge’s own Cancel on a cost another player’s spell asks, exactly once for that cost, and says nothing: the seat tried nothing', () => {
 		const h = harness();
 		unpayable(h, 0);
 		// Never a plain `selectButtonCancel`: one that lands after the payment ended presses the
 		// next window's End Turn (af57, run 39163377412).
 		expect(h.host.commands.filter(pressed)).toEqual([{ t: 'cancel-payment', seat: 0 }]);
 		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([
-			{ evt: 'auto-cancelled', matchId: h.match.id, seat: 0, cost: '{1}{U}' },
+			{ evt: 'auto-cancelled', matchId: h.match.id, seat: 0, cost: '{1}{U}', own: false },
 		]);
 		// Forge re-shows the payment prompt after every refresh; a second press
 		// would answer whatever it asks next.
@@ -2749,8 +2770,8 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		// after the Cancel, and a forwarded one stayed on screen until the seat pressed Cancel too.
 		expect(frames(h, 0).filter((f) => f.method === 'showPromptMessage' && /Pay Mana Cost/.test(f.message))).toEqual([]);
 		expect(h.logs.filter((l) => l.evt === 'prompt-withheld' && l.seat === 0).map((l) => l.why)).toContain('auto-cancel');
-		// The seat did not cancel it; it sees its play turned away, once, and the other seat sees nothing.
-		expect(frames(h, 0).filter((f) => f.method === 'flashIncorrectAction')).toEqual([{ kind: 'notify', method: 'flashIncorrectAction', cause: 'unpayable' }]);
+		// No play of the seat's was turned away (the operator's Mana Tithe, m-7443b5cf1604): neither seat sees a refusal.
+		expect(frames(h, 0).filter((f) => f.method === 'flashIncorrectAction')).toEqual([]);
 		expect(frames(h, 1).filter((f) => f.method === 'flashIncorrectAction')).toEqual([]);
 	});
 

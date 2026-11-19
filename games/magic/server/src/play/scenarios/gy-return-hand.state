@@ -1,0 +1,19 @@
+# A card played from the graveyard whose ability puts it in the hand, never on
+# the table. Alice (`human…`, seat 0) has Sanitarium Skeleton in her graveyard
+# ("{2}{B}: Return Sanitarium Skeleton from your graveyard to your hand.") and
+# three Swamps, on an uncontested turn-1 Main Phase 1. The operator's own card
+# was Gutterbones (m-1a55915960fd), whose ability also needs an opponent to
+# have lost life; the Skeleton's needs nothing.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=Sanitarium Skeleton
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

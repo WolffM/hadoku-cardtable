@@ -394,9 +394,15 @@ function describeNode(node: EventTarget | null): string {
 
 type ParkEnd = Extract<PlayEnd, 'landed' | 'settled' | 'elsewhere' | 'offered' | 'floated-unanswered' | 'cancel' | 'next-play' | 'disposed'>;
 
-/** Where Forge's state holds the card now: still in the zone it was lifted out of, another zone the board draws, or nowhere it draws (mid-cast). */
+/**
+ * Where Forge's state holds the card now: still in the zone it was lifted out of, another zone the
+ * board draws (the viewer's own hand among them: an ability played from the graveyard that returns
+ * its card there), or nowhere it draws (mid-cast).
+ */
 function whereIs(match: LiveMatch, id: number, home: CastZone): 'home' | 'drawn' | 'limbo' {
-  if (castZoneOf(match, id) === home) return 'home';
+  const zone = castZoneOf(match, id);
+  if (zone === home) return 'home';
+  if (zone !== null) return 'drawn';
   for (const p of match.view?.players ?? []) {
     for (const zone of [p.battlefield, p.graveyard, p.exile]) {
       if (zone.some((c) => c.id === id)) return 'drawn';

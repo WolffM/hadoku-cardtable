@@ -3470,6 +3470,22 @@ describe('a card Forge offers from the graveyard is picked up like a hand card',
     expect(await sent(s, m)).toEqual([['selectCard', card]]);
   });
 
+  it('played from the graveyard and put into the hand instead (an ability that returns it), the lift comes off', async () => {
+    const { s, m, canvas, card, myBattlefield } = await inGraveyard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
+    fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
+    await s.untilClientFrames(1);
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift="parked"]')).not.toBeNull());
+
+    s.send(stateDelta({ [String((1 << 28) | 0)]: { _type: 1, _id: 0, Graveyard: { t: 'list', v: [] } } }));
+    s.send(handDelta([...hand, card]));
+    s.send(prompt('Priority'));
+    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull());
+    expect(canvas.querySelector('[data-cast-ghost]')).toBeNull();
+  });
+
   it('let go back over its graveyard, it goes home and nothing is sent', async () => {
     const { s, m, canvas, card, pile, myBattlefield } = await inGraveyard();
     fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });

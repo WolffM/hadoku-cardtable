@@ -3285,13 +3285,17 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		}
 		if (s.policy.unpayableCost !== 'cancel') return false;
 		s.autoCancelled = message;
+		const own = s.payment.own;
 		this.deps.log({ evt: 'ask-unanswerable', matchId: this.id, seat: s.seat, card: s.payment.card, method: 'payment', why: verdict.why });
-		this.deps.log({ evt: 'auto-cancelled', matchId: this.id, seat: s.seat, cost: facts.cost });
+		this.deps.log({ evt: 'auto-cancelled', matchId: this.id, seat: s.seat, cost: facts.cost, own });
 		// Scoped to the payment: Forge may finish it (Auto already paying) before a plain Cancel
 		// lands, which then ends the turn at the next priority window (af57, run 39163377412).
 		this.command({ t: 'cancel-payment', seat: s.seat });
-		// The seat did not cancel it: a refusal it sees, as Forge's own turned-away click is.
-		this.send(s, { kind: 'notify', method: 'flashIncorrectAction', cause: 'unpayable' });
+		// The seat did not cancel it: a refusal it sees, as Forge's own turned-away click is. Only of
+		// its own play (`Payment.own`): a cost another player's spell or a trigger puts on the seat
+		// (Mana Tithe's {1}) was never something it tried, and its answer is what happens next (the
+		// operator, 2026-11-19: *"it shouldn't show that error text unless i was trying to do something"*).
+		if (own) this.send(s, { kind: 'notify', method: 'flashIncorrectAction', cause: 'unpayable' });
 		return true;
 	}
 
