@@ -1,0 +1,21 @@
+# A card of the opponent's, in the opponent's exile, that this seat may cast
+# with mana of any type. Alice (`human…`, seat 0) has Cruelclaw's Heist
+# ({B}{B}: "Gift a card. Target opponent reveals their hand. You choose a
+# nonland card from it. Exile that card. If the gift was promised, you may cast
+# that card for as long as it remains exiled, and mana of any type can be spent
+# to cast it.") and five Swamps; bob (`ai…`, seat 1) holds one card,
+# Scrapshooter ({1}{G}{G}), which no Swamp pays for as written. The operator's
+# own cards (m-4040eb536bf4).
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Cruelclaw's Heist
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=Scrapshooter
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
