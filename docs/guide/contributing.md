@@ -24,6 +24,28 @@ app still starts, just without drafts or matches. `README.md` has the full
 table of dev env vars, and `docs/FORGE_JAR.md` covers the Forge build in
 depth.
 
+The first start also downloads Scryfall's card data, about 200 MB; card
+art itself is never bundled, only looked up live from Scryfall's image
+CDN. Everything the dev server writes goes under `.dev/` (logs in
+`.dev/logs/server.log`). Room chat, sign-in and match stats are other
+hadoku.me services and stay empty locally. Every browser window signs in
+as the same local admin, so a two-person draft needs the e2e suite
+(`pnpm e2e`), which signs each window in separately.
+
+## Building
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run build
+```
+
+Builds from a fresh clone with no credentials — Node 24 and pnpm (pinned
+by the `packageManager` field). The shared fleet packages it imports as
+`@wolffm/*` (themes, prefs, the room layer and others) install from the
+public npm registry as version-pinned `@hadoku/*` aliases in
+`package.json`'s `dependencies`; the source of those packages lives in
+other repos, some private, but nothing here needs it.
+
 ## How it fits together
 
 ```mermaid
@@ -51,6 +73,17 @@ flowchart LR
   private companion repo's hosted service for picks, with a local heuristic
   as its fallback — see
   [features.md#cube-drafting](features.md#cube-drafting).
+- **`packages/`** is the generic, game-agnostic half of the hosting
+  platform — `game-server`/`game-ui` (the room, match-hosting and UI shell
+  any hosted game shares), `service-kernel` (edge auth, health, lifecycle),
+  `host-wire`/`platform-wire`/`room-ask` (the wire formats), `shared`
+  (the draft envelope's own schema) and `devkit` (release tooling). None
+  of it knows Magic exists; `games/magic/` is what plugs into it.
+- **`cubes/`, `decks/` and `drafts/`** are the data the deck library and
+  cube drafting draw on: `.dck` cube and preconstructed-deck lists (one
+  era per `decks/` subdirectory, back to 1995) and their matching
+  `.draft` records — see
+  [features.md#the-deck-library](features.md#the-deck-library).
 - **Licensing is split, not one blanket GPL.** `forge/` and anything that
   touches Magic stays GPL-3.0-or-later; new platform code is MIT by
   default. [`docs/LICENSING.md`](../LICENSING.md) has the reasoning, and
@@ -68,9 +101,10 @@ flowchart LR
 import crosses a forbidden licence boundary, or a package's declared
 licence stops matching what its files actually are.
 
-`pnpm e2e` drives a real multi-player draft and match against a real Forge
-build through Playwright. It needs the Forge jar and a JDK 21, which a
-plain clone does not have until `pnpm dev` has built one.
+`pnpm e2e` runs the specs under `e2e/`, driving a real multi-player draft
+and match against a real Forge build through Playwright. It needs the
+Forge jar and a JDK 21, which a plain clone does not have until `pnpm
+dev` has built one.
 
 ## Deploy
 
