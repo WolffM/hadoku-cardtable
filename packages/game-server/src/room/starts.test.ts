@@ -54,4 +54,31 @@ describe('starts', () => {
     s.forget('r-1');
     assert.equal(s.hostOf('r-1'), null);
   });
+
+  it("numbers a room's starts and keeps its series; a press during the countdown is not a new round", () => {
+    let t = 0;
+    const s = createStarts({ now: () => t });
+    const next = () => {
+      const r = s.request(room(), 'lead');
+      assert.ok(r.ok);
+      return r.start;
+    };
+    const first = next();
+    assert.equal(first.round, 0);
+    assert.equal(next().round, 0);
+    t = COUNTDOWN_MS;
+    const second = next();
+    t = 2 * COUNTDOWN_MS;
+    const third = next();
+    assert.deepEqual([second.round, third.round], [1, 2]);
+    assert.deepEqual([second.series, third.series], [first.series, first.series]);
+    assert.notEqual(second.seed, first.seed);
+    // Another room runs on its own count.
+    const other = s.request(room({ id: 'r-2' }), 'lead');
+    assert.equal(other.ok && other.start.round, 0);
+    // A room that is gone starts over.
+    s.forget('r-1');
+    t = 3 * COUNTDOWN_MS;
+    assert.equal(next().round, 0);
+  });
 });

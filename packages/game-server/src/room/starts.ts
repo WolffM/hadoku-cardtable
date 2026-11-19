@@ -29,8 +29,18 @@
  * count down from nothing, hide Start, and — on the host's page — begin the
  * same match a second time. Only `hostOf` outlives zero, for the relay.
  *
+ * ## A room's starts are numbered
+ *
+ * Every start carries `round`, its place in the room's run of starts (0, 1, 2, …), and `series`,
+ * a number drawn at the room's first start that stays the same for all of them. A seed alone has
+ * no memory, so a game that picks from a small pool by seed repeats itself by chance; with these
+ * two a game deals in an order instead — a map rotation that plays every map before any comes
+ * round again, a first turn that moves round the table. Every page reads the same pair from the
+ * room body, so every page deals alike without having seen the rounds before.
+ *
  * In memory only: a countdown lasts seconds, and a restart mid-countdown
- * costs one press of Start.
+ * costs one press of Start. The numbering goes with it: after a restart a room's
+ * next start is round 0 of a new series.
  */
 
 /** The 3-2-1. */
@@ -39,6 +49,8 @@ export const COUNTDOWN_MS = 3_000;
 interface PendingStart {
   matchId: string;
   seed: number;
+  round: number;
+  series: number;
   hostId: string;
   startsAt: number;
 }
@@ -47,6 +59,10 @@ interface PendingStart {
 export interface StartView {
   matchId: string;
   seed: number;
+  /** This start's place in the room's run of starts, from 0. */
+  round: number;
+  /** Drawn at the room's first start; the same for every start of the room after it. */
+  series: number;
   hostId: string;
   startsInMs: number;
 }
@@ -77,6 +93,8 @@ export function createStarts(opts: { now?: () => number; random?: () => number; 
   const random = opts.random ?? Math.random;
   const pending = new Map<string, PendingStart>();
   const hosts = new Map<string, string>();
+  /** Each room's run of starts: its series number, and how many starts it has had. */
+  const runs = new Map<string, { series: number; started: number }>();
 
   const live = (roomId: string): PendingStart | null => {
     const p = pending.get(roomId);
@@ -90,6 +108,8 @@ export function createStarts(opts: { now?: () => number; random?: () => number; 
   const toView = (p: PendingStart): StartView => ({
     matchId: p.matchId,
     seed: p.seed,
+    round: p.round,
+    series: p.series,
     hostId: p.hostId,
     startsInMs: Math.max(0, p.startsAt - now()),
   });
@@ -105,13 +125,18 @@ export function createStarts(opts: { now?: () => number; random?: () => number; 
       const hostId = seated ? callerId : room.seats.find(isPerson);
       if (hostId === undefined) return { ok: false, reason: 'no-player' };
       const t = now();
+      const run = runs.get(room.id) ?? { series: Math.floor(random() * 0x7fffffff), started: 0 };
+      runs.set(room.id, run);
       const start: PendingStart = {
         // The stats store's MATCH_ID_PATTERN holds: [A-Za-z0-9_-]{8,64}.
         matchId: `m-${t.toString(36)}-${Math.floor(random() * 1e9).toString(36)}`,
         seed: Math.floor(random() * 0x7fffffff),
+        round: run.started,
+        series: run.series,
         hostId,
         startsAt: t + countdownMs,
       };
+      run.started += 1;
       pending.set(room.id, start);
       hosts.set(room.id, hostId);
       return { ok: true, start: toView(start) };
@@ -126,6 +151,7 @@ export function createStarts(opts: { now?: () => number; random?: () => number; 
     forget(roomId) {
       pending.delete(roomId);
       hosts.delete(roomId);
+      runs.delete(roomId);
     },
   };
 }
