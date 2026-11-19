@@ -183,7 +183,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
 import { DEFAULT_ROOM_SETTINGS, isMagicGameType, magicGame, OPEN_ROOM_LOCKS, roomAiOf } from '@hadoku/shared';
 import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodView, type RoomMode, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
-import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
+import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
@@ -1905,11 +1905,12 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   const sawNoMatch = useRef(false);
   if (table !== null && matchId === null) sawNoMatch.current = true;
   /**
-   * Only a series' FIRST game is followed into, the one my own Ready started. Every later game is
-   * entered by my own press on the table's door (`tableDoor.ts`): the room's record says which game
-   * this is, so a reload or a slow read cannot walk me in.
+   * Only a game my own press in this room started is followed into: a series' FIRST game (my
+   * Ready), and each of a Gauntlet's, whose next game is set up in the room (its pick, its Ready).
+   * Every other later game is entered by my own press on the table's door (`tableDoor.ts`): the
+   * room's record says which game this is, so a reload or a slow read cannot walk me in.
    */
-  const firstGame = myTable !== null && myTable.matchId === matchId && myTable.series.games.length === 0;
+  const firstGame = myTable !== null && myTable.matchId === matchId && (myTable.series.games.length === 0 || mode === 'gauntlet');
   useEffect(() => {
     if (!tournament && matchId !== null && firstGame) followMatchOnce(matchId, sawNoMatch.current);
   }, [tournament, matchId, firstGame]);
@@ -2435,9 +2436,23 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   const queuePlace = useQueuePlace(starting && matchId === null, client.queuePlace);
   const startState = startStateText(starting, matchId, queuePlace);
   /** Back in the room by choice while the game goes on: the way into it again. */
-  const matchLink = matchId !== null && (
-    <a className="lobby__go" data-testid="room-match-link" href={routeHash({ kind: 'match', matchId })}>
-      {players.some((p) => p.you) ? 'Play' : 'Watch'}
+  /** From a series' second game on (or between two), a plain room draws my table as its card, with the table's one way on. */
+  const myDoorCard = mode !== 'gauntlet' && !spectating && myDoor !== null && myTable !== null && (mySideboarding || myTable.series.games.length > 0) && players.some((p) => p.you);
+  const matchDoor = matchId === null ? null : doorGo(myDoor?.kind === 'enter' || myDoor?.kind === 'return' ? myDoor : { kind: 'watch', matchId }, roomId, myTable?.id ?? '', 'room-match-link');
+  /** One way in: where my table's card is drawn (`myDoorCard`), the card is it, and this is not drawn too. */
+  const matchLink = matchDoor !== null && !myDoorCard && (
+    <a
+      className="lobby__go"
+      data-testid={matchDoor.testId}
+      data-door={matchDoor.door}
+      href={matchDoor.href}
+      onClick={(event) => {
+        if (matchDoor.onPress === undefined || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+        event.preventDefault();
+        matchDoor.onPress();
+      }}
+    >
+      {matchDoor.label}
     </a>
   );
   const startRefused = startRefusal !== null && (
@@ -2795,7 +2810,7 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
                 onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
               />
             )
-          ) : spectating ? null : myDoor !== null && (mySideboarding || myTable!.series.games.length > 0) && players.some((p) => p.you) ? (
+          ) : spectating ? null : myDoorCard ? (
             // From a series' second game on, the room's table is its card (`TableCard.tsx`) and the table's one way on.
             <TableCard
               testId="room-table-card"

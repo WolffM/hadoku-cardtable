@@ -252,14 +252,16 @@ test(titled('a mode change during sideboarding interrupts the Bo3: the sideboard
     for (const f of [alice, bob]) await f.page.getByTestId('game-result-rematch').click();
     for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result-next')).toBeVisible({ timeout: 30_000 });
 
-    // Bob is on the sideboard step; alice, the leader, goes back to the room: it offers the way back to
-    // her table, whose page shows her sideboard step (the operator, 2026-10-23: "a small box that lets me return").
+    // Bob is on the sideboard step; alice, the leader, goes back to the room: its table card is the way to
+    // her own sideboard step, a screen of its own (the operator, 2026-10-23: "a small box that lets me return").
     await bob.page.getByTestId('game-result-next').click();
     await expect(bob.page.getByTestId('sideboard-step')).toBeVisible({ timeout: 30_000 });
     await alice.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
     await expect(alice.page.getByTestId('sideboard-step'), "alice's room draws no sideboard step").toHaveCount(0);
+    await expect(alice.page.getByTestId('room-table-link'), 'the card’s way on is the sideboard step').toHaveAttribute('data-door', 'sideboard', { timeout: 30_000 });
     await alice.page.getByTestId('room-table-link').click();
-    await expect(alice.page.getByTestId('sideboard-step'), "alice's table page shows her sideboard step").toBeVisible({ timeout: 30_000 });
+    await alice.page.waitForURL(/\/table\/[^/]+\/sideboard$/, { timeout: 30_000 });
+    await expect(alice.page.getByTestId('sideboard-step'), "alice's sideboard screen shows her step").toBeVisible({ timeout: 30_000 });
     // The step is drawn alone, as in-game (AF628), so its way back is the in-game step's own.
     await alice.page.getByTestId('game-result-room').click();
     await expect(alice.page.getByTestId('room-table-link'), 'back in the room, the way to her table').toBeVisible({ timeout: 30_000 });

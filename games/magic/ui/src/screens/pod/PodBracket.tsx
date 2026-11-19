@@ -210,7 +210,18 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
       {go !== null && (
         <div className="swiss__bar">
           <span className="swiss__game">Game {gameNo}</span>
-          <a className="swiss__go" data-testid={go.testId} href={go.href}>
+          <a
+            className="swiss__go"
+            data-testid={go.testId}
+            data-door={'door' in go ? go.door : undefined}
+            href={go.href}
+            onClick={(event) => {
+              const press = 'onPress' in go ? go.onPress : undefined;
+              if (press === undefined || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+              event.preventDefault();
+              press();
+            }}
+          >
             {go.label}
           </a>
           {resolve.more}

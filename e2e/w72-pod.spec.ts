@@ -23,7 +23,7 @@ import { arrangePod, draftUntilDone, readyPod } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
-import { makeTitled, pressEnterGame, pressIntoGame2, resizeWindow, roomIdFromAddress } from './play/board.ts';
+import { enterFromTablePage, makeTitled, pressEnterGame, pressIntoGame2, resizeWindow, roomIdFromAddress, sideboardFromTablePage } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openHub, openMyTable, submitCreateRoom } from './play/rooms.ts';
@@ -127,32 +127,35 @@ test(
         await p.page.getByTestId('play-deck').click();
       }
       // The first two wait in the builder, shown as ready; the third's Play
-      // dealt round 1, and every builder hands its drafter to the room, whose
-      // pod screen starts their table.
+      // dealt round 1, and every paired drafter is carried to their table's page,
+      // which starts the game.
 
       /*
        * Round 1: two play, one has the bye. `pod-tables-bye` is drawn for
        * EVERYONE on the pod screen (it names the bye, it does not mean
-       * "I am the bye"), so this cannot race it against the redirect — only
-       * the redirect itself tells a page apart from the other two. Each is
-       * given its own window rather than one shared timeout, since the bye
-       * never redirects and must not make the other two wait the full
+       * "I am the bye"), so this cannot race it against the carry — only
+       * the carry to a table page tells a page apart from the other two. Each
+       * is given its own window rather than one shared timeout, since the bye
+       * is never carried and must not make the other two wait the full
        * budget behind it.
        */
       const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
+      const tableUrl = /#\/room\/[^/]+\/table\/[^/]+$/;
       const seated: Player[] = [];
       let bye: Player | undefined;
       for (const p of players) {
-        const toMatch = await p.page
-          .waitForURL(matchUrl, { timeout: UI_TIMEOUT })
+        const toTable = await p.page
+          .waitForURL(tableUrl, { timeout: UI_TIMEOUT })
           .then(() => true)
           .catch(() => false);
-        if (toMatch) seated.push(p);
+        if (toTable) seated.push(p);
         else bye = p;
       }
       expect(seated, 'exactly two of the three play round 1').toHaveLength(2);
       expect(bye, 'the third has the bye').not.toBeUndefined();
-      for (const p of seated) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: carried to their own table`).toBeVisible({ timeout: UI_TIMEOUT });
+      // The table page walks nobody into its game: each of the two enters by their own press.
+      for (const p of seated) await enterFromTablePage(p.page, matchUrl, UI_TIMEOUT);
+      for (const p of seated) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: at their own table`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── the bye watches via the pod's table cards, then back to the room ── */
       await bye!.page.goto(roomUrl);
@@ -183,16 +186,16 @@ test(
             await p.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
             await expect(p.page.getByTestId('sideboard-step'), `${p.name}: Next opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
           }
-          // The loser leaves and comes back to their table page: it opens their
-          // sideboard step (the rejoin audit, 2026-10-19, stranded them on the
-          // round screen while the winner waited).
+          // The loser leaves and comes back to their table page: its one way on is
+          // their sideboard step, a full screen of its own in a pod too (the rejoin
+          // audit, 2026-10-19, stranded them on the round screen while the winner waited).
           await openMyTable(loser.page, roomUrl);
-          await expect(loser.page.getByTestId('table-sideboard'), 'the table page opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
+          await sideboardFromTablePage(loser.page, UI_TIMEOUT);
           // Q's sideboard layout fix (`8fc0f75f`) put the Ready button back
           // in the viewport — a real click again, not `dispatchEvent`.
           for (const p of seated) await p.page.getByTestId('sideboard-ready').click();
           // Game 2 starts from the two Readys; each player enters it with a press (AF639), the winner
-          // from the finished game's own gate, the loser from whichever gate their table page draws.
+          // from the finished game's own gate, the loser from their sideboard screen's.
           const game1Url = winner.page.url();
           await pressEnterGame(winner.page);
           await pressIntoGame2(loser.page, matchUrl, UI_TIMEOUT);
