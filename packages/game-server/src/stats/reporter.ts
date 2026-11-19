@@ -66,7 +66,7 @@ const sleep = (ms: number) =>
   });
 
 /**
- * Report matches to the store, or log once that it will not.
+ * Report matches to the store, or log once, on the first report, that it will not.
  *
  * Every attempt re-posts the same `matchId`, and the store treats a repeat as
  * a no-op, so a retry after a response that was lost in transit cannot count a
@@ -78,10 +78,7 @@ export function createStatsReporter(opts: StatsReporterOptions): StatsReporter {
   const delays = opts.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
   const serviceKey = opts.serviceKey ?? '';
   const inFlight = new Set<Promise<void>>();
-
-  if (serviceKey === '') {
-    log({ evt: 'stats-disabled', reason: `${opts.serviceKeyEnvVar ?? 'the service key'} unset` });
-  }
+  let saidDisabled = false;
 
   const send = async (report: MatchReport): Promise<void> => {
     for (let attempt = 0; ; attempt += 1) {
@@ -114,7 +111,14 @@ export function createStatsReporter(opts: StatsReporterOptions): StatsReporter {
   return {
     enabled: serviceKey !== '',
     report(report) {
-      if (serviceKey === '') return;
+      if (serviceKey === '') {
+        // Said on the first report, not at construction: the line means "a report was built
+        // and went nowhere", which a game's own tests read to tell a finished match from one
+        // that was never reported.
+        if (!saidDisabled) log({ evt: 'stats-disabled', reason: `${opts.serviceKeyEnvVar ?? 'the service key'} unset` });
+        saidDisabled = true;
+        return;
+      }
       const p = send(report).finally(() => inFlight.delete(p));
       inFlight.add(p);
     },

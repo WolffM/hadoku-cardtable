@@ -85,6 +85,8 @@ describe('createStatsReporter', () => {
 		const none = recorder([]);
 		const disabled = createStatsReporter({ gameId: 'toy', serviceKey: undefined, serviceKeyEnvVar: 'TOY_SERVICE_KEY', log: (l) => off.push(l), record: none.record });
 		expect(disabled.enabled).toBe(false);
+		expect(off, 'nothing is said before a report is built').toEqual([]);
+		disabled.report(REPORT);
 		disabled.report(REPORT);
 		await disabled.idle();
 		expect(none.calls).toHaveLength(0);
