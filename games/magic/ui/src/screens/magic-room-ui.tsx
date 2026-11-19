@@ -2626,6 +2626,7 @@ export function RoomTableScreen({ roomId, tableId }: { roomId: string; tableId: 
                 tables={client}
                 game={tableId === undefined ? undefined : view?.tableGames?.[tableId]}
                 ready={tGauntletReady}
+                away={view?.away}
               >
                 {tDeckPicking && loaded !== null && (
                   <DeckChooser

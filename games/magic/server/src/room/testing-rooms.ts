@@ -45,6 +45,7 @@ import type { TablesLibrary } from '../http/library.ts';
 import type { Lobby } from './lobby.ts';
 import { SCENARIOS_DIR } from '../root.ts';
 import type { Caller } from '@hadoku/game-server/room/caller';
+import { TESTING_STAND_IN_ID } from '@hadoku/game-server/room/lobby';
 import type { DraftPlan, PoolVerdict, RoomMode } from '@hadoku/shared';
 
 /**
@@ -269,9 +270,10 @@ function playSeedSeries(
 	field: { aiEntrants: number; series: readonly SeedSeries[] },
 	makeEntrantReady: () => void,
 	log: (entry: Record<string, unknown>) => void,
+	seed: Caller = TESTING_SEED_CALLER,
 ): string | null {
-	lobby.sitSeat(roomId, TESTING_SEED_CALLER.id, 0);
-	for (let seat = 1; seat <= field.aiEntrants; seat++) lobby.aiSeat(roomId, TESTING_SEED_CALLER.id, seat, true);
+	lobby.sitSeat(roomId, seed.id, 0);
+	for (let seat = 1; seat <= field.aiEntrants; seat++) lobby.aiSeat(roomId, seed.id, seat, true);
 	makeEntrantReady();
 	if (lobby.get(roomId)?.game?.pod?.pairings.length !== 1) {
 		log({ event: 'testing-room-seed-failed', name, reason: 'tournament-did-not-lock' });
@@ -421,6 +423,79 @@ function seedGauntletTournament(
 	log({ event: 'testing-room-seeded', name, roomId });
 }
 
+/**
+ * The stand-in a "yours" room is seeded with: the first admin to join takes over its whole place
+ * (`RoomLobby.join`'s hand-over), so they come back to the situation as its player.
+ */
+export const TESTING_STAND_IN: Caller = { id: TESTING_STAND_IN_ID, name: 'Testing', userId: null };
+
+/**
+ * A Classic tournament's round 1 table caught between moments (the operator, 2026-11-19: *"build some
+ * new testing rooms for me so i can see different situations like going back to a room during
+ * sideboarding phase"*): three entrants, locked decks, the seed's table against an AI with `games`
+ * already played. `yours`: a stand-in holds the seat for the first admin in; otherwise the seed
+ * keeps it and stays, and the admin watches a table waiting on someone who is not there.
+ */
+export const TESTING_SIDEBOARDING_NAME = 'Testing: Tournament — your series, sideboarding after game 1';
+export const TESTING_FIRST_GAME_NAME = 'Testing: Tournament — your series, game 1 not started';
+export const TESTING_WAITING_NAME = 'Testing: Tournament — watching a series between games';
+
+interface BetweenGamesSpec {
+	name: string;
+	/** The seed's series so far: each game's winner by table seat (the seed's is 0). */
+	games: SeedSeries;
+	yours: boolean;
+}
+
+const BETWEEN_GAMES: readonly BetweenGamesSpec[] = [
+	{ name: TESTING_SIDEBOARDING_NAME, games: [0], yours: true },
+	{ name: TESTING_FIRST_GAME_NAME, games: [], yours: true },
+	{ name: TESTING_WAITING_NAME, games: [0], yours: false },
+];
+
+async function seedBetweenGames(deps: TestingRoomsDeps, spec: BetweenGamesSpec, log: (entry: Record<string, unknown>) => void): Promise<void> {
+	const { lobby } = deps;
+	const { name } = spec;
+	if (deps.library === undefined) {
+		log({ event: 'testing-room-seed-skipped', name, reason: 'no library wired' });
+		return;
+	}
+	const seed = spec.yours ? TESTING_STAND_IN : TESTING_SEED_CALLER;
+	const created = lobby.create(seed, { name, gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} }, testing: true });
+	if (!created.ok) {
+		log({ event: 'testing-room-seed-failed', name, reason: created.reason });
+		return;
+	}
+	const roomId = created.room.id;
+	const settled = lobby.setSettings(roomId, seed.id, { tournament: true, tournamentDecks: 'locked' });
+	if (!settled.ok) {
+		log({ event: 'testing-room-settings-failed', name, reason: settled.reason });
+		return;
+	}
+	const deckState = legalClassicDeckState(deps.library, created.room.game?.format ?? '');
+	if (deckState === null) {
+		log({ event: 'testing-room-seed-skipped', name, reason: 'no legal deck for this format', format: created.room.game?.format ?? '' });
+		return;
+	}
+	const makeEntrantReady = (): void => {
+		lobby.setPlayerState(roomId, seed.id, deckState);
+		lobby.sitSeat(roomId, seed.id, 0);
+	};
+	const tableId = playSeedSeries(lobby, roomId, name, { aiEntrants: 2, series: [] }, makeEntrantReady, log, seed);
+	if (tableId === null || tableId === '') return;
+	for (const [g, winner] of spec.games.entries()) {
+		if (!lobby.recordGameResult(roomId, tableId, { matchId: `${roomId}-r1-g${g + 1}`, winner }).ok) {
+			log({ event: 'testing-room-seed-failed', name, reason: 'record-game-result-refused' });
+			return;
+		}
+	}
+	// A series that has played registers the deck it started with: what sideboarding is checked against
+	// and goes back to (`http/routes.ts`'s `seriesDeck`), as a real game's start would have.
+	const state = lobby.playerState(roomId, seed.id) as { deck?: unknown } | undefined;
+	if (spec.games.length > 0 && state?.deck != null) lobby.setPlayerState(roomId, seed.id, { ...state, seriesDeck: state.deck });
+	log({ event: 'testing-room-seeded', name, roomId });
+}
+
 /** One turn of the event loop: what {@link seedTestingRooms} gives way for before each room. */
 const nextTurn = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
@@ -463,6 +538,7 @@ export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 		[TESTING_GAUNTLET_ROUND2_NAME, seedTournamentRound2Gauntlet],
 		[TESTING_TOURNAMENT_DONE_NAME, seedTournamentDone],
 		[TESTING_TOURNAMENT_MID_NAME, seedTournamentMid],
+		...BETWEEN_GAMES.map((spec): [string, (deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void) => Promise<void>] => [spec.name, (d, l) => seedBetweenGames(d, spec, l)]),
 	];
 	const started: Promise<void>[] = [];
 	for (const [name, seed] of seeds) {

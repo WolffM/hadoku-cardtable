@@ -128,7 +128,7 @@ interface Harness {
 const dirs: string[] = [];
 let http: HttpServer | undefined;
 
-async function boot(opts: { seatRoutes?: boolean } = {}): Promise<Harness> {
+async function boot(opts: { seatRoutes?: boolean; away?: (memberId: string) => number | null | undefined } = {}): Promise<Harness> {
 	const dir = await mkdtemp(join(tmpdir(), 'w119s-room-core-test-'));
 	dirs.push(dir);
 	const lobby = new lobbyMod.RoomLobby<ToyView, RoomCreateInput>({
@@ -148,6 +148,7 @@ async function boot(opts: { seatRoutes?: boolean } = {}): Promise<Harness> {
 	roomCoreMod.attachRoomCore(api, {
 		lobby: asLobbyCore(lobby),
 		...(opts.seatRoutes === true ? { seatRoutes: lobby } : {}),
+		...(opts.away === undefined ? {} : { away: opts.away }),
 		wire: {
 			roomIdRe: ROOM_ID_RE,
 			createRoomBody: CREATE_BODY,
@@ -267,6 +268,26 @@ describe('the leader’s seat-op routes', () => {
 			let last: { status: number } = { status: 200 };
 			for (let i = 0; i < 11; i++) last = await post(h, `/${id}/seats/remove`, edgeHeaders('alice'), { memberId: bob });
 			expect(last.status).toBe(429);
+		} finally {
+			await h.close();
+		}
+	});
+});
+
+describe('who is away', () => {
+	it('the room body names each member with no screen open and when they were last seen; one here is not named', async () => {
+		const alice = participantIdFor('alice');
+		const bob = participantIdFor('bob');
+		const carol = participantIdFor('carol');
+		const seen: Record<string, number | null | undefined> = { [alice]: undefined, [bob]: Date.UTC(2026, 10, 19, 1), [carol]: null };
+		const h = await boot({ away: (id) => seen[id] });
+		try {
+			const made = h.lobby.create({ id: alice, name: 'alice', userId: 'u-alice' }, { name: 'room', gameType: TOY });
+			if (!made.ok) throw new Error('not made');
+			h.lobby.join(made.room.id, { id: bob, name: 'bob', userId: 'u-bob' });
+			h.lobby.join(made.room.id, { id: carol, name: 'carol', userId: 'u-carol' });
+			const res = await fetch(`http://127.0.0.1:${h.port}/api/rooms/${made.room.id}`, { headers: edgeHeaders('alice') });
+			expect(((await res.json()) as { away: unknown }).away).toEqual({ [bob]: '2026-11-19T01:00:00.000Z', [carol]: null });
 		} finally {
 			await h.close();
 		}

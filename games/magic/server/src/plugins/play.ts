@@ -14,6 +14,7 @@ import { httpDraftbot, type Draftbot } from '../room/draftbot.js';
 import { attachRoomFeed } from '@hadoku/game-server/room/watching';
 import { attachSessions, playsIn } from '@hadoku/game-server/room/session';
 import { attachDraftSocket } from '../room/socket.js';
+import { parseDraftPresenceKey } from '../room/draftRooms.js';
 import type { CardtablePlugin } from './state.js';
 
 /**
@@ -64,6 +65,12 @@ export const playPlugin: CardtablePlugin = {
 		// Every room write, pushed to the screens that have the room (or the list) open, so none of
 		// them reads it on a timer. Behind the gate attachDraftSocket installed.
 		state.roomFeed = attachRoomFeed(io, { lobby });
+		// Someone opening or closing their last screen changes who their rooms show as away (`roomBody`'s `away`).
+		const { roomFeed } = state;
+		state.seatPresence.on((event) => {
+			if ((event.type !== 'online' && event.type !== 'offline') || parseDraftPresenceKey(event.key) !== null) return;
+			for (const room of lobby.list()) if (room.members.some((m) => m.id === event.key)) roomFeed.changed(room.id);
+		});
 
 		// Where matches run (`CARDTABLE_PLAY_HOSTS`): this machine's pool, or placement across the claws
 		// with this machine as the backstop. Every alert placement posts is also a service event.

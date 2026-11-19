@@ -185,6 +185,8 @@ export interface RoomCoreDeps<V extends RoomViewCore, C, P extends object, G = n
 	closed?: (roomId: string, matches: readonly string[]) => void;
 	/** A tournament entrant's drop (`Lobby.leave`): their match's games to end and its seats' decks to restore. */
 	forfeited?: (roomId: string, tableId: string, loser: string, matches: readonly string[]) => void;
+	/** Whether a member has a screen open (`undefined`), or since when they have not (ms, or `null` when not seen since boot). Absent: no `away` is sent. */
+	away?: (memberId: string) => number | null | undefined;
 	/** "Reset = Close": runs AFTER `closed`, same as `index.ts`'s own `seedTestingRooms` boot call. */
 	reseedTesting?: () => void;
 	arrived?: (roomId: string, caller: CallerLike) => void;
@@ -200,7 +202,19 @@ export interface RoomCoreDeps<V extends RoomViewCore, C, P extends object, G = n
 export type RoomBody<V extends RoomViewCore, G = never> = V & {
 	you: { id: string; leader: boolean; ready: boolean };
 	tableGames?: Record<string, G>;
+	/** The members with no screen open now, each with when they were last seen (ISO), or `null` when this server has not seen them since it started. */
+	away?: Record<string, string | null>;
 };
+
+/** The members `seen` says have no screen open, each with when they were last seen. */
+function awayOf(members: readonly { id: string }[], seen: (memberId: string) => number | null | undefined): Record<string, string | null> {
+	const away: Record<string, string | null> = {};
+	for (const m of members) {
+		const since = seen(m.id);
+		if (since !== undefined) away[m.id] = since === null ? null : new Date(since).toISOString();
+	}
+	return away;
+}
 
 export function badRequest(res: Response, error: string): void {
 	res.status(400).json({ error });
@@ -253,7 +267,8 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 	const roomBody = (room: V, callerId: string): RoomBody<V, G> => {
 		const mine = room.members.find((m) => m.id === callerId);
 		const games = deps.tableGames?.(room);
-		return { ...room, you: { id: callerId, leader: room.leader === callerId, ready: mine?.ready === true }, ...(games === undefined ? {} : { tableGames: games }) };
+		const away = deps.away === undefined ? undefined : awayOf(room.members, deps.away);
+		return { ...room, you: { id: callerId, leader: room.leader === callerId, ready: mine?.ready === true }, ...(games === undefined ? {} : { tableGames: games }), ...(away === undefined ? {} : { away }) };
 	};
 
 	const rooms = Router();

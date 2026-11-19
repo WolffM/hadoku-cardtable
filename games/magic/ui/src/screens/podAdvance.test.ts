@@ -108,6 +108,7 @@ const ctxOf = (p: PodView | null, tables: PodContext['tables'] = []): PodContext
   pod: p,
   tables,
   games: {},
+  away: {},
   names: { 'u-alice': 'Alice', 'u-bob': 'Bob' },
   members: [],
   leaderId: '',

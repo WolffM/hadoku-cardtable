@@ -55,6 +55,8 @@ export interface PodContext {
   tables: RoomTable[];
   /** Each table's game (the room body's `tableGames`), for its card. */
   games: Record<string, TableGame>;
+  /** The room body's `away`: who has no screen open, since when. */
+  away: Record<string, string | null>;
   /** Every entrant's display name, by id (`entrantLookup`) — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
   names: Record<string, string>;
   /** The room's members, in the room's order. */
@@ -90,6 +92,7 @@ export function podContextOf(room: RoomView): PodContext {
     pod,
     tables: room.tables,
     games: room.tableGames ?? {},
+    away: room.away ?? {},
     ...entrantLookup(pod, room.members),
     members: room.members.map((m) => ({ id: m.id, name: m.name })),
     leaderId: room.leader,
@@ -100,7 +103,7 @@ export function podContextOf(room: RoomView): PodContext {
   };
 }
 
-const NO_CONTEXT: PodContext = { pod: null, tables: [], games: {}, names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: false };
+const NO_CONTEXT: PodContext = { pod: null, tables: [], games: {}, away: {}, names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: false };
 
 /** One read of the room (`podContextOf`): `gone` on the server's 404, and an empty context on any other failure. */
 export async function fetchPodContext(roomId: string, rooms: Pick<RoomsClient, 'get'> = roomsClient()): Promise<PodContext> {

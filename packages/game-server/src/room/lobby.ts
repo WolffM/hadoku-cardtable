@@ -62,6 +62,12 @@ import { lowerCapacity, replaceWithBot } from './seat-table-adapter.ts';
 import { watchpartyRoomId } from './watchparty-link.ts';
 
 /** A member as the lobby keeps one: the platform's record plus what a view shows of them. */
+/**
+ * A testing room's stand-in: a `dev:` identity no browser presents, which holds a seeded place until
+ * the first person to join takes it over whole (`RoomLobby.join`).
+ */
+export const TESTING_STAND_IN_ID = 'dev:testing-stand-in';
+
 export interface LobbyMember extends PlatformMember {
 	/** In memory only, from the member's own requests (`rename`): a saved room keeps no names (R12). Restored `UNNAMED`. */
 	name: string;
@@ -749,6 +755,10 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		if (room === undefined) return { ok: false, reason: 'no-match' };
 		if (isRoomMember(room, caller.id)) return { ok: true, room: this.view(room), alreadyMember: true };
 		if (!passwordAdmits(this.#secrets.get(roomId), password)) return { ok: false, reason: 'no-match' };
+		if (room.testing && isRoomMember(room, TESTING_STAND_IN_ID)) {
+			this.#handOver(room, caller);
+			return { ok: true, room: this.view(room), alreadyMember: false };
+		}
 		const now = this.now();
 		// An empty ledger's first member becomes its leader (an emptied room's new arrival leads it).
 		addRoomMember(room, { id: caller.id, userId: caller.userId, name: caller.name, joinedAt: now, state: undefined }, now);
@@ -756,6 +766,25 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		this.persist(room);
 		this.log({ event: 'room-joined', roomId, members: room.members.length });
 		return { ok: true, room: this.view(room), alreadyMember: false };
+	}
+
+	/**
+	 * A testing room's stand-in gives the first person in its whole place: its seat, its deck, its
+	 * series and its lead, the way an account erase hands a person's place to a tombstone
+	 * (`anonymise`). So a seeded situation (a series between games, say) is one an admin plays from,
+	 * not only watches.
+	 */
+	#handOver(room: LobbyRoom, caller: Caller): void {
+		const ids = new Set([TESTING_STAND_IN_ID]);
+		this.hooksOf(room).anonymise?.(room, ids);
+		replaceIds(room, ids, caller.id);
+		const member = room.members.find((m) => m.id === caller.id);
+		if (member !== undefined) {
+			member.userId = caller.userId;
+			member.name = caller.name;
+		}
+		this.persist(room);
+		this.log({ event: 'room-handed-over', roomId: room.id });
 	}
 
 	/**

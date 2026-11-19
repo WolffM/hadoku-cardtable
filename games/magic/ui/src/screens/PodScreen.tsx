@@ -268,6 +268,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           avatarOf={avatarOf}
           refresh={ctx}
           game={ctx!.games[tableId]}
+          away={ctx!.away}
         />
       ) : rounds || (done && ready) ? (
         <RoomHub

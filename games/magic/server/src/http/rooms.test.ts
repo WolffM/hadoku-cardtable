@@ -32,7 +32,7 @@ import { createDraftRooms, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from
 import { checkPlan as realCheckPlan, type CubeLookup, type ForgeChecker, type SetLookup } from '../room/plan.ts';
 import { openLobby } from '../room/lobby.ts';
 import { challenges } from '../room/challenge.ts';
-import { seedTestingRooms, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME, TESTING_TOURNAMENT_DONE_NAME, TESTING_TOURNAMENT_MID_NAME, TESTING_SEED_CALLER } from '../room/testing-rooms.ts';
+import { seedTestingRooms, TESTING_FIRST_GAME_NAME, TESTING_SIDEBOARDING_NAME, TESTING_WAITING_NAME, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME, TESTING_TOURNAMENT_DONE_NAME, TESTING_TOURNAMENT_MID_NAME, TESTING_SEED_CALLER } from '../room/testing-rooms.ts';
 import { createSeatPresence, SEAT_RELEASE_MS } from '../room/socket.js';
 import { REPO_ROOT } from '../root.ts';
 import { magicView } from '../room/magic-view.js';
@@ -2675,6 +2675,9 @@ describe('testing rooms (admin only, seeded)', () => {
 				'Testing: Gauntlet tournament — round 2',
 				'Testing: Tournament — finished (8 players)',
 				'Testing: Tournament — round 2 of 3 (8 players)',
+				'Testing: Tournament — your series, sideboarding after game 1',
+				'Testing: Tournament — your series, game 1 not started',
+				'Testing: Tournament — watching a series between games',
 			].sort(),
 		);
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'testing-room-seed-skipped', name: 'Testing: Set draft' }));
@@ -2716,6 +2719,49 @@ describe('testing rooms (admin only, seeded)', () => {
 			expect(res.status, res.text).toBe(400);
 			expect((res.json() as { error: string }).error).toMatch(/unknown field/);
 		}
+	});
+
+	it('a "your series" room hands its seat, deck and lead to the first admin in; a watching room keeps its player', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: () => {}, library: TABLES_LIBRARY });
+		const admin = (as: string) => ({ as, headers: { 'x-hadoku-tier': 'admin' } });
+		const rooms = ((await call(h, 'GET', '/api/rooms', admin('alice'))).json() as { rooms: { id: string; name: string }[] }).rooms;
+		const idOf = (name: string): string => rooms.find((r) => r.name === name)!.id;
+
+		// Sideboarding: Alice comes in as the entrant, 1–0 up, her deck registered for the series.
+		const sideboarding = idOf(TESTING_SIDEBOARDING_NAME);
+		const joined = await call(h, 'POST', `/api/rooms/${sideboarding}/join`, admin('alice'));
+		expect(joined.status, joined.text).toBe(200);
+		const alice = (joined.json() as { you: { id: string; leader: boolean } }).you;
+		expect(alice.leader).toBe(true);
+		const room = h.lobby.get(sideboarding)!;
+		expect(room.members.map((m) => m.id)).toEqual([alice.id]);
+		const seated = (id: string) => (t: { players: { memberId: string }[] }) => t.players.some((p) => p.memberId === id);
+		const table = room.tables!.find(seated(alice.id))!;
+		expect(table.series.phase).toBe('sideboarding');
+		expect(table.series.wins).toEqual([1, 0]);
+		expect(room.game!.pod?.pairings[0]?.players).toContain(alice.id);
+		expect(JSON.stringify(room), 'nothing still names the stand-in').not.toContain('testing-stand-in');
+		const held = h.lobby.playerState(sideboarding, alice.id) as { deck: unknown; seriesDeck: unknown };
+		expect(held.deck).not.toBeNull();
+		expect(held.seriesDeck).toEqual(held.deck);
+		// The next admin in watches.
+		const bob = (await call(h, 'POST', `/api/rooms/${sideboarding}/join`, admin('bob'))).json() as { you: { id: string; leader: boolean } };
+		expect(bob.you.leader).toBe(false);
+		expect(h.lobby.get(sideboarding)!.tables!.some(seated(bob.you.id))).toBe(false);
+
+		// Game 1 not started: hers, 0–0.
+		const fresh = idOf(TESTING_FIRST_GAME_NAME);
+		const mine = ((await call(h, 'POST', `/api/rooms/${fresh}/join`, admin('alice'))).json() as { you: { id: string } }).you.id;
+		const freshTable = h.lobby.get(fresh)!.tables!.find(seated(mine))!;
+		expect(freshTable.series.games).toEqual([]);
+
+		// Watching: the seed keeps its seat between games, and Alice only watches.
+		const waiting = idOf(TESTING_WAITING_NAME);
+		const watcher = ((await call(h, 'POST', `/api/rooms/${waiting}/join`, admin('alice'))).json() as { you: { id: string } }).you.id;
+		const waitingTable = h.lobby.get(waiting)!.tables!.find(seated(TESTING_SEED_CALLER.id))!;
+		expect(waitingTable.series.phase).toBe('sideboarding');
+		expect(waitingTable.players.map((p) => p.memberId)).not.toContain(watcher);
 	});
 
 	it('resets a board-state room into the SAME scenario it was seeded with', async () => {

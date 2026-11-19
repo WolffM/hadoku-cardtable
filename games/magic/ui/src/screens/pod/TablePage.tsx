@@ -18,7 +18,7 @@
  * Per-type differences are inputs only: the slot, `canStart` and `ready`.
  */
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { RoomTable, TableGame } from '@hadoku/shared';
 
 import { awaitsPress, followMatchOnce, noteSideboarding } from '../../play/live/matchStart.ts';
@@ -32,6 +32,7 @@ import { useTableStart } from './client.ts';
 import { startingText } from '../queue-place.ts';
 import { ReadyToggle } from './ReadyToggle.tsx';
 import { FaceOff, useOpponentReveal, type FaceOffSeat } from './FaceOff.tsx';
+import { TableStatus } from './TableStatus.tsx';
 import { isPodAi, type PodView } from './wire.ts';
 import type { Face } from '@hadoku/game-ui/components/Avatar.tsx';
 import './PodSeats.css';
@@ -64,9 +65,27 @@ export interface TablePageProps {
   game?: TableGame | undefined;
   /** My own step before the game, for a player of this table only. */
   children?: ReactNode;
+  /** The room body's `away`: who has no screen open, since when. */
+  away?: Readonly<Record<string, string | null>>;
 }
 
-export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, canStart = true, refresh, tables, ready, game, children }: TablePageProps) {
+const NOBODY_AWAY: Readonly<Record<string, string | null>> = {};
+
+/** How often an away time moves on while the page stays open. */
+const AWAY_TICK_MS = 60_000;
+
+/** The clock the away times read, a minute at a time. */
+function useMinuteClock(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = setInterval(() => setNow(Date.now()), AWAY_TICK_MS);
+    return () => clearInterval(tick);
+  }, []);
+  return now;
+}
+
+export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, canStart = true, refresh, tables, ready, game, children, away = NOBODY_AWAY }: TablePageProps) {
+  const now = useMinuteClock();
   const missing = table === undefined;
   useEffect(() => {
     if (missing) navigate({ kind: 'room', roomId }, { replace: true });
@@ -122,6 +141,7 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
             <ReadyToggle ready={ready.seats[mySeat] === true} disabled={ready.disabled} onReady={ready.onReady} />
           )}
         </div>
+        {!revealing && <TableStatus table={table} seats={seats} pod={pod} myMemberId={myMemberId} {...(ready === undefined ? {} : { ready: ready.seats })} away={away} nameOf={nameOf} now={now} />}
         {/* A game under way: its card (`TableCard.tsx`), with the face-off — where it stands, and the way in. */}
         {!revealing && matchId !== null && (
           <TableCard
