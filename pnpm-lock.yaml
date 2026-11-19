@@ -20,6 +20,9 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.67.0
         version: 8.69.0(eslint@10.10.0)(typescript@5.9.3)
+      '@wolffm/shared-vendor':
+        specifier: npm:@hadoku/shared-vendor@0.1.3
+        version: '@hadoku/shared-vendor@0.1.3'
       eslint:
         specifier: ^10.10.0
         version: 10.10.0
@@ -157,6 +160,9 @@ importers:
       '@wolffm/catalogue':
         specifier: npm:@hadoku/catalogue@^1.0.17
         version: '@hadoku/catalogue@1.0.17'
+      '@wolffm/shared-vendor':
+        specifier: npm:@hadoku/shared-vendor@0.1.3
+        version: '@hadoku/shared-vendor@0.1.3'
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.13)
@@ -841,6 +847,10 @@ packages:
     resolution: {integrity: sha512-biBRB0t2Z3xMxLUtI/+WkVGwiDX86yBz0lU3lF2CiOGL6BEOk7eBDPoh8oLhXtEfZVJ+Ixwbi4SFO1iZpPExmA==}
     peerDependencies:
       socket.io: ^4.8.3
+
+  '@hadoku/shared-vendor@0.1.3':
+    resolution: {integrity: sha512-jjR94S9w+xz5AtJLYlWPomX1JQJARhkL94v0/yRxyTaVsMUYsS0h4gJW3tuBTngj0rxsRDmf/iRNULblV2eDIA==}
+    engines: {node: '>=20'}
 
   '@hadoku/task-ui-components@4.23.42':
     resolution: {integrity: sha512-R38xZIS5ng2U5gFYdV8RUBgpXH51P0Y8A5+yNCK2/E52wdkbgdw1gxrbQGICkR3E163ntsxzZm7mT6nF8h+dow==}
@@ -2733,6 +2743,10 @@ snapshots:
     dependencies:
       '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.121'
       socket.io: 4.8.3
+
+  '@hadoku/shared-vendor@0.1.3':
+    dependencies:
+      esbuild: 0.28.2
 
   '@hadoku/task-ui-components@4.23.42(@hadoku/themes@5.14.11(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:

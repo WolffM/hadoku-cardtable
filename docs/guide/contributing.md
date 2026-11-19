@@ -93,6 +93,12 @@ flowchart LR
 - **No card art ever enters the repo.** `.gitignore` refuses image files
   outright; a card's art is a lookup to a CDN mirror or Scryfall at request
   time, never a file here (`docs/LICENSING.md` §3.1).
+- **The page carries no react or shared `@wolffm` packages of its own.** It
+  loads the one copy every hadoku page runs, through the import map the
+  edge puts in it (`@wolffm/shared-vendor`), so the header, settings and
+  themes are the platform's, not this build's. A built page therefore runs
+  only behind the edge, or the e2e stand-in edge (`e2e/edge.ts`), which
+  serves the same files and map. The embed bundle keeps its own.
 
 ## Gates
 
@@ -114,7 +120,9 @@ tier. Production moves only on a manual, versioned release (`release.yml`),
 which refuses to run unless that sha's `check` is green and a matching
 `docs/releases/vX.Y.Z.md` exists. [`docs/RELEASE.md`](../RELEASE.md) and
 [`docs/planning/release-process.md`](../planning/release-process.md) have
-the exact steps.
+the exact steps. The one exception is the shared layer above: a change
+to the header, settings or themes reaches production with hadoku.me's own
+deploy, with no release here.
 
 ## Trivia
 

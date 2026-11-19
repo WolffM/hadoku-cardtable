@@ -8,7 +8,8 @@
  *   which are chunks of their own (`@hadoku/game-ui/lazy.ts`), and each lands in its own chunk beside them
  *   rather than inside one of them.
  * - **Libraries** that move only when `package.json` does. Each group takes in what its package
- *   imports. JavaScript only: a stylesheet stays where its importer put it, since the order of the
+ *   imports. The page build takes react and zod from hadoku.me's shared copy instead
+ *   (`sharedVendor()` in vite.config.ts), so those two groups fill only in the embed's build. JavaScript only: a stylesheet stays where its importer put it, since the order of the
  *   app's one stylesheet is the cascade.
  */
 

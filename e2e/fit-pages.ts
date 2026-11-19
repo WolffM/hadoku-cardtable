@@ -9,11 +9,18 @@
  * development render on ci.yml (227.8 ms of CPU, 188 of it script) and a production one on forge.yml,
  * where it ran alone (~100 ms on the same claw). So a dev server here puts NODE_ENV back when it
  * closes, a build here is production whatever ran before it, and what is measured is checked to be.
+ *
+ * A production build leaves react and the shared @wolffm packages to the page's import map, which the
+ * edge gives every page in production (`sharedVendor()` in apps/ui/vite.config.ts). So the preview here
+ * stands in for it (`@wolffm/shared-vendor/harness`), and the React a spec times is that vendor build:
+ * the production check covers its files too.
  */
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+
+import { standInVendor } from '@wolffm/shared-vendor/harness';
 
 const UI = resolve(import.meta.dirname, '..', 'apps/ui');
 
@@ -78,7 +85,7 @@ export async function serveFitPages(): Promise<FitPages> {
 
 /** Throws unless every script in `dir` (and its `assets/`) is free of React's development build. */
 export function assertProductionBundle(dir: string): void {
-  const scripts = [dir, join(dir, 'assets')].filter(existsSync).flatMap((d) => readdirSync(d).filter((f) => f.endsWith('.js')).map((f) => join(d, f)));
+  const scripts = [dir, join(dir, 'assets')].filter(existsSync).flatMap((d) => readdirSync(d).filter((f) => /\.m?js$/.test(f)).map((f) => join(d, f)));
   if (scripts.length === 0) throw new Error(`no scripts in ${dir}`);
   // React's development build carries its warnings; the production build carries none.
   const dev = scripts.filter((f) => readFileSync(f, 'utf8').includes('Each child in a list should have a unique'));
@@ -89,6 +96,7 @@ export function assertProductionBundle(dir: string): void {
 export async function buildFitPage(page: string): Promise<FitPages> {
   const v = await vite();
   const out = mkdtempSync(join(tmpdir(), `fit-${page}-`));
+  const vendorDir = mkdtempSync(join(tmpdir(), `fit-${page}-vendor-`));
   const config = { ...CONFIG, base: '/' };
   const { restore } = await withNodeEnv('production', () =>
     v.build({ ...config, mode: 'production', build: { outDir: out, emptyOutDir: true, sourcemap: false, rollupOptions: { input: { fit: resolve(UI, `src/fit/${page}.html`) } } } }),
@@ -96,16 +104,27 @@ export async function buildFitPage(page: string): Promise<FitPages> {
   restore();
   try {
     assertProductionBundle(out);
-    const server = await v.preview({ ...config, build: { outDir: out }, preview: { host: '127.0.0.1', port: 0, strictPort: false } });
+    const vendor = await standInVendor({ root: UI, outDir: vendorDir });
+    assertProductionBundle(vendorDir);
+    // A block body: a function RETURNED from configurePreviewServer is a post-hook Vite calls later.
+    const standIn = {
+      name: 'stand-in-vendor',
+      configurePreviewServer(s: { middlewares: { use(m: unknown): void } }) {
+        s.middlewares.use(vendor.middleware());
+      },
+    };
+    const server = await v.preview({ ...config, plugins: [standIn], build: { outDir: out }, preview: { host: '127.0.0.1', port: 0, strictPort: false } });
     return {
       base: baseOf(server),
       close: async () => {
         await server.close();
         rmSync(out, { recursive: true, force: true });
+        rmSync(vendorDir, { recursive: true, force: true });
       },
     };
   } catch (e) {
     rmSync(out, { recursive: true, force: true });
+    rmSync(vendorDir, { recursive: true, force: true });
     throw e;
   }
 }

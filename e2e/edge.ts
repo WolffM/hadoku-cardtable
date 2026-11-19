@@ -5,7 +5,11 @@
  *   1. routes only paths under the prefix, and strips it (`stripPrefix`);
  *   2. resolves the caller from their session, and stamps `X-Edge-Auth`,
  *      `X-Hadoku-Tier`, `X-User-Id`, `X-User-Key` on the proxied request;
- *   3. does both for the websocket upgrade as well as for plain HTTP.
+ *   3. does both for the websocket upgrade as well as for plain HTTP;
+ *   4. gives every page the import map for hadoku.me's shared react and @wolffm
+ *      packages, which the built UI leaves external, and serves those files at
+ *      /mf/vendor/* (`@wolffm/shared-vendor/harness`, built from apps/ui's own
+ *      node_modules, placing the map exactly as the real edge does).
  *
  * Anything identity-shaped the BROWSER sent is deleted first, so a context
  * cannot talk its way in by setting a header; only the session cookie counts,
@@ -15,6 +19,8 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { standInVendor } from '@wolffm/shared-vendor/harness';
 import { createServer, request, type IncomingHttpHeaders, type Server } from 'node:http';
 import { connect } from 'node:net';
 
@@ -31,7 +37,12 @@ export interface EdgeOptions {
   secret: string;
   /** prefs-api's `_service/cardtable/rows`, served at `/prefs/api/v1/_service/…` for the server's own calls. */
   prefs?: PrefsRowsStandIn;
+  /** Where the shared vendor files are built: a run directory of this stack's own, never another's. */
+  vendorDir: string;
 }
+
+/** The UI package, whose node_modules hold the react and @wolffm packages the page loads. */
+const UI_DIR = fileURLToPath(new URL('../apps/ui', import.meta.url));
 
 /** Where the stand-in prefs-api is mounted: the server's `CARDTABLE_PREFS_BASE_URL` is the edge plus this. */
 export const PREFS_MOUNT = '/prefs';
@@ -81,8 +92,10 @@ export function stripPrefix(url: string): string | null {
   return rest.startsWith('/') ? rest : `/${rest}`;
 }
 
-export function startEdge(opts: EdgeOptions): Promise<Server> {
+export async function startEdge(opts: EdgeOptions): Promise<Server> {
+  const vendor = await standInVendor({ root: UI_DIR, outDir: opts.vendorDir });
   const server = createServer((req, res) => {
+    if (vendor.handle(req, res)) return;
     // The one page that is not cardtable's: a stand-in for a watchparty room,
     // on the same origin and outside the prefix, that mounts the embed (D21).
     if (new URL(req.url ?? '/', 'http://edge').pathname === EMBED_HOST_PATH) {

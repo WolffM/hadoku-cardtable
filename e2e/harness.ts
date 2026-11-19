@@ -255,7 +255,7 @@ const prefs = createPrefsRowsStandIn({
   userOfKey: (key) => Object.values(FRIENDS).find((f) => f.key === key)?.userId ?? null,
   nameOf: (userId) => Object.values(FRIENDS).find((f) => f.userId === userId)?.name ?? null,
 });
-const edge = await startEdge({ port: EDGE_PORT, upstreamPort: SERVER_PORT, secret, prefs });
+const edge = await startEdge({ port: EDGE_PORT, upstreamPort: SERVER_PORT, secret, prefs, vendorDir: resolve(RUN_DIR, 'vendor') });
 console.log(`[e2e-harness] server :${SERVER_PORT}, edge :${EDGE_PORT} — ready`);
 
 function shutdown(): void {

@@ -26,6 +26,7 @@
     "@types/node": "^24.10.1",
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
+    "@wolffm/shared-vendor": "npm:@hadoku/shared-vendor@0.1.3",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.9.0",

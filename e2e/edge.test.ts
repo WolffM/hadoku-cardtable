@@ -12,11 +12,18 @@ import assert from 'node:assert/strict';
 import { createServer, request, type RequestListener, type Server } from 'node:http';
 import { connect, type AddressInfo } from 'node:net';
 import { test } from 'node:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { PREFS_MOUNT, startEdge } from './edge.ts';
 import { PREFIX } from './identities.ts';
 
 const portOf = (server: Server): number => (server.address() as AddressInfo).port;
+
+/** One vendor build for the file: every edge after the first finds it current and skips the bundle. */
+const VENDOR_DIR = mkdtempSync(join(tmpdir(), 'cardtable-edge-vendor-'));
+test.after(() => rmSync(VENDOR_DIR, { recursive: true, force: true }));
 
 function listen(server: Server): Promise<Server> {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
@@ -59,7 +66,7 @@ async function withEdge<T>(handler: RequestListener, body: (edgePort: number) =>
   const probe = await listen(createServer());
   const port = portOf(probe);
   await new Promise((resolve) => probe.close(resolve));
-  const edge = await startEdge({ port, upstreamPort: portOf(upstream), secret: 's' });
+  const edge = await startEdge({ port, upstreamPort: portOf(upstream), secret: 's', vendorDir: VENDOR_DIR });
   try {
     return await body(port);
   } finally {
@@ -123,7 +130,7 @@ test('the edge serves the prefs stand-in to the server’s own review store: a p
   const probe = await listen(createServer());
   const port = portOf(probe);
   await new Promise((resolve) => probe.close(resolve));
-  const edge = await startEdge({ port, upstreamPort: 1, secret: 's', prefs });
+  const edge = await startEdge({ port, upstreamPort: 1, secret: 's', prefs, vendorDir: VENDOR_DIR });
   try {
     const bad: string[] = [];
     const store = createMusicReviewStore({ baseUrl: `http://127.0.0.1:${port}${PREFS_MOUNT}`, serviceKey: '', onBadRow: (u) => bad.push(u) });
@@ -138,4 +145,25 @@ test('the edge serves the prefs stand-in to the server’s own review store: a p
     edge.closeAllConnections();
     await new Promise((resolve) => edge.close(resolve));
   }
+});
+
+test('a page through the edge carries the shared import map, and the files it names are served', async () => {
+  const page = '<!doctype html><html><head><script type="module" src="/cardtable/assets/index.js"></script></head></html>';
+  await withEdge(
+    (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': String(page.length) });
+      res.end(page);
+    },
+    async (port) => {
+      const html = await (await fetch(`http://127.0.0.1:${port}${PREFIX}/`)).text();
+      const map = /<script type="importmap">(.*?)<\/script>/.exec(html);
+      assert.ok(map, 'no import map in the page');
+      assert.ok(html.indexOf('importmap') < html.indexOf('type="module"'), 'the map comes after the module script');
+      const imports = (JSON.parse(map[1]) as { imports: Record<string, string> }).imports;
+      for (const spec of ['react', 'react-dom/client', '@wolffm/themes', '@wolffm/task-ui-components']) {
+        const res = await fetch(`http://127.0.0.1:${port}${imports[spec]}`);
+        assert.equal(res.status, 200, spec);
+      }
+    },
+  );
 });

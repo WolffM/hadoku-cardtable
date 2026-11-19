@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { sharedVendor } from '@wolffm/shared-vendor/vite';
 
 import { APP_BASE } from './app-base.ts';
 import { APP_NAME } from './app-name.ts';
@@ -17,6 +18,11 @@ export default defineConfig({
   base: APP_BASE,
   define: BUILD_DEFINES,
   plugins: [
+    // react and the shared @wolffm packages come from the ONE copy every hadoku page loads, through
+    // the import map edge-router puts in this page's <head>: a header or settings change reaches
+    // cardtable (prod included) on the site's deploy, with no release here. The list is
+    // @wolffm/shared-vendor's. The embed build (vite.embed.config.ts) keeps its own.
+    sharedVendor(),
     react(),
     stylesheetInSourceOrder(),
     {

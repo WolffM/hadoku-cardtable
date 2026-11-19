@@ -847,6 +847,7 @@ export async function startPlayStack(forge: { jar: string; res: string }, opts: 
       port: PLAY_EDGE_PORT,
       upstreamPort: PLAY_SERVER_PORT,
       secret,
+      vendorDir: resolve(RUN_DIR, 'play-vendor'),
       prefs: createPrefsRowsStandIn({
         app: 'cardtable',
         serviceKey: '',
