@@ -154,6 +154,6 @@ describe('MistakeBubble: measures the face only while a line is up, and never po
       window.dispatchEvent(new Event('scroll'));
     });
     expect(renders).toBe(settled + 1);
-    expect(getByTestId('mistake-bubble').style.top).toBe(`${140 + 60 * 0.3}px`);
+    expect(getByTestId('mistake-bubble').style.top).toBe(`${140 + 60 / 2}px`);
   });
 });

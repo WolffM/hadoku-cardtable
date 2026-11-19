@@ -100,7 +100,8 @@ export function MistakeBubble({ mistake, enabled }: MistakeBubbleProps) {
   const left = box.right + 12;
   const style = {
     left,
-    top: box.top + box.height * 0.3,
+    // Centred on the face (the bubble's own `translate: 0 -50%`), so its tail points at the face's middle.
+    top: box.top + box.height / 2,
     maxWidth: Math.max(140, window.innerWidth - left - 12),
   };
   return createPortal(
