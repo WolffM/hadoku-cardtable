@@ -5,7 +5,10 @@
  * answer draws to that target arrives, the gesture is cancelled, or nothing came.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CLOSE_MS, COMMITTED_MAX_MS, clearArrow, clearCommitted, commitArrowAt, drawArrow, followStack, newArrow, retireCommitted } from './arrow.ts';
+import { CLOSE_MS, COMMITTED_MAX_MS, CRACKS, clearArrow, clearCommitted, commitArrowAt, drawArrow, drawAutoTargetArrows, followStack, newArrow, retireCommitted } from './arrow.ts';
+import type { AutoTargetArrow } from './auto-targets.ts';
+import { insufficientBlockers } from '../match.ts';
+import type { BoardView } from '../../adapter.ts';
 
 let overlay: HTMLElement;
 let target: HTMLElement;
@@ -274,5 +277,102 @@ describe('the target brackets: only while a target is being chosen', () => {
     expect(svg.querySelector('.arrow__mark')).toBeNull();
     runFramesAfter(CLOSE_MS + 1);
     expect(svg.querySelector('.arrow__mark'), 'nor once it has closed solid').toBeNull();
+  });
+});
+
+/*
+ * A brittle block (`arrow.ts`'s `crack`): the lone blocker of a menace attacker. Its arrow is the
+ * ghost's stems cut uneven and standing still, and a second blocker knits it into the ribbon with
+ * the same close a commit runs.
+ */
+describe('a brittle block arrow', () => {
+  const block = (brittle: boolean): AutoTargetArrow => ({ key: 'block:5:9', from: { x: 300, y: 300 }, to: target, kind: 'card', role: 'block', brittle });
+  const arrow = (): SVGSVGElement => overlay.querySelector<SVGSVGElement>('[data-key="block:5:9"]')!;
+
+  it('is cracked: the ghost’s stems, cut to a fixed uneven pattern, never travelling, and no ribbon', () => {
+    drawAutoTargetArrows(overlay, [block(true)]);
+    const svg = arrow();
+    expect(svg.hasAttribute('data-brittle')).toBe(true);
+    expect(svg.hasAttribute('data-ghost'), 'not an aim in progress').toBe(false);
+    const stems = [...svg.querySelectorAll<SVGPathElement>('.arrow__stem')];
+    expect(stems.map((p) => p.parentElement!.getAttribute('class'))).toEqual(['arrow__rim', 'arrow__core']);
+    const [rim, core] = stems.map((p) => p.style.strokeDasharray.split(/[ ,]+/).map(Number));
+    expect(core, 'the core is cut to CRACKS').toEqual([...CRACKS]);
+    expect(new Set(core!.filter((_, i) => i % 2 === 0)).size, 'uneven: a ghost’s chunks are all one length').toBeGreaterThan(2);
+    expect(rim, 'each rim chunk 4px longer, so it keeps its outline, and every gap still breaks it').toEqual(CRACKS.map((n, i) => (i % 2 === 0 ? n + 4 : n - 4)));
+    expect(rim!.filter((_, i) => i % 2 === 1).every((g) => g > 0)).toBe(true);
+    for (const stem of stems) expect(stem.getAttribute('d'), 'shaped along the arrow’s own curve').toMatch(/^M 300 300 Q /);
+    expect(svg.style.transformOrigin, 'it shakes about its tail').toBe('300px 300px');
+  });
+
+  it('stays the same cracked arrow across paints', () => {
+    drawAutoTargetArrows(overlay, [block(true)]);
+    const svg = arrow();
+    drawAutoTargetArrows(overlay, [block(true)]);
+    expect(arrow()).toBe(svg);
+    expect(svg.querySelectorAll('.arrow__stem'), 'cracked once').toHaveLength(2);
+  });
+
+  it('knits: a second blocker closes its cracks into the ribbon, the same arrow, with the commit’s own close', () => {
+    stopPageClock();
+    drawAutoTargetArrows(overlay, [block(true)]);
+    const svg = arrow();
+    drawAutoTargetArrows(overlay, [block(false)]);
+    expect(arrow(), 'not a new arrow').toBe(svg);
+    expect(svg.hasAttribute('data-closing'), 'its shake stops while it closes').toBe(true);
+    runFramesAfter(CLOSE_MS / 2);
+    const mid = svg.querySelector<SVGPathElement>('.arrow__core > .arrow__stem')!.style.strokeDasharray.split(/[ ,]+/).map(Number);
+    expect(mid.filter((_, i) => i % 2 === 1).every((g, i) => g < CRACKS[2 * i + 1]!), 'halfway: every gap is narrower').toBe(true);
+    expect(mid.reduce((a, b) => a + b), 'and the chunks grew into them, so none jumps').toBeCloseTo(CRACKS.reduce((a, b) => a + b));
+    drawAutoTargetArrows(overlay, [block(false)]);
+    runFramesAfter(CLOSE_MS + 1);
+    expect(svg.hasAttribute('data-brittle')).toBe(false);
+    expect(svg.hasAttribute('data-closing')).toBe(false);
+    expect(svg.querySelector('.arrow__stem'), 'the ribbon has taken over').toBeNull();
+    expect(svg.hasAttribute('data-settle'), 'the rim bumps once, as a commit’s does').toBe(true);
+  });
+
+  it('with reduced motion it knits at once', () => {
+    reduced = true;
+    drawAutoTargetArrows(overlay, [block(true)]);
+    drawAutoTargetArrows(overlay, [block(false)]);
+    expect(arrow().hasAttribute('data-brittle')).toBe(false);
+    expect(arrow().querySelector('.arrow__stem')).toBeNull();
+    expect(frames).toHaveLength(0);
+  });
+
+  it('cracks again if the second blocker leaves, and goes with its blocker', () => {
+    reduced = true;
+    drawAutoTargetArrows(overlay, [block(true)]);
+    drawAutoTargetArrows(overlay, [block(false)]);
+    drawAutoTargetArrows(overlay, [block(true)]);
+    expect(arrow().hasAttribute('data-brittle')).toBe(true);
+    expect(arrow().hasAttribute('data-settle')).toBe(false);
+    drawAutoTargetArrows(overlay, []);
+    expect(overlay.querySelector('[data-key="block:5:9"]'), 'the blocker left: its arrow simply goes').toBeNull();
+  });
+
+  it('a decided arrow that is not brittle never carries stems', () => {
+    drawAutoTargetArrows(overlay, [block(false)]);
+    expect(arrow().hasAttribute('data-brittle')).toBe(false);
+    expect(arrow().querySelector('.arrow__stem')).toBeNull();
+  });
+});
+
+describe('insufficientBlockers', () => {
+  const view = (keywords: string[], blockers: number[]): BoardView =>
+    ({
+      players: [
+        { battlefield: [{ id: 9, keywords }] },
+        { battlefield: blockers.map((id) => ({ id, keywords: [] })) },
+      ],
+      combat: [{ attackers: [9], defender: { kind: 'player', id: 1 }, plannedBlockers: blockers }],
+    }) as unknown as BoardView;
+
+  it('names a menace attacker with exactly one blocker, and only then', () => {
+    expect([...insufficientBlockers(view(['Menace'], [5]))]).toEqual([9]);
+    expect(insufficientBlockers(view(['Menace'], [5, 6])).size, 'two blockers is enough').toBe(0);
+    expect(insufficientBlockers(view(['Menace'], [])).size, 'unblocked is not under-blocked').toBe(0);
+    expect(insufficientBlockers(view(['Flying'], [5])).size, 'one blocker is enough without menace').toBe(0);
   });
 });

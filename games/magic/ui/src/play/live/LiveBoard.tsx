@@ -317,7 +317,6 @@ import {
   dismissReveal,
   doomAskOf,
   genuinelyAsked,
-  insufficientBlockers,
   isAutoYieldOn,
   liveBar,
   lifePayable,
@@ -2562,12 +2561,6 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
     blockFocus: blockFocusOf(match) ?? undefined,
     damagePreview: damagePreviewOf(match),
     combatReady: spectator ? undefined : combatCandidates(match),
-    /*
-     * Both screens share the same combat view, so a spectator sees the same mark a seat does —
-     * never gated on `spectator`, unlike `combatReady`/`poolPays`, which are each about what THIS
-     * seat alone may do.
-     */
-    insufficientBlockers: match.view === null ? undefined : insufficientBlockers(match.view),
     /*
      * AF397's doom marking: what the open choice in front of this seat would send off the
      * battlefield as it now stands (`./match.ts`'s `doomAskOf`'s own note). A spectator has no

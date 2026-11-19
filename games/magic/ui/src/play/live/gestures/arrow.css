@@ -158,6 +158,57 @@
   --arrow-ink: var(--success);
 }
 
+/*
+ * Brittle (`arrow.ts`'s `crack`): a block that is not enough on its own, the lone blocker of a
+ * menace attacker. Its shaft is the stems in uneven chunks that stand still, faded toward the
+ * battlefield, the head hollow inside its rim, and every 3s a 0.3s shake of the whole arrow about
+ * its tail — a transform on its own svg, so the compositor runs it. The overlay clips it
+ * (`board.css`'s `.board__overlay`), so the shake never widens the board's scrollable area.
+ */
+.arrow[data-brittle] {
+  --arrow-faded-ink: color-mix(in srgb, var(--arrow-ink) 40%, var(--bg-raised));
+  --arrow-faded-rim: color-mix(in srgb, var(--arrow-rim) 45%, var(--bg-raised));
+}
+
+.arrow[data-brittle] .arrow__shaft {
+  display: none;
+}
+
+.arrow[data-brittle] .arrow__stem {
+  animation: none;
+}
+
+.arrow[data-brittle] .arrow__rim {
+  fill: var(--arrow-faded-rim);
+  stroke: var(--arrow-faded-rim);
+}
+
+.arrow[data-brittle] .arrow__core > .arrow__stem {
+  stroke: var(--arrow-faded-ink);
+}
+
+.arrow[data-brittle] .arrow__core > .arrow__head {
+  fill: var(--bg-raised);
+}
+
+.arrow[data-brittle]:not([data-closing]) {
+  animation: arrow-jitter 3s ease-in-out infinite;
+}
+
+@keyframes arrow-jitter {
+  0%, 86%, 100% { transform: translate(0, 0) rotate(0deg); }
+  88% { transform: translate(-2px, 1px) rotate(-2.5deg); }
+  90% { transform: translate(2px, -1px) rotate(2.5deg); }
+  92% { transform: translate(-1.5px, 0) rotate(-1.5deg); }
+  94% { transform: translate(1.5px, 1px) rotate(1.5deg); }
+  96% { transform: translate(-0.5px, 0) rotate(-0.5deg); }
+}
+
+/* The game is over, so nothing on the board moves on. */
+.board[data-game-over] .arrow[data-brittle] {
+  animation: none;
+}
+
 /* The other seat's aim, in the "theirs" colour, under this seat's own arrow. */
 .arrow--theirs {
   z-index: 1;
@@ -165,6 +216,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .arrow[data-brittle],
   .arrow__stem,
   .arrow__rim,
   .arrow__mark {

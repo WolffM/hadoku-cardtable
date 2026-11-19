@@ -33,6 +33,12 @@
  * Strokes, not masks over the ribbon: a mask is repainted whole on every frame of the
  * travel, and measured (`scripts/fps`, crowded board) that cost more than a core while
  * aiming. Committing it (`commitArrowAt`) closes the gaps and settles it into the ribbon.
+ *
+ * A BRITTLE arrow (`data-brittle`, `crack`) is a decided block that is not enough on its own: the
+ * lone blocker of a menace attacker. The same stems, cut into a fixed uneven pattern (`CRACKS`)
+ * that never travels, so it cannot be taken for an aim; faded, its head hollow, and a short shake
+ * every few seconds (`arrow.css`). When a second blocker joins, the same close a commit runs knits
+ * it into the ribbon (`settle`).
  */
 import { centreOf } from '../../lift.ts';
 import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
@@ -93,6 +99,13 @@ const SHAFT_INTO_HEAD = 0.75;
 /** The ghost's chunks and gaps along the stem; `arrow.css`'s dash patterns and travel are these numbers. */
 export const DASH = 13;
 export const GAP = 11;
+/** How much longer than the core's each rim chunk is, half at either end, so every chunk keeps its outline. */
+const RIM_OVER = 4;
+/**
+ * A brittle arrow's chunks and gaps along the stem, core first: uneven, so it reads as cracked and
+ * never as a ghost's even dashes. Every gap is wider than `RIM_OVER`, so the rim breaks there too.
+ */
+export const CRACKS: readonly number[] = [28, 9, 12, 10, 20, 8, 9, 11, 24, 9, 15, 8, 36, 10];
 
 /** An arrow's shape, in overlay units. */
 export interface ArrowShape {
@@ -247,6 +260,23 @@ export function newArrow(opts: { className?: string; testid?: string; ghost?: bo
   }
   svg.toggleAttribute('data-ghost', opts.ghost === true);
   return svg;
+}
+
+/**
+ * Crack a decided arrow (`data-brittle`): its shaft becomes the ghost's stems, cut to `CRACKS` and
+ * standing still, the rim's chunks `RIM_OVER` longer as a ghost's are. The next `write` shapes them.
+ */
+function crack(svg: SVGSVGElement): void {
+  if (svg.hasAttribute('data-brittle')) return;
+  for (const g of svg.querySelectorAll('.arrow__rim, .arrow__core')) {
+    const stem = el('path', 'arrow__stem');
+    const grow = g.classList.contains('arrow__rim') ? RIM_OVER : 0;
+    stem.style.strokeDasharray = CRACKS.map((n, i) => (i % 2 === 0 ? n + grow : n - grow)).join(' ');
+    stem.style.strokeDashoffset = String(grow / 2);
+    g.querySelector('.arrow__head')!.before(stem);
+  }
+  svg.removeAttribute('data-settle');
+  svg.setAttribute('data-brittle', '');
 }
 
 function el<K extends keyof SVGElementTagNameMap>(tag: K, className: string): SVGElementTagNameMap[K] {
@@ -429,16 +459,21 @@ export function commitArrowAt(overlay: HTMLElement | null, node: EventTarget | n
 }
 
 /**
- * The gaps close as the head shrinks to its committed size, then the ribbon takes over from the
- * dashes and the rim bumps once (`arrow.css`'s `data-settle`).
+ * The gaps close — a ghost's as its head shrinks to its committed size, a brittle arrow's where it
+ * stands — then the ribbon takes over from the dashes and the rim bumps once (`arrow.css`'s
+ * `data-settle`). The one close for both: a commit (`commitArrowAt`) and a knit (`drawAutoTargetArrows`).
  */
 function settle(svg: SVGSVGElement): void {
   const ends = shaped.get(svg);
   const dashes = [...svg.querySelectorAll<SVGPathElement>('.arrow__stem')];
+  const weight = svg.hasAttribute('data-ghost') ? 1 : 0;
+  const pattern = svg.hasAttribute('data-brittle') ? CRACKS : [DASH, GAP];
   // Committed: the target is chosen, and its brackets go at once.
   svg.querySelector('.arrow__mark')?.remove();
   const solid = (): void => {
     svg.removeAttribute('data-ghost');
+    svg.removeAttribute('data-brittle');
+    svg.removeAttribute('data-closing');
     dashes.forEach((p) => p.remove());
     if (ends !== undefined) write(svg, arrowShape(ends.x1, ends.y1, ends.x2, ends.y2, 0, ends.side));
     svg.setAttribute('data-settle', '');
@@ -447,6 +482,7 @@ function settle(svg: SVGSVGElement): void {
     solid();
     return;
   }
+  svg.setAttribute('data-closing', '');
   // The travel stops where it is: each dash keeps the offset its animation had reached.
   const offsets = dashes.map((p) => getComputedStyle(p).strokeDashoffset);
   dashes.forEach((p, i) => {
@@ -462,12 +498,12 @@ function settle(svg: SVGSVGElement): void {
       solid();
       return;
     }
-    // Each chunk grows into its gap, so the chunks never jump; the rim's stays 4px longer.
+    // Each chunk grows into its gap, so the chunks never jump; the rim's stays `RIM_OVER` longer.
     for (const p of dashes) {
-      const grow = p.parentElement?.classList.contains('arrow__rim') === true ? 4 : 0;
-      p.style.strokeDasharray = `${DASH + grow + GAP * e} ${Math.max(0, GAP - grow - GAP * e)}`;
+      const grow = p.parentElement?.classList.contains('arrow__rim') === true ? RIM_OVER : 0;
+      p.style.strokeDasharray = pattern.map((n, i) => (i % 2 === 0 ? n + grow + pattern[i + 1]! * e : Math.max(0, n - grow - n * e))).join(' ');
     }
-    write(svg, arrowShape(ends.x1, ends.y1, ends.x2, ends.y2, 1 - e));
+    write(svg, arrowShape(ends.x1, ends.y1, ends.x2, ends.y2, weight * (1 - e), ends.side));
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -688,7 +724,9 @@ const AUTO_TESTID = 'stack-target-arrow';
  * Reconcile the overlay's passive arrows against `specs` (item 8): one SVG per
  * spec, keyed by `data-key` so an unchanged pair is left alone across paints,
  * and every key not in `specs` any more is removed — the stack item resolved,
- * or its target left the board. Same ribbon as `drawArrow`, committed.
+ * or its target left the board. Same ribbon as `drawArrow`, committed. A
+ * `brittle` spec cracks its arrow (`crack`); one that stops being brittle knits
+ * back into the ribbon (`settle`), the same arrow, never a new one.
  */
 export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoTargetArrow[]): void {
   // Every end read before any arrow is written: one layout for the lot, and none with nothing to draw.
@@ -708,13 +746,25 @@ export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoT
       svg.setAttribute('data-role', spec.role);
       overlay.append(svg);
     }
+    const knit = spec.brittle !== true && svg.hasAttribute('data-brittle') && !svg.hasAttribute('data-closing');
+    if (spec.brittle === true) crack(svg);
     standing.set(svg, { to: spec.to, source: spec.source ?? null });
     positionArrow(svg, aimed.from, aimed.tip, box!, to);
+    if (knit) settle(svg);
+    else if (svg.hasAttribute('data-brittle')) shakeFromTail(svg);
   }
   for (const el of [...overlay.querySelectorAll(`[data-testid="${AUTO_TESTID}"]`)]) {
     if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();
   }
   retireCommitted(overlay, specs.map((s) => s.to));
+}
+
+/** A brittle arrow shakes about its tail (`arrow.css`), so the blocker stays put and the head trembles. */
+function shakeFromTail(svg: SVGSVGElement): void {
+  const ends = shaped.get(svg);
+  if (ends === undefined) return;
+  const origin = `${r1(ends.x1)}px ${r1(ends.y1)}px`;
+  if (svg.style.transformOrigin !== origin) svg.style.transformOrigin = origin;
 }
 
 /** What each arrow that stands for a decided target points at, and the card it comes from. */

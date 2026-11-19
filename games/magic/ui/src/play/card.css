@@ -527,8 +527,8 @@
  * Measured at
  * 14×14px with a 10×10px glyph (default UI scale, real browser `getBoundingClientRect` —
  * `e2e/w121b-mark-size.spec.ts`), too small to read at a glance against a photograph. Every mark
- * shares this one rule — sick, can't-block, attacking, blocking, under-blocked below — so
- * this grows all four together rather than special-casing the one that was reported.
+ * shares this one rule — sick and can't-block — so
+ * this grows both together rather than special-casing the one that was reported.
  */
 .board-card__mark {
   display: grid;
@@ -562,20 +562,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.board-card__mark:is([data-mark='attacking'], [data-mark='blocking']) {
-  color: var(--ink);
-}
-
-/*
- * The one state mark that is a WARNING rather than a fact (every other mark here is just
- * what Forge says the card is) — the theme's warn, same colour family the clock's own last-minute
- * reading uses, and a border to match rather than the neutral `--line` every other mark keeps.
- */
-.board-card__mark[data-mark='underBlocked'] {
-  color: var(--warn);
-  border-color: var(--warn);
 }
 
 /*

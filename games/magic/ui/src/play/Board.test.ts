@@ -3901,11 +3901,15 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(withoutComments(CARD_CSS), 'no rule draws over a sick card').not.toMatch(/sick/);
   });
 
-  it('blocking is a corner mark and is not drawn in the accent; a token wears no mark at all', () => {
+  it('neither a blocker, an attacker nor a token wears a corner mark, and no mark is drawn in the accent', () => {
+    // The operator, 2026-11-18: "just remove the extra attacking and blocking chips. we'll just use the arrows for now."
+    for (const state of [{ blocking: true }, { attacking: true }, { attacking: true, tapped: false, keywords: ['Vigilance'] }]) {
+      expect(renderBoard(withState(state)).container.querySelector('[data-card-id="21"] > .board-card__marks'), JSON.stringify(state)).toBeNull();
+      cleanup();
+    }
     const { container } = renderBoard(withState({ blocking: true, token: true }));
-    const marks = [...card(container).querySelectorAll<HTMLElement>('.board-card__mark')].map((m) => m.dataset.mark);
     // The operator, 2026-10-14: "let's just get rid of the token indicator, its noise."
-    expect(marks).toEqual(['blocking']);
+    expect(card(container).querySelector('.board-card__mark')).toBeNull();
     expect(card(container).hasAttribute('data-token')).toBe(false);
     // The three outlines a card can already wear belong to the two gesture states
     // and nothing here may add a fourth colour to that conversation. `--accent-ink`
@@ -3981,8 +3985,8 @@ describe('§A.15 — a card’s state is drawn', () => {
     const marks = [...card(container).querySelectorAll<HTMLElement>(':scope > .board-card__marks > .board-card__mark')];
     expect(marks.map((m) => m.dataset.mark), 'in the fixed order').toEqual(['sick', 'cantBlock']);
     const mark = marks[1]!;
-    expect(mark.querySelector('svg.board-card__mark-art path')?.getAttribute('d'), 'drawn, and not the blocking shield').not.toBe(
-      renderBoard(withState({ blocking: true })).container.querySelector('[data-card-id="21"] [data-mark="blocking"] path')?.getAttribute('d'),
+    expect(mark.querySelector('svg.board-card__mark-art path')?.getAttribute('d'), 'drawn, and not the crescent').not.toBe(
+      marks[0]!.querySelector('svg.board-card__mark-art path')?.getAttribute('d'),
     );
     expect(mark.textContent, 'the word, for anything that cannot see it').toBe("can't block");
     expect(mark.dataset.tip).toBe("Can't block");
@@ -3995,34 +3999,15 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(renderBoard(withState({})).container.querySelector('[data-mark="cantBlock"]'), 'a creature that can block wears none').toBeNull();
   });
 
-  it('an attacker wears crossed swords, said in words, upright on top of its quarter turn — vigilant or not — and none once it is not attacking', () => {
+  it('an attacker is turned, and its corner marks are not: they stay upright beside the quarter turn', () => {
     const css = styled();
     const { container } = renderBoard(withState({ attacking: true, tapped: false, summoningSick: true }));
     const marks = [...card(container).querySelectorAll<HTMLElement>(':scope > .board-card__marks > .board-card__mark')];
-    expect(marks.map((m) => m.dataset.mark), 'in the fixed order').toEqual(['sick', 'attacking']);
-    const mark = marks[1]!;
-    const shapes = (
-      [
-        ['sick', { summoningSick: true }],
-        ['cantBlock', { cantBlock: true }],
-        ['blocking', { blocking: true }],
-      ] as const
-    ).map(([other, state]) => renderBoard(withState(state)).container.querySelector(`[data-card-id="21"] [data-mark="${other}"] path`)?.getAttribute('d'));
-    expect(shapes.every((d) => typeof d === 'string'), 'the other marks were drawn to compare against').toBe(true);
-    expect(shapes, 'drawn, and not any other mark').not.toContain(mark.querySelector('svg.board-card__mark-art path')?.getAttribute('d'));
-    expect(mark.textContent, 'the word, for anything that cannot see it').toBe('attacking');
-    expect(mark.dataset.tip).toBe('Attacking');
+    expect(marks.map((m) => m.dataset.mark), 'its own sickness, and nothing for the attack').toEqual(['sick']);
     // The quarter turn is on the art inside the face; the marks are the <li>'s own, so they stay upright.
     expect(turnOf(css, card(container)), 'the attacker is turned').toContain('90deg');
-    expect(mark.closest('.board-card__face'), 'and the mark is not inside what turns').toBeNull();
+    expect(marks[0]!.closest('.board-card__face'), 'and the mark is not inside what turns').toBeNull();
     expect(css(card(container).querySelector(':scope > .board-card__marks')!, 'transform'), 'nor turned itself').toMatch(/^(none)?$/);
-    const shield = renderBoard(withState({ blocking: true })).container.querySelector('[data-card-id="21"] [data-mark="blocking"]')!;
-    expect(css(mark, 'color'), 'in the same ink as the blocking shield').toBe(css(shield, 'color'));
-    cleanup();
-    const vigilant = renderBoard(withState({ attacking: true, tapped: false, keywords: ['Vigilance'] })).container;
-    expect(card(vigilant).querySelector(':scope > .board-card__marks > [data-mark="attacking"]'), 'a vigilant attacker, which never turns, wears it too').not.toBeNull();
-    cleanup();
-    expect(renderBoard(withState({ tapped: true })).container.querySelector('[data-mark="attacking"]'), 'tapped is not attacking').toBeNull();
   });
 
   /**
@@ -4150,7 +4135,7 @@ describe('§A.15 — a card’s state is drawn', () => {
 
   it('nothing the state layer draws can change a card’s box', () => {
     const css = styled();
-    const { container } = renderBoard(withState({ blocking: true, token: true, counters: [{ name: '+1/+1', count: 1 }] }));
+    const { container } = renderBoard(withState({ summoningSick: true, token: true, counters: [{ name: '+1/+1', count: 1 }] }));
     for (const sel of ['.board-card__marks', '.board-card__counters']) {
       const layer = card(container).querySelector(sel)!;
       expect(css(layer, 'position'), `${sel} is out of flow`).toBe('absolute');
@@ -4527,7 +4512,7 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
 
   it('Q13: power/toughness sits in the card’s BOTTOM-right corner, clear of the counters and the marks', () => {
     const css = styled();
-    const urchin = { ...view, players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, blocking: true, counters: [{ name: '+1/+1', count: 1 }] })) })) };
+    const urchin = { ...view, players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, summoningSick: true, counters: [{ name: '+1/+1', count: 1 }] })) })) };
     const card = renderBoard(urchin).container.querySelector('[data-card-id="21"]')!;
     const anchors = (sel: string) => ['top', 'right', 'bottom', 'left'].filter((side) => !/^(auto)?$/.test(css(card.querySelector(`:scope > ${sel}`)!, side)));
     expect(anchors('.board-card__pt'), 'P/T: the bottom-right corner').toEqual(['right', 'bottom']);
@@ -4572,7 +4557,7 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
 
   it('Q16: card badges sit on one rung of the shared scale, inside a stacking context of the card’s own', () => {
     const css = styled();
-    const urchin = { ...view, players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, blocking: true, counters: [{ name: '+1/+1', count: 1 }] })) })) };
+    const urchin = { ...view, players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, summoningSick: true, counters: [{ name: '+1/+1', count: 1 }] })) })) };
     const card = renderBoard(urchin).container.querySelector('[data-card-id="21"]')!;
     const rungs = ['.board-card__marks', '.board-card__counters'].map((sel) => css(card.querySelector(`:scope > ${sel}`)!, 'z-index'));
     expect(rungs[0], 'a badge is on the scale').toContain('--z-card-badge');

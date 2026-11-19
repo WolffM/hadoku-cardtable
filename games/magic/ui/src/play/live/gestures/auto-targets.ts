@@ -35,6 +35,8 @@ export interface AutoTargetArrow {
   source?: number | null;
   /** A point the arrow ends at instead of `to`'s own box, in client coordinates (a phone's attack on a player). */
   toward?: Point;
+  /** A block that is not enough on its own: the lone blocker of a menace attacker (`../match.ts`'s `insufficientBlockers`). */
+  brittle?: boolean;
 }
 
 /**

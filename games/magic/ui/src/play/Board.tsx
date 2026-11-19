@@ -619,13 +619,6 @@ export interface BoardInteraction {
    */
   combatReady?: ReadonlySet<number>;
   /**
-   * Blockers assigned to a menace attacker that has only ONE of them right now
-   * (`live/match.ts`'s `insufficientBlockers`) — drawn as a corner mark on the blocker itself,
-   * both screens, until a second blocker joins it or it leaves. Absent means none; a spectator
-   * still gets it (it rides the shared combat view, not an `InputBlock` this seat alone runs).
-   */
-  insufficientBlockers?: ReadonlySet<number>;
-  /**
    * AF397 (doomed cards): what the open choice in front of this seat would send off the
    * battlefield if answered as it now stands (`live/match.ts`'s `doomAskOf`) — `keep-one`, the
    * legend rule, every candidate but the one the seat points at goes; `chosen-goes`, a sacrifice or
@@ -2351,12 +2344,10 @@ function CreaturePT({ entry: forge }: { entry: BoardCard }) {
  * | state | channel | why not something else |
  * | --- | --- | --- |
  * | tapped, attacking | a quarter turn (`card.css`) | the convention, and Forge's own. An attacker reads as tapped because that is what the operator asked for in item 6 and because Forge taps it a moment later anyway |
+ * | attacking, blocking | an outline in the theme's danger or success (`card.css`) and the combat arrow from it (`live/gestures/install.ts`), nothing in the corner (the operator, 2026-11-18: "just remove the extra attacking and blocking chips. we'll just use the arrows for now") | the arrow already says what it attacks or blocks, which a chip never could |
  * | damage | the P/T badge's own ink (`PowerToughness`) | the number that matters is what is LEFT, and the badge already holds it |
  * | counters | a numbered badge, bottom-left | `+1/+1` is the common case and gets the compact `+3`; anything else falls back to its name |
  * | summoning sick | a corner mark, a drawn crescent, and nothing over the art (the operator, 2026-10-15: "let's drop the dashed summoning sickness on the art, not needed") | a mark is a shape, so it cannot be confused with any outline |
- * | attacking | a corner mark, drawn crossed swords, beside the quarter turn and the danger outline (the operator, 2026-10-15: "let's show a 'crossed swords' pill icon on top of cards that have been selected as attackers") | Forge's own `Attacking`: on the attacker's screen from the click that picks it, on every other screen once the attack is locked in (`adapter.ts`'s `toBoardView`), until combat ends or it is called back |
- * | blocking | a corner mark, a drawn shield, and an outline in the theme's success (`card.css`), as the attacker's is in its danger | the operator asked for its own colour (2026-10-10) |
- * | under-blocked | a corner mark, the blocking shield struck through, in the theme's warn | a menace attacker with only one blocker right now (`live/match.ts`'s `insufficientBlockers`) — gone once a second joins it or it leaves; this is a warning, not a fact Forge states, so it keeps its own colour rather than borrowing blocking's success |
  *
  * **The three outlines already on a card are not ours to add a fourth to.** The
  * gestures lane draws a solid accent ring for "Forge is offering this"
@@ -2374,7 +2365,7 @@ function CreaturePT({ entry: forge }: { entry: BoardCard }) {
  */
 
 /** A state that draws as a corner mark. The rest of them draw as themselves. */
-type StateMark = 'sick' | 'cantBlock' | 'attacking' | 'blocking' | 'underBlocked';
+type StateMark = 'sick' | 'cantBlock';
 
 /**
  * The marks, as geometry we drew rather than a typeface that might not have the
@@ -2387,22 +2378,11 @@ const MARK_ART: Readonly<Record<StateMark, string>> = {
   /* The shield, hollow and struck through: this one can't be in the way. */
   cantBlock:
     'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z M8 3.3L4.2 4.7V7.9c0 2.3 1.6 4.1 3.8 4.8 2.2-.7 3.8-2.5 3.8-4.8V4.7Z M1.4 13.5L13.5 1.4l1.1 1.1L2.5 14.6Z',
-  /* Two swords crossed, points up: this one is on the attack. */
-  attacking:
-    'M13.2 2.8 13.1 4.5 7.2 10.4 5.6 8.8 11.5 2.9Z M4.3 7.5 8.5 11.7 7.6 12.7 3.3 8.4Z M5 10.1 5.9 11 4.4 12.5 3.5 11.6Z M3.1 11.2 4.8 12.9 3.8 13.9 2.1 12.2Z M2.8 2.8 4.5 2.9 10.4 8.8 8.8 10.4 2.9 4.5Z M7.5 11.7 11.7 7.5 12.7 8.4 8.4 12.7Z M10.1 11 11 10.1 12.5 11.6 11.6 12.5Z M11.2 12.9 12.9 11.2 13.9 12.2 12.2 13.9Z',
-  /* A shield: this one is in the way. */
-  blocking: 'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z',
-  /* The same shield, broken across the middle — in the way, but not enough of one. */
-  underBlocked:
-    'M8 1.6l5.4 2v4.3c0 3.2-2.3 5.6-5.4 6.5-3.1-.9-5.4-3.3-5.4-6.5V3.6Z M2.6 3.9l5.2 4-5 4.4-.6-.7 4.3-3.8-4.5-3.5Z M13.4 3.9l-5.2 4 5 4.4.6-.7-4.3-3.8 4.5-3.5Z',
 };
 
 const MARK_WORD: Readonly<Record<StateMark, string>> = {
   sick: 'summoning sick',
   cantBlock: "can't block",
-  attacking: 'attacking',
-  blocking: 'blocking',
-  underBlocked: 'needs another blocker',
 };
 
 /**
@@ -2418,24 +2398,15 @@ const MARK_WORD: Readonly<Record<StateMark, string>> = {
  * replaces it rather than running alongside it — one signal for one fact, not
  * two for the same one.
  */
-/**
- * This mark's own tip, kept here rather than in `tip/words.ts`'s `MARK_TIP` (owned elsewhere): one
- * more entry there would widen a file this change does not otherwise need.
- */
-const UNDER_BLOCKED_TIP = "Needs another blocker: menace can't be blocked by only one creature";
-
-function StateMarks({ entry, underBlocked = false }: { entry: BoardCard; underBlocked?: boolean }) {
+function StateMarks({ entry }: { entry: BoardCard }) {
   const marks: StateMark[] = [];
   if (entry.summoningSick) marks.push('sick');
   if (entry.cantBlock === true) marks.push('cantBlock');
-  if (entry.attacking) marks.push('attacking');
-  if (entry.blocking) marks.push('blocking');
-  if (underBlocked) marks.push('underBlocked');
   if (marks.length === 0) return null;
   return (
     <ul className="board-card__marks" aria-label={`${entry.card.name} status`}>
       {marks.map((mark) => (
-        <li key={mark} className="board-card__mark" data-mark={mark} data-tip={mark === 'underBlocked' ? UNDER_BLOCKED_TIP : MARK_TIP[mark]}>
+        <li key={mark} className="board-card__mark" data-mark={mark} data-tip={MARK_TIP[mark]}>
           <svg className="board-card__mark-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
             <path d={MARK_ART[mark]} />
           </svg>
@@ -2803,7 +2774,6 @@ function cardFacts(interaction: BoardInteraction | undefined, id: number): reado
     interaction.castForbidden?.get(id),
     interaction.blockFocus === id,
     interaction.combatReady?.has(id) ?? false,
-    interaction.insufficientBlockers?.has(id) ?? false,
     interaction.actionable?.has(id) ?? false,
     interaction.refused?.card === id ? interaction.refused.seq % 2 : -1,
     JSON.stringify(interaction.held?.get(id) ?? null),
@@ -3066,7 +3036,7 @@ const CardOnBoard = memo(function CardOnBoard({
           {previewed}
         </span>
       )}
-      {onBattlefield && <StateMarks entry={entry} underBlocked={interaction?.insufficientBlockers?.has(entry.id) ?? false} />}
+      {onBattlefield && <StateMarks entry={entry} />}
       {showCounters && <Counters entry={entry} timeFirst={inExile} />}
       {(onBattlefield || slot === 'hand' || (libraryTop && entry.seenByOpponent === true)) && (
         <CardTags

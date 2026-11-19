@@ -232,6 +232,7 @@ import {
   combatAimer,
   declaringAttackers,
   declaringCombat,
+  insufficientBlockers,
   landsOffered,
   ownBlocker,
   payingMana,
@@ -451,10 +452,12 @@ function onBattlefield(match: LiveMatch, id: number): boolean {
  * several attackers (banding) draws every blocker to the band's first
  * attacker — Forge gives the whole band one shared assignment, so there is no
  * second one to point at. A block goes with the ram of either creature in it
- * (`rammed`), as the attack arrow does.
+ * (`rammed`), as the attack arrow does. The lone blocker of a menace attacker
+ * draws brittle (`insufficientBlockers`), on both screens, until a second joins it.
  */
 function blockArrows(canvas: ParentNode, match: LiveMatch, rammed: ReadonlySet<number>): AutoTargetArrow[] {
   const out: AutoTargetArrow[] = [];
+  const short = match.view === null ? new Set<number>() : insufficientBlockers(match.view);
   for (const band of match.view?.combat ?? []) {
     const blockerIds = band.plannedBlockers ?? [];
     if (blockerIds.length === 0) continue;
@@ -466,7 +469,7 @@ function blockArrows(canvas: ParentNode, match: LiveMatch, rammed: ReadonlySet<n
       if (rammed.has(blockerId)) continue;
       const source = cardBox(canvas, blockerId);
       if (source === null) continue;
-      out.push({ key: `block:${blockerId}:${attackerId}`, from: centreOf(source), to, kind: 'card', role: 'block' });
+      out.push({ key: `block:${blockerId}:${attackerId}`, from: centreOf(source), to, kind: 'card', role: 'block', brittle: short.has(attackerId) });
     }
   }
   return out;
