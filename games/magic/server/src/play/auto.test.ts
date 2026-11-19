@@ -3003,7 +3003,7 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		const reply = ClientFrameSchema.parse({ kind: 'reply', callId: ask.callId, method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: chosen } });
 		expect(h.match.fromClient(0, reply)).toEqual({ ok: true });
 	}
-	function confirm(h: Harness, hostCard: number, abilityId: number, message = 'Do you want to sacrifice Augur of Skulls?', input?: number): void {
+	function confirm(h: Harness, hostCard: number, abilityId: number, message = 'Do you want to sacrifice Augur of Skulls?', input?: number, cost = true): void {
 		const me = playerOf(h, 0);
 		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true }, input);
 		push(h, 0, {
@@ -3012,7 +3012,7 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 			player: { kind: 'player', id: me },
 			message,
 			card: null,
-			confirmAbility: { hostCard: card(hostCard), abilityId },
+			confirmAbility: { hostCard: card(hostCard), abilityId, ...(cost ? { cost } : {}) },
 		}, input);
 	}
 	const confirmed = (h: Harness) => h.logs.filter((l) => l.evt === 'auto-confirmed').length;
@@ -3131,6 +3131,19 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		expect(frames(h, 0).filter((f) => f.method === 'showPromptMessage' && f.confirmAbility !== undefined)).toHaveLength(1);
 	});
 
+	it('an optional additional cost of the spell the seat chose still asks: the bridge marks no cost on it (Offspring, m-b05f9d974d63)', () => {
+		const h = harness();
+		choose(h, 9002);
+		const before = frames(h, 0).length;
+		confirm(h, 70, 9002, 'Pay for Offspring? {B}', 199, false);
+		expect(confirmed(h)).toBe(0);
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		expect(frames(h, 0).slice(before).map((f) => f.method)).toEqual(['updateButtons', 'showPromptMessage']);
+		// The spell's own cost, asked after it, is still answered for the seat.
+		confirm(h, 70, 9002, 'Sacrifice a creature?', 200);
+		expect(confirmed(h)).toBe(1);
+	});
+
 	it('(B) the other ability of the same card, or a confirm with no choice before it, still asks', () => {
 		const other = harness();
 		choose(other, 9001);
@@ -3167,13 +3180,15 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 				player: { kind: 'player', id: me },
 				message: 'Sacrifice?',
 				card: null,
-				confirmAbility: { hostCard: card(70), abilityId: 9002 },
+				confirmAbility: { hostCard: card(70), abilityId: 9002, cost: true },
 			},
 			buttons: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true },
 			actionable: null,
 			openAsks: 0,
 		};
 		expect(chosenCostConfirm(notes, { hostCard: 70, abilityId: 9002 })).not.toBeNull();
+		const unmarked = { ...notes, prompt: { ...notes.prompt, confirmAbility: { hostCard: card(70), abilityId: 9002 } } } as SeatNotes;
+		expect(chosenCostConfirm(unmarked, { hostCard: 70, abilityId: 9002 })).toBeNull();
 		expect(chosenCostConfirm(notes, null)).toBeNull();
 		expect(chosenCostConfirm({ ...notes, openAsks: 1 }, { hostCard: 70, abilityId: 9002 })).toBeNull();
 	});
@@ -3371,7 +3386,7 @@ describe('full control asks only real questions', () => {
 		expect(h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'reply', callId: 'lotus', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9002 } }))).toEqual({ ok: true });
 		const before = frames(h, 0).length;
 		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
-		push(h, 0, { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: me }, message: 'Sacrifice Black Lotus?', card: null, confirmAbility: { hostCard: card(70), abilityId: 9002 } });
+		push(h, 0, { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: me }, message: 'Sacrifice Black Lotus?', card: null, confirmAbility: { hostCard: card(70), abilityId: 9002, cost: true } });
 		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0).at(-1)).toEqual({ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } });
 		expect(frames(h, 0).slice(before).filter((f) => f.method === 'showPromptMessage')).toEqual([]);
 		expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'prompt-withheld', seat: 0, why: 'auto-confirm' }));

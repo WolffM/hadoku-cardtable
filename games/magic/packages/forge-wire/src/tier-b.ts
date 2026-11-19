@@ -243,6 +243,12 @@ export const ShowPromptMessageSchema = z.strictObject({
    * message alone cannot tell them apart; the ability can. Absent on every other
    * prompt.
    *
+   * `cost` is present, and true, on a confirm that asks to pay a part of the cost the ability
+   * already has (`HumanCostDecision` → `confirmPayment`: "Sacrifice Black Lotus?"). Forge asks an
+   * optional additional cost of a spell through the same input with the same ability on it
+   * (`GameActionUtil.addExtraKeywordCost`: "Pay for Offspring? {B}"), and that one is a choice: the
+   * bridge tells them apart by which of Forge's questions is open (`SeatController.confirmPayment`).
+   *
    * `trigger` is present on an optional trigger's confirm only: `key` is the
    * storage key Forge keeps a remembered answer under (`AutoYieldStore.abilitySuffix`
    * of the wrapper's `yieldKey()`, per ability as Forge's default
@@ -257,6 +263,7 @@ export const ShowPromptMessageSchema = z.strictObject({
     .strictObject({
       hostCard: CardRefSchema,
       abilityId: z.number().int(),
+      cost: z.literal(true).optional(),
       trigger: z.strictObject({ key: z.string().min(1), name: z.string(), abilityId: z.number().int().optional() }).optional(),
       search: z.strictObject({ origin: z.array(ZoneTypeSchema).min(1), player: PlayerRefSchema, mayChooseNothing: z.boolean() }).optional(),
     })

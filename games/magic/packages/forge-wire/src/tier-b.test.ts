@@ -377,7 +377,9 @@ describe('wave 52 §S — the offer facts and the confirm ability are strict and
     const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Sacrifice?', card: null };
     expect(ShowPromptMessageSchema.safeParse(base).success).toBe(true);
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12 } }).success).toBe(true);
-    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, cost: true } }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, cost: true } }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, cost: false } }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, optional: true } }).success).toBe(false);
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7) } }).success).toBe(false);
   });
 

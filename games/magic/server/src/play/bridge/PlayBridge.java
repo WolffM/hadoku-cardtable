@@ -3985,6 +3985,9 @@ public final class PlayBridge {
                 final JsonObject o = new JsonObject();
                 o.add("hostCard", ref("card", sa.getHostCard().getId()));
                 o.addProperty("abilityId", sa.getId());
+                if (((forge.gamemodes.match.input.InputConfirm) input).getController() instanceof SeatController asker && asker.confirmingCost()) {
+                    o.addProperty("cost", true);
+                }
                 if (sa instanceof WrappedAbility w && w.getTrigger() != null) {
                     final JsonObject trigger = new JsonObject();
                     trigger.addProperty("key", AutoYieldStore.abilitySuffix(w.yieldKey()));
@@ -6759,6 +6762,28 @@ public final class PlayBridge {
             o.addProperty("version", version);
             o.addProperty("bytes", game.getUndoManager().retainedBytes());
             emit(match.matchId, o);
+        }
+
+        /**
+         * Whether the confirm this controller has open asks to pay a part of a cost the ability already has
+         * ({@code HumanCostDecision} → {@code confirmPayment}: "Sacrifice Black Lotus?"). Forge asks every other
+         * Yes/No of an ability through the same {@code InputConfirm} with the same ability on it — an optional
+         * additional cost among them ({@code GameActionUtil.addExtraKeywordCost} → {@code addKeywordCost}:
+         * "Pay for Offspring? {B}") — and only the caller tells them apart. Read by {@code SeatGui.confirmAbility}
+         * while the game thread is parked on that confirm; written on the game thread alone.
+         */
+        private volatile boolean confirmingCost;
+
+        boolean confirmingCost() { return confirmingCost; }
+
+        @Override
+        public boolean confirmPayment(final forge.game.cost.CostPart costPart, final String question, final SpellAbility sa) {
+            confirmingCost = true;
+            try {
+                return super.confirmPayment(costPart, question, sa);
+            } finally {
+                confirmingCost = false;
+            }
         }
 
         @Override

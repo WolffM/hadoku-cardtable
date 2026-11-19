@@ -1,0 +1,19 @@
+# An optional additional cost Forge asks with a Yes/No as the spell is cast.
+# Alice (`human…`, seat 0) has two Darkstar Augurs ({2}{B}, "Offspring {B}:
+# You may pay an additional {B} as you cast this spell. If you do, when this
+# creature enters, create a 1/1 token copy of it.") and seven Swamps: one
+# Augur cast without its Offspring, one with, on an uncontested turn-1 Main
+# Phase 1. The operator's own card (m-b05f9d974d63).
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Darkstar Augur;Darkstar Augur
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

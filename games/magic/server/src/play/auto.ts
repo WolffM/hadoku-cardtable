@@ -1593,7 +1593,8 @@ export function answerability(q: Question): Answerability {
  * (`HumanCostDecision.java:1295-1310` → `PlayerControllerHuman.confirmPayment`
  * → `InputConfirm.confirm`), which reaches us as a `showPromptMessage` with
  * `card: null` plus a Yes/No `updateButtons`; the bridge names the ability the
- * confirm belongs to (`confirmAbility`, `PlayBridge.java`'s `confirmAbility`).
+ * confirm belongs to (`confirmAbility`, `PlayBridge.java`'s `confirmAbility`),
+ * and says when the confirm is that ability's own cost (`confirmAbility.cost`).
  *
  * `chosen` is the ability this seat picked from `getAbilityToPlay` since its
  * last priority window (`match.ts`'s `SeatState.chosenAbility`, cleared at every
@@ -1602,6 +1603,13 @@ export function answerability(q: Question): Answerability {
  * it. An optional trigger's "may" is the same shape and is a real game choice:
  * it names its trigger, never the chosen activation, so it is still asked; so
  * is a confirm with no ability on it.
+ *
+ * Only a confirm the bridge marks as a cost is answered. Forge asks an optional
+ * additional cost of the spell the seat chose the same way, with that same spell
+ * on it (`GameActionUtil.addExtraKeywordCost`: Offspring, Casualty, Conspire,
+ * Harmonize's tap), and choosing the spell said nothing about it. The operator,
+ * 2026-11-19, of "Pay for Offspring? {B}" answered Yes for them (m-b05f9d974d63):
+ * *"offspring should always confirm with the player if they want to pay it."*
  */
 export function chosenCostConfirm(notes: SeatNotes, chosen: { hostCard: number; abilityId: number } | null): string | null {
 	if (chosen === null || notes.openAsks > 0) return null;
@@ -1610,8 +1618,8 @@ export function chosenCostConfirm(notes: SeatNotes, chosen: { hostCard: number; 
 	if (prompt === null || prompt.method !== 'showPromptMessage' || prompt.confirmAbility === undefined) return null;
 	if (buttons === null || buttons.method !== 'updateButtons' || buttons.enable1 !== true) return null;
 	if (notes.playerId === null || prompt.player.id !== notes.playerId || buttons.owner.id !== notes.playerId) return null;
-	const { hostCard, abilityId } = prompt.confirmAbility;
-	if (hostCard.id !== chosen.hostCard || abilityId !== chosen.abilityId) return null;
+	const { hostCard, abilityId, cost } = prompt.confirmAbility;
+	if (cost !== true || hostCard.id !== chosen.hostCard || abilityId !== chosen.abilityId) return null;
 	return 'the seat chose this ability just before';
 }
 
