@@ -418,6 +418,18 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
     console.log(`[pp-deep] Serum Visions #${visions} buried in a ${glow.count}-card graveyard: pile data-can-act on alice's screen=${glow.alice}, on bob's=${glow.bob}`);
     expect(glow.alice, 'her graveyard pile glows while a card in it is offered').not.toBeNull();
     expect(glow.bob, "never on bob's screen").toBeNull();
+    // One outline, on the offered card's own strip of the pile; the pile's box draws none (the operator, 2026-11-19).
+    const marks = await alice.page.evaluate(
+      ([yard, id]) => {
+        const pile = document.querySelector(yard!);
+        const card = pile?.querySelector(`[data-board-card="${id}"]`);
+        if (pile == null || card == null) return null;
+        return { pile: getComputedStyle(pile).outlineStyle, strip: getComputedStyle(card, '::after').outlineStyle, face: getComputedStyle(card.querySelector('.card')!).boxShadow };
+      },
+      [YARD, String(visions)] as const,
+    );
+    console.log(`[pp-deep] outlines: ${JSON.stringify(marks)}`);
+    expect(marks, 'the offered card is the one thing outlined in the pile').toEqual({ pile: 'none', strip: 'solid', face: 'none' });
 
     // The CI runner's own frame floor first: the board idle, the view closed.
     await watchFrames(alice.page);
