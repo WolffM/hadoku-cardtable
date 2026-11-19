@@ -86,6 +86,31 @@ reviewing stayed friend-only once the floor opened to every member. Seeing every
 writing which take actually plays, needs admin. _Tier: friend to submit or
 read your own review; admin to read everyone's or set the pack._
 
+## Events and the calendar
+
+**What it does.** The front page's **Calendar** lists upcoming events. An
+event is a room with a start time, such as a draft night or a tournament.
+Each event also appears in the Card Table Discord server's Events tab. An
+hour before it starts, a reminder is posted in #events. Each row on the
+calendar shows a row of faces and "N signed up". Pressing it opens the list
+of everyone signed up: whoever answered the event's sign-up poll, and whoever
+is in its room, each person once. The same list opens from beside the
+event room's name.
+
+**How to use it.** In the room list, press **Create event**, then choose
+the room's settings and a start time. To let people say when they can play
+first, attach a Rally sign-up poll in the same dialog: **Create** builds a
+new one in Rally, **Load** takes one by its link. The poll then shows on the
+calendar's **Polls** page. Its **Create event** fills in the event from the
+poll and offers the start times most people can make. An event made from a poll is organized by whoever
+created the poll. The organizer moves or cancels it from its calendar row,
+and Discord follows. Press **Sign up** on a row to join the event's room.
+Its seats open 30 minutes before the start.
+
+**What it does not do.** A room with a password and a testing room stay off
+Discord. Clicking "Interested" on the Discord event does not sign you up on
+Card Table.
+
 ## Room link previews
 
 **What it does.** Pasting a room's link into Discord, or any app that

@@ -16,6 +16,8 @@ features:
   - name: Match music
     summary: "Rate the music each mode plays; only friends may weigh in on a pick."
     tier: friend
+  - name: Events and the calendar
+    summary: "Events on the front page and in the Discord server's Events tab, with a list of everyone signed up."
   - name: Room link previews
     summary: "A shared room link unfurls in Discord with its name, mode and seated faces."
   - name: Early builds
