@@ -15,8 +15,9 @@
  * - 2026-10-10: *"when opponent is selecting blockers, as they are assigning them we should be able to
  *   see their actions … the targeter arrows and display of the shield icon. also when things are
  *   assigned as blockers can we give them a different color? lets make sure we use a color from the
- *   theme system."* At every step BOTH screens draw the arrow, the shield and the blocker's outline in
- *   the theme's `--success`, apart from the attackers'.
+ *   theme system."* At every step BOTH screens draw the arrow and the blocker's outline in the theme's
+ *   `--success`, apart from the attackers'. The shield chip is gone (the operator, 2026-11-18: "just
+ *   remove the extra attacking and blocking chips. we'll just use the arrows for now").
  * - 2026-10-11: *"i clicked my creature and it autoassigned itself as blocker to the first opponent
  *   attacker. then i tried to drag it so it would be blocking something else, but it kept the arrow on
  *   the first one. … let's remove the click to auto block feature and just do drag blocking only. also
@@ -89,7 +90,6 @@ function boxOf(selector: string): { left: number; top: number; width: number; he
 
 interface Drawn {
   arrow: boolean;
-  shield: boolean;
   blocking: boolean;
   /** The blocker's outline is the theme's `--success`. */
   blockerColour: boolean;
@@ -120,7 +120,6 @@ async function drawn(page: Page, blockerId: number, attackerId: number): Promise
       const blocker = document.querySelector(`li.board-card[data-board-card="${blockerId}"]`);
       return {
         arrow: document.querySelector(`[data-testid="stack-target-arrow"][data-key="${key}"]`) !== null,
-        shield: blocker?.querySelector('[data-mark="blocking"]') != null,
         blocking: blocker?.getAttribute('data-blocking') === 'true',
         blockerColour: b !== null && b.colour === b.success,
         attackerDiffers: a !== null && a.colour !== 'none' && a.colour !== a.success,
@@ -130,8 +129,8 @@ async function drawn(page: Page, blockerId: number, attackerId: number): Promise
   );
 }
 
-const ASSIGNED: Drawn = { arrow: true, shield: true, blocking: true, blockerColour: true, attackerDiffers: true };
-const UNASSIGNED: Drawn = { arrow: false, shield: false, blocking: false, blockerColour: false, attackerDiffers: true };
+const ASSIGNED: Drawn = { arrow: true, blocking: true, blockerColour: true, attackerDiffers: true };
+const UNASSIGNED: Drawn = { arrow: false, blocking: false, blockerColour: false, attackerDiffers: true };
 
 /** What bob's wire carried since `from`: s2c count, and the last CombatView's planned blockers. */
 function wireSince(f: Friend, from: number): { s2c: number; combat: string | null } {
@@ -181,7 +180,7 @@ async function strokes(page: Page): Promise<Strokes> {
   });
 }
 
-test(titled('blocking: a click blocks nothing, a drag blocks, a second drag moves it, a drag home or a second click undoes it — each step drawn on both screens with arrow, shield and theme colours — and the declared block is the one Forge confirms'), async ({ browser }) => {
+test(titled('blocking: a click blocks nothing, a drag blocks, a second drag moves it, a drag home or a second click undoes it — each step drawn on both screens with arrow and theme colours — and the declared block is the one Forge confirms'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -269,7 +268,7 @@ test(titled('blocking: a click blocks nothing, a drag blocks, a second drag move
     const nearest = tips(boxA!).reduce((best, p) => (away(p, tip!) < away(best, tip!) ? p : best));
     expect(away(tip!, nearest), 'the tip lands just inside one of A’s eight edge points').toBeLessThanOrEqual(1);
     await logStep(alice.page, 'blocked once (planned map)', blockerX, attackerA);
-    await step('assigned (before OK)', ASSIGNED, "bob's screen shows alice's block while she is still assigning: the arrow, the shield and the blocker colour");
+    await step('assigned (before OK)', ASSIGNED, "bob's screen shows alice's block while she is still assigning: the arrow and the blocker colour");
     await log('dragged onto A');
 
     // The colours, while both kinds of arrow are drawn on both screens.

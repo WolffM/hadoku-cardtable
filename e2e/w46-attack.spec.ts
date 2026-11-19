@@ -352,16 +352,15 @@ test(
 );
 
 /*
- * The operator, 2026-10-15: *"let's show a 'crossed swords' pill icon on top of cards that have been
- * selected as attackers."* Forge's own `Attacking` is set by the click that declares a creature in
- * `InputAttack`, so the mark is on the attacker's screen from that click and comes off when the
- * creature is called back (a second click). The defender sees it only once the attack is locked in (the
- * operator, 2026-10-22: "avoid turning the attackers red from the opponents perspective until the
- * attackers actually locked in"), and it is gone from both once combat has ended. On the turned
- * attacker it is the `<li>`'s own, so it sits upright on the card's top-left corner while the art
- * inside turns.
+ * Forge's own `Attacking` is set by the click that declares a creature in `InputAttack`, so a creature
+ * is drawn attacking (turned, in the danger outline, with its arrow) on the attacker's screen from that
+ * click and stops when it is called back (a second click). The defender sees it only once the attack is
+ * locked in (the operator, 2026-10-22: "avoid turning the attackers red from the opponents perspective
+ * until the attackers actually locked in"), and it is gone from both once combat has ended. It wears no
+ * corner chip for it (the operator, 2026-11-18: "just remove the extra attacking and blocking chips.
+ * we'll just use the arrows for now"): the crossed-swords mark this test once followed is gone.
  */
-test(titled('a selected attacker wears the crossed-swords mark, upright on its turned card: on the attacker’s screen from the click, on the defender’s once locked in, off when called back and after combat'), async ({ browser }) => {
+test(titled('a selected attacker is drawn attacking, turned and with no chip: on the attacker’s screen from the click, on the defender’s once locked in, off when called back and after combat'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -377,27 +376,16 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
       await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').first().getAttribute('data-board-card'),
     );
     expect(Number.isInteger(memnite), 'Memnite is on alice’s own battlefield').toBe(true);
-    const swords = (page: Page): Locator => page.locator(`li.board-card[data-board-card="${memnite}"] > .board-card__marks > [data-mark="attacking"]`);
+    const drawnAttacking = (page: Page): Locator => page.locator(`li.board-card[data-board-card="${memnite}"][data-attacking="true"]`);
 
-    /** The mark and its card, read in one pass on `page`: whether it is drawn, upright, and on the card's own top-left. */
+    /** The card, read in one pass on `page`: whether it is drawn attacking, turned, and which corner marks it wears. */
     const read = (page: Page) =>
       page.locator(`li.board-card[data-board-card="${memnite}"]`).evaluate((li) => {
-        const mark = li.querySelector<HTMLElement>(':scope > .board-card__marks > [data-mark="attacking"]');
         const art = li.querySelector(':scope > .board-card__face > .card');
-        const card = li.getBoundingClientRect();
-        const m = mark?.getBoundingClientRect() ?? null;
-        // The card as drawn: the turned art's own box, which also rises 3px while the pointer is on it.
-        const drawn = art?.getBoundingClientRect() ?? null;
         return {
           attacking: li.getAttribute('data-attacking'),
-          mark: mark !== null,
-          tip: mark?.dataset.tip ?? null,
+          marks: [...li.querySelectorAll<HTMLElement>(':scope > .board-card__marks > [data-mark]')].map((m) => m.dataset.mark ?? ''),
           artTransform: art === null ? null : getComputedStyle(art).transform,
-          marksTransform: mark === null ? null : getComputedStyle(mark.parentElement!).transform,
-          markTransform: mark === null ? null : getComputedStyle(mark).transform,
-          card: { left: Math.round(card.left), top: Math.round(card.top), width: Math.round(card.width), height: Math.round(card.height) },
-          drawn: drawn === null ? null : { left: Math.round(drawn.left), top: Math.round(drawn.top), width: Math.round(drawn.width), height: Math.round(drawn.height) },
-          markBox: m === null ? null : { left: Math.round(m.left), top: Math.round(m.top), width: Math.round(m.width), height: Math.round(m.height) },
         };
       });
     const log = async (step: string): Promise<void> => {
@@ -407,56 +395,45 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
     await passToDeclareAttackers(alice.page);
     const attacker = alice.page.locator(`[data-board-card="${memnite}"]`);
     await expect(attacker, 'Memnite is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
-    for (const page of pages) await expect(swords(page), 'no mark before it is selected').toHaveCount(0);
+    for (const page of pages) await expect(drawnAttacking(page), 'not attacking before it is selected').toHaveCount(0);
 
     /**
-     * The mark as drawn in one read `r`: Forge's declared attacker, upright on the turned card's own top-left
-     * corner. The read that saw the mark is the one checked: with no stop on either seat the whole combat can
-     * run out in a few hundred ms (run 39796470673: lock-in to Main 2 in 300 ms), so a second read can find
-     * combat already over.
+     * The attacker as drawn in one read `r`: Forge's declared attacker, turned, wearing no chip for it. The
+     * read that saw it is the one checked: with no stop on either seat the whole combat can run out in a few
+     * hundred ms (run 39796470673: lock-in to Main 2 in 300 ms), so a second read can find combat already over.
      */
-    const expectUpright = (r: Awaited<ReturnType<typeof read>>): void => {
+    const expectTurned = (r: Awaited<ReturnType<typeof read>>): void => {
       expect(r.attacking, 'it is Forge’s declared attacker').toBe('true');
-      expect(r.tip).toBe('Attacking');
       expect(r.artTransform, 'the card is turned a quarter').not.toBe('none');
-      expect(r.marksTransform, 'the mark is not turned with it').toBe('none');
-      expect(r.markTransform, 'nor turned on its own').toBe('none');
-      expect(r.markBox, 'the mark is drawn').not.toBeNull();
-      // Against the card as drawn, not its slot: the click leaves the pointer on the card, whose art and
-      // everything it wears rise 3px together (card.css), so the slot's top is 3px below what is seen.
-      expect(r.drawn, 'the art is drawn').not.toBeNull();
-      expect(r.markBox!.left - r.drawn!.left, 'on the turned card’s own left edge').toBeLessThanOrEqual(4);
-      expect(r.markBox!.top - r.drawn!.top, 'on the turned card’s own top edge').toBeLessThanOrEqual(4);
-      expect(r.markBox!.top - r.drawn!.top, 'not hanging above it').toBeGreaterThanOrEqual(0);
+      expect(r.marks, 'and wears no attacking chip').not.toContain('attacking');
     };
     /**
-     * The defender's screen draws no mark while the attacker is still choosing. Forge sends each pick to
+     * The defender's screen draws no attacker while the attacker is still choosing. Forge sends each pick to
      * the defender as it lands (`PlayBridge`'s `CombatSync`; measured within a few ms of the attacker's
-     * own), so a mark that was going to show has shown well inside this settle.
+     * own), so an attacker that was going to show has shown well inside this settle.
      */
     const unmarkedOnDefender = async (why: string): Promise<void> => {
       await bob.page.waitForTimeout(1_500);
-      await expect(swords(bob.page), why).toHaveCount(0);
       expect((await read(bob.page)).attacking, why).toBeNull();
     };
 
-    // Selected: Forge's own `Attacking`, and the mark, on the attacker's screen only.
+    // Selected: Forge's own `Attacking`, on the attacker's screen only.
     expect(await clickCombat(attacker), 'Memnite pressed').toBe(true);
-    await expect(swords(alice.page), 'the click that selects it marks it on the attacker’s screen').toHaveCount(1, { timeout: 10_000 });
+    await expect(drawnAttacking(alice.page), 'the click that selects it draws it attacking on the attacker’s screen').toHaveCount(1, { timeout: 10_000 });
     await unmarkedOnDefender('the defender sees no attacker while the attack is still being chosen');
     await log('selected');
-    expectUpright(await read(alice.page));
+    expectTurned(await read(alice.page));
 
-    // Called back: clicked again, it is undeclared, and the mark goes with it.
+    // Called back: clicked again, it is undeclared.
     await clickCombat(attacker);
-    await expect(swords(alice.page), 'calling it back takes the mark off').toHaveCount(0, { timeout: 10_000 });
+    await expect(drawnAttacking(alice.page), 'calling it back undraws it').toHaveCount(0, { timeout: 10_000 });
     await unmarkedOnDefender('nor once it is called back');
     await log('called-back');
 
-    // Selected again and locked in: the mark is on both screens, stays through combat and is gone by Main 2.
+    // Selected again and locked in: attacking on both screens, through combat, and not by Main 2.
     await expect(attacker, 'it is offered again').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
     expect(await clickCombat(attacker), 'Memnite pressed again').toBe(true);
-    await expect(swords(alice.page), 'selected again, marked again').toHaveCount(1, { timeout: 10_000 });
+    await expect(drawnAttacking(alice.page), 'selected again, attacking again').toHaveCount(1, { timeout: 10_000 });
     await unmarkedOnDefender('still the attacker’s own choice');
     // With no stop on either seat, lock-in to Main 2 took 100 ms on a busy claw (run 40033767105), shorter
     // than a poll's gap. Full control for bob from here makes his priority over the declared attack a real
@@ -472,12 +449,12 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
       .toBe('COMBAT_DECLARE_ATTACKERS:true');
     let lockedIn: Awaited<ReturnType<typeof read>> | null = null;
     await expect
-      .poll(async () => (lockedIn = await read(bob.page)).mark, { message: 'locked in: the defender sees the attacker', timeout: 10_000 })
-      .toBe(true);
+      .poll(async () => (lockedIn = await read(bob.page)).attacking, { message: 'locked in: the defender sees the attacker', timeout: 10_000 })
+      .toBe('true');
     console.log(`[at] locked-in bob ${JSON.stringify(lockedIn)}`);
-    expectUpright(lockedIn!);
+    expectTurned(lockedIn!);
     await passUntilPhase(pages, /^MAIN2$/, 30_000);
-    for (const page of pages) await expect(swords(page), 'combat has ended: the mark is gone').toHaveCount(0, { timeout: 10_000 });
+    for (const page of pages) await expect(drawnAttacking(page), 'combat has ended: it is no longer attacking').toHaveCount(0, { timeout: 10_000 });
     await log('main2');
   } finally {
     await seated?.alice.context.close();

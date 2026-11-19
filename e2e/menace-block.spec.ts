@@ -18,10 +18,12 @@
  * - The second wall joins: enabled; Done; at Combat Damage both walls block the Brute.
  * - Or the one wall leaves: enabled; Done; nothing blocks, and the Brute's 3 reach alice.
  *
- * AF637 (the operator, 2026-11-16): the lone wall ALSO carries its own corner mark
- * (`Board.tsx`'s `StateMarks`, `data-mark="underBlocked"`) — on alice's screen AND bob's, since it
- * rides the shared combat view, not an `InputBlock` only alice runs — gone once the second wall
- * joins or the first one leaves.
+ * The lone wall's block arrow is BRITTLE (the operator's pick, 2026-11-18, replacing AF637's
+ * broken-shield corner mark): faded, cracked into uneven chunks that stand still, its head hollow,
+ * shaking now and then (`gestures/arrow.ts`'s `crack`) — on alice's screen AND bob's, since it rides
+ * the shared combat view (`live/match.ts`'s `insufficientBlockers`), not an `InputBlock` only alice
+ * runs. A second wall knits it into the solid ribbon, both arrows solid; if the wall leaves instead,
+ * its arrow simply goes.
  *
  * Every step prints one `[menace-block]` line.
  */
@@ -52,12 +54,46 @@ async function blocks(page: Page): Promise<string[]> {
 const ownLife = async (page: Page): Promise<string | null> => (await lifeOf(page, 'me').textContent())?.trim() ?? null;
 
 /**
- * AF637: whether `cardId`'s own corner marks carry the "needs another blocker" mark, on `page` —
- * read the same way on alice's screen and bob's, since it rides the shared combat view
- * (`live/match.ts`'s `insufficientBlockers`), never an `InputBlock` only one of them runs.
+ * How `page` draws the block arrow from `blocker` to `attacker`: `brittle` (cracked stems that stand
+ * still, the shaft hidden, the shake running, and not a ghost), `solid` (the ribbon, no stems), or
+ * `none`. Read the same way on alice's screen and bob's.
  */
-const underBlocked = (page: Page, cardId: number): Promise<boolean> =>
-  page.locator(`[data-board-card="${cardId}"] > .board-card__marks > [data-mark="underBlocked"]`).count().then((n) => n > 0);
+const blockArrow = (page: Page, blocker: number, attacker: number): Promise<'brittle' | 'solid' | 'none' | string> =>
+  page.evaluate((key) => {
+    const svg = document.querySelector<SVGSVGElement>(`[data-testid="stack-target-arrow"][data-key="${key}"]`);
+    if (svg === null) return 'none';
+    const stems = [...svg.querySelectorAll<SVGPathElement>('.arrow__stem')];
+    const shaft = svg.querySelector('.arrow__shaft');
+    const shaftShown = shaft !== null && getComputedStyle(shaft).display !== 'none';
+    if (!svg.hasAttribute('data-brittle')) return stems.length === 0 && shaftShown ? 'solid' : `closing:${stems.length}`;
+    const still = stems.every((p) => getComputedStyle(p).animationName === 'none');
+    const shakes = getComputedStyle(svg).animationName === 'arrow-jitter';
+    const ok = stems.length === 2 && still && !shaftShown && !svg.hasAttribute('data-ghost') && (shakes || svg.hasAttribute('data-closing'));
+    return ok ? 'brittle' : `odd:${JSON.stringify({ stems: stems.length, still, shaftShown, shakes })}`;
+  }, `block:${blocker}:${attacker}`);
+
+/**
+ * Whether the brittle arrow shakes within one jitter period: its svg's own transform, sampled through
+ * 3.5 s, leaves identity at least once and is back at rest at the end of the window it was read in.
+ */
+const shakes = (page: Page, blocker: number, attacker: number): Promise<{ moved: number; samples: number }> =>
+  page.evaluate(async (key) => {
+    const svg = document.querySelector<SVGSVGElement>(`[data-testid="stack-target-arrow"][data-key="${key}"]`);
+    let moved = 0;
+    let samples = 0;
+    const until = performance.now() + 3_500;
+    while (performance.now() < until) {
+      const t = svg === null ? 'none' : getComputedStyle(svg).transform;
+      if (t !== 'none' && t !== 'matrix(1, 0, 0, 1, 0, 0)') moved += 1;
+      samples += 1;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return { moved, samples };
+  }, `block:${blocker}:${attacker}`);
+
+/** No combat chip on the card any more (the operator, 2026-11-18): the arrows say it. */
+const chips = (page: Page, cardId: number): Promise<number> =>
+  page.locator(`[data-board-card="${cardId}"] > .board-card__marks > [data-mark]:not([data-mark="sick"], [data-mark="cantBlock"])`).count();
 
 /** The match up to alice's open block window: the Brute's id and her two walls. */
 async function openBlockWindow(alice: Page, bob: Page): Promise<{ brute: number; x: number; y: number }> {
@@ -74,7 +110,7 @@ async function openBlockWindow(alice: Page, bob: Page): Promise<{ brute: number;
   return { brute, x, y };
 }
 
-/** One wall on the Brute: Done Blocking off, saying why on hover; AF637's mark on the wall, both screens. */
+/** One wall on the Brute: Done Blocking off, saying why on hover; its block arrow brittle, both screens. */
 async function oneBlockerRefused(alice: Page, bob: Page, brute: number, x: number): Promise<void> {
   await assignBlock(alice, x, brute);
   await expect.poll(() => blocks(alice), { timeout: 10_000, message: 'the wall blocks the Brute' }).toEqual([`${x}>${brute}`]);
@@ -88,10 +124,16 @@ async function oneBlockerRefused(alice: Page, bob: Page, brute: number, x: numbe
   log('one blocker tip', tip);
   expect(tip, 'the hover says why, in Forge’s words, by name').toMatch(/^Boggart Brute cannot be blocked with 1 creatures/);
 
-  // AF637: the lone wall itself carries the insufficient-block mark, on alice's screen AND bob's.
-  await expect.poll(() => underBlocked(alice, x), { timeout: 10_000, message: "the lone wall shows AF637's mark on alice's screen" }).toBe(true);
-  await expect.poll(() => underBlocked(bob, x), { timeout: 10_000, message: "and on bob's screen too" }).toBe(true);
-  log('one blocker mark', { alice: await underBlocked(alice, x), bob: await underBlocked(bob, x) });
+  // The lone wall's arrow is brittle, on alice's screen AND bob's, and no chip says it instead.
+  await expect.poll(() => blockArrow(alice, x, brute), { timeout: 10_000, message: "the lone wall's arrow is brittle on alice's screen" }).toBe('brittle');
+  await expect.poll(() => blockArrow(bob, x, brute), { timeout: 10_000, message: "and on bob's screen too" }).toBe('brittle');
+  expect(await chips(alice, x), 'no chip on the wall').toBe(0);
+  expect(await chips(bob, x), 'nor on bob’s').toBe(0);
+  const shake = await shakes(alice, x, brute);
+  log('one blocker shake', shake);
+  expect(shake.moved, 'it shakes within one 3 s period').toBeGreaterThan(0);
+  expect(shake.moved, 'briefly, then still').toBeLessThan(shake.samples / 2);
+  log('one blocker arrow', { alice: await blockArrow(alice, x, brute), bob: await blockArrow(bob, x, brute) });
 }
 
 /**
@@ -135,10 +177,12 @@ test(titled('a menace attacker with one blocker: Done Blocking is off and says w
     log('two blockers', { disabled: await decisionOk(alice).isDisabled(), tip });
     expect(tip, 'nothing to explain').toBeNull();
 
-    // AF637: a second blocker resolves it — the mark is gone, on both screens, from the ORIGINAL wall too.
-    await expect.poll(() => underBlocked(alice, x), { timeout: 10_000, message: "the mark clears on alice's screen once a second blocker joins" }).toBe(false);
-    await expect.poll(() => underBlocked(bob, x), { timeout: 10_000, message: 'and on bob\'s' }).toBe(false);
-    expect(await underBlocked(alice, y), 'the second wall never carried the mark either').toBe(false);
+    // A second blocker knits the first wall's arrow into the ribbon: both arrows solid, on both screens.
+    for (const [who, page] of [['alice', alice], ['bob', bob]] as const) {
+      await expect.poll(() => blockArrow(page, x, brute), { timeout: 10_000, message: `${who}: the first wall's arrow knits solid` }).toBe('solid');
+      await expect.poll(() => blockArrow(page, y, brute), { timeout: 10_000, message: `${who}: the second wall's arrow is solid` }).toBe('solid');
+    }
+    log('two blockers arrows', { alice: [await blockArrow(alice, x, brute), await blockArrow(alice, y, brute)], bob: [await blockArrow(bob, x, brute), await blockArrow(bob, y, brute)] });
 
     await declare(alice, bob);
     log('declared', { alice: await blocks(alice), bob: await blocks(seated.bob.page) });
@@ -169,9 +213,9 @@ test(titled('a menace attacker with one blocker: removing the blocker turns Done
     await expect(decisionOk(alice), 'no blocker: Done Blocking is on').toBeEnabled({ timeout: 5_000 });
     log('blocker removed', { disabled: await decisionOk(alice).isDisabled(), tip: await decisionOkTip(alice) });
 
-    // AF637: the wall left combat, so the mark leaves with it — both screens.
-    await expect.poll(() => underBlocked(alice, x), { timeout: 10_000, message: "the mark clears on alice's screen once the blocker leaves" }).toBe(false);
-    await expect.poll(() => underBlocked(bob, x), { timeout: 10_000, message: "and on bob's" }).toBe(false);
+    // The wall left combat, so its arrow simply goes — both screens.
+    await expect.poll(() => blockArrow(alice, x, brute), { timeout: 10_000, message: "the arrow goes on alice's screen once the blocker leaves" }).toBe('none');
+    await expect.poll(() => blockArrow(bob, x, brute), { timeout: 10_000, message: "and on bob's" }).toBe('none');
 
     await declare(alice, bob);
     expect(await blocks(alice), 'nothing blocks').toEqual([]);
