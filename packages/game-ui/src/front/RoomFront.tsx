@@ -152,7 +152,10 @@ export interface RoomFrontProps<V extends RoomFrontRoom> {
   onOpenRoom: (id: string) => void;
   /** Extra content in the list's own head row, beside the title and before Create room (a game's own filter bar, say). */
   headExtras?: ReactNode;
-  /** Extra content beside Create room, in the same actions group (a game's own "Create event", say). */
+  /**
+   * Extra content beside Create room, in the same actions group (a game's own "Create event", say).
+   * A button or link given `className="room-front__go"` draws exactly as Create room does.
+   */
   actionsExtras?: ReactNode;
   feed?: RoomFrontFeed;
   /**
