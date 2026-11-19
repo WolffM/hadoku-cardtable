@@ -20,6 +20,7 @@ import {
   optionForKeys,
   pressRing,
   promptRing,
+  ringFor,
   ringLayout,
   tallyDone,
   tallyRing,
@@ -126,6 +127,29 @@ describe('a source’s abilities draw every result at once', () => {
     ]));
     expect(shown(ring)).toEqual(['C']);
     expect(ring?.chips).toEqual([{ key: 'a2', label: expect.stringContaining('Assembly-Worker'), answer: { to: 'ability', ability: expect.objectContaining({ id: 2 }), then: null } }]);
+  });
+
+  /*
+   * The operator, 2026-11-19: *"the mana circle doesn't work for land cards with multiple special
+   * abilities, there's no way to distinguish which special ability is which."* The offer is the one
+   * real Forge sent for that land (match m-4040eb536bf4, ask s0-32).
+   */
+  it('a source with several other abilities is not a ring: its chips would draw alike, so the list of abilities asks', () => {
+    const several = offer([
+      { id: 10082, label: '{T}: Add {C}.', mana: { makes: 'C', amount: 1 } },
+      { id: 10084, label: '{2}, {T}, Sacrifice a token: Draw a card.' },
+      { id: 10085, label: '{3}, {T}, Pay 1 life: Create a 1/1 blue Fish creature token.' },
+      { id: 10086, label: '{4}, {T}: Create a Treasure token.' },
+    ]);
+    expect(abilityRing(several), 'Forge\'s question is the generic picker\'s').toBeNull();
+    expect(ringFor(several)).toBeNull();
+    expect(pressRing(several.abilities), 'and a press opens no ring ahead of it').toBeNull();
+    // Inside a payment Forge offers the mana abilities alone: the ring is unchanged there.
+    const paying = offer([
+      { id: 1, label: '{T}: Add {C}.', mana: { makes: 'C', amount: 1 } },
+      { id: 2, label: '{T}: Add {G}. Spend this mana only to cast a creature spell.', mana: { makes: 'G', amount: 1, spendOnly: 'creature' } },
+    ]);
+    expect(shown(abilityRing(paying))).toHaveLength(2);
   });
 
   it('costs and rules ride as marks: life, a counter, a sacrifice, a tapped creature, a spending rule', () => {

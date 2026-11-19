@@ -70,7 +70,7 @@ export interface RingOption {
   readonly dim?: boolean;
 }
 
-/** A non-mana ability of the source: an outer chip, named by its label on hover. */
+/** The source's one non-mana ability: an outer chip, named by its label on hover. */
 export interface RingChip {
   readonly key: string;
   readonly label: string;
@@ -145,9 +145,15 @@ function optionsOfFacts(ability: OfferedAbility, f: ManaFacts): RingOption[] {
   return [{ key: base, syms: made, times: made.length === 1 ? f.amount : 1, marks, answer: pick(null) }];
 }
 
-/** The ring for a source's abilities, or null when none of them makes mana (the generic picker asks). */
+/**
+ * The ring for a source's abilities, or null when the generic picker asks instead
+ * (`../prompts/ChoicePrompts.tsx`, each ability in its own rules text): none of them makes mana, or
+ * more than one makes none. A chip is one glyph, so two chips are two abilities nothing tells apart
+ * (the operator, 2026-11-19: "there's no way to distinguish which special ability is which").
+ */
 export function abilityRing(ask: Pick<AskOf<'getAbilityToPlay'>, 'abilities'>): Ring | null {
-  if (!ask.abilities.some((a) => a.mana !== undefined)) return null;
+  const others = ask.abilities.filter((a) => a.mana === undefined).length;
+  if (others === ask.abilities.length || others > 1) return null;
   const options: RingOption[] = [];
   const chips: RingChip[] = [];
   for (const ability of ask.abilities) {
