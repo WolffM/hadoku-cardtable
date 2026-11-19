@@ -33,11 +33,26 @@ async function held(page: Page, name: string): Promise<number> {
   return id!;
 }
 
-const tagsOf = (id: number): string => `[data-zone="hand"][data-owner="you"] [data-board-card="${id}"] > .board-card__tags`;
+const cardOf = (id: number): string => `[data-zone="hand"][data-owner="you"] [data-board-card="${id}"]`;
+const tagsOf = (id: number): string => `${cardOf(id)} > .board-card__tags`;
+const costOf = (id: number): string => `${cardOf(id)} > .board-card__cost`;
 
-/** The cost tag on a held card: its tokens (`data-cost`) and its pips as drawn, or null when it wears none. */
+/** Where a held card's changed cost is drawn within its card: each edge as a fraction of the card's box. */
+async function costPlace(page: Page, id: number): Promise<{ top: number; bottom: number; left: number; right: number }> {
+  const card = await page.locator(cardOf(id)).boundingBox();
+  const cost = await page.locator(costOf(id)).boundingBox();
+  if (card === null || cost === null) throw new Error(`card ${id} or its cost is not drawn`);
+  return {
+    top: (cost.y - card.y) / card.height,
+    bottom: (cost.y + cost.height - card.y) / card.height,
+    left: (cost.x - card.x) / card.width,
+    right: (cost.x + cost.width - card.x) / card.width,
+  };
+}
+
+/** The changed cost on a held card: its tokens (`data-cost`) and its pips as drawn, or null when it wears none. */
 async function costTag(page: Page, id: number): Promise<{ cost: string; pips: string[] } | null> {
-  const tag = page.locator(`${tagsOf(id)} > [data-cost]`);
+  const tag = page.locator(costOf(id));
   if ((await tag.count()) === 0) return null;
   return {
     cost: (await tag.getAttribute('data-cost')) ?? '',
@@ -99,8 +114,17 @@ test(titled("Jace's Sanctum: a held instant and sorcery show their reduced cost,
     await expectCost(page, twice, 'Think Twice', 'U');
     await expectCost(page, divination, 'Divination', '1 U');
     await expectCost(page, bears, 'Grizzly Bears', null);
-    await tipOn(page, `${tagsOf(twice)} > [data-cost]`, /Jace's Sanctum/, 'Think Twice tag');
-    await tipOn(page, `${tagsOf(divination)} > [data-cost]`, /Jace's Sanctum/, 'Divination tag');
+    // Over the cost printed in the title bar (the operator, 2026-11-19), not in the rail above the P/T.
+    for (const id of [twice, divination]) {
+      const place = await costPlace(page, id);
+      log('cost place', { id, place });
+      expect(place.top, 'inside the card, at its top').toBeGreaterThanOrEqual(0);
+      expect(place.bottom, 'within the title bar band').toBeLessThan(0.25);
+      expect(place.left, 'in the right half, where the cost is printed').toBeGreaterThan(0.5);
+      expect(place.right, 'and inside the card').toBeLessThanOrEqual(1);
+    }
+    await tipOn(page, costOf(twice), /Jace's Sanctum/, 'Think Twice tag');
+    await tipOn(page, costOf(divination), /Jace's Sanctum/, 'Divination tag');
 
     // Hidden information: the other screen draws no cost of Alice's.
     const theirs = await bob.page.locator('[data-zone="hand"][data-owner="them"] [data-cost]').count();
@@ -128,7 +152,7 @@ test(titled('Thalia raises a held noncreature spell, and a granted flash is tagg
 
     await expectCost(page, shock, 'Shock', '1 R');
     await expectCost(page, bears, 'Grizzly Bears', null);
-    await tipOn(page, `${tagsOf(shock)} > [data-cost]`, /Thalia, Guardian of Thraben/, 'Shock tag');
+    await tipOn(page, costOf(shock), /Thalia, Guardian of Thraben/, 'Shock tag');
 
     const flash = (id: number) => page.locator(`${tagsOf(id)} > [data-keyword="flash"]`);
     await expect(flash(bears), 'the Bears wears a Flash tag').toHaveCount(1, { timeout: 30_000 });

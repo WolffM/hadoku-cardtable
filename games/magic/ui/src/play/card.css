@@ -686,11 +686,10 @@
 }
 
 /*
- * A tag drawn as mana symbols — a held card's changed cost, a chosen colour —
- * a size up so the glyphs read. A changed cost borders in the P/T badge's own
- * colours: cheaper in the primary, dearer in danger.
+ * Drawn as mana symbols — a chosen colour's tag, a held card's changed cost —
+ * a size up so the glyphs read.
  */
-.board-card__tag[data-cost],
+.board-card__cost,
 .board-card__tag[data-choice='color'] {
   display: inline-flex;
   align-items: center;
@@ -786,12 +785,43 @@
   background: currentColor;
 }
 
-.board-card__tag[data-cost-change='less'] {
+/*
+ * What a held card costs now (`Board.tsx`'s `CostNow`), over the cost printed in the card's title
+ * bar: the top-right corner, its right edge where the printed pips end, and at least as wide as
+ * they are (a pip is about 7% of a card's width) so the cost it replaces does not show beside it.
+ * The tag family's capsule, bordered in the P/T badge's own colours: cheaper in the primary,
+ * dearer in danger. Out of flow and deaf to the pointer, like every badge on the card.
+ */
+.board-card__cost {
+  position: absolute;
+  z-index: var(--z-card-badge, 1);
+  top: 3.5%;
+  right: calc(5% + var(--pile-fan));
+  box-sizing: border-box;
+  justify-content: flex-end;
+  min-width: calc(var(--printed-pips, 0) * 7% + 4px);
+  max-width: calc(90% - var(--pile-fan));
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-weight: 700;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.board-card__cost[data-cost-change='less'] {
   border-color: var(--accent-ink);
 }
 
-.board-card__tag[data-cost-change='more'] {
+.board-card__cost[data-cost-change='more'] {
   border-color: var(--danger-ink);
+}
+
+/* A picked card's check takes the same corner: it steps below the cost. */
+.board-card:has(> .board-card__cost) > .board-card__picked {
+  top: calc(3.5% + 18px);
 }
 
 /*

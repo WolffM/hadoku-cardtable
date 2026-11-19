@@ -6152,15 +6152,36 @@ describe('held changes — a changed cost and a granted flash are tags on the ha
     return renderBoard(view, { ...interaction, held });
   }
 
+  const costOf = (container: HTMLElement, id: number) =>
+    container.querySelector<HTMLElement>(`[data-zone="hand"][data-owner="you"] [data-board-card="${id}"] > .board-card__cost`);
+
   it('draws the cost now as pips, says the source on hover, and colours a reduction', () => {
     const tip = "Costs {U} instead of {1}{U}: Jace's Sanctum";
     const { container } = withHeld(new Map([[changed!.id, { cost: { tokens: ['U'], change: 'less', tip } }]]));
-    const cost = tags(container, changed!.id)!.querySelector<HTMLElement>(':scope > [data-cost]')!;
+    const cost = costOf(container, changed!.id)!;
     expect(cost.dataset.cost).toBe('U');
     expect(cost.dataset.costChange).toBe('less');
     expect(cost.dataset.tip).toBe(tip);
     expect([...cost.querySelectorAll('.pip[data-token]')].map((p) => p.getAttribute('data-token'))).toEqual(['U']);
-    expect(tags(container, plain!.id), 'a card nothing changes wears no tag').toBeNull();
+    expect(costOf(container, plain!.id), 'a card nothing changes wears none').toBeNull();
+    expect(tags(container, plain!.id), 'nor a tag').toBeNull();
+  });
+
+  /*
+   * The operator, 2026-11-19: *"Huskburster Swarm's alternate cost is showing above the power/toughness
+   * but it should be on top of the manacost at the top of the card."*
+   */
+  it('draws the cost now over the printed cost at the top of the card, not in the rail above the P/T', () => {
+    const css = styled();
+    const { container } = withHeld(new Map([[changed!.id, { cost: { tokens: ['U'], change: 'less', tip: 'x' } }]]));
+    expect(tags(container, changed!.id), 'a changed cost alone draws no tag rail').toBeNull();
+    const cost = costOf(container, changed!.id)!;
+    expect(css(cost, 'position')).toBe('absolute');
+    expect(css(cost, 'top'), 'held to the top edge, where the cost is printed').not.toBe('auto');
+    expect(css(cost, 'bottom'), 'and not to the bottom, where the P/T is').toBe('auto');
+    expect(css(cost, 'left'), 'at the right, where the cost is printed').toBe('auto');
+    expect(css(cost, 'pointer-events'), 'it never eats a click on the card').toBe('none');
+    expect(Number(cost.style.getPropertyValue('--printed-pips')), 'as wide as the printed cost it covers').toBe(changed!.card.manaCost.length);
   });
 
   it('draws a granted flash as a tag with its source', () => {
@@ -6168,7 +6189,7 @@ describe('held changes — a changed cost and a granted flash are tags on the ha
     const flash = tags(container, changed!.id)!.querySelector<HTMLElement>(':scope > [data-keyword="flash"]')!;
     expect(flash.querySelector('i.ms.ms-ability-flash'), 'its glyph').not.toBeNull();
     expect(flash.dataset.tip).toMatch(/Vedalken Orrery/);
-    expect(tags(container, changed!.id)!.querySelector('[data-cost]')).toBeNull();
+    expect(costOf(container, changed!.id)).toBeNull();
   });
 
   it('is a hand fact: an id on the battlefield draws none of it', () => {
