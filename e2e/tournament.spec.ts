@@ -40,7 +40,7 @@ import { makeTitled } from './play/board.ts';
 import { type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openMyTable } from './play/rooms.ts';
-import { enterFromTablePage, sideboardFromTablePage } from './play/board.ts';
+import { enterFromTablePage, enterMyGame, litCard, ROOM_PAGE, sideboardFromTablePage, toMyTable } from './play/board.ts';
 import { concedeToResult, enableTournament, openRoomWithLeader, pickDeck, ready, sit, sitPickReady } from './play/tournament.ts';
 
 const forge = forgeAvailability();
@@ -79,9 +79,13 @@ test(
       // itself, with nothing for anyone to press (ruling 7).
       await sitPickReady(bob, 1);
 
-      /* ── round 1 pairs the only two entrants: both reach their table, and enter its game by their own press ──── */
-      for (const p of [alice, bob]) await enterFromTablePage(p.page, matchUrl, UI_TIMEOUT);
-      for (const p of [alice, bob]) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: carried to the tournament table`).toBeVisible({ timeout: UI_TIMEOUT });
+      /* ── round 1 pairs the only two entrants: both stay on the room's page, their table lit, and reach its game by their own presses ──── */
+      for (const p of [alice, bob]) {
+        await expect(litCard(p.page), `${p.name}: their own table is lit`).toHaveCount(1, { timeout: UI_TIMEOUT });
+        await expect(p.page, `${p.name}: paired, and not moved`).toHaveURL(ROOM_PAGE);
+      }
+      for (const p of [alice, bob]) await enterMyGame(p.page, matchUrl, UI_TIMEOUT);
+      for (const p of [alice, bob]) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: at the tournament table`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── settle the round by concede, twice, the same winner — 2-0, no game 3 ── */
       const winner = alice;
@@ -178,8 +182,9 @@ test(
       for (const p of [alice, bob]) {
         await expect(p.page.getByTestId('pod-seats'), `${p.name}: the seat strip is gone once seats lock`).toHaveCount(0, { timeout: UI_TIMEOUT });
         await expect(p.page.getByTestId('pod-seat-ai'), `${p.name}: no AI action exists after lock`).toHaveCount(0);
-        // The two paired are carried to their table page; the bye stays on the hub.
-        await expect(p.page.getByTestId('pod-tables').or(p.page.getByTestId('table-page')), `${p.name}: the round is up`).toBeVisible({ timeout: UI_TIMEOUT });
+        // Paired or with the bye, everyone is on the hub.
+        await expect(p.page.getByTestId('pod-tables'), `${p.name}: the round is up`).toBeVisible({ timeout: UI_TIMEOUT });
+        await expect(p.page, `${p.name}: on the room’s page`).toHaveURL(ROOM_PAGE);
       }
     } finally {
       await stack.stop();
@@ -245,14 +250,15 @@ test(
        * nothing for a browser to press.
        */
       const playRound = async (round: number): Promise<void> => {
-        // Paired: carried to the round's own table page, where its deck is picked.
+        // Paired: her own table is lit on the room's page; her press opens its page, where the round's deck is picked.
+        expect(await toMyTable(alice!.page, UI_TIMEOUT), `round ${round}: no game before the deck is picked, so the card opens the table’s page`).toBe('table');
         await alice!.page.waitForURL(tablePage, { timeout: UI_TIMEOUT });
         await expect(alice!.page.getByTestId('table-round'), `round ${round} is current`).toHaveText(`Round ${round} of 2`, { timeout: UI_TIMEOUT });
         await expect(alice!.page.getByTestId('deck-mine'), `round ${round}: the round’s OWN deck chooser — never tables[0]’s`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('deck-mine').getByTestId('deck-option').first().click();
         // The pick starts the game; she enters it by her own press.
         await enterFromTablePage(alice!.page, matchUrl, UI_TIMEOUT);
-        await expect(alice!.page.locator('[aria-label="Game board"]'), `round ${round}: carried to the round’s own table`).toBeVisible({ timeout: UI_TIMEOUT });
+        await expect(alice!.page.locator('[aria-label="Game board"]'), `round ${round}: at the round’s own table`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('live-concede').click();
         await alice!.page.getByTestId('live-concede-yes').click();
         await expect(alice!.page.getByTestId('game-result')).toBeVisible({ timeout: UI_TIMEOUT });

@@ -24,6 +24,7 @@ import { deflateSync } from 'node:zlib';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { toMyTable } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -125,9 +126,10 @@ test(titled('a tournament draws every entrant’s character, its face-off spans 
     console.log(`[w79d-tournament] lobby seats: ${JSON.stringify(seats)}`);
     if (notImages(seats).length > 0) failures.push(`lobby seats: ${JSON.stringify(notImages(seats))}`);
 
-    // My Ready locks the field: carried to my table, where the opponent is revealed.
+    // My Ready locks the field: my table is lit on the room's page, and my press opens it, where the opponent is revealed.
     await page.getByTestId('ready-toggle').click();
-    await expect(page.getByTestId('table-seats'), 'paired: carried to my table').toBeVisible({ timeout: UI_TIMEOUT });
+    expect(await toMyTable(page, UI_TIMEOUT), 'no game yet: my card opens the table’s page').toBe('table');
+    await expect(page.getByTestId('table-seats'), 'my table: the face-off').toBeVisible({ timeout: UI_TIMEOUT });
     const box = await page.evaluate(() => {
       const width = (sel: string): number => document.querySelector(sel)?.getBoundingClientRect().width ?? -1;
       return { arena: width('.face-off__arena'), page: width('[data-testid="table-page"]'), revealing: document.querySelector('[data-testid="table-seats"][data-revealing]') !== null };

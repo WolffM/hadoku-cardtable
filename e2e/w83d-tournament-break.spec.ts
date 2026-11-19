@@ -14,7 +14,7 @@
  */
 import { expect, test, type Browser } from '@playwright/test';
 
-import { enterFromTablePage, makeTitled, pressDoor, roomIdOfUrl, sideboardFromTablePage } from './play/board.ts';
+import { enterFromTablePage, enterMyGame, litCard, makeTitled, pressDoor, ROOM_PAGE, roomIdOfUrl, sideboardFromTablePage } from './play/board.ts';
 import { type Friend } from './play/browser.ts';
 import { forgeAvailability, matchPid, startPlayStack, type PlayStack } from './play/harness.ts';
 import { openMyTable } from './play/rooms.ts';
@@ -39,7 +39,7 @@ async function intoRoundOne(browser: Browser, stack: PlayStack, label: string): 
   await enableTournament(alice, bob, 'locked');
   await sitPickReady(alice, 0);
   await sitPickReady(bob, 1);
-  for (const p of [alice, bob]) await enterFromTablePage(p.page, matchUrl, UI_TIMEOUT);
+  for (const p of [alice, bob]) await enterMyGame(p.page, matchUrl, UI_TIMEOUT);
   for (const p of [alice, bob]) await expect(board(p), `${p.name}: on round 1’s board`).toBeVisible({ timeout: UI_TIMEOUT });
   const matchId = matchUrl.exec(alice.page.url())![1]!;
   expect(matchUrl.exec(bob.page.url())![1], 'both in one match').toBe(matchId);
@@ -102,7 +102,9 @@ test(titled('players reconnecting mid-round: a reload, then a tab closed for two
     await r.bob.page.waitForTimeout(120_000);
     r.alice.page = await r.alice.context.newPage();
     await r.alice.page.goto(r.roomUrl);
-    // A fresh page is carried to her table, not into its game: she had been at it, so the way on is Return to game.
+    // A fresh page stays on the room's page, her table lit: she had been at its game, so her card is Return to game.
+    await expect(litCard(r.alice.page).locator('a[data-door="return"]'), 'alice: her lit card is Return to game').toBeVisible({ timeout: UI_TIMEOUT });
+    await expect(r.alice.page, 'alice: not moved off the room’s page').toHaveURL(ROOM_PAGE);
     await pressDoor(r.alice.page, 'return', UI_TIMEOUT);
     await r.alice.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
     await expect(board(r.alice), 'alice: back on the board after two minutes away').toBeVisible({ timeout: UI_TIMEOUT });

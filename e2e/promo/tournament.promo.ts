@@ -4,10 +4,12 @@
  * runs it; the hero Ashgrove joins, sits and readies like anyone else. Eight entrants: four friends and
  * four AI, seated so round 1 (`@hadoku/draft`'s `round1`: seat i plays seat i + 4) pairs Ashgrove with
  * Nightjar, two people, and Vexmoor with Lumen; the AI play each other. The field locks and pairs, the
- * hero is carried to their table where the face-off rushes in, and the hub shows the round's bracket.
+ * hero's own table lights up on the room's page; their press opens it, where the face-off rushes in, and
+ * the hub shows the round's bracket.
  */
 import { test, type Locator, type Page } from '@playwright/test';
 
+import { litCard } from '../play/board.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { deliberateClick, humanMove, until } from './drive.ts';
 import { HERO, openPromoFriend, RIVAL, startFilm } from './rig.ts';
@@ -79,8 +81,12 @@ test('tournament: eight entrants, the field pairs', async ({ browser }) => {
 
     film.mark('ready');
     await deliberateClick(hero.page, hero.page.getByTestId('ready-toggle'), { hover: 500 });
-    await hero.page.getByTestId('table-page').waitFor({ timeout: 30_000 });
+    // Paired: nothing moves the hero. Their own table lights up on the room's page, and their press opens it.
+    await litCard(hero.page).waitFor({ timeout: 30_000 });
     film.mark('paired');
+    await film.beat(1_500);
+    await deliberateClick(hero.page, litCard(hero.page).getByTestId('pod-tables-play'), { hover: 500 });
+    await hero.page.getByTestId('table-page').waitFor({ timeout: 30_000 });
     await hero.page.getByTestId('table-seats').waitFor({ timeout: 30_000 });
     // The face-off: the two avatars rush in from the page's edges and clash (`FaceOff.tsx`'s REVEAL_MS ≈ 1.4 s).
     film.mark('faceoff');

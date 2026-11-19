@@ -36,7 +36,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { enterFromTablePage, makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
+import { enterMyGame, makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -263,8 +263,8 @@ test(titled('in a draft pod’s room the chat is the window’s height on the pi
     await draftUntilDone(page);
     await trimMainDeck(page, 40, 'alice');
     await page.getByTestId('play-deck').click();
-    // Play goes to her table's page; the game is entered by her own press.
-    await enterFromTablePage(page, /#\/match\//);
+    // Play goes to the room's page; her lit card, then Enter game on her table's page, are her own presses.
+    await enterMyGame(page, /#\/match\//);
     await page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
     await expect(page.getByTestId('pod-tables'), 'the rounds hub').toBeVisible({ timeout: 30_000 });
     await fitsAt(page, 'alice', 'pod hub', '[data-testid="pod-name"]', ['wp-room-chrome-frame__content'], failures, { sizes: POD_SIZES, sideways: ['pod-tables'] });

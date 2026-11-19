@@ -16,7 +16,7 @@ import { sitPodAt } from './podSeats.ts';
 import { expect, test, type Page } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
-import { enterFromTablePage, makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
+import { enterMyGame, makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
@@ -113,7 +113,7 @@ test(titled('Drop match: a tournament match dropped from the hub card is the oth
     await expect(alice.page.getByTestId('room-event-tournament')).toBeChecked();
     await sitPickReady(alice.page, 'alice', 0);
     await sitPickReady(bob.page, 'bob', 1);
-    for (const p of [alice, bob]) await enterFromTablePage(p.page, MATCH_URL, UI_TIMEOUT);
+    for (const p of [alice, bob]) await enterMyGame(p.page, MATCH_URL, UI_TIMEOUT);
     for (const p of [alice, bob]) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: in the match`).toBeVisible({ timeout: UI_TIMEOUT });
     const matchId = MATCH_URL.exec(alice.page.url())![1]!;
 

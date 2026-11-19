@@ -147,7 +147,7 @@ test('a leader’s tournament in its rounds offers no control the server would r
     expect((await api('POST', `/rooms/${roomId}/ready`, { ready: true })).status).toBe(200);
 
     await alice.page.goto(`${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`);
-    await expect(alice.page.locator('[data-testid="pod-rounds"], [data-testid="table-page"]').first()).toBeVisible({ timeout: UI_TIMEOUT });
+    await expect(alice.page.getByTestId('pod-rounds'), 'paired, and on the hub').toBeVisible({ timeout: UI_TIMEOUT });
     // What the server says now: every control locked, the tournament having been dealt.
     const refused = await api<{ reason?: string; error: string }>('PATCH', `/rooms/${roomId}`, { mode: 'classic', modeOptions: {} });
     expect(refused.status, 'the server refuses a mode change in the rounds').toBe(409);

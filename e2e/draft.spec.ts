@@ -67,7 +67,7 @@ import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './identities.ts';
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { enterFromTablePage, makeTitled, resizeWindow, roomIdFromAddress, serverLog as readServerLog } from './play/board.ts';
+import { enterMyGame, litCard, makeTitled, ROOM_PAGE, resizeWindow, roomIdFromAddress, serverLog as readServerLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { specVideoSlug } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -1090,18 +1090,26 @@ test(
       await expect(alice.page.getByTestId('deck-editor')).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('main-count'), 'the build alice left is the build she finds').toHaveText('40');
 
-      /* ── Play, and to the table: no room to make, no Ready ── */
+      /* ── Play, and to the room's page: no room to make, no Ready ── */
       // alice is done first: back in the room (she had left it), where she
       // waits on the pod, shown as ready — not handed back to the builder.
-      // bob's Play deals round 1 and each is carried to their table's page, which starts the
-      // game by itself and offers Enter game: nobody is walked onto the board.
+      // bob's Play deals round 1, and both are on the room's page with their own table lit: nobody is
+      // carried to a table or walked onto the board. Each presses their card; the table's page starts
+      // the game and offers Enter game.
       await alice.page.getByTestId('play-deck').click();
       await expect(alice.page.getByTestId('pod-ready'), 'alice waits on the pod').toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page, 'alice: Play lands on the room’s page').toHaveURL(ROOM_PAGE);
       await expect(alice.page.getByTestId('pod-built').locator('[data-built]'), 'alice waits, shown as ready').toHaveCount(1, { timeout: UI_TIMEOUT });
+      await expect(litCard(alice.page), 'nothing is lit while the pod is still building').toHaveCount(0);
       await bob.page.getByTestId('play-deck').click();
+      for (const p of [alice, bob]) {
+        await expect(p.page.getByTestId('pod-rounds'), `${p.name}: round 1, on the room’s page`).toBeVisible({ timeout: UI_TIMEOUT });
+        await expect(litCard(p.page), `${p.name}: their own table is lit`).toHaveCount(1, { timeout: UI_TIMEOUT });
+        await expect(p.page, `${p.name}: paired, and not moved`).toHaveURL(ROOM_PAGE);
+      }
 
       const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
-      for (const p of [alice, bob]) await enterFromTablePage(p.page, matchUrl, 120_000);
+      for (const p of [alice, bob]) await enterMyGame(p.page, matchUrl, 120_000);
       for (const p of [alice, bob]) {
         await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: the board is drawn`).toBeVisible({ timeout: 30_000 });
       }
@@ -1180,10 +1188,11 @@ test(
       await expect(alice.page.getByTestId('main-count'), 'the build survives a restart').toHaveText('40', { timeout: UI_TIMEOUT });
       await alice.page.getByTestId('play-deck').click();
 
-      // Play → round 1: her table's page, against the bot across from her (seat 2), its game started
-      // by itself and entered by her own press; seat 1's bot has the bye.
+      // Play → the room's page, round 1, her own table lit: against the bot across from her (seat 2).
+      // Her press on the card opens the table's page, which starts the game; Enter game is her press
+      // too. Seat 1's bot has the bye.
       const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
-      await enterFromTablePage(alice.page, matchUrl, 120_000);
+      await enterMyGame(alice.page, matchUrl, 120_000);
       const game1 = alice.page.url();
       const round1 = (await roomState(alice, roomId, stack.origin)).game.pod!;
       expect(round1.pairings.map((p) => p.players[1]), 'she plays seat 2’s bot').toEqual(['ai:2']);

@@ -1177,10 +1177,10 @@ export async function pressEnterGame(page: Page): Promise<void> {
 export type DoorKind = 'enter' | 'return' | 'sideboard' | 'watch';
 
 /**
- * A table's one way in, on its page (`table-match-link`) or a plain room's lobby
- * (`room-table-link`): read by state (`data-door`), never by its words. A bracket's card
- * (`pod-tables-play`, `pod-tables-watch`) is the same door but carries no `data-door`; a spec reads
- * that one by its `href`.
+ * A table's one way in, on its page (`table-match-link`), a plain room's lobby (`room-table-link`)
+ * or a bracket's card (`pod-tables-play`, `pod-tables-watch`): read by state (`data-door`), never by
+ * its words. My own bracket card for a table with no game yet has a way on that is no door: a plain
+ * link to the table's page, which starts the game (`toMyTable`).
  */
 export function door(page: Page, kind?: DoorKind): Locator {
   return page.locator(kind === undefined ? 'a[data-door]' : `a[data-door="${kind}"]`);
@@ -1191,6 +1191,51 @@ export async function pressDoor(page: Page, kind: DoorKind, timeout = 30_000): P
   const link = door(page, kind);
   await expect(link, `the table's way in says ${kind}`).toBeVisible({ timeout });
   await link.click();
+}
+
+/** A room's own page: its address ends at the room's id, with no table, step or game after it. */
+export const ROOM_PAGE = /\/room\/[^/#]+$/;
+
+/** My own table's card on the room's bracket while it has a way on for me: lit (`data-call`). */
+export function litCard(page: Page): Locator {
+  return page.locator('[data-testid="pod-tables-row"][data-call]');
+}
+
+/** Where a press on my lit card led: my table's page, its sideboard step, or straight into its game. */
+export type CardLed = 'table' | 'sideboard' | 'game';
+
+/**
+ * From the room's page to my own table, by the one press the room offers: nothing carries a paired
+ * player anywhere (the operator, 2026-11-19: *"the main room page should be the default landing zone
+ * … when your next match is ready it should light up"*). Expects this page to be the room's own,
+ * with exactly one lit card (`data-call`), presses that card's way on (`pod-tables-play`) and returns
+ * where it led, read off the address: the table's page when no game exists yet (the page starts it),
+ * the game itself when one is up, the sideboard step between two games.
+ */
+export async function toMyTable(page: Page, timeout = 30_000): Promise<CardLed> {
+  const lit = litCard(page);
+  await expect(lit, 'my own table is lit on the room’s page, and no other is').toHaveCount(1, { timeout });
+  await expect(page, 'paired, and still on the room’s page: nothing carried me to my table').toHaveURL(ROOM_PAGE);
+  await lit.getByTestId('pod-tables-play').click();
+  const at = (): CardLed | null => {
+    const { hash } = new URL(page.url());
+    return /^#\/match\//.test(hash) ? 'game' : /\/table\/[^/]+\/sideboard$/.test(hash) ? 'sideboard' : /\/table\/[^/]+$/.test(hash) ? 'table' : null;
+  };
+  await expect.poll(at, { timeout, message: 'my card’s press leads to my table, its sideboard step or its game' }).not.toBeNull();
+  const led = at();
+  if (led === null) throw new Error(`my card’s press led to ${new URL(page.url()).hash}`);
+  return led;
+}
+
+/**
+ * From the room's page into my table's game: my lit card, then Enter game on the table's page — or
+ * the card itself was Enter game, when the other player's page had already started the game.
+ */
+export async function enterMyGame(page: Page, matchUrl: RegExp, timeout = 30_000): Promise<void> {
+  const led = await toMyTable(page, timeout);
+  if (led === 'table') return enterFromTablePage(page, matchUrl, timeout);
+  expect(led, 'a table with a game I have not been at: my card is Enter game').toBe('game');
+  await page.waitForURL(matchUrl, { timeout });
 }
 
 /**

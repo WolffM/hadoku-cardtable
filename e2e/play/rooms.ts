@@ -70,15 +70,19 @@ export async function createStreamedRoomByApi(page: Page, name: string): Promise
   await createRoomByApi(page, { name, gameType: 'constructed-1v1', clientMode: 'streamed' });
 }
 
-/** My table in the room's current round, from the room itself. */
-async function myTableId(page: Page, roomId: string): Promise<string> {
+/** My table in the room's current round, from the room itself; null with the bye, or before the rounds. */
+export async function myTableThisRound(page: Page, roomId: string): Promise<string | null> {
   const room = (await page.evaluate(
     (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
     roomId,
   )) as { you: { id: string }; game: { pod: { pairings: { tableId: string; players: string[] }[] } | null } };
-  const mine = room.game.pod?.pairings.find((p) => p.players.includes(room.you.id));
-  if (mine === undefined) throw new Error(`no table of mine in ${roomId}'s current round`);
-  return mine.tableId;
+  return room.game.pod?.pairings.find((p) => p.players.includes(room.you.id))?.tableId ?? null;
+}
+
+async function myTableId(page: Page, roomId: string): Promise<string> {
+  const mine = await myTableThisRound(page, roomId);
+  if (mine === null) throw new Error(`no table of mine in ${roomId}'s current round`);
+  return mine;
 }
 
 /**
@@ -92,10 +96,7 @@ export async function openMyTable(page: Page, roomUrl: string): Promise<void> {
   await expect(page.getByTestId('table-page')).toBeVisible();
 }
 
-/**
- * The room's hub, by choice, on a page that has already been carried to its
- * table this round (`followTableOnce`) or has none: the hub keeps it.
- */
+/** The room's hub, by its own address: it keeps whoever is on it, paired or not. */
 export async function openHub(page: Page, roomUrl: string): Promise<void> {
   await page.goto(roomUrl);
   await expect(page.getByTestId('pod-tables')).toBeVisible();

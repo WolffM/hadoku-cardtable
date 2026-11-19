@@ -6,7 +6,7 @@
 import { test, type Page } from '@playwright/test';
 
 import { PREFIX } from '../identities.ts';
-import { clickHandCard, door, enabledOk, handCardNamed, offeredNamed, pressPaymentAuto, says, stackCount, twoLegalDecks } from '../play/board.ts';
+import { clickHandCard, enabledOk, enterMyGame, handCardNamed, litCard, offeredNamed, pressPaymentAuto, says, stackCount, twoLegalDecks } from '../play/board.ts';
 import { answerPrompt } from '../play/prompts.ts';
 import { keepBothHands, matchUrl, readScenario } from '../play/scenario.ts';
 import type { Friend } from '../play/browser.ts';
@@ -725,7 +725,12 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
     }, alice.page);
     await api(stack, bob, 'POST', `/rooms/${roomId}/ready`, { ready: true });
     await tapOn(alice.page.getByTestId('ready-toggle'));
+    await attempt('paired: my table lit', async () => {
+      await litCard(alice.page).waitFor({ timeout: 30_000 });
+      await shot(alice.page, 'tourney-paired', T('#/room/<id>', 'paired: still on the room page, my own table lit'), { full: true });
+    }, alice.page);
     await attempt('face-off', async () => {
+      await tapOn(litCard(alice.page).getByTestId('pod-tables-play'), { timeout: 30_000 });
       await alice.page.getByTestId('table-seats').waitFor({ timeout: 30_000 });
       await shot(alice.page, 'tourney-faceoff-reveal', T('#/room/<id>/table/<t>', 'face-off, mid reveal'), { settle: 200 });
       await alice.page.locator('[data-testid="table-seats"]:not([data-revealing])').waitFor({ timeout: 30_000 });
@@ -771,11 +776,8 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
       await shot(alice.page, 'tourney2-lobby-deck', T('#/room/<id>', 'Classic tournament lobby, deck chosen'), { full: true });
       for (const f of [alice, bob]) await tapOn(f.page.getByTestId('ready-toggle'));
       const matchRe = /#\/match\/m-[0-9a-f]{12}$/;
-      // Paired: each is carried to their table's page, and enters its game by their own press.
-      for (const f of [alice, bob]) {
-        await tapOn(door(f.page, 'enter'), { timeout: 60_000 });
-        await f.page.waitForURL(matchRe, { timeout: 60_000 });
-      }
+      // Paired: each stays on the room page, their table lit, and reaches its game by their own presses.
+      for (const f of [alice, bob]) await enterMyGame(f.page, matchRe, 60_000);
       for (let game = 0; game < 2; game++) {
         await openActionMenuIfPresent(bob.page);
         await tapOn(bob.page.getByTestId('live-concede'));

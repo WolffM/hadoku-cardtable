@@ -23,10 +23,10 @@ import { arrangePod, draftUntilDone, readyPod } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
-import { enterFromTablePage, makeTitled, pressEnterGame, pressIntoGame2, resizeWindow, roomIdFromAddress, sideboardFromTablePage } from './play/board.ts';
+import { enterMyGame, litCard, makeTitled, pressEnterGame, ROOM_PAGE, pressIntoGame2, resizeWindow, roomIdFromAddress, sideboardFromTablePage } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { openHub, openMyTable, submitCreateRoom } from './play/rooms.ts';
+import { myTableThisRound, openHub, openMyTable, submitCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -123,42 +123,38 @@ test(
       for (const p of players) {
         await expect(p.page.getByTestId('deck-editor'), `${p.name}: the finished draft opens the editor`).toBeVisible({ timeout: UI_TIMEOUT });
         await trimMainDeck(p.page, 40, p.name);
-        // Play: done building. The builder stays up, showing who else is.
+        // Play: done building, and to the room's page.
         await p.page.getByTestId('play-deck').click();
+        await p.page.waitForURL(ROOM_PAGE, { timeout: UI_TIMEOUT });
       }
-      // The first two wait in the builder, shown as ready; the third's Play
-      // dealt round 1, and every paired drafter is carried to their table's page,
-      // which starts the game.
+      // The first two wait on the room's page, shown as ready; the third's Play dealt round 1, and
+      // all three are still on the room's page: nobody is carried to a table.
 
       /*
        * Round 1: two play, one has the bye. `pod-tables-bye` is drawn for
        * EVERYONE on the pod screen (it names the bye, it does not mean
-       * "I am the bye"), so this cannot race it against the carry — only
-       * the carry to a table page tells a page apart from the other two. Each
-       * is given its own window rather than one shared timeout, since the bye
-       * is never carried and must not make the other two wait the full
-       * budget behind it.
+       * "I am the bye"), so who plays is read off the room's own pairings, and
+       * the page is held to it: a paired drafter's own card is lit, the bye's
+       * page lights none.
        */
       const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
-      const tableUrl = /#\/room\/[^/]+\/table\/[^/]+$/;
       const seated: Player[] = [];
       let bye: Player | undefined;
       for (const p of players) {
-        const toTable = await p.page
-          .waitForURL(tableUrl, { timeout: UI_TIMEOUT })
-          .then(() => true)
-          .catch(() => false);
-        if (toTable) seated.push(p);
-        else bye = p;
+        await expect(p.page.getByTestId('pod-rounds'), `${p.name}: round 1, on the room’s page`).toBeVisible({ timeout: UI_TIMEOUT });
+        if ((await myTableThisRound(p.page, roomId)) === null) bye = p;
+        else seated.push(p);
       }
       expect(seated, 'exactly two of the three play round 1').toHaveLength(2);
       expect(bye, 'the third has the bye').not.toBeUndefined();
-      // The table page walks nobody into its game: each of the two enters by their own press.
-      for (const p of seated) await enterFromTablePage(p.page, matchUrl, UI_TIMEOUT);
+      for (const p of seated) await expect(litCard(p.page), `${p.name}: their own table is lit`).toHaveCount(1, { timeout: UI_TIMEOUT });
+      await expect(litCard(bye!.page), 'the bye has no table: nothing is lit').toHaveCount(0);
+      for (const p of players) await expect(p.page, `${p.name}: still on the room’s page`).toHaveURL(ROOM_PAGE);
+      // Each of the two presses their lit card and enters the game by their own press.
+      for (const p of seated) await enterMyGame(p.page, matchUrl, UI_TIMEOUT);
       for (const p of seated) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: at their own table`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── the bye watches via the pod's table cards, then back to the room ── */
-      await bye!.page.goto(roomUrl);
       await bye!.page.getByTestId('pod-tables-watch').click();
       await expect(bye!.page.locator('[aria-label="Game board"]'), 'the bye is watching round 1’s table').toBeVisible({ timeout: UI_TIMEOUT });
       await bye!.page.evaluate((hash) => (window.location.hash = hash), new URL(roomUrl).hash);

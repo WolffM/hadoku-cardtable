@@ -15,6 +15,7 @@
 
 import { expect, test } from '@playwright/test';
 
+import { toMyTable } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -50,9 +51,10 @@ test(titled('a tournament table page names its AI, heads with its round, the bac
     console.log(`[tournament-table-page] lobby AI seat: ${aiName}`);
     expect(aiName, 'the AI seat has a character’s name').not.toMatch(/^(AI|)$/);
 
-    // My Ready locks the field: carried to my round's table page.
+    // My Ready locks the field: I stay on the room's page, my table lit, and my press opens its page.
     await alice.page.getByTestId('ready-toggle').click();
-    await expect(alice.page.getByTestId('table-page'), 'paired: carried to my table').toBeVisible({ timeout: UI_TIMEOUT });
+    expect(await toMyTable(alice.page, UI_TIMEOUT), 'no game before the table’s own Ready: my card opens the table’s page').toBe('table');
+    await expect(alice.page.getByTestId('table-page'), 'my table’s page').toBeVisible({ timeout: UI_TIMEOUT });
     // The round's opponent is revealed: "<me> vs <them>", the two clash and come to rest where they stay.
     await expect(alice.page.getByTestId('face-off-title'), 'the opponent is revealed by name').toContainText(`vs${aiName}`);
     await expect(alice.page.getByTestId('table-seats'), 'the reveal comes to rest').not.toHaveAttribute('data-revealing', /.*/, { timeout: UI_TIMEOUT });
