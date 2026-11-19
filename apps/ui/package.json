@@ -19,10 +19,10 @@
     "@hadoku/ui-shell": "workspace:*",
     "@wolffm/game-stats-ui": "npm:@hadoku/game-stats-ui@0.1.14",
     "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.31",
-    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.123",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.124",
     "@wolffm/task-ui-components": "npm:@hadoku/task-ui-components@4.23.44",
     "@wolffm/themes": "npm:@hadoku/themes@5.14.13",
-    "@wolffm/watchparty-ui": "npm:@hadoku/watchparty-ui@0.45.123",
+    "@wolffm/watchparty-ui": "npm:@hadoku/watchparty-ui@0.45.124",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "4.5.4"
@@ -34,7 +34,7 @@
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.1",
     "@wolffm/catalogue": "npm:@hadoku/catalogue@^1.0.18",
-    "@wolffm/shared-vendor": "npm:@hadoku/shared-vendor@0.1.3",
+    "@wolffm/shared-vendor": "npm:@hadoku/shared-vendor@0.1.4",
     "vite": "8.2.2"
   }
 }
