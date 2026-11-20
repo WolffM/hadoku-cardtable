@@ -8,7 +8,8 @@
  * table's card is lit there, and its press and then Enter game on the table's page open game 1.
  * The AI gives the game up at the start of its second turn (`play/ai-concedes.ts`), so the board ends
  * on a win nobody pressed Concede for; the sideboard step and game 2 follow, the AI gives that up too,
- * and the pod's round 2 is paired. Real Forge throughout: the turn the server reads and the end it
+ * and the pod's round 2 is paired: back on the room's page, the round-2 table is the one lit. Every
+ * step between two games is pressed through `play/board.ts`'s own drivers. Real Forge throughout: the turn the server reads and the end it
  * makes of a game Forge is still playing are what this proves.
  *
  * `[draft-walk]` lines are the evidence, one per step.
@@ -19,7 +20,7 @@ import type { PodView } from '../packages/shared/src/pod.ts';
 
 import { trimMainDeck } from './deckBuilder.ts';
 import { PREFIX } from './identities.ts';
-import { enabledOk, enterMyGame, grindPriority, makeTitled, pressIntoGame2, readyFromSideboard, resizeWindow, roomIdOfUrl, selectionOpen, serverLog } from './play/board.ts';
+import { ROOM_PAGE, enabledOk, enterMyGame, grindPriority, litCard, makeTitled, pressIntoGame2, readyFromSideboard, resizeWindow, roomIdOfUrl, selectionOpen, serverLog } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -138,6 +139,13 @@ test(titled('the walk room: an admin makes the draft’s last pick, builds, and 
     expect(mine, 'round 1 has my result').toBeDefined();
     expect(mine!.playerA === me.id ? [mine!.gamesA, mine!.gamesB] : [mine!.gamesB, mine!.gamesA], 'won 2–0').toEqual([2, 0]);
     say(`series won 2–0; round ${pod.round} of ${pod.rounds} paired`);
+
+    /* ── the series over: the room's page, where round 2's table is mine and lit ── */
+    if (!ROOM_PAGE.test(page.url())) await page.getByTestId('game-result-room').click();
+    await expect(page, 'after the series, the room’s page').toHaveURL(ROOM_PAGE, { timeout: UI_TIMEOUT });
+    await expect(litCard(page), 'round 2’s table is lit for the seat the stand-in handed over').toHaveCount(1, { timeout: UI_TIMEOUT });
+    await expect(page.locator('[data-testid="pod-tables-row"][data-phase="done"][data-mine]'), 'and round 1’s is on the bracket as mine').toHaveCount(1, { timeout: UI_TIMEOUT });
+    say('back on the room’s page: round 2’s table is lit');
   } finally {
     await stack.stop();
   }
