@@ -10,27 +10,21 @@
  * (`PlayBridge.java`, `SeatGui.setPhaseDelayOff`) turns that preference on with
  * the End Turn click and off again when the yield is over.
  *
- * **The bound is the sleep itself: every gap under 200 ms.** A gap that holds
- * Forge's sleep is at least 200 ms, because Forge either skips it entirely or
- * takes all of it. So "under 200" is exactly "no sleep in it", and nothing
- * between noise and a regression has to be guessed. The 150 ms bound that used
- * to sit here was measured on hokon, and on a busy claw a gap with no sleep in it
- * reached 151 ms (scheduled run 40577661708, gaps 151/89/82/63).
- *
- * The 150 ms bound's history (ledger Y26, wave 53 §E). It used to be 50 ms,
- * tight enough that general host scheduling noise — this suite runs on
- * the host, which is CI's runner, production, AND shares a desktop session —
- * could trip it on its own, with no pacing bug involved. Measured 2026-10-06,
- * 46 runs total under `taskset -c 0` on this same shared host while it was
- * also running an unrelated, CPU-heavy interactive session: the worst ANY
- * phase gap ever reached, fixed or reverted, PASSING or FAILING, was 98 ms —
- * never once near 200 ms. 150 ms sits with margin on both sides of that split:
- * 52 ms above the measured noise ceiling, and 50 ms below the delay a lost
- * race (or a reintroduced one) actually produces — which is deterministic,
- * not marginal: Forge either skips the sleep entirely or takes the full
- * 200 ms, so a real regression fails this bound by a wide margin, not a
- * narrow one. A sleep between the two sends was never an acceptable fix
- * (settled, do not reopen); this is a test-tolerance change, not that.
+ * **The bound is the sleep itself, on most gaps.** A gap that holds Forge's sleep
+ * is at least 200 ms, because Forge either skips it entirely or takes all of it.
+ * And the sleep is all or nothing across the yield: the bridge writes the pref into
+ * the live `YieldController` before it sends the click (`setPhaseDelayOff`), and
+ * clears it only at the seat's next real window, so a regression sleeps at every
+ * phase of the yield and puts every gap at 200 ms or more. Host noise does not: it
+ * stretches a gap or two. So the bound is that fewer than half the gaps reach
+ * 200 ms. "Every gap under 200" was tried and reddened on noise alone: a loaded
+ * claw-10 measured [190,173,194,221] (run 44715926901) and a loaded hokon
+ * [216,85,83,174] (run 44828404697), both with the exemption armed by the click
+ * (the `pace` lines say so), against 28–67 ms on a quiet claw (runs 44810796048,
+ * 44792627500, 44772664906). The bound before that was 150 ms, which a busy claw
+ * crossed with no sleep in it at 151 (run 40577661708), and before that 50 ms
+ * (ledger Y26). A sleep between the two sends was never an acceptable fix
+ * (settled, do not reopen).
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=/tmp/claude-1000/S \
  *   pnpm exec vitest run games/magic/server/src/play/endturn.jvm.test.ts \
@@ -67,7 +61,7 @@ function phaseChanges(s: Scenario, seat: number): { phase: string; t: number }[]
 
 describe.skipIf(!available.ok)(title, () => {
 	it(
-		'an End Turn click passes its phases with no 200 ms pacing sleep between any two, and the pacing is back afterwards',
+		'an End Turn click passes its phases with no 200 ms pacing sleep between them, and the pacing is back afterwards',
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, {
@@ -120,7 +114,8 @@ describe.skipIf(!available.ok)(title, () => {
 				console.log(`[q5] pace lines: ${JSON.stringify(pace)}`);
 
 				expect(upToEnd.length, 'the End Turn run reached the end step through several phases').toBeGreaterThan(3);
-				for (const g of gaps) expect(g, `gaps: ${JSON.stringify(gaps)}`).toBeLessThan(PHASES_DELAY_MS);
+				const slept = gaps.filter((g) => g >= PHASES_DELAY_MS);
+				expect(slept.length, `gaps of ${PHASES_DELAY_MS} ms or more, of ${JSON.stringify(gaps)}`).toBeLessThan(gaps.length / 2);
 
 				// The exemption was armed by the click and lifted by the next real window.
 				expect(pace.map((l) => (l as unknown as { skipPhaseDelay: boolean }).skipPhaseDelay)).toEqual([true, false]);
