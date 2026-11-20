@@ -51,5 +51,10 @@ export default defineConfig({
     // timing out, six took 392 s with none.
     maxWorkers: process.env.CI ? ciWorkers() : Math.max(1, Math.floor(availableParallelism() / 2)),
     setupFiles: ['./apps/ui/src/test-setup.ts'],
+    // The fleet's UI packages import their stylesheets from their built modules
+    // (watchparty-ui's room chrome imports task-ui-components' theme-picker.css).
+    // Left external, Node loads them and refuses the `.css`; inlined, they go
+    // through Vite, which is how the app's own build reads them.
+    server: { deps: { inline: [/@hadoku\/(watchparty-ui|task-ui-components)/] } },
   },
 });
