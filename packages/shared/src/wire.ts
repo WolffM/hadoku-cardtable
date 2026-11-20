@@ -130,11 +130,16 @@ export const LeaveDraftSchema = z.strictObject({
  * draft, so a stale pick fails loudly as `card-not-in-pack`.
  *
  * There is no seat field. The seat is the server's business.
+ *
+ * `extra` is a second card taken from the same pack in the same pick, paid for
+ * with one of the seat's own face-up cards (`with`, a `cardId` the seat's view
+ * listed under `extraPick`), which goes into the pack in its place.
  */
 export const PickActionSchema = z.strictObject({
   type: z.literal('pick'),
   draftId: DraftIdSchema,
   cardId: z.string().min(1),
+  extra: z.strictObject({ cardId: z.string().min(1), with: z.string().min(1) }).optional(),
 });
 
 /**
@@ -204,7 +209,7 @@ export type ClientMessage = z.infer<typeof ClientMessageSchema>;
  * and the wire must be able to carry every one of them or the server is forced
  * to flatten a known reason into a string. Kept as a literal list rather than
  * imported because `@hadoku/draft` depends on this package, not the other way
- * round; `wire.test.ts` pins the five so a change there fails here.
+ * round; `wire.test.ts` pins the list so a change there fails here.
  */
 export const PICK_REJECTION_CODES = [
   'draft-complete',
@@ -212,6 +217,7 @@ export const PICK_REJECTION_CODES = [
   'empty-pack',
   'already-picked',
   'card-not-in-pack',
+  'extra-pick-refused',
 ] as const;
 
 /**
@@ -379,8 +385,8 @@ export function leaveDraft(draftId: string): LeaveDraft {
   return { type: 'leave', draftId };
 }
 
-export function pickCard(draftId: string, cardId: string): PickAction {
-  return { type: 'pick', draftId, cardId };
+export function pickCard(draftId: string, cardId: string, extra?: PickAction['extra']): PickAction {
+  return extra === undefined ? { type: 'pick', draftId, cardId } : { type: 'pick', draftId, cardId, extra };
 }
 
 export function leanDraft(draftId: string, cardId: string | null): LeanDraft {

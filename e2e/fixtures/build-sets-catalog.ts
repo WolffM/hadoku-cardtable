@@ -30,6 +30,7 @@
  * - The five basic lands' own canonical entries (`byName` fallback safety
  *   net), kept regardless of whether a target-set printing already
  *   covered them.
+ * - `NAMED_CARDS`: single cards from other sets that a spec seeds a cube with.
  * - One Alchemy card, `ALCHEMY_PROBE`, that the server must never serve.
  * - Nothing else: no `scryfallId`-derived image field exists on
  *   `DraftCardSchema` to begin with, and this script copies fields,
@@ -67,6 +68,9 @@ interface DraftCardLike {
 }
 
 const BASIC_LAND_NAMES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'];
+
+/** Cards kept by name from outside the kept sets: the ones a spec seeds a cube with (`draft-actions.spec.ts`). */
+const NAMED_CARDS = ['Cogwork Librarian'];
 
 /**
  * An Alchemy card, written in on purpose. The real catalog has none (`@hadoku/carddata`'s
@@ -132,7 +136,7 @@ function main(): void {
   // whether a target-set printing already covered them (see the file header).
   for (const [key, value] of Object.entries(sourceCards)) {
     const card = value as DraftCardLike;
-    if (typeof card.name === 'string' && BASIC_LAND_NAMES.includes(card.name)) keptKeys.add(key);
+    if (typeof card.name === 'string' && (BASIC_LAND_NAMES.includes(card.name) || NAMED_CARDS.includes(card.name))) keptKeys.add(key);
   }
 
   const keptCards = Object.entries(sourceCards).filter(([key]) => keptKeys.has(key));

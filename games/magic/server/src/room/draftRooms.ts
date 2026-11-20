@@ -723,6 +723,8 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 							: unnamedPeople({
 									...fromLockstep(persisted.state as DraftState | LockstepState),
 									avatarIds: (persisted.state as Partial<DraftState>).avatarIds ?? {},
+									// A snapshot from before cards could be drafted face up has none.
+									faceUp: (persisted.state as Partial<DraftState>).faceUp ?? [],
 									epoch: ctx.restoreId,
 								}),
 					builtDecks: persisted.builtDecks ?? {},

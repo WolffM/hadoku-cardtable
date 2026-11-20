@@ -36,6 +36,18 @@ export interface TableState {
   view: DraftView;
   /** The card clicked since that payload, if any. */
   pending: DraftCard | null;
+  /**
+   * The second card of a pending pick and the seat's own face-up card that
+   * paid for it (the view's `extraPick`): the second shows in the pool, the
+   * payer has left it for the pack.
+   */
+  pendingExtra?: { card: DraftCard; with: string } | null;
+}
+
+/** A second card taken with the pick, and the pool card that pays for it. */
+export interface ExtraPick {
+  cardId: string;
+  with: string;
 }
 
 export type PickRejection =
@@ -75,7 +87,10 @@ export function visiblePool(state: TableState): DraftCard[] {
   if (watched) return watched.pool;
   const seat = viewerSeat(state.view);
   if (!seat) return [];
-  return state.pending === null ? seat.pool : [...seat.pool, state.pending];
+  if (state.pending === null) return seat.pool;
+  const extra = state.pendingExtra ?? null;
+  if (extra === null) return [...seat.pool, state.pending];
+  return [...seat.pool.filter((c) => c.cardId !== extra.with), state.pending, extra.card];
 }
 
 /** True while this client is waiting for the payload that confirms its pick. */
@@ -98,15 +113,20 @@ export function pickBlockedBy(state: TableState): PickRejection | null {
  * Take a card. Returns a rejection as a value — a misclick is not an exception,
  * and the engine's contract says the same thing about the wire.
  */
-export function pick(state: TableState, cardId: string): PickResult {
+export function pick(state: TableState, cardId: string, extra?: ExtraPick): PickResult {
   const blocked = pickBlockedBy(state);
   if (blocked) return { ok: false, rejection: blocked };
 
   const seat = viewerSeat(state.view);
   const card = seat?.pack.find((c) => c.cardId === cardId);
   if (!card) return { ok: false, rejection: { reason: 'not-in-pack', cardId } };
+  if (extra === undefined) return { ok: true, state: { view: state.view, pending: card } };
 
-  return { ok: true, state: { view: state.view, pending: card } };
+  const second = extra.cardId === cardId ? undefined : seat?.pack.find((c) => c.cardId === extra.cardId);
+  if (!second || !(seat?.extraPick ?? []).includes(extra.with)) {
+    return { ok: false, rejection: { reason: 'not-in-pack', cardId: extra.cardId } };
+  }
+  return { ok: true, state: { view: state.view, pending: card, pendingExtra: { card: second, with: extra.with } } };
 }
 
 /**

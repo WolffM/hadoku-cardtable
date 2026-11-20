@@ -28,6 +28,7 @@ export {
   queueDepth,
   pickNumberOf,
   podPickNumber,
+  extraPicksOf,
   receiverOf,
   fromLockstep,
   botSeatAcross,
@@ -40,10 +41,13 @@ export {
   type DraftEvent,
   type PickResult,
   type PickRejection,
+  type ExtraPick,
   type BotSeat,
   type HumanSeat,
   type LockstepState,
 } from './engine.ts';
+
+export { draftActionsOf, hasDraftAction, type DraftAction } from './actions.ts';
 
 export { deal, planPool, poolShortfall, type RealisticPacks, type SourceCards } from './deal.ts';
 

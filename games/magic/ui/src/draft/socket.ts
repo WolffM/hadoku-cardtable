@@ -50,6 +50,7 @@
  * (or `delta`) update with a gap still resyncs exactly as before.
  */
 
+import type { ExtraPick } from './table.ts';
 import {
   DRAFT_CHANNEL,
   asSeqCursor,
@@ -301,8 +302,8 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
  * the round trip is visible rather than papered over with a guess about what
  * the next pack will be. Returns the same handle.
  */
-export function applyPick(draft: SocketDraft, cardId: string): SocketDraft {
-  send(draft, pickCard(draft.draftId, cardId));
+export function applyPick(draft: SocketDraft, cardId: string, extra?: ExtraPick): SocketDraft {
+  send(draft, pickCard(draft.draftId, cardId, extra));
   return draft;
 }
 

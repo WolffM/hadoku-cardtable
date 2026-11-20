@@ -41,6 +41,27 @@ describe('picking', () => {
     expect(isAwaitingConfirmation(result.state)).toBe(true);
   });
 
+  it('a two-card pick shows both cards in the pool and the card that paid for them gone', () => {
+    const view = structuredClone(openingStream()[0]);
+    const seat = viewerSeat(view);
+    if (!seat) throw new Error('expected a seat');
+    const payer = { ...seat.pack[14], cardId: 'payer', name: 'Cogwork Librarian' };
+    seat.pool.push(payer);
+    seat.extraPick = ['payer'];
+    const before = initialState(view);
+    const [a, b] = [seat.pack[0].cardId, seat.pack[1].cardId];
+
+    const result = pick(before, a, { cardId: b, with: 'payer' });
+    if (!result.ok) throw new Error('a legal two-card pick was rejected');
+    expect(visiblePool(result.state).map((c) => c.cardId)).toEqual([a, b]);
+    expect(visiblePack(result.state)).toEqual([]);
+
+    // The same card twice, a card not in the pack, and a payer the view did not offer.
+    expect(pick(before, a, { cardId: a, with: 'payer' }).ok).toBe(false);
+    expect(pick(before, a, { cardId: 'elsewhere', with: 'payer' }).ok).toBe(false);
+    expect(pick(before, a, { cardId: b, with: 'other' }).ok).toBe(false);
+  });
+
   it('does not invent the next pack — it waits for one', () => {
     const result = pick(opening(), visiblePack(opening())[0].cardId);
     if (!result.ok) throw new Error('a legal pick was rejected');

@@ -9,12 +9,14 @@
  * `spectator` arm of `ViewerView` has no card fields at all, and `DraftSeatView`
  * carries `pickedCount` — a number — instead of the picks. A seat's cards go
  * only under `viewer`: to the seat itself, or to a person holding no seat who
- * chose to watch it (`watcherView`). So a drafter is never sent another
- * seat's cards anywhere on a payload. Leaking one requires adding
+ * chose to watch it (`watcherView`). The one exception is a card drafted face
+ * up (`actions.ts`), which every payload carries under its seat's `faceUp`
+ * because the card itself makes it public. So a drafter is never sent another
+ * seat's hidden cards anywhere on a payload. Leaking one requires adding
  * a field, which a reviewer sees, rather than forgetting a filter, which nobody
  * sees. `games/magic/ui/src/draft/hiddenInfo.ts` then walks whole serialised payloads
- * and fails if a card-shaped object appears anywhere but `viewer.pack` and
- * `viewer.pool`.
+ * and fails if a card-shaped object appears anywhere but `viewer.pack`,
+ * `viewer.pool` and a seat's `faceUp`.
  *
  * ## Built one recipient at a time, on purpose
  *
@@ -28,7 +30,7 @@
 
 import { seatRows, type SeatId, type SeatOccupant } from '@wolffm/rooms-protocol';
 import type { DraftSeatView, DraftView } from '@hadoku/shared';
-import { directionFor, packOf, pickNumberOf, podPickNumber, queueDepth, waitingOn, type DraftState } from './engine.ts';
+import { directionFor, extraPicksOf, packOf, pickNumberOf, podPickNumber, queueDepth, waitingOn, type DraftState } from './engine.ts';
 
 /** One row as `seatRows` hands it over: a seat that exists, occupied or not. */
 type SeatRow = { id: SeatId; occupant: SeatOccupant | null };
@@ -54,7 +56,15 @@ function seatView(state: DraftState, row: SeatRow): DraftSeatView {
     // was the one place that did not, and it threw rather than reporting zero.
     pickedCount: state.pools[id]?.length ?? 0,
     queueDepth: queueDepth(state, id),
+    ...faceUpOf(state, id),
   };
+}
+
+/** The seat's face-up cards, the one public part of its pool; no field at all for a seat with none. */
+function faceUpOf(state: DraftState, id: SeatId): Pick<DraftSeatView, 'faceUp'> {
+  const ids = state.faceUp[id] ?? [];
+  if (ids.length === 0) return {};
+  return { faceUp: (state.pools[id] ?? []).filter((c) => ids.includes(c.cardId)) };
 }
 
 /** The part of a payload that is the same for everybody but the pick, which is the viewed seat's. */
@@ -89,6 +99,7 @@ function common(state: DraftState, seatId: SeatId | null): Omit<DraftView, 'view
  * cannot reach back into engine state.
  */
 export function viewFor(state: DraftState, seatId: SeatId): DraftView {
+  const extraPick = seatId < state.seatCount ? extraPicksOf(state, seatId) : [];
   return {
     ...common(state, seatId),
     viewer: {
@@ -96,6 +107,7 @@ export function viewFor(state: DraftState, seatId: SeatId): DraftView {
       seatId,
       pack: packOf(state, seatId).slice(),
       pool: state.pools[seatId]?.slice() ?? [],
+      ...(extraPick.length === 0 ? {} : { extraPick }),
     },
   };
 }

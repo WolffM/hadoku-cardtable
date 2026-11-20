@@ -303,8 +303,8 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           <DraftScreen
             state={table}
             onChange={setTable}
-            onPick={(cardId) => {
-              if (draft !== null) socketPick(draft, cardId);
+            onPick={(cardId, extra) => {
+              if (draft !== null) socketPick(draft, cardId, extra);
             }}
             onLean={lean}
             nextPayload={null}

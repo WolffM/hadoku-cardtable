@@ -113,6 +113,8 @@ export interface PackViewProps {
   disabled: boolean;
   /** Shown instead of the cards when there is nothing to pick from. */
   emptyNote: string;
+  /** The first card of a two-card pick, already chosen and waiting for the second. */
+  chosen?: string | null;
 }
 
 /** Room above the row for the open card's rise, and below it. */
@@ -252,7 +254,7 @@ function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 }
 
-export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyNote }: PackViewProps) {
+export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyNote, chosen = null }: PackViewProps) {
   const [measure, box, root] = useBox<HTMLDivElement>();
   // A new pack is drawn blank, and picks nothing, until all of its art can be drawn at once.
   const artLoaded = useArtLoaded(useMemo(() => cards.map((c) => c.scryfallId), [cards]));
@@ -512,6 +514,7 @@ export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyN
             // even while picking and the panel fired full-screen over the carousel.
             data-card-id={!fanned || (browsing && !off) || (desktopFan !== null && i === shown) ? `w${i}` : undefined}
             data-focused={highlighted === i ? '' : undefined}
+            data-chosen={card.cardId === chosen ? '' : undefined}
             data-off={off ? '' : undefined}
             onPointerDown={off ? undefined : () => (pointerFocusing.current = true)}
             onFocus={

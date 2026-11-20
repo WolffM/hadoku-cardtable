@@ -72,6 +72,14 @@ describe('the leak detector actually bites', () => {
     expect(findLeakedCardPaths(payload)).toEqual(['$.seats[3].queue[0][0]']);
   });
 
+  it('a card drafted face up is public on its seat, and nowhere else on it', () => {
+    const payload = clone(FIXTURES[0].raw) as { seats: Array<Record<string, unknown>> };
+    payload.seats[2].faceUp = [{ cardId: 'up-1', name: 'Cogwork Librarian' }];
+    expect(findLeakedCardPaths(payload)).toEqual([]);
+    payload.seats[2].faceDown = [{ cardId: 'leak-5', name: 'Mox Jet' }];
+    expect(findLeakedCardPaths(payload)).toEqual(['$.seats[2].faceDown[0]']);
+  });
+
   it('catches a card on a spectator payload', () => {
     const payload = clone(FIXTURES[4].raw) as Record<string, unknown>;
     payload.lastPick = { cardId: 'leak-2', name: 'Black Lotus' };

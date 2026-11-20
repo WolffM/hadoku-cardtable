@@ -42,7 +42,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { usePrefs } from '@wolffm/prefs-client/react';
 
 import type { ConnectionState } from '../draft/connection.ts';
-import type { DraftView } from '../draft/types.ts';
+import { viewerSeat, type DraftView } from '../draft/types.ts';
 import {
   explainRejection,
   isAwaitingConfirmation,
@@ -51,6 +51,7 @@ import {
   pickBlockedBy,
   visiblePack,
   visiblePool,
+  type ExtraPick,
   type TableState,
 } from '../draft/table.ts';
 import { ConnectionBanner } from '@hadoku/game-ui/components/ConnectionBanner.tsx';
@@ -81,8 +82,10 @@ export interface DraftScreenProps {
    * updates the instant it is clicked whatever the source is doing. This is
    * what a live source uses to send the pick on — in-process today, over a
    * socket later. Absent for a fixture source, where nothing can be sent.
+   * `extra` is the second card of a two-card pick and the face-up card that
+   * pays for it.
    */
-  onPick?: (cardId: string) => void;
+  onPick?: (cardId: string, extra?: ExtraPick) => void;
   /** The card this seat would take if its timed pick ran out (`PackView`'s `onLean`); absent where nothing listens. */
   onLean?: (cardId: string | null) => void;
   onAdvance?: () => void;
@@ -257,9 +260,32 @@ export function DraftScreen({
     return () => clearTimeout(timer);
   }, [recentlyAdded]);
 
+  // A face-up card of the seat's own that buys a second card from this pack
+  // (the view's `extraPick`). Pressed, the next card pressed is held as the
+  // first of the two and the one after it sends both.
+  const extraWith = watching ? undefined : viewerSeat(view)?.extraPick?.[0];
+  const extraCard = extraWith === undefined ? undefined : pool.find((c) => c.cardId === extraWith);
+  const [extraArmed, setExtraArmed] = useState(false);
+  const [extraFirst, setExtraFirst] = useState<string | null>(null);
+  const extraRef = useRef<{ with: string; first: string | null } | null>(null);
+  extraRef.current = extraArmed && extraWith !== undefined ? { with: extraWith, first: extraFirst } : null;
+  // A new pack starts with nothing pressed and nothing held.
+  const pickKey = `${view.packNumber}:${view.pickNumber}`;
+  useEffect(() => {
+    setExtraArmed(false);
+    setExtraFirst(null);
+  }, [pickKey]);
+
   const handlePick = useCallback(
     (cardId: string): void => {
-      const result = pick(stateRef.current, cardId);
+      const two = extraRef.current;
+      if (two !== null && (two.first === null || two.first === cardId)) {
+        setExtraFirst(two.first === null ? cardId : null);
+        return;
+      }
+      const first = two?.first ?? cardId;
+      const extra = two === null ? undefined : { cardId, with: two.with };
+      const result = pick(stateRef.current, first, extra);
       if (!result.ok) {
         setMessage(explainRejection(result.rejection));
         return;
@@ -275,7 +301,7 @@ export function DraftScreen({
         : mainRef.current?.querySelector<HTMLElement>(`.pack [data-testid="card"][data-card-id="${CSS.escape(cardId)}"]`);
       setRecentlyAdded(tile ? { cardId, from: rectOf(tile.getBoundingClientRect()) } : null);
       onChange(result.state);
-      onPick?.(cardId);
+      onPick?.(first, extra);
     },
     [onChange, onPick],
   );
@@ -327,6 +353,7 @@ export function DraftScreen({
                 onLean={watching || rope === undefined ? undefined : onLean}
                 disabled={!watching && (blocked !== null || stalled)}
                 emptyNote={emptyNote}
+                chosen={extraFirst}
               />
               {!spectating && (
                 <PoolView
@@ -352,9 +379,25 @@ export function DraftScreen({
             </h1>
           )}
           <SeatBar view={view} onWatch={onWatch} arrivedWhole={arrivedWhole} />
+          <FaceUpCards view={view} />
           <header className="draft__bar">
             <div className="draft__controls">
               <PackLayoutControl layout={layout} onLayout={setLayout} />
+              {extraCard !== undefined && !waiting && !awaiting && (
+                <button
+                  type="button"
+                  className="button"
+                  data-testid="extra-pick"
+                  aria-pressed={extraArmed}
+                  disabled={blocked !== null || stalled}
+                  onClick={() => {
+                    setExtraArmed((on) => !on);
+                    setExtraFirst(null);
+                  }}
+                >
+                  {extraCard.name}
+                </button>
+              )}
               {onAdvance && (
                 <button
                   type="button"
@@ -371,6 +414,21 @@ export function DraftScreen({
         </aside>
       </div>
     </div>
+  );
+}
+
+/** The cards drafted face up, by seat: public to the whole table (`DraftSeatView.faceUp`). Nothing when no seat has one. */
+function FaceUpCards({ view }: { view: DraftView }) {
+  const seats = view.seats.filter((s) => (s.faceUp?.length ?? 0) > 0);
+  if (seats.length === 0) return null;
+  return (
+    <ul className="draft__faceup" data-testid="face-up">
+      {seats.map((s) => (
+        <li key={s.id} data-testid={`face-up-${s.id}`}>
+          {s.displayName}: {s.faceUp?.map((c) => c.name).join(', ')}
+        </li>
+      ))}
+    </ul>
   );
 }
 

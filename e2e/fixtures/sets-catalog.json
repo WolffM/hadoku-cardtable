@@ -1907,6 +1907,24 @@
       "collectorNumber": "219",
       "rarity": "common"
     },
+    "cogwork librarian": {
+      "cardId": "cogwork librarian",
+      "scryfallId": "453de664-0f09-4772-a626-51d58d1173f3",
+      "oracleId": "ec0d964e-ca2c-4252-8551-cf1916576653",
+      "name": "Cogwork Librarian",
+      "manaCost": [
+        "4"
+      ],
+      "manaValue": 4,
+      "colors": [],
+      "typeLine": "Artifact Creature — Construct",
+      "oracleText": "Draft this card face up.\nAs you draft a card, you may draft an additional card from that booster pack. If you do, put this card into that booster pack.",
+      "setCode": "CNS",
+      "collectorNumber": "58",
+      "rarity": "common",
+      "power": "3",
+      "toughness": "3"
+    },
     "colossal might": {
       "cardId": "colossal might",
       "scryfallId": "294330bb-3e77-4524-be2c-3299cf6f841f",

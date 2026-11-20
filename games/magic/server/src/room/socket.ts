@@ -788,7 +788,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 						return;
 					}
 					const before = stateOf(room);
-					const result = enginePick(before, seat, msg.cardId);
+					const result = enginePick(before, seat, msg.cardId, msg.extra);
 					if (!result.ok) {
 						// The engine's own reason, verbatim. Flattening it into
 						// a string here is how a client loses the ability to

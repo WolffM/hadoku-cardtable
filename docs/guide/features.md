@@ -21,7 +21,15 @@ a built-in heuristic instead.
 start one. Packs open to every seat at once, and a pick timer keeps the
 draft moving.
 
-**What it does not do.** Only the 97 cube lists carried over from Forge's
+Cogwork Librarian works as printed: it is drafted face up, where the whole
+table sees it beside its drafter's name, and on a later pack its drafter
+presses its name, then two cards, to take both and put the Librarian into
+that pack for the next seat.
+
+**What it does not do.** The other 23 cards that change a draft (Lore
+Seeker, Canal Dredger, Agent of Acquisitions and the rest of Conspiracy's)
+draft as ordinary cards; none is in a cube offered today. Bots never use a
+Librarian they draft. Only the 97 cube lists carried over from Forge's
 own bundle are offered (`AGENTS.md`) — nothing builds a cube from an
 arbitrary card pool, and nothing asks a human or Scryfall for picks beyond
 those lists.

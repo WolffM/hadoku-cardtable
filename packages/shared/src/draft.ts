@@ -149,6 +149,10 @@ export const DraftCardSchema = z.object({
  *
  * `pickedCount` is a count on purpose. Adding `picked: DraftCard[]` here is the
  * exact leak the hidden-information control exists to make impossible.
+ *
+ * `faceUp` is the one place a seat's cards are public, and only because the
+ * card says so: a card drafted face up (`@hadoku/draft`'s `actions.ts`) lies
+ * in front of its seat for the whole table to see.
  */
 export const DraftSeatViewSchema = z.object({
   id: SeatIdSchema,
@@ -168,6 +172,8 @@ export const DraftSeatViewSchema = z.object({
    * At most `seats.length − 1` — a round deals one pack per seat.
    */
   queueDepth: z.number().int().nonnegative(),
+  /** The cards this seat drafted face up and still holds face up, in pick order. Absent for none. */
+  faceUp: z.array(DraftCardSchema).optional(),
 });
 
 /**
@@ -198,6 +204,12 @@ export const ViewerViewSchema = z.discriminatedUnion('kind', [
     pack: z.array(DraftCardSchema),
     pool: z.array(DraftCardSchema),
     timer: PickTimerViewSchema.optional(),
+    /**
+     * The seat's own face-up cards that let it take a second card from the pack
+     * in front of it, by `cardId` (Cogwork Librarian). Absent when none can be
+     * used on this pick.
+     */
+    extraPick: z.array(z.string().min(1)).optional(),
   }),
   z.object({
     kind: z.literal('watcher'),

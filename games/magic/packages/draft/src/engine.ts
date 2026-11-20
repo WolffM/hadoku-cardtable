@@ -45,6 +45,7 @@ import {
   type SeatTable,
 } from '@wolffm/rooms-protocol';
 import type { DraftCard, PassDirection } from '@hadoku/shared';
+import { hasDraftAction } from './actions.ts';
 import { derive, type Rng } from './rng.ts';
 
 /** One seat's human occupant, as the caller describes it at creation. */
@@ -126,6 +127,11 @@ export interface DraftState {
   roundPicks: number[];
   /** What each seat has taken, in pick order. Index === SeatId. */
   pools: DraftCard[][];
+  /**
+   * The `cardId`s each seat drafted face up and still holds face up, in pick
+   * order (`actions.ts`). Index === SeatId. Public, unlike the pool around them.
+   */
+  faceUp: string[][];
   /** Packs not yet opened, by round then seat. */
   rounds: DraftCard[][][];
   status: DraftStatus;
@@ -135,10 +141,23 @@ export type PickRejection =
   | 'draft-complete'
   | 'unknown-seat'
   | 'empty-pack'
-  | 'card-not-in-pack';
+  | 'card-not-in-pack'
+  | 'extra-pick-refused';
+
+/**
+ * A second card taken from the same pack in the same pick: `cardId` is the
+ * card, `with` the seat's own face-up card that pays for it by going into the
+ * pack in its place (Cogwork Librarian).
+ */
+export interface ExtraPick {
+  cardId: string;
+  with: string;
+}
 
 export type DraftEvent =
   | { type: 'picked'; seatId: SeatId; cardId: string; cardName: string }
+  /** A face-up card left its seat's pool for the pack that seat is passing. */
+  | { type: 'returned-to-pack'; seatId: SeatId; cardId: string; cardName: string }
   | { type: 'pack-passed'; from: SeatId; to: SeatId; direction: PassDirection }
   | { type: 'round-started'; packNumber: number; direction: PassDirection }
   | { type: 'draft-complete' };
@@ -202,6 +221,7 @@ export function createDraft(config: DraftConfig): DraftState {
     queues: dealRound(rounds[0] ?? [], config.seatCount),
     roundPicks: new Array<number>(config.seatCount).fill(0),
     pools: Array.from({ length: config.seatCount }, () => []),
+    faceUp: Array.from({ length: config.seatCount }, () => []),
     rounds,
     status: 'drafting',
   };
@@ -244,6 +264,19 @@ export function waitingOn(state: DraftState): SeatId[] {
   return out;
 }
 
+/**
+ * The seat's own cards that can pay for a second card from the pack in front
+ * of it now, by `cardId`: face up, in its pool, and only while the pack holds
+ * two cards to take.
+ */
+export function extraPicksOf(state: DraftState, seatId: SeatId): string[] {
+  if (state.status === 'complete' || packOf(state, seatId).length < 2) return [];
+  const faceUp = state.faceUp[seatId] ?? [];
+  return (state.pools[seatId] ?? [])
+    .filter((c) => faceUp.includes(c.cardId) && hasDraftAction(c.name, 'extra-pick-return'))
+    .map((c) => c.cardId);
+}
+
 /** The seat a pack goes to from `seatId` this round: left is seat s to s + 1. */
 export function receiverOf(state: DraftState, seatId: SeatId): SeatId {
   const n = state.seatCount;
@@ -260,11 +293,15 @@ export function receiverOf(state: DraftState, seatId: SeatId): SeatId {
  * every seat still sees every pack in the same order a lock-step table would
  * deal it — only when changes.
  *
+ * With `extra`, the seat takes a second card from the same pack and the card
+ * that pays for it leaves the pool for the pack, so the pack passes on one
+ * card smaller, the same as after any pick, and still counts as one pick.
+ *
  * Returns a rejection value rather than throwing for every bad input. When the
  * pick empties the last pack of the round the next round opens with the
  * direction reversed, or the draft ends.
  */
-export function pick(state: DraftState, seatId: SeatId, cardId: string): PickResult {
+export function pick(state: DraftState, seatId: SeatId, cardId: string, extra?: ExtraPick): PickResult {
   if (state.status === 'complete') return { ok: false, reason: 'draft-complete', state };
   if (!Number.isInteger(seatId) || seatId < 0 || seatId >= state.seatCount) {
     return { ok: false, reason: 'unknown-seat', state };
@@ -277,8 +314,26 @@ export function pick(state: DraftState, seatId: SeatId, cardId: string): PickRes
 
   const card = pack[index] as DraftCard;
   const events: DraftEvent[] = [{ type: 'picked', seatId, cardId, cardName: card.name }];
+  const taken: DraftCard[] = [card];
+  let rest = pack.filter((_, j) => j !== index);
+  let pool = state.pools[seatId] ?? [];
+  let faceUp = state.faceUp[seatId] ?? [];
 
-  const rest = pack.filter((_, j) => j !== index);
+  if (extra !== undefined) {
+    const second = rest.find((c) => c.cardId === extra.cardId);
+    const payer = pool.find((c) => c.cardId === extra.with);
+    if (second === undefined || payer === undefined || !extraPicksOf(state, seatId).includes(extra.with)) {
+      return { ok: false, reason: 'extra-pick-refused', state };
+    }
+    taken.push(second);
+    events.push({ type: 'picked', seatId, cardId: second.cardId, cardName: second.name });
+    events.push({ type: 'returned-to-pack', seatId, cardId: payer.cardId, cardName: payer.name });
+    rest = [...rest.filter((c) => c !== second), payer];
+    pool = pool.filter((c) => c !== payer);
+    faceUp = faceUp.filter((id) => id !== payer.cardId);
+  }
+  faceUp = [...faceUp, ...taken.filter((c) => hasDraftAction(c.name, 'face-up')).map((c) => c.cardId)];
+
   const to = receiverOf(state, seatId);
   const queues = state.queues.map((q) => q.slice());
   queues[seatId] = (queues[seatId] as DraftCard[][]).slice(1);
@@ -292,7 +347,8 @@ export function pick(state: DraftState, seatId: SeatId, cardId: string): PickRes
     seq: state.seq + 1,
     queues,
     roundPicks: state.roundPicks.map((n, i) => (i === seatId ? n + 1 : n)),
-    pools: state.pools.map((p, i) => (i === seatId ? [...p, card] : p)),
+    pools: state.pools.map((p, i) => (i === seatId ? [...pool, ...taken] : p)),
+    faceUp: Array.from({ length: state.seatCount }, (_, i) => (i === seatId ? faceUp : (state.faceUp[i] ?? []))),
   };
 
   if (queues.every((q) => q.length === 0)) next = nextRound(next, events);
@@ -333,7 +389,7 @@ function nextRound(state: DraftState, events: DraftEvent[]): DraftState {
 export function fromLockstep(saved: DraftState | LockstepState): DraftState {
   if (!('packs' in saved) || 'queues' in saved) return saved as DraftState;
   const { packs, picked, pickNumber, ...rest } = saved;
-  const base = { ...rest, queues: [], roundPicks: [] } as unknown as DraftState;
+  const base = { ...rest, queues: [], roundPicks: [], faceUp: [] } as unknown as DraftState;
   const queues = packs.map((p, s) => (p.length > 0 && !picked.includes(s) ? [p.slice()] : []));
   packs.forEach((p, s) => {
     if (p.length > 0 && picked.includes(s)) queues[receiverOf(base, s)]!.push(p.slice());

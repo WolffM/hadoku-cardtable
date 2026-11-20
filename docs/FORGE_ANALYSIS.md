@@ -206,6 +206,19 @@ We're behind cloudflared and must disable that path, not merely leave it unused.
   `CubeImporter` (130), `WinstonDraft` (191), `ThemedChaosDraft` (202),
   `BoosterDraftAI`, `CardRanker`, `LimitedDeckBuilder`.
 - `net/draft/BoosterDraftHost.java` (543) — networked draft already exists.
+- **Cards that change the draft** (verified 2026-11-19, pin `1a56d057`): 24 card
+  scripts carry `Draft:` lines (`grep -rl '^Draft:' forge-gui/res/cardsfolder | wc -l`),
+  22 distinct lines between them. `LimitedPlayer.draftCard`
+  (`LimitedPlayer.java:123`) acts on each by comparing the line's text, with one
+  `handle…` method per card and a bit in `playerFlags`; Canal Dredger's last-card
+  pass is in `BoosterDraft.java:705`. What a card notes during the draft reaches
+  the match as the deck's `DraftNotes` header (`DeckFileHeader.java:46`,
+  `Match.java:361` → `Player.setDraftNotes`), read by card scripts through
+  `Count$DraftNotesCount.<name>` and `DraftNotesHighest`
+  (`AbilityUtils.java:2460`). Our draft is our own engine, so none of this runs:
+  `games/magic/packages/draft/src/actions.ts` holds each action we have written
+  (Cogwork Librarian so far). Not checked: whether Forge's AI drafter
+  (`LimitedPlayerAI`) uses these cards well.
 - `forge-gui/src/main/java/forge/gui/interfaces/IDraftEventHandler.java` — a
   draft-specific event interface, separate from `IGuiGame`.
 
