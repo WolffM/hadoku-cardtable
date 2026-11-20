@@ -450,6 +450,8 @@ export {
   CUBE_ARTS_MAX,
   sampleArt,
   ImportCubeBodySchema,
+  CUBE_LIST_MAX_CHARS,
+  type ImportCubeBody,
   SetDraftPlanBodySchema,
   SetSummarySchema,
   DraftPresetSchema,

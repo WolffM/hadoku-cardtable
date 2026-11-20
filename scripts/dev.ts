@@ -148,5 +148,5 @@ if (why !== null) {
 }
 // The edge stamps identity only for the e2e suite's named friends; here it only strips the prefix,
 // and the dev hatch makes the caller `local-dev`. The secret is never used, so any value will do.
-await startEdge({ port: PORT, upstreamPort: SERVER_PORT, secret: randomBytes(16).toString('hex') });
+await startEdge({ port: PORT, upstreamPort: SERVER_PORT, secret: randomBytes(16).toString('hex'), vendorDir: join(DEV, 'vendor') });
 console.log(`[dev] Card Table on http://127.0.0.1:${PORT}/cardtable/  (server log: ${join(logDir, 'server.log')}; Ctrl-C to stop)`);

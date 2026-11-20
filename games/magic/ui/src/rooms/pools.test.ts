@@ -68,7 +68,7 @@ describe("a cube's card list", () => {
     await pod.cubeCards('cc-vintage');
     expect((await lobby.refreshCube('cc-vintage')).ok).toBe(true);
     await pod.cubeCards('cc-vintage');
-    expect((await lobby.importCube('https://cubecobra.com/cube/list/vintage')).ok).toBe(true);
+    expect((await lobby.importCube({ link: 'https://cubecobra.com/cube/list/vintage' })).ok).toBe(true);
     await pod.cubeCards('cc-vintage');
     expect((await lobby.deleteCube('cc-vintage')).ok).toBe(true);
     await pod.cubeCards('cc-vintage');

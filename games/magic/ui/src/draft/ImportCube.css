@@ -20,15 +20,46 @@
   gap: 6px;
 }
 
-.import-cube__row input {
+.import-cube__row :is(input, textarea) {
   flex: 1 1 auto;
   min-width: 0;
+  box-sizing: border-box;
   font: inherit;
   color: var(--color-text);
   background: var(--color-bg-alt);
   border: 1px solid var(--color-border);
   border-radius: var(--hdk-radius);
   padding: 0 8px;
+  min-height: 32px;
+}
+
+.import-cube__row textarea {
+  padding: 5px 8px;
+  line-height: 20px;
+  resize: none;
+}
+
+.import-cube__row input {
+  flex-basis: 0;
+}
+
+/* The field takes the tile's width; a list's name and the button share the row under it. */
+.import-cube__row {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.import-cube__row textarea {
+  flex-basis: 100%;
+}
+
+.import-cube__row textarea::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.import-cube__row button {
   min-height: 32px;
 }
 

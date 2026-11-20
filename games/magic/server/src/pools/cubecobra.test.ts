@@ -29,6 +29,12 @@ describe('parseCubeCobraLink', () => {
 		expect(parsed).toEqual({ ok: true, id: 'LSVCube' });
 	});
 
+	it("reads the id out of any of a cube's pages", () => {
+		for (const page of ['playtest', 'about', 'analysis', 'blog', 'records']) {
+			expect(parseCubeCobraLink(`https://www.cubecobra.com/cube/${page}/LSVCube`), page).toEqual({ ok: true, id: 'LSVCube' });
+		}
+	});
+
 	it('accepts a bare id', () => {
 		expect(parseCubeCobraLink('LSVCube')).toEqual({ ok: true, id: 'LSVCube' });
 	});

@@ -311,6 +311,29 @@ describe('the pool picker (wave 73 §B)', () => {
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it('an imported cube is the room’s pick at once, and what Forge cannot play in it is named', async () => {
+    const good = cubeFixture({ id: 'vintage-cube-2025-12', name: 'MTGO Vintage Cube 2025-12' });
+    const pasted = cubeFixture({ id: 'list-1a2b3c4d', name: 'Kitchen table', origin: 'list', cubeCobraId: null });
+    vi.mocked(pools.listCubes).mockResolvedValue([good]);
+    vi.mocked(pools.importCube).mockImplementation(async () => {
+      vi.mocked(pools.listCubes).mockResolvedValue([pasted, good]);
+      return { ok: true, cube: pasted };
+    });
+    vi.mocked(rooms.setPlan).mockResolvedValue({ ok: false, message: 'refused', verdict: { ok: false, unplayable: ['Not A Real Card'], missingText: [] } });
+
+    render(createElement(DraftLobby, { ...baseProps, pod: plannedPod(cubePlan(good.id), good.name, { ok: true, cards: good.size }), members: [alice, bob] }));
+    await waitFor(() => expect(screen.getByTestId('pool-picker-import-link')).not.toBeNull());
+
+    fireEvent.change(screen.getByTestId('pool-picker-import-link'), { target: { value: 'Forest\nNot A Real Card' } });
+    fireEvent.change(screen.getByTestId('pool-picker-import-name'), { target: { value: 'Kitchen table' } });
+    fireEvent.click(screen.getByTestId('pool-picker-import-go'));
+
+    await waitFor(() => expect(rooms.setPlan).toHaveBeenCalledWith('r-cube', cubePlan(pasted.id)));
+    expect(pools.importCube).toHaveBeenCalledWith({ name: 'Kitchen table', list: 'Forest\nNot A Real Card' });
+    await waitFor(() => expect(screen.getByTestId('pool-picker-refusal').textContent).toContain('Not A Real Card'));
+    expect((screen.getByTestId(`pool-picker-cubes-${pasted.id}`) as HTMLInputElement).checked).toBe(true);
+  });
+
   it('a refused pick shows the attempted cube chosen and its unplayable names, disables Ready, and leaves the room’s own plan untouched', async () => {
     const good = cubeFixture({ id: 'vintage-cube-2025-12', name: 'MTGO Vintage Cube 2025-12' });
     const bad = cubeFixture({ id: 'test-unplayable', name: 'A cube Forge does not know' });

@@ -80,7 +80,7 @@
 
 import { useEffect, useState } from 'react';
 
-import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, SetSummary } from '@hadoku/shared';
+import type { CubeSummary, DraftPlan, DraftPreset, ImportCubeBody, PoolSource, SetSummary } from '@hadoku/shared';
 
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
@@ -359,13 +359,20 @@ export function DraftLobby({
 
   // Import stays in the room (it is how a cube gets into a draft); refresh and delete moved to
   // `#/inventory` (AF305 §B — the operator: "when i'm in a room i wouldn't want to mess with the
-  // refresh state of the cube"), so this is the only cube write left here.
-  const importCube = (link: string): void => {
+  // refresh state of the cube"), so this is the only cube write left here. An imported cube is the
+  // room's pick at once (the operator, 2026-11-19: "ideally it lets you draft right away"): the
+  // same write as pressing its tile, so cards Forge cannot play are named in the same modal.
+  const importCube = (source: ImportCubeBody): void => {
     setPlanBusy(true);
-    pools.importCube(link).then((r) => {
-      setPlanBusy(false);
-      if (r.ok) loadCubes();
-      else setCubesError(r.message);
+    setCubesError(null);
+    pools.importCube(source).then((r) => {
+      if (!r.ok) {
+        setPlanBusy(false);
+        setCubesError(r.message);
+        return;
+      }
+      loadCubes();
+      writeSource({ kind: 'cube', cubeId: r.cube.id });
     });
   };
 

@@ -57,8 +57,8 @@ export interface CubeCobraCube {
 	readonly artId: string | null;
 }
 
-/** `/cube/overview/<id>`, `/cube/list/<id>`, or a bare id — Cube Cobra's own `shortId` or Mongo `_id`. */
-const CUBE_PATH_RE = /\/cube\/(?:overview|list|api\/cubejson)\/([^/?#]+)/i;
+/** Any of a cube's own pages (`/cube/overview/<id>`, `/cube/list/<id>`, `/cube/playtest/<id>`, …), or a bare id — Cube Cobra's own `shortId` or Mongo `_id`. */
+const CUBE_PATH_RE = /\/cube\/(?:api\/cubejson|[a-z]+)\/([^/?#]+)/i;
 
 /** A Scryfall id is a uuid. `image.id` that is not one builds no URL; treat it as absent. */
 const SCRYFALL_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -123,9 +123,11 @@ export function projectCubeCobraCube(raw: unknown, fallbackName: string): CubeCo
 	return { name, cards, artId };
 }
 
-/** Fetch and project one cube. `fetchJson` is injectable so a test never reaches the network. */
-export async function fetchCubeCobraCube(id: string, fetchJson: FetchJson = defaultFetchJson): Promise<CubeCobraCube> {
-	const url = `https://cubecobra.com/cube/api/cubeJSON/${encodeURIComponent(id)}`;
+export const CUBE_COBRA_ORIGIN = 'https://cubecobra.com';
+
+/** Fetch and project one cube. `fetchJson` and `origin` are injectable so a test never reaches the network. */
+export async function fetchCubeCobraCube(id: string, fetchJson: FetchJson = defaultFetchJson, origin: string = CUBE_COBRA_ORIGIN): Promise<CubeCobraCube> {
+	const url = `${origin}/cube/api/cubeJSON/${encodeURIComponent(id)}`;
 	const raw = await fetchJson(url);
 	return projectCubeCobraCube(raw, id);
 }

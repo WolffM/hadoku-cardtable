@@ -17,7 +17,7 @@
 
 import { useEffect, useState } from 'react';
 
-import type { CubeSummary } from '@hadoku/shared';
+import type { CubeSummary, ImportCubeBody } from '@hadoku/shared';
 
 import { cardsCount } from '../draft/PoolPicker.tsx';
 import { CubeArt } from '../draft/CubeArt.tsx';
@@ -68,9 +68,11 @@ function InventoryCard({
           {cube.refreshedAt !== null ? ` · refreshed ${relativeTime(cube.refreshedAt)}` : ''}
         </span>
         <span className="inventory__actions">
-          <button type="button" className="inventory__action ct-action" data-testid={`inventory-refresh-${cube.id}`} disabled={busy} onClick={() => onRefresh(cube.id)}>
-            Refresh
-          </button>
+          {cube.origin === 'cubecobra' && (
+            <button type="button" className="inventory__action ct-action" data-testid={`inventory-refresh-${cube.id}`} disabled={busy} onClick={() => onRefresh(cube.id)}>
+              Refresh
+            </button>
+          )}
           {cube.importedBy === myId && (
             <button type="button" className="inventory__action ct-action" data-testid={`inventory-delete-${cube.id}`} disabled={busy} onClick={() => onDelete(cube.id)}>
               Delete
@@ -101,7 +103,7 @@ export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsC
     pools.listCubes().then(
       (list) => {
         if (landed() !== 'keep') return;
-        setCubes(list.filter((c) => c.origin === 'cubecobra'));
+        setCubes(list.filter((c) => c.origin !== 'shortlist'));
         setError(null);
       },
       (e: unknown) => {
@@ -119,7 +121,7 @@ export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsC
       else setError(r.message);
     });
   };
-  const importCube = (link: string): void => withWrite(() => pools.importCube(link));
+  const importCube = (source: ImportCubeBody): void => withWrite(() => pools.importCube(source));
   const refreshCube = (id: string): void => withWrite(() => pools.refreshCube(id));
   const deleteCube = (id: string): void => withWrite(() => pools.deleteCube(id));
 

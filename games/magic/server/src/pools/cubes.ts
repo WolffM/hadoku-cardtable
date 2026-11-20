@@ -1,12 +1,12 @@
 /**
  * `/api/pools/cubes` — the cube half of a draft room's pool picker: the
- * 8-cube shortlist `build-pool` generates (read-only) plus any cube a friend
- * has imported from Cube Cobra.
+ * 8-cube shortlist `build-pool` generates (read-only) plus any cube a member
+ * has imported: from Cube Cobra, or as a pasted card list (`cube-list.ts`).
  *
  *   GET    /api/pools/cubes            → 200 CubeSummary[] (imported newest-first, then the shortlist)
  *   GET    /api/pools/cubes/:id/cards  → 200 DraftCard[] | 404 { error } — lane B's art preload reads a plan's cube from here, before the deal
  *   GET    /api/pools/cubes/:id/arts   [?n=3] → 200 { arts } | 404 { error } — a few of its cards' art ids, at random: the lobby's spotlight
- *   POST   /api/pools/cubes/import     { link } → 201 CubeSummary | 400 { error }
+ *   POST   /api/pools/cubes/import     { link } | { name, list } → 201 CubeSummary | 400 { error } | 429
  *   POST   /api/pools/cubes/:id/refresh → 200 CubeSummary | 400 | 403 | 404
  *   DELETE /api/pools/cubes/:id        → 204 | 400 | 403 | 404
  *
@@ -27,7 +27,8 @@
  * not know is still counted — the card is kept with an empty `typeLine` (the
  * one field no real printing ever leaves blank), so the cube's size stays
  * accurate and `deps.check` can tell a card with no text from one Forge
- * simply does not know.
+ * simply does not know. A pasted list is the same snapshot with no refresh:
+ * names only, `cubeCobraId: null`, its tile art the first card the catalog knows.
  *
  * ## Persistence
  *
@@ -47,9 +48,11 @@ import { dirname, join } from 'node:path';
 import express, { type Request, type Response, type Router } from 'express';
 
 import { CUBE_ARTS_MAX, DraftCardSchema, ImportCubeBodySchema, sampleArt, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
+import type { RateLimitConfig } from '@wolffm/rooms-server';
 import { prepareJson, sendPrepared, type PreparedJson } from '@hadoku/game-server/http/prepared';
-import { bodyErrors, httpCaller } from '@hadoku/game-server/http/request';
+import { bodyErrors, httpCaller, perCallerLimit } from '@hadoku/game-server/http/request';
 import type { CardCatalog } from './catalog.ts';
+import { parseCubeList } from './cube-list.ts';
 import { fetchCubeCobraCube, parseCubeCobraLink, type CubeCobraCard, type CubeCobraCube, type FetchJson } from './cubecobra.ts';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 
@@ -57,6 +60,8 @@ export interface CubeStore {
 	list(): CubeSummary[];
 	cards(id: string): readonly DraftCard[] | null;
 	importLink(link: string, by: string): Promise<CubeSummary>;
+	/** A pasted card list, saved under `name`. Every paste is a new cube: a list has no id of its own to import again. */
+	importList(name: string, list: string, by: string): Promise<CubeSummary>;
 	refresh(id: string, by: string): Promise<CubeSummary>;
 	/** Throws a {@link CubeStoreRefusal}; never a silent no-op. */
 	remove(id: string, by: string): void;
@@ -65,7 +70,7 @@ export interface CubeStore {
 	anonymise(ids: ReadonlySet<string>, to: string): Promise<number>;
 }
 
-/** A typed refusal `remove`/`refresh`/`importLink` throw — the HTTP status is already decided. */
+/** A typed refusal `remove`/`refresh`/`importLink`/`importList` throw — the HTTP status is already decided. */
 export class CubeStoreRefusal extends Error {
 	readonly status: 400 | 403 | 404;
 	constructor(status: 400 | 403 | 404, message: string) {
@@ -79,7 +84,7 @@ interface Entry {
 	summary: CubeSummary;
 	/** The shortlist's own resolved cards, or the imported cube's derived ones. Never persisted for imports; replaced, never edited. */
 	cards: readonly DraftCard[];
-	/** Only for `origin: 'cubecobra'` — what a refresh re-derives `cards` from. */
+	/** Every imported cube's own names — what a catalog change or a refresh re-derives `cards` from. `null` for the shortlist. */
 	raw: readonly CubeCobraCard[] | null;
 }
 
@@ -195,7 +200,8 @@ function deriveImportedCards(id: string, raw: readonly CubeCobraCard[], catalog:
 interface ImportFile {
 	id: string;
 	name: string;
-	cubeCobraId: string;
+	/** `null` for a pasted list. */
+	cubeCobraId: string | null;
 	importedBy: string;
 	importedAt: string;
 	refreshedAt: string | null;
@@ -224,7 +230,7 @@ function parseImportFile(text: string, path: string): ImportFile | null {
 	if (
 		typeof v.id !== 'string' ||
 		typeof v.name !== 'string' ||
-		typeof v.cubeCobraId !== 'string' ||
+		(v.cubeCobraId !== null && typeof v.cubeCobraId !== 'string') ||
 		typeof v.importedBy !== 'string' ||
 		typeof v.importedAt !== 'string' ||
 		!Array.isArray(v.cards)
@@ -265,6 +271,8 @@ export interface CreateCubeStoreOpts {
 	catalog: CardCatalog;
 	/** Injectable; default global `fetch`. Passed straight through to {@link fetchCubeCobraCube}. */
 	fetchJson?: FetchJson;
+	/** Where Cube Cobra is. Default the real one; an e2e stack points it at its own stand-in. */
+	cubeCobraOrigin?: string;
 	/**
 	 * `pools/cube-art.json`'s path — the shortlist's own `cubeId → card name`
 	 * art map (AF305 §B). Defaults to `shortlistDir`'s SIBLING (`shortlistDir`
@@ -277,7 +285,7 @@ export interface CreateCubeStoreOpts {
 
 export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 	const { shortlistDir, importDir, catalog } = opts;
-	const fetchCube = (id: string): Promise<CubeCobraCube> => fetchCubeCobraCube(id, opts.fetchJson);
+	const fetchCube = (id: string): Promise<CubeCobraCube> => fetchCubeCobraCube(id, opts.fetchJson, opts.cubeCobraOrigin);
 	const cubeArtNames = loadCubeArtNames(opts.cubeArtPath ?? join(dirname(shortlistDir), 'cube-art.json'));
 
 	const shortlist = new Map<string, Entry>();
@@ -334,7 +342,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 					id: parsed.id,
 					name: parsed.name,
 					size: cards.length,
-					origin: 'cubecobra',
+					origin: parsed.cubeCobraId === null ? 'list' : 'cubecobra',
 					cubeCobraId: parsed.cubeCobraId,
 					importedBy: parsed.importedBy,
 					importedAt: parsed.importedAt,
@@ -357,7 +365,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 		const file: ImportFile = {
 			id: s.id,
 			name: s.name,
-			cubeCobraId: s.cubeCobraId ?? '',
+			cubeCobraId: s.cubeCobraId,
 			importedBy: s.importedBy ?? '',
 			importedAt: s.importedAt ?? new Date().toISOString(),
 			refreshedAt: s.refreshedAt,
@@ -418,6 +426,38 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			return entry.summary;
 		},
 
+		async importList(name: string, list: string, by: string): Promise<CubeSummary> {
+			const parsed = parseCubeList(list);
+			if (!parsed.ok) throw new CubeStoreRefusal(400, parsed.error);
+			const id = `list-${randomUUID().slice(0, 8)}`;
+			// MTGO writes a split card `Life/Death`; the catalog's name for it is `Life // Death`.
+			const spelled = (cardName: string): string => {
+				const split = cardName.replace(/\s*\/+\s*/g, ' // ');
+				return split !== cardName && catalog.byName(cardName) === null && catalog.byName(split) !== null ? split : cardName;
+			};
+			const raw: CubeCobraCard[] = parsed.names.map((cardName) => ({ name: spelled(cardName), scryfallId: null }));
+			const cards = deriveImportedCards(id, raw, catalog);
+			const entry: Entry = {
+				raw,
+				cards,
+				summary: {
+					id,
+					name,
+					size: cards.length,
+					origin: 'list',
+					cubeCobraId: null,
+					importedBy: by,
+					importedAt: new Date().toISOString(),
+					refreshedAt: null,
+					verdict: null,
+					artId: cards.find((c) => c.scryfallId !== undefined && SCRYFALL_UUID_RE.test(c.scryfallId))?.scryfallId ?? null,
+				},
+			};
+			imported.set(id, entry);
+			await persistImport(entry);
+			return entry.summary;
+		},
+
 		// `by` is unused on purpose: refresh is any friend's, not only the importer's (ruling 4).
 		// Kept in the signature for parity with `remove`/`importLink`, both of which need it.
 		async refresh(id: string, _by: string): Promise<CubeSummary> {
@@ -427,7 +467,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 				throw new CubeStoreRefusal(404, `no imported cube ${JSON.stringify(id)}`);
 			}
 			const cubeCobraId = entry.summary.cubeCobraId;
-			if (cubeCobraId === null) throw new CubeStoreRefusal(400, 'cube has no Cube Cobra id to refresh from');
+			if (cubeCobraId === null) throw new CubeStoreRefusal(400, 'a pasted list has nothing to refresh from');
 			let cube: Awaited<ReturnType<typeof fetchCube>>;
 			try {
 				cube = await fetchCube(cubeCobraId);
@@ -498,7 +538,12 @@ export interface AttachCubeRoutesDeps {
 	store: CubeStore;
 	check: (cards: readonly DraftCard[]) => Promise<PoolVerdict>;
 	log?: (entry: Record<string, unknown>) => void;
+	/** Overrides {@link CUBE_IMPORT_RATE_LIMIT}; `null` is none (`perCallerLimit`). */
+	importRateLimit?: RateLimitConfig | null;
 }
+
+/** A burst of 10 imports, then one every 30 seconds: each is a fetch or a parse, a Forge check and a file. */
+export const CUBE_IMPORT_RATE_LIMIT: RateLimitConfig = { capacity: 10, refillAmount: 1, refillIntervalMs: 30_000 };
 
 /**
  * Mounted by lane A's `index.ts` on the `api` router, the way `http/decks.ts`'s
@@ -510,8 +555,12 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 	const { store, check } = deps;
 	const warn = deps.log ?? log;
 	const cubes = express.Router();
-	cubes.use(express.json({ limit: '4kb' }));
-
+	// A pasted list is the one large body here: `CUBE_LIST_MAX_CHARS` of names, and JSON's own escaping.
+	cubes.use(express.json({ limit: '512kb' }));
+	const importLimit = perCallerLimit(deps.importRateLimit === undefined ? CUBE_IMPORT_RATE_LIMIT : deps.importRateLimit, 'too many imports; wait a little and try again', {
+		act: 'cube-import',
+		onRefused: () => warn({ evt: 'cube-import-limited' }),
+	});
 
 	const checkAndSave = async (summary: CubeSummary): Promise<CubeSummary> => {
 		const cards = store.cards(summary.id);
@@ -561,10 +610,11 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 
 	cubes.post('/import', (req: Request, res: Response) => {
 		const parsed = ImportCubeBodySchema.safeParse(req.body);
-		if (!parsed.success) return badRequest(res, 'body is { link }, 1 to 300 characters');
+		if (!parsed.success) return badRequest(res, 'body is { link }, or { name, list } with a name of 1 to 60 characters');
+		if (!importLimit(req, res)) return;
 		const caller = httpCaller(req);
-		store
-			.importLink(parsed.data.link, caller)
+		const body = parsed.data;
+		('link' in body ? store.importLink(body.link, caller) : store.importList(body.name, body.list, caller))
 			.then((summary) => checkAndSave(summary))
 			.then((summary) => res.status(201).json(summary))
 			.catch((err: unknown) => {

@@ -24,6 +24,7 @@ import express from 'express';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CubeSummary, DraftCard, PoolVerdict } from '@hadoku/shared';
+import type { RateLimitConfig } from '@wolffm/rooms-server';
 import { attachCubeRoutes, createCubeStore, CubeStoreRefusal, type CubeStore } from './cubes.ts';
 import type { CardCatalog } from './catalog.ts';
 
@@ -282,10 +283,10 @@ describe('attachCubeRoutes', () => {
 		for (const server of servers.splice(0)) await new Promise<void>((done) => server.close(() => done()));
 	});
 
-	async function openApp(store: CubeStore): Promise<string> {
+	async function openApp(store: CubeStore, importRateLimit?: RateLimitConfig): Promise<string> {
 		const app = express();
 		const api = express.Router();
-		attachCubeRoutes(api, { store, check: OK_CHECK, log: () => undefined });
+		attachCubeRoutes(api, { store, check: OK_CHECK, log: () => undefined, ...(importRateLimit ? { importRateLimit } : {}) });
 		app.use('/api', api);
 		const server = createServer(app);
 		await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
@@ -351,6 +352,56 @@ describe('attachCubeRoutes', () => {
 		expect(res.status).toBe(400);
 		const list = await call(base, 'GET', '/api/pools/cubes', 'alice');
 		expect((list.json as CubeSummary[]).some((c) => c.origin === 'cubecobra')).toBe(false);
+	});
+
+	it('imports a pasted list under its name, checked, and it is still there after a restart', async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const texts: Record<string, DraftCard> = {
+			Forest: { ...shortlistCard('Forest'), scryfallId: '0c3dc1d6-3a09-4b9a-a8b5-5b1d1a3a7f10' },
+			'Life // Death': shortlistCard('Life // Death'),
+		};
+		const known: CardCatalog = { ...EMPTY_CATALOG, byName: (name) => texts[name] ?? null };
+		const store = createCubeStore({ shortlistDir, importDir, catalog: known });
+		const base = await openApp(store);
+
+		const imported = await call(base, 'POST', '/api/pools/cubes/import', 'alice', { name: 'Kitchen table', list: '2 Forest\n1x Zzyzzyva (ZZZ) 1\n# a comment\n1 Life/Death' });
+		expect(imported.status).toBe(201);
+		const summary = imported.json as CubeSummary;
+		expect(summary).toMatchObject({ name: 'Kitchen table', size: 4, origin: 'list', cubeCobraId: null, importedBy: expect.stringMatching(/^fk:/), verdict: { ok: true, cards: 4 } });
+		expect(summary.id).toMatch(/^list-[0-9a-f]{8}$/);
+		expect(summary.artId, 'the first card the catalog knows').toBe('0c3dc1d6-3a09-4b9a-a8b5-5b1d1a3a7f10');
+
+		const cards = (await call(base, 'GET', `/api/pools/cubes/${summary.id}/cards`, 'bob')).json as DraftCard[];
+		expect(cards.map((c) => c.name), "MTGO's one-slash split card is the catalog's own").toEqual(['Forest', 'Forest', 'Zzyzzyva', 'Life // Death']);
+		expect(cards[2]!.typeLine, 'a name the catalog does not know is kept, with no text').toBe('');
+
+		await vi.waitFor(async () => expect(JSON.parse(await readFile(join(importDir, `${summary.id}.json`), 'utf8')).verdict).toEqual({ ok: true, cards: 4 }));
+		const reopened = createCubeStore({ shortlistDir, importDir, catalog: known });
+		expect(reopened.list()[0]).toEqual(summary);
+		expect(reopened.cards(summary.id)?.map((c) => c.name)).toEqual(['Forest', 'Forest', 'Zzyzzyva', 'Life // Death']);
+
+		const refresh = await call(base, 'POST', `/api/pools/cubes/${summary.id}/refresh`, 'alice');
+		expect(refresh.status, 'a list has nothing to refresh from').toBe(400);
+		expect((await call(base, 'DELETE', `/api/pools/cubes/${summary.id}`, 'bob')).status).toBe(403);
+		expect((await call(base, 'DELETE', `/api/pools/cubes/${summary.id}`, 'alice')).status).toBe(204);
+	});
+
+	it('refuses a list with no card in it, a list with no name, and a body that is neither', async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const base = await openApp(createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG }));
+		expect((await call(base, 'POST', '/api/pools/cubes/import', 'alice', { name: 'Empty', list: '# nothing\n' })).status).toBe(400);
+		expect((await call(base, 'POST', '/api/pools/cubes/import', 'alice', { name: '  ', list: 'Forest' })).status).toBe(400);
+		expect((await call(base, 'POST', '/api/pools/cubes/import', 'alice', { link: 'x', list: 'Forest' })).status).toBe(400);
+		expect((await call(base, 'GET', '/api/pools/cubes', 'alice')).json).toHaveLength(1);
+	});
+
+	it('limits imports per caller', async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const base = await openApp(createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG }), { capacity: 1, refillAmount: 1, refillIntervalMs: 60_000 });
+		const body = { name: 'One', list: 'Forest' };
+		expect((await call(base, 'POST', '/api/pools/cubes/import', 'alice', body)).status).toBe(201);
+		expect((await call(base, 'POST', '/api/pools/cubes/import', 'alice', body)).status).toBe(429);
+		expect((await call(base, 'POST', '/api/pools/cubes/import', 'bob', body)).status, 'another caller has their own').toBe(201);
 	});
 
 	it('refresh overwrites, over HTTP', async () => {

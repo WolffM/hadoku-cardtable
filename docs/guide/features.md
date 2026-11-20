@@ -28,11 +28,10 @@ that pack for the next seat.
 
 **What it does not do.** The other 23 cards that change a draft (Lore
 Seeker, Canal Dredger, Agent of Acquisitions and the rest of Conspiracy's)
-draft as ordinary cards; none is in a cube offered today. Bots never use a
-Librarian they draft. Only the 97 cube lists carried over from Forge's
-own bundle are offered (`AGENTS.md`) — nothing builds a cube from an
-arbitrary card pool, and nothing asks a human or Scryfall for picks beyond
-those lists.
+draft as ordinary cards, in an imported cube as in any other. Bots never use
+a Librarian they draft. A cube is a list of cards and nothing more: no
+custom pack rules, no weighting, and no card Forge cannot play, which a
+draft leaves out.
 
 ## Hosting a draft
 
@@ -43,6 +42,14 @@ then wait for its eight seats to fill, or let bots take the rest.
 to **Draft**, then open the room. Its leader picks a cube from the **Cube**
 tab, then turns the pick timer on and sets its speed (½×, 1×, 2× or 4×) in
 the room's match rules before the pod deals.
+
+**Bringing your own cube.** The Cube tab's **Import** box takes a Cube Cobra
+link (any of a cube's pages, or its id) or a pasted card list with a name:
+one card a line, with or without a count or a set, or a Cube Cobra export
+(plain text, CSV, MTGO or Forge). The import becomes the room's cube at
+once. Cards Forge cannot play are named, and **Draft without them** deals
+the rest. Every import is kept in **Inventory** for the next draft, where a
+Cube Cobra cube can be refreshed and the importer can delete theirs.
 
 **What it does not do.** Opening a pod, like creating any room, event or
 match, is rate-limited per caller — a member cannot spin up pods without

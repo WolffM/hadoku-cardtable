@@ -24,12 +24,17 @@ export const poolsPlugin: CardtablePlugin = {
 		const { state } = ctx;
 		// `shortlistDir` is the committed, generated 8-cube list (`games/magic/packages/carddata/src/cli/build-pool.ts
 		// --out-dir=`): read-only, never `CARDTABLE_*`-overridden, because it ships with the bundle.
-		// `importDir` (`CARDTABLE_CUBES_DIR`) is writable: a friend's Cube Cobra imports, flat `<id>.json`.
+		// `importDir` (`CARDTABLE_CUBES_DIR`) is writable: members' imports (Cube Cobra cubes and pasted lists), flat `<id>.json`.
 		state.shortlistDir = SHORTLIST_DIR;
 		state.catalog = loadCardCatalog(MAGIC_CONFIG.catalogPath);
 		ctx.bootPhase('catalog');
 		state.artKeys = loadArtKeys({ mirrorPath: MAGIC_CONFIG.artMirrorPath, manifest: (artManifest as ArtManifestFile).entries });
-		state.cubeStore = createCubeStore({ shortlistDir: state.shortlistDir, importDir: MAGIC_CONFIG.cubesDir, catalog: state.catalog });
+		state.cubeStore = createCubeStore({
+			shortlistDir: state.shortlistDir,
+			importDir: MAGIC_CONFIG.cubesDir,
+			catalog: state.catalog,
+			...(MAGIC_CONFIG.testCubeCobraOrigin !== undefined ? { cubeCobraOrigin: MAGIC_CONFIG.testCubeCobraOrigin } : {}),
+		});
 		if (state.cubeStore.list().length === 0) console.warn(`[cardtable] draft pool: no shortlist cubes loaded from ${state.shortlistDir} — draft rooms are disabled`);
 		ctx.bootPhase('cubes');
 

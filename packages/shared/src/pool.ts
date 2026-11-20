@@ -46,11 +46,11 @@ export const PoolVerdictSchema = z.discriminatedUnion('ok', [
 export type PoolVerdict = z.infer<typeof PoolVerdictSchema>;
 
 export const CubeSummarySchema = z.strictObject({
-  id: z.string(),                       // shortlist: file stem; imported: 'cc-' + Cube Cobra short id
+  id: z.string(),                       // shortlist: file stem; Cube Cobra: 'cc-' + its short id; a pasted list: 'list-' + random
   name: z.string(),
   size: z.number().int().nonnegative(),
-  origin: z.enum(['shortlist', 'cubecobra']),
-  cubeCobraId: z.string().nullable(),
+  origin: z.enum(['shortlist', 'cubecobra', 'list']),
+  cubeCobraId: z.string().nullable(),   // null unless origin is 'cubecobra'
   importedBy: z.string().nullable(),    // friend id; null for shortlist
   importedAt: z.string().nullable(),    // ISO
   refreshedAt: z.string().nullable(),   // ISO
@@ -76,7 +76,14 @@ export function sampleArt(cards: readonly DraftCard[], n: number, random: () => 
   return out;
 }
 
-export const ImportCubeBodySchema = z.strictObject({ link: z.string().min(1).max(300) });
+/** The most characters a pasted card list may hold: a 2,000-card list with set codes is well under it. */
+export const CUBE_LIST_MAX_CHARS = 200_000;
+/** A Cube Cobra link or id, or a named card list (one card a line; `pools/cube-list.ts` reads the formats). */
+export const ImportCubeBodySchema = z.union([
+  z.strictObject({ link: z.string().min(1).max(300) }),
+  z.strictObject({ name: z.string().trim().min(1).max(60), list: z.string().min(1).max(CUBE_LIST_MAX_CHARS) }),
+]);
+export type ImportCubeBody = z.infer<typeof ImportCubeBodySchema>;
 export const SetDraftPlanBodySchema = z.strictObject({ plan: DraftPlanSchema });
 
 export const SetSummarySchema = z.strictObject({

@@ -48,9 +48,13 @@ export const tablesPlugin: CardtablePlugin = {
 		attachDrafts(api, { draftRooms });
 		// Every finished draft as the drafter's deck.
 		attachDecks(api, { draftRooms, room: (id) => lobby.get(id) });
-		// The cube picker: the shortlist plus any Cube Cobra import, re-verified fresh at import and at
-		// refresh with the same `checkCards` `room/plan.ts` runs.
-		attachCubeRoutes(api, { store: state.cubeStore, check: (cards) => checkCards(cards, state.forgePools, { uncheckedWithoutJar: MAGIC_CONFIG.testUncheckedPools }) });
+		// The cube picker: the shortlist plus any import (a Cube Cobra link or a pasted list), re-verified
+		// fresh at import and at refresh with the same `checkCards` `room/plan.ts` runs.
+		attachCubeRoutes(api, {
+			store: state.cubeStore,
+			check: (cards) => checkCards(cards, state.forgePools, { uncheckedWithoutJar: MAGIC_CONFIG.testUncheckedPools }),
+			...(CONFIG.testNoRateLimits ? { importRateLimit: null } : {}),
+		});
 		// Every set Forge can draft, newest first, each with its set-cube size and a cache-only verdict.
 		attachSetRoutes(api, { store: state.setsStore });
 		// Named custom plans, shared with the group, in `data/presets.json`.

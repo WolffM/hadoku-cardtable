@@ -88,6 +88,8 @@ export interface MagicConfig {
 	 * is not available". Nothing in this repo's own deploy path ever sets this.
 	 */
 	readonly testUncheckedPools: boolean;
+	/** An e2e stack's stand-in for cubecobra.com, so a link import is tested without the network. Unset everywhere else. */
+	readonly testCubeCobraOrigin: string | undefined;
 	/**
 	 * On by default, so production needs no cross-repo change to keep its catalog current with
 	 * Scryfall's daily bulk file. Off (`'0'`) for every server that is NOT production.
@@ -134,6 +136,7 @@ export function createMagicConfig(options: CreateMagicConfigOptions = {}): Magic
 		playProbe: read('PLAY_PROBE') === '1',
 		playRejoinGraceMs: playRejoinGraceMsRaw === undefined ? undefined : parseInt(playRejoinGraceMsRaw, 10),
 		testUncheckedPools: read('E2E_UNCHECKED_POOLS') === '1',
+		testCubeCobraOrigin: read('E2E_CUBECOBRA_ORIGIN') || undefined,
 		catalogRefresh: read('CATALOG_REFRESH') !== '0',
 		get playSeed(): number | undefined {
 			const raw = read('PLAY_SEED');

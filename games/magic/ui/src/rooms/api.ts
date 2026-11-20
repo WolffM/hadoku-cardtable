@@ -45,6 +45,7 @@ import {
   type ChallengeEvent,
   type ClientMode,
   type CubeSummary,
+  type ImportCubeBody,
   type DraftCard,
   type DraftPlan,
   type DraftPreset,
@@ -430,7 +431,8 @@ export function roomsClient(
 export interface PoolsClient {
   /** Imported first (newest first), then the shortlist, in file order — the server's own order, kept. */
   listCubes(): Promise<CubeSummary[]>;
-  importCube(link: string): Promise<{ ok: true; cube: CubeSummary } | { ok: false; message: string }>;
+  /** A Cube Cobra link, or a named card list. */
+  importCube(source: ImportCubeBody): Promise<{ ok: true; cube: CubeSummary } | { ok: false; message: string }>;
   refreshCube(id: string): Promise<{ ok: true; cube: CubeSummary } | { ok: false; message: string }>;
   /** 403 (not the importer) and 400 (a shortlist cube) both read as a plain refusal — the picker never offers the control to anyone else. */
   deleteCube(id: string): Promise<{ ok: true } | { ok: false; message: string }>;
@@ -480,10 +482,10 @@ export function poolsClient(fetchImpl: Fetch = pageFetch, base: string = apiBase
       return parsed.data;
     },
 
-    async importCube(link) {
+    async importCube(source) {
       let res: Response;
       try {
-        res = await sendJson(url('/import'), 'POST', { link }, fetchImpl);
+        res = await sendJson(url('/import'), 'POST', source, fetchImpl);
       } catch {
         return { ok: false, message: 'Could not reach the server.' };
       }

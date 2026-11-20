@@ -68,7 +68,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 
-import type { CubeSummary, DraftPreset, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
+import type { CubeSummary, DraftPreset, ImportCubeBody, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
 
 import { SetSymbol } from '../components/ManaPip.tsx';
 import { Modal } from '@hadoku/game-ui/components/Modal.tsx';
@@ -149,7 +149,7 @@ export interface PoolPickerProps {
   onPickCube: (cubeId: string) => void;
   onPickSet: (code: string, style: SourceStyle) => void;
   onPickCustomRound: (round: 0 | 1 | 2, source: PoolSource) => void;
-  onImport: (link: string) => void;
+  onImport: (source: ImportCubeBody) => void;
   onSavePreset: (name: string) => void;
   onLoadPreset: (preset: DraftPreset) => void;
   onDeletePreset: (id: string) => void;
@@ -223,7 +223,7 @@ function CubeList({
   onChange: (cubeId: string) => void;
 }) {
   // Imported first (the server's own order), then the shortlist — never re-sorted here.
-  const imported = cubes.filter((c) => c.origin === 'cubecobra');
+  const imported = cubes.filter((c) => c.origin !== 'shortlist');
   const shortlist = cubes.filter((c) => c.origin === 'shortlist');
   const ordered = [...imported, ...shortlist];
   const byId = new Map(ordered.map((c) => [c.id, c]));

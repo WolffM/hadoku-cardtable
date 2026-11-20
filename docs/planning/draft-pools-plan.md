@@ -188,6 +188,17 @@ until the verdict is clean. Refresh refetches and overwrites the snapshot.
 Delete is allowed only for `importedBy` (ruling 4). The identity is the edge
 session's friend id.
 
+**Amended 2026-11-19** (operator: "more people are interested in getting their
+cube list into cardtable … a list from cubecobra or just a raw list … ideally it
+lets you draft right away (checks which cards are incompatible) and also saves it
+to your library"). The same box takes a pasted card list with a name
+(`pools/cube-list.ts`: plain names, counts, set suffixes, Cube Cobra's plaintext,
+CSV, MTGO and Forge exports; mainboard only), saved as `list-<id>` with no
+refresh. Any of a cube's Cube Cobra pages is a link, not only overview and list.
+An import made in a room is that room's pick at once, so the refusal modal and
+"Draft without them" follow with no second press. Imports are rate limited per
+caller (`CUBE_IMPORT_RATE_LIMIT`).
+
 ### Room setup UI
 
 The draft room's setup (leader only, live for everyone seated) gains a pool

@@ -183,7 +183,32 @@ describe('InventoryScreen', () => {
 
     fireEvent.change(screen.getByTestId('pool-picker-import-link'), { target: { value: 'cubecobra.com/cube/x' } });
     fireEvent.click(screen.getByTestId('pool-picker-import-go'));
-    await waitFor(() => expect(importCube).toHaveBeenCalledWith('cubecobra.com/cube/x'));
+    await waitFor(() => expect(importCube).toHaveBeenCalledWith({ link: 'cubecobra.com/cube/x' }));
     await waitFor(() => expect(listCubes).toHaveBeenCalledTimes(2));
+  });
+
+  it('a pasted list asks its name, and is imported under it', async () => {
+    const importCube = vi.fn().mockResolvedValue({ ok: true, cube: cube() });
+    const pools = stubPools({ listCubes: vi.fn().mockResolvedValue([]), importCube });
+
+    render(createElement(InventoryScreen, { pools, myId: 'u-me' }));
+    await waitFor(() => expect(screen.getByTestId('pool-picker-import-link')).not.toBeNull());
+    expect(screen.queryByTestId('pool-picker-import-name'), 'a link has a name of its own').toBeNull();
+
+    fireEvent.change(screen.getByTestId('pool-picker-import-link'), { target: { value: '1 Forest\n1 Island\n' } });
+    expect((screen.getByTestId('pool-picker-import-go') as HTMLButtonElement).disabled, 'no name yet').toBe(true);
+    fireEvent.change(screen.getByTestId('pool-picker-import-name'), { target: { value: ' My cube ' } });
+    fireEvent.click(screen.getByTestId('pool-picker-import-go'));
+    await waitFor(() => expect(importCube).toHaveBeenCalledWith({ name: 'My cube', list: '1 Forest\n1 Island' }));
+  });
+
+  it('a pasted list has no refresh', async () => {
+    const pasted = cube({ id: 'list-1', origin: 'list', cubeCobraId: null });
+    const pools = stubPools({ listCubes: vi.fn().mockResolvedValue([pasted]) });
+
+    render(createElement(InventoryScreen, { pools, myId: 'u-me' }));
+    await waitFor(() => expect(screen.getByTestId('inventory-cube-list-1')).not.toBeNull());
+    expect(screen.queryByTestId('inventory-refresh-list-1')).toBeNull();
+    expect(screen.getByTestId('inventory-delete-list-1')).not.toBeNull();
   });
 });
