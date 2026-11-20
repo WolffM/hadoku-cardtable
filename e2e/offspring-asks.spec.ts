@@ -12,6 +12,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { castLiftOf, clickHandCard, drawnText, makeTitled, offeredCard, ownNamed, passOverStack, pressPaymentAuto, serverLog, stackCount } from './play/board.ts';
+import { answerConfirm } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -20,7 +21,8 @@ const titled = makeTitled(forge);
 
 const AUGUR = 'Darkstar Augur';
 
-const offspringAsked = async (page: Page): Promise<boolean> => /Offspring/.test((await drawnText(page, 'live-decision-host')) ?? '');
+/** Forge asks it on its bar (`InputConfirm`: Yes / No), which the board draws as the confirm pop-up. */
+const offspringAsked = async (page: Page): Promise<boolean> => /Offspring/.test((await drawnText(page, 'live-confirm-host')) ?? '');
 
 /** Cast the offered Augur from her hand until Forge's Offspring question is drawn; the press is repeated only while nothing of the cast stands. */
 async function castUntilAsked(page: Page): Promise<void> {
@@ -65,11 +67,11 @@ test(titled('Offspring is asked of the player: No casts the creature alone, Yes 
 
     await castUntilAsked(page);
     expect(answeredForHer(), 'the server answered nothing for her').toEqual([]);
-    await page.getByTestId('live-decision-cancel').click();
+    await answerConfirm(page, 'no');
     await resolveUntil(page, seated.bob.page, 1, 'No: one Augur entered and nothing came after it');
 
     await castUntilAsked(page);
-    await page.getByTestId('live-decision-ok').click();
+    await answerConfirm(page, 'yes');
     await resolveUntil(page, seated.bob.page, 3, 'Yes: the second Augur entered and its copy after it');
     expect(answeredForHer(), 'the server answered neither question').toEqual([]);
   } finally {
