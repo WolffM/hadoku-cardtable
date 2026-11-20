@@ -62,7 +62,12 @@ test('the desktop fan: hovering the open card zooms it through the shared inspec
     // A neighbour on screen (not the open one) opens nothing — only the currently viewed card does.
     const neighbour = pack.locator('.pack__slot:not([data-focused]):not([data-off]) button[data-testid="card"]').first();
     await expect(neighbour, 'the fan has an on-screen neighbour to check').toHaveCount(1);
-    await neighbour.hover();
+    // On the strip of it the open card leaves showing, its far side: the fan overlaps its cards on
+    // purpose (`fanGeometry` shows between `MIN_SHOW` and `MAX_SHOW` of each), so a neighbour's centre
+    // is under the open card whenever less than half of it shows — a taller box, a bigger open card.
+    const side = await neighbour.boundingBox();
+    if (side === null) throw new Error('no neighbour box');
+    await neighbour.hover({ position: { x: side.x > before.x ? side.width - 8 : 8, y: side.height * 0.6 } });
     await expect(panel, 'hovering a neighbour, not the open card, opens nothing').toHaveCount(0);
   });
 });

@@ -8,6 +8,8 @@ const BOXES = [
   { width: 600, height: 300 },
   { width: 1400, height: 600 },
   { width: FAN_MIN_WIDTH, height: 300 },
+  // The e2e window's draft with no top bar: the open card is 241 px wide and a neighbour shows 42% of itself.
+  { width: 848, height: 366 },
 ];
 
 /** Every drawn card's left and right edge with `open` open, in the box's coordinates (the slot sits on the centre line). */
