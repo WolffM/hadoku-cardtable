@@ -23,6 +23,9 @@ const titled = makeTitled(forge);
 const LIBRARIAN = 'Cogwork Librarian';
 const SEEKER = 'Lore Seeker';
 
+/** Alice's and bob's own entries in the table's face-up list (`DraftScreen.tsx`'s `FaceUpCards`): seats 0 and 1. */
+const HUMAN_FACE_UP = '[data-testid="face-up-0"], [data-testid="face-up-1"]';
+
 const librarians = (names: readonly string[]) => names.filter((n) => n === LIBRARIAN).length;
 
 test(
@@ -47,12 +50,14 @@ test(
       const first = await packOfSize(alice.page, 15, "alice's first pack");
       expect(librarians(first), 'the first pack holds a Librarian').toBeGreaterThan(0);
       await expect(alice.page.getByTestId('draft-use'), 'nothing to use before she holds one').toHaveCount(0);
-      for (const p of players) await expect(p.page.getByTestId('face-up'), `${p.name}: nothing is face up yet`).toHaveCount(0);
+      // The six AI seats draft from the same half-Librarian cube on their own clock, and what they draft face up is
+      // public too, so every face-up check here reads alice's and bob's own seats, never the whole table's list.
+      for (const p of players) await expect(p.page.locator(HUMAN_FACE_UP), `${p.name}: nothing is face up in front of alice or bob yet`).toHaveCount(0);
       await pickNamed(alice.page, LIBRARIAN);
       for (const p of players) {
         await expect(p.page.getByTestId('face-up-0'), `${p.name}: sees alice's Librarian face up`).toContainText(LIBRARIAN, { timeout: UI_TIMEOUT });
-        await expect(p.page.getByTestId('face-up').locator('li'), `${p.name}: and no other seat's`).toHaveCount(1);
-        await expect(logLines(p.page).last(), `${p.name}: and is told so`).toHaveText(`e2e-alice drafted face up ${LIBRARIAN}`);
+        await expect(p.page.getByTestId('face-up-1'), `${p.name}: and none in front of bob`).toHaveCount(0);
+        await expect(logLines(p.page).filter({ hasText: `e2e-alice drafted face up ${LIBRARIAN}` }), `${p.name}: and is told so`).toHaveCount(1);
       }
       await expect(alice.page.getByTestId('pool-count')).toHaveText('1');
 
@@ -78,7 +83,7 @@ test(
       const pool = alice.page.getByTestId('pool');
       for (const name of [a, b]) await expect(pool.getByText(name, { exact: true }).first(), `${name} is in her pool`).toBeVisible();
       await expect(pool.getByText(LIBRARIAN, { exact: true }), 'the Librarian left her pool').toHaveCount(0);
-      for (const p of players) await expect(p.page.getByTestId('face-up'), `${p.name}: nothing is face up any more`).toHaveCount(0, { timeout: UI_TIMEOUT });
+      for (const p of players) await expect(p.page.getByTestId('face-up-0'), `${p.name}: nothing is face up in front of alice any more`).toHaveCount(0, { timeout: UI_TIMEOUT });
 
       /* ── bob is passed that pack: thirteen cards, one Librarian more, neither card she took ── */
       await packOfSize(bob.page, 15, "bob's own first pack");
