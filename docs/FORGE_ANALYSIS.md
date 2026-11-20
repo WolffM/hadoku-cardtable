@@ -1119,3 +1119,37 @@ in that tree (paths under `forge/`):
 - **VERIFIED — one hosting server per process became several.** `HostingServer.java` is upstream's
   hook for "the server this process hosts"; the fork makes it a set and finds a game's server by
   `Server.hosts(game)`.
+
+## The offer scan priced a spell without its mana conversions — 2026-11-19 (Cruelclaw's Heist)
+
+- **VERIFIED (read)** — a payment's mana conversions live on the payer's pool as a matrix, and three
+  things write it: the permission a spell is cast by (`CardPlayOption.applyManaConvert`,
+  `forge-game/src/main/java/forge/game/card/CardPlayOption.java:74-83`: `MayPlayIgnoreType` is "mana
+  of any type", `MayPlayIgnoreColor` "any colour"; 70 card scripts carry one of the two), a
+  `ManaConversion$` on the ability or the static that granted it, and every `Mode$ ManaConvert`
+  static that applies (`forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java`;
+  17 scripts). A human's real payment sets all three (`PlaySpellAbility.java:642-662`).
+- **VERIFIED (read)** — the AI payer sets them only for a player nobody controls
+  (`forge-ai/src/main/java/forge/ai/ComputerUtilMana.java:678`, `ai.getControllingPlayer() == null`:
+  "already done via autopay"). The fork's `AvailableActions` runs under a swapped-in AI controller
+  with no payment begun, so through pin `af9c446d04` its `canAfford` priced such a spell against the
+  lands as written: a Scrapshooter ({1}{G}{G}) that Cruelclaw's Heist lets five Swamps pay for was
+  never offered, and a click on it was refused (m-4040eb536bf4).
+- **VERIFIED (read)** — fork `1a56d05755` (pinned): the payer's block is a helper,
+  `ComputerUtilMana.applyManaConversions` (`ComputerUtilMana.java:638-652`), and
+  `AvailableActions.canAfford` (`forge-ai/src/main/java/forge/ai/AvailableActions.java:384-408`)
+  calls it before pricing, then puts the pool's matrix back as it found it. The fork's own unit
+  test is `forge-ai/src/test/java/forge/ai/AvailableActionsManaConversionTest.java`.
+- **ASSUMED until CI runs it** — that the jar offers and casts the card: `e2e/heist-exile-cast.spec.ts`
+  (off colour and on colour) is the proof, not yet run on the pin.
+- **VERIFIED (read), not run** — one conversion is optional, North Star's
+  (`forge-gui/res/cardsfolder/n/north_star.txt`, the only `ManaConvert` static with `Optional$ True`).
+  `StaticAbilityManaConvert.checkManaConvert` (`:41-47`) asks `confirmStaticApplication`, and first
+  clears the effect's remembered cards, then remembers the spell on a yes. Under the scan's AI
+  controller the answer is always yes with nobody asked (`AiController.confirmStaticApplication`
+  returns `true`), so with the effect out every spell is priced as any-type, which is what the
+  player could choose. The scan does not put the effect's remembered card back: after it, the
+  effect remembers the last spell it priced, where before the pin the scan never touched it. A real
+  payment clears and rewrites it before its own confirm, so only a scan that ran between a payment
+  and that spell's `SpellCast` trigger (the effect's `ForgetOnCast`) could change which spell uses
+  the effect up. Whether a scan runs in that gap was not traced.
