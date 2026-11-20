@@ -31,7 +31,6 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 
 import { myChoice, rematchOf, SeriesEnterNext, SeriesSideboardPanel, startNextGame, useMatchExits, useSideboardInputs } from '../play/live/series/GameResultScreen.tsx';
-import { openNewMatch } from '../play/live/matchStart.ts';
 import { roomFeed } from '@hadoku/game-ui/rooms/feed.ts';
 import { tablesClient, type RoomTable, type SeatChoice, type TablesClient } from './tables.ts';
 import './TableSideboard.css';
@@ -123,7 +122,7 @@ export function TableSideboard({ roomId, tableId, refresh, tables: given }: Tabl
   if (next !== null) {
     return (
       <div className="table-sideboard-frame" data-testid="table-sideboard" ref={shellRef}>
-        <SeriesEnterNext titleId={titleId} title="Sideboard" onEnter={() => openNewMatch(next)} exits={exits} />
+        <SeriesEnterNext titleId={titleId} title="Sideboard" matchId={next} exits={exits} />
       </div>
     );
   }

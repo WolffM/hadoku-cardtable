@@ -217,12 +217,18 @@ describe('TablePage', () => {
     page({ me: 'u-carol', table: playing, game: gameWith([true, true]) });
     expect(route()).toEqual({ kind: 'room', roomId: ROOM, tableId: 't-1' });
     expect(screen.getByTestId('table-match-link').textContent).toBe('Watch');
+    expect(screen.getByTestId('table-game-card').contains(screen.getByTestId('table-match-link')), 'a watcher’s way in is on the card of the game').toBe(true);
     cleanup();
     // Bob has not been at this game: on any page, however it was reached, it is his press that enters it.
     page({ me: 'u-bob', table: playing, game: gameWith([true, false]) });
     expect(route()).toEqual({ kind: 'room', roomId: ROOM, tableId: 't-1' });
     expect(screen.getByTestId('table-match-link').textContent).toBe('Enter game');
     expect(screen.getAllByTestId('table-match-link')).toHaveLength(1);
+    // A player's own way on is the lobby's button under the two faces, not a card of the game.
+    expect(screen.getByTestId('table-match-link').className).toBe('lobby__go');
+    expect(screen.getByTestId('table-match-link').getAttribute('data-door')).toBe('enter');
+    expect(screen.queryByTestId('table-game-card')).toBeNull();
+    expect(screen.getByTestId('table-page-concede'), 'my ways to resolve the match sit beside it').toBeTruthy();
     fireEvent.click(screen.getByTestId('table-match-link'));
     expect(route()).toEqual({ kind: 'match', matchId: 'm-000000000002' });
     cleanup();
@@ -245,13 +251,15 @@ describe('TablePage', () => {
     expect(screen.getByTestId('table-match-link').textContent).toBe('Enter game');
   });
 
-  it('between two games it holds no sideboard: one card, whose way on is the sideboard’s own full screen', () => {
+  it('between two games it holds no sideboard: one button, whose way on is the sideboard’s own full screen', () => {
     posts();
     page({ table: table({ series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-000000000001', winner: 0 }], phase: 'sideboarding' } }) });
     expect(screen.queryByTestId('table-sideboard')).toBeNull();
     expect(screen.getAllByTestId('table-match-link')).toHaveLength(1);
     expect(screen.getByTestId('table-match-link').textContent).toBe('Sideboard');
     expect(screen.getByTestId('table-match-link').getAttribute('href')).toBe(`#/room/${ROOM}/table/t-1/sideboard`);
+    expect(screen.getByTestId('table-match-link').className).toBe('lobby__go');
+    expect(screen.queryByTestId('table-game-card')).toBeNull();
   });
 
   it('sends a table the room does not have back to the hub', () => {

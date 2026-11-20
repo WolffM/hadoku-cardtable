@@ -4328,6 +4328,10 @@ describe('R16 — the result screen, drawn over the board', () => {
     // The match exists, but this screen does not jump to it by itself.
     const enter = await waitFor(() => getByTestId('game-result-enter'));
     expect(globalThis.location.hash, 'no auto-navigate once the match exists').not.toBe('#/match/m-next00000000');
+    // The table's own Enter game, drawn as its page draws it.
+    expect(enter.className).toBe('lobby__go');
+    expect(enter.getAttribute('data-door')).toBe('enter');
+    expect(enter.textContent).toBe('Enter game');
     fireEvent.click(enter);
     await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-next00000000'));
   });
@@ -4632,6 +4636,12 @@ describe('R16 — the result screen, drawn over the board', () => {
       expect(queryByTestId('game-result-rematch')).toBeNull();
       expect(queryByTestId('game-result-next')).toBeNull();
       expect(tableState.startVsBot).not.toHaveBeenCalled();
+      // A match that is over: the lit way on is the room, and nothing carries me there.
+      await waitFor(() => expect(getByTestId('game-result-room').getAttribute('data-highlight')).toBe('true'));
+      expect(getByTestId('game-result-menu').hasAttribute('data-highlight')).toBe(false);
+      expect(currentRoute().kind, 'the result stays until I press').not.toBe('room');
+      fireEvent.click(getByTestId('game-result-room'));
+      expect(currentRoute()).toEqual({ kind: 'room', roomId: 'r-1' });
     });
 
     it.each([

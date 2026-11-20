@@ -28,6 +28,7 @@ import { routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { dqPlayer, resolveTable } from '../tableActions.ts';
 import { tablePhase } from '../TableCard.tsx';
 import { doorGo, seatAt, tableDoor } from '../tableDoor.ts';
+import { GoLink } from '../GoLink.tsx';
 import { useTableResolve } from '../tableResolve.tsx';
 import { onPath, SWISS, swissLayout, type SwissMatch } from './swiss.ts';
 import { isPodAi, type PodView } from './wire.ts';
@@ -214,20 +215,7 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
       {go !== null && (
         <div className="swiss__bar">
           <span className="swiss__game">Game {gameNo}</span>
-          <a
-            className="swiss__go"
-            data-testid={go.testId}
-            data-door={'door' in go ? go.door : undefined}
-            href={go.href}
-            onClick={(event) => {
-              const press = 'onPress' in go ? go.onPress : undefined;
-              if (press === undefined || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
-              event.preventDefault();
-              press();
-            }}
-          >
-            {go.label}
-          </a>
+          <GoLink go={go} className="swiss__go" />
           {resolve.more}
         </div>
       )}

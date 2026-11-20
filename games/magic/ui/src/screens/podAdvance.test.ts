@@ -361,7 +361,7 @@ describe('my table’s page is where a player comes back to', () => {
   ];
   const rounds = (tableId: string) => pod({ phase: 'rounds', round: 2, rounds: 2, pairings: [{ tableId, players: ['u-alice', 'u-bob'] }] });
 
-  it('between games my table’s page holds no sideboard and starts nothing: one card, whose way on is the sideboard’s own full screen', () => {
+  it('between games my table’s page holds no sideboard and starts nothing: one button, whose way on is the sideboard’s own full screen', () => {
     const asked: string[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       asked.push(`${init?.method ?? 'GET'} ${String(input)}`);

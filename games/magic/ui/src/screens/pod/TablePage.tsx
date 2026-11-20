@@ -5,11 +5,13 @@
  * room links here between games.
  *
  * It is a doorway: its two players face to face (`FaceOff.tsx`, played as a reveal the first
- * time a round's player reaches it), where the table stands, and ONE way on (`tableDoor.ts`):
- * Enter game, Return to game or Sideboard for its players, Watch for anyone else. It never holds
- * the sideboard itself (that is its own full screen, `…/table/<id>/sideboard`) and never walks
- * anybody into a game (the operator, 2026-11-19: *"i just need a button to get back into the
- * game"*). Before the first game it also holds the mode's own step (`children`: Classic's
+ * time a round's player reaches it), where the table stands, and ONE way on (`tableDoor.ts`).
+ * For its players that is the lobby's own button under the two (`TableWay`: Enter game, Return to
+ * game or Sideboard; the operator, 2026-11-19: *"why isn't it just an 'enter game' button?"*),
+ * with their ways to resolve the match beside it; for anyone else it is Watch, on the card of the
+ * game they would watch (`TableCard.tsx`). It never holds the sideboard itself (that is its own
+ * full screen, `…/table/<id>/sideboard`) and never walks anybody into a game (the operator,
+ * 2026-11-19: *"i just need a button to get back into the game"*). Before the first game it also holds the mode's own step (`children`: Classic's
  * per-round deck pick, Gauntlet's board); the game's start needs nobody to press anything
  * (`useTableStart`), and the game it makes waits for each player's own Enter game.
  *
@@ -24,8 +26,10 @@ import type { RoomTable, TableGame } from '@hadoku/shared';
 
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { BackLink } from '../BackLink.tsx';
-import { TableCard } from '../TableCard.tsx';
+import { GoLink } from '../GoLink.tsx';
+import { TableCard, tablePhase, type TableCardGo, type TableCardSeries } from '../TableCard.tsx';
 import { resolveTable } from '../tableActions.ts';
+import { useTableResolve, type TableResolveHandlers } from '../tableResolve.tsx';
 import { doorGo, seatAt, tableDoor } from '../tableDoor.ts';
 import { useTableStart } from './client.ts';
 import { startingText } from '../queue-place.ts';
@@ -79,6 +83,30 @@ function useMinuteClock(): number {
   return now;
 }
 
+interface TableWayProps extends TableResolveHandlers {
+  go: TableCardGo;
+  players: readonly [string, string];
+  nameOf: (memberId: string) => string;
+  myMemberId: string | null;
+  series: TableCardSeries;
+  matchId: string | null;
+  game: TableGame | undefined;
+}
+
+/** A player's own way on at their table, and beside it their ways to resolve the match (`tableResolve.tsx`), laid out as a table card's foot is. */
+function TableWay({ go, game, ...table }: TableWayProps) {
+  const resolve = useTableResolve({ testId: 'table-page', phase: tablePhase(table.series.phase, table.matchId, game), menu: false, ...table });
+  return (
+    <>
+      <footer className="table-card__foot" data-testid="table-way">
+        <GoLink go={go} className="lobby__go" />
+        {resolve.offers}
+      </footer>
+      {resolve.panel}
+    </>
+  );
+}
+
 export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, canStart = true, ready, game, children, away = NOBODY_AWAY }: TablePageProps) {
   const now = useMinuteClock();
   const missing = table === undefined;
@@ -109,6 +137,8 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
     const id = seats[seat] ?? '';
     return { seat, name: nameOf(id), face: avatarOf(id), wins: table.series.wins[seat] ?? 0, ready: ready === undefined ? undefined : ready.seats[seat] === true, mine: id === myMemberId };
   };
+  const players = [seats[0] ?? '', seats[1] ?? ''] as const;
+  const series = { length: table.series.length, wins: table.series.wins, played: table.series.games.length, phase: table.series.phase };
   const heading = pod === null ? null : pod.phase === 'done' ? 'Standings' : `Round ${pod.round} of ${pod.rounds}`;
   return (
     <div className="pod__room">
@@ -132,22 +162,33 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
           )}
         </div>
         {!revealing && <TableStatus table={table} seats={seats} pod={pod} myMemberId={myMemberId} {...(ready === undefined ? {} : { ready: ready.seats })} away={away} nameOf={nameOf} now={now} />}
-        {/* Where the table stands and its one way on (`tableDoor.ts`): a game under way, or the step between two. */}
-        {!revealing && door !== null && (
+        {/* The table's one way on (`tableDoor.ts`): a player's own button, or the game somebody else would watch. */}
+        {!revealing && door !== null && mine && (
+          <TableWay
+            go={doorGo(door, roomId, table.id, 'table-match-link')!}
+            players={players}
+            nameOf={nameOf}
+            myMemberId={myMemberId}
+            series={series}
+            matchId={matchId}
+            game={game}
+            onConcede={matchId !== null ? () => resolveTable('concede', roomId, table.id) : undefined}
+            onAbandon={pod === null ? () => resolveTable('abandon', roomId, table.id) : undefined}
+            onDrop={pod !== null ? () => resolveTable('drop', roomId, table.id) : undefined}
+          />
+        )}
+        {!revealing && door !== null && !mine && (
           <TableCard
             testId="table-game-card"
             tableId={table.id}
-            players={[seats[0] ?? '', seats[1] ?? '']}
+            players={players}
             nameOf={nameOf}
             avatarOf={avatarOf}
             myMemberId={myMemberId}
-            series={{ length: table.series.length, wins: table.series.wins, played: table.series.games.length, phase: table.series.phase }}
+            series={series}
             matchId={matchId}
             game={game}
             go={doorGo(door, roomId, table.id, 'table-match-link')}
-            onConcede={mine && matchId !== null ? () => resolveTable('concede', roomId, table.id) : undefined}
-            onAbandon={mine && pod === null ? () => resolveTable('abandon', roomId, table.id) : undefined}
-            onDrop={mine && pod !== null ? () => resolveTable('drop', roomId, table.id) : undefined}
           />
         )}
         {queuePlace !== null && (

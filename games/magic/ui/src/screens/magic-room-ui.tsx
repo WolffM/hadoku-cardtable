@@ -234,6 +234,7 @@ import { entrantLookup, heldFor, myCurrentTable, passRoomLeader, relayedPodSourc
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { doorGo, seatAt, tableDoor } from './tableDoor.ts';
+import { GoLink } from './GoLink.tsx';
 import { useRoomSounds } from './roomSounds.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
 import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
@@ -2439,21 +2440,7 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   const myDoorCard = mode !== 'gauntlet' && !spectating && myDoor !== null && myTable !== null && (mySideboarding || myTable.series.games.length > 0) && players.some((p) => p.you);
   const matchDoor = matchId === null ? null : doorGo(myDoor?.kind === 'enter' || myDoor?.kind === 'return' ? myDoor : { kind: 'watch', matchId }, roomId, myTable?.id ?? '', 'room-match-link');
   /** One way in: where my table's card is drawn (`myDoorCard`), the card is it, and this is not drawn too. */
-  const matchLink = matchDoor !== null && !myDoorCard && (
-    <a
-      className="lobby__go"
-      data-testid={matchDoor.testId}
-      data-door={matchDoor.door}
-      href={matchDoor.href}
-      onClick={(event) => {
-        if (matchDoor.onPress === undefined || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
-        event.preventDefault();
-        matchDoor.onPress();
-      }}
-    >
-      {matchDoor.label}
-    </a>
-  );
+  const matchLink = matchDoor !== null && !myDoorCard && <GoLink go={matchDoor} className="lobby__go" />;
   const startRefused = startRefusal !== null && (
     <div className="ct-error" role="alert" data-testid="start-refused">
       <p>{startRefusal}</p>

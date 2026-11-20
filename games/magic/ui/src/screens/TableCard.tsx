@@ -15,8 +15,9 @@
  * *"the room leader is the admin"*): Reset game (the game in play starts again, the score stands) and
  * DQ a player (their match is forfeited and they are out of the rounds), confirmed the same way.
  *
- * A room's own table between games, or a player's own. A pod's or tournament's hub draws its matches in the
- * bracket instead (`pod/PodBracket.tsx`), with the same ways to resolve (`tableResolve.tsx`). What the card
+ * A plain room's own table from its second game on, and on a table's page the game somebody else is
+ * playing. A pod's or tournament's hub draws its matches in the bracket instead (`pod/PodBracket.tsx`),
+ * with the same ways to resolve (`tableResolve.tsx`). What the card
  * shows comes from the room body: the table (`RoomTable`) and its game (`tableGames`, `@hadoku/shared`'s
  * `TableGameSchema`).
  */
@@ -26,6 +27,7 @@ import { Avatar, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
 import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { DeckColors } from '../components/DeckView.tsx';
 import { DeckArt } from './ConstructedScreen.tsx';
+import { GoLink } from './GoLink.tsx';
 import { deckCardArtId, useNamedArt } from './libraryPeek.ts';
 import { useTableResolve, type TableResolveHandlers } from './tableResolve.tsx';
 import './TableCard.css';
@@ -118,21 +120,6 @@ export function TableCard({ players, nameOf, avatarOf, myMemberId, series, match
       </div>
     );
   };
-  const goLink = go !== null && (
-    <a
-      className="table-card__go"
-      data-testid={go.testId}
-      data-door={go.door}
-      href={go.href}
-      onClick={(event) => {
-        if (go.onPress === undefined || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
-        event.preventDefault();
-        go.onPress();
-      }}
-    >
-      {go.label}
-    </a>
-  );
   const attrs = { 'data-testid': testId, 'data-table-id': tableId, 'data-phase': series.phase, 'data-moment': phase, 'data-mine': mine ? '' : undefined };
   return (
     <section className="table-card table-card--full ct-panel" {...attrs}>
@@ -161,7 +148,7 @@ export function TableCard({ players, nameOf, avatarOf, myMemberId, series, match
       </div>
       {(go !== null || resolve.offers.length > 0) && (
         <footer className="table-card__foot">
-          {goLink}
+          {go !== null && <GoLink go={go} className="table-card__go" />}
           {resolve.offers}
         </footer>
       )}

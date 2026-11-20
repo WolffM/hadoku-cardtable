@@ -51,7 +51,8 @@ import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { opponentOf, viewerOf, type BoardPlayer, type BoardView } from '../../adapter.ts';
 import { poisonOf, POISON_TO_LOSE } from '../../Board.tsx';
 import { CheckMark } from '../../marks.tsx';
-import { openNewMatch } from '../matchStart.ts';
+import { GoLink } from '../../../screens/GoLink.tsx';
+import { doorGo } from '../../../screens/tableDoor.ts';
 import { gameOutcome, lostPlayers, type GameOutcome } from '../LiveBoard.tsx';
 import type { LiveMatch } from '../match.ts';
 
@@ -429,19 +430,21 @@ export function SeriesSideboardPanel({
 }
 
 /**
- * The screen a next game stays on until it is pressed into. `onEnter` is the only caller of
+ * The screen a next game stays on until it is pressed into: the table's own Enter game
+ * (`tableDoor.ts`'s door, drawn as the table's page draws it), whose press is the only caller of
  * `openNewMatch`; nothing here, or in `GameResultScreen`/`TableSideboard`, calls it on its own.
  */
 export function SeriesEnterNext({
   title,
   faces,
-  onEnter,
+  matchId,
   exits,
   titleId,
 }: {
   title: string;
   faces?: ReactNode;
-  onEnter: () => void;
+  /** The game to enter. */
+  matchId: string;
   exits?: ReactNode;
   titleId: string;
 }) {
@@ -453,9 +456,7 @@ export function SeriesEnterNext({
         </h2>
         {faces !== undefined && <div className="live__result-faces">{faces}</div>}
         <div className="confirm__actions answers">
-          <button type="button" className="button" data-highlight="true" data-testid="game-result-enter" onClick={onEnter}>
-            Enter game
-          </button>
+          <GoLink go={doorGo({ kind: 'enter', matchId }, '', '', 'game-result-enter')!} className="lobby__go" />
           {exits}
         </div>
       </div>
@@ -466,8 +467,9 @@ export function SeriesEnterNext({
 /**
  * The two ways off a match that is over: Back to room, and Main menu (which leaves the room). The
  * result screen, the ended notice and the lobby's sideboard step (`TableSideboard.tsx`) all end in them.
+ * `backFirst`: Back to room is the screen's way on (a match that is over), and is lit as one.
  */
-export function useMatchExits(roomId: string | null): { leaving: boolean; onBackToRoom: () => void; exits: ReactNode } {
+export function useMatchExits(roomId: string | null, backFirst = false): { leaving: boolean; onBackToRoom: () => void; exits: ReactNode } {
   const [leaving, setLeaving] = useState(false);
   // The room itself (the operator, 2026-10-23: back in the room mid-series, "a small box that lets me return"
   // to the table, not the sideboard step there); the table's page is one press from it.
@@ -481,7 +483,7 @@ export function useMatchExits(roomId: string | null): { leaving: boolean; onBack
   };
   const exits = (
     <>
-      <button type="button" className="button" data-testid="game-result-room" disabled={roomId === null || leaving} onClick={onBackToRoom}>
+      <button type="button" className="button" data-testid="game-result-room" data-highlight={backFirst ? 'true' : undefined} disabled={roomId === null || leaving} onClick={onBackToRoom}>
         Back to room
       </button>
       <button type="button" className="button" data-testid="game-result-menu" disabled={leaving} onClick={onMainMenu}>
@@ -573,7 +575,6 @@ export function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: 
   const opponent = opponentOf(view);
   const ending = endingSentence(match, view);
   const titleId = useId();
-  const { leaving, onBackToRoom, exits } = useMatchExits(roomId);
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [table, setTable] = useState<RoomTable | null>(null);
@@ -595,6 +596,8 @@ export function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: 
   const myTable = findMyTable(room, match.matchId);
   const tableId = myTable?.id;
   const phase = myTable?.series.phase ?? null;
+  /** A match that is over: the one way on is the room, unless the other player waits on my Rematch. */
+  const { leaving, onBackToRoom, exits } = useMatchExits(roomId, phase === 'done' && !rematch.highlight);
   /**
    * No Rematch in a pod (wave 72 §Q.3), a pod of one against the AI included:
    * Back to room opens the pod, whose rounds decide who plays whom, and whose
@@ -836,7 +839,7 @@ export function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: 
             {opponent !== undefined && <ResultFace player={opponent} rematch />}
           </>
         }
-        onEnter={() => openNewMatch(next)}
+        matchId={next}
         exits={exits}
       />
     );
