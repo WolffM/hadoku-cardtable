@@ -6,7 +6,7 @@
  * scroll bar".
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createElement } from 'react';
+import { createElement, useMemo } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import poolData from '../draft/pool.json';
@@ -49,8 +49,8 @@ function drag(tile: HTMLElement, onto: HTMLElement): void {
 
 const names = (el: HTMLElement): string[] => within(el).queryAllByTestId('card').map((c) => c.querySelector('.card__name')!.textContent!);
 
-function Picks({ store }: { store: DeckStoreClient | null }) {
-  const build = useDraftBuild('pod', PICKS, store === null ? null : { podId: 'r-pod', client: store });
+function Picks({ store, settled = true }: { store: DeckStoreClient | null; settled?: boolean }) {
+  const build = useDraftBuild('pod', PICKS, useMemo(() => (store === null ? null : { podId: 'r-pod', client: store }), [store]), settled);
   return createElement(PoolView, { cards: PICKS, recentlyAdded: null, sideboard: build.sideboard, onMove: build.move });
 }
 
@@ -92,6 +92,25 @@ describe('the picks: the deck in progress and its sideboard', () => {
     expect(names(screen.getByTestId('pool-side'))).toEqual([name]);
     drag(within(screen.getByTestId('pool-side')).getByTestId('card'), screen.getByTestId('pool-main'));
     expect(names(screen.getByTestId('pool-side'))).toEqual([]);
+  });
+
+  it('saves a move made while a pick is on its way only once the server has the pick: a save naming it sooner is refused', async () => {
+    const store: DeckStoreClient = {
+      mine: vi.fn(async () => ({ pool: PICKS, deck: null })),
+      save: vi.fn(async (_pod: string, dck: string) => ({ ok: true as const, deck: dck })),
+    };
+    const { rerender } = render(createElement(Picks, { store, settled: false }));
+    await act(async () => undefined);
+    const card = within(screen.getByTestId('pool-main')).getAllByTestId('card')[0]!;
+    const name = card.querySelector('.card__name')!.textContent!;
+    drag(card, screen.getByTestId('pool-sideboard'));
+    // Shown at once; sent later.
+    expect(names(screen.getByTestId('pool-side'))).toEqual([name]);
+    expect(store.save).not.toHaveBeenCalled();
+    rerender(createElement(Picks, { store, settled: true }));
+    await act(async () => undefined);
+    expect(store.save).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(store.save).mock.calls[0]![1]).toContain(name);
   });
 
   it('keeps the sideboard when deck building starts: the builder opens on the same saved build', async () => {

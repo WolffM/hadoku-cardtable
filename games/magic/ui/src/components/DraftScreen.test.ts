@@ -53,7 +53,7 @@ vi.mock('../play/live/prefs.ts', async (importOriginal) => ({
 import { FIXTURES, loadFixtures } from '../draft/fixtures.ts';
 import { applyPayload, initialState, type TableState } from '../draft/table.ts';
 import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
-import { DraftScreen } from './DraftScreen.tsx';
+import { DraftScreen, DraftSkeleton, PackTools } from './DraftScreen.tsx';
 import { POOL_ENTER_MS } from './PoolView.tsx';
 import { packRowHeight } from './PackView.tsx';
 
@@ -219,6 +219,81 @@ describe('the draft screen, on committed fixtures', () => {
     expect(screen.getByTestId('pack').textContent).toContain('Waiting for the next pack.');
   });
 
+  // The operator, 2026-11-19: "allow dragging cards off the fan and into the pool for selecting
+  // rather than just clicking or pressing enter. (this should also allow dragging a card directly
+  // to the sideboard)".
+  describe('a card dragged out of the pack', () => {
+    const pointer = (el: Element, type: string, x: number, y: number): void => {
+      const e = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 });
+      Object.defineProperty(e, 'pointerId', { value: 1 });
+      act(() => {
+        el.dispatchEvent(e);
+      });
+    };
+    /** Lift pack card `at` and let it go over `onto()`, read once the card is in the air. */
+    const dragOnto = (at: number, onto: () => Element): string => {
+      const chosen = packCards()[at]!;
+      const id = chosen.getAttribute('data-card-id')!;
+      pointer(chosen, 'pointerdown', 100, 100);
+      pointer(chosen, 'pointermove', 110, 200);
+      const target = onto();
+      document.elementFromPoint = () => target;
+      pointer(chosen, 'pointermove', 120, 300);
+      pointer(chosen, 'pointerup', 120, 300);
+      return id;
+    };
+    const idsIn = (testid: string): (string | null)[] => within(screen.getByTestId(testid)).queryAllByTestId('card').map((c) => c.getAttribute('data-card-id'));
+    afterEach(() => {
+      delete (document as { elementFromPoint?: unknown }).elementFromPoint;
+    });
+
+    it('let go over the picks, is taken into the deck: the pack moves on', () => {
+      mount();
+      const id = dragOnto(4, () => screen.getByTestId('pool-main'));
+      expect(idsIn('pool-main')).toEqual([id]);
+      expect(idsIn('pool-sideboard')).toEqual([]);
+      expect(packCards()).toHaveLength(0);
+      expect(screen.getByTestId('pack').textContent).toContain('Waiting for the next pack.');
+    });
+
+    it('let go over the sideboard, is taken straight into the sideboard, even as the first pick', () => {
+      mount();
+      expect(screen.queryByTestId('pool-sideboard')).toBeNull();
+      const id = dragOnto(2, () => screen.getByTestId('pool-sideboard'));
+      expect(idsIn('pool-sideboard')).toEqual([id]);
+      expect(idsIn('pool-main')).toEqual([]);
+      expect(screen.getByTestId('pool-count').textContent).toBe('1');
+    });
+
+    it('lights the area it would land in while it is in the air, and nothing once it is let go', () => {
+      mount();
+      const chosen = packCards()[0]!;
+      pointer(chosen, 'pointerdown', 100, 100);
+      pointer(chosen, 'pointermove', 110, 200);
+      const side = screen.getByTestId('pool-sideboard');
+      document.elementFromPoint = () => side;
+      pointer(chosen, 'pointermove', 120, 300);
+      expect(side.hasAttribute('data-drop-over')).toBe(true);
+      expect(screen.getByTestId('pool-main').hasAttribute('data-drop-over')).toBe(false);
+      document.elementFromPoint = () => document.body;
+      pointer(chosen, 'pointermove', 120, 20);
+      expect(side.hasAttribute('data-drop-over')).toBe(false);
+      pointer(chosen, 'pointerup', 120, 20);
+      expect(packCards()).toHaveLength(15);
+      expect(poolCards()).toHaveLength(0);
+      expect(screen.getByTestId('pool').textContent).toContain('Nothing picked yet.');
+    });
+
+    it('flies into the picks from where it was let go, not from the slot it left', () => {
+      mount();
+      const id = dragOnto(1, () => screen.getByTestId('pool'));
+      const tile = screen.getByTestId('pool').querySelector<HTMLElement>(`.pool__tile:has([data-card-id="${id}"])`)!;
+      expect(tile.className).toContain('pool__tile--enter');
+      // The copy was 20 right and 200 below the slot (at 0,0 in a DOM with no layout) when it was let go.
+      expect(tile.style.transform).toContain('translate(20px, 200px)');
+    });
+  });
+
   it('the pool groups by mana value, not colour — a 4-mana white card and a 1-mana black one land in their mana values’ piles', () => {
     mount();
     // This fixture's pool already holds Wrath of God (W, mv4) and Thoughtseize (B, mv1).
@@ -374,6 +449,51 @@ describe('the draft screen, on committed fixtures', () => {
     mount();
     expect(pressed()).toBe('grid');
     expect(screen.getByTestId('pack').dataset.layout).toBe('grid');
+  });
+
+  // The operator, 2026-11-19: "show an (i) button that makes a popout modal explaining the controls of
+  // the draft", and then: "can we put the fan|grid and info buttons next to the close button so we
+  // dont lose any space in the drafting area?"
+  it('the pack’s controls take nothing of the drafting area: a draft with no room draws them under its title, and one in a room leaves them to the room’s bar', () => {
+    const { container, unmount } = mount();
+    for (const layout of ['fan', 'grid'] as const) {
+      fireEvent.click(screen.getByRole('button', { name: layout }));
+      expect(container.querySelector('.draft__main [data-testid="pack-tools"]'), 'nothing of theirs beside the pack').toBeNull();
+      const tools = container.querySelector('.draft__aside .draft__bar [data-testid="pack-tools"]')!;
+      expect([...tools.children].map((c) => c.getAttribute('data-testid') ?? c.getAttribute('aria-label'))).toEqual(['pack-help', 'Pack layout']);
+    }
+    unmount();
+    const room = render(createElement(DraftSkeleton, { side: createElement('div', { 'data-testid': 'room-bar' }, createElement(PackTools)) }));
+    expect(room.container.querySelectorAll('[data-testid="pack-tools"]'), 'only the room’s own').toHaveLength(1);
+    expect(within(screen.getByTestId('room-bar')).getByRole('group', { name: 'Pack layout' })).toBeTruthy();
+  });
+
+  it('the (i) opens the list of the draft’s controls, and closes it again', () => {
+    mount();
+    expect(screen.queryByTestId('pack-controls')).toBeNull();
+    fireEvent.click(screen.getByTestId('pack-help'));
+    const panel = screen.getByTestId('pack-controls');
+    expect(panel.getAttribute('role')).toBe('dialog');
+    expect(screen.getByTestId('pack-help').getAttribute('aria-expanded')).toBe('true');
+    const rows = [...panel.querySelectorAll('.pack__control')].map((row) => [row.querySelector('dt')!.textContent, row.querySelector('dd')!.textContent]);
+    // What the operator named, and the drags that came with it.
+    expect(rows.map(([control]) => control)).toEqual(['Arrow keys', 'Hover', 'Mouse wheel', 'Enter', 'Drag a card onto your pool', 'Drag a card onto the sideboard', 'Drag the fan sideways']);
+    expect(rows.every(([, does]) => (does ?? '').length > 0)).toBe(true);
+    // Reading the list takes nothing: the pack is as it was.
+    expect(packCards()).toHaveLength(15);
+    fireEvent.click(screen.getByTestId('pack-controls-close'));
+    expect(screen.queryByTestId('pack-controls')).toBeNull();
+    fireEvent.click(screen.getByTestId('pack-help'));
+    fireEvent.click(screen.getByTestId('pack-help'));
+    expect(screen.queryByTestId('pack-controls')).toBeNull();
+  });
+
+  it('the skeleton draws the same controls where the draft will, so the draft lands on them', () => {
+    const { container } = render(createElement(DraftSkeleton));
+    const tools = container.querySelector('.draft__aside .draft__bar [data-testid="pack-tools"][data-skeleton="controls"]')!;
+    expect(within(tools as HTMLElement).getByRole('group', { name: 'Pack layout' })).toBeTruthy();
+    expect(within(tools as HTMLElement).getByTestId('pack-help')).toBeTruthy();
+    expect(container.querySelector('.draft__main [data-testid="pack-tools"]')).toBeNull();
   });
 
   it('fan or grid, the body is the same: one row for the pack, sized from the window, and the pod beside the picks (the operator, 2026-11-02)', () => {

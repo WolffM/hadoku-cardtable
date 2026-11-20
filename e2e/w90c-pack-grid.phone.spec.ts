@@ -103,7 +103,7 @@ test('the grid: scrolls vertically for the rest of the pack, never sideways, and
     expect(overflowAxes.scrollW, 'nothing overflows the box sideways').toBeLessThanOrEqual(overflowAxes.clientW);
 
     // The toggle and the room header never move: only the pack's own box scrolls.
-    const toggleBefore = await page.locator('.draft__aside .segmented button').first().boundingBox();
+    const toggleBefore = await page.locator('[data-testid="pack-tools"] .segmented button').first().boundingBox();
     const countBefore = await pack.getAttribute('data-card-count');
     const box = await pack.boundingBox();
     if (box === null || toggleBefore === null) throw new Error('missing a box');
@@ -112,7 +112,7 @@ test('the grid: scrolls vertically for the rest of the pack, never sideways, and
     const scrollAfter = await pack.evaluate((el) => el.scrollTop);
     expect(scrollAfter, 'the drag actually scrolled the grid').toBeGreaterThan(scrollBefore);
 
-    const toggleAfter = await page.locator('.draft__aside .segmented button').first().boundingBox();
+    const toggleAfter = await page.locator('[data-testid="pack-tools"] .segmented button').first().boundingBox();
     expect(toggleAfter?.y, 'the toggle did not move with the drag').toBeCloseTo(toggleBefore.y, 0);
     expect(await pack.getAttribute('data-card-count'), 'the drag never picked a card').toBe(countBefore);
 

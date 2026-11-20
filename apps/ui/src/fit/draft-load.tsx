@@ -17,7 +17,7 @@ import { ensureCosmeticsStyles } from '@wolffm/prefs-client/cosmetics';
 import '@wolffm/themes/style.css';
 import '@wolffm/themes/icons.css';
 import '@hadoku/magic-ui/styles.css';
-import { DraftScreen, DraftSkeleton } from '@hadoku/magic-ui/components/DraftScreen.tsx';
+import { DraftScreen, DraftSkeleton, PackTools } from '@hadoku/magic-ui/components/DraftScreen.tsx';
 import { loadFixtures } from '@hadoku/magic-ui/draft/fixtures.ts';
 import { initialState } from '@hadoku/magic-ui/draft/table.ts';
 import { applyUiScale } from '@hadoku/ui-shell/settings';
@@ -42,13 +42,17 @@ const view = { ...fixture, seats, waitingOn: waiting === null ? seats.map((s) =>
 
 applyUiScale(document.documentElement, Number(params.get('scale') ?? 1));
 
-/** A stand-in for the room's bar `PodScreen` puts at the top of the side column: the same in both states. */
-const side = <div data-fit-side="" style={{ height: Number(params.get('side') ?? 48) }} />;
+/** A stand-in for the room's bar `PodScreen` puts at the top of the side column, the pack's controls in it: the same in both states. */
+const side = (loaded: boolean) => (
+  <div data-fit-side="" style={{ height: Number(params.get('side') ?? 48) }}>
+    <PackTools skeleton={!loaded} />
+  </div>
+);
 
 function Page() {
   const [loaded, setLoaded] = useState(false);
   window.load = () => setLoaded(true);
-  return loaded ? <DraftScreen state={initialState(view)} onChange={() => {}} side={side} /> : <DraftSkeleton side={side} />;
+  return loaded ? <DraftScreen state={initialState(view)} onChange={() => {}} side={side(true)} /> : <DraftSkeleton side={side(false)} />;
 }
 
 // As the app's entry does (`main.tsx`): the faces' sheet is there before anything is drawn.

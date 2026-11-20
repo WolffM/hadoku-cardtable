@@ -36,9 +36,14 @@
  * restored from a snapshot rather than clicked — a refresh lands here) or the
  * viewer has asked for less motion: `recentlyAdded` is `null` in both cases,
  * and a `null` `from` is `PoolView`'s whole "skip it" signal.
+ *
+ * A card dragged out of the pack (`packDrag.ts`) is the same pick, flown from
+ * where its copy was let go instead of from its slot. Let go over the
+ * sideboard, it is filed there before it is first painted, so it flies
+ * straight to the sideboard's pile and is never seen in the deck's.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
 import type { ConnectionState } from '../draft/connection.ts';
@@ -58,14 +63,17 @@ import { ConnectionBanner } from '@hadoku/game-ui/components/ConnectionBanner.ts
 import { DeckView } from './DeckView.tsx';
 import { CARD_RATIO, cssPx, fitGrid, smallestFitHeight, useBox, useFitScale } from './cardFit.ts';
 import { useNewPackSound } from '../draft/packSound.ts';
-import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, packRowHeight, PackView, phoneFanGeometry, PickRope, POOL_MIN_H, usePhoneLayout, type PackLayout } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, packFitStyle, packRowHeight, PackView, phoneFanGeometry, PickRope, POOL_MIN_H, usePhoneLayout, type PackDrop, type PackLayout } from './PackView.tsx';
+import { Icon } from '@wolffm/themes';
+import { Popover, usePopover } from '@hadoku/game-ui/components/Popover.tsx';
+import type { Area } from '../deck/dragMove.tsx';
 import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
 import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
 import { Ghost, SeatBar, SeatBarSkeleton } from './SeatBar.tsx';
 import { SpectatorNotice } from './SpectatorNotice.tsx';
 import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
-import { uiPx } from '@hadoku/ui-shell/settings';
+import { uiLength, uiPx } from '@hadoku/ui-shell/settings';
 import './draft.css';
 
 const rectOf = (r: DOMRect): PoolEnterRect => ({ left: r.left, top: r.top, width: r.width, height: r.height });
@@ -197,6 +205,62 @@ export function PackLayoutControl({ layout, onLayout }: { layout: PackLayout; on
   );
 }
 
+/**
+ * The draft's controls, listed in a panel the (i) button opens. The operator, 2026-11-19: *"show an
+ * (i) button that makes a popout modal explaining the controls of the draft: the arrow keys,
+ * hovering to expand, mouse-wheel to see transforms, and enter to select."* This is their asked-for
+ * exception to "no explanatory UI text": keep it, and keep it to the list of controls — each one the
+ * pack answers to, the two drags (`packDrag.ts`) among them, and nothing else.
+ */
+const PACK_CONTROLS: readonly (readonly [control: string, does: string])[] = [
+  ['Arrow keys', 'Move along the pack'],
+  ['Hover', 'Enlarge a card'],
+  ['Mouse wheel', 'Turn an enlarged card to its other faces'],
+  ['Enter', 'Take the card'],
+  ['Drag a card onto your pool', 'Take it'],
+  ['Drag a card onto the sideboard', 'Take it into your sideboard'],
+  ['Drag the fan sideways', 'Scroll it'],
+];
+
+function PackHelp() {
+  const { trigger, toggle, close } = usePopover();
+  return (
+    <>
+      <button type="button" className="pack__help" aria-label="Draft controls" aria-expanded={trigger !== null} data-testid="pack-help" onClick={(event) => toggle(event.currentTarget)}>
+        <Icon name="info" size={uiLength('0.95rem')} />
+      </button>
+      {trigger !== null && (
+        <Popover trigger={trigger} onClose={close} title="Draft controls" testId="pack-controls">
+          <dl className="pack__controls">
+            {PACK_CONTROLS.map(([control, does]) => (
+              <div key={control} className="pack__control">
+                <dt>{control}</dt>
+                <dd>{does}</dd>
+              </div>
+            ))}
+          </dl>
+        </Popover>
+      )}
+    </>
+  );
+}
+
+/**
+ * The pack's own controls: the controls list and fan or grid. Not in the pack's box, which is all
+ * cards (the operator, 2026-11-19: *"can we put the fan|grid and info buttons next to the close button
+ * so we dont lose any space in the drafting area?"*): whoever draws the room's bar puts them in it,
+ * beside Close (`PodScreen`), and a draft with no room draws them under its own title.
+ */
+export function PackTools({ skeleton = false }: { skeleton?: boolean }) {
+  const [layout, setLayout] = usePackLayout();
+  return (
+    <div className="pack__tools" data-testid="pack-tools" data-skeleton={skeleton ? 'controls' : undefined}>
+      <PackHelp />
+      <PackLayoutControl layout={layout} onLayout={setLayout} />
+    </div>
+  );
+}
+
 export function DraftScreen({
   state,
   onChange,
@@ -212,7 +276,7 @@ export function DraftScreen({
   buildStore = null,
   arrivedWhole = false,
 }: DraftScreenProps) {
-  const [layout, setLayout] = usePackLayout();
+  const [layout] = usePackLayout();
   const fitAside = useFitScale();
 
   const [message, setMessage] = useState<string | null>(null);
@@ -235,7 +299,7 @@ export function DraftScreen({
 
   // The viewer's own picks are their build; a watched drafter's are only looked at.
   const pool = useMemo(() => visiblePool(state), [state]);
-  const build = useDraftBuild(view.draftId, pool, watching ? null : buildStore);
+  const build = useDraftBuild(view.draftId, pool, watching ? null : buildStore, !awaiting);
 
   // Referentially stable, because `CardTile` is memoised and this is the prop
   // it compares. A fresh closure per render would make every tile re-render on
@@ -269,6 +333,8 @@ export function DraftScreen({
   const [extraFirst, setExtraFirst] = useState<string | null>(null);
   const extraRef = useRef<{ with: string; first: string | null } | null>(null);
   extraRef.current = extraArmed && extraWith !== undefined ? { with: extraWith, first: extraFirst } : null;
+  /** The button that arms it, in the pod's column while this seat has a pack to take from. */
+  const extraShown = waiting || awaiting ? undefined : extraCard;
   // A new pack starts with nothing pressed and nothing held.
   const pickKey = `${view.packNumber}:${view.pickNumber}`;
   useEffect(() => {
@@ -276,8 +342,19 @@ export function DraftScreen({
     setExtraFirst(null);
   }, [pickKey]);
 
+  /** A card dragged out of the pack, in the air: the area it would land in is lit (`PoolView`). */
+  const [lift, setLift] = useState<{ over: Area | null } | null>(null);
+  /** The pick let go over the sideboard: filed there once the pool holds it, before it is painted in the deck. */
+  const [toSideboard, setToSideboard] = useState<string | null>(null);
+  const moveBuild = build.move;
+  useLayoutEffect(() => {
+    if (toSideboard === null || !pool.some((c) => c.cardId === toSideboard)) return;
+    moveBuild(toSideboard, 'pool');
+    setToSideboard(null);
+  }, [toSideboard, pool, moveBuild]);
+
   const handlePick = useCallback(
-    (cardId: string): void => {
+    (cardId: string, drop?: PackDrop): void => {
       const two = extraRef.current;
       if (two !== null && (two.first === null || two.first === cardId)) {
         setExtraFirst(two.first === null ? cardId : null);
@@ -299,7 +376,9 @@ export function DraftScreen({
       const tile = prefersReducedMotion()
         ? null
         : mainRef.current?.querySelector<HTMLElement>(`.pack [data-testid="card"][data-card-id="${CSS.escape(cardId)}"]`);
-      setRecentlyAdded(tile ? { cardId, from: rectOf(tile.getBoundingClientRect()) } : null);
+      // A dragged card flies from where it was let go, not from the slot it left.
+      setRecentlyAdded(tile ? { cardId, from: drop?.from ?? rectOf(tile.getBoundingClientRect()) } : null);
+      setToSideboard(drop?.to === 'pool' ? cardId : null);
       onChange(result.state);
       onPick?.(first, extra);
     },
@@ -349,6 +428,7 @@ export function DraftScreen({
                 cards={waiting ? [] : visiblePack(state)}
                 layout={layout}
                 onPick={watching ? undefined : handlePick}
+                onLift={setLift}
                 // Only a timed pick of the seat's own has anything to lean toward.
                 onLean={watching || rope === undefined ? undefined : onLean}
                 disabled={!watching && (blocked !== null || stalled)}
@@ -359,58 +439,58 @@ export function DraftScreen({
                 <PoolView
                   cards={pool}
                   recentlyAdded={recentlyAdded}
-                  {...(watching ? {} : { sideboard: build.sideboard, onMove: build.move })}
+                  {...(watching ? {} : { sideboard: build.sideboard, onMove: build.move, dropping: lift })}
                   owner={view.viewer.kind === 'watcher' ? (view.seats[view.viewer.seatId]?.displayName ?? null) : null}
                 />
               )}
             </>
           )}
         </main>
-        {/* One column: the room's bar, the pod as a circle with the pack and pick at its
-            centre, and the pack's layout (the operator, 2026-10-19: "we could reclaim a lot of
-            vertical space in that way"; 2026-10-21: the pod as a circle). Under the pack, beside
-            the picks, in either layout (`draft.css`). */}
+        {/* One column: the room's bar and the pod as a circle with the pack and pick at its
+            centre (the operator, 2026-10-19: "we could reclaim a lot of vertical space in that
+            way"; 2026-10-21: the pod as a circle). Under the pack, beside the picks, in either
+            layout (`draft.css`). */}
         <aside className="draft__aside fit-scale" ref={fitAside}>
           {side}
           {/* The room's bar names the room already. */}
           {side === undefined && (
-            <h1 className="draft__title" data-testid="draft-title">
-              {title}
-            </h1>
+            <header className="draft__bar">
+              <h1 className="draft__title" data-testid="draft-title">
+                {title}
+              </h1>
+              <div className="draft__controls">
+                <PackTools />
+              </div>
+            </header>
           )}
           <SeatBar view={view} onWatch={onWatch} arrivedWhole={arrivedWhole} />
           <FaceUpCards view={view} />
-          <header className="draft__bar">
-            <div className="draft__controls">
-              <PackLayoutControl layout={layout} onLayout={setLayout} />
-              {extraCard !== undefined && !waiting && !awaiting && (
-                <button
-                  type="button"
-                  className="button"
-                  data-testid="extra-pick"
-                  aria-pressed={extraArmed}
-                  disabled={blocked !== null || stalled}
-                  onClick={() => {
-                    setExtraArmed((on) => !on);
-                    setExtraFirst(null);
-                  }}
-                >
-                  {extraCard.name}
-                </button>
-              )}
-              {onAdvance && (
-                <button
-                  type="button"
-                  className="button"
-                  data-testid="advance"
-                  disabled={nextPayload === null}
-                  onClick={onAdvance}
-                >
-                  {nextPayload ? `Next payload (seq ${nextPayload.seq})` : 'No further payload'}
-                </button>
-              )}
-            </div>
-          </header>
+          {(extraShown !== undefined || onAdvance) && (
+            <header className="draft__bar">
+              <div className="draft__controls">
+                {extraShown !== undefined && (
+                  <button
+                    type="button"
+                    className="button"
+                    data-testid="extra-pick"
+                    aria-pressed={extraArmed}
+                    disabled={blocked !== null || stalled}
+                    onClick={() => {
+                      setExtraArmed((on) => !on);
+                      setExtraFirst(null);
+                    }}
+                  >
+                    {extraShown.name}
+                  </button>
+                )}
+                {onAdvance && (
+                  <button type="button" className="button" data-testid="advance" disabled={nextPayload === null} onClick={onAdvance}>
+                    {nextPayload ? `Next payload (seq ${nextPayload.seq})` : 'No further payload'}
+                  </button>
+                )}
+              </div>
+            </header>
+          )}
         </aside>
       </div>
     </div>
@@ -441,21 +521,21 @@ export const GHOST_PACK = 15;
  * The draft's own layout with nothing in it yet (`PodScreen`, until the
  * table arrives): the pack as backs in the places its cards will take, the
  * picks' header, the pod's ring with its faces and counters, and the pack's
- * layout control, each in the box the draft draws it in, so the draft lands on
+ * controls, each in the box the draft draws it in, so the draft lands on
  * the same lines and the page changes once (the operator, 2026-10-20: *"can we
  * add a loading skeleton while this is still loading so i dont see the page
  * change so many times?"*; 2026-10-28: *"improve the loading skeleton so it
  * looks a bit better"*). `seats` is the pod's size, when the room knows it.
  */
 export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: number }) {
-  const [layout, setLayout] = usePackLayout();
+  const [layout] = usePackLayout();
   const fitAside = useFitScale();
   return (
     <div className="draft draft--skeleton" data-testid="pod-waiting" aria-busy="true">
       <div className="draft__body" ref={fitToWindow}>
-        <main className="draft__main" aria-hidden="true">
+        <main className="draft__main">
           <PackSkeleton layout={layout} />
-          <section className="pool" data-skeleton="pool">
+          <section className="pool" data-skeleton="pool" aria-hidden="true">
             <header className="pool__head" data-skeleton="pool-head">
               {/* The real title's own line: a heading with its count, whose 16px line sets the header's height. */}
               <h2 className="pool__title">
@@ -474,12 +554,14 @@ export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: n
         </main>
         <aside className="draft__aside fit-scale" ref={fitAside}>
           {side}
+          {side === undefined && (
+            <header className="draft__bar">
+              <div className="draft__controls">
+                <PackTools skeleton />
+              </div>
+            </header>
+          )}
           <SeatBarSkeleton seats={seats} />
-          <header className="draft__bar" data-skeleton="controls">
-            <div className="draft__controls">
-              <PackLayoutControl layout={layout} onLayout={setLayout} />
-            </div>
-          </header>
         </aside>
       </div>
     </div>
@@ -500,16 +582,10 @@ export function PackSkeleton({ layout }: { layout: PackLayout }) {
   const desktopFan = !phone && layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height, maxH) : null;
   const desktopGrid = !phone && desktopFan === null && measured ? fitGrid(GHOST_PACK, box, cssPx(root, 'column-gap', 10), maxH * CARD_RATIO) : null;
   const phoneFan = phone && layout === 'fan' && measured ? phoneFanGeometry(box.width, box.height, maxH) : null;
-  const fanGeo = desktopFan ?? phoneFan;
   const mode: PackLayout = phone ? layout : !measured ? (layout === 'fan' ? 'fan' : 'grid') : desktopFan !== null ? 'fan' : 'grid';
-  const style =
-    fanGeo !== null
-      ? ({ '--fan-w': `${fanGeo.cardW.toFixed(1)}px`, '--fan-h': `${fanGeo.cardH.toFixed(1)}px` } as CSSProperties)
-      : desktopGrid !== null
-        ? ({ '--grid-w': `${desktopGrid.cardW.toFixed(1)}px`, gridTemplateColumns: `repeat(${desktopGrid.cols}, var(--grid-w))` } as CSSProperties)
-        : undefined;
+  const style = packFitStyle(desktopFan ?? phoneFan, desktopGrid);
   return (
-    <div className={`pack pack--${mode}`} data-skeleton="pack" ref={measure} style={style}>
+    <div className={`pack pack--${mode}`} data-skeleton="pack" aria-hidden="true" ref={measure} style={style}>
       {measured &&
         Array.from({ length: GHOST_PACK }, (_, i) => {
           const x = desktopFan === null ? null : fanX(desktopFan, i, 0, GHOST_PACK);

@@ -7,7 +7,9 @@
  *
  * What is saved names only the sideboard: every pick it does not name is the
  * deck's, so a pick still on its way to the server is never part of a save
- * the server would refuse.
+ * the server would refuse. A pick filed in the sideboard before the server has
+ * it (dragged there straight out of the pack) is the one move that names such
+ * a pick: its save waits until the pool is `settled`.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,7 +35,7 @@ export interface DraftBuild {
   save: BuildSave;
 }
 
-export function useDraftBuild(draftId: string, pool: readonly DraftCard[], store: DraftBuildStore | null): DraftBuild {
+export function useDraftBuild(draftId: string, pool: readonly DraftCard[], store: DraftBuildStore | null, settled = true): DraftBuild {
   const [saved, setSaved] = useState<Deck | null>(null);
   const [save, setSave] = useState<BuildSave>('idle');
   /** A move made before the stored build arrived wins over it. */
@@ -64,14 +66,8 @@ export function useDraftBuild(draftId: string, pool: readonly DraftCard[], store
   buildRef.current = build;
   const poolRef = useRef(pool);
   poolRef.current = pool;
-  const move = useCallback(
-    (cardId: string, to: Area): void => {
-      const card = poolRef.current.find((c) => c.cardId === cardId);
-      if (card === undefined) return;
-      const request = cardRequestOf(card);
-      const next = to === 'pool' ? moveToSideboard(buildRef.current, request) : moveToMain(buildRef.current, request);
-      moved.current = true;
-      setSaved(next);
+  const send = useCallback(
+    (next: Deck): void => {
       if (podId === null || client === null) return;
       setSave('saving');
       client.save(podId, dckTextOf({ ...next, main: [] })).then(
@@ -81,6 +77,29 @@ export function useDraftBuild(draftId: string, pool: readonly DraftCard[], store
     },
     [podId, client],
   );
+  const settledRef = useRef(settled);
+  settledRef.current = settled;
+  /** A move made while a pick was on its way: saved once the server has the pick. */
+  const owed = useRef(false);
+  const move = useCallback(
+    (cardId: string, to: Area): void => {
+      const card = poolRef.current.find((c) => c.cardId === cardId);
+      if (card === undefined) return;
+      const request = cardRequestOf(card);
+      const next = to === 'pool' ? moveToSideboard(buildRef.current, request) : moveToMain(buildRef.current, request);
+      moved.current = true;
+      setSaved(next);
+      if (settledRef.current) send(next);
+      else owed.current = true;
+    },
+    [send],
+  );
+  // The build as the settled pool leaves it: a pick the server refused is in neither pile.
+  useEffect(() => {
+    if (!settled || !owed.current) return;
+    owed.current = false;
+    send(buildRef.current);
+  }, [settled, send]);
 
   return { sideboard, move, save };
 }

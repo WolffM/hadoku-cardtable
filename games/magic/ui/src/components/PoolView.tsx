@@ -16,6 +16,12 @@
  * one build (`draftBuild`, saved as the pod's deck), which the deck builder
  * opens on. The drag is `deck/dragMove.tsx`'s, the builder's own.
  *
+ * A card dragged out of the pack is taken by letting it go here (`packDrag.ts`,
+ * the operator, 2026-11-19): over the sideboard it is filed there as it is
+ * taken, anywhere else over the picks it joins the deck. While one is in the
+ * air (`dropping`) the area it would land in is lit the way a pick dragged
+ * between the two is, and the sideboard is drawn even before the first pick.
+ *
  * ## Fitted, never scrolled
  *
  * The piles are drawn at the largest card size at which every one fits the
@@ -107,9 +113,11 @@ export interface PoolViewProps {
   sideboard?: readonly DraftCard[];
   /** Move a pick to the deck or the sideboard, by its `cardId`. Absent: nothing drags. */
   onMove?: (cardId: string, to: Area) => void;
+  /** A card dragged out of the pack is in the air, over `over` (null: over neither area). Absent or null: none is. */
+  dropping?: { over: Area | null } | null;
 }
 
-export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove }: PoolViewProps) {
+export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove, dropping = null }: PoolViewProps) {
   const counts = DECK_COLORS.map(
     (c) => [c, cards.filter((card) => card.colors.includes(c)).length] as const,
   );
@@ -117,6 +125,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove
 
   // The whole pool takes a drop: a pick let go anywhere off its own area moves to the other.
   const split = useCardSplit((cardId, to) => onMove?.(cardId, to));
+  const over = split.over ?? dropping?.over ?? null;
 
   const side = new Set((sideboard ?? []).map((c) => c.cardId));
   const groups = groupCards(
@@ -161,7 +170,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove
   );
 
   return (
-    <section className="pool" data-testid="pool" aria-label="Your picked pool" {...(onMove === undefined ? {} : split.handlers)}>
+    <section className="pool" data-testid="pool" aria-label="Your picked pool" data-pick-drop="" {...(onMove === undefined ? {} : split.handlers)}>
       <header className="pool__head">
         <h2 className="pool__title">
           {owner === null ? 'Your pool' : `${owner}'s pool`} <span data-testid="pool-count">{cards.length}</span>
@@ -180,7 +189,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove
         </div>
       </header>
 
-      {cards.length === 0 ? (
+      {cards.length === 0 && (onMove === undefined || dropping === null) ? (
         <p className="pool__note">Nothing picked yet.</p>
       ) : (
         <div className="pool__curve" ref={measure} style={style}>
@@ -188,10 +197,10 @@ export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove
             groups.map(([id, bucket], at) => pile(id, bucket, at, 'deck'))
           ) : (
             <>
-              <DropArea area="deck" over={split.over} className="pool__main" testid="pool-main">
+              <DropArea area="deck" over={over} className="pool__main" testid="pool-main">
                 {groups.map(([id, bucket], at) => pile(id, bucket, at, 'deck'))}
               </DropArea>
-              <DropArea area="pool" over={split.over} className="pool__sideboard" testid="pool-sideboard">
+              <DropArea area="pool" over={over} className="pool__sideboard" testid="pool-sideboard">
                 {pile('side', sideboard ?? [], groups.length, 'pool')}
               </DropArea>
             </>

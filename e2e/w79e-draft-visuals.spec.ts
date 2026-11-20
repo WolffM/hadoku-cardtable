@@ -40,7 +40,7 @@ const PARTS: Record<string, string> = {
   'pool-head': '.pool__head',
   seats: '[data-testid="seat-bar"]',
   centre: '.podcircle__centre',
-  controls: '.draft__aside .draft__bar',
+  controls: '.draft__aside [data-testid="pack-tools"]',
   ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`face-${i}`, `[data-testid="seat-${i}"] .seatbar__face`])),
   ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`name-${i}`, `[data-testid="seat-${i}"] .seatbar__label`])),
   // The fan's seven places: the pack is dealt face down where its cards will land.

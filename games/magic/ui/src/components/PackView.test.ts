@@ -354,3 +354,195 @@ describe('the lean: the card the drafter would take now', () => {
     expect(leans(onLean)).toEqual(said);
   });
 });
+
+/* ── dragging: a card out of the pack, and the fan's row sideways ─────── */
+
+/** A pointer event with a place: this DOM's own `PointerEvent` (where it has one) drops the coordinates. */
+function pointer(el: Element, type: string, x: number, y: number): void {
+  const e = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 });
+  Object.defineProperty(e, 'pointerId', { value: 1 });
+  Object.defineProperty(e, 'pointerType', { value: 'mouse' });
+  act(() => {
+    el.dispatchEvent(e);
+  });
+}
+
+/** Press `el` and drag it by `dx`, `dy` in two moves; `release` lets go there, and fires the click a real release on the same card would. */
+function drag(el: Element, dx: number, dy: number, release = true): void {
+  pointer(el, 'pointerdown', 500, 300);
+  pointer(el, 'pointermove', 500 + dx / 2, 300 + dy / 2);
+  pointer(el, 'pointermove', 500 + dx, 300 + dy);
+  if (!release) return;
+  pointer(el, 'pointerup', 500 + dx, 300 + dy);
+  fireEvent.click(el);
+}
+
+/** What is under the pointer wherever it is: an element inside the picks (their sideboard when `side`), or nothing. */
+function pointerOver(where: 'picks' | 'sideboard' | 'nothing'): void {
+  const picks = document.createElement('section');
+  picks.setAttribute('data-pick-drop', '');
+  const main = picks.appendChild(document.createElement('div'));
+  main.setAttribute('data-drop-area', 'deck');
+  const side = picks.appendChild(document.createElement('div'));
+  side.setAttribute('data-drop-area', 'pool');
+  document.body.append(picks);
+  document.elementFromPoint = () => (where === 'nothing' ? document.body : where === 'sideboard' ? side : main);
+}
+
+describe('dragging a card out of the pack (the operator, 2026-11-19)', () => {
+  afterEach(() => {
+    document.querySelectorAll('[data-pick-drop]').forEach((el) => el.remove());
+    delete (document as { elementFromPoint?: unknown }).elementFromPoint;
+  });
+
+  it('takes the card let go over the picks, saying where its copy was let go', () => {
+    pointerOver('picks');
+    const { onPick } = mount();
+    drag(tile(2), 30, 250);
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onPick.mock.calls[0]![0]).toBe('c2');
+    expect(onPick.mock.calls[0]![1]).toMatchObject({ to: 'deck', from: { left: 30, top: 250, width: 1000, height: 600 } });
+  });
+
+  it('takes the card into the sideboard when it is let go over the sideboard', () => {
+    pointerOver('sideboard');
+    const { onPick } = mount();
+    drag(tile(1), 120, 250);
+    expect(onPick).toHaveBeenCalledWith('c1', expect.objectContaining({ to: 'pool' }));
+  });
+
+  it('puts the card back when it is let go anywhere else, and the release picks nothing', () => {
+    pointerOver('nothing');
+    const { onPick } = mount();
+    drag(tile(0), 0, -120);
+    expect(onPick).not.toHaveBeenCalled();
+    expect(document.querySelector('.pack__slot[data-lifted]')).toBeNull();
+    expect(screen.getAllByTestId('card')).toHaveLength(15);
+  });
+
+  it('marks the card lifted while it is in the air, and tells the screen what it is over', () => {
+    pointerOver('sideboard');
+    const onLift = vi.fn();
+    render(createElement(PackView, { cards: PACK, layout: 'fan', onPick: vi.fn(), onLift, disabled: false, emptyNote: '' }));
+    drag(tile(3), 10, 200, false);
+    expect([...document.querySelectorAll('.pack__slot')].findIndex((s) => s.hasAttribute('data-lifted'))).toBe(3);
+    expect(onLift).toHaveBeenLastCalledWith({ over: 'pool' });
+    pointer(tile(3), 'pointerup', 510, 500);
+    expect(onLift).toHaveBeenLastCalledWith(null);
+  });
+
+  it('draws the lifted card’s copy in the screen’s top layer, where the pointer has taken it, ringed over somewhere that takes it', () => {
+    pointerOver('picks');
+    const layer = document.body.appendChild(document.createElement('div'));
+    layer.setAttribute('data-board-zoom', '');
+    mount();
+    drag(tile(3), 40, 200, false);
+    const ghost = layer.querySelector<HTMLElement>('[data-testid="pack-ghost"]')!;
+    expect(ghost.querySelector('.card__name')?.textContent).toBe('Card 3');
+    expect(ghost.querySelector('button')).toBeNull();
+    expect(ghost.style.left).toBe('40px');
+    expect(ghost.style.top).toBe('200px');
+    expect(ghost.getAttribute('data-over')).toBe('deck');
+    pointer(tile(3), 'pointercancel', 540, 500);
+    expect(layer.querySelector('[data-testid="pack-ghost"]')).toBeNull();
+    layer.remove();
+  });
+
+  it('Escape puts a lifted card back', () => {
+    pointerOver('picks');
+    const { onPick } = mount();
+    drag(tile(0), 0, 200, false);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(document.querySelector('.pack__slot[data-lifted]')).toBeNull();
+    pointer(tile(0), 'pointerup', 500, 500);
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('a press that does not travel is still a click: it opens a card, then takes it', () => {
+    pointerOver('picks');
+    const { onPick } = mount();
+    drag(tile(2), 3, 3);
+    expect(open()).toBe(2);
+    expect(onPick).not.toHaveBeenCalled();
+    drag(tile(2), 2, -4);
+    expect(onPick).toHaveBeenCalledWith('c2');
+  });
+
+  it('lifts nothing while picking is off, or from a pack nothing picks from', () => {
+    pointerOver('picks');
+    const onPick = vi.fn();
+    const { unmount } = render(createElement(PackView, { cards: PACK, layout: 'fan', onPick, disabled: true, emptyNote: '' }));
+    drag(tile(0), 0, 250, false);
+    expect(document.querySelector('.pack__slot[data-lifted]')).toBeNull();
+    unmount();
+    render(createElement(PackView, { cards: PACK, layout: 'fan', disabled: false, emptyNote: '' }));
+    drag(tile(0), 0, 250, false);
+    expect(document.querySelector('.pack__slot[data-lifted]')).toBeNull();
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('lifts from the grid too, whichever way the card is dragged', () => {
+    pointerOver('picks');
+    const onPick = vi.fn();
+    render(createElement(PackView, { cards: PACK, layout: 'grid', onPick, disabled: false, emptyNote: '' }));
+    drag(tile(4), 200, 10);
+    expect(onPick).toHaveBeenCalledWith('c4', expect.objectContaining({ to: 'deck' }));
+    expect(onPick).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('dragging the fan sideways (the operator, 2026-11-19)', () => {
+  // The stubbed box is 1000 wide: a card every 116 px.
+  it('scrolls the row with the pointer, a card per step, and the release picks nothing', () => {
+    const { onPick } = mount();
+    drag(tile(0), -240, 10);
+    expect(open()).toBe(2);
+    drag(tile(2), 120, -8);
+    expect(open()).toBe(1);
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('stops at the pack’s ends', () => {
+    mount();
+    drag(tile(0), 400, 0);
+    expect(open()).toBe(0);
+    drag(tile(0), -5000, 0);
+    expect(open()).toBe(14);
+  });
+
+  it('a flat stroke along the row pans; a card dragged off on a diagonal lifts', () => {
+    const { onPick } = mount();
+    drag(tile(0), -200, 99, false);
+    expect(document.querySelector('.pack__slot[data-lifted]')).toBeNull();
+    expect(open()).toBe(2);
+    pointer(tile(0), 'pointerup', 300, 399);
+    drag(tile(0), -200, 101, false);
+    expect(document.querySelector('.pack__slot[data-lifted]')).not.toBeNull();
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('pans from the pack’s own background, whichever way it is dragged, and a pack nothing picks from pans from its cards', () => {
+    render(createElement(PackView, { cards: PACK, layout: 'fan', disabled: false, emptyNote: '' }));
+    drag(screen.getByTestId('pack'), -120, 300);
+    expect(open()).toBe(1);
+    drag(tile(1), -120, 300);
+    expect(open()).toBe(2);
+  });
+
+  it('plays the scroll sound for each card it passes', () => {
+    const roles: string[] = [];
+    setRolePlayer({ play: (e: SoundEvent) => void roles.push(e.role) });
+    mount();
+    drag(tile(0), -240, 0);
+    expect(roles.filter((role) => role === 'ui.draft-scroll').length).toBeGreaterThanOrEqual(1);
+    expect(roles).not.toContain('ui.draft-pick');
+  });
+
+  it('the wheel still never moves the row, and the arrows still do', () => {
+    mount();
+    wheelOn(tile(0));
+    expect(open()).toBe(0);
+    step(1);
+    expect(open()).toBe(1);
+  });
+});

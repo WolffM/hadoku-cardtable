@@ -188,6 +188,55 @@
   overflow: hidden auto;
 }
 
+/* The pack's own controls (`PackTools`): the controls list and fan or grid, side by side wherever the
+   room's bar puts them. */
+.pack__tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pack__help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-dim);
+}
+
+.pack__help:hover,
+.pack__help:focus-visible,
+.pack__help[aria-expanded='true'] {
+  color: var(--ink);
+}
+
+/* The controls list, in the panel the (i) opens: what to press, and what it does. */
+.pack__controls {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.pack__control {
+  display: contents;
+}
+
+.pack__control dt {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.pack__control dd {
+  margin: 0;
+  color: var(--ink-dim);
+}
+
 /* The fan is sized to the half it is drawn in, and its lifted card may rise
    above its slot: nothing to scroll, nothing to clip. */
 .draft__main > .pack--fan {
@@ -371,6 +420,39 @@
   box-shadow: 0 10px 22px var(--shadow);
 }
 
+/*
+ * The pack's drags (`packDrag.ts`). A card dragged out of the pack leaves its slot where it was,
+ * dimmed the way the deck builder's lifted tile is, and a copy follows the pointer in the screen's
+ * top layer (`PackView`), ringed once letting go would take it. The draft's page never scrolls on a
+ * desktop, so a finger on the pack is the pack's: the browser pans nothing from it. A phone's
+ * carousel and its page are the browser's to scroll (the phone rules below).
+ */
+.pack__slot {
+  user-select: none;
+}
+
+.pack__slot[data-lifted] {
+  opacity: 0.35;
+}
+
+.pack__ghost {
+  position: absolute;
+  width: var(--card-w);
+  border-radius: var(--radius);
+  box-shadow: 0 14px 26px var(--shadow);
+  pointer-events: none;
+}
+
+.pack__ghost[data-over] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.draft__main > .pack--fan,
+.draft__main > .pack .pack__slot {
+  touch-action: none;
+}
+
 /* Past `FAN_SIDE` either side of the open card: not drawn until the row is scrolled to it. */
 .pack--fan .pack__slot[data-off] {
   display: none;
@@ -453,6 +535,11 @@
     -webkit-overflow-scrolling: touch;
     isolation: auto;
     margin: 0;
+  }
+
+  .draft__main > .pack--fan,
+  .draft__main > .pack .pack__slot {
+    touch-action: auto;
   }
 
   /* Only the row's own flow and scroll-snap: `width`, `--card-w` and `--card-h` stay the unconditional

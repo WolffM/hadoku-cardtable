@@ -17,11 +17,19 @@
  * grid has a cursor of its own: the arrow keys move it a card along or a row up
  * and down, the pointer moves it to the card it is over, and Enter picks it.
  *
+ * A card is also taken by dragging it onto the picks, or onto their sideboard,
+ * and the fan's row is scrolled by dragging it sideways (the operator,
+ * 2026-11-19; `packDrag.ts` has both, and how one press is told from the
+ * other). A phone's carousel is scrolled by the browser itself and its page
+ * scrolls under a finger, so nothing lifts there.
+ *
  * Both layouts are measured, not guessed: `fanGeometry` and `cardFit.ts`'s
  * `fitGrid` size the cards to the box they are drawn in, so neither spills nor
  * scrolls — the grid takes as many rows as gives the largest cards. Below
  * `FAN_MIN_WIDTH` the fan draws the grid. "fan"/"grid" is still a control, the
  * grid is what the tests read, and both render the same `CardTile`s in order.
+ * That control and the draft's controls list are not the pack's to draw
+ * (`DraftScreen`'s `PackTools`): the pack's box is all cards.
  *
  * ## The shared inspector: the grid, a fan nothing picks from, and the open card
  *
@@ -50,6 +58,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '@hadoku/game-ui/sound/index.ts';
@@ -58,9 +67,12 @@ import { burnElapsedAt, burnMs, fuseFadeKeyframes, fuseKeyframes, ROPE_URGENT_MS
 import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { uiPx } from '@hadoku/ui-shell/settings';
-import { CARD_RATIO, cssPx, fitGrid, useBox } from './cardFit.ts';
+import { CARD_RATIO, cssPx, fitGrid, useBox, type GridFit } from './cardFit.ts';
 import { CardTile } from './CardTile.tsx';
 import { RelatedRow, type RelatedPlace } from './RelatedRow.tsx';
+import { usePackDrag, type DragRect } from './packDrag.ts';
+import type { Area } from '../deck/dragMove.tsx';
+import { topLayerOf } from '@hadoku/game-ui/topLayer.tsx';
 
 export type PackLayout = 'fan' | 'grid';
 
@@ -98,11 +110,19 @@ export function usePhoneLayout(): boolean {
   return useSyncExternalStore(subscribePhone, phoneSnapshot, phoneServerSnapshot);
 }
 
+/** A card taken by dragging it: the area it was let go over (`pool` is the sideboard), and where its copy was. */
+export interface PackDrop {
+  to: Area;
+  from: DragRect;
+}
+
 export interface PackViewProps {
   cards: readonly DraftCard[];
   layout: PackLayout;
-  /** Absent for a spectator watching a drafter: the cards browse, and nothing picks. */
-  onPick?: (cardId: string) => void;
+  /** Absent for a spectator watching a drafter: the cards browse, and nothing picks. `drop` for a card dragged onto the picks. */
+  onPick?: (cardId: string, drop?: PackDrop) => void;
+  /** A card dragged out of the pack is in the air over `over` (null: over nothing that takes it); null once it is let go. */
+  onLift?: (lift: { over: Area | null } | null) => void;
   /**
    * The card the drafter would take now, as it changes: the one under the
    * pointer, else the open card or the grid's cursor (hover, a tap, the
@@ -197,6 +217,13 @@ export function fanGeometry(width: number, height: number, maxH = MAX_CARD_H): F
   return { cardW, cardH, step };
 }
 
+/** The pack's inline style for a fit: the card's size, the fan's or the fitted grid's. */
+export function packFitStyle(fan: PhoneFanCardSize | null, grid: GridFit | null): CSSProperties | undefined {
+  if (fan !== null) return { '--fan-w': `${fan.cardW.toFixed(1)}px`, '--fan-h': `${fan.cardH.toFixed(1)}px` } as CSSProperties;
+  if (grid !== null) return { '--grid-w': `${grid.cardW.toFixed(1)}px`, gridTemplateColumns: `repeat(${grid.cols}, var(--grid-w))` } as CSSProperties;
+  return undefined;
+}
+
 export interface PhoneFanCardSize {
   cardW: number;
   cardH: number;
@@ -254,7 +281,7 @@ function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 }
 
-export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyNote, chosen = null }: PackViewProps) {
+export function PackView({ cards, layout, onPick, onLift, onLean, disabled: held, emptyNote, chosen = null }: PackViewProps) {
   const [measure, box, root] = useBox<HTMLDivElement>();
   // A new pack is drawn blank, and picks nothing, until all of its art can be drawn at once.
   const artLoaded = useArtLoaded(useMemo(() => cards.map((c) => c.scryfallId), [cards]));
@@ -413,6 +440,32 @@ export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyN
     [onPick],
   );
 
+  // The pack's drags (`packDrag.ts`): the desktop fan's row pans, and a card someone may take lifts.
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
+  const onLiftRef = useRef(onLift);
+  onLiftRef.current = onLift;
+  const drag = usePackDrag({
+    panStep: desktopFan?.step ?? null,
+    lifts: !phone && !browsing && !disabled,
+    open: () => shownRef.current ?? 0,
+    onPan: (to) => setFocus(Math.max(0, Math.min(cardsRef.current.length - 1, to))),
+    // A drag is not a hover: the related row of the card it started on goes.
+    onStart: () => setHovered(null),
+    onOver: (over) => onLiftRef.current?.(over === undefined ? null : { over }),
+    onDrop: (at, to, from) => {
+      const card = cardsRef.current[at];
+      if (card === undefined) return;
+      playRole('ui.draft-pick');
+      onPickRef.current?.(card.cardId, { to, from: { left: from.left, top: from.top, width: from.width, height: from.height } });
+    },
+  });
+  // A card in the air goes back when its pack does, or when picking stops under it.
+  const cancelDrag = drag.cancel;
+  useEffect(() => cancelDrag, [packKey, disabled, cancelDrag]);
+  const lifted = drag.lifted !== null && drag.lifted.at < cards.length ? drag.lifted : null;
+  const liftLayer = lifted === null || root === null ? null : topLayerOf(root);
+
   // Enter picks the open card, or the grid's cursor; the arrows move it.
   const highlighted = fanned ? shown : cursor;
   useEffect(() => {
@@ -465,12 +518,7 @@ export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyN
   // under a carousel card for one either.
   const related = desktopFan === null || browsing || hovered === null || hoveredCard === undefined ? null : { at: hovered, cards: relatedCards(hoveredCard) };
 
-  const style =
-    fanGeo !== null
-      ? ({ '--fan-w': `${fanGeo.cardW.toFixed(1)}px`, '--fan-h': `${fanGeo.cardH.toFixed(1)}px` } as CSSProperties)
-      : desktopGrid !== null
-        ? ({ '--grid-w': `${desktopGrid.cardW.toFixed(1)}px`, gridTemplateColumns: `repeat(${desktopGrid.cols}, var(--grid-w))` } as CSSProperties)
-        : undefined;
+  const style = packFitStyle(fanGeo, desktopGrid);
 
   return (
     <div
@@ -482,6 +530,7 @@ export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyN
       data-placed={fanned && placed ? '' : undefined}
       ref={measure}
       style={style}
+      {...drag.handlers}
       onPointerLeave={() => {
         setHovered(null);
         // The pointer's cursor goes with it: Enter never picks a card nobody is looking at.
@@ -516,6 +565,7 @@ export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyN
             data-focused={highlighted === i ? '' : undefined}
             data-chosen={card.cardId === chosen ? '' : undefined}
             data-off={off ? '' : undefined}
+            data-lifted={lifted?.at === i ? '' : undefined}
             onPointerDown={off ? undefined : () => (pointerFocusing.current = true)}
             onFocus={
               off
@@ -534,6 +584,7 @@ export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyN
               off
                 ? undefined
                 : () => {
+                    if (drag.active()) return;
                     setHovered(i);
                     // A phone's carousel moves `focus` from the scroll position, not the pointer: a
                     // touch drag that passes over a neighbour must not steal the open card from under it.
@@ -557,6 +608,27 @@ export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyN
       {desktopFan !== null && shown !== null && related !== null && (
         <RelatedRow cards={related.cards} anchor={root} place={relatedPlace(desktopFan, related.at, shown, cards.length, box.width, related.cards.length)} />
       )}
+      {/* The lifted card's copy, following the pointer in the screen's top layer; its slot stays, dimmed. */}
+      {lifted !== null &&
+        liftLayer !== null &&
+        createPortal(
+          <div
+            className="pack__ghost"
+            data-testid="pack-ghost"
+            data-over={lifted.over ?? undefined}
+            style={
+              {
+                left: `${(lifted.left - liftLayer.getBoundingClientRect().left).toFixed(1)}px`,
+                top: `${(lifted.top - liftLayer.getBoundingClientRect().top).toFixed(1)}px`,
+                '--card-w': `${lifted.width.toFixed(1)}px`,
+                '--card-h': `${lifted.height.toFixed(1)}px`,
+              } as CSSProperties
+            }
+          >
+            <CardTile card={cards[lifted.at]!} />
+          </div>,
+          liftLayer,
+        )}
     </div>
   );
 }

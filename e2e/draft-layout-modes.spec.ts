@@ -16,7 +16,10 @@
  * The pod's column sits beside the picks, and the picks' row keeps what that column measures at its
  * smallest fit: a room's bar taller than the floor `POOL_MIN_H` was set for (a real room's name and
  * Close do not scale with the column, and a watcher adds a row) gives the pack row up, rather than
- * clip the layout control under the circle, which a press then scrolls into view, moving the title.
+ * clip the column's foot under the circle, where a press on something clipped scrolls it into view,
+ * moving the title. (The layout control was that foot until 2026-11-19, when the operator moved it
+ * into the room's bar at the column's head; the column must still be whole, and a press on the toggle
+ * still scroll nothing.)
  *
  * Needs no server: it only reads the screen. No Forge, never skipped. `[layout-modes]` lines are the evidence.
  */
@@ -49,7 +52,7 @@ declare global {
 const PARTS = {
   title: '.draft__aside > [data-fit-side]',
   pod: '.draft__aside .podcircle',
-  controls: '.draft__aside .draft__controls',
+  controls: '.draft__aside [data-testid="pack-tools"]',
   picks: '[data-testid="pool"]',
   pack: '[data-testid="pack"]',
 } as const;
@@ -134,14 +137,14 @@ test("a room's bar taller than the picks' floor: the pod's column is whole, and 
     const whole = () =>
       page.locator('.draft__aside').evaluate((aside) => {
         const box = aside.getBoundingClientRect();
-        const controls = aside.querySelector('.draft__controls')!.getBoundingClientRect();
-        return { overflow: aside.scrollHeight - aside.clientHeight, scrolled: aside.scrollTop, controlsBelow: Math.round(controls.bottom - box.bottom) };
+        const last = aside.lastElementChild!.getBoundingClientRect();
+        return { overflow: aside.scrollHeight - aside.clientHeight, scrolled: aside.scrollTop, footBelow: Math.round(last.bottom - box.bottom) };
       });
     const fan = await boxes(page);
     console.log(`[layout-modes] tall bar fan ${JSON.stringify(fan)} ${JSON.stringify(await whole())}`);
     const before = await whole();
     expect(before.overflow, "the column's content fits it").toBeLessThanOrEqual(0);
-    expect(before.controlsBelow, 'the layout control is inside the column').toBeLessThanOrEqual(0);
+    expect(before.footBelow, 'the column’s last part is inside the column').toBeLessThanOrEqual(0);
     await choose(page, 'grid');
     expect(await boxes(page), 'a press on the toggle moves nothing').toEqual(fan);
     expect((await whole()).scrolled, 'and scrolls nothing into view').toBe(0);

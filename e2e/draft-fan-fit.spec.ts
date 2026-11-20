@@ -70,7 +70,7 @@ async function measure(browser: Browser, width: number, height: number, zoom: nu
         card: box('[data-testid="pack"] .pack__slot[data-focused]'),
         pool: box('[data-testid="pool"]'),
         aside: box('.draft__aside'),
-        controls: box('.draft__aside .draft__controls'),
+        controls: box('.draft__aside [data-testid="pack-tools"]'),
       };
     });
   } finally {
@@ -110,7 +110,9 @@ for (const [width, height] of [
       console.log(`[fan-fit] ${width}x${height} zoom ${zoom} card ${m.card.w.toFixed(1)}css → ${(m.card.w * m.dpr).toFixed(1)}px, row ${m.pack.h.toFixed(1)}css → ${(m.pack.h * m.dpr).toFixed(1)}px, pool ${m.pool.h.toFixed(1)}css`);
       expect(m.scrollW, `nothing scrolls sideways at ${zoom * 100}%`).toBeLessThanOrEqual(m.innerW);
       expect(m.pack.w, `the fan spans the draft at ${zoom * 100}%`).toBeCloseTo(m.bodyContentW, 0);
-      expect(m.controls.y + m.controls.h, `the pod's controls are whole at ${zoom * 100}%`).toBeLessThanOrEqual(m.aside.y + m.aside.h + 0.5);
+      // The pack's controls are in the room's bar (the operator, 2026-11-19), in the pod's column, whole at any zoom.
+      expect(m.controls.y, `the pack's controls are below the pack's row at ${zoom * 100}%`).toBeGreaterThanOrEqual(m.pack.y + m.pack.h - 0.5);
+      expect(m.controls.y + m.controls.h, `and whole in the pod's column at ${zoom * 100}%`).toBeLessThanOrEqual(m.aside.y + m.aside.h + 0.5);
     }
     for (let i = 1; i < seen.length; i++) {
       const [was, now] = [seen[i - 1]!, seen[i]!];

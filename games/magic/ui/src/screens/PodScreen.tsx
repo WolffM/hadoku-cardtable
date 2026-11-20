@@ -71,7 +71,7 @@ import {
   type SocketDraft,
 } from '../draft/socket.ts';
 import { initialState, type TableState } from '../draft/table.ts';
-import { DraftScreen, DraftSkeleton } from '../components/DraftScreen.tsx';
+import { DraftScreen, DraftSkeleton, PackTools } from '../components/DraftScreen.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
@@ -210,6 +210,10 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
   }, [toBuilder, draftId]);
 
 
+  // Not `done`: that is a drafter's own pool, and a member who never drafted watches the rounds too.
+  const rounds = ctx?.pod !== null && ctx?.pod !== undefined && inRounds;
+  /** The draft's layout, drawn or still coming: the room's bar is in its side column, not on top. */
+  const drafting = !rounds && !done && !inRounds;
   /** The room's bar: on top of the pod, or at the top of the draft's side column while drafting. */
   const bar = (
     <>
@@ -231,14 +235,12 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
         />
       </div>
 
+      {/* The pack's controls, beside Close: the drafting area is all cards. */}
+      {drafting && <PackTools skeleton={table === null} />}
       {ctx?.leader === true && <CloseRoom roomId={draftId} rooms={closeClient} resettable={false} />}
       <SettingsGear />
     </>
   );
-  // Not `done`: that is a drafter's own pool, and a member who never drafted watches the rounds too.
-  const rounds = ctx?.pod !== null && ctx?.pod !== undefined && inRounds;
-  /** The draft's layout, drawn or still coming: the room's bar is in its side column, not on top. */
-  const drafting = !rounds && !done && !inRounds;
   const side = (
     <div className="pod__bar pod__bar--side">
       {bar}

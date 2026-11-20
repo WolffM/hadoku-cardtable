@@ -19,7 +19,11 @@ a built-in heuristic instead.
 
 **How to use it.** From the lobby, join an open pod or wait for the host to
 start one. Packs open to every seat at once, and a pick timer keeps the
-draft moving.
+draft moving. Take a card by clicking it, by pressing Enter, or by dragging
+it onto your picks (onto their sideboard pile to file it there at once);
+drag the fan sideways or use the arrow keys to move along the pack. The (i)
+button in the room's bar, by Close, lists every control, beside the switch
+between the fan and the grid.
 
 Cogwork Librarian works as printed: it is drafted face up, where the whole
 table sees it beside its drafter's name, and on a later pack its drafter
