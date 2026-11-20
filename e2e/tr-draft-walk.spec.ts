@@ -14,15 +14,17 @@
  *
  * `[draft-walk]` lines are the evidence, one per step.
  */
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import type { PodView } from '../packages/shared/src/pod.ts';
 
 import { trimMainDeck } from './deckBuilder.ts';
 import { PREFIX } from './identities.ts';
-import { ROOM_PAGE, enabledOk, enterMyGame, grindPriority, litCard, makeTitled, pressIntoGame2, readyFromSideboard, resizeWindow, roomIdOfUrl, selectionOpen, serverLog } from './play/board.ts';
-import { openFriend } from './play/browser.ts';
+import { ROOM_PAGE, enterMyGame, litCard, makeTitled, pressIntoGame2, readyFromSideboard, resizeWindow, roomIdOfUrl, says, serverLog } from './play/board.ts';
+import { openFriend, type Friend } from './play/browser.ts';
+import { connectHands } from './play/hands.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { answerPrompt } from './play/prompts.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -43,24 +45,23 @@ async function roomOf(request: APIRequestContext, origin: string, roomId: string
 }
 
 /**
- * Plays the admin's seat forward until the game is over, taking nothing but what Forge asks: OK on
- * every window that offers it, and a card of their hand when a selection is open (a hand of drafted
- * spells plays no land, so each turn ends on a discard to seven).
+ * The admin's seat, played forward until the game is over by the hands every spec's filler play uses
+ * (`play/hands.ts`: the coin toss, the keep, a land, a spell, a discard to seven), with the dialogs
+ * those hands leave to the board answered as `grindPriority` answers them (`answerPrompt`).
  */
-async function passUntilOver(page: Page): Promise<void> {
-  const over = async (): Promise<boolean> => (await page.getByTestId('game-result').count()) > 0;
-  await grindPriority([page], over, {
-    timeoutMs: GAME_TIMEOUT,
-    intervalMs: 100,
-    press: async (p) => {
-      if (await selectionOpen(p)) {
-        const pickable = p.locator('[data-zone="hand"][data-owner="you"] [data-board-card][data-selectable]').first();
-        if ((await pickable.count()) > 0) await pickable.click({ timeout: 2_000 }).catch(() => undefined);
-      }
-      const ok = enabledOk(p);
-      if ((await ok.count()) > 0) await ok.click({ timeout: 2_000 }).catch(() => undefined);
-    },
-  });
+async function playUntilOver(admin: Friend): Promise<void> {
+  const { page } = admin;
+  const hands = await connectHands(admin, 0);
+  const deadline = Date.now() + GAME_TIMEOUT;
+  try {
+    while ((await page.getByTestId('game-result').count()) === 0) {
+      if (Date.now() > deadline) throw new Error(`the game did not end in ${GAME_TIMEOUT} ms — says "${await says(page)}"; the hands' last acts:\n${hands.log.slice(-12).join('\n')}`);
+      await answerPrompt(page);
+      await page.waitForTimeout(250);
+    }
+  } finally {
+    await hands.close();
+  }
 }
 
 test(titled('the walk room: an admin makes the draft’s last pick, builds, and wins two games the AI gives up on its second turn'), async ({ browser }) => {
@@ -113,7 +114,7 @@ test(titled('the walk room: an admin makes the draft’s last pick, builds, and 
     say(`entered ${game1}`);
 
     /* ── game 1: the AI gives it up on its second turn ───────────────── */
-    await passUntilOver(page);
+    await playUntilOver(admin);
     await expect(page.locator('[data-testid="game-result"][data-result="victory"]'), 'game 1 is mine: the AI conceded').toBeVisible({ timeout: UI_TIMEOUT });
     const conceded = (): Record<string, unknown>[] => serverLog(stack).filter((l) => l.evt === 'ai-conceded');
     expect(conceded(), 'the server ended it for the AI, once').toHaveLength(1);
@@ -127,7 +128,7 @@ test(titled('the walk room: an admin makes the draft’s last pick, builds, and 
     say(`entered ${new URL(page.url()).hash}`);
 
     /* ── game 2: given up too; the series is mine 2–0 and round 2 is paired ── */
-    await passUntilOver(page);
+    await playUntilOver(admin);
     await expect(page.locator('[data-testid="game-result"][data-result="victory"]'), 'game 2 is mine').toBeVisible({ timeout: UI_TIMEOUT });
     expect(conceded(), 'every game of the series, not only the first').toHaveLength(2);
     expect(serverLog(stack).filter((l) => l.evt === 'concede-forced'), 'no concede was left for the watchdog').toEqual([]);
