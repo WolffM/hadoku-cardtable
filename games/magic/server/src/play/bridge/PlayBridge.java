@@ -51,6 +51,7 @@ import forge.game.event.GameEventCombatUpdate;
 import forge.game.card.CardFaceView;
 import forge.game.card.CardView;
 import forge.game.card.CounterType;
+import forge.game.cost.*;
 import forge.game.keyword.KeywordCollectionView;
 import forge.game.keyword.KeywordView;
 import forge.game.phase.PhaseType;
@@ -3985,7 +3986,7 @@ public final class PlayBridge {
                 final JsonObject o = new JsonObject();
                 o.add("hostCard", ref("card", sa.getHostCard().getId()));
                 o.addProperty("abilityId", sa.getId());
-                if (((forge.gamemodes.match.input.InputConfirm) input).getController() instanceof SeatController asker && asker.confirmingCost()) {
+                if (((forge.gamemodes.match.input.InputConfirm) input).getController() instanceof SeatController asker && asker.decidingCostOf(sa)) {
                     o.addProperty("cost", true);
                 }
                 if (sa instanceof WrappedAbility w && w.getTrigger() != null) {
@@ -6765,25 +6766,99 @@ public final class PlayBridge {
         }
 
         /**
-         * Whether the confirm this controller has open asks to pay a part of a cost the ability already has
-         * ({@code HumanCostDecision} → {@code confirmPayment}: "Sacrifice Black Lotus?"). Forge asks every other
-         * Yes/No of an ability through the same {@code InputConfirm} with the same ability on it — an optional
-         * additional cost among them ({@code GameActionUtil.addExtraKeywordCost} → {@code addKeywordCost}:
-         * "Pay for Offspring? {B}") — and only the caller tells them apart. Read by {@code SeatGui.confirmAbility}
-         * while the game thread is parked on that confirm; written on the game thread alone.
+         * The ability whose cost this controller is deciding right now, as it is cast or activated, or null.
+         *
+         * <p>Forge decides each part of a cost in {@code HumanCostDecision}'s {@code visit} of it
+         * ({@code CostPayment.payCost} and {@code chooseObjectsBeforeTargets} → {@code part.accept}), and a
+         * Yes/No raised in there with that ability on it asks whether to pay a part the ability already has:
+         * most through {@code confirmPayment} ("Sacrifice Black Lotus?"), "Remove all counters?" through
+         * {@code InputConfirm.confirm} directly ({@code visit(CostRemoveCounter)}). Forge asks every other
+         * Yes/No of an ability through the same {@code InputConfirm} with the same ability on it, and only
+         * where it is asked from tells them apart. An optional additional cost is asked before any part is
+         * decided ({@code PlaySpellAbility.playAbility} → {@code GameActionUtil.addExtraKeywordCost}:
+         * "Pay for Offspring? {B}"); what paying a decided part sets off is asked after its visit returned
+         * ({@code payAsDecided}: a die roll's "Increase or Decrease?" carries the ability too); a cost an
+         * effect asks for as it resolves is the payer's to decline ({@link #getCostDecisionMaker}).
+         *
+         * <p>A mana ability activated while a mana part is decided nests its own decisions, so the outer
+         * ability is put back when the inner visit returns. Read by {@code SeatGui.confirmAbility} while the
+         * game thread is parked on the confirm; written on the game thread alone.
          */
-        private volatile boolean confirmingCost;
+        private volatile SpellAbility decidingCostOf;
 
-        boolean confirmingCost() { return confirmingCost; }
+        boolean decidingCostOf(final SpellAbility sa) { return sa != null && decidingCostOf == sa; }
 
-        @Override
-        public boolean confirmPayment(final forge.game.cost.CostPart costPart, final String question, final SpellAbility sa) {
-            confirmingCost = true;
-            try {
-                return super.confirmPayment(costPart, question, sa);
-            } finally {
-                confirmingCost = false;
+        /**
+         * {@code HumanCostDecision} for a spell being cast or an ability being activated, which says so for
+         * as long as each part is decided ({@link #decidingCostOf}). Forage's Yes/No is the exception: with
+         * three cards to exile it chooses between two ways to pay (sacrifice a Food, or exile them), which
+         * the click on the ability did not, so it is left as Forge has it; without them a No only cancels.
+         */
+        private final class CastCostDecision extends forge.player.HumanCostDecision {
+            CastCostDecision(final forge.game.player.Player payer, final SpellAbility sa, final String prompt) {
+                super(SeatController.this, payer, sa, false, prompt);
             }
+
+            private PaymentDecision deciding(final java.util.function.Supplier<PaymentDecision> visit) {
+                final SpellAbility outer = decidingCostOf;
+                decidingCostOf = ability;
+                try {
+                    return visit.get();
+                } finally {
+                    decidingCostOf = outer;
+                }
+            }
+
+            @Override public PaymentDecision visit(final CostAddMana cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostBehold cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostBeholdExile cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostBlight cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostChooseColor cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostChooseCreatureType cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostCollectEvidence cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostDamage cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostDiscard cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostDraw cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostEnlist cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostExert cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostExile cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostExiledMoveToGrave cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostExileFromStack cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostFlipCoin cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostForage cost) {
+                // HumanCostDecision.visit(CostForage)'s own test of the second way to pay
+                final boolean mayExile = forge.game.card.CardLists.filter(player.getCardsIn(forge.game.zone.ZoneType.Graveyard), forge.game.card.CardPredicates.canExiledBy(ability, isEffect())).size() >= 3;
+                return mayExile ? super.visit(cost) : deciding(() -> super.visit(cost));
+            }
+            @Override public PaymentDecision visit(final CostGainControl cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostGainLife cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostMill cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostPartMana cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostPayEnergy cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostPayLife cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostPayShards cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostPromiseGift cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostPutCardToLib cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostPutCounter cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostPutCounterYou cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostRemoveAnyCounter cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostRemoveCounter cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostReturn cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostReveal cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostRevealChosen cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostRollDice cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostSacrifice cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostTap cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostTapType cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostUnattach cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostUntap cost) { return deciding(() -> super.visit(cost)); }
+            @Override public PaymentDecision visit(final CostUntapType cost) { return deciding(() -> super.visit(cost)); }
+        }
+
+        /** A cost paid while an effect resolves ("unless you pay", echo, cumulative upkeep) keeps Forge's own decisions: each of its questions is a choice. */
+        @Override
+        public CostDecisionMakerBase getCostDecisionMaker(final forge.game.player.Player payer, final SpellAbility sa, final boolean effect, final String prompt) {
+            return effect ? super.getCostDecisionMaker(payer, sa, effect, prompt) : new CastCostDecision(payer, sa, prompt);
         }
 
         @Override

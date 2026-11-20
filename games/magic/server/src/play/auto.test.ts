@@ -3187,6 +3187,9 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 			openAsks: 0,
 		};
 		expect(chosenCostConfirm(notes, { hostCard: 70, abilityId: 9002 })).not.toBeNull();
+		// The mark decides, never the question's words: a cost Forge asks about in its own way is answered the same.
+		const otherWords = { ...notes, prompt: { ...notes.prompt, message: 'Remove all counters? (+1/+1)' } } as SeatNotes;
+		expect(chosenCostConfirm(otherWords, { hostCard: 70, abilityId: 9002 })).not.toBeNull();
 		const unmarked = { ...notes, prompt: { ...notes.prompt, confirmAbility: { hostCard: card(70), abilityId: 9002 } } } as SeatNotes;
 		expect(chosenCostConfirm(unmarked, { hostCard: 70, abilityId: 9002 })).toBeNull();
 		expect(chosenCostConfirm(notes, null)).toBeNull();

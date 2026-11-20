@@ -1604,9 +1604,11 @@ export function answerability(q: Question): Answerability {
  * it names its trigger, never the chosen activation, so it is still asked; so
  * is a confirm with no ability on it.
  *
- * Only a confirm the bridge marks as a cost is answered. Forge asks an optional
- * additional cost of the spell the seat chose the same way, with that same spell
- * on it (`GameActionUtil.addExtraKeywordCost`: Offspring, Casualty, Conspire,
+ * Only a confirm the bridge marks as a cost is answered: one Forge raises while
+ * it decides a part of the cost the ability already has, whichever way it asks
+ * ("Remove all counters?" does not go through `confirmPayment`). Forge asks an
+ * optional additional cost of the spell the seat chose with that same spell on
+ * it (`GameActionUtil.addExtraKeywordCost`: Offspring, Casualty, Conspire,
  * Harmonize's tap), and choosing the spell said nothing about it. The operator,
  * 2026-11-19, of "Pay for Offspring? {B}" answered Yes for them (m-b05f9d974d63):
  * *"offspring should always confirm with the player if they want to pay it."*

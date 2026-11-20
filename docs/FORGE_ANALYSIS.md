@@ -1166,3 +1166,53 @@ in that tree (paths under `forge/`):
   payment clears and rewrites it before its own confirm, so only a scan that ran between a payment
   and that spell's `SpellCast` trigger (the effect's `ForgetOnCast`) could change which spell uses
   the effect up. Whether a scan runs in that gap was not traced.
+
+## Which Yes/No of an ability is its cost — 2026-11-19 (lane costconfirm)
+
+Every Yes/No Forge asks about an ability is an `InputConfirm` with that ability on it
+(`InputConfirm.sa`), so the input cannot say what kind of question it is; where Forge asks from can.
+Read from the pin (`1a56d057`), nothing here was run except through the specs named at the end.
+
+- **VERIFIED (read)** — the order of a cast or activation, `PlaySpellAbility.playAbility`
+  (`forge-game/src/main/java/forge/game/player/PlaySpellAbility.java:581-737`): the optional keyword
+  costs are asked first (`:634` → `GameActionUtil.addExtraKeywordCost`, `GameActionUtil.java:617`), then
+  the `CostPayment` is made (`:638`), then the sacrifices and discards are chosen (`:678` →
+  `CostPayment.chooseObjectsBeforeTargets`), the targets, and the rest is paid (`:685` →
+  `CostPayment.payCost`). Both `CostPayment` steps decide a part by `part.accept(decisionMaker)`
+  (`CostPayment.java:172`, `:227`), which for a human is one `visit` of `HumanCostDecision`
+  (`forge-gui/src/main/java/forge/player/HumanCostDecision.java`, 40 `visit` overloads, one per
+  `ICostVisitor` method); `payCost` then pays it (`part.payAsDecided`, `:235`).
+- **VERIFIED (read)** — the Yes/No questions raised inside a `visit`. 23 go through
+  `controller.confirmPayment(cost, question, ability)` (`HumanCostDecision.java:92, 187, 214, 236, 287,
+  462, 471, 572, 616, 627, 657, 716, 738, 754, 765, 798, 878, 907, 926, 1205, 1302, 1311, 1498`).
+  **One does not**: `visit(CostRemoveCounter)` asks "Remove all counters?"
+  through `InputConfirm.confirm(controller, ability, prompt)` itself (`:1196`) when the cost removes
+  every counter from its own source (`SubCounter<All/…>`, 10 card scripts: Sage of Hours, Jar of
+  Eyeballs, Essence Bottle, Geometric Nexus, Hankyu, Catti-brie of Mithral Hall, Molten Hydra, Vish Kal,
+  Relic Amulet, Torture Chamber). The other direct GUI calls in the file are list choices
+  (`getGui().oneOrNone`, `:388, 444, 698, 834, 863`), not a Yes/No. Declining any of them returns no
+  decision and the activation is cancelled, so for an ability the player chose they are not a choice —
+  **except Forage** (`:627`): its "Sacrifice Food" Yes/No picks between sacrificing a Food and exiling
+  three cards from the graveyard (`:626-637`: asked whenever a Food can be sacrificed; the exile way
+  needs three exilable cards).
+- **VERIFIED (read)** — the Yes/No questions with the same ability on them that are NOT its cost:
+  `addExtraKeywordCost` → `PlayerControllerHuman.chooseNumberForKeywordCost`
+  (`PlayerControllerHuman.java:3988`, a Yes/No when the cost can be paid once: Offspring, Casualty,
+  Conspire, Harmonize's tap), asked before any part is decided; and what paying a decided part sets
+  off, asked after its `visit` returned while the part is still on `game.costPaymentStack` — a die
+  roll hands the ability to `RollDiceEffect.rollDiceForPlayer` (`CostRollDice.java:50`), whose
+  "Increase or Decrease?" is a `chooseBinary` with that ability (`RollDiceEffect.java:208`). So the
+  cost stack alone does not tell a cost question from the rest; the `visit` does.
+- **VERIFIED (read)** — a cost asked while an effect resolves ("unless you pay", echo, cumulative
+  upkeep, a cost paid during a roll) goes through `PlaySpellAbility.payCostDuringAbilityResolve`
+  (`PlaySpellAbility.java:156-421`; callers `PlayerControllerHuman.java:1917, 2388, 2394`), which asks
+  nine `confirmPayment` questions of its own (`:174, 179, 222, 237, 253, 330, 336, 369, 382`) and
+  visits the simple parts with a decision maker made with `effect = true` (`:183`). All of them are
+  the payer's to decline. A cast or activation makes its decision maker with
+  `effect = ability.isTrigger()` (`:678, :685`).
+- **What the bridge does with it**: `SeatController.getCostDecisionMaker` hands a cast or activation
+  (`effect` false) a `HumanCostDecision` that names the ability for the length of each `visit`
+  (Forage's only when fewer than three cards can be exiled, so its Yes/No is no choice), and `confirmAbility.cost` is set only on a confirm carrying that same ability.
+  **ASSUMED until CI runs it**: `e2e/all-counters-cost.spec.ts` (Sage of Hours, no question),
+  `e2e/offspring-asks.spec.ts` (still asked), and the existing cost confirms
+  (`e2e/lotus-colour.spec.ts`, `w52-s-augur.jvm.test.ts`).

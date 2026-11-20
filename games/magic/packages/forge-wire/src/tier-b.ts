@@ -244,10 +244,11 @@ export const ShowPromptMessageSchema = z.strictObject({
    * prompt.
    *
    * `cost` is present, and true, on a confirm that asks to pay a part of the cost the ability
-   * already has (`HumanCostDecision` → `confirmPayment`: "Sacrifice Black Lotus?"). Forge asks an
-   * optional additional cost of a spell through the same input with the same ability on it
+   * already has, as it is cast or activated: raised while `HumanCostDecision` decides that part
+   * ("Sacrifice Black Lotus?" through `confirmPayment`, "Remove all counters?" on its own). Forge
+   * asks an optional additional cost of a spell through the same input with the same ability on it
    * (`GameActionUtil.addExtraKeywordCost`: "Pay for Offspring? {B}"), and that one is a choice: the
-   * bridge tells them apart by which of Forge's questions is open (`SeatController.confirmPayment`).
+   * bridge tells them apart by where Forge asks from (`SeatController.decidingCostOf`).
    *
    * `trigger` is present on an optional trigger's confirm only: `key` is the
    * storage key Forge keeps a remembered answer under (`AutoYieldStore.abilitySuffix`
