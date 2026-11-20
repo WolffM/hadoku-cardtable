@@ -152,16 +152,17 @@ function opened(src: PoolSource, pack: readonly DraftCard[]): readonly DraftCard
  * `engine.ts`'s own dealing used to key off it — a bug report carries the
  * same three strings that reproduce it.
  */
-export function deal(
+function dealAll(
   plan: DraftPlan,
   sources: SourceCards,
   seed: string,
   seatCount: number,
   packSize: number,
   realistic?: RealisticPacks,
-): DraftCard[][][] {
+): { rounds: DraftCard[][][]; cursors: Map<string, Cursor>; keys: (string | null)[] } {
   const cursors = new Map<string, Cursor>();
   const rounds: DraftCard[][][] = [];
+  const keys: (string | null)[] = [];
 
   for (let r = 0; r < plan.rounds.length; r++) {
     const src = plan.rounds[r] as PoolSource;
@@ -175,10 +176,12 @@ export function deal(
         throw new Error(`deal: round ${r}'s realistic packs have ${packs.length} seats, not ${seatCount}`);
       }
       rounds.push(packs.map((pack, s) => opened(src, pack).map((card, i) => withDealtId(card, r, s, i))));
+      keys.push(null);
       continue;
     }
 
     const key = sourceKey(src);
+    keys.push(key);
     let cursor = cursors.get(key);
     if (cursor === undefined) {
       const pool = planPool(plan, sources, src);
@@ -200,7 +203,57 @@ export function deal(
     rounds.push(round);
   }
 
-  return rounds;
+  return { rounds, cursors, keys };
+}
+
+export function deal(
+  plan: DraftPlan,
+  sources: SourceCards,
+  seed: string,
+  seatCount: number,
+  packSize: number,
+  realistic?: RealisticPacks,
+): DraftCard[][][] {
+  return dealAll(plan, sources, seed, seatCount, packSize, realistic).rounds;
+}
+
+/** Packs a deal left unopened, by source, and the source each round drew from (null for a realistic set's boosters). */
+export interface Spares {
+  spares: Record<string, DraftCard[][]>;
+  roundSources: (string | null)[];
+}
+
+/** The most unopened packs kept per source. */
+const MAX_SPARES = 4;
+
+/**
+ * The packs the same deal would leave unopened: what is left of each source
+ * once every round is dealt, in the order the deal would have gone on in, cut
+ * into packs. Only cards the deal never handed out: a source the rounds used
+ * up, or went round twice, leaves none, and so does a realistic set, whose
+ * boosters come from Forge already made. This is what a card that adds a
+ * booster pack to the draft adds (Lore Seeker).
+ */
+export function dealSpares(
+  plan: DraftPlan,
+  sources: SourceCards,
+  seed: string,
+  seatCount: number,
+  packSize: number,
+  realistic?: RealisticPacks,
+): Spares {
+  const { cursors, keys } = dealAll(plan, sources, seed, seatCount, packSize, realistic);
+  const spares: Record<string, DraftCard[][]> = {};
+  for (const [key, cursor] of cursors) {
+    if (cursor.pass !== 0) continue;
+    const left = cursor.shuffled.slice(cursor.pos);
+    const packs: DraftCard[][] = [];
+    for (let n = 0; n < MAX_SPARES && left.length > 0; n++) {
+      packs.push(left.splice(0, packSize).map((card, i) => ({ ...card, cardId: `${card.cardId}#spare:${n}:${i}` })));
+    }
+    if (packs.length > 0) spares[key] = packs;
+  }
+  return { spares, roundSources: keys };
 }
 
 /**

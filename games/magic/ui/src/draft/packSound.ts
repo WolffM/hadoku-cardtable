@@ -9,11 +9,13 @@
 import { useEffect, useRef } from 'react';
 
 import { playRole } from '@hadoku/game-ui/sound/index.ts';
+import { hiddenPackSize } from './table.ts';
 import type { DraftView } from './types.ts';
 
 /** The pack in front of this seat while it still owes a pick from it, as a key that names it once; null otherwise. */
 export function nextPackKey(view: DraftView): string | null {
-  if (view.viewer.kind !== 'seat' || view.viewer.pack.length === 0 || !view.waitingOn.includes(view.viewer.seatId)) return null;
+  // A pack the seat may not look at lands in front of it all the same.
+  if (view.viewer.kind !== 'seat' || view.viewer.pack.length + hiddenPackSize(view) === 0 || !view.waitingOn.includes(view.viewer.seatId)) return null;
   return `${view.epoch}:${view.packNumber}:${view.pickNumber}`;
 }
 

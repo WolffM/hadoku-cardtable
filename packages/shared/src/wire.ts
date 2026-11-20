@@ -131,15 +131,32 @@ export const LeaveDraftSchema = z.strictObject({
  *
  * There is no seat field. The seat is the server's business.
  *
- * `extra` is a second card taken from the same pack in the same pick, paid for
- * with one of the seat's own face-up cards (`with`, a `cardId` the seat's view
- * listed under `extraPick`), which goes into the pack in its place.
+ * `use` names the seat's own face-up cards used with this pick, by `cardId`
+ * (each one the seat's view listed under `uses` with `when: 'pick'`). `extra`
+ * is a second card taken from the same pack, for a use that grants one.
  */
 export const PickActionSchema = z.strictObject({
   type: z.literal('pick'),
   draftId: DraftIdSchema,
   cardId: z.string().min(1),
-  extra: z.strictObject({ cardId: z.string().min(1), with: z.string().min(1) }).optional(),
+  use: z.array(z.string().min(1)).max(8).optional(),
+  extra: z.string().min(1).optional(),
+});
+
+/** Answer a question a card asked this seat (`DraftAskView`): an option's `key`, or a card's `cardId`. */
+export const AnswerAskSchema = z.strictObject({
+  type: z.literal('answer'),
+  draftId: DraftIdSchema,
+  askId: z.number().int().positive(),
+  choice: z.string().min(1),
+});
+
+/** Use one of the seat's own face-up cards now, outside a pick (`DraftUse` with `when: 'now'`). */
+export const UseCardSchema = z.strictObject({
+  type: z.literal('use'),
+  draftId: DraftIdSchema,
+  with: z.string().min(1),
+  target: z.string().min(1).optional(),
 });
 
 /**
@@ -187,6 +204,8 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   JoinDraftSchema,
   LeaveDraftSchema,
   PickActionSchema,
+  AnswerAskSchema,
+  UseCardSchema,
   ResyncRequestSchema,
   WatchDraftSchema,
   LeanDraftSchema,
@@ -195,6 +214,8 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
 export type JoinDraft = z.infer<typeof JoinDraftSchema>;
 export type LeaveDraft = z.infer<typeof LeaveDraftSchema>;
 export type PickAction = z.infer<typeof PickActionSchema>;
+export type AnswerAsk = z.infer<typeof AnswerAskSchema>;
+export type UseCard = z.infer<typeof UseCardSchema>;
 export type ResyncRequest = z.infer<typeof ResyncRequestSchema>;
 export type WatchDraft = z.infer<typeof WatchDraftSchema>;
 export type LeanDraft = z.infer<typeof LeanDraftSchema>;
@@ -217,7 +238,10 @@ export const PICK_REJECTION_CODES = [
   'empty-pack',
   'already-picked',
   'card-not-in-pack',
-  'extra-pick-refused',
+  'use-refused',
+  'ask-open',
+  'unknown-ask',
+  'bad-answer',
 ] as const;
 
 /**
@@ -385,8 +409,22 @@ export function leaveDraft(draftId: string): LeaveDraft {
   return { type: 'leave', draftId };
 }
 
-export function pickCard(draftId: string, cardId: string, extra?: PickAction['extra']): PickAction {
-  return extra === undefined ? { type: 'pick', draftId, cardId } : { type: 'pick', draftId, cardId, extra };
+export function pickCard(draftId: string, cardId: string, options: { use?: string[]; extra?: string } = {}): PickAction {
+  return {
+    type: 'pick',
+    draftId,
+    cardId,
+    ...(options.use === undefined || options.use.length === 0 ? {} : { use: options.use }),
+    ...(options.extra === undefined ? {} : { extra: options.extra }),
+  };
+}
+
+export function answerAsk(draftId: string, askId: number, choice: string): AnswerAsk {
+  return { type: 'answer', draftId, askId, choice };
+}
+
+export function useCard(draftId: string, withCard: string, target?: string): UseCard {
+  return target === undefined ? { type: 'use', draftId, with: withCard } : { type: 'use', draftId, with: withCard, target };
 }
 
 export function leanDraft(draftId: string, cardId: string | null): LeanDraft {

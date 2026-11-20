@@ -48,7 +48,7 @@
  */
 
 import { parseDck } from '@hadoku/carddata/dck';
-import { deckFromDeckFile, deckIssues, formatIssues, isBasicLand, type Deck, type DeckIssue, poolEntries } from '@hadoku/deck';
+import { deckFromDeckFile, deckIssues, formatIssues, isBasicLand, type Deck, type DeckIssue, poolEntries, withDraftNotes } from '@hadoku/deck';
 import { libraryPoolMismatch, type LibraryDeck } from '@hadoku/deck/library';
 import { FREE_PICK, MAX_DCK_BYTES, type DraftCard } from '@hadoku/shared';
 
@@ -105,7 +105,9 @@ export interface SeatUnresolved {
 }
 
 /** Where the caller's drafted pool comes from. The route builds it from `DraftRooms`. */
-export type DraftPoolLookup = (draftId: string) => { ok: true; pool: readonly DraftCard[] } | { ok: false; error: string };
+export type DraftPoolLookup = (
+	draftId: string,
+) => { ok: true; pool: readonly DraftCard[]; /** What the caller's cards noted during that draft, card name to notes. */ notes?: Readonly<Record<string, readonly string[]>> } | { ok: false; error: string };
 
 export interface GateContext {
 	library: TablesLibrary;
@@ -381,7 +383,8 @@ export function checkSeat(seat: SeatRequest, ctx: GateContext): SeatVerdict | Se
 		legal: issues.length === 0,
 		issues,
 		note: null,
-		text,
+		// The deck's `DraftNotes` are the draft's own and nobody else's: Forge reads them in the match.
+		text: withDraftNotes(text, pool.notes ?? {}),
 	};
 }
 

@@ -25,7 +25,7 @@
  * server's answer is still the one that counts.
  */
 
-import { asSeqCursor, cursorOf } from '@hadoku/shared';
+import { asSeqCursor, cursorOf, meetsNeed, type PickNeed } from '@hadoku/shared';
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 
 import type { DraftCard, DraftView } from './types.ts';
@@ -36,24 +36,22 @@ export interface TableState {
   view: DraftView;
   /** The card clicked since that payload, if any. */
   pending: DraftCard | null;
-  /**
-   * The second card of a pending pick and the seat's own face-up card that
-   * paid for it (the view's `extraPick`): the second shows in the pool, the
-   * payer has left it for the pack.
-   */
-  pendingExtra?: { card: DraftCard; with: string } | null;
+  /** The second card of a pending pick, for a use that takes one: in the pool beside the first until the server answers. */
+  pendingExtra?: DraftCard | null;
 }
 
-/** A second card taken with the pick, and the pool card that pays for it. */
-export interface ExtraPick {
-  cardId: string;
-  with: string;
+/** What a pick carries beside its card: the seat's own face-up cards used with it (the view's `uses`), and a second card. */
+export interface PickOptions {
+  use?: string[];
+  extra?: string;
 }
 
 export type PickRejection =
   | { reason: 'spectator' }
   | { reason: 'not-your-turn'; seatId: number }
   | { reason: 'already-picked'; cardId: string }
+  | { reason: 'ask-open' }
+  | { reason: 'use-needs'; need: PickNeed }
   | { reason: 'not-in-pack'; cardId: string };
 
 export type PickResult =
@@ -67,6 +65,11 @@ export function initialState(view: DraftView): TableState {
 /** The seat a watcher is looking over the shoulder of, or null for anyone else. */
 export function watchedSeat(view: DraftView): Extract<DraftView['viewer'], { kind: 'watcher' }> | null {
   return view.viewer.kind === 'watcher' ? view.viewer : null;
+}
+
+/** How many cards are in a pack the seat may not look at (`packHidden`); 0 for a pack it sees, or none. */
+export function hiddenPackSize(view: DraftView): number {
+  return viewerSeat(view)?.packHidden ?? 0;
 }
 
 /** Cards still choosable: the pack, minus a pick already sent. A watcher sees the watched seat's pack. */
@@ -89,8 +92,7 @@ export function visiblePool(state: TableState): DraftCard[] {
   if (!seat) return [];
   if (state.pending === null) return seat.pool;
   const extra = state.pendingExtra ?? null;
-  if (extra === null) return [...seat.pool, state.pending];
-  return [...seat.pool.filter((c) => c.cardId !== extra.with), state.pending, extra.card];
+  return extra === null ? [...seat.pool, state.pending] : [...seat.pool, state.pending, extra];
 }
 
 /** True while this client is waiting for the payload that confirms its pick. */
@@ -103,6 +105,7 @@ export function pickBlockedBy(state: TableState): PickRejection | null {
   const seat = viewerSeat(state.view);
   if (!seat) return { reason: 'spectator' };
   if (state.pending !== null) return { reason: 'already-picked', cardId: state.pending.cardId };
+  if ((seat.asks?.length ?? 0) > 0) return { reason: 'ask-open' };
   if (!state.view.waitingOn.includes(seat.seatId)) {
     return { reason: 'not-your-turn', seatId: seat.seatId };
   }
@@ -110,23 +113,40 @@ export function pickBlockedBy(state: TableState): PickRejection | null {
 }
 
 /**
+ * Whether a card may be picked with these of the seat's face-up cards (the
+ * view's `uses`, by `with`): a use that needs its pick to be something refuses
+ * any other card. The server refuses the same pick; asking here first means an
+ * armed use is never dropped from a pick and a pick is never sent to be refused.
+ */
+export function useBlockedBy(state: TableState, cardId: string, use: readonly string[]): PickRejection | null {
+  const seat = viewerSeat(state.view);
+  const card = seat?.pack.find((c) => c.cardId === cardId);
+  if (!seat || !card) return null;
+  const unmet = (seat.uses ?? []).find((u) => u.when === 'pick' && use.includes(u.with) && !meetsNeed(card, u.needs));
+  return unmet?.needs === undefined ? null : { reason: 'use-needs', need: unmet.needs };
+}
+
+/**
  * Take a card. Returns a rejection as a value — a misclick is not an exception,
  * and the engine's contract says the same thing about the wire.
  */
-export function pick(state: TableState, cardId: string, extra?: ExtraPick): PickResult {
+export function pick(state: TableState, cardId: string, options: PickOptions = {}): PickResult {
   const blocked = pickBlockedBy(state);
   if (blocked) return { ok: false, rejection: blocked };
 
   const seat = viewerSeat(state.view);
   const card = seat?.pack.find((c) => c.cardId === cardId);
   if (!card) return { ok: false, rejection: { reason: 'not-in-pack', cardId } };
-  if (extra === undefined) return { ok: true, state: { view: state.view, pending: card } };
+  const offered = (seat?.uses ?? []).filter((u) => u.when === 'pick').map((u) => u.with);
+  const unoffered = (options.use ?? []).find((id) => !offered.includes(id));
+  if (unoffered !== undefined) return { ok: false, rejection: { reason: 'not-in-pack', cardId: unoffered } };
+  const unmet = useBlockedBy(state, cardId, options.use ?? []);
+  if (unmet) return { ok: false, rejection: unmet };
+  if (options.extra === undefined) return { ok: true, state: { view: state.view, pending: card } };
 
-  const second = extra.cardId === cardId ? undefined : seat?.pack.find((c) => c.cardId === extra.cardId);
-  if (!second || !(seat?.extraPick ?? []).includes(extra.with)) {
-    return { ok: false, rejection: { reason: 'not-in-pack', cardId: extra.cardId } };
-  }
-  return { ok: true, state: { view: state.view, pending: card, pendingExtra: { card: second, with: extra.with } } };
+  const second = options.extra === cardId ? undefined : seat?.pack.find((c) => c.cardId === options.extra);
+  if (!second) return { ok: false, rejection: { reason: 'not-in-pack', cardId: options.extra } };
+  return { ok: true, state: { view: state.view, pending: card, pendingExtra: second } };
 }
 
 /**
@@ -233,6 +253,10 @@ export function explainRejection(rejection: PickRejection): string {
       return `Seat ${rejection.seatId} has already picked this pack.`;
     case 'already-picked':
       return 'That pick is still in flight.';
+    case 'ask-open':
+      return 'Answer first.';
+    case 'use-needs':
+      return `Not a ${rejection.need} card.`;
     case 'not-in-pack':
       return 'That card is not in this pack.';
   }
@@ -241,7 +265,9 @@ export function explainRejection(rejection: PickRejection): string {
 /**
  * Whether this seat has taken every pick the draft has.
  *
- * Derived, not carried: the envelope describes a draft's position, and a seat
+ * The server says when the draft has ended (`DraftView.complete`): a seat whose
+ * cards a card removed from the draft never holds a full draft's worth. Short
+ * of that it is derived: a seat
  * holding `packCount * packSize` cards — 3 × 15 = 45 for a standard pod — has
  * nothing left to take. Identical to `socket.ts`'s `isComplete`, deliberately:
  * the screen must reach the same conclusion as the driver, and a second rule
@@ -252,10 +278,14 @@ export function explainRejection(rejection: PickRejection): string {
  * to say so would put the deck behind one more round trip at the only moment it
  * matters.
  *
+ * A draft holding a card that changes the draft says so itself
+ * (`DraftView.complete`): there a full pool is not the end, and the end may
+ * come with a pool that is not full.
+ *
  * A spectator is never complete — they have no pool and no picks.
  */
 export function isDraftComplete(state: TableState): boolean {
   const seat = viewerSeat(state.view);
   if (!seat) return false;
-  return visiblePool(state).length >= state.view.packCount * state.view.packSize;
+  return state.view.complete ?? visiblePool(state).length >= state.view.packCount * state.view.packSize;
 }

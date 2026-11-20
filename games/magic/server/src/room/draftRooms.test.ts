@@ -1116,6 +1116,26 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	it('a restore keeps what each seat\'s cards noted for the match, and how many cards it drafted this round', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'cardtable-draftrooms-notes-test-'));
+		try {
+			const options = { presence: noGracePresence, ...singlePoolResolver(pool), storeDir: dir };
+			const first = createDraftRooms({ ...options, now: () => 1_700_000_000_000 });
+			const before = first.open('pod-notes');
+			stateOf(before).notes[2] = { 'Lurking Automaton': ['3', '7'], 'Aether Searcher': ['Shock'] };
+			stateOf(before).roundCards[2] = 4;
+			before.app.persist(before);
+
+			const restored = createDraftRooms({ ...options, now: () => 1_700_000_000_001 });
+			const state = stateOf(restored.open('pod-notes'));
+			expect(state.notes[2]).toEqual({ 'Lurking Automaton': ['3', '7'], 'Aether Searcher': ['Shock'] });
+			expect(state.notes[0]).toEqual({});
+			expect(state.roundCards[2]).toBe(4);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
 });
 
 /*

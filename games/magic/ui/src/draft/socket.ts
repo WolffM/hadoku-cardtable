@@ -50,7 +50,7 @@
  * (or `delta`) update with a gap still resyncs exactly as before.
  */
 
-import type { ExtraPick } from './table.ts';
+import type { PickOptions } from './table.ts';
 import {
   DRAFT_CHANNEL,
   asSeqCursor,
@@ -59,6 +59,8 @@ import {
   joinDraft,
   leaveDraft,
   pickCard,
+  answerAsk,
+  useCard,
   resyncRequest,
   watchDraft,
   leanDraft,
@@ -302,8 +304,20 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
  * the round trip is visible rather than papered over with a guess about what
  * the next pack will be. Returns the same handle.
  */
-export function applyPick(draft: SocketDraft, cardId: string, extra?: ExtraPick): SocketDraft {
-  send(draft, pickCard(draft.draftId, cardId, extra));
+export function applyPick(draft: SocketDraft, cardId: string, options?: PickOptions): SocketDraft {
+  send(draft, pickCard(draft.draftId, cardId, options));
+  return draft;
+}
+
+/** Answer a question a card asked this seat. The new state arrives as an envelope. */
+export function applyAnswer(draft: SocketDraft, askId: number, choice: string): SocketDraft {
+  send(draft, answerAsk(draft.draftId, askId, choice));
+  return draft;
+}
+
+/** Use one of the seat's own face-up cards now. The new state arrives as an envelope. */
+export function applyUse(draft: SocketDraft, withCard: string, target?: string): SocketDraft {
+  send(draft, useCard(draft.draftId, withCard, target));
   return draft;
 }
 
@@ -337,15 +351,18 @@ export function watchSeat(draft: SocketDraft, seatId: number): SocketDraft {
 /**
  * Whether the draft has run out of picks.
  *
- * Derived rather than carried: the envelope describes a draft's position, and
+ * The server says when the draft has ended (`DraftView.complete`). Short of
+ * that it is derived: the envelope describes a draft's position, and
  * a seat that has taken every card there is to take is done. `packCount *
  * packSize` is the whole draft — 3 × 15 = 45 for a standard pod. A spectator
- * cannot answer this and gets `false`.
+ * cannot answer this and gets `false`. A draft holding a card that changes the
+ * draft carries the answer instead (`DraftView.complete`): its pool sizes do
+ * not say.
  */
 export function isComplete(draft: SocketDraft): boolean {
   const view = draft.view;
   if (view === null || view.viewer.kind !== 'seat') return false;
-  return view.viewer.pool.length >= view.packCount * view.packSize;
+  return view.complete ?? view.viewer.pool.length >= view.packCount * view.packSize;
 }
 
 /** Which cube, if the server named one. */

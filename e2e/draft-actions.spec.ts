@@ -1,84 +1,27 @@
 /**
  * Cards that change the draft itself, in a real room (`@hadoku/draft`'s
- * `actions.ts`): Cogwork Librarian is drafted face up for the whole table to
- * see, buys its drafter a second card from a later pack, and goes into that
- * pack, where the next seat finds it and drafts it face up in turn.
+ * `actions/`), one test a card:
  *
- * ## The seeded cube
+ * - Cogwork Librarian is drafted face up for the whole table to see, buys its
+ *   drafter a second card from a later pack, and goes into that pack, where
+ *   the next seat finds it and drafts it face up in turn.
+ * - Lore Seeker is revealed to the table, asks its drafter, and on Yes puts an
+ *   unopened pack in front of them, which passes on and is drafted that round.
  *
- * No cube on a claw holds the card, so this spec writes its own into the
- * server's import store before the stack boots (`draft-pools.spec.ts` has the
- * mechanism): half Cogwork Librarians, half distinct Innistrad cards, both
- * from the stack's catalog fixture. With half of every pack a Librarian the
- * first pack in front of alice holds one however the cube is shuffled, and a
- * card that is NOT a Librarian is a name that occurs once in the whole draft,
- * which is what lets the pack bob receives be told apart from any other.
+ * `draftActions.ts` has the seeded cube and the dealt pod every test here starts from.
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { expect, test } from '@playwright/test';
 
-import { expect, test, type Page } from '@playwright/test';
-
-import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
-import { PREFIX } from './identities.ts';
-import { makeTitled, resizeWindow, roomIdFromAddress } from './play/board.ts';
+import { dealPod, logLines, packCards, packNames, packOfSize, pickNamed, seedCube, UI_TIMEOUT, useOf } from './draftActions.ts';
+import { makeTitled } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
-import { forgeAvailability, PLAY_CATALOG, PLAY_CUBES_DIR, startPlayStack } from './play/harness.ts';
-import { submitCreateRoom } from './play/rooms.ts';
+import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
-const UI_TIMEOUT = 30_000;
-/** A bot seat's pick is on a clock, and a pack reaches a person through up to six of them. */
-const PACK_TIMEOUT = 90_000;
 
-const CUBE_ID = 'e2e-librarians';
-const CUBE_NAME = 'E2E Librarians';
 const LIBRARIAN = 'Cogwork Librarian';
-/** Eight seats, three packs of fifteen. */
-const CUBE_SIZE = 360;
-
-function seedLibrarianCube(): void {
-  const catalog = JSON.parse(readFileSync(PLAY_CATALOG, 'utf8')) as { cards: Record<string, { name: string; setCode: string; typeLine: string }> };
-  const others = Object.values(catalog.cards)
-    .filter((c) => c.setCode === 'ISD' && !c.typeLine.startsWith('Basic Land'))
-    .map((c) => c.name)
-    .sort()
-    .slice(0, CUBE_SIZE / 2);
-  if (others.length < CUBE_SIZE / 2) throw new Error(`the catalog fixture has only ${others.length} Innistrad cards`);
-  const names = [...others, ...Array.from({ length: CUBE_SIZE / 2 }, () => LIBRARIAN)];
-  rmSync(PLAY_CUBES_DIR, { recursive: true, force: true });
-  mkdirSync(PLAY_CUBES_DIR, { recursive: true });
-  writeFileSync(
-    resolve(PLAY_CUBES_DIR, `${CUBE_ID}.json`),
-    JSON.stringify({
-      id: CUBE_ID,
-      name: CUBE_NAME,
-      cubeCobraId: 'e2e-fixture',
-      importedBy: 'fk:e2e-fixture',
-      importedAt: new Date().toISOString(),
-      refreshedAt: null,
-      verdict: null,
-      cards: names.map((name) => ({ name, scryfallId: null })),
-    }),
-  );
-}
-
-const packCards = (page: Page) => page.locator('[data-testid="pack"] button[data-testid="card"]:not([disabled])');
-
-/** The names in the pack in front of the viewer, off each tile's own label ("Pick <name>"). */
-async function packNames(page: Page): Promise<string[]> {
-  const labels = await packCards(page).evaluateAll((els) => els.map((el) => el.getAttribute('aria-label') ?? ''));
-  return labels.map((l) => l.replace(/^Pick /, ''));
-}
-
-/** Waits for a pack of exactly `size` cards to be in front of the viewer, and returns its names. */
-async function packOfSize(page: Page, size: number, what: string): Promise<string[]> {
-  await expect(packCards(page), what).toHaveCount(size, { timeout: PACK_TIMEOUT });
-  return packNames(page);
-}
-
-const pickNamed = (page: Page, name: string) => packCards(page).and(page.getByLabel(`Pick ${name}`, { exact: true })).first().click();
+const SEEKER = 'Lore Seeker';
 
 const librarians = (names: readonly string[]) => names.filter((n) => n === LIBRARIAN).length;
 
@@ -89,7 +32,7 @@ test(
     if (!forge.ok) return;
     test.setTimeout(8 * 60_000);
 
-    seedLibrarianCube();
+    seedCube(LIBRARIAN);
 
     const stack = await startPlayStack(forge);
     const origin = stack.origin;
@@ -98,50 +41,18 @@ test(
       const bob: Player = await openFriend(browser, 'bob');
       const players = [alice, bob];
 
-      /* ── a draft room on the seeded cube, alice at seat 0 and bob at seat 1, the rest AI ── */
-      await alice.page.goto(`${origin}${PREFIX}/`);
-      await submitCreateRoom(alice.page, { name: `e2e draft-actions ${Date.now()}`, gameType: 'draft' });
-      const roomId = await roomIdFromAddress(alice.page);
-      await bob.page.goto(`${origin}${PREFIX}/#/room/${roomId}`);
-      for (const p of players) await expect(p.page.getByTestId('draft-lobby'), `${p.name}: joined the room`).toBeVisible({ timeout: UI_TIMEOUT });
-
-      // Which seat is whose reads the room's own member ids (`draft-pools.spec.ts`'s own note).
-      const roomBody = (await alice.page.evaluate(
-        (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
-        roomId,
-      )) as { members: { id: string; name: string }[] };
-      for (const p of players) {
-        const me = roomBody.members.find((m) => m.name === `e2e-${p.name}`);
-        if (me === undefined) throw new Error(`${p.name}: not found among the room’s own members`);
-        await p.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'guest', name: `e2e-${p.name}` } }));
-        await p.page.reload();
-        await resizeWindow(p.page, { width: 1280, height: 800 });
-      }
-
-      await expect(alice.page.getByTestId(`pool-picker-cubes-${CUBE_ID}`), 'the seeded cube is listed').toBeVisible({ timeout: UI_TIMEOUT });
-      await alice.page.getByTestId('pool-picker-cubes').locator('label', { hasText: CUBE_NAME }).locator('input[type="radio"]').click();
-      await expect(alice.page.getByTestId('pool-picker-verdict'), 'Forge plays every card in it').toHaveAttribute('data-state', 'ready', { timeout: UI_TIMEOUT });
-
-      await sitPodAt(alice.page, 0);
-      await sitPodAt(bob.page, 1);
-      for (const p of players) await readyPod(p.page);
-      await fillWithAi(alice.page, UI_TIMEOUT);
-      for (const p of players) {
-        await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
-        // The grid: every card is a tile a click lands on (`podSeats.ts`'s `draftUntilDone`).
-        const grid = p.page.getByRole('group', { name: 'Pack layout' }).getByRole('button', { name: 'grid' });
-        if ((await grid.getAttribute('aria-pressed')) !== 'true') await grid.click();
-      }
+      await dealPod(alice, bob, origin);
 
       /* ── alice drafts a Librarian: it lies face up in front of her seat, on both screens ── */
       const first = await packOfSize(alice.page, 15, "alice's first pack");
       expect(librarians(first), 'the first pack holds a Librarian').toBeGreaterThan(0);
-      await expect(alice.page.getByTestId('extra-pick'), 'nothing to use before she holds one').toHaveCount(0);
+      await expect(alice.page.getByTestId('draft-use'), 'nothing to use before she holds one').toHaveCount(0);
       for (const p of players) await expect(p.page.getByTestId('face-up'), `${p.name}: nothing is face up yet`).toHaveCount(0);
       await pickNamed(alice.page, LIBRARIAN);
       for (const p of players) {
         await expect(p.page.getByTestId('face-up-0'), `${p.name}: sees alice's Librarian face up`).toContainText(LIBRARIAN, { timeout: UI_TIMEOUT });
         await expect(p.page.getByTestId('face-up').locator('li'), `${p.name}: and no other seat's`).toHaveCount(1);
+        await expect(logLines(p.page).last(), `${p.name}: and is told so`).toHaveText(`e2e-alice drafted face up ${LIBRARIAN}`);
       }
       await expect(alice.page.getByTestId('pool-count')).toHaveText('1');
 
@@ -149,10 +60,10 @@ test(
       const second = await packOfSize(alice.page, 14, "alice's second pack, one card lighter from the seat before her");
       const [a, b] = second.filter((n) => n !== LIBRARIAN);
       if (a === undefined || b === undefined) throw new Error(`the second pack has fewer than two cards that are not Librarians: ${second.join(', ')}`);
-      const control = alice.page.getByTestId('extra-pick');
+      const control = useOf(alice.page, LIBRARIAN);
       await expect(control, 'the Librarian offers itself').toHaveText(LIBRARIAN, { timeout: UI_TIMEOUT });
       await expect(control).toHaveAttribute('aria-pressed', 'false');
-      await expect(bob.page.getByTestId('extra-pick'), 'only to its own drafter').toHaveCount(0);
+      await expect(bob.page.getByTestId('draft-use'), 'only to its own drafter').toHaveCount(0);
       await control.click();
       await expect(control).toHaveAttribute('aria-pressed', 'true');
 
@@ -186,6 +97,58 @@ test(
         await expect(p.page.getByTestId('face-up-1'), `${p.name}: sees bob's Librarian face up`).toContainText(LIBRARIAN, { timeout: UI_TIMEOUT });
         await expect(p.page.getByTestId('face-up-0'), `${p.name}: and none in front of alice`).toHaveCount(0);
       }
+    } finally {
+      await stack.stop();
+    }
+  },
+);
+
+test(
+  titled('Lore Seeker is revealed to the table, asks its drafter, and on Yes adds an unopened pack that is drafted that round'),
+  async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(8 * 60_000);
+
+    // Fifteen cards more than the pod deals: one pack is left unopened.
+    seedCube(SEEKER, 15);
+
+    const stack = await startPlayStack(forge);
+    try {
+      const alice: Player = await openFriend(browser, 'alice');
+      const bob: Player = await openFriend(browser, 'bob');
+      const players = [alice, bob];
+      await dealPod(alice, bob, stack.origin);
+
+      /* ── alice drafts a Seeker: the table is told, and she alone is asked ── */
+      const first = await packOfSize(alice.page, 15, "alice's first pack");
+      expect(first, 'the first pack holds a Lore Seeker').toContain(SEEKER);
+      await pickNamed(alice.page, SEEKER);
+      for (const p of players) await expect(logLines(p.page).last(), `${p.name}: is told she revealed it`).toHaveText(`e2e-alice revealed ${SEEKER}`, { timeout: UI_TIMEOUT });
+      for (const p of players) await expect(p.page.getByTestId('face-up'), `${p.name}: it is not left face up`).toHaveCount(0);
+      const ask = alice.page.locator(`[data-testid="draft-ask"][data-source="${SEEKER}"]`);
+      await expect(ask, 'the Seeker asks her').toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(bob.page.getByTestId('draft-ask'), 'and nobody else').toHaveCount(0);
+      await expect(alice.page.getByTestId('pool-count')).toHaveText('1');
+
+      /* ── Yes: a whole new pack is in front of her at once, ahead of the one being passed to her ── */
+      await ask.locator('[data-testid="draft-ask-option"][data-key="yes"]').click();
+      await expect(ask).toHaveCount(0, { timeout: UI_TIMEOUT });
+      const added = await packOfSize(alice.page, 15, 'the added pack, whole');
+      for (const p of players) await expect(logLines(p.page).last(), `${p.name}: is told a pack was added`).toHaveText('e2e-alice added a booster pack to the draft', { timeout: UI_TIMEOUT });
+      const mine = added.find((n) => n !== SEEKER) ?? SEEKER;
+      await pickNamed(alice.page, mine);
+      await expect(alice.page.getByTestId('pool-count')).toHaveText('2', { timeout: UI_TIMEOUT });
+
+      /* ── it passes on: bob's third pack is the added one, a card heavier than the round's own would be ── */
+      await packOfSize(bob.page, 15, "bob's own first pack");
+      await pickNamed(bob.page, (await packNames(bob.page)).find((n) => n !== SEEKER) ?? SEEKER);
+      const passedFirst = await packOfSize(bob.page, 14, "alice's first pack, passed to bob");
+      await pickNamed(bob.page, passedFirst.find((n) => n !== SEEKER) ?? SEEKER);
+      const passedAdded = await packOfSize(bob.page, 14, 'the added pack, passed to bob with fourteen cards');
+      const rest = [...added];
+      rest.splice(rest.indexOf(mine), 1);
+      expect([...passedAdded].sort(), 'and otherwise the pack she opened').toEqual(rest.sort());
     } finally {
       await stack.stop();
     }

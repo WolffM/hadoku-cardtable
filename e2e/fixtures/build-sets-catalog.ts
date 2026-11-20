@@ -70,7 +70,33 @@ interface DraftCardLike {
 const BASIC_LAND_NAMES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'];
 
 /** Cards kept by name from outside the kept sets: the ones a spec seeds a cube with (`draft-actions.spec.ts`). */
-const NAMED_CARDS = ['Cogwork Librarian'];
+/* Every card with a `Draft:` line in Forge's scripts. */
+const NAMED_CARDS = [
+  "Aether Searcher",
+  "Agent of Acquisitions",
+  "Animus of Predation",
+  "Archdemon of Paliano",
+  "Canal Dredger",
+  "Cogwork Grinder",
+  "Cogwork Librarian",
+  "Cogwork Spy",
+  "Cogwork Tracker",
+  "Custodi Peacekeeper",
+  "Deal Broker",
+  "Garbage Fire",
+  "Illusionary Informant",
+  "Leovold's Operative",
+  "Lore Seeker",
+  "Lurking Automaton",
+  "Noble Banneret",
+  "Paliano, the High City",
+  "Paliano Vanguard",
+  "Pyretic Hunter",
+  "Regicide",
+  "Smuggler Captain",
+  "Spire Phantasm",
+  "Whispergear Sneak",
+];
 
 /**
  * An Alchemy card, written in on purpose. The real catalog has none (`@hadoku/carddata`'s

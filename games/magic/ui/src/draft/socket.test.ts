@@ -527,6 +527,13 @@ describe('the driver’s surface', () => {
     expect(cubeName(draft)).toBe('Vintage Cube');
   });
 
+  it('isComplete: the server says the draft has ended, though a card removed some of the pool from the draft', () => {
+    ingest(draft, stateMessage(at(1)));
+    expect(isComplete(draft)).toBe(false);
+    ingest(draft, stateMessage({ ...at(1), seq: at(1).seq + 1, complete: true }));
+    expect(isComplete(draft)).toBe(true);
+  });
+
   it('isComplete is derived: the pool holds every pick the draft has', () => {
     const base = at(1);
     const viewer = base.viewer;
@@ -549,6 +556,14 @@ describe('the driver’s surface', () => {
 
     expect(isComplete(draft)).toBe(false);
     ingest(draft, stateMessage(complete));
+    expect(draft.stats.invalid).toBe(0);
+    expect(isComplete(draft)).toBe(true);
+
+    // A draft holding a card that changes the draft says so itself: a full pool is not its end,
+    // and its end may come with a pool that is not full.
+    ingest(draft, stateMessage({ ...complete, seq: complete.seq + 1, complete: false }));
+    expect(isComplete(draft)).toBe(false);
+    ingest(draft, stateMessage({ ...base, seq: complete.seq + 2, complete: true }));
     expect(draft.stats.invalid).toBe(0);
     expect(isComplete(draft)).toBe(true);
   });

@@ -71,6 +71,7 @@ export {
   type EmptySectionPolicy,
   type WriteDckOptions,
 } from './dck-write.ts';
+export { serializeDraftNotes, withDraftNotes } from './draft-notes.ts';
 
 export {
   CONSTRUCTED_LIMITS,

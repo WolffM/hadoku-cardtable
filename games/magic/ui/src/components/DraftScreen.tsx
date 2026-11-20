@@ -43,40 +43,81 @@
  * straight to the sideboard's pile and is never seen in the deck's.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { usePrefs } from '@wolffm/prefs-client/react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { usePrefs } from "@wolffm/prefs-client/react";
 
-import type { ConnectionState } from '../draft/connection.ts';
-import { viewerSeat, type DraftView } from '../draft/types.ts';
+import type { ConnectionState } from "../draft/connection.ts";
+import { viewerSeat, type DraftView } from "../draft/types.ts";
+import type { DraftAskView, DraftUse } from "@hadoku/shared";
+import { CardTile } from "./CardTile.tsx";
 import {
   explainRejection,
+  hiddenPackSize,
   isAwaitingConfirmation,
   isDraftComplete,
   pick,
   pickBlockedBy,
+  useBlockedBy,
   visiblePack,
   visiblePool,
-  type ExtraPick,
+  type PickOptions,
   type TableState,
-} from '../draft/table.ts';
-import { ConnectionBanner } from '@hadoku/game-ui/components/ConnectionBanner.tsx';
-import { DeckView } from './DeckView.tsx';
-import { CARD_RATIO, cssPx, fitGrid, smallestFitHeight, useBox, useFitScale } from './cardFit.ts';
-import { useNewPackSound } from '../draft/packSound.ts';
-import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, packFitStyle, packRowHeight, PackView, phoneFanGeometry, PickRope, POOL_MIN_H, usePhoneLayout, type PackDrop, type PackLayout } from './PackView.tsx';
-import { Icon } from '@wolffm/themes';
-import { Popover, usePopover } from '@hadoku/game-ui/components/Popover.tsx';
-import type { Area } from '../deck/dragMove.tsx';
-import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
-import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
-import { Ghost, SeatBar, SeatBarSkeleton } from './SeatBar.tsx';
-import { SpectatorNotice } from './SpectatorNotice.tsx';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
-import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
-import { uiLength, uiPx } from '@hadoku/ui-shell/settings';
-import './draft.css';
+} from "../draft/table.ts";
+import { ConnectionBanner } from "@hadoku/game-ui/components/ConnectionBanner.tsx";
+import { DeckView } from "./DeckView.tsx";
+import {
+  CARD_RATIO,
+  cssPx,
+  fitGrid,
+  smallestFitHeight,
+  useBox,
+  useFitScale,
+} from "./cardFit.ts";
+import { useNewPackSound } from "../draft/packSound.ts";
+import {
+  FAN_MIN_WIDTH,
+  fanGeometry,
+  fanLayer,
+  fanX,
+  MAX_CARD_H,
+  packFitStyle,
+  packRowHeight,
+  PackView,
+  phoneFanGeometry,
+  PickRope,
+  POOL_MIN_H,
+  usePhoneLayout,
+  type PackDrop,
+  type PackLayout,
+} from "./PackView.tsx";
+import { Icon } from "@wolffm/themes";
+import { Popover, usePopover } from "@hadoku/game-ui/components/Popover.tsx";
+import type { Area } from "../deck/dragMove.tsx";
+import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from "./PoolView.tsx";
+import { useDraftBuild, type DraftBuildStore } from "../deck/useDraftBuild.ts";
+import { Ghost, SeatBar, SeatBarSkeleton } from "./SeatBar.tsx";
+import { SpectatorNotice } from "./SpectatorNotice.tsx";
+import { prefersReducedMotion } from "@hadoku/ui-shell/motion";
+import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from "../play/live/prefs.ts";
+import { uiLength, uiPx } from "@hadoku/ui-shell/settings";
+import "./draft.css";
 
-const rectOf = (r: DOMRect): PoolEnterRect => ({ left: r.left, top: r.top, width: r.width, height: r.height });
+const rectOf = (r: DOMRect): PoolEnterRect => ({
+  left: r.left,
+  top: r.top,
+  width: r.width,
+  height: r.height,
+});
 
 export interface DraftScreenProps {
   state: TableState;
@@ -90,10 +131,14 @@ export interface DraftScreenProps {
    * updates the instant it is clicked whatever the source is doing. This is
    * what a live source uses to send the pick on — in-process today, over a
    * socket later. Absent for a fixture source, where nothing can be sent.
-   * `extra` is the second card of a two-card pick and the face-up card that
-   * pays for it.
+   * `options` names the seat's own face-up cards used with the pick and the
+   * second card of a two-card pick.
    */
-  onPick?: (cardId: string, extra?: ExtraPick) => void;
+  onPick?: (cardId: string, options?: PickOptions) => void;
+  /** The seat answered a question a card asked it. */
+  onAnswer?: (askId: number, choice: string) => void;
+  /** The seat used one of its own face-up cards outside a pick. */
+  onUse?: (withCard: string, target?: string) => void;
   /** The card this seat would take if its timed pick ran out (`PackView`'s `onLean`); absent where nothing listens. */
   onLean?: (cardId: string | null) => void;
   onAdvance?: () => void;
@@ -125,7 +170,11 @@ export interface DraftScreenProps {
 
 /** The nearest ancestor of `el` that scrolls vertically, if any. */
 function scrollBoxOf(el: HTMLElement): HTMLElement | null {
-  for (let a = el.parentElement; a !== null && a !== document.body; a = a.parentElement) {
+  for (
+    let a = el.parentElement;
+    a !== null && a !== document.body;
+    a = a.parentElement
+  ) {
     if (/^(auto|scroll)$/.test(getComputedStyle(a).overflowY)) return a;
   }
   return null;
@@ -139,9 +188,11 @@ function scrollBoxOf(el: HTMLElement): HTMLElement | null {
  * needs at its smallest fit. The pod's skeleton (`PodScreen.tsx`) wears it
  * too, so the draft lands on the same lines.
  */
-export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined {
-  if (el === null || typeof window === 'undefined') return undefined;
-  const aside = el.querySelector<HTMLElement>(':scope > .draft__aside');
+export function fitToWindow(
+  el: HTMLDivElement | null,
+): (() => void) | undefined {
+  if (el === null || typeof window === "undefined") return undefined;
+  const aside = el.querySelector<HTMLElement>(":scope > .draft__aside");
   // The box the screen scrolls in when it is not the page: a room's, pinned to the window beside its chat (`chrome.css`).
   const box = scrollBoxOf(el);
   const fit = (): void => {
@@ -149,38 +200,59 @@ export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined
     // that pushes off the page or out of its box (the shell's padding,
     // anything after the body): set, measure the overflow, take it back.
     // Always from the full height, so a window that grows gets the room back.
-    const full = Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY + (box?.scrollTop ?? 0)));
-    el.style.setProperty('--draft-h', `${Math.max(300, full)}px`);
+    const full = Math.floor(
+      window.innerHeight -
+        (el.getBoundingClientRect().top +
+          window.scrollY +
+          (box?.scrollTop ?? 0)),
+    );
+    el.style.setProperty("--draft-h", `${Math.max(300, full)}px`);
     const style = getComputedStyle(el);
     // A phone's column (`draft.css`) scrolls with the page on purpose: there the row is the window's, not what is left of it.
-    const rows = style.display === 'grid';
-    const over = rows ? Math.max(document.documentElement.scrollHeight - window.innerHeight, box === null ? 0 : box.scrollHeight - box.clientHeight) : 0;
+    const rows = style.display === "grid";
+    const over = rows
+      ? Math.max(
+          document.documentElement.scrollHeight - window.innerHeight,
+          box === null ? 0 : box.scrollHeight - box.clientHeight,
+        )
+      : 0;
     const height = over > 0 ? Math.max(300, full - over) : Math.max(300, full);
-    if (over > 0) el.style.setProperty('--draft-h', `${height}px`);
-    const inner = height - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0) - (parseFloat(style.rowGap) || 0);
+    if (over > 0) el.style.setProperty("--draft-h", `${height}px`);
+    const inner =
+      height -
+      (parseFloat(style.paddingTop) || 0) -
+      (parseFloat(style.paddingBottom) || 0) -
+      (parseFloat(style.rowGap) || 0);
     const unit = uiPx(1, el);
     // Beside the picks, the pod's column must still be whole at its smallest fit: the room's bar is as tall as its room makes it.
-    const keep = Math.max(POOL_MIN_H * unit, rows && aside !== null ? smallestFitHeight(aside) : 0);
+    const keep = Math.max(
+      POOL_MIN_H * unit,
+      rows && aside !== null ? smallestFitHeight(aside) : 0,
+    );
     const packRow = packRowHeight(inner, unit, keep);
-    el.style.setProperty('--pack-row', `${packRow.toFixed(1)}px`);
-    el.style.setProperty('--picks-row', `${(inner - packRow).toFixed(1)}px`);
+    el.style.setProperty("--pack-row", `${packRow.toFixed(1)}px`);
+    el.style.setProperty("--picks-row", `${(inner - packRow).toFixed(1)}px`);
   };
   fit();
-  window.addEventListener('resize', fit);
-  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+  window.addEventListener("resize", fit);
+  const observer =
+    typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
   observer?.observe(document.body);
   // In a pinned box the page never grows: a line drawn above the body (the room's error) is seen by the screen's own size.
   if (el.parentElement !== null) observer?.observe(el.parentElement);
   // The column's own parts (a watcher joins the room's bar): measured again on the next frame, not inside
   // this delivery, where a row that changed would resize the column already reported this frame.
   let frame = 0;
-  const parts = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(fit);
-  });
+  const parts =
+    typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(fit);
+        });
   for (const part of aside?.children ?? []) parts?.observe(part);
   return () => {
-    window.removeEventListener('resize', fit);
+    window.removeEventListener("resize", fit);
     observer?.disconnect();
     parts?.disconnect();
     cancelAnimationFrame(frame);
@@ -190,14 +262,29 @@ export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined
 /** The pack's layout: the player's own, wherever they draft next (`play/live/prefs.ts`). */
 export function usePackLayout(): [PackLayout, (layout: PackLayout) => void] {
   const { prefs, save } = usePrefs(getPlayPrefsClient());
-  return [prefs?.packLayout ?? PLAY_PREFS_DEFAULTS.packLayout, (packLayout) => void save({ packLayout })];
+  return [
+    prefs?.packLayout ?? PLAY_PREFS_DEFAULTS.packLayout,
+    (packLayout) => void save({ packLayout }),
+  ];
 }
 
-export function PackLayoutControl({ layout, onLayout }: { layout: PackLayout; onLayout: (layout: PackLayout) => void }) {
+export function PackLayoutControl({
+  layout,
+  onLayout,
+}: {
+  layout: PackLayout;
+  onLayout: (layout: PackLayout) => void;
+}) {
   return (
     <div className="segmented" role="group" aria-label="Pack layout">
-      {(['fan', 'grid'] as const).map((option) => (
-        <button key={option} type="button" className={layout === option ? 'segmented__on' : ''} aria-pressed={layout === option} onClick={() => onLayout(option)}>
+      {(["fan", "grid"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          className={layout === option ? "segmented__on" : ""}
+          aria-pressed={layout === option}
+          onClick={() => onLayout(option)}
+        >
           {option}
         </button>
       ))}
@@ -213,24 +300,36 @@ export function PackLayoutControl({ layout, onLayout }: { layout: PackLayout; on
  * pack answers to, the two drags (`packDrag.ts`) among them, and nothing else.
  */
 const PACK_CONTROLS: readonly (readonly [control: string, does: string])[] = [
-  ['Arrow keys', 'Move along the pack'],
-  ['Hover', 'Enlarge a card'],
-  ['Mouse wheel', 'Turn an enlarged card to its other faces'],
-  ['Enter', 'Take the card'],
-  ['Drag a card onto your pool', 'Take it'],
-  ['Drag a card onto the sideboard', 'Take it into your sideboard'],
-  ['Drag the fan sideways', 'Scroll it'],
+  ["Arrow keys", "Move along the pack"],
+  ["Hover", "Enlarge a card"],
+  ["Mouse wheel", "Turn an enlarged card to its other faces"],
+  ["Enter", "Take the card"],
+  ["Drag a card onto your pool", "Take it"],
+  ["Drag a card onto the sideboard", "Take it into your sideboard"],
+  ["Drag the fan sideways", "Scroll it"],
 ];
 
 function PackHelp() {
   const { trigger, toggle, close } = usePopover();
   return (
     <>
-      <button type="button" className="pack__help" aria-label="Draft controls" aria-expanded={trigger !== null} data-testid="pack-help" onClick={(event) => toggle(event.currentTarget)}>
-        <Icon name="info" size={uiLength('0.95rem')} />
+      <button
+        type="button"
+        className="pack__help"
+        aria-label="Draft controls"
+        aria-expanded={trigger !== null}
+        data-testid="pack-help"
+        onClick={(event) => toggle(event.currentTarget)}
+      >
+        <Icon name="info" size={uiLength("0.95rem")} />
       </button>
       {trigger !== null && (
-        <Popover trigger={trigger} onClose={close} title="Draft controls" testId="pack-controls">
+        <Popover
+          trigger={trigger}
+          onClose={close}
+          title="Draft controls"
+          testId="pack-controls"
+        >
           <dl className="pack__controls">
             {PACK_CONTROLS.map(([control, does]) => (
               <div key={control} className="pack__control">
@@ -254,7 +353,11 @@ function PackHelp() {
 export function PackTools({ skeleton = false }: { skeleton?: boolean }) {
   const [layout, setLayout] = usePackLayout();
   return (
-    <div className="pack__tools" data-testid="pack-tools" data-skeleton={skeleton ? 'controls' : undefined}>
+    <div
+      className="pack__tools"
+      data-testid="pack-tools"
+      data-skeleton={skeleton ? "controls" : undefined}
+    >
       <PackHelp />
       <PackLayoutControl layout={layout} onLayout={setLayout} />
     </div>
@@ -266,11 +369,13 @@ export function DraftScreen({
   onChange,
   nextPayload = null,
   onPick,
+  onAnswer,
+  onUse,
   onLean,
   onAdvance,
   connection = null,
   onDownloadDeck,
-  title = 'Draft',
+  title = "Draft",
   side,
   onWatch,
   buildStore = null,
@@ -282,8 +387,8 @@ export function DraftScreen({
   const [message, setMessage] = useState<string | null>(null);
   const { view } = state;
   useNewPackSound(view);
-  const spectating = view.viewer.kind === 'spectator';
-  const watching = view.viewer.kind === 'watcher';
+  const spectating = view.viewer.kind === "spectator";
+  const watching = view.viewer.kind === "watcher";
   const blocked = pickBlockedBy(state);
   const awaiting = isAwaitingConfirmation(state);
   const complete = isDraftComplete(state);
@@ -293,13 +398,23 @@ export function DraftScreen({
   const stalled = connection?.stalled ?? false;
   // Picked, and the pack not yet passed: the cards left in it are not this
   // seat's to take, so the pack gives way to the wait rather than sitting dimmed.
-  const waiting = blocked?.reason === 'not-your-turn';
+  const waiting = blocked?.reason === "not-your-turn";
   // The rope burns over the pick in front of the seat: gone once it is made, and for nobody's seat.
-  const rope = view.viewer.kind === 'spectator' || waiting || (!watching && blocked !== null) ? undefined : view.viewer.timer;
+  const rope =
+    view.viewer.kind === "spectator" ||
+    waiting ||
+    (!watching && blocked !== null)
+      ? undefined
+      : view.viewer.timer;
 
   // The viewer's own picks are their build; a watched drafter's are only looked at.
   const pool = useMemo(() => visiblePool(state), [state]);
-  const build = useDraftBuild(view.draftId, pool, watching ? null : buildStore, !awaiting);
+  const build = useDraftBuild(
+    view.draftId,
+    pool,
+    watching ? null : buildStore,
+    !awaiting,
+  );
 
   // Referentially stable, because `CardTile` is memoised and this is the prop
   // it compares. A fresh closure per render would make every tile re-render on
@@ -316,7 +431,10 @@ export function DraftScreen({
   // FLIP's "first". Cleared by its own effect rather than inline in
   // `handlePick`, so a pick that lands while the previous one is still
   // animating restarts the timer against the NEW card, not the old one.
-  const [recentlyAdded, setRecentlyAdded] = useState<{ cardId: string; from: PoolEnterRect } | null>(null);
+  const [recentlyAdded, setRecentlyAdded] = useState<{
+    cardId: string;
+    from: PoolEnterRect;
+  } | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (recentlyAdded === null) return;
@@ -324,23 +442,51 @@ export function DraftScreen({
     return () => clearTimeout(timer);
   }, [recentlyAdded]);
 
-  // A face-up card of the seat's own that buys a second card from this pack
-  // (the view's `extraPick`). Pressed, the next card pressed is held as the
-  // first of the two and the one after it sends both.
-  const extraWith = watching ? undefined : viewerSeat(view)?.extraPick?.[0];
-  const extraCard = extraWith === undefined ? undefined : pool.find((c) => c.cardId === extraWith);
-  const [extraArmed, setExtraArmed] = useState(false);
-  const [extraFirst, setExtraFirst] = useState<string | null>(null);
-  const extraRef = useRef<{ with: string; first: string | null } | null>(null);
-  extraRef.current = extraArmed && extraWith !== undefined ? { with: extraWith, first: extraFirst } : null;
-  /** The button that arms it, in the pod's column while this seat has a pack to take from. */
-  const extraShown = waiting || awaiting ? undefined : extraCard;
-  // A new pack starts with nothing pressed and nothing held.
+  // The seat's own face-up cards it can use (the view's `uses`). One used with
+  // a pick is pressed first; if it takes a second card, the next card pressed
+  // is held as the first of the two and the one after it sends both.
+  const own = watching ? null : viewerSeat(view);
+  const uses: DraftUse[] = own?.uses ?? [];
+  const asks: DraftAskView[] = own?.asks ?? [];
+  const [armed, setArmed] = useState<readonly string[]>([]);
+  const [first, setFirst] = useState<string | null>(null);
+  const [aiming, setAiming] = useState<string | null>(null);
+  const [aimGroup, setAimGroup] = useState<string | null>(null);
+  const live = armed.filter((id) =>
+    uses.some((u) => u.with === id && u.when === "pick"),
+  );
+  const twoCards = live.some(
+    (id) => uses.find((u) => u.with === id)?.extra === true,
+  );
+  // A use with a pick needs the pack in front of the seat; a use at any time does not.
+  const shownUses = uses.filter(
+    (u) => u.when === "now" || (!waiting && !awaiting),
+  );
+  const armedRef = useRef<{
+    use: string[];
+    two: boolean;
+    first: string | null;
+  }>({ use: [], two: false, first: null });
+  armedRef.current = { use: live, two: twoCards, first };
+  // A new pick starts with nothing pressed and nothing held.
   const pickKey = `${view.packNumber}:${view.pickNumber}`;
   useEffect(() => {
-    setExtraArmed(false);
-    setExtraFirst(null);
+    setArmed([]);
+    setFirst(null);
+    setAiming(null);
+    setAimGroup(null);
   }, [pickKey]);
+  // What the pressed use may be pointed at. Targets that name a group are chosen in two steps: the
+  // groups first, then the chosen group's targets beside its own button.
+  const targets =
+    uses.find((u) => u.when === "now" && u.with === aiming)?.targets ?? [];
+  const groups = [
+    ...new Set(
+      targets.flatMap((t) => (t.group === undefined ? [] : [t.group])),
+    ),
+  ];
+  const group =
+    aimGroup !== null && groups.includes(aimGroup) ? aimGroup : null;
 
   /** A card dragged out of the pack, in the air: the area it would land in is lit (`PoolView`). */
   const [lift, setLift] = useState<{ over: Area | null } | null>(null);
@@ -348,21 +494,35 @@ export function DraftScreen({
   const [toSideboard, setToSideboard] = useState<string | null>(null);
   const moveBuild = build.move;
   useLayoutEffect(() => {
-    if (toSideboard === null || !pool.some((c) => c.cardId === toSideboard)) return;
-    moveBuild(toSideboard, 'pool');
+    if (toSideboard === null || !pool.some((c) => c.cardId === toSideboard))
+      return;
+    moveBuild(toSideboard, "pool");
     setToSideboard(null);
   }, [toSideboard, pool, moveBuild]);
 
   const handlePick = useCallback(
     (cardId: string, drop?: PackDrop): void => {
-      const two = extraRef.current;
-      if (two !== null && (two.first === null || two.first === cardId)) {
-        setExtraFirst(two.first === null ? cardId : null);
+      const held = armedRef.current;
+      // The card being drafted is the first pressed; a pressed use that needs it to be something refuses any other.
+      const unmet = useBlockedBy(
+        stateRef.current,
+        held.two && held.first !== null ? held.first : cardId,
+        held.use,
+      );
+      if (unmet !== null) {
+        setMessage(explainRejection(unmet));
         return;
       }
-      const first = two?.first ?? cardId;
-      const extra = two === null ? undefined : { cardId, with: two.with };
-      const result = pick(stateRef.current, first, extra);
+      if (held.two && (held.first === null || held.first === cardId)) {
+        setFirst(held.first === null ? cardId : null);
+        return;
+      }
+      const taken = held.two && held.first !== null ? held.first : cardId;
+      const options: PickOptions = {
+        ...(held.use.length === 0 ? {} : { use: held.use }),
+        ...(held.two ? { extra: cardId } : {}),
+      };
+      const result = pick(stateRef.current, taken, options);
       if (!result.ok) {
         setMessage(explainRejection(result.rejection));
         return;
@@ -375,26 +535,35 @@ export function DraftScreen({
       // rect, and both read as "no animation" the same way: `null`.
       const tile = prefersReducedMotion()
         ? null
-        : mainRef.current?.querySelector<HTMLElement>(`.pack [data-testid="card"][data-card-id="${CSS.escape(cardId)}"]`);
+        : mainRef.current?.querySelector<HTMLElement>(
+            `.pack [data-testid="card"][data-card-id="${CSS.escape(cardId)}"]`,
+          );
       // A dragged card flies from where it was let go, not from the slot it left.
-      setRecentlyAdded(tile ? { cardId, from: drop?.from ?? rectOf(tile.getBoundingClientRect()) } : null);
-      setToSideboard(drop?.to === 'pool' ? cardId : null);
+      setRecentlyAdded(
+        tile
+          ? { cardId, from: drop?.from ?? rectOf(tile.getBoundingClientRect()) }
+          : null,
+      );
+      setToSideboard(drop?.to === "pool" ? cardId : null);
       onChange(result.state);
-      onPick?.(first, extra);
+      onPick?.(taken, options);
     },
     [onChange, onPick],
   );
 
-
+  // A pack the seat may not look at is drawn as its count, never as an empty pack.
+  const hidden = hiddenPackSize(view);
   const emptyNote = spectating
-    ? 'Spectating.'
+    ? "Spectating."
     : watching
-      ? 'Waiting for the next pack.'
+      ? "Waiting for the next pack."
       : stalled
-        ? 'Reconnecting — seat held.'
+        ? "Reconnecting — seat held."
         : awaiting || waiting
-          ? 'Waiting for the next pack.'
-          : 'This pack is empty.';
+          ? "Waiting for the next pack."
+          : hidden > 0
+            ? `${hidden} ${hidden === 1 ? "card" : "cards"}`
+            : "This pack is empty.";
 
   return (
     <div
@@ -402,7 +571,7 @@ export function DraftScreen({
       data-testid="draft-screen"
       data-draft-id={view.draftId}
       data-viewer={view.viewer.kind}
-      data-complete={complete ? 'true' : 'false'}
+      data-complete={complete ? "true" : "false"}
     >
       {connection && <ConnectionBanner state={connection} />}
       {spectating && <SpectatorNotice seatCount={view.seats.length} />}
@@ -413,7 +582,12 @@ export function DraftScreen({
         </p>
       )}
 
-      <div className={complete ? 'draft__body draft__body--complete' : 'draft__body'} ref={fitToWindow}>
+      <div
+        className={
+          complete ? "draft__body draft__body--complete" : "draft__body"
+        }
+        ref={fitToWindow}
+      >
         <main className="draft__main" ref={mainRef}>
           {complete ? (
             <DeckView
@@ -423,7 +597,62 @@ export function DraftScreen({
             />
           ) : (
             <>
-              {rope !== undefined && <PickRope timer={rope} pickKey={`${view.packNumber}:${view.pickNumber}`} />}
+              {rope !== undefined && (
+                <PickRope
+                  timer={rope}
+                  pickKey={`${view.packNumber}:${view.pickNumber}`}
+                />
+              )}
+              {asks.map((a) => (
+                <section
+                  key={a.id}
+                  className="draft__ask"
+                  data-testid="draft-ask"
+                  data-ask={a.id}
+                  data-source={a.source}
+                  role="group"
+                  aria-label={a.source}
+                >
+                  <h2 className="draft__ask-title">
+                    {a.source}: {a.title}
+                  </h2>
+                  <div className="draft__ask-choices">
+                    {a.options?.map((o) => (
+                      <button
+                        key={o.key}
+                        type="button"
+                        className="button"
+                        data-testid="draft-ask-option"
+                        data-key={o.key}
+                        disabled={stalled}
+                        onClick={() => onAnswer?.(a.id, o.key)}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                    {a.cards?.map((c) => (
+                      <CardTile
+                        key={c.cardId}
+                        card={c}
+                        disabled={stalled}
+                        onPick={(cardId) => onAnswer?.(a.id, cardId)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+              {hidden > 0 && asks.length === 0 && !awaiting && (
+                <button
+                  type="button"
+                  className="button"
+                  data-testid="draft-blind-pick"
+                  data-cards={hidden}
+                  disabled={stalled}
+                  onClick={() => onPick?.("blind")}
+                >
+                  Draft a card at random
+                </button>
+              )}
               <PackView
                 cards={waiting ? [] : visiblePack(state)}
                 layout={layout}
@@ -433,14 +662,24 @@ export function DraftScreen({
                 onLean={watching || rope === undefined ? undefined : onLean}
                 disabled={!watching && (blocked !== null || stalled)}
                 emptyNote={emptyNote}
-                chosen={extraFirst}
+                chosen={first}
               />
               {!spectating && (
                 <PoolView
                   cards={pool}
                   recentlyAdded={recentlyAdded}
-                  {...(watching ? {} : { sideboard: build.sideboard, onMove: build.move, dropping: lift })}
-                  owner={view.viewer.kind === 'watcher' ? (view.seats[view.viewer.seatId]?.displayName ?? null) : null}
+                  {...(watching
+                    ? {}
+                    : {
+                        sideboard: build.sideboard,
+                        onMove: build.move,
+                        dropping: lift,
+                      })}
+                  owner={
+                    view.viewer.kind === "watcher"
+                      ? (view.seats[view.viewer.seatId]?.displayName ?? null)
+                      : null
+                  }
                 />
               )}
             </>
@@ -465,27 +704,109 @@ export function DraftScreen({
           )}
           <SeatBar view={view} onWatch={onWatch} arrivedWhole={arrivedWhole} />
           <FaceUpCards view={view} />
-          {(extraShown !== undefined || onAdvance) && (
+          <DraftLog view={view} />
+          {own?.seen !== undefined && (
+            <ul className="draft__faceup" data-testid="draft-seen">
+              {own.seen.slice(-SEEN_LINES).map((e) => (
+                <li key={e.n} data-source={e.source}>
+                  {e.source}:{" "}
+                  {e.cards.map((c, i) => (
+                    <Fragment key={c.cardId}>
+                      <span
+                        className="draft__seen-card"
+                        data-testid="draft-seen-card"
+                      >
+                        {c.name}
+                      </span>
+                      {i < e.cards.length - 1 ? ", " : ""}
+                    </Fragment>
+                  ))}
+                  {e.detail === undefined ? "" : ` ${e.detail}`}
+                </li>
+              ))}
+            </ul>
+          )}
+          {(shownUses.length > 0 || onAdvance) && (
             <header className="draft__bar">
               <div className="draft__controls">
-                {extraShown !== undefined && (
+                {shownUses.map((u) => (
+                  <button
+                    key={`${u.with}:${u.when}`}
+                    type="button"
+                    className="button"
+                    data-testid="draft-use"
+                    data-card={u.name}
+                    data-when={u.when}
+                    aria-pressed={
+                      u.when === "pick"
+                        ? live.includes(u.with)
+                        : aiming === u.with
+                    }
+                    disabled={
+                      stalled || (u.when === "pick" && blocked !== null)
+                    }
+                    onClick={() => {
+                      if (u.when === "pick") {
+                        setArmed((on) =>
+                          on.includes(u.with)
+                            ? on.filter((id) => id !== u.with)
+                            : [...on, u.with],
+                        );
+                        setFirst(null);
+                      } else if (u.targets === undefined) onUse?.(u.with);
+                      else {
+                        setAiming((at) => (at === u.with ? null : u.with));
+                        setAimGroup(null);
+                      }
+                    }}
+                  >
+                    {u.name}
+                  </button>
+                ))}
+                {groups
+                  .filter((g) => group === null || g === group)
+                  .map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      className="button"
+                      data-testid="draft-use-group"
+                      data-group={g}
+                      aria-pressed={g === group}
+                      onClick={() => setAimGroup(g === group ? null : g)}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                {targets
+                  .filter((t) => t.group === undefined || t.group === group)
+                  .map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      className="button"
+                      data-testid="draft-use-target"
+                      data-key={t.key}
+                      onClick={() => {
+                        if (aiming !== null) onUse?.(aiming, t.key);
+                        setAiming(null);
+                        setAimGroup(null);
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                {onAdvance && (
                   <button
                     type="button"
                     className="button"
-                    data-testid="extra-pick"
-                    aria-pressed={extraArmed}
-                    disabled={blocked !== null || stalled}
-                    onClick={() => {
-                      setExtraArmed((on) => !on);
-                      setExtraFirst(null);
-                    }}
+                    data-testid="advance"
+                    disabled={nextPayload === null}
+                    onClick={onAdvance}
                   >
-                    {extraShown.name}
-                  </button>
-                )}
-                {onAdvance && (
-                  <button type="button" className="button" data-testid="advance" disabled={nextPayload === null} onClick={onAdvance}>
-                    {nextPayload ? `Next payload (seq ${nextPayload.seq})` : 'No further payload'}
+                    {nextPayload
+                      ? `Next payload (seq ${nextPayload.seq})`
+                      : "No further payload"}
                   </button>
                 )}
               </div>
@@ -505,10 +826,32 @@ function FaceUpCards({ view }: { view: DraftView }) {
     <ul className="draft__faceup" data-testid="face-up">
       {seats.map((s) => (
         <li key={s.id} data-testid={`face-up-${s.id}`}>
-          {s.displayName}: {s.faceUp?.map((c) => c.name).join(', ')}
+          {s.displayName}: {s.faceUp?.map((c) => c.name).join(", ")}
         </li>
       ))}
     </ul>
+  );
+}
+
+/** How many of the public log's latest lines, and of what the seat alone was shown, are drawn. */
+const LOG_LINES = 6;
+const SEEN_LINES = 4;
+
+/** What cards have done to the draft in public (`DraftView.log`): who, what, and the cards it made public. Nothing when nothing has. */
+function DraftLog({ view }: { view: DraftView }) {
+  if (view.log === undefined) return null;
+  return (
+    <ol className="draft__faceup" data-testid="draft-log">
+      {view.log.slice(-LOG_LINES).map((e) => (
+        <li key={e.n} data-seat={e.seatId} data-verb={e.verb}>
+          {view.seats[e.seatId]?.displayName ?? `Seat ${e.seatId}`} {e.verb}
+          {e.cards === undefined
+            ? ""
+            : ` ${e.cards.map((c) => c.name).join(", ")}`}
+          {e.detail === undefined ? "" : ` ${e.detail}`}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -527,11 +870,21 @@ export const GHOST_PACK = 15;
  * change so many times?"*; 2026-10-28: *"improve the loading skeleton so it
  * looks a bit better"*). `seats` is the pod's size, when the room knows it.
  */
-export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: number }) {
+export function DraftSkeleton({
+  side,
+  seats = 8,
+}: {
+  side?: ReactNode;
+  seats?: number;
+}) {
   const [layout] = usePackLayout();
   const fitAside = useFitScale();
   return (
-    <div className="draft draft--skeleton" data-testid="pod-waiting" aria-busy="true">
+    <div
+      className="draft draft--skeleton"
+      data-testid="pod-waiting"
+      aria-busy="true"
+    >
       <div className="draft__body" ref={fitToWindow}>
         <main className="draft__main">
           <PackSkeleton layout={layout} />
@@ -540,7 +893,7 @@ export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: n
               {/* The real title's own line: a heading with its count, whose 16px line sets the header's height. */}
               <h2 className="pool__title">
                 <Ghost em={7} />
-                <span>{'\u00a0'}</span>
+                <span>{"\u00a0"}</span>
               </h2>
               <span className="pool__colors">
                 {Array.from({ length: 5 }, (_, i) => (
@@ -579,23 +932,59 @@ export function PackSkeleton({ layout }: { layout: PackLayout }) {
   const measured = box.width > 0 && box.height > 0;
   const maxH = uiPx(MAX_CARD_H, root);
   const phone = usePhoneLayout();
-  const desktopFan = !phone && layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height, maxH) : null;
-  const desktopGrid = !phone && desktopFan === null && measured ? fitGrid(GHOST_PACK, box, cssPx(root, 'column-gap', 10), maxH * CARD_RATIO) : null;
-  const phoneFan = phone && layout === 'fan' && measured ? phoneFanGeometry(box.width, box.height, maxH) : null;
-  const mode: PackLayout = phone ? layout : !measured ? (layout === 'fan' ? 'fan' : 'grid') : desktopFan !== null ? 'fan' : 'grid';
+  const desktopFan =
+    !phone && layout === "fan" && measured && box.width >= FAN_MIN_WIDTH
+      ? fanGeometry(box.width, box.height, maxH)
+      : null;
+  const desktopGrid =
+    !phone && desktopFan === null && measured
+      ? fitGrid(
+          GHOST_PACK,
+          box,
+          cssPx(root, "column-gap", 10),
+          maxH * CARD_RATIO,
+        )
+      : null;
+  const phoneFan =
+    phone && layout === "fan" && measured
+      ? phoneFanGeometry(box.width, box.height, maxH)
+      : null;
+  const mode: PackLayout = phone
+    ? layout
+    : !measured
+      ? layout === "fan"
+        ? "fan"
+        : "grid"
+      : desktopFan !== null
+        ? "fan"
+        : "grid";
   const style = packFitStyle(desktopFan ?? phoneFan, desktopGrid);
   return (
-    <div className={`pack pack--${mode}`} data-skeleton="pack" aria-hidden="true" ref={measure} style={style}>
+    <div
+      className={`pack pack--${mode}`}
+      data-skeleton="pack"
+      aria-hidden="true"
+      ref={measure}
+      style={style}
+    >
       {measured &&
         Array.from({ length: GHOST_PACK }, (_, i) => {
-          const x = desktopFan === null ? null : fanX(desktopFan, i, 0, GHOST_PACK);
+          const x =
+            desktopFan === null ? null : fanX(desktopFan, i, 0, GHOST_PACK);
           if (desktopFan !== null && x === null) return null;
           return (
             <div
               key={i}
               className="pack__slot"
-              data-focused={mode === 'fan' && i === 0 ? '' : undefined}
-              style={x === null ? undefined : ({ '--fan-x': `${x.toFixed(1)}px`, zIndex: fanLayer(i, 0, GHOST_PACK) } as CSSProperties)}
+              data-focused={mode === "fan" && i === 0 ? "" : undefined}
+              style={
+                x === null
+                  ? undefined
+                  : ({
+                      "--fan-x": `${x.toFixed(1)}px`,
+                      zIndex: fanLayer(i, 0, GHOST_PACK),
+                    } as CSSProperties)
+              }
             >
               <span className="card-back draft-ghost__card" />
             </div>

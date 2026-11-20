@@ -216,9 +216,43 @@ We're behind cloudflared and must disable that path, not merely leave it unused.
   `Match.java:361` → `Player.setDraftNotes`), read by card scripts through
   `Count$DraftNotesCount.<name>` and `DraftNotesHighest`
   (`AbilityUtils.java:2460`). Our draft is our own engine, so none of this runs:
-  `games/magic/packages/draft/src/actions.ts` holds each action we have written
-  (Cogwork Librarian so far). Not checked: whether Forge's AI drafter
+  `games/magic/packages/draft/src/actions/` holds each action we have written,
+  one family a file (`index.ts` lists them). Forge's Lore Seeker lets its
+  drafter choose any edition that makes boosters
+  (`LimitedPlayer.addSingleBoosterPack`, `:744`); ours adds a pack the deal
+  left unopened. Not checked: whether Forge's AI drafter
   (`LimitedPlayerAI`) uses these cards well.
+- **What each of those cards reads in the match, and the note it needs**
+  (verified 2026-11-20, pin `1a56d057`, each row proved in real Forge by
+  `games/magic/server/src/play/draft-notes.jvm.test.ts`). The deck's header
+  line is `DraftNotes=<card>:<notes> | <card>:<notes>`
+  (`DeckSerializer.java:90`); the reader splits on `|`, then each pair on its
+  first `:`, and trims both (`DeckFileHeader.java:124`), so a note cannot hold
+  `|` and a card's notes are one string. `LimitedPlayer.getSerializedDraftNotes`
+  (`LimitedPlayer.java:61,89`) joins a card's notes with `;` for Noble
+  Banneret, Cogwork Grinder, Aether Searcher and Smuggler Captain, and with `,`
+  for every other card. `@hadoku/deck`'s `serializeDraftNotes` writes exactly
+  this, and the deck gate stamps it into every drafted deck
+  (`games/magic/server/src/http/gate.ts`).
+
+  | Card | Forge reads (file:line) | What one note must be |
+  | --- | --- | --- |
+  | Lurking Automaton, Pyretic Hunter, Custodi Peacekeeper, Garbage Fire | `Count$DraftNotesHighest.<name>`, `AbilityUtils.java:2460`: `split(",")`, then `Integer.parseInt` of each piece with no trim | digits only (`3`). Anything else throws in the match |
+  | Cogwork Grinder | `Count$DraftNotesCount.Cogwork Grinder`, `AbilityUtils.java:2476`: the number of `;`-separated pieces | one note a removed card; its text is never read (Forge writes the card's name) |
+  | Paliano, the High City | `AbilityManaPart.java:680`: `split(",")`, each piece through `MagicColor.toShortString`, duplicates dropped | `white,blue,black` in one note (Forge's lower-case colour names; several Palianos' notes join into one longer list) |
+  | Regicide | `Creature.NotedColor`, `CardProperty.java:2001`: whether the whole string contains `white`, `blue`, `black`, `red`, `green` | the same `c1,c2,c3` note |
+  | Noble Banneret, Aether Searcher, Smuggler Captain | `NotedName…`, `CardProperty.java:2012`, `:2020`, `:2028`: `split(";")`, then `contains(card.getName())` | the card's name exactly as Forge names it in a match. A two-faced card is `Front // Back` in our draft and its front face's name in a Forge match unless it is a split card, so `serializeDraftNotes` writes both for these three |
+  | Paliano Vanguard | `Creature.NotedTypes`, `CardProperty.java:2039`: `split(",")`, then a creature type of the card among the pieces | one creature type a note (`Human`, `Soldier`) |
+  | Animus of Predation | `FromDraftNotes$`, `StaticAbilityContinuous.java:302`: `split(",")` is the keyword list, untrimmed | `Flying,First Strike` in one note, Forge's own keyword spelling, no space after the comma. Forge itself notes an empty string for a creature with none of the eleven keywords (`LimitedPlayer.java:475`); write nothing instead |
+  | Spire Phantasm | `Card.Self+NotedGuessPhantasm`, `CardProperty.java:2036`: any note at all | anything non-empty, only when the guess was right |
+  | Cogwork Tracker | `Opponent.NotedDefender`, `PlayerProperty.java:253`: reads the notes of the player being attacked, not the Tracker's controller, and looks for that player's own name (`String.valueOf(player)`, `GameEntity.java:406`) | nothing works: the draft writes the passer's seat number (`LimitedPlayer.java:334`), which is neither a name nor in the right player's notes. In a two-player match there is one player to attack and the card's other line ("attacks each combat if able") holds without any note, so it plays as printed |
+
+  The notes are a `PlayerView` property (`TrackableProperty.java:171`), so Forge
+  sends each player's notes to every client, and our projection passes a
+  player's properties through: an opponent's browser receives them (the UI
+  draws none). Cogwork Grinder's notes are the cards it removed face down, so
+  our serialiser writes each as `1` (`packages/deck/src/draft-notes.ts`): Forge
+  only counts them.
 - `forge-gui/src/main/java/forge/gui/interfaces/IDraftEventHandler.java` — a
   draft-specific event interface, separate from `IGuiGame`.
 

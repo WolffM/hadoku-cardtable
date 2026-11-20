@@ -17,7 +17,7 @@
 import type { DraftCard, ManaColor } from '@hadoku/shared';
 import { cubeRank, CUBE_RANKING_SIZE } from './ranking.ts';
 import type { SeatId } from '@wolffm/rooms-protocol';
-import { botRng, isBotSeat, packOf, pick, pickNumberOf, waitingOn, type DraftState, type PickResult } from './engine.ts';
+import { answerDefaults, botRng, isBotSeat, packOf, pick, pickNumberOf, waitingOn, type DraftState, type PickResult } from './engine.ts';
 
 /** How much a card already in our colours is worth over one that is not. */
 const ON_COLOUR_BONUS = 3.0;
@@ -164,6 +164,11 @@ export function botTurn(
   let current = state;
   let picks = 0;
   for (const seatId of owing) {
+    // A bot answers what a card asks it as a run-out timer would, then picks.
+    const answered = answerDefaults(current, seatId);
+    current = answered.state;
+    picks += answered.answered;
+    if (packOf(current, seatId).length === 0) continue;
     const other = chosen.get(seatId);
     let result: PickResult | null = other === undefined ? null : pick(current, seatId, other);
     if (result === null || !result.ok) {

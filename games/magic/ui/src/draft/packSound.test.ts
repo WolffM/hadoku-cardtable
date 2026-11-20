@@ -28,6 +28,9 @@ describe('the New pack sound', () => {
     expect(nextPackKey(view(spectator))).toBeNull();
     const picked = view(pick1);
     expect(nextPackKey({ ...picked, waitingOn: picked.waitingOn.filter((s) => s !== 0) }), 'already picked from it').toBeNull();
+    if (picked.viewer.kind !== 'seat') throw new Error('expected a seat fixture');
+    expect(nextPackKey({ ...picked, viewer: { ...picked.viewer, pack: [], packHidden: 14 } }), 'a pack it may not look at').toBe(nextPackKey(picked));
+    expect(nextPackKey({ ...picked, viewer: { ...picked.viewer, pack: [] } }), 'no pack at all').toBeNull();
   });
 
   it('plays once for each pack that lands, not again for a re-render or while waiting on the table', () => {

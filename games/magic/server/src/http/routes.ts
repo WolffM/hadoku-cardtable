@@ -170,14 +170,14 @@
 
 import { createHash } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response, type Router } from 'express';
-import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
+import { deckFromDeckFile, isBasicLand, poolOf, withDraftNotes } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
 import { clockOn, FREE_PICK, GAME_CLOCK_MS, gameTypeSpec, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
 
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
-import { botPoolAcross, botPoolAt, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
+import { botPoolAt, botSeatAcrossFrom, builtDeckOf, notesAt, notesForParticipant, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
 import { httpCaller } from '@hadoku/game-server/http/request';
 import { prepareJson, sendPrepared, type PreparedJson } from '@hadoku/game-server/http/prepared';
@@ -512,7 +512,7 @@ export function draftPoolForMember(memberId: string, rooms: DraftRooms | null): 
 		if (room === undefined) return { ok: false, error: `no draft ${JSON.stringify(draftId)} on this server` };
 		const view = viewForParticipant(room, memberId);
 		if (view.viewer.kind !== 'seat') return { ok: false, error: `you have no seat in draft ${JSON.stringify(draftId)}` };
-		return { ok: true, pool: view.viewer.pool };
+		return { ok: true, pool: view.viewer.pool, notes: notesForParticipant(room, memberId) };
 	};
 }
 
@@ -988,7 +988,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	function draftedBotDeck(draftId: string, seat: number): string | null {
 		const draft = deps.draftRooms?.find(draftId);
 		const pool = draft === undefined ? null : botPoolAt(draft, seat);
-		return pool === null || pool.length === 0 ? null : botDeckText(pool, 'Bot draft');
+		return draft === undefined || pool === null || pool.length === 0 ? null : withDraftNotes(botDeckText(pool, 'Bot draft'), notesAt(draft, seat));
 	}
 
 	/** A bot game's side's `.dck` text, from where the room says it comes (`BotDeckSource`); null when there is none. */
@@ -2210,8 +2210,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// A pod round's bot plays its own drafted pool; any other drafted table, the bot that drafted across from its human.
 				const paired = deps.rooms?.tournamentPairingOf?.(room.id, table.id)?.entrants[1];
 				const draftRoom = deps.draftRooms?.find(draftId);
-				const across = draftRoom === undefined ? null : botPoolAcross(draftRoom, owner);
-				botDeck = paired !== undefined && isAiEntrant(paired) ? draftedBotDeck(draftId, aiEntrantSeat(paired)) : across === null || across.length === 0 ? null : botDeckText(across, 'Bot draft');
+				const across = draftRoom === undefined ? null : botSeatAcrossFrom(draftRoom, owner);
+				botDeck = paired !== undefined && isAiEntrant(paired) ? draftedBotDeck(draftId, aiEntrantSeat(paired)) : across === null ? null : draftedBotDeck(draftId, across);
 				if (botDeck === null) {
 					res.status(409).json({ error: 'no bot drafted in this pod, so the AI has nothing to play' });
 					return;

@@ -206,6 +206,23 @@ describe('PUT /api/drafts/:podId/deck', () => {
 		expect(mine.json.deck).toBe(dck);
 	});
 
+	it("saves the deck with what the seat's cards noted during the draft as its DraftNotes, whatever notes the body came with", async () => {
+		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir: null });
+		const { room, seat, pool } = finishPodFor(draftRooms, 'pod-n', 'alice', 'sock-a');
+		stateOf(room).notes[seat] = { 'Lurking Automaton': ['3', '7'], 'Aether Searcher': ['Borborygmos, Enraged'] };
+		stateOf(room).notes[(seat + 1) % 8] = { 'Lurking Automaton': ['14'] };
+		const h = await openApp(draftRooms);
+		const dck = legalDeckFor('pod-n', pool);
+		const forged = dck.replace('[metadata]\n', '[metadata]\nDraftNotes=Lurking Automaton:99\n');
+		expect(forged).not.toBe(dck);
+		const put = await call(h, 'PUT', '/api/drafts/pod-n/deck', { as: 'alice', body: { dck: forged } });
+		expect(put.status).toBe(200);
+		const saved = String(put.json.deck);
+		expect(saved.split('\n').filter((line) => line.startsWith('DraftNotes='))).toEqual(['DraftNotes=Lurking Automaton:3,7 | Aether Searcher:Borborygmos, Enraged']);
+		expect(saved.replace('DraftNotes=Lurking Automaton:3,7 | Aether Searcher:Borborygmos, Enraged\n', '')).toBe(dck);
+		expect((await call(h, 'GET', '/api/drafts/pod-n/mine', { as: 'alice' })).json.deck).toBe(saved);
+	});
+
 	it('saves an unfinished build — 24 cards of the pool — and GET …/mine reads it back', async () => {
 		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir: null });
 		const { pool } = finishPodFor(draftRooms, 'pod-h', 'alice', 'sock-a');

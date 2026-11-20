@@ -49,6 +49,7 @@ import type { PresenceTracker } from '@wolffm/rooms-server';
 import { MultiRateLimiter } from '@wolffm/rooms-server';
 import {
 	DRAFT_CHANNEL,
+	answerAsk,
 	joinDraft,
 	leaveDraft,
 	leanDraft,
@@ -61,7 +62,7 @@ import {
 	type RoomSettings,
 	type ServerMessage,
 } from '@hadoku/shared';
-import { pickTimeMs, timeoutPick } from '@hadoku/draft';
+import { isBotSeat, packOf, pick as enginePick, pickTimeMs, runBots, timeoutPick } from '@hadoku/draft';
 
 import type { Draftbot, DraftbotInput } from './draftbot.js';
 import type { DraftRoom, DraftRooms } from './draftRooms.js';
@@ -1042,6 +1043,83 @@ describe('the draft rope', () => {
 		await runOut(seat);
 		expect(roomsMod.stateOf(room()).pools[seat]![0]!.cardId).toBe(bots);
 		expect(errors(alice)).toEqual([]);
+	});
+
+	/**
+	 * The room's draft with every pick made and a Deal Broker face up in front of `seat`: the
+	 * card asks its holder a question after the last pick, with no pack in front of anybody.
+	 */
+	function toTheBrokersQuestion(seat: number): void {
+		let state = roomsMod.stateOf(room());
+		packOf(state, seat)[0]!.name = 'Deal Broker';
+		for (let guard = 0; guard < 500 && !state.finishing; guard++) {
+			for (let s = 0; s < state.seatCount; s++) {
+				const next = isBotSeat(state, s) ? undefined : packOf(state, s)[0];
+				if (next === undefined) continue;
+				const taken = enginePick(state, s, next.cardId);
+				if (!taken.ok) throw new Error(`pick refused: ${taken.reason}`);
+				state = taken.state;
+			}
+			state = runBots(state).state;
+		}
+		if (state.status !== 'drafting' || state.asks.length !== 1) throw new Error('the Deal Broker should be asking');
+		room().app.state = state;
+	}
+
+	/** Alice seated on the rope, asked by her Deal Broker after the last pick, and her deadline for it. */
+	async function aliceAsked(): Promise<{ alice: Peer; bob: Peer; seat: number; askId: number }> {
+		await harness?.close();
+		harness = await boot({ settings: rope });
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		const opening = lastView(alice);
+		if (opening?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		const seat = opening.viewer.seatId;
+		toTheBrokersQuestion(seat);
+		// The next change to the draft (a watcher's join) brings the deadlines up to date with it.
+		const bob = await connect(live().port, edgeHeaders('bob'));
+		await joinAndSettle(bob);
+		const before = alice.received.length;
+		alice.send(resyncRequest(startedRoomId, null));
+		await waitUntil(() => alice.received.length > before, 'alice to be shown the question');
+		const view = lastView(alice);
+		if (view?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		expect(view.viewer.pack).toEqual([]);
+		expect(view.viewer.asks?.map((a) => a.source)).toEqual(['Deal Broker']);
+		// Every pool is full and the draft is not over: the payload says so itself.
+		expect(view.viewer.pool).toHaveLength(view.packCount * view.packSize);
+		expect(view.complete).toBe(false);
+		return { alice, bob, seat, askId: view.viewer.asks![0]!.id };
+	}
+
+	it('times a question asked after the last pick, with no pack in front of the seat, and the answer ends the draft', async () => {
+		const { alice, seat, askId } = await aliceAsked();
+		const deadline = room().app.rope.get(seat);
+		expect(deadline?.key).toBe(`3:15:ask${askId}`);
+		expect(deadline?.totalMs).toBe(pickTimeMs(15, 4));
+		const view = lastView(alice);
+		expect(view?.viewer.kind === 'seat' && view.viewer.timer?.totalMs).toBe(pickTimeMs(15, 4));
+
+		alice.send(answerAsk(startedRoomId, askId, 'no'));
+		await waitUntil(() => lastView(alice)?.complete === true, 'alice to be told the draft is over');
+		expect(roomsMod.stateOf(room()).status).toBe('complete');
+		expect(room().app.rope.size).toBe(0);
+		expect(lines().some((l) => l.evt === 'answer' && l.seat === seat)).toBe(true);
+	});
+
+	it('answers a question asked after the last pick when its time runs out, and the draft ends', async () => {
+		const { alice, bob, seat } = await aliceAsked();
+		const deadline = room().app.rope.get(seat);
+		if (deadline === undefined) throw new Error("alice's question has no deadline");
+		deadline.endsAt = Date.now() - 1;
+		// Bob joining again re-arms the room's timer for it, which then fires at once.
+		await joinAndSettle(bob);
+
+		await waitUntil(() => roomsMod.stateOf(room()).status === 'complete', 'the timeout to answer');
+		expect(lines().filter((l) => l.evt === 'pick-timeout' && l.seat === seat).map((l) => l.totalMs)).toEqual([pickTimeMs(15, 4)]);
+		expect(lines().some((l) => l.evt === 'answer')).toBe(false);
+		await waitUntil(() => lastView(alice)?.complete === true, 'alice to be told the draft is over');
+		expect(room().app.rope.size).toBe(0);
 	});
 
 	it('is absent with the room’s pick timer off', async () => {

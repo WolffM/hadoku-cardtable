@@ -192,6 +192,55 @@ export const DraftSeatViewSchema = z.object({
  * the client counts down from when the envelope arrived. Absent when the room
  * has no pick timer, or the seat has nothing to pick.
  */
+/**
+ * One public line of what a card did to the draft: who, a verb, and the cards
+ * it made public (a card revealed as it was drafted, a card drafted face up).
+ * `detail` finishes the sentence where the cards alone do not.
+ */
+export const DraftLogEntrySchema = z.object({
+  /** 1-based, in order, so a client can tell a new line from one it has. */
+  n: z.number().int().positive(),
+  seatId: SeatIdSchema,
+  verb: z.string().min(1),
+  cards: z.array(DraftCardSchema).optional(),
+  detail: z.string().optional(),
+});
+
+/** A face-up card of the seat's own that it can use now: with its pick (`pick`), or at any time (`now`). */
+export const DraftUseSchema = z.object({
+  /** The face-up card's `cardId`. */
+  with: z.string().min(1),
+  name: z.string().min(1),
+  when: z.enum(['pick', 'now']),
+  /** With `pick`: the use takes a second card from the pack (`PickAction.extra`). */
+  extra: z.boolean().optional(),
+  /**
+   * With `now`: what it may be pointed at; the chosen `key` goes back as the use's `target`.
+   * Targets sharing a `group` are chosen in two steps, the group and then the target.
+   */
+  targets: z.array(z.object({ key: z.string().min(1), label: z.string().min(1), group: z.string().min(1).optional() })).optional(),
+  /** With `pick`: what the picked card must be for the use to go with it (`meetsNeed`). Absent for any card. */
+  needs: z.enum(['creature']).optional(),
+});
+
+/** A question a card asks one seat. Answered with an option's `key` or a card's `cardId`. */
+export const DraftAskViewSchema = z.object({
+  id: z.number().int().positive(),
+  /** The card asking. */
+  source: z.string().min(1),
+  title: z.string().min(1),
+  options: z.array(z.object({ key: z.string().min(1), label: z.string().min(1) })).optional(),
+  cards: z.array(DraftCardSchema).optional(),
+});
+
+/** Cards a card showed this seat alone. */
+export const DraftSeenSchema = z.object({
+  n: z.number().int().positive(),
+  source: z.string().min(1),
+  detail: z.string().optional(),
+  cards: z.array(DraftCardSchema),
+});
+
 const PickTimerViewSchema = z.object({
   totalMs: z.number().int().positive(),
   msLeft: z.number().int().nonnegative(),
@@ -204,12 +253,17 @@ export const ViewerViewSchema = z.discriminatedUnion('kind', [
     pack: z.array(DraftCardSchema),
     pool: z.array(DraftCardSchema),
     timer: PickTimerViewSchema.optional(),
+    /** The seat's own face-up cards it can use now (`@hadoku/draft`'s `actions/`). Absent for none. */
+    uses: z.array(DraftUseSchema).optional(),
+    /** The questions open in front of this seat; it picks nothing until they are answered. Absent for none. */
+    asks: z.array(DraftAskViewSchema).optional(),
+    /** What cards have shown this seat alone, oldest first. Absent for none. */
+    seen: z.array(DraftSeenSchema).optional(),
     /**
-     * The seat's own face-up cards that let it take a second card from the pack
-     * in front of it, by `cardId` (Cogwork Librarian). Absent when none can be
-     * used on this pick.
+     * The pack in front of the seat is one it may not look at (Archdemon of
+     * Paliano): `pack` is empty and this is how many cards it holds.
      */
-    extraPick: z.array(z.string().min(1)).optional(),
+    packHidden: z.number().int().positive().optional(),
   }),
   z.object({
     kind: z.literal('watcher'),
@@ -260,6 +314,15 @@ export const DraftViewSchema = z.object({
    * Each seat picks at its own pace, so this is normally several seats.
    */
   waitingOn: z.array(SeatIdSchema),
+  /** What cards have done to the draft in public, oldest first; the latest lines only. Absent for none. */
+  log: z.array(DraftLogEntrySchema).optional(),
+  /**
+   * Whether the draft is over, sent only for a draft holding a card that
+   * changes the draft: there a seat's pool size no longer says (a card may add
+   * picks, take cards away, or ask a seat something after its last pick).
+   * Absent, a seat is done when its pool holds every pick.
+   */
+  complete: z.boolean().optional(),
   viewer: ViewerViewSchema,
 });
 
@@ -275,6 +338,18 @@ export type DraftSeatView = z.infer<typeof DraftSeatViewSchema>;
 export type ViewerView = z.infer<typeof ViewerViewSchema>;
 export type PassDirection = z.infer<typeof PassDirectionSchema>;
 export type DraftView = z.infer<typeof DraftViewSchema>;
+export type DraftLogEntry = z.infer<typeof DraftLogEntrySchema>;
+export type DraftUse = z.infer<typeof DraftUseSchema>;
+export type PickNeed = NonNullable<DraftUse['needs']>;
+export type DraftAskView = z.infer<typeof DraftAskViewSchema>;
+export type DraftSeen = z.infer<typeof DraftSeenSchema>;
+
+/** Whether a card is what a use needs its pick to be. The server and the seat's own screen ask the same question. */
+export function meetsNeed(card: Pick<DraftCard, 'typeLine'>, need: PickNeed | undefined): boolean {
+  if (need === undefined) return true;
+  // A creature by its front face: the types before the dash.
+  return /\bCreature\b/.test(card.typeLine.split(' // ')[0]?.split('—')[0] ?? '');
+}
 
 /** The seat arm of a viewer, or null for a spectator or a watcher. */
 export function viewerSeat(view: DraftView): Extract<ViewerView, { kind: 'seat' }> | null {

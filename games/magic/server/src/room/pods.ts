@@ -498,7 +498,7 @@ function podPersonas(room: RoomRecord, humans: readonly string[], checks: Pick<G
 	return Object.fromEntries([...new Set(ids)].filter((id) => id === POD_AI || isAiEntrant(id)).map((id) => [id, entrantPersona(room, id, checks)]));
 }
 
-/** The draft room's own AI character: the bot that drafted across the table from its first human (`draftRooms.ts`'s `botPoolAcross`, by the same rule). A pod round's bot wears its own (`entrantPersona`). */
+/** The draft room's own AI character: the bot that drafted across the table from its first human (`draftRooms.ts`'s `botSeatAcrossFrom`, by the same rule). A pod round's bot wears its own (`entrantPersona`). */
 function aiOpponent(room: RoomRecord): AiPersona | null {
 	const table = podTable(room);
 	const human = table.findIndex((place) => place.kind === 'human');

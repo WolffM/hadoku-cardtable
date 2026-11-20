@@ -164,6 +164,8 @@ import {
 	createDraft,
 	deal,
 	fromLockstep,
+	withDraftDefaults,
+	dealSpares,
 	isBotSeat,
 	spectatorView,
 	viewFor,
@@ -726,10 +728,9 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 						persisted.state === null
 							? null
 							: unnamedPeople({
-									...fromLockstep(persisted.state as DraftState | LockstepState),
+									// A snapshot from before cards had draft actions has none of their fields.
+									...withDraftDefaults(fromLockstep(persisted.state as DraftState | LockstepState)),
 									avatarIds: (persisted.state as Partial<DraftState>).avatarIds ?? {},
-									// A snapshot from before cards could be drafted face up has none.
-									faceUp: (persisted.state as Partial<DraftState>).faceUp ?? [],
 									epoch: ctx.restoreId,
 								}),
 					builtDecks: persisted.builtDecks ?? {},
@@ -836,6 +837,8 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// in step without threading a second seed through.
 			seed: draftId,
 			packs: deal(plan, options.resolver.cards, draftId, seatCount, params.packSize, realisticPacks),
+			// What the same deal leaves unopened, for a card that adds a booster to the draft.
+			...dealSpares(plan, options.resolver.cards, draftId, seatCount, params.packSize, realisticPacks),
 			seatCount,
 			packCount: plan.rounds.length,
 			packSize: params.packSize,
@@ -1019,17 +1022,31 @@ function watchedSeat(state: DraftState, wanted: SeatId | null): SeatId | null {
 }
 
 /**
- * The pool of the bot that drafted across the table from this participant (or,
- * with no bot there, the first bot seat) — what the AI plays at a pod table
- * (`botDeck.ts`). Null when the participant drafted no seat here, or no seat
- * was a bot.
+ * The seat of the bot that drafted across the table from this participant (or,
+ * with no bot there, the first bot seat): its pool is what the AI plays at a
+ * pod table (`botDeck.ts`). Null when the participant drafted no seat here, or
+ * no seat was a bot.
  */
-export function botPoolAcross(room: DraftRoom, participantId: ParticipantId): DraftCard[] | null {
+export function botSeatAcrossFrom(room: DraftRoom, participantId: ParticipantId): number | null {
 	const state = stateOf(room);
 	const seat = seatOf(room.seats, participantId) ?? finishedSeatOf(state, room.seats, participantId);
-	if (seat === null) return null;
-	const chosen = botSeatAcross(seat, state.seatCount, (s) => isBotSeat(state, s));
-	return chosen === null ? null : botPoolAt(room, chosen);
+	return seat === null ? null : botSeatAcross(seat, state.seatCount, (s) => isBotSeat(state, s));
+}
+
+/**
+ * What the cards a seat drafted noted for the match, card name to notes
+ * (`DraftState.notes`): the seat's deck carries them to Forge as its
+ * `DraftNotes`.
+ */
+export function notesAt(room: DraftRoom, seat: number): Record<string, string[]> {
+	return stateOf(room).notes[seat] ?? {};
+}
+
+/** The notes of the seat this participant drafts from, by `viewForParticipant`'s own resolution; none for a person with no seat. */
+export function notesForParticipant(room: DraftRoom, participantId: ParticipantId): Record<string, string[]> {
+	const state = stateOf(room);
+	const seat = seatOf(room.seats, participantId) ?? finishedSeatOf(state, room.seats, participantId);
+	return seat === null ? {} : notesAt(room, seat);
 }
 
 /**

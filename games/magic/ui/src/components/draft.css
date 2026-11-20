@@ -281,17 +281,65 @@
   border-bottom: 0;
 }
 
+/* What a card may be pointed at is a button a choice: they take as many rows as they need. */
 .draft__aside .draft__controls {
   margin-left: 0;
+  flex-wrap: wrap;
 }
 
-/* The cards seats drafted face up: a seat's name, then its cards. */
+/* A question a card asks the seat: its words, then the choices in a row. It lies over the top of the
+   pack, which the seat takes nothing from until it answers, and is never taller than the pack's row:
+   a long row of cards (a whole pool) scrolls inside it. */
+.draft__ask {
+  grid-area: pack;
+  align-self: start;
+  z-index: 4;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden auto;
+  padding: 8px 16px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* One question at a time, the oldest first: the next is drawn when it is answered. */
+.draft__ask ~ .draft__ask {
+  display: none;
+}
+
+.draft__ask-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.draft__ask-choices {
+  --ask-card-w: 140px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* A card to choose is a tile of one size, as many to a row as fit. */
+.draft__ask-choices > .card {
+  --card-h: calc(var(--ask-card-w) / (var(--card-ratio)));
+  flex: none;
+  width: var(--ask-card-w);
+}
+
+/* The cards seats drafted face up, what cards did in public, and what they showed this seat: one line each. */
 .draft__faceup {
   margin: 0;
   padding: 0;
   list-style: none;
   color: var(--ink-dim);
   font-size: 12px;
+}
+
+/* A card a seat was shown: its name never breaks across two lines, so a pack of names reads name by name. */
+.draft__seen-card {
+  white-space: nowrap;
 }
 
 /* A finished draft's deck view has the whole body. */
@@ -332,6 +380,13 @@
   .draft__main > .pick-rope {
     position: absolute;
     inset: 0 0 auto;
+  }
+
+  /* A row of the column, above the pack, as long as its choices: the page scrolls. */
+  .draft__main > .draft__ask {
+    align-self: stretch;
+    max-height: none;
+    overflow: visible;
   }
 
   .draft__main > .pool {

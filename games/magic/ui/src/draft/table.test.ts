@@ -14,11 +14,13 @@ import { loadFixtures, openingStream } from './fixtures.ts';
 import {
   applyPayload,
   decidePayload,
+  explainRejection,
   initialState,
   isAwaitingConfirmation,
   isDraftComplete,
   pick,
   pickBlockedBy,
+  useBlockedBy,
   visiblePack,
   visiblePool,
 } from './table.ts';
@@ -41,25 +43,57 @@ describe('picking', () => {
     expect(isAwaitingConfirmation(result.state)).toBe(true);
   });
 
-  it('a two-card pick shows both cards in the pool and the card that paid for them gone', () => {
+  it('a two-card pick shows both cards in the pool, and only with a card the view offers', () => {
     const view = structuredClone(openingStream()[0]);
     const seat = viewerSeat(view);
     if (!seat) throw new Error('expected a seat');
-    const payer = { ...seat.pack[14], cardId: 'payer', name: 'Cogwork Librarian' };
-    seat.pool.push(payer);
-    seat.extraPick = ['payer'];
+    seat.uses = [{ with: 'payer', name: 'Cogwork Librarian', when: 'pick', extra: true }];
     const before = initialState(view);
     const [a, b] = [seat.pack[0].cardId, seat.pack[1].cardId];
 
-    const result = pick(before, a, { cardId: b, with: 'payer' });
+    const result = pick(before, a, { use: ['payer'], extra: b });
     if (!result.ok) throw new Error('a legal two-card pick was rejected');
     expect(visiblePool(result.state).map((c) => c.cardId)).toEqual([a, b]);
     expect(visiblePack(result.state)).toEqual([]);
 
-    // The same card twice, a card not in the pack, and a payer the view did not offer.
-    expect(pick(before, a, { cardId: a, with: 'payer' }).ok).toBe(false);
-    expect(pick(before, a, { cardId: 'elsewhere', with: 'payer' }).ok).toBe(false);
-    expect(pick(before, a, { cardId: b, with: 'other' }).ok).toBe(false);
+    // The same card twice, a card not in the pack, and a use the view did not offer.
+    expect(pick(before, a, { use: ['payer'], extra: a }).ok).toBe(false);
+    expect(pick(before, a, { use: ['payer'], extra: 'elsewhere' }).ok).toBe(false);
+    expect(pick(before, a, { use: ['other'], extra: b }).ok).toBe(false);
+  });
+
+  it('a use that needs a creature is refused here with any other card, alone or beside a use that needs nothing', () => {
+    const view = structuredClone(openingStream()[0]);
+    const seat = viewerSeat(view);
+    if (!seat) throw new Error('expected a seat');
+    seat.pack[0] = { ...seat.pack[0], typeLine: 'Legendary Creature — Human Knight' };
+    seat.pack[1] = { ...seat.pack[1], typeLine: 'Instant' };
+    seat.pack[2] = { ...seat.pack[2], typeLine: 'Enchantment — Aura // Creature — Spirit' };
+    seat.uses = [
+      { with: 'noter', name: 'Noble Banneret', when: 'pick', needs: 'creature' },
+      { with: 'free', name: 'Smuggler Captain', when: 'pick' },
+    ];
+    const before = initialState(view);
+    const [creature, instant, aura] = [seat.pack[0].cardId, seat.pack[1].cardId, seat.pack[2].cardId];
+
+    expect(useBlockedBy(before, creature, ['noter', 'free'])).toBeNull();
+    expect(pick(before, creature, { use: ['noter'] }).ok).toBe(true);
+    expect(pick(before, instant, { use: ['noter'] })).toEqual({ ok: false, rejection: { reason: 'use-needs', need: 'creature' } });
+    expect(pick(before, instant, { use: ['free', 'noter'] })).toEqual({ ok: false, rejection: { reason: 'use-needs', need: 'creature' } });
+    // A creature by its front face only.
+    expect(useBlockedBy(before, aura, ['noter'])).toEqual({ reason: 'use-needs', need: 'creature' });
+    // Without that use, or with one that needs nothing, the same card is taken.
+    expect(pick(before, instant).ok).toBe(true);
+    expect(pick(before, instant, { use: ['free'] }).ok).toBe(true);
+    expect(explainRejection({ reason: 'use-needs', need: 'creature' })).toBe('Not a creature card.');
+  });
+
+  it('nothing is picked while a card\'s question is open', () => {
+    const view = structuredClone(openingStream()[0]);
+    const seat = viewerSeat(view);
+    if (!seat) throw new Error('expected a seat');
+    seat.asks = [{ id: 1, source: 'Lore Seeker', title: 'Add a booster pack to the draft?', options: [{ key: 'yes', label: 'Yes' }] }];
+    expect(pick(initialState(view), seat.pack[0].cardId)).toEqual({ ok: false, rejection: { reason: 'ask-open' } });
   });
 
   it('does not invent the next pack — it waits for one', () => {
@@ -254,6 +288,12 @@ describe('a finished draft', () => {
     const state = initialState(full(openingStream()[0]));
     expect(isDraftComplete(state)).toBe(true);
     expect(visiblePool(state)).toHaveLength(45);
+  });
+
+  it('takes the draft\'s own word when it carries one: a full pool with a question still open is not the end', () => {
+    const open = full(openingStream()[0]);
+    expect(isDraftComplete(initialState({ ...open, complete: false }))).toBe(false);
+    expect(isDraftComplete(initialState({ ...openingStream()[0], complete: true }))).toBe(true);
   });
 
   it('counts a pick still in flight, so the deck is not one round trip late', () => {

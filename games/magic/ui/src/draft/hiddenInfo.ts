@@ -9,8 +9,10 @@
  * someone adds a field, not when they mistype one.
  *
  * So the rule enforced here is positional, not nominal: **the only places a
- * card may appear in a payload are `viewer.pack`, `viewer.pool` and a seat's
- * `faceUp`** (a card drafted face up is public by its own text). Anywhere
+ * card may appear in a payload are `viewer.pack`, `viewer.pool`, a seat's
+ * `faceUp` and the public `log`** (a card drafted face up or revealed is
+ * public by its own text), **and the seat's own `asks` and `seen`** (what a
+ * card asks or shows that seat alone). Anywhere
  * else — a seat summary, a debug echo, a `lastPick` convenience field someone
  * adds later — is a leak, and the test names the path.
  */
@@ -54,7 +56,11 @@ export function findCardPaths(payload: unknown): string[] {
  */
 export function findLeakedCardPaths(payload: unknown): string[] {
   const allowed = (p: string): boolean =>
-    p.startsWith('$.viewer.pack[') || p.startsWith('$.viewer.pool[') || /^\$\.seats\[\d+\]\.faceUp\[/.test(p);
+    p.startsWith('$.viewer.pack[') ||
+    p.startsWith('$.viewer.pool[') ||
+    /^\$\.seats\[\d+\]\.faceUp\[/.test(p) ||
+    /^\$\.log\[\d+\]\.cards\[/.test(p) ||
+    /^\$\.viewer\.(asks|seen)\[\d+\]\.cards\[/.test(p);
   return findCardPaths(payload).filter((p) => !allowed(p));
 }
 

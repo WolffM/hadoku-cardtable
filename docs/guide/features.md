@@ -25,17 +25,68 @@ drag the fan sideways or use the arrow keys to move along the pack. The (i)
 button in the room's bar, by Close, lists every control, beside the switch
 between the fan and the grid.
 
-Cogwork Librarian works as printed: it is drafted face up, where the whole
-table sees it beside its drafter's name, and on a later pack its drafter
-presses its name, then two cards, to take both and put the Librarian into
-that pack for the next seat.
+Cards that change the draft itself work as printed. What such a card does
+in public is listed under the pod for everyone, and a card drafted face up
+shows beside its drafter's name.
 
-**What it does not do.** The other 23 cards that change a draft (Lore
-Seeker, Canal Dredger, Agent of Acquisitions and the rest of Conspiracy's)
-draft as ordinary cards, in an imported cube as in any other. Bots never use
-a Librarian they draft. A cube is a list of cards and nothing more: no
-custom pack rules, no weighting, and no card Forge cannot play, which a
-draft leaves out.
+Used with a pick, by pressing the face-up card's name and then the pick.
+Cogwork Librarian takes two cards and goes into that pack for the next seat.
+Leovold's Operative takes a second card, then its drafter's next pack passes
+on untouched. Agent of Acquisitions takes the whole pack, and for the rest of
+the round every pack that reaches its drafter passes on untouched (they are
+shown each one). Cogwork Grinder removes the picked card from the draft
+without the table learning which, on every pick it is pressed; Animus of
+Predation does the same with the card shown to everyone. Noble Banneret and
+Paliano Vanguard reveal a creature as it is drafted and note its name or its
+creature types; Smuggler Captain notes any card's name. Pressed with a card
+that is no creature, the Banneret and the Vanguard refuse the pick.
+
+Asking a seat. Lore Seeker is revealed and asks its drafter whether to add a
+booster pack: on Yes a pack the draft never opened is their next pick, then
+passes on. Paliano, the High City and Regicide are revealed, then the player
+to the drafter's right, the drafter and the player to its left each choose a
+colour on their own screen, and the table is told the three. Deal Broker is
+drafted face up and runs after the last pick: its holder may reveal a card of
+its pool, each other player may offer one of theirs (only the holder sees an
+offer), and the holder may accept one, which swaps the two cards before deck
+building opens.
+
+Changing where packs go and what a seat sees. Canal Dredger is drafted face
+up, and from then on the last card of every pack goes to its drafter; when
+several seats drafted one, a seat that did keeps its own and any other seat
+is asked which of them gets it. Archdemon of Paliano is drafted face up and
+hides its drafter's packs: each is a count and one button that drafts a card
+at random, and after three such cards it turns face down.
+
+Showing one seat something hidden, sent to that seat alone and listed under
+the pod on their screen only. Cogwork Spy shows its drafter the next card
+drafted from the pack it came from. Spire Phantasm asks its drafter to guess,
+among the cards left in that pack, the next one drafted from it; that card is
+then revealed to the table, and a right guess is noted for the match.
+Illusionary Informant and Whispergear Sneak lie face up until their drafter
+presses their name, at any time: the Informant shows the next card a chosen
+seat drafts, the Sneak a whole pack nobody is looking at (unopened, or
+waiting behind the one a seat is picking from).
+
+Revealing and noting. Custodi Peacekeeper, Garbage Fire, Lurking Automaton
+and Pyretic Hunter are revealed and note how many cards their drafter has
+drafted that round. Cogwork Tracker notes who passed it. Aether Searcher is
+revealed, and the next card its drafter drafts is revealed and noted too.
+
+What a card notes during the draft goes with the drafted deck into its
+matches, where the same card reads it: the Automaton enters with that many
+counters, Paliano makes only the three chosen colours, the Banneret pumps the
+creature it named. A bot's deck carries its notes as well.
+
+**What it does not do.** Cogwork Tracker's note changes nothing in a match:
+Forge never reads it back, and with two players the card attacks the only
+opponent there is. Bots never use a face-up card they draft, answer No to what a card
+asks them (asked for a colour, the first offered; asked where a last card
+goes, the nearest Dredger seat) and make no offer to a Deal Broker. Lore
+Seeker adds a pack only from cards the cube has left over after the deal, so
+a cube the pod uses up, and a set drafted as real boosters, has none to add.
+A cube is a list of cards and nothing more: no custom pack rules, no
+weighting, and no card Forge cannot play, which a draft leaves out.
 
 ## Hosting a draft
 

@@ -290,7 +290,10 @@ describe('errors are values', () => {
       'empty-pack',
       'already-picked',
       'card-not-in-pack',
-      'extra-pick-refused',
+      'use-refused',
+      'ask-open',
+      'unknown-ask',
+      'bad-answer',
     ]);
     for (const code of PICK_REJECTION_CODES) {
       const msg = errorMessage({ epoch: 'e1', seq: 7 }, code);

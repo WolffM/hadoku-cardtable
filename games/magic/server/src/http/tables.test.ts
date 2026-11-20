@@ -40,7 +40,7 @@ import {
 	type RoomTable,
 } from '@hadoku/shared';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
-import { botPoolAcross, createDraftRooms, joinDraftRoom, singlePoolResolver, stateOf, type DraftRooms } from '../room/draftRooms.js';
+import { botPoolAt, botSeatAcrossFrom, createDraftRooms, joinDraftRoom, singlePoolResolver, stateOf, type DraftRooms } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
 import { isBotSeat } from '@hadoku/draft';
 import { draftPoolId } from '../room/lobby.js';
@@ -3230,7 +3230,27 @@ describe('a pod table plays each drafter’s own pool', () => {
 		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
 		expect(res.status).toBe(201);
 		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([built(pools.alice), botDeckText(state.pools[across]!, 'Bot draft')]);
-		expect(botPoolAcross(room, ALICE)).toEqual(state.pools[across]);
+		expect(botSeatAcrossFrom(room, ALICE)).toBe(across);
+		expect(botPoolAt(room, across)).toEqual(state.pools[across]);
+	});
+
+	it("starts a drafted match with each seat's own draft notes in its deck, the bot's too", async () => {
+		const h = await boot();
+		const pools = pod(h);
+		const state = stateOf(h.rooms.find(POD)!);
+		const mine = state.table.seats.findIndex((s) => s.occupant?.kind === 'human' && s.occupant.participantId === ALICE);
+		const across = (mine + 4) % 8;
+		state.pools[across] = state.queues.flat(2).slice(90, 135);
+		state.notes[mine] = { 'Lurking Automaton': ['3', '7'] };
+		state.notes[across] = { 'Pyretic Hunter': ['2'], 'Aether Searcher': ['Shock'] };
+		openRoom(h);
+		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
+
+		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status).toBe(201);
+		const notesOf = (deck: string | null | undefined) => (deck ?? '').split('\n').filter((line) => line.startsWith('DraftNotes='));
+		expect(h.specs[0]?.seats.map((s) => notesOf(s.deck))).toEqual([['DraftNotes=Lurking Automaton:3,7'], ['DraftNotes=Pyretic Hunter:2 | Aether Searcher:Shock']]);
+		expect(h.specs[0]?.seats[0]?.deck?.replace('DraftNotes=Lurking Automaton:3,7\n', '')).toBe(built(pools.alice));
 	});
 
 	/**

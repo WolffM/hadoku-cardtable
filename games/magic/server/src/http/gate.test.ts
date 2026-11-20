@@ -100,3 +100,28 @@ describe('the Standard arm is unchanged', () => {
 		expect(v.issues.map((i) => [i.kind, i.cardName])).toContainEqual(['not-in-pool', 'Hallowed Fountain']);
 	});
 });
+
+describe("a drafted deck's DraftNotes", () => {
+	const noted = { 'Garbage Fire': ['2', '5'], 'Paliano, the High City': ['white,blue,black'] };
+	const withNotes = { ...ctx, draftPool: () => ({ ok: true as const, pool: POOL, notes: noted }) };
+	const LINE = 'DraftNotes=Garbage Fire:2,5 | Paliano, the High City:white,blue,black';
+
+	it('are written into the text that goes to Forge, from the draft and not from the file', () => {
+		const text = draftedDeckText();
+		const v = checkSeat(drafted(text), withNotes) as SeatVerdict;
+		expect(v.legal).toBe(true);
+		expect(v.text.split('\n').filter((l) => /^draftnotes/i.test(l))).toEqual([LINE]);
+		expect(v.text.replace(`${LINE}\n`, '')).toBe(text);
+		// Checked again, as a saved deck is before every match: the same text.
+		expect((checkSeat(drafted(v.text), withNotes) as SeatVerdict).text).toBe(v.text);
+
+		const forged = text.replace('[metadata]\n', '[metadata]\nDraftNotes=Garbage Fire:99\n');
+		expect((checkSeat(drafted(forged), withNotes) as SeatVerdict).text).toBe(v.text);
+		expect((checkSeat(drafted(forged), ctx) as SeatVerdict).text).toBe(text);
+	});
+
+	it('leave a deck with nothing noted byte for byte as it came', () => {
+		const text = draftedDeckText();
+		expect((checkSeat(drafted(text), ctx) as SeatVerdict).text).toBe(text);
+	});
+});

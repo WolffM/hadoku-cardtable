@@ -10,13 +10,14 @@
  * carries `pickedCount` — a number — instead of the picks. A seat's cards go
  * only under `viewer`: to the seat itself, or to a person holding no seat who
  * chose to watch it (`watcherView`). The one exception is a card drafted face
- * up (`actions.ts`), which every payload carries under its seat's `faceUp`
+ * up (`actions/`), which every payload carries under its seat's `faceUp`
  * because the card itself makes it public. So a drafter is never sent another
  * seat's hidden cards anywhere on a payload. Leaking one requires adding
  * a field, which a reviewer sees, rather than forgetting a filter, which nobody
  * sees. `games/magic/ui/src/draft/hiddenInfo.ts` then walks whole serialised payloads
  * and fails if a card-shaped object appears anywhere but `viewer.pack`,
- * `viewer.pool` and a seat's `faceUp`.
+ * `viewer.pool`, a seat's `faceUp`, the public `log`, and the seat's own
+ * `asks` and `seen`.
  *
  * ## Built one recipient at a time, on purpose
  *
@@ -29,8 +30,10 @@
  */
 
 import { seatRows, type SeatId, type SeatOccupant } from '@wolffm/rooms-protocol';
-import type { DraftSeatView, DraftView } from '@hadoku/shared';
-import { directionFor, extraPicksOf, packOf, pickNumberOf, podPickNumber, queueDepth, waitingOn, type DraftState } from './engine.ts';
+import type { DraftCard, DraftSeatView, DraftView } from '@hadoku/shared';
+import type { ViewerView } from '@hadoku/shared';
+import { actionsOf } from './actions/index.ts';
+import { asksOf, directionFor, isBlind, packOf, pickNumberOf, podPickNumber, queueDepth, usesOf, waitingOn, type DraftState } from './engine.ts';
 
 /** One row as `seatRows` hands it over: a seat that exists, occupied or not. */
 type SeatRow = { id: SeatId; occupant: SeatOccupant | null };
@@ -67,6 +70,34 @@ function faceUpOf(state: DraftState, id: SeatId): Pick<DraftSeatView, 'faceUp'> 
   return { faceUp: (state.pools[id] ?? []).filter((c) => ids.includes(c.cardId)) };
 }
 
+/** How many of the public log's latest lines a payload carries. */
+const LOG_LINES = 40;
+
+/**
+ * What the seat itself is sent beside its pack and pool: the face-up cards it
+ * can use, the questions open in front of it, and what cards have shown it
+ * alone. A pack it may not look at travels as a count.
+ */
+function ownOnly(state: DraftState, seatId: SeatId): Partial<Extract<ViewerView, { kind: 'seat' }>> {
+  if (seatId >= state.seatCount) return {};
+  const uses = usesOf(state, seatId);
+  const asks = asksOf(state, seatId).map(({ id, source, title, options, cards }) => ({
+    id,
+    source,
+    title,
+    ...(options === undefined ? {} : { options }),
+    ...(cards === undefined ? {} : { cards }),
+  }));
+  const seen = state.seen[seatId] ?? [];
+  const hidden = isBlind(state, seatId) ? packOf(state, seatId).length : 0;
+  return {
+    ...(uses.length === 0 ? {} : { uses }),
+    ...(asks.length === 0 ? {} : { asks }),
+    ...(seen.length === 0 ? {} : { seen }),
+    ...(hidden === 0 ? {} : { pack: [], packHidden: hidden }),
+  };
+}
+
 /** The part of a payload that is the same for everybody but the pick, which is the viewed seat's. */
 function common(state: DraftState, seatId: SeatId | null): Omit<DraftView, 'viewer'> {
   return {
@@ -89,7 +120,15 @@ function common(state: DraftState, seatId: SeatId | null): Omit<DraftView, 'view
     // with it on the wire.
     seats: seatRows(state.table).map((row) => seatView(state, row)),
     waitingOn: waitingOn(state),
+    ...(state.log.length === 0 ? {} : { log: state.log.slice(-LOG_LINES) }),
+    ...(changesItself(state) ? { complete: state.status === 'complete' } : {}),
   };
+}
+
+/** Whether any card of the draft, dealt, waiting or drafted, has a draft action (`actions/`). */
+function changesItself(state: DraftState): boolean {
+  const acts = (cards: readonly DraftCard[]): boolean => cards.some((c) => Object.keys(actionsOf(c.name)).length > 0);
+  return state.pools.some(acts) || state.queues.some((q) => q.some(acts)) || state.rounds.slice(state.packNumber).some((r) => r.some(acts));
 }
 
 /**
@@ -99,7 +138,6 @@ function common(state: DraftState, seatId: SeatId | null): Omit<DraftView, 'view
  * cannot reach back into engine state.
  */
 export function viewFor(state: DraftState, seatId: SeatId): DraftView {
-  const extraPick = seatId < state.seatCount ? extraPicksOf(state, seatId) : [];
   return {
     ...common(state, seatId),
     viewer: {
@@ -107,7 +145,7 @@ export function viewFor(state: DraftState, seatId: SeatId): DraftView {
       seatId,
       pack: packOf(state, seatId).slice(),
       pool: state.pools[seatId]?.slice() ?? [],
-      ...(extraPick.length === 0 ? {} : { extraPick }),
+      ...ownOnly(state, seatId),
     },
   };
 }
@@ -123,7 +161,7 @@ export function watcherView(state: DraftState, seatId: SeatId): DraftView {
     viewer: {
       kind: 'watcher',
       seatId,
-      pack: packOf(state, seatId).slice(),
+      pack: isBlind(state, seatId) ? [] : packOf(state, seatId).slice(),
       pool: state.pools[seatId]?.slice() ?? [],
     },
   };

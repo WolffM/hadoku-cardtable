@@ -517,3 +517,45 @@ describe('the draft screen, on committed fixtures', () => {
     expect(sheet, 'no layout of the body per pack layout').not.toMatch(/\.draft__body--(fan|grid)/);
   });
 });
+
+describe('a pack the seat may not look at', () => {
+  /** The opening fixture with its pack hidden: no cards, and a count. */
+  const blindView = () => {
+    const view = loadFixtures()[0]!;
+    if (view.viewer.kind !== 'seat') throw new Error('expected a seat fixture');
+    return { ...view, viewer: { ...view.viewer, pack: [], packHidden: 14, timer: { totalMs: 35_000, msLeft: 30_000 } } };
+  };
+
+  it('is one button and its count, with the rope burning, and never an empty pack', () => {
+    const picks: string[] = [];
+    const changes: TableState[] = [];
+    render(createElement(DraftScreen, { state: initialState(blindView()), onChange: (next) => changes.push(next), onPick: (cardId) => picks.push(cardId) }));
+    expect(packCards()).toHaveLength(0);
+    expect(screen.getByTestId('pack').textContent).toBe('14 cards');
+    expect(screen.queryByText('This pack is empty.')).toBeNull();
+    expect(screen.queryByText('Waiting for the next pack.')).toBeNull();
+    expect(screen.getByTestId('pick-rope')).toBeTruthy();
+    const button = screen.getByTestId('draft-blind-pick');
+    expect(button.dataset.cards).toBe('14');
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+
+    const pool = poolCards().length;
+    fireEvent.click(button);
+    expect(picks).toEqual(['blind']);
+    // Nothing is taken on this screen: the pool waits for the server's answer.
+    expect(changes).toEqual([]);
+    expect(poolCards()).toHaveLength(pool);
+  });
+
+  it('gives way to the wait once the seat has picked, and to a question open in front of it', () => {
+    const view = blindView();
+    const { packHidden: _count, ...passed } = view.viewer;
+    const { rerender } = render(createElement(DraftScreen, { state: initialState({ ...view, waitingOn: view.waitingOn.filter((s) => s !== 0), viewer: passed }), onChange: () => undefined }));
+    expect(screen.queryByTestId('draft-blind-pick')).toBeNull();
+    expect(screen.getByTestId('pack').textContent).toBe('Waiting for the next pack.');
+    const asked = { ...view, viewer: { ...view.viewer, asks: [{ id: 1, source: 'Canal Dredger', title: 'Pass the last card to', options: [{ key: '2', label: 'Bot 2' }] }] } };
+    rerender(createElement(DraftScreen, { state: initialState(asked), onChange: () => undefined }));
+    expect(screen.queryByTestId('draft-blind-pick')).toBeNull();
+    expect(screen.getByTestId('draft-ask').dataset.source).toBe('Canal Dredger');
+  });
+});

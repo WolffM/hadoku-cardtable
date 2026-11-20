@@ -62,6 +62,42 @@
       "collectorNumber": "63",
       "rarity": "rare"
     },
+    "aether searcher": {
+      "cardId": "aether searcher",
+      "scryfallId": "94dcff94-9f25-4ca9-a1f1-5d97de4ab9df",
+      "oracleId": "80ea63fd-691a-45ba-a4bf-862e5ec2922d",
+      "name": "Aether Searcher",
+      "manaCost": [
+        "7"
+      ],
+      "manaValue": 7,
+      "colors": [],
+      "typeLine": "Artifact Creature — Construct",
+      "oracleText": "Reveal this card as you draft it. Reveal the next card you draft and note its name.\nWhen this creature enters, you may search your hand and/or library for a card with a name noted as you drafted cards named Aether Searcher. You may cast it without paying its mana cost. If you search your library this way, shuffle.",
+      "setCode": "CNS",
+      "collectorNumber": "53",
+      "rarity": "rare",
+      "power": "6",
+      "toughness": "4"
+    },
+    "agent of acquisitions": {
+      "cardId": "agent of acquisitions",
+      "scryfallId": "c57def6f-cc2a-4aec-927b-6a561d9fa7a1",
+      "oracleId": "19047c4b-0106-455d-ab71-68cabfae7404",
+      "name": "Agent of Acquisitions",
+      "manaCost": [
+        "2"
+      ],
+      "manaValue": 2,
+      "colors": [],
+      "typeLine": "Artifact Creature — Construct",
+      "oracleText": "Draft this card face up.\nInstead of drafting a card from a booster pack, you may draft each card in that booster pack, one at a time. If you do, turn this card face down and you can't draft cards for the rest of this draft round. (You may look at booster packs passed to you.)",
+      "setCode": "CNS",
+      "collectorNumber": "54",
+      "rarity": "uncommon",
+      "power": "2",
+      "toughness": "1"
+    },
     "agony warp": {
       "cardId": "agony warp",
       "scryfallId": "e246294f-7614-48e9-a655-647faf0bf697",
@@ -328,6 +364,27 @@
       "collectorNumber": "4",
       "rarity": "common"
     },
+    "animus of predation": {
+      "cardId": "animus of predation",
+      "scryfallId": "e5e8f955-4fa5-4d57-ac77-2a7be95ed4ad",
+      "oracleId": "70ff487d-96b3-4322-9975-59bf3c6b517f",
+      "name": "Animus of Predation",
+      "manaCost": [
+        "4",
+        "G"
+      ],
+      "manaValue": 5,
+      "colors": [
+        "G"
+      ],
+      "typeLine": "Creature — Avatar",
+      "oracleText": "Draft this card face up.\nAs you draft a card, you may remove it from the draft face up. (It isn't in your card pool.)\nIf you removed a creature card with flying from the draft with cards named Animus of Predation, this creature has flying. The same is true for first strike, double strike, deathtouch, haste, hexproof, indestructible, lifelink, menace, reach, and vigilance.",
+      "setCode": "CN2",
+      "collectorNumber": "60",
+      "rarity": "uncommon",
+      "power": "4",
+      "toughness": "4"
+    },
     "arcane sanctum": {
       "cardId": "arcane sanctum",
       "scryfallId": "6edc0681-4252-4d3d-baf3-f03c22af1208",
@@ -341,6 +398,28 @@
       "setCode": "ALA",
       "collectorNumber": "220",
       "rarity": "uncommon"
+    },
+    "archdemon of paliano": {
+      "cardId": "archdemon of paliano",
+      "scryfallId": "632122b0-6525-4b41-840f-4fd5bea2f0ea",
+      "oracleId": "6ca0078f-d6b5-4643-b801-e7a98706f21c",
+      "name": "Archdemon of Paliano",
+      "manaCost": [
+        "2",
+        "B",
+        "B"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Demon",
+      "oracleText": "Draft this card face up.\nAs long as this card is face up during the draft, you can't look at booster packs and must draft cards at random. After you draft three cards this way, turn this card face down. (You may look at cards as you draft them.)\nFlying",
+      "setCode": "CN2",
+      "collectorNumber": "39",
+      "rarity": "rare",
+      "power": "5",
+      "toughness": "4"
     },
     "archdemon of unx": {
       "cardId": "archdemon of unx",
@@ -1489,6 +1568,24 @@
       "collectorNumber": "32",
       "rarity": "common"
     },
+    "canal dredger": {
+      "cardId": "canal dredger",
+      "scryfallId": "a5365f0d-5e51-4e5d-9385-c4d08882c24f",
+      "oracleId": "bb6bda0d-ddb8-47fa-be07-bbcd73a52830",
+      "name": "Canal Dredger",
+      "manaCost": [
+        "4"
+      ],
+      "manaValue": 4,
+      "colors": [],
+      "typeLine": "Artifact Creature — Construct",
+      "oracleText": "Draft this card face up.\nEach player passes the last card from each booster pack to a player who drafted a card named Canal Dredger.\n{T}: Put target card from your graveyard on the bottom of your library.",
+      "setCode": "CNS",
+      "collectorNumber": "55",
+      "rarity": "rare",
+      "power": "1",
+      "toughness": "5"
+    },
     "cancel": {
       "cardId": "cancel",
       "scryfallId": "b4e175f7-f649-451b-9ee5-ad1140b2e8a7",
@@ -1907,6 +2004,24 @@
       "collectorNumber": "219",
       "rarity": "common"
     },
+    "cogwork grinder": {
+      "cardId": "cogwork grinder",
+      "scryfallId": "807b1ac7-a495-4d67-a6c6-480d1b0522d8",
+      "oracleId": "f10898a5-87ec-4a30-a383-9f9bcba3e4d0",
+      "name": "Cogwork Grinder",
+      "manaCost": [
+        "6"
+      ],
+      "manaValue": 6,
+      "colors": [],
+      "typeLine": "Artifact Creature — Construct",
+      "oracleText": "Draft this card face up.\nAs you draft a card, you may remove it from the draft face down. (Those cards aren't in your card pool.)\nThis creature enters with X +1/+1 counters on it, where X is the number of cards you removed from the draft with cards named Cogwork Grinder.",
+      "setCode": "CNS",
+      "collectorNumber": "57",
+      "rarity": "rare",
+      "power": "0",
+      "toughness": "0"
+    },
     "cogwork librarian": {
       "cardId": "cogwork librarian",
       "scryfallId": "453de664-0f09-4772-a626-51d58d1173f3",
@@ -1924,6 +2039,42 @@
       "rarity": "common",
       "power": "3",
       "toughness": "3"
+    },
+    "cogwork spy": {
+      "cardId": "cogwork spy",
+      "scryfallId": "661a7927-73ad-4230-a754-ba43b35be149",
+      "oracleId": "adfd33cb-086c-48f4-b443-ba971ff43684",
+      "name": "Cogwork Spy",
+      "manaCost": [
+        "3"
+      ],
+      "manaValue": 3,
+      "colors": [],
+      "typeLine": "Artifact Creature — Bird Construct",
+      "oracleText": "Reveal this card as you draft it. You may look at the next card drafted from this booster pack.\nFlying",
+      "setCode": "CNS",
+      "collectorNumber": "59",
+      "rarity": "common",
+      "power": "2",
+      "toughness": "1"
+    },
+    "cogwork tracker": {
+      "cardId": "cogwork tracker",
+      "scryfallId": "2ad996e5-f3b4-4aca-8b37-d20632245b4e",
+      "oracleId": "c60ba5e9-dbfa-441b-a96f-9cc7fdfd2d76",
+      "name": "Cogwork Tracker",
+      "manaCost": [
+        "4"
+      ],
+      "manaValue": 4,
+      "colors": [],
+      "typeLine": "Artifact Creature — Dog Construct",
+      "oracleText": "Reveal this card as you draft it and note the player who passed it to you.\nThis creature attacks each combat if able.\nThis creature attacks a player you noted for cards named Cogwork Tracker each combat if able.",
+      "setCode": "CNS",
+      "collectorNumber": "60",
+      "rarity": "uncommon",
+      "power": "4",
+      "toughness": "4"
     },
     "colossal might": {
       "cardId": "colossal might",
@@ -2376,6 +2527,27 @@
       "collectorNumber": "138",
       "rarity": "common"
     },
+    "custodi peacekeeper": {
+      "cardId": "custodi peacekeeper",
+      "scryfallId": "add304ab-7a45-40c4-96eb-e32a285c2a50",
+      "oracleId": "abd78909-72dc-4d36-8990-39995fd071da",
+      "name": "Custodi Peacekeeper",
+      "manaCost": [
+        "2",
+        "W"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Creature — Human Cleric",
+      "oracleText": "Reveal this card as you draft it and note how many cards you've drafted this draft round, including this card.\n{W}, {T}: Tap target creature with power less than or equal to the highest number you noted for cards named Custodi Peacekeeper.",
+      "setCode": "CN2",
+      "collectorNumber": "14",
+      "rarity": "common",
+      "power": "2",
+      "toughness": "3"
+    },
     "cylian elf": {
       "cardId": "cylian elf",
       "scryfallId": "b3afaab6-4768-4852-a0b6-4e6a0295bde7",
@@ -2539,6 +2711,24 @@
       "rarity": "common",
       "power": "3",
       "toughness": "4"
+    },
+    "deal broker": {
+      "cardId": "deal broker",
+      "scryfallId": "42dc14d0-60e2-419a-a6cf-ba155c51c310",
+      "oracleId": "1269f7dc-a5d6-48e9-8887-b581ce38c204",
+      "name": "Deal Broker",
+      "manaCost": [
+        "3"
+      ],
+      "manaValue": 3,
+      "colors": [],
+      "typeLine": "Artifact Creature — Construct",
+      "oracleText": "Draft this card face up.\nImmediately after the draft, you may reveal a card in your card pool. Each other player may offer you one card in their card pool in exchange. You may accept any one offer.\n{T}: Draw a card, then discard a card.",
+      "setCode": "CNS",
+      "collectorNumber": "61",
+      "rarity": "rare",
+      "power": "2",
+      "toughness": "3"
     },
     "dearly departed": {
       "cardId": "dearly departed",
@@ -4314,6 +4504,25 @@
       "power": "5",
       "toughness": "5"
     },
+    "garbage fire": {
+      "cardId": "garbage fire",
+      "scryfallId": "4d76b91e-e79c-4c7e-ae3c-2b27b7e871ef",
+      "oracleId": "8ddbb63c-7f52-431b-bb82-e020b1c3749a",
+      "name": "Garbage Fire",
+      "manaCost": [
+        "2",
+        "R"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "R"
+      ],
+      "typeLine": "Instant",
+      "oracleText": "Reveal this card as you draft it and note how many cards you've drafted this draft round, including this card.\nGarbage Fire deals damage to target creature equal to the highest number you noted for cards named Garbage Fire.",
+      "setCode": "CN2",
+      "collectorNumber": "52",
+      "rarity": "common"
+    },
     "garruk relentless // garruk, the veil-cursed": {
       "cardId": "garruk relentless // garruk, the veil-cursed",
       "scryfallId": "b4160322-ff40-41a4-887a-73cd6b85ae45",
@@ -5561,6 +5770,27 @@
       "power": "5",
       "toughness": "1"
     },
+    "illusionary informant": {
+      "cardId": "illusionary informant",
+      "scryfallId": "766150d9-c795-4675-a849-a388e8ae148d",
+      "oracleId": "5e8c6894-c9ad-4a50-af13-c2d95395c71e",
+      "name": "Illusionary Informant",
+      "manaCost": [
+        "1",
+        "U"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "U"
+      ],
+      "typeLine": "Creature — Bird Illusion",
+      "oracleText": "Draft this card face up.\nDuring the draft, you may turn this card face down. If you do, look at the next card drafted by a player of your choice.\nFlying",
+      "setCode": "CN2",
+      "collectorNumber": "32",
+      "rarity": "common",
+      "power": "1",
+      "toughness": "3"
+    },
     "illusory demon": {
       "cardId": "illusory demon",
       "scryfallId": "f4d69f7f-ac70-477b-9246-8d81fef7d335",
@@ -6593,6 +6823,27 @@
       "power": "3",
       "toughness": "3"
     },
+    "leovold's operative": {
+      "cardId": "leovold's operative",
+      "scryfallId": "d41deffe-766f-4a46-8552-73483adc0cfb",
+      "oracleId": "8fedb2c2-fb13-4af1-b85e-714832562da7",
+      "name": "Leovold's Operative",
+      "manaCost": [
+        "2",
+        "G"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "G"
+      ],
+      "typeLine": "Creature — Elf Rogue",
+      "oracleText": "Draft this card face up.\nAs you draft a card, you may draft an additional card from that booster pack. If you do, turn this card face down, then pass the next booster pack without drafting a card from it. (You may look at that booster pack.)",
+      "setCode": "CN2",
+      "collectorNumber": "66",
+      "rarity": "common",
+      "power": "3",
+      "toughness": "2"
+    },
     "lich lord of unx": {
       "cardId": "lich lord of unx",
       "scryfallId": "df38c422-7830-4f25-b74b-ed90b7047f53",
@@ -6718,6 +6969,24 @@
       "power": "*",
       "toughness": "*"
     },
+    "lore seeker": {
+      "cardId": "lore seeker",
+      "scryfallId": "9b8c78c8-b3fa-4a67-bf6c-cf708dedf42e",
+      "oracleId": "19a3c505-b180-47cc-bef3-9e807a8a4a3d",
+      "name": "Lore Seeker",
+      "manaCost": [
+        "2"
+      ],
+      "manaValue": 2,
+      "colors": [],
+      "typeLine": "Artifact Creature — Construct",
+      "oracleText": "Reveal this card as you draft it. After you draft this card, you may add a booster pack to the draft. (Your next pick is from that booster pack. Pass it to the next player and it's drafted this draft round.)",
+      "setCode": "CNS",
+      "collectorNumber": "62",
+      "rarity": "rare",
+      "power": "2",
+      "toughness": "2"
+    },
     "lorescale coatl": {
       "cardId": "lorescale coatl",
       "scryfallId": "e81c31c9-d7d7-4b45-893e-7e36d26c645f",
@@ -6819,6 +7088,24 @@
       "rarity": "uncommon",
       "power": "1",
       "toughness": "1"
+    },
+    "lurking automaton": {
+      "cardId": "lurking automaton",
+      "scryfallId": "e052a306-2bcd-4dcd-b41d-fa886227dab6",
+      "oracleId": "412fbf73-a471-42ad-83fe-14f19e4e9595",
+      "name": "Lurking Automaton",
+      "manaCost": [
+        "5"
+      ],
+      "manaValue": 5,
+      "colors": [],
+      "typeLine": "Artifact Creature — Construct",
+      "oracleText": "Reveal this card as you draft it and note how many cards you've drafted this draft round, including this card.\nThis creature enters with X +1/+1 counters on it, where X is the highest number you noted for cards named Lurking Automaton.",
+      "setCode": "CNS",
+      "collectorNumber": "63",
+      "rarity": "common",
+      "power": "0",
+      "toughness": "0"
     },
     "lush growth": {
       "cardId": "lush growth",
@@ -8228,6 +8515,28 @@
       "collectorNumber": "154",
       "rarity": "common"
     },
+    "noble banneret": {
+      "cardId": "noble banneret",
+      "scryfallId": "0a7f0d35-b91e-461a-822c-7ae2798ca51a",
+      "oracleId": "96d88811-d0d8-4c64-b7f2-8304d81c8cfa",
+      "name": "Noble Banneret",
+      "manaCost": [
+        "2",
+        "W",
+        "W"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Creature — Human Knight",
+      "oracleText": "Draft this card face up.\nAs you draft a creature card, you may reveal it, note its name, then turn this card face down.\nAs long as you control one or more creatures with a name you noted for cards named Noble Banneret, this creature and those creatures get +1/+1 and have lifelink.",
+      "setCode": "CN2",
+      "collectorNumber": "17",
+      "rarity": "uncommon",
+      "power": "3",
+      "toughness": "3"
+    },
     "nulltread gargantuan": {
       "cardId": "nulltread gargantuan",
       "scryfallId": "a263f594-621e-46af-8561-f7eee565a19a",
@@ -8515,6 +8824,41 @@
       "power": "4",
       "toughness": "5"
     },
+    "paliano vanguard": {
+      "cardId": "paliano vanguard",
+      "scryfallId": "2b120f2d-2585-4827-a8c5-d6ecdc8108e5",
+      "oracleId": "6dd3be81-b6dc-42ee-9e0a-2e39e3f4e793",
+      "name": "Paliano Vanguard",
+      "manaCost": [
+        "1",
+        "W"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Creature — Human Soldier",
+      "oracleText": "Draft this card face up.\nAs you draft a creature card, you may reveal it, note its creature types, then turn this card face down.\nOther creatures you control of a type you noted for cards named Paliano Vanguard get +1/+1.",
+      "setCode": "CN2",
+      "collectorNumber": "20",
+      "rarity": "rare",
+      "power": "2",
+      "toughness": "2"
+    },
+    "paliano, the high city": {
+      "cardId": "paliano, the high city",
+      "scryfallId": "eac8649b-b892-4854-8422-fd117ccac39a",
+      "oracleId": "cf682012-de36-4ab4-ad94-c3c0fd7bce3f",
+      "name": "Paliano, the High City",
+      "manaCost": [],
+      "manaValue": 0,
+      "colors": [],
+      "typeLine": "Legendary Land",
+      "oracleText": "Reveal this card as you draft it. The player to your right chooses a color, you choose another color, then the player to your left chooses a third color.\n{T}: Add one mana of any color chosen as you drafted cards named Paliano, the High City.",
+      "setCode": "CNS",
+      "collectorNumber": "65",
+      "rarity": "rare"
+    },
     "parallel lives": {
       "cardId": "parallel lives",
       "scryfallId": "01033dae-fec1-41f2-b7f2-cc6a43331790",
@@ -8797,6 +9141,27 @@
       "rarity": "common",
       "power": "2",
       "toughness": "2"
+    },
+    "pyretic hunter": {
+      "cardId": "pyretic hunter",
+      "scryfallId": "0f17be2c-f8c7-41b3-b8fa-30b9e4e826c9",
+      "oracleId": "6ea507d3-2b8d-4f08-824c-0de0ae214da5",
+      "name": "Pyretic Hunter",
+      "manaCost": [
+        "4",
+        "R"
+      ],
+      "manaValue": 5,
+      "colors": [
+        "R"
+      ],
+      "typeLine": "Creature — Elemental Cat",
+      "oracleText": "Reveal this card as you draft it and note how many cards you've drafted this draft round, including this card.\nMenace (This creature can't be blocked except by two or more creatures.)\nThis creature enters with X +1/+1 counters on it, where X is the highest number you noted for cards named Pyretic Hunter.",
+      "setCode": "CN2",
+      "collectorNumber": "56",
+      "rarity": "uncommon",
+      "power": "0",
+      "toughness": "0"
     },
     "qasali ambusher": {
       "cardId": "qasali ambusher",
@@ -9131,6 +9496,24 @@
           "toughness": "2"
         }
       ]
+    },
+    "regicide": {
+      "cardId": "regicide",
+      "scryfallId": "07f56287-91e0-418f-8b57-35c6c30cee33",
+      "oracleId": "db8e3c05-12d6-41f6-8cc7-e64c863fca58",
+      "name": "Regicide",
+      "manaCost": [
+        "B"
+      ],
+      "manaValue": 1,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Instant",
+      "oracleText": "Reveal this card as you draft it. The player to your right chooses a color, you choose another color, then the player to your left chooses a third color.\nDestroy target creature that's one or more of the colors chosen as you drafted cards named Regicide.",
+      "setCode": "CN2",
+      "collectorNumber": "45",
+      "rarity": "common"
     },
     "relic of progenitus": {
       "cardId": "relic of progenitus",
@@ -10711,6 +11094,27 @@
       "collectorNumber": "33",
       "rarity": "common"
     },
+    "smuggler captain": {
+      "cardId": "smuggler captain",
+      "scryfallId": "b10ce284-c994-429c-ad61-ffe1ca88d691",
+      "oracleId": "dc90b4aa-ba5e-4188-939d-b3920bd9ab0d",
+      "name": "Smuggler Captain",
+      "manaCost": [
+        "3",
+        "B"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Human Pirate",
+      "oracleText": "Draft this card face up.\nAs you draft a card, you may reveal it, note its name, then turn this card face down.\nWhen this creature enters, you may search your library for a card with a name you noted for cards named Smuggler Captain, reveal it, put it into your hand, then shuffle.",
+      "setCode": "CN2",
+      "collectorNumber": "47",
+      "rarity": "uncommon",
+      "power": "2",
+      "toughness": "2"
+    },
     "snapcaster mage": {
       "cardId": "snapcaster mage",
       "scryfallId": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
@@ -11132,6 +11536,28 @@
       "setCode": "ISD",
       "collectorNumber": "204",
       "rarity": "common"
+    },
+    "spire phantasm": {
+      "cardId": "spire phantasm",
+      "scryfallId": "2b6b39d3-b98f-4e52-bf67-a0782b175f55",
+      "oracleId": "d5fc017a-7517-4737-ad5b-cc45f1e139ea",
+      "name": "Spire Phantasm",
+      "manaCost": [
+        "2",
+        "U",
+        "U"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "U"
+      ],
+      "typeLine": "Creature — Gargoyle Illusion",
+      "oracleText": "Reveal this card as you draft it. The next time a player drafts a card from this booster pack, guess that card's name. Then that player reveals the drafted card.\nFlying\nWhen this creature enters, if you guessed correctly for a card named Spire Phantasm, draw a card.",
+      "setCode": "CN2",
+      "collectorNumber": "37",
+      "rarity": "uncommon",
+      "power": "3",
+      "toughness": "2"
     },
     "splinterfright": {
       "cardId": "splinterfright",
@@ -13057,6 +13483,24 @@
       "setCode": "ALA",
       "collectorNumber": "122",
       "rarity": "rare"
+    },
+    "whispergear sneak": {
+      "cardId": "whispergear sneak",
+      "scryfallId": "e36074e7-d173-44a1-bde3-9a89293467b1",
+      "oracleId": "e40daee2-f9e6-489f-b3dd-274e5a6b8604",
+      "name": "Whispergear Sneak",
+      "manaCost": [
+        "1"
+      ],
+      "manaValue": 1,
+      "colors": [],
+      "typeLine": "Artifact Creature — Construct",
+      "oracleText": "Draft this card face up.\nDuring the draft, you may turn this card face down. If you do, look at any unopened booster pack in the draft or any booster pack not being looked at by another player.",
+      "setCode": "CNS",
+      "collectorNumber": "64",
+      "rarity": "common",
+      "power": "1",
+      "toughness": "1"
     },
     "wild nacatl": {
       "cardId": "wild nacatl",

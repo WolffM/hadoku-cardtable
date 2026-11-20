@@ -13,7 +13,7 @@
 
 import type { SeatId } from '@wolffm/rooms-protocol';
 import { choosePick } from './bot.ts';
-import { botRng, packOf, pick, type PickResult, type DraftState } from './engine.ts';
+import { answerDefaults, botRng, packOf, pick, type PickResult, type DraftState } from './engine.ts';
 import type { DraftCard } from '@hadoku/shared';
 
 /** MTR Appendix B: [fewest cards left this row covers, seconds]. Read top-down; the first row at or under wins. */
@@ -50,6 +50,9 @@ export function pickTimeMs(cardsLeft: number, speed: number): number | null {
  * uses, so it never depends on when the timer fired.
  */
 export function timeoutPick(state: DraftState, seatId: SeatId): PickResult | null {
-  const card: DraftCard | null = choosePick(packOf(state, seatId), state.pools[seatId] ?? [], botRng(state, seatId));
-  return card === null ? null : pick(state, seatId, card.cardId);
+  // A question the seat left open is answered as a bot would, then the pick is made.
+  const { state: answered, answered: count } = answerDefaults(state, seatId);
+  const card: DraftCard | null = choosePick(packOf(answered, seatId), answered.pools[seatId] ?? [], botRng(answered, seatId));
+  if (card === null) return count === 0 ? null : { ok: true, state: answered, events: [] };
+  return pick(answered, seatId, card.cardId);
 }

@@ -62,6 +62,8 @@ import { planDisplayName, type PodPhase } from '@hadoku/shared';
 
 import {
   applyPick as socketPick,
+  applyAnswer,
+  applyUse,
   leanOn,
   closeDraft,
   isComplete,
@@ -311,8 +313,14 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           <DraftScreen
             state={table}
             onChange={setTable}
-            onPick={(cardId, extra) => {
-              if (draft !== null) socketPick(draft, cardId, extra);
+            onPick={(cardId, options) => {
+              if (draft !== null) socketPick(draft, cardId, options);
+            }}
+            onAnswer={(askId, choice) => {
+              if (draft !== null) applyAnswer(draft, askId, choice);
+            }}
+            onUse={(withCard, target) => {
+              if (draft !== null) applyUse(draft, withCard, target);
             }}
             onLean={lean}
             nextPayload={null}

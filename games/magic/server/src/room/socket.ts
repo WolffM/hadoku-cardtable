@@ -147,7 +147,7 @@
 import type { Server as SocketIOServer } from 'socket.io';
 import { MultiRateLimiter, PresenceTracker, emitPerRecipient, type EmitPolicy, type RateLimitConfig } from '@wolffm/rooms-server';
 import { seatOf, type ParticipantId } from '@wolffm/rooms-protocol';
-import { botTurn, botsOwe, isBotSeat, packOf, pick as enginePick, pickTimeMs, runBots, timeoutPick } from '@hadoku/draft';
+import { answer as engineAnswer, asksOf, botTurn, botsOwe, decisionKey, decisionSize, isBotSeat, packOf, pick as enginePick, pickTimeMs, runBots, timeoutPick, useNow } from '@hadoku/draft';
 import {
 	DRAFT_CHANNEL,
 	errorMessage,
@@ -501,7 +501,8 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		let changed = false;
 		for (let seat = 0; seat < stateOf(room).seatCount; seat++) {
 			const state = stateOf(room);
-			if (isBotSeat(state, seat) || packOf(state, seat).length !== 1) continue;
+			// A question open in front of the seat is the seat's to answer first.
+			if (isBotSeat(state, seat) || packOf(state, seat).length !== 1 || asksOf(state, seat).length > 0) continue;
 			const taken = timeoutPick(state, seat);
 			if (taken === null || !taken.ok) continue;
 			room.app.state = taken.state;
@@ -512,7 +513,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		const now = Date.now();
 		let earliest = Infinity;
 		for (let seat = 0; seat < state.seatCount; seat++) {
-			const left = packOf(state, seat).length;
+			const left = decisionSize(state, seat);
 			const totalMs = isBotSeat(state, seat) ? null : pickTimeMs(left, speed);
 			if (totalMs === null) {
 				const dropped = rope.get(seat);
@@ -520,7 +521,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 				rope.delete(seat);
 				continue;
 			}
-			const key = `${state.packNumber}:${state.roundPicks[seat] ?? 0}`;
+			const key = decisionKey(state, seat);
 			let deadline = rope.get(seat);
 			if (deadline?.key !== key) {
 				// Logged, so a deadline that ends later than the one the seat's page was given (#76) names when it was set.
@@ -788,7 +789,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 						return;
 					}
 					const before = stateOf(room);
-					const result = enginePick(before, seat, msg.cardId, msg.extra);
+					const result = enginePick(before, seat, msg.cardId, { ...(msg.use === undefined ? {} : { use: msg.use }), ...(msg.extra === undefined ? {} : { extra: msg.extra }) });
 					if (!result.ok) {
 						// The engine's own reason, verbatim. Flattening it into
 						// a string here is how a client loses the ability to
@@ -816,6 +817,36 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					});
 					// The pack this pick passed may be a bot's next, and the
 					// seat's next pick starts its own time.
+					settle(room);
+					emitPickStep(io, room, policy);
+					return;
+				}
+
+				case 'answer':
+				case 'use': {
+					const room = rooms.findFor(msg.draftId, participantId);
+					if (room === undefined) {
+						reject(null, 'unknown-draft');
+						return;
+					}
+					if (!limiter.allow(participantId)) {
+						log({ evt: 'rate-limited', participantId, draftId: room.roomId });
+						reject(room, 'rate-limited');
+						return;
+					}
+					const seat = seatOf(room.seats, participantId);
+					if (seat === null) {
+						reject(room, 'not-seated');
+						return;
+					}
+					const result = msg.type === 'answer' ? engineAnswer(stateOf(room), seat, msg.askId, msg.choice) : useNow(stateOf(room), seat, msg.with, msg.target);
+					if (!result.ok) {
+						log({ evt: `${msg.type}-rejected`, participantId, seat, reason: result.reason });
+						reject(room, result.reason);
+						return;
+					}
+					room.app.state = result.state;
+					log({ evt: msg.type, participantId, seat, draftId: room.roomId, seq: result.state.seq });
 					settle(room);
 					emitPickStep(io, room, policy);
 					return;
