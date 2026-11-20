@@ -324,7 +324,9 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
     try {
       const s = await look(f);
       if (s === null || s.ask || /^Waiting/.test(s.says)) return;
-      const sig = `${s.says}|${s.ok}|${s.cancel}|${s.anywhere.map((c) => c.id).join(',')}`;
+      // The two questions with buttons of their own are part of what is on offer: the coin toss's Play
+      // and Draw are drawn after the coin has flipped, under a message that was already there.
+      const sig = `${s.says}|${s.ok}|${s.cancel}|${s.playOrDraw}|${s.confirmYes}|${s.anywhere.map((c) => c.id).join(',')}`;
       if (sig === signature) {
         // Nothing new since the last act: it changed nothing (a spell it cannot
         // actually pay for, a target it cannot choose). Move on rather than wait.
