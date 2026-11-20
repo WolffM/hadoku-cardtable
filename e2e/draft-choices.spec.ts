@@ -37,9 +37,13 @@ const cardNames = async (cards: Locator) => (await cards.evaluateAll((els) => el
 
 /** What tells the question in front of the viewer from the one that follows it: how many are open, which it is, its words and its choices. */
 async function signature(page: Page): Promise<string> {
-  const first = asks(page).first();
-  if ((await asks(page).count()) === 0) return 'none';
-  return [await asks(page).count(), await first.getAttribute('data-ask'), await first.locator('.draft__ask-title').innerText(), ...(await optionKeys(first))].join('|');
+  // Read in one step: a question may leave the page between two looks at it.
+  return asks(page).evaluateAll((els) => {
+    const first = els[0];
+    if (first === undefined) return 'none';
+    const keys = [...first.querySelectorAll('[data-testid="draft-ask-option"]')].map((o) => o.getAttribute('data-key'));
+    return [els.length, first.getAttribute('data-ask'), first.querySelector('.draft__ask-title')?.textContent, ...keys].join('|');
+  });
 }
 
 /**
