@@ -135,8 +135,10 @@ test(
       // Fifteen cards stack in the pool's columns, so a name may be covered: it is asked for, not looked at.
       for (const name of hers) await expect(pool.getByText(name, { exact: true }), `${name} is in her pool`).not.toHaveCount(0);
       for (const p of players) {
-        await expect(logLines(p.page).last(), `${p.name}: is told the Agent was turned face down`).toHaveText(`e2e-alice turned face down ${AGENT}`, { timeout: UI_TIMEOUT });
-        await expect(p.page.getByTestId('face-up'), `${p.name}: nothing is face up any more`).toHaveCount(0);
+        await expect(logLines(p.page).filter({ hasText: `e2e-alice turned face down ${AGENT}` }), `${p.name}: is told the Agent was turned face down`).toHaveCount(1, { timeout: UI_TIMEOUT });
+        // An Agent among the cards she took is drafted face up in its own right; with none, nothing is face up any more.
+        if (second.includes(AGENT)) await expect(p.page.getByTestId('face-up-0'), `${p.name}: the Agents she took lie face up`).toContainText(AGENT, { timeout: UI_TIMEOUT });
+        else await expect(p.page.getByTestId('face-up'), `${p.name}: nothing is face up any more`).toHaveCount(0);
       }
 
       /* ── bob's next pack is not that one: it is the next pack to reach alice, passed on whole ── */

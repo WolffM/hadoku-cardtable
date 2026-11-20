@@ -167,7 +167,9 @@ async function draftOn(page: Page): Promise<Stop> {
     if (what !== 'pick') return what;
     const names = await packNames(page);
     const at = names.findIndex((n) => n !== BROKER);
-    await packCards(page).nth(Math.max(0, at)).click();
+    // The pack may be gone by the time it is pressed (the server took its last card for the seat): the loop looks again.
+    const pressed = await packCards(page).nth(Math.max(0, at)).click({ timeout: 3_000 }).then(() => true, () => false);
+    if (!pressed) continue;
     // Paced under the server's own pick rate limit (`podSeats.ts`'s `draftUntilDone`).
     await page.waitForTimeout(400);
   }
