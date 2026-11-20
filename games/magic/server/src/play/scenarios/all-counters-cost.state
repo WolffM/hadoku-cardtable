@@ -1,0 +1,18 @@
+# A cost that removes every counter from its own source, which Forge confirms with a Yes/No of its own.
+# Alice (`human…`, seat 0) has Sage of Hours (1/1, "Remove all +1/+1 counters from Sage of Hours: For
+# each five counters removed this way, take an extra turn after this one.") with three +1/+1 counters:
+# the ability costs nothing else, takes no target, and three counters buy no extra turn, so the click
+# is followed by that one question and nothing more. Her turn-1 Main Phase 1; bob has nothing to cast.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Sage of Hours|Counters:P1P1=3;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
