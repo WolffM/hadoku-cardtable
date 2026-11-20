@@ -1931,14 +1931,13 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     for (const listener of ownClickableListeners) listener(own);
   }
 
-  /** The boxes of this turn's clickable cards still on a battlefield. */
+  /**
+   * The boxes of this turn's clickable cards still on a battlefield, and of every player's face: a face is
+   * what a target question is answered on, and it is in the same place on both screens whoever is asked.
+   */
   function clickableBoxes(): Rect[] {
-    return [...clickable.ids].flatMap((id) => {
-      const el = battlefieldCard(canvas, id);
-      if (el === null) return [];
-      const r = rectOf(el);
-      return r.right > r.left && r.bottom > r.top ? [r] : [];
-    });
+    const cards = [...clickable.ids].flatMap((id) => battlefieldCard(canvas, id) ?? []);
+    return [...cards, ...canvas.querySelectorAll<HTMLElement>('[data-player-face]')].map(rectOf).filter((r) => r.right > r.left && r.bottom > r.top);
   }
 
   /** Where the stack may stand: across the board, from the top of their battlefield to the foot of this seat's. */

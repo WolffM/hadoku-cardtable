@@ -712,6 +712,20 @@ describe('installPlaced: drawing', () => {
       handle.dispose();
     });
 
+    it('ten chips beside a player’s face: none is drawn over a face, which a target question is answered on', () => {
+      const { canvas, chipBox } = laidOut();
+      const face: Rect = { left: 190, top: 380, right: 250, bottom: 440 };
+      canvas.querySelector<HTMLElement>('[data-player-face][data-player-id="1"]')!.getBoundingClientRect = () => rect({ left: face.left, top: face.top, width: 60, height: 60 });
+      setChainHalted(true);
+      const handle = installPlaced(canvas, { reducedMotion: () => true });
+      const field = [{ id: 201 }, { id: 202 }];
+      const triggers = Array.from({ length: 10 }, (_, n) => stackItem(20 + n, { isAbility: true, sourceCardId: 201 }));
+      handle.notify(view(triggers, field), clickableNow([]));
+      handle.notify(view(triggers, field), clickableNow([]));
+      expect(triggers.filter((t) => overlaps(chipBox(t.id), face)).map((t) => chipBox(t.id)), 'chips over the face').toEqual([]);
+      handle.dispose();
+    });
+
     it('a card only the other seat can click is kept clear too (the operator, 2026-11-02: "avoid blocking the opponents playable cards"); this board tells its own once per change', () => {
       const { canvas, chipBox, cardBox } = laidOut();
       setChainHalted(true);
