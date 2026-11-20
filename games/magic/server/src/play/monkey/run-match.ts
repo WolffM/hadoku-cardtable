@@ -198,7 +198,7 @@ const GIVE_UP_MS = 2 * CONCEDE_ANSWER_MS + 5_000;
  * server's `MAX_CONCURRENT_MATCHES` for the rest of the run, the next ones queued behind them and
  * timed out unstarted, and from the 50th every start was refused (every nightly to 2026-11-05).
  */
-async function giveUp(match: LiveMatch): Promise<{ ended: boolean; evidence: string[] }> {
+export async function giveUp(match: LiveMatch): Promise<{ ended: boolean; evidence: string[] }> {
   const sent = JSON.stringify({ monkey: 'concede-sent', at: new Date().toISOString(), connected: match.connected, turn: match.view?.turn ?? null, asks: match.asks.map((a) => a.method) });
   concede(match);
   const deadline = Date.now() + GIVE_UP_MS;

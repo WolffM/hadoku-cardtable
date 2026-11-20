@@ -1,0 +1,3882 @@
+{
+ "Agate Assault": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Agate Assault - Choose a mode",
+    "selection: Agate Assault - Agate Assault deals 4 damage to target creature. If that creature would die this turn, exile it instead. Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Agate Assault - Choose a mode",
+    "selection: Agate Assault - Exile target artifact. Select target artifact (declined)",
+    "getChoices: Seat 1 activated Agate Assault - Choose a mode",
+    "selection: Agate Assault - Agate Assault deals 4 damage to target creature. If that creature would die this turn, exile it instead. Select target creature (declined)",
+    "getChoices: Seat 1 activated Agate Assault - Choose a mode",
+    "selection: Agate Assault - Exile target artifact. Select target artifact"
+   ],
+   "server": []
+  }
+ },
+ "Agate-Blade Assassin": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Alania, Divergent Storm": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Alania's Pathmaker": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Artist's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Azure Beastbinder": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Bakersbane Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Bandit's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Banishing Light": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Banishing Light - When Banishing Light enters, exile target nonland permanent an opponent controls until Banishing Light leaves the battlefield. [Zone Changer: Banishing Light] Select targ"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Banishing Light - When Banishing Light enters, exile target nonland permanent an opponent controls until Banishing Light leaves the battlefield. [Zone Changer: Banishing Light] Select targ"
+   ],
+   "server": []
+  }
+ },
+ "Bark-Knuckle Boxer": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Barkform Harvester": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Barkform Harvester - {2}: Put target card from your graveyard on the bottom of your library. Select target card in your graveyard"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Barkform Harvester - {2}: Put target card from your graveyard on the bottom of your library. Select target card in your graveyard (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Baylen, the Haymaker": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Baylen, the Haymaker - Tap two untapped tokens you control: Add one mana of any color. Select a(n) token to tap (2 left)",
+    "getChoices: Select Mana to Produce"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Baylen, the Haymaker - Tap two untapped tokens you control: Add one mana of any color. Select a(n) token to tap (2 left) (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Bellowing Crier": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Bellowing Crier Discard 1 card(s)"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Bellowing Crier Discard 1 card(s)"
+   ],
+   "server": []
+  }
+ },
+ "Beza, the Bounding Spring": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Blacksmith's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Blooming Blast": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Blooming Blast - Blooming Blast deals 2 damage to target creature. If the gift was promised, Blooming Blast also deals 3 damage to that creature's controller. Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Blooming Blast - Blooming Blast deals 2 damage to target creature. If the gift was promised, Blooming Blast also deals 3 damage to that creature's controller. Select target creature (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Blooming Blast - Blooming Blast deals 2 damage to target creature. If the gift was promised, Blooming Blast also deals 3 damage to that creature's controller. Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Bonebind Orator": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Bonecache Overseer": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Brambleguard Captain": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Brambleguard Veteran": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Brave-Kin Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Brazen Collector": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Builder's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Bumbleflower's Sharepot": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Bumbleflower's Sharepot - {5}, {T}, Sacrifice Bumbleflower's Sharepot: Destroy target nonland permanent. Activate only as a sorcery. Select target nonland permanent"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Bumbleflower's Sharepot - {5}, {T}, Sacrifice Bumbleflower's Sharepot: Destroy target nonland permanent. Activate only as a sorcery. Select target nonland permanent (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Burrowguard Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Bushy Bodyguard": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}",
+    "bar: Sacrifice Food",
+    "selection: Bushy Bodyguard Select Food to sacrifice (1 left)",
+    "selection: Bushy Bodyguard Select 3 or more to exile"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)",
+    "bar: Sacrifice Food (declined)",
+    "selection: Bushy Bodyguard Select 3 or more to exile (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Byway Barterer": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Cache Grab": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "chooseSingleEntityForEffect: You may choose a permanent card milled this way"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "chooseSingleEntityForEffect: You may choose a permanent card milled this way (declined)",
+    "bar: Cancel Search? Up to 1 more card(s) can be selected."
+   ],
+   "server": []
+  }
+ },
+ "Calamitous Tide": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Calamitous Tide - Return up to two target creatures to their owners' hands. Select target creature (2 more can be targeted)",
+    "selection: Calamitous Tide - Return up to two target creatures to their owners' hands. Select target creature Targeted: Craw Wurm (1 more can be targeted)",
+    "selection: Calamitous Tide Discard 1 card(s)"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Calamitous Tide - Return up to two target creatures to their owners' hands. Select target creature (2 more can be targeted) (declined)",
+    "selection: Calamitous Tide Discard 1 card(s)"
+   ],
+   "server": []
+  }
+ },
+ "Camellia, the Seedmiser": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Camellia, the Seedmiser - {2}, Forage: Put a +1/+1 counter on each other Squirrel you control. (To forage, exile three cards from your graveyard or sacrifice a Food.) Select Food to sacrifice (1"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Camellia, the Seedmiser - {2}, Forage: Put a +1/+1 counter on each other Squirrel you control. (To forage, exile three cards from your graveyard or sacrifice a Food.) Select Food to sacrifice (1 (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Caretaker's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Caretaker's Talent - Caretaker's Talent: When this Class becomes level 2, create a token that's a copy of target token you control. [Class Level: 2] Select target token you control"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Caretaker's Talent - Caretaker's Talent: When this Class becomes level 2, create a token that's a copy of target token you control. [Class Level: 2] Select target token you control"
+   ],
+   "server": []
+  }
+ },
+ "Carrot Cake": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Forest Put Forest on the top or bottom of your library?"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Forest Put Forest on the top or bottom of your library? (declined)",
+    "bar: Grizzly Bears Put Grizzly Bears on the top or bottom of your library? (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Cindering Cutthroat": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Clement, the Worrywort": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Clement, the Worrywort - Whenever Clement, the Worrywort or another creature you control enters, return up to one target creature you control with lesser mana value to its owner's hand. [Zone Ch"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Clement, the Worrywort - Whenever Clement, the Worrywort or another creature you control enters, return up to one target creature you control with lesser mana value to its owner's hand. [Zone Ch (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Clifftop Lookout": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": [
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": [
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)"
+   ]
+  }
+ },
+ "Coiling Rebirth": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Coiling Rebirth - Return target creature card from your graveyard to the battlefield. Then if the gift was promised and that creature isn't legendary, create a token that's a copy of that creatu"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Coiling Rebirth - Return target creature card from your graveyard to the battlefield. Then if the gift was promised and that creature isn't legendary, create a token that's a copy of that creatu (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Coiling Rebirth - Return target creature card from your graveyard to the battlefield. Then if the gift was promised and that creature isn't legendary, create a token that's a copy of that creatu"
+   ],
+   "server": []
+  }
+ },
+ "Conduct Electricity": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Conduct Electricity - Conduct Electricity deals 6 damage to target creature and 2 damage to up to one target creature token. Select target creature",
+    "selection: Conduct Electricity - Select target creature token Parent Targeted:[Craw Wurm]"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Conduct Electricity - Conduct Electricity deals 6 damage to target creature and 2 damage to up to one target creature token. Select target creature (declined)",
+    "selection: Conduct Electricity - Conduct Electricity deals 6 damage to target creature and 2 damage to up to one target creature token. Select target creature",
+    "selection: Conduct Electricity - Select target creature token Parent Targeted:[Runeclaw Bear]"
+   ],
+   "server": []
+  }
+ },
+ "Consumed by Greed": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Consumed by Greed - Target opponent sacrifices a creature with the greatest power among creatures they control. If the gift was promised, return target creature card from your graveyard to your"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Corpseberry Cultivator": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Coruscation Mage": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Cruelclaw's Heist": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs"
+   ],
+   "server": [
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)",
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)"
+   ],
+   "server": [
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)",
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)"
+   ]
+  }
+ },
+ "Crumb and Get It": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Crumb and Get It - Target creature you control gets +2/+2 until end of turn. If the gift was promised, that creature also gains indestructible until end of turn. Select target creature you contr"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Crumb and Get It - Target creature you control gets +2/+2 until end of turn. If the gift was promised, that creature also gains indestructible until end of turn. Select target creature you contr (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Crumb and Get It - Target creature you control gets +2/+2 until end of turn. If the gift was promised, that creature also gains indestructible until end of turn. Select target creature you contr"
+   ],
+   "server": []
+  }
+ },
+ "Curious Forager": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Sacrifice Food",
+    "selection: Curious Forager - Forage: When you do, return target permanent card from your graveyard to your hand. Select Food to sacrifice (1 left)",
+    "selection: Curious Forager - When you do, return target permanent card from your graveyard to your hand. Select target permanent to return from your graveyard"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Sacrifice Food (declined)",
+    "selection: Curious Forager - Forage: When you do, return target permanent card from your graveyard to your hand. Select 3 or more to exile (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Daggerfang Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Do you want to mill two cards?"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Do you want to mill two cards? (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Daring Waverider": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Daring Waverider - When Daring Waverider enters, you may cast target instant or sorcery card with mana value 4 or less from your graveyard without paying its mana cost. If that spell would be pu"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Daring Waverider - When Daring Waverider enters, you may cast target instant or sorcery card with mana value 4 or less from your graveyard without paying its mana cost. If that spell would be pu",
+    "selection: Shock - Shock deals 2 damage to any target. (without paying its mana cost) Select any target"
+   ],
+   "server": []
+  }
+ },
+ "Darkstar Augur": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {B}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {B} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Dawn's Truce": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Dazzling Denial": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Select target spell"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Select target spell (declined)",
+    "getChoices: Select target spell"
+   ],
+   "server": []
+  }
+ },
+ "Dewdrop Cure": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Dewdrop Cure - Return up to two target creature cards each with mana value 2 or less from your graveyard to the battlefield. If the gift was promised, instead return up to three target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Dewdrop Cure - Return up to two target creature cards each with mana value 2 or less from your graveyard to the battlefield. If the gift was promised, instead return up to three target creature (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Dewdrop Cure - Return up to two target creature cards each with mana value 2 or less from your graveyard to the battlefield. If the gift was promised, instead return up to three target creature (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Dire Downdraft": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Dire Downdraft - Target creature's owner puts it on the top or bottom of their library. Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Dire Downdraft - Target creature's owner puts it on the top or bottom of their library. Select target creature (declined)",
+    "selection: Dire Downdraft - Target creature's owner puts it on the top or bottom of their library. Select target creature",
+    "bar: Dire Downdraft - Target creature's owner puts it on the top or bottom of their library. Choose a library position (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Diresight": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "order: Select cards to be put into the graveyard"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "order: Select cards to be put into the graveyard (declined)"
+   ],
+   "server": [
+    "ask-auto-answered order: the order the one scry, surveil or dig prompt already gave"
+   ]
+  }
+ },
+ "Dour Port-Mage": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Downwind Ambusher": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Downwind Ambusher - Target creature an opponent controls gets -1/-1 until end of turn. Select target creature an opponent controls"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Downwind Ambusher - Target creature an opponent controls gets -1/-1 until end of turn. Select target creature an opponent controls"
+   ],
+   "server": []
+  }
+ },
+ "Dragonhawk, Fate's Tempest": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Dreamdew Entrancer": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Dreamdew Entrancer - When Dreamdew Entrancer enters, tap up to one creature and put three stun counters on it. If you control that creature, draw two cards. [Zone Changer: Dreamdew Entrancer (10"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Dreamdew Entrancer - When Dreamdew Entrancer enters, tap up to one creature and put three stun counters on it. If you control that creature, draw two cards. [Zone Changer: Dreamdew Entrancer (10 (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Driftgloom Coyote": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Driftgloom Coyote - When Driftgloom Coyote enters, exile target creature an opponent controls until Driftgloom Coyote leaves the battlefield. If that creature had power 2 or less, put a +1/+1 co"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Driftgloom Coyote - When Driftgloom Coyote enters, exile target creature an opponent controls until Driftgloom Coyote leaves the battlefield. If that creature had power 2 or less, put a +1/+1 co"
+   ],
+   "server": []
+  }
+ },
+ "Druid of the Spade": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Early Winter": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Early Winter - Choose a mode"
+   ],
+   "server": [
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Early Winter - Choose a mode"
+   ],
+   "server": [
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)"
+   ]
+  }
+ },
+ "Eddymurk Crab": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Eddymurk Crab - When Eddymurk Crab enters, tap up to two target creatures. [Zone Changer: Eddymurk Crab] Select up to two target creatures (2 more can be targeted)",
+    "selection: Eddymurk Crab - When Eddymurk Crab enters, tap up to two target creatures. [Zone Changer: Eddymurk Crab] Select up to two target creatures Targeted: Runeclaw Bear (1 more can be targ"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Eddymurk Crab - When Eddymurk Crab enters, tap up to two target creatures. [Zone Changer: Eddymurk Crab] Select up to two target creatures (2 more can be targeted) (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Eluge, the Shoreless Sea": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Eluge, the Shoreless Sea - Whenever Eluge enters or attacks, put a flood counter on target land. It's an Island in addition to its other types for as long as it has a flood counter on it. [Zone"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Eluge, the Shoreless Sea - Whenever Eluge enters or attacks, put a flood counter on target land. It's an Island in addition to its other types for as long as it has a flood counter on it. [Zone"
+   ],
+   "server": []
+  }
+ },
+ "Emberheart Challenger": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Essence Channeler": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Fabled Passage": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "chooseSingleEntityForEffect: Select a card from your library"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "chooseSingleEntityForEffect: Select a card from your library (declined)",
+    "bar: Cancel Search? Up to 1 more card(s) can be selected."
+   ],
+   "server": []
+  }
+ },
+ "Feather of Flight": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Feather of Flight - Feather of Flight Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Feather of Flight - Feather of Flight Select target creature (declined)",
+    "selection: Feather of Flight - Feather of Flight Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Fecund Greenshell": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "order: Choose card(s) to put into battlefield"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "order: Choose card(s) to put into battlefield (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Feed the Cycle": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: {B}) Select target creature or planeswalker"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select target creature or planeswalker (declined)",
+    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select target creature or planeswalker",
+    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select Food to sacrifice (1 left)"
+   ],
+   "server": []
+  }
+ },
+ "Fell": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Fell - Destroy target creature. Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Fell - Destroy target creature. Select target creature (declined)",
+    "selection: Fell - Destroy target creature. Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Festival of Embers": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Finch Formation": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {3}",
+    "selection: Finch Formation - When this creature enters, target creature you control gains flying until end of turn. [Zone Changer: Finch Formation] Select target creature you control"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {3} (declined)",
+    "selection: Finch Formation - When this creature enters, target creature you control gains flying until end of turn. [Zone Changer: Finch Formation] Select target creature you control"
+   ],
+   "server": []
+  }
+ },
+ "Finneas, Ace Archer": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Fireglass Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Flamecache Gecko": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Flamecache Gecko - {1}{R}, Discard a card: Draw a card. Select 1 more card to discard."
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Flamecache Gecko - {1}{R}, Discard a card: Draw a card. Select 1 more card to discard. (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Flowerfoot Swordmaster": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "For the Common Good": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for For the Common Good",
+    "selection: For the Common Good - Create X tokens that are copies of target token you control. Then tokens you control gain indestructible until your next turn. You gain 1 life for each token you control. S"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for For the Common Good (declined)",
+    "getChoices: Choose X for For the Common Good",
+    "selection: For the Common Good - Create X tokens that are copies of target token you control. Then tokens you control gain indestructible until your next turn. You gain 1 life for each token you control. S (declined)",
+    "getChoices: Choose X for For the Common Good",
+    "selection: For the Common Good - Create X tokens that are copies of target token you control. Then tokens you control gain indestructible until your next turn. You gain 1 life for each token you control. S"
+   ],
+   "server": []
+  }
+ },
+ "Fountainport": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Fountainport - {2}, {T}, Sacrifice a token: Draw a card. Select token to sacrifice (1 left) (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Fountainport Bell": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Use triggered ability of Fountainport Bell? Triggered by: Fountainport Bell",
+    "chooseSingleEntityForEffect: Select a card from your library"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Use triggered ability of Fountainport Bell? Triggered by: Fountainport Bell (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Frilled Sparkshooter": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Gev, Scaled Scorch": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Glarb, Calamity's Augur": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Glidedive Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Gossip's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Harnesser of Storms": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Harvestrite Host": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Harvestrite Host - Whenever Harvestrite Host or another Rabbit you control enters, target creature you control gets +1/+0 until end of turn. Then draw a card if this is the second time this abil"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Harvestrite Host - Whenever Harvestrite Host or another Rabbit you control enters, target creature you control gets +1/+0 until end of turn. Then draw a card if this is the second time this abil"
+   ],
+   "server": []
+  }
+ },
+ "Hazardroot Herbalist": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Hazel's Nocturne": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Hazel's Nocturne - Return up to two target creature cards from your graveyard to your hand. Each opponent loses 2 life and you gain 2 life. Choose target creature card in your graveyard (2 more",
+    "selection: Hazel's Nocturne - Return up to two target creature cards from your graveyard to your hand. Each opponent loses 2 life and you gain 2 life. Choose target creature card in your graveyard Targeted"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Hazel's Nocturne - Return up to two target creature cards from your graveyard to your hand. Each opponent loses 2 life and you gain 2 life. Choose target creature card in your graveyard (2 more (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Head of the Homestead": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Heaped Harvest": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Use triggered ability of Heaped Harvest? Triggered by: Heaped Harvest",
+    "chooseSingleEntityForEffect: Select a card from your library",
+    "bar: Use triggered ability of Heaped Harvest? Triggered by: Heaped Harvest",
+    "chooseSingleEntityForEffect: Select a card from your library"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Use triggered ability of Heaped Harvest? Triggered by: Heaped Harvest (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Heartfire Hero": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Hearthborn Battler": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Heirloom Epic": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Heirloom Epic - {4}, {T}: Draw a card. For each mana in this ability's activation cost, you may tap an untapped creature you control rather than pay that mana. Activate only as a sorcery. Heirlo"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Heirloom Epic - {4}, {T}: Draw a card. For each mana in this ability's activation cost, you may tap an untapped creature you control rather than pay that mana. Activate only as a sorcery. Heirlo (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Helga, Skittish Seer": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Hidden Grotto": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Forest Put Forest on the top of library or graveyard?"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Forest Put Forest on the top of library or graveyard? (declined)",
+    "getChoices: Select Mana to Produce"
+   ],
+   "server": []
+  }
+ },
+ "High Stride": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: High Stride - Target creature gets +1/+3 and gains reach until end of turn. Untap it. Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: High Stride - Target creature gets +1/+3 and gains reach until end of turn. Untap it. Select target creature (declined)",
+    "selection: High Stride - Target creature gets +1/+3 and gains reach until end of turn. Untap it. Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Hired Claw": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Hivespine Wolverine": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Hivespine Wolverine - Choose a mode",
+    "selection: Hivespine Wolverine - Destroy target artifact or enchantment. Select target artifact or enchantment"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Hivespine Wolverine - Choose a mode",
+    "selection: Hivespine Wolverine - Put a +1/+1 counter on target creature you control. Select target creature you control"
+   ],
+   "server": []
+  }
+ },
+ "Hoarder's Overflow": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Honored Dreyleader": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Hop to It": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Hugs, Grisly Guardian": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Hugs, Grisly Guardian"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Hugs, Grisly Guardian (declined)",
+    "getChoices: Choose X for Hugs, Grisly Guardian"
+   ],
+   "server": []
+  }
+ },
+ "Hunter's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Hunter's Talent - When Hunter's Talent enters, target creature you control deals damage equal to its power to target creature you don't control. [Zone Changer: Hunter's Talent] Select targ"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Hunter's Talent - When Hunter's Talent enters, target creature you control deals damage equal to its power to target creature you don't control. [Zone Changer: Hunter's Talent] Select targ"
+   ],
+   "server": []
+  }
+ },
+ "Huskburster Swarm": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Innkeeper's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Into the Flood Maw": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Into the Flood Maw - Return target creature an opponent controls to its owner's hand. If the gift was promised, instead return target nonland permanent an opponent controls to its owner's hand."
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Into the Flood Maw - Return target creature an opponent controls to its owner's hand. If the gift was promised, instead return target nonland permanent an opponent controls to its owner's hand. (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Into the Flood Maw - Return target creature an opponent controls to its owner's hand. If the gift was promised, instead return target nonland permanent an opponent controls to its owner's hand."
+   ],
+   "server": []
+  }
+ },
+ "Intrepid Rabbit": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {1}",
+    "selection: Intrepid Rabbit - When this creature enters, target creature you control gets +1/+1 until end of turn. [Zone Changer: Intrepid Rabbit] Select target creature you control"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {1} (declined)",
+    "selection: Intrepid Rabbit - When this creature enters, target creature you control gets +1/+1 until end of turn. [Zone Changer: Intrepid Rabbit] Select target creature you control"
+   ],
+   "server": []
+  }
+ },
+ "Iridescent Vinelasher": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Jackdaw Savior": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Jolly Gerbils": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Junkblade Bruiser": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Kastral, the Windcrested": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Keen-Eyed Curator": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Keen-Eyed Curator - {1}: Exile target card from a graveyard. Choose target card in a graveyard"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Keen-Eyed Curator - {1}: Exile target card from a graveyard. Choose target card in a graveyard (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Kindlespark Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Kitnap": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Kitnap - Kitnap Select target creature"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Kitnap - Kitnap Select target creature (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Kitnap - Kitnap Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Kitsa, Otterball Elite": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Knightfisher": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Lifecreed Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Lightshell Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "order: Select cards to be put into the graveyard"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "order: Select cards to be put into the graveyard (declined)"
+   ],
+   "server": [
+    "ask-auto-answered order: the order the one scry, surveil or dig prompt already gave"
+   ]
+  }
+ },
+ "Lilypad Village": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Lilysplash Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Lilysplash Mentor - {1}{G}{U}: Exile another target creature you control, then return it to the battlefield under its owner's control with a +1/+1 counter on it. Activate only as a sorcery. Sele"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Lilysplash Mentor - {1}{G}{U}: Exile another target creature you control, then return it to the battlefield under its owner's control with a +1/+1 counter on it. Activate only as a sorcery. Sele (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Long River Lurker": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Long River Lurker - When Long River Lurker enters, target creature you control can't be blocked this turn. Whenever that creature deals combat damage this turn, you may exile it. If you do, retu"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Long River Lurker - When Long River Lurker enters, target creature you control can't be blocked this turn. Whenever that creature deals combat damage this turn, you may exile it. If you do, retu"
+   ],
+   "server": []
+  }
+ },
+ "Long River's Pull": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "getChoices: Select target spell"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "getChoices: Select target creature spell (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "getChoices: Select target creature spell"
+   ],
+   "server": []
+  }
+ },
+ "Longstalk Brawl": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Longstalk Brawl - Choose target creature you control and target creature you don't control. Put a +1/+1 counter on the creature you control if the gift was promised. Then those creatures fight e"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Longstalk Brawl - Choose target creature you control and target creature you don't control. Put a +1/+1 counter on the creature you control if the gift was promised. Then those creatures fight e (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Longstalk Brawl - Choose target creature you control and target creature you don't control. Put a +1/+1 counter on the creature you control if the gift was promised. Then those creatures fight e"
+   ],
+   "server": []
+  }
+ },
+ "Lumra, Bellow of the Woods": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "order: Choose order of cards to put onto the battlefield"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "order: Choose order of cards to put onto the battlefield"
+   ],
+   "server": []
+  }
+ },
+ "Lunar Convocation": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Lupinflower Village": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Mabel, Heir to Cragflame": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Mabel's Mettle": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Mabel's Mettle - Target creature gets +2/+2 until end of turn. Up to one other target creature gets +1/+1 until end of turn. Select target creature to get +2/+2",
+    "selection: Mabel's Mettle - Target creature gets +2/+2 until end of turn. Up to one other target creature gets +1/+1 until end of turn. Select up to one other target creature to get +1/+1 Parent Targeted:["
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Mabel's Mettle - Target creature gets +2/+2 until end of turn. Up to one other target creature gets +1/+1 until end of turn. Select target creature to get +2/+2 (declined)",
+    "selection: Mabel's Mettle - Target creature gets +2/+2 until end of turn. Up to one other target creature gets +1/+1 until end of turn. Select target creature to get +2/+2",
+    "selection: Mabel's Mettle - Target creature gets +2/+2 until end of turn. Up to one other target creature gets +1/+1 until end of turn. Select up to one other target creature to get +1/+1 Parent Targeted:["
+   ],
+   "server": []
+  }
+ },
+ "Maha, Its Feathers Night": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Manifold Mouse": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Might of the Meek": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Might of the Meek - Target creature gains trample until end of turn. It also gets +1/+0 until end of turn if you control a Mouse. Draw a card. Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Might of the Meek - Target creature gains trample until end of turn. It also gets +1/+0 until end of turn if you control a Mouse. Draw a card. Select target creature (declined)",
+    "selection: Might of the Meek - Target creature gains trample until end of turn. It also gets +1/+0 until end of turn if you control a Mouse. Draw a card. Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Mind Drill Assailant": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Forest Put Forest on the top of library or graveyard?"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Forest Put Forest on the top of library or graveyard? (declined)",
+    "bar: Grizzly Bears Put Grizzly Bears on the top of library or graveyard? (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Mind Spiral": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Mind Spiral - Target player draws three cards. If the gift was promised, tap target creature an opponent controls and put a stun counter on it. (If a permanent with a stun counter would become u",
+    "selection: Mind Spiral - Select target Creature.OppCtrl Parent Targeted:[Forge AI]"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Mind Spiral - Target player draws three cards. If the gift was promised, tap target creature an opponent controls and put a stun counter on it. (If a permanent with a stun counter would become u (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Mind Spiral - Target player draws three cards. If the gift was promised, tap target creature an opponent controls and put a stun counter on it. (If a permanent with a stun counter would become u"
+   ],
+   "server": []
+  }
+ },
+ "Mindwhisker": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Mistbreath Elder": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Mockingbird": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Mockingbird",
+    "bar: Apply replacement effect of Mockingbird? You may have Mockingbird enter the battlefield as a copy of any creature on the battlefield with mana value less than or equal to the amount of mana spent to c",
+    "selection: Mockingbird - You may have Mockingbird enter the battlefield as a copy of any creature on the battlefield with mana value less than or equal to the amount of mana spent to cast Mockingbird, exce"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Mockingbird (declined)",
+    "getChoices: Choose X for Mockingbird",
+    "bar: Apply replacement effect of Mockingbird? You may have Mockingbird enter the battlefield as a copy of any creature on the battlefield with mana value less than or equal to the amount of mana spent to c (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Moonrise Cleric": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Moonstone Harbinger": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Mouse Trapper": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Mudflat Village": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Muerra, Trash Tactician": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Nettle Guard": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Nettle Guard - {1}, Sacrifice Nettle Guard: Destroy target artifact or enchantment. Select target artifact or enchantment"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Nettle Guard - {1}, Sacrifice Nettle Guard: Destroy target artifact or enchantment. Select target artifact or enchantment (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Nightwhorl Hermit": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Nocturnal Hunger": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Nocturnal Hunger - Destroy target creature. If the gift wasn't promised, you lose 2 life. Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Nocturnal Hunger - Destroy target creature. If the gift wasn't promised, you lose 2 life. Select target creature (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Nocturnal Hunger - Destroy target creature. If the gift wasn't promised, you lose 2 life. Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Oakhollow Village": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Osteomancer Adept": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Otterball Antics": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Overprotect": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Overprotect - Target creature you control gets +3/+3 and gains trample, hexproof, and indestructible until end of turn. Select target creature you control"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Overprotect - Target creature you control gets +3/+3 and gains trample, hexproof, and indestructible until end of turn. Select target creature you control (declined)",
+    "selection: Overprotect - Target creature you control gets +3/+3 and gains trample, hexproof, and indestructible until end of turn. Select target creature you control"
+   ],
+   "server": []
+  }
+ },
+ "Parting Gust": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Parting Gust - Exile target nontoken creature. If the gift wasn't promised, return that creature to the battlefield under its owner's control with a +1/+1 counter on it at the beginning of the n"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Parting Gust - Exile target nontoken creature. If the gift wasn't promised, return that creature to the battlefield under its owner's control with a +1/+1 counter on it at the beginning of the n (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Parting Gust - Exile target nontoken creature. If the gift wasn't promised, return that creature to the battlefield under its owner's control with a +1/+1 counter on it at the beginning of the n"
+   ],
+   "server": []
+  }
+ },
+ "Patchwork Banner": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose a creature type",
+    "getChoices: Select Mana to Produce"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose a creature type",
+    "getChoices: Select Mana to Produce"
+   ],
+   "server": []
+  }
+ },
+ "Pawpatch Formation": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Pawpatch Formation - Choose a mode",
+    "selection: Pawpatch Formation - Destroy target creature with flying. Select target creature with flying"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Pawpatch Formation - Choose a mode",
+    "selection: Pawpatch Formation - Destroy target enchantment. Select target enchantment (declined)",
+    "getChoices: Seat 1 activated Pawpatch Formation - Choose a mode"
+   ],
+   "server": []
+  }
+ },
+ "Pawpatch Recruit": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Pearl of Wisdom": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Peerless Recycling": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Peerless Recycling - Return target permanent card from your graveyard to your hand. If the gift was promised, instead return two target permanent cards from your graveyard to your hand. Choose t"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Peerless Recycling - Return target permanent card from your graveyard to your hand. If the gift was promised, instead return two target permanent cards from your graveyard to your hand. Choose t (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Peerless Recycling - Return target permanent card from your graveyard to your hand. If the gift was promised, instead return two target permanent cards from your graveyard to your hand. Choose t"
+   ],
+   "server": []
+  }
+ },
+ "Persistent Marshstalker": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Pileated Provisioner": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Pileated Provisioner - When Pileated Provisioner enters, put a +1/+1 counter on target creature you control without flying. [Zone Changer: Pileated Provisioner] Select target creature you"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Pileated Provisioner - When Pileated Provisioner enters, put a +1/+1 counter on target creature you control without flying. [Zone Changer: Pileated Provisioner] Select target creature you"
+   ],
+   "server": []
+  }
+ },
+ "Playful Shove": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Playful Shove - Playful Shove deals 1 damage to any target. Draw a card. Select any target"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Playful Shove - Playful Shove deals 1 damage to any target. Draw a card. Select any target (declined)",
+    "selection: Playful Shove - Playful Shove deals 1 damage to any target. Draw a card. Select any target"
+   ],
+   "server": []
+  }
+ },
+ "Plumecreed Escort": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Plumecreed Escort - When Plumecreed Escort enters, target creature you control gains hexproof until end of turn. [Zone Changer: Plumecreed Escort] Select target creature you control"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Plumecreed Escort - When Plumecreed Escort enters, target creature you control gains hexproof until end of turn. [Zone Changer: Plumecreed Escort] Select target creature you control"
+   ],
+   "server": []
+  }
+ },
+ "Plumecreed Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Plumecreed Mentor - Whenever Plumecreed Mentor or another creature you control with flying enters, put a +1/+1 counter on target creature you control without flying. [Zone Changer: Plumecreed Me"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Plumecreed Mentor - Whenever Plumecreed Mentor or another creature you control with flying enters, put a +1/+1 counter on target creature you control without flying. [Zone Changer: Plumecreed Me"
+   ],
+   "server": []
+  }
+ },
+ "Polliwallop": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Polliwallop - Target creature you control deals damage equal to twice its power to target creature you don't control. Select target creature you control",
+    "selection: Polliwallop - Target creature you control deals damage equal to twice its power to target creature you don't control. Select target creature you don't control Parent Targeted:[Grizzly Bears (145"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Polliwallop - Target creature you control deals damage equal to twice its power to target creature you don't control. Select target creature you control (declined)",
+    "selection: Polliwallop - Target creature you control deals damage equal to twice its power to target creature you don't control. Select target creature you control",
+    "selection: Polliwallop - Target creature you control deals damage equal to twice its power to target creature you don't control. Select target creature you don't control Parent Targeted:[Squirrel Token (15"
+   ],
+   "server": []
+  }
+ },
+ "Pond Prophet": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Portent of Calamity": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Portent of Calamity",
+    "order: Choose a card type"
+   ],
+   "server": [
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)",
+    "ask-auto-answered chooseSingleEntityForEffect: the cards the one per-type prompt already picked",
+    "ask-auto-answered getChoices: the cards the one per-type prompt already picked",
+    "ask-auto-answered chooseSingleEntityForEffect: the cards the one per-type prompt already picked",
+    "ask-auto-answered getChoices: the cards the one per-type prompt already picked",
+    "ask-auto-answered chooseSingleEntityForEffect: the cards the one per-type prompt already picked",
+    "ask-auto-answered chooseSingleEntityForEffect: the cards the one per-type prompt already picked"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Portent of Calamity (declined)",
+    "getChoices: Choose X for Portent of Calamity",
+    "order: Choose a card type (declined)"
+   ],
+   "server": [
+    "ask-auto-answered getChoices: a reveal — its one legal answer, shown at once (no choice flagged to follow)",
+    "ask-auto-answered chooseSingleEntityForEffect: the cards the one per-type prompt already picked",
+    "ask-auto-answered getChoices: the cards the one per-type prompt already picked",
+    "ask-auto-answered chooseSingleEntityForEffect: the cards the one per-type prompt already picked",
+    "ask-auto-answered getChoices: the cards the one per-type prompt already picked",
+    "ask-auto-answered chooseSingleEntityForEffect: the cards the one per-type prompt already picked",
+    "ask-auto-answered chooseSingleEntityForEffect: the cards the one per-type prompt already picked"
+   ]
+  }
+ },
+ "Psychic Whorl": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Psychic Whorl - Target player discards two cards. Then if you control a Rat, surveil 2. (Look at the top two cards of your library, then put any number of them into your graveyard and the rest o"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Psychic Whorl - Target player discards two cards. Then if you control a Rat, surveil 2. (Look at the top two cards of your library, then put any number of them into your graveyard and the rest o (declined)",
+    "selection: Psychic Whorl - Target player discards two cards. Then if you control a Rat, surveil 2. (Look at the top two cards of your library, then put any number of them into your graveyard and the rest o"
+   ],
+   "server": []
+  }
+ },
+ "Rabbit Response": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Rabid Gnaw": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Rabid Gnaw - Target creature you control gets +1/+0 until end of turn. Then it deals damage equal to its power to target creature you don't control. Select target creature you control",
+    "selection: Rabid Gnaw - Target creature you control gets +1/+0 until end of turn. Then it deals damage equal to its power to target creature you don't control. Select target creature you don't control Pare"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Rabid Gnaw - Target creature you control gets +1/+0 until end of turn. Then it deals damage equal to its power to target creature you don't control. Select target creature you control (declined)",
+    "selection: Rabid Gnaw - Target creature you control gets +1/+0 until end of turn. Then it deals damage equal to its power to target creature you don't control. Select target creature you control",
+    "selection: Rabid Gnaw - Target creature you control gets +1/+0 until end of turn. Then it deals damage equal to its power to target creature you don't control. Select target creature you don't control Pare"
+   ],
+   "server": []
+  }
+ },
+ "Raccoon Rallier": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Ral, Crackling Wit": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Ral, Crackling Wit Discard 2 card(s)"
+   ],
+   "server": []
+  }
+ },
+ "Ravine Raider": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Repel Calamity": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Repel Calamity - Destroy target creature with power or toughness 4 or greater. Select target creature with power or toughness 4 or greater"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Repel Calamity - Destroy target creature with power or toughness 4 or greater. Select target creature with power or toughness 4 or greater (declined)",
+    "selection: Repel Calamity - Destroy target creature with power or toughness 4 or greater. Select target creature with power or toughness 4 or greater"
+   ],
+   "server": []
+  }
+ },
+ "Reptilian Recruiter": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Reptilian Recruiter - When Reptilian Recruiter enters, choose target creature. If that creature's power is 2 or less or if you control another Lizard, gain control of that creature until end of"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Reptilian Recruiter - When Reptilian Recruiter enters, choose target creature. If that creature's power is 2 or less or if you control another Lizard, gain control of that creature until end of"
+   ],
+   "server": []
+  }
+ },
+ "Rockface Village": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Rottenmouth Viper": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Rottenmouth Viper"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Rottenmouth Viper (declined)",
+    "getChoices: Choose X for Rottenmouth Viper",
+    "selection: Rottenmouth Viper - As an additional cost to cast this spell, you may sacrifice any number of permanent.nonlands. Select nonland permanent to sacrifice (1 left) (declined)",
+    "getChoices: Choose X for Rottenmouth Viper",
+    "selection: Rottenmouth Viper - As an additional cost to cast this spell, you may sacrifice any number of permanent.nonlands. Select nonland permanent to sacrifice (1 left)"
+   ],
+   "server": []
+  }
+ },
+ "Roughshod Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Run Away Together": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Run Away Together - Choose two target creatures by different players. Return those creatures to their owners' hands. Select target creature (2 more can be targeted)",
+    "selection: Run Away Together - Choose two target creatures by different players. Return those creatures to their owners' hands. Select target creature Targeted: Savannah Lions (1 more can be targeted",
+    "selection: Run Away Together - Cannot target this card (must have different controllers)"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Run Away Together - Choose two target creatures by different players. Return those creatures to their owners' hands. Select target creature (2 more can be targeted) (declined)",
+    "selection: Run Away Together - Choose two target creatures by different players. Return those creatures to their owners' hands. Select target creature (2 more can be targeted)",
+    "selection: Run Away Together - Choose two target creatures by different players. Return those creatures to their owners' hands. Select target creature Targeted: Grizzly Bears (1 more can be targeted)",
+    "selection: Run Away Together - Cannot target this card (must have different controllers)"
+   ],
+   "server": []
+  }
+ },
+ "Rust-Shield Rampager": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Ruthless Negotiation": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Salvation Swan": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Salvation Swan - Whenever Salvation Swan or another Bird you control enters, exile up to one target creature you control without flying. Return it to the battlefield under its owner's control wi"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Salvation Swan - Whenever Salvation Swan or another Bird you control enters, exile up to one target creature you control without flying. Return it to the battlefield under its owner's control wi (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Savor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Savor - Target creature gets -2/-2 until end of turn. Create a Food token. Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Savor - Target creature gets -2/-2 until end of turn. Create a Food token. Select target creature (declined)",
+    "selection: Savor - Target creature gets -2/-2 until end of turn. Create a Food token. Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Sazacap's Brew": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Sazacap's Brew - As an additional cost to cast this spell, discard a card. Target player draws two cards. If the gift was promised, target creature you control gets +2/+0 until end of turn. Sele"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Sazacap's Brew - As an additional cost to cast this spell, discard a card. Target player draws two cards. If the gift was promised, target creature you control gets +2/+0 until end of turn. Sele (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Sazacap's Brew - As an additional cost to cast this spell, discard a card. Target player draws two cards. If the gift was promised, target creature you control gets +2/+0 until end of turn. Sele"
+   ],
+   "server": []
+  }
+ },
+ "Scales of Shale": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Scales of Shale - Target creature gets +2/+0 and gains lifelink and indestructible until end of turn. Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Scales of Shale - Target creature gets +2/+0 and gains lifelink and indestructible until end of turn. Select target creature (declined)",
+    "selection: Scales of Shale - Target creature gets +2/+0 and gains lifelink and indestructible until end of turn. Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Scavenger's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Scrapshooter": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Scrapshooter - When Scrapshooter enters, if the gift was promised, destroy target artifact or enchantment an opponent controls. [Zone Changer: Scrapshooter] Select target artifact or encha"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Season of Gathering": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of Gathering - Choose a mode",
+    "selection: Season of Gathering - Put a +1/+1 counter on a creature you control. It gains vigilance and trample until end of turn. Put a +1/+1 counter on a creature you control. It gains vigilance and tramp",
+    "selection: Season of Gathering - Put a +1/+1 counter on a creature you control. It gains vigilance and trample until end of turn. Draw cards equal to the greatest power among creatures you control. Choose"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of Gathering - Choose a mode (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Season of Loss": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of Loss - Choose a mode",
+    "selection: Season of Loss - Each player sacrifices a creature. Each player sacrifices a creature. Each opponent loses X life, where X is the number of creature cards in your graveyard. Select 1 creature(s)",
+    "selection: Season of Loss - Each player sacrifices a creature. Each opponent loses X life, where X is the number of creature cards in your graveyard. Select 1 creature(s) to sacrifice."
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of Loss - Choose a mode (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Season of the Bold": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of the Bold - Choose a mode"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of the Bold - Choose a mode (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Season of the Burrow": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of the Burrow - Choose a mode",
+    "selection: Season of the Burrow - Exile target nonland permanent. Its controller draws a card. Select target Permanent.nonLand"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of the Burrow - Choose a mode (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Season of Weaving": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of Weaving - Choose a mode",
+    "selection: Season of Weaving - Choose an artifact or creature you control. Create a token that's a copy of it. Choose a card"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Seat 1 activated Season of Weaving - Choose a mode (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Seasoned Warrenguard": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Seedglaive Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Seedpod Squire": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Shore Up": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Shore Up - Target creature you control gets +1/+1 and gains hexproof until end of turn. Untap it. (It can't be the target of spells or abilities your opponents control.) Select target creature y"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Shore Up - Target creature you control gets +1/+1 and gains hexproof until end of turn. Untap it. (It can't be the target of spells or abilities your opponents control.) Select target creature y (declined)",
+    "selection: Shore Up - Target creature you control gets +1/+1 and gains hexproof until end of turn. Untap it. (It can't be the target of spells or abilities your opponents control.) Select target creature y"
+   ],
+   "server": []
+  }
+ },
+ "Shoreline Looter": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Short Bow": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Short Bow - Equip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.) Select target creature you control"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Short Bow - Equip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.) Select target creature you control (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Sinister Monolith": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Skyskipper Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Skyskipper Duo - When Skyskipper Duo enters, exile up to one other target creature you control. Return it to the battlefield under its owner's control at the beginning of the next end step. [Zon"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Skyskipper Duo - When Skyskipper Duo enters, exile up to one other target creature you control. Return it to the battlefield under its owner's control at the beginning of the next end step. [Zon (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Sonar Strike": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Sonar Strike - Sonar Strike deals 4 damage to target attacking, blocking, or tapped creature. You gain 3 life if you control a Bat. Select target attacking, blocking, or tapped creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Sonar Strike - Sonar Strike deals 4 damage to target attacking, blocking, or tapped creature. You gain 3 life if you control a Bat. Select target attacking, blocking, or tapped creature (declined)",
+    "selection: Sonar Strike - Sonar Strike deals 4 damage to target attacking, blocking, or tapped creature. You gain 3 life if you control a Bat. Select target attacking, blocking, or tapped creature"
+   ],
+   "server": []
+  }
+ },
+ "Spellgyre": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "order: Select cards to be put into the graveyard"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "order: Select cards to be put into the graveyard (declined)"
+   ],
+   "server": [
+    "ask-auto-answered order: the order the one scry, surveil or dig prompt already gave"
+   ]
+  }
+ },
+ "Splash Lasher": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {1}{U}",
+    "selection: Splash Lasher - When this creature enters, tap up to one target creature and put a stun counter on it. (If a permanent with a stun counter would become untapped, remove one from it instead.) [Zo"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {1}{U} (declined)",
+    "selection: Splash Lasher - When this creature enters, tap up to one target creature and put a stun counter on it. (If a permanent with a stun counter would become untapped, remove one from it instead.) [Zo (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Splash Portal": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Splash Portal - Exile target creature you control, then return it to the battlefield under its owner's control. If that creature is a Bird, Frog, Otter, or Rat, draw a card. Select target creatu"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Splash Portal - Exile target creature you control, then return it to the battlefield under its owner's control. If that creature is a Bird, Frog, Otter, or Rat, draw a card. Select target creatu (declined)",
+    "selection: Splash Portal - Exile target creature you control, then return it to the battlefield under its owner's control. If that creature is a Bird, Frog, Otter, or Rat, draw a card. Select target creatu"
+   ],
+   "server": []
+  }
+ },
+ "Star Charter": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Starfall Invocation": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "chooseSingleEntityForEffect: Select a card from your graveyard"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Starforged Sword": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Starforged Sword - When Starforged Sword enters, if the gift was promised, attach Starforged Sword to target creature you control. [Zone Changer: Starforged Sword] Select target creature y",
+    "selection: Starforged Sword - Equip {3} ({3}: Attach to target creature you control. Equip only as a sorcery.) Select target creature you control"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Starforged Sword - Equip {3} ({3}: Attach to target creature you control. Equip only as a sorcery.) Select target creature you control (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Stargaze": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Stargaze",
+    "chooseEntitiesForEffect: Choose card(s) to put into hand"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose X for Stargaze (declined)",
+    "getChoices: Choose X for Stargaze",
+    "chooseEntitiesForEffect: Choose card(s) to put into hand"
+   ],
+   "server": []
+  }
+ },
+ "Starlit Soothsayer": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Starscape Cleric": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}{B}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}{B} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Starseer Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Steampath Charger": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Stickytongue Sentinel": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Stickytongue Sentinel - When Stickytongue Sentinel enters, return up to one other target permanent you control to its owner's hand. [Zone Changer: Stickytongue Sentinel] Select up to one o"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Stickytongue Sentinel - When Stickytongue Sentinel enters, return up to one other target permanent you control to its owner's hand. [Zone Changer: Stickytongue Sentinel] Select up to one o (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Stocking the Pantry": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Stormcatch Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Stormchaser's Talent": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Stormchaser's Talent - Stormchaser's Talent: When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand. [Class Level: 2] Select target Instant"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Stormchaser's Talent - Stormchaser's Talent: When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand. [Class Level: 2] Select target Instant"
+   ],
+   "server": []
+  }
+ },
+ "Stormsplitter": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Sugar Coat": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Sugar Coat - Sugar Coat Select target creature or Food"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Sugar Coat - Sugar Coat Select target creature or Food (declined)",
+    "selection: Sugar Coat - Sugar Coat Select target creature or Food"
+   ],
+   "server": []
+  }
+ },
+ "Sunshower Druid": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Sunshower Druid - When Sunshower Druid enters, put a +1/+1 counter on target creature and you gain 1 life. [Zone Changer: Sunshower Druid] Select target creature"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Sunshower Druid - When Sunshower Druid enters, put a +1/+1 counter on target creature and you gain 1 life. [Zone Changer: Sunshower Druid] Select target creature"
+   ],
+   "server": []
+  }
+ },
+ "Sunspine Lynx": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Take Out the Trash": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Take Out the Trash - Take Out the Trash deals 3 damage to target creature or planeswalker. If you control a Raccoon, you may discard a card. If you do, draw a card. Select target creature or pla"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Take Out the Trash - Take Out the Trash deals 3 damage to target creature or planeswalker. If you control a Raccoon, you may discard a card. If you do, draw a card. Select target creature or pla (declined)",
+    "selection: Take Out the Trash - Take Out the Trash deals 3 damage to target creature or planeswalker. If you control a Raccoon, you may discard a card. If you do, draw a card. Select target creature or pla"
+   ],
+   "server": []
+  }
+ },
+ "Tangle Tumbler": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Tangle Tumbler - {3}, {T}: Put a +1/+1 counter on target creature. Select target creature",
+    "selection: Tangle Tumbler - Tap two untapped tokens you control: Tangle Tumbler becomes an artifact creature until end of turn. Select a(n) token to tap (2 left)"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Tangle Tumbler - {3}, {T}: Put a +1/+1 counter on target creature. Select target creature (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Teapot Slinger": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Tempest Angler": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Tender Wildguide": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "The Infamous Cruelclaw": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Thistledown Players": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Thornplate Intimidator": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {3}"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {3} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Thornvault Forager": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Thought Shucker": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Thought-Stalker Warlock": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Three Tree City": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose a creature type"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose a creature type"
+   ],
+   "server": []
+  }
+ },
+ "Three Tree Mascot": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Select Mana to Produce"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Select Mana to Produce"
+   ],
+   "server": []
+  }
+ },
+ "Three Tree Rootweaver": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Three Tree Scribe": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Thundertrap Trainer": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {4}",
+    "order: Choose card(s) to put into hand"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {4} (declined)",
+    "order: Choose card(s) to put into hand (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Tidecaller Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Tidecaller Mentor - Threshold — When Tidecaller Mentor enters, if there are seven or more cards in your graveyard, return up to one target nonland permanent to its owner's hand. [Zone Changer: T"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Tidecaller Mentor - Threshold — When Tidecaller Mentor enters, if there are seven or more cards in your graveyard, return up to one target nonland permanent to its owner's hand. [Zone Changer: T (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Treeguard Duo": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Treeguard Duo - When Treeguard Duo enters, until end of turn, target creature you control gains vigilance and gets +X/+X, where X is the number of creatures you control. [Zone Changer: Treeguard"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Treeguard Duo - When Treeguard Duo enters, until end of turn, target creature you control gains vigilance and gets +X/+X, where X is the number of creatures you control. [Zone Changer: Treeguard"
+   ],
+   "server": []
+  }
+ },
+ "Treetop Sentries": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Sacrifice Food",
+    "selection: Treetop Sentries Select Food to sacrifice (1 left)"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Sacrifice Food (declined)",
+    "selection: Treetop Sentries Select 3 or more to exile (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Uncharted Haven": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose a color"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose a color"
+   ],
+   "server": [
+    "ask-auto-answered order: Forge's own order"
+   ]
+  }
+ },
+ "Valley Flamecaller": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Valley Floodcaller": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Valley Mightcaller": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Valley Questcaller": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Valley Rally": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Valley Rally - Creatures you control get +2/+0 until end of turn. If the gift was promised, target creature you control gains first strike until end of turn. Select target creature you control"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Valley Rotcaller": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Veteran Guardmouse": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Vinereap Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Vren, the Relentless": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Wandertale Mentor": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "War Squeak": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: War Squeak - War Squeak Select target creature",
+    "selection: War Squeak - When War Squeak enters, target creature an opponent controls can't block this turn. [Zone Changer: War Squeak] Select target creature an opponent controls"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: War Squeak - War Squeak Select target creature (declined)",
+    "selection: War Squeak - War Squeak Select target creature",
+    "selection: War Squeak - When War Squeak enters, target creature an opponent controls can't block this turn. [Zone Changer: War Squeak] Select target creature an opponent controls"
+   ],
+   "server": []
+  }
+ },
+ "Warren Elder": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Warren Warleader": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2}"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Pay for Offspring? {2} (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Waterspout Warden": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Wax-Wane Witness": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Wear Down": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Wear Down - Destroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments. Select target artifact or enchantment (2 more can be targe",
+    "selection: Wear Down - Destroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments. Select target artifact or enchantment Targeted: Mind Stone"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)",
+    "selection: Wear Down - Destroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments. Select target artifact or enchantment (declined)",
+    "getChoices: Choose optional costs (declined)",
+    "selection: Wear Down - Destroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments. Select target artifact or enchantment"
+   ],
+   "server": []
+  }
+ },
+ "Whiskerquill Scribe": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Whiskervale Forerunner": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Wick, the Whorled Mind": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": [
+    "auto-picked -: the only legal sacrifice"
+   ]
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": [
+    "auto-picked -: the only legal sacrifice"
+   ]
+  }
+ },
+ "Wick's Patrol": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Wick's Patrol - When you do, target creature an opponent controls gets -X/-X until end of turn, where X is the greatest mana value among cards in your graveyard. Select target creature an oppone"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "selection: Wick's Patrol - When you do, target creature an opponent controls gets -X/-X until end of turn, where X is the greatest mana value among cards in your graveyard. Select target creature an oppone"
+   ],
+   "server": []
+  }
+ },
+ "Wildfire Howl": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs",
+    "selection: Wildfire Howl - Wildfire Howl deals 2 damage to each creature. If the gift was promised, instead Wildfire Howl deals 1 damage to any target and 2 damage to each creature. Select any target"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "getChoices: Choose optional costs (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Wishing Well": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Wishing Well Do you want to play Shock?",
+    "selection: Shock - Shock deals 2 damage to any target. (without paying its mana cost) Select any target"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Wishing Well Do you want to play Shock? (declined)"
+   ],
+   "server": []
+  }
+ },
+ "Ygra, Eater of All": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [],
+   "server": []
+  }
+ },
+ "Zoraline, Cosmos Caller": {
+  "accept": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Do you want to pay 2 life?",
+    "selection: Zoraline, Cosmos Caller - When you do, return target nonland permanent card with mana value 3 or less from your graveyard to the battlefield with a finality counter on it. Choose target nonland"
+   ],
+   "server": []
+  },
+  "decline": {
+   "cast": "resolved",
+   "asks": [
+    "bar: Do you want to pay 2 life? (declined)"
+   ],
+   "server": []
+  }
+ }
+}

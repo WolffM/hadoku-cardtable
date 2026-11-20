@@ -1,0 +1,17 @@
+# Bloomburrow's offspring: Pawpatch Recruit, {G}, "Offspring {2} (You may pay an additional {2} as
+# you cast this spell. If you do, when this creature enters, create a 1/1 token copy of it.)". Alice
+# (seat 0) holds only the Recruit with three Forests: enough to pay for the offspring, so whether
+# she does is her choice as she casts.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Pawpatch Recruit
+humanbattlefield=Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=Island
+aibattlefield=
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

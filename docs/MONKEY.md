@@ -94,6 +94,80 @@ per-match seed and therefore the same run — moves, draws, AI, the lot
 (`rng.ts`'s `makeRng`/`mulberry32` is deterministic). The opponent deck is
 also picked by that per-match RNG, so it is reproduced too.
 
+## The card sweep
+
+The monkey finds what random play happens to reach. The sweep (`games/magic/server/src/play/monkey/sweep/`)
+is the other half: it plays **every scripted card of one set on purpose**, one match per card, on
+the same running stack, through the same client code and the same `driveSeat` loop, so each flag
+above means the same thing. It exists for a set cube: before a set is drafted, every card in it
+has been cast against real Forge and every question it raises has been answered by the client.
+
+```sh
+# the same env and builds as the monkey, above
+apps/server/node_modules/.bin/tsx games/magic/server/src/play/monkey/sweep/cli.ts \
+  --set BLB --out /tmp/sweep-blb.json            # every scripted card, both variants
+  # --card "Parting Gust" (repeatable)  --variant accept|decline  --concurrency 2  --seed 1  --per-match 1
+```
+
+The card list is the `[cards]` section of the edition whose `Code=` is `--set`, read from the
+`res` the match runs on (`set-cards.ts`); a card whose script is keywords only (a vanilla or
+french-vanilla creature, a basic land) is left out unless named with `--card`.
+
+Each card is played on one fixed board (`board.ts`): the card in hand on the seat's own main
+phase, four of each basic, creatures, an artifact and an enchantment on both sides, cards in both
+graveyards and hands. The seat (`policy.ts`) clicks the card, answers what the cast asks, passes
+until it resolves, clicks the card on the battlefield while it is offered (a Class's levels, an
+ability), then plays two more turns, attacking with it, and concedes.
+
+Every card runs twice. **`accept`** takes every optional question (promises the gift, pays the
+offspring cost, picks a target that is "up to one", says yes to a "may"); **`decline`** refuses
+every one.
+
+`--per-match N` puts N cards in one match (their lands and the board are shared, `with` in the
+report names the others). It is off by default because it did not pay: measured on Bloomburrow at
+twelve a match, 114 of 514 plays asked what they ask alone (cards on one board change each other's
+targets and triggers), the rest had to be played again alone, and the whole run took four times as
+long as one card a match. `--concurrency` is the lever that works.
+
+### Reading a sweep report
+
+One JSON document, written after every match: `cards[]`, one `CardResult` (`run-cards.ts`) per card
+and variant.
+
+| field | what it says |
+| --- | --- |
+| `cast` | `resolved`, or why not: `not-offered` (the main phase never offered the card: the board lacks what it needs, or it needs a spell on the stack), `rolled-back` (the cast came back to hand) |
+| `asks` | every question the seat was asked, in order: the ask's method, its own words and bounds and its first options, whether the seat declined it, and whether it came `during` the card's own `play` or the turns that `follow`. `method: "bar"` is a yes/no on Forge's two buttons; `"selection"` is a pick Forge opened on the board (a target, a cost) |
+| `server` | what the server answered for the seat (`ask-auto-answered`, `auto-picked`, `ask-unanswerable`), with its reason |
+| `board` | the board when the run ended, by card name: the difference from `board.ts` is what the card did |
+| `flags` | the monkey's flags, plus `no-finish` when the card was not played and followed inside `--timeout-ms` |
+
+A `decline` run that cancels the cast itself (Forge asks a spell's target and its X in the same
+optional shape as a cost) casts the card again and takes the question it refused last.
+
+### What each card is expected to ask
+
+No flag means nothing got stuck. It does not mean the card still asks what it should: a gift
+promised without asking, or an offspring cost the server pays for the seat, plays through cleanly.
+So each run is reduced to a signature (`expected.ts`: how the cast ended, the questions of the
+card's own play and which were refused, what the server answered in the seat's place) and checked
+against `sweep/expected/<SET>.json`. A difference prints both sides and fails the run.
+
+A play that differs is first played again alone, twice at most: a question can land a frame either
+side of the click that answers it, and a card that really changed differs every time. The run says
+which plays matched only on a replay.
+
+The recording cannot catch a card that was already wrong when it was recorded, so a keyword that is
+an optional cost is checked on its own, in any set (`mechanics.ts`: Gift, Offspring): the cast must
+ask for it, `accept` must take it, and `decline` must be able to refuse it. A broken one prints
+`MECHANIC <card> — <what>` and fails the run, recorded or not.
+
+`--update` records instead of checking. Read the diff of the expectations file before committing
+it: every changed line is a card that now asks something different.
+
+Exit codes: 0 clean, 1 flagged, a keyword promise broken or differing, 2 could not run. A `not-offered` card is not a flag
+(nothing went wrong), and it is not covered either: it needs a scenario of its own.
+
 ## Decks covered
 
 Every deck `GET /api/tables/decks` lists for the running server (`deck-pool.ts`)
@@ -156,6 +230,11 @@ workflow runs a sample of 8 by default (`monkey_sample`/`monkey_seed`/`monkey_de
 inputs to narrow or reproduce). It gates nothing and reaches no fleet alert: a
 flag shows red on the Actions tab and in the workflow's own history; that
 alerting decision is the operator's to make.
+
+The same workflow has a second job, `forge-sweep`: the card sweep on every set with a
+`sweep/expected/<SET>.json`, nightly after the same cron, two matches at a time. A dispatch with
+`sweep_set=BLB` runs the sweep on that set instead of the monkey. Its report is the `sweep-report`
+artifact, and like the monkey it gates nothing.
 
 Until 2026-11-19 it was a job in `forge.yml`, started by the 10:00Z nightly
 full run, three matches at a time on the server's 2 GiB default heap. The full

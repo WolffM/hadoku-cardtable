@@ -1,0 +1,17 @@
+# Bloomburrow's gift: Parting Gust, "Gift a tapped Fish. Exile target nontoken creature. If the gift
+# wasn't promised, return that creature to the battlefield … with a +1/+1 counter on it at the
+# beginning of the next end step." Alice (seat 0) holds only Parting Gust with two Plains to pay
+# {W}{W}; bob's Grizzly Bears is the one creature to exile. Promising is alice's choice as she casts.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Parting Gust
+humanbattlefield=Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=Island
+aibattlefield=Grizzly Bears
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

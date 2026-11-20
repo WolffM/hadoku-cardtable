@@ -8,10 +8,23 @@ import { choiceBounds } from '../../../../ui/src/play/prompts/rules.ts';
 import { currentAsk, type LiveMatch } from '../../../../ui/src/play/live/match.ts';
 import { answerAsk, answerConfirm } from '../../../../ui/src/play/live/match.ts';
 
-import { takeRandomBoardAction } from './board-action.ts';
-import { randomAnswer, type LiveAsk } from './random-answer.ts';
+import { takeRandomBoardAction, type BoardAction } from './board-action.ts';
+import { randomAnswer, type LiveAsk, type RandomAnswer } from './random-answer.ts';
 import type { Rng } from './rng.ts';
 import type { Flag, FlagKind } from './report.ts';
+
+/**
+ * How a seat decides: its answer to an open ask, and its act when none is open. The monkey's own is
+ * {@link RANDOM_POLICY}; the card sweep (`./sweep/`) plays one card on purpose through the same loop,
+ * so every flag below means the same thing in both.
+ */
+export interface SeatPolicy {
+  answer(rng: Rng, ask: LiveAsk, match: LiveMatch): RandomAnswer;
+  act(rng: Rng, match: LiveMatch): BoardAction | null;
+}
+
+/** A random legal answer and a random legal act. */
+export const RANDOM_POLICY: SeatPolicy = { answer: (rng, ask) => randomAnswer(rng, ask), act: takeRandomBoardAction };
 
 export interface SeatDriverOptions {
   matchId: string;
@@ -26,6 +39,8 @@ export interface SeatDriverOptions {
   drainServerFlags: () => { evt: string; detail: string }[];
   /** This match's latest server log rows, appended to a flag whose cause is on the server's side of the wire. */
   serverRows?: () => string[];
+  /** How this seat decides. Absent: {@link RANDOM_POLICY}. */
+  policy?: SeatPolicy;
 }
 
 export interface SeatDriverResult {
@@ -127,6 +142,7 @@ export async function driveSeat(
   isOver: () => boolean,
   tickMs = 60,
 ): Promise<SeatDriverResult> {
+  const policy = opts.policy ?? RANDOM_POLICY;
   const flags: Flag[] = [];
   const log: string[] = [];
   const tally = new Map<string, number>();
@@ -202,7 +218,7 @@ export async function driveSeat(
       if (noLegal !== null) flag('no-legal-answer', noLegal, { method: ask.method, prompt: match.prompt ?? undefined });
 
       const fp = `${ask.method}:${askFingerprint(ask)}`;
-      const answer = randomAnswer(rng, ask);
+      const answer = policy.answer(rng, ask, match);
       const turn = match.view?.turn ?? -1;
       const phase = match.view?.phase ?? '';
       if (answer.declined) {
@@ -217,7 +233,7 @@ export async function driveSeat(
       if (!sent) flag('click-refused', `this client's own schema check refused its ${ask.method} answer`, { method: ask.method });
       decisions += 1;
     } else {
-      const action = takeRandomBoardAction(rng, match);
+      const action = policy.act(rng, match);
       if (action !== null) {
         // What the seat's own act opens next is a new question, not the last one coming back: a loop is
         // Forge asking again with nothing done in between, never the monkey clicking the same card again.

@@ -108,14 +108,15 @@ import type { DraftCard } from '@hadoku/shared';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';
-import { AUTO_PAY_LABEL, type LiveButtons } from '../live/match.ts';
+import type { LiveButtons } from '../live/match.ts';
 import '../live/live.css';
 import './ConfirmPrompt.css';
+import { BAR_OK_LABEL, isConfirmPrompt, isPlayOrDrawPrompt } from './confirm-bar.ts';
 import { AnswerRow } from './PromptShell.tsx';
 import { RulesText } from './RulesText.tsx';
 
-/** Forge's own `lblOK` (`en-US.properties:598`) — see the module header's mechanical set. */
-const BAR_OK_LABEL = 'OK';
+export { DRAW_LABEL, PLAY_LABEL, isConfirmPrompt, isPlayOrDrawPrompt } from './confirm-bar.ts';
+
 
 /** Forge's own literal default pair for a real yes/no (`en-US.properties:1463-1464`, `InputConfirm.defaultOptions`). */
 const YES_LABEL = 'Yes';
@@ -144,34 +145,6 @@ function isYesNoPair(b1: ConfirmPromptButton | undefined, b2: ConfirmPromptButto
   if (b1 === undefined || b2 === undefined) return false;
   if (b1.answer === 'yes' && b2.answer === 'no') return true;
   return isForgeYesNo(b1.label, b2.label);
-}
-
-/** Forge's own two labels for the coin toss (`en-US.properties`'s `lblPlay`/`lblDraw`). */
-export const PLAY_LABEL = 'Play';
-export const DRAW_LABEL = 'Draw';
-
-/** True only for the coin-toss winner's own "play or draw" question — see the module header. */
-export function isPlayOrDrawPrompt(buttons: LiveButtons | null): boolean {
-  return (
-    buttons !== null &&
-    buttons.label1 === PLAY_LABEL &&
-    buttons.label2 === DRAW_LABEL &&
-    buttons.enable1 &&
-    buttons.enable2
-  );
-}
-
-/**
- * True for a Forge bar question that is an ANSWER (yes/no, Keep/Mulligan, a
- * scry's Top/Bottom, …), false for a priority pass, a mana payment, the
- * London mulligan's OK/Auto, an attack declaration, a default OK/Cancel
- * selection, or the coin toss (its own branch below). See the module header
- * for the Forge citations behind each branch.
- */
-export function isConfirmPrompt(bar: LiveButtons | null): boolean {
-  if (bar === null || !bar.enable1 || !bar.enable2) return false;
-  if (isPlayOrDrawPrompt(bar)) return false;
-  return bar.label1 !== BAR_OK_LABEL && bar.label1 !== AUTO_PAY_LABEL && bar.label1 !== '';
 }
 
 /**
