@@ -23,7 +23,18 @@ export type TableDoor =
   /** Somebody else's game. */
   | { kind: 'watch'; matchId: string };
 
-/** `mySeat`: this player's seat at the table, or null for anyone else. */
+/**
+ * `memberId`'s seat at `table`, or null for anyone who does not sit at it: their place among the
+ * people seated, in seat order, which is the seat a game (`TableGame.entered`) and a series count
+ * by. Never their place in a round's pairing: that names an AI, which holds no seat, on either
+ * side, and an entrant whose seat somebody else may have taken.
+ */
+export function seatAt(table: Pick<RoomTable, 'players'>, memberId: string | null | undefined): number | null {
+  const seat = table.players.findIndex((p) => p.memberId === memberId);
+  return seat === -1 ? null : seat;
+}
+
+/** `mySeat`: this player's seat at the table (`seatAt`), or null for anyone else. */
 export function tableDoor(table: Pick<RoomTable, 'matchId' | 'series'>, game: TableGame | undefined, mySeat: number | null): TableDoor | null {
   const { matchId } = table;
   if (mySeat === null) return matchId === null ? null : { kind: 'watch', matchId };

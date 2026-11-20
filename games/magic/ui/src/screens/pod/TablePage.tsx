@@ -26,7 +26,7 @@ import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { BackLink } from '../BackLink.tsx';
 import { TableCard } from '../TableCard.tsx';
 import { resolveTable } from '../tableActions.ts';
-import { doorGo, tableDoor } from '../tableDoor.ts';
+import { doorGo, seatAt, tableDoor } from '../tableDoor.ts';
 import { useTableStart } from './client.ts';
 import { startingText } from '../queue-place.ts';
 import { ReadyToggle } from './ReadyToggle.tsx';
@@ -86,10 +86,11 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
     if (missing) navigate({ kind: 'room', roomId }, { replace: true });
   }, [missing, roomId]);
 
-  const mine = table !== undefined && table.players.some((p) => p.memberId === myMemberId);
+  const tableSeat = table === undefined ? null : seatAt(table, myMemberId);
+  const mine = tableSeat !== null;
   const current = table !== undefined && (pod === null || (pod.phase === 'rounds' && pod.pairings.some((p) => p.tableId === table.id)));
   const { error, retry, queuePlace } = useTableStart(roomId, mine && current ? table : undefined, canStart);
-  const game1Unentered = table !== undefined && table.series.games.length === 0 && game?.entered[table.players.findIndex((p) => p.memberId === myMemberId)] !== true;
+  const game1Unentered = table !== undefined && table.series.games.length === 0 && (tableSeat === null || game?.entered[tableSeat] !== true);
   // A round's opponent is revealed to its players before its first game; a player back from that game is not shown it again.
   const revealing = useOpponentReveal(pod !== null && mine && current && game1Unentered ? (table?.id ?? null) : null);
 
@@ -103,7 +104,7 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
   const mySeat = seats.indexOf(myMemberId ?? '');
   // Mine on the left; a watcher sees the table in seat order.
   const left = mySeat === 1 ? 1 : 0;
-  const door = tableDoor(table, game, mine && mySeat >= 0 ? mySeat : null);
+  const door = tableDoor(table, game, tableSeat);
   const faceOff = (seat: number): FaceOffSeat => {
     const id = seats[seat] ?? '';
     return { seat, name: nameOf(id), face: avatarOf(id), wins: table.series.wins[seat] ?? 0, ready: ready === undefined ? undefined : ready.seats[seat] === true, mine: id === myMemberId };

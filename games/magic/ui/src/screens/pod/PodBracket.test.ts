@@ -106,6 +106,14 @@ describe('PodBracket', () => {
     expect(screen.getAllByRole('link')).toHaveLength(1);
   });
 
+  it('reads my door by my seat at the table, not my place in the pairing: against an AI named first I am still seat 0', () => {
+    const vsAi = pod({ pairings: [{ tableId: 't-1', players: ['ai:3', 'u-alice'] }] });
+    const up = table('t-1', ['u-alice'], { matchId: 'm-000000000001', series: { length: 3, wins: [0, 0], games: [], phase: 'playing' } });
+    // The AI's seat (1) has always been at the game; mine (0) has not.
+    bracket({ pod: vsAi, tables: [up], games: { 't-1': { decks: [null, null], live: null, entered: [false, true] } } });
+    expect(screen.getByTestId('pod-tables-play').textContent).toBe('Enter game');
+  });
+
   it('links a table with no game yet too: its page is where the game starts', () => {
     const waiting = pod({ pairings: [{ tableId: 't-1', players: ['u-alice', 'u-bob'] }] });
     bracket({ pod: waiting, tables: [table('t-1', ['u-alice', 'u-bob'])] });

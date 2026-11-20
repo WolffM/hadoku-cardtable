@@ -232,6 +232,19 @@ describe('TablePage', () => {
     expect(screen.getByTestId('table-match-link').getAttribute('href')).toBe('#/match/m-000000000002');
   });
 
+  it('reads my way on off the table’s own seats: whoever sits at it enters its game, whoever its pairing names', () => {
+    posts();
+    // A seat its entrant left and somebody else took (a testing room's round, handed to an admin): the pairing still names the entrant.
+    const handed = table({ players: [{ memberId: 'u-carol', name: 'Carol' }], matchId: 'm-000000000002', series: { ...FRESH, phase: 'playing' } });
+    page({ me: 'u-carol', pod: pod({ pairings: [{ tableId: 't-1', players: ['u-alice', 'ai:3'] }] }), table: handed, game: gameWith([false, true]) });
+    expect(screen.getByTestId('table-match-link').textContent).toBe('Enter game');
+    cleanup();
+    // A pairing that names its AI first: its one person still sits, and has been or not been at the game, at seat 0.
+    const vsAi = table({ players: [{ memberId: 'u-alice', name: 'Alice' }], matchId: 'm-000000000002', series: { ...FRESH, phase: 'playing' } });
+    page({ pod: pod({ pairings: [{ tableId: 't-1', players: ['ai:3', 'u-alice'] }] }), table: vsAi, game: gameWith([false, true]) });
+    expect(screen.getByTestId('table-match-link').textContent).toBe('Enter game');
+  });
+
   it('between two games it holds no sideboard: one card, whose way on is the sideboard’s own full screen', () => {
     posts();
     page({ table: table({ series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-000000000001', winner: 0 }], phase: 'sideboarding' } }) });

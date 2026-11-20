@@ -27,7 +27,7 @@ import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { dqPlayer, resolveTable } from '../tableActions.ts';
 import { tablePhase } from '../TableCard.tsx';
-import { doorGo, tableDoor } from '../tableDoor.ts';
+import { doorGo, seatAt, tableDoor } from '../tableDoor.ts';
 import { useTableResolve } from '../tableResolve.tsx';
 import { onPath, SWISS, swissLayout, type SwissMatch } from './swiss.ts';
 import { isPodAi, type PodView } from './wire.ts';
@@ -167,13 +167,16 @@ interface MatchCardProps extends Faces {
 
 function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dropped, game, pick, nameOf, avatarOf }: MatchCardProps) {
   const { players, wins, table, phase } = match;
-  const mine = myMemberId !== null && players.includes(myMemberId);
   const matchId = table?.matchId ?? null;
   const live = match.live && table !== null;
+  // My seat at the table (`seatAt`), which its door reads: never my place in the pairing.
+  const seat = live ? seatAt(table, myMemberId) : null;
+  // Mine: I am one of its two entrants, or I sit at it now (a seat its entrant left, taken by me).
+  const mine = myMemberId !== null && (players.includes(myMemberId) || seat !== null);
   const tableId = table?.id;
   // My own table's way on is the table's one door (`tableDoor.ts`), the same word its page says; a
   // table with no game and no step yet (a round just paired) is opened at its page, as anyone else's is.
-  const door = live && mine ? doorGo(tableDoor(table, game, players.indexOf(myMemberId)), roomId, tableId!, 'pod-tables-play') : null;
+  const door = live && seat !== null ? doorGo(tableDoor(table, game, seat), roomId, tableId!, 'pod-tables-play') : null;
   const go = !live
     ? null
     : mine

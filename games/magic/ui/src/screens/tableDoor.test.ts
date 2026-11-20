@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RoomTable, TableGame } from '@hadoku/shared';
 
-import { doorGo, tableDoor } from './tableDoor.ts';
+import { doorGo, seatAt, tableDoor } from './tableDoor.ts';
 
 const series = (phase: RoomTable['series']['phase'], played = 0): RoomTable['series'] => ({
   length: 3,
@@ -29,6 +29,16 @@ describe('a table’s one way in', () => {
   it('is Watch for anyone else while a game is up, whatever the players have done', () => {
     expect(tableDoor({ matchId: 'm-2', series: series('playing') }, game([false, false]), null)).toEqual({ kind: 'watch', matchId: 'm-2' });
     expect(tableDoor({ matchId: null, series: series('sideboarding', 1) }, undefined, null)).toBeNull();
+  });
+
+  it('counts my seat by who sits at the table, in seat order: the seat its game and its series count by', () => {
+    const players = [{ memberId: 'u-alice', name: 'Alice' }, { memberId: 'u-bob', name: 'Bob' }];
+    expect(seatAt({ players }, 'u-alice')).toBe(0);
+    expect(seatAt({ players }, 'u-bob')).toBe(1);
+    expect(seatAt({ players }, 'u-carol'), 'anyone else').toBeNull();
+    expect(seatAt({ players }, null), 'nobody').toBeNull();
+    // A table against an AI seats its one person at 0, whichever side its pairing names them.
+    expect(seatAt({ players: [{ memberId: 'u-bob', name: 'Bob' }] }, 'u-bob')).toBe(0);
   });
 
   it('draws as one action: the sideboard’s own screen, or the game', () => {

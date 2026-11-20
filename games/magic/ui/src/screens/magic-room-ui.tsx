@@ -233,7 +233,7 @@ import { useLeaderAsk } from './leader/LeaderAsk.tsx';
 import { entrantLookup, heldFor, myCurrentTable, passRoomLeader, relayedPodSource, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
-import { doorGo, tableDoor } from './tableDoor.ts';
+import { doorGo, seatAt, tableDoor } from './tableDoor.ts';
 import { useRoomSounds } from './roomSounds.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
 import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
@@ -1595,16 +1595,16 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   /** Between games of my series: the room links to my table's page, where the sideboard step is (`TablePage`). */
   const mySideboarding = myTable !== null && myTable.matchId === null && myTable.series.phase === 'sideboarding';
   /** My table's one way on (`tableDoor.ts`), by my seat at it. */
-  const mySeatAtTable = myTable?.players.findIndex((p) => p.memberId === view?.you.id) ?? -1;
-  const myDoor = myTable !== null && mySeatAtTable >= 0 ? tableDoor(myTable, view?.tableGames?.[myTable.id], mySeatAtTable) : null;
+  const mySeatAtTable = myTable === null ? null : seatAt(myTable, view?.you.id);
+  const myDoor = myTable !== null && mySeatAtTable !== null ? tableDoor(myTable, view?.tableGames?.[myTable.id], mySeatAtTable) : null;
   /**
    * The route's table at its full-screen step (`…/table/<id>/sideboard`), for a player of it, in
    * every kind of room: between its games, or with the next one up and not yet entered. Any other
    * state of the table has no such step, and the address goes back to the table's page.
    */
   const stepTable = step === 'sideboard' && tableId !== undefined ? (view?.tables.find((t) => t.id === tableId) ?? null) : null;
-  const stepSeat = stepTable?.players.findIndex((p) => p.memberId === view?.you.id) ?? -1;
-  const stepDoor = stepTable !== null && stepSeat >= 0 ? tableDoor(stepTable, view?.tableGames?.[stepTable.id], stepSeat) : null;
+  const stepSeat = stepTable === null ? null : seatAt(stepTable, view?.you.id);
+  const stepDoor = stepTable !== null && stepSeat !== null ? tableDoor(stepTable, view?.tableGames?.[stepTable.id], stepSeat) : null;
   const atSideboard = stepDoor?.kind === 'sideboard' || stepDoor?.kind === 'enter';
   const noSuchStep = step !== undefined && tableId !== undefined && view !== null && !atSideboard;
   useEffect(() => {
