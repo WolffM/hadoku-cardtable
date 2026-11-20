@@ -2531,7 +2531,7 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
           />
         </>
       ),
-    game: () => <PodScreen draftId={roomId} tableId={tableId} makeTransport={makeTransport} podSource={podSource} />,
+    game: () => <PodScreen draftId={roomId} tableId={tableId} makeTransport={makeTransport} podSource={podSource} roomPhase={game?.pod?.phase} />,
   };
   const constructedUi: GameRoomUi = {
     setup: () => (

@@ -14,23 +14,3 @@
   flex: 1 1 auto;
   min-height: 320px;
 }
-
-/*
- * The site header on a narrow phone, while this screen draws the sideboard step: a CSS-only reach
- * into `AppChrome`'s sibling class, same as `live.css`'s own `[data-shell='match'] > .app-header`
- * rule, which this duplicates rather than depends on.
- *
- * `live.css`'s rule is keyed on BOTH `[data-shell='match']` and `:root[data-layout='portrait']` —
- * and `data-layout` is only ever set by `usePortraitLayout` (`play/portrait.ts`), which only
- * `Board`/`LiveBoard` mount. This screen (`TableSideboard.tsx`) holds `data-shell='match'` the
- * same way the match does (`chrome/shell.ts`), but mounting `usePortraitLayout` from a room screen
- * to also get `data-layout` would re-open wave 89's Settled 10 ("landscape, desktop, draft and the
- * room screens … must never carry this attribute") — not this lane's call. The media query here is
- * `usePortraitLayout`'s own condition (`PORTRAIT_MEDIA_QUERY`), read directly off the viewport
- * instead of off an attribute only the match installs, so this needs nothing from `portrait.ts`.
- */
-@media (max-width: 600px) and (orientation: portrait) {
-  .cardtable-chrome[data-shell='match'] > .app-header {
-    display: none;
-  }
-}

@@ -39,6 +39,7 @@ import { useRoute } from '@hadoku/game-ui/screens/route.ts';
 import { setScreenMusic } from '@hadoku/game-ui/sound/index.ts';
 import { AppChrome } from '@hadoku/ui-shell/chrome';
 import { HeaderLinks } from '@hadoku/game-ui/chrome/HeaderLinks.tsx';
+import { PAGE_TOOLBAR, toolbarRoute, TopBar, useToolbarPage } from '@hadoku/game-ui/chrome/toolbarPage.tsx';
 import { RoomShell } from '@hadoku/game-ui/room/RoomShell.tsx';
 import { SessionPrompt, sessionBlocks, useRoomSession } from '@hadoku/game-ui/room/SessionPrompt.tsx';
 import { GameHeader } from '@hadoku/game-ui/app/GameAppShell.tsx';
@@ -258,6 +259,10 @@ export function App({ transport }: AppProps) {
   // the screen is not drawn — none of its sockets join — and the page behind the question is inert.
   const session = useRoomSession(route.kind === 'rally-embed' ? null : place, route.kind);
   const blocked = sessionBlocks(session.state);
+  // The game, a table's full-screen step and the deck builder have no top bar. Their routes say what
+  // their screens are before the screens have loaded, so the page is asked for here and no bar is
+  // drawn while they load. The draft is a room's own state, and asks for itself (`PodScreen`).
+  useToolbarPage(toolbarRoute(route));
   // A Rally pick option, in Rally's frame (cardtable#24): the theme root and the page, with no
   // header and no room. `rally/RallyEmbed.tsx` says why.
   if (route.kind === 'rally-embed') {
@@ -268,12 +273,12 @@ export function App({ transport }: AppProps) {
     );
   }
   return (
-    <AppChrome header={header}>
+    <AppChrome header={<TopBar>{header}</TopBar>}>
       {/* The operator, 2026-10-10: *"theres really no reason to close the chat
           in the lobby screen"*. A room's lobby keeps it open; the draft, deck
           and match screens still let a viewer hide it. */}
       <HostDrawsSettingsProvider value>
-        <RoomShell roomId={gatedPlace} collapsible={route.kind !== 'room'} inert={blocked}>
+        <RoomShell roomId={gatedPlace} collapsible={route.kind !== 'room'} inert={blocked} toolbar={PAGE_TOOLBAR} pending={matchPending}>
           {matchPending || blocked ? null : <Screen transport={transport} />}
         </RoomShell>
       </HostDrawsSettingsProvider>

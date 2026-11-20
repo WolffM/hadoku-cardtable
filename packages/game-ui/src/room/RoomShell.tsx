@@ -46,7 +46,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { RoomChrome as RoomChromeComponent } from '@wolffm/watchparty-ui/room-chrome';
+import type { RoomChrome as RoomChromeComponent, RoomChromeToolbar } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
 import { ANON_USER_ID } from '@wolffm/prefs-client';
 import { useHadokuTheme, type Theme } from '@wolffm/themes';
@@ -61,6 +61,7 @@ import { useRoomFrame } from '@hadoku/ui-shell/chrome/shell';
 // of one origin is how the chrome and the faces come to disagree about it.
 import { watchpartyOrigin } from './avatar.ts';
 import { useWhoami } from './whoami.ts';
+import { useChatless, useToolbarPageOn } from '../chrome/toolbarPage.tsx';
 
 type RoomChromeType = typeof RoomChromeComponent;
 
@@ -231,6 +232,8 @@ export function RoomShell({
   inert = false,
   fallback = null,
   requireIdentified = false,
+  toolbar,
+  pending = false,
   children,
 }: {
   /** The room this viewer is in: the chat and roster the chrome joins, and where their avatar is asserted. */
@@ -248,6 +251,10 @@ export function RoomShell({
    * anonymous join away, and a chat column that can only fail reads as a broken room. Default off.
    */
   requireIdentified?: boolean;
+  /** The chat's toolbar on a page with no top bar (`../chrome/toolbarPage.tsx`): drawn only while a screen has opted in. */
+  toolbar?: RoomChromeToolbar;
+  /** The page does not know its room yet: `roomId` is null for now, and says nothing about whether a chat will draw. */
+  pending?: boolean;
   children: ReactNode;
 }) {
   const who = useWhoami();
@@ -262,6 +269,9 @@ export function RoomShell({
   const [host] = useState(createHost);
   const mounted = useRef(false);
   const unknown = who === null || (requireIdentified && who !== 'pending' && who.userId === ANON_USER_ID);
+  // No chat will draw here, so the page keeps its top bar whatever its screen asked for.
+  useChatless(!pending && (key === null || unknown));
+  const toolbarPage = useToolbarPageOn();
   const waiting = key !== null && !unknown && (who === 'pending' || RoomChrome === null);
   // Waiting before the first mount shows the fallback; after it, the content stays where it is.
   const holding = waiting && !mounted.current;
@@ -302,6 +312,7 @@ export function RoomShell({
           userId={who.userId}
           theme={watchpartyTheme(theme)}
           collapsible={collapsible}
+          toolbar={toolbarPage ? toolbar : undefined}
         >
           <Slot host={host} />
           {/* The frame says it is drawn, to the page around it (`chrome/shell.ts`): RoomChrome takes no ref of ours. */}

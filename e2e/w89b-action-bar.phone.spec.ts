@@ -125,7 +125,7 @@ test(titled('the fleet header is hidden during a match, so both chips are inside
     const { alice } = await startScenarioVsAi(browser, stack, 'bolt-player');
     await setPortrait(alice.page);
 
-    await expect(alice.page.locator('.cardtable-chrome[data-shell="match"] > .app-header'), 'the header is hidden, not removed').toBeHidden();
+    await expect(alice.page.locator('.cardtable-chrome[data-shell="match"] > .app-header'), 'no header over the board').toBeHidden();
     const chips = alice.page.locator('.portrait-hud [data-testid^="seat-chip-"]');
     await expect(chips).toHaveCount(2);
     const boxes = await chips.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().bottom));

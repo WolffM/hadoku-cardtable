@@ -58,7 +58,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { planDisplayName } from '@hadoku/shared';
+import { planDisplayName, type PodPhase } from '@hadoku/shared';
 
 import {
   applyPick as socketPick,
@@ -77,6 +77,7 @@ import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { TopLayer } from '@hadoku/game-ui/topLayer.tsx';
 import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
 import { livePodSource, usePodContext, type PodSource } from './pod/client.ts';
+import { useToolbarPage } from '@hadoku/game-ui/chrome/toolbarPage.tsx';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
@@ -100,9 +101,11 @@ export interface PodScreenProps {
   makeTransport?: () => DraftTransport;
   /** The room screen passes its own reads of the room (`relayedPodSource`); without one the pod follows the room itself. */
   podSource?: PodSource;
+  /** The pod's phase as the room's own read has it, known before this screen's first read of the pod answers. */
+  roomPhase?: PodPhase;
 }
 
-export function PodScreen({ draftId, tableId, makeTransport, podSource = livePodSource }: PodScreenProps) {
+export function PodScreen({ draftId, tableId, makeTransport, podSource = livePodSource, roomPhase }: PodScreenProps) {
   const [draft, setDraft] = useState<SocketDraft | null>(null);
   const [table, setTable] = useState<TableState | null>(null);
   /**
@@ -214,6 +217,9 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
   const rounds = ctx?.pod !== null && ctx?.pod !== undefined && inRounds;
   /** The draft's layout, drawn or still coming: the room's bar is in its side column, not on top. */
   const drafting = !rounds && !done && !inRounds;
+  // The draft has no top bar. Only a phase that is known asks: a hub or a table page opening before
+  // its pod has answered must not lose the bar for a frame and take it back.
+  useToolbarPage(drafting && (phase ?? roomPhase) === 'drafting');
   /** The room's bar: on top of the pod, or at the top of the draft's side column while drafting. */
   const bar = (
     <>

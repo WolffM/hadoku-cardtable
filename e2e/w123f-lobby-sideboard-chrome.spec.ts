@@ -15,10 +15,8 @@
  * early return) — so the room's header (`data-testid="room-name"`),
  * its settings gear (`data-testid="match-rules"`) and the face-off (`data-testid="table-seats"`)
  * are absent from the DOM, not merely hidden, on both a desktop viewport and a phone. The site's
- * own header (`AppHeader`, `.cardtable-chrome > .app-header`) is a different layer `RoomShell`
- * does not own; it is unchanged by this fix and reads the same on both paths at both sizes,
- * matching what the in-game screen itself already does (hidden only in portrait,
- * `TableSideboard.css`'s media rule) — `w122f-sideboard-lobby.spec.ts` already covers that half.
+ * own header (`AppHeader`) is a different layer `RoomShell` does not own: since the sideboard became
+ * a toolbar page it is not drawn on either path, which `e2e/pt-toolbar.spec.ts` covers.
  *
  * `[w123f-chrome]` lines are the evidence; screenshots of both paths, both sizes, land in
  * `docs/handoff/w123-F/` (gitignored).

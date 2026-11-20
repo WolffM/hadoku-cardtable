@@ -127,20 +127,16 @@ test(
       // `.live__sideboard`, both carrying a `sideboard-step`.
       expect(bobDom, "bob's lobby-entered panel matches alice's in-game one").toEqual(aliceDom);
 
-      /* ── the site header: hidden on a narrow phone, on both paths alike ──
-       * `chrome.css` only ever hides `.app-header` in PORTRAIT (`live.css`'s
-       * `:root[data-layout='portrait'] [data-shell='match'] > .app-header`, or
-       * `TableSideboard.css`'s own media-query duplicate of it for this lobby path) — on the
-       * desktop viewport this spec otherwise runs at, the header shows on BOTH paths, which is
-       * no evidence either way. Resize to a phone's shape to actually exercise it. */
+      /* ── the site header: not drawn while the sideboard step is, on either path, a phone included ──
+       * (`@hadoku/game-ui`'s toolbar page: its controls are in the chat's toolbar). */
       const header = (page: Page) => page.locator('.cardtable-chrome[data-shell="match"] > .app-header');
       const aliceViewport = alice.page.viewportSize();
       const bobViewport = bob.page.viewportSize();
       const phone = { width: 390, height: 844 };
       await resizeWindow(alice.page, phone);
       await resizeWindow(bob.page, phone);
-      await expect(header(alice.page), 'alice (in-game): the header hides on a narrow phone').toBeHidden({ timeout: 10_000 });
-      await expect(header(bob.page), 'bob (room lobby): the header hides the same way').toBeHidden({ timeout: 10_000 });
+      await expect(header(alice.page), 'alice (in-game): no header on a narrow phone').toBeHidden({ timeout: 10_000 });
+      await expect(header(bob.page), 'bob (room lobby): none there either').toBeHidden({ timeout: 10_000 });
       await alice.page.screenshot({ path: fileURLToPath(new URL('../docs/handoff/w122-F2/phone-ingame-sideboard.png', import.meta.url)) });
       await bob.page.screenshot({ path: fileURLToPath(new URL('../docs/handoff/w122-F2/phone-lobby-sideboard.png', import.meta.url)) });
       say('both paths hide the top bar on a narrow phone');
