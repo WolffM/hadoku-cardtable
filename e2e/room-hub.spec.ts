@@ -23,7 +23,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { sitPodAt } from './podSeats.ts';
 
 import { PREFIX } from './identities.ts';
-import { enterFromTablePage, enterMyGame, litCard, makeTitled, pressIntoGame2, ROOM_PAGE, toMyTable, resizeWindow, roomIdFromAddress } from './play/board.ts';
+import { door, enterFromTablePage, litCard, makeTitled, pressIntoGame2, ROOM_PAGE, toMyTable, resizeWindow, roomIdFromAddress } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -124,11 +124,16 @@ test(
       for (const p of [alice, bob]) await expect(p.page, `${p.name}: still on the hub`).toHaveURL(ROOM_PAGE);
       const tableId = (await litCard(alice.page).getAttribute('data-table-id'))!;
       expect(await litCard(bob.page).getAttribute('data-table-id'), 'bob’s lit card is the same table').toBe(tableId);
-      // No game exists until a player's table page starts it: alice's card opens the page, and Enter game is her press.
+      // No game exists until both players are at the table (the second to arrive starts it): alice's card
+      // opens its page, and there she waits on bob, who is still on the hub with his own card lit.
       expect(await toMyTable(alice.page, UI_TIMEOUT), 'alice: her card opens her table’s page').toBe('table');
-      await enterFromTablePage(alice.page, matchUrl, UI_TIMEOUT);
-      // Bob's card is the game alice's page started, or the same table page if he presses before the room says so.
-      await enterMyGame(bob.page, matchUrl, UI_TIMEOUT);
+      await expect(alice.page.getByTestId('table-status-waiting'), 'alice: first at the table, she is told who it waits on').toContainText('e2e-bob', { timeout: UI_TIMEOUT });
+      await expect(door(alice.page), 'alice: no game yet, so no way in').toHaveCount(0);
+      await expect(litCard(bob.page), 'bob: still on the hub, his card still lit').toHaveCount(1);
+      await expect(bob.page, 'bob: alice’s press moved nobody but her').toHaveURL(ROOM_PAGE);
+      // Bob's press brings him to the same page, which starts the game; Enter game is each one's own press.
+      expect(await toMyTable(bob.page, UI_TIMEOUT), 'bob: his card opens the same table’s page').toBe('table');
+      for (const p of [alice, bob]) await enterFromTablePage(p.page, matchUrl, UI_TIMEOUT);
       const passed = await tablesOf();
       console.log(`[room-hub] table pages passed through: alice=${JSON.stringify(passed[0])} bob=${JSON.stringify(passed[1])}`);
       // One visit can be two addresses (the link's hash on the room's path, then the table's own address).

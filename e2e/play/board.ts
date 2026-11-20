@@ -1229,13 +1229,31 @@ export async function toMyTable(page: Page, timeout = 30_000): Promise<CardLed> 
 
 /**
  * From the room's page into my table's game: my lit card, then Enter game on the table's page — or
- * the card itself was Enter game, when the other player's page had already started the game.
+ * the card itself was Enter game, when the game was already up. For a table whose game one player's
+ * page starts (mine against an AI, or one the other player is already at); two people who are both
+ * still on the room's page go in with `enterMyGames`.
  */
 export async function enterMyGame(page: Page, matchUrl: RegExp, timeout = 30_000): Promise<void> {
-  const led = await toMyTable(page, timeout);
-  if (led === 'table') return enterFromTablePage(page, matchUrl, timeout);
-  expect(led, 'a table with a game I have not been at: my card is Enter game').toBe('game');
-  await page.waitForURL(matchUrl, { timeout });
+  await enterMyGames([page], matchUrl, timeout);
+}
+
+/**
+ * Every one of `pages` from the room's page into their own table's game. A table of two people
+ * starts its game once BOTH are on its page (`useTableStart`: the second to arrive starts it), and
+ * nothing carries either of them there, so the first to press their lit card waits at the face-off
+ * for the other. Each page presses its card first; only then does each take Enter game.
+ */
+export async function enterMyGames(pages: readonly Page[], matchUrl: RegExp, timeout = 30_000): Promise<void> {
+  const led: CardLed[] = [];
+  for (const page of pages) led.push(await toMyTable(page, timeout));
+  for (const [i, page] of pages.entries()) {
+    if (led[i] === 'table') {
+      await enterFromTablePage(page, matchUrl, timeout);
+      continue;
+    }
+    expect(led[i], 'a table with a game I have not been at: my card is Enter game').toBe('game');
+    await page.waitForURL(matchUrl, { timeout });
+  }
 }
 
 /**

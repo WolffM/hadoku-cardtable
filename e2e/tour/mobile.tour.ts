@@ -6,7 +6,7 @@
 import { test, type Page } from '@playwright/test';
 
 import { PREFIX } from '../identities.ts';
-import { clickHandCard, enabledOk, enterMyGame, handCardNamed, litCard, offeredNamed, pressPaymentAuto, says, stackCount, twoLegalDecks } from '../play/board.ts';
+import { clickHandCard, enabledOk, enterMyGames, handCardNamed, litCard, offeredNamed, pressPaymentAuto, says, stackCount, twoLegalDecks } from '../play/board.ts';
 import { answerPrompt } from '../play/prompts.ts';
 import { keepBothHands, matchUrl, readScenario } from '../play/scenario.ts';
 import type { Friend } from '../play/browser.ts';
@@ -777,7 +777,7 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
       for (const f of [alice, bob]) await tapOn(f.page.getByTestId('ready-toggle'));
       const matchRe = /#\/match\/m-[0-9a-f]{12}$/;
       // Paired: each stays on the room page, their table lit, and reaches its game by their own presses.
-      for (const f of [alice, bob]) await enterMyGame(f.page, matchRe, 60_000);
+      await enterMyGames([alice.page, bob.page], matchRe, 60_000);
       for (let game = 0; game < 2; game++) {
         await openActionMenuIfPresent(bob.page);
         await tapOn(bob.page.getByTestId('live-concede'));
@@ -789,9 +789,14 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
           await f.page.getByTestId('sideboard-ready').waitFor({ timeout: 30_000 });
         }
         await shot(alice.page, 'tourney2-sideboard', T('#/match/<id>', 'tournament Bo3: the sideboard step between games'), { full: true });
+        const game1 = alice.page.url();
         for (const f of [alice, bob]) await tapOn(f.page.getByTestId('sideboard-ready'));
-        for (const f of [alice, bob]) await f.page.waitForURL(matchRe, { timeout: 60_000 });
-        await alice.page.locator('[aria-label="Game board"]').waitFor({ timeout: 60_000 });
+        // The next game exists once both are ready, and neither screen opens it: each enters it with a press.
+        for (const f of [alice, bob]) await tapOn(f.page.getByTestId('game-result-enter'), { timeout: 60_000 });
+        for (const f of [alice, bob]) {
+          await f.page.waitForURL((address) => matchRe.test(address.toString()) && address.toString() !== game1, { timeout: 60_000 });
+          await f.page.locator('[aria-label="Game board"]').waitFor({ timeout: 60_000 });
+        }
       }
       await go(alice.page, url, 3_000);
       await alice.page.getByTestId('pod-standings').waitFor({ timeout: 30_000 });

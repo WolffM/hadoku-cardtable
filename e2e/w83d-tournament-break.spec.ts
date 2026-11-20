@@ -14,7 +14,7 @@
  */
 import { expect, test, type Browser } from '@playwright/test';
 
-import { enterFromTablePage, enterMyGame, litCard, makeTitled, pressDoor, ROOM_PAGE, roomIdOfUrl, sideboardFromTablePage } from './play/board.ts';
+import { enterFromTablePage, enterMyGames, litCard, makeTitled, pressDoor, ROOM_PAGE, roomIdOfUrl, sideboardFromTablePage } from './play/board.ts';
 import { type Friend } from './play/browser.ts';
 import { forgeAvailability, matchPid, startPlayStack, type PlayStack } from './play/harness.ts';
 import { openMyTable } from './play/rooms.ts';
@@ -39,7 +39,7 @@ async function intoRoundOne(browser: Browser, stack: PlayStack, label: string): 
   await enableTournament(alice, bob, 'locked');
   await sitPickReady(alice, 0);
   await sitPickReady(bob, 1);
-  for (const p of [alice, bob]) await enterMyGame(p.page, matchUrl, UI_TIMEOUT);
+  await enterMyGames([alice.page, bob.page], matchUrl, UI_TIMEOUT);
   for (const p of [alice, bob]) await expect(board(p), `${p.name}: on round 1’s board`).toBeVisible({ timeout: UI_TIMEOUT });
   const matchId = matchUrl.exec(alice.page.url())![1]!;
   expect(matchUrl.exec(bob.page.url())![1], 'both in one match').toBe(matchId);

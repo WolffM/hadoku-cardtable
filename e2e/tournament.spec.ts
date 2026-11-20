@@ -40,7 +40,7 @@ import { makeTitled } from './play/board.ts';
 import { type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openMyTable } from './play/rooms.ts';
-import { enterFromTablePage, enterMyGame, litCard, ROOM_PAGE, sideboardFromTablePage, toMyTable } from './play/board.ts';
+import { enterFromTablePage, enterMyGames, litCard, ROOM_PAGE, sideboardFromTablePage, toMyTable } from './play/board.ts';
 import { concedeToResult, enableTournament, openRoomWithLeader, pickDeck, ready, sit, sitPickReady } from './play/tournament.ts';
 
 const forge = forgeAvailability();
@@ -84,7 +84,7 @@ test(
         await expect(litCard(p.page), `${p.name}: their own table is lit`).toHaveCount(1, { timeout: UI_TIMEOUT });
         await expect(p.page, `${p.name}: paired, and not moved`).toHaveURL(ROOM_PAGE);
       }
-      for (const p of [alice, bob]) await enterMyGame(p.page, matchUrl, UI_TIMEOUT);
+      await enterMyGames([alice.page, bob.page], matchUrl, UI_TIMEOUT);
       for (const p of [alice, bob]) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: at the tournament table`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── settle the round by concede, twice, the same winner — 2-0, no game 3 ── */

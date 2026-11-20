@@ -67,7 +67,7 @@ import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './identities.ts';
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { enterMyGame, litCard, makeTitled, ROOM_PAGE, resizeWindow, roomIdFromAddress, serverLog as readServerLog } from './play/board.ts';
+import { enterMyGame, enterMyGames, litCard, makeTitled, ROOM_PAGE, resizeWindow, roomIdFromAddress, serverLog as readServerLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { specVideoSlug } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -1094,7 +1094,7 @@ test(
       // alice is done first: back in the room (she had left it), where she
       // waits on the pod, shown as ready — not handed back to the builder.
       // bob's Play deals round 1, and both are on the room's page with their own table lit: nobody is
-      // carried to a table or walked onto the board. Each presses their card; the table's page starts
+      // carried to a table or walked onto the board. Each presses their card; with both at it the table's page starts
       // the game and offers Enter game.
       await alice.page.getByTestId('play-deck').click();
       await expect(alice.page.getByTestId('pod-ready'), 'alice waits on the pod').toBeVisible({ timeout: UI_TIMEOUT });
@@ -1109,7 +1109,7 @@ test(
       }
 
       const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
-      for (const p of [alice, bob]) await enterMyGame(p.page, matchUrl, 120_000);
+      await enterMyGames([alice.page, bob.page], matchUrl, 120_000);
       for (const p of [alice, bob]) {
         await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: the board is drawn`).toBeVisible({ timeout: 30_000 });
       }

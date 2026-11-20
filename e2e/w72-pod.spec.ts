@@ -23,7 +23,7 @@ import { arrangePod, draftUntilDone, readyPod } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
-import { enterMyGame, litCard, makeTitled, pressEnterGame, ROOM_PAGE, pressIntoGame2, resizeWindow, roomIdFromAddress, sideboardFromTablePage } from './play/board.ts';
+import { enterMyGames, litCard, makeTitled, pressEnterGame, ROOM_PAGE, pressIntoGame2, resizeWindow, roomIdFromAddress, sideboardFromTablePage } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { myTableThisRound, openHub, openMyTable, submitCreateRoom } from './play/rooms.ts';
@@ -150,8 +150,8 @@ test(
       for (const p of seated) await expect(litCard(p.page), `${p.name}: their own table is lit`).toHaveCount(1, { timeout: UI_TIMEOUT });
       await expect(litCard(bye!.page), 'the bye has no table: nothing is lit').toHaveCount(0);
       for (const p of players) await expect(p.page, `${p.name}: still on the room’s page`).toHaveURL(ROOM_PAGE);
-      // Each of the two presses their lit card and enters the game by their own press.
-      for (const p of seated) await enterMyGame(p.page, matchUrl, UI_TIMEOUT);
+      // Each of the two presses their lit card; with both at the table its game starts, and each enters it by their own press.
+      await enterMyGames(seated.map((p) => p.page), matchUrl, UI_TIMEOUT);
       for (const p of seated) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: at their own table`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── the bye watches via the pod's table cards, then back to the room ── */
