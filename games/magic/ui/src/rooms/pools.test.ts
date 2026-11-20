@@ -21,7 +21,7 @@ const CARD: DraftCard = {
   collectorNumber: '1',
   rarity: 'common',
 };
-const SUMMARY = { id: 'cc-vintage', name: 'Vintage', size: 1, origin: 'cubecobra', cubeCobraId: 'vintage', importedBy: 'p-alice', importedAt: '', refreshedAt: null, verdict: null, artId: null };
+const SUMMARY = { id: 'cc-vintage', name: 'Vintage', size: 1, origin: 'cubecobra', cubeCobraId: 'vintage', importedBy: 'p-alice', importedAt: '', refreshedAt: null, verdict: null, artId: null, importerName: 'Alice', mine: true };
 
 /** A server with one cube; `cardsFail` answers its card list 503 once. */
 function stubServer() {

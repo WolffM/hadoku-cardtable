@@ -12,7 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
+import type { CubeListing, DraftPlan, DraftPreset, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
 
 const { aiPod, sitPod, standPod } = vi.hoisted(() => ({
   aiPod: vi.fn(),
@@ -121,7 +121,7 @@ const cubePlan = (cubeId: string): DraftPlan => ({
   ],
 });
 
-const cubeFixture = (over: Partial<CubeSummary> = {}): CubeSummary => ({
+const cubeFixture = (over: Partial<CubeListing> = {}): CubeListing => ({
   id: 'vintage-cube-2025-12',
   name: 'MTGO Vintage Cube 2025-12',
   size: 540,
@@ -132,6 +132,8 @@ const cubeFixture = (over: Partial<CubeSummary> = {}): CubeSummary => ({
   refreshedAt: null,
   verdict: null,
   artId: null,
+  importerName: null,
+  mine: false,
   ...over,
 });
 
@@ -538,7 +540,7 @@ describe('the Custom tab (wave 74 §F)', () => {
 
   // The slots' names ride on the pod (`PodView.roundNames`), not on the cube and set lists: a list
   // that lands late, or never, still shows each round's name and never its bare id or code.
-  const mixedPod = (cube: CubeSummary, set: SetSummary): PodView => ({
+  const mixedPod = (cube: CubeListing, set: SetSummary): PodView => ({
     ...plannedPod(
       { rounds: [{ kind: 'cube', cubeId: cube.id }, { kind: 'cube', cubeId: cube.id }, { kind: 'set', code: set.code, style: 'realistic' }] },
       cube.name,
@@ -546,7 +548,7 @@ describe('the Custom tab (wave 74 §F)', () => {
     ),
     roundNames: [cube.name, cube.name, set.name],
   });
-  const expectNamedSlots = async (cube: CubeSummary, set: SetSummary): Promise<void> => {
+  const expectNamedSlots = async (cube: CubeListing, set: SetSummary): Promise<void> => {
     for (const round of [0, 1] as const) {
       const text = (await screen.findByTestId(`pool-picker-custom-round-${round}`)).closest('label')?.textContent ?? '';
       expect(text, `slot ${round}`).toContain(cube.name);
@@ -691,7 +693,7 @@ describe('a list read a newer one overtook', () => {
 
   it('the cubes: the read from before an import lands nothing once the read after it has', async () => {
     const cube = cubeFixture();
-    let server: CubeSummary[] = [];
+    let server: CubeListing[] = [];
     const cubes = heldReads(() => server);
     pools.listCubes = cubes.read;
     pools.importCube = vi.fn(async () => {

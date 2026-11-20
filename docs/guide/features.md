@@ -48,8 +48,9 @@ link (any of a cube's pages, or its id) or a pasted card list with a name:
 one card a line, with or without a count or a set, or a Cube Cobra export
 (plain text, CSV, MTGO or Forge). The import becomes the room's cube at
 once. Cards Forge cannot play are named, and **Draft without them** deals
-the rest. Every import is kept in **Inventory** for the next draft, where a
-Cube Cobra cube can be refreshed and the importer can delete theirs.
+the rest. Every import is kept in **Inventory** for the next draft, under its
+importer's name, where a Cube Cobra cube can be refreshed and the importer
+can delete theirs.
 
 **What it does not do.** Opening a pod, like creating any room, event or
 match, is rate-limited per caller — a member cannot spin up pods without

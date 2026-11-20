@@ -156,6 +156,9 @@ test(
       await expect(keptList, 'the pasted list is kept').toBeVisible();
       await expect(keptList, 'the unknown card is still in the saved list: only this draft left it out').toContainText(`${String(LIST_SIZE + 1)} cards`);
       await expect(keptList.locator('[data-testid^="inventory-refresh-"]'), 'a list has nothing to refresh from').toHaveCount(0);
+      await expect(keptList, 'its importer is named, not shown as an id').toContainText('e2e-alice');
+      await expect(keptList).not.toContainText('fk:');
+      // The page knows the cube is alice's from the server's answer, not from comparing ids of its own.
       await expect(keptList.locator('[data-testid^="inventory-delete-"]'), 'its importer may delete it').toBeVisible();
       await inventory.close();
 

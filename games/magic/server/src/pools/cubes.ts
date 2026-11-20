@@ -3,7 +3,7 @@
  * 8-cube shortlist `build-pool` generates (read-only) plus any cube a member
  * has imported: from Cube Cobra, or as a pasted card list (`cube-list.ts`).
  *
- *   GET    /api/pools/cubes            → 200 CubeSummary[] (imported newest-first, then the shortlist)
+ *   GET    /api/pools/cubes            → 200 CubeListing[] (imported newest-first, then the shortlist)
  *   GET    /api/pools/cubes/:id/cards  → 200 DraftCard[] | 404 { error } — lane B's art preload reads a plan's cube from here, before the deal
  *   GET    /api/pools/cubes/:id/arts   [?n=3] → 200 { arts } | 404 { error } — a few of its cards' art ids, at random: the lobby's spotlight
  *   POST   /api/pools/cubes/import     { link } | { name, list } → 201 CubeSummary | 400 { error } | 429
@@ -33,12 +33,20 @@
  * ## Persistence
  *
  * `importDir/<id>.json` is the on-disk snapshot: `{ id, name, cubeCobraId,
- * importedBy, importedAt, refreshedAt, verdict, cards }`, written atomically
+ * importedBy, importedByUser, importedAt, refreshedAt, verdict, cards }`, written atomically
  * (temp file, then rename — the same shape `http/sounds.ts`'s header
  * documents) so a crash mid-write never leaves a half-written cube. `cards`
  * there is the trimmed Cube Cobra projection (`CubeCobraCard[]`), never the
  * derived `DraftCard[]` — the catalog can change (a resync), so gameplay text
  * is always re-derived at load, not frozen into the snapshot.
+ *
+ * ## Who imported it
+ *
+ * `importedBy` is the caller's participant id: what delete is checked against.
+ * `importedByUser` is their account, kept beside it and never sent: a cube is
+ * shown with its importer's name as it is now, looked up from the account
+ * (`people.ts`), and no name is stored (R12). An import from before the
+ * account was kept gains it the first time its importer lists the cubes.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -47,7 +55,9 @@ import { mkdir, open, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import express, { type Request, type Response, type Router } from 'express';
 
-import { CUBE_ARTS_MAX, DraftCardSchema, ImportCubeBodySchema, sampleArt, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
+import { CUBE_ARTS_MAX, DraftCardSchema, ImportCubeBodySchema, sampleArt, type CubeListing, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
+import { accountIdOf } from '@hadoku/game-server/edge-auth';
+import type { People } from '@hadoku/game-server/people';
 import type { RateLimitConfig } from '@wolffm/rooms-server';
 import { prepareJson, sendPrepared, type PreparedJson } from '@hadoku/game-server/http/prepared';
 import { bodyErrors, httpCaller, perCallerLimit } from '@hadoku/game-server/http/request';
@@ -59,9 +69,13 @@ import { jsonLogger } from '@hadoku/service-kernel/log';
 export interface CubeStore {
 	list(): CubeSummary[];
 	cards(id: string): readonly DraftCard[] | null;
-	importLink(link: string, by: string): Promise<CubeSummary>;
+	importLink(link: string, by: string, userId?: string | null): Promise<CubeSummary>;
 	/** A pasted card list, saved under `name`. Every paste is a new cube: a list has no id of its own to import again. */
-	importList(name: string, list: string, by: string): Promise<CubeSummary>;
+	importList(name: string, list: string, by: string, userId?: string | null): Promise<CubeSummary>;
+	/** The importer's account, or `null`: the shortlist, an erased importer, or an import that never kept one. */
+	importerUser(id: string): string | null;
+	/** Keep `userId` as the account behind an import that has none. A no-op for any other cube. */
+	claim(id: string, userId: string): void;
 	refresh(id: string, by: string): Promise<CubeSummary>;
 	/** Throws a {@link CubeStoreRefusal}; never a silent no-op. */
 	remove(id: string, by: string): void;
@@ -84,6 +98,8 @@ interface Entry {
 	summary: CubeSummary;
 	/** The shortlist's own resolved cards, or the imported cube's derived ones. Never persisted for imports; replaced, never edited. */
 	cards: readonly DraftCard[];
+	/** The importer's account. Beside the summary, never in it: the wire carries a name, not an account. */
+	user: string | null;
 	/** Every imported cube's own names — what a catalog change or a refresh re-derives `cards` from. `null` for the shortlist. */
 	raw: readonly CubeCobraCard[] | null;
 }
@@ -203,6 +219,8 @@ interface ImportFile {
 	/** `null` for a pasted list. */
 	cubeCobraId: string | null;
 	importedBy: string;
+	/** `null` for a file persisted before the account was kept, and once its importer is erased. */
+	importedByUser: string | null;
 	importedAt: string;
 	refreshedAt: string | null;
 	verdict: PoolVerdict | null;
@@ -244,6 +262,7 @@ function parseImportFile(text: string, path: string): ImportFile | null {
 		name: v.name,
 		cubeCobraId: v.cubeCobraId,
 		importedBy: v.importedBy,
+		importedByUser: typeof v.importedByUser === 'string' ? v.importedByUser : null,
 		importedAt: v.importedAt,
 		refreshedAt: typeof v.refreshedAt === 'string' ? v.refreshedAt : null,
 		verdict: (v.verdict as PoolVerdict | null | undefined) ?? null,
@@ -301,6 +320,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			shortlistOrder.push(id);
 			shortlist.set(id, {
 				cards: loaded.cards,
+				user: null,
 				raw: null,
 				summary: {
 					id,
@@ -336,6 +356,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			if (parsed === null) continue;
 			const cards = deriveImportedCards(parsed.id, parsed.cards, catalog);
 			imported.set(parsed.id, {
+				user: parsed.importedByUser,
 				raw: parsed.cards,
 				cards,
 				summary: {
@@ -367,6 +388,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			name: s.name,
 			cubeCobraId: s.cubeCobraId,
 			importedBy: s.importedBy ?? '',
+			importedByUser: entry.user,
 			importedAt: s.importedAt ?? new Date().toISOString(),
 			refreshedAt: s.refreshedAt,
 			verdict: s.verdict,
@@ -393,7 +415,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			return entry === null ? null : entry.cards;
 		},
 
-		async importLink(link: string, by: string): Promise<CubeSummary> {
+		async importLink(link: string, by: string, userId: string | null = null): Promise<CubeSummary> {
 			const parsedLink = parseCubeCobraLink(link);
 			if (!parsedLink.ok) throw new CubeStoreRefusal(400, parsedLink.error);
 			let cube: Awaited<ReturnType<typeof fetchCube>>;
@@ -406,6 +428,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			const now = new Date().toISOString();
 			const cards = deriveImportedCards(id, cube.cards, catalog);
 			const entry: Entry = {
+				user: userId,
 				raw: cube.cards,
 				cards,
 				summary: {
@@ -426,7 +449,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			return entry.summary;
 		},
 
-		async importList(name: string, list: string, by: string): Promise<CubeSummary> {
+		async importList(name: string, list: string, by: string, userId: string | null = null): Promise<CubeSummary> {
 			const parsed = parseCubeList(list);
 			if (!parsed.ok) throw new CubeStoreRefusal(400, parsed.error);
 			const id = `list-${randomUUID().slice(0, 8)}`;
@@ -438,6 +461,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			const raw: CubeCobraCard[] = parsed.names.map((cardName) => ({ name: spelled(cardName), scryfallId: null }));
 			const cards = deriveImportedCards(id, raw, catalog);
 			const entry: Entry = {
+				user: userId,
 				raw,
 				cards,
 				summary: {
@@ -505,10 +529,22 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 		async anonymise(ids: ReadonlySet<string>, to: string): Promise<number> {
 			const theirs = [...imported.values()].filter((e) => e.summary.importedBy !== null && ids.has(e.summary.importedBy));
 			for (const entry of theirs) {
+				entry.user = null;
 				entry.summary = { ...entry.summary, importedBy: to };
 				await persistImport(entry);
 			}
 			return theirs.length;
+		},
+
+		importerUser(id: string): string | null {
+			return imported.get(id)?.user ?? null;
+		},
+
+		claim(id: string, userId: string): void {
+			const entry = imported.get(id);
+			if (entry === undefined || entry.user !== null) return;
+			entry.user = userId;
+			persistImport(entry).catch((err: unknown) => log({ evt: 'claim-persist-failed', id, detail: (err as Error).message }));
 		},
 
 		setVerdict(id: string, verdict: PoolVerdict): void {
@@ -536,6 +572,8 @@ function refusalStatus(res: Response, err: unknown): void {
 
 export interface AttachCubeRoutesDeps {
 	store: CubeStore;
+	/** Names an importer from their account, as it is now. */
+	people: Pick<People, 'resolve'>;
 	check: (cards: readonly DraftCard[]) => Promise<PoolVerdict>;
 	log?: (entry: Record<string, unknown>) => void;
 	/** Overrides {@link CUBE_IMPORT_RATE_LIMIT}; `null` is none (`perCallerLimit`). */
@@ -552,7 +590,7 @@ export const CUBE_IMPORT_RATE_LIMIT: RateLimitConfig = { capacity: 10, refillAmo
  * plan's Design) — not only when a room selects it.
  */
 export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void {
-	const { store, check } = deps;
+	const { store, check, people } = deps;
 	const warn = deps.log ?? log;
 	const cubes = express.Router();
 	// A pasted list is the one large body here: `CUBE_LIST_MAX_CHARS` of names, and JSON's own escaping.
@@ -575,8 +613,21 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 		}
 	};
 
-	cubes.get('/', (_req: Request, res: Response) => {
-		res.json(store.list());
+	/** Each cube as this caller is shown it. A lookup that fails names nobody; the list is still the list. */
+	const shown = async (req: Request, summaries: readonly CubeSummary[]): Promise<CubeListing[]> => {
+		const caller = httpCaller(req);
+		const account = accountIdOf(req);
+		for (const s of summaries) if (account !== null && s.importedBy === caller) store.claim(s.id, account);
+		const users = summaries.flatMap((s) => store.importerUser(s.id) ?? []);
+		const found = users.length === 0 ? new Map<string, { name: string | null }>() : await people.resolve(users).catch(() => new Map<string, { name: string | null }>());
+		return summaries.map((s) => {
+			const user = store.importerUser(s.id);
+			return { ...s, importerName: (user === null ? undefined : found.get(user)?.name) ?? null, mine: s.importedBy === caller };
+		});
+	};
+
+	cubes.get('/', (req: Request, res: Response, next) => {
+		shown(req, store.list()).then((list) => res.json(list), next);
 	});
 
 	// A cube's card list (the vintage cube's is 244 KB) is serialized once per version of it. Keyed by
@@ -614,9 +665,11 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 		if (!importLimit(req, res)) return;
 		const caller = httpCaller(req);
 		const body = parsed.data;
-		('link' in body ? store.importLink(body.link, caller) : store.importList(body.name, body.list, caller))
+		const account = accountIdOf(req);
+		('link' in body ? store.importLink(body.link, caller, account) : store.importList(body.name, body.list, caller, account))
 			.then((summary) => checkAndSave(summary))
-			.then((summary) => res.status(201).json(summary))
+			.then((summary) => shown(req, [summary]))
+			.then(([listing]) => res.status(201).json(listing))
 			.catch((err: unknown) => {
 				try {
 					refusalStatus(res, err);
@@ -633,7 +686,8 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 		store
 			.refresh(id, caller)
 			.then((summary) => checkAndSave(summary))
-			.then((summary) => res.json(summary))
+			.then((summary) => shown(req, [summary]))
+			.then(([listing]) => res.json(listing))
 			.catch((err: unknown) => {
 				try {
 					refusalStatus(res, err);

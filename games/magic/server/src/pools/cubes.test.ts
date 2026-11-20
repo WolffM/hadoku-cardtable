@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CubeSummary, DraftCard, PoolVerdict } from '@hadoku/shared';
+import type { CubeListing, CubeSummary, DraftCard, PoolVerdict } from '@hadoku/shared';
 import type { RateLimitConfig } from '@wolffm/rooms-server';
 import { attachCubeRoutes, createCubeStore, CubeStoreRefusal, type CubeStore } from './cubes.ts';
 import type { CardCatalog } from './catalog.ts';
@@ -286,13 +286,19 @@ describe('attachCubeRoutes', () => {
 	async function openApp(store: CubeStore, importRateLimit?: RateLimitConfig): Promise<string> {
 		const app = express();
 		const api = express.Router();
-		attachCubeRoutes(api, { store, check: OK_CHECK, log: () => undefined, ...(importRateLimit ? { importRateLimit } : {}) });
+		attachCubeRoutes(api, { store, check: OK_CHECK, people: PEOPLE, log: () => undefined, ...(importRateLimit ? { importRateLimit } : {}) });
 		app.use('/api', api);
 		const server = createServer(app);
 		await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
 		servers.push(server);
 		return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 	}
+
+	/** The accounts `call` signs requests as (`dev-<who>`), by the names they go by now. Carol's account is gone. */
+	const NAMES: Record<string, string> = { 'dev-alice': 'Alice', 'dev-bob': 'Bob' };
+	const PEOPLE = {
+		resolve: async (ids: readonly string[]) => new Map(ids.flatMap((id) => (NAMES[id] === undefined ? [] : [[id, { name: NAMES[id]!, sprite: null, look: {} }] as const]))),
+	};
 
 	async function call(
 		base: string,
@@ -377,13 +383,57 @@ describe('attachCubeRoutes', () => {
 
 		await vi.waitFor(async () => expect(JSON.parse(await readFile(join(importDir, `${summary.id}.json`), 'utf8')).verdict).toEqual({ ok: true, cards: 4 }));
 		const reopened = createCubeStore({ shortlistDir, importDir, catalog: known });
-		expect(reopened.list()[0]).toEqual(summary);
+		expect(reopened.list()[0]).toEqual(store.list()[0]);
 		expect(reopened.cards(summary.id)?.map((c) => c.name)).toEqual(['Forest', 'Forest', 'Zzyzzyva', 'Life // Death']);
 
 		const refresh = await call(base, 'POST', `/api/pools/cubes/${summary.id}/refresh`, 'alice');
 		expect(refresh.status, 'a list has nothing to refresh from').toBe(400);
 		expect((await call(base, 'DELETE', `/api/pools/cubes/${summary.id}`, 'bob')).status).toBe(403);
 		expect((await call(base, 'DELETE', `/api/pools/cubes/${summary.id}`, 'alice')).status).toBe(204);
+	});
+
+	it('shows a cube with its importer’s name as it is now, and as the viewer’s own only to its importer', async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG });
+		const base = await openApp(store);
+
+		const imported = (await call(base, 'POST', '/api/pools/cubes/import', 'alice', { name: 'Hers', list: 'Forest' })).json as CubeListing;
+		expect(imported).toMatchObject({ importerName: 'Alice', mine: true });
+		const saved = JSON.parse(await readFile(join(importDir, `${imported.id}.json`), 'utf8')) as Record<string, unknown>;
+		expect(saved.importedByUser, 'the account is kept').toBe('dev-alice');
+		expect(JSON.stringify(saved), 'and no name is').not.toContain('Alice');
+
+		const bobs = (await call(base, 'GET', '/api/pools/cubes', 'bob')).json as CubeListing[];
+		expect(bobs.find((c) => c.id === imported.id)).toMatchObject({ importerName: 'Alice', mine: false });
+		expect(bobs.find((c) => c.id === 'demo-cube')).toMatchObject({ importerName: null, mine: false });
+		expect(JSON.stringify(bobs), 'the account never reaches the wire').not.toContain('dev-alice');
+
+		NAMES['dev-alice'] = 'Alicia';
+		const renamed = (await call(base, 'GET', '/api/pools/cubes', 'alice')).json as CubeListing[];
+		expect(renamed.find((c) => c.id === imported.id)).toMatchObject({ importerName: 'Alicia', mine: true });
+		NAMES['dev-alice'] = 'Alice';
+
+		const gone = (await call(base, 'POST', '/api/pools/cubes/import', 'carol', { name: 'Theirs', list: 'Island' })).json as CubeListing;
+		expect(gone, 'an account the lookup does not know is nobody, not an id').toMatchObject({ importerName: null, mine: true });
+	});
+
+	it('an import from before accounts were kept is named once its importer lists the cubes', async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG });
+		const base = await openApp(store);
+		// The id `call` gives alice, read off a cube she imports; then an old file under the same id.
+		const hers = (await call(base, 'POST', '/api/pools/cubes/import', 'alice', { name: 'New', list: 'Forest' })).json as CubeListing;
+		const old = { id: 'cc-old', name: 'Old', cubeCobraId: 'old', importedBy: hers.importedBy, importedAt: '2026-01-01T00:00:00.000Z', refreshedAt: null, verdict: null, cards: [{ name: 'Island', scryfallId: null }] };
+		await writeFile(join(importDir, 'cc-old.json'), JSON.stringify(old), 'utf8');
+		const reopened = await openApp(createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG }));
+
+		const before = (await call(reopened, 'GET', '/api/pools/cubes', 'bob')).json as CubeListing[];
+		expect(before.find((c) => c.id === 'cc-old')).toMatchObject({ importerName: null, mine: false });
+		const own = (await call(reopened, 'GET', '/api/pools/cubes', 'alice')).json as CubeListing[];
+		expect(own.find((c) => c.id === 'cc-old')).toMatchObject({ importerName: 'Alice', mine: true });
+		const after = (await call(reopened, 'GET', '/api/pools/cubes', 'bob')).json as CubeListing[];
+		expect(after.find((c) => c.id === 'cc-old')).toMatchObject({ importerName: 'Alice', mine: false });
+		await vi.waitFor(async () => expect(JSON.parse(await readFile(join(importDir, 'cc-old.json'), 'utf8')).importedByUser).toBe('dev-alice'));
 	});
 
 	it('refuses a list with no card in it, a list with no name, and a body that is neither', async () => {
@@ -566,9 +616,11 @@ describe('account erase in the imported cubes', () => {
 		const { shortlistDir, importDir } = await makeDirs();
 		const fixture = await readFixture();
 		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG, fetchJson: async () => fixture });
-		const summary = await store.importLink('https://cubecobra.com/cube/overview/lsv-cube-fixture', 'fk:alice');
+		const summary = await store.importLink('https://cubecobra.com/cube/overview/lsv-cube-fixture', 'fk:alice', 'uid-alice');
+		expect(store.importerUser(summary.id)).toBe('uid-alice');
 
 		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:0a1b2c3d')).toBe(1);
+		expect(store.importerUser(summary.id), 'the account goes with the id').toBeNull();
 		expect(store.list().find((c) => c.id === summary.id)?.importedBy).toBe('erased:0a1b2c3d');
 		const onDisk = JSON.parse(await readFile(join(importDir, `${summary.id}.json`), 'utf8')) as { importedBy: string };
 		expect(onDisk.importedBy).toBe('erased:0a1b2c3d');

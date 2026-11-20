@@ -446,6 +446,8 @@ export {
   DraftPlanSchema,
   PoolVerdictSchema,
   CubeSummarySchema,
+  CubeListingSchema,
+  type CubeListing,
   CubeArtsSchema,
   CUBE_ARTS_MAX,
   sampleArt,

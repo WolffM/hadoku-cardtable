@@ -52,6 +52,7 @@ export const tablesPlugin: CardtablePlugin = {
 		// fresh at import and at refresh with the same `checkCards` `room/plan.ts` runs.
 		attachCubeRoutes(api, {
 			store: state.cubeStore,
+			people: state.people,
 			check: (cards) => checkCards(cards, state.forgePools, { uncheckedWithoutJar: MAGIC_CONFIG.testUncheckedPools }),
 			...(CONFIG.testNoRateLimits ? { importRateLimit: null } : {}),
 		});

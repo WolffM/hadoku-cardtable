@@ -63,6 +63,13 @@ export const CubeSummarySchema = z.strictObject({
 });
 export type CubeSummary = z.infer<typeof CubeSummarySchema>;
 
+/** A cube as one viewer is shown it: who imported it, by the name they go by now, and whether that is the viewer. */
+export const CubeListingSchema = CubeSummarySchema.extend({
+  importerName: z.string().nullable(),  // null: the shortlist, an account that is gone, or an import older than the account on it
+  mine: z.boolean(),
+});
+export type CubeListing = z.infer<typeof CubeListingSchema>;
+
 /** The most art ids `GET /api/pools/cubes/:id/arts` draws at once. */
 export const CUBE_ARTS_MAX = 12;
 /** `GET /api/pools/cubes/:id/arts?n=`: a few of a cube's own cards' art ids, drawn at random. */

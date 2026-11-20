@@ -17,14 +17,13 @@
 
 import { useEffect, useState } from 'react';
 
-import type { CubeSummary, ImportCubeBody } from '@hadoku/shared';
+import type { CubeListing, ImportCubeBody } from '@hadoku/shared';
 
 import { cardsCount } from '../draft/PoolPicker.tsx';
 import { CubeArt } from '../draft/CubeArt.tsx';
 import { ImportCube } from '../draft/ImportCube.tsx';
 import { poolsClient, type PoolsClient } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
-import { useWhoami } from '@hadoku/game-ui/room/whoami.ts';
 import { HomeHead } from './HomeHead.tsx';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import './InventoryScreen.css';
@@ -47,13 +46,11 @@ function relativeTime(iso: string | null, now: number = Date.now()): string {
 
 function InventoryCard({
   cube,
-  myId,
   busy,
   onRefresh,
   onDelete,
 }: {
-  cube: CubeSummary;
-  myId: string;
+  cube: CubeListing;
   busy: boolean;
   onRefresh: (id: string) => void;
   onDelete: (id: string) => void;
@@ -64,7 +61,8 @@ function InventoryCard({
       <div className="inventory__body">
         <span className="inventory__name">{cube.name}</span>
         <span className="inventory__meta" data-testid={`inventory-meta-${cube.id}`}>
-          {cardsCount(cube.size)} · {cube.importedBy}
+          {cardsCount(cube.size)}
+          {cube.importerName !== null ? ` · ${cube.importerName}` : ''}
           {cube.refreshedAt !== null ? ` · refreshed ${relativeTime(cube.refreshedAt)}` : ''}
         </span>
         <span className="inventory__actions">
@@ -73,7 +71,7 @@ function InventoryCard({
               Refresh
             </button>
           )}
-          {cube.importedBy === myId && (
+          {cube.mine && (
             <button type="button" className="inventory__action ct-action" data-testid={`inventory-delete-${cube.id}`} disabled={busy} onClick={() => onDelete(cube.id)}>
               Delete
             </button>
@@ -84,15 +82,9 @@ function InventoryCard({
   );
 }
 
-export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsClient; myId?: string }) {
+export function InventoryScreen({ pools = defaultPools }: { pools?: PoolsClient }) {
   const shellRef = useChromeShell('fit');
-  // Tests inject a fixed `myId`; production reads the fleet's own identity —
-  // the same `X-User-Id` the server's `importLink` stamped `importedBy` with
-  // (`packages/game-server/src/http/request.ts`'s `httpCaller`), never a room-scoped
-  // member id (Inventory sits outside any room).
-  const who = useWhoami();
-  const resolvedMyId = myId ?? (who !== null && who !== 'pending' ? who.userId : '');
-  const [cubes, setCubes] = useState<CubeSummary[] | null>(null);
+  const [cubes, setCubes] = useState<CubeListing[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -137,7 +129,7 @@ export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsC
         <section className="lobby__card">
           <div className="inventory__gallery">
             {cubes?.map((cube) => (
-              <InventoryCard key={cube.id} cube={cube} myId={resolvedMyId} busy={busy} onRefresh={refreshCube} onDelete={deleteCube} />
+              <InventoryCard key={cube.id} cube={cube} busy={busy} onRefresh={refreshCube} onDelete={deleteCube} />
             ))}
             <ImportCube busy={busy} onImport={importCube} />
           </div>

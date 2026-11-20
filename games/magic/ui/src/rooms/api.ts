@@ -36,7 +36,7 @@
 import {
   RoomBodySchema,
   CubeArtsSchema,
-  CubeSummarySchema,
+  CubeListingSchema,
   DraftCardSchema,
   DraftPresetSchema,
   PoolVerdictSchema,
@@ -44,7 +44,7 @@ import {
   type ChallengeCreateBody,
   type ChallengeEvent,
   type ClientMode,
-  type CubeSummary,
+  type CubeListing,
   type ImportCubeBody,
   type DraftCard,
   type DraftPlan,
@@ -430,10 +430,10 @@ export function roomsClient(
  */
 export interface PoolsClient {
   /** Imported first (newest first), then the shortlist, in file order — the server's own order, kept. */
-  listCubes(): Promise<CubeSummary[]>;
+  listCubes(): Promise<CubeListing[]>;
   /** A Cube Cobra link, or a named card list. */
-  importCube(source: ImportCubeBody): Promise<{ ok: true; cube: CubeSummary } | { ok: false; message: string }>;
-  refreshCube(id: string): Promise<{ ok: true; cube: CubeSummary } | { ok: false; message: string }>;
+  importCube(source: ImportCubeBody): Promise<{ ok: true; cube: CubeListing } | { ok: false; message: string }>;
+  refreshCube(id: string): Promise<{ ok: true; cube: CubeListing } | { ok: false; message: string }>;
   /** 403 (not the importer) and 400 (a shortlist cube) both read as a plain refusal — the picker never offers the control to anyone else. */
   deleteCube(id: string): Promise<{ ok: true } | { ok: false; message: string }>;
   /**
@@ -477,7 +477,7 @@ export function poolsClient(fetchImpl: Fetch = pageFetch, base: string = apiBase
       }
       const body = await bodyOf(res);
       if (!res.ok) throw new Error(`Could not load the cube list: ${serverMessage(body, res.status)}.`);
-      const parsed = CubeSummarySchema.array().safeParse(body);
+      const parsed = CubeListingSchema.array().safeParse(body);
       if (!parsed.success) throw new Error('The server sent something that is not a cube list.');
       return parsed.data;
     },
@@ -491,7 +491,7 @@ export function poolsClient(fetchImpl: Fetch = pageFetch, base: string = apiBase
       }
       const body = await bodyOf(res);
       if (!res.ok) return { ok: false, message: `Could not import that cube: ${serverMessage(body, res.status)}.` };
-      const parsed = CubeSummarySchema.safeParse(body);
+      const parsed = CubeListingSchema.safeParse(body);
       if (!parsed.success) return { ok: false, message: 'The server imported something that is not a cube.' };
       // A link imported again is the same cube, its cards read anew.
       forgetRead(fetchImpl, cardsUrl(parsed.data.id));
@@ -507,7 +507,7 @@ export function poolsClient(fetchImpl: Fetch = pageFetch, base: string = apiBase
       }
       const body = await bodyOf(res);
       if (!res.ok) return { ok: false, message: `Could not refresh that cube: ${serverMessage(body, res.status)}.` };
-      const parsed = CubeSummarySchema.safeParse(body);
+      const parsed = CubeListingSchema.safeParse(body);
       if (!parsed.success) return { ok: false, message: 'The server refreshed something that is not a cube.' };
       forgetRead(fetchImpl, cardsUrl(id));
       return { ok: true, cube: parsed.data };
