@@ -14,18 +14,40 @@
   padding: 12px 16px;
 }
 
-/* In the draft's side column: the room's name with the pack's controls, Close and the gear on one row, what is
-   drafted and who is at the table under it, the room's watchers below (the operator,
-   2026-10-21, with the pod drawn as a circle under this). */
+/* In the draft's side column: the room's name (and the gear) on the first row, the pack's controls
+   with Close on the next, what is drafted and who is at the table under them, the room's watchers
+   below (the operator, 2026-11-20: the name shared its row with the controls and wrapped). */
 .pod__bar--side {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   grid-template-areas:
-    'who tools close gear'
+    'who who who gear'
+    'tools close . .'
     'meta meta meta meta';
   align-items: center;
   gap: 6px 8px;
   padding: 10px 12px;
+  /* One height for every control in the controls' row: (i), fan|grid and Close. */
+  --pod-control-h: 30px;
+}
+
+.pod__bar--side > .pack__tools > .pack__help,
+.pod__bar--side > .pack__tools > .segmented,
+.pod__bar--side > .room-close,
+.pod__bar--side > .room-close__ask > .room-close {
+  box-sizing: border-box;
+  height: var(--pod-control-h);
+}
+
+.pod__bar--side > .pack__tools > .segmented button,
+.pod__bar.pod__bar--side .room-close {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pod__bar--side > .pack__tools > .pack__help {
+  width: var(--pod-control-h);
+  padding: 0;
 }
 
 .pod__bar--side > .pod__who {

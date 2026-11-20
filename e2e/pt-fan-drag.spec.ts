@@ -94,6 +94,15 @@ async function toolsByClose(page: Page, layout: string): Promise<void> {
   const gap = close.x - (tools.x + tools.width);
   expect(gap, `${layout}: just before Close`).toBeGreaterThanOrEqual(0);
   expect(gap, `${layout}: and next to it`).toBeLessThanOrEqual(12);
+  // Their own row, under the room's name (the operator, 2026-11-20: they shared the name's row and wrapped it).
+  const name = await boxOf(page, '.pod__bar--side [data-testid="pod-name"]');
+  expect(tools.y, `${layout}: the controls' row is under the room's name`).toBeGreaterThanOrEqual(name.y + name.height - 0.5);
+  // One height for the row: (i), fan|grid and Close.
+  const help = await boxOf(page, '.pod__bar--side [data-testid="pack-help"]');
+  const layoutSwitch = await boxOf(page, '.pod__bar--side [data-testid="pack-tools"] .segmented');
+  for (const [what, b] of [['(i)', help], ['fan|grid', layoutSwitch]] as const) {
+    expect(b.height, `${layout}: ${what} is Close's height`).toBeCloseTo(close.height, 0);
+  }
   await expect(page.locator('.draft__main [data-testid="pack-tools"]'), `${layout}: nothing of them in the drafting area`).toHaveCount(0);
   const top = await page.getByTestId('pack').evaluate((el) => el.getBoundingClientRect().top);
   expect(top, `${layout}: the pack starts its column, with no row over it`).toBeCloseTo(await mainTop(page), 0);
