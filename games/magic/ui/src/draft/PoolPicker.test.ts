@@ -73,6 +73,7 @@ const baseProps: PoolPickerProps = {
   refusal: null,
   readyCards: null,
   myId: 'u-me',
+  seats: 8,
   onPickCube: noop,
   onPickSet: noop,
   onPickCustomRound: noop,
@@ -254,5 +255,26 @@ describe('preset delete visibility (mutation-tested — see the lane report)', (
     expect((screen.getByTestId('pool-picker-preset-save') as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByTestId('pool-picker-preset-name'), { target: { value: 'x' } });
     expect((screen.getByTestId('pool-picker-preset-save') as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe('a cube too small for the pod', () => {
+  it('shows an (i) that says how many cards come round twice, and only when the seats outrun the cube', () => {
+    const oldSchool = cube({ id: 'os', name: 'Old School', size: 356 });
+    const vintage = cube({ id: 'vin', name: 'Vintage', size: 540 });
+    render(createElement(PoolPicker, { ...baseProps, cubes: [oldSchool, vintage], seats: 8 }));
+
+    const notes = screen.getAllByTestId('pool-picker-repeats');
+    expect(notes, 'only the 356-card cube is short of 8 × 45 = 360').toHaveLength(1);
+    expect(screen.getByTestId('pool-picker-cubes-os').closest('label')?.contains(notes[0]!)).toBe(true);
+
+    fireEvent.click(notes[0]!);
+    expect(screen.getByTestId('pool-picker-repeats-popover').textContent).toContain('4 cards will appear twice');
+    expect((screen.getByTestId('pool-picker-cubes-os') as HTMLInputElement).checked, 'the (i) does not pick the cube').toBe(false);
+  });
+
+  it('shows nothing at a size where the cube covers every pack', () => {
+    render(createElement(PoolPicker, { ...baseProps, cubes: [cube({ id: 'os', size: 356 })], seats: 7 }));
+    expect(screen.queryByTestId('pool-picker-repeats')).toBeNull();
   });
 });

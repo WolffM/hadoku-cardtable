@@ -371,3 +371,22 @@
     grid-template-columns: 1fr;
   }
 }
+
+.pool-picker__repeats {
+  margin-left: 6px;
+  inline-size: 1.25em;
+  block-size: 1.25em;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  font: italic 600 0.9em/1 serif;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.pool-picker__repeats-text {
+  margin: 0;
+  max-inline-size: 28ch;
+}

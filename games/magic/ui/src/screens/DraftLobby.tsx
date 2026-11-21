@@ -464,6 +464,7 @@ export function DraftLobby({
             onDraftWithout={canDraftWithout ? draftWithout : undefined}
             readyCards={readyCards}
             myId={myMemberId ?? ''}
+            seats={pod.seats.length}
             onPickCube={pickCube}
             onPickSet={pickSet}
             onPickCustomRound={pickCustomRound}

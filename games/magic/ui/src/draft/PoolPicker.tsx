@@ -72,6 +72,7 @@ import type { CubeSummary, DraftPreset, ImportCubeBody, PoolSource, PoolVerdict,
 
 import { SetSymbol } from '../components/ManaPip.tsx';
 import { Modal } from '@hadoku/game-ui/components/Modal.tsx';
+import { Popover, usePopover } from '@hadoku/game-ui/components/Popover.tsx';
 import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { CubeArt } from './CubeArt.tsx';
 import { ImportCube } from './ImportCube.tsx';
@@ -145,6 +146,8 @@ export interface PoolPickerProps {
   readyCards: number | null;
   /** My own friend id — whose presets get a Delete button. */
   myId: string;
+  /** The pod's seats, bots included: how many drafters a Cube tab deal is for. */
+  seats: number;
 
   onPickCube: (cubeId: string) => void;
   onPickSet: (code: string, style: SourceStyle) => void;
@@ -187,16 +190,57 @@ function sourceSummary(source: PoolSource | null, known: string | null, cubes: r
  * which is where cube MANAGEMENT lives now; a room card is a choice, not a
  * management panel.
  */
-function CubeRow({ cube, input, checked, verdictState }: { cube: CubeSummary; input: ReactNode; checked: boolean; verdictState: VerdictState | undefined }) {
+function CubeRow({ cube, input, checked, verdictState, repeats }: { cube: CubeSummary; input: ReactNode; checked: boolean; verdictState: VerdictState | undefined; repeats: number }) {
   return (
     <label key={cube.id} className="radio-cards__card pool-picker__card" data-verdict={checked ? verdictState : undefined}>
       <CubeArt artId={cube.artId} name={cube.name} />
       {input}
       <span className="pool-picker__body">
         <span className="pool-picker__name">{cube.name}</span>
-        <span className="pool-picker__size">{cardsCount(cube.size)}</span>
+        <span className="pool-picker__size">
+          {cardsCount(cube.size)}
+          {repeats > 0 && <RepeatNote size={cube.size} repeats={repeats} />}
+        </span>
       </span>
     </label>
+  );
+}
+
+/** Cards a whole-cube deal of three 15-card packs a seat takes past the cube's end: each comes round again in a later pack (`deal.ts`). */
+export function cubeRepeats(size: number, seats: number): number {
+  return Math.max(0, seats * CUBE_PACKS * CUBE_PACK_SIZE - size);
+}
+
+const CUBE_PACKS = 3;
+const CUBE_PACK_SIZE = 15;
+
+/** The (i) on a cube too small for the pod: the operator asked for it (2026-11-21), after a repeat read as a bug. */
+function RepeatNote({ size, repeats }: { size: number; repeats: number }) {
+  const { trigger, toggle, close } = usePopover();
+  return (
+    <>
+      <button
+        type="button"
+        className="pool-picker__repeats"
+        aria-label="Repeated cards"
+        aria-expanded={trigger !== null}
+        data-testid="pool-picker-repeats"
+        onClick={(event) => {
+          event.preventDefault();
+          toggle(event.currentTarget);
+        }}
+      >
+        i
+      </button>
+      {trigger !== null && (
+        <Popover trigger={trigger} onClose={close} title="Repeated cards" testId="pool-picker-repeats-popover">
+          <p className="pool-picker__repeats-text">
+            Each player opens {CUBE_PACKS} packs of {CUBE_PACK_SIZE}, so this table drafts {cardsCount(size + repeats)} from a cube of {size}.{' '}
+            {countOf(repeats, 'card')} will appear twice, in different packs.
+          </p>
+        </Popover>
+      )}
+    </>
   );
 }
 
@@ -208,6 +252,7 @@ function CubeList({
   value,
   disabled,
   verdictState,
+  seats,
   after,
   onChange,
 }: {
@@ -218,6 +263,8 @@ function CubeList({
   disabled: boolean;
   /** Flips the CHOSEN card's border/fill to the danger token while refused. Only the Cube tab passes this (its one source gates the shared verdict); a Custom round shows its own cached verdict underneath instead. */
   verdictState?: VerdictState;
+  /** The Cube tab's seats, for each card's repeat note; a Custom round's demand is its own, so it passes none. */
+  seats?: number;
   /** An extra, non-radio tile at the gallery's end (the Cube tab's import card). */
   after?: ReactNode;
   onChange: (cubeId: string) => void;
@@ -240,7 +287,7 @@ function CubeList({
         onChange={onChange}
         renderRow={(option, input) => {
           const cube = byId.get(option.value)!;
-          return <CubeRow key={cube.id} cube={cube} input={input} checked={option.value === value} verdictState={verdictState} />;
+          return <CubeRow key={cube.id} cube={cube} input={input} checked={option.value === value} verdictState={verdictState} repeats={seats === undefined ? 0 : cubeRepeats(cube.size, seats)} />;
         }}
       />
       {after}
@@ -469,6 +516,7 @@ export function PoolPicker({
   refusal,
   readyCards,
   myId,
+  seats,
   onPickCube,
   onPickSet,
   onPickCustomRound,
@@ -553,6 +601,7 @@ export function PoolPicker({
             value={selected?.kind === 'cube' ? selected.cubeId : null}
             disabled={disabled}
             verdictState={verdictState}
+            seats={seats}
             after={leader ? <ImportCube busy={busy} onImport={onImport} /> : undefined}
             onChange={onPickCube}
           />
