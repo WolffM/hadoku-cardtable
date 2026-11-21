@@ -48,10 +48,10 @@ const title = available.ok ? 'one seed, one deal' : `one seed, one deal — SKIP
 
 const SEED = 20260918;
 
-async function waitUntil(predicate: () => boolean, label: string, timeoutMs: number): Promise<void> {
+async function waitUntil(predicate: () => boolean, label: string, timeoutMs: number, trace?: () => string): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	while (!predicate()) {
-		if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
+		if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}${trace === undefined ? '' : `; frames: ${trace()}`}`);
 		await new Promise((r) => setTimeout(r, 50));
 	}
 }
@@ -107,8 +107,8 @@ const spec = (): ForgeMatchSpec => ({
 	],
 });
 
-/** One cold match, far enough to have been dealt, then gone: the deal, and the frames up to where it was read. */
-async function dealtOnce(): Promise<{ dealt: string; trace: string }> {
+/** One cold match, far enough to have been dealt, then gone: the deal, the frames up to where it was read, and which reached seat 0 first. */
+async function dealtOnce(): Promise<{ dealt: string; trace: string; promptFirst: boolean }> {
 	if (!available.ok) throw new Error('unreachable');
 	const raw: BridgeLine[] = [];
 	const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
@@ -128,21 +128,29 @@ async function dealtOnce(): Promise<{ dealt: string; trace: string }> {
 		});
 		const match: Match = registry.create(spec());
 		expect(await match.whenRunning(120_000)).toEqual({ ok: true });
-		// Read at seat 0's first prompt by which seat 0 has been told both libraries.
-		// Not simply its first prompt: a prompt bar can reach seat 0 before the delta
+		// Read at the first frame by which seat 0 has had a prompt AND been told both
+		// libraries, whichever came last. A prompt bar can reach seat 0 before the delta
 		// that carries the deal does (two scheduled runs read
 		// `… s0:applyDelta s0:showPromptMessage s0:updateButtons` with both libraries
-		// still empty). Seat 0's own: each seat's frames arrive on that seat's client
-		// thread, so the other seat's prompt says nothing of what seat 0 has heard.
-		// And read as of that frame, not as of the poll: one fixed point in one seat's
-		// stream, the same in both runs, since nothing reshuffles before the coin toss
-		// is answered.
-		const toldAt = (): number => raw.findIndex((l, i) => isPrompt(l, 0) && hasLibraries(raw.slice(0, i + 1)));
-		await waitUntil(() => toldAt() !== -1, "seat 0's first prompt after the deal", 60_000);
+		// still empty), and nobody here answers it, so waiting for a prompt AFTER the
+		// deal waited out its whole minute when that prompt was seat 0's only one
+		// (runs 44189350647, 44845468480: ~9 s a match otherwise). Seat 0's own: each
+		// seat's frames arrive on that seat's client thread, so the other seat's prompt
+		// says nothing of what seat 0 has heard. And read as of that frame, not as of the
+		// poll: one fixed point in one seat's stream, the same in both runs, since nothing
+		// reshuffles before the coin toss is answered.
+		const prompted = (): number => raw.findIndex((l) => isPrompt(l, 0));
+		const toldAt = (): number => {
+			const p = prompted();
+			if (p === -1) return -1;
+			for (let i = p; i < raw.length; i++) if (hasLibraries(raw.slice(0, i + 1))) return i;
+			return -1;
+		};
+		await waitUntil(() => toldAt() !== -1, "seat 0's first prompt and the deal", 60_000, () => frameTrace(raw, raw.length));
 		const at = toldAt();
 		const dealt = deal(raw.slice(0, at + 1));
 		match.stop();
-		return { dealt, trace: frameTrace(raw, at + 1) };
+		return { dealt, trace: frameTrace(raw, at + 1), promptFirst: !hasLibraries(raw.slice(0, prompted() + 1)) };
 	} finally {
 		jvm.reapOnExit();
 		await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
@@ -155,6 +163,7 @@ describe.skipIf(!available.ok)(title, () => {
 		const first = await dealtOnce();
 		const second = await dealtOnce();
 		console.log(`[seed] ${SEED} run 1:\n${first.dealt}\n[seed] ${SEED} run 2:\n${second.dealt}`);
+		console.log(`[seed] seat 0's prompt reached it before the deal: run 1 ${first.promptFirst}, run 2 ${second.promptFirst}`);
 		// Non-vacuity: a comparison of two empty libraries would pass and prove
 		// nothing. A 40-card precon is the smallest deck Forge ships.
 		for (const run of [first, second]) expect(run.dealt, `read after: ${run.trace}`).toMatch(/library=(\d+,){39}/);
