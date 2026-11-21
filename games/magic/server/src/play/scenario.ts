@@ -15,7 +15,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ClientFrameSchema, coreTypes, currentFace, deltaKey, DELTA_TYPE, idsOf, strOf, type ServerFrame } from '@hadoku/forge-wire';
+import { ClientFrameSchema, coreTypes, currentFace, deltaKey, deltaKeyId, deltaKeyType, DELTA_TYPE, idsOf, strOf, type ServerFrame } from '@hadoku/forge-wire';
 import { afterEach } from 'vitest';
 
 import { playWorkDir } from '../config.js';
@@ -71,6 +71,19 @@ export function deck(name: string, lines: readonly string[]): string {
  * the file's basename without `.state`; see `scenarios/README.md` for the key
  * format and what each one proves.
  */
+/**
+ * A seat's Forge player id (`theirs`) as another seat's view knows it. An AI seat is never told its own id
+ * (`seat-opened` is a human's), so for it this is the one player in the view that is not `mine`.
+ */
+function playerIdOf(state: Map<string, unknown>, mine: number | null, theirs: number | null): number {
+	if (theirs !== null) return theirs;
+	for (const key of state.keys()) {
+		const n = Number(key);
+		if (deltaKeyType(n) === DELTA_TYPE.player && deltaKeyId(n) !== mine) return deltaKeyId(n);
+	}
+	return -1;
+}
+
 export function scenarioText(name: string): string {
 	const here = dirname(fileURLToPath(import.meta.url));
 	return readFileSync(join(here, 'scenarios', `${name}.state`), 'utf8');
@@ -296,7 +309,8 @@ export interface Scenario {
 	prompt(seat: number): string;
 	buttons(seat: number): Buttons | null;
 	state(seat: number): Map<string, WireObj>;
-	zone(seat: number, name: 'Hand' | 'Battlefield' | 'Graveyard' | 'Exile' | 'Command'): Card[];
+	/** `of`'s zone (default `seat`'s own) as `seat`'s wire shows it — an AI seat has no wire, so its board is read through seat 0's. */
+	zone(seat: number, name: 'Hand' | 'Battlefield' | 'Graveyard' | 'Exile' | 'Command', of?: number): Card[];
 	/** `Turn: N (Owner)` off this seat's last prompt. */
 	turn(seat: number): { n: number; owner: string } | null;
 	phase(seat: number): string | null;
@@ -488,9 +502,9 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 					.map((x) => x.envelope.frame as unknown as StateFrame)
 					.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
 			),
-		zone(seat, name) {
+		zone(seat, name, of = seat) {
 			const state = self.state(seat);
-			const player = state.get(deltaKey(DELTA_TYPE.player, current().seats[seat]?.playerId ?? -1));
+			const player = state.get(deltaKey(DELTA_TYPE.player, playerIdOf(state, current().seats[seat]?.playerId ?? null, current().seats[of]?.playerId ?? null)));
 			return idsOf(player, name).map((id) => {
 				const view = state.get(deltaKey(DELTA_TYPE.card, id));
 				const face = currentFace(state, id);

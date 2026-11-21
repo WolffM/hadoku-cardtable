@@ -43,9 +43,10 @@ function stopsIn(s: Scenario, phase: string): number {
 
 const passedIn = (s: Scenario, phase: string): boolean => s.logs.some((l) => l.evt === 'auto-passed' && l.seat === 0 && l.phase === phase);
 
-const card = (s: Scenario, seat: number, name: string): number => {
-	const id = s.zone(seat, 'Battlefield').find((c) => c.name === name)?.id;
-	if (id === undefined) throw new Error(`no ${name} on seat ${seat}’s battlefield`);
+/** A card on `of`'s battlefield, as seat 0's wire shows it. */
+const card = (s: Scenario, of: number, name: string): number => {
+	const id = s.zone(0, 'Battlefield', of).find((c) => c.name === name)?.id;
+	if (id === undefined) throw new Error(`no ${name} on seat ${of}’s battlefield`);
 	return id;
 };
 
@@ -105,7 +106,7 @@ describe.skipIf(!available.ok)(title, () => {
 				// The Wurm was tapped before attacks, so nobody attacked and seat 0 took nothing.
 				expect(stopsIn(s, 'Declare Blockers Step')).toBe(0);
 				expect(s.match.live()?.life[0]).toBe(20);
-				expect(s.zone(1, 'Battlefield').find((c) => c.name === 'Craw Wurm')?.tapped).toBe(true);
+				expect(s.zone(0, 'Battlefield', 1).find((c) => c.name === 'Craw Wurm')?.tapped).toBe(true);
 			} catch (err) {
 				console.log(`[tap-before-attacks-timeline]\n${timeline(s, 0)}`);
 				throw err;
