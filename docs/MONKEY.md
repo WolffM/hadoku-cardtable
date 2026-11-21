@@ -138,7 +138,7 @@ and variant.
 | --- | --- |
 | `cast` | `resolved`, or why not: `not-offered` (the main phase never offered the card: the board lacks what it needs, or it needs a spell on the stack), `rolled-back` (the cast came back to hand) |
 | `asks` | every question the seat was asked, in order: the ask's method, its own words and bounds and its first options, whether the seat declined it, and whether it came `during` the card's own `play` or the turns that `follow`. `method: "bar"` is a yes/no on Forge's two buttons; `"selection"` is a pick Forge opened on the board (a target, a cost) |
-| `server` | what the server answered for the seat (`ask-auto-answered`, `auto-picked`, `ask-unanswerable`), with its reason |
+| `server` | what the server answered for the seat (`ask-auto-answered`, `auto-picked`, `auto-confirmed`, `ask-unanswerable`), with its reason |
 | `board` | the board when the run ended, by card name: the difference from `board.ts` is what the card did |
 | `flags` | the monkey's flags, plus `no-finish` when the card was not played and followed inside `--timeout-ms` |
 

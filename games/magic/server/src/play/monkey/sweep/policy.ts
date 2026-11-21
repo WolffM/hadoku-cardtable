@@ -64,6 +64,8 @@ const ROLLED_BACK_TICKS = 20;
 const UNWORDED_TICKS = 25;
 /** How many ticks a pressed answer is given to be taken before it is pressed again: the server refuses a press made under a bar Forge has not re-armed, and sends the bar again. */
 const BAR_RETRY_TICKS = 25;
+/** How many ticks after an ask is refused a yes/no still counts as Forge checking that refusal. */
+const DECLINE_CHECK_TICKS = 40;
 /** How many ticks a selection's words must stand before the seat clicks in it. */
 const STAND_TICKS = 3;
 /** How many ticks a refusal waits for a selection's buttons to come live. */
@@ -135,6 +137,8 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
   let lastDeclined: string | null = null;
   /** The last decision was an ask refused: a yes/no straight after it is Forge checking the refusal. */
   let askJustDeclined = false;
+  /** Ticks since then with neither a bar nor a selection: the yes/no can take a few frames to arrive. */
+  let sinceDeclined = 0;
   /** The selection now open, by {@link wordsOf}: recorded once however many clicks it takes. */
   let openSelection: string | null = null;
   /** The prompt as it stood with no selection open, and the ticks an open selection has still shown it. */
@@ -192,6 +196,7 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
       for (let i = 0; i < 32 && answer.declined !== decline; i += 1) answer = randomAnswer(rng, ask);
       if (answer.declined) lastDeclined = wordsOf(ask.method, shape);
       askJustDeclined = answer.declined;
+      sinceDeclined = 0;
       useAnswered = true;
       record({ method: ask.method, shape, declined: answer.declined });
       return answer;
@@ -334,7 +339,8 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
         barAnswer = { declined, ticks: 0, prompt: match.prompt };
         return press(match, declined ? 'cancel' : 'ok', declined ? bar.label2 : bar.label1);
       }
-      askJustDeclined = false;
+      sinceDeclined += 1;
+      if (sinceDeclined > DECLINE_CHECK_TICKS) askJustDeclined = false;
 
       const mine = view.activePlayerId === match.playerId;
       const quietMain = mine && (view.phase === 'MAIN1' || view.phase === 'MAIN2') && view.stack.length === 0 && (view.pendingTriggers ?? []).length === 0;

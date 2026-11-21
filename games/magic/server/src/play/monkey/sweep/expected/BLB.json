@@ -316,7 +316,9 @@
    "asks": [
     "selection: Bumbleflower's Sharepot - {5}, {T}, Sacrifice Bumbleflower's Sharepot: Destroy target nonland permanent. Activate only as a sorcery. Select target nonland permanent"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   },
   "decline": {
    "cast": "resolved",
@@ -413,14 +415,19 @@
   "accept": {
    "cast": "resolved",
    "asks": [
-    "selection: Camellia, the Seedmiser - {2}, Forage: Put a +1/+1 counter on each other Squirrel you control. (To forage, exile three cards from your graveyard or sacrifice a Food.) Select Food to sacrifice (1"
+    "bar: Sacrifice Food",
+    "selection: Camellia, the Seedmiser - {2}, Forage: Put a +1/+1 counter on each other Squirrel you control. (To forage, exile three cards from your graveyard or sacrifice a Food.) Select Food to sacrifice (1",
+    "selection: Camellia, the Seedmiser - {2}, Forage: Put a +1/+1 counter on each other Squirrel you control. (To forage, exile three cards from your graveyard or sacrifice a Food.) Select 3 or more to exile"
    ],
    "server": []
   },
   "decline": {
    "cast": "resolved",
    "asks": [
-    "selection: Camellia, the Seedmiser - {2}, Forage: Put a +1/+1 counter on each other Squirrel you control. (To forage, exile three cards from your graveyard or sacrifice a Food.) Select Food to sacrifice (1 (declined)"
+    "bar: Sacrifice Food (declined)",
+    "selection: Camellia, the Seedmiser - {2}, Forage: Put a +1/+1 counter on each other Squirrel you control. (To forage, exile three cards from your graveyard or sacrifice a Food.) Select 3 or more to exile (declined)",
+    "bar: Sacrifice Food (declined)",
+    "selection: Camellia, the Seedmiser - {2}, Forage: Put a +1/+1 counter on each other Squirrel you control. (To forage, exile three cards from your graveyard or sacrifice a Food.) Select 3 or more to exile (declined)"
    ],
    "server": []
   }
@@ -447,7 +454,9 @@
    "asks": [
     "bar: Forest Put Forest on the top or bottom of your library?"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   },
   "decline": {
    "cast": "resolved",
@@ -455,7 +464,9 @@
     "bar: Forest Put Forest on the top or bottom of your library? (declined)",
     "bar: Grizzly Bears Put Grizzly Bears on the top or bottom of your library? (declined)"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   }
  },
  "Cindering Cutthroat": {
@@ -669,7 +680,9 @@
    "asks": [
     "selection: Daring Waverider - When Daring Waverider enters, you may cast target instant or sorcery card with mana value 4 or less from your graveyard without paying its mana cost. If that spell would be pu"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose its target"
+   ]
   },
   "decline": {
    "cast": "resolved",
@@ -677,7 +690,9 @@
     "selection: Daring Waverider - When Daring Waverider enters, you may cast target instant or sorcery card with mana value 4 or less from your graveyard without paying its mana cost. If that spell would be pu",
     "selection: Shock - Shock deals 2 damage to any target. (without paying its mana cost) Select any target (declined)"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose its target"
+   ]
   }
  },
  "Darkstar Augur": {
@@ -952,7 +967,9 @@
    "asks": [
     "chooseSingleEntityForEffect: Select a card from your library"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   },
   "decline": {
    "cast": "resolved",
@@ -960,7 +977,9 @@
     "chooseSingleEntityForEffect: Select a card from your library (declined)",
     "bar: Cancel Search? Up to 1 more card(s) can be selected."
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   }
  },
  "Feather of Flight": {
@@ -1009,10 +1028,12 @@
    "asks": [
     "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select target creature or planeswalker (declined)",
     "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select target creature or planeswalker",
-    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select Food to sacrifice (1 left) (declined)",
+    "bar: Sacrifice Food (declined)",
+    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select 3 or more to exile (declined)",
     "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: {B}) Select target creature or planeswalker (declined)",
     "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select target creature or planeswalker",
-    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select Food to sacrifice (1 left)"
+    "bar: Sacrifice Food (declined)",
+    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select 3 or more to exile"
    ],
    "server": []
   }
@@ -1154,7 +1175,9 @@
    "asks": [
     "selection: Fountainport - {2}, {T}, Sacrifice a token: Draw a card. Select token to sacrifice (1 left) (declined)"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   }
  },
  "Fountainport Bell": {
@@ -1164,14 +1187,18 @@
     "bar: Use triggered ability of Fountainport Bell? Triggered by: Fountainport Bell",
     "chooseSingleEntityForEffect: Select a card from your library"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   },
   "decline": {
    "cast": "resolved",
    "asks": [
     "bar: Use triggered ability of Fountainport Bell? Triggered by: Fountainport Bell (declined)"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   }
  },
  "Frilled Sparkshooter": {
@@ -1312,14 +1339,18 @@
     "bar: Use triggered ability of Heaped Harvest? Triggered by: Heaped Harvest",
     "chooseSingleEntityForEffect: Select a card from your library"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   },
   "decline": {
    "cast": "resolved",
    "asks": [
     "bar: Use triggered ability of Heaped Harvest? Triggered by: Heaped Harvest (declined)"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   }
  },
  "Heartfire Hero": {
@@ -1442,12 +1473,16 @@
   "accept": {
    "cast": "resolved",
    "asks": [],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   },
   "decline": {
    "cast": "resolved",
    "asks": [],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   }
  },
  "Honored Dreyleader": {
@@ -1843,12 +1878,18 @@
   "accept": {
    "cast": "resolved",
    "asks": [],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before",
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   },
   "decline": {
    "cast": "resolved",
    "asks": [],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before",
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   }
  },
  "Lupinflower Village": {
@@ -2087,7 +2128,9 @@
    "asks": [
     "selection: Nettle Guard - {1}, Sacrifice Nettle Guard: Destroy target artifact or enchantment. Select target artifact or enchantment"
    ],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   },
   "decline": {
    "cast": "resolved",
@@ -2914,12 +2957,16 @@
   "accept": {
    "cast": "resolved",
    "asks": [],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   },
   "decline": {
    "cast": "resolved",
    "asks": [],
-   "server": []
+   "server": [
+    "auto-confirmed -: the seat chose this ability just before"
+   ]
   }
  },
  "Skyskipper Duo": {
@@ -3269,8 +3316,7 @@
   "accept": {
    "cast": "resolved",
    "asks": [
-    "selection: Tangle Tumbler - {3}, {T}: Put a +1/+1 counter on target creature. Select target creature",
-    "selection: Tangle Tumbler - Tap two untapped tokens you control: Tangle Tumbler becomes an artifact creature until end of turn. Select a(n) token to tap (2 left)"
+    "selection: Tangle Tumbler - {3}, {T}: Put a +1/+1 counter on target creature. Select target creature"
    ],
    "server": []
   },

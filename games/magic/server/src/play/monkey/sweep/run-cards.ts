@@ -91,7 +91,7 @@ function boardOf(match: LiveMatch): BoardSeen | null {
   return { life: [me.life, them.life], hand: names(me.hand ?? []), battlefield: names(me.battlefield), graveyard: names(me.graveyard), exile: names(me.exile), theirBattlefield: names(them.battlefield), theirHandCount: them.handCount };
 }
 
-const SERVER_DECISIONS = new Set(['ask-auto-answered', 'auto-picked', 'ask-unanswerable', 'ask-unclassified']);
+const SERVER_DECISIONS = new Set(['ask-auto-answered', 'auto-picked', 'auto-confirmed', 'ask-unanswerable', 'ask-unclassified']);
 
 function zoneOf(match: LiveMatch, name: string): CardResult['endedIn'] {
   const view = match.view;
