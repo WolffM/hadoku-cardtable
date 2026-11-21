@@ -442,7 +442,10 @@ test(titled('a box over eight tapped lands untaps all eight; over tapped and unt
  * fine generally, but if i want to place a card in a particular slot further to the right with gaps in
  * between i should be able to."* Eight Plains in one row: the last one, let go a column past the row's
  * end, sits in that column with empty columns before it (the one it left, and the one between); another
- * dropped on one of those gaps fills it. Eight Plains leave one spare column at 1280 wide, hence one.
+ * dropped on one of those gaps fills it. The drop needs ten columns in the row: the eight lands, the
+ * spare one and the one past it. 1440 wide, because at 1280 the row (696 px) held ten only while the
+ * game had a top bar: without it the table is taller, the cards grew from 67 to 75 px wide (pitch 71 to
+ * 79), and the tenth column starts 25 px past the row's end (scheduled Forge runs from 2026-11-20).
  */
 test(titled('a card let go further right sits in that column, with gaps before it, and a gap takes a card'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -452,7 +455,7 @@ test(titled('a card let go further right sits in that column, with gaps before i
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await resizeWindow(page, { width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1440, height: 800 });
     const lands = await eightLoneLands(page);
     const row = page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-tier="back"]');
     const columns = () =>
