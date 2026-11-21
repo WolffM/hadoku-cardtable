@@ -675,7 +675,7 @@
    "cast": "resolved",
    "asks": [
     "selection: Daring Waverider - When Daring Waverider enters, you may cast target instant or sorcery card with mana value 4 or less from your graveyard without paying its mana cost. If that spell would be pu",
-    "selection: Shock - Shock deals 2 damage to any target. (without paying its mana cost) Select any target"
+    "selection: Shock - Shock deals 2 damage to any target. (without paying its mana cost) Select any target (declined)"
    ],
    "server": []
   }
@@ -1008,6 +1008,9 @@
    "cast": "resolved",
    "asks": [
     "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select target creature or planeswalker (declined)",
+    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select target creature or planeswalker",
+    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select Food to sacrifice (1 left) (declined)",
+    "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: {B}) Select target creature or planeswalker (declined)",
     "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select target creature or planeswalker",
     "selection: Feed the Cycle - Destroy target creature or planeswalker. (Additional cost: Forage) Select Food to sacrifice (1 left)"
    ],

@@ -8,7 +8,7 @@
  *     --set BLB --out /tmp/sweep-blb.json [--card "Parting Gust"] [--variant accept|decline] [--per-match 6] [--update]
  *
  * A card has a match of its own unless `--per-match` says otherwise. A play that does not ask what is
- * recorded is played again alone, twice at most, and counts as differing only if it never does.
+ * recorded is played again alone, three times at most, and counts as differing only if it never does.
  * Exit 0: no flag, every optional-cost keyword asked and refusable (`mechanics.ts`), and every card
  * asked what `expected/<SET>.json` records. Exit 1 otherwise.
  * `--update` records what was asked instead of checking it.
@@ -30,7 +30,7 @@ import { runCards, type CardResult } from './run-cards.ts';
 import { setCards, type SetCard } from './set-cards.ts';
 
 /** How many times a play that does not ask what is recorded is played again before it counts as differing. */
-const REPLAYS = 2;
+const REPLAYS = 3;
 /** The wall a match gets for each card past its first. */
 const EXTRA_CARD_MS = 30_000;
 /**

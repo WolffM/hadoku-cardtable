@@ -144,3 +144,19 @@ describe('createMagicConfig: two configs, two prefixes, one process', () => {
     expect(other.draftsDir).toBe('/other-data/drafts');
   });
 });
+
+/*
+ * The two match graces a test stack may shorten (the card sweep sets the second) (`CARDTABLE_PLAY_REJOIN_GRACE_MS`,
+ * `CARDTABLE_PLAY_OVER_GRACE_MS`). Unset leaves play's own defaults, which is all production gets.
+ */
+describe('createMagicConfig: the match graces', () => {
+  it('leaves both to play when unset, and reads each in milliseconds when set', async () => {
+    const { createMagicConfig } = await import('./config.ts');
+    const bare = createMagicConfig({ env: {}, dataDir: '/d' });
+    expect(bare.playRejoinGraceMs).toBeUndefined();
+    expect(bare.playOverGraceMs).toBeUndefined();
+    const short = createMagicConfig({ env: { CARDTABLE_PLAY_REJOIN_GRACE_MS: '2000', CARDTABLE_PLAY_OVER_GRACE_MS: '1500' }, dataDir: '/d' });
+    expect(short.playRejoinGraceMs).toBe(2000);
+    expect(short.playOverGraceMs).toBe(1500);
+  });
+});

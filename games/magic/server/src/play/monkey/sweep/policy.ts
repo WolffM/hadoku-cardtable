@@ -67,9 +67,11 @@ const BAR_RETRY_TICKS = 25;
 /** How many ticks a selection's words must stand before the seat clicks in it. */
 const STAND_TICKS = 3;
 /** How many ticks a refusal waits for a selection's buttons to come live. */
-const CANCEL_TICKS = 8;
+const CANCEL_TICKS = 40;
+/** How many ticks a use of the card waits for Forge to answer it, at most. */
+const ANSWER_TICKS = 150;
 /** How many quiet ticks a played card is given before the seat moves on: its triggers reach the view a frame after it lands. */
-const SETTLE_TICKS = 20;
+const SETTLE_TICKS = 50;
 /** How many ticks an open selection may have nothing left to click before the seat starts it over. */
 const RESELECT_TICKS = 15;
 /** How many turns past its main phase the seat plays on. */
@@ -141,14 +143,20 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
   /** The open selection's prompt, and the ticks it has stood unchanged. */
   let standingPrompt: string | null = null;
   let stood = 0;
+  /** The card the open selection's prompt is about (`LiveMatch.promptCard`). */
+  let selectionCard: number | null = null;
   /** Ticks a refusal has waited for the open selection's Cancel. */
   let cancelWait = 0;
   /** The prompt when the seat last clicked in the open selection: the next click waits for the words to move. */
   let promptAtPick: string | null = null;
   /** The last yes/no the seat pressed, and the ticks it has stayed up since. */
-  let barAnswer: { declined: boolean; ticks: number } | null = null;
+  let barAnswer: { declined: boolean; ticks: number; prompt: string | null } | null = null;
   /** Quiet ticks since the card being played last did anything. */
   let settled = 0;
+  /** The card's last use has shown Forge's answer: a question, a selection or something on the stack. */
+  let useAnswered = true;
+  /** Ticks waited for that answer. */
+  let unanswered = 0;
   /** `LiveMatch.forgeSeq` when the seat last answered a question on the bar. */
   let barAnsweredAt = -1;
   /** The attackers this seat has declared, by card id. */
@@ -184,6 +192,7 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
       for (let i = 0; i < 32 && answer.declined !== decline; i += 1) answer = randomAnswer(rng, ask);
       if (answer.declined) lastDeclined = wordsOf(ask.method, shape);
       askJustDeclined = answer.declined;
+      useAnswered = true;
       record({ method: ask.method, shape, declined: answer.declined });
       return answer;
     },
@@ -206,6 +215,7 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
         return bar?.enable2 === true ? press(match, 'cancel', bar.label2) : null;
       }
 
+      if (offer.selectionOpen || view.stack.length > 0) useAnswered = true;
       if (offer.selectionOpen) {
         // The selection and its words are two frames: it is neither answered nor recorded under the last prompt's.
         if ((match.prompt === quietPrompt || match.prompt === promptAtPick) && unworded < UNWORDED_TICKS) {
@@ -222,6 +232,13 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
         settled = 0;
         const shape = { message: (match.prompt ?? '').replace(/\s+/g, ' ').trim().slice(0, 200) };
         const key = wordsOf('selection', shape);
+        // One selection can follow another without the board closing between them (a trigger's
+        // target, then the spell it lets you cast): a prompt about another card starts afresh.
+        if (match.promptCard !== selectionCard) {
+          selectionCard = match.promptCard;
+          picked.clear();
+          cancelWait = 0;
+        }
         const cancel = bar?.enable2 === true;
         const declining = variant === 'decline' && clickedACard;
         // Refused where Forge lets it be, before anything is picked: a "may" at resolution, or the cast itself.
@@ -295,13 +312,14 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
       unworded = 0;
       cancelWait = 0;
       standingPrompt = null;
+      selectionCard = null;
 
       // A question on the bar. Before any card is clicked it is the opening's (Keep or Mulligan), always kept.
       if (bar !== null && isConfirmPrompt(bar)) {
         if (!clickedACard) return press(match, 'ok', bar.label1);
         // One answer per question: the bar stays up until Forge has taken the press. A press the server
         // refused leaves it up for good, so the same answer is pressed again, and recorded once.
-        if (match.forgeSeq === barAnsweredAt && barAnswer !== null) {
+        if (match.forgeSeq === barAnsweredAt && match.prompt === barAnswer?.prompt) {
           barAnswer.ticks += 1;
           if (barAnswer.ticks <= BAR_RETRY_TICKS) return null;
           barAnswer.ticks = 0;
@@ -313,7 +331,7 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
         if (declined) lastDeclined = wordsOf('bar', shape);
         askJustDeclined = false;
         record({ method: 'bar', shape, declined });
-        barAnswer = { declined, ticks: 0 };
+        barAnswer = { declined, ticks: 0, prompt: match.prompt };
         return press(match, declined ? 'cancel' : 'ok', declined ? bar.label2 : bar.label1);
       }
       askJustDeclined = false;
@@ -356,6 +374,8 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
           if (quietMain && onBoard !== undefined && trace.uses < MAX_USES && offer.selectable.has(onBoard.id)) {
             trace.uses += 1;
             settled = 0;
+            useAnswered = false;
+            unanswered = 0;
             return click(match, onBoard.id);
           }
           // In the seat's own main phase a use still resolving is waited out, and a quiet board is given
@@ -365,7 +385,12 @@ export function sweeper(cards: readonly string[], variant: Variant, traces: read
               settled = 0;
               return pass();
             }
-            // Counted only while the seat holds priority: what the card offers is not known before then.
+            // Counted only while the seat holds priority, what the card offers being unknown before then,
+            // and once Forge has answered the last use: on a loaded host its question can take seconds.
+            if (!useAnswered && unanswered < ANSWER_TICKS) {
+              unanswered += 1;
+              return null;
+            }
             if (priority) settled += 1;
             if (settled <= SETTLE_TICKS) return null;
           }

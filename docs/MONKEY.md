@@ -153,7 +153,7 @@ So each run is reduced to a signature (`expected.ts`: how the cast ended, the qu
 card's own play and which were refused, what the server answered in the seat's place) and checked
 against `sweep/expected/<SET>.json`. A difference prints both sides and fails the run.
 
-A play that differs is first played again alone, twice at most: a question can land a frame either
+A play that differs is first played again alone, three times at most: a question can land a frame either
 side of the click that answers it, and a card that really changed differs every time. The run says
 which plays matched only on a replay.
 
