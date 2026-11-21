@@ -9,7 +9,8 @@
  * packs, `?scale=` the UI scale, `?side=` the room's bar's height in px (48
  * when absent; it does not scale with the column's fit, as the real bar's name
  * and Close do not), `?real=1` gives every seat a watchparty face (for
- * screenshots).
+ * screenshots), `?picks=1` lands a pick in the pool (for
+ * `e2e/draft-pick-flight.spec.ts`; without it a click changes nothing).
  */
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -49,10 +50,13 @@ const side = (loaded: boolean) => (
   </div>
 );
 
+const picks = params.get('picks') === '1';
+
 function Page() {
   const [loaded, setLoaded] = useState(false);
+  const [state, setState] = useState(() => initialState(view));
   window.load = () => setLoaded(true);
-  return loaded ? <DraftScreen state={initialState(view)} onChange={() => {}} side={side(true)} /> : <DraftSkeleton side={side(false)} />;
+  return loaded ? <DraftScreen state={state} onChange={picks ? setState : () => {}} side={side(true)} /> : <DraftSkeleton side={side(false)} />;
 }
 
 // As the app's entry does (`main.tsx`): the faces' sheet is there before anything is drawn.

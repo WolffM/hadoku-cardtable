@@ -799,9 +799,23 @@
  */
 .pool__tile--enter {
   transition: transform 280ms ease;
+  /* `PoolTile` inverts from the tile's top-left corner, so it scales from there too: from the
+     centre, the first frame stood off the pack slot by half the size it was scaled by. */
+  transform-origin: 0 0;
+  /* Drawn over everything it crosses on the way: the pack, the rope, the pool's head and the cards
+     and piles after it, which drew on top of it while it flew. */
+  position: relative;
+  z-index: 5;
   /* In flight it is drawn over the pack it came from: the next pick's click
      goes through it to the card underneath, never to the card on its way. */
   pointer-events: none;
+}
+
+/* The pool and its row clip what spills out of them, and a card in flight starts above both, in the
+   pack: while one flies they let it show. `.draft__body`'s own clip still holds it inside the draft. */
+.draft__main > .pool:has(.pool__tile--enter),
+.pool:has(.pool__tile--enter) .pool__curve {
+  overflow: visible;
 }
 
 /* ── until the draft's table arrives (`DraftSkeleton`) ─────────────────── */

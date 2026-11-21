@@ -223,8 +223,10 @@ export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove
  * never visible at its real position without having been asked to animate
  * into it first.
  *
- * `enterFrom` is read once — `useRef` so a later render (the `null` that
- * clears `DraftScreen`'s own state after `POOL_ENTER_MS`) does not restart it.
+ * It plays when `enterFrom` changes to a rect, and only then: the `null` that
+ * clears `DraftScreen`'s own state after `POOL_ENTER_MS` plays nothing. A run
+ * that was cleaned up and runs again (StrictMode mounts every effect twice in
+ * development) plays again from the top, so the flight is the same in dev.
  * `pool__tile--enter` carries the transition and lets a click through the
  * tile in flight (`draft.css`); nothing reads the class once React drops it
  * on the state-driven re-render.
@@ -232,21 +234,22 @@ export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove
 function PoolTile({ card, tileId, enterFrom, from }: { card: DraftCard; tileId: string; enterFrom: PoolEnterRect | null; from: Area | null }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [entering, setEntering] = useState(enterFrom !== null);
-  const playedFor = useRef<PoolEnterRect | null>(null);
 
   useLayoutEffect(() => {
     const el = ref.current;
-    // Already played for this arrival (or there was none): the `null` that
-    // follows a real `enterFrom` must not undo anything or restart a timer.
-    if (el === null || enterFrom === null || playedFor.current === enterFrom) return;
-    playedFor.current = enterFrom;
+    if (el === null || enterFrom === null) return;
+    // Its cleanup cleared it; a run after a cleanup (StrictMode's second) needs it back.
+    setEntering(true);
 
+    // Measured where it lies, not wherever a transition has it: a cleaned-up run (StrictMode's
+    // first) leaves it sliding home, and a rect read mid-slide inverts by next to nothing.
+    el.style.transition = 'none';
+    el.style.transform = 'none';
     const to = el.getBoundingClientRect();
     const dx = enterFrom.left - to.left;
     const dy = enterFrom.top - to.top;
     const scale = to.width > 0 ? enterFrom.width / to.width : 1;
 
-    el.style.transition = 'none';
     el.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
     // Force the browser to commit the line above before the next one asks it
     // to animate away from it — without this the two writes coalesce into one
