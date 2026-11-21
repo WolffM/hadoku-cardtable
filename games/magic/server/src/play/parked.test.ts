@@ -73,7 +73,8 @@ function edgeHeaders(user: string): Record<string, string> {
 }
 const idOf = (user: string): string => identityFromHeaders(edgeHeaders(user), 'test');
 
-async function waitUntil(predicate: () => boolean, label: string, timeout = 5000): Promise<void> {
+/** Returns the moment `predicate` holds; the ceiling is for a loaded host (land's check at load ~75 went past 5 s), inside CI's 30 s test timeout. */
+async function waitUntil(predicate: () => boolean, label: string, timeout = 20_000): Promise<void> {
 	await vi.waitFor(
 		() => {
 			if (!predicate()) throw new Error(`timed out waiting for ${label}`);
