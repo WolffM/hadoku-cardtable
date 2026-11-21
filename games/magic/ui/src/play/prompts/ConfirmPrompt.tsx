@@ -115,7 +115,7 @@ import { BAR_OK_LABEL, isConfirmPrompt, isPlayOrDrawPrompt } from './confirm-bar
 import { AnswerRow } from './PromptShell.tsx';
 import { RulesText } from './RulesText.tsx';
 
-export { DRAW_LABEL, PLAY_LABEL, isConfirmPrompt, isPlayOrDrawPrompt } from './confirm-bar.ts';
+export { DRAW_LABEL, PLAY_LABEL, isConfirmPrompt, isPlayOrDrawPrompt, playOrDrawMessage } from './confirm-bar.ts';
 
 
 /** Forge's own literal default pair for a real yes/no (`en-US.properties:1463-1464`, `InputConfirm.defaultOptions`). */

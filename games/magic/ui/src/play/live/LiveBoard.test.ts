@@ -678,7 +678,9 @@ describe('Forge asks with buttons, not only with asks', () => {
     }
 
     await waitFor(() => expect(getByTestId('live-play-or-draw-host')).toBeTruthy());
-    expect(getByTestId('live-play-or-draw').textContent).toContain('coin toss');
+    // No coin was tossed (a series' next game asks the previous loser), so Forge's "won the coin toss" is not said.
+    expect(getByTestId('live-play-or-draw').textContent).not.toContain('coin toss');
+    expect(getByTestId('live-play-or-draw').textContent).toContain('Would you like to play or draw?');
     expect(getByTestId('live-play-or-draw-play').textContent).toBe('Play');
     expect(getByTestId('live-play-or-draw-draw').textContent).toBe('Draw');
     // The control box does not ALSO answer it, and no second pop-up does either.
@@ -5162,6 +5164,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     ]);
     await untilMatch(m, () => expect(m.coinToss?.winner).toBe(0));
     expect((await waitFor(() => getByTestId('live-play-or-draw-play'))).textContent).toBe('Play');
+    expect(getByTestId('live-play-or-draw').textContent, 'a real toss keeps Forge’s own line').toContain('won the coin toss');
   });
 
   it('`priority` over an EMPTY stack — the other seat merely holds priority — draws NO pop-out: it is for an effect being resolved, never a wait', async () => {

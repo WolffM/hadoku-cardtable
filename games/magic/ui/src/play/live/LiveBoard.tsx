@@ -271,7 +271,7 @@ import { lookupFromState, plainRulesText, promptLines, promptText, selectionText
 import { RulesText } from '../prompts/RulesText.tsx';
 import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
-import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn, offersUndo, type BarRoute, type ConfirmPromptButton } from '../prompts/ConfirmPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, playOrDrawMessage, offersEndTurn, offersUndo, type BarRoute, type ConfirmPromptButton } from '../prompts/ConfirmPrompt.tsx';
 import { AnswerRow, promptTileFor } from '../prompts/PromptShell.tsx';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
@@ -3606,7 +3606,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           {!coinFlipping && (
             <ConfirmPrompt
               testId="live-play-or-draw"
-              message={promptText(prompt)}
+              message={playOrDrawMessage(promptText(prompt), coinToss !== null)}
               button1={{ label: PLAY_LABEL, enabled: bar?.enable1 ?? false, testId: 'live-play-or-draw-play', onClick: () => pressWithSound(match, 'ok') }}
               button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressWithSound(match, 'cancel') }}
             />

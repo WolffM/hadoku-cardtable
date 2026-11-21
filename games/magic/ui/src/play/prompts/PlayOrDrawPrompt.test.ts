@@ -17,7 +17,7 @@ import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 
-import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, isPlayOrDrawPrompt } from './ConfirmPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, isPlayOrDrawPrompt, playOrDrawMessage } from './ConfirmPrompt.tsx';
 import type { LiveButtons } from '../live/match.ts';
 
 afterEach(cleanup);
@@ -25,6 +25,18 @@ afterEach(cleanup);
 function buttons(overrides: Partial<LiveButtons> = {}): LiveButtons {
   return { label1: PLAY_LABEL, label2: DRAW_LABEL, enable1: true, enable2: true, ...overrides };
 }
+
+describe('playOrDrawMessage', () => {
+  const forge = 'Bob, you have won the coin toss.\n\nWould you like to play or draw?';
+
+  it('keeps Forge’s coin-toss line when a coin was tossed', () => {
+    expect(playOrDrawMessage(forge, true)).toBe(forge);
+  });
+
+  it('asks only play or draw when no coin was tossed (a series’ next game asks the last loser)', () => {
+    expect(playOrDrawMessage(forge, false)).toBe('Would you like to play or draw?');
+  });
+});
 
 describe('isPlayOrDrawPrompt', () => {
   it('is true for the winner’s Play/Draw bar, both enabled', () => {
