@@ -119,7 +119,15 @@ describe.skipIf(!available.ok)(title, () => {
 		"Scry keep: Serum Visions keeps Lightning Bolt and Shock on top — alice's state names both, top first, and bob is never sent either",
 		async () => {
 			if (!available.ok) return;
-			const s = await startScenario(available.config, { seed: 4302, decks: DECKS, scenario: scenarioText('fs-scry-keep') });
+			// The scry is an `order` ask whose picked cards go to the BOTTOM (`order-destination.jvm.test.ts`, Foresee), so
+			// keeping both is picking none. The default answer picks every card, which bottomed both: the test then read the
+			// top only before or after that move reached seat 0, and passed or failed on which (runs 44828404697, 44845468480).
+			const s = await startScenario(available.config, {
+				seed: 4302,
+				decks: DECKS,
+				scenario: scenarioText('fs-scry-keep'),
+				reply: (f) => (f.method === 'order' ? { ordered: [], rememberDecision: false } : undefined),
+			});
 			try {
 				await finishMulligan(s);
 				await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, 'seat 0 to hold priority at its own turn-1 main phase', 20_000, s);
@@ -144,6 +152,7 @@ describe.skipIf(!available.ok)(title, () => {
 				const resolved = s.sent.length;
 				const top = library().slice(0, 2);
 				console.log(`[fs-scry-keep] alice's library top after the scry ${JSON.stringify(top)} (bolt ${bolt}, shock ${shock})`);
+				expect(top, 'Lightning Bolt and Shock are still the top two, in that order').toEqual([bolt, shock]);
 				await passUntil(s, () => [0, 1].some((seat) => (s.turn(seat)?.n ?? 0) >= 2), 'turn 2');
 				for (const { at, state } of statesAfter(s, 0, mark)) console.log(`[fs-scry-keep] seat0 #${at} ${s.sent[at]?.envelope.frame.method} alice top ${JSON.stringify(topOf(state, alice, 3))}`);
 				const states = statesAfter(s, 0, resolved);

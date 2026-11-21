@@ -13,6 +13,7 @@
  */
 
 import { withDraftNotes } from '@hadoku/deck';
+import type { ServerFrame } from '@hadoku/forge-wire';
 import { DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import { describe, expect, it } from 'vitest';
 
@@ -54,9 +55,14 @@ function board(b: Board): string {
 	].join('\n')}\n`;
 }
 
-async function start(notes: Record<string, string[]>, b: Board): Promise<Scenario> {
+async function start(notes: Record<string, string[]>, b: Board, reply?: (f: ServerFrame & Record<string, unknown>) => unknown): Promise<Scenario> {
 	if (!available.ok) throw new Error('unreachable: the suite is skipped without a jar');
-	const s = await startScenario(available.config, { seed: 2026, decks: [notedDeck(notes), deck('Mountains', ['40 Mountain'])], scenario: board(b) });
+	const s = await startScenario(available.config, {
+		seed: 2026,
+		decks: [notedDeck(notes), deck('Mountains', ['40 Mountain'])],
+		scenario: board(b),
+		...(reply === undefined ? {} : { reply }),
+	});
 	await finishMulligan(s);
 	await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, 'seat 0 to hold priority in its first main phase', 60_000, s);
 	return s;
@@ -287,15 +293,22 @@ describe.skipIf(!available.ok)(title, () => {
 	it(
 		'Paliano, the High City makes mana of the noted colours only, and Cogwork Tracker attacks',
 		async () => {
+			const isColourAsk = (f: { method?: string; message?: unknown }): boolean => f.method === 'getChoices' && /Select Mana to Produce/.test(String(f.message));
 			const s = await start(
 				{ 'Paliano, the High City': ['white,blue,black'], 'Cogwork Tracker': ['3'] },
 				{ hand: ['Savannah Lions', 'Raging Goblin', 'Llanowar Elves'], battlefield: ['Paliano, the High City', 'Cogwork Tracker'] },
+				(f) => (isColourAsk(f) ? [(f.choices as { key: string; label: string }[]).find((c) => /white/i.test(c.label))?.key] : undefined),
 			);
 			try {
-				const playable = [...s.sent].reverse().find((x) => x.seat === 0 && x.envelope.frame.method === 'setWeaklySelectable')?.envelope.frame as { cards?: { id: number }[] } | undefined;
-				const names = (playable?.cards ?? []).map((c) => s.zone(0, 'Hand').find((h) => h.id === c.id)?.name).filter((n) => n !== undefined);
-				console.log(`[draft-notes.jvm] playable from hand with Paliano alone: ${JSON.stringify(names)}`);
-				expect(names).toEqual(['Savannah Lions']);
+				// Forge's own question when Paliano is tapped, not the priority highlight: that scan is bounded
+				// (`AvailableActions`, 50 ms a card) and offers every card it never reached, which a loaded claw-9
+				// did here (run 44845468480: the Goblin and the Elves highlighted as well).
+				const paliano = mine(s, 'Paliano, the High City')[0]!;
+				s.select(0, paliano.id);
+				await waitUntil(() => { s.answerAsks(); return s.asks.some(isColourAsk) && mine(s, 'Paliano, the High City')[0]?.tapped === true; }, 'Paliano to ask its colour and tap', 30_000, s);
+				const colours = (s.asks.filter(isColourAsk) as unknown as { choices: { label: string }[] }[]).map((a) => a.choices.map((c) => c.label.toLowerCase()).sort());
+				console.log(`[draft-notes.jvm] Paliano's colour asks: ${JSON.stringify(colours)}`);
+				expect(colours, 'Paliano offers the noted colours only, once').toEqual([['black', 'blue', 'white']]);
 				await castNamed(s, 0, 'Savannah Lions');
 				expect(mine(s, 'Savannah Lions')).toHaveLength(1);
 
