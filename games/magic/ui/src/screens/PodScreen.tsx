@@ -82,6 +82,7 @@ import { livePodSource, usePodContext, type PodSource } from './pod/client.ts';
 import { useToolbarPage } from '@hadoku/game-ui/chrome/toolbarPage.tsx';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
+import { usePageFrames } from '../rooms/page-frames.ts';
 import { RoomHub } from './pod/RoomHub.tsx';
 import { TablePage } from './pod/TablePage.tsx';
 import { preloadCubeArt, viewerCards } from '../play/live/art-preload.ts';
@@ -164,6 +165,11 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
   const bots = seats.filter((s) => s.occupant?.kind === 'bot').length;
   const open = seats.filter((s) => s.occupant === null).length;
   const done = draft !== null && isComplete(draft);
+  // The draft's frame rate, in the server's log (`rooms/page-frames.ts`): a summary every few picks, the frames split by
+  // whether a pack waits on this seat.
+  const myPack = view?.viewer.kind === 'seat' ? view.viewer.pack.length : 0;
+  const picked = view?.viewer.kind === 'seat' ? view.viewer.pool.length : -1;
+  usePageFrames('draft', view !== null && !done, () => ({ pick: picked, pack: myPack, seats: seats.length, bots }), picked < 0 ? undefined : Math.floor(picked / 3), myPack > 0 ? 'pick' : 'wait');
 
   // This seat's visible cards, warmed in the background as each new pack or pool arrives
   // (wave 73 §B: the plan's own cards, since no bundled file names them any more — see `art-preload.ts`'s header).

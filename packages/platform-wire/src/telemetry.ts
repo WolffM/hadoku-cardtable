@@ -19,10 +19,11 @@ export const PAGE_EVENT_PATH = 'client-events';
 
 /**
  * The same telemetry from a screen outside a match, sent over HTTP to `PAGE_EVENT_PATH` and written
- * into the server's log as a `client` event keyed by page and user. `page: 'front'`, `kind: 'perf'`:
- * a list's scroll smoothness, one summary per scroll burst.
+ * into the server's log as a `client` event keyed by page and user. `kind: 'perf'`: on `page: 'front'`,
+ * a list's scroll smoothness, one summary per scroll burst; on `'front'` and `'draft'`, the screen's frame
+ * rate, the same events a match's frame watch sends (bad stretches, long frames, summaries, the machine).
  */
-export const PageEventSchema = z.object({ page: z.enum(['front']), kind: z.enum(['perf']), data: ClientDataSchema }).strict();
+export const PageEventSchema = z.object({ page: z.enum(['front', 'draft']), kind: z.enum(['perf']), data: ClientDataSchema }).strict();
 
 export type PageEvent = z.output<typeof PageEventSchema>;
 

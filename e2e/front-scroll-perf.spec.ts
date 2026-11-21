@@ -80,7 +80,10 @@ test('the front page’s room list scrolls at 40 rooms, measured by its own tele
       const p50s: number[] = [];
       const p95s: number[] = [];
       for (let b = 0; b <= BURSTS; b++) {
-        const sent = page.waitForRequest((r: Request) => r.url().endsWith('/api/client-events') && r.method() === 'POST');
+        // The page's frame watch posts to the same route (`rooms/page-frames.ts`): the scroll's own event is the one with `what: 'scroll'`.
+        const sent = page.waitForRequest(
+          (r: Request) => r.url().endsWith('/api/client-events') && r.method() === 'POST' && (r.postDataJSON() as { data?: { what?: string } } | null)?.data?.what === 'scroll',
+        );
         await steadyScroll(page, BURST_MS);
         const event = (await sent).postDataJSON() as { page: string; kind: string; data: Record<string, number | string> };
         expect(event).toMatchObject({ page: 'front', kind: 'perf', data: { what: 'scroll' } });

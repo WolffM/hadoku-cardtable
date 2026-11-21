@@ -61,6 +61,12 @@ describe('/api/client-events', () => {
 		expect(logged).toEqual([{ evt: 'client', page: 'front', userId: 'u-1', kind: 'perf', what: 'scroll', frames: 120, p50: 17, p95: 34, over25: 9, over50: 2 }]);
 	});
 
+	it('logs the draft page’s frame watch the same way', async () => {
+		const base = await openApp();
+		expect(await post(base, { page: 'draft', kind: 'perf', data: { what: 'stretch', fps: 41.2, worstMs: 96 } })).toBe(204);
+		expect(logged).toEqual([{ evt: 'client', page: 'draft', userId: 'u-1', kind: 'perf', what: 'stretch', fps: 41.2, worstMs: 96 }]);
+	});
+
 	it('refuses a body that is not a page event, and says why in the log', async () => {
 		const base = await openApp();
 		expect(await post(base, { page: 'front', kind: 'perf', data: { nested: { no: 1 } } })).toBe(400);
@@ -68,7 +74,7 @@ describe('/api/client-events', () => {
 		// Each line names the field the schema turned away, never its value (#20).
 		expect(logged).toEqual([
 			{ evt: 'client-malformed', userId: 'u-1', kind: 'perf', what: undefined, errors: ['data.nested: Invalid input'] },
-			{ evt: 'client-malformed', userId: 'u-1', kind: 'perf', what: undefined, errors: ['page: Invalid input: expected "front"', '(event): Unrecognized key: "matchId"'] },
+			{ evt: 'client-malformed', userId: 'u-1', kind: 'perf', what: undefined, errors: ['page: Invalid option: expected one of "front"|"draft"', '(event): Unrecognized key: "matchId"'] },
 		]);
 	});
 

@@ -27,6 +27,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 import { magicGame, PAGE_EVENT_PATH, type ChallengeEvent } from '@hadoku/shared';
 
 import { apiUrl, sendJson } from '@hadoku/game-ui/http.ts';
+import { usePageFrames } from './page-frames.ts';
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import {
   RoomFront,
@@ -164,6 +165,8 @@ export function RoomList({ client: given, feed, onFeatured }: RoomListProps) {
 
   /** How many rooms the list draws, for the scroll telemetry below — the latest read's count; 0 again on one that fails. */
   const roomCount = useRef(0);
+  // The front page's frame rate, in the server's log (`page-frames.ts`): its bad stretches and a summary as it closes.
+  usePageFrames('front', true, () => ({ rooms: roomCount.current }));
 
   const frontClient = useMemo<RoomFrontClient<FrontRoom>>(
     () => ({
