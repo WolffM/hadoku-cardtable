@@ -107,4 +107,24 @@ describe('a turn restarted from its snapshot', () => {
 		expect(nameOf(after, 501), 'the card it was never shown').toBeUndefined();
 		expect(nameOf(after, 502), 'seat 1 library').toBeUndefined();
 	});
+
+	it('keeps it through a second restore that lands before the restored game sent a state', () => {
+		const { factory, hosts } = replayFactory();
+		const sent: { seat: number; envelope: ServerEnvelope }[] = [];
+		const registry = createMatchRegistry({ host: factory, log: () => undefined, overGraceMs: 60_000, emit: (_m, seat, envelope) => sent.push({ seat, envelope }) });
+		const match = registry.create({ seats: [{ ...SEATS[0] }, { ...SEATS[1] }], seed: 7 });
+		match.claim(ALICE);
+		match.claim(BOB);
+		const first = hosts[0] as ReplayHost;
+		opening(first, 100);
+		first.push({ t: 'snapshot', turn: 3, state: 'turn=3\nactiveplayer=p0\nactivephase=UNTAP\nactivephaseadvance=UPKEEP\n', ms: 2 } as BridgeLine);
+		first.push(view(0, game(100, { 0: [0] })), view(0, game(100)));
+		// The first restore's host is lost before its game sends a state (a fence storm), and it is restored again.
+		const between = (registry.restore(match.id) as Restored).match;
+		const restored = (registry.restore(between.id) as Restored).match;
+		opening(hosts[2] as ReplayHost, 900);
+		const after = clientState(sent, 0, restored.epoch);
+		expect(nameOf(after, 900), 'the Goblin Guide seat 0 was shown, two restores on').toBe('Goblin Guide');
+		expect(nameOf(after, 901), 'the card it was never shown').toBeUndefined();
+	});
 });

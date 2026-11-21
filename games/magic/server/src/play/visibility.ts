@@ -672,7 +672,9 @@ export interface SeatProjector {
 	playerCounts(): ReadonlyMap<number, { life: number | null; hand: number }>;
 	/**
 	 * What each player knows that a restore to this turn's start shows again — the header's "What a
-	 * restore goes back to, it keeps". Null before the state has a turn, and when nobody knows anything.
+	 * restore goes back to, it keeps". Before the state has a turn it is what this projector inherited
+	 * and has not placed yet, so a restore of a restore that never got going keeps it too. Null when
+	 * nobody knows anything.
 	 */
 	carried(): CarriedKnowledge | null;
 	/** Before the first frame of a restored game: the {@link carried} of the projector it replaces. */
@@ -1424,6 +1426,8 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 			return { name: nameOf(cardId), zone: indexZones(raw).byCard.get(cardId)?.zone ?? null };
 		},
 		carried(): CarriedKnowledge | null {
+			// Not placed yet: this game has sent no state with a turn, so nothing newer is known.
+			if (inherited !== null) return inherited;
 			if (mark === null) return null;
 			const { turn, players, at } = mark;
 			const cards: CarriedKnowledge['cards'][number][] = [];
