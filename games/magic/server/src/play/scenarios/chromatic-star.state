@@ -1,0 +1,16 @@
+# Chromatic Star holds priority in full control (ohmusama, 2026-11-21: "Chromatic Star does not hold
+# priority"). Seat 0 (human) has Chromatic Star and an Island to pay its {1}, and Opt in hand to
+# spend what it makes. Sacrificing the Star puts its own draw trigger on the stack over a floating mana.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Opt
+humanbattlefield=Island;Chromatic Star
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
