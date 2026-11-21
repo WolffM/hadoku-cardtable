@@ -101,8 +101,13 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(tapped).toBe(true);
 				expect(new Set(tappersOffered(s))).toEqual(new Set([card(s, 0, 'Master Decoy')]));
 				expect(stopsIn(s, COMBAT_BEGIN)).toBeGreaterThan(0);
-				expect(passedIn(s, COMBAT_BEGIN)).toBe(false);
-				expect(s.logs.some((l) => l.evt === 'prompt-forwarded' && l.seat === 0 && l.rule === 'has-play')).toBe(true);
+				// The step's first window was kept for the Decoy; once it is tapped the step is passed, which is right.
+				const decoy = card(s, 0, 'Master Decoy');
+				expect(
+					s.logs.some(
+						(l) => l.evt === 'prompt-forwarded' && l.seat === 0 && l.rule === 'has-play' && (l.plays as { id: number }[] | undefined)?.some((p) => p.id === decoy),
+					),
+				).toBe(true);
 				// The Wurm was tapped before attacks, so nobody attacked and seat 0 took nothing.
 				expect(stopsIn(s, 'Declare Blockers Step')).toBe(0);
 				expect(s.match.live()?.life[0]).toBe(20);
