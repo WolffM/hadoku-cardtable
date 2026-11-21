@@ -20,7 +20,8 @@
  * Every value is a preference in the fleet's service (`../play/live/prefs.ts`,
  * `../sound/mute.ts`), so whichever host draws a control, the board reads the change from the
  * service and applies it. Only "This match" is not a preference: the board publishes it
- * (`./liveMatch.ts`). The Game and Sound tabs are the game's own, handed in by `../composition.tsx`.
+ * (`./liveMatch.ts`). The Gameplay and Sound tabs' sections are the game's own, handed in by `../composition.tsx`;
+ * Display (the UI scale and the motion switches) is drawn here, for every game.
  */
 
 import { createContext, createElement, Fragment, useContext, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
