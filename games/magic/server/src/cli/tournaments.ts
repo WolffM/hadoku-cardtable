@@ -25,6 +25,10 @@
  *   rm <id> <n>                            remove result n
  *   rename <id> <name>                     the name the tab shows
  *   regenerate <id>                        re-rank from the results as they are
+ *   users <id>                             keep each person it has no userId for by the one another
+ *                                          record keeps for the same entrant id (an `fk:` id is derived
+ *                                          from the account): a record from before entrants were locked
+ *                                          in at the start lost everyone who had left the room
  *
  * `<id>` is a tournament id or a unique start of one. `<who>` is an entrant's
  * id or their name, any case. A person's name is looked up live with the repo's
@@ -39,7 +43,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import type { PodMatchResult, PodStandingsRow, Tournament } from '@hadoku/shared';
+import { isPodAi, type PodMatchResult, type PodStandingsRow, type Tournament } from '@hadoku/shared';
 
 import { createPeople } from '@hadoku/game-server/people';
 import { readTournaments, withStandings, writeTournaments } from '../room/tournaments.js';
@@ -224,8 +228,16 @@ async function main(): Promise<void> {
 		after = { ...before, name };
 	} else if (command === 'regenerate') {
 		after = withStandings(before);
+	} else if (command === 'users') {
+		const known = new Map(all.flatMap((t) => Object.entries(t.users ?? {})));
+		const missing = before.standings.map((r) => r.id).filter((e) => !isPodAi(e) && before.users?.[e] === undefined);
+		const found = missing.flatMap((e) => (known.has(e) ? [[e, known.get(e)!] as const] : []));
+		for (const e of missing) console.log(`  ${e}: ${known.has(e) ? 'kept from another record' : 'no record keeps one'}`);
+		if (found.length === 0) fail(`${before.id}: nothing to add`);
+		after = { ...before, users: { ...before.users, ...Object.fromEntries(found) } };
+		for (const [e, name] of await namesOf(after)) if (!names.has(e)) names.set(e, name);
 	} else {
-		fail(`no command ${command ?? ''}: list, show, add, set, rm, rename, regenerate`);
+		fail(`no command ${command ?? ''}: list, show, add, set, rm, rename, regenerate, users`);
 	}
 
 	console.log(`${after.id}  ${before.name === after.name ? after.name : `${before.name} → ${after.name}`}`);

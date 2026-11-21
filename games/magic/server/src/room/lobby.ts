@@ -51,6 +51,8 @@ import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, type
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
 import type { Caller } from '@hadoku/game-server/room/caller';
+import type { Person } from '@hadoku/game-server/people';
+import { UNNAMED } from '@hadoku/game-server/room/constants';
 import { mintTableId } from '@hadoku/game-server/room/provisioning';
 import { RoomLobby, type CreateResult, type LobbyLog, type LobbyMember, type LobbyRoom, type PlatformRoomView, type RoomCreateInput, type RoomTypeHooks } from '@hadoku/game-server/room/lobby';
 import type { RoomBusyHook } from '@hadoku/game-server/room/room-list';
@@ -684,6 +686,10 @@ export interface Lobby
 	 * patch is this lane's report), reads exactly that table today.
 	 */
 	gauntlet(roomId: string, tableId?: string): GauntletState | null;
+	/** The entrants who have left the room, by registry userId (`RoomRecord.entrants`): `people.ts` reads each one's account. */
+	departedOf(roomId: string): { memberId: string; userId: string }[];
+	/** A departed entrant (`departedOf`), as their account shows them now. */
+	nameDeparted(roomId: string, memberId: string, person: Person): void;
 	/**
 	 * Store a table's Gauntlet — `http/gauntlet.ts` is its only writer, and
 	 * `gauntlet.ts` decides every move. `null` forgets it. False when there is
@@ -845,6 +851,7 @@ function storedMagicGame(room: LobbyRoom<MagicRoomGame>): StoredApp['game'] {
 		...(game.podDrafts === null ? {} : { podDrafts: game.podDrafts.map((p) => [...p]) }),
 		...(game.podSplit === null ? {} : { podSplit: copySplit(game.podSplit) }),
 		podPlaying: [...game.podPlaying],
+		...(game.entrants === undefined ? {} : { entrants: { ...game.entrants } }),
 		lockedDecks: { ...game.lockedDecks },
 		gauntlets: Object.fromEntries(Object.entries(game.gauntlets).map(([t, g]) => [t, gauntletWithoutNames(g)])),
 		...(game.scenario === undefined ? {} : { scenario: game.scenario }),
@@ -873,6 +880,11 @@ function storedMagicGame(room: LobbyRoom<MagicRoomGame>): StoredApp['game'] {
  * (the operator, 2026-10-23: "can we try to keep players seated?") unless
  * `unseat`: a game type change or a tournament's lock retires the tables.
  */
+/** `ids`' registry userIds, by member id: each one in the room now whom the edge named. */
+function entrantUsers(room: RoomRecord, ids: readonly string[]): Record<string, string> {
+	return Object.fromEntries(room.members.flatMap((m) => (m.userId !== null && ids.includes(m.id) ? [[m.id, m.userId]] : [])));
+}
+
 function dropHolds(room: RoomRecord, unseat: boolean): void {
 	clearReady(room.ledger);
 	for (const member of room.members) member.state = undefined;
@@ -1157,6 +1169,11 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 					if (tableId !== null) forfeited = { tableId, matchIds };
 					this.log({ event: 'pod-entrant-left', roomId: room.id, memberId, tableId, matchIds });
 				}
+				// A locked-in entrant stays named after they go (`RoomRecord.departed`).
+				const member = room.members.find((m) => m.id === memberId);
+				if (member !== undefined && room.game.entrants?.[memberId] !== undefined) {
+					room.game.departed[memberId] = { name: member.name, ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }) };
+				}
 				for (const table of room.game.tables) {
 					this.#settleSeries(room, table, false, memberId);
 					leaveSeat(table, memberId);
@@ -1268,6 +1285,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			podSplit: null,
 			pod: null,
 			podPlaying: [],
+			departed: {},
 			lockedDecks: {},
 			gauntlets: {},
 			...(input.scenario === undefined ? {} : { scenario: input.scenario }),
@@ -1334,6 +1352,9 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			// Restored with `draftStartedAt`, and released with it.
 			pod: game.pod,
 			podPlaying: game.podPlaying ?? [],
+			...(game.entrants === undefined ? {} : { entrants: { ...game.entrants } }),
+			// Read again from each account (`usersOf`, `nameDeparted`): a saved room keeps no names (R12).
+			departed: {},
 			// Restored, like `podPlaying`: a tournament's locked deck(s) survive a restart with it.
 			lockedDecks: game.lockedDecks ?? {},
 			gauntlets: game.gauntlets ?? {},
@@ -2142,6 +2163,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		if (seated.length > POD_SEATS && split === null) return { ok: false, reason: 'not-split' };
 		if (split !== null && callerId !== room.leader) return { ok: false, reason: 'not-leader' };
 		room.game.draftStartedAt = this.now();
+		room.game.entrants = entrantUsers(room, seated);
 		if (split !== null) room.game.podDrafts = split.pods.map((p) => [...p]);
 		else if (room.seats.length > POD_SEATS) room.game.podDrafts = [seated];
 		room.game.podSplit = null;
@@ -2259,6 +2281,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		// skeleton this sets is overwritten with the real pairings before this
 		// function returns.
 		room.game.draftStartedAt = this.now();
+		room.game.entrants = entrantUsers(room, entrants);
 		room.game.pod = {
 			humans: entrants,
 			round: 1,
@@ -2377,8 +2400,9 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			rounds: pod.rounds,
 			// The AI entrants' names only: a person is kept by userId and named when shown (R12; #27).
 			names: { [POD_AI]: roomAi(room).name, ...aiNames },
-			// The people by userId, looked up when shown; the AI's characters are the room's own, and kept.
-			users: Object.fromEntries(room.members.flatMap((m) => (m.userId === null ? [] : [[m.id, m.userId]]))),
+			// The people by userId, looked up when shown: every entrant locked in when it began, whether
+			// or not they are still in the room. The AI's characters are the room's own, and kept.
+			users: { ...entrantUsers(room, pod.humans), ...room.game.entrants },
 			faces: { [POD_AI]: { avatarId: roomAi(room).avatarId }, ...Object.fromEntries(ais.map(([id, p]) => [id, { avatarId: p.avatarId }])) },
 			standings: podStandings(room, pod.humans, pod.results),
 			results: pod.results,
@@ -2408,6 +2432,8 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		for (const room of this.#rooms()) {
 			if (!isDraftRoom(room) || room.game.draftStartedAt === null || draftExists(room.id)) continue;
 			room.game.draftStartedAt = null;
+			delete room.game.entrants;
+			room.game.departed = {};
 			room.game.podDrafts = null;
 			room.game.pod = null;
 			room.game.podPlaying = [];
@@ -2415,6 +2441,23 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			released.push(room.id);
 		}
 		return released;
+	}
+
+	departedOf(roomId: string): { memberId: string; userId: string }[] {
+		const room = this.#room(roomId);
+		if (room === undefined) return [];
+		return Object.entries(room.game.entrants ?? {}).flatMap(([memberId, userId]) => (room.members.some((m) => m.id === memberId) ? [] : [{ memberId, userId }]));
+	}
+
+	nameDeparted(roomId: string, memberId: string, person: Person): void {
+		const room = this.#room(roomId);
+		if (room === undefined || room.game.entrants?.[memberId] === undefined || room.members.some((m) => m.id === memberId)) return;
+		const was = room.game.departed[memberId];
+		const name = person.name ?? was?.name ?? UNNAMED;
+		const avatarId = person.sprite ?? was?.avatarId;
+		if (was?.name === name && was.avatarId === avatarId) return;
+		room.game.departed[memberId] = { name, ...(avatarId === undefined ? {} : { avatarId }) };
+		this.changed(roomId);
 	}
 
 	gauntlet(roomId: string, tableId?: string): GauntletState | null {

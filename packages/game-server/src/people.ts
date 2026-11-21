@@ -110,6 +110,8 @@ interface PersonRooms {
 	rename(caller: { id: string; name: string }): void;
 	setAvatar(roomId: string, memberId: string, avatarId: string | null): boolean;
 	setLook(roomId: string, memberId: string, look: Look | undefined): boolean;
+	/** A person the room still shows but who is no longer in it (a game's entrant who left): how their account names and draws them now. */
+	nameDeparted?(roomId: string, memberId: string, person: Person): void;
 }
 
 /**
@@ -119,7 +121,10 @@ interface PersonRooms {
  * for leaves what the room already holds.
  */
 export function applyPerson(rooms: PersonRooms, roomId: string, memberId: string, person: Person): void {
-	if (rooms.get(roomId)?.members.some((m) => m.id === memberId) !== true) return;
+	if (rooms.get(roomId)?.members.some((m) => m.id === memberId) !== true) {
+		rooms.nameDeparted?.(roomId, memberId, person);
+		return;
+	}
 	if (person.name !== null) rooms.rename({ id: memberId, name: person.name });
 	if (person.sprite !== null) rooms.setAvatar(roomId, memberId, person.sprite);
 	rooms.setLook(roomId, memberId, person.look);
@@ -131,11 +136,13 @@ export interface PeopleRooms extends PersonRooms {
 	/** The rooms people have open now (`Lobby.offered`). */
 	offered(): readonly { id: string }[];
 	usersOf(roomId: string): { memberId: string; userId: string }[];
+	/** The people the room still shows who are no longer in it (`PersonRooms.nameDeparted`), by registry userId. */
+	departedOf?(roomId: string): { memberId: string; userId: string }[];
 }
 
 /**
  * Every member of a room that changes is written from their account (`applyPerson`, from the
- * cache mostly), so a joiner and a member a restart left unnamed (R12) are named and dressed
+ * cache mostly), and so is every person it still shows who has left it (`departedOf`), so a joiner and a member a restart left unnamed (R12) are named and dressed
  * whether or not they have the room open. A change made while the room IS open reaches it live
  * through the served room (`room/serve.ts`); `sweep` is the boot's one read of the restored rooms,
  * and `arrived` reads one person fresh as they come into a room, so a change made since the
@@ -146,7 +153,7 @@ export function attachPeople(
 	people: People,
 ): { sweep(): Promise<void>; arrived(roomId: string, memberId: string, userId: string): Promise<void>; stop(): void } {
 	const write = async (open: readonly string[]): Promise<void> => {
-		const users = open.map((roomId) => ({ roomId, users: rooms.usersOf(roomId) }));
+		const users = open.map((roomId) => ({ roomId, users: [...rooms.usersOf(roomId), ...(rooms.departedOf?.(roomId) ?? [])] }));
 		const found = await people.resolve(users.flatMap((r) => r.users.map((u) => u.userId)));
 		for (const r of users) {
 			for (const { memberId, userId } of r.users) {

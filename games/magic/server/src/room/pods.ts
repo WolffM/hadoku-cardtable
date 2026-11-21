@@ -491,11 +491,20 @@ function rawSeat(room: RoomRecord, podSeat: number): number {
 	return podSeat;
 }
 
-/** `PodView.personas`: every AI entrant the pod's players, pairings and results name. */
+/**
+ * `PodView.personas`: every entrant the pod's players, pairings and results name whom the room's members
+ * do not: each AI entrant's character, and each locked-in entrant who has left (`RoomRecord.departed`).
+ */
 function podPersonas(room: RoomRecord, humans: readonly string[], checks: Pick<GameHooks, 'pilotOf'>): PodView['personas'] {
 	const pod = room.game.pod;
-	const ids = [...humans, ...(pod?.pairings.flatMap((p) => p.players) ?? []), ...(pod?.results.flatMap((r) => [r.playerA, r.playerB ?? r.playerA]) ?? [])];
-	return Object.fromEntries([...new Set(ids)].filter((id) => id === POD_AI || isAiEntrant(id)).map((id) => [id, entrantPersona(room, id, checks)]));
+	const ids = [...new Set([...humans, ...(pod?.pairings.flatMap((p) => p.players) ?? []), ...(pod?.results.flatMap((r) => [r.playerA, r.playerB ?? r.playerA]) ?? [])])];
+	const ais = ids.filter((id) => id === POD_AI || isAiEntrant(id)).map((id) => [id, entrantPersona(room, id, checks)] as const);
+	const gone = ids.flatMap((id) => {
+		const person = room.game.departed[id];
+		// A persona is drawn with a character, so one whose account has answered none yet waits for it.
+		return person?.avatarId === undefined || room.members.some((m) => m.id === id) ? [] : [[id, { name: person.name, avatarId: person.avatarId }] as const];
+	});
+	return Object.fromEntries([...ais, ...gone]);
 }
 
 /** The draft room's own AI character: the bot that drafted across the table from its first human (`draftRooms.ts`'s `botSeatAcrossFrom`, by the same rule). A pod round's bot wears its own (`entrantPersona`). */

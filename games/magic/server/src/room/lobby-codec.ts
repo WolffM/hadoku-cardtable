@@ -114,6 +114,19 @@ export interface MagicRoomGame {
 	podSplit: PodSplit | null;
 	/** The pod's rounds, once dealt. Null until every drafter has pressed Play (`playPod`). */
 	pod: PodRecord | null;
+	/**
+	 * Every human entrant's registry userId, fixed the moment the tournament begins (the draft is
+	 * dealt, or a constructed tournament locks) and kept whatever happens afterwards (the operator,
+	 * 2026-11-20: *"as soon as a tournament begins, the players are locked in regardless of what
+	 * happens afterwards"*). What names an entrant who has left the room: in the room
+	 * (`departed`) and in the tournament it is archived as (`Tournament.users`). Absent before it begins.
+	 */
+	entrants?: Record<string, string>;
+	/**
+	 * The entrants (`entrants`) no longer in the room, as their account shows them. In memory only, never
+	 * stored (R12): taken from the member as they leave, and read again from their account after a restart.
+	 */
+	departed: Record<string, DepartedEntrant>;
 	/** Who has pressed Play in `building` (`playPod`). Persisted with `pod`, so a restart mid-build keeps the presses. */
 	podPlaying: string[];
 	/**
@@ -148,6 +161,12 @@ export interface MagicRoomGame {
 	seatDecks?: Record<string, string>;
 	/** A historical room's tournament structure (`PodStructure`): Swiss rounds then a single-elimination cut. Absent: Swiss only, no cut. */
 	historicalStructure?: PodStructure;
+}
+
+/** An entrant who has left the room, as a screen draws them. */
+export interface DepartedEntrant {
+	name: string;
+	avatarId?: string;
 }
 
 /**
@@ -215,6 +234,8 @@ interface StoredMagicGame {
 	pod: PodRecord | null;
 	/** Absent for a room written before it was persisted: nobody has pressed Play. */
 	podPlaying?: string[];
+	/** Absent before the tournament begins, and for a room that began before it was kept (`RoomRecord.entrants`'s doc). */
+	entrants?: Record<string, string>;
 	/** Absent for a room written before tournament mode: nothing was ever locked. */
 	lockedDecks?: Record<string, unknown>;
 	/** Absent for a room written before Gauntlets, or whose Gauntlet has never moved. The pre-per-table shape, kept ONLY so `decodeMagicGame` can migrate it onto `tables[0].id` (`gauntlets`'s own doc) — never written again. */
@@ -452,6 +473,12 @@ function decodeMagicGame(g: Record<string, unknown>, gameType: string): Omit<Sto
 	if (g.seatDecks !== undefined && (typeof g.seatDecks !== 'object' || g.seatDecks === null || Array.isArray(g.seatDecks))) {
 		throw new Error('app.game.seatDecks is invalid');
 	}
+	if (
+		g.entrants !== undefined &&
+		(typeof g.entrants !== 'object' || g.entrants === null || Array.isArray(g.entrants) || !Object.values(g.entrants).every((u) => typeof u === 'string'))
+	) {
+		throw new Error('app.game.entrants is not a map of member id to userId');
+	}
 	return {
 		format: g.format === undefined ? null : (g.format as FormatId),
 		...storedMode(g),
@@ -464,6 +491,7 @@ function decodeMagicGame(g: Record<string, unknown>, gameType: string): Omit<Sto
 		...(g.podSplit === undefined ? {} : { podSplit: copySplit(g.podSplit as PodSplit) }),
 		pod: g.pod === undefined || g.pod === null ? null : (g.pod as PodRecord),
 		podPlaying: g.podPlaying === undefined ? [] : [...(g.podPlaying as string[])],
+		...(g.entrants === undefined ? {} : { entrants: { ...(g.entrants as Record<string, string>) } }),
 		lockedDecks: g.lockedDecks === undefined ? {} : { ...(g.lockedDecks as Record<string, unknown>) },
 		...(g.gauntlets !== undefined ? { gauntlets: { ...(g.gauntlets as Record<string, GauntletState>) } } : {}),
 		...(g.gauntlets === undefined && g.gauntlet !== undefined && g.gauntlet !== null ? { gauntlet: g.gauntlet as GauntletState } : {}),

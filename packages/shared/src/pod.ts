@@ -238,8 +238,10 @@ export const PodViewSchema = z.strictObject({
   /** Drafters whose deck is saved and legal — `building`'s own gate for starting `rounds`. */
   built: z.array(z.string().min(1)),
   /**
-   * Every AI entrant's character past the lobby, by entrant id (`'ai'` or `` `ai:<seat>` ``): who the
-   * bracket, the standings and a table draw for it. Empty in `lobby`, where `seats` carry their own.
+   * Past the lobby, every entrant the room's members do not name, by entrant id: each AI entrant's
+   * character (`'ai'` or `` `ai:<seat>` ``), and each person locked in when the tournament began who has
+   * since left the room, as their account shows them. Who the bracket, the standings and a table draw
+   * for it. Empty in `lobby`, where `seats` carry their own.
    */
   personas: z.record(z.string(), z.strictObject({ name: z.string(), avatarId: z.string().min(1) })),
   /**

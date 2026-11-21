@@ -4069,6 +4069,34 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(archived[0]!.faces?.['ai:1']?.avatarId, 'an AI entrant keeps the character its seat was given').toEqual(expect.any(String));
 			expect(archived[0]!.standings[0]).toMatchObject({ id: ALICE.id, rank: 1 });
 		});
+		// The operator, 2026-11-20: *"as soon as a tournament begins, the players are locked in regardless of what happens afterwards"*.
+		it('an entrant who leaves is still named: in the room while they are gone, after a restart, and in the archive', async () => {
+			const archived: Tournament[] = [];
+			const dir = await tempDir();
+			const lobby = await openLobby({ dir, onTournament: (t) => archived.push(t) });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.join(id, BOB).ok).toBe(true);
+			expect(lobby.setAvatar(id, BOB.id, 'rogue')).toBe(true);
+			expect(lobby.sitSeat(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitSeat(id, BOB.id, 1).ok).toBe(true);
+			wireChecks(lobby, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+
+			expect(lobby.leave(id, BOB.id)).toMatchObject({ ok: true });
+			expect(lobby.get(id)!.members.map((m) => m.id)).not.toContain(BOB.id);
+			expect(lobby.get(id)!.game!.pod!.personas[BOB.id], 'named in the room after leaving it').toEqual({ name: BOB.name, avatarId: 'rogue' });
+			expect(archived).toHaveLength(1);
+			expect(archived[0]!.users, 'both entrants kept by userId, the one who left too').toEqual({ [ALICE.id]: ALICE.userId, [BOB.id]: BOB.userId });
+
+			// A restart keeps who entered, never their name (R12), and their account names them again.
+			const reopened = await openLobby({ dir });
+			wireChecks(reopened, fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			expect(reopened.get(id)!.game!.pod!.personas).not.toHaveProperty(BOB.id);
+			expect(reopened.departedOf(id)).toEqual([{ memberId: BOB.id, userId: BOB.userId }]);
+			reopened.nameDeparted(id, BOB.id, { name: 'bob-renamed', sprite: 'knight', look: undefined });
+			expect(reopened.get(id)!.game!.pod!.personas[BOB.id]).toEqual({ name: 'bob-renamed', avatarId: 'knight' });
+			expect(reopened.departedOf(id), 'nobody still in the room').not.toContainEqual(expect.objectContaining({ memberId: ALICE.id }));
+		});
 	});
 
 	describe('a 3-human tournament with a bye, through two rounds', () => {

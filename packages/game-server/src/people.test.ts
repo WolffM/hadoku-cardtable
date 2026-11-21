@@ -168,4 +168,22 @@ describe('attachPeople', () => {
 		expect(api.asked).toEqual([['u1', 'u2']]);
 		expect(room.renamed).toEqual([{ id: 'fk:1', name: 'Ari' }]);
 	});
+
+	it('a person the room still shows after they left is read too, and handed to the room as departed, never as a member', async () => {
+		const api = prefsApi({ u1: { source: 'sprite', name: 'Ari' }, u9: { source: 'sprite', name: 'Gone', sprite: 'knight' } });
+		const people = createPeople({ baseUrl: 'https://prefs.test', serviceKey: 'k', log: () => undefined, fetch: api.fetch });
+		const room = oneRoom([{ id: 'fk:1', userId: 'u1', name: 'friend' }]);
+		const departed: { memberId: string; name: string | null; sprite: string | null }[] = [];
+		const rooms: PeopleRooms = {
+			...room.rooms,
+			departedOf: () => [{ memberId: 'fk:9', userId: 'u9' }],
+			nameDeparted: (_roomId, memberId, person) => departed.push({ memberId, name: person.name, sprite: person.sprite }),
+		};
+		const { sweep, stop } = attachPeople(rooms, people);
+		await sweep();
+		stop();
+		expect(api.asked).toEqual([['u1', 'u9']]);
+		expect(room.renamed).toEqual([{ id: 'fk:1', name: 'Ari' }]);
+		expect(departed).toEqual([{ memberId: 'fk:9', name: 'Gone', sprite: 'knight' }]);
+	});
 });
