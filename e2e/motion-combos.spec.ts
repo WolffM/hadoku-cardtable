@@ -13,7 +13,7 @@
  *     AND Screen shake on, the bolt flies only with Card animations on, and it flies at the speed's tempo
  *     (Fast twice as quick; Normal and Instant at 1×, each repeat of a spell in a turn quicker by
  *     `tempo.ts`'s step). Between casts the flyer's and the hexproof sweep's endless loops run, or stand still
- *     (paused, or drawn in their reduced-motion look), as the switches say.
+ *     (paused, or drawn in their reduced-motion look), as Looping animations says.
  *   - **The front page**, with a replay kept: all 48 combinations, at a desktop window and a phone's. The
  *     featured card is in the grid exactly when Front page match is on, its pause button stills it and play
  *     starts it again, and with Looping animations off every endless loop the app's own sheets draw is paused.
@@ -149,12 +149,14 @@ for (const speed of SPEEDS) {
         await setSwitches(page, combo);
         await expectRootAttrs(page, combo, where);
 
+        // Loops answer to Looping animations alone: Card animations off stills some (the flyer's), not all (the sweep).
         const loops = await loopsOnCreatures(page);
-        if (!combo.cardMotion) expect(loops.loops, `${where}: card animations off draws no loop on the creatures`).toBe(0);
-        else if (combo.ambientMotion) {
-          expect(loops.loops, `${where}: the flyer and the sweep loop`).toBeGreaterThan(0);
+        console.log(`[motion-combos] ${where}: creature loops ${loops.running}/${loops.loops} running`);
+        if (!combo.ambientMotion) expect(loops.running, `${where}: looping animations off, each loop paused or drawn still`).toBe(0);
+        else {
+          expect(loops.loops, `${where}: the creatures loop`).toBeGreaterThan(0);
           expect(loops.running, `${where}: looping animations run`).toBe(loops.loops);
-        } else expect(loops.running, `${where}: looping animations off, each loop paused or drawn still`).toBe(0);
+        }
 
         await page.evaluate(() => (window as unknown as { __mcReset: () => void }).__mcReset());
         await expect.poll(() => handCardNamed(page, 'Lava Axe'), { timeout: 30_000, message: `${where}: a Lava Axe in hand` }).not.toBeUndefined();
