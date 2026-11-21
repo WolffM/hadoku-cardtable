@@ -1,0 +1,18 @@
+# e2e/perf/ambient.spec.ts — what a crowded mid-game board costs while nobody does anything: the boards
+# prod's frame telemetry was slow on (2026-11-06..20: MAIN1 of a mid-game turn, 1,100–2,000 DOM nodes,
+# flyers looping, a spell waiting on the stack). Alice (seat 0) is in her Main Phase 1 with three flyers
+# (Serra Angel's loop and two Narcomoeba) among nine permanents and six lands, Divination castable, a full
+# hand. Bob holds a matching board with a flyer of his own. Every card here is already in other scenarios.
+turn=5
+activeplayer=human
+activephase=MAIN1
+humanlife=17
+ailife=15
+humanhand=Divination;Grizzly Bears;Lightning Bolt;Counterspell;Mountain
+humanbattlefield=Serra Angel;Narcomoeba;Narcomoeba;Llanowar Elves;Grizzly Bears;Hill Giant;Memnite;Island;Island;Island;Forest;Forest;Mountain
+humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island
+humangraveyard=Lightning Bolt;Shock
+aihand=Shock;Island;Counterspell
+aibattlefield=Serra Angel;Memnite;Grizzly Bears;Runeclaw Bear;Balduvian Bears;Island;Island;Mountain;Mountain;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=Shock

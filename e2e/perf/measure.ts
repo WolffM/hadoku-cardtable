@@ -73,6 +73,8 @@ declare global {
   interface Window {
     perfBench: PageRecord;
     __perfSyncMark: (label: string) => number;
+    /** Starts the frame loop for a recording moment (`instrument`). */
+    __perfTick: () => void;
   }
 }
 
@@ -135,11 +137,22 @@ export function instrument(): void {
     const listener = type === 'message' && typeof fn === 'function' ? (timed(fn as (this: WebSocket, ev: MessageEvent) => unknown) as EventListener) : fn;
     return listener === null ? undefined : add.call(this, type, listener, opts);
   } as typeof add;
+  // Only while a moment records: a rAF loop makes the page draw every frame, and each drawn frame samples every
+  // running animation, so a loop left on would add its own cost to anything measured without it (`threads.ts`).
+  let ticking = false;
   const tick = (t: number): void => {
-    if (rec.recording) rec.raf.push(t);
+    if (!rec.recording) {
+      ticking = false;
+      return;
+    }
+    rec.raf.push(t);
     requestAnimationFrame(tick);
   };
-  requestAnimationFrame(tick);
+  window.__perfTick = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(tick);
+  };
   type Script = PerformanceEntry & {
     invoker: string;
     sourceURL: string;
@@ -513,6 +526,7 @@ export function measure(browser: Browser, moment: string, seats: { name: string;
           r.lists = 0;
           r.listMs = 0;
           r.recording = true;
+          window.__perfTick();
           window.__perfSyncMark(label);
         }, s.name);
       }
