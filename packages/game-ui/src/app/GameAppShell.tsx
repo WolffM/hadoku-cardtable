@@ -23,7 +23,7 @@
  * and a game draws none of this (`@hadoku/ui-shell/embed`'s `mountEmbed`).
  */
 
-import { useRef, type ReactNode, type RefObject } from 'react';
+import { lazy, Suspense, useRef, type ReactNode, type RefObject } from 'react';
 import { AppHeader, LoadingSkeleton, type AppHeaderProps } from '@wolffm/task-ui-components';
 import { HadokuThemeRoot, useHadokuTheme, usePlatform } from '@wolffm/themes';
 
@@ -80,8 +80,37 @@ function ShellInner({ containerRef, className, children }: GameAppShellProps & {
  * does not fetch whoami a second time. An identity HINT, never a way to present a tier the edge did
  * not assign: every gate that matters is enforced server-side off the edge-stamped tier.
  */
-export function GameHeader(props: Omit<AppHeaderProps, 'settingsProps'>) {
+export function GameHeader({ children, appTabs, ...props }: Omit<AppHeaderProps, 'settingsProps'>) {
   const who = useWhoami();
   const viewer = who === 'pending' ? null : who;
-  return <AppHeader {...props} settingsProps={viewer === null ? undefined : { userType: viewer.tier, name: viewer.name }} />;
+  // The room chat's sound switch goes beside the game's own sound settings when it has a Sound tab,
+  // else in the App tab: never a tab of its own for one row.
+  const soundTab = appTabs?.some((t) => t.id === SOUND_TAB_ID) ?? false;
+  return (
+    <AppHeader
+      {...props}
+      settingsProps={viewer === null ? undefined : { userType: viewer.tier, name: viewer.name }}
+      appTabs={soundTab ? appTabs!.map((t) => (t.id === SOUND_TAB_ID ? { ...t, render: () => <>{t.render()}{chatSound}</> } : t)) : appTabs}
+      // Passed only when it holds something: any `children` at all draws an App tab.
+      children={soundTab ? children : <>{children}{chatSound}</>}
+    />
+  );
 }
+
+/** The `appTabs` id `GameHeader` adds the chat sound switch to. */
+export const SOUND_TAB_ID = 'sound';
+
+/**
+ * The room chat's "Chat sound" on/off (watchparty's chime after a quiet minute). It is watchparty's,
+ * from the same room-chrome module `RoomShell` loads, so it writes the store that chrome's chime
+ * reads. Lazy: the popout renders a tab only while it is open, so the chunk is fetched then (and
+ * usually already is, for the room).
+ */
+const ChatSoundSetting = lazy(() =>
+  import('@wolffm/watchparty-ui/room-chrome').then((m) => ({ default: m.ChatSoundSetting })),
+);
+const chatSound = (
+  <Suspense fallback={null}>
+    <ChatSoundSetting />
+  </Suspense>
+);

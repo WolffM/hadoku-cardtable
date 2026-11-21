@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 
 const { asked } = vi.hoisted(() => ({ asked: { count: 0 } }));
 
@@ -14,15 +14,21 @@ vi.mock('@wolffm/prefs-client', async (importOriginal) => ({
 }));
 vi.mock('@wolffm/task-ui-components', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wolffm/task-ui-components')>()),
-  AppHeader: ({ title, settingsProps }: { title: string; settingsProps?: { userType: string; name: string | null } }) =>
-    createElement('header', { 'data-testid': 'header', 'data-settings': JSON.stringify(settingsProps ?? null) }, title),
+  AppHeader: ({ title, settingsProps, children, appTabs }: { title: string; settingsProps?: { userType: string; name: string | null }; children?: unknown; appTabs?: { id: string; render: () => unknown }[] }) =>
+    createElement(
+      'header',
+      { 'data-testid': 'header', 'data-settings': JSON.stringify(settingsProps ?? null), 'data-app-tab': children ? 'yes' : 'no' },
+      title,
+      // Each tab's content, so a test can see what a tab holds.
+      appTabs?.map((t) => createElement('section', { key: t.id, 'data-testid': `tab-${t.id}` }, t.render() as never)),
+    ),
 }));
 vi.mock('@wolffm/themes', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wolffm/themes')>()),
   usePlatform: () => ({ narrow: true, touchFirst: false }),
 }));
 
-import { GameAppShell, GameHeader } from './GameAppShell.tsx';
+import { GameAppShell, GameHeader, SOUND_TAB_ID } from './GameAppShell.tsx';
 import { registerWhoamiTier, tierOfWhoami, useWhoami } from '../room/whoami.ts';
 
 globalThis.matchMedia ??= (() => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined })) as unknown as typeof matchMedia;
@@ -57,7 +63,20 @@ describe('GameAppShell', () => {
     expect(main.dataset.darkTheme).toMatch(/^(true|false)$/);
     expect(screen.getByTestId('reader').textContent).toBe('Pat');
     expect(JSON.parse(screen.getByTestId('header').dataset.settings!)).toEqual({ userType: 'member', name: 'Pat' });
+    expect(screen.getByTestId('header').dataset.appTab, 'the room chat\'s sound switch is in the App tab').toBe('yes');
     expect(asked.count, 'the header and the reader asked nothing of their own').toBe(1);
+  });
+
+  it('puts the room chat\'s sound switch in the game\'s Sound tab when it has one, and then draws no App tab', async () => {
+    const tabs = [
+      { id: 'game', label: 'Game', render: () => createElement('p', null, 'game') },
+      { id: SOUND_TAB_ID, label: 'Sound', render: () => createElement('p', { 'data-testid': 'game-sound' }, 'sound') },
+    ];
+    render(createElement(GameAppShell, { className: 'c', children: () => createElement(GameHeader, { title: 'Game', appTabs: tabs }) }));
+    await waitFor(() => expect(screen.getByTestId('header').dataset.appTab).toBe('no'));
+    expect(screen.getByTestId('tab-sound').querySelector('[data-testid="game-sound"]'), 'the game\'s own sound settings stay').not.toBeNull();
+    await waitFor(() => expect(within(screen.getByTestId('tab-sound')).getByRole('radiogroup', { name: 'Chat sound' })).toBeTruthy());
+    expect(within(screen.getByTestId('tab-game')).queryByRole('radiogroup', { name: 'Chat sound' })).toBeNull();
   });
 
   it('reads the tier as the fleet answered it, unless the game registers its own reading', async () => {
