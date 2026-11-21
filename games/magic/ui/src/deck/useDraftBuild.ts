@@ -9,7 +9,8 @@
  * deck's, so a pick still on its way to the server is never part of a save
  * the server would refuse. A pick filed in the sideboard before the server has
  * it (dragged there straight out of the pack) is the one move that names such
- * a pick: its save waits until the pool is `settled`.
+ * a pick: its save waits until the pool is `settled`, or until the screen goes
+ * (the draft's last pick, whose confirmation is the draft's end).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -88,6 +89,8 @@ export function useDraftBuild(draftId: string, pool: readonly DraftCard[], store
       const request = cardRequestOf(card);
       const next = to === 'pool' ? moveToSideboard(buildRef.current, request) : moveToMain(buildRef.current, request);
       moved.current = true;
+      // Read by the next move and by an owed save before React renders this one.
+      buildRef.current = next;
       setSaved(next);
       if (settledRef.current) send(next);
       else owed.current = true;
@@ -100,6 +103,17 @@ export function useDraftBuild(draftId: string, pool: readonly DraftCard[], store
     owed.current = false;
     send(buildRef.current);
   }, [settled, send]);
+  // Gone with a save still owed: the last pick is confirmed by the same view that ends the draft and
+  // takes this screen away, so it never renders settled. The save goes now; one naming a pick the
+  // server never took is refused whole, which leaves the build exactly as it stood.
+  useEffect(
+    () => () => {
+      if (!owed.current) return;
+      owed.current = false;
+      send(buildRef.current);
+    },
+    [send],
+  );
 
   return { sideboard, move, save };
 }

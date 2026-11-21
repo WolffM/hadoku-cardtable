@@ -38,6 +38,13 @@ export interface DeckStoreClient {
   save(podId: string, dck: string): Promise<SaveOutcome>;
 }
 
+/**
+ * Each pod's save still on its way, across every client in this page: the draft screen saves its
+ * last move as it hands over to the builder, which reads the pod with a client of its own, and a
+ * read that overtook that save would open on the build before it.
+ */
+const saving = new Map<string, Promise<unknown>>();
+
 export function deckStoreClient(
   fetchImpl: Fetch = (input, init) => fetch(input, init),
   base: string = apiBase(),
@@ -46,6 +53,7 @@ export function deckStoreClient(
 
   return {
     async mine(podId) {
+      await saving.get(podId);
       let res: Response;
       try {
         res = await getJson(url(podId, '/mine'), fetchImpl);
@@ -60,25 +68,38 @@ export function deckStoreClient(
       return mine.data;
     },
 
-    async save(podId, dck) {
-      // Checked against the server's own request schema before it is ever
-      // sent, not only after: a body that cannot be `{ dck }` is refused here,
-      // the same refusal shape (`issues`) the server itself would answer with.
-      const sent = SaveDraftDeckBodySchema.safeParse({ dck });
-      if (!sent.success) return { ok: false, issues: sent.error.issues.map((i) => i.message) };
-      let res: Response;
-      try {
-        res = await sendJson(url(podId, '/deck'), 'PUT', sent.data, fetchImpl);
-      } catch {
-        return { ok: false, issues: ['Could not reach the server.'] };
-      }
-      const body = await bodyOf(res);
-      if (res.status === 200) {
-        const ok = SaveDraftDeckResponseSchema.safeParse(body);
-        if (ok.success) return { ok: true, deck: ok.data.deck };
-      }
-      const refusal = SaveDraftDeckRefusalSchema.safeParse(body);
-      return { ok: false, issues: refusal.success && refusal.data.issues.length > 0 ? refusal.data.issues : [serverMessage(body, res.status)] };
+    save(podId, dck) {
+      const sent = put(podId, dck);
+      const settled = sent.then(
+        () => undefined,
+        () => undefined,
+      );
+      saving.set(podId, settled);
+      void settled.then(() => {
+        if (saving.get(podId) === settled) saving.delete(podId);
+      });
+      return sent;
     },
   };
+
+  async function put(podId: string, dck: string): Promise<SaveOutcome> {
+    // Checked against the server's own request schema before it is ever
+    // sent, not only after: a body that cannot be `{ dck }` is refused here,
+    // the same refusal shape (`issues`) the server itself would answer with.
+    const sent = SaveDraftDeckBodySchema.safeParse({ dck });
+    if (!sent.success) return { ok: false, issues: sent.error.issues.map((i) => i.message) };
+    let res: Response;
+    try {
+      res = await sendJson(url(podId, '/deck'), 'PUT', sent.data, fetchImpl);
+    } catch {
+      return { ok: false, issues: ['Could not reach the server.'] };
+    }
+    const body = await bodyOf(res);
+    if (res.status === 200) {
+      const ok = SaveDraftDeckResponseSchema.safeParse(body);
+      if (ok.success) return { ok: true, deck: ok.data.deck };
+    }
+    const refusal = SaveDraftDeckRefusalSchema.safeParse(body);
+    return { ok: false, issues: refusal.success && refusal.data.issues.length > 0 ? refusal.data.issues : [serverMessage(body, res.status)] };
+  }
 }
