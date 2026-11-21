@@ -12,13 +12,13 @@ export const BAR_OK_LABEL = 'OK';
 export const PLAY_LABEL = 'Play';
 export const DRAW_LABEL = 'Draw';
 
-/** Forge's own play-or-draw question (`en-US.properties`'s `lblWouldYouLiketoPlayorDraw`). */
-const PLAY_OR_DRAW_QUESTION = 'Would you like to play or draw?';
+/** What a play-or-draw prompt with no coin toss behind it says (the operator's wording, 2026-11-20). */
+const PLAY_OR_DRAW_QUESTION = 'Choose play or draw.';
 
 /**
  * What the play-or-draw prompt says. Forge always opens it with "you have won the coin toss", since
  * every game we host is a fresh Forge match; a series' next game rigs that toss to ask the previous
- * game's loser (`MatchSpec.chooser`), so no coin was flipped. With no toss, only the question shows.
+ * game's loser (`MatchSpec.chooser`), so no coin was flipped. With no toss, it only asks the choice.
  */
 export function playOrDrawMessage(forgePrompt: string, tossed: boolean): string {
   return tossed ? forgePrompt : PLAY_OR_DRAW_QUESTION;

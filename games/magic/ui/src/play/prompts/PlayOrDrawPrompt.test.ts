@@ -34,7 +34,7 @@ describe('playOrDrawMessage', () => {
   });
 
   it('asks only play or draw when no coin was tossed (a series’ next game asks the last loser)', () => {
-    expect(playOrDrawMessage(forge, false)).toBe('Would you like to play or draw?');
+    expect(playOrDrawMessage(forge, false)).toBe('Choose play or draw.');
   });
 });
 
