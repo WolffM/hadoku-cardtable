@@ -10,7 +10,8 @@
  *     `reduce`, and copied for `data-motion='full'`.
  *   - Every rule whose `animation` (or `animation-iteration-count`) runs `infinite` gets a sibling that, under
  *     `data-ambient='off'`, pauses exactly its infinite entries: the loop stands on its first frame, and a
- *     one-shot beside it in the same list (an entrance) still plays.
+ *     one-shot beside it in the same list (an entrance) still plays. Where a reduce query has a rule for the
+ *     same selector, that rule is the loop's still look, and it is copied for `data-ambient='off'` as well.
  *
  * Every gate is a `:where()`, so no rewritten rule weighs more than the rule it came from. The attribute is
  * an ANCESTOR's (the document root standalone, the embed's top element inside its shadow tree); a
@@ -107,11 +108,24 @@ function ownSheet(file: string | undefined): boolean {
   return file !== undefined && OWN_SRC.test(file) && !/[\\/]node_modules[\\/]/.test(file);
 }
 
-function mirrorMedia(media: CssAtRule, attr: string, keep: string, copy: string, topKeyframes: Set<string>): void {
+const norm = (selector: string): string => selector.trim().replace(/\s+/g, ' ');
+
+/**
+ * `stills`: the selectors of the sheet's looping rules. A reduce query's rule for one of them is the still look
+ * its author drew for that loop (the clock's grace ring steady at full, not paused on its first, empty frame),
+ * so it is copied for `data-ambient='off'` too, after the pause it then overrides.
+ */
+function mirrorMedia(media: CssAtRule, attr: string, keep: string, copy: string, topKeyframes: Set<string>, stills: ReadonlySet<string> = new Set()): void {
   const copies: CssNode[] = [];
   media.each((child) => {
     if (child.type === 'rule') {
       const rule = child as CssRule;
+      const still = rule.selectors.filter((sel) => stills.has(norm(sel)));
+      if (still.length > 0) {
+        const calm = rule.clone() as CssRule;
+        calm.selectors = still.map((sel) => gateSelector(sel, is('data-ambient', 'off')));
+        copies.push(calm);
+      }
       const forced = rule.clone() as CssRule;
       forced.selectors = rule.selectors.map((s) => gateSelector(s, is(attr, copy)));
       rule.selectors = rule.selectors.map((s) => gateSelector(s, isNot(attr, keep)));
@@ -142,6 +156,7 @@ export const motionCss = {
     // Ambient first, so a looping rule inside a motion query is mirrored with its calm sibling. Once runs once per
     // sheet: the rules inserted here are visited by the walk, and carry nothing it rewrites.
     const looping = new Set<string>();
+    const stills = new Set<string>();
     root.walkDecls((decl) => {
       if (decl.prop.startsWith('--') && topLevelList(decl.value).some((e) => INFINITE.test(e))) looping.add(decl.prop);
     });
@@ -153,6 +168,7 @@ export const motionCss = {
         if (state !== null) states.push(state);
       });
       if (states.length === 0) return;
+      for (const sel of rule.selectors) stills.add(norm(sel));
       const calm = rule.clone() as CssRule;
       calm.removeAll();
       calm.selectors = rule.selectors.map((s) => gateSelector(s, is('data-ambient', 'off')));
@@ -163,7 +179,7 @@ export const motionCss = {
     });
     root.walkAtRules('media', (media) => {
       const params = media.params.trim();
-      if (REDUCE.test(params)) mirrorMedia(media, 'data-motion', 'full', 'reduce', topKeyframes);
+      if (REDUCE.test(params)) mirrorMedia(media, 'data-motion', 'full', 'reduce', topKeyframes, stills);
       else if (NO_PREFERENCE.test(params)) mirrorMedia(media, 'data-motion', 'reduce', 'full', topKeyframes);
       else if (/prefers-reduced-motion/.test(params)) throw new Error(`${media.source?.input.file ?? 'a stylesheet'}: @media ${params} combines prefers-reduced-motion with another query; motionCss mirrors only the plain one`);
     });

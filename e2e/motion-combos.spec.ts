@@ -12,8 +12,8 @@
  *     page never scrolls, the button bar stays inside the window, the table shakes only with Card animations
  *     AND Screen shake on, the bolt flies only with Card animations on, and it flies at the speed's tempo
  *     (Fast twice as quick; Normal and Instant at 1×, each repeat of a spell in a turn quicker by
- *     `tempo.ts`'s step). Between casts the flyer's and the hexproof sweep's endless loops run, stand paused,
- *     or are not drawn at all, as the switches say.
+ *     `tempo.ts`'s step). Between casts the flyer's and the hexproof sweep's endless loops run, or stand still
+ *     (paused, or drawn in their reduced-motion look), as the switches say.
  *   - **The front page**, with a replay kept: all 48 combinations, at a desktop window and a phone's. The
  *     featured card is in the grid exactly when Front page match is on, its pause button stills it and play
  *     starts it again, and with Looping animations off every endless loop the app's own sheets draw is paused.
@@ -151,10 +151,10 @@ for (const speed of SPEEDS) {
 
         const loops = await loopsOnCreatures(page);
         if (!combo.cardMotion) expect(loops.loops, `${where}: card animations off draws no loop on the creatures`).toBe(0);
-        else {
+        else if (combo.ambientMotion) {
           expect(loops.loops, `${where}: the flyer and the sweep loop`).toBeGreaterThan(0);
-          expect(loops.running, `${where}: looping animations ${combo.ambientMotion ? 'run' : 'stand paused'}`).toBe(combo.ambientMotion ? loops.loops : 0);
-        }
+          expect(loops.running, `${where}: looping animations run`).toBe(loops.loops);
+        } else expect(loops.running, `${where}: looping animations off, each loop paused or drawn still`).toBe(0);
 
         await page.evaluate(() => (window as unknown as { __mcReset: () => void }).__mcReset());
         await expect.poll(() => handCardNamed(page, 'Lava Axe'), { timeout: 30_000, message: `${where}: a Lava Axe in hand` }).not.toBeUndefined();

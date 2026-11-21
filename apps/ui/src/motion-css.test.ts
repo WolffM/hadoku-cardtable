@@ -47,6 +47,13 @@ describe('motionCss', () => {
     expect(ambientPlayState('animation', 'cubic-bezier(0, 0, 1, 1) 1s x, y 2s infinite')).toBe('running, paused');
   });
 
+  it('a loop with a still look in a reduce query takes that look with looping animations off', async () => {
+    const out = await run('.ring::after { opacity: 0; animation: grace 1s infinite; } @media (prefers-reduced-motion: reduce) { .ring::after { animation: none; opacity: 1; } .other { transition: none; } }');
+    expect(out).toContain(":where([data-ambient='off']) .ring::after { animation: none; opacity: 1; }");
+    expect(out, 'a reduce rule for no loop is not copied').not.toContain(":where([data-ambient='off']) .other");
+    expect(out.indexOf(":where([data-ambient='off']) .ring::after { animation: none"), 'the still look comes after the pause').toBeGreaterThan(out.indexOf(":where([data-ambient='off']) .ring::after { animation-play-state"));
+  });
+
   it('follows a custom property that holds a loop', async () => {
     const out = await run('.d { --path: fly 4s linear infinite; } .e { animation: var(--path), tilt 1s; }');
     expect(out).toContain(":where([data-ambient='off']) .e { animation-play-state: paused, running; }");

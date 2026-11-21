@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { applyMotion, clearMotion, motionState, prefersReducedMotion, rememberedMotion, rememberMotion, screenShakeAllowed, setMotionChoices } from './index.ts';
 
-const system = (reduce: boolean): void => vi.stubGlobal('matchMedia', (q: string) => ({ matches: reduce && q.includes('reduce') }));
+const system = (reduce: boolean): void => {
+  vi.stubGlobal('matchMedia', (q: string) => ({ matches: reduce && q.includes('reduce') }));
+};
 
 describe('the motion switches', () => {
   afterEach(() => {
