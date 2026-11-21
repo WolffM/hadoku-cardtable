@@ -2988,7 +2988,7 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
 
     fireEvent.click(getByTestId('settings-gear'));
     const dialog = getByTestId('settings');
-    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Experimental', 'Display', 'Sound']);
+    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Gameplay', 'Experimental', 'Display', 'Motion', 'Sound']);
     expect(container.querySelector('.live__ask')).toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -3100,7 +3100,7 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
   it('the seat’s settings go to the match log as client telemetry once read, and again on every change', async () => {
     // The operator, 2026-10-08: "you should always confirm everything with telemetry" — a report about
     // what a seat saw is read from the log's `client` events, never deduced from the code's defaults.
-    prefsState.prefs = { boardLayout: 'type-separated', endStepStop: true, fastMode: false };
+    prefsState.prefs = { boardLayout: 'type-separated', endStepStop: true, gameSpeed: 'normal' };
     const { s, getByTestId } = await liveBoard(0, true);
     const infos = () => s.received.filter((r) => r.event === 'forge:client' && (r.payload as { kind: string }).kind === 'info');
     await waitFor(() => expect(infos()).toHaveLength(1));
@@ -3111,12 +3111,12 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
     expect(infos()[0]!.payload).toEqual({
       matchId: s.matchId,
       kind: 'info',
-      data: { ui: __HADOKU_UI_VERSION__, fastMode: false, boardLayout: 'type-separated', reducedMotion: false, window: `${window.innerWidth}x${window.innerHeight}` },
+      data: { ui: __HADOKU_UI_VERSION__, fastMode: false, gameSpeed: 'normal', boardLayout: 'type-separated', reducedMotion: false, screenShake: true, ambientMotion: true, window: `${window.innerWidth}x${window.innerHeight}` },
     });
-    // Toggling Fast Mode sends the new settings, nothing else of the panel's.
-    fireEvent.click(getByTestId('live-settings-fast-mode'));
+    // A new Game speed sends the new settings, nothing else of the panel's; Instant is still `fastMode` in the log.
+    fireEvent.click(getByTestId('live-settings-speed-instant'));
     await waitFor(() => expect(infos()).toHaveLength(2));
-    expect(infos()[1]!.payload).toMatchObject({ kind: 'info', data: { fastMode: true } });
+    expect(infos()[1]!.payload).toMatchObject({ kind: 'info', data: { fastMode: true, gameSpeed: 'instant' } });
   });
 
   it('every sound a board change raises goes to the match log with why, its roles, the view’s turn and seq, and the mute', async () => {

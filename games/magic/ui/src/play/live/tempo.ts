@@ -41,9 +41,26 @@ export const TEMPO_STEP = 0.25;
 /** The fastest any instance plays: the seventh of a key in a turn, and every one after. */
 export const TEMPO_CAP = 2.5;
 
-/** How fast the `n`th instance of one key this turn plays: 1× the first time. */
+/**
+ * The player's Game speed, as a tempo every instance is multiplied by (2026-11-21): `fast` plays every beat,
+ * and the pacer's every gap (`pace.ts`), twice as quick; `normal` and `instant` keep 1× (`instant` is pacing:
+ * nothing waits, `pace.ts`'s `setFast`).
+ */
+export const FAST_TEMPO = 2;
+let gameTempo = 1;
+
+/** The Game speed's tempo, from now on: the board sets it from the player's preference. */
+export function setGameTempo(tempo: number): void {
+  gameTempo = tempo > 0 && Number.isFinite(tempo) ? tempo : 1;
+}
+
+export function gameTempoNow(): number {
+  return gameTempo;
+}
+
+/** How fast the `n`th instance of one key this turn plays: 1× the first time, times the Game speed's tempo. */
 export function tempoOf(n: number): number {
-  return n <= 1 ? 1 : Math.min(TEMPO_CAP, 1 + TEMPO_STEP * (n - 1));
+  return (n <= 1 ? 1 : Math.min(TEMPO_CAP, 1 + TEMPO_STEP * (n - 1))) * gameTempo;
 }
 
 /** What made a stack item: its source's name and the ability's words, or `spell`. Every copy shares it. */
@@ -175,7 +192,7 @@ export function resolvedTempo(itemId: number): number {
  */
 export function nextResolveTempo(): number {
   const next = board.stack.find((item) => !board.sent.has(item.id));
-  if (next === undefined || board.turn === null) return 1;
+  if (next === undefined || board.turn === null) return tempoOf(1);
   const ahead = board.stack.filter((item) => board.sent.has(item.id) && item.key === next.key).length;
   return nextTempo(board.count, next.key, board.turn, ahead);
 }

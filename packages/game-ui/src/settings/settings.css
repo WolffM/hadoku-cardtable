@@ -91,6 +91,17 @@
   gap: 4px;
 }
 
+/* One line of choices after its name: Game speed's three. */
+.ct-settings__choices--row {
+  flex-flow: row wrap;
+  align-items: center;
+  column-gap: 12px;
+}
+
+.ct-settings__choices-label {
+  flex-basis: 100%;
+}
+
 .ct-settings__level {
   display: grid;
   grid-template-columns: 4rem 1fr;

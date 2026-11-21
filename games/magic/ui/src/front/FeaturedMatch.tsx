@@ -33,6 +33,14 @@
  * turn change; the cursor is that player's, as the board draws it (live, the
  * relayed pointer; in a replay, the recorded one, `../replay/player.ts`).
  *
+ * ## Paused
+ *
+ * A pause button on the title bar (operator, 2026-11-21, for a player bothered by the motion): the board
+ * stands still — a replay's clock paused, a live match's transport holding what arrives (`./held.ts`), the
+ * camera stopped, every animation in the frame paused where it is. Play goes on from there; a live match
+ * catches up to the present in one step. Whether the card is drawn at all is the Display tab's "Front page
+ * match" (`./LiveSlot.tsx`).
+ *
  * ## Quiet — the match only, for this mount only
  *
  * `holdMatchQuiet` (`../sound/index.ts`) keeps the board's own moments, `g.*` roles and music off
@@ -41,6 +49,8 @@
  */
 
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { Icon } from '@wolffm/themes';
+import { uiLength } from '@hadoku/ui-shell/settings';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
 import {
@@ -58,6 +68,7 @@ import { featuredReplay, readyPlayer } from '../replay/load.ts';
 import type { ReplayClock } from '../replay/player.ts';
 import { ReplayBoard } from '../replay/ReplayBoard.tsx';
 import { REPLAYS_ON } from '../replay/transport.ts';
+import { heldTransport, type HeldTransport } from './held.ts';
 import { BOARD_HEIGHT, BOARD_WIDTH, cameraConfigFromHash, defaultRegion, initialCamera, stepCamera, type CameraConfig, type Point } from '@hadoku/game-ui/front/camera.ts';
 import './FeaturedMatch.css';
 
@@ -76,7 +87,7 @@ export interface FeaturedMatchProps {
   onSettled?: (drawn: boolean) => void;
 }
 
-type Source = { kind: 'live'; match: LiveMatch } | { kind: 'replay'; match: LiveMatch; clock: ReplayClock };
+type Source = { kind: 'live'; match: LiveMatch; held: HeldTransport } | { kind: 'replay'; match: LiveMatch; clock: ReplayClock };
 
 /**
  * The frame moved so `at` (board pixels) is the viewport's top-left. A translate only: the board is
@@ -110,11 +121,11 @@ function useCameraConfig(): CameraConfig {
  * `../play/live/presence.ts`), in board pixels, steps `./camera.ts`, and the frame is moved to the
  * region it captures. `data-capture-region` on the viewport says which.
  */
-function useCamera(viewportRef: RefObject<HTMLDivElement | null>, frameRef: RefObject<HTMLDivElement | null>, match: LiveMatch | null, scale: number, config: CameraConfig): void {
+function useCamera(viewportRef: RefObject<HTMLDivElement | null>, frameRef: RefObject<HTMLDivElement | null>, match: LiveMatch | null, scale: number, config: CameraConfig, paused: boolean): void {
   useEffect(() => {
     const viewport = viewportRef.current;
     const frame = frameRef.current;
-    if (viewport === null || frame === null || match === null || typeof requestAnimationFrame === 'undefined') return undefined;
+    if (paused || viewport === null || frame === null || match === null || typeof requestAnimationFrame === 'undefined') return undefined;
     let camera = initialCamera(performance.now(), viewerPlayerIdOf(match), config);
     let raf = 0;
     const step = (): void => {
@@ -128,7 +139,20 @@ function useCamera(viewportRef: RefObject<HTMLDivElement | null>, frameRef: RefO
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [viewportRef, frameRef, match, scale, config]);
+  }, [viewportRef, frameRef, match, scale, config, paused]);
+}
+
+/** Every animation running in `frame` paused where it stands while `paused`, and played on from there after. */
+function useFrozen(frameRef: RefObject<HTMLDivElement | null>, paused: boolean): void {
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!paused || frame === null || typeof frame.getAnimations !== 'function') return undefined;
+    const stopped = frame.getAnimations({ subtree: true }).filter((a) => a.playState === 'running');
+    for (const a of stopped) a.pause();
+    return () => {
+      for (const a of stopped) if (a.playState === 'paused') a.play();
+    };
+  }, [frameRef, paused]);
 }
 
 /**
@@ -159,7 +183,7 @@ function useMatchView(match: LiveMatch): LiveMatch['view'] {
   return match.view;
 }
 
-function TitleBar({ source, watchHref }: { source: Source; watchHref: string }) {
+function TitleBar({ source, watchHref, paused, onPause }: { source: Source; watchHref: string; paused: boolean; onPause: (paused: boolean) => void }) {
   const view = useMatchView(source.match);
   const names = view === null ? [] : view.players.map((p) => p.name);
   return (
@@ -169,6 +193,16 @@ function TitleBar({ source, watchHref }: { source: Source; watchHref: string }) 
       </span>
       <span className="featured-match__players">{names.length === 0 ? 'Connecting…' : names.join(' vs ')}</span>
       {view !== null && view.turn > 0 && <span className="featured-match__turn">Turn {view.turn}</span>}
+      <button
+        type="button"
+        className="featured-match__pause"
+        aria-label={paused ? 'Play' : 'Pause'}
+        aria-pressed={paused}
+        data-testid="featured-match-pause"
+        onClick={() => onPause(!paused)}
+      >
+        <Icon name={paused ? 'play' : 'pause'} size={uiLength('0.875rem')} />
+      </button>
       <a className="featured-match__watch" href={watchHref} data-testid="featured-match-watch">
         Watch
       </a>
@@ -183,8 +217,27 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
   const viewportRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const config = useCameraConfig();
+  const [paused, setPaused] = useState(false);
+  /** Read as a new source starts: a pause pressed before it holds it from its first frame. */
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  /** Bumped to join a live match again: a pause that held more than it would keep (`./held.ts`). */
+  const [session, setSession] = useState(0);
   const scale = useFitScale(viewportRef, source !== null && source !== 'loading', config.corner);
-  useCamera(viewportRef, frameRef, source === null || source === 'loading' ? null : source.match, scale, config);
+  useCamera(viewportRef, frameRef, source === null || source === 'loading' ? null : source.match, scale, config, paused);
+  useFrozen(frameRef, paused);
+
+  const pause = (next: boolean): void => {
+    setPaused(next);
+    if (source === null || source === 'loading') return;
+    if (source.kind === 'replay') {
+      if (next) source.clock.pause();
+      else source.clock.play();
+      return;
+    }
+    if (next) source.held.hold();
+    else if (!source.held.release()) setSession((n) => n + 1);
+  };
 
   useEffect(() => holdMatchQuiet(), []);
 
@@ -202,9 +255,11 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
     setSource(null);
 
     if (pick !== null) {
-      const match = startMatch({ matchId: pick.matchId, followTurn: true, transport: makeTransport?.() ?? socketIoMatchTransport() });
+      const held = heldTransport(makeTransport?.() ?? socketIoMatchTransport());
+      if (pausedRef.current) held.hold();
+      const match = startMatch({ matchId: pick.matchId, followTurn: true, transport: held.transport });
       built = match;
-      setSource({ kind: 'live', match });
+      setSource({ kind: 'live', match, held });
       // Drawn once the first view arrives: until then the card would read "Connecting…".
       stopWatching = subscribe(match, () => {
         if (match.view !== null) settle(true);
@@ -226,7 +281,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
           player.clock.dispose();
           return;
         }
-        player.clock.play();
+        if (!pausedRef.current) player.clock.play();
         setSource({ kind: 'replay', match: player.match, clock: player.clock });
         settle(true);
       });
@@ -243,7 +298,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
     // `makeTransport`/`fetchImpl` are intentionally not deps: they are test-only
     // stubs production never passes, and re-running on their identity would
     // rejoin on every render of a test that inlines one.
-  }, [pick === null ? null : pick.matchId]);
+  }, [pick === null ? null : pick.matchId, session]);
 
   if (source === null) return null;
   // Held in place, never drawn: the slot keeps its size while the replay readies, and shows nothing.
@@ -251,8 +306,8 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
   const watchHref = source.kind === 'live' ? `#/match/${encodeURIComponent(source.match.matchId)}` : `#/replay/${encodeURIComponent(source.match.matchId)}`;
 
   return (
-    <div className="featured-match" data-testid="featured-match">
-      <TitleBar source={source} watchHref={watchHref} />
+    <div className="featured-match" data-testid="featured-match" data-paused={paused || undefined}>
+      <TitleBar source={source} watchHref={watchHref} paused={paused} onPause={pause} />
       <div className="featured-match__viewport" ref={viewportRef}>
         <div className="featured-match__frame" ref={frameRef} style={frameStyle(scale, config)}>
           {source.kind === 'replay' ? <ReplayBoard match={source.match} clock={source.clock} /> : <LiveBoard match={source.match} roomId={null} />}

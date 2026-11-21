@@ -27,14 +27,14 @@
  * so the walk from Ready to the board has no loading screen — and closes it on
  * unmount, so leaving the route does not leave a socket behind.
  *
- * ## Fast Mode's transport (wave 47)
+ * ## Game speed's transport (wave 47's Fast Mode)
  *
  * Production gets a REAL transport wrapped in `./pace.ts`'s pacer, built
  * around `socketIoMatchTransport()` — never `makeTransport?.()`'s own
  * result, which a test passes already built, exactly the shape it wants, and
  * which `./match.ts`'s jar-gated suites build for themselves (unpaced,
  * per the wave file's blast-radius table — this screen never runs there).
- * `initialFast` reads `PLAY_PREFS_DEFAULTS.fastMode` so the FIRST frame is
+ * `initialFast` is `PLAY_PREFS_DEFAULTS.gameSpeed === 'instant'`, so the FIRST frame is
  * never paced in a mode nobody asked for (the e2e harness's own override,
  * or a returning viewer's persisted choice once `LiveBoard`'s settings
  * wiring re-applies it after this join resolves — see that file's own note).
@@ -82,7 +82,7 @@ const staleBuildReload: StaleBuildReload = { page: __HADOKU_UI_VERSION__, claim:
 function openMatch(matchId: string, transport?: MatchTransport): LiveMatch {
   return startMatch({
     matchId,
-    transport: transport ?? pacedMatchTransport(socketIoMatchTransport(), { initialFast: PLAY_PREFS_DEFAULTS.fastMode }),
+    transport: transport ?? pacedMatchTransport(socketIoMatchTransport(), { initialFast: PLAY_PREFS_DEFAULTS.gameSpeed === 'instant' }),
     report: (what, detail) => reportTrouble(matchId, what, detail),
     ...(isEmbedded() ? {} : { staleBuild: staleBuildReload }),
   });

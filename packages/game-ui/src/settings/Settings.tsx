@@ -30,31 +30,49 @@ import type { AppSettingsTab } from '@wolffm/task-ui-components';
 import type { PrefsClient } from '@wolffm/prefs-client';
 import { usePrefs } from '@wolffm/prefs-client/react';
 import { applyUiScale, clampUiScale, rememberedUiScale, rememberUiScale, UI_SCALE, uiLength } from '@hadoku/ui-shell/settings';
+import { appId } from '@hadoku/ui-shell/app-id';
+import { applyMotion, clearMotion, motionState, rememberedMotion, rememberMotion, setMotionChoices, systemReducesMotion, type MotionChoices } from '@hadoku/ui-shell/motion';
 
 import { Popover, usePopover } from '../components/Popover.tsx';
 import { registered } from '../registered.ts';
 import './settings.css';
 
+/**
+ * What the Display tab saves in the game's own preferences: the UI scale, the motion switches
+ * (`@hadoku/ui-shell/motion`, each unset until the player chooses, following the system until then) and
+ * whether the front page plays its featured match (unset, it follows card motion's default).
+ */
+export interface DisplayPrefs extends MotionChoices {
+  /** `usePrefs`'s own bound; nothing is read off it. */
+  [key: string]: unknown;
+  uiScale?: number;
+  frontMatch?: boolean;
+}
+
 /** The game's own sections, where its UI scale is saved (and the scale before anything is), and what a new scale makes stale. */
 export interface SettingsParts {
   Game: ComponentType;
   Sound: ComponentType;
-  prefs: () => PrefsClient<{ uiScale?: number }>;
+  prefs: () => PrefsClient<DisplayPrefs>;
   defaultScale: number;
   onScaled: () => void;
 }
 const parts = registered<SettingsParts>('settings');
 export const registerSettings = parts.set;
 
-/** The settings as tabs, in the order a player looks for them: how the game plays (and the UI scale, under it), then sound. */
+/**
+ * The settings as tabs, in the order a player looks for them (operator, 2026-11-21): how the game plays,
+ * how the page looks and moves, then sound.
+ */
 export const CARDTABLE_SETTINGS_TABS: AppSettingsTab[] = [
+  { id: 'game', label: 'Gameplay', render: () => <div className="ct-settings__tab">{createElement(parts.get().Game)}</div> },
   {
-    id: 'game',
-    label: 'Game',
+    id: 'display',
+    label: 'Display',
     render: () => (
       <div className="ct-settings__tab">
-        {createElement(parts.get().Game)}
         <DisplaySettings />
+        <MotionSettings />
       </div>
     ),
   },
@@ -138,6 +156,74 @@ function DisplaySettings() {
       </label>
     </fieldset>
   );
+}
+
+/** Whether the front page plays its featured match: the player's choice, else on unless the system asks for less motion. */
+export function frontMatchShown(prefs: DisplayPrefs | null): boolean {
+  return prefs?.frontMatch ?? !systemReducesMotion();
+}
+
+function MotionToggle({ testId, checked, label, onChange }: { testId: string; checked: boolean; label: string; onChange: (on: boolean) => void }) {
+  return (
+    <label className="ct-settings__option">
+      <input type="checkbox" data-testid={testId} checked={checked} onChange={(event) => onChange(event.currentTarget.checked)} />
+      {label}
+    </label>
+  );
+}
+
+/**
+ * Each motion switch on its own (operator, 2026-11-21: "make sure that each of them can be individually
+ * toggled"), each drawn as the page applies it now: a switch nobody set shows the system's answer.
+ */
+function MotionSettings() {
+  const { prefs: client } = parts.get();
+  const { prefs, save } = usePrefs(client());
+  const state = motionState(prefs ?? {});
+  return (
+    <fieldset className="ct-settings__section" data-testid="settings-motion">
+      <legend>Motion</legend>
+      <MotionToggle testId="settings-card-motion" checked={state.cardMotion} label="Card animations" onChange={(on) => void save({ cardMotion: on })} />
+      <MotionToggle testId="settings-screen-shake" checked={state.screenShake} label="Screen shake" onChange={(on) => void save({ screenShake: on })} />
+      <MotionToggle testId="settings-ambient-motion" checked={state.ambientMotion} label="Looping animations" onChange={(on) => void save({ ambientMotion: on })} />
+      <MotionToggle testId="settings-front-match" checked={frontMatchShown(prefs)} label="Front page match" onChange={(on) => void save({ frontMatch: on })} />
+    </fieldset>
+  );
+}
+
+/** Per game: the motion switches this browser applied last. */
+const motionKey = (): string => `${appId()}:motion`;
+
+/**
+ * The motion switches, applied: for every reader of `prefersReducedMotion()` / `screenShakeAllowed()`, and
+ * as attributes on `root`, where the sheets look for them (`@hadoku/ui-shell/motion`'s `css.ts`). Called once
+ * per app, as `useUiScale` is. Until prefs answer, the switches this browser applied last; a system that
+ * changes its mind mid-visit is followed by every switch the player has not set.
+ */
+export function useMotion(root: () => HTMLElement | null): void {
+  const { prefs: client } = parts.get();
+  const { prefs } = usePrefs(client());
+  const [remembered] = useState(() => rememberedMotion(motionKey()));
+  const [systemTick, setSystemTick] = useState(0);
+  const choices: MotionChoices = prefs === null ? (remembered ?? {}) : { cardMotion: prefs.cardMotion, screenShake: prefs.screenShake, ambientMotion: prefs.ambientMotion };
+  const { cardMotion, screenShake, ambientMotion } = choices;
+  useLayoutEffect(() => {
+    const el = root();
+    setMotionChoices({ cardMotion, screenShake, ambientMotion });
+    if (el === null) return undefined;
+    applyMotion(el);
+    return () => clearMotion(el);
+  }, [root, cardMotion, screenShake, ambientMotion, systemTick]);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return undefined;
+    const query = matchMedia('(prefers-reduced-motion: reduce)');
+    const changed = (): void => setSystemTick((t) => t + 1);
+    query.addEventListener?.('change', changed);
+    return () => query.removeEventListener?.('change', changed);
+  }, []);
+  useEffect(() => {
+    if (prefs !== null) rememberMotion(motionKey(), { cardMotion, screenShake, ambientMotion });
+  }, [prefs, cardMotion, screenShake, ambientMotion]);
 }
 
 /**

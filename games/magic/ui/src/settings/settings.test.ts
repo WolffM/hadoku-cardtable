@@ -37,13 +37,13 @@ afterEach(() => {
 
 describe('the gear outside a match', () => {
   it('opens sound and the game section, drawn from what is saved', () => {
-    store.prefs = { boardLayout: 'type-separated', fastMode: true, endStepStop: false };
+    store.prefs = { boardLayout: 'type-separated', gameSpeed: 'fast', endStepStop: false };
     render(createElement(SettingsGear));
     fireEvent.click(screen.getByTestId('settings-gear'));
     const dialog = screen.getByTestId('settings');
     expect(dialog.querySelector('[data-testid="settings-sound"]')).not.toBeNull();
-    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Experimental', 'Display', 'Sound']);
-    expect((screen.getByTestId('live-settings-fast-mode') as HTMLInputElement).checked).toBe(true);
+    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Gameplay', 'Experimental', 'Display', 'Motion', 'Sound']);
+    expect(['normal', 'fast', 'instant'].map((speed) => (screen.getByTestId(`live-settings-speed-${speed}`) as HTMLInputElement).checked)).toEqual([false, true, false]);
     expect((screen.getByTestId('live-settings-stop-end-step') as HTMLInputElement).checked).toBe(false);
     expect((dialog.querySelector('input[name="board-layout"][value="type-separated"]') as HTMLInputElement).checked).toBe(true);
     // A match's remembered triggers are its own: none outside one.
@@ -53,20 +53,32 @@ describe('the gear outside a match', () => {
   it('saves each choice, for the next match to apply on join', () => {
     render(createElement(SettingsGear));
     fireEvent.click(screen.getByTestId('settings-gear'));
-    fireEvent.click(screen.getByTestId('live-settings-fast-mode'));
+    fireEvent.click(screen.getByTestId('live-settings-speed-instant'));
     fireEvent.click(screen.getByTestId('live-settings-stop-end-step'));
     fireEvent.click(screen.getByTestId('settings').querySelector('input[name="board-layout"][value="type-separated"]')!);
     const experimental = screen.getByTestId('settings-experimental-features') as HTMLInputElement;
     expect(experimental.checked, 'Experimental features are off by default').toBe(false);
     fireEvent.click(experimental);
-    expect(store.saved).toEqual([{ fastMode: true }, { endStepStop: false }, { boardLayout: 'type-separated' }, { experimental: true }]);
+    expect(store.saved).toEqual([{ gameSpeed: 'instant' }, { endStepStop: false }, { boardLayout: 'type-separated' }, { experimental: true }]);
+  });
+
+  it('each motion switch is its own, drawn as the page applies it, and saves only itself', () => {
+    store.prefs = { screenShake: false };
+    render(createElement(SettingsGear));
+    fireEvent.click(screen.getByTestId('settings-gear'));
+    const box = (id: string): HTMLInputElement => screen.getByTestId(id) as HTMLInputElement;
+    const ids = ['settings-card-motion', 'settings-screen-shake', 'settings-ambient-motion', 'settings-front-match'];
+    // jsdom's system asks for no less motion: every switch nobody set reads on.
+    expect(ids.map((id) => box(id).checked)).toEqual([true, false, true, true]);
+    for (const id of ids) fireEvent.click(box(id));
+    expect(store.saved).toEqual([{ cardMotion: false }, { screenShake: true }, { ambientMotion: false }, { frontMatch: false }]);
   });
 
   it('has a UI scale slider over its range, drawn from what is saved, saved once it is let go', () => {
     store.prefs = { uiScale: 1.1 };
     render(createElement(SettingsGear));
     fireEvent.click(screen.getByTestId('settings-gear'));
-    expect([...screen.getByTestId('settings').querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Experimental', 'Display', 'Sound']);
+    expect([...screen.getByTestId('settings').querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Gameplay', 'Experimental', 'Display', 'Motion', 'Sound']);
     const slider = screen.getByTestId('settings-ui-scale') as HTMLInputElement;
     expect(slider.type).toBe('range');
     expect([slider.min, slider.max, slider.value]).toEqual([String(UI_SCALE.min * 100), String(UI_SCALE.max * 100), '110']);

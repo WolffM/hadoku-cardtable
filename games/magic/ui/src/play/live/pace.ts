@@ -1,5 +1,6 @@
 /*
- * Wave 47 — Fast Mode is a setting, off by default. This is the pacer:
+ * Wave 47 — Fast Mode is a setting, off by default (since 2026-11-21 it is Game speed's `instant`;
+ * `fast` is the board at twice the tempo, `./tempo.ts`, every gap here divided by it). This is the pacer:
  * `pacedMatchTransport` wraps a `MatchTransport` (`./match.ts`'s own seam —
  * unowned this wave, and never edited here) so that inbound `forge:s2c`
  * payloads are released on a schedule instead of applied the instant the
@@ -204,7 +205,7 @@ import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { FLIP_MS } from './CoinToss.tsx';
 import { rollMs } from './dice.ts';
 import type { MatchTransport } from './match.ts';
-import { nextResolveTempo, noteResolutionsSent } from './tempo.ts';
+import { gameTempoNow, nextResolveTempo, noteResolutionsSent } from './tempo.ts';
 import { MATCH_EVENTS } from './transport.ts';
 
 /* ── Classifying an event ────────────────────────────────────────────── */
@@ -609,6 +610,8 @@ export interface PaceOptions {
   reducedMotion?: () => boolean;
   /** How fast the next resolution is drawn (module header, "The same thing again, sooner"). Defaults to `./tempo.ts`'s `nextResolveTempo`. */
   tempo?: () => number;
+  /** The Game speed's tempo, every other class's gap divided by it. Defaults to `./tempo.ts`'s `gameTempoNow`. */
+  speed?: () => number;
   /** Told the stack items a frame going out resolves, before the board draws it. Defaults to `./tempo.ts`'s `noteResolutionsSent`. */
   resolving?: (itemIds: readonly number[]) => void;
   /**
@@ -644,6 +647,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const holdNow = options.boardHold ?? boardHold;
   const reducedMotion = options.reducedMotion ?? prefersReducedMotion;
   const tempo = options.tempo ?? nextResolveTempo;
+  const speed = options.speed ?? gameTempoNow;
   const resolving = options.resolving ?? noteResolutionsSent;
   const nextFrame: ((run: () => void) => void) | null =
     options.nextFrame ?? (typeof requestAnimationFrame === 'function' ? (run: () => void) => void requestAnimationFrame(() => run()) : null);
@@ -731,7 +735,8 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   function delayFor(pace: PaceClass, superseded: boolean, own: boolean): number {
     if (fast || own) return 0;
     if (STEPS.has(pace) && (endingTurn || superseded)) return 0;
-    return pace === 'resolve' ? delays.resolve / tempo() : delays[pace];
+    // A resolution's gap shortens with its tempo, which carries the Game speed; every other class's with the speed alone.
+    return pace === 'resolve' ? delays.resolve / tempo() : delays[pace] / speed();
   }
 
   /*

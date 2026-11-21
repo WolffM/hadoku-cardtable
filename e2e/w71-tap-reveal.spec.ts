@@ -38,7 +38,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { makeTitled, offeredNamed, resizeWindow, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { closeSettings, openSettings } from './play/w32.ts';
+import { setGameSpeed } from './play/prefs.ts';
 import { frameIntervals, installFrameClock, wireStamps } from './frame-clock.ts';
 
 const forge = forgeAvailability();
@@ -195,12 +195,7 @@ for (const fast of [false, true]) {
       const { alice, bob } = await startScenarioMatch(browser, stack, 'w67-bears', { beforeAlice: installFrameClock, beforeBob: installFrameClock });
       for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
       if (!fast) {
-        for (const p of [alice.page, bob.page]) {
-          const toggle = (await openSettings(p)).locator('[data-testid="live-settings-fast-mode"]');
-          await toggle.uncheck();
-          await expect(toggle).not.toBeChecked();
-          await closeSettings(p);
-        }
+        for (const p of [alice.page, bob.page]) await setGameSpeed(p, 'normal');
       }
       let cardId: number | undefined;
       await expect.poll(async () => (cardId = await offeredNamed(alice.page, CARD)), { timeout: 60_000, message: `alice is offered ${CARD}` }).not.toBeUndefined();

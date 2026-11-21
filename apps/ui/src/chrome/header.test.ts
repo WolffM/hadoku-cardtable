@@ -140,11 +140,12 @@ describe('the game’s settings are in the header’s popout', () => {
     const popout = document.querySelector('.settings-popout__panel');
     expect(popout, 'the fleet’s popout opened').not.toBeNull();
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
-    expect(tabs.slice(-2), 'the game’s tabs, last').toEqual(['Game', 'Sound']);
+    expect(tabs.slice(-3), 'the game’s tabs, last').toEqual(['Gameplay', 'Display', 'Sound']);
     expect(tabs, 'no catch-all App tab').not.toContain('App');
-    expect(screen.getByRole('tab', { name: 'Game' }).getAttribute('aria-selected'), 'nothing remembered: the game’s first tab').toBe('true');
+    expect(screen.getByRole('tab', { name: 'Gameplay' }).getAttribute('aria-selected'), 'nothing remembered: the game’s first tab').toBe('true');
     for (const [tab, sections] of [
-      ['Game', ['settings-game', 'settings-experimental', 'settings-display']],
+      ['Gameplay', ['settings-game', 'settings-experimental']],
+      ['Display', ['settings-display', 'settings-motion']],
       ['Sound', ['settings-sound']],
     ] as const) {
       fireEvent.click(screen.getByRole('tab', { name: tab }));

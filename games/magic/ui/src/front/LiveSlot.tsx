@@ -12,14 +12,21 @@
  * `FeaturedMatch` draws a whole board, so it is a chunk of its own (`../lazy.ts`): the lobby draws
  * without it, and the slot starts loading it as it mounts, beside the room list it waits on. The
  * skeleton stands in until the card has its answer either way.
+ *
+ * The Display tab's "Front page match" off (`@hadoku/game-ui/settings/Settings.tsx`'s `frontMatchShown`), the card
+ * is never started and the slot leaves the grid, as when nothing is live: no board, no replay. The slot waits
+ * for the preference before it starts the card, so a player who turned it off never sees it begin.
  */
 
 import { Suspense, useContext, useEffect, useState } from 'react';
+import { usePrefs } from '@wolffm/prefs-client/react';
 
 import { Reveal } from '@hadoku/ui-shell/components';
 import { lazyComponent } from '@hadoku/game-ui/lazy.ts';
 import type { FeaturedPick } from '../rooms/api.ts';
 import { FrontGateContext, usePartShown } from '@hadoku/game-ui/front/gate.ts';
+import { frontMatchShown } from '@hadoku/game-ui/settings/Settings.tsx';
+import { getPlayPrefsClient } from '../play/live/prefs.ts';
 
 /** The featured card's own chunk. A test preloads it to draw the lobby as the page does once it has landed. */
 export const FeaturedMatch = lazyComponent(() => import('./FeaturedMatch.tsx').then((m) => m.FeaturedMatch));
@@ -44,19 +51,27 @@ function LiveSkeleton() {
 
 export function LiveSlot({ pick }: { pick: FeaturedPick | null | undefined }) {
   const { shape, remember } = useContext(FrontGateContext);
+  const { prefs } = usePrefs(getPlayPrefsClient());
+  /** Null until prefs have answered: nothing is started before the player's choice is known. */
+  const wanted = prefs === null ? null : frontMatchShown(prefs);
   /** Whether the card drew a match: `null` until it has its answer. */
   const [drawn, setDrawn] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (wanted === false) setDrawn(false);
+  }, [wanted]);
   const shown = usePartShown('live', drawn !== null);
   useEffect(() => {
     if (drawn !== null) remember({ live: drawn });
   }, [drawn, remember]);
   const present = shown ? drawn === true : shape.live;
-  useEffect(() => void FeaturedMatch.preload(), []);
+  useEffect(() => {
+    if (wanted === true) void FeaturedMatch.preload();
+  }, [wanted]);
 
   return (
     <section className="front-live" data-testid="front-live-slot" data-present={present}>
       <Reveal name="live" shown={shown} skeleton={<LiveSkeleton />} className="front-live__reveal">
-        <Suspense fallback={null}>{pick !== undefined && <FeaturedMatch pick={pick} onSettled={setDrawn} />}</Suspense>
+        <Suspense fallback={null}>{pick !== undefined && wanted === true && <FeaturedMatch pick={pick} onSettled={setDrawn} />}</Suspense>
       </Reveal>
     </section>
   );

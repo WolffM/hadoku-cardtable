@@ -11,11 +11,11 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { FAST_MODE_DEFAULT_GLOBAL, PLAY_PREFS_DEFAULTS, PlayPrefsSchema, dropPersonalTrim, dropRetiredStopAtEndStep } from './prefs.ts';
+import { FAST_MODE_DEFAULT_GLOBAL, PLAY_PREFS_DEFAULTS, PlayPrefsSchema, dropPersonalTrim, dropRetiredStopAtEndStep, fastModeToGameSpeed } from './prefs.ts';
 
 describe('PlayPrefsSchema', () => {
   it('accepts a full, valid blob', () => {
-    const result = PlayPrefsSchema.safeParse({ boardLayout: 'single', endStepStop: true, fastMode: true });
+    const result = PlayPrefsSchema.safeParse({ boardLayout: 'single', endStepStop: true, gameSpeed: 'fast', cardMotion: false, screenShake: false, ambientMotion: true, frontMatch: false });
     expect(result.success).toBe(true);
   });
 
@@ -42,14 +42,14 @@ describe('PlayPrefsSchema', () => {
   });
 
   it('a blob saved with the retired stopAtEndStep parses once migrated, its other fields kept and the End step stop at its default', () => {
-    const saved = { boardLayout: 'type-separated', stopAtEndStep: false, fastMode: true };
+    const saved = { boardLayout: 'type-separated', stopAtEndStep: false, gameSpeed: 'instant' };
     expect(PlayPrefsSchema.safeParse(saved).success).toBe(false);
     const migrated = PlayPrefsSchema.safeParse({ ...PLAY_PREFS_DEFAULTS, ...dropRetiredStopAtEndStep(saved) });
     expect(migrated.success && migrated.data).toEqual({
       boardLayout: 'type-separated',
       endStepStop: true,
       endStepAlways: false,
-      fastMode: true,
+      gameSpeed: 'instant',
       mistakeBubbles: true,
       uiScale: 1,
       packLayout: 'fan',
@@ -68,14 +68,29 @@ describe('PlayPrefsSchema', () => {
     expect(PlayPrefsSchema.safeParse({ packLayout: 'list' }).success).toBe(false);
   });
 
-  it('rejects a non-boolean fastMode', () => {
-    expect(PlayPrefsSchema.safeParse({ fastMode: 'on' }).success).toBe(false);
+  it('holds Game speed as one of its three, and nothing else', () => {
+    for (const gameSpeed of ['normal', 'fast', 'instant']) expect(PlayPrefsSchema.safeParse({ gameSpeed }).success).toBe(true);
+    expect(PlayPrefsSchema.safeParse({ gameSpeed: 'turbo' }).success).toBe(false);
+  });
+
+  it('holds each motion switch, and the front page match, as plain booleans', () => {
+    for (const name of ['cardMotion', 'screenShake', 'ambientMotion', 'frontMatch']) {
+      expect(PlayPrefsSchema.safeParse({ [name]: false }).success, name).toBe(true);
+      expect(PlayPrefsSchema.safeParse({ [name]: 'off' }).success, name).toBe(false);
+    }
+  });
+
+  it('a saved Fast Mode on becomes Game speed instant; off is dropped for the default; a chosen speed stands', () => {
+    expect(fastModeToGameSpeed({ fastMode: true, boardLayout: 'single' })).toEqual({ gameSpeed: 'instant', boardLayout: 'single' });
+    expect(fastModeToGameSpeed({ fastMode: false })).toEqual({});
+    expect(fastModeToGameSpeed({ fastMode: true, gameSpeed: 'fast' })).toEqual({ gameSpeed: 'fast' });
+    expect(PlayPrefsSchema.safeParse({ fastMode: true }).success, 'strict: the retired field alone fails the parse').toBe(false);
   });
 
   it('a blob saved with the retired personal trim parses once migrated, everything else kept', () => {
-    const saved = { fastMode: true, trim: { frame: 'scoop' } };
+    const saved = { gameSpeed: 'instant', trim: { frame: 'scoop' } };
     expect(PlayPrefsSchema.safeParse(saved).success, 'strict: the old field alone fails the parse').toBe(false);
-    expect(PlayPrefsSchema.safeParse(dropPersonalTrim(saved))).toEqual({ success: true, data: { fastMode: true } });
+    expect(PlayPrefsSchema.safeParse(dropPersonalTrim(saved))).toEqual({ success: true, data: { gameSpeed: 'instant' } });
   });
 
   it('rejects an unknown field — .strict(), like every other schema in this lane', () => {
@@ -84,8 +99,8 @@ describe('PlayPrefsSchema', () => {
 });
 
 describe('PLAY_PREFS_DEFAULTS', () => {
-  it('matches Board’s own default (item 11: single), the End step stop’s (on), Fast Mode’s (off — paced), "Say my mistakes" (on), a draft pack fanned, and Experimental features off', () => {
-    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, endStepAlways: false, fastMode: false, mistakeBubbles: true, uiScale: 1, packLayout: 'fan', experimental: false });
+  it('matches Board’s own default (item 11: single), the End step stop’s (on), Game speed normal (paced), "Say my mistakes" (on), a draft pack fanned, and Experimental features off — and no motion switch, each of which follows the system until set', () => {
+    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, endStepAlways: false, gameSpeed: 'normal', mistakeBubbles: true, uiScale: 1, packLayout: 'fan', experimental: false });
   });
 
   it('parses through its own schema — the defaults are themselves valid prefs', () => {
@@ -103,17 +118,17 @@ describe('FAST_MODE_DEFAULT_GLOBAL — the e2e override seam', () => {
     expect(FAST_MODE_DEFAULT_GLOBAL).toBe('__CARDTABLE_FAST_MODE_DEFAULT__');
   });
 
-  it('flips PLAY_PREFS_DEFAULTS.fastMode to true when set before the module evaluates — a FRESH module, the way a bundle loaded after an init script sees it, not this already-loaded one', async () => {
+  it('flips PLAY_PREFS_DEFAULTS.gameSpeed to instant when set before the module evaluates — a FRESH module, the way a bundle loaded after an init script sees it, not this already-loaded one', async () => {
     (globalThis as Record<string, unknown>)[FAST_MODE_DEFAULT_GLOBAL] = true;
     vi.resetModules();
     const fresh = await import('./prefs.ts');
-    expect(fresh.PLAY_PREFS_DEFAULTS.fastMode).toBe(true);
+    expect(fresh.PLAY_PREFS_DEFAULTS.gameSpeed).toBe('instant');
   });
 
   it('a non-true value (string "true", 1, …) does not count — only the literal boolean', async () => {
     (globalThis as Record<string, unknown>)[FAST_MODE_DEFAULT_GLOBAL] = 'true';
     vi.resetModules();
     const fresh = await import('./prefs.ts');
-    expect(fresh.PLAY_PREFS_DEFAULTS.fastMode).toBe(false);
+    expect(fresh.PLAY_PREFS_DEFAULTS.gameSpeed).toBe('normal');
   });
 });

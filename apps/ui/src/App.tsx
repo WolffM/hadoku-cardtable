@@ -45,7 +45,7 @@ import { SessionPrompt, sessionBlocks, useRoomSession } from '@hadoku/game-ui/ro
 import { GameHeader } from '@hadoku/game-ui/app/GameAppShell.tsx';
 import { knownRoomOfMatch, roomOfMatch } from '@hadoku/magic-ui/play/live/matchStart.ts';
 import { useJoined } from '@hadoku/magic-ui/rooms/joined.ts';
-import { CARDTABLE_SETTINGS_TABS, HostDrawsSettingsProvider, useUiScale } from '@hadoku/game-ui/settings/Settings.tsx';
+import { CARDTABLE_SETTINGS_TABS, HostDrawsSettingsProvider, useMotion, useUiScale } from '@hadoku/game-ui/settings/Settings.tsx';
 import { useTrim } from '@hadoku/game-ui/settings/siteTrim.ts';
 import { useSoundPrefs } from '@hadoku/ui-shell/sound';
 import { composeGame } from './composition.tsx';
@@ -169,6 +169,7 @@ const documentRoot = (): HTMLElement => document.documentElement;
 export function App({ transport }: AppProps) {
   const route = useRoute();
   useUiScale(documentRoot);
+  useMotion(documentRoot);
   useTrim(documentRoot);
   useSoundPrefs();
   const { roomId: matchRoom, pending: matchPending } = useMatchRoomId(route.kind === 'match' ? route.matchId : null);

@@ -3,18 +3,18 @@
  * and is the fleet's preference service — prefer it over localStorage, which
  * does not follow a player to another browser."* This is the one client for
  * the settings panel's preferences — board layout (item 11),
- * the End step stop (on by default), and Fast Mode (wave 47) — persisted per
+ * the End step stop (on by default), Game speed, the motion switches — persisted per
  * VIEWER (the API's `user` scope, `createPrefsClient`'s default `save`
  * scope), so a preference set on one browser is there the next time the same
  * player signs in on another. `@wolffm/prefs-client` DOES hold an app-scoped
  * preference — this is not a fallback file; it is the real integration.
  *
- * ## Fast Mode's default, and the one e2e seam (wave 47)
+ * ## Game speed's default, and the one e2e seam (wave 47)
  *
- * Fast Mode is OFF by default everywhere — paced — EXCEPT inside the e2e
- * harness, where every spec but the one that tests pacing itself needs
- * frames to land the instant they arrive (the wave file's own rule: "e2e
- * runs in Fast Mode"). `e2e/play/browser.ts`'s `openFriend` sets
+ * Game speed is `normal` by default everywhere — paced — EXCEPT inside the e2e
+ * harness, where every spec but the ones that test pacing need frames to land
+ * the instant they arrive (wave 47's rule: "e2e runs in Fast Mode", the
+ * speed that is `instant` now). `e2e/play/browser.ts`'s `openFriend` sets
  * `globalThis[FAST_MODE_DEFAULT_GLOBAL] = true` via a Playwright
  * `addInitScript`, the same seam `e2e/prefsLocal.ts` already uses for
  * `__HADOKU_PREFS_API_BASE__` — a global read ONLY as the default, read here
@@ -25,8 +25,8 @@
  * everywhere that matters. `pace.test.ts`'s own suite and this file's unit
  * tests both run under vitest/node, where the global is never set either.
  *
- * The one spec that tests pacing (`e2e/w47-pace.spec.ts`) turns Fast Mode
- * back OFF for the seat it is measuring, through the real settings UI — see
+ * The spec that tests pacing (`e2e/w47-pace.spec.ts`) sets the speed back to
+ * `normal` for the seat it is measuring, through the real settings UI — see
  * that file for why clicking the real control is the stronger proof.
  *
  * ## No direct `zod` import
@@ -64,6 +64,11 @@ const borrowed = {
 /** A draft pack's `'fan' | 'grid'`, refined off a string as `BoardLayoutPrefSchema` below is. */
 const PackLayoutPrefSchema = borrowed.nonEmptyString.refine((v) => v === 'fan' || v === 'grid', { message: "must be 'fan' or 'grid'" });
 
+/** How fast the board plays: `normal`, `fast` (every beat and gap twice as quick) or `instant` (nothing waits). */
+export type GameSpeed = 'normal' | 'fast' | 'instant';
+export const GAME_SPEEDS: readonly GameSpeed[] = ['normal', 'fast', 'instant'];
+const GameSpeedPrefSchema = borrowed.nonEmptyString.refine((v) => (GAME_SPEEDS as readonly string[]).includes(v), { message: "must be 'normal', 'fast' or 'instant'" });
+
 /** `'single' | 'type-separated'` — refined off a string, the same device `apps/server/src/play/transport.ts`'s `StopPreferenceSchema` uses for its own literal. */
 const BoardLayoutPrefSchema = borrowed.nonEmptyString.refine(
   (v) => v === 'single' || v === 'type-separated',
@@ -78,14 +83,22 @@ export const PlayPrefsSchema = borrowed.emptyObject
     endStepStop: borrowed.boolean.optional(),
     /** The opponent's End step held whatever the seat holds (2026-11-05). Off by default. */
     endStepAlways: borrowed.boolean.optional(),
-    /** Wave 47: "Fast Mode" in the settings panel. Off (paced) by default. */
-    fastMode: borrowed.boolean.optional(),
+    /** "Game speed" (2026-11-21, replacing wave 47's Fast Mode, which is `instant`). `normal` by default. */
+    gameSpeed: GameSpeedPrefSchema.optional(),
     /**
      * (2026-10-26, "you can ship it"): "Say my mistakes" in the settings panel — the seat's
      * own avatar names a refusal it is certain about. On by default; off keeps today's card shake
      * alone (`./mistakes.ts`, `./MistakeBubble.tsx`).
      */
     mistakeBubbles: borrowed.boolean.optional(),
+    /**
+     * The motion switches (`@hadoku/ui-shell/motion`), and the front page's featured match. Unset, each
+     * follows the system's `prefers-reduced-motion`, so none has a default here.
+     */
+    cardMotion: borrowed.boolean.optional(),
+    screenShake: borrowed.boolean.optional(),
+    ambientMotion: borrowed.boolean.optional(),
+    frontMatch: borrowed.boolean.optional(),
     /** The UI scale (`../../settings/ui-scale.ts`), the whole app's, not only a match's. */
     uiScale: borrowed.number.refine((v) => v >= UI_SCALE.min && v <= UI_SCALE.max, { message: 'outside the UI scale range' }).optional(),
     /** A draft pack drawn fanned or as a grid (the operator, 2026-10-23: "remember whether a player has set the drafting mode to fan or grid"). */
@@ -101,15 +114,19 @@ export interface PlayPrefs {
   boardLayout?: BoardLayout;
   endStepStop?: boolean;
   endStepAlways?: boolean;
-  fastMode?: boolean;
+  gameSpeed?: GameSpeed;
   mistakeBubbles?: boolean;
+  cardMotion?: boolean;
+  screenShake?: boolean;
+  ambientMotion?: boolean;
+  frontMatch?: boolean;
   uiScale?: number;
   packLayout?: PackLayout;
   experimental?: boolean;
 }
 
 /**
- * e2e's own seam for Fast Mode's default — see this module's header. The key
+ * e2e's own seam for Game speed's default (`instant` when set) — see this module's header. The key
  * is exported so `e2e/play/browser.ts` sets the exact string this file reads,
  * never a hand-typed copy of it.
  */
@@ -122,7 +139,7 @@ function fastModeDefaultOverride(): boolean {
 /**
  * What the panel draws before the first read resolves, and what a field
  * defaults to once it has. `boardLayout` mirrors `Board`'s own default (item
- * 11: single, undivided). `fastMode` mirrors `pace.ts`'s own wrapper default
+ * 11: single, undivided). `gameSpeed` mirrors `pace.ts`'s own wrapper default
  * (paced) everywhere except inside the e2e harness — see this module's
  * header.
  */
@@ -130,7 +147,7 @@ export const PLAY_PREFS_DEFAULTS: {
   boardLayout: BoardLayout;
   endStepStop: boolean;
   endStepAlways: boolean;
-  fastMode: boolean;
+  gameSpeed: GameSpeed;
   mistakeBubbles: boolean;
   uiScale: number;
   packLayout: PackLayout;
@@ -139,7 +156,7 @@ export const PLAY_PREFS_DEFAULTS: {
   boardLayout: 'single',
   endStepStop: true,
   endStepAlways: false,
-  fastMode: fastModeDefaultOverride(),
+  gameSpeed: fastModeDefaultOverride() ? 'instant' : 'normal',
   mistakeBubbles: true,
   uiScale: 1,
   packLayout: 'fan',
@@ -218,12 +235,23 @@ export function dropPersonalTrim(blob: Record<string, unknown>): Record<string, 
   return rest;
 }
 
+/**
+ * Fast Mode (wave 47) was the pacer let go and some beats cut; it is Game speed's `instant` now
+ * (2026-11-21). A saved `fastMode: true` becomes `instant`, unless a speed was already chosen; `false`
+ * is `normal`, the default, so it is simply dropped.
+ */
+export function fastModeToGameSpeed(blob: Record<string, unknown>): Record<string, unknown> {
+  const { fastMode, ...rest } = blob;
+  if (fastMode === true && rest.gameSpeed === undefined) return { ...rest, gameSpeed: 'instant' };
+  return rest;
+}
+
 export function getPlayPrefsClient(): PrefsClient<PlayPrefs> {
   instance ??= createPrefsClient({
     appId: 'cardtable-play',
     schema: schemaAcrossZodInstances,
     defaults: PLAY_PREFS_DEFAULTS,
-    migrations: [dropRetiredStopAtEndStep, dropPersonalTrim],
+    migrations: [dropRetiredStopAtEndStep, dropPersonalTrim, fastModeToGameSpeed],
   }) as unknown as PrefsClient<PlayPrefs>;
   return instance;
 }

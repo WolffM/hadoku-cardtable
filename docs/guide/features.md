@@ -126,6 +126,25 @@ is looked up live, from a CDN mirror or from Scryfall, never committed
 (`docs/LICENSING.md` §3.1) — a card whose art source has gone away shows as
 text only, not a broken image.
 
+### Motion and game speed
+
+Each kind of movement on the page can be turned off on its
+own, for players who find motion distracting: card animations (cards
+travelling, creatures ramming, cracks, floating numbers), screen shake,
+looping animations (pulses, glows, flyers bobbing) and the match playing on
+the front page. Separately, **Game speed** sets how long the board waits
+between the opponent's actions: Normal, Fast (everything plays twice as
+quickly) or Instant (nothing waits, which used to be Fast Mode).
+
+In the settings (the gear in the header): **Gameplay**
+holds Game speed, and **Display** holds the UI scale and the four motion
+switches. The front page's match also has a pause button on its title bar.
+
+A switch the player has never touched follows the
+device's own "reduce motion" setting, so on a device that asks for less
+motion all four start off. Once a player sets one, their choice wins, in
+either direction.
+
 ## The deck library
 
 **What it does.** Preconstructed decks spanning Magic's own competitive

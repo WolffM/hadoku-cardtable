@@ -38,7 +38,7 @@ import { dragHandCard, makeTitled, offered, offeredCard, pressPaymentAuto, says,
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { closeSettings, openSettings } from './play/w32.ts';
+import { setGameSpeed } from './play/prefs.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -207,9 +207,7 @@ async function releasePoint(page: Page): Promise<{ x: number; y: number }> {
 const onMyBattlefield = (page: Page, id: number) => page.locator(`[data-zone="battlefield"][data-owner="you"] [data-board-card="${id}"]`);
 
 async function setFastMode(page: Page, on: boolean): Promise<void> {
-  const toggle = (await openSettings(page)).locator('[data-testid="live-settings-fast-mode"]');
-  await toggle.setChecked(on);
-  await closeSettings(page);
+  await setGameSpeed(page, on ? 'instant' : 'normal');
 }
 
 /** The frames from the release on: the first one whose card is parked, through to the end. */

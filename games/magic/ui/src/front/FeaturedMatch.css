@@ -51,6 +51,28 @@
   color: var(--color-text-secondary);
 }
 
+.featured-match__pause {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--hdk-radius-sm);
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.featured-match__pause:hover,
+.featured-match__pause:focus-visible {
+  background: var(--color-bg-alt);
+}
+
+/* Paused: what starts in the frame while it is held (a CSS animation a late render adds) stands still too. */
+.featured-match[data-paused] .featured-match__frame * {
+  animation-play-state: paused !important;
+}
+
 .featured-match__watch {
   color: var(--color-text);
   text-decoration: underline;

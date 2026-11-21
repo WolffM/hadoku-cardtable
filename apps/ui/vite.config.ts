@@ -8,6 +8,7 @@ import { BUILD_DEFINES } from './build-defines.ts';
 import { CHUNK_GROUPS, CHUNK_SIZE_WARNING_KB } from './chunks.ts';
 import { stylesheetInSourceOrder } from './stylesheet.ts';
 import { uiScaleCss } from '@hadoku/ui-shell/settings';
+import { motionCss } from '@hadoku/ui-shell/motion';
 import { themeInitScript } from '@hadoku/ui-shell/theme';
 
 /**
@@ -37,8 +38,9 @@ export default defineConfig({
       transformIndexHtml: () => [{ tag: 'script', attrs: { 'data-theme-init': '' }, children: themeInitScript(), injectTo: 'head-prepend' as const }],
     },
   ],
-  // Every length our own sheets author, as a multiple of the UI scale (`src/settings/ui-scale.ts`).
-  css: { postcss: { plugins: [uiScaleCss] } },
+  // Every length our own sheets author, as a multiple of the UI scale (`src/settings/ui-scale.ts`); every
+  // motion query and endless loop, answering to the player's motion switches (`@hadoku/ui-shell/motion`).
+  css: { postcss: { plugins: [uiScaleCss, motionCss] } },
   build: {
     outDir: 'dist',
     sourcemap: true,

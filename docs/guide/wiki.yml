@@ -10,7 +10,7 @@ features:
   - name: Hosting a draft
     summary: "Pick a cube and a pick timer, then let the pod's eight seats fill."
   - name: Playing a match
-    summary: "Play a drafted or constructed deck against a friend or against Forge's own AI."
+    summary: "Play a drafted or constructed deck against a friend or against Forge's own AI, at Normal, Fast or Instant speed, with each kind of motion switchable off."
   - name: The deck library
     summary: "Preconstructed decks spanning Magic's Standard, Modern and Legacy history."
   - name: Match music

@@ -10,6 +10,7 @@
  */
 
 import { BEAT_ANIMATION_ID, damageSize } from '../motion.ts';
+import { screenShakeAllowed } from '@hadoku/ui-shell/motion';
 import { seedOf } from './projectile.ts';
 import { claimParticles, shared } from './effect-budget.ts';
 import { markTempo, quicken } from './tempo.ts';
@@ -123,7 +124,8 @@ export function shakeMsOf(px: number): number {
  */
 export function shake(board: HTMLElement, px: number, key: string, tempo = 1): () => void {
   const ms = shakeMsOf(px);
-  if (typeof board.animate !== 'function' || px <= 0) return () => undefined;
+  // The player's Screen shake switch (`@hadoku/ui-shell/motion`): off, the blow lands with the table still.
+  if (typeof board.animate !== 'function' || px <= 0 || !screenShakeAllowed()) return () => undefined;
   const frames: Keyframe[] = [{ translate: '0px 0px' }];
   const jolts = 6;
   for (let i = 1; i < jolts; i++) {

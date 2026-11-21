@@ -8,8 +8,10 @@
  *     real play there. **Always** (default off, 2026-11-05) holds it whatever the seat has; it
  *     covers the first, which then reads checked and cannot be unchecked. The only settings the
  *     server hears of; the board sends them (`sendStopPreference`, `../play/live/match.ts`).
- *   - **Fast Mode** (wave 47) — default off (paced). Client-only: the board flips its own paced
- *     transport (`../play/live/pace.ts`).
+ *   - **Game speed** (2026-11-21) — Normal (default), Fast (every beat and gap twice as quick,
+ *     `../play/live/tempo.ts`) or Instant (wave 47's Fast Mode: the pacer let go,
+ *     `../play/live/pace.ts`). Client-only. How much MOVES is the Display tab's motion switches,
+ *     not this (`@hadoku/game-ui/settings/Settings.tsx`).
  *   - **"Say my mistakes"** (approved 2026-10-26) — default on. Client-only: the board draws the
  *     seat's own mistake bubble (`../play/live/MistakeBubble.tsx`).
  *   - **Experimental features** (2026-11-10) — default off. Shows what is not ready for everyone:
@@ -26,7 +28,7 @@ import { Icon } from '@wolffm/themes';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
 import type { BoardLayout } from '../play/Board.tsx';
-import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from '../play/live/prefs.ts';
+import { GAME_SPEEDS, getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type GameSpeed, type PlayPrefs } from '../play/live/prefs.ts';
 import { useLiveMatchSettings } from './liveMatchSettings.ts';
 import { uiLength } from '@hadoku/ui-shell/settings';
 
@@ -34,6 +36,8 @@ const BOARD_LAYOUT_OPTIONS: readonly { value: BoardLayout; label: string }[] = [
   { value: 'single', label: 'Single board' },
   { value: 'type-separated', label: 'Type-separated (lands, artifacts, creatures, other)' },
 ];
+
+const SPEED_LABELS: Readonly<Record<GameSpeed, string>> = { normal: 'Normal', fast: 'Fast', instant: 'Instant' };
 
 function Toggle({ testId, checked, label, onChange, disabled = false }: { testId: string; checked: boolean; label: string; onChange: (on: boolean) => void; disabled?: boolean }) {
   return (
@@ -49,9 +53,10 @@ export function GameSettings() {
   const persist = (patch: Partial<PlayPrefs>): void => void save(patch);
   const boardLayout = prefs?.boardLayout ?? PLAY_PREFS_DEFAULTS.boardLayout;
   const endStepAlways = prefs?.endStepAlways ?? PLAY_PREFS_DEFAULTS.endStepAlways;
+  const gameSpeed = prefs?.gameSpeed ?? PLAY_PREFS_DEFAULTS.gameSpeed;
   return (
     <fieldset className="ct-settings__section" data-testid="settings-game">
-      <legend>Game</legend>
+      <legend>Gameplay</legend>
       <div className="ct-settings__choices" role="radiogroup" aria-label="Board layout">
         {BOARD_LAYOUT_OPTIONS.map((opt) => (
           <label key={opt.value} className="ct-settings__option">
@@ -79,12 +84,22 @@ export function GameSettings() {
         label="Stop at their end step when I can act"
         onChange={(on) => persist({ endStepStop: on })}
       />
-      <Toggle
-        testId="live-settings-fast-mode"
-        checked={prefs?.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode}
-        label="Fast Mode"
-        onChange={(on) => persist({ fastMode: on })}
-      />
+      <div className="ct-settings__choices ct-settings__choices--row" role="radiogroup" aria-label="Game speed" data-testid="live-settings-speed">
+        <span className="ct-settings__choices-label">Game speed</span>
+        {GAME_SPEEDS.map((speed) => (
+          <label key={speed} className="ct-settings__option">
+            <input
+              type="radio"
+              name="game-speed"
+              value={speed}
+              data-testid={`live-settings-speed-${speed}`}
+              checked={gameSpeed === speed}
+              onChange={() => persist({ gameSpeed: speed })}
+            />
+            {SPEED_LABELS[speed]}
+          </label>
+        ))}
+      </div>
       <Toggle
         testId="live-settings-mistake-bubbles"
         checked={prefs?.mistakeBubbles ?? PLAY_PREFS_DEFAULTS.mistakeBubbles}

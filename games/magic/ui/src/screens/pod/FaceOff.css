@@ -132,6 +132,11 @@
   animation: face-off-shake 300ms linear var(--clash-at) both;
 }
 
+/* The player's Screen shake switch (`@hadoku/ui-shell/motion`): off, the clash lands with the arena still. */
+:where([data-shake='off']) .face-off[data-revealing] .face-off__arena {
+  animation: none;
+}
+
 .face-off[data-revealing] .face-off__fighter {
   animation: face-off-fly var(--fly-ms) var(--rush-at) both;
 }

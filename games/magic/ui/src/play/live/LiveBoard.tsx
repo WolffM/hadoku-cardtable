@@ -296,7 +296,8 @@ import { hoverControl, playRole, playSoundEvents, takeUiTally } from '@hadoku/ga
 import { isMuted, type DelayedSoundEvent } from '@hadoku/ui-shell/sound';
 import { useMatchMusic } from '../../sound/match-music.ts';
 import { boardDrawing, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, millBeatAt, whenBoardStill } from '../motion.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { motionState, prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { FAST_TEMPO, setGameTempo } from './tempo.ts';
 import {
   asksForHandCards,
   abortAsk,
@@ -2818,27 +2819,31 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
     );
   };
   /*
-   * The seat's preferences (`./prefs.ts`), applied from the service itself: board layout, Fast
-   * Mode, "Say my mistakes" and the End step stop. The settings panel only saves
+   * The seat's preferences (`./prefs.ts`), applied from the service itself: board layout, Game
+   * speed, "Say my mistakes" and the End step stop. The settings panel only saves
    * (`../../settings/GameSettings.tsx`), and it may be drawn by a host this board never sees, the
    * fleet header's popout, so whatever changes them, this reads the change and applies it.
    * Before the first read, each is its default.
    */
   const { prefs } = usePrefs(getPlayPrefsClient());
   const boardLayout: BoardLayout = prefs?.boardLayout === 'type-separated' ? 'type-separated' : PLAY_PREFS_DEFAULTS.boardLayout;
-  const fastMode = prefs?.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode;
+  const gameSpeed = prefs?.gameSpeed ?? PLAY_PREFS_DEFAULTS.gameSpeed;
+  /** Game speed `instant` is wave 47's Fast Mode: the pacer lets go and the beats that would hold it are not drawn. */
+  const fastMode = gameSpeed === 'instant';
   const mistakeBubbles = prefs?.mistakeBubbles ?? PLAY_PREFS_DEFAULTS.mistakeBubbles;
   const prefsRead = prefs !== null;
   const endStepStop = prefs?.endStepStop ?? PLAY_PREFS_DEFAULTS.endStepStop;
   const endStepAlways = prefs?.endStepAlways ?? PLAY_PREFS_DEFAULTS.endStepAlways;
   /*
-   * Fast Mode is client-only: nothing about pacing crosses to the server. `match.transport` is
+   * Game speed is client-only: nothing about pacing crosses to the server.  `fast` is a tempo every beat and
+   * every gap shares (`./tempo.ts`); `instant`, the pacer let go. `match.transport` is
    * `./match.ts`'s own field (read, not written) — `isPacedTransport` narrows it without
    * `match.ts` knowing pacing exists at all.
    */
   useEffect(() => {
+    setGameTempo(gameSpeed === 'fast' ? FAST_TEMPO : 1);
     if (isPacedTransport(match.transport)) match.transport.setFast(fastMode);
-  }, [match, fastMode]);
+  }, [match, fastMode, gameSpeed]);
   // Whose acts go out as Forge sends them (`./pace.ts`, "The seat's own acts"): this seat's player, never a watcher's.
   useEffect(() => {
     if (isPacedTransport(match.transport)) match.transport.setSeatPlayer(() => (match.spectator ? null : match.playerId));
@@ -2851,8 +2856,8 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
   const seated = match.stats.snapshots > 0;
   useEffect(() => {
     if (spectator || !prefsRead || !seated) return;
-    reportClient(match.transport, match.matchId, 'info', { ui: __HADOKU_UI_VERSION__, fastMode, boardLayout, reducedMotion: prefersReducedMotion(), window: `${window.innerWidth}x${window.innerHeight}` });
-  }, [match, spectator, prefsRead, seated, fastMode, boardLayout]);
+    reportClient(match.transport, match.matchId, 'info', { ui: __HADOKU_UI_VERSION__, fastMode, gameSpeed, boardLayout, reducedMotion: prefersReducedMotion(), screenShake: motionState().screenShake, ambientMotion: motionState().ambientMotion, window: `${window.innerWidth}x${window.innerHeight}` });
+  }, [match, spectator, prefsRead, seated, fastMode, gameSpeed, boardLayout]);
   /*
    * The End step stop is the one preference the server hears of, and it remembers nothing: sent on
    * every change, and on join and resync (manager, 2026-09-30: *"send it on join/rejoin with the

@@ -47,7 +47,7 @@ import { HadokuThemeProvider } from '@wolffm/themes';
 import { bindWatchpartyRoom, hostThemeValue, ToRoom, useBoundRoom, type BindRoom } from '@hadoku/game-ui/embed/bound-room.tsx';
 import { Screen } from '../screens/Screen.tsx';
 import { navigate, useRoute, type Route } from '@hadoku/game-ui/screens/route.ts';
-import { useUiScale } from '@hadoku/game-ui/settings/Settings.tsx';
+import { useMotion, useUiScale } from '@hadoku/game-ui/settings/Settings.tsx';
 import { useTrim } from '@hadoku/game-ui/settings/siteTrim.ts';
 import { useSoundPrefs } from '@hadoku/ui-shell/sound';
 import { scaleRootOf } from '@hadoku/ui-shell/settings';
@@ -74,8 +74,10 @@ export function EmbedApp({ ctx, bind = BIND }: EmbedAppProps) {
   // Embedded, the tokens resolve on the shadow host (`:root` is rewritten as `:host`).
   const main = useRef<HTMLElement>(null);
   useUiScale(useCallback(() => (main.current === null ? null : scaleRootOf(main.current)), []));
-  // Trim's attributes go on the chrome root itself: the stylesheet, inside the shadow root, cannot see the host's.
-  useTrim(useCallback(() => main.current, []));
+  // Trim's and motion's attributes go on the chrome root itself: the stylesheet, inside the shadow root, cannot see the host's.
+  const chromeRoot = useCallback(() => main.current, []);
+  useTrim(chromeRoot);
+  useMotion(chromeRoot);
   useSoundPrefs();
 
   let body = null;

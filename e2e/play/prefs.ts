@@ -9,19 +9,28 @@ import { expect, type Page } from '@playwright/test';
 import { serverLog } from './board.ts';
 import { closeSettings, openSettings } from './w32.ts';
 
+export type GameSpeed = 'normal' | 'fast' | 'instant';
+
 /**
- * Fast Mode is ON by default inside the e2e harness (`prefs.ts`'s override); a spec that needs
- * the pacer's own chain turns it off — and PROVES it: the checkbox read on, the click took, and
- * the server logged this seat's `info` row with `fastMode: false` (the client telemetry every
- * settings change writes). The server-confirmed form (`w59-stack.spec.ts`'s own, T6) — a spec that
- * only needs the checkbox unchecked, with no server round trip to wait on, still does that itself.
+ * Set Game speed through the Gameplay tab's radios, as a player does, and see the press take. A controlled
+ * radio is clicked, never `check()`ed (React redraws it from the saved preference).
+ */
+export async function setGameSpeed(page: Page, speed: GameSpeed): Promise<void> {
+  const radio = (await openSettings(page)).getByTestId(`live-settings-speed-${speed}`);
+  await radio.click();
+  await expect(radio, `Game speed ${speed} took`).toBeChecked();
+  await closeSettings(page);
+}
+
+/**
+ * Game speed is Instant by default inside the e2e harness (`prefs.ts`'s override, wave 47's Fast Mode); a
+ * spec that needs the pacer's own chain sets it to Normal — and PROVES it: Instant read on, the press took,
+ * and the server logged this seat's `info` row with `fastMode: false` (the client telemetry every settings
+ * change writes; `fastMode` is still Instant's name there).
  */
 export async function turnFastModeOff(page: Page, stack: { serverLogFile: string }, seat: number): Promise<void> {
-  const toggle = (await openSettings(page)).locator('[data-testid="live-settings-fast-mode"]');
-  await expect(toggle, `seat ${seat}: the Fast Mode box reads ON before the click (the harness default)`).toBeChecked();
-  await toggle.click();
-  await expect(toggle, `seat ${seat}: the click took`).not.toBeChecked();
-  await closeSettings(page);
+  await expect((await openSettings(page)).getByTestId('live-settings-speed-instant'), `seat ${seat}: Instant before the press (the harness default)`).toBeChecked();
+  await setGameSpeed(page, 'normal');
   await expect
     .poll(() => serverLog(stack).some((r) => r.evt === 'client' && r.kind === 'info' && r.seat === seat && r.fastMode === false), {
       timeout: 10_000,

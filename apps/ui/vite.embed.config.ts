@@ -7,6 +7,7 @@ import { BUILD_DEFINES } from './build-defines.ts';
 import { CHUNK_GROUPS, CHUNK_SIZE_WARNING_KB } from './chunks.ts';
 import { stylesheetInSourceOrder } from './stylesheet.ts';
 import { uiScaleCss } from '@hadoku/ui-shell/settings';
+import { motionCss } from '@hadoku/ui-shell/motion';
 
 /**
  * The second build: the game bundle a watchparty room imports (D21), `dist/embed/cardtable-embed.js`
@@ -17,13 +18,14 @@ import { uiScaleCss } from '@hadoku/ui-shell/settings';
  * - **`hostTheme`.** Every theme also themes `:host`, and `mount` stamps the theme on the host.
  *   Without it the host painted `#f8fafc` under every theme, a white flash between the sheet's
  *   adoption and React's first commit.
- * - **The UI scale's PostCSS pass**, the sheets in source order, and the page build's chunk groups.
+ * - **The UI scale's and the motion switches' PostCSS passes**, the sheets in source order, and the page
+ *   build's chunk groups.
  */
 const preset = embedBuild({
   app: 'cardtable',
   base: APP_BASE,
   hostTheme: true,
-  postcssPlugins: [uiScaleCss],
+  postcssPlugins: [uiScaleCss, motionCss],
   sourcemap: true,
   chunkSizeWarningLimit: CHUNK_SIZE_WARNING_KB,
   output: { codeSplitting: { groups: CHUNK_GROUPS } },
