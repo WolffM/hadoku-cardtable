@@ -680,6 +680,9 @@ export function placement<L extends { t: string }, C extends { t: string }>(opts
 				if (p.moved) return;
 				if (l.t === 'ready') p.ready = true;
 				if (isLifecycle(l) && l.t === 'fatal' && p.ready && !closing) {
+					// The match never sees this line, so where it threw is logged here or nowhere: the JVM's
+					// stderr goes with its run directory once the exit is in.
+					log({ evt: 'match-fatal', matchId: p.id, host: p.host.name, message: l.message, ...(l.frames === undefined ? {} : { frames: l.frames }) });
 					matchFailed(p, `a match failed on it: ${l.message}`);
 					return;
 				}

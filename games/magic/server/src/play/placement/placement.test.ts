@@ -1128,8 +1128,11 @@ describe('failover', () => {
 		ready(r, 'm-1');
 		ready(r, 'm-2');
 		const a = jvmOf(r, 'm-1');
-		a.jvm.say({ t: 'fatal', message: 'NullPointerException in the game thread', match: 'm-1' });
+		const frames = ['java.util.HashMap$HashIterator.remove(HashMap.java:1619)', 'forge.gamemodes.net.server.DeltaSyncManager.collectDeltas(DeltaSyncManager.java:149)'];
+		a.jvm.say({ t: 'fatal', message: 'NullPointerException in the game thread', frames, match: 'm-1' });
 		expect(hostOf(r, a.claw).quarantine?.cause).toBe('a match failed on it: NullPointerException in the game thread');
+		// m-b1bcfd5382d0: the failure's frames were dropped here, and the claw's stderr went with the JVM.
+		expect(r.logs).toContainEqual({ evt: 'match-fatal', matchId: 'm-1', host: a.claw, message: 'NullPointerException in the game thread', frames });
 		const b = jvmOf(r, 'm-1');
 		expect(b.claw).not.toBe(a.claw);
 		ready(r, 'm-1');

@@ -235,7 +235,7 @@ export type MatchSpec<G = unknown> = {
  * t: string }` on its `t` member directly (w100 finding 3.2), so a caller holding an `L` checks
  * `isLifecycle(line)` first and reads the narrowed shape, never `line.t === 'ready'` on the bare `L`.
  */
-export type HostLifecycleLine = { t: 'ready' } | { t: 'fatal'; message: string } | { t: 'frame' } | { t: 'snapshot' };
+export type HostLifecycleLine = { t: 'ready' } | { t: 'fatal'; message: string; /** Where it threw, top frames first, when the runtime knows. */ frames?: readonly string[] } | { t: 'frame' } | { t: 'snapshot' };
 
 const LIFECYCLE_T = new Set(['ready', 'fatal', 'frame', 'snapshot']);
 
