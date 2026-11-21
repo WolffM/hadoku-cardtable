@@ -50,7 +50,7 @@ import {
 	type RoomView,
 } from './lobby.ts';
 import { UNNAMED, ROOM_STALE_MS } from '@hadoku/game-server/room/constants';
-import { POD_AI, POD_CLOSED, type BotGameAsk, type GameHooks, type SeriesEnd } from './pods.ts';
+import { isAiEntrant, POD_AI, POD_CLOSED, type BotGameAsk, type GameHooks, type SeriesEnd } from './pods.ts';
 import { createSeatPresence, SEAT_RELEASE_MS } from './socket.js';
 import { REPO_ROOT } from '../root.ts';
 import { magicView } from './magic-view.js';
@@ -1099,22 +1099,24 @@ describe('a draft that has started', () => {
 		approvePlan(first, id);
 		expect(first.startDraft(id, ALICE.id).ok).toBe(true);
 		wireChecks(first, checks);
+		first.podDraftDone(id);
+		expect(first.get(id)?.game!.pod?.phase).toBe('rounds');
 		expect(first.playPod(id, ALICE.id).ok).toBe(true);
-		expect(first.get(id)?.game!.pod?.phase).toBe('building');
 
-		// Mid-build: Alice's Play survives, so Bob's is the one that deals round 1.
+		// Mid-build: the round, its pairing and Alice's Play survive.
 		const second = await openLobby({ dir });
 		wireChecks(second, checks);
 		expect(second.get(id)?.game!.draftStartedAt).not.toBeNull();
-		expect(second.get(id)?.game!.pod?.phase).toBe('building');
-		expect(second.get(id)?.game!.pod?.built).toEqual([ALICE.id]);
+		expect(second.get(id)?.game!.pod).toMatchObject({ phase: 'rounds', round: 1 });
+		expect(humansBuilt(second, id)).toEqual([ALICE.id]);
+		expect(second.get(id)?.game!.pod?.pairings).toEqual(first.get(id)?.game!.pod?.pairings);
 		expect(second.playPod(id, BOB.id).ok).toBe(true);
-		expect(second.get(id)?.game!.pod?.phase).toBe('rounds');
 
-		// Mid-rounds: the round and its pairing come back.
+		// Mid-rounds: everyone's Play comes back too.
 		const third = await openLobby({ dir });
 		wireChecks(third, checks);
 		expect(third.get(id)?.game!.pod).toMatchObject({ phase: 'rounds', round: 1 });
+		expect(humansBuilt(third, id)).toEqual([ALICE.id, BOB.id]);
 		expect(third.get(id)?.game!.pod?.pairings).toEqual(second.get(id)?.game!.pod?.pairings);
 		expect(third.releaseLostDrafts(() => true)).toEqual([]);
 	});
@@ -2664,7 +2666,8 @@ function fakeChecks(
 	return {
 		draftComplete: () => draftComplete,
 		built: (_podId, memberId) => built.has(memberId),
-		seatState: (_podId, memberId) => ({ seatedFor: memberId }),
+		// The real one answers null for a pool with no legal build saved.
+		seatState: (_podId, memberId) => (built.has(memberId) ? { seatedFor: memberId } : null),
 		holdsSeriesDeck: () => true,
 		roundNamesOf: (plan) => roundNamesOf(plan, (source) => (source.kind === 'cube' ? source.cubeId : source.code)),
 		hasLegalSeatDeck: (_roomId, memberId) => legalSeatDeck.has(memberId),
@@ -2918,6 +2921,11 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 });
 
 /** Every drafter presses Play; the last press is what deals round 1. */
+/** Who has pressed Play, without the bots (each built its deck as it drafted). */
+function humansBuilt(lobby: Lobby, id: string): string[] {
+	return (lobby.get(id)?.game!.pod?.built ?? []).filter((m) => !isAiEntrant(m));
+}
+
 function playAll(lobby: Lobby, id: string, members: readonly { id: string }[]): ReturnType<Lobby['playPod']> {
 	let last: ReturnType<Lobby['playPod']> = { ok: false, reason: 'no-room' };
 	for (const m of members) last = lobby.playPod(id, m.id);
@@ -2955,15 +2963,46 @@ describe('Lobby.playPod', () => {
 		expect(lobby.playPod(id, CAROL.id)).toEqual({ ok: false, reason: 'not-built' });
 	});
 
-	it('deals round 1 on the LAST drafter’s press, with nobody else’s say, and answers a late press ok', async () => {
+	// The operator, 2026-11-20: "you can do match pairing even when people are still building".
+	it('deals round 1 the moment the draft is done, every drafter at a table with no deck until their own Play', async () => {
 		const { lobby, id } = await buildingPod();
-		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
-		expect(lobby.playPod(id, BOB.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'building', built: [BOB.id] } } } });
-		expect(lobby.playPod(id, CAROL.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'building' } } } });
-		// Pressing twice changes nothing.
-		expect(lobby.playPod(id, CAROL.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'building' } } } });
-		expect(lobby.playPod(id, ALICE.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'rounds', round: 1 } } } });
+		const built = new Set<string>();
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built }));
+		lobby.podDraftDone(id);
+		const dealt = lobby.get(id)?.game!.pod;
+		expect(dealt).toMatchObject({ phase: 'rounds', round: 1 });
+		expect(humansBuilt(lobby, id)).toEqual([]);
+		expect(dealt?.pairings.length).toBeGreaterThan(0);
+		for (const m of [ALICE, BOB, CAROL]) expect(lobby.playerState(id, m.id)).toBeUndefined();
+		// A second word of the same finish deals nothing new.
+		lobby.podDraftDone(id);
+		expect(lobby.get(id)?.game!.pod?.pairings).toEqual(dealt?.pairings);
+
+		expect(lobby.playPod(id, BOB.id)).toEqual({ ok: false, reason: 'not-built' });
+		built.add(BOB.id);
 		expect(lobby.playPod(id, BOB.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'rounds', round: 1 } } } });
+		expect(humansBuilt(lobby, id)).toEqual([BOB.id]);
+		expect(lobby.playerState(id, BOB.id)).toEqual({ seatedFor: BOB.id });
+		expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
+		// Pressing twice changes nothing.
+		expect(lobby.playPod(id, BOB.id).ok).toBe(true);
+		expect(humansBuilt(lobby, id)).toEqual([BOB.id]);
+		expect(lobby.get(id)?.game!.pod?.pairings).toEqual(dealt?.pairings);
+	});
+
+	it('deals nothing while the draft is still on', async () => {
+		const { lobby, id } = await buildingPod();
+		wireChecks(lobby, fakeChecks({ draftComplete: false }));
+		lobby.podDraftDone(id);
+		expect(lobby.get(id)?.game!.pod?.phase).toBe('drafting');
+	});
+
+	it('a pod restored mid-building is dealt by its first Play', async () => {
+		const { lobby, id } = await buildingPod();
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
+		expect(lobby.get(id)?.game!.pod?.phase).toBe('building');
+		expect(lobby.playPod(id, ALICE.id)).toMatchObject({ ok: true, room: { game: { pod: { phase: 'rounds', round: 1 } } } });
+		expect(humansBuilt(lobby, id)).toEqual([ALICE.id]);
 	});
 
 	/**

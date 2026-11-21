@@ -711,15 +711,24 @@ export interface Lobby
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
+	 * A draft pod's draft just finished: `draftId` is one of its pods' drafts.
+	 * Once every pod of the room is complete, round 1 is dealt there and then,
+	 * while the drafters are still building (the operator, 2026-11-20: *"you can
+	 * do match pairing even when people are still building"*): one
+	 * bo3-with-sideboarding table per pairing (`pairRound`, `@hadoku/draft`), the
+	 * bye recorded as a `MatchResult`. Its bots are entrants as its humans are
+	 * (`draftEntrants`): a human paired with one plays it at a table, two paired
+	 * together play a bot game. A drafter sits there with no deck until their
+	 * Play seats it (`playPod`). A no-op for anything else, so a repeat is harmless.
+	 */
+	podDraftDone(draftId: string): void;
+	/**
 	 * A drafter is done building — the deck editor's Play. Refused unless their
-	 * saved deck is legal (`GameHooks.built`). Once EVERY human drafter has
-	 * pressed it, round 1 is dealt with nobody else's say: one bo3-with-sideboarding
-	 * table per pairing (`pairRound`, `@hadoku/draft`), both players seated with
-	 * their saved deck (`GameHooks.seatState`), the bye recorded as a
-	 * `MatchResult`. Its bots are entrants as its humans are (`draftEntrants`):
-	 * a human paired with one plays it at a table, two paired together play a
-	 * bot game. Every later round starts by itself, as the last of a round ends.
-	 * Answered `ok` once the rounds have started, so a late press is harmless.
+	 * saved deck is legal (`GameHooks.built`). It seats that deck at their table
+	 * (`GameHooks.seatState`) when its series has not started a game yet, so a
+	 * Play between rounds carries an edited build too. A room restored in the
+	 * `building` phase (dealt by a build from before `podDraftDone`) is dealt by
+	 * the first Play. Every later round starts by itself, as the last of a round ends.
 	 */
 	playPod(roomId: string, memberId: string): PlayPodResult;
 }
@@ -1959,6 +1968,8 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			if (member === undefined) continue;
 			const state = this.#hooksFor(room.gameType).seatState(memberDraftId(room, id), id);
 			if (state !== null && state !== undefined) member.state = state;
+			// Not built yet: no deck from an earlier pod in this room rides in, so Ready waits for their Play.
+			else if (isDraftRoom(room)) member.state = undefined;
 		}
 		if (isTournamentRoom(room) && room.game.mode !== 'gauntlet') {
 			this.#seatTournamentDeck(room, table.id, a);
@@ -2552,24 +2563,42 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		return { ok: true, room: this.#view(room) };
 	}
 
+	podDraftDone(draftId: string): void {
+		const room = this.#room(podOfDraftId(draftId).roomId);
+		if (room === undefined || !isDraftRoom(room) || podPhaseOf(room, this.#hooksFor(room.gameType)) !== 'building') return;
+		this.#dealPodRounds(room, draftEntrants(room, seatedHumans(room)));
+		this.persist(room);
+	}
+
 	playPod(roomId: string, memberId: string): PlayPodResult {
 		const room = this.#room(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		const phase = isDraftRoom(room) ? podPhaseOf(room, this.#hooksFor(room.gameType)) : 'lobby';
-		if (phase === 'rounds' || phase === 'done') return { ok: true, room: this.#view(room) };
-		const humans = seatedHumans(room);
-		if (phase !== 'building' || !humans.includes(memberId)) return { ok: false, reason: 'not-drafter' };
-		if (!this.#hooksFor(room.gameType).built(memberDraftId(room, memberId), memberId)) return { ok: false, reason: 'not-built' };
+		const hooks = this.#hooksFor(room.gameType);
+		const phase = isDraftRoom(room) ? podPhaseOf(room, hooks) : 'lobby';
+		if (phase === 'done') return { ok: true, room: this.#view(room) };
+		const drafters = room.game.pod?.humans ?? seatedHumans(room);
+		if ((phase !== 'building' && phase !== 'rounds') || !drafters.includes(memberId)) return { ok: false, reason: 'not-drafter' };
+		if (!hooks.built(memberDraftId(room, memberId), memberId)) return { ok: false, reason: 'not-built' };
 		if (!room.game.podPlaying.includes(memberId)) room.game.podPlaying = [...room.game.podPlaying, memberId];
 		this.log({ event: 'pod-play', roomId, memberId });
-		if (humans.every((id) => room.game.podPlaying.includes(id) && this.#hooksFor(room.gameType).built(memberDraftId(room, id), id))) this.#dealPodRounds(room, draftEntrants(room, humans));
+		if (phase === 'building') this.#dealPodRounds(room, draftEntrants(room, drafters));
+		else this.#seatBuiltDeck(room, memberId);
 		this.persist(room);
 		return { ok: true, room: this.#view(room) };
 	}
 
+	/** `memberId`'s saved build at this round's table, unless its series has already started a game. */
+	#seatBuiltDeck(room: RoomRecord, memberId: string): void {
+		const tableId = room.game.pod?.pairings.find((p) => p.players.includes(memberId))?.tableId;
+		const table = room.game.tables.find((t) => t.id === tableId);
+		if (table === undefined || table.matchId !== null || table.series.games.length > 0) return;
+		const member = room.members.find((m) => m.id === memberId);
+		const state = this.#hooksFor(room.gameType).seatState(memberDraftId(room, memberId), memberId);
+		if (member !== undefined && state !== null && state !== undefined) member.state = state;
+	}
+
 	/**
-	 * Round 1: a draft pod's, once every drafter is done building
-	 * (`playPod`); a tournament pod's, at the lock (`#lockTournament`) —
+	 * Round 1: a draft pod's, once its draft is done (`podDraftDone`); a tournament pod's, at the lock (`#lockTournament`) —
 	 * `entrants` is the one list either caller fixes `PodRecord.humans` to.
 	 */
 	#dealPodRounds(room: RoomRecord, entrants: string[]): void {

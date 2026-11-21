@@ -32,19 +32,18 @@
  * ## Play
  *
  * Play saves the build as it stands, says this drafter is done building
- * (`pod/client.ts`'s `playPod`) and goes to the room. The last drafter's press
- * deals round 1, and the pod screen starts each table's game by itself — a pod
- * of one plays the AI. Draft, build, Play, the game: no room to make and
- * nothing to choose (the operator, 2026-10-18). A refusal stays on the build
- * and says why.
+ * (`pod/client.ts`'s `playPod`, which seats the deck at their round's table)
+ * and goes to the room. Round 1 was dealt when the draft ended, so the match is
+ * waiting there. Draft, build, Play, the game: no room to make and nothing to
+ * choose (the operator, 2026-10-18). A refusal stays on the build and says why.
  *
  * ## The pod
  *
  * A finished draft lands here with no screen in between (`PodScreen.tsx`), so
- * the pod's `building` phase is drawn here too, as one strip over the editor:
- * who has pressed Play (`pod/PodBuilding.tsx`). Once the pod is in `rounds`
- * this hands the drafter back to the room, whose pod screen seats them at
- * their table.
+ * who has pressed Play is drawn here too, as one strip over the editor
+ * (`pod/PodBuilding.tsx`), for as long as the pod is building or playing, so
+ * it never appears under the build mid-edit. Once the pod is over this hands
+ * the drafter back to the room.
  *
  * `store`, `client` and `podSource` exist for tests. `App.tsx` passes none of
  * them, so production gets the real API.
@@ -122,12 +121,12 @@ export function DeckScreen({
 
   const ctx = usePodContext(draftId, podSource);
   const pod = ctx?.pod ?? null;
-  const rounds = pod?.phase === 'rounds';
+  const over = pod?.phase === 'done';
   /** Play is deciding where this player goes: the hand-off to the room below waits for it. */
   const playing = useRef(false);
   useEffect(() => {
-    if (rounds && !standalone && !playing.current) navigate({ kind: 'room', roomId: draftId }, { replace: true });
-  }, [rounds, draftId, standalone]);
+    if (over && !standalone && !playing.current) navigate({ kind: 'room', roomId: draftId }, { replace: true });
+  }, [over, draftId, standalone]);
 
   /** The standalone head's deck — its name, and whether it may be renamed — once the Decks list has answered. */
   const decksClient = useMemo(() => givenDecks ?? myDecksClient(), [givenDecks]);
@@ -184,7 +183,7 @@ export function DeckScreen({
           )}
         </nav>
       )}
-      {!standalone && ctx !== null && pod !== null && pod.phase === 'building' && (
+      {!standalone && ctx !== null && pod !== null && (pod.phase === 'building' || pod.phase === 'rounds') && (
         <PodBuilding pod={pod} nameOf={(id) => ctx.names[id] ?? id} />
       )}
 

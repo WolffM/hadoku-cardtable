@@ -1,15 +1,16 @@
 /*
- * The pod's `building` phase: who has pressed Play.
+ * Who has pressed Play, one pill per drafter.
  *
- * Drawn above the deck builder (`DeckScreen.tsx`), because that is where every
- * drafter is while the phase lasts: a finished draft goes straight to the
- * builder. The drafter list is the server's own (`PodView.drafters`). Nobody
- * starts the rounds: the last drafter's Play deals round 1 (`room/lobby.ts`'s
- * `playPod`).
+ * Drawn above the deck builder (`DeckScreen.tsx`) for as long as the pod builds
+ * or plays, and on the room's hub while anyone is still building. The drafter
+ * list is the server's own (`PodView.drafters`), without the bots: in the
+ * rounds it names every entrant, and a bot built its deck as it drafted. Round 1 is dealt when the
+ * draft ends (`room/lobby.ts`'s `podDraftDone`); a Play seats that drafter's
+ * deck at their table (`playPod`).
  */
 
 import { StatusPill } from '@hadoku/game-ui/components/StatusPill.tsx';
-import type { PodView } from './wire.ts';
+import { isPodAi, type PodView } from './wire.ts';
 import './PodBuilding.css';
 
 export interface PodBuildingProps {
@@ -21,7 +22,7 @@ export function PodBuilding({ pod, nameOf }: PodBuildingProps) {
   return (
     <section className="pod-building" data-testid="pod-building">
       <ul className="pod-building__built" data-testid="pod-built">
-        {pod.drafters.map((id) => {
+        {pod.drafters.filter((id) => !isPodAi(id)).map((id) => {
           const isBuilt = pod.built.includes(id);
           return (
             <li key={id} data-testid={`pod-built-${id}`} data-built={isBuilt ? '' : undefined}>

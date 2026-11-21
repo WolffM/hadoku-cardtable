@@ -385,6 +385,11 @@ export function createSeatPresence(opts: SeatPresenceOptions): PresenceTracker<s
 export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): DraftSocketHandle {
 	const log = deps.log ?? defaultLog;
 	const policy = draftEmitPolicy(log);
+	/** A pick's step to everyone; the pick that finishes the draft deals the room's round 1 (`Lobby.podDraftDone`). */
+	const stepped = (room: DraftRoom): void => {
+		emitPickStep(io, room, policy);
+		if (stateOf(room).status === 'complete') deps.lobby.podDraftDone(room.roomId);
+	};
 	const limiter = new MultiRateLimiter<ParticipantId>(deps.rateLimit ?? PICK_RATE_LIMIT);
 	const leanLimiter = new MultiRateLimiter<ParticipantId>(LEAN_RATE_LIMIT);
 	const botPickMs = deps.botPickMs ?? 0;
@@ -467,7 +472,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 				current.app.state = turn.state;
 				log({ evt: 'bot-picks', draftId, picks: turn.picks, seq: turn.state.seq });
 				syncRope(current);
-				emitPickStep(io, current, policy);
+				stepped(current);
 			}
 			if (!turn.stalled) advanceBots(current);
 		}, botPickMs);
@@ -569,7 +574,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			log({ evt: 'pick-timeout', draftId, seat, totalMs: deadline.totalMs, chose, lateMs: now - deadline.endsAt, loopLateMs: now - firesAt, seq: taken.state.seq });
 		}
 		settle(room);
-		if (timedOut > 0) emitPickStep(io, room, policy);
+		if (timedOut > 0) stepped(room);
 	};
 
 	// The one handshake gate. See the module header.
@@ -818,7 +823,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					// The pack this pick passed may be a bot's next, and the
 					// seat's next pick starts its own time.
 					settle(room);
-					emitPickStep(io, room, policy);
+					stepped(room);
 					return;
 				}
 
@@ -848,7 +853,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					room.app.state = result.state;
 					log({ evt: msg.type, participantId, seat, draftId: room.roomId, seq: result.state.seq });
 					settle(room);
-					emitPickStep(io, room, policy);
+					stepped(room);
 					return;
 				}
 			}

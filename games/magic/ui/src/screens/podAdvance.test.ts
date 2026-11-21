@@ -183,9 +183,9 @@ describe('a finished draft goes straight to the builder', () => {
     expect(route()).toEqual(BUILDER);
   });
 
-  it('stays on the pod once it is playing rounds, and shows the tables', () => {
+  it('stays on the pod once my deck is in and it is playing rounds, and shows the tables', () => {
     const { draft, room } = mountPod();
-    room.read(ctxOf(pod({ phase: 'rounds', round: 1 })));
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, built: ['u-alice'] })));
     draft.send(complete());
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
     expect(screen.getByTestId('pod-rounds')).toBeTruthy();
@@ -199,22 +199,32 @@ describe('a finished draft goes straight to the builder', () => {
     expect(screen.getByTestId('pod-final')).toBeTruthy();
   });
 
-  // The operator, 2026-10-20: "ideally it brings me to the game lobby until my opponent is ready".
-  it('keeps a drafter who has pressed Play on the pod — who is ready, the bracket, the way back to the deck — until round 1 is dealt', () => {
+  // The operator, 2026-11-20: "you can do match pairing even when people are still building".
+  it('sends a drafter whose deck is not in to the builder though round 1 is already dealt', () => {
     const { draft, room } = mountPod();
     draft.send(complete());
-    room.read(ctxOf(pod({ phase: 'building', drafters: ['u-alice', 'u-bob'], built: ['u-alice'] })));
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, drafters: ['u-alice', 'u-bob'], built: ['u-bob'] })));
+    expect(route()).toEqual(BUILDER);
+  });
+
+  // The operator, 2026-10-20: "ideally it brings me to the game lobby until my opponent is ready".
+  it('keeps a drafter who has pressed Play on the rounds — the bracket, who is still building, the way back to the deck', () => {
+    const { draft, room } = mountPod();
+    draft.send(complete());
+    // In the rounds the drafters are every entrant, the bots too: each built as it drafted, and none gets a pill.
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, drafters: ['u-alice', 'u-bob', 'ai:2'], built: ['u-alice', 'ai:2'] })));
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
-    expect(screen.getByTestId('pod-ready')).toBeTruthy();
+    expect(screen.getByTestId('pod-rounds')).toBeTruthy();
+    expect(screen.getByTestId('pod-built').querySelectorAll('li')).toHaveLength(2);
     expect(screen.getByTestId('pod-built-u-alice').hasAttribute('data-built')).toBe(true);
     expect(screen.getByTestId('pod-built-u-bob').hasAttribute('data-built')).toBe(false);
-    expect(screen.getAllByTestId('pod-bracket-round').every((r) => r.dataset.state === 'next')).toBe(true);
     expect(screen.getByTestId('pod-edit-deck').getAttribute('href')).toBe('#/deck/' + ROOM);
 
-    // Bob's Play deals round 1: the same screen becomes the rounds.
+    // Bob's Play: everyone is in, and the strip goes.
     room.read(ctxOf(pod({ phase: 'rounds', round: 1, drafters: ['u-alice', 'u-bob'], built: ['u-alice', 'u-bob'] })));
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
     expect(screen.getByTestId('pod-rounds')).toBeTruthy();
+    expect(screen.queryByTestId('pod-building')).toBeNull();
   });
 
   it('does not move a drafter who still has picks to make', () => {
@@ -308,7 +318,7 @@ describe('in rounds, my table is lit on the bracket for my press, and it starts 
     });
     const { draft, room } = mountPod();
     draft.send(complete());
-    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, pairings: [{ tableId: 't-2', players: ['u-alice', 'ai'] }] }), [roomsDefault, myTable]));
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, pairings: [{ tableId: 't-2', players: ['u-alice', 'ai'] }], built: ['u-alice'] }), [roomsDefault, myTable]));
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
     const lit = screen.getAllByTestId('pod-tables-row').filter((row) => row.dataset.call !== undefined);
     expect(lit.map((row) => row.dataset.tableId)).toEqual(['t-2']);
@@ -323,7 +333,7 @@ describe('in rounds, my table is lit on the bracket for my press, and it starts 
     });
     const { draft, room } = mountPod('t-2');
     draft.send(complete());
-    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, pairings: [{ tableId: 't-2', players: ['u-alice', 'ai'] }] }), [roomsDefault, myTable]));
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, pairings: [{ tableId: 't-2', players: ['u-alice', 'ai'] }], built: ['u-alice'] }), [roomsDefault, myTable]));
     expect(screen.getByTestId('table-page').dataset.tableId).toBe('t-2');
     await vi.waitFor(() => expect(posts.some((p) => p.url.endsWith('/play/matches'))).toBe(true));
     expect(JSON.parse(posts.find((p) => p.url.endsWith('/play/matches'))!.body)).toEqual({ room: ROOM, bot: true, table: 't-2' });
@@ -333,7 +343,7 @@ describe('in rounds, my table is lit on the bracket for my press, and it starts 
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
     const { draft, room } = mountPod('t-9');
     draft.send(complete());
-    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1 }), [myTable]));
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, built: ['u-alice'] }), [myTable]));
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
   });
 
@@ -341,7 +351,7 @@ describe('in rounds, my table is lit on the bracket for my press, and it starts 
     const { draft, room } = mountPod();
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
     draft.send(complete());
-    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, pairings: [{ tableId: 't-2', players: ['u-alice', 'ai'] }] }), [roomsDefault, myTable]));
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, pairings: [{ tableId: 't-2', players: ['u-alice', 'ai'] }], built: ['u-alice'] }), [roomsDefault, myTable]));
     expect(screen.getAllByTestId('pod-tables-row').map((r) => r.dataset.tableId)).toEqual(['t-2']);
   });
 });
@@ -359,7 +369,7 @@ describe('my table’s page is where a player comes back to', () => {
     { seat: 0 as const, memberId: 'u-alice', name: 'Alice' },
     { seat: 1 as const, memberId: 'u-bob', name: 'Bob' },
   ];
-  const rounds = (tableId: string) => pod({ phase: 'rounds', round: 2, rounds: 2, pairings: [{ tableId, players: ['u-alice', 'u-bob'] }] });
+  const rounds = (tableId: string) => pod({ phase: 'rounds', round: 2, rounds: 2, pairings: [{ tableId, players: ['u-alice', 'u-bob'] }], built: ['u-alice'] });
 
   it('between games my table’s page holds no sideboard and starts nothing: one button, whose way on is the sideboard’s own full screen', () => {
     const asked: string[] = [];
@@ -507,20 +517,23 @@ describe('the builder carries the pod’s building phase', () => {
     expect(screen.queryByTestId('pod-start-rounds')).toBeNull();
   });
 
-  it('draws no pod panel outside building', () => {
+  it('draws no pod panel while drafting', () => {
     const room = mountDeck();
-    for (const phase of ['drafting', 'done'] as const) {
-      room.read(ctxOf(pod({ phase, drafters: ['u-alice'] })));
-      expect(screen.queryByTestId('pod-building')).toBeNull();
-      expect(route()).toEqual(BUILDER);
-    }
+    room.read(ctxOf(pod({ phase: 'drafting', drafters: ['u-alice'] })));
+    expect(screen.queryByTestId('pod-building')).toBeNull();
+    expect(route()).toEqual(BUILDER);
   });
 
-  it('hands the drafter back to the room once rounds start', () => {
+  // Round 1 is dealt as the draft ends: the strip is there from the first read, never added under the build.
+  it('keeps the strip and the build once rounds are dealt, and hands the drafter back to the room once the pod is over', () => {
     const room = mountDeck();
-    room.read(ctxOf(pod({ drafters: ['u-alice'], built: ['u-alice'] })));
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, drafters: ['u-alice', 'u-bob'], built: [] })));
     expect(route()).toEqual(BUILDER);
-    room.read(ctxOf(pod({ phase: 'rounds', round: 1, drafters: ['u-alice'], built: ['u-alice'] })));
+    expect(screen.getByTestId('pod-built-u-bob-pill').textContent).toContain('Bob — building');
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, drafters: ['u-alice', 'u-bob'], built: ['u-bob'] })));
+    expect(route()).toEqual(BUILDER);
+    expect(screen.getByTestId('pod-built-u-bob-pill').textContent).toContain('Bob — ready');
+    room.read(ctxOf(pod({ phase: 'done', round: 2, drafters: ['u-alice', 'u-bob'], built: ['u-alice', 'u-bob'] })));
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
   });
 });

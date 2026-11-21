@@ -39,14 +39,14 @@
  * straight to deck building."* Once this seat's pool is complete and the room
  * is not yet in `rounds`/`done`, this screen replaces itself with
  * `#/deck/<podId>` — on the last pick, and on a reload or rejoin of a room
- * whose draft is already over for you. The builder carries the `building`
- * phase (`pod/PodBuilding.tsx`) and comes back here when rounds start. It waits
- * for the room's first read, so a reload during `rounds` stays on the tables.
+ * whose draft is already over for you — until you have pressed Play. It waits
+ * for the room's first read, so a built drafter's reload stays on the tables.
  *
- * A drafter who has pressed Play is done building: they wait here, on the pod —
- * who is ready, and the rounds to come — until the last drafter's Play deals
- * round 1 (the operator, 2026-10-20: *"ideally it brings me to the game lobby
- * until my opponent is ready"*), not back in the builder.
+ * Round 1 is dealt the moment the draft ends (the operator, 2026-11-20: *"you
+ * can do match pairing even when people are still building"*), so a drafter who
+ * has pressed Play lands on the bracket at once, their match lit once their
+ * opponent's deck is in (the operator, 2026-10-20: *"ideally it brings me to the
+ * game lobby until my opponent is ready"*). Above it, who is still building.
  *
  * The rounds are the room's hub (`pod/RoomHub.tsx`) and one page per table
  * (`pod/TablePage.tsx`, `tableId`), which a paired player reaches from their own card on the bracket, lit while it waits for them.
@@ -206,10 +206,12 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
   const nameOf = (id: string): string => ctx?.names[id] ?? id;
   const avatarOf = (id: string): Face => ctx?.avatars[id] ?? NO_FACE;
 
-  /** Pressed Play, and the rest of the pod is still building. */
-  const ready = phase === 'building' && myMemberId !== null && ctx?.pod?.built.includes(myMemberId) === true;
-  /** The header's own rule: a finished draft goes to the builder unless the pod is already playing, or I am done building. */
-  const toBuilder = done && ctx !== null && !inRounds && !ready;
+  /** Pressed Play: my deck is in. */
+  const ready = myMemberId !== null && ctx?.pod?.built.includes(myMemberId) === true;
+  /** The header's own rule: a finished draft goes to the builder until I am done building, or the pod is over. */
+  const toBuilder = done && ctx !== null && phase !== 'done' && !ready;
+  /** Somebody's deck is not in yet: the hub says who, and offers the builder back. */
+  const stillBuilding = (phase === 'building' || phase === 'rounds') && ctx?.pod != null && ctx.pod.drafters.some((id) => !ctx.pod!.built.includes(id));
   useEffect(() => {
     if (toBuilder) navigate({ kind: 'deck', draftId }, { replace: true });
   }, [toBuilder, draftId]);
@@ -289,7 +291,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           avatarOf={avatarOf}
           leaderId={ctx!.leaderId}
         >
-          {ctx!.pod!.phase === 'building' && (
+          {stillBuilding && (
             <>
               <PodBuilding pod={ctx!.pod!} nameOf={nameOf} />
               <a

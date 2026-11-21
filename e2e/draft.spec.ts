@@ -969,25 +969,7 @@ test('a player drafts from the seat they sat in: pack 1 passes along the table, 
   }
 });
 
-/* ── §Acceptance: draft, build, leave and return, then real Forge ────── */
-
-/**
- * The room leave the UI has no button for — the same route `rooms/api.ts`'s
- * `leave()` sends, by the caller's own page so the identity is theirs. This
- * is what C's "owns their pool for good… through leave" actually exercises.
- */
-async function leavePod(p: Player, podId: string): Promise<void> {
-  const status = await p.page.evaluate(async (id) => {
-    const res = await fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}/leave`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: '{}',
-    });
-    return res.status;
-  }, podId);
-  expect(status, `${p.name}: POST .../rooms/${podId}/leave`).toBe(200);
-}
+/* ── §Acceptance: draft, build, go away and come back, then real Forge ────── */
 
 /**
  * Press through whatever opening questions a fresh match asks — the
@@ -1041,7 +1023,7 @@ async function pressIntoTurnOne(pages: readonly Page[]): Promise<void> {
 
 test(
   titled(
-    'the operator’s full sequence: draft a pod, build and save decks, leave and return, press Play, and land in turn 1 in real Forge',
+    'the operator’s full sequence: draft a pod, build and save decks, go away and come back, press Play, and land in turn 1 in real Forge',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -1083,27 +1065,29 @@ test(
         await trimMainDeck(p.page, 40, p.name);
       }
 
-      /* ── alice leaves the pod and comes back: her build is still there ── */
-      await leavePod(alice, podId);
+      /* ── alice goes elsewhere and comes back: her build is still there ── */
+      // Not a Leave: round 1 is already dealt, and leaving an event in its rounds drops out of it.
+      await alice.page.goto(`${origin}${PREFIX}/#/`);
       await alice.page.goto(`${origin}${PREFIX}/#/deck/${podId}`);
       await expect(alice.page.getByTestId('deck-no-seat'), 'a finished pod keeps the drafter’s seat for good').toHaveCount(0);
       await expect(alice.page.getByTestId('deck-editor')).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('main-count'), 'the build alice left is the build she finds').toHaveText('40');
 
       /* ── Play, and to the room's page: no room to make, no Ready ── */
-      // alice is done first: back in the room (she had left it), where she
-      // waits on the pod, shown as ready — not handed back to the builder.
-      // bob's Play deals round 1, and both are on the room's page with their own table lit: nobody is
-      // carried to a table or walked onto the board. Each presses their card; with both at it the table's page starts
-      // the game and offers Enter game.
+      // Round 1 was dealt as the draft ended (the operator, 2026-11-20: "you can do match pairing even
+      // when people are still building"), so alice's Play lands her on the rounds, her own table lit,
+      // over the strip saying bob is still building. bob's Play puts his deck in, and he lands there
+      // too. Nobody is carried to a table or walked onto the board. Each presses their card; with both
+      // at it the table's page starts the game and offers Enter game.
       await alice.page.getByTestId('play-deck').click();
-      await expect(alice.page.getByTestId('pod-ready'), 'alice waits on the pod').toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId('pod-rounds'), 'alice: round 1, while bob builds').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page, 'alice: Play lands on the room’s page').toHaveURL(ROOM_PAGE);
-      await expect(alice.page.getByTestId('pod-built').locator('[data-built]'), 'alice waits, shown as ready').toHaveCount(1, { timeout: UI_TIMEOUT });
-      await expect(litCard(alice.page), 'nothing is lit while the pod is still building').toHaveCount(0);
+      await expect(alice.page.getByTestId('pod-built').locator('[data-built]'), 'alice is in, bob is building').toHaveCount(1, { timeout: UI_TIMEOUT });
+      await expect(litCard(alice.page), 'alice: her own table is lit').toHaveCount(1, { timeout: UI_TIMEOUT });
       await bob.page.getByTestId('play-deck').click();
       for (const p of [alice, bob]) {
         await expect(p.page.getByTestId('pod-rounds'), `${p.name}: round 1, on the room’s page`).toBeVisible({ timeout: UI_TIMEOUT });
+        await expect(p.page.getByTestId('pod-building'), `${p.name}: everyone is in`).toHaveCount(0, { timeout: UI_TIMEOUT });
         await expect(litCard(p.page), `${p.name}: their own table is lit`).toHaveCount(1, { timeout: UI_TIMEOUT });
         await expect(p.page, `${p.name}: paired, and not moved`).toHaveURL(ROOM_PAGE);
       }
