@@ -310,7 +310,9 @@ describe.skipIf(!available.ok)(title, () => {
 				console.log(`[draft-notes.jvm] Paliano's colour asks: ${JSON.stringify(colours)}`);
 				expect(colours, 'Paliano offers the noted colours only, once').toEqual([['black', 'blue', 'white']]);
 				await castNamed(s, 0, 'Savannah Lions');
-				expect(mine(s, 'Savannah Lions')).toHaveLength(1);
+				// `castNamed` returns at the empty-stack prompt, which can reach the seat before the delta that puts
+				// the Lions on the battlefield (hokon, scheduled run 44875821038).
+				await waitUntil(() => mine(s, 'Savannah Lions').length === 1, 'the Lions on the battlefield', 20_000, s);
 
 				// "Attacks each combat if able": Forge refuses a declaration that leaves the Tracker home.
 				await toDeclareAttackers(s, 0);
