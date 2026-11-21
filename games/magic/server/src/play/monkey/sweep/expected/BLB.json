@@ -3316,7 +3316,8 @@
   "accept": {
    "cast": "resolved",
    "asks": [
-    "selection: Tangle Tumbler - {3}, {T}: Put a +1/+1 counter on target creature. Select target creature"
+    "selection: Tangle Tumbler - {3}, {T}: Put a +1/+1 counter on target creature. Select target creature",
+    "selection: Tangle Tumbler - Tap two untapped tokens you control: Tangle Tumbler becomes an artifact creature until end of turn. Select a(n) token to tap (2 left)"
    ],
    "server": []
   },
