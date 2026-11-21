@@ -19,6 +19,8 @@ const COMPOSITED = new Set(['transform', 'translate', 'rotate', 'scale', 'opacit
 
 /** Endless animations that still draw on the main thread, each with why — to be worked off, never added to. */
 const NOT_YET: Record<string, string> = {
+  // Measured 2026-11-20 (perf catalogue P28, `e2e/perf/ambient.spec.ts`, claw-9 run 44843242250): with a spell
+  // waiting, this one ring cost both screens 324 ms/s of main thread and 247 ms/s of raster; paused alone, 15–77 and ~0.
   'live-ok-pulse': 'one button’s ring, while a decision waits',
   'live-end-turn-nudge': 'one button’s glow, once End Turn has waited',
   'skeleton-sheen': 'a loading placeholder, gone once its content draws',
