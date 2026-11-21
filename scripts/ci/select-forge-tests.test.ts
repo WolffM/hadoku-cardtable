@@ -574,7 +574,7 @@ describe('diff helpers', () => {
 describe('outputs for forge.yml', () => {
   it('one shard for a short list, five for everything', () => {
     expect(outputs({ e2e: true, specs: ['a.spec.ts'], jvm: false, jvmFiles: [], deferred: false, reasons: [] })).toMatchObject({ shards: '[1]', e2e_specs: 'a.spec.ts', jvm: 'false', jvm_full: 'false' });
-    expect(outputs({ e2e: true, specs: null, jvm: true, jvmFiles: null, deferred: false, reasons: [] })).toMatchObject({ shards: '[1, 2, 3, 4, 5]', e2e_specs: '', jvm_files: '', jvm_full: 'true' });
+    expect(outputs({ e2e: true, specs: null, jvm: true, jvmFiles: null, deferred: false, reasons: [] })).toMatchObject({ shards: '[1, 2, 3, 4, 5, 6, 7]', e2e_specs: '', jvm_files: '', jvm_full: 'true' });
   });
 });
 

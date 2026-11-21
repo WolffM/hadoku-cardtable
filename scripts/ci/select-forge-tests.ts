@@ -1365,11 +1365,11 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
 
 /* ── the CLI `forge.yml` runs ─────────────────────────────────────────── */
 
-/** Specs beyond which a run is split across five CI runners (`forge.yml`'s full set). */
+/** Specs beyond which a run is split across seven CI runners (`forge.yml`'s full set). */
 const ONE_SHARD_MAX = 12;
 
 export function outputs(sel: Selection): Record<string, string> {
-  const shards = sel.specs === null || sel.specs.length > ONE_SHARD_MAX ? '[1, 2, 3, 4, 5]' : '[1]';
+  const shards = sel.specs === null || sel.specs.length > ONE_SHARD_MAX ? '[1, 2, 3, 4, 5, 6, 7]' : '[1]';
   return {
     e2e: String(sel.e2e),
     e2e_specs: sel.specs === null ? '' : sel.specs.join(' '),
