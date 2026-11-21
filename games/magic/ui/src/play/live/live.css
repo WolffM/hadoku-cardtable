@@ -503,21 +503,51 @@
  * control pressed, the log open), plus a slow pulse so it reads as "nudging
  * you" rather than "selected" — guarded by `prefers-reduced-motion` like the
  * rail's own transition.
+ *
+ * The pulse is a ripple: a ring drawn once, just outside the edge, on `::after`, that grows a little as it
+ * fades. Only its `opacity` and `scale` move, so the compositor runs it. It was a growing `box-shadow` until
+ * 2026-11-21, which redrew the button (or the stack's next card) on every frame while a decision waited:
+ * 379 ms/s of main thread and 410 of raster on each screen, where this ring costs 116 and 16 (perf
+ * catalogue P28; the operator chose this look from the films, artifact JkVFbifeMkpSMaWnFXs4wh). The ring is
+ * a `box-shadow` on a layer the box's own size and never scales past 1, so it adds nothing to a scroll
+ * overflow (table-fit); `overflow: clip` with a margin keeps the label's ellipsis without clipping the ring.
  */
 .live__buttons button[data-highlight],
 .live__result .confirm__actions button[data-highlight] {
+  /* `board.css`'s registered `<length>`: Chromium drops a `calc()` clip margin (which the UI scale makes of 4px) to 0. */
+  --emphasis-room: 4px;
+
+  position: relative;
+  overflow: clip;
+  overflow-clip-margin: var(--emphasis-room);
   border-color: var(--accent);
   color: var(--accent-ink);
-  animation: live-ok-pulse 1.6s ease-in-out infinite;
+}
+
+:is(.live__buttons button[data-highlight], .live__result .confirm__actions button[data-highlight], .placed[data-placed-next] > .placed__hover)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
+  pointer-events: none;
+  animation: live-ok-pulse var(--ok-pulse-beat, 1.6s) ease-in-out infinite;
+}
+
+/* Swelling instead (`[data-nudge]`, below), End Turn rests its ripple. */
+.live__buttons button[data-highlight][data-nudge]::after {
+  content: none;
 }
 
 @keyframes live-ok-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+    opacity: 1;
+    scale: 0.97;
   }
   50% {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 0%, transparent);
+    opacity: 0;
+    scale: 1;
   }
 }
 
@@ -583,9 +613,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .live__buttons button[data-highlight],
-  .live__result .confirm__actions button[data-highlight] {
+  :is(.live__buttons button[data-highlight], .live__result .confirm__actions button[data-highlight])::after {
     animation: none;
+    opacity: 0;
   }
 
   .confirm__button[data-highlight]::after,

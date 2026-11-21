@@ -205,18 +205,24 @@
 }
 
 /*
- * The next item to resolve (the top of Forge's stack) — the SAME flash the
- * End Turn control uses (`live.css`'s `live-ok-pulse`), reused by name rather
- * than redefined here: never more than one at a time (item 3).
+ * The next item to resolve (the top of Forge's stack) — the SAME ripple the
+ * End Turn control uses (`live.css`'s `live-ok-pulse`, its `::after` rule names
+ * this card too), on its own beat: never more than one at a time (item 3).
  */
 .placed[data-placed-next] > .placed__hover {
-  animation: var(--stack-hover), live-ok-pulse 1.4s ease-in-out infinite;
+  --ok-pulse-beat: 1.4s;
+
+  position: relative;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .placed[data-placed-next] > .placed__hover {
     animation: none;
     box-shadow: 0 0 0 2px var(--accent);
+  }
+
+  .placed[data-placed-next] > .placed__hover::after {
+    content: none;
   }
 }
 
