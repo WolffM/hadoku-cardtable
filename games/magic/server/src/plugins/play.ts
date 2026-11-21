@@ -109,6 +109,7 @@ export const playPlugin: CardtablePlugin = {
 			// not on the table's next act: until then the room offers a match that is gone.
 			onFreed: (match) => tables.matchFreed(match),
 			...(MAGIC_CONFIG.playRejoinGraceMs === undefined ? {} : { rejoinGraceMs: MAGIC_CONFIG.playRejoinGraceMs }),
+			...(MAGIC_CONFIG.playOverGraceMs === undefined ? {} : { overGraceMs: MAGIC_CONFIG.playOverGraceMs }),
 			// The registry's `emit`, for every seat, before it reaches a socket; the recorder keeps only the watcher's.
 			onEnvelope: (matchId, seat, envelope) => recorder.onEnvelope(matchId, seat, envelope),
 			onPresence: (matchId, seat, playerId, presence) => recorder.onPresence(matchId, seat, playerId, presence),

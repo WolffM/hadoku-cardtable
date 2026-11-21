@@ -83,6 +83,13 @@ export interface MagicConfig {
 	 */
 	readonly playRejoinGraceMs: number | undefined;
 	/**
+	 * How long a finished match keeps its game on its JVM (`play/socket.ts`'s `PlayDeps.overGraceMs`).
+	 * Unset is play's own ten minutes. The card sweep sets it short: it finishes a match every few
+	 * seconds, and ten minutes of finished games filled a JVM every 25 and took the runner's memory.
+	 * Never set by the deploy path.
+	 */
+	readonly playOverGraceMs: number | undefined;
+	/**
 	 * The jar-less e2e stack's own escape hatch (wave 73 §A follow-up): with it, `room/plan.ts`'s
 	 * `checkCards` answers OK for a source whose cards all resolved instead of refusing with "Forge
 	 * is not available". Nothing in this repo's own deploy path ever sets this.
@@ -117,6 +124,7 @@ export function createMagicConfig(options: CreateMagicConfigOptions = {}): Magic
 	const read = (name: string): string | undefined => env[`${prefix}_${name}`];
 	const dataDir = options.dataDir ?? createConfig({ envPrefix: prefix, env }).dataDir;
 	const playRejoinGraceMsRaw = read('PLAY_REJOIN_GRACE_MS');
+	const playOverGraceMsRaw = read('PLAY_OVER_GRACE_MS');
 
 	return {
 		tournamentsFile: read('TOURNAMENTS_FILE') ?? join(dataDir, 'tournaments.json'),
@@ -135,6 +143,7 @@ export function createMagicConfig(options: CreateMagicConfigOptions = {}): Magic
 		restartGraceMs: parseInt(read('PLAY_RESTART_GRACE_MS') || '90000', 10),
 		playProbe: read('PLAY_PROBE') === '1',
 		playRejoinGraceMs: playRejoinGraceMsRaw === undefined ? undefined : parseInt(playRejoinGraceMsRaw, 10),
+		playOverGraceMs: playOverGraceMsRaw === undefined ? undefined : parseInt(playOverGraceMsRaw, 10),
 		testUncheckedPools: read('E2E_UNCHECKED_POOLS') === '1',
 		testCubeCobraOrigin: read('E2E_CUBECOBRA_ORIGIN') || undefined,
 		catalogRefresh: read('CATALOG_REFRESH') !== '0',

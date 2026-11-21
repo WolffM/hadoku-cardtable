@@ -236,6 +236,13 @@ The same workflow has a second job, `forge-sweep`: the card sweep on every set w
 `sweep_set=BLB` runs the sweep on that set instead of the monkey. Its report is the `sweep-report`
 artifact, and like the monkey it gates nothing.
 
+The sweep's stack keeps a finished match's game on its JVM for 10 s
+(`CARDTABLE_PLAY_OVER_GRACE_MS`), not play's ten minutes. At ten minutes, a sweep that
+finishes a match every few seconds kept some 200 finished games live, opened a JVM for every
+25 of them, and hit the runner unit's 8 GB memory cap about 55 matches in (all three dispatches
+on 2026-11-20, #82). With the short grace, 84 matches ran on one match JVM beside the pool
+JVM, ~4.1 GB RSS between them and flat.
+
 Until 2026-11-19 it was a job in `forge.yml`, started by the 10:00Z nightly
 full run, three matches at a time on the server's 2 GiB default heap. The full
 run's e2e and jvm shards filled the lane-forge claws, so the monkey overflowed to
