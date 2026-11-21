@@ -3829,6 +3829,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			case 'rejected':
 			case 'stale':
 			case 'pace':
+			case 'pace-read':
 			case 'unsupported': {
 				const { t, ...detail } = line;
 				this.deps.log({ evt: `bridge-${t}`, matchId: this.id, ...detail });

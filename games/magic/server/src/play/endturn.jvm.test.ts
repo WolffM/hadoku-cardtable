@@ -10,23 +10,17 @@
  * (`PlayBridge.java`, `SeatGui.setPhaseDelayOff`) turns that preference on with
  * the End Turn click and off again when the yield is over.
  *
- * **The bound is the sleep itself, on at least one gap.** A gap that holds Forge's sleep
- * is at least 200 ms, because Forge either skips it entirely or takes all of it.
- * And the sleep is all or nothing across the yield: the bridge writes the pref into
- * the live `YieldController` before it sends the click (`setPhaseDelayOff`), and
- * clears it only at the seat's next real window, so a regression sleeps at every
- * phase of the yield and puts every gap at 200 ms or more. Host noise does not: it
- * stretches some gaps, never all of them. So the bound is that some gap stays
- * under 200 ms. "Fewer than half reach 200" reddened on hokon at ~9 load a core:
- * [222,92,145,234] (scheduled run 44875821038). "Every gap under 200" before it
- * reddened on noise alone too: a loaded
- * claw-10 measured [190,173,194,221] (run 44715926901) and a loaded hokon
- * [216,85,83,174] (run 44828404697), both with the exemption armed by the click
- * (the `pace` lines say so), against 28–67 ms on a quiet claw (runs 44810796048,
- * 44792627500, 44772664906). The bound before that was 150 ms, which a busy claw
- * crossed with no sleep in it at 151 (run 40577661708), and before that 50 ms
- * (ledger Y26). A sleep between the two sends was never an acceptable fix
- * (settled, do not reopen).
+ * **No clock decides it.** Forge's sleep decision reads one value, the pref, on the
+ * game thread at each phase. The bridge's `SeatController` reads the same value at the
+ * same call and emits a `pace-read` line each time it changes, so the suite asserts what
+ * Forge saw: the pref turned true at the click's own phase (or the yield's first) and did
+ * not turn false again until a later turn, so it was true at every phase of the yield.
+ * Every millisecond bound this suite carried before reddened on a loaded host with the
+ * exemption armed: 50 ms (ledger Y26), 150 ms (run 40577661708), every gap under 200
+ * (runs 44715926901, 44828404697), fewer than half at 200 (run 44875821038), and some gap
+ * under 200, which a claw at load 21 crossed at [323,278,264,230] (run 44884684361, #86).
+ * The gaps are still logged, as information. A sleep between the two sends was never an
+ * acceptable fix (settled, do not reopen).
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=/tmp/claude-1000/S \
  *   pnpm exec vitest run games/magic/server/src/play/endturn.jvm.test.ts \
@@ -38,9 +32,6 @@ import { describe, expect, it } from 'vitest';
 import { DELTA_TYPE } from '@hadoku/forge-wire';
 
 import { available, deck, startScenario, waitUntil, type Scenario } from './scenario.js';
-
-/** Forge's `phasesDelay` (`FControlGamePlayback.java:49`): the sleep End Turn must skip. */
-const PHASES_DELAY_MS = 200;
 
 const title = available.ok
 	? 'End Turn passes phases without the pacing sleep, against real Forge'
@@ -116,7 +107,16 @@ describe.skipIf(!available.ok)(title, () => {
 				console.log(`[q5] pace lines: ${JSON.stringify(pace)}`);
 
 				expect(upToEnd.length, 'the End Turn run reached the end step through several phases').toBeGreaterThan(3);
-				expect(Math.min(...gaps), `the shortest gap, of ${JSON.stringify(gaps)}: a sleep would put every one at ${PHASES_DELAY_MS} ms or more`).toBeLessThan(PHASES_DELAY_MS);
+
+				// What Forge's game thread read, each time it changed: true from the click's phase
+				// (MAIN1, or the yield's first if the click's own window had passed), and not false
+				// again before a later turn, so it held at every phase of the yield.
+				const reads = s.lines.filter((l) => l.t === 'pace-read' && (l as unknown as { seat: number }).seat === x) as unknown as { skipPhaseDelay: boolean; turn: number; phase: string }[];
+				console.log(`[q5] pace reads: ${JSON.stringify(reads)}`);
+				const [on, off] = reads;
+				expect(reads.map((r) => r.skipPhaseDelay), "the game thread's reads of the pref").toEqual([true, false]);
+				expect(['MAIN1', upToEnd[0]?.phase], 'the phase the game thread first read it true at').toContain(on?.phase);
+				expect(off?.turn, 'the turn the game thread first read it false again at').toBeGreaterThan(on?.turn ?? Infinity);
 
 				// The exemption was armed by the click and lifted by the next real window.
 				expect(pace.map((l) => (l as unknown as { skipPhaseDelay: boolean }).skipPhaseDelay)).toEqual([true, false]);

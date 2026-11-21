@@ -39,7 +39,7 @@ export interface GameAdapter<Spec, Line, Cmd, Frame, Checkpoint = unknown> {
 	 *    follows.
 	 *  - `'info'`       ← everything else Forge logs but a shell need not act on itself
 	 *    (`'resent'`, `'input'`, `'probe'`, `'log'`, `'dropped'`, `'scan-overtaken'`,
-	 *    `'impersonated'`, `'rejected'`, `'stale'`, `'pace'`, `'unsupported'`).
+	 *    `'impersonated'`, `'rejected'`, `'stale'`, `'pace'`, `'pace-read'`, `'unsupported'`).
 	 */
 	classify(line: Line): ClassifiedLine<Checkpoint>;
 

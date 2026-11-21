@@ -6784,6 +6784,33 @@ public final class PlayBridge {
             return match.skipOpening ? List.of() : super.chooseSaToActivateFromOpeningHand(usableFromOpeningHand);
         }
 
+        /** The last {@code YIELD_SKIP_PHASE_DELAY} value {@link #chooseSpellAbilityToPlay} read; Forge's default is false. */
+        private boolean readSkipPhaseDelay;
+
+        /**
+         * Emits {@code {"t":"pace-read","seat":n,"skipPhaseDelay":bool,"turn":n,"phase":"<PhaseType>"}}
+         * each time the value this seat's game thread reads for {@code YIELD_SKIP_PHASE_DELAY}
+         * changes. Read here, at the top of the call whose auto-pass branch decides Forge's
+         * phase-pacing sleep ({@code PlayerControllerHuman.chooseSpellAbilityToPlay}, the
+         * {@code getBoolPref} at {@code PlayerControllerHuman.java:1820}), from the same
+         * {@code YieldController} that branch reads. The {@code pace} line says the bridge wrote the
+         * pref; this one says Forge saw it, phase by phase, which a suite can assert without a clock.
+         */
+        @Override public List<SpellAbility> chooseSpellAbilityToPlay() {
+            final boolean skip = getYieldController().getBoolPref(FPref.YIELD_SKIP_PHASE_DELAY);
+            if (skip != readSkipPhaseDelay) {
+                readSkipPhaseDelay = skip;
+                final forge.game.phase.PhaseHandler ph = getGame().getPhaseHandler();
+                final JsonObject o = line("pace-read");
+                o.addProperty("seat", seat);
+                o.addProperty("skipPhaseDelay", skip);
+                o.addProperty("turn", ph.getTurn());
+                o.addProperty("phase", String.valueOf(ph.getPhase()));
+                emit(match.matchId, o);
+            }
+            return super.chooseSpellAbilityToPlay();
+        }
+
         /**
          * Emits {@code {"t":"input","seat":n,"open":bool,"input":"<input class>"?}} whenever this
          * seat's {@code InputQueue} changes — an open or a close alike, so the rebuild (wave 78

@@ -423,7 +423,7 @@ function brokenStreamFile(dir: string, matchId: string): string {
 	return join(dir, `${matchId}.broken.jsonl`);
 }
 
-const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied', 'input', 'dropped', 'snapshot', 'impersonated', 'scan-overtaken', 'undo', 'rewind', 'rewound', 'log-truncated']);
+const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'pace-read', 'resent', 'applied', 'input', 'dropped', 'snapshot', 'impersonated', 'scan-overtaken', 'undo', 'rewind', 'rewound', 'log-truncated']);
 
 /**
  * The `bridge.stderr.txt` of the local JVM that hosts `matchId`, found by the `match-placed`

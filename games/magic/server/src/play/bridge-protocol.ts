@@ -81,6 +81,12 @@ export type BridgeLine =
 	 */
 	| { t: 'pace'; seat: number; skipPhaseDelay: boolean; at: number }
 	/**
+	 * The value of that pref the seat's game thread read, each time it changed
+	 * (`SeatController.chooseSpellAbilityToPlay`): what Forge's sleep decision saw,
+	 * at the turn and phase it saw it.
+	 */
+	| { t: 'pace-read'; seat: number; skipPhaseDelay: boolean; turn: number; phase: string }
+	/**
 	 * Wave 78 §A — Forge actually applied this seat's act to an open input, in
 	 * APPLIED order (`seq`, one counter shared by both seats of a match —
 	 * `PlayBridge.java`'s `SeatController.applied`). `act` is in the same shape
