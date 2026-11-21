@@ -74,7 +74,7 @@ async function expectRootAttrs(page: Page, combo: Board, where: string): Promise
 
 /*
  * The sampler: one rAF loop for the page's life, reset per cast. It keeps the first few breaches of each
- * kind, the most shake animations seen at once, and each bolt's time on screen.
+ * kind, the most shake animations seen at once, and each bolt's ball (`.effect-hit`, not its trail or burst) time on screen.
  */
 interface Sample {
   frames: number;
@@ -100,7 +100,7 @@ async function installSampler(page: Page): Promise<void> {
       const shaking = document.getAnimations().filter((a) => a.playState === 'running' && (a.effect as KeyframeEffect | null)?.composite === 'add' && a.id === 'beat').length;
       s.shakeMax = Math.max(s.shakeMax, shaking);
       const now = performance.now();
-      const seen = new Set(document.querySelectorAll('[data-projectile="bolt"]'));
+      const seen = new Set(document.querySelectorAll('.effect-hit[data-projectile="bolt"]'));
       for (const el of seen) if (!s.open.has(el)) s.open.set(el, now);
       for (const [el, at] of s.open) if (!seen.has(el)) {
         s.bolts.push(Math.round(now - at));
