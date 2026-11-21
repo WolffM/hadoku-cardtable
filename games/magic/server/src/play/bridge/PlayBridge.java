@@ -4603,6 +4603,11 @@ public final class PlayBridge {
          * could still fight this turn — a Mutavault before its controller's attack, an Inkmoth
          * Nexus before the other player's blocks: the fork's {@code AvailableActions.Scan#animates},
          * the same rule that decides whether such an ability is a play at all.</li>
+         * <li>{@code tappers}: at another player's Beginning of Combat, the offered permanents this
+         * seat controls with a playable non-mana ability that taps a target creature
+         * ({@code ApiType.Tap}, {@code TapOrUntap}) and can target one of that player's creatures
+         * that could attack ({@code CombatUtil.canAttack}) — a Master Decoy before the attack it
+         * stops. Battlefield only, like the two above. Empty in every other window.</li>
          * <li>{@code attackers}: how many creatures attack in the game's current combat, 0
          * outside one — whether a combat step is one anybody attacked in. Read off the live
          * game in the same window, so it never trails the prompt the way a state delta can.</li>
@@ -4635,9 +4640,11 @@ public final class PlayBridge {
             for (final CardView a : scan.animates()) { animating.add(a.getId()); }
             try {
                 final boolean costAhead = costAhead(game, mine);
+                final java.util.List<forge.game.card.Card> couldAttack = couldAttackBeforeAttacks(game, mine);
                 final JsonArray manaOnly = new JsonArray();
                 final JsonArray phaseRestricted = new JsonArray();
                 final JsonArray animates = new JsonArray();
+                final JsonArray tappers = new JsonArray();
                 final java.util.Set<Integer> seen = new java.util.HashSet<>();
                 for (final CardView cv : cards) {
                     if (cv == null || !seen.add(cv.getId())) { continue; }
@@ -4650,23 +4657,54 @@ public final class PlayBridge {
                         continue;
                     }
                     if (!c.isInPlay() || c.getController() != mine) { continue; }
+                    boolean restricted = false;
+                    boolean taps = false;
                     for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
                         if (sa.isManaAbility()) { continue; }
-                        if ((sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) || (costAhead && fetchesLand(sa))) {
-                            phaseRestricted.add(ref("card", cv.getId()));
-                            break;
+                        if (!restricted && ((sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) || (costAhead && fetchesLand(sa)))) {
+                            restricted = true;
                         }
+                        if (!taps && tapsOneOf(sa, couldAttack)) { taps = true; }
                     }
+                    if (restricted) { phaseRestricted.add(ref("card", cv.getId())); }
+                    if (taps) { tappers.add(ref("card", cv.getId())); }
                     if (animating.contains(cv.getId())) { animates.add(ref("card", cv.getId())); }
                 }
                 f.add("manaOnly", manaOnly);
                 f.add("phaseRestricted", phaseRestricted);
                 f.add("animates", animates);
+                f.add("tappers", tappers);
                 final forge.game.combat.Combat combat = game.getCombat();
                 f.addProperty("attackers", combat == null ? 0 : combat.getAttackers().size());
             } catch (final RuntimeException e) {
                 System.err.println("[bridge] offerFacts: could not read the offered abilities (" + e + "); the window keeps its stop");
             }
+        }
+
+        /**
+         * The creatures that could attack in the combat about to start, when this is ANOTHER
+         * player's Beginning of Combat: theirs, untapped, and able to attack by Forge's own
+         * {@code CombatUtil.canAttack} (summoning sickness, defender, every static that forbids it).
+         * Empty in any other window, which leaves {@code tappers} empty.
+         */
+        private static java.util.List<forge.game.card.Card> couldAttackBeforeAttacks(final Game game, final forge.game.player.Player mine) {
+            final forge.game.phase.PhaseHandler ph = game.getPhaseHandler();
+            if (ph.isPlayerTurn(mine) || ph.getPhase() != PhaseType.COMBAT_BEGIN) { return java.util.List.of(); }
+            final java.util.List<forge.game.card.Card> out = new java.util.ArrayList<>();
+            for (final forge.game.card.Card creature : ph.getPlayerTurn().getCreaturesInPlay()) {
+                if (!creature.isTapped() && forge.game.combat.CombatUtil.canAttack(creature)) { out.add(creature); }
+            }
+            return out;
+        }
+
+        /** An ability that taps a target creature and can target one of {@code creatures}. */
+        private static boolean tapsOneOf(final SpellAbility sa, final java.util.List<forge.game.card.Card> creatures) {
+            if (creatures.isEmpty() || !sa.usesTargeting()) { return false; }
+            if (sa.getApi() != ApiType.Tap && sa.getApi() != ApiType.TapOrUntap) { return false; }
+            for (final forge.game.card.Card creature : creatures) {
+                if (sa.canTarget(creature)) { return true; }
+            }
+            return false;
         }
 
         /**

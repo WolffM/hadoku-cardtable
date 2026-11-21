@@ -2833,6 +2833,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 						manaOnlyIds: s.weakly.manaOnly === undefined ? undefined : new Set(s.weakly.manaOnly.map((c) => c.id)),
 						phaseRestrictedIds: s.weakly.phaseRestricted?.map((c) => c.id),
 						animatesIds: s.weakly.animates?.map((c) => c.id),
+						tappersIds: s.weakly.tappers?.map((c) => c.id),
 						...(s.weakly.attackers === undefined ? {} : { attackers: s.weakly.attackers }),
 					}
 				: {}),
@@ -3096,6 +3097,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 				nonManaSources: facts.nonManaSources?.length ?? null,
 				phaseRestricted: facts.phaseRestricted.length,
 				animates: facts.animates.length,
+				tappers: facts.tappers.length,
 				attackers: facts.attackers,
 				openAsks: facts.openAsks,
 				buttons: s.buttons !== null && s.buttons.method === 'updateButtons' ? [s.buttons.enable1, s.buttons.enable2] : null,

@@ -1,0 +1,15 @@
+# tap-before-attacks.state's control: the same Master Decoy with its Plains tapped, so the Decoy
+# cannot be paid for. The AI's Beginning of Combat is passed exactly as before.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Master Decoy;Plains|Tapped
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Craw Wurm;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

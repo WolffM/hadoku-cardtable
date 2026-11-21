@@ -1932,6 +1932,7 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		nonManaSources: sources,
 		phaseRestricted: [],
 		animates: [],
+		tappers: [],
 		plannedSources: [],
 		openAsks: 0,
 		creatures: null,
@@ -2075,6 +2076,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			skipEmptyBlockStop: true,
 			stopForPhaseAbility: true,
 			stopToAnimate: true,
+			stopToTap: true,
 			passOwnSpell: true,
 			holdForSpellCopy: true,
 			orderSimultaneous: 'forge',
@@ -2966,6 +2968,18 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		expect(decideStop({ ...combat, animates: [70], phase: 'COMBAT_END', phaseLabel: 'End of Combat Step' }, DEFAULT_STOP_POLICY)).toBe('End of Combat Step');
 		expect(decideStop({ ...combat, animates: [70], myTurn: false }, DEFAULT_STOP_POLICY)).toBe('Beginning of Combat Step');
 		expect(decideStop({ ...combat, animates: [70] }, { ...DEFAULT_STOP_POLICY, stopToAnimate: false })).toBe('Beginning of Combat Step');
+	});
+
+	it('the operator, 2026-11-20: the opponent’s Beginning of Combat stops for a permanent that can tap a would-be attacker — and for nothing else', () => {
+		const combat = facts({ phase: 'COMBAT_BEGIN', phaseLabel: 'Beginning of Combat Step', myTurn: false, sources: [70], nonManaSources: [70] });
+		// A playable card alone (a tap spell in hand) never stops it: the phase is skipped.
+		expect(judgeStop(combat, DEFAULT_STOP_POLICY)).toEqual({ pass: 'Beginning of Combat Step', rule: 'skip-phase' });
+		// A tapper on the table keeps it.
+		expect(judgeStop({ ...combat, tappers: [70] }, DEFAULT_STOP_POLICY)).toMatchObject({ pass: null, rule: 'has-play', plays: [70] });
+		// Only there, and only on another player's turn.
+		expect(decideStop({ ...combat, tappers: [70], phase: 'UPKEEP', phaseLabel: 'Upkeep step' }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+		expect(decideStop({ ...combat, tappers: [70], myTurn: true }, DEFAULT_STOP_POLICY)).toBe('Beginning of Combat Step');
+		expect(decideStop({ ...combat, tappers: [70] }, { ...DEFAULT_STOP_POLICY, stopToTap: false })).toBe('Beginning of Combat Step');
 	});
 
 	it('(A) decideStop over facts: phaseRestricted keeps a non-stop phase only while the rule is on', () => {

@@ -378,6 +378,20 @@ export interface StopPolicy {
 	 */
 	readonly stopToAnimate: boolean;
 	/**
+	 * Another player's Beginning of Combat is NOT skipped when this seat controls a permanent
+	 * that can tap one of that player's would-be attackers now ({@link PromptFacts.tappers}).
+	 *
+	 * The operator, 2026-11-20: *"game should smartly keep priority for players if they have the
+	 * ability to tap a creature down before declare attacks. i just had a situation where it passed
+	 * through to declare attackers even though my opponent had a way to tap my guy down"* — Nomad
+	 * Decoy, in match m-67088feb4f6e, whose seat's Beginning of Combat went `skip-phase` every
+	 * turn. By Declare Attackers the attack is declared and tapping an attacker no longer
+	 * removes it, so this step is the tapper's only window. Like {@link StopPolicy.stopToAnimate},
+	 * the fact names battlefield permanents only, so the stop tells the table nothing it cannot
+	 * read off the board; a tap spell in hand still stops nothing.
+	 */
+	readonly stopToTap: boolean;
+	/**
 	 * The Declare Attackers stop IS the declaration (T3).
 	 *
 	 * The operator, 2026-10-03: *"theres an extra ok after declare attackers which
@@ -539,6 +553,8 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// Wave 52 §S A. *"i would expect the shortcutter not to skip past my upkeep."*
 	stopForPhaseAbility: true,
 	stopToAnimate: true,
+	// 2026-11-20. *"keep priority for players if they have the ability to tap a creature down before declare attacks."*
+	stopToTap: true,
 	attackStopIsTheDeclaration: true,
 	// Wave 46 §C. *"had to click twice for declaring blockers?"*
 	blockStopIsTheDeclaration: true,
@@ -612,6 +628,7 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	skipEmptyBlockStop: false,
 	stopForPhaseAbility: true,
 	stopToAnimate: true,
+	stopToTap: true,
 	attackStopIsTheDeclaration: false,
 	blockStopIsTheDeclaration: false,
 	passOwnSpell: false,
@@ -900,6 +917,8 @@ export interface SeatNotes {
 	phaseRestrictedIds?: readonly number[];
 	/** The bridge's `setWeaklySelectable.animates`: this seat's offered permanents that can make themselves a creature that could attack. */
 	animatesIds?: readonly number[];
+	/** The bridge's `setWeaklySelectable.tappers`: this seat's offered permanents that can tap one of the turn player's would-be attackers. */
+	tappersIds?: readonly number[];
 	/** The bridge's `setWeaklySelectable.attackers`: creatures attacking in the current combat, 0 outside one. */
 	attackers?: number;
 }
@@ -1008,6 +1027,12 @@ export interface PromptFacts {
 	 * empty when none or unknown. Read only by {@link StopPolicy.stopToAnimate}.
 	 */
 	readonly animates: readonly number[];
+	/**
+	 * At another player's Beginning of Combat, this seat's permanents that can tap one of that
+	 * player's would-be attackers now (`SeatNotes.tappersIds`); empty when none, elsewhere, or
+	 * unknown. Read only by {@link StopPolicy.stopToTap}.
+	 */
+	readonly tappers: readonly number[];
 	/**
 	 * The subset Forge's OWN auto-tap plan names.
 	 *
@@ -1136,6 +1161,7 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	nonManaSources: null,
 	phaseRestricted: [],
 	animates: [],
+	tappers: [],
 	plannedSources: [],
 	openAsks: 0,
 	creatures: null,
@@ -1218,6 +1244,7 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		nonManaSources: all === null ? null : [...new Set(all)].filter((id) => !(manaOnly?.has(id) ?? false)),
 		phaseRestricted: notes.phaseRestrictedIds ?? [],
 		animates: notes.animatesIds ?? [],
+		tappers: notes.tappersIds ?? [],
 		plannedSources: all === null ? [] : repeated(all),
 		openAsks: notes.openAsks,
 		creatures: notes.creatures ?? null,
@@ -1312,6 +1339,11 @@ function animateNow(policy: StopPolicy, facts: PromptFacts): boolean {
 	return policy.stopToAnimate && facts.myTurn && facts.phase === 'COMBAT_BEGIN' && facts.animates.length > 0;
 }
 
+/** Another player's Beginning of Combat, with a permanent that can tap one of their would-be attackers ({@link StopPolicy.stopToTap}). */
+function tapNow(policy: StopPolicy, facts: PromptFacts): boolean {
+	return policy.stopToTap && !facts.myTurn && facts.phase === 'COMBAT_BEGIN' && facts.tappers.length > 0;
+}
+
 /** A permanent the seat controls can be used now and only in this phase ({@link StopPolicy.stopForPhaseAbility}). */
 function phaseAbilityNow(policy: StopPolicy, facts: PromptFacts): boolean {
 	return policy.stopForPhaseAbility && facts.phaseRestricted.length > 0;
@@ -1399,7 +1431,7 @@ export function judgeStop(facts: PromptFacts, policy: StopPolicy): StopJudgement
 			// seat could have done there (#20) — unless a permanent on the table can be
 			// used in this phase and no other (w52 §S A), or the phase stops for a play
 			// (AF28), each of which falls through to the nothing-to-do rule.
-			if (skipsThisTurn(policy, facts) && !phaseAbilityNow(policy, facts) && !animateNow(policy, facts) && !playStopPhase(policy, facts)) return pass(facts, 'skip-phase');
+			if (skipsThisTurn(policy, facts) && !phaseAbilityNow(policy, facts) && !animateNow(policy, facts) && !tapNow(policy, facts) && !playStopPhase(policy, facts)) return pass(facts, 'skip-phase');
 		}
 	} else if (!policy.passStackWindows) {
 		return keep('stack-held');

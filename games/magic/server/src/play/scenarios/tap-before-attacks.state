@@ -1,0 +1,17 @@
+# The operator, 2026-11-20: "game should smartly keep priority for players if they have the ability
+# to tap a creature down before declare attacks." Seat 1 (the Forge AI) is in its Main 1 with Craw
+# Wurm (6/4) ready to attack. Seat 0 holds Master Decoy ({W},{T}: Tap target creature) and a Plains:
+# the AI's Beginning of Combat must stop for seat 0, where the Wurm is tapped before it can attack.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Master Decoy;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Craw Wurm;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

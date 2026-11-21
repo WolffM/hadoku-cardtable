@@ -468,6 +468,12 @@ export const SetWeaklySelectableSchema = z.strictObject({
    */
   animates: z.array(CardRefSchema).optional(),
   /**
+   * Ours: at another player's Beginning of Combat, the offered permanents this seat controls whose
+   * playable ability taps a target creature and can target one of that player's would-be
+   * attackers — a Master Decoy before the attack it stops. Battlefield only; empty elsewhere.
+   */
+  tappers: z.array(CardRefSchema).optional(),
+  /**
    * Ours: how many creatures attack in the game's current combat, 0 outside one — read by the
    * bridge off the live game in the same window as the two facts above.
    */
