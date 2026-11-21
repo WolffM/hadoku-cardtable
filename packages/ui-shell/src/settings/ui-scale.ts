@@ -118,7 +118,13 @@ export function scaleRootOf(node: Node): HTMLElement {
 export function uiPx(px: number, node?: Node | null): number {
   const at = node ?? (typeof document === 'undefined' ? null : document.documentElement);
   if (at == null) return px;
-  const scale = parseFloat(getComputedStyle(scaleRootOf(at)).getPropertyValue('--ui-scale'));
+  const root = scaleRootOf(at);
+  // `applyUiScale` writes the scale inline and the document root's stylesheet default is 1, so neither needs a
+  // computed-style read — one forces the page's style up to date, and a render calls this on every pick
+  // (perf catalogue P31). Only a shadow host with nothing written asks what it inherits.
+  const inline = root.style.getPropertyValue('--ui-scale');
+  const written = inline !== '' ? inline : root === root.ownerDocument.documentElement ? '1' : getComputedStyle(root).getPropertyValue('--ui-scale');
+  const scale = parseFloat(written);
   return Number.isFinite(scale) && scale > 0 ? px * scale : px;
 }
 

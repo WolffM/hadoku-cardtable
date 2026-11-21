@@ -136,7 +136,7 @@ const round = (_: string, v: unknown) => (typeof v === 'number' ? Math.round(v *
  * and where they may reach.
  */
 function useMeasures(ref: RefObject<HTMLDivElement | null>, key: string) {
-  const [measures, setMeasures] = useState<{ names: Box[]; centre: Box; faceHalf: number; bounds: Box } | null>(null);
+  const [measures, setMeasures] = useState<{ names: Box[]; centre: Box; faceHalf: number; bounds: Box; unitPx: number } | null>(null);
   useLayoutEffect(() => {
     const el = ref.current;
     const panel = el?.closest<HTMLElement>('.seats');
@@ -162,6 +162,8 @@ function useMeasures(ref: RefObject<HTMLDivElement | null>, key: string) {
         // The face's ring is 2px outside it (`spectate.css`), at the face's own 40px scale.
         faceHalf: ((face.width / 2) * (44 / 40)) / u,
         bounds: toBox(inner),
+        // One percent of the ring's width in CSS pixels: what a flight's length is timed by (`hop`).
+        unitPx: u,
       };
       setMeasures((was) => (was !== null && JSON.stringify(was, round) === JSON.stringify(next, round) ? was : next));
     };
@@ -310,7 +312,8 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
   const angles = useRef<Map<string, number>>(new Map());
   const lastPoses = useRef<Map<string, Pose>>(new Map());
   const elements = useRef<Map<string, HTMLElement>>(new Map());
-  const unitPx = useRef(2.64);
+  /** One percent of the ring in CSS pixels, from the resize-observed measures; until they arrive, the ring's usual size. */
+  const unitPx = measures?.unitPx ?? 2.64;
   const [leaving, setLeaving] = useState<Leaving[]>([]);
 
   /** A turn as close as possible to `near`, so no pack ever spins the long way round. */
@@ -339,7 +342,7 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
       run += lengths[k]!;
       return { offset: run / total, opacity: k === 0 ? 0 : 1, ...pct(p), rotate: `${fixed(p.angle)}deg` };
     });
-    const duration = Math.min(FLIGHT_MAX_MS, Math.max(FLIGHT_MIN_MS, total * unitPx.current * MS_PER_PX));
+    const duration = Math.min(FLIGHT_MAX_MS, Math.max(FLIGHT_MIN_MS, total * unitPx * MS_PER_PX));
     return { frames, duration };
   };
 
@@ -424,8 +427,6 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
   useLayoutEffect(() => {
     const was = previous.current;
     previous.current = { queue, holding };
-    const width = boxRef.current?.getBoundingClientRect().width;
-    if (width) unitPx.current = width / 100;
     const gone = was !== null && !arrivedWhole && !prefersReducedMotion() ? step(was) : [];
     if (gone.length > 0) setLeaving((all) => [...all, ...gone]);
     // Keyed on the queue and the hands: `step` and `poses` are this render's.
@@ -564,9 +565,8 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
 /** The three backs a pack is drawn as, nudged apart like a squared-up mini-deck. */
 const STACK = [-1, 0, 1];
 
-function Backs() {
-  return STACK.map((k) => <span key={k} className="card-back packq__card" style={{ '--k': k } as CSSProperties} />);
-}
+/** A pack's three backs: one element for every pack and hand, so a step's re-render never redraws them. */
+const BACKS = STACK.map((k) => <span key={k} className="card-back packq__card" style={{ '--k': k } as CSSProperties} />);
 
 /** One waiting pack: placed by its centre and turn; its pose's shake lives on the stack inside. */
 const Pack = forwardRef<HTMLSpanElement, { pose: Pose; place: { left: string; top: string }; testId: string }>(function Pack(
@@ -581,7 +581,7 @@ const Pack = forwardRef<HTMLSpanElement, { pose: Pose; place: { left: string; to
       style={{ left: place.left, top: place.top, rotate: `${fixed(pose.angle)}deg` }}
     >
       <span className="packq__stack" data-pose={pose.pose} style={{ '--shake': Math.max(0, pose.depth - 1) } as CSSProperties}>
-        <Backs />
+        {BACKS}
       </span>
     </span>
   );
@@ -591,7 +591,7 @@ const Pack = forwardRef<HTMLSpanElement, { pose: Pose; place: { left: string; to
 const Hand = forwardRef<HTMLSpanElement, { place: { left: string; top: string }; testId: string }>(function Hand({ place, testId }, ref) {
   return (
     <span ref={ref} className="packq__hand" data-testid={testId} style={{ left: place.left, top: place.top, rotate: `${HAND.angle}deg`, clipPath: HAND_CUT }}>
-      <Backs />
+      {BACKS}
     </span>
   );
 });
@@ -633,7 +633,7 @@ function Leaver({
   return (
     <span ref={el} className="packq__pack packq__leaving" style={{ left: start.left, top: start.top, rotate: `${fixed(from.angle)}deg` } as CSSProperties}>
       <span className="packq__stack">
-        <Backs />
+        {BACKS}
       </span>
     </span>
   );
