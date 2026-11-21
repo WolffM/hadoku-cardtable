@@ -49,8 +49,8 @@ afterEach(() => {
 const open = (): number => [...document.querySelectorAll('.pack__slot')].findIndex((s) => s.hasAttribute('data-focused'));
 const tile = (i: number) => screen.getAllByTestId('card')[i]!;
 const step = (by: 1 | -1) => fireEvent.keyDown(window, { key: by > 0 ? 'ArrowRight' : 'ArrowLeft' });
-const wheelOn = (el: Element): WheelEvent => {
-  const e = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+const wheelOn = (el: Element, deltaY = 100): WheelEvent => {
+  const e = new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true });
   act(() => {
     el.dispatchEvent(e);
   });
@@ -100,15 +100,35 @@ describe('the fan', () => {
     for (const slot of drawn) expect(slot.getAttribute('data-card-id')).toMatch(/^w\d+$/);
   });
 
-  // The operator, 2026-11-05: "mouse wheel was never supposed to move the fan, only left and right
-  // arrow do that. mouse wheel is reserved for seeing transforms".
-  it('never moves on the wheel, over a card or not, and leaves the wheel to the inspector and the page', () => {
+  // The operator, 2026-11-20: "make scroll-wheel work the same as arrow keys, but only if a card is
+  // not hovered" — over a card the wheel stays the inspector's (2026-11-05: "mouse wheel is reserved
+  // for seeing transforms").
+  it('steps like the arrow keys on the wheel off a card, and leaves the wheel over a card to the inspector', () => {
     const dfc = { ...card(0), name: 'Front', faces: [{ ...card(99), name: 'Back' }] } as DraftCard;
-    render(createElement(PackView, { cards: [dfc, ...PACK.slice(1)], layout: 'fan', disabled: false, emptyNote: '' }));
-    for (const el of [tile(0), tile(1), screen.getByTestId('pack')]) {
+    render(createElement(PackView, { cards: [dfc, ...PACK.slice(1)], layout: 'fan', onPick: vi.fn(), disabled: false, emptyNote: '' }));
+    for (const el of [tile(0), tile(1)]) {
       expect(wheelOn(el).defaultPrevented).toBe(false);
       expect(open()).toBe(0);
     }
+    const pack = screen.getByTestId('pack');
+    expect(wheelOn(pack).defaultPrevented).toBe(true);
+    expect(open()).toBe(1);
+    wheelOn(pack);
+    expect(open()).toBe(2);
+    wheelOn(pack, -100);
+    expect(open()).toBe(1);
+    for (let i = 0; i < 5; i++) wheelOn(pack, -100);
+    expect(open()).toBe(0);
+  });
+
+  it('adds a trackpad\'s small wheel deltas up to one step a notch', () => {
+    mount();
+    const pack = screen.getByTestId('pack');
+    wheelOn(pack, 20);
+    wheelOn(pack, 20);
+    expect(open()).toBe(0);
+    wheelOn(pack, 20);
+    expect(open()).toBe(1);
   });
 
   it('steps one card per arrow key, either way, and stops at the ends', () => {

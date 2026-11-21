@@ -7,11 +7,11 @@
  * pack's ends (`fanStart`); the rest are not drawn until the row is scrolled to them (the operator,
  * 2026-10-19: *"let's not display the entire stack all at once and instead hide
  * cards until they are scrolled to"*). The arrow keys move the open card one
- * along, and the row slides with it. The wheel never moves the row (the
- * operator, 2026-11-05: *"mouse wheel was never supposed to move the fan, only
- * left and right arrow do that. mouse wheel is reserved for seeing
- * transforms"*): over a card the inspector is open on, it turns that card's
- * other faces (`play/inspect`), and anywhere else it scrolls the page. The pointer opens nothing by
+ * along, and the row slides with it. The wheel does the same off a card (the
+ * operator, 2026-11-20: *"make scroll-wheel work the same as arrow keys, but
+ * only if a card is not hovered"*): over a card it is still the transforms'
+ * (2026-11-05: *"mouse wheel is reserved for seeing transforms"*), turning the
+ * card the inspector is open on to its other faces (`play/inspect`). The pointer opens nothing by
  * passing over a card — that was too easy to misclick: a card that is not open
  * opens on a click, and is picked on the next. Enter picks the open card. The
  * grid has a cursor of its own: the arrow keys move it a card along or a row up
@@ -81,6 +81,11 @@ export const PHONE_MAX_WIDTH = 700;
 const PHONE_QUERY = `(max-width: ${PHONE_MAX_WIDTH}px)`;
 /** A phone's grid is always two columns wide (the operator, 2026-11-02: "display two columns of cards instead of one") — kept here only for the Up/Down keyboard cursor's own column count; `draft.css`'s phone rules draw the columns themselves. */
 const PHONE_GRID_COLS = 2;
+/** How far the wheel travels for the fan to step one card: under one mouse notch (Chrome's 100 px, Firefox's 3 lines). */
+const WHEEL_NOTCH_PX = 50;
+/** A wheel's line and page deltas, in pixels, so every browser's notch measures alike. */
+const WHEEL_LINE_PX = 40;
+const WHEEL_PAGE_PX = 800;
 
 function hasMatchMedia(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function';
@@ -504,6 +509,32 @@ export function PackView({ cards, layout, onPick, onLift, onLean, disabled: held
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [disabled, count, fanned, cols, onPick]);
+
+  // The wheel over the fan's box, off its cards, is the arrow keys: one card along per notch. A
+  // trackpad's run of small deltas adds up to the same notch (`WHEEL_NOTCH_PX`), so a swipe steps a
+  // card at a time rather than one per event. Over a card (or its related row) the wheel is the
+  // inspector's, and the page's. The phone carousel scrolls itself, so only the desktop fan listens.
+  const wheelFan = desktopFan !== null && !disabled && count > 0;
+  useEffect(() => {
+    if (!wheelFan || root === null) return;
+    let travelled = 0;
+    const onWheel = (event: WheelEvent): void => {
+      if (event.defaultPrevented || event.ctrlKey) return;
+      if (event.target instanceof Element && event.target.closest('.pack__slot, .pack__related') !== null) return;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (delta === 0) return;
+      event.preventDefault();
+      const px = delta * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_PX : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? WHEEL_PAGE_PX : 1);
+      // A turn back the other way starts its own notch.
+      travelled = Math.sign(travelled) === -Math.sign(px) ? px : travelled + px;
+      if (Math.abs(travelled) < WHEEL_NOTCH_PX) return;
+      const by = travelled > 0 ? 1 : -1;
+      travelled = 0;
+      setFocus((was) => Math.max(0, Math.min(count - 1, (was ?? 0) + by)));
+    };
+    root.addEventListener('wheel', onWheel, { passive: false });
+    return () => root.removeEventListener('wheel', onWheel);
+  }, [wheelFan, root, count]);
 
   if (cards.length === 0) {
     return (
