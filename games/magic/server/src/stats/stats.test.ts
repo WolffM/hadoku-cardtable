@@ -292,7 +292,8 @@ describe("a deck's summary", () => {
 		expect(summary.cards).toBeGreaterThanOrEqual(40);
 		expect(summary.basicLands).toBeGreaterThan(0);
 		expect(summary.colors, 'no cost map: only what the costs say, and there are none').toEqual([]);
-	});
+		// It parses the whole real deck library off disk: 2.1 s alone, past vitest's 5 s default under a full check on a loaded host.
+	}, 30_000);
 
 	it('reads colours from the cost map, Phyrexian adding none', () => {
 		const text = '[metadata]\nName=Test\n[Main]\n4 Gut Shot\n4 Llanowar Elves\n12 Forest\n';

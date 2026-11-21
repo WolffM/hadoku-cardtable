@@ -1466,6 +1466,8 @@ public final class PlayBridge {
         if (tokens != null) { payload.add("tokenSources", tokens); }
         final JsonArray cantBlock = cantBlockJson(game);
         if (cantBlock != null) { payload.add("cantBlock", cantBlock); }
+        final JsonArray canBlockPairs = canBlockJson(game);
+        if (canBlockPairs != null) { payload.add("canBlock", canBlockPairs); }
         final JsonArray printedTypes = printedTypesJson(game);
         if (printedTypes != null) { payload.add("printedTypes", printedTypes); }
         final JsonArray printedPT = printedPTJson(game);
@@ -1638,6 +1640,47 @@ public final class PlayBridge {
             return out;
         } catch (final RuntimeException e) {
             System.err.println("[bridge] cantBlock: could not read the battlefields (" + e + ")");
+            return null;
+        }
+    }
+
+    /**
+     * Who may block whom, while there is combat: {@code [attackerId, [blockerId, …]]} for every
+     * attacker, naming each creature of the player it attacks that could block it by Forge's own pair
+     * rule ({@code CombatUtil.canBeBlocked(attacker, combat, defender)} and
+     * {@code CombatUtil.canBlock(attacker, blocker)} — protection, flying, "can't be blocked by …",
+     * an untapped creature that may block at all). It leaves out what depends on the blocks already
+     * assigned (how many a creature may block, lure, menace's count): a block the board moves is
+     * taken off first, and Done Blocking still refuses a whole declaration Forge does not accept.
+     * Without it the board offered every attacker to every blocker, and {@code InputBlock} refused the
+     * illegal pairs without a word. Empty out of combat. A full snapshot each time.
+     *
+     * <p>Null when combat cannot be read (the game thread moved it under the read): the frame then
+     * omits the field and the client keeps what it had.
+     */
+    static JsonArray canBlockJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        try {
+            final forge.game.combat.Combat combat = game.getCombat();
+            if (combat == null) { return out; }
+            for (final forge.game.card.Card attacker : combat.getAttackers()) {
+                final forge.game.player.Player defender = combat.getDefenderPlayerByAttacker(attacker);
+                if (defender == null) { continue; }
+                final JsonArray blockers = new JsonArray();
+                if (forge.game.combat.CombatUtil.canBeBlocked(attacker, combat, defender)) {
+                    for (final forge.game.card.Card c : defender.getCreaturesInPlay()) {
+                        if (forge.game.combat.CombatUtil.canBlock(attacker, c)) { blockers.add(c.getId()); }
+                    }
+                }
+                final JsonArray pair = new JsonArray();
+                pair.add(attacker.getId());
+                pair.add(blockers);
+                out.add(pair);
+            }
+            return out;
+        } catch (final RuntimeException e) {
+            System.err.println("[bridge] canBlock: could not read combat (" + e + ")");
             return null;
         }
     }

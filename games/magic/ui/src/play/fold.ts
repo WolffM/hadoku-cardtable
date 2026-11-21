@@ -67,6 +67,8 @@ export interface FoldResult {
   effectSources: ReadonlyMap<number, number>;
   /** The latest `cantBlock` snapshot folded, as a set of card ids — replaced when present. */
   cantBlock: ReadonlySet<number>;
+  /** The latest `canBlock` snapshot folded, as an `attackerId → the creatures that may block it` map — replaced when present. */
+  canBlock: ReadonlyMap<number, ReadonlySet<number>>;
   /** The latest `printedTypes` snapshot folded, as a `cardId → printed card` map — replaced when present. */
   printedTypes: ReadonlyMap<number, PrintedCard>;
   /** The latest `printedPT` snapshot folded, as a `cardId → printed power and toughness` map — replaced when present. */
@@ -88,6 +90,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   let tokenSources = new Map<number, number>();
   let effectSources = new Map<number, number>();
   let cantBlock = new Set<number>();
+  let canBlock = new Map<number, ReadonlySet<number>>();
   let printedTypes = new Map<number, PrintedCard>();
   let printedPT = new Map<number, { power: number; toughness: number }>();
   let lifePaying = new Map<number, number>();
@@ -107,6 +110,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     if (packet.tokenSources !== undefined) tokenSources = new Map(packet.tokenSources);
     if (packet.effectSources !== undefined) effectSources = new Map(packet.effectSources);
     if (packet.cantBlock !== undefined) cantBlock = new Set(packet.cantBlock);
+    if (packet.canBlock !== undefined) canBlock = new Map(packet.canBlock.map(([attacker, blockers]) => [attacker, new Set(blockers)]));
     if (packet.printedTypes !== undefined) printedTypes = new Map(packet.printedTypes.map(([id, type, token]) => [id, { type, token }]));
     if (packet.printedPT !== undefined) printedPT = new Map(packet.printedPT.map(([id, power, toughness]) => [id, { power, toughness }]));
     if (packet.lifePaying !== undefined) lifePaying = new Map(packet.lifePaying);
@@ -133,7 +137,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     seq = packet.seq;
   }
 
-  return { state, seq, skippedDeltas, stackTargetSpells, stackTriggeredBy, pendingTriggers, waitingEffects, tokenSources, effectSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet };
+  return { state, seq, skippedDeltas, stackTargetSpells, stackTriggeredBy, pendingTriggers, waitingEffects, tokenSources, effectSources, cantBlock, canBlock, printedTypes, printedPT, lifePaying, conditionMet };
 }
 
 function withoutNulls(obj: WireObject): WireObject {

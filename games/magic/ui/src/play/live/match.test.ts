@@ -3215,6 +3215,37 @@ describe('combat, off the state channel: the intent mark and the block target', 
     await barrier(s, m, mine[0]!);
   });
 
+  it('a blocker is aimed only at the attackers Forge says it may block (canBlock), and a lone illegal attacker is not blocked by a click', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const attackers = them(m).battlefield.map((c) => c.id).slice(0, 2);
+    expect(attackers).toHaveLength(2);
+    await sendAndApply(s, m, [phase('COMBAT_DECLARE_BLOCKERS', them(m).id), attacking(attackers)]);
+    await sendAndApply(s, m, [prompt('Select a blocker'), actionable([mine[0]!, mine[1]!]), mark([attackers[0]!])]);
+    // Before the bridge names the attackers, Forge alone decides: both are aimed at.
+    expect(isBlockAssignment(m, mine[0]!, attackers[0]!)).toBe(true);
+    expect(isBlockAssignment(m, mine[0]!, attackers[1]!)).toBe(true);
+
+    // attackers[1] has protection from creatures: no creature of ours may block it.
+    seq += 1;
+    const pairs = parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: {
+        packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] },
+        canBlock: [
+          [attackers[0]!, [mine[0]!]],
+          [attackers[1]!, []],
+        ],
+      },
+    });
+    await sendAndApply(s, m, [pairs]);
+    expect(isBlockAssignment(m, mine[0]!, attackers[0]!)).toBe(true);
+    expect(isBlockAssignment(m, mine[1]!, attackers[0]!), 'a creature not named for attackers[0]').toBe(false);
+    expect(isBlockAssignment(m, mine[0]!, attackers[1]!), 'an attacker nothing may block').toBe(false);
+    await barrier(s, m, mine[0]!);
+  });
+
   it('a card the viewer was never sent cannot become a block target', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);

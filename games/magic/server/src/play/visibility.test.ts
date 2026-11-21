@@ -492,6 +492,27 @@ describe('cantBlock', () => {
 	});
 });
 
+describe('canBlock', () => {
+	it('keeps the attackers and blockers a seat is sent, drops a card that seat may not see, and leaves the field off a frame that carried none', () => {
+		const raw = fold(fixtureFrames());
+		const gameView = Object.fromEntries(raw);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const onField = ids(1, 'Battlefield')[0]!;
+		const inTheirHand = ids(1, 'Hand')[0]!;
+		const canBlock: [number, number[]][] = [
+			[onField, [onField, inTheirHand]],
+			[inTheirHand, [onField]],
+		];
+		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, canBlock } }) as Extract<
+			StateFrame,
+			{ method: 'setGameView' }
+		>;
+		expect(out.payload.canBlock).toEqual([[onField, [onField]]]);
+		const bare = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
+		expect('canBlock' in bare.payload).toBe(false);
+	});
+});
+
 describe('printedPT', () => {
 	it('keeps the rows for cards a seat is sent, drops a card that seat may not see', () => {
 		const raw = fold(fixtureFrames());

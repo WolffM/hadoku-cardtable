@@ -2519,8 +2519,9 @@ export function clickCard(match: LiveMatch, cardId: number): void {
     return;
   }
   const only = soleAttacker(match);
-  if (only !== null && attackersBlockedBy(match, cardId).length === 0) assignBlock(match, cardId, only);
-  else removeBlock(match, cardId);
+  if (only !== null && attackersBlockedBy(match, cardId).length === 0) {
+    if (isBlockAssignment(match, cardId, only)) assignBlock(match, cardId, only);
+  } else removeBlock(match, cardId);
 }
 
 /** Click a player: Forge's `selectPlayer`. Same rule as `selectCard`. */
@@ -3258,13 +3259,22 @@ export function undoManaChoice(match: LiveMatch, ask: Extract<LiveAsk, { method:
   );
 }
 
-/** Whether `attacker` is one this seat can drag a blocker onto while `InputBlock` runs, and `blocker` is its own. */
+/**
+ * Whether `attacker` is one this seat can drag a blocker onto while `InputBlock` runs, `blocker` is
+ * its own, and Forge's pair rule lets it block that attacker (`canBlock`, `PlayBridge.java`'s
+ * `canBlockJson`: protection, flying, "can't be blocked by …"). `InputBlock` refuses an illegal pair
+ * without a word (`CombatUtil.canBlock(currentAttacker, card, combat)`), so an arrow that snapped
+ * to one drew a block that then vanished. An attacker the snapshot does not name yet is left to
+ * Forge.
+ */
 export function isBlockAssignment(match: LiveMatch, blocker: number, attacker: number): boolean {
   const view = match.view;
   if (view === null) return false;
   const targets = blockTargets(match, view);
   if (targets === null || !targets.has(attacker)) return false;
-  return ownBlocker(match, blocker);
+  if (!ownBlocker(match, blocker)) return false;
+  const legal = match.canBlock.get(attacker);
+  return legal === undefined || legal.has(blocker);
 }
 
 /**
@@ -3719,6 +3729,7 @@ function statePacket(match: LiveMatch): FoldablePacket {
     tokenSources: [...match.tokenSources],
     effectSources: [...match.effectSources],
     cantBlock: [...match.cantBlock],
+    canBlock: [...match.canBlock].map(([attacker, blockers]) => [attacker, [...blockers]] as const),
     printedTypes: [...match.printedTypes].map(([id, printed]) => [id, printed.type, printed.token] as const),
     printedPT: [...match.printedPT].map(([id, pt]) => [id, pt.power, pt.toughness] as const),
     lifePaying: [...match.lifePaying],

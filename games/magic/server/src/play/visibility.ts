@@ -208,6 +208,7 @@ import {
 	strOf,
 	tagOf,
 	type CantBlock,
+	type CanBlock,
 	type ConditionMet,
 	type CounteredStackItems,
 	type Damage,
@@ -1216,6 +1217,14 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 		return { cantBlock: ids.filter((id) => granted(zones, id) !== 'hidden') };
 	}
 
+	/** Who may block whom, for the cards this seat is sent at all: attackers and blockers are on a battlefield, so public; the rule is cantBlock's. */
+	function canBlockSeen(pairs: CanBlock | undefined): { canBlock?: CanBlock } {
+		if (pairs === undefined) return {};
+		const zones = indexZones(raw);
+		const sent = (id: number): boolean => granted(zones, id) !== 'hidden';
+		return { canBlock: pairs.filter(([attacker]) => sent(attacker)).map(([attacker, blockers]) => [attacker, blockers.filter(sent)]) };
+	}
+
 	/** The printed type lines, for the cards this seat is sent at all: a battlefield permanent is public, and the bridge never names a face-down one. */
 	function printedTypesSeen(pairs: PrintedTypes | undefined): { printedTypes?: PrintedTypes } {
 		if (pairs === undefined) return {};
@@ -1335,6 +1344,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 							...tokensSeen(frame.payload.tokenSources),
 							...effectSourcesSeen(frame.payload.effectSources),
 							...cantBlockSeen(frame.payload.cantBlock),
+							...canBlockSeen(frame.payload.canBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
 							...printedPTSeen(frame.payload.printedPT),
 							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),
@@ -1358,6 +1368,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 							...tokensSeen(frame.payload.tokenSources),
 							...effectSourcesSeen(frame.payload.effectSources),
 							...cantBlockSeen(frame.payload.cantBlock),
+							...canBlockSeen(frame.payload.canBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
 							...printedPTSeen(frame.payload.printedPT),
 							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),

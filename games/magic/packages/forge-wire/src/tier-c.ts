@@ -784,6 +784,16 @@ export const CantBlockSchema = z.array(JavaInt);
 export type CantBlock = z.infer<typeof CantBlockSchema>;
 
 /**
+ * Beside `cantBlock`: while there is combat, who may block whom, as `[attackerId, [blockerId, …]]`
+ * for every attacker (`PlayBridge.java`'s `canBlockJson`, Forge's own pair rule
+ * `CombatUtil.canBlock(attacker, blocker)` behind `canBeBlocked`: protection, flying, "can't be
+ * blocked by …"). Empty out of combat. A full snapshot each time.
+ */
+export const CanBlockSchema = z.array(z.tuple([JavaInt, z.array(JavaInt)]));
+
+export type CanBlock = z.infer<typeof CanBlockSchema>;
+
+/**
  * The bridge's eighth addition beside the packet: the permanents on a battlefield whose type line
  * or token-ness is not the printed card's, as `[cardId, printedType, printedToken]` (`PlayBridge.java`'s
  * `printedTypesJson`: the face's own type before any effect, plus its characteristic-defining
@@ -900,6 +910,7 @@ export const StateSiblingsSchema = z.strictObject({
   tokenSources: TokenSourcesSchema.optional(),
   effectSources: EffectSourcesSchema.optional(),
   cantBlock: CantBlockSchema.optional(),
+  canBlock: CanBlockSchema.optional(),
   printedTypes: PrintedTypesSchema.optional(),
   printedPT: PrintedPTSchema.optional(),
   lifePaying: LifePayingSchema.optional(),
