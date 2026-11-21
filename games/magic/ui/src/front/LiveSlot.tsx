@@ -51,9 +51,9 @@ function LiveSkeleton() {
 
 export function LiveSlot({ pick }: { pick: FeaturedPick | null | undefined }) {
   const { shape, remember } = useContext(FrontGateContext);
-  const { prefs } = usePrefs(getPlayPrefsClient());
-  /** Null until prefs have answered: nothing is started before the player's choice is known. */
-  const wanted = prefs === null ? null : frontMatchShown(prefs);
+  const { prefs, loading } = usePrefs(getPlayPrefsClient());
+  /** Null until prefs have answered: nothing is started before the player's choice is known. A read that failed is the default. */
+  const wanted = prefs !== null ? frontMatchShown(prefs) : loading ? null : frontMatchShown(null);
   /** Whether the card drew a match: `null` until it has its answer. */
   const [drawn, setDrawn] = useState<boolean | null>(null);
   useEffect(() => {

@@ -1,0 +1,19 @@
+# The motion switches' sweep (`e2e/motion-combos.spec.ts`): eight Lava Axes, one for each combination of
+# card motion, screen shake and looping animation, cast at the AI's face in one main phase. Five damage is
+# the least a spell's blow shakes the table for (`numbers.ts`'s `boltShakePx`), and the bolt flies to it
+# (`[data-projectile]`), so each cast shows whether the board shook and threw. Forty Mountains pay for all
+# eight. Serra Angel flies (`card.css`'s endless flight loop) and Slippery Bogle is hexproof (its sweep):
+# the loops the Looping animations switch pauses. The AI has 200 life, no hand and nothing to do.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=200
+humanhand=Lava Axe;Lava Axe;Lava Axe;Lava Axe;Lava Axe;Lava Axe;Lava Axe;Lava Axe
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Serra Angel;Slippery Bogle
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
