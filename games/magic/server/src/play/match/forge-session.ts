@@ -1466,7 +1466,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 					const hostCard = (ask.frame as unknown as { hostCard: { id: number } }).hostCard.id;
 					const abilityId = (frame.result as { id: number }).id;
 					s.lastAbilityToPlay = { hostCard, abilityId };
-					this.choose(s, s.lastAbilityToPlay);
+					this.chooseUnlessPaying(s, s.lastAbilityToPlay);
 				}
 				if (eachType !== null) {
 					s.owed = owing('the cards the one per-type prompt already picked', eachType.left, nextEachType);
@@ -3232,6 +3232,16 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		s.confirmedCosts = new Set();
 	}
 
+	/**
+	 * The seat's own pick from `getAbilityToPlay`, unless a payment is open: then it is a mana
+	 * ability paying that cost (an Island clicked for Chromatic Star's {1}), and the ability being
+	 * paid for stays the chosen one, so its sacrifice confirm is still answered for the seat.
+	 */
+	private chooseUnlessPaying(s: SeatState, ability: { hostCard: number; abilityId: number }): void {
+		if (s.payment !== null) return;
+		this.choose(s, ability);
+	}
+
 	private maybeConfirmChosenTarget(s: SeatState): boolean {
 		const gate = this.answerGateFacts(s);
 		if (gate === null) return false;
@@ -3491,7 +3501,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			// cast) is not one the seat chose, and Forge's re-ask inside one activation is that choice already.
 			if (frame.method === 'getAbilityToPlay') {
 				s.lastAbilityToPlay = { hostCard: frame.hostCard.id, abilityId: (auto.result as { id: number }).id };
-				if (clicked) this.choose(s, s.lastAbilityToPlay);
+				if (clicked) this.chooseUnlessPaying(s, s.lastAbilityToPlay);
 			}
 			// Wave 35 §S, R4 — a discard choice Forge left only one legal reply for
 			// (`onlyAnswer`'s own "one option") still owes its later echo nothing.
