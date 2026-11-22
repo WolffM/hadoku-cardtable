@@ -1,7 +1,8 @@
 /**
  * `/api/replays` — contract 2 of `docs/planning/wave77-2026-10-27.md` §C.
  *
- *   GET /api/replays?limit=20   → 200 { replays: ReplaySummary[] }   newest first, each with its `pace`
+ *   GET /api/replays?limit=20   → 200 { replays: ReplaySummary[] }   newest first, each with its `pace`,
+ *                                 and each seat named as its holder is now where the recording kept their userId
  *       &humans=only            → only games between two people (the front page's: no AI seat, and
  *                                 never a recording whose seats it cannot tell)
  *   GET /api/replays/:matchId   → 200 { header, envs, presence, relays, end } | 404
@@ -278,13 +279,20 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 	const hiddenFrom = (req: Request, header: { matchId: string; roomId: string | null }): boolean =>
 		(!isAdmin(req) && deps.isTesting(header.roomId)) || (deps.stillPlaying?.(header.matchId, httpCaller(req)) ?? false);
 
+	/** Each of these people's display name now (R12); one the lookup cannot name is absent, and keeps the name it was recorded with. */
+	const namesNow = async (userIds: readonly string[]): Promise<Map<string, string>> => {
+		if (deps.people === undefined || userIds.length === 0) return new Map();
+		const found = await deps.people.resolve([...new Set(userIds)]);
+		return new Map([...found].flatMap(([id, person]) => (person.name === null ? [] : [[id, person.name] as const])));
+	};
+
 	replays.get('/', async (req: Request, res: Response) => {
 		const limitParam = Number(req.query.limit ?? DEFAULT_LIST_LIMIT);
 		const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(Math.floor(limitParam), MAX_LIST_LIMIT) : DEFAULT_LIST_LIMIT;
 		const humansOnly = req.query.humans === 'only';
 
 		const rows = rowsOf(deps.dir);
-		const summaries: { header: PublicHeaderLine; seatsKnown: boolean; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none'; pace: ReplayPace | null }[] = [];
+		const summaries: { header: PublicHeaderLine; seatsKnown: boolean; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none'; pace: ReplayPace | null; users: { seat: number; userId: string }[] }[] = [];
 		for (const row of rows) {
 			try {
 				if (row.hasPublic) {
@@ -293,7 +301,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					// An older stream draws no hand: it is no replay, but its action log may still rebuild one.
 					if (header !== null && header.v === PUBLIC_VERSION) {
 						const end = read === null ? null : parseJson<PublicEndLine>(read.last);
-						summaries.push({ header, seatsKnown: true, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream', pace: read === null ? null : read.pace });
+						summaries.push({ header, seatsKnown: true, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream', pace: read === null ? null : read.pace, users: publicUsers(end) });
 						continue;
 					}
 				}
@@ -316,9 +324,9 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					decks: [null, null],
 					startedAt: actionsHeader.startedAt,
 				};
-				const end = read === null ? null : parseJson<{ t: 'end'; endedAt: string; reason: string }>(read.last);
+				const end = read === null ? null : parseJson<ActionsEndLine>(read.last);
 				const canRebuild = deps.canRebuild?.(actionsHeader) ?? false;
-				summaries.push({ header, seatsKnown: seats !== null, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, source: canRebuild ? 'rebuild' : 'none', pace: null });
+				summaries.push({ header, seatsKnown: seats !== null, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, source: canRebuild ? 'rebuild' : 'none', pace: null, users: actionUsers(end) });
 			} catch (err) {
 				log({ evt: 'replay-list-read-failed', matchId: row.matchId, error: (err as Error).message });
 			}
@@ -328,12 +336,17 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 		const people = (s: (typeof summaries)[number]): boolean => s.seatsKnown && !s.header.ai[0] && !s.header.ai[1];
 		const visible = summaries.filter((s) => s.source !== 'none' && !hiddenFrom(req, s.header) && (!humansOnly || people(s)));
 		visible.sort((a, b) => (a.header.startedAt < b.header.startedAt ? 1 : a.header.startedAt > b.header.startedAt ? -1 : 0));
+		const listed = visible.slice(0, limit);
+		const now = await namesNow(listed.flatMap((s) => s.users.map((u) => u.userId)));
 		res.set('Cache-Control', LIST_CACHE);
 		res.json({
-			replays: visible.slice(0, limit).map((s) => ({
+			replays: listed.map((s) => ({
 				matchId: s.header.matchId,
 				roomId: s.header.roomId,
-				players: s.header.players,
+				players: s.header.players.map((name, seat) => {
+					const userId = s.users.find((u) => u.seat === seat)?.userId;
+					return (userId === undefined ? undefined : now.get(userId)) ?? name;
+				}) as [string, string],
 				decks: s.header.decks,
 				startedAt: s.header.startedAt,
 				endedAt: s.endedAt,

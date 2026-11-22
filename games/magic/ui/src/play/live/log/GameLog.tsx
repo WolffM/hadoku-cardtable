@@ -285,7 +285,8 @@ export function GameLog({ says, view, listRef }: GameLogProps) {
   const last = says[says.length - 1];
   // `says` is the match's own array, appended to in place: its length and newest line say when it changed.
   const count = says.length;
-  const turns = useMemo(() => buildLog(says, players, viewer), [says, count, last, players, viewer]);
+  const renames = view?.seatRenames;
+  const turns = useMemo(() => buildLog(says, players, viewer, renames), [says, count, last, players, viewer, renames]);
   const ids = useMemo(() => cardIdsNamedInView(view), [view]);
   const names = useMemo(() => new Map(players.map((p) => [p.id, p.name])), [players]);
 

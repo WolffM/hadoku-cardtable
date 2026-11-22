@@ -793,6 +793,11 @@ export type DeathCause = 'DESTROYED' | 'LETHAL_DAMAGE' | 'DEATHTOUCH' | 'ZERO_TO
 export interface BoardView {
   seq: number;
   title: string;
+  /**
+   * Each seat Forge plays by a name the board no longer shows it by (a replay's people as they are now,
+   * a room name changed since the game began): Forge's words still say the old one. Absent: none.
+   */
+  seatRenames?: readonly SeatRename[];
   turn: number;
   /** `PhaseType` constant name, e.g. `MAIN1`. `null` before the first turn. */
   phase: string | null;
@@ -1408,6 +1413,27 @@ function wireName(view: WireObject | undefined, face: WireObject | undefined): s
  * the creature right back), so building the OTHER card's full `BoardCard` —
  * which computes its own relations in turn — would recurse forever.
  */
+/** A seat as Forge names it in its own words, and as the board shows it. */
+export interface SeatRename {
+  forge: string;
+  shown: string;
+}
+
+const NO_RENAMES = (text: string): string => text;
+
+/**
+ * Forge's words with each seat's name in them read as the board shows that seat (`BoardView.seatRenames`):
+ * a whole name only, never one inside another ("Player 8" in "Player 80583"), and every name at once, so
+ * one seat's new name is never read again as another's old one.
+ */
+export function seatRenamer(renames: readonly SeatRename[] | undefined): (text: string) => string {
+  if (renames === undefined || renames.length === 0) return NO_RENAMES;
+  const shown = new Map(renames.map((r) => [r.forge, r.shown]));
+  const names = [...shown.keys()].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${names.join('|')})(?![\\p{L}\\p{N}])`, 'gu');
+  return (text) => text.replace(pattern, (name) => shown.get(name) ?? name);
+}
+
 /** A player's name as Forge's own `PlayerView` has it, for a reader with no seat names to hand. */
 function wirePlayerName(state: WireState, pid: number): string {
   return strOf(state.get(deltaKey(DELTA_TYPE.player, pid)), 'Name') ?? `player ${pid}`;
@@ -2041,12 +2067,16 @@ export function toBoardView(
   });
   players.sort((a, b) => Number(b.isViewer) - Number(a.isViewer));
 
-  const nameOfPlayer = (pid: number): string | null =>
-    strOf(state.get(deltaKey(DELTA_TYPE.player, pid)), 'Name');
-
-  // T8: the stack's one line names a target by the same seat-identity-aware
+  // T8: the stack names a target, and whose an item is, by the same seat-identity-aware
   // name the board draws everywhere else, not Forge's raw `PlayerView.Name`.
   const playerNameById = new Map(players.map((p) => [p.id, p.name]));
+  const nameOfPlayer = (pid: number): string | null =>
+    playerNameById.get(pid) ?? strOf(state.get(deltaKey(DELTA_TYPE.player, pid)), 'Name');
+  const seatRenames = players.flatMap((p): SeatRename[] => {
+    const forge = strOf(state.get(deltaKey(DELTA_TYPE.player, p.id)), 'Name');
+    return forge === null || forge === p.name ? [] : [{ forge, shown: p.name }];
+  });
+  const renamed = seatRenamer(seatRenames);
 
   const inAZone = new Set(
     playerIds.flatMap((pid) => {
@@ -2098,13 +2128,15 @@ export function toBoardView(
       ...targetPlayerIds.map((pid) => playerNameById.get(pid) ?? `player ${pid}`),
     ];
     const triggeredByCardIds = (stackTriggeredBy?.get(sid) ?? []).filter((id) => !targetCardIds.includes(id));
-    const description = strOf(item, 'Description') ?? strOf(item, 'Key') ?? `stack item ${sid}`;
+    const key = strOf(item, 'Key');
+    const description = renamed(strOf(item, 'Description') ?? key ?? `stack item ${sid}`);
+    const shownKey = key === null ? null : renamed(key);
     return [{
       id: sid,
       description,
       ...(sourceCardId === null
-        ? { sourceCardId, sourceName: null, sourceCard: null, sourceHidden: false, abilityText: abilityTextOf(strOf(item, 'Key'), description, null) }
-        : chipSource(sourceCardId, strOf(item, 'Key'), description)),
+        ? { sourceCardId, sourceName: null, sourceCard: null, sourceHidden: false, abilityText: abilityTextOf(shownKey, description, null) }
+        : chipSource(sourceCardId, shownKey, description)),
       controllerName: activator === null ? null : nameOfPlayer(activator),
       isAbility,
       targetCardIds,
@@ -2116,10 +2148,11 @@ export function toBoardView(
   });
 
   const waiting: StackEntry[] = (pendingTriggers ?? []).map((t) => {
+    const key = renamed(t.key);
     return {
       id: -t.id,
-      description: t.key,
-      ...chipSource(t.hostCard, t.key, t.key),
+      description: key,
+      ...chipSource(t.hostCard, key, key),
       controllerName: nameOfPlayer(t.controller),
       isAbility: true,
       targetCardIds: [],
@@ -2144,6 +2177,7 @@ export function toBoardView(
     combat: picking ? [] : readCombat(game),
     seq,
     title: strOf(game, 'Title') ?? '',
+    ...(seatRenames.length === 0 ? {} : { seatRenames }),
     turn: readInt(game, 'Turn'),
     phase,
     phaseLabel: phase === null ? 'Not started' : (PHASE_LABEL[phase] ?? phase),

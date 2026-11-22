@@ -23,6 +23,7 @@
  */
 import type { GameLogLine } from '@hadoku/forge-wire';
 
+import { seatRenamer, type SeatRename } from '../../adapter.ts';
 import type { Say } from '../match.ts';
 
 /** Whose line it is, from the viewer's side. */
@@ -200,9 +201,12 @@ const TURN_LINE = /^Turn (\d+) \((.*)\)$/;
 /**
  * The says, as turns. `players` and `viewer` (the viewer's Forge player id; null
  * for nobody's) decide whose each line is; `players`' life is what a turn's
- * totals start from when no line has said a life yet.
+ * totals start from when no line has said a life yet. `renames` (the board's
+ * `seatRenames`) read each line's seat names as `players` has them.
  */
-export function buildLog(says: readonly Say[], players: readonly LogPlayer[], viewer: number | null): LogTurn[] {
+export function buildLog(said: readonly Say[], players: readonly LogPlayer[], viewer: number | null, renames?: readonly SeatRename[]): LogTurn[] {
+  const rename = seatRenamer(renames);
+  const says = renames === undefined || renames.length === 0 ? said : said.map((say) => ({ ...say, text: rename(say.text) }));
   const turns: LogTurn[] = [];
   const items = new Map<number, LogItem>();
   const names = new Map<number, string | null>();
