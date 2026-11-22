@@ -12,10 +12,10 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { ATTACK_BEAT_MS, BOLT_STAGGER_MS, CUE, HIT_MS, damageSize, damagePower, defaultStage, GLIDE_MS, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill, type BoardSound } from '../motion.ts';
+import { ATTACK_BEAT_MS, boardStage, BOLT_STAGGER_MS, CUE, HIT_MS, damageSize, damagePower, GLIDE_MS, REVEAL_BEAT_MS, type BoardSound } from '../motion.ts';
 
-const boardSoundsAt = (seq: number): readonly BoardSound[] => defaultStage.cueAt<readonly BoardSound[]>(CUE.sounds, seq) ?? [];
-const lifeImpactAt = (seq: number): number | null => defaultStage.cueAt(CUE.life, seq);
+const boardSoundsAt = (seq: number): readonly BoardSound[] => stage.cueAt<readonly BoardSound[]>(CUE.sounds, seq) ?? [];
+const lifeImpactAt = (seq: number): number | null => stage.cueAt(CUE.life, seq);
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { tempoOf } from './tempo.ts';
 import { entryWeight } from './entries.ts';
@@ -39,6 +39,10 @@ import {
   ramEnd,
   stackLayout,
 } from './numbers.ts';
+
+/** The board's stage, attached to the page every test draws on: `Stage.of` finds it from anything there. */
+const stage = boardStage();
+stage.attach(document.documentElement);
 
 /* ── fixtures: the smallest BoardView/BoardPlayer/BoardCard that typechecks ── */
 
@@ -673,7 +677,7 @@ describe('installNumbers: a resolution’s hits', () => {
     expect(lifeImpactAt(7), 'its sound waits for the hit').toBe(at + HIT_MS);
     expect(lifeImpactAt(6), 'another view drew no hit').toBeNull();
     let still = false;
-    whenBoardStill(() => (still = true));
+    stage.whenStill(() => (still = true));
     await vi.advanceTimersByTimeAsync(HIT_MS - 1);
     expect(still, 'the board is busy until the hit lands').toBe(false);
     await vi.advanceTimersByTimeAsync(1);
@@ -691,7 +695,7 @@ describe('installNumbers: a resolution’s hits', () => {
       handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [card(5, 0)] })]));
       handle.notify({ ...view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacking(5)] })]), seq: 2 });
       let still = false;
-      whenBoardStill(() => (still = true));
+      stage.whenStill(() => (still = true));
       if (fast) {
         expect(still, 'Fast Mode: the board is still at once').toBe(true);
       } else {
@@ -712,7 +716,7 @@ describe('installNumbers: a resolution’s hits', () => {
     handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
     handle.notify({ ...view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), seq: 7 });
     let still = false;
-    whenBoardStill(() => (still = true));
+    stage.whenStill(() => (still = true));
     handle.dispose();
     await vi.advanceTimersByTimeAsync(0);
     expect(still).toBe(true);
@@ -976,7 +980,7 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
       [7, 'graveyard', 'damage', HIT_MS + STRIKE_SLACK_MS],
       [9, 'graveyard', 'damage', BOLT_STAGGER_MS + HIT_MS + STRIKE_SLACK_MS],
     ]);
-    expect(takeResolutionEffects(40), 'the spell fades once the last creature is gone').toBe(at + BOLT_STAGGER_MS + HIT_MS + EXIT_MOTIONS.shatter.ms);
+    expect(stage.cueAt(CUE.effects, 40), 'the spell fades once the last creature is gone').toBe(at + BOLT_STAGGER_MS + HIT_MS + EXIT_MOTIONS.shatter.ms);
 
     vi.advanceTimersByTime(HIT_MS);
     expect(canvas.querySelector(`[${LEAVING_GAP_ATTR}="7"]`)!.hasAttribute('data-hit-flash'), 'no copy drawn in this test: its place flashes').toBe(true);

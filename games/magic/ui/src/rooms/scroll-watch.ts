@@ -2,7 +2,7 @@
  * The room list's scroll smoothness, in the server's log (the operator, 2026-10-28: *"please measure
  * this properly with e2e tests and telemetry not just guessing"*, of Firefox dropping frames while the
  * front page scrolls). A scroll of the box that holds the room list opens a burst; one
- * `requestAnimationFrame` loop times the gap before every frame the list moved in, until it has been
+ * frame loop (`everyFrame`) times the gap before every frame the list moved in, until it has been
  * still for {@link IDLE_MS}, then sends one `perf` page event (`@hadoku/shared`'s `PageEventSchema`) summarising
  * the burst: how many frames, their median and p95, how many ran over 25 ms (a 60 Hz frame dropped)
  * and over 50 ms, with the browser, its version, the pixel ratio, the window and the room count.
@@ -11,6 +11,7 @@
  * buckets), and a burst sends one event. Nothing runs while the list is not scrolling.
  */
 import type { PageEvent } from '@hadoku/shared';
+import type { everyFrame } from '@hadoku/ui-shell/motion';
 
 import { BUCKETS, bucketOf, percentile } from '../play/live/frame-watch.ts';
 
@@ -39,7 +40,8 @@ export const SLOW_MS = 50;
 export const MAX_REPORTS = 30;
 
 export interface ScrollWatchHost {
-  readonly win: Pick<Window, 'requestAnimationFrame' | 'cancelAnimationFrame' | 'devicePixelRatio' | 'innerWidth' | 'innerHeight'>;
+  readonly win: Pick<Window, 'devicePixelRatio' | 'innerWidth' | 'innerHeight'>;
+  readonly frame: typeof everyFrame;
   readonly doc: Pick<Document, 'addEventListener' | 'removeEventListener'>;
   readonly now: () => number;
   readonly userAgent: string;
@@ -82,12 +84,12 @@ export function watchScroll(host: ScrollWatchHost): () => void {
   let movedAt = 0;
   /** Whether the list scrolled since the last frame: the still frames that end a burst are not counted. */
   let moved = false;
-  let raf: number | null = null;
+  let stop: (() => void) | null = null;
   let reports = 0;
 
   const end = (): void => {
-    if (raf !== null) host.win.cancelAnimationFrame(raf);
-    raf = null;
+    stop?.();
+    stop = null;
     if (frames > 0 && movedAt - firstAt >= MIN_SCROLL_MS && reports < MAX_REPORTS) {
       reports += 1;
       host.send({
@@ -116,8 +118,7 @@ export function watchScroll(host: ScrollWatchHost): () => void {
     prevFrame = null;
   };
 
-  const tick = (t: number): void => {
-    raf = null;
+  const tick = (t: number): (() => void) | null => {
     if (prevFrame !== null && moved) {
       const gap = t - prevFrame;
       histogram[bucketOf(gap)]! += 1;
@@ -130,22 +131,23 @@ export function watchScroll(host: ScrollWatchHost): () => void {
     if (moved || prevFrame === null) movedAt = t;
     prevFrame = t;
     moved = false;
-    if (t - movedAt > IDLE_MS || host.now() - startedAt > MAX_BURST_MS) end();
-    else raf = host.win.requestAnimationFrame(tick);
+    if (t - movedAt <= IDLE_MS && host.now() - startedAt <= MAX_BURST_MS) return () => undefined;
+    end();
+    return null;
   };
 
   const onScroll = (e: Event): void => {
     if (!host.scrolls(e.target)) return;
     moved = true;
-    if (raf !== null) return;
+    if (stop !== null) return;
     startedAt = host.now();
-    raf = host.win.requestAnimationFrame(tick);
+    stop = host.frame(tick);
   };
 
   // `scroll` does not bubble from an element: caught on the way down instead, from whichever box scrolls.
   host.doc.addEventListener('scroll', onScroll, { capture: true, passive: true });
   return () => {
     host.doc.removeEventListener('scroll', onScroll, { capture: true });
-    if (raf !== null) end();
+    if (stop !== null) end();
   };
 }

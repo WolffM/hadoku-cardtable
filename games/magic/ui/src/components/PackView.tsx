@@ -64,7 +64,7 @@ import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import { relatedCards } from '../draft/related.ts';
 import { burnElapsedAt, burnMs, fuseFadeKeyframes, fuseKeyframes, ROPE_URGENT_MS, ropeClock, ropeState, type RopeState } from '../draft/rope.ts';
-import { animate, animationsOf, everyFrame, prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { animate, animationsOf, everyFrame, nextFrame, prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { uiPx } from '@hadoku/ui-shell/settings';
 import { CARD_RATIO, cssPx, fitGrid, useBox, type GridFit } from './cardFit.ts';
@@ -331,8 +331,7 @@ export function PackView({ cards, layout, onPick, onLift, onLean, disabled: held
   const [placed, setPlaced] = useState(false);
   useEffect(() => {
     if (!fanned) return setPlaced(false);
-    const frame = requestAnimationFrame(() => setPlaced(true));
-    return () => cancelAnimationFrame(frame);
+    return nextFrame(() => setPlaced(true));
   }, [fanned]);
 
   // A new pack opens on its first card.

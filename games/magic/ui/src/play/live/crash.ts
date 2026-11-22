@@ -9,9 +9,9 @@
  * give the page a scrollbar (table-fit). Reduced motion: none of it.
  */
 
-import { animate, markTempo, screenShakeAllowed, shared } from '@hadoku/ui-shell/motion';
+import { animate, markTempo, screenShakeAllowed, shared, Stage } from '@hadoku/ui-shell/motion';
 
-import { BEAT_ANIMATION_ID, damageSize, defaultStage } from '../motion.ts';
+import { damageSize } from '../motion.ts';
 import { blowContext, seedOf, type Point } from './projectile.ts';
 import './crash.css';
 
@@ -33,7 +33,7 @@ export interface Rock {
 const rockCount = (power: number): number => 6 + Math.round(14 * power);
 const puffCount = (power: number): number => 3 + Math.round(4 * power);
 
-/** Every particle a crash of `power` throws at its full count: what a beat's budget (`effect-budget.ts`) is shared against. */
+/** Every particle a crash of `power` throws at its full count: what a beat's budget (`@hadoku/ui-shell/motion`'s `particles.ts`) is shared against. */
 export function crashParticles(power: number): number {
   return rockCount(power) + puffCount(power);
 }
@@ -95,7 +95,7 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string, 
         { offset: 0.4, translate: `${(rock.dx * 0.55).toFixed(1)}px ${(rock.dy * 0.4 - rock.lift).toFixed(1)}px`, opacity: 1 },
         { translate: `${rock.dx.toFixed(1)}px ${rock.dy.toFixed(1)}px`, rotate: `${rock.spin.toFixed(0)}deg`, opacity: 0 },
       ],
-      { id: BEAT_ANIMATION_ID, duration: CRASH_MS * (0.75 + 0.25 * seedOf(`${key}:t`)), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
+      { duration: CRASH_MS * (0.75 + 0.25 * seedOf(`${key}:t`)), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
       ctx,
     );
   }
@@ -127,7 +127,7 @@ export function shake(board: HTMLElement, px: number, key: string, tempo = 1): (
   frames.push({ translate: '0px 0px' });
   const holder = board.parentElement;
   holder?.setAttribute(SHAKING_ATTR, '');
-  const jolt = animate(board, frames, { id: BEAT_ANIMATION_ID, duration: shakeMsOf(px), easing: 'linear', composite: 'add' }, { tempo, stage: defaultStage });
+  const jolt = animate(board, frames, { duration: shakeMsOf(px), easing: 'linear', composite: 'add' }, { tempo, stage: Stage.of(board) });
   void jolt.finished.then(() => holder?.removeAttribute(SHAKING_ATTR));
   return jolt.cancel;
 }

@@ -1,6 +1,4 @@
-import { afterGlide as glideDone, animationName, Stage, type StageHold, type TrackOptions } from '@hadoku/ui-shell/motion';
-
-export { writeDurations } from '@hadoku/ui-shell/motion';
+import { Stage } from '@hadoku/ui-shell/motion';
 
 /**
  * How long a released card's placement is waited for — the row's reserved gap
@@ -26,11 +24,6 @@ export const HOUSE_DURATIONS = [
   ['--glide-ms', GLIDE_MS],
   ['--follow-ms', FOLLOW_MS],
 ] as const;
-
-/** `el`'s glide has come to rest (`@hadoku/ui-shell/motion`'s `afterGlide`), or `GLIDE_MS` where the page cannot list its animations. Returns a cancel. */
-export function afterGlide(el: Element, done: () => void): () => void {
-  return glideDone(el, done, GLIDE_MS);
-}
 
 /*
  * A resolution's effects, as beats (the operator, 2026-10-14: Kalitas's Zombie and Sorin, Grim
@@ -105,71 +98,36 @@ export const BOLT_STAGGER_MS = 300;
 /**
  * How far through its beats the board is when what waits on them may go (the operator, 2026-10-28: "let's
  * "unlock" the game state when it's waiting on the last ~10% of an animation"). The pacer's every wait on the
- * board's beats ends here ({@link whenBoardUnlocked}) — a view's beats (`live/numbers.ts`), a die or a coin in
+ * board's beats ends here (its stage's `whenUnlocked`) — a view's beats (`live/numbers.ts`), a die or a coin in
  * the air (`live/dice.ts`, `live/coin-flip.tsx`, `live/pace.ts`), the running animations
- * ({@link animationsSettled}) — while the beat itself still plays to its end, under whatever is drawn next.
+ * (the stage's `settled`) — while the beat itself still plays to its end, under whatever is drawn next.
  */
 export const UNLOCK_AT = 0.9;
-
-/** The id every beat's own Web Animation carries (`live/ram.ts`, `live/crash.ts`, `live/projectile.ts`), beside the beats' stylesheet animations ({@link BEAT_KEYFRAMES}). */
-export const BEAT_ANIMATION_ID = 'beat';
-
-/**
- * The keyframes a beat draws with: a card leaving (`departures.css`), a floating number (`numbers.css`), a hit,
- * a crash or a bolt (`numbers.css`, `crash.css`, `projectile.css`), a spell resolving or countered (`placed.css`).
- */
-const BEAT_KEYFRAMES = ['board-exit-', 'board-number-', 'effect-', 'placed-'] as const;
 
 /*
  * What the board is drawing now, for what must wait until it is over (the operator, 2026-10-15: "the
  * game-loss trigger should also only happen after the fireball actually hits"; 2026-10-17: "the final
  * creature doesn't even get to attack because the game ends immediately"): the game's end is the last
- * beat — its result screen and its sound come once every beat drawn before it has played out
- * ({@link whenBoardStill}). The pacer's frames go sooner, at each beat's {@link UNLOCK_AT}
- * ({@link whenBoardUnlocked}): a bolt's view ends as it hits, so its 90% is still in the air. Every board on
- * the page shares this one stage (`@hadoku/ui-shell/motion`'s `Stage`).
+ * beat — its result screen and its sound come once every beat drawn before it has played out (its stage's
+ * `whenStill`). The pacer's frames go sooner, at each beat's {@link UNLOCK_AT} (`whenUnlocked`): a bolt's view
+ * ends as it hits, so its 90% is still in the air. Each board has its own stage (`@hadoku/ui-shell/motion`'s
+ * `Stage`), made by its pacer (`live/pace.ts`) and attached by `LiveBoard`, where what draws on it finds it
+ * (`Stage.of`).
  */
-export const defaultStage = new Stage({
-  unlockAt: UNLOCK_AT,
-  isBeat: (a) => {
-    const name = animationName(a);
-    return name === BEAT_ANIMATION_ID || BEAT_KEYFRAMES.some((prefix) => name.startsWith(prefix));
-  },
-});
+export const boardStage = (): Stage => new Stage({ unlockAt: UNLOCK_AT });
 
 /** When a beat `ms` long lets go of what waits on it: {@link UNLOCK_AT} of the way through. */
-export const unlockAfter = (ms: number): number => defaultStage.unlockAfter(ms);
+export const unlockAfter = (ms: number): number => Math.round(ms * UNLOCK_AT);
 
 /**
- * `live/numbers.ts` is drawing a view's beats (or `live/dice.ts` a roll, `live/coin-flip.tsx` a coin): the board
- * is busy until `over` settles, and locked until it is {@link UNLOCK_AT} through `unlocks.endsInMs` — or `over`
- * settles first. Without `unlocks` it is locked until `over`.
- */
-export function noteBoardDrawing(over: Promise<unknown>, unlocks?: TrackOptions & { endsInMs: number }): void {
-  const finished = over.then(() => undefined, () => undefined);
-  defaultStage.track({ finished, cancel: () => undefined, endsInMs: unlocks?.endsInMs ?? Infinity }, unlocks);
-}
-
-/*
- * The board's stage as its readers know it: the frame rate's reports (`boardDrawing`, `live/frame-watch.ts`), a held
- * frame's (`boardHold`), the result screen's wait (`whenBoardStill`), the pacer's (`whenBoardUnlocked`, `live/pace.ts`)
- * and a view's wait on its beats (`animationsSettled`).
- */
-export type BoardHold = StageHold;
-export const boardDrawing = (): number => defaultStage.drawingCount;
-export const boardHold = (): BoardHold => defaultStage.held();
-export const whenBoardStill = (done: () => void): (() => void) => defaultStage.whenStill(done);
-export const whenBoardUnlocked = (done: () => void): (() => void) => defaultStage.whenUnlocked(done);
-export const animationsSettled = (root: Element, through = 1): Promise<void> => defaultStage.settled(root, through);
-
-/**
- * The moments a view's sounds wait for, as the board's cues (`defaultStage.cue(CUE.life, seq, at)`): a life
+ * The moments a view's sounds wait for, as the board's cues (`stage.cue(CUE.life, seq, at)`): a life
  * total's, until its first hit on a player lands; a creature's damage, until its first hit on a card; a
  * permanent leaving, until its first exit starts; a mill, until its first card leaves the library (the
  * operator, 2026-10-16, of the rams: "be careful with sound effects here"). `sounds` carries the
- * {@link BoardSound}s only the board's drawing knows the moment of.
+ * {@link BoardSound}s only the board's drawing knows the moment of. `effects`, keyed by the stack item that
+ * resolved: when what it did is drawn by (epoch ms), for its spell to fade after (`live/placed.ts`).
  */
-export const CUE = { life: 'life-impact', card: 'card-impact', exit: 'exit', mill: 'mill', sounds: 'sounds' } as const;
+export const CUE = { life: 'life-impact', card: 'card-impact', exit: 'exit', mill: 'mill', sounds: 'sounds', effects: 'effects' } as const;
 
 /**
  * A sound only the board's own drawing knows to play: a ram's charge and blow, a spell's ball slamming in,
@@ -182,21 +140,6 @@ export interface BoardSound {
   readonly intensity: number;
   readonly mine: boolean;
   readonly colourCell?: string | null;
-}
-
-/** When each resolved stack item's drawn effects end (epoch ms), so its spell fades after them. */
-const effectsUntil = new Map<number, number>();
-
-/** `live/numbers.ts` has scheduled what stack item `itemId` did: the last of it is drawn by `until`. */
-export function noteResolutionEffects(itemId: number, until: number): void {
-  effectsUntil.set(itemId, until);
-}
-
-/** When what `itemId` did is drawn by, once — `live/placed.ts` reads it as the item leaves; null when it did nothing drawn. */
-export function takeResolutionEffects(itemId: number): number | null {
-  const until = effectsUntil.get(itemId);
-  effectsUntil.delete(itemId);
-  return until ?? null;
 }
 
 /**

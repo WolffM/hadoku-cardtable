@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
-import { claimParticles, PARTICLE_BUDGET } from './effect-budget.ts';
+import { claimParticles, PARTICLE_BUDGET } from '@hadoku/ui-shell/motion';
 import { closeUp, departureCause, departuresOf, DISSOLVE_SWEEP, dissolveSweep, withLeaving, EXIT_MOTIONS, shards, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, specks, type Departure, type DepartureCause } from './departures.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>

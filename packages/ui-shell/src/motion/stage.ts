@@ -3,17 +3,17 @@
  * (`whenStill`: a game's end) and UNLOCKED once each is `unlockAt` through (`whenUnlocked`: a pacer's wait),
  * the motion playing on to its end. A real-time game asks for neither.
  *
- * Its waits look at its beats: animations registered (`beat`, `trackCss`, `animate()` with a stage) or
- * recognised by its `isBeat`; an endless pulse, a banner or a glide is no beat. Cues are moments a drawing
- * tells the page about (its first hit, a sound's moment): one per name, keyed by the drawing's number.
+ * Its waits look at its beats, the animations registered with it (`beat`, `animate()` with a stage, and the
+ * stylesheet animations `trackCss` names); an endless pulse, a banner or a glide is no beat. Cues are moments a
+ * drawing tells the page about (its first hit, a sound's moment): one per name, keyed by the drawing's number.
+ * A board's stage is attached to its element (`attach`), where what draws on it finds it (`Stage.of`).
  */
 
-import { animationsOf, runningOf, type Running } from './animate.ts';
+import { animationsOf, type Running } from './animate.ts';
 
-/** `unlockAt`: how far through its drawings the stage unlocks (1: once over). `isBeat`: a beat unregistered. */
+/** `unlockAt`: how far through its drawings the stage unlocks (1: once over). */
 export interface StageOptions {
   unlockAt?: number;
-  isBeat?: (a: Animation) => boolean;
 }
 
 /** `root`: where its beats run, each still running there at its time waited for to `unlockAt`. `after`: not unlocked before it settles. */
@@ -75,13 +75,16 @@ class Holds {
   }
 }
 
+/** Each attached element's stage. */
+const STAGES = new WeakMap<Element, Stage>();
+
 export class Stage {
   readonly unlockAt: number;
-  private readonly recognised: (a: Animation) => boolean;
   private readonly drawing = new Holds();
   private readonly locked = new Holds();
-  private readonly live = new Set<Running>();
   private readonly registered = new WeakSet<Animation>();
+  /** The elements whose stylesheet animations are beats, each with the names they start with. */
+  private readonly css = new WeakMap<Element, string[]>();
   private readonly roots = new Map<Element, RootBeats>();
   private readonly cues = new Map<string, { seq: number; value: unknown }>();
   private lastBeatAt: number | null = null;
@@ -89,27 +92,37 @@ export class Stage {
 
   constructor(options: StageOptions = {}) {
     this.unlockAt = options.unlockAt ?? 1;
-    this.recognised = options.isBeat ?? (() => false);
   }
 
-  unlockAfter(ms: number): number {
-    return Math.round(ms * this.unlockAt);
+  /** The stage of the board `el` is on: the nearest element up from it that one is attached to. */
+  static of(el: Element | null): Stage | undefined {
+    for (let at = el; at !== null; at = at.parentElement) {
+      const stage = STAGES.get(at);
+      if (stage !== undefined) return stage;
+    }
+    return undefined;
+  }
+
+  /** What draws inside `el` draws on this stage. Returns the detach. */
+  attach(el: Element): () => void {
+    STAGES.set(el, this);
+    return () => void (STAGES.get(el) === this && STAGES.delete(el));
   }
 
   /** `r`'s animations are this stage's beats. Returns `r`. */
   beat(r: Running): Running {
     for (const a of animationsOf(r)) this.registered.add(a);
-    if (!this.live.has(r)) {
-      this.live.add(r);
-      void r.finished.then(() => this.live.delete(r));
-    }
     return r;
   }
 
-  /** The finite stylesheet animations on `el` and inside it now, as beats: registered, not recognised by name. */
-  trackCss(el: Element): Running {
-    const anims = typeof el.getAnimations === 'function' ? el.getAnimations({ subtree: true }) : [];
-    return this.beat(runningOf(anims.filter((a) => Number(a.effect?.getComputedTiming().endTime ?? 0) !== Infinity)));
+  /**
+   * The stylesheet animations named `prefix…` on `el` and inside it, whenever they run, are beats: a card's own
+   * glint or shimmer inside it is not, nor a transition. Read at each look, so one set off later counts too.
+   */
+  trackCss(el: Element, prefix: string): void {
+    const prefixes = this.css.get(el);
+    if (prefixes === undefined) this.css.set(el, [prefix]);
+    else if (!prefixes.includes(prefix)) prefixes.push(prefix);
   }
 
   /** The stage draws `r`: busy until it is over, locked until it is `unlockAt` through its `endsInMs` (an endless one: over). */
@@ -122,15 +135,10 @@ export class Stage {
     const unlocked = new Promise<void>((at) => {
       if (!Number.isFinite(r.endsInMs)) return;
       const look = (): void => (done || o.root === undefined ? at() : void this.settled(o.root, this.unlockAt).then(at));
-      setTimeout(() => void Promise.resolve(o.after).then(look, look), this.unlockAfter(r.endsInMs));
+      setTimeout(() => void Promise.resolve(o.after).then(look, look), Math.round(r.endsInMs * this.unlockAt));
     });
     this.locked.add(Promise.race([settled, unlocked]));
     return r;
-  }
-
-  /** Cancels every beat and drawing still running. */
-  cancelAll(): void {
-    for (const r of [...this.live]) r.cancel();
   }
 
   get drawingCount(): number {
@@ -163,10 +171,16 @@ export class Stage {
   }
 
   isBeat(a: Animation): boolean {
-    return this.registered.has(a) || this.recognised(a);
+    if (this.registered.has(a)) return true;
+    const name = (a as Animation & { animationName?: string }).animationName;
+    if (typeof name !== 'string') return false;
+    for (let at = (a.effect as KeyframeEffect | null)?.target ?? null; at !== null; at = at.parentElement) {
+      if (this.css.get(at)?.some((prefix) => name.startsWith(prefix)) === true) return true;
+    }
+    return false;
   }
 
-  /** The beats still waited on, by name (`beat×2 board-number-rise×1`). */
+  /** The beats still waited on, by name (`unnamed×2 board-number-rise×1`: a script animation has none). */
   waitingOn(): string {
     const counts = new Map<string, number>();
     for (const a of this.waiting) if (a.playState !== 'finished' && a.playState !== 'idle') counts.set(animationName(a), (counts.get(animationName(a)) ?? 0) + 1);

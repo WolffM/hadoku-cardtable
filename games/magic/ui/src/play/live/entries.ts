@@ -32,7 +32,7 @@
 
 import { animate, markTempo, rel, type Box, type MotionContext } from '@hadoku/ui-shell/motion';
 
-import { BEAT_ANIMATION_ID, powerEase, powerSize } from '../motion.ts';
+import { powerEase, powerSize } from '../motion.ts';
 import { blowContext, seedOf } from './projectile.ts';
 import { anchorOf, quake, shadow, standIn } from './quake.ts';
 import './entries.css';
@@ -200,7 +200,7 @@ async function recolour(wrap: HTMLElement, lift: number, ctx: MotionContext): Pr
       { filter: `grayscale(0.2) brightness(1.35) ${shadow(lift)}`, offset: 0.6 },
       { filter: shadow(lift) },
     ],
-    { id: BEAT_ANIMATION_ID, duration: 300, easing: 'ease-out', fill: 'forwards' },
+    { duration: 300, easing: 'ease-out', fill: 'forwards' },
     ctx,
   ).finished;
 }
@@ -226,7 +226,7 @@ function trailShadow(a: { x: number; y: number }, b: { x: number; y: number }, k
         { opacity: 0.85, offset: 0.25 },
         { opacity: 0, scale: '1.6', translate: `${(r('d') - 0.5) * 24}px ${-18 - r('u') * 26}px` },
       ],
-      { id: BEAT_ANIMATION_ID, duration: 700, delay: t * ENTRY_MOTIONS.rise.ms * 0.7, easing: 'ease-out', fill: 'backwards' },
+      { duration: 700, delay: t * ENTRY_MOTIONS.rise.ms * 0.7, easing: 'ease-out', fill: 'backwards' },
       ctx,
     ).finished.then(() => el.remove());
   }
@@ -267,7 +267,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
         { translate: `${dx * 0.4}px ${dy * 0.4 - 60 - lift}px`, scale: String((s0 + scale) / 2), filter: `${DRAINED} ${shadow(lift * 1.6)}`, offset: 0.6 },
         { ...hung, filter: `${DRAINED} ${shadow(lift)}` },
       ],
-      { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.rise.ms, easing: 'cubic-bezier(0.3, 0, 0.3, 1)', fill: 'forwards' },
+      { duration: ENTRY_MOTIONS.rise.ms, easing: 'cubic-bezier(0.3, 0, 0.3, 1)', fill: 'forwards' },
       ctx,
     ).finished;
     await recolour(wrap, lift, ctx);
@@ -276,7 +276,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
     await animate(
       wrap,
       [{ ...hung, scale: String(scale * 0.9), opacity: 0, filter: `brightness(1.5) ${shadow(lift)}` }, { ...hung, opacity: 1 }],
-      { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.release.ms, easing: 'ease-out', fill: 'forwards' },
+      { duration: ENTRY_MOTIONS.release.ms, easing: 'ease-out', fill: 'forwards' },
       ctx,
     ).finished;
     await wait((60 + 80 * (weight?.power ?? 0)) / tempo);
@@ -290,7 +290,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
         { opacity: 1, filter: `brightness(1.6) ${shadow(lift)}`, offset: 0.6 },
         hung,
       ],
-      { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.blink.ms, easing: 'ease-out', fill: 'forwards' },
+      { duration: ENTRY_MOTIONS.blink.ms, easing: 'ease-out', fill: 'forwards' },
       ctx,
     ).finished;
   } else {
@@ -304,7 +304,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
         { translate: `${dx}px ${dy}px`, scale: String(src === null ? scale : Math.max(0.5, src.width / slot.width)), filter: shadow(lift * 1.4), opacity: src === null ? 0 : 1 },
         { ...hung, offset: 1 },
       ],
-      { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.cast.ms, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'forwards' },
+      { duration: ENTRY_MOTIONS.cast.ms, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'forwards' },
       ctx,
     ).finished;
     if (weight !== null) await wait((60 + 120 * weight.power) / tempo);
@@ -334,7 +334,7 @@ async function landingDrop(wrap: HTMLElement, weight: EntryWeight, ctx: MotionCo
       { translate: '0 0', scale: weight.thump ? String(1 - 0.02 - 0.04 * weight.power) : '1', filter: shadow(0), offset: 0.88 },
       { translate: '0 0', scale: '1', filter: shadow(0) },
     ],
-    { id: BEAT_ANIMATION_ID, duration: dropMs, easing: powerEase(weight.power), fill: 'forwards' },
+    { duration: dropMs, easing: powerEase(weight.power), fill: 'forwards' },
     ctx,
   ).finished;
 }
@@ -371,7 +371,7 @@ function thump(slot: Box, power: number, ctx: MotionContext): Promise<void> {
   return animate(
     el,
     [{ opacity: 0.85, scale: '1' }, { opacity: 0, scale: String(1.18 + 0.3 * power) }],
-    { id: BEAT_ANIMATION_ID, duration: 380 + 200 * power, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' },
+    { duration: 380 + 200 * power, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' },
     ctx,
   ).finished.then(() => el.remove());
 }
@@ -419,7 +419,7 @@ function debris(slot: Box, power: number, share: number, key: string, ctx: Motio
           { translate: '0 0', scale: '0.5', opacity: 0.9 },
           { translate: `${e.nx * far}px ${e.ny * far * 0.6 - 4}px`, scale: String(1.4 + 1.2 * power), opacity: 0 },
         ],
-        { id: BEAT_ANIMATION_ID, duration: ms * (0.8 + 0.2 * r('m')), easing: 'cubic-bezier(0.1, 0.7, 0.3, 1)', fill: 'forwards' },
+        { duration: ms * (0.8 + 0.2 * r('m')), easing: 'cubic-bezier(0.1, 0.7, 0.3, 1)', fill: 'forwards' },
         ctx,
       ).finished,
     );
@@ -445,7 +445,7 @@ function debris(slot: Box, power: number, share: number, key: string, ctx: Motio
           { translate: `${dx * 0.55}px ${dy * 0.55 - up}px`, rotate: `${spin * 0.5}deg`, opacity: 1, offset: 0.45 },
           { translate: `${dx}px ${dy + 10}px`, rotate: `${spin}deg`, opacity: 0 },
         ],
-        { id: BEAT_ANIMATION_ID, duration: ms * (0.75 + 0.25 * r('m')), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
+        { duration: ms * (0.75 + 0.25 * r('m')), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
         ctx,
       ).finished,
     );

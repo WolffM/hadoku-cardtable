@@ -295,8 +295,8 @@ export { endingSentence, reasonLost, rematchOf } from './series/GameResultScreen
 import { hoverControl, playRole, playSoundEvents, takeUiTally } from '@hadoku/game-ui/sound/index.ts';
 import { isMuted, type DelayedSoundEvent } from '@hadoku/ui-shell/sound';
 import { useMatchMusic } from '../../sound/match-music.ts';
-import { boardDrawing, CUE, defaultStage, whenBoardStill, type BoardSound } from '../motion.ts';
-import { motionState, prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { boardStage, CUE, type BoardSound } from '../motion.ts';
+import { motionState, nextFrame, prefersReducedMotion, type Stage } from '@hadoku/ui-shell/motion';
 import { FAST_TEMPO, setGameTempo } from './tempo.ts';
 import {
   asksForHandCards,
@@ -1854,12 +1854,12 @@ const END_ROLES: ReadonlySet<string> = new Set(['g.win', 'g.lose']);
  * until the first hit on a card lands; a permanent leaving, until the first exit starts; a mill, until
  * its first card leaves the library.
  */
-function afterTheHits(events: readonly DelayedSoundEvent[], seq: number): DelayedSoundEvent[] {
+function afterTheHits(events: readonly DelayedSoundEvent[], seq: number, stage: Stage): DelayedSoundEvent[] {
   const now = Date.now();
-  const life = defaultStage.cueAt(CUE.life, seq);
-  const card = defaultStage.cueAt(CUE.card, seq);
-  const exit = defaultStage.cueAt(CUE.exit, seq);
-  const mill = defaultStage.cueAt(CUE.mill, seq);
+  const life = stage.cueAt(CUE.life, seq);
+  const card = stage.cueAt(CUE.card, seq);
+  const exit = stage.cueAt(CUE.exit, seq);
+  const mill = stage.cueAt(CUE.mill, seq);
   return events.map((e) => {
     const until =
       e.role === 'g.damage-player' || e.role === 'g.lifegain'
@@ -1876,9 +1876,9 @@ function afterTheHits(events: readonly DelayedSoundEvent[], seq: number): Delaye
 }
 
 /** The sounds only the board's drawing knows the moment of (a ram's charge and blow, a spell's hit, a creature cracking), each on its beat. */
-function fromTheBoard(seq: number): DelayedSoundEvent[] {
+function fromTheBoard(seq: number, stage: Stage): DelayedSoundEvent[] {
   const now = Date.now();
-  return (defaultStage.cueAt<readonly BoardSound[]>(CUE.sounds, seq) ?? []).map((s) => ({ role: s.role, seat: s.mine ? 'me' : 'opp', intensity: s.intensity, colourCell: s.colourCell ?? null, delayMs: Math.max(0, s.at - now) }));
+  return (stage.cueAt<readonly BoardSound[]>(CUE.sounds, seq) ?? []).map((s) => ({ role: s.role, seat: s.mine ? 'me' : 'opp', intensity: s.intensity, colourCell: s.colourCell ?? null, delayMs: Math.max(0, s.at - now) }));
 }
 
 /**
@@ -1916,15 +1916,15 @@ function useGameEnded(match: LiveMatch): boolean {
  * the game — the bolt that took the last life lands (the operator, 2026-10-15), the last attacker's
  * charge lands and comes home (2026-10-17) — and at once when nothing is playing.
  */
-function useAfterTheBoard(over: boolean): boolean {
+function useAfterTheBoard(over: boolean, stage: Stage): boolean {
   const [shown, setShown] = useState(false);
   useEffect(() => {
     if (!over) {
       setShown(false);
       return undefined;
     }
-    return whenBoardStill(() => setShown(true));
-  }, [over]);
+    return stage.whenStill(() => setShown(true));
+  }, [over, stage]);
   return shown;
 }
 
@@ -2035,8 +2035,10 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
   // The match's music: one of your deck's colours, once the server has said which (`../../sound/match-music.ts`).
   useMatchMusic(match.matchId, match.deckColors);
   const soundView = match.view;
+  // The board's stage: its pacer's, whose beats it waits on, else its own; what draws on the board finds it (`Stage.of`).
+  const stage = useMemo(() => (isPacedTransport(match.transport) ? match.transport.stage : boardStage()), [match.transport]);
   // The result screen waits for the board to finish drawing what ended the game.
-  const resultShown = useAfterTheBoard(useGameEnded(match));
+  const resultShown = useAfterTheBoard(useGameEnded(match), stage);
   const lastSoundView = useRef<BoardView | null>(null);
   /** The game's end sound, from the view that ended it, held for the result screen. */
   const endSound = useRef<{ events: DelayedSoundEvent[]; prevSeq: number } | null>(null);
@@ -2067,8 +2069,9 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
         ...afterTheHits(
           all.filter((e) => e.role !== 'g.phase' && !END_ROLES.has(e.role)),
           soundView.seq,
+          stage,
         ),
-        ...fromTheBoard(soundView.seq),
+        ...fromTheBoard(soundView.seq, stage),
       ];
       playSoundEvents(events);
       reportSound(match, 'view', events, { prevSeq: prev?.seq ?? -1 });
@@ -2076,7 +2079,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
       // Sound must never take the board down; say so in the console instead.
       console.error('[cardtable] sound events for this view failed', err);
     }
-  }, [soundView, spectator, watcher, match]);
+  }, [soundView, spectator, watcher, match, stage]);
   // The game's end sounds with its result screen, once the board has drawn what ended it.
   useEffect(() => {
     const end = endSound.current;
@@ -2204,7 +2207,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
       report: (data) => reportClient(match.transport, match.matchId, 'perf', data),
       board: () => ({
         ...boardFacts(match.view),
-        beats: boardDrawing(),
+        beats: stage.drawingCount,
         paceQueue: isPacedTransport(match.transport) ? match.transport.queued() : -1,
         ui: __HADOKU_UI_VERSION__,
       }),
@@ -2214,7 +2217,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
       frameWatch.current = null;
       watch.dispose();
     };
-  }, [match, spectator]);
+  }, [match, spectator, stage]);
   const frameTurn = match.view?.turn ?? -1;
   useEffect(() => {
     if (frameTurn >= 0) frameWatch.current?.noteTurn(frameTurn);
@@ -2591,6 +2594,8 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
   };
 
   const rootRef = useRef<HTMLDivElement>(null);
+  // Every render: the root is a new element when the match comes back from gone.
+  useEffect(() => (rootRef.current === null ? undefined : stage.attach(rootRef.current)));
   // Every floating dialog over the board can be moved by the player (`./movable.tsx`).
   useEffect(() => {
     const root = rootRef.current;
@@ -3028,7 +3033,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * sheet is reported once it is observed; a prompt that grows from its own
    * state re-renders nothing here, and its resize reports it).
    */
-  const relayoutFrame = useRef(0);
+  const relayoutFrame = useRef<() => void>(() => undefined);
   const questions = useRef<{ observer: ResizeObserver; sheets: Set<Element> } | null>(null);
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -3045,13 +3050,13 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
       // The band moved with no frame from Forge: arcs drawn from its thumbnails repaint (`relayout`), on the
       // next frame: the same wake settles a played card's landing, which must measure its slot after `Board`
       // moves a dropped card into it (measured: inside the commit, the landing flew 190px wide).
-      cancelAnimationFrame(relayoutFrame.current);
-      relayoutFrame.current = requestAnimationFrame(() => relayout(match));
+      relayoutFrame.current();
+      relayoutFrame.current = nextFrame(() => relayout(match));
     });
     observer.observe(root);
     questions.current = { observer, sheets: new Set() };
     return () => {
-      cancelAnimationFrame(relayoutFrame.current);
+      relayoutFrame.current();
       observer.disconnect();
       questions.current = null;
     };
@@ -3736,7 +3741,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
        * Hadoku to decide…" over his own live pass / End Turn.
        */}
       {/* A coin flipped in the game: the same coin, landing on Forge's face (`coin-flip.tsx`). */}
-      <CoinFlips flips={match.flips} viewer={viewerOf(match.view)?.id ?? null} onFlip={(flip) => soundThrow(match, flip)} />
+      <CoinFlips flips={match.flips} viewer={viewerOf(match.view)?.id ?? null} onFlip={(flip) => soundThrow(match, flip)} stage={stage} />
       {/* The coin is its own fact, told before the lagged `waitingOn` — never gated on it. */}
       {coinToss !== null && !playOrDraw && !myOwnDecisionOpen && !(match.view?.gameOver ?? false) && (
         <QuestionHost data-testid="live-coin-toss-host">

@@ -100,8 +100,8 @@ import { CardTile } from '../../components/CardTile.tsx';
 import { artistsReady } from '../../draft/artists.ts';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, handCardWidth, onCardWidthsChanged, sizeAsCard } from '../card-size.ts';
-import { defaultStage, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, takeResolutionEffects, writeDurations } from '../motion.ts';
-import { everyFrame, prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { CUE, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS } from '../motion.ts';
+import { nextFrame, prefersReducedMotion, Stage, timerSet, writeDurations } from '@hadoku/ui-shell/motion';
 import { AbilityChip } from './AbilityChip.tsx';
 import { resolvedTempo } from './tempo.ts';
 import { HiddenCard } from '../HiddenCard.tsx';
@@ -1061,20 +1061,6 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   // A chip's credit is the artist table, a lazy chunk: asked for now, so the first chip never waits on it.
   artistsReady(() => undefined);
   let live = true;
-  /** What runs next frame, on one `everyFrame` loop that runs while there is any: never armed from inside a frame. */
-  const nextFrame: (() => void)[] = [];
-  let looping = false;
-  function onNextFrame(fn: () => void): void {
-    nextFrame.push(fn);
-    if (looping) return;
-    looping = true;
-    everyFrame(() => {
-      const due = live ? nextFrame.splice(0) : [];
-      if (due.length > 0) return () => due.forEach((run) => run());
-      looping = false;
-      return null;
-    });
-  }
   let lastView: BoardView | null = null;
   let interaction: PlacedInteraction | undefined;
   /**
@@ -1128,7 +1114,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   const settles = new WeakMap<Element, number>();
   /** Spells that left the stack, by card id → when: each settles once Forge draws it on a battlefield. */
   const resolvedOff = new Map<number, number>();
-  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const timers = timerSet();
   /**
    * Everything here is sized off the table's cards (`card-size.ts`) and a chip off its own text:
    * a board that changes size (the window) or a chip whose text has just rendered is drawn again.
@@ -1138,13 +1124,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
   const overlay = (): HTMLElement | null => overlayOf(canvas);
 
-  function schedule(fn: () => void, ms: number): void {
-    const timer = setTimeout(() => {
-      timers.delete(timer);
-      if (live) fn();
-    }, ms);
-    timers.add(timer);
-  }
+  const schedule = timers.after;
 
   /** Promote a placement keyed by the caster's own card id onto the stack item's real id, the moment both are known. */
   function promote(items: readonly StackEntry[]): void {
@@ -1493,7 +1473,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       removeNow(id);
       return;
     }
-    const until = Math.max(takeResolutionEffects(id) ?? 0, d.isAbility ? d.shownAt! + CHIP_DWELL_MS / resolvedTempo(id) : 0);
+    const until = Math.max(Stage.of(canvas)?.cueAt(CUE.effects, id) ?? 0, d.isAbility ? d.shownAt! + CHIP_DWELL_MS / resolvedTempo(id) : 0);
     if (until > Date.now()) {
       schedule(() => fadeInto(id, d, cardId), until - Date.now());
       return;
@@ -1546,7 +1526,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         resolvedOff.delete(cardId);
         const drawnNow = permanentOf(cardId);
         settle(drawnNow);
-        onNextFrame(() => {
+        nextFrame(() => {
           const kept = permanentOf(cardId);
           if (live && kept !== drawnNow) settle(kept);
         });
@@ -1638,19 +1618,21 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       return;
     }
     crack(id, d);
-    countering(COUNTERED_MS);
+    countering(COUNTERED_MS, d.el);
     schedule(() => removeNow(id), COUNTERED_MS);
   }
 
   /**
    * A spell being countered is a beat of the board, until the countered spell has cracked and faded: what
-   * waits on the board's beats waits on it (tracked on `../motion.ts`'s `defaultStage`; the operator, 2026-10-29:
+   * waits on the board's beats waits on it, `els`' own animations among them (the operator, 2026-10-29:
    * *"my 90% rule was more about the more common animations like cards on the stack getting countered"*). On
    * its own clock, so a disposed layer still lets it go; and not before its animations, started a render late
    * on a loaded page, are 90% through themselves.
    */
-  function countering(ms: number): void {
-    defaultStage.track({ finished: new Promise((over) => setTimeout(over, ms)), cancel: () => undefined, endsInMs: ms }, { root: canvas });
+  function countering(ms: number, ...els: Element[]): void {
+    const stage = Stage.of(canvas);
+    for (const el of els) stage?.trackCss(el, 'placed-');
+    stage?.track({ finished: new Promise((over) => setTimeout(over, ms)), cancel: () => undefined, endsInMs: ms }, { root: canvas });
   }
 
   /**
@@ -1671,7 +1653,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
     resolver.el.removeAttribute('data-placed-next');
     resolver.el.setAttribute('data-placed-resolving', '');
-    countering(RESOLVE_BLINK_MS + COUNTERED_MS);
+    countering(RESOLVE_BLINK_MS + COUNTERED_MS, resolver.el, target.el);
     schedule(() => {
       crack(targetId, target);
       schedule(() => removeNow(targetId), COUNTERED_MS);
@@ -2040,7 +2022,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     // Hands on an item still easing draw again too, one frame at a time.
     if ((again || easing) && !frameDue) {
       frameDue = true;
-      onNextFrame(() => {
+      nextFrame(() => {
         frameDue = false;
         if (live) render();
       });
@@ -2066,7 +2048,6 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       repaintHooks.delete(hook);
       unsubscribeWidths();
       resized?.disconnect();
-      for (const timer of timers) clearTimeout(timer);
       timers.clear();
       for (const id of [...drawn.keys()]) removeNow(id);
       undrawn.clear();

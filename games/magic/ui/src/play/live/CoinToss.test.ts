@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
+import { Stage } from '@hadoku/ui-shell/motion';
 
 import { CoinToss, FLIP_MS, SideFace, TossCoin } from './CoinToss.tsx';
 import { CoinFlips, freshFlips, FLIP_LINGER_MS, FLIPS_SHOWN } from './coin-flip.tsx';
@@ -81,7 +82,7 @@ describe('a coin flipped in the game is the same coin (the operator, 2026-10-27:
     shownFlip({ player: { kind: 'player', id: 0 }, outcome: 'heads', won: null, source: { kind: 'card', id: 9 }, ...over }, 'Alice’s flip comes up heads', at);
 
   it('lands on the face Forge’s flip came up, heads or tails on its two sides, Forge’s words under it', () => {
-    const { getAllByTestId } = render(createElement(CoinFlips, { flips: [flip({ outcome: 'tails' })], viewer: 0, onFlip: () => undefined }));
+    const { getAllByTestId } = render(createElement(CoinFlips, { flips: [flip({ outcome: 'tails' })], viewer: 0, stage: new Stage(), onFlip: () => undefined }));
     const [coin] = getAllByTestId('coin-flip');
     expect(coin!.dataset).toMatchObject({ outcome: 'tails', flipper: 'you' });
     expect(coin!.querySelector('.coin-toss__face--front')!.textContent).toBe('T');
@@ -107,9 +108,9 @@ describe('a coin flipped in the game is the same coin (the operator, 2026-10-27:
     const told: number[] = [];
     const a = flip({ player: { kind: 'player', id: 1 } });
     const stale = flip({}, Date.now() - FLIP_MS - 10);
-    const view = render(createElement(CoinFlips, { flips: [stale, a], viewer: 0, onFlip: (f) => told.push(f.id) }));
+    const view = render(createElement(CoinFlips, { flips: [stale, a], viewer: 0, stage: new Stage(), onFlip: (f) => told.push(f.id) }));
     expect(view.getAllByTestId('coin-flip').at(-1)!.dataset.flipper).toBe('them');
-    view.rerender(createElement(CoinFlips, { flips: [stale, a], viewer: 0, onFlip: (f) => told.push(f.id) }));
+    view.rerender(createElement(CoinFlips, { flips: [stale, a], viewer: 0, stage: new Stage(), onFlip: (f) => told.push(f.id) }));
     expect(told).toEqual([a.id]);
   });
 

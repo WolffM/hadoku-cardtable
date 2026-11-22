@@ -11,6 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { unlockAfter } from '../motion.ts';
+import type { Stage, StageHold } from '@hadoku/ui-shell/motion';
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
 import { FLIP_MS } from './CoinToss.tsx';
@@ -430,19 +431,20 @@ describe('pacedMatchTransport', () => {
   });
 });
 
-/** A board that is drawing beats until told it is still: `pace.ts`'s `boardStill` seam. */
-function fakeBoard(): { still: (done: () => void) => () => void; busy: (on: boolean) => void } {
+/** A board that is drawing beats until told it is still: the board's stage as `pace.ts` reads it, `held` saying what it waits on. */
+function fakeBoard(held: () => StageHold = () => ({ drawing: 0, waitingOn: '', lastBeatAt: null })): { stage: Stage; busy: (on: boolean) => void } {
   let drawing = false;
   const waiters = new Set<() => void>();
+  const whenUnlocked = (done: () => void): (() => void) => {
+    if (!drawing) {
+      done();
+      return () => undefined;
+    }
+    waiters.add(done);
+    return () => waiters.delete(done);
+  };
   return {
-    still(done) {
-      if (!drawing) {
-        done();
-        return () => undefined;
-      }
-      waiters.add(done);
-      return () => waiters.delete(done);
-    },
+    stage: { whenUnlocked, held } as unknown as Stage,
     busy(on) {
       drawing = on;
       if (on) return;
@@ -483,7 +485,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('a frame the board draws waits while the board draws the beats before it, and goes once they are over', async () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { received } = paced(inner, { boardStill: board.still });
+    const { received } = paced(inner, { stage: board.stage });
     inner.deliver(ATTACK);
     board.busy(true); // the attack being shown (`numbers.ts`'s attack beat)
     await vi.advanceTimersByTimeAsync(0);
@@ -498,7 +500,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('an AI burst — the attack and its blow in one breath — is drawn as two views, the blow after the attack beat', async () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { received } = paced(inner, { boardStill: board.still });
+    const { received } = paced(inner, { stage: board.stage });
     const drawn: unknown[][] = [];
     // The board: each delivered frame drawn at the end of its task; an attack holds it for its beat.
     const render = (): void => {
@@ -524,7 +526,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it("the AI's blow, its End of Turn and the next turn in one burst: the turn waits for the blow's beats, and is a view of its own", async () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { received } = paced(inner, { boardStill: board.still });
+    const { received } = paced(inner, { stage: board.stage });
     inner.deliver(BLOW);
     board.busy(true); // the ram (`numbers.ts`'s combat beats)
     inner.deliver(PHASE);
@@ -551,7 +553,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('Fast Mode holds a new turn for nothing', () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { transport, received } = paced(inner, { boardStill: board.still });
+    const { transport, received } = paced(inner, { stage: board.stage });
     transport.setFast(true);
     board.busy(true);
     inner.deliver(BLOW);
@@ -564,7 +566,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('input waits for the board’s beats, as a drawn frame does: what is castable, and the question', async () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { received } = paced(inner, { boardStill: board.still });
+    const { received } = paced(inner, { stage: board.stage });
     board.busy(true);
     inner.deliver(INPUT_NOTIFY);
     inner.deliver(ASK);
@@ -578,7 +580,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('a question is held by beats that never end no longer than the cap', async () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { received } = paced(inner, { boardStill: board.still, report: () => undefined });
+    const { received } = paced(inner, { stage: board.stage, report: () => undefined });
     board.busy(true);
     inner.deliver(ASK);
     await vi.advanceTimersByTimeAsync(BOARD_HOLD_MAX_MS - 1);
@@ -590,7 +592,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('a log line is not held by the board', () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { received } = paced(inner, { boardStill: board.still });
+    const { received } = paced(inner, { stage: board.stage });
     board.busy(true);
     inner.deliver(MESSAGE);
     expect(received).toEqual([MESSAGE]);
@@ -599,7 +601,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('a question right behind a resolution waits a task, for the beats that resolution starts', async () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { received } = paced(inner, { boardStill: board.still });
+    const { received } = paced(inner, { stage: board.stage });
     inner.deliver(RESOLVE);
     inner.deliver(ASK);
     expect(received, 'the resolution goes; the question waits for its render').toEqual([RESOLVE]);
@@ -614,7 +616,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('Fast Mode holds a question for nothing', () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { transport, received } = paced(inner, { boardStill: board.still });
+    const { transport, received } = paced(inner, { stage: board.stage });
     transport.setFast(true);
     board.busy(true);
     inner.deliver(ASK);
@@ -627,7 +629,7 @@ describe('pacedMatchTransport: one act at a time', () => {
     // The resolution waits its 600 ms gap, then the rest of the beat.
     const inner = fakeInner();
     const board = fakeBoard();
-    const { received } = paced(inner, { boardStill: board.still });
+    const { received } = paced(inner, { stage: board.stage });
     const withMatch = (payload: unknown) => ({ ...(payload as object), matchId: 'm-1' });
     inner.deliver(withMatch(BLOW));
     board.busy(true);
@@ -645,7 +647,7 @@ describe('pacedMatchTransport: one act at a time', () => {
 
   it("an ask held behind a default frame's gap names what that frame changed", async () => {
     const inner = fakeInner();
-    const { received } = paced(inner, { boardStill: fakeBoard().still });
+    const { received } = paced(inner, { stage: fakeBoard().stage });
     inner.deliver({ ...(HAND_OUT as object), matchId: 'm-1' });
     inner.deliver({ ...(DEFAULT_DELTA as object), matchId: 'm-1' });
     inner.deliver({ ...ASK, matchId: 'm-1' });
@@ -662,7 +664,7 @@ describe('pacedMatchTransport: one act at a time', () => {
     const prompt = (message: string) => ({ frame: { kind: 'notify', method: 'showPromptMessage', message }, matchId: 'm-1' });
     const bar = (live: boolean) => ({ frame: { kind: 'notify', method: 'updateButtons', label1: 'OK', label2: 'Cancel', enable1: live, enable2: false }, matchId: 'm-1' });
     const inner = fakeInner();
-    const { received } = paced(inner, { boardStill: fakeBoard().still });
+    const { received } = paced(inner, { stage: fakeBoard().stage });
     inner.deliver({ ...(HAND_OUT as object), matchId: 'm-1' });
     inner.deliver({ ...(DEFAULT_DELTA as object), matchId: 'm-1' });
     inner.deliver(prompt('Waiting for Bob...'));
@@ -689,7 +691,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('a beat that never ends holds a frame no longer than the cap', async () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { received } = paced(inner, { boardStill: board.still });
+    const { received } = paced(inner, { stage: board.stage });
     board.busy(true);
     inner.deliver(BLOW);
     await vi.advanceTimersByTimeAsync(BOARD_HOLD_MAX_MS - 1);
@@ -700,13 +702,9 @@ describe('pacedMatchTransport: one act at a time', () => {
 
   it('a hold that reaches the cap is reported, with what the board was still waiting on; one the board frees is not', async () => {
     const inner = fakeInner();
-    const board = fakeBoard();
+    const board = fakeBoard(() => ({ drawing: 1, waitingOn: 'turn-cue×1', lastBeatAt: null }));
     const reports: unknown[] = [];
-    const { received } = paced(inner, {
-      boardStill: board.still,
-      report: (r) => reports.push(r),
-      boardHold: () => ({ drawing: 1, waitingOn: 'turn-cue×1', lastBeatAt: null }),
-    });
+    const { received } = paced(inner, { stage: board.stage, report: (r) => reports.push(r) });
     board.busy(true);
     inner.deliver(BLOW);
     await vi.advanceTimersByTimeAsync(BOARD_HOLD_MAX_MS);
@@ -722,7 +720,7 @@ describe('pacedMatchTransport: one act at a time', () => {
   it('Fast Mode holds nothing for the board, and turning it on lets a held frame go', async () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { transport, received } = paced(inner, { boardStill: board.still });
+    const { transport, received } = paced(inner, { stage: board.stage });
     board.busy(true);
     inner.deliver(BLOW);
     expect(received).toEqual([]);
@@ -816,7 +814,7 @@ describe('the seat’s own act', () => {
       const inner = fakeInner();
       const board = fakeBoard();
       const held: unknown[] = [];
-      const { transport, received } = paced(inner, { boardStill: board.still, report: (h) => held.push(h) });
+      const { transport, received } = paced(inner, { stage: board.stage, report: (h) => held.push(h) });
       transport.setSeatPlayer(() => ALICE);
       inner.deliver(ASK); // the activation's own question: the act is the seat's
       board.busy(true); // the last loop's beats, still playing
@@ -838,7 +836,7 @@ describe('the seat’s own act', () => {
     it("a question after the seat's own resolution goes at once; after the opponent's, on its beats", async () => {
       const inner = fakeInner();
       const board = fakeBoard();
-      const { transport, received } = paced(inner, { boardStill: board.still });
+      const { transport, received } = paced(inner, { stage: board.stage });
       transport.setSeatPlayer(() => ALICE);
       inner.deliver(pushed(3, ALICE));
       board.busy(true); // her Doom Blade's beats
@@ -869,7 +867,7 @@ describe('the seat’s own act', () => {
     it("the seat's own Doom Blade and its own counter open its next decision at once, over their beats", async () => {
       const inner = fakeInner();
       const board = fakeBoard();
-      const { transport, received } = paced(inner, { boardStill: board.still });
+      const { transport, received } = paced(inner, { stage: board.stage });
       transport.setSeatPlayer(() => ALICE);
       // Her Doom Blade: it resolves, its slice is drawing, and her next window opens.
       inner.deliver(pushed(3, ALICE));
@@ -897,7 +895,7 @@ describe('the seat’s own act', () => {
     it("the opponent's act after the seat's waits for the seat's beats and keeps its gaps", async () => {
       const inner = fakeInner();
       const board = fakeBoard();
-      const { transport, received } = paced(inner, { boardStill: board.still });
+      const { transport, received } = paced(inner, { stage: board.stage });
       transport.setSeatPlayer(() => ALICE);
       inner.deliver(pushed(3, ALICE));
       inner.deliver(popped());
@@ -930,7 +928,7 @@ describe('the seat’s own act', () => {
       const inner = fakeInner();
       const board = fakeBoard();
       const held: unknown[] = [];
-      const { transport, received } = paced(inner, { boardStill: board.still, report: (h) => held.push(h) });
+      const { transport, received } = paced(inner, { stage: board.stage, report: (h) => held.push(h) });
       transport.setSeatPlayer(() => ALICE);
       inner.deliver(ATTACKERS_STEP); // a step began: nobody's act
       await vi.advanceTimersByTimeAsync(1_000);
@@ -1037,7 +1035,7 @@ describe('a die or a coin in the air', () => {
   it("a die that started late: once the clock has run, the seat's own question also waits for it to land on the board", async () => {
     const inner = fakeInner();
     const board = fakeBoard();
-    const { transport, received } = paced(inner, { initialFast: true, boardStill: board.still, reducedMotion: () => false });
+    const { transport, received } = paced(inner, { initialFast: true, stage: board.stage, reducedMotion: () => false });
     transport.setSeatPlayer(() => ALICE);
     inner.deliver(ASK);
     inner.deliver(rolled([14]));
@@ -1149,7 +1147,7 @@ describe('a chain of resolutions nobody decides between', () => {
   for (const [who, viewer] of [['alice, whose triggers they are', ALICE], ['bob, on Auto Yield', BOB], ['a watcher', null]] as const) {
     it(`${who}: each of ten triggers resolves on its own beat, ${RESOLVE_CHAIN_GAP_MS} ms apart, over the board's beats`, async () => {
       const board = fakeBoard();
-      const { inner, times, received } = watch(viewer, { boardStill: board.still });
+      const { inner, times, received } = watch(viewer, { stage: board.stage });
       for (const t of triggers) inner.deliver(t);
       await run(() => received.length === triggers.length);
       await vi.advanceTimersByTimeAsync(5_000);
@@ -1178,7 +1176,7 @@ describe('a chain of resolutions nobody decides between', () => {
         run();
       }, delay);
     };
-    const { inner, times, received } = watch(BOB, { boardStill: fakeBoard().still, nextFrame });
+    const { inner, times, received } = watch(BOB, { stage: fakeBoard().stage, nextFrame });
     for (const t of triggers) inner.deliver(t);
     await run(() => received.length === triggers.length);
     await vi.advanceTimersByTimeAsync(5_000);
@@ -1203,7 +1201,7 @@ describe('a chain of resolutions nobody decides between', () => {
         n % 2 === 0 ? 400 : 0,
       );
     };
-    const { inner, times, received } = watch(BOB, { boardStill: fakeBoard().still, nextFrame });
+    const { inner, times, received } = watch(BOB, { stage: fakeBoard().stage, nextFrame });
     for (const t of triggers) inner.deliver(t);
     await run(() => received.length === triggers.length);
     await vi.advanceTimersByTimeAsync(5_000);
@@ -1214,7 +1212,7 @@ describe('a chain of resolutions nobody decides between', () => {
   });
 
   it(`a page that draws nothing (a hidden tab) still lets the chain go, each ${RESOLVE_DRAWN_WAIT_MAX_MS} ms after the last`, async () => {
-    const { inner, times, received } = watch(BOB, { boardStill: fakeBoard().still, nextFrame: () => undefined });
+    const { inner, times, received } = watch(BOB, { stage: fakeBoard().stage, nextFrame: () => undefined });
     for (const t of triggers) inner.deliver(t);
     await run(() => received.length === triggers.length);
     await vi.advanceTimersByTimeAsync(5_000);
@@ -1226,7 +1224,7 @@ describe('a chain of resolutions nobody decides between', () => {
 
   it('each resolution going out names the items it takes off the stack, for the board’s tempo to count before it is drawn', async () => {
     const sent: (readonly number[])[] = [];
-    const { inner, received } = watch(BOB, { boardStill: fakeBoard().still, resolving: (ids) => sent.push(ids) });
+    const { inner, received } = watch(BOB, { stage: fakeBoard().stage, resolving: (ids) => sent.push(ids) });
     for (const t of triggers) inner.deliver(t);
     await run(() => received.length === triggers.length);
     expect(sent, 'putting triggers on resolves nothing').toEqual([]);
@@ -1239,7 +1237,7 @@ describe('a chain of resolutions nobody decides between', () => {
     const board = fakeBoard();
     // The board's word on the next resolution's tempo (`tempo.ts`'s `nextResolveTempo`): one step faster per trigger drawn.
     let drawn: readonly number[] = [];
-    const { inner, times, received } = watch(BOB, { boardStill: board.still, tempo: () => Math.min(2.5, 1 + 0.25 * drawn.length) });
+    const { inner, times, received } = watch(BOB, { stage: board.stage, tempo: () => Math.min(2.5, 1 + 0.25 * drawn.length) });
     drawn = times;
     for (const t of triggers) inner.deliver(t);
     await run(() => received.length === triggers.length);
@@ -1283,7 +1281,7 @@ describe('a chain of resolutions nobody decides between', () => {
 
   it('"Waiting for Alice..." under a dead bar is nobody acting: the chain keeps its beats on the other screen', async () => {
     const board = fakeBoard();
-    const { inner, times, received } = watch(BOB, { boardStill: board.still });
+    const { inner, times, received } = watch(BOB, { stage: board.stage });
     for (const t of triggers) inner.deliver(t);
     await run(() => received.length === triggers.length);
     await vi.advanceTimersByTimeAsync(5_000);
@@ -1300,7 +1298,7 @@ describe('a chain of resolutions nobody decides between', () => {
   // priority follows at once: the castable glow, the prompt line, a live bar. It opens on the effect's last tenth (AF454).
   it("the other player's resolution with an item left under it: the seat's decision still waits for its beats", async () => {
     const board = fakeBoard();
-    const { inner, received } = watch(ALICE, { boardStill: board.still });
+    const { inner, received } = watch(ALICE, { stage: board.stage });
     inner.deliver(pushed([200], ALICE));
     inner.deliver(pushed([201, 200], BOB));
     await vi.advanceTimersByTimeAsync(5_000);
@@ -1319,7 +1317,7 @@ describe('a chain of resolutions nobody decides between', () => {
 
   it("the glow taken away again is a window passed for the seat: the chain goes on without waiting out the other's beats", async () => {
     const board = fakeBoard();
-    const { inner, times, received } = watch(BOB, { boardStill: board.still });
+    const { inner, times, received } = watch(BOB, { stage: board.stage });
     for (const t of triggers) inner.deliver(t);
     await run(() => received.length === triggers.length);
     await vi.advanceTimersByTimeAsync(5_000);
@@ -1338,7 +1336,7 @@ describe('a chain of resolutions nobody decides between', () => {
 
   it('an input frame mid-chain that nothing settles is taken as a decision: it waits for the beats', async () => {
     const board = fakeBoard();
-    const { inner, received } = watch(ALICE, { boardStill: board.still });
+    const { inner, received } = watch(ALICE, { stage: board.stage });
     inner.deliver(pushed([200], ALICE));
     inner.deliver(pushed([201, 200], BOB));
     await vi.advanceTimersByTimeAsync(5_000);
@@ -1376,7 +1374,7 @@ describe('a chain of resolutions nobody decides between', () => {
 
   it('the stack emptying ends the chain: what follows keeps its own pace on the other screen', async () => {
     const board = fakeBoard();
-    const { inner, received } = watch(BOB, { boardStill: board.still });
+    const { inner, received } = watch(BOB, { stage: board.stage });
     for (const t of triggers.slice(0, 2)) inner.deliver(t);
     await vi.advanceTimersByTimeAsync(5_000);
     const two = [deltaOf({ g: stackOf([101]) }), deltaOf({ g: stackOf([]) })];

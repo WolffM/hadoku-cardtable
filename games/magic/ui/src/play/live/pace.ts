@@ -78,7 +78,7 @@
  * killing blow a second time beside the first (`e2e/cp-lethal-blow.spec.ts`, the operator, 2026-10-17:
  * "a duplicate copy of the tapped attacking creatures"). So the end goes out in its place like any
  * frame, and it is the result screen that waits for the frame that shows the end
- * (`LiveBoard.tsx`'s `useGameEnded`), and then for the board to draw it (`../motion.ts`'s `whenBoardStill`).
+ * (`LiveBoard.tsx`'s `useGameEnded`), and then for the board to draw it (its stage's `whenStill`).
  *
  * ## One act at a time, and the board's beats first — for every act but the seat's own (below)
  *
@@ -95,7 +95,7 @@
  *   - a frame the board draws ({@link HELD_BY_THE_BOARD}) never goes out in the same task as another: React
  *     draws each as its own view, and every beat of it is diffed on its own;
  *   - and it waits while the board is still drawing the beats of what came before
- *     (`../motion.ts`'s `whenBoardUnlocked`: a ram, a bolt, a death, an attack being shown), at most
+ *     (its stage's `whenUnlocked`: a ram, a bolt, a death, an attack being shown), at most
  *     {@link BOARD_HOLD_MAX_MS}. A beat is as long as it always was; the next act starts on its last tenth
  *     (`UNLOCK_AT`, the operator, 2026-10-28: "let's "unlock" the game state when it's waiting on the last
  *     ~10% of an animation") and draws while it finishes. A cast's own pieces draw no beat, so a cast is still one moment.
@@ -200,8 +200,8 @@
 import { DELTA_TYPE } from '@hadoku/forge-wire';
 import { CLIENT_EVENT, type ClientEvent } from '@hadoku/shared';
 
-import { BOLT_STAGGER_MS, boardHold, unlockAfter, whenBoardUnlocked, type BoardHold } from '../motion.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { BOLT_STAGGER_MS, boardStage, unlockAfter } from '../motion.ts';
+import { nextFrame as onNextFrame, prefersReducedMotion, type Stage } from '@hadoku/ui-shell/motion';
 import { FLIP_MS } from './CoinToss.tsx';
 import { rollMs } from './dice.ts';
 import type { MatchTransport } from './match.ts';
@@ -313,7 +313,7 @@ export interface InputHeld {
 
 /**
  * A frame the board held for the whole of {@link BOARD_HOLD_MAX_MS} — a beat that never said it was over — and
- * what it was waiting on (`../motion.ts`'s {@link boardHold}): the views still drawing, the beats still running
+ * what it was waiting on (its stage's `held`): the views still drawing, the beats still running
  * by name, and how long before the cap the last view began drawing (-1 for none).
  */
 export interface BoardHoldCapped {
@@ -582,6 +582,8 @@ export interface PacedMatchTransport extends MatchTransport {
   setSeatPlayer(player: () => number | null): void;
   /** How many frames are held, waiting their turn: the frame rate's reports read it (`frame-watch.ts`). */
   queued(): number;
+  /** The board's stage, whose beats it waits on: `LiveBoard` attaches it to the board it draws. */
+  readonly stage: Stage;
 }
 
 /** Narrows a plain `MatchTransport` (the dev harness's, a test's own stub) from one this wrapper built. Structural, not a brand: `setFast` is this interface's only addition. */
@@ -600,12 +602,10 @@ export interface PaceOptions {
   schedule?: (run: () => void, delayMs: number) => unknown;
   /** Test seam, paired with `schedule`. Defaults to the real `clearTimeout`. */
   cancel?: (handle: unknown) => void;
-  /** Runs `done` once every beat the board is drawing is `UNLOCK_AT` through, at once when none is left; returns a cancel. Defaults to `../motion.ts`'s `whenBoardUnlocked`. */
-  boardStill?: (done: () => void) => () => void;
+  /** The board's stage: what it waits on (`whenUnlocked`, every beat `UNLOCK_AT` through) and reports when a hold reaches the cap (`held`). Defaults to a new one (`../motion.ts`'s `boardStage`). */
+  stage?: Stage;
   /** Where an {@link InputHeld} or a {@link BoardHoldCapped} goes, with the payload it is about. Defaults to the match's client telemetry, on the inner transport. */
   report?: (held: InputHeld | BoardHoldCapped, payload: unknown) => void;
-  /** Test seam: what the board is waiting on when a hold reaches the cap. Defaults to `../motion.ts`'s `boardHold`. */
-  boardHold?: () => BoardHold;
   /** Test seam: whether the viewer asked for reduced motion, when nothing is thrown through the air. Defaults to `../motion.ts`'s `prefersReducedMotion`. */
   reducedMotion?: () => boolean;
   /** How fast the next resolution is drawn (module header, "The same thing again, sooner"). Defaults to `./tempo.ts`'s `nextResolveTempo`. */
@@ -642,15 +642,14 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const now = options.now ?? (() => Date.now());
   const schedule = options.schedule ?? ((run: () => void, delayMs: number) => setTimeout(run, delayMs));
   const cancel = options.cancel ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
-  const boardStill = options.boardStill ?? whenBoardUnlocked;
+  const stage = options.stage ?? boardStage();
   const report = options.report ?? reportOn(inner);
-  const holdNow = options.boardHold ?? boardHold;
   const reducedMotion = options.reducedMotion ?? prefersReducedMotion;
   const tempo = options.tempo ?? nextResolveTempo;
   const speed = options.speed ?? gameTempoNow;
   const resolving = options.resolving ?? noteResolutionsSent;
   const nextFrame: ((run: () => void) => void) | null =
-    options.nextFrame ?? (typeof requestAnimationFrame === 'function' ? (run: () => void) => void requestAnimationFrame(() => run()) : null);
+    options.nextFrame ?? (typeof requestAnimationFrame === 'function' ? onNextFrame : null);
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
@@ -839,12 +838,12 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       endBoardWait();
       pump();
     };
-    const stopStill = boardStill(release);
+    const stopStill = stage.whenUnlocked(release);
     if (stillNow) return false;
     waiting = true;
     boardSince = now();
     const cap = schedule(() => {
-      const hold = holdNow();
+      const hold = stage.held();
       report(
         {
           what: 'board-hold-capped',
@@ -956,6 +955,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   }
 
   return {
+    stage,
     on(event, handler) {
       if (event !== MATCH_EVENTS.serverToClient) {
         inner.on(event, handler);

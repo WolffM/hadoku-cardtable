@@ -4,9 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { LANDING_ATTR } from './departures.ts';
-import { whenBoardUnlocked } from '../motion.ts';
+import { boardStage } from '../motion.ts';
 import { installNumbers } from './numbers.ts';
 import { installMill, MILL_ATTR, MILL_FLIGHT_MS, MILL_MAX_FLYERS, MILL_MAX_MS, MILL_STAGGER_MS, millsOf, millTiming, SET_ASIDE_VIEWS, setAsideAfter, type Mill } from './mill.ts';
+
+/** The board's stage, attached to the page every test draws on: `Stage.of` finds it from anything there. */
+const stage = boardStage();
+stage.attach(document.documentElement);
 
 function card(id: number): BoardCard {
   return {
@@ -291,7 +295,7 @@ describe('the board draws a mill from the frame that made it (`numbers.ts`)', ()
     expect(canvas.querySelectorAll(`[${MILL_ATTR}]`).length).toBe(1);
     // Nothing waits on a mill: the other seat's next frame (`pace.ts`) is not held for it.
     let unlocked = false;
-    whenBoardUnlocked(() => (unlocked = true));
+    stage.whenUnlocked(() => (unlocked = true));
     expect(unlocked).toBe(true);
     vi.advanceTimersByTime(millTiming(2).totalMs + 1);
     expect(hidden()).toEqual([]);

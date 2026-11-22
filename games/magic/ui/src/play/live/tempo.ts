@@ -120,10 +120,6 @@ export function nextTempo(count: TempoCount, key: string, turn: number, ahead = 
   return tempoOf((count.turn === turn ? (count.seen.get(key) ?? 0) : 0) + ahead + 1);
 }
 
-/* ── the browser's side of an instance's clock: `@hadoku/ui-shell/motion`'s ── */
-
-export { markTempo, quicken, TEMPO_PROPERTY } from '@hadoku/ui-shell/motion';
-
 /* ── the board's tempo, for what reads it outside the drawing ───────── */
 
 /** How many resolved items' tempos are kept for the stack layer: it reads one as its item leaves. */

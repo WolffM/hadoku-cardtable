@@ -11,19 +11,15 @@ function fakeHost(rooms = 40) {
   let now = 0;
   /** When the current frame began: its `requestAnimationFrame` time. */
   let frameStart = 0;
-  let nextId = 1;
-  const frames = new Map<number, (t: number) => void>();
+  const frames = new Set<(t: number) => (() => void) | null>();
   let listener: ((e: Event) => void) | null = null;
   const sent: Record<string, string | number | boolean>[] = [];
   const host: ScrollWatchHost = {
+    frame: (step) => {
+      frames.add(step);
+      return () => void frames.delete(step);
+    },
     win: {
-      requestAnimationFrame: (cb) => {
-        frames.set(nextId, cb);
-        return nextId++;
-      },
-      cancelAnimationFrame: (id) => {
-        frames.delete(id);
-      },
       devicePixelRatio: 1.25,
       innerWidth: 1920,
       innerHeight: 1080,
@@ -54,9 +50,7 @@ function fakeHost(rooms = 40) {
     now = frameStart;
     if (moving) scroll();
     now += work;
-    const pending = [...frames.entries()];
-    frames.clear();
-    for (const [, cb] of pending) cb(frameStart);
+    for (const step of [...frames]) if (step(frameStart) === null) frames.delete(step);
   };
   return { host, sent, scroll, frame, listening: () => listener !== null, pending: () => frames.size };
 }

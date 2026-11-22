@@ -6,23 +6,24 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { everyFrame } from './frame.ts';
+import { everyFrame, resetFrames } from './frame.ts';
 
 /** A requestAnimationFrame the test steps by hand: `tick()` runs the frame's callbacks. */
-function frames(): { tick: () => void; queued: () => number } {
+function frames(): { tick: (at?: number) => void; queued: () => number } {
   let queue: FrameRequestCallback[] = [];
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => queue.push(cb));
   return {
-    tick: () => {
+    tick: (at = performance.now()) => {
       const run = queue;
       queue = [];
-      for (const cb of run) cb(performance.now());
+      for (const cb of run) cb(at);
     },
     queued: () => queue.length,
   };
 }
 
 afterEach(() => {
+  resetFrames();
   vi.unstubAllGlobals();
 });
 
@@ -97,5 +98,29 @@ describe('everyFrame', () => {
     f.tick();
     f.tick();
     expect(f.queued()).toBe(0);
+  });
+
+  it('hands every step the frame’s start time', () => {
+    const f = frames();
+    const seen: number[] = [];
+    const stop = everyFrame((now) => (seen.push(now), () => undefined));
+    f.tick(1000);
+    f.tick(1016.5);
+    expect(seen).toEqual([1000, 1016.5]);
+    stop();
+  });
+
+  it('resetFrames forgets a frame owed to a clock that is gone, so the next loop asks again', () => {
+    let owed = 0;
+    vi.stubGlobal('requestAnimationFrame', () => ++owed);
+    everyFrame(() => () => undefined);
+    expect(owed).toBe(1);
+    // The frame never comes (fake timers restored): without the reset, no loop would ask for one again.
+    resetFrames();
+    const f = frames();
+    const log: string[] = [];
+    everyFrame(() => () => log.push('drawn'));
+    f.tick();
+    expect(log).toEqual(['drawn']);
   });
 });

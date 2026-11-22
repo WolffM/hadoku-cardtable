@@ -65,7 +65,7 @@ import type { DraftCard } from '../draft/types.ts';
 import { groupCards, mvLabel, type GroupId } from '../deck/cardOrder.ts';
 import { DraggableCard, DropArea, useCardSplit, type Area } from '../deck/dragMove.tsx';
 import { uiPx } from '@hadoku/ui-shell/settings';
-import { everyFrame } from '@hadoku/ui-shell/motion';
+import { nextFrame } from '@hadoku/ui-shell/motion';
 import { CardPile, pileChrome } from './CardPile.tsx';
 import { CardTile } from './CardTile.tsx';
 import { cssPx, fitPiles, useBox } from './cardFit.ts';
@@ -218,7 +218,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove
  * `enterFrom` is read in a LAYOUT effect — before the browser paints the tile
  * where it now sits — so the FIRST frame ever painted already shows the
  * INVERTED position: transform set to slide it back to the pack slot's rect,
- * transition off. The next frame (`everyFrame`'s writes, after that paint
+ * transition off. The next frame (`nextFrame`, with the frame's writes, after that paint
  * has had a chance to happen) turns the transition back on and clears the
  * transform, so the browser PLAYs the move from there to here. A card is
  * never visible at its real position without having been asked to animate
@@ -257,8 +257,7 @@ function PoolTile({ card, tileId, enterFrom, from }: { card: DraftCard; tileId: 
     // frame and nothing ever appears to move.
     void el.getBoundingClientRect();
 
-    const stop = everyFrame(() => () => {
-      stop();
+    const stop = nextFrame(() => {
       el.style.transition = '';
       el.style.transform = '';
     });

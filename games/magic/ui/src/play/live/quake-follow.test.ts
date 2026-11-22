@@ -2,7 +2,7 @@
 /*
  * Entry stand-ins in flight at once (a wipe undone, a mass reanimation): each frame, every stand-in reads
  * its row card before any stand-in is moved — one layout a frame, not one per card (cut 3's capture).
- * Its own file: `../frame-phases.ts` keeps one frame loop per page, and this test steps it by hand.
+ * Its own file: `@hadoku/ui-shell/motion`'s `everyFrame` keeps one frame loop per page, and this test steps it by hand.
  */
 import { describe, expect, it, vi } from 'vitest';
 

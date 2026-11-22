@@ -43,9 +43,9 @@
  * Reduced motion: none.
  */
 
-import { animate } from '@hadoku/ui-shell/motion';
+import { animate, Stage } from '@hadoku/ui-shell/motion';
 
-import { BEAT_ANIMATION_ID, defaultStage, homeEase, powerEase } from '../motion.ts';
+import { homeEase, powerEase } from '../motion.ts';
 import { copyOfCard } from './departures.ts';
 import { along, seedOf, type Point } from './projectile.ts';
 import './ram.css';
@@ -510,7 +510,8 @@ function mover(root: HTMLElement, source: HTMLElement, from: Box): { el: HTMLEle
 
 /** Run `parts` on `el` (each from its own delay), at `tempo` (`./tempo.ts`), each a beat of the board's stage, then `done` when the last is over; returns a cancel. */
 function play(el: HTMLElement, parts: readonly { frames: Keyframe[]; delay: number; duration: number; easing?: string }[], done: () => void, tempo: number): () => void {
-  const runs = parts.map((p) => animate(el, p.frames, { id: BEAT_ANIMATION_ID, delay: p.delay, duration: p.duration, easing: p.easing ?? 'linear', fill: 'forwards' }, { tempo, stage: defaultStage }));
+  const stage = Stage.of(el);
+  const runs = parts.map((p) => animate(el, p.frames, { delay: p.delay, duration: p.duration, easing: p.easing ?? 'linear', fill: 'forwards' }, { tempo, stage }));
   void runs[runs.length - 1]!.finished.then(done);
   return () => {
     for (const r of runs) r.cancel();

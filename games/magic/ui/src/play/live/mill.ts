@@ -52,11 +52,10 @@
 
 import type { BoardView } from '../adapter.ts';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { markTempo, prefersReducedMotion, timerSet } from '@hadoku/ui-shell/motion';
 import { faceBox, overlayOf } from './board-dom.ts';
 import { copyOfCard, LANDING_ATTR } from './departures.ts';
 import './mill.css';
-import { markTempo } from './tempo.ts';
 
 /** One card milled: out of `fromPlayerId`'s library (`index` from its top) into `toPlayerId`'s graveyard. */
 export interface Mill {
@@ -196,19 +195,13 @@ export function installMill(
   reduced: () => boolean = prefersReducedMotion,
   report?: (data: Record<string, string | number | boolean>) => void,
 ): MillHandle {
-  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const timers = timerSet();
   const flyers = new Set<HTMLElement>();
   /** Every card hidden on a pile and not yet shown. */
   const hidden = new Set<number>();
   let live = true;
 
-  function schedule(fn: () => void, ms: number): void {
-    const t = setTimeout(() => {
-      timers.delete(t);
-      if (live) fn();
-    }, ms);
-    timers.add(t);
-  }
+  const schedule = timers.after;
 
   /** Show a hidden card on its pile, as it is drawn now (React may have drawn the pile again meanwhile). */
   function show(mill: Mill, tempo: number, fade = false): void {
@@ -327,7 +320,6 @@ export function installMill(
     },
     dispose() {
       live = false;
-      for (const t of timers) clearTimeout(t);
       timers.clear();
       for (const el of flyers) el.remove();
       flyers.clear();

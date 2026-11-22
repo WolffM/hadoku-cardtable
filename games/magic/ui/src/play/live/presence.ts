@@ -88,8 +88,8 @@ import type { EntryWeight } from './entries.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { gripStackItem, holdSpell, onOwnClickable, onSpellMoved, placeSpell, releaseSpell, setPeerClickable, stackBoxOf, type Grip } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
-import { afterGlide, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, writeDurations } from '../motion.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS } from '../motion.ts';
+import { afterGlide, prefersReducedMotion, writeDurations } from '@hadoku/ui-shell/motion';
 import { battlefieldCard, overlayOf, zoneOf } from './board-dom.ts';
 import type { MatchTransport } from './match.ts';
 import { hitAt, scopeOf } from '@hadoku/game-ui/dom.ts';
@@ -1484,7 +1484,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         stopGlide = null;
         glide = null;
         afterGlideEnds?.();
-      });
+      }, GLIDE_MS);
     };
     requestAnimationFrame(() => seek(GAP_FRAMES));
   }

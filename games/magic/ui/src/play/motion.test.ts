@@ -1,24 +1,23 @@
 // @vitest-environment jsdom
 /*
- * Magic's side of the board's stage (`defaultStage`): which animations are beats by name, where it unlocks,
- * and how heavy a hit is. The stage itself is `@hadoku/ui-shell/motion`'s `Stage`, tested there.
+ * Magic's side of the board's stage (`boardStage`): where it unlocks, and how heavy a hit is. The stage itself
+ * is `@hadoku/ui-shell/motion`'s `Stage`, tested there.
  */
 import { describe, expect, it } from 'vitest';
 
-import { BEAT_ANIMATION_ID, damagePower, damageSize, defaultStage, MAX_DAMAGE, powerSize, UNLOCK_AT, unlockAfter } from './motion.ts';
+import { boardStage, damagePower, damageSize, MAX_DAMAGE, powerSize, UNLOCK_AT, unlockAfter } from './motion.ts';
 
-describe('the board’s stage (`defaultStage`)', () => {
-  it('its beats by name: its own id, a leaving card, a floating number, an effect, a resolution; not a banner or a glide', () => {
-    const named = (name: { id?: string; animationName?: string; transitionProperty?: string }): boolean => defaultStage.isBeat({ id: '', ...name } as unknown as Animation);
-    expect([BEAT_ANIMATION_ID].map((id) => named({ id }))).toEqual([true]);
-    expect(['board-exit-crumble', 'board-number-rise', 'effect-crash', 'placed-resolve'].map((animationName) => named({ animationName }))).toEqual([true, true, true, true]);
-    expect([named({ animationName: 'turn-cue' }), named({ transitionProperty: 'left' })]).toEqual([false, false]);
+describe('the board’s stage (`boardStage`)', () => {
+  it('a beat by name alone is none: a stage waits only for what is registered with it', () => {
+    const named = (name: { id?: string; animationName?: string }): boolean => boardStage().isBeat({ id: '', ...name, effect: { target: document.body } } as unknown as Animation);
+    expect([named({ id: 'beat' }), named({ animationName: 'board-exit-crumple' }), named({ animationName: 'effect-crash-ring' })]).toEqual([false, false, false]);
   });
 
-  it('UNLOCK_AT is 90%, and a timed beat lets go that far through', () => {
+  it('UNLOCK_AT is 90%, and a timed beat lets go that far through, on every board’s stage', () => {
     expect(UNLOCK_AT).toBe(0.9);
     expect(unlockAfter(1000)).toBe(900);
     expect(unlockAfter(600), 'an attack beat').toBe(540);
+    expect(boardStage().unlockAt).toBe(UNLOCK_AT);
   });
 });
 

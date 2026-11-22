@@ -20,7 +20,7 @@
 
 import type { BoardCard, BoardView } from '../adapter.ts';
 import './pt-impact.css';
-import { markTempo } from './tempo.ts';
+import { markTempo } from '@hadoku/ui-shell/motion';
 
 /** A creature's two numbers, as Forge has them now (damage not taken off). */
 export interface PT {

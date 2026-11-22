@@ -6,14 +6,15 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { animate, markTempo, quicken, runningOf, STILL, TEMPO_PROPERTY, type Running } from './animate.ts';
-import { animationName, Stage, type TrackOptions } from './stage.ts';
+import { animate, at, hold, markTempo, moment, quicken, runningOf, STILL, TEMPO_PROPERTY, together, type MotionContext, type Running } from './animate.ts';
+import { Stage, type TrackOptions } from './stage.ts';
 import { afterGlide } from './stand-in.ts';
 
 const GLIDE_MS = 300;
 const UNLOCK_AT = 0.9;
-const BEAT_ANIMATION_ID = 'beat';
-const stage = new Stage({ unlockAt: UNLOCK_AT, isBeat: (a) => a.id === BEAT_ANIMATION_ID });
+const stage = new Stage({ unlockAt: UNLOCK_AT });
+/** `anim` is one of `on`'s beats, as `animate()` with a stage registers it. */
+const register = <T extends Animation>(anim: T, on = stage): T => (on.beat(runningOf([anim])), anim);
 const animationsSettled = (root: Element, through?: number): Promise<void> => stage.settled(root, through);
 const whenBoardStill = (done: () => void): (() => void) => stage.whenStill(done);
 const whenBoardUnlocked = (done: () => void): (() => void) => stage.whenUnlocked(done);
@@ -114,11 +115,12 @@ describe('afterGlide', () => {
   });
 });
 
-/** An animation the test finishes by hand, with how long its timing says it runs. */
-function running(endTime: number, name: { id?: string; animationName?: string; transitionProperty?: string } = { id: BEAT_ANIMATION_ID }): { anim: Animation; end: () => void } {
+/** An animation the test finishes by hand, with how long its timing says it runs: one of `stage`'s beats, unless named (a stylesheet's, on `target`). */
+function running(endTime: number, name?: { animationName?: string; transitionProperty?: string }, target: Element | null = null): { anim: Animation; end: () => void } {
   let resolve!: () => void;
   const finished = new Promise<void>((res) => (resolve = res));
-  const anim = { playState: 'running', finished, effect: { getComputedTiming: () => ({ endTime }) }, id: '', ...name } as unknown as Animation;
+  const anim = { playState: 'running', finished, effect: { getComputedTiming: () => ({ endTime }), target }, id: '', ...name } as unknown as Animation;
+  if (name === undefined) register(anim);
   const end = (): void => {
     (anim as { playState: string }).playState = 'finished';
     resolve();
@@ -174,26 +176,31 @@ describe('the board’s stillness', () => {
     expect(settled).toBe(true);
   });
 
-  it('a stage waits for its beats only (its isBeat, here by name): a turn banner, a stack settling or a glide under the board holds nothing', async () => {
-    const named = new Stage({ isBeat: (a) => a.id === BEAT_ANIMATION_ID || animationName(a).startsWith('board-number-') });
+  it('a stage waits for its beats only (registered, and the stylesheet animations trackCss names): a turn banner, a card’s own glint or a glide holds nothing', async () => {
+    const named = new Stage();
+    const number = document.createElement('div');
+    const face = number.appendChild(document.createElement('span'));
+    named.trackCss(number, 'board-number-');
     const ram = running(1200);
-    const rise = running(900, { animationName: 'board-number-rise' });
-    const banner = running(2400, { animationName: 'turn-cue' });
-    const glide = running(300, { transitionProperty: 'left' });
-    let anims = [ram.anim, rise.anim, banner.anim, glide.anim];
+    register(ram.anim, named);
+    const rise = running(900, { animationName: 'board-number-rise' }, face);
+    const glint = running(950, { animationName: 'pt-glint-up' }, face);
+    const banner = running(2400, { animationName: 'board-number-rise' }, document.createElement('div'));
+    const glide = running(300, { transitionProperty: 'left' }, number);
+    let anims = [ram.anim, rise.anim, glint.anim, banner.anim, glide.anim];
     const root = { getAnimations: () => anims } as unknown as Element;
     let settled = false;
     void named.settled(root).then(() => (settled = true));
     await settle();
-    expect(named.waitingOn(), 'what the board waits on, by name').toBe('beat×1 board-number-rise×1');
+    expect(named.waitingOn(), 'what the board waits on, by name').toBe('unnamed×1 board-number-rise×1');
     ram.end();
-    anims = [rise.anim, banner.anim, glide.anim];
+    anims = [rise.anim, glint.anim, banner.anim, glide.anim];
     await settle();
     expect(settled, 'the number still rises').toBe(false);
     rise.end();
-    anims = [banner.anim, glide.anim];
+    anims = [glint.anim, banner.anim, glide.anim];
     await settle();
-    expect(settled, 'the banner and the glide are not beats').toBe(true);
+    expect(settled, 'the glint, the banner off the tracked element and the glide are not beats').toBe(true);
     expect(named.waitingOn()).toBe('');
   });
 });
@@ -203,7 +210,7 @@ describe('unlocking on the last tenth of a beat (the operator, 2026-10-28)', () 
   function playing(endTime: number, rate = 1): Animation {
     const startedAt = Date.now();
     const anim = {
-      id: BEAT_ANIMATION_ID,
+      id: '',
       playbackRate: rate,
       effect: { getComputedTiming: () => ({ endTime }) },
       finished: new Promise<void>(() => undefined),
@@ -214,7 +221,7 @@ describe('unlocking on the last tenth of a beat (the operator, 2026-10-28)', () 
         return (Date.now() - startedAt) * rate >= endTime ? 'finished' : 'running';
       },
     };
-    return anim as unknown as Animation;
+    return register(anim as unknown as Animation);
   }
 
   it('animationsSettled at UNLOCK_AT settles once the beat is 90% through, while it still plays', async () => {
@@ -408,7 +415,7 @@ describe('Running and the stage', () => {
     expect(new Stage().isBeat(a), 'another stage’s beat is not this one’s').toBe(false);
   });
 
-  it('runningOf is over once every animation is, and cancels them together; cancelAll cancels what a stage still runs', async () => {
+  it('runningOf is over once every animation is, and cancels them together', async () => {
     const a = anim(200);
     const b = anim(400);
     const r = runningOf([a, b]);
@@ -418,22 +425,32 @@ describe('Running and the stage', () => {
     a.finish();
     await settle();
     expect(over).toBe(false);
-    const own = new Stage();
-    own.beat(r);
-    own.cancelAll();
+    r.cancel();
     await settle();
     expect(b.cancel).toHaveBeenCalledTimes(1);
     expect(over).toBe(true);
   });
 
-  it('trackCss registers the stylesheet animations running on an element and inside it, endless ones aside', () => {
-    const fade = anim(600);
-    const pulse = anim(Infinity);
+  it('trackCss names an element’s stylesheet beats: by keyframes, on it and inside it, set off before or after', () => {
     const el = document.createElement('div');
-    Object.defineProperty(el, 'getAnimations', { value: () => [fade, pulse] });
+    const inner = el.appendChild(document.createElement('i'));
+    const css = (animationName: string, target: Element) => ({ animationName, effect: { target } }) as unknown as Animation;
     const own = new Stage();
-    expect(own.trackCss(el).endsInMs).toBe(600);
-    expect([own.isBeat(fade), own.isBeat(pulse)]).toEqual([true, false]);
+    own.trackCss(el, 'board-exit-');
+    own.trackCss(el, 'placed-');
+    expect([css('board-exit-shard', inner), css('placed-resolve', el), css('pt-glint-up', inner), css('board-exit-shard', document.body)].map((a) => own.isBeat(a))).toEqual([true, true, false, false]);
+    expect(new Stage().isBeat(css('board-exit-shard', inner)), 'another stage’s').toBe(false);
+  });
+
+  it('a stage attached to a board is found from anything on it, and only while attached', () => {
+    const board = document.createElement('div');
+    const card = board.appendChild(document.createElement('div')).appendChild(document.createElement('div'));
+    const own = new Stage();
+    const detach = own.attach(board);
+    expect(Stage.of(card)).toBe(own);
+    expect(Stage.of(document.createElement('div'))).toBeUndefined();
+    detach();
+    expect(Stage.of(card)).toBeUndefined();
   });
 
   it('a tracked Running holds the stage until it is over, and unlocks at its unlockAt', async () => {
@@ -465,5 +482,41 @@ describe('Running and the stage', () => {
     expect(own.cueAt<readonly string[]>('sounds', 7)).toEqual(['hit']);
     own.cue('life', 8, 99);
     expect(own.cueAt('life', 7), 'one per name: the latest drawing’s').toBeNull();
+  });
+});
+
+describe('a timeline: at, moment, hold, together', () => {
+  const ctx = (tempo: number): MotionContext => ({ tempo }) as MotionContext;
+
+  it('a timeline’s length comes from its parts, on its clock, and each part runs at its moment', async () => {
+    fakeTimers();
+    const log: string[] = [];
+    const t0 = Date.now();
+    const mark = (what: string, ms = 0) => moment(() => log.push(`${what}@${Date.now() - t0}`), ms);
+    const clip = at(400, mark('hit', 850));
+    expect(clip.ms).toBe(1250);
+    const r = together([mark('now')(ctx(2)), clip(ctx(2)), at(100, mark('second'))(ctx(2)), hold(300)(ctx(2))]);
+    expect(r.endsInMs, 'at tempo 2, half as long').toBe(625);
+    expect(log, 'a part with nothing before it runs at once').toEqual(['now@0']);
+    let over = false;
+    void r.finished.then(() => (over = true));
+    await vi.advanceTimersByTimeAsync(624);
+    expect(log).toEqual(['now@0', 'second@50', 'hit@200']);
+    expect(over).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(over).toBe(true);
+  });
+
+  it('cancelled, a part still to come never runs, and the whole is over at once', async () => {
+    fakeTimers();
+    const ran = vi.fn();
+    const r = together([at(500, moment(ran, 200))(ctx(1)), hold(100)(ctx(1))]);
+    let over = false;
+    void r.finished.then(() => (over = true));
+    r.cancel();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(over).toBe(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(ran).not.toHaveBeenCalled();
   });
 });

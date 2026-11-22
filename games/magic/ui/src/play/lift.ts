@@ -27,7 +27,7 @@
  * one, so the browser animates the delta rather than snapping.
  */
 import { GLIDE_MS } from './motion.ts';
-import { everyFrame } from '@hadoku/ui-shell/motion';
+import { nextFrame } from '@hadoku/ui-shell/motion';
 import './lift.css';
 
 /** A point in viewport coordinates. */
@@ -173,8 +173,7 @@ export function flip(moved: Iterable<readonly [HTMLElement, At]>, flag?: string)
   if (moving.length === 0) return;
   // The start transform has to be a painted style before the transition replaces it.
   void moving[0]!.getBoundingClientRect();
-  const stop = everyFrame(() => () => {
-    stop(); // once: a write in the next frame
+  nextFrame(() => {
     for (const el of moving) {
       el.style.transition = `transform ${GLIDE_MS}ms ${HOUSE_CURVE}`;
       el.style.transform = '';

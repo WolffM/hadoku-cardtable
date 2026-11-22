@@ -7,9 +7,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardPlayer, BoardView } from '../adapter.ts';
-import { defaultStage, whenBoardUnlocked } from '../motion.ts';
+import { boardStage } from '../motion.ts';
+import { Stage } from '@hadoku/ui-shell/motion';
 import { diceOf, diePath, facesOf, installDice, nextFace, rollMs, shapeOf, TUMBLE_MS, tumbleFrames } from './dice.ts';
 import { shownRoll, type ShownRoll } from './shown.ts';
+
+/** The board's stage, attached to the page every test draws on: `Stage.of` finds it from anything there. */
+const stage = boardStage();
+stage.attach(document.documentElement);
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -225,7 +230,7 @@ describe('what the roll decides waits for the die', () => {
       dice.notify([roll()], view);
       const die = canvas.querySelector<HTMLElement>('.board-die')!;
       let downWhenLetGo: boolean | null = null;
-      whenBoardUnlocked(() => (downWhenLetGo = 'dieDown' in die.dataset));
+      stage.whenUnlocked(() => (downWhenLetGo = 'dieDown' in die.dataset));
       await vi.advanceTimersByTimeAsync(rollMs(1) + lag + 500);
       expect(downWhenLetGo, 'let go, with the die down').toBe(true);
     } finally {
@@ -242,13 +247,15 @@ describe('what the roll decides waits for the die', () => {
     try {
       dice.notify([roll()], view);
       await vi.advanceTimersByTimeAsync(rollMs(1) + 2500);
-      expect(anims.map((a) => [a.id, defaultStage.isBeat(a)])).toEqual([
-        ['beat', true],
-        ['beat', true],
-        ['beat', true],
-        ['beat', true],
+      // Registered with the board's stage, not named: no id says it is a beat.
+      expect(anims.map((a) => [a.id, stage.isBeat(a)])).toEqual([
+        ['', true],
+        ['', true],
+        ['', true],
+        ['', true],
         ['die-fade', false],
       ]);
+      expect(anims.slice(0, 4).map((a) => new Stage().isBeat(a)), 'another board’s stage does not count them').toEqual([false, false, false, false]);
     } finally {
       dice.dispose();
       restore();

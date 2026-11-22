@@ -51,6 +51,53 @@ export function runningOf(anims: readonly Animation[]): Running {
   return r;
 }
 
+/** A layer's timers: `after` runs `fn` in `ms`, unless `clear` (the layer taken down) came first; after it, none starts. */
+export function timerSet(): { after: (fn: () => void, ms: number) => void; clear: () => void } {
+  const due = new Set<ReturnType<typeof setTimeout>>();
+  let open = true;
+  return {
+    after: (fn, ms) => {
+      if (!open) return;
+      const timer = setTimeout(() => (due.delete(timer), fn()), ms);
+      due.add(timer);
+    },
+    clear: () => {
+      open = false;
+      due.forEach(clearTimeout);
+    },
+  };
+}
+
+/** A clip and how long it lasts on its own clock (before `ctx.tempo` divides it): what a timeline adds up. */
+export type Timed = Clip & { readonly ms: number };
+
+/** The `runs` as one: over once every one is, cancelled together, as long as the longest. */
+export const together = (runs: readonly Running[]): Running => ({
+  finished: Promise.all(runs.map((r) => r.finished)).then(() => undefined),
+  cancel: () => runs.forEach((r) => r.cancel()),
+  endsInMs: Math.max(0, ...runs.map((r) => r.endsInMs)),
+});
+
+/** `clip` `ms` from now on its clock, at once for none: cancelled before then, it never starts, and is over. */
+export function at(ms: number, clip: Timed): Timed {
+  if (ms <= 0) return clip;
+  return Object.assign((ctx: MotionContext): Running => {
+    let started: Running | null = null;
+    let stop = (): void => undefined;
+    const finished = new Promise<void>((over) => {
+      const timer = setTimeout(() => void (started = clip(ctx)).finished.then(over), ms / ctx.tempo);
+      stop = () => (clearTimeout(timer), over());
+    });
+    return { finished, cancel: () => (started === null ? stop() : started.cancel()), endsInMs: (ms + clip.ms) / ctx.tempo };
+  }, { ms: ms + clip.ms });
+}
+
+/** Nothing, `ms` long: a part a timeline waits for that something else draws. */
+export const hold = (ms: number): Timed => at(ms, Object.assign(() => STILL, { ms: 0 }));
+
+/** `fn` as a clip `ms` long: what it sets off plays on its own, and the clip is over once that long is. */
+export const moment = (fn: () => void, ms = 0): Timed => Object.assign((ctx: MotionContext) => (fn(), hold(ms)(ctx)), { ms });
+
 /** `el.animate(frames, options)` at `ctx.tempo`: already over without Web Animations (jsdom) or when `ctx.reduced`; with `ctx.stage`, one of its beats. */
 export function animate(el: Element, frames: Keyframe[] | PropertyIndexedKeyframes, options: KeyframeAnimationOptions, ctx: AnimateContext = {}): Running {
   if (ctx.reduced === true || typeof (el as HTMLElement).animate !== 'function') return STILL;

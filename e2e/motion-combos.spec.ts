@@ -97,7 +97,8 @@ async function installSampler(page: Page): Promise<void> {
       if (doc.scrollHeight > innerHeight + 1 || doc.scrollWidth > innerWidth + 1) breach(s, `page scrolls: ${doc.scrollWidth}×${doc.scrollHeight} in ${innerWidth}×${innerHeight}`);
       const bar = document.querySelector('[data-testid="live-buttons"]')?.getBoundingClientRect();
       if (bar !== undefined && (bar.width === 0 || bar.left < -1 || bar.top < -1 || bar.right > innerWidth + 1 || bar.bottom > innerHeight + 1)) breach(s, `button bar outside the window: ${Math.round(bar.left)},${Math.round(bar.top)} ${Math.round(bar.width)}×${Math.round(bar.height)}`);
-      const shaking = document.getAnimations().filter((a) => a.playState === 'running' && (a.effect as KeyframeEffect | null)?.composite === 'add' && a.id === 'beat').length;
+      // The table shaking: an added jolt on the board itself (`crash.ts`'s `shake`), not an avatar's recoil.
+      const shaking = document.getAnimations().filter((a) => a.playState === 'running' && (a.effect as KeyframeEffect | null)?.composite === 'add' && (a.effect as KeyframeEffect | null)?.target?.matches('.board') === true).length;
       s.shakeMax = Math.max(s.shakeMax, shaking);
       const now = performance.now();
       const seen = new Set(document.querySelectorAll('.effect-hit[data-projectile="bolt"]'));

@@ -5,11 +5,15 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { damagePower, defaultStage } from '../motion.ts';
+import { boardStage, damagePower } from '../motion.ts';
 import { crash, CRASH_MS, rocks, shake } from './crash.ts';
-import { claimParticles, PARTICLE_BUDGET } from './effect-budget.ts';
+import { claimParticles, PARTICLE_BUDGET } from '@hadoku/ui-shell/motion';
 import { fly, impact } from './projectile.ts';
 import { recoil, RECOIL_ART } from './recoil.ts';
+
+/** The board's stage, attached to the page every test draws on: `Stage.of` finds it from anything there. */
+const stage = boardStage();
+stage.attach(document.documentElement);
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -28,7 +32,7 @@ describe('rocks', () => {
     expect(rocks('k', 0.5), 'the same blow throws the same rocks').toEqual(rocks('k', 0.5));
   });
 
-  it('a share of a beat’s budget throws fewer, never none (`effect-budget.ts`)', () => {
+  it('a share of a beat’s budget throws fewer, never none (`particles.ts`)', () => {
     const full = rocks('k', 1).length;
     expect(rocks('k', 1, 0.5).length).toBe(Math.floor(full / 2));
     expect(rocks('k', 1, 0.01).length).toBeGreaterThan(0);
@@ -48,7 +52,7 @@ describe('crash', () => {
     expect(root.querySelector('.effect-crash')).toBeNull();
   });
 
-  it('a crash and an impact on a board already full of particles throw only their floors (`effect-budget.ts`)', () => {
+  it('a crash and an impact on a board already full of particles throw only their floors (`particles.ts`)', () => {
     vi.useFakeTimers();
     const root = document.createElement('div');
     document.body.append(root);
@@ -71,17 +75,17 @@ describe('a blow on the board’s stage', () => {
     const root = document.createElement('div');
     board.append(root);
     document.body.append(board);
-    const drawing = defaultStage.drawingCount;
+    const drawing = stage.drawingCount;
     crash(root, { x: 0, y: 0 }, 1, 'stage-c', 1, 2);
     shake(root, 6, 'stage-s', 2);
     fly(root, { x: 0, y: 0 }, { x: 100, y: 100 }, 'stage-f', 'bolt', 400, 'R', 1, 2);
     const blows = made.length;
     expect(blows, 'rocks, a shake and a ball').toBeGreaterThan(3);
-    expect(made.every(({ anim }) => defaultStage.isBeat(anim) && anim.playbackRate === 2), 'each a beat, at its tempo').toBe(true);
-    expect(defaultStage.drawingCount, 'a blow adds no hold of its own').toBe(drawing);
+    expect(made.every(({ anim }) => stage.isBeat(anim) && anim.playbackRate === 2), 'each a beat, at its tempo').toBe(true);
+    expect(stage.drawingCount, 'a blow adds no hold of its own').toBe(drawing);
     const face = document.createElement('div');
     face.append(Object.assign(document.createElement('span'), { className: RECOIL_ART.slice(1) }));
     recoil(face, { x: 0, y: 0 }, { x: 0, y: 10 }, 5, 'stage-r');
-    expect(made.slice(blows).map(({ anim }) => defaultStage.isBeat(anim)), 'nothing waits for a recoil').toEqual([false]);
+    expect(made.slice(blows).map(({ anim }) => stage.isBeat(anim)), 'nothing waits for a recoil').toEqual([false]);
   });
 });

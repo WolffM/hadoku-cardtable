@@ -107,7 +107,7 @@ import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from "./PoolView.tsx";
 import { useDraftBuild, type DraftBuildStore } from "../deck/useDraftBuild.ts";
 import { Ghost, SeatBar, SeatBarSkeleton } from "./SeatBar.tsx";
 import { SpectatorNotice } from "./SpectatorNotice.tsx";
-import { everyFrame, prefersReducedMotion } from "@hadoku/ui-shell/motion";
+import { nextFrame, prefersReducedMotion } from "@hadoku/ui-shell/motion";
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from "../play/live/prefs.ts";
 import { uiLength, uiPx } from "@hadoku/ui-shell/settings";
 import "./draft.css";
@@ -247,8 +247,7 @@ export function fitToWindow(
     typeof ResizeObserver === "undefined"
       ? null
       : new ResizeObserver(() => {
-          stop ??= everyFrame(() => () => {
-            stop?.();
+          stop ??= nextFrame(() => {
             stop = null;
             fit();
           });

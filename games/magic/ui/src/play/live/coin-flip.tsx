@@ -9,7 +9,7 @@
  * question, which it must not cover), side by side when several land together.
  *
  * Each new flip sounds Coin flip, which falls back to the toss's coin (`onFlip`, quieter for the other seat's, as their sounds
- * are) and is a beat of the board (tracked on `../motion.ts`'s `defaultStage`): the pacer holds every
+ * are) and is a beat of the board (tracked on its `stage`): the pacer holds every
  * frame after it, the seat's own and in Fast Mode too, until the coin has landed (`./pace.ts`'s
  * `inTheAir`, as for a die), let go at `UNLOCK_AT` of the flip as every beat is. Reduced motion lands the coin
  * at once and holds nothing.
@@ -17,8 +17,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { defaultStage } from '../motion.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { prefersReducedMotion, type Stage } from '@hadoku/ui-shell/motion';
 import { CoinToss, FLIP_MS, SideFace } from './CoinToss.tsx';
 import type { ShownFlip } from './shown.ts';
 
@@ -35,9 +34,9 @@ export function freshFlips(flips: readonly ShownFlip[], now: number): ShownFlip[
 
 /**
  * The game's fresh flips, each a coin, in a question host of their own. `viewer` is the seat's player
- * (null for a watcher); `onFlip` is told of each flip new to this screen, once, as it starts.
+ * (null for a watcher); `onFlip` is told of each flip new to this screen, once, as it starts. `stage`: the board's.
  */
-export function CoinFlips({ flips, viewer, onFlip }: { flips: readonly ShownFlip[]; viewer: number | null; onFlip: (flip: ShownFlip) => void }) {
+export function CoinFlips({ flips, viewer, onFlip, stage }: { flips: readonly ShownFlip[]; viewer: number | null; onFlip: (flip: ShownFlip) => void; stage: Stage }) {
   const [now, setNow] = useState(() => Date.now());
   const seen = useRef<Set<number> | null>(null);
   seen.current ??= new Set(flips.filter((f) => Date.now() - f.at >= FLIP_MS).map((f) => f.id));
@@ -52,9 +51,9 @@ export function CoinFlips({ flips, viewer, onFlip }: { flips: readonly ShownFlip
       if (left <= 0) continue;
       onFlip(flip);
       // The pacer lets go `UNLOCK_AT` through the flip, the coin all but still; it lands under what comes next.
-      if (!prefersReducedMotion()) defaultStage.track({ finished: new Promise((landed) => setTimeout(landed, left)), cancel: () => undefined, endsInMs: left });
+      if (!prefersReducedMotion()) stage.track({ finished: new Promise((landed) => setTimeout(landed, left)), cancel: () => undefined, endsInMs: left });
     }
-  }, [flips]);
+  }, [flips, stage]);
   // Redrawn as the oldest coin on the table runs out, so it goes.
   useEffect(() => {
     const oldest = fresh[0];

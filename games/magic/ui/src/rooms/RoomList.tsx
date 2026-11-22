@@ -27,6 +27,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 import { magicGame, PAGE_EVENT_PATH, type ChallengeEvent } from '@hadoku/shared';
 
 import { apiUrl, sendJson } from '@hadoku/game-ui/http.ts';
+import { everyFrame } from '@hadoku/ui-shell/motion';
 import { usePageFrames } from './page-frames.ts';
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import {
@@ -312,6 +313,7 @@ export function RoomList({ client: given, feed, onFeatured }: RoomListProps) {
     stopTips.current = mountTips(el);
     stopScrollWatch.current = watchScroll({
       win: window,
+      frame: everyFrame,
       doc: document,
       now: () => performance.now(),
       userAgent: navigator.userAgent,

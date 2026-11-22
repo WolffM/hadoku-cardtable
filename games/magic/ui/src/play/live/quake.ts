@@ -16,7 +16,6 @@
 
 import { animate, standIn as kitStandIn, type MotionContext, type Running } from '@hadoku/ui-shell/motion';
 
-import { BEAT_ANIMATION_ID } from '../motion.ts';
 import { shake } from './crash.ts';
 import { copyOfCard, LEAVING_GAP_ATTR } from './departures.ts';
 import type { CrackLook, EntryWeight } from './entries.ts';
@@ -262,7 +261,7 @@ function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, i
   const total = 400 + look.holdMs + 450;
   return Promise.all(
     layers.map((layer) => {
-      const fade = animate(layer, [{ opacity: 1 }, { opacity: 1, offset: (400 + look.holdMs) / total }, { opacity: 0 }], { id: BEAT_ANIMATION_ID, duration: total, easing: 'ease-in' }, ctx);
+      const fade = animate(layer, [{ opacity: 1 }, { opacity: 1, offset: (400 + look.holdMs) / total }, { opacity: 0 }], { duration: total, easing: 'ease-in' }, ctx);
       into.push(fade);
       return fade.finished;
     }),
@@ -319,7 +318,7 @@ async function shove(board: HTMLElement, at: Anchor, self: Element | null, weigh
           { translate: '0 0', rotate: '0deg', scale: '1', filter: shadow(0) },
         ],
         // The outer ring a beat after the inner: the blow travels out.
-        { id: BEAT_ANIMATION_ID, duration: 860, delay: ring === 1 ? 0 : 70, easing: 'linear', fill: 'both' },
+        { duration: 860, delay: ring === 1 ? 0 : 70, easing: 'linear', fill: 'both' },
         ctx,
       );
       into.push(knock);

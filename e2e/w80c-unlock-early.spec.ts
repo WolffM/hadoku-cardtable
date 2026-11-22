@@ -3,7 +3,7 @@
  * state when it's waiting on the last ~10% of an animation"*.
  *
  * A frame the pacer holds behind the board's beats (`games/magic/ui/src/play/live/pace.ts`) goes once every beat is
- * 90% through (`games/magic/ui/src/play/motion.ts`'s `UNLOCK_AT`, `whenBoardUnlocked`); the beat itself plays to its
+ * 90% through (`games/magic/ui/src/play/motion.ts`'s `UNLOCK_AT`, the board's stage's `whenUnlocked`); the beat itself plays to its
  * end, under whatever is drawn next. Each screen is recorded from its own page clock: every beat (an animation
  * the board waits for) with when it started, reached 90% and ended, and when each mark was drawn. `[w80c]`
  * lines are the evidence.
@@ -67,8 +67,9 @@ interface Recorded {
 type Marks = readonly (readonly [string, string])[];
 
 /**
- * Start recording on `page`: every finite beat the board waits for (the names `motion.ts`'s `isBeat` reads)
- * and the coin, timed from its own start and length, each one that went early, every card drawn twice, and
+ * Start recording on `page`: every finite animation a beat may be (the board's own script animations, and its
+ * stylesheet beats by keyframe name: what `numbers.ts`, `departures.ts` and `placed.ts` register with the
+ * board's stage) and the coin, timed from its own start and length, each one that went early, every card drawn twice, and
  * the first moment each mark is drawn.
  */
 async function record(page: Page, marks: Marks): Promise<void> {
@@ -77,9 +78,12 @@ async function record(page: Page, marks: Marks): Promise<void> {
       const rec: Recorded = { beats: [], drawn: [], frameAt: [], early: [], twice: [] };
       (window as unknown as { __w80c: Recorded }).__w80c = rec;
       const BEATS = ['board-exit-', 'board-number-', 'effect-', 'placed-'];
+      // A script animation has no name of its own: 'script', when it runs on the board.
       const nameOf = (a: Animation): string => {
-        const n = a as Animation & { animationName?: string };
-        return typeof n.animationName === 'string' && n.animationName !== '' ? n.animationName : a.id;
+        const n = a as Animation & { animationName?: string; transitionProperty?: string };
+        if (typeof n.animationName === 'string' && n.animationName !== '') return n.animationName;
+        if (n.transitionProperty !== undefined) return 'transition';
+        return (a.effect as KeyframeEffect | null)?.target?.closest('.board') != null ? 'script' : 'elsewhere';
       };
       const seen = new Map<Animation, Beat>();
       const origin = performance.timeOrigin;
@@ -89,7 +93,7 @@ async function record(page: Page, marks: Marks): Promise<void> {
         const present = new Set<Animation>();
         for (const a of document.getAnimations()) {
           const name = nameOf(a);
-          if (name !== 'beat' && name !== 'coin-toss-flip' && !BEATS.some((p) => name.startsWith(p))) continue;
+          if (name !== 'script' && name !== 'coin-toss-flip' && !BEATS.some((p) => name.startsWith(p))) continue;
           const end = a.effect?.getComputedTiming().endTime;
           if (typeof end !== 'number' || !Number.isFinite(end) || a.startTime === null) continue;
           present.add(a);

@@ -49,10 +49,8 @@ import type { ManaColor } from '@hadoku/shared';
 import type { BoardCard, BoardView, DeathCause } from '../adapter.ts';
 import './departures.css';
 import { seedOf } from './projectile.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { claimParticles, markTempo, particleShare, prefersReducedMotion, shared, Stage, timerSet } from '@hadoku/ui-shell/motion';
 import { overlayOf } from './board-dom.ts';
-import { claimParticles, particleShare, shared } from './effect-budget.ts';
-import { markTempo } from './tempo.ts';
 
 /**
  * Why a permanent died. Forge's `GameEventCardDied` says it (`DeathCause`, folded here); before a Forge
@@ -490,11 +488,10 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
   let turns = new Map<number, Turn>();
   /** This commit's departures, for its layout report: how many, and the most a stand-in was drawn off its card's own box. */
   let pending: { count: number; copyDx: number; copyDy: number } | null = null;
-  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const timers = timerSet();
   const standIns = new Set<HTMLElement>();
   /** The cards whose exit is scheduled and not yet over. */
   const held = new Set<number>();
-  let live = true;
 
   /** Each card's exit still to start: run at its beat, or sooner by `strike`, once. */
   const beats = new Map<number, () => void>();
@@ -513,20 +510,12 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     host.onDone(cardId);
   }
 
-  function schedule(fn: () => void, ms: number): void {
-    const t = setTimeout(() => {
-      timers.delete(t);
-      if (live) fn();
-    }, ms);
-    timers.add(t);
-  }
+  const schedule = timers.after;
 
-  function overlay(): HTMLElement | null {
-    return overlayOf(canvas);
-  }
+  const overlay = (): HTMLElement | null => overlayOf(canvas);
 
   /** The stand-in, built and placed, with no box read: `box` is the overlay's, read with every other box of the batch. */
-  /** `count`: its pieces and specks, as the batch's share of the beat's particles (`effect-budget.ts`) left them. */
+  /** `count`: its pieces and specks, as the batch's share of the beat's particles (`@hadoku/ui-shell/motion`'s `particles.ts`) left them. */
   function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, box: DOMRect, motion: ExitMotion, count: { pieces: number; specks: number }, tempo: number): HTMLElement {
     const wrap = document.createElement('div');
     wrap.className = 'board-departure';
@@ -711,7 +700,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       }
       if (root === null || box === null || plans.length === 0) return;
       // The batch's specks share one budget, and so do its shatters' shards — each shard a whole copy of
-      // its card — so a board wipe is as busy as a death or two, not as all of them (`effect-budget.ts`).
+      // its card — so a board wipe is as busy as a death or two, not as all of them (`@hadoku/ui-shell/motion`'s `particles.ts`).
       const speckShare = particleShare(plans.reduce((n, p) => n + specksOf(p.motion), 0));
       const shatters = plans.filter((p) => shattered(p.motion)).length;
       const shardShare = particleShare(shatters * EXIT_MOTIONS.shatter.pieces, SHARD_BUDGET);
@@ -744,6 +733,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
             // Aimed again at its beat: the hand may have laid itself out anew since the card left.
             if (landing?.isConnected === true) aim(wrap, at, landing.getBoundingClientRect());
             wrap.setAttribute('data-exit-go', '');
+            Stage.of(wrap)?.trackCss(wrap, 'board-exit-');
             schedule(() => {
               if (hides) landing.removeAttribute(LANDING_ATTR);
               wrap.remove();
@@ -764,10 +754,8 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       return held.has(cardId);
     },
     dispose() {
-      live = false;
       held.clear();
       beats.clear();
-      for (const t of timers) clearTimeout(t);
       timers.clear();
       for (const el of standIns) el.remove();
       standIns.clear();

@@ -23,7 +23,7 @@
  * `trail` sheds embers along the path the ball actually travelled, cooling from its own colour to
  * smoke. `impact` draws the slam as `explode`: a flash, a fireball of puffs, a shockwave ring, spark
  * streaks on their own arcs, and falling embers for a heavy blow — every particle swarm shared out of
- * the board's pool (`effect-budget.ts`), never each effect's full count.
+ * the board's pool (`@hadoku/ui-shell/motion`'s `particles.ts`), never each effect's full count.
  *
  * ## Looks
  *
@@ -38,9 +38,9 @@
 
 import type { ManaColor } from '@hadoku/shared';
 
-import { animate, everyFrame, markTempo, particlePool, STILL, type MotionContext } from '@hadoku/ui-shell/motion';
+import { animate, everyFrame, markTempo, particlePool, Stage, STILL, type MotionContext } from '@hadoku/ui-shell/motion';
 
-import { BEAT_ANIMATION_ID, damageSize, defaultStage, powerEase } from '../motion.ts';
+import { damageSize, powerEase } from '../motion.ts';
 
 import './projectile.css';
 
@@ -54,7 +54,12 @@ export interface Point {
  * blow's Web Animation is a beat (no hold: what a blow is drawn for is held by the view that drew it). Reduced
  * motion is the caller's: it draws none.
  */
-export const blowContext = (overlay: HTMLElement, tempo = 1): MotionContext => ({ stage: defaultStage, overlay, tempo, reduced: false, frame: everyFrame, particles: particlePool(overlay) });
+export function blowContext(overlay: HTMLElement, tempo = 1): MotionContext {
+  const stage = Stage.of(overlay) ?? new Stage();
+  // What a blow draws there by stylesheet (`crash.css`, `projectile.css`) is a beat too.
+  stage.trackCss(overlay, 'effect-');
+  return { stage, overlay, tempo, reduced: false, frame: everyFrame, particles: particlePool(overlay) };
+}
 
 /** Every projectile look, by name. Its CSS is `projectile.css`. */
 export type ProjectileLook = 'bolt' | 'heal';
@@ -144,7 +149,7 @@ export function fly(root: HTMLElement, start: Point, end: Point, key: string, lo
   markTempo(ball, tempo);
   root.append(ball);
   const ctx = blowContext(root, tempo);
-  const flight = animate(ball, frames, { id: BEAT_ANIMATION_ID, duration: ms, easing: powerEase(p), fill: 'both' }, ctx);
+  const flight = animate(ball, frames, { duration: ms, easing: powerEase(p), fill: 'both' }, ctx);
   if (flight === STILL) {
     ball.style.transform = frames[frames.length - 1]!.transform as string;
     return ball;
@@ -160,7 +165,7 @@ export function fly(root: HTMLElement, start: Point, end: Point, key: string, lo
  * smoke, and drifts off as it fades: more, bigger and longer-lived the heavier the blow. One ember
  * roughly every `5 - 2·power` px of the ball's own travel, however fast it moves, so the trail is
  * unbroken on a fast screen and on a slow one alike. The whole trail's embers are claimed once from the
- * board's particle pool (`effect-budget.ts`), estimated from the flight's straight-line `distance` (the
+ * board's particle pool (`@hadoku/ui-shell/motion`'s `particles.ts`), estimated from the flight's straight-line `distance` (the
  * sling's own path runs a little longer), so a busy board throttles the trail rather than ignoring the
  * budget. The claim's window ends when the flight does, not past it: `impact`'s own explosion is the
  * SAME hit's next beat, not a rival one, and must find the trail's reservation already freed. `ms` is the
@@ -237,7 +242,7 @@ export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: 
  * first the white-hot heart), billowing out and leaving smoke ghosts; a shockwave ring from 3 damage
  * up; spark streaks each on their own arc (length, speed, distance, gravity); falling embers for a
  * heavy blow. Every particle swarm (puffs, sparks, falling embers) is claimed once from the board's
- * particle pool (`effect-budget.ts`), never each swarm's full count on a busy board. A heavier blow
+ * particle pool (`@hadoku/ui-shell/motion`'s `particles.ts`), never each swarm's full count on a busy board. A heavier blow
  * throws MORE puffs, not bigger ones (the operator, 2026-10-27: "the large balls that spawn after the
  * explosion animations look a bit distracting. maybe dont have those scale with size"). All in the
  * bolt's own colour (`burst.dataset.colour`, read by `projectile.css`'s `--bolt*`).

@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // megabyte crosses to a main thread that is serving every other worker, and took longer than a wait allows.
 import '../../draft/art-artists.json';
 import type { BoardView, StackEntry } from '../adapter.ts';
-import { GLIDE_MS, noteResolutionEffects, PLACEMENT_WAIT_MS, unlockAfter, whenBoardStill, whenBoardUnlocked } from '../motion.ts';
+import { boardStage, CUE, GLIDE_MS, PLACEMENT_WAIT_MS, unlockAfter } from '../motion.ts';
 import {
   besideSource,
   clampToLane,
@@ -50,6 +50,10 @@ import {
   setPeerClickable,
   slideCrosses,
 } from './placed.ts';
+
+/** The board's stage, attached to the page every test draws on (`Stage.of` finds it from anything there): a new one each test, its cues its own. */
+let stage = boardStage();
+let detach = stage.attach(document.documentElement);
 
 /* ── fixtures ──────────────────────────────────────────────────────────── */
 
@@ -167,6 +171,9 @@ function realTimers(): void {
 
 afterEach(() => {
   for (const handle of installed.splice(0)) handle.dispose();
+  detach();
+  stage = boardStage();
+  detach = stage.attach(document.documentElement);
   document.body.innerHTML = '';
   forgetPlacements();
   realTimers();
@@ -1587,7 +1594,7 @@ describe('installPlaced: a resolution with something to draw (the operator’s S
     placeSpell(301, { x: 400, y: 300 }, 'them');
     const handle = installPlaced(canvas, { reducedMotion: () => false });
     handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
-    noteResolutionEffects(9, Date.now() + 1500); // `numbers.ts` drew hits and creatures leaving, in this same commit
+    stage.cue(CUE.effects, 9, Date.now() + 1500); // `numbers.ts` drew hits and creatures leaving, in this same commit
     handle.notify(view([]));
     const spell = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(spell.hasAttribute('data-placed-resolving'), 'no blink').toBe(false);
@@ -1649,8 +1656,8 @@ describe('installPlaced: a counter (AE27)', () => {
     handle.notify(view([], [], [9]));
     let unlocked = false;
     let still = false;
-    whenBoardUnlocked(() => (unlocked = true));
-    whenBoardStill(() => (still = true));
+    stage.whenUnlocked(() => (unlocked = true));
+    stage.whenStill(() => (still = true));
     const countered = RESOLVE_BLINK_MS + COUNTERED_MS;
     await vi.advanceTimersByTimeAsync(unlockAfter(countered) - 1);
     expect(unlocked, 'held while the counter blinks and its target cracks').toBe(false);

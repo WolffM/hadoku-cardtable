@@ -78,7 +78,7 @@ import {
   type MatchTransport,
 } from './match.ts';
 import { FLIP_MS } from './CoinToss.tsx';
-import { whenBoardStill } from '../motion.ts';
+import { Stage } from '@hadoku/ui-shell/motion';
 import type { PlayPrefs } from './prefs.ts';
 import { CardtableSettings, HostDrawsSettingsProvider } from '@hadoku/game-ui/settings/Settings.tsx';
 import { confirmAsk, fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from './replay-server.ts';
@@ -4259,12 +4259,12 @@ describe('R16 — the result screen, drawn over the board', () => {
   });
 
   /**
-   * The end's last beats (`noteBoardDrawing`) run on real timers, and the result screen waits for them
-   * (`useAfterTheBoard`); this waits on the board itself, with no deadline, so a `waitFor` after it covers
+   * The end's last beats (`numbers.ts`'s views) run on real timers, and the result screen waits for them
+   * (`useAfterTheBoard`); this waits on the board's own stage, with no deadline, so a `waitFor` after it covers
    * only the screen's own draw — on a loaded host the beats alone outlasted its second.
    */
   async function untilBoardStill(): Promise<void> {
-    await act(() => new Promise<void>((resolve) => whenBoardStill(resolve)));
+    await act(() => new Promise<void>((resolve) => Stage.of(document.querySelector('.live'))!.whenStill(resolve)));
   }
 
   /** The outcome first, then Next opens the sideboard step (the operator, 2026-10-19). */
