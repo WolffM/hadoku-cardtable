@@ -40,6 +40,13 @@ describe('isOfferedRoom', () => {
 		expect(isOfferedRoom(room, NO_BUSY_HOOK, 1_000_000, 500, undefined)).toBe(false);
 	});
 
+	it('never offers a room the hook calls retired, however fresh or busy, unless a match is live', () => {
+		const room = roomOf({ id: 'r-1', updatedAt: 1000 });
+		const retired = { ...NO_BUSY_HOOK, retired: () => true, extraOffered: () => true };
+		expect(isOfferedRoom(room, retired, 1001, 500, 1001)).toBe(false);
+		expect(isOfferedRoom(room, { ...retired, liveMatch: () => true }, 1001, 500, 1001)).toBe(true);
+	});
+
 	it("offers past staleness when the hook's extraOffered says so", () => {
 		const room = roomOf({ id: 'r-1', updatedAt: 0 });
 		expect(isOfferedRoom(room, { ...NO_BUSY_HOOK, extraOffered: () => true }, 1_000_000, 500, undefined)).toBe(true);

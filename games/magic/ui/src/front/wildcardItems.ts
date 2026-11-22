@@ -23,7 +23,7 @@ export type WildcardKind = keyof typeof WILDCARD_PRIORITY;
 
 /**
  * A kind the gallery always opens on when it is there, with no draw: a tournament's result, for the
- * week it holds the seat (`games/magic/server/src/room/featured-tournament.ts`; the operator, 2026-11-08).
+ * day it holds the seat (`games/magic/server/src/room/featured-tournament.ts`; the operator, 2026-11-08).
  */
 const PINNED: WildcardKind = 'tournament';
 

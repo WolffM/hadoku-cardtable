@@ -402,6 +402,12 @@ export const POD_SPARED_MS = 24 * 60 * 60_000;
  */
 export const CASUAL_ROOM_IDLE_MS = 8 * 60 * 60_000;
 /**
+ * How long a finished tournament's room stays on the room list after its last round. The operator,
+ * 2026-11-22: *"closed tournament shouldn't show on the rooms page for longer than 24h."* Its result
+ * stays on the Tournaments page; the front page's card has the same day (`featured-tournament.ts`).
+ */
+export const FINISHED_POD_LISTED_MS = 24 * 60 * 60_000;
+/**
  * How long a game may run, in any room, before the sweep calls it a draw (`boot.ts`'s `sweepRooms`).
  * The operator, 2026-10-29: *"games that are in-progress for >8hrs should be forced into a draw and
  * players sent back to the lobby"* — "every game", tournament or not.
@@ -826,13 +832,19 @@ const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: D
 
 /**
  * `room/room-list.ts`'s `RoomBusyHook`, wired to Magic: a draft dealing is
- * the one extra reason `offered()` keeps a room past staleness; a
+ * the one extra reason `offered()` keeps a room past staleness, and a
+ * tournament a day past its last round leaves the list (`FINISHED_POD_LISTED_MS`); a
  * tournament's own idle window (`usesPod`) and its post-deal grace
  * (`POD_SPARED_MS`) are what `sweep()` reads past the plain rule.
  */
 const MAGIC_ROOM_BUSY: RoomBusyHook<RoomRecord> = {
 	liveMatch: (room) => room.game.tables.some((t) => t.matchId !== null),
 	extraOffered: (room) => room.game.draftStartedAt !== null,
+	// A pod finished before `endedAt` was kept counts from its start, which only ever hides it sooner.
+	retired: (room, now) => {
+		const pod = room.game.pod;
+		return pod !== null && pod.round > pod.rounds && (pod.endedAt ?? room.game.draftStartedAt ?? now) <= now - FINISHED_POD_LISTED_MS;
+	},
 	defaultIdleMs: (room) => (usesPod(room) ? ROOM_IDLE_MS : CASUAL_ROOM_IDLE_MS),
 	sparedFromSweep: (room, now) => room.game.draftStartedAt !== null && room.game.draftStartedAt > now - POD_SPARED_MS,
 };
@@ -1806,7 +1818,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 	 */
 	#advancePodRound(room: RoomRecord, pod: PodRecord): void {
 		if (pod.round >= pod.rounds) {
-			room.game.pod = { ...pod, round: pod.rounds + 1, pairings: [], botGames: [], bye: null };
+			room.game.pod = { ...pod, round: pod.rounds + 1, pairings: [], botGames: [], bye: null, endedAt: this.now() };
 			this.log({ event: 'pod-done', roomId: room.id });
 			this.#archive(room);
 			return;

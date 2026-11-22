@@ -4,7 +4,7 @@
  * random draw) and the reader turns to the rest, highest priority first (`wildcardPages`) — the
  * operator, 2026-10-30: "manual is better, but let's still have the priority system for what is
  * shown by default and the randomness system beyond that". A featured tournament skips the draw: it
- * is always the page it opens on, for its week. It picks once every source has
+ * is always the page it opens on, for its day. It picks once every source has
  * answered, so it never opens on one and jumps to another as they arrive, and picks again only if
  * what it opened on goes away (the room filled). The kinds:
  *

@@ -1,6 +1,6 @@
 /*
  * The tournament the front page's wildcard opens on (`GET /api/tournaments/featured`): a finished
- * tournament's top three, for a week. Worked out from the stored records alone (`./tournaments.ts`),
+ * tournament's top three, for a day. Worked out from the stored records alone (`./tournaments.ts`),
  * every time it is asked, so nobody curates it, a restart forgets nothing, and a correction to the file
  * (`cli/tournaments.ts`) is what shows.
  *
@@ -14,8 +14,13 @@
  *     its end.
  *   - One that ends while the seat is held takes it only with more players than the holder; otherwise
  *     it waits.
- *   - When the holder's week is up, the newest one still waiting takes the seat for what is left of its
- *     own week. A result is never shown more than a week after it ended.
+ *   - When the holder's time is up, the newest one still waiting takes the seat for what is left of its
+ *     own. A result is never shown more than `FEATURE_MS` after it ended.
+ *
+ * The operator, 2026-11-22, shortened the seat from the 7 days above to 24 hours: *"closed tournament
+ * shouldn't show on the rooms page for longer than 24h. Same for the tournament results card on the
+ * front page. also lets never show a tournament results card if it only had bot users. at minimum 2
+ * human users"* (that last part is `MIN_PEOPLE`, which already held).
  */
 
 import type { Tournament } from '@hadoku/shared';
@@ -23,7 +28,7 @@ import type { Tournament } from '@hadoku/shared';
 import { isAiEntrant, POD_AI } from './pods.js';
 
 /** How long a result holds the seat after its last round. */
-export const FEATURE_MS = 7 * 24 * 60 * 60_000;
+export const FEATURE_MS = 24 * 60 * 60_000;
 
 /** The fewest players for a top three. */
 const MIN_PLAYERS = 3;
@@ -63,7 +68,7 @@ const until = (t: Tournament): number => t.endedAt + FEATURE_MS;
 export function featuredTournament(list: readonly Tournament[], now: number): Tournament | null {
 	let seat: Tournament | null = null;
 	let waiting: Tournament[] = [];
-	/** Every week that is up by `at` hands the seat on, to the newest waiter whose own week is not. */
+	/** Every seat that is up by `at` hands on, to the newest waiter whose own time is not. */
 	const expire = (at: number): void => {
 		while (seat !== null && until(seat) <= at) {
 			const end = until(seat);

@@ -4,16 +4,17 @@ import type { Tournament } from '@hadoku/shared';
 
 import { FEATURE_MS, featuredTournament, qualifies } from './featured-tournament.ts';
 
-const DAY = 24 * 60 * 60_000;
+/** One seat's length: every time below is in seats, so the tests hold whatever `FEATURE_MS` is. */
+const SEAT = FEATURE_MS;
 
-/** A finished pod of `size` players, `people` of them people, ending on `day`. */
-function pod(id: string, day: number, size: number, people = 2, closed = false): Tournament {
+/** A finished pod of `size` players, `people` of them people, ending at `seats` seat-lengths. */
+function pod(id: string, seats: number, size: number, people = 2, closed = false): Tournament {
 	const ids = Array.from({ length: size }, (_, i) => (i < people ? `${id}-p${String(i)}` : `ai:${String(i)}`));
 	return {
 		id,
 		name: id,
-		startedAt: day * DAY - 3_600_000,
-		endedAt: day * DAY,
+		startedAt: seats * SEAT - 3_600_000,
+		endedAt: seats * SEAT,
 		closed,
 		rounds: 3,
 		names: {},
@@ -23,7 +24,7 @@ function pod(id: string, day: number, size: number, people = 2, closed = false):
 	};
 }
 
-const at = (list: Tournament[], day: number): string | null => featuredTournament(list, day * DAY)?.id ?? null;
+const at = (list: Tournament[], seats: number): string | null => featuredTournament(list, seats * SEAT)?.id ?? null;
 
 describe('qualifies', () => {
 	it('takes a finished pod with a top three and two people', () => {
@@ -34,56 +35,66 @@ describe('qualifies', () => {
 		expect(qualifies(pod('a', 0, 2, 2))).toBe(false);
 		expect(qualifies(pod('a', 0, 8, 1))).toBe(false);
 	});
+	it('refuses a pod of bots alone, the draft bot or the tournament AI', () => {
+		expect(qualifies(pod('a', 0, 8, 0))).toBe(false);
+		const draftBot = pod('b', 0, 3, 1);
+		draftBot.standings[0] = { ...draftBot.standings[0]!, id: 'ai' };
+		expect(qualifies(draftBot)).toBe(false);
+	});
 });
 
 describe('featuredTournament', () => {
-	it('is nothing with nothing that qualifies', () => {
-		expect(at([], 1)).toBeNull();
-		expect(at([pod('solo', 0, 8, 1), pod('duel', 0, 2)], 1)).toBeNull();
+	it('is a day long', () => {
+		expect(FEATURE_MS).toBe(24 * 60 * 60_000);
 	});
 
-	it('lands when it ends, holds for seven days from its end, then goes', () => {
+	it('is nothing with nothing that qualifies', () => {
+		expect(at([], 1)).toBeNull();
+		expect(at([pod('solo', 0, 8, 1), pod('bots', 0, 8, 0), pod('duel', 0, 2)], 0.5)).toBeNull();
+	});
+
+	it('lands when it ends, holds for one seat from its end, then goes', () => {
 		const list = [pod('a', 10, 4)];
 		expect(at(list, 9)).toBeNull();
 		expect(at(list, 10)).toBe('a');
-		expect(featuredTournament(list, 10 * DAY + FEATURE_MS - 1)?.id).toBe('a');
-		expect(featuredTournament(list, 10 * DAY + FEATURE_MS)).toBeNull();
+		expect(featuredTournament(list, 10 * SEAT + FEATURE_MS - 1)?.id).toBe('a');
+		expect(featuredTournament(list, 10 * SEAT + FEATURE_MS)).toBeNull();
 	});
 
-	it('an 8-player major keeps its full week against smaller pods, then hands the seat to the newest of them', () => {
-		const list = [pod('major', 0, 8), pod('small-1', 2, 4), pod('small-2', 5, 6), pod('equal', 6, 8)];
-		for (const day of [0, 2, 5, 6, 6.99]) expect(at(list, day)).toBe('major');
-		// Its week is up on day 7: the newest waiter (day 6) has the rest of its own week.
-		expect(at(list, 7)).toBe('equal');
-		expect(at(list, 12.99)).toBe('equal');
-		expect(at(list, 13)).toBeNull();
+	it('an 8-player major keeps its full seat against smaller pods, then hands it to the newest of them', () => {
+		const list = [pod('major', 0, 8), pod('small-1', 0.2, 4), pod('small-2', 0.5, 6), pod('equal', 0.6, 8)];
+		for (const t of [0, 0.2, 0.5, 0.6, 0.99]) expect(at(list, t)).toBe('major');
+		// Its seat is up at 1: the newest waiter (0.6) has the rest of its own.
+		expect(at(list, 1)).toBe('equal');
+		expect(at(list, 1.59)).toBe('equal');
+		expect(at(list, 1.6)).toBeNull();
 	});
 
-	it('a waiter takes over only what is left of its own week, never more', () => {
-		const list = [pod('major', 0, 8), pod('small', 1, 4)];
-		expect(at(list, 7)).toBe('small');
-		expect(at(list, 8)).toBeNull();
+	it('a waiter takes over only what is left of its own seat, never more', () => {
+		const list = [pod('major', 0, 8), pod('small', 0.5, 4)];
+		expect(at(list, 1)).toBe('small');
+		expect(at(list, 1.5)).toBeNull();
 	});
 
-	it('a pod with more players takes the seat at once, and starts its own week', () => {
-		const list = [pod('small', 0, 4), pod('major', 3, 8)];
-		expect(at(list, 2)).toBe('small');
-		expect(at(list, 3)).toBe('major');
-		expect(at(list, 9.99)).toBe('major');
-		// The pod it displaced does not come back: its week is long up.
-		expect(at(list, 10)).toBeNull();
+	it('a pod with more players takes the seat at once, and starts its own', () => {
+		const list = [pod('small', 0, 4), pod('major', 0.5, 8)];
+		expect(at(list, 0.4)).toBe('small');
+		expect(at(list, 0.5)).toBe('major');
+		expect(at(list, 1.49)).toBe('major');
+		// The pod it displaced does not come back: its time is long up.
+		expect(at(list, 1.5)).toBeNull();
 	});
 
 	it('a pod ending after the seat came free takes it however small it is', () => {
-		const list = [pod('major', 0, 8), pod('later', 9, 3)];
-		expect(at(list, 8)).toBeNull();
-		expect(at(list, 9)).toBe('later');
+		const list = [pod('major', 0, 8), pod('later', 2, 3)];
+		expect(at(list, 1.5)).toBeNull();
+		expect(at(list, 2)).toBe('later');
 	});
 
-	it('hands on through several weeks in one call, whatever order the list is in', () => {
-		const list = [pod('c', 15, 3), pod('a', 0, 8), pod('b', 6, 4)];
-		expect(at(list, 7)).toBe('b');
-		expect(at(list, 15)).toBe('c');
-		expect(at(list, 22)).toBeNull();
+	it('hands on through several seats in one call, whatever order the list is in', () => {
+		const list = [pod('c', 3, 3), pod('a', 0, 8), pod('b', 0.5, 4)];
+		expect(at(list, 1)).toBe('b');
+		expect(at(list, 3)).toBe('c');
+		expect(at(list, 4)).toBeNull();
 	});
 });

@@ -682,6 +682,8 @@ export interface PodRecord {
 	 * table. Each leaves for `results` when it ends. Absent on a record written before it.
 	 */
 	botGames?: { players: [string, string] }[];
+	/** When the last round finished (`round` moved past `rounds`). Absent while it plays, and on a pod that finished before it was kept. */
+	endedAt?: number;
 }
 
 function isStoredMatchResult(v: unknown): v is MatchResult {
@@ -716,6 +718,7 @@ export function isStoredPodRecord(v: unknown): v is PodRecord {
 	if (!Array.isArray(p.results) || !p.results.every(isStoredMatchResult)) return false;
 	if (!Array.isArray(p.pairings) || !p.pairings.every(isStoredPodPairing)) return false;
 	if (p.dropped !== undefined && !(Array.isArray(p.dropped) && p.dropped.every((d) => typeof d === 'string'))) return false;
+	if (p.endedAt !== undefined && typeof p.endedAt !== 'number') return false;
 	if (p.botGames !== undefined && !(Array.isArray(p.botGames) && p.botGames.every((g) => isStoredPodPairing({ tableId: '', ...(g as object) })))) return false;
 	return p.bye === null || typeof p.bye === 'string';
 }

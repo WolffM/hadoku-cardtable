@@ -43,6 +43,7 @@ import {
 	openLobby,
 	randomFormat,
 	CASUAL_ROOM_IDLE_MS,
+	FINISHED_POD_LISTED_MS,
 	POD_SPARED_MS,
 	ROOM_IDLE_MS,
 	ROOM_MATCHES_KEPT,
@@ -3305,9 +3306,9 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 });
 
 describe('Lobby.close, and the tournaments a pod leaves behind', () => {
-	async function podInRound1(): Promise<{ lobby: Lobby; id: string; kept: Tournament[] }> {
+	async function podInRound1(dir?: string, now: () => number = () => 1_700_000_000_000): Promise<{ lobby: Lobby; id: string; kept: Tournament[] }> {
 		const kept: Tournament[] = [];
-		const lobby = await openLobby({ dir: await tempDir(), now: () => 1_700_000_000_000, onTournament: (t) => void kept.push(t) });
+		const lobby = await openLobby({ dir: dir ?? (await tempDir()), now, onTournament: (t) => void kept.push(t) });
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
@@ -3336,6 +3337,33 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 		expect(lobby.get(id)).toBeUndefined();
 		expect(lobby.list().some((r) => r.id === id)).toBe(false);
 		expect(lobby.close(id, ALICE.id)).toEqual({ ok: false, reason: 'no-room' });
+	});
+
+	it('a finished pod leaves the room list a day after its last round, and stays gone across a restart', async () => {
+		const dir = await tempDir();
+		let clock = 1_700_000_000_000;
+		const { lobby, id } = await podInRound1(dir, () => clock);
+		const table = lobby.get(id)!.game!.pod!.pairings[0]!.tableId;
+		clock += 3_600_000;
+		lobby.recordGameResult(id, table, { matchId: 'g1', winner: 0 });
+		lobby.recordGameResult(id, table, { matchId: 'g2', winner: 0 });
+		expect(lobby.get(id)?.game!.pod?.phase).toBe('done');
+		const endedAt = clock;
+
+		// Counted from its last round, not its start (an hour earlier).
+		clock = endedAt + FINISHED_POD_LISTED_MS - 1;
+		lobby.touch(id, ALICE.id);
+		expect(lobby.offered().map((r) => r.id)).toEqual([id]);
+
+		// The end is stored with the pod (every change is saved as it happens), so a restart reads the same clock.
+		const reopened = await openLobby({ dir, now: () => clock });
+		wireChecks(reopened, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
+		reopened.touch(id, ALICE.id);
+		expect(reopened.offered().map((r) => r.id)).toEqual([id]);
+		clock = endedAt + FINISHED_POD_LISTED_MS;
+		expect(reopened.offered()).toEqual([]);
+		// Hidden, not forgotten: the room itself is still there for anyone holding its link.
+		expect(reopened.get(id)).toBeDefined();
 	});
 
 	it('a finished pod is kept once, with names and standings — closing it afterwards keeps nothing twice', async () => {
