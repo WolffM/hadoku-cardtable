@@ -72,10 +72,10 @@ export function mistakeOfClick(view: BoardView | null, reason: string, cardId: n
   if (me === undefined) return null;
   const card = ownCard(me, cardId);
   if (card === undefined) return null;
-  // `InputPassPriority` and the gap between one input ending and the next starting both read
-  // `nothing-offered`/`no-input` — either way, a press with no priority on this seat's own card is
-  // this seat's own mistake.
-  if ((reason === 'no-input' || reason === 'nothing-offered') && !me.hasPriority) return 'priority';
+  // `InputPassPriority` and the gap between one input ending and the next starting read
+  // `nothing-offered`/`no-input`/`offer-of-another-input` — either way, a press with no priority on
+  // this seat's own card is this seat's own mistake.
+  if ((reason === 'no-input' || reason === 'nothing-offered' || reason === 'offer-of-another-input') && !me.hasPriority) return 'priority';
   if (reason !== 'not-offered') return null;
   if (
     LAND.test(card.card.typeLine) &&

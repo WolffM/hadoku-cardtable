@@ -717,6 +717,12 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    */
   weaklySelectable: ReadonlySet<number> | null;
   /**
+   * The input the last `setWeaklySelectable` came with (its envelope `input`, null for none): Forge's
+   * set belongs to that input, as the bridge's `syncActionable` keeps it. A click on it counts only
+   * under that input's window ({@link offerOfThisWindow}).
+   */
+  weaklySelectableInput: number | null;
+  /**
    * Wave 53 T: w52 §S's `manaOnly`, carried on the SAME `setWeaklySelectable`
    * frame (`games/magic/packages/forge-wire/src/tier-b.ts`) — the offered cards with no
    * non-mana play the seat can make now (a land, a mana rock like a Signet, a
@@ -1318,6 +1324,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     windowHalf: [],
     selectables: null,
     weaklySelectable: null,
+    weaklySelectableInput: null,
     weaklySelectableManaOnly: null,
     castForbidden: null,
     unaffordable: null,
@@ -2115,7 +2122,7 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
       ? untapOffers(match, view)
       : selection === null
       ? union(
-          match.weaklySelectable,
+          offerOfThisWindow(match),
           match.highlighted,
           mulliganHand(match.state, view),
           blockTargets(match, view),
@@ -2438,6 +2445,17 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
   );
 }
 
+/**
+ * Forge's actionable set, while the window drawn is the one of the input that offered it; null under any
+ * other. Forge's yield prompt after End Turn (`PlayerControllerHuman.applyYieldUpdate` →
+ * `updateAutoPassPrompt`) is shown with no input open, before the set is cleared: a click on a card it
+ * still named went out naming no input, waited in Forge's act gate for the next input and was refused
+ * there (monkey run 44985866898, #90: Seething Song, refused at an auto-passed End of Combat).
+ */
+function offerOfThisWindow(match: LiveMatch): ReadonlySet<number> | null {
+  return match.weaklySelectableInput === match.inputId ? match.weaklySelectable : null;
+}
+
 /** Why {@link boardInteraction} does not offer `cardId` now, the first gate that turns it away. */
 function refusal(match: LiveMatch, cardId: number): string {
   if (match.view === null) return 'no-view';
@@ -2447,6 +2465,7 @@ function refusal(match: LiveMatch, cardId: number): string {
   if (match.asks.length > 0) return 'ask-open';
   if (match.selectables !== null) return 'not-in-selection';
   if (match.weaklySelectable === null) return 'nothing-offered';
+  if (offerOfThisWindow(match) === null) return 'offer-of-another-input';
   return match.weaklySelectable.has(cardId) ? 'not-in-view' : 'not-offered';
 }
 
@@ -4222,6 +4241,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // Forge's list is WEIGHTED (a card twice when the auto-tap preview names
     // it too); membership is the whole of what a board needs.
     match.weaklySelectable = new Set(frame.cards.map((c) => c.id));
+    // `deliverFrame` has just set `inputId` from this frame's own envelope.
+    match.weaklySelectableInput = match.inputId;
     // Wave 53 T: the SAME frame's `manaOnly` (w52 §S), read alongside it.
     // `undefined` (the bridge could not classify) stays `null`, never an
     // empty set — see the field's own note on `LiveMatch`.

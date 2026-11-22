@@ -1487,6 +1487,37 @@ describe('an act names the input of the window it was made on (#40)', () => {
     expect(sentEnvelopes(s)[0]).not.toHaveProperty('input');
   });
 
+  /*
+   * Monkey run 44985866898, m-083b80e06bc0 (1 Land Belcher, #90): input 71 offered Seething Song,
+   * then Forge's yield prompt ("Yielding until end of turn", `updateAutoPassPrompt`, no input open)
+   * came 66 ms before its `clearWeaklySelectable`. A click in between named no input, waited in
+   * Forge's act gate for the next one, and End of Combat's priority refused it.
+   */
+  it('an offer outlives no input: under a window of another input, its cards are not clickable', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const target = m.stats.applied + 4;
+    s.send(actionable([mine[0]!]), 71);
+    s.send(prompt('Priority'), 71);
+    s.send(bar(true), 71);
+    s.send(prompt('Yielding until end of turn.\nYou may cancel this yield to take an action.'));
+    await until('the yield', () => m.stats.applied >= target);
+    expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(false);
+    expect(selectCard(m, mine[0]!)).toBe(false);
+    expect(sentEnvelopes(s)).toHaveLength(0);
+  });
+
+  it('the offer stands under the next frame of its own input', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const target = m.stats.applied + 3;
+    s.send(prompt('Priority'), 71);
+    s.send(actionable([mine[0]!]), 71);
+    s.send(bar(true), 71);
+    await until('the window', () => m.stats.applied >= target);
+    expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(true);
+  });
+
   it('a state frame between windows leaves the window’s input standing', async () => {
     const { s, m } = await fullGame();
     const target = m.stats.applied + 2;
