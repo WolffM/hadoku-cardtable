@@ -37,7 +37,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
+import { available, deck, finishMulligan, inOwnMain, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
 import { isConfirmPrompt } from './ConfirmPrompt.tsx';
 
 const title = available.ok
@@ -125,7 +125,17 @@ describe.skipIf(!available.ok)(title, () => {
         // right after the mulligan step, before either seat gets priority.
         s.ok(0);
         await finishMulligan(s);
-        await waitUntil(() => s.zone(0, 'Hand').some((c) => c.name === 'Steam Vents'), "seat 0's hand to reflect the scripted Steam Vents", 20_000);
+        // `finishMulligan` returns on any prompt that is no mulligan question, a "waiting" one included, and the
+        // hand shows the card a frame before Forge's priority input is live: the bar is read once it is.
+        await waitUntil(
+          () => {
+            s.answerAsks();
+            return inOwnMain(s, 0, 1) && s.zone(0, 'Hand').some((c) => c.name === 'Steam Vents');
+          },
+          "seat 0's main-phase priority, the scripted Steam Vents in hand",
+          20_000,
+          s,
+        );
 
         // 3) The ordinary priority bar at that Main Phase 1 — OK + End Turn
         // (`InputPassPriority.java:174`) — is NOT a confirm.
