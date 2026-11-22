@@ -216,6 +216,41 @@ describe('createReplayPlayer', () => {
     expect(match.view?.players.find((p) => p.id === 1)?.avatarId).toBe('ai-face');
   });
 
+  it('a seek keeps the log up to where it lands: every line said by then, an undo\'s cut honoured, and none twice when play goes on', () => {
+    vi.useFakeTimers();
+    const said = (seq: number, at: number, message: string, log?: Record<string, unknown>, logCut?: number) => ({
+      at,
+      env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq }, frame: parseServerFrame({ kind: 'notify', method: 'message', message, title: '', ...(log === undefined ? {} : { log: { cards: [], ...log } }), ...(logCut === undefined ? {} : { logCut }) }, 'message') },
+    });
+    const base = threeFrameReplay(100);
+    const data: ReplayData = {
+      ...base,
+      envs: [
+        ...base.envs,
+        said(4, 200, 'Turn 1 (Alice)', { type: 'TURN', actor: 0, turn: 1, n: 1 }),
+        said(5, 300, 'Alice played Island', { type: 'LAND', actor: 0, n: 2 }),
+        said(6, 400, 'Alice cast Opt', { type: 'STACK_ADD', actor: 0, n: 3 }),
+        // An undo back to before the Opt: the line goes, and the next is what happened instead.
+        said(7, 500, 'Alice played Mountain', { type: 'LAND', actor: 0, n: 3 }, 3),
+        said(8, 600, 'Turn 2 (Bob)', { type: 'TURN', actor: 1, turn: 2, n: 4 }),
+      ],
+    };
+    const { match, clock } = createReplayPlayer(data);
+    const lines = (): string[] => match.says.map((s) => s.text);
+
+    clock.seek(600);
+    expect(lines(), 'the end').toEqual(['Turn 1 (Alice)', 'Alice played Island', 'Alice played Mountain', 'Turn 2 (Bob)']);
+    clock.seek(400);
+    expect(lines(), 'back to before the undo').toEqual(['Turn 1 (Alice)', 'Alice played Island', 'Alice cast Opt']);
+    clock.play();
+    vi.advanceTimersByTime(1000);
+    expect(lines(), 'played on from there').toEqual(['Turn 1 (Alice)', 'Alice played Island', 'Alice played Mountain', 'Turn 2 (Bob)']);
+
+    closeMatch(match);
+    clock.dispose();
+    vi.useRealTimers();
+  });
+
   it('a recording made before the roster was kept draws its players without avatars, and still plays', () => {
     const { match, clock } = createReplayPlayer(threeFrameReplay(1000));
     expect(match.view?.players.map((p) => p.avatarId)).toEqual([undefined, undefined]);
