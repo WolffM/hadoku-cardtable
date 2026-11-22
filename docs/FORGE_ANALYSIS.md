@@ -414,6 +414,23 @@ them, and re-derivations by the Wave 7 manager are marked.
   reads the current input under the lock and skips one whose latch is done
   (`InputSyncronizedBase.isDone`); `InputShowRaceTest` counted 5 such stale shows
   in one game before, none after.
+- **VERIFIED (2026-11-21, fork pin 44fb8556)** — an input's *own* re-render
+  walks the views too, outside the lock. A mana source's ability resolves inside
+  its act (`GameAction.invoke` runs inline on a Game thread), and
+  `InputPayMana.onStateChanged` then queues `updateMessage` on the EDT
+  (`FThreads.invokeInEdtNowOrLater`), which sends the selection and the prompt
+  (`syncAndSend` → `DeltaSyncManager.collectDeltas`). The next source's act holds
+  the lock and walks the views at the same moment (a remote seat always asks
+  `getAbilityToPlay`, a `syncAndSendAndWait`), and the prune of `registeredByKey`
+  (`DeltaSyncManager.java:149`) threw a ConcurrentModificationException:
+  m-b1bcfd5382d0, an Island clicked 15 ms after a Creeping Tar Pit's {U}.
+  `InputLockUI`'s delayed EDT prompt (`InputLockUI.java:54`) had the same unlocked
+  walk. Both now run under `ActGate.withViews` and skip an input that is done.
+  `PaymentClickRaceTest` (every land clicked at once on each Divination payment,
+  acts on "Game BT" threads as the server's are) counted 25 and 27 overlapping
+  walks in two games on the old pin, and none in three games on the new pin;
+  `mana-click-race.jvm.test.ts` lost 3 of 6 games to the CME on the old jar and
+  none of 18 on the new one.
 
 ### `ReplyPool`'s future is neither of the two things it looks like
 
