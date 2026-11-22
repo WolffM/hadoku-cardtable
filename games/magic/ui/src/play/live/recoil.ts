@@ -10,14 +10,15 @@
  *
  * Only the avatar's art moves (`.face__avatar`), by a transform the compositor runs: no box is read
  * here, the strike's direction is the ram's own, measured before any copy was drawn. It is not one of
- * the beats (`motion.ts`'s `BEAT_ANIMATION_ID`): nothing waits for it (AF216). Every screen draws it
+ * the beats (no `stage` in its context): nothing waits for it (AF216). Every screen draws it
  * on its own copy of the face, and successive blows add up (`composite: 'add'`) rather than cut each
  * other off.
  */
 
 import { entryPower } from './entries.ts';
+import { animate } from '@hadoku/ui-shell/motion';
+
 import { homeOf } from './ram.ts';
-import { quicken } from './tempo.ts';
 
 /** The art inside a face (`Board.tsx`'s `PlayerFace`) that recoils. */
 export const RECOIL_ART = '.face__avatar';
@@ -54,14 +55,13 @@ export function recoilFrames(dx: number, dy: number, r: ReturnType<typeof recoil
 /**
  * Recoil `face`'s avatar from a blow of `damage` struck from `from` to `to` (any shared coordinates:
  * only the direction counts). `key` names the animation `recoil:<key>`. Returns a cancel; does
- * nothing without the art or the Web Animations API.
+ * nothing without the art.
  */
 export function recoil(face: Element, from: { x: number; y: number }, to: { x: number; y: number }, damage: number, key: string, tempo = 1): () => void {
   const art = face.querySelector<HTMLElement>(RECOIL_ART);
-  if (art === null || typeof art.animate !== 'function') return () => undefined;
+  if (art === null) return () => undefined;
   const d = Math.hypot(to.x - from.x, to.y - from.y);
   const [dx, dy] = d === 0 ? [0, -1] : [(to.x - from.x) / d, (to.y - from.y) / d];
   const r = recoilOf(damage);
-  const anim = quicken(art.animate(recoilFrames(dx, dy, r), { id: `recoil:${key}`, duration: r.ms, composite: 'add' }), tempo);
-  return () => anim.cancel();
+  return animate(art, recoilFrames(dx, dy, r), { id: `recoil:${key}`, duration: r.ms, composite: 'add' }, { tempo }).cancel;
 }

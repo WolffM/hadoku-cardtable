@@ -64,10 +64,10 @@ describe('ram', () => {
     expect(copy.querySelector<HTMLElement>('.board-card')!.style.marginBlock).toBe('0px');
     vi.advanceTimersByTime(0);
     expect(card.hasAttribute(RAMMING_ATTR), 'the card is hidden while its copy is away').toBe(true);
-    vi.useRealTimers();
     finish();
-    await finished;
-    await Promise.resolve();
+    // The kit's `finished` settles a few microtasks after the animation's: flushed with the clock.
+    await vi.runAllTimersAsync();
+    vi.useRealTimers();
     expect(card.hasAttribute(RAMMING_ATTR)).toBe(false);
     expect(root.querySelector('.board-ram'), 'the copy is gone once home').toBeNull();
   });

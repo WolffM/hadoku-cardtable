@@ -14,13 +14,13 @@
  * motion at all.
  */
 
-import { animate, standIn as kitStandIn, type Running } from '@hadoku/ui-shell/motion';
+import { animate, standIn as kitStandIn, type MotionContext, type Running } from '@hadoku/ui-shell/motion';
 
 import { BEAT_ANIMATION_ID } from '../motion.ts';
 import { shake } from './crash.ts';
 import { copyOfCard, LEAVING_GAP_ATTR } from './departures.ts';
 import type { CrackLook, EntryWeight } from './entries.ts';
-import { seedOf } from './projectile.ts';
+import { blowContext, seedOf } from './projectile.ts';
 import { RAMMING_ATTR } from './ram.ts';
 import './quake.css';
 
@@ -57,9 +57,10 @@ export function quake(
 ): { done: Promise<unknown>; cancel: () => void } {
   const anims: Running[] = [];
   const done: Promise<unknown>[] = [];
-  const still = weight.shakePx > 0 ? shake(board, weight.shakePx, key, tempo) : () => undefined;
-  if (weight.cracks !== null) done.push(crackle(board, at, weight.cracks, key, anims, tempo));
-  if (weight.shove.rings > 0) done.push(shove(board, overlay, at, self, weight, key, anims, tempo));
+  const ctx = blowContext(overlay, tempo);
+  const still = shake(board, weight.shakePx, key, tempo);
+  if (weight.cracks !== null) done.push(crackle(board, at, weight.cracks, key, anims, ctx));
+  if (weight.shove.rings > 0) done.push(shove(board, at, self, weight, key, anims, ctx));
   return {
     done: Promise.all(done),
     cancel: () => {
@@ -73,8 +74,6 @@ export function quake(
 function drawn(el: HTMLElement): boolean {
   return !el.hasAttribute(RAMMING_ATTR) && !el.hasAttribute(LEAVING_GAP_ATTR) && !WAITING_MARKS.some((m) => el.hasAttribute(m)) && el.style.visibility !== 'hidden';
 }
-
-export { rel, type Box } from '@hadoku/ui-shell/motion';
 
 /** What a row card wears while it waits for its arrival — `gestures/cast.ts`'s landing mark hides it, `numbers.ts`'s arrival mark fades it in — and its stand-in must not. */
 const WAITING_MARKS = ['data-cast-landing', 'data-arriving-from'];
@@ -184,7 +183,7 @@ function outline(c: Crack, scale: number): string {
  * cracks in table coordinates, clipped to itself, below everything it holds — the two sides meet
  * (`board.css`'s `.zone--battlefield` seam), so a crack runs straight over onto the other side.
  */
-function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, into: Running[], tempo: number): Promise<void> {
+function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, into: Running[], ctx: MotionContext): Promise<void> {
   const c = { width: at.w, height: at.h };
   const reach = Math.max(c.width, c.height) * look.reach;
 
@@ -239,8 +238,8 @@ function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, i
       run.style.stroke = 'rgb(255 255 255)';
       run.style.strokeWidth = String(crack.root * 4);
       const length = crack.pts.slice(1).reduce((sum, p, n) => sum + Math.hypot(p.x - crack.pts[n]!.x, p.y - crack.pts[n]!.y), 0);
-      run.style.animationDelay = `${Math.round(crack.at / tempo)}ms`;
-      run.style.animationDuration = `${Math.max(60, Math.round(length * CRACK_MS_PER_PX)) / tempo}ms`;
+      run.style.animationDelay = `${Math.round(crack.at / ctx.tempo)}ms`;
+      run.style.animationDuration = `${Math.max(60, Math.round(length * CRACK_MS_PER_PX)) / ctx.tempo}ms`;
       mask.append(run);
       defs.append(mask);
       for (const kind of look.glow > 0 ? (['glow', 'line'] as const) : (['line'] as const)) {
@@ -263,7 +262,7 @@ function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, i
   const total = 400 + look.holdMs + 450;
   return Promise.all(
     layers.map((layer) => {
-      const fade = animate(layer, [{ opacity: 1 }, { opacity: 1, offset: (400 + look.holdMs) / total }, { opacity: 0 }], { id: BEAT_ANIMATION_ID, duration: total, easing: 'ease-in' }, { tempo });
+      const fade = animate(layer, [{ opacity: 1 }, { opacity: 1, offset: (400 + look.holdMs) / total }, { opacity: 0 }], { id: BEAT_ANIMATION_ID, duration: total, easing: 'ease-in' }, ctx);
       into.push(fade);
       return fade.finished;
     }),
@@ -277,7 +276,7 @@ function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, i
  * either seat's — is thrown hardest; from 12 power the ring beyond is knocked too, more gently and a
  * beat later, as the blow travels out.
  */
-async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self: Element | null, weight: EntryWeight, key: string, into: Running[], tempo: number): Promise<void> {
+async function shove(board: HTMLElement, at: Anchor, self: Element | null, weight: EntryWeight, key: string, into: Running[], ctx: MotionContext): Promise<void> {
   const t = { width: at.w, height: at.h };
   const tx = at.x;
   const ty = at.y;
@@ -306,7 +305,7 @@ async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self:
       const ky = (vy / len) * push * 0.7;
       const spin = (vx < 0 ? -1 : 1) * (6 + 10 * r('r')) * (strength / 0.6);
       const lift = 16 * strength;
-      const s = standIn(overlay, el, 'board-entry board-entry--shoved');
+      const s = standIn(ctx.overlay, el, 'board-entry board-entry--shoved');
       s.wrap.setAttribute(QUAKE_ATTR, key);
       s.mount();
       el.style.visibility = 'hidden';
@@ -321,7 +320,7 @@ async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self:
         ],
         // The outer ring a beat after the inner: the blow travels out.
         { id: BEAT_ANIMATION_ID, duration: 860, delay: ring === 1 ? 0 : 70, easing: 'linear', fill: 'both' },
-        { tempo },
+        ctx,
       );
       into.push(knock);
       return knock.finished.then(() => {

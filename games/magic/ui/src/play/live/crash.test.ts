@@ -5,14 +5,16 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { damagePower } from '../motion.ts';
-import { crash, CRASH_MS, rocks } from './crash.ts';
+import { damagePower, defaultStage } from '../motion.ts';
+import { crash, CRASH_MS, rocks, shake } from './crash.ts';
 import { claimParticles, PARTICLE_BUDGET } from './effect-budget.ts';
-import { impact } from './projectile.ts';
+import { fly, impact } from './projectile.ts';
+import { recoil, RECOIL_ART } from './recoil.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
   vi.useRealTimers();
+  delete (HTMLElement.prototype as { animate?: unknown }).animate;
 });
 
 describe('rocks', () => {
@@ -54,5 +56,32 @@ describe('crash', () => {
     const el = crash(root, { x: 0, y: 0 }, 1, 'c');
     expect([el.querySelectorAll('.effect-crash__rock').length, el.querySelectorAll('.effect-crash__dust').length]).toEqual([4, 2]);
     expect(impact(root, { x: 0, y: 0 }, 'bolt', 'i', 'R', 1).querySelectorAll('.effect-blast__spark')).toHaveLength(3);
+  });
+});
+
+describe('a blow on the board’s stage', () => {
+  it('every Web Animation a crash, a shake or a bolt plays is a beat the pacer counts, and none holds it; a recoil is not one', () => {
+    const made: { anim: Animation; el: Element }[] = [];
+    HTMLElement.prototype.animate = vi.fn(function (this: HTMLElement) {
+      const anim = { id: '', finished: new Promise(() => undefined), cancel: () => undefined } as unknown as Animation;
+      made.push({ anim, el: this });
+      return anim;
+    }) as unknown as typeof HTMLElement.prototype.animate;
+    const board = document.createElement('div');
+    const root = document.createElement('div');
+    board.append(root);
+    document.body.append(board);
+    const drawing = defaultStage.drawingCount;
+    crash(root, { x: 0, y: 0 }, 1, 'stage-c', 1, 2);
+    shake(root, 6, 'stage-s', 2);
+    fly(root, { x: 0, y: 0 }, { x: 100, y: 100 }, 'stage-f', 'bolt', 400, 'R', 1, 2);
+    const blows = made.length;
+    expect(blows, 'rocks, a shake and a ball').toBeGreaterThan(3);
+    expect(made.every(({ anim }) => defaultStage.isBeat(anim) && anim.playbackRate === 2), 'each a beat, at its tempo').toBe(true);
+    expect(defaultStage.drawingCount, 'a blow adds no hold of its own').toBe(drawing);
+    const face = document.createElement('div');
+    face.append(Object.assign(document.createElement('span'), { className: RECOIL_ART.slice(1) }));
+    recoil(face, { x: 0, y: 0 }, { x: 0, y: 10 }, 5, 'stage-r');
+    expect(made.slice(blows).map(({ anim }) => defaultStage.isBeat(anim)), 'nothing waits for a recoil').toEqual([false]);
   });
 });

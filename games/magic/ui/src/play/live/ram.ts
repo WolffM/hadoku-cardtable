@@ -43,16 +43,14 @@
  * Reduced motion: none.
  */
 
-import { BEAT_ANIMATION_ID, homeEase, powerEase } from '../motion.ts';
+import { animate } from '@hadoku/ui-shell/motion';
+
+import { BEAT_ANIMATION_ID, defaultStage, homeEase, powerEase } from '../motion.ts';
 import { copyOfCard } from './departures.ts';
-import { along, seedOf } from './projectile.ts';
-import { quicken } from './tempo.ts';
+import { along, seedOf, type Point } from './projectile.ts';
 import './ram.css';
 
-export interface Point {
-  readonly x: number;
-  readonly y: number;
-}
+export type { Point };
 
 /** A box in overlay coordinates: its centre and size. */
 export interface Box extends Point {
@@ -510,13 +508,12 @@ function mover(root: HTMLElement, source: HTMLElement, from: Box): { el: HTMLEle
   return { el: wrap, standIn: false };
 }
 
-/** Run `parts` on `el` (each from its own delay), at `tempo` (`./tempo.ts`), then `done` when the last is over; returns a cancel. */
+/** Run `parts` on `el` (each from its own delay), at `tempo` (`./tempo.ts`), each a beat of the board's stage, then `done` when the last is over; returns a cancel. */
 function play(el: HTMLElement, parts: readonly { frames: Keyframe[]; delay: number; duration: number; easing?: string }[], done: () => void, tempo: number): () => void {
-  const anims = parts.map((p) => quicken(el.animate(p.frames, { id: BEAT_ANIMATION_ID, delay: p.delay, duration: p.duration, easing: p.easing ?? 'linear', fill: 'forwards' }), tempo));
-  const last = anims[anims.length - 1]!;
-  last.finished.then(done, done);
+  const runs = parts.map((p) => animate(el, p.frames, { id: BEAT_ANIMATION_ID, delay: p.delay, duration: p.duration, easing: p.easing ?? 'linear', fill: 'forwards' }, { tempo, stage: defaultStage }));
+  void runs[runs.length - 1]!.finished.then(done);
   return () => {
-    for (const a of anims) a.cancel();
+    for (const r of runs) r.cancel();
   };
 }
 
@@ -541,7 +538,6 @@ export function ram(
   struckPower: number,
   formation: { start: number; at: Point | null; weight?: number; side?: -1 | 1; tempo?: number } = { start: delayMs, at: null },
 ): () => void {
-  if (typeof source.animate !== 'function') return () => undefined;
   const { el, standIn } = mover(root, source, from);
   const strike = strikeOffset(from, to, kind);
   const contact = delayMs + contactMs(kind);
@@ -606,7 +602,7 @@ export function ram(
  * still until `atMs`, then is blasted away from `from` (the box of the one that struck it).
  */
 export function blast(root: HTMLElement, target: HTMLElement, from: Box, at: Box, key: string, atMs: number, power: number, tempo = 1): () => void {
-  if (typeof target.animate !== 'function' || !root.contains(target)) return () => undefined;
+  if (!root.contains(target)) return () => undefined;
   const away = unit(from, at);
   return play(target, [{ frames: blastFrames({ x: 0, y: 0 }, away, power), delay: atMs, duration: BLAST_MS, easing: 'cubic-bezier(0.15, 0.7, 0.3, 1)' }], () => undefined, tempo);
 }

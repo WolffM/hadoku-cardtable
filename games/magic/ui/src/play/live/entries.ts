@@ -30,13 +30,12 @@
  * have nowhere else to come from. `playLanding` is the landing alone, for Fast Mode: no travel.
  */
 
-import { seedOf } from './projectile.ts';
-import { animate } from '@hadoku/ui-shell/motion';
+import { animate, markTempo, rel, type Box, type MotionContext } from '@hadoku/ui-shell/motion';
 
-import { anchorOf, quake, rel, shadow, standIn, type Box } from './quake.ts';
 import { BEAT_ANIMATION_ID, powerEase, powerSize } from '../motion.ts';
+import { blowContext, seedOf } from './projectile.ts';
+import { anchorOf, quake, shadow, standIn } from './quake.ts';
 import './entries.css';
-import { markTempo } from './tempo.ts';
 
 /** Where a permanent came from, picking its entry motion. */
 export type EntryOrigin = 'stack' | 'hand' | 'graveyard' | 'exile' | 'token';
@@ -193,7 +192,7 @@ const DRAINED = 'grayscale(1) brightness(0.55) contrast(1.1)';
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-async function recolour(wrap: HTMLElement, lift: number, tempo: number): Promise<void> {
+async function recolour(wrap: HTMLElement, lift: number, ctx: MotionContext): Promise<void> {
   await animate(
     wrap,
     [
@@ -202,12 +201,12 @@ async function recolour(wrap: HTMLElement, lift: number, tempo: number): Promise
       { filter: shadow(lift) },
     ],
     { id: BEAT_ANIMATION_ID, duration: 300, easing: 'ease-out', fill: 'forwards' },
-    { tempo },
+    ctx,
   ).finished;
 }
 
 /** Shadow wisps along the way from the pile. */
-function trailShadow(overlay: HTMLElement, a: { x: number; y: number }, b: { x: number; y: number }, key: string, tempo: number): void {
+function trailShadow(a: { x: number; y: number }, b: { x: number; y: number }, key: string, ctx: MotionContext): void {
   const n = 9;
   for (let i = 0; i < n; i++) {
     const t = i / (n - 1);
@@ -219,7 +218,7 @@ function trailShadow(overlay: HTMLElement, a: { x: number; y: number }, b: { x: 
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
     el.style.setProperty('--s', (0.7 + r('s') * 0.9).toFixed(2));
-    overlay.append(el);
+    ctx.overlay.append(el);
     void animate(
       el,
       [
@@ -228,7 +227,7 @@ function trailShadow(overlay: HTMLElement, a: { x: number; y: number }, b: { x: 
         { opacity: 0, scale: '1.6', translate: `${(r('d') - 0.5) * 24}px ${-18 - r('u') * 26}px` },
       ],
       { id: BEAT_ANIMATION_ID, duration: 700, delay: t * ENTRY_MOTIONS.rise.ms * 0.7, easing: 'ease-out', fill: 'backwards' },
-      { tempo },
+      ctx,
     ).finished.then(() => el.remove());
   }
 }
@@ -236,7 +235,8 @@ function trailShadow(overlay: HTMLElement, a: { x: number; y: number }, b: { x: 
 /** Play one entry — the climb to the hang point, by motion, then the landing; resolves when everything it drew is gone. */
 export async function playEntry(run: EntryRun): Promise<void> {
   const { board, overlay, card, from, motion, weight, key } = run;
-  const tempo = run.tempo ?? 1;
+  const ctx = blowContext(overlay, run.tempo);
+  const { tempo } = ctx;
   const { lift, scale } = hang(weight);
   const box = (): DOMRect => overlay.getBoundingClientRect();
 
@@ -258,7 +258,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
     const dx = src.left + src.width / 2 - (slot.left + slot.width / 2);
     const dy = src.top + src.height / 2 - (slot.top + slot.height / 2);
     const s0 = Math.max(0.3, src.width / slot.width);
-    trailShadow(overlay, { x: src.left + src.width / 2, y: src.top + src.height / 2 }, { x: slot.left + slot.width / 2, y: slot.top + slot.height / 2 - lift }, key, tempo);
+    trailShadow({ x: src.left + src.width / 2, y: src.top + src.height / 2 }, { x: slot.left + slot.width / 2, y: slot.top + slot.height / 2 - lift }, key, ctx);
     await animate(
       wrap,
       [
@@ -268,16 +268,16 @@ export async function playEntry(run: EntryRun): Promise<void> {
         { ...hung, filter: `${DRAINED} ${shadow(lift)}` },
       ],
       { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.rise.ms, easing: 'cubic-bezier(0.3, 0, 0.3, 1)', fill: 'forwards' },
-      { tempo },
+      ctx,
     ).finished;
-    await recolour(wrap, lift, tempo);
+    await recolour(wrap, lift, ctx);
   } else if (motion === 'release') {
     // Materialises where it is held, a touch small and bright, then a beat before it is let go.
     await animate(
       wrap,
       [{ ...hung, scale: String(scale * 0.9), opacity: 0, filter: `brightness(1.5) ${shadow(lift)}` }, { ...hung, opacity: 1 }],
       { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.release.ms, easing: 'ease-out', fill: 'forwards' },
-      { tempo },
+      ctx,
     ).finished;
     await wait((60 + 80 * (weight?.power ?? 0)) / tempo);
   } else if (motion === 'blink') {
@@ -291,7 +291,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
         hung,
       ],
       { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.blink.ms, easing: 'ease-out', fill: 'forwards' },
-      { tempo },
+      ctx,
     ).finished;
   } else {
     // Cast: from where the card is drawn (the stack's card, its stand-in) up over its slot, hung there for the drop.
@@ -305,14 +305,14 @@ export async function playEntry(run: EntryRun): Promise<void> {
         { ...hung, offset: 1 },
       ],
       { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.cast.ms, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'forwards' },
-      { tempo },
+      ctx,
     ).finished;
     if (weight !== null) await wait((60 + 120 * weight.power) / tempo);
   }
 
   // 2. The landing: the same for every origin, as heavy as the creature. A board taken down while
   // the card was on its way (the match left) is drawn into no more: the row card is handed back as it is.
-  if (weight !== null && overlay.isConnected) await landingDrop(wrap, weight, tempo);
+  if (weight !== null && overlay.isConnected) await landingDrop(wrap, weight, ctx);
   const slot = s.box();
   s.stop();
   // The row card as the stand-in last followed it: React may have drawn it again meanwhile.
@@ -320,11 +320,11 @@ export async function playEntry(run: EntryRun): Promise<void> {
   landed.style.visibility = '';
   run.onLanded?.(landed);
   wrap.remove();
-  if (weight !== null && overlay.isConnected) await landingEffects(board, overlay, landed, slot, weight, key, tempo);
+  if (weight !== null && overlay.isConnected) await landingEffects(board, landed, slot, weight, key, ctx);
 }
 
 /** The squish from the hang point down onto the table. */
-async function landingDrop(wrap: HTMLElement, weight: EntryWeight, tempo: number): Promise<void> {
+async function landingDrop(wrap: HTMLElement, weight: EntryWeight, ctx: MotionContext): Promise<void> {
   const { lift, scale, dropMs } = hang(weight);
   const hung: Keyframe = { translate: `0 ${-lift}px`, scale: String(scale), filter: shadow(lift) };
   await animate(
@@ -335,15 +335,15 @@ async function landingDrop(wrap: HTMLElement, weight: EntryWeight, tempo: number
       { translate: '0 0', scale: '1', filter: shadow(0) },
     ],
     { id: BEAT_ANIMATION_ID, duration: dropMs, easing: powerEase(weight.power), fill: 'forwards' },
-    { tempo },
+    ctx,
   ).finished;
 }
 
 /** The weight effects alone, anchored at `slot` (overlay-relative): the pressure ring and debris under the card, and the table's own quake (`quake.ts`: the shake, cracks and the shove). */
-function landingEffects(board: HTMLElement, overlay: HTMLElement, card: HTMLElement, slot: Box, weight: EntryWeight, key: string, tempo: number): Promise<unknown> {
-  const done: Promise<unknown>[] = [quake(board, overlay, anchorOf(card), weight, key, card, tempo).done];
-  if (weight.debris > 0) done.push(debris(overlay, slot, weight.power, weight.debris, key, tempo));
-  if (weight.thump) done.push(thump(overlay, slot, weight.power, tempo));
+function landingEffects(board: HTMLElement, card: HTMLElement, slot: Box, weight: EntryWeight, key: string, ctx: MotionContext): Promise<unknown> {
+  const done: Promise<unknown>[] = [quake(board, ctx.overlay, anchorOf(card), weight, key, card, ctx.tempo).done];
+  if (weight.debris > 0) done.push(debris(slot, weight.power, weight.debris, key, ctx));
+  if (weight.thump) done.push(thump(slot, weight.power, ctx));
   return Promise.all(done);
 }
 
@@ -353,25 +353,26 @@ function landingEffects(board: HTMLElement, overlay: HTMLElement, card: HTMLElem
  * effects `playEntry` ends with.
  */
 export async function playLanding(board: HTMLElement, overlay: HTMLElement, card: HTMLElement, weight: EntryWeight, key: string, tempo = 1): Promise<void> {
-  await landingDrop(card, weight, tempo);
+  const ctx = blowContext(overlay, tempo);
+  await landingDrop(card, weight, ctx);
   // A board taken down while the card came down is drawn into no more.
   if (!overlay.isConnected) return;
   const slot = rel(card.getBoundingClientRect(), overlay.getBoundingClientRect());
-  await landingEffects(board, overlay, card, slot, weight, key, tempo);
+  await landingEffects(board, card, slot, weight, key, ctx);
 }
 
 /** A brief ring of pressure flattening out from under the card. */
-function thump(overlay: HTMLElement, slot: Box, power: number, tempo: number): Promise<void> {
+function thump(slot: Box, power: number, ctx: MotionContext): Promise<void> {
   const el = document.createElement('div');
   el.className = 'board-entry__thump';
   Object.assign(el.style, { left: `${slot.left}px`, top: `${slot.top}px`, width: `${slot.width}px`, height: `${slot.height}px` });
   el.style.setProperty('--p', power.toFixed(2));
-  overlay.append(el);
+  ctx.overlay.append(el);
   return animate(
     el,
     [{ opacity: 0.85, scale: '1' }, { opacity: 0, scale: String(1.18 + 0.3 * power) }],
     { id: BEAT_ANIMATION_ID, duration: 380 + 200 * power, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' },
-    { tempo },
+    ctx,
   ).finished.then(() => el.remove());
 }
 
@@ -389,14 +390,14 @@ function edgePoint(slot: Box, r: (k: string) => number): { x: number; y: number;
 }
 
 /** Dust and rock thrown out from the card's edges, as heavy as the landing: `crash.ts`'s look, the card's shape. */
-function debris(overlay: HTMLElement, slot: Box, power: number, share: number, key: string, tempo: number): Promise<void> {
+function debris(slot: Box, power: number, share: number, key: string, ctx: MotionContext): Promise<void> {
   const ms = 650 + 250 * power;
   const layer = document.createElement('div');
   layer.className = 'effect-crash board-entry__debris';
   layer.style.setProperty('--crash-ms', `${ms}ms`);
-  markTempo(layer, tempo);
+  markTempo(layer, ctx.tempo);
   layer.style.setProperty('--power-size', powerSize(power).toFixed(2));
-  overlay.append(layer);
+  ctx.overlay.append(layer);
   const anims: Promise<unknown>[] = [];
   const rocks = Math.round((8 + 40 * power) * share);
   const puffs = Math.round((4 + 16 * power) * share);
@@ -419,7 +420,7 @@ function debris(overlay: HTMLElement, slot: Box, power: number, share: number, k
           { translate: `${e.nx * far}px ${e.ny * far * 0.6 - 4}px`, scale: String(1.4 + 1.2 * power), opacity: 0 },
         ],
         { id: BEAT_ANIMATION_ID, duration: ms * (0.8 + 0.2 * r('m')), easing: 'cubic-bezier(0.1, 0.7, 0.3, 1)', fill: 'forwards' },
-        { tempo },
+        ctx,
       ).finished,
     );
   }
@@ -445,7 +446,7 @@ function debris(overlay: HTMLElement, slot: Box, power: number, share: number, k
           { translate: `${dx}px ${dy + 10}px`, rotate: `${spin}deg`, opacity: 0 },
         ],
         { id: BEAT_ANIMATION_ID, duration: ms * (0.75 + 0.25 * r('m')), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
-        { tempo },
+        ctx,
       ).finished,
     );
   }

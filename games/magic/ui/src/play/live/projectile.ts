@@ -38,10 +38,9 @@
 
 import type { ManaColor } from '@hadoku/shared';
 
-import { everyFrame } from '../frame-phases.ts';
-import { BEAT_ANIMATION_ID, damageSize, powerEase } from '../motion.ts';
-import { claimParticles } from './effect-budget.ts';
-import { markTempo, quicken } from './tempo.ts';
+import { animate, everyFrame, markTempo, particlePool, STILL, type MotionContext } from '@hadoku/ui-shell/motion';
+
+import { BEAT_ANIMATION_ID, damageSize, defaultStage, powerEase } from '../motion.ts';
 
 import './projectile.css';
 
@@ -49,6 +48,13 @@ export interface Point {
   readonly x: number;
   readonly y: number;
 }
+
+/**
+ * A blow's context, built where the blow is: `overlay`'s particle pool, and the board's stage, of which every
+ * blow's Web Animation is a beat (no hold: what a blow is drawn for is held by the view that drew it). Reduced
+ * motion is the caller's: it draws none.
+ */
+export const blowContext = (overlay: HTMLElement, tempo = 1): MotionContext => ({ stage: defaultStage, overlay, tempo, reduced: false, frame: everyFrame, particles: particlePool(overlay) });
 
 /** Every projectile look, by name. Its CSS is `projectile.css`. */
 export type ProjectileLook = 'bolt' | 'heal';
@@ -137,15 +143,14 @@ export function fly(root: HTMLElement, start: Point, end: Point, key: string, lo
   ball.dataset.hit = key;
   markTempo(ball, tempo);
   root.append(ball);
-  if (typeof ball.animate !== 'function') {
+  const ctx = blowContext(root, tempo);
+  const flight = animate(ball, frames, { id: BEAT_ANIMATION_ID, duration: ms, easing: powerEase(p), fill: 'both' }, ctx);
+  if (flight === STILL) {
     ball.style.transform = frames[frames.length - 1]!.transform as string;
     return ball;
   }
-  quicken(ball.animate(frames, { id: BEAT_ANIMATION_ID, duration: ms, easing: powerEase(p), fill: 'both' }), tempo).finished.then(
-    () => ball.remove(),
-    () => ball.remove(),
-  );
-  trail(root, ball, look, key, ms / tempo, power ?? 0, Math.hypot(end.x - start.x, end.y - start.y), tempo);
+  void flight.finished.then(() => ball.remove());
+  trail(ball, look, key, ms / tempo, power ?? 0, Math.hypot(end.x - start.x, end.y - start.y), ctx);
   return ball;
 }
 
@@ -161,16 +166,17 @@ export function fly(root: HTMLElement, start: Point, end: Point, key: string, lo
  * SAME hit's next beat, not a rival one, and must find the trail's reservation already freed. `ms` is the
  * flight's wall time; each ember's own life runs at `tempo`.
  */
-function trail(root: HTMLElement, ball: HTMLElement, look: ProjectileLook, key: string, ms: number, power: number, distance: number, tempo: number): void {
+function trail(ball: HTMLElement, look: ProjectileLook, key: string, ms: number, power: number, distance: number, ctx: MotionContext): void {
+  const { overlay: root, tempo } = ctx;
   const t0 = performance.now();
   const now = Date.now();
   const spacing = 5 - 2 * power;
   const wanted = Math.max(2, Math.round((distance * 1.5) / spacing));
-  const budget = claimParticles(root, wanted, 2, now, now + ms);
+  const budget = ctx.particles(wanted, 2, now, now + ms);
   let n = 0;
   let last: { x: number; y: number } | null = null;
-  // Read where the ball is with every other loop's reads, then shed its embers (`../frame-phases.ts`).
-  everyFrame(() => {
+  // Read where the ball is with every other loop's reads, then shed its embers (`ctx.frame`).
+  ctx.frame(() => {
     if (!ball.isConnected || performance.now() - t0 > ms || n >= budget) return null;
     const r = ball.getBoundingClientRect();
     const b = root.getBoundingClientRect();
@@ -196,23 +202,17 @@ function trail(root: HTMLElement, ball: HTMLElement, look: ProjectileLook, key: 
       Object.assign(el.style, { left: `${x + (s('x') - 0.5) * r.width * 0.25}px`, top: `${y + (s('y') - 0.5) * r.width * 0.25}px`, width: `${size}px`, height: `${size}px` });
       root.append(el);
       const life = ((180 + 240 * power) * (0.75 + 0.5 * s('l'))) / tempo;
-      if (typeof el.animate === 'function') {
-        // Centred on the path: the drift is added to the -50% that centres it, never in place of it
-        // (v3's bug — the drift's own `translate` replaced the centring, so every ember sat half its
-        // own size down-right of the path it was supposed to follow).
-        el.animate(
-          [
-            { scale: '0.9', opacity: 0.85, translate: '-50% -50%' },
-            { scale: '0.15', opacity: 0, translate: `calc(-50% + ${((s('dx') - 0.5) * 10).toFixed(1)}px) calc(-50% + ${(-4 - 10 * s('dy')).toFixed(1)}px)` },
-          ],
-          { duration: life, easing: 'ease-out', fill: 'forwards' },
-        ).finished.then(
-          () => el.remove(),
-          () => el.remove(),
-        );
-      } else {
-        setTimeout(() => el.remove(), life);
-      }
+      // Centred on the path: the drift is added to the -50% that centres it, never in place of it
+      // (v3's bug — the drift's own `translate` replaced the centring, so every ember sat half its
+      // own size down-right of the path it was supposed to follow). Its `life` is already wall time.
+      void animate(
+        el,
+        [
+          { scale: '0.9', opacity: 0.85, translate: '-50% -50%' },
+          { scale: '0.15', opacity: 0, translate: `calc(-50% + ${((s('dx') - 0.5) * 10).toFixed(1)}px) calc(-50% + ${(-4 - 10 * s('dy')).toFixed(1)}px)` },
+        ],
+        { duration: life, easing: 'ease-out', fill: 'forwards' },
+      ).finished.then(() => el.remove());
     }
     last = here;
   }
@@ -229,7 +229,7 @@ export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: 
   burst.style.left = `${at.x}px`;
   burst.style.top = `${at.y}px`;
   markTempo(burst, tempo);
-  return explode(root, burst, key, power ?? 0, tempo);
+  return explode(burst, key, power ?? 0, blowContext(root, tempo));
 }
 
 /**
@@ -242,7 +242,8 @@ export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: 
  * explosion animations look a bit distracting. maybe dont have those scale with size"). All in the
  * bolt's own colour (`burst.dataset.colour`, read by `projectile.css`'s `--bolt*`).
  */
-function explode(root: HTMLElement, burst: HTMLElement, key: string, power: number, tempo: number): HTMLElement {
+function explode(burst: HTMLElement, key: string, power: number, ctx: MotionContext): HTMLElement {
+  const { overlay: root, tempo } = ctx;
   // The varying part is never last: `seedOf` barely moves when only a key's final character does.
   const r = (q: string): number => seedOf(`${key}:x:${q}:mix`);
   const now = Date.now();
@@ -263,7 +264,7 @@ function explode(root: HTMLElement, burst: HTMLElement, key: string, power: numb
   // The fireball: puffs around the point of impact, each its own size, lag and drift — more of them
   // the heavier the blow, never bigger ones.
   const puffsWanted = 3 + Math.round(6 * power);
-  const puffs = claimParticles(root, puffsWanted, 2, now, wall(life));
+  const puffs = ctx.particles(puffsWanted, 2, now, wall(life));
   for (let i = 0; i < puffs; i++) {
     const el = add('effect-blast__puff');
     // Clustered, not a ring: random angles, most puffs near the middle, the first the biggest and hottest.
@@ -283,7 +284,7 @@ function explode(root: HTMLElement, burst: HTMLElement, key: string, power: numb
   }
   // Sparks: streaks, each thrown on its own arc.
   const sparksWanted = 6 + Math.round(22 * power);
-  const sparks = claimParticles(root, sparksWanted, 3, now, wall(life));
+  const sparks = ctx.particles(sparksWanted, 3, now, wall(life));
   for (let i = 0; i < sparks; i++) {
     const el = add('effect-blast__spark');
     const a = (i / sparks) * 360 + r(`sa${i}`) * (360 / sparks) * 1.6;
@@ -294,39 +295,33 @@ function explode(root: HTMLElement, burst: HTMLElement, key: string, power: numb
     el.style.width = `${Math.round(5 + (8 + 10 * power) * r(`sl${i}`))}px`;
     el.style.rotate = `${a}deg`;
     const ms = Math.round((300 + 380 * power) * (0.6 + 0.6 * r(`st${i}`)));
-    if (typeof el.animate === 'function') {
-      quicken(
-        el.animate(
-          [
-            { translate: '0 0', opacity: 1 },
-            { translate: `${dx * 0.6}px ${dy * 0.6 - 6}px`, opacity: 1, offset: 0.45 },
-            { translate: `${dx}px ${dy + 10 + 30 * power * r(`sg${i}`)}px`, opacity: 0 },
-          ],
-          { duration: ms, easing: 'cubic-bezier(0.15, 0.7, 0.35, 1)', fill: 'forwards' },
-        ),
-        tempo,
-      );
-    }
+    animate(
+      el,
+      [
+        { translate: '0 0', opacity: 1 },
+        { translate: `${dx * 0.6}px ${dy * 0.6 - 6}px`, opacity: 1, offset: 0.45 },
+        { translate: `${dx}px ${dy + 10 + 30 * power * r(`sg${i}`)}px`, opacity: 0 },
+      ],
+      { duration: ms, easing: 'cubic-bezier(0.15, 0.7, 0.35, 1)', fill: 'forwards' },
+      { tempo },
+    );
   }
   // Embers falling after a heavy blow.
   const fallingWanted = power < 0.45 ? 0 : Math.round(3 + 8 * (power - 0.45));
-  const falling = fallingWanted === 0 ? 0 : claimParticles(root, fallingWanted, 0, now, wall(life + 1300));
+  const falling = fallingWanted === 0 ? 0 : ctx.particles(fallingWanted, 0, now, wall(life + 1300));
   for (let i = 0; i < falling; i++) {
     const el = add('effect-blast__ember');
     const x = (r(`ex${i}`) - 0.5) * (40 + 80 * power);
-    if (typeof el.animate === 'function') {
-      quicken(
-        el.animate(
-          [
-            { translate: `${x * 0.4}px ${-10 - 20 * r(`ey${i}`)}px`, opacity: 0 },
-            { opacity: 1, offset: 0.15 },
-            { translate: `${x}px ${30 + 50 * r(`ef${i}`)}px`, opacity: 0 },
-          ],
-          { duration: Math.round(700 + 600 * r(`et${i}`)), delay: Math.round(120 + 200 * r(`ed${i}`)), easing: 'ease-in', fill: 'both' },
-        ),
-        tempo,
-      );
-    }
+    animate(
+      el,
+      [
+        { translate: `${x * 0.4}px ${-10 - 20 * r(`ey${i}`)}px`, opacity: 0 },
+        { opacity: 1, offset: 0.15 },
+        { translate: `${x}px ${30 + 50 * r(`ef${i}`)}px`, opacity: 0 },
+      ],
+      { duration: Math.round(700 + 600 * r(`et${i}`)), delay: Math.round(120 + 200 * r(`ed${i}`)), easing: 'ease-in', fill: 'both' },
+      { tempo },
+    );
   }
   root.append(burst);
   setTimeout(() => burst.remove(), (life + 1300) / tempo);

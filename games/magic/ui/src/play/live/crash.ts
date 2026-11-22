@@ -9,17 +9,11 @@
  * give the page a scrollbar (table-fit). Reduced motion: none of it.
  */
 
-import { BEAT_ANIMATION_ID, damageSize } from '../motion.ts';
-import { screenShakeAllowed } from '@hadoku/ui-shell/motion';
-import { seedOf } from './projectile.ts';
-import { claimParticles, shared } from './effect-budget.ts';
-import { markTempo, quicken } from './tempo.ts';
-import './crash.css';
+import { animate, markTempo, screenShakeAllowed, shared } from '@hadoku/ui-shell/motion';
 
-export interface Point {
-  readonly x: number;
-  readonly y: number;
-}
+import { BEAT_ANIMATION_ID, damageSize, defaultStage } from '../motion.ts';
+import { blowContext, seedOf, type Point } from './projectile.ts';
+import './crash.css';
 
 /** How long a crash's dust and rocks are drawn. */
 export const CRASH_MS = 700;
@@ -65,9 +59,10 @@ export function rocks(key: string, power: number, share = 1, most = Infinity): R
 
 /** Draw a crash at `at` (overlay coordinates) inside `root`, at `share` of its particles and out of the board's pool; it removes itself. */
 export function crash(root: HTMLElement, at: Point, power: number, key: string, share = 1, tempo = 1): HTMLElement {
+  const ctx = blowContext(root, tempo);
   const now = Date.now();
-  const puffs = claimParticles(root, shared(puffCount(power), share, 2), 2, now, now + CRASH_MS / tempo);
-  const thrown = claimParticles(root, shared(rockCount(power), share, 4), 4, now, now + CRASH_MS / tempo);
+  const puffs = ctx.particles(shared(puffCount(power), share, 2), 2, now, now + CRASH_MS / tempo);
+  const thrown = ctx.particles(shared(rockCount(power), share, 4), 4, now, now + CRASH_MS / tempo);
   const el = document.createElement('div');
   el.className = 'effect-crash';
   el.setAttribute('aria-hidden', 'true');
@@ -93,19 +88,16 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string, 
     chip.className = 'effect-crash__rock';
     chip.style.width = chip.style.height = `${rock.size.toFixed(1)}px`;
     el.append(chip);
-    if (typeof chip.animate === 'function') {
-      quicken(
-        chip.animate(
-          [
-            { translate: '0px 0px', rotate: '0deg', opacity: 1 },
-            { offset: 0.4, translate: `${(rock.dx * 0.55).toFixed(1)}px ${(rock.dy * 0.4 - rock.lift).toFixed(1)}px`, opacity: 1 },
-            { translate: `${rock.dx.toFixed(1)}px ${rock.dy.toFixed(1)}px`, rotate: `${rock.spin.toFixed(0)}deg`, opacity: 0 },
-          ],
-          { id: BEAT_ANIMATION_ID, duration: CRASH_MS * (0.75 + 0.25 * seedOf(`${key}:t`)), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
-        ),
-        tempo,
-      );
-    }
+    animate(
+      chip,
+      [
+        { translate: '0px 0px', rotate: '0deg', opacity: 1 },
+        { offset: 0.4, translate: `${(rock.dx * 0.55).toFixed(1)}px ${(rock.dy * 0.4 - rock.lift).toFixed(1)}px`, opacity: 1 },
+        { translate: `${rock.dx.toFixed(1)}px ${rock.dy.toFixed(1)}px`, rotate: `${rock.spin.toFixed(0)}deg`, opacity: 0 },
+      ],
+      { id: BEAT_ANIMATION_ID, duration: CRASH_MS * (0.75 + 0.25 * seedOf(`${key}:t`)), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
+      ctx,
+    );
   }
   root.append(el);
   setTimeout(() => el.remove(), (CRASH_MS + 50) / tempo);
@@ -123,9 +115,8 @@ export function shakeMsOf(px: number): number {
  * (`numbers.ts`'s `boltShakePx`). Its container clips while it does. Returns a cancel.
  */
 export function shake(board: HTMLElement, px: number, key: string, tempo = 1): () => void {
-  const ms = shakeMsOf(px);
   // The player's Screen shake switch (`@hadoku/ui-shell/motion`): off, the blow lands with the table still.
-  if (typeof board.animate !== 'function' || px <= 0 || !screenShakeAllowed()) return () => undefined;
+  if (px <= 0 || !screenShakeAllowed()) return () => undefined;
   const frames: Keyframe[] = [{ translate: '0px 0px' }];
   const jolts = 6;
   for (let i = 1; i < jolts; i++) {
@@ -136,8 +127,7 @@ export function shake(board: HTMLElement, px: number, key: string, tempo = 1): (
   frames.push({ translate: '0px 0px' });
   const holder = board.parentElement;
   holder?.setAttribute(SHAKING_ATTR, '');
-  const anim = quicken(board.animate(frames, { id: BEAT_ANIMATION_ID, duration: ms, easing: 'linear', composite: 'add' }), tempo);
-  const done = (): void => holder?.removeAttribute(SHAKING_ATTR);
-  anim.finished.then(done, done);
-  return () => anim.cancel();
+  const jolt = animate(board, frames, { id: BEAT_ANIMATION_ID, duration: shakeMsOf(px), easing: 'linear', composite: 'add' }, { tempo, stage: defaultStage });
+  void jolt.finished.then(() => holder?.removeAttribute(SHAKING_ATTR));
+  return jolt.cancel;
 }
