@@ -40,6 +40,6 @@ function run(): void {
       failed ??= { error };
     }
   }
-  if (loops.size > 0) frame = requestAnimationFrame(run);
+  if (loops.size > 0) frame ??= requestAnimationFrame(run);
   if (failed !== null) throw failed.error;
 }

@@ -75,4 +75,27 @@ describe('everyFrame', () => {
     stop();
     f.tick();
   });
+
+  it('a loop added from inside a write leaves one frame request, so every loop still runs once a frame', () => {
+    const f = frames();
+    let reads = 0;
+    const stopLong = everyFrame(() => {
+      reads++;
+      return () => {
+        const stop = everyFrame(() => () => stop());
+      };
+    });
+    f.tick();
+    expect(f.queued(), 'one request after a write added a loop').toBe(1);
+    reads = 0;
+    for (let i = 0; i < 4; i++) {
+      f.tick();
+      expect(f.queued(), `one request after frame ${i + 1}`).toBe(1);
+    }
+    expect(reads, 'the long loop read once a frame').toBe(4);
+    stopLong();
+    f.tick();
+    f.tick();
+    expect(f.queued()).toBe(0);
+  });
 });
