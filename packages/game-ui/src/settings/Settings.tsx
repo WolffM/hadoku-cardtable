@@ -218,10 +218,15 @@ export function useMotion(root: () => HTMLElement | null): void {
   useEffect(() => {
     if (typeof matchMedia !== 'function') return undefined;
     const query = matchMedia('(prefers-reduced-motion: reduce)');
-    const changed = (): void => setSystemTick((t) => t + 1);
+    // The shake is written whatever the player set, so it is rewritten here, in the change itself.
+    const changed = (): void => {
+      const el = root();
+      if (el !== null) applyMotion(el);
+      setSystemTick((t) => t + 1);
+    };
     query.addEventListener?.('change', changed);
     return () => query.removeEventListener?.('change', changed);
-  }, []);
+  }, [root]);
   useEffect(() => {
     if (prefs !== null) rememberMotion(motionKey(), { cardMotion, screenShake, ambientMotion });
   }, [prefs, cardMotion, screenShake, ambientMotion]);

@@ -12,9 +12,10 @@
  *
  * A switch nobody has set follows the system's `prefers-reduced-motion`: asked for less, all three
  * start off. What the player sets wins either way, so a player can also turn motion ON over the OS.
- * The effective values are written on the root the sheets resolve on, as `data-motion`
- * (`full`/`reduce`), `data-shake` and `data-ambient` (`on`/`off`) — always, so the sheets never have
- * to ask the media query themselves.
+ * A switch the player set is written on the root the sheets resolve on, as `data-motion` (`full`/`reduce`)
+ * or `data-ambient` (`on`/`off`); one left to the system is not, so the sheets' own media query answers in
+ * the frame the system changes (an attribute written from a `change` event lags it by a frame or more:
+ * af70's flyer swayed on under reduced motion). `data-shake` is always written: script reads it.
  */
 
 /** One player's choices; a switch left `undefined` follows the system. */
@@ -64,11 +65,12 @@ export function screenShakeAllowed(): boolean {
   return motionState().screenShake;
 }
 
-/** Writes the effective switches on `root`, where the sheets' rewritten selectors (`./css.ts`) look for them. */
-export function applyMotion(root: Element, state: MotionState = motionState()): void {
-  root.setAttribute(MOTION_ATTR.motion, state.cardMotion ? 'full' : 'reduce');
-  root.setAttribute(MOTION_ATTR.shake, state.screenShake ? 'on' : 'off');
-  root.setAttribute(MOTION_ATTR.ambient, state.ambientMotion ? 'on' : 'off');
+/** Writes the player's switches on `root`, where the sheets' rewritten selectors (`./css.ts`) look for them, and the effective shake. */
+export function applyMotion(root: Element, choices: MotionChoices = chosen): void {
+  const set = (attr: string, on: boolean | undefined, yes: string, no: string): void => (on === undefined ? root.removeAttribute(attr) : root.setAttribute(attr, on ? yes : no));
+  set(MOTION_ATTR.motion, choices.cardMotion, 'full', 'reduce');
+  set(MOTION_ATTR.ambient, choices.ambientMotion, 'on', 'off');
+  root.setAttribute(MOTION_ATTR.shake, motionState(choices).screenShake ? 'on' : 'off');
 }
 
 export function clearMotion(root: Element): void {

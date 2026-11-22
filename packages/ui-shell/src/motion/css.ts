@@ -117,6 +117,7 @@ const norm = (selector: string): string => selector.trim().replace(/\s+/g, ' ');
  */
 function mirrorMedia(media: CssAtRule, attr: string, keep: string, copy: string, topKeyframes: Set<string>, stills: ReadonlySet<string> = new Set()): void {
   const copies: CssNode[] = [];
+  const kept: CssNode[] = [];
   media.each((child) => {
     if (child.type === 'rule') {
       const rule = child as CssRule;
@@ -125,6 +126,10 @@ function mirrorMedia(media: CssAtRule, attr: string, keep: string, copy: string,
         const calm = rule.clone() as CssRule;
         calm.selectors = still.map((sel) => gateSelector(sel, is('data-ambient', 'off')));
         copies.push(calm);
+        // Ambient left to the system, under this query: the still look with card motion forced on too.
+        const followed = rule.clone() as CssRule;
+        followed.selectors = still.map((sel) => gateSelector(sel, isNot('data-ambient', 'on')));
+        kept.push(followed);
       }
       const forced = rule.clone() as CssRule;
       forced.selectors = rule.selectors.map((s) => gateSelector(s, is(attr, copy)));
@@ -138,6 +143,7 @@ function mirrorMedia(media: CssAtRule, attr: string, keep: string, copy: string,
       throw new Error(`${child.source?.input.file ?? 'a stylesheet'}: @${(child as CssAtRule).name} inside a prefers-reduced-motion query is not mirrored by motionCss; move it out or teach the pass`);
     }
   });
+  if (kept.length > 0) media.append(...kept);
   if (copies.length > 0) media.after(copies);
 }
 
@@ -146,8 +152,11 @@ export const motionCss = {
   postcssPlugin: 'hadoku-motion',
   // `unknown`, read as the few node methods this uses: postcss is not this package's dependency, and its own
   // types are not structurally the slice declared above.
-  Once(sheet: unknown): void {
+  Once(sheet: unknown, helpers: unknown): void {
     const root = sheet as CssContainer;
+    const { AtRule } = helpers as { AtRule: new (o: { name: string; params: string }) => CssAtRule };
+    // The pauses below that answer to the system's own query: no motion query of the sheet's, so not mirrored.
+    const systemPauses = new WeakSet<CssNode>();
     if (!ownSheet(root.source?.input.file)) return;
     const topKeyframes = new Set<string>();
     root.each((n) => {
@@ -176,8 +185,18 @@ export const motionCss = {
       const decl = (rule.nodes ?? []).find((n) => n.type === 'decl')!.clone({ prop: 'animation-play-state', value: states[states.length - 1]! });
       calm.append(decl);
       rule.after(calm);
+      // A switch the player has not set is no attribute (`./index.ts`'s `applyMotion`), so the system's query
+      // pauses the loop itself, in the frame it changes.
+      if (inside(rule, ['media'])) return;
+      const followed = calm.clone() as CssRule;
+      followed.selectors = rule.selectors.map((s) => gateSelector(s, isNot('data-ambient', 'on')));
+      const media = new AtRule({ name: 'media', params: '(prefers-reduced-motion: reduce)' });
+      media.append(followed);
+      systemPauses.add(media);
+      calm.after(media);
     });
     root.walkAtRules('media', (media) => {
+      if (systemPauses.has(media)) return;
       const params = media.params.trim();
       if (REDUCE.test(params)) mirrorMedia(media, 'data-motion', 'full', 'reduce', topKeyframes, stills);
       else if (NO_PREFERENCE.test(params)) mirrorMedia(media, 'data-motion', 'reduce', 'full', topKeyframes);

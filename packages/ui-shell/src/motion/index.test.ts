@@ -38,12 +38,15 @@ describe('the motion switches', () => {
     expect(screenShakeAllowed()).toBe(false);
   });
 
-  it('writes every switch on the root, always, and takes them off again', () => {
-    system(false);
+  it('writes the switches the player set, leaves the system its query, always writes the shake, and takes them off again', () => {
+    system(true);
     setMotionChoices({ ambientMotion: false });
     const root = document.createElement('div');
     applyMotion(root);
-    expect([root.dataset.motion, root.dataset.shake, root.dataset.ambient]).toEqual(['full', 'on', 'off']);
+    expect([root.dataset.motion, root.dataset.shake, root.dataset.ambient]).toEqual([undefined, 'off', 'off']);
+    setMotionChoices({ cardMotion: true });
+    applyMotion(root);
+    expect([root.dataset.motion, root.dataset.shake, root.dataset.ambient]).toEqual(['full', 'off', undefined]);
     clearMotion(root);
     expect(root.attributes.length).toBe(0);
   });

@@ -26,7 +26,7 @@ vi.mock('../play/live/prefs.ts', async (importOriginal) => ({
   getPlayPrefsClient: () => ({}),
 }));
 
-import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
+import { SettingsGear, useMotion } from '@hadoku/game-ui/settings/Settings.tsx';
 import { UI_SCALE } from '@hadoku/ui-shell/settings';
 
 afterEach(() => {
@@ -96,3 +96,37 @@ describe('the gear outside a match', () => {
   });
 });
 
+
+/*
+ * A switch nobody set is no attribute, so the sheets' own `prefers-reduced-motion` query answers in the frame the
+ * system changes (`@hadoku/ui-shell/motion`'s `css.ts`). Written from a `change` event, a stale `full` held a
+ * flyer's sway for a frame or more (af70's reduced-motion step).
+ */
+describe('a system that changes its mind mid-visit', () => {
+  it('leaves card and ambient motion to the query, and rewrites the shake in the change itself', () => {
+    let reduce = false;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      get matches() {
+        return query.includes('reduce') && reduce;
+      },
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    }));
+    try {
+      const root = document.documentElement;
+      function Page(): null {
+        useMotion(() => root);
+        return null;
+      }
+      render(createElement(Page));
+      const attrs = (): (string | null)[] => ['data-motion', 'data-ambient', 'data-shake'].map((a) => root.getAttribute(a));
+      expect(attrs()).toEqual([null, null, 'on']);
+      reduce = true;
+      for (const fn of listeners) fn();
+      expect(attrs()).toEqual([null, null, 'off']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

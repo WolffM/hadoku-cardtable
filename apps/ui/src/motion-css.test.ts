@@ -42,6 +42,7 @@ describe('motionCss', () => {
   it('pauses only the infinite entries of a loop, under data-ambient=off', async () => {
     const out = await run('.c { animation: in 1s both, bob 2s 1s infinite; }');
     expect(out).toContain(":where([data-ambient='off']) .c { animation-play-state: running, paused; }");
+    expect(out, 'and under the system\'s own query while the player has not set it').toContain("@media (prefers-reduced-motion: reduce) {:where(:not([data-ambient='on'], [data-ambient='on'] *)) .c { animation-play-state: running, paused; } }");
     expect(ambientPlayState('animation', 'spin 1s linear infinite')).toBe('paused');
     expect(ambientPlayState('animation', 'in 1s both')).toBeNull();
     expect(ambientPlayState('animation', 'cubic-bezier(0, 0, 1, 1) 1s x, y 2s infinite')).toBe('running, paused');
@@ -51,6 +52,7 @@ describe('motionCss', () => {
     const out = await run('.ring::after { opacity: 0; animation: grace 1s infinite; } @media (prefers-reduced-motion: reduce) { .ring::after { animation: none; opacity: 1; } .other { transition: none; } }');
     expect(out).toContain(":where([data-ambient='off']) .ring::after { animation: none; opacity: 1; }");
     expect(out, 'a reduce rule for no loop is not copied').not.toContain(":where([data-ambient='off']) .other");
+    expect(out, 'ambient left to the system takes the still look under the query, card motion forced on or not').toContain(":where(:not([data-ambient='on'], [data-ambient='on'] *)) .ring::after { animation: none; opacity: 1; }");
     expect(out.indexOf(":where([data-ambient='off']) .ring::after { animation: none"), 'the still look comes after the pause').toBeGreaterThan(out.indexOf(":where([data-ambient='off']) .ring::after { animation-play-state"));
   });
 
