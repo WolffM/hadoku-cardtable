@@ -243,10 +243,10 @@ describe('what the roll decides waits for the die', () => {
       dice.notify([roll()], view);
       await vi.advanceTimersByTimeAsync(rollMs(1) + 2500);
       expect(anims.map((a) => [a.id, defaultStage.isBeat(a)])).toEqual([
-        ['die-tumble', true],
-        ['die-shadow', true],
-        ['die-ring', true],
-        ['die-pop', true],
+        ['beat', true],
+        ['beat', true],
+        ['beat', true],
+        ['beat', true],
         ['die-fade', false],
       ]);
     } finally {

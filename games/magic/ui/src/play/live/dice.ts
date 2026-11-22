@@ -34,7 +34,7 @@
  */
 
 import { viewerOf, type BoardView } from '../adapter.ts';
-import { defaultStage } from '../motion.ts';
+import { BEAT_ANIMATION_ID, defaultStage } from '../motion.ts';
 import { animate, everyFrame, prefersReducedMotion, type AnimateContext } from '@hadoku/ui-shell/motion';
 import { battlefieldCard, faceBox, overlayOf } from './board-dom.ts';
 import type { ShownRoll } from './shown.ts';
@@ -356,7 +356,7 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     el.style.width = el.style.height = `${size}px`;
     root.append(el);
     place(el);
-    void animate(el, [{ transform: 'scale(.6)', opacity: 0.9 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: RING_MS, easing: 'ease-out', id: 'die-ring' }, ctx).finished.then(() => remove(el));
+    void animate(el, [{ transform: 'scale(.6)', opacity: 0.9 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: RING_MS, easing: 'ease-out', id: BEAT_ANIMATION_ID }, ctx).finished.then(() => remove(el));
   }
 
   /** One die, from `from` to beside it: its tumble, its shadow, its faces, its landing. Calls `down` once its tumble is over and its pop playing; settles when it has landed. */
@@ -380,8 +380,8 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     place(shadow);
     const kf = tumbleFrames(path);
     const easing = 'cubic-bezier(.3,.6,.4,1)';
-    const tumble = animate(el, kf, { duration: TUMBLE_MS, easing, fill: 'forwards', id: 'die-tumble' }, ctx);
-    animate(shadow, shadowFrames(path, kf), { duration: TUMBLE_MS, easing, fill: 'forwards', id: 'die-shadow' }, ctx);
+    const tumble = animate(el, kf, { duration: TUMBLE_MS, easing, fill: 'forwards', id: BEAT_ANIMATION_ID }, ctx);
+    animate(shadow, shadowFrames(path, kf), { duration: TUMBLE_MS, easing, fill: 'forwards', id: BEAT_ANIMATION_ID }, ctx);
     await Promise.all([tumble.finished, flicker(el, facesOf(roll.sides, die.result), die.result, TUMBLE_MS * 0.92)]);
     // Down: the tumble is over, the pop to come. What the roll decides may show from here (`./pace.ts`
     // lets go at `UNLOCK_AT` of the roll and once `down` is called), so this, not `data-die-landed` after the pop, is "landed".
@@ -390,7 +390,7 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     if (!live) return;
     ring(root, path.ex + path.size / 2, path.ey + path.size / 2, path.size * 1.2, own, ctx);
     const at = `translate(${path.ex}px,${path.ey}px) rotate(${path.dir * 720}deg)`;
-    const pop = animate(el, [{ transform: `${at} scale(1)` }, { transform: `${at} scale(1.18)` }, { transform: `${at} scale(1)` }], { duration: POP_MS, fill: 'forwards', id: 'die-pop' }, ctx);
+    const pop = animate(el, [{ transform: `${at} scale(1)` }, { transform: `${at} scale(1.18)` }, { transform: `${at} scale(1)` }], { duration: POP_MS, fill: 'forwards', id: BEAT_ANIMATION_ID }, ctx);
     if (die.ignored) el.dataset.dieIgnored = '';
     down();
     await pop.finished;
