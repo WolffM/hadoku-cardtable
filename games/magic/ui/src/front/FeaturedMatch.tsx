@@ -51,6 +51,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { Icon } from '@wolffm/themes';
 import { uiLength } from '@hadoku/ui-shell/settings';
+import { everyFrame } from '@hadoku/ui-shell/motion';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
 import {
@@ -127,18 +128,16 @@ function useCamera(viewportRef: RefObject<HTMLDivElement | null>, frameRef: RefO
     const frame = frameRef.current;
     if (paused || viewport === null || frame === null || match === null || typeof requestAnimationFrame === 'undefined') return undefined;
     let camera = initialCamera(performance.now(), viewerPlayerIdOf(match), config);
-    let raf = 0;
-    const step = (): void => {
+    return everyFrame(() => {
       const box = frame.getBoundingClientRect();
       const tip = frame.querySelector('.presence')?.getBoundingClientRect() ?? null;
       const cursor = tip === null ? null : { x: (tip.left - box.left) / scale, y: (tip.top - box.top) / scale };
       camera = stepCamera(camera, performance.now(), cursor, viewerPlayerIdOf(match), config);
-      frame.style.transform = placed(camera.at, scale);
-      viewport.dataset.captureRegion = camera.region;
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
+      return () => {
+        frame.style.transform = placed(camera.at, scale);
+        viewport.dataset.captureRegion = camera.region;
+      };
+    });
   }, [viewportRef, frameRef, match, scale, config, paused]);
 }
 

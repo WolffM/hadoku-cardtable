@@ -62,7 +62,7 @@ import { forwardRef, useContext, useEffect, useLayoutEffect, useMemo, useRef, us
 import { seatStatus, SEAT_HELD_NOTE } from '../draft/seatStatus.ts';
 import type { DraftView } from '../draft/types.ts';
 import { isWaiting } from '../draft/types.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { animate, prefersReducedMotion, type Running } from '@hadoku/ui-shell/motion';
 import { Avatar, MemberFaces } from '@hadoku/game-ui/components/Avatar.tsx';
 import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { DraftCounters } from './DraftCounters.tsx';
@@ -315,6 +315,8 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
   /** One percent of the ring in CSS pixels, from the resize-observed measures; until they arrive, the ring's usual size. */
   const unitPx = measures?.unitPx ?? 2.64;
   const [leaving, setLeaving] = useState<Leaving[]>([]);
+  const moving = useRef(new Set<Running>());
+  useEffect(() => () => moving.current.forEach((r) => r.cancel()), []);
 
   /** A turn as close as possible to `near`, so no pack ever spins the long way round. */
   const closest = (angle: number, near: number | undefined): number =>
@@ -373,9 +375,12 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
     const gone: Leaving[] = [];
     /** Whether seat `at` passed a pack this step: it holds, or has waiting, fewer than it did. */
     const passed = (at: number): boolean => (holding[at] ? 1 : 0) + depthOf(at) < (held[at] ? 1 : 0) + (was[at] ?? 0);
-    const animate = (key: string, frames: Keyframe[], options: KeyframeAnimationOptions) => {
+    const move = (key: string, frames: Keyframe[], options: KeyframeAnimationOptions) => {
       const el = elements.current.get(key);
-      if (el !== undefined && typeof el.animate === 'function') el.animate(frames, { easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'backwards', ...options });
+      if (el === undefined) return;
+      const r = animate(el, frames, { easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'backwards', ...options });
+      moving.current.add(r);
+      void r.finished.then(() => moving.current.delete(r));
     };
     seats.forEach((seat, at) => {
       const depth = depthOf(at);
@@ -386,7 +391,7 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
         const key = `${seat.id}:${i}`;
         const delay = (i - before) * STAGGER_MS;
         const { frames, duration } = hop(at, poses.get(key)!);
-        animate(key, frames, { duration, delay });
+        move(key, frames, { duration, delay });
         landed = Math.max(landed, delay + duration);
       }
       // Picked up: the pile's front pack is lifted off it into the seat's hands and fanned there — the
@@ -399,7 +404,7 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
         const from = lastPoses.current.get(pickedUp ? `${seat.id}:${i + 1}` : key);
         const to = poses.get(key);
         if (from === undefined || to === undefined || (from.x === to.x && from.y === to.y && from.angle === to.angle)) continue;
-        animate(
+        move(
           key,
           [
             { ...pct(from), rotate: `${fixed(from.angle)}deg` },
@@ -408,7 +413,7 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
           { duration: SHOVE_MS, delay: (depth > before ? landed : 0) + i * REACT_MS },
         );
       }
-      if (pickedUp) animate(`${seat.id}:hand`, pickUp(front, handOf(at)), { duration: PICK_UP_MS });
+      if (pickedUp) move(`${seat.id}:hand`, pickUp(front, handOf(at)), { duration: PICK_UP_MS });
       const seatAt = track.at(seatS(at));
       for (let i = pickedUp ? depth + 1 : depth; i < before; i++) {
         const from = lastPoses.current.get(`${seat.id}:${i}`);
@@ -418,7 +423,7 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
       if (holding[at] && held[at] === false && depth === 0 && passed(giverOf(at))) {
         const { frames, duration } = hop(at, handOf(at));
         // Whole in flight; the face's edge cuts it as it lands.
-        animate(`${seat.id}:hand`, frames.map((f, k) => ({ ...f, clipPath: k === frames.length - 1 ? HAND_CUT : HAND_WHOLE })), { duration });
+        move(`${seat.id}:hand`, frames.map((f, k) => ({ ...f, clipPath: k === frames.length - 1 ? HAND_CUT : HAND_WHOLE })), { duration });
       }
     });
     return gone;
@@ -614,20 +619,22 @@ function Leaver({
   const start = place(from);
   useLayoutEffect(() => {
     const node = el.current;
-    if (node === null || typeof node.animate !== 'function') {
-      done.current();
-      return;
-    }
+    if (node === null) return done.current();
     const end = place(to);
-    const anim = node.animate(
+    let live = true;
+    const anim = animate(
+      node,
       [
         { ...start, rotate: `${fixed(from.angle)}deg`, opacity: 1, scale: '1' },
         { ...end, rotate: `${fixed(from.angle)}deg`, opacity: 0, scale: '0.6' },
       ],
       { duration: LEAVE_MS, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' },
     );
-    anim.onfinish = () => done.current();
-    return () => anim.cancel();
+    void anim.finished.then(() => live && done.current());
+    return () => {
+      live = false;
+      anim.cancel();
+    };
     // Runs once: a leaving pack's path is fixed when it leaves.
   }, []);
   return (

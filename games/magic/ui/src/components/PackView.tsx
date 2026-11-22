@@ -64,7 +64,7 @@ import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '@hadoku/game-ui/sound/index.ts';
 import { relatedCards } from '../draft/related.ts';
 import { burnElapsedAt, burnMs, fuseFadeKeyframes, fuseKeyframes, ROPE_URGENT_MS, ropeClock, ropeState, type RopeState } from '../draft/rope.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { animate, animationsOf, everyFrame, prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { uiPx } from '@hadoku/ui-shell/settings';
 import { CARD_RATIO, cssPx, fitGrid, useBox, type GridFit } from './cardFit.ts';
@@ -359,8 +359,8 @@ export function PackView({ cards, layout, onPick, onLift, onLean, disabled: held
   const browsing = onPick === undefined;
 
   // The phone carousel's own open card: not stepped, read off the real scroll position — the slot
-  // nearest the row's own centre, wherever a swipe (or a momentum settle) left it. `requestAnimationFrame`
-  // coalesces the storm of `scroll` events one swipe fires into one read per paint.
+  // nearest the row's own centre, wherever a swipe (or a momentum settle) left it. One frame's read
+  // (`everyFrame`) coalesces the storm of `scroll` events one swipe fires into one read per paint.
   //
   // `root` is in the dependency list, not just `phoneFanOn`: unlike the desktop fan/grid (whose own
   // "on" flags only ever turn true once `useBox` has already measured a box, which cannot happen before
@@ -372,10 +372,10 @@ export function PackView({ cards, layout, onPick, onLift, onLean, disabled: held
   useEffect(() => {
     const el = root;
     if (!phoneFanOn || el === null) return;
-    let frame = 0;
+    let stop: (() => void) | null = null;
     const onScroll = (): void => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
+      stop ??= everyFrame(() => {
+        stop = null;
         const mid = el.getBoundingClientRect().left + el.clientWidth / 2;
         let best = 0;
         let bestDist = Infinity;
@@ -388,12 +388,13 @@ export function PackView({ cards, layout, onPick, onLift, onLean, disabled: held
           }
         });
         setFocus(best);
+        return null;
       });
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       el.removeEventListener('scroll', onScroll);
-      cancelAnimationFrame(frame);
+      stop?.();
     };
   }, [phoneFanOn, root]);
 
@@ -691,11 +692,10 @@ export function PickRope({ timer, pickKey }: { timer: { totalMs: number; msLeft:
   const fuse = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = fuse.current;
-    if (el === null || typeof el.animate !== 'function') return;
-    const frames = prefersReducedMotion() ? fuseFadeKeyframes() : fuseKeyframes();
-    const burn = el.animate(frames, { duration: burnMs(clock), fill: 'both', easing: 'linear' });
-    burn.currentTime = burnElapsedAt(clock, performance.now());
-    return () => burn.cancel();
+    if (el === null) return;
+    const burn = animate(el, prefersReducedMotion() ? fuseFadeKeyframes() : fuseKeyframes(), { duration: burnMs(clock), fill: 'both', easing: 'linear' });
+    for (const a of animationsOf(burn)) a.currentTime = burnElapsedAt(clock, performance.now());
+    return burn.cancel;
   }, [clock, pickKey]);
   return (
     <div className="pick-rope" data-testid="pick-rope" data-state={state} aria-hidden="true">

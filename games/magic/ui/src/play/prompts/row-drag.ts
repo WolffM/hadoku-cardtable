@@ -53,7 +53,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as Reac
 
 import { centreOf, flip, liftGhost, pinFixed, type At, type Ghost } from '../lift.ts';
 import { GLIDE_MS } from '../motion.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { everyFrame, prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { clickLatch, pastSlop } from '../live/gestures/types.ts';
 import { eventTarget, hitAt, scopeOf } from '@hadoku/game-ui/dom.ts';
 
@@ -213,8 +213,8 @@ interface Press {
   readonly scroller: HTMLElement | null;
   /** The last pointer event, re-read while the scroller moves under a still pointer. */
   last: { at: At; event: PointerEvent } | null;
-  /** The running edge scroll's frame. */
-  frame: number | null;
+  /** Stops the running edge scroll. */
+  frame: (() => void) | null;
   /** The row last revealed under the pointer (`reveal`), so it is scrolled once. */
   revealed: number | null;
   /** Takes the window listeners this press added off again. */
@@ -252,7 +252,7 @@ export function useRowDrag(opts: RowDragOptions): RowDrag {
     pressRef.current = null;
     if (p === null) return;
     p.off();
-    if (p.frame !== null) cancelAnimationFrame(p.frame);
+    p.frame?.();
     p.ghost?.remove();
     p.bar?.el.remove();
     p.root.removeAttribute(ROW_DRAG_ATTR);
@@ -333,17 +333,18 @@ export function useRowDrag(opts: RowDragOptions): RowDrag {
   /** While the pointer holds near the scroller's top or bottom, scroll it a little every frame, and re-read the slot under the pointer. */
   function edgeScroll(p: Press): void {
     if (p.scroller === null || p.last === null || p.frame !== null) return;
-    const step = (): void => {
-      p.frame = null;
-      if (pressRef.current !== p || p.scroller === null || p.last === null) return;
-      const by = edgeSpeed(p.scroller.getBoundingClientRect(), p.last.at.y, p.press.y);
-      const was = p.scroller.scrollTop;
-      if (by !== 0) p.scroller.scrollTop = was + by;
-      if (p.scroller.scrollTop === was) return;
-      track(p, p.last.at, p.last.event);
-      p.frame = requestAnimationFrame(step);
-    };
-    p.frame = requestAnimationFrame(step);
+    p.frame = everyFrame(() => {
+      const { scroller, last } = p;
+      if (pressRef.current !== p || scroller === null || last === null) return null;
+      const by = edgeSpeed(scroller.getBoundingClientRect(), last.at.y, p.press.y);
+      return () => {
+        const was = scroller.scrollTop;
+        if (by !== 0) scroller.scrollTop = was + by;
+        if (scroller.scrollTop !== was) return track(p, last.at, last.event);
+        p.frame?.();
+        p.frame = null;
+      };
+    });
   }
 
   function onMove(event: PointerEvent): void {

@@ -196,14 +196,16 @@ describe('the packs waiting in front of each seat', () => {
   });
 });
 
-/** Every animation the pod starts, by the test id of what moves (`leaving` for a pack going into its seat). */
-function recordMotion(): string[] {
+/** Every animation the pod starts, by the test id of what moves (`leaving` for a pack going into its seat); `cancelled` gets the ones stopped. */
+function recordMotion(cancelled: string[] = []): string[] {
   const started: string[] = [];
   Object.defineProperty(Element.prototype, 'animate', {
     configurable: true,
     value: function (this: HTMLElement) {
-      started.push(this.dataset.testid ?? (this.classList.contains('packq__leaving') ? 'leaving' : this.className));
-      return { cancel: () => undefined, onfinish: null } as unknown as Animation;
+      const id = this.dataset.testid ?? (this.classList.contains('packq__leaving') ? 'leaving' : this.className);
+      started.push(id);
+      // Still moving until cancelled, as a real one is for its length.
+      return { cancel: () => cancelled.push(id), finished: new Promise(() => undefined) } as unknown as Animation;
     },
   });
   return started;
@@ -212,6 +214,7 @@ function recordMotion(): string[] {
 describe('the pod moves only when the draft steps on screen', () => {
   afterEach(() => {
     delete (Element.prototype as { animate?: unknown }).animate;
+    vi.unstubAllGlobals();
   });
 
   const DEPTHS = [0, 1, 2, 3, 4, 2, 1, 0];
@@ -250,6 +253,29 @@ describe('the pod moves only when the draft steps on screen', () => {
     // …and the next step seen live moves again.
     rerender(createElement(SeatBar, { view: queued(seatView(0, 'left'), [3, 0, 4, 1, 2, 2, 0, 4]) }));
     expect(started).toEqual(['seat-7-pack-3', 'seat-7-pack-0', 'seat-7-pack-1', 'seat-7-pack-2']);
+  });
+
+  it('stops every pack still moving when the pod goes', async () => {
+    laidOut();
+    const cancelled: string[] = [];
+    const started = recordMotion(cancelled);
+    const { container, rerender, unmount } = render(createElement(SeatBar, { view: queued(seatView(0, 'left'), DEPTHS) }));
+    await piled(container);
+    rerender(createElement(SeatBar, { view: queued(seatView(0, 'left'), [0, 1, 1, 4, 4, 2, 1, 0]) }));
+    expect(started.length).toBeGreaterThan(0);
+    expect(cancelled).toEqual([]);
+    unmount();
+    expect(cancelled.sort()).toEqual([...started].sort());
+  });
+
+  it('moves nothing for a viewer who asked for less motion', async () => {
+    laidOut();
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    const started = recordMotion();
+    const { container, rerender } = render(createElement(SeatBar, { view: queued(seatView(0, 'left'), DEPTHS) }));
+    await piled(container);
+    rerender(createElement(SeatBar, { view: queued(seatView(0, 'left'), [0, 1, 1, 4, 4, 2, 1, 0]) }));
+    expect(started).toEqual([]);
   });
 
   it('redraws the piles in place when another seat is watched: the lit arrow moves them, no pick did', async () => {

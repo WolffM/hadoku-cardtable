@@ -77,6 +77,16 @@ describe('ModeRow', () => {
     expect(animate.cancel, 'the animations’ held end is let go: the layout is where they ended').toHaveBeenCalled();
   });
 
+  it('stops the change when the row goes mid-way', () => {
+    const animate = stubAnimate();
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    const { rerender, unmount } = render(row(null));
+    rerender(row('classic'));
+    expect(animate.cancel).not.toHaveBeenCalled();
+    unmount();
+    expect(animate.cancel).toHaveBeenCalledTimes(animate.calls.length);
+  });
+
   it('grows back the same way, in one animation and nothing waited for', () => {
     const animate = stubAnimate();
     vi.stubGlobal('matchMedia', () => ({ matches: false }));

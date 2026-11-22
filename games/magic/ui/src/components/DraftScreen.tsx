@@ -107,7 +107,7 @@ import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from "./PoolView.tsx";
 import { useDraftBuild, type DraftBuildStore } from "../deck/useDraftBuild.ts";
 import { Ghost, SeatBar, SeatBarSkeleton } from "./SeatBar.tsx";
 import { SpectatorNotice } from "./SpectatorNotice.tsx";
-import { prefersReducedMotion } from "@hadoku/ui-shell/motion";
+import { everyFrame, prefersReducedMotion } from "@hadoku/ui-shell/motion";
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from "../play/live/prefs.ts";
 import { uiLength, uiPx } from "@hadoku/ui-shell/settings";
 import "./draft.css";
@@ -242,20 +242,23 @@ export function fitToWindow(
   if (el.parentElement !== null) observer?.observe(el.parentElement);
   // The column's own parts (a watcher joins the room's bar): measured again on the next frame, not inside
   // this delivery, where a row that changed would resize the column already reported this frame.
-  let frame = 0;
+  let stop: (() => void) | null = null;
   const parts =
     typeof ResizeObserver === "undefined"
       ? null
       : new ResizeObserver(() => {
-          cancelAnimationFrame(frame);
-          frame = requestAnimationFrame(fit);
+          stop ??= everyFrame(() => () => {
+            stop?.();
+            stop = null;
+            fit();
+          });
         });
   for (const part of aside?.children ?? []) parts?.observe(part);
   return () => {
     window.removeEventListener("resize", fit);
     observer?.disconnect();
     parts?.disconnect();
-    cancelAnimationFrame(frame);
+    stop?.();
   };
 }
 

@@ -28,7 +28,7 @@
 import type { GauntletView } from '@hadoku/shared';
 
 import { HOUSE_CURVE } from '../../play/lift.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { animate, animationsOf, prefersReducedMotion, runningOf } from '@hadoku/ui-shell/motion';
 
 /**
  * The board to leave, when `next` is the step change out of ban/pick: the board as it was last
@@ -236,9 +236,9 @@ export interface Arriving {
  * it), measured as both are drawn now. A browser that cannot animate elements is done at once.
  */
 export function arrive(section: HTMLElement, board: HTMLElement): Arriving {
-  if (typeof section.animate !== 'function') return { done: Promise.resolve(), cancel: () => undefined };
   const reduced = prefersReducedMotion();
-  const running = plan(measure(section, board), reduced).map((s) => s.el.animate(s.keyframes, s.timing));
+  const all = runningOf(plan(measure(section, board), reduced).flatMap((s) => animationsOf(animate(s.el, s.keyframes, s.timing))));
+  const running = animationsOf(all);
   // Drawn unclipped, the board holds the page open as the board before it did, so the first layout
   // clamps no scroll; clipped once the choose screen's own height holds it (`gauntlet.css`).
   if (!reduced) board.dataset.held = '';
@@ -265,22 +265,13 @@ export function arrive(section: HTMLElement, board: HTMLElement): Arriving {
     window.removeEventListener('pointerup', release, true);
     window.removeEventListener('pointercancel', release, true);
   };
-  const done = new Promise<void>((resolve) => {
-    void Promise.all(running.map((a) => a.finished)).then(
-      () => {
-        if (!live) return;
-        stop();
-        resolve();
-      },
-      // Only `cancel` below rejects a `finished`: the screen went, and nothing is left to settle.
-      () => undefined,
-    );
-  });
+  // A cancel settles `all` too: then the screen went, and `done` never settles.
+  const done = all.finished.then(() => (live ? stop() : new Promise<never>(() => undefined)));
   return {
     done,
     cancel: () => {
       stop();
-      for (const a of running) a.cancel();
+      all.cancel();
     },
   };
 }

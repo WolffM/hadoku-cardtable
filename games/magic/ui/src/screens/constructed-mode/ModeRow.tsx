@@ -18,6 +18,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ConstructedMode, RoomMode } from '@hadoku/shared';
 
 import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
+import { animate, animationsOf, prefersReducedMotion, runningOf, STILL, type Running } from '@hadoku/ui-shell/motion';
 import { modeArtUrl } from './modeArt.ts';
 
 export const MODE_CARDS: readonly RadioCard<ConstructedMode>[] = [
@@ -38,11 +39,6 @@ export function freshRoomMode(mode: ConstructedMode): RoomMode {
 /** How long a size change takes, and its curve. */
 export const MORPH_MS = 420;
 const MORPH_EASING = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
-
-/** Whether this page may animate the change: the browser animates elements, and the person has not asked for less motion. */
-function canMorph(): boolean {
-  return typeof Element.prototype.animate === 'function' && !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-}
 
 /** Everything a card's look is made of that differs between the sizes, read off the page. */
 interface CardLook {
@@ -98,30 +94,25 @@ function look(group: HTMLElement): RowLook {
  * row's layout, which is where they end, when it finishes. No snapshot of either size is
  * ever drawn, so nothing is stretched and nothing is waited for.
  */
-function morph(host: HTMLElement, group: HTMLElement, from: RowLook, to: RowLook): void {
-  const timing: KeyframeAnimationOptions = { duration: MORPH_MS, easing: MORPH_EASING, fill: 'forwards' };
+function morph(host: HTMLElement, group: HTMLElement, from: RowLook, to: RowLook): Running {
   const cards = cardsOf(group);
-  if (cards.length !== from.cards.length || cards.length !== to.cards.length) return;
+  if (cards.length !== from.cards.length || cards.length !== to.cards.length) return STILL;
   host.dataset.morphing = '';
-  const running = [
-    group.animate([{ width: `${from.width}px`, height: `${from.height}px` }, { width: `${to.width}px`, height: `${to.height}px` }], timing),
+  const play = (el: Element | null, a: Keyframe | null, b: Keyframe | null): Animation[] =>
+    el === null || a === null || b === null ? [] : [...animationsOf(animate(el, [a, b], { duration: MORPH_MS, easing: MORPH_EASING, fill: 'forwards' }))];
+  const running = runningOf([
+    ...play(group, { width: `${from.width}px`, height: `${from.height}px` }, { width: `${to.width}px`, height: `${to.height}px` }),
     ...cards.flatMap((card, i) => {
       const a = from.cards[i]!;
       const b = to.cards[i]!;
-      const label = card.querySelector('.radio-cards__label');
-      const art = card.querySelector('.radio-cards__art');
-      return [
-        card.animate([a.box, b.box], timing),
-        ...(label === null ? [] : [label.animate([a.label, b.label], timing)]),
-        ...(art === null || a.art === null || b.art === null ? [] : [art.animate([a.art, b.art], timing)]),
-      ];
+      return [...play(card, a.box, b.box), ...play(card.querySelector('.radio-cards__label'), a.label, b.label), ...play(card.querySelector('.radio-cards__art'), a.art, b.art)];
     }),
-  ];
-  const handBack = (): void => {
+  ]);
+  void running.finished.then(() => {
     delete host.dataset.morphing;
-    for (const animation of running) animation.cancel();
-  };
-  void Promise.all(running.map((animation) => animation.finished)).then(handBack, handBack);
+    running.cancel();
+  });
+  return running;
 }
 
 export function ModeRow({
@@ -140,11 +131,13 @@ export function ModeRow({
   const groupOf = (): HTMLElement | null => host.current?.querySelector<HTMLElement>('.radio-cards') ?? null;
   /** The row as it looked before a size change React has not drawn yet. */
   const before = useRef<RowLook | null>(null);
+  const morphing = useRef<Running>(STILL);
+  useEffect(() => () => morphing.current.cancel(), []);
   // Read the old layout, then ask for the new one.
   useEffect(() => {
     if (large === wantLarge) return;
     const group = groupOf();
-    before.current = group !== null && canMorph() ? look(group) : null;
+    before.current = group !== null && !prefersReducedMotion() ? look(group) : null;
     setLarge(wantLarge);
   }, [large, wantLarge]);
   // The new layout is on the page and not yet painted: animate from the old one to it.
@@ -153,7 +146,7 @@ export function ModeRow({
     before.current = null;
     const group = groupOf();
     if (from === null || group === null || host.current === null) return;
-    morph(host.current, group, from, look(group));
+    morphing.current = morph(host.current, group, from, look(group));
   }, [large]);
   return (
     // `display: contents`: the row's own layout is the room's, this element is only a handle to find the cards by.
