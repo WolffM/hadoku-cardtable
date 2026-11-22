@@ -1,0 +1,34 @@
+{
+	".animate(": {
+		"games/magic/ui/src/components/PackView.tsx": 1,
+		"games/magic/ui/src/components/SeatBar.tsx": 2,
+		"games/magic/ui/src/play/live/crash.ts": 2,
+		"games/magic/ui/src/play/live/dice.ts": 5,
+		"games/magic/ui/src/play/live/projectile.ts": 4,
+		"games/magic/ui/src/play/live/ram.ts": 1,
+		"games/magic/ui/src/play/live/recoil.ts": 1,
+		"games/magic/ui/src/screens/constructed-mode/ModeRow.tsx": 4,
+		"games/magic/ui/src/screens/gauntlet/arrive.ts": 1
+	},
+	"requestAnimationFrame(": {
+		"games/magic/ui/src/components/DraftScreen.tsx": 1,
+		"games/magic/ui/src/components/PackView.tsx": 2,
+		"games/magic/ui/src/components/PoolView.tsx": 1,
+		"games/magic/ui/src/front/FeaturedMatch.tsx": 2,
+		"games/magic/ui/src/play/lift.ts": 1,
+		"games/magic/ui/src/play/live/LiveBoard.tsx": 1,
+		"games/magic/ui/src/play/live/dice.ts": 1,
+		"games/magic/ui/src/play/live/frame-watch.ts": 1,
+		"games/magic/ui/src/play/live/gestures/arrow.ts": 2,
+		"games/magic/ui/src/play/live/gestures/hand.ts": 1,
+		"games/magic/ui/src/play/live/gestures/install.ts": 5,
+		"games/magic/ui/src/play/live/handover-report.ts": 1,
+		"games/magic/ui/src/play/live/log/GameLog.tsx": 1,
+		"games/magic/ui/src/play/live/pace.ts": 1,
+		"games/magic/ui/src/play/live/placed.ts": 2,
+		"games/magic/ui/src/play/live/presence.ts": 7,
+		"games/magic/ui/src/play/prompts/row-drag.ts": 2,
+		"games/magic/ui/src/play/tip/index.ts": 1,
+		"games/magic/ui/src/rooms/scroll-watch.ts": 2
+	}
+}

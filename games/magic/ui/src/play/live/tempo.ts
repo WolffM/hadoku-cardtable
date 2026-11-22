@@ -120,21 +120,9 @@ export function nextTempo(count: TempoCount, key: string, turn: number, ahead = 
   return tempoOf((count.turn === turn ? (count.seen.get(key) ?? 0) : 0) + ahead + 1);
 }
 
-/* ── the browser's side of an instance's clock ─────────────────────── */
+/* ── the browser's side of an instance's clock: `@hadoku/ui-shell/motion`'s ── */
 
-/** The custom property every beat's sheet divides its lengths by. */
-export const TEMPO_PROPERTY = '--tempo';
-
-/** `el` animates at `tempo`: its sheet's lengths, and its children's, divide by it. */
-export function markTempo(el: Element, tempo: number): void {
-  (el as HTMLElement).style.setProperty(TEMPO_PROPERTY, String(tempo));
-}
-
-/** `anim` plays at `tempo`: its delay and its duration both run that much faster. Returns it. */
-export function quicken<T extends Animation>(anim: T, tempo: number): T {
-  if (tempo !== 1) anim.playbackRate = tempo;
-  return anim;
-}
+export { markTempo, quicken, TEMPO_PROPERTY } from '@hadoku/ui-shell/motion';
 
 /* ── the board's tempo, for what reads it outside the drawing ───────── */
 

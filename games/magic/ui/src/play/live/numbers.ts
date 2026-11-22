@@ -134,19 +134,17 @@ import {
   ATTACK_BEAT_MS,
   BEAT_STAGGER_MS,
   BOLT_STAGGER_MS,
+  CUE,
   damagePower,
+  defaultStage,
   GLIDE_MS,
   HIT_MS,
   animationsSettled,
   noteBoardDrawing,
-  noteBoardSounds,
   writeDurations,
-  noteCardImpact,
-  noteExitBeat,
-  noteMillBeat,
-  noteLifeImpact,
   noteResolutionEffects,
   REVEAL_BEAT_MS,
+  type BoardSound,
 } from '../motion.ts';
 import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { battlefieldCard, faceBox, overlayOf, zoneOf } from './board-dom.ts';
@@ -1412,7 +1410,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
      * a hold would keep from the other seat's screen until the first run had landed.
      */
     const millEnd = mills.length === 0 ? 0 : mill.fly(mills, startMs, tempo);
-    if (mills.length > 0 && prevView !== null) noteMillBeat(prevView.seq, Date.now() + startMs / tempo);
+    if (mills.length > 0 && prevView !== null) defaultStage.cue(CUE.mill, prevView.seq, Date.now() + startMs / tempo);
     /*
      * What left the battlefield goes at its beat: what a hit killed the moment that hit lands, everything
      * else (destroyed, sacrificed, exiled) as the effects start.
@@ -1538,9 +1536,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     for (const later of afterBlows) later();
     /** When something on this instance's clock happens, on the wall's. */
     const at = (ms: number): number => Date.now() + ms / tempo;
-    if (prevView !== null && firstCardImpact !== null) noteCardImpact(prevView.seq, at(firstCardImpact));
-    if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: at(s.ms), intensity: s.intensity, mine: s.mine, colourCell: s.colourCell ?? null })));
-    if (prevView !== null && firstExit !== null) noteExitBeat(prevView.seq, at(firstExit));
+    if (prevView !== null && firstCardImpact !== null) defaultStage.cue(CUE.card, prevView.seq, at(firstCardImpact));
+    if (prevView !== null) defaultStage.cue<readonly BoardSound[]>(CUE.sounds, prevView.seq, sounds.map((s) => ({ role: s.role, at: at(s.ms), intensity: s.intensity, mine: s.mine, colourCell: s.colourCell ?? null })));
+    if (prevView !== null && firstExit !== null) defaultStage.cue(CUE.exit, prevView.seq, at(firstExit));
     if (item !== undefined && effects) noteResolutionEffects(item.id, at(Math.max(endMs, startMs, millEnd)));
     if (item !== undefined) noteResolvedTempo(item.id, tempo);
     // The other seat's attack is seen before anything after it is drawn (`live/pace.ts` waits on this beat).
@@ -1550,7 +1548,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }
     // What waits on these beats goes at their 90% (`../motion.ts`'s `UNLOCK_AT`); the result screen waits for `beatsOver`.
     if (endMs > 0) noteBoardDrawing(beatsOver(endMs / tempo), { endsInMs: endMs / tempo, root: canvas });
-    if (firstLifeLand !== null && prevView !== null) noteLifeImpact(prevView.seq, at(firstLifeLand));
+    if (firstLifeLand !== null && prevView !== null) defaultStage.cue(CUE.life, prevView.seq, at(firstLifeLand));
     if (diff.pt.length > 0) host.report?.({ what: 'pt', resolved: item?.id ?? -1, changes: diff.pt.length, staggered: ptStaggered, motion: !reduced() });
     if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0 || (combat?.rams.length ?? 0) > 0) {
       host.report?.({

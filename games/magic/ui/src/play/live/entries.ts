@@ -31,7 +31,9 @@
  */
 
 import { seedOf } from './projectile.ts';
-import { anchorOf, play, quake, rel, shadow, standIn, type Box } from './quake.ts';
+import { animate } from '@hadoku/ui-shell/motion';
+
+import { anchorOf, quake, rel, shadow, standIn, type Box } from './quake.ts';
 import { BEAT_ANIMATION_ID, powerEase, powerSize } from '../motion.ts';
 import './entries.css';
 import { markTempo } from './tempo.ts';
@@ -192,7 +194,7 @@ const DRAINED = 'grayscale(1) brightness(0.55) contrast(1.1)';
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 async function recolour(wrap: HTMLElement, lift: number, tempo: number): Promise<void> {
-  await play(
+  await animate(
     wrap,
     [
       { filter: `${DRAINED} ${shadow(lift)}` },
@@ -200,9 +202,8 @@ async function recolour(wrap: HTMLElement, lift: number, tempo: number): Promise
       { filter: shadow(lift) },
     ],
     { id: BEAT_ANIMATION_ID, duration: 300, easing: 'ease-out', fill: 'forwards' },
-    undefined,
-    tempo,
-  );
+    { tempo },
+  ).finished;
 }
 
 /** Shadow wisps along the way from the pile. */
@@ -219,7 +220,7 @@ function trailShadow(overlay: HTMLElement, a: { x: number; y: number }, b: { x: 
     el.style.top = `${y}px`;
     el.style.setProperty('--s', (0.7 + r('s') * 0.9).toFixed(2));
     overlay.append(el);
-    void play(
+    void animate(
       el,
       [
         { opacity: 0, scale: '0.4', translate: '0 0' },
@@ -227,9 +228,8 @@ function trailShadow(overlay: HTMLElement, a: { x: number; y: number }, b: { x: 
         { opacity: 0, scale: '1.6', translate: `${(r('d') - 0.5) * 24}px ${-18 - r('u') * 26}px` },
       ],
       { id: BEAT_ANIMATION_ID, duration: 700, delay: t * ENTRY_MOTIONS.rise.ms * 0.7, easing: 'ease-out', fill: 'backwards' },
-      undefined,
-      tempo,
-    ).then(() => el.remove());
+      { tempo },
+    ).finished.then(() => el.remove());
   }
 }
 
@@ -259,7 +259,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
     const dy = src.top + src.height / 2 - (slot.top + slot.height / 2);
     const s0 = Math.max(0.3, src.width / slot.width);
     trailShadow(overlay, { x: src.left + src.width / 2, y: src.top + src.height / 2 }, { x: slot.left + slot.width / 2, y: slot.top + slot.height / 2 - lift }, key, tempo);
-    await play(
+    await animate(
       wrap,
       [
         { translate: `${dx}px ${dy}px`, scale: String(s0), filter: `${DRAINED} ${shadow(0)}`, opacity: 0.2 },
@@ -268,22 +268,20 @@ export async function playEntry(run: EntryRun): Promise<void> {
         { ...hung, filter: `${DRAINED} ${shadow(lift)}` },
       ],
       { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.rise.ms, easing: 'cubic-bezier(0.3, 0, 0.3, 1)', fill: 'forwards' },
-      undefined,
-      tempo,
-    );
+      { tempo },
+    ).finished;
     await recolour(wrap, lift, tempo);
   } else if (motion === 'release') {
     // Materialises where it is held, a touch small and bright, then a beat before it is let go.
-    await play(
+    await animate(
       wrap,
       [{ ...hung, scale: String(scale * 0.9), opacity: 0, filter: `brightness(1.5) ${shadow(lift)}` }, { ...hung, opacity: 1 }],
       { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.release.ms, easing: 'ease-out', fill: 'forwards' },
-      undefined,
-      tempo,
-    );
+      { tempo },
+    ).finished;
     await wait((60 + 80 * (weight?.power ?? 0)) / tempo);
   } else if (motion === 'blink') {
-    await play(
+    await animate(
       wrap,
       [
         { ...hung, opacity: 0, filter: `brightness(2.4) ${shadow(lift)}` },
@@ -293,24 +291,22 @@ export async function playEntry(run: EntryRun): Promise<void> {
         hung,
       ],
       { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.blink.ms, easing: 'ease-out', fill: 'forwards' },
-      undefined,
-      tempo,
-    );
+      { tempo },
+    ).finished;
   } else {
     // Cast: from where the card is drawn (the stack's card, its stand-in) up over its slot, hung there for the drop.
     const slot = s.box();
     const dx = src === null ? 0 : src.left + src.width / 2 - (slot.left + slot.width / 2);
     const dy = src === null ? -lift * 2 : src.top + src.height / 2 - (slot.top + slot.height / 2);
-    await play(
+    await animate(
       wrap,
       [
         { translate: `${dx}px ${dy}px`, scale: String(src === null ? scale : Math.max(0.5, src.width / slot.width)), filter: shadow(lift * 1.4), opacity: src === null ? 0 : 1 },
         { ...hung, offset: 1 },
       ],
       { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.cast.ms, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'forwards' },
-      undefined,
-      tempo,
-    );
+      { tempo },
+    ).finished;
     if (weight !== null) await wait((60 + 120 * weight.power) / tempo);
   }
 
@@ -331,7 +327,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
 async function landingDrop(wrap: HTMLElement, weight: EntryWeight, tempo: number): Promise<void> {
   const { lift, scale, dropMs } = hang(weight);
   const hung: Keyframe = { translate: `0 ${-lift}px`, scale: String(scale), filter: shadow(lift) };
-  await play(
+  await animate(
     wrap,
     [
       hung,
@@ -339,9 +335,8 @@ async function landingDrop(wrap: HTMLElement, weight: EntryWeight, tempo: number
       { translate: '0 0', scale: '1', filter: shadow(0) },
     ],
     { id: BEAT_ANIMATION_ID, duration: dropMs, easing: powerEase(weight.power), fill: 'forwards' },
-    undefined,
-    tempo,
-  );
+    { tempo },
+  ).finished;
 }
 
 /** The weight effects alone, anchored at `slot` (overlay-relative): the pressure ring and debris under the card, and the table's own quake (`quake.ts`: the shake, cracks and the shove). */
@@ -372,13 +367,12 @@ function thump(overlay: HTMLElement, slot: Box, power: number, tempo: number): P
   Object.assign(el.style, { left: `${slot.left}px`, top: `${slot.top}px`, width: `${slot.width}px`, height: `${slot.height}px` });
   el.style.setProperty('--p', power.toFixed(2));
   overlay.append(el);
-  return play(
+  return animate(
     el,
     [{ opacity: 0.85, scale: '1' }, { opacity: 0, scale: String(1.18 + 0.3 * power) }],
     { id: BEAT_ANIMATION_ID, duration: 380 + 200 * power, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' },
-    undefined,
-    tempo,
-  ).then(() => el.remove());
+    { tempo },
+  ).finished.then(() => el.remove());
 }
 
 /**
@@ -418,16 +412,15 @@ function debris(overlay: HTMLElement, slot: Box, power: number, share: number, k
     layer.append(el);
     const far = reach * (0.35 + 0.4 * r('d'));
     anims.push(
-      play(
+      animate(
         el,
         [
           { translate: '0 0', scale: '0.5', opacity: 0.9 },
           { translate: `${e.nx * far}px ${e.ny * far * 0.6 - 4}px`, scale: String(1.4 + 1.2 * power), opacity: 0 },
         ],
         { id: BEAT_ANIMATION_ID, duration: ms * (0.8 + 0.2 * r('m')), easing: 'cubic-bezier(0.1, 0.7, 0.3, 1)', fill: 'forwards' },
-        undefined,
-        tempo,
-      ),
+        { tempo },
+      ).finished,
     );
   }
   for (let i = 0; i < rocks; i++) {
@@ -444,7 +437,7 @@ function debris(overlay: HTMLElement, slot: Box, power: number, share: number, k
     const up = 10 + 34 * power * r('l');
     const spin = (r('r') - 0.5) * 720;
     anims.push(
-      play(
+      animate(
         el,
         [
           { translate: '0 0', rotate: '0deg', opacity: 1 },
@@ -452,9 +445,8 @@ function debris(overlay: HTMLElement, slot: Box, power: number, share: number, k
           { translate: `${dx}px ${dy + 10}px`, rotate: `${spin}deg`, opacity: 0 },
         ],
         { id: BEAT_ANIMATION_ID, duration: ms * (0.75 + 0.25 * r('m')), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
-        undefined,
-        tempo,
-      ),
+        { tempo },
+      ).finished,
     );
   }
   return Promise.all(anims).then(() => layer.remove());

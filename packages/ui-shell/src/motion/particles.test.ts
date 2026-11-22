@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 /*
- * The board's one particle pool (`effect-budget.ts`): every kind of particle, whenever it was asked for,
+ * The board's one particle pool (`particles.ts`): every kind of particle, whenever it was asked for,
  * out of one budget for the time it is on screen.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { claimParticles, PARTICLE_BUDGET } from './effect-budget.ts';
+import { claimParticles, PARTICLE_BUDGET } from './particles.ts';
 
 afterEach(() => {
   vi.useRealTimers();

@@ -1,3 +1,7 @@
+import { afterGlide as glideDone, animationName, Stage, type StageHold, type TrackOptions } from '@hadoku/ui-shell/motion';
+
+export { writeDurations } from '@hadoku/ui-shell/motion';
+
 /**
  * How long a released card's placement is waited for — the row's reserved gap
  * (`Board.tsx`), the other seat's back standing in it (`live/presence.ts`) and
@@ -23,45 +27,9 @@ export const HOUSE_DURATIONS = [
   ['--follow-ms', FOLLOW_MS],
 ] as const;
 
-/**
- * Writes each `[name, ms]` on `el` as `<ms>ms`, for a sheet to read with `var()`: a length is written
- * once, by the module that times it. Never taken off again: each is a constant, and more than one
- * layer on a canvas writes the house ones.
- */
-export function writeDurations(el: HTMLElement, durations: readonly (readonly [string, number])[]): void {
-  for (const [name, ms] of durations) el.style.setProperty(name, `${ms}ms`);
-}
-
-/**
- * Runs `done` once `el`'s glide has come to rest: its running `left`/`top` transitions finished,
- * timed by the transitions themselves. A clock started when the style was set runs ahead of a
- * transition that only starts at the next style recalc — a frame or more later on a busy screen —
- * and a stand-in handed over on that clock was drawn short of its gap (w67-shaman's bears on a
- * claw: the other seat's back 2 px off at "306 ms, done"). A transition retargeted on the way is
- * waited for in turn. Nothing running (motion off, already there) is done on the next microtask;
- * a document that cannot list its animations (jsdom) falls back to `GLIDE_MS`. Returns a cancel.
- */
+/** `el`'s glide has come to rest (`@hadoku/ui-shell/motion`'s `afterGlide`), or `GLIDE_MS` where the page cannot list its animations. Returns a cancel. */
 export function afterGlide(el: Element, done: () => void): () => void {
-  let live = true;
-  if (typeof el.getAnimations !== 'function') {
-    const timer = setTimeout(done, GLIDE_MS);
-    return () => clearTimeout(timer);
-  }
-  const wait = (): void => {
-    if (!live) return;
-    const running = el.getAnimations().filter((a) => 'transitionProperty' in a && (a.transitionProperty === 'left' || a.transitionProperty === 'top'));
-    if (running.length > 0) {
-      // Finished or cancelled (retargeted, or the element gone), it is looked at again: a cancel is not an arrival.
-      void Promise.allSettled(running.map((a) => a.finished)).then(wait);
-      return;
-    }
-    live = false;
-    done();
-  };
-  queueMicrotask(wait);
-  return () => {
-    live = false;
-  };
+  return glideDone(el, done, GLIDE_MS);
 }
 
 /*
@@ -126,31 +94,9 @@ export function damageSize(power: number): number {
   return 0.8 + 1.7 * power;
 }
 
-/**
- * The pace of a move at `power`, always the same length: a weak blow sets off quickly and barely speeds
- * up, a strong one starts slow and accelerates hard, so both arrive together and the strong one lands
- * harder (the operator, 2026-10-16: "weaker creatures can start faster but have less accelleration.
- * stronger creatures start slower with more accelleration. that way the time to complete the animation
- * is still the same"). At full power it is the bolts' own tuned ease.
- */
-export function powerEase(power: number): string {
-  // A punch (the operator: "a weak punch has more consistent speed and low accelleration. a strong punch
-  // has very fast accelleration … the initial parts of the strong punch to be slower to give it more
-  // weight"): at 0 nearly even (it sets off at half speed and ends at about one and a half), at 1 a
-  // creep that ends at about nine times its average speed — its fastest moment the blow itself.
-  const p = Math.min(1, Math.max(0, power));
-  const x1 = 0.4 + 0.52 * p;
-  const y1 = 0.2 * (1 - p);
-  const x2 = 0.75 + 0.2 * p;
-  const y2 = 0.6 - 0.05 * p;
-  return `cubic-bezier(${x1.toFixed(3)}, ${y1.toFixed(3)}, ${x2.toFixed(3)}, ${y2.toFixed(3)})`;
-}
+/** A move's pace and its way home at `power` (the operator, 2026-10-16: "weaker creatures can start faster but have less accelleration. stronger creatures start slower with more accelleration. that way the time to complete the animation is still the same"). */
+export { weightEase as powerEase, homeEase } from '@hadoku/ui-shell/motion';
 
-/** The way home at `power`: the same length, setting off slower the heavier, always settling gently into place. */
-export function homeEase(power: number): string {
-  const p = Math.min(1, Math.max(0, power));
-  return `cubic-bezier(${(0.3 + 0.45 * p).toFixed(3)}, 0, 0.25, 1)`;
-}
 /** Between two created permanents of one resolution. */
 export const BEAT_STAGGER_MS = 120;
 /** Between two bolts of one resolution: each slam, and the death it causes, on its own. */
@@ -165,118 +111,7 @@ export const BOLT_STAGGER_MS = 300;
  */
 export const UNLOCK_AT = 0.9;
 
-/** When a beat `ms` long lets go of what waits on it: {@link UNLOCK_AT} of the way through. */
-export function unlockAfter(ms: number): number {
-  return Math.round(ms * UNLOCK_AT);
-}
-
-/*
- * What the board is drawing now, for what must wait until it is over (the operator, 2026-10-15: "the
- * game-loss trigger should also only happen after the fireball actually hits"; 2026-10-17: "the final
- * creature doesn't even get to attack because the game ends immediately"): the game's end is the last
- * beat — its result screen and its sound come once every beat drawn before it has played out
- * ({@link whenBoardStill}). The pacer's frames go sooner, at each beat's {@link UNLOCK_AT}
- * ({@link whenBoardUnlocked}): a bolt's view ends as it hits, so its 90% is still in the air.
- */
-const drawing = new Set<Promise<void>>();
-const locked = new Set<Promise<void>>();
-const stillWaiters = new Set<() => void>();
-const unlockWaiters = new Set<() => void>();
-
-/** When a view last began drawing beats (epoch ms), for a held frame's report. */
-let lastBeatAt: number | null = null;
-
-/** How long a drawing on the board is meant to last, so what waits on it can go at its {@link UNLOCK_AT}. */
-export interface Unlocks {
-  /** From now until its last beat is meant to be over. */
-  endsInMs: number;
-  /** Where its beats run: each still running there once that point has come is waited for to its own {@link UNLOCK_AT}. */
-  root?: Element;
-  /**
-   * Not before this settles, however late: a drawing whose last beat starts as an earlier one ends (a die's pop, once
-   * its tumble is down) runs behind its clock by however late the page started the first, and the earlier beat's own
-   * {@link UNLOCK_AT} is not the drawing's.
-   */
-  after?: Promise<unknown>;
-}
-
-function hold(set: Set<Promise<void>>, waiters: Set<() => void>, until: Promise<void>): void {
-  set.add(until);
-  void until.then(() => {
-    set.delete(until);
-    if (set.size > 0) return;
-    for (const wake of [...waiters]) {
-      waiters.delete(wake);
-      wake();
-    }
-  });
-}
-
-function whenEmpty(set: Set<Promise<void>>, waiters: Set<() => void>, done: () => void): () => void {
-  if (set.size === 0) {
-    done();
-    return () => undefined;
-  }
-  waiters.add(done);
-  return () => {
-    waiters.delete(done);
-  };
-}
-
-/**
- * `live/numbers.ts` is drawing a view's beats (or `live/dice.ts` a roll, `live/coin-flip.tsx` a coin): the board
- * is busy until `over` settles, and locked until `unlocks` says it is {@link UNLOCK_AT} through — or `over`
- * settles first. Without `unlocks` it is locked until `over`.
- */
-export function noteBoardDrawing(over: Promise<unknown>, unlocks?: Unlocks): void {
-  lastBeatAt = Date.now();
-  let done = false;
-  const settled = over.then(
-    () => void (done = true),
-    () => void (done = true),
-  );
-  hold(drawing, stillWaiters, settled);
-  if (unlocks === undefined) return hold(locked, unlockWaiters, settled);
-  const unlocked = new Promise<void>((at) => {
-    const look = (): void => {
-      if (done || unlocks.root === undefined) return at();
-      void animationsSettled(unlocks.root, UNLOCK_AT).then(at);
-    };
-    setTimeout(() => void Promise.resolve(unlocks.after).then(look, look), unlockAfter(unlocks.endsInMs));
-  });
-  hold(locked, unlockWaiters, Promise.race([settled, unlocked]));
-}
-
-/** How many views' beats the board is drawing now: the frame rate's reports read it (`live/frame-watch.ts`). */
-export function boardDrawing(): number {
-  return drawing.size;
-}
-
-/** What a frame the board held past the pacer's cap was waiting on: the views still drawing, the beats by name, and when the last view began. */
-export interface BoardHold {
-  drawing: number;
-  waitingOn: string;
-  lastBeatAt: number | null;
-}
-
-export function boardHold(): BoardHold {
-  return { drawing: drawing.size, waitingOn: boardWaitingOn(), lastBeatAt };
-}
-
-/** Runs `done` once nothing the board is drawing is still playing — at once when it is still. Returns a cancel. */
-export function whenBoardStill(done: () => void): () => void {
-  return whenEmpty(drawing, stillWaiters, done);
-}
-
-/** Runs `done` once everything the board is drawing is {@link UNLOCK_AT} through — at once when it is. Returns a cancel. The pacer's wait (`live/pace.ts`). */
-export function whenBoardUnlocked(done: () => void): () => void {
-  return whenEmpty(locked, unlockWaiters, done);
-}
-
-/**
- * The id every beat's own Web Animation carries (`live/ram.ts`, `live/crash.ts`, `live/projectile.ts`): what
- * {@link animationsSettled} waits for, beside the beats' stylesheet animations ({@link BEAT_KEYFRAMES}).
- */
+/** The id every beat's own Web Animation carries (`live/ram.ts`, `live/crash.ts`, `live/projectile.ts`), beside the beats' stylesheet animations ({@link BEAT_KEYFRAMES}). */
 export const BEAT_ANIMATION_ID = 'beat';
 
 /**
@@ -285,202 +120,56 @@ export const BEAT_ANIMATION_ID = 'beat';
  */
 const BEAT_KEYFRAMES = ['board-exit-', 'board-number-', 'effect-', 'placed-'] as const;
 
-/** A running animation's name: its id, a stylesheet animation's keyframes, or the property a transition moves. */
-function animationName(a: Animation): string {
-  const named = a as Animation & { animationName?: string; transitionProperty?: string };
-  if (typeof named.animationName === 'string' && named.animationName !== '') return named.animationName;
-  if (typeof named.transitionProperty === 'string' && named.transitionProperty !== '') return `transition:${named.transitionProperty}`;
-  return a.id === '' ? 'unnamed' : a.id;
-}
+/*
+ * What the board is drawing now, for what must wait until it is over (the operator, 2026-10-15: "the
+ * game-loss trigger should also only happen after the fireball actually hits"; 2026-10-17: "the final
+ * creature doesn't even get to attack because the game ends immediately"): the game's end is the last
+ * beat — its result screen and its sound come once every beat drawn before it has played out
+ * ({@link whenBoardStill}). The pacer's frames go sooner, at each beat's {@link UNLOCK_AT}
+ * ({@link whenBoardUnlocked}): a bolt's view ends as it hits, so its 90% is still in the air. Every board on
+ * the page shares this one stage (`@hadoku/ui-shell/motion`'s `Stage`).
+ */
+export const defaultStage = new Stage({
+  unlockAt: UNLOCK_AT,
+  isBeat: (a) => {
+    const name = animationName(a);
+    return name === BEAT_ANIMATION_ID || BEAT_KEYFRAMES.some((prefix) => name.startsWith(prefix));
+  },
+});
 
-function isBeat(a: Animation): boolean {
-  const name = animationName(a);
-  return name === BEAT_ANIMATION_ID || BEAT_KEYFRAMES.some((prefix) => name.startsWith(prefix));
-}
-
-/** What the board's beats are still waiting on, counted by name (`beat×2 board-number-rise×1`), for a held frame's report. */
-let waitingOn: readonly Animation[] = [];
-
-export function boardWaitingOn(): string {
-  const counts = new Map<string, number>();
-  for (const a of waitingOn) if (a.playState !== 'finished' && a.playState !== 'idle') counts.set(animationName(a), (counts.get(animationName(a)) ?? 0) + 1);
-  return [...counts].map(([name, n]) => `${name}×${n}`).join(' ');
-}
-
-/** A running beat as one look read it: its end, where it is, and how fast it plays. */
-interface BeatAt {
-  anim: Animation;
-  end: number;
-  at: number;
-  rate: number;
-}
-
-/** How long (ms) until a beat is `through` of the way through (1: over), at its own playback rate: 0 once it is. */
-function untilThrough(b: BeatAt, through: number): number {
-  return Math.max(0, (through * b.end - b.at) / b.rate);
-}
-
-/** One wait on a board's beats: it settles once every beat there is `through` of the way through. */
-interface BeatWait {
-  through: number;
-  settle: () => void;
-}
+/** When a beat `ms` long lets go of what waits on it: {@link UNLOCK_AT} of the way through. */
+export const unlockAfter = (ms: number): number => defaultStage.unlockAfter(ms);
 
 /**
- * Each board's waits on its beats, and its one look at them. Every view waits twice (its unlock, its end),
- * and a burst of views waits at once: one look serves them all — a list of the board's animations brings
- * the page's style up to date first, so a look per wait per round was most of a trigger burst's frame
- * (Valakut's ten: ~750 ms of 3.3 s busy on a claw) — and it reads each beat's timing once.
+ * `live/numbers.ts` is drawing a view's beats (or `live/dice.ts` a roll, `live/coin-flip.tsx` a coin): the board
+ * is busy until `over` settles, and locked until it is {@link UNLOCK_AT} through `unlocks.endsInMs` — or `over`
+ * settles first. Without `unlocks` it is locked until `over`.
  */
-interface BoardBeats {
-  waits: Set<BeatWait>;
-  queued: boolean;
-  timer: ReturnType<typeof setTimeout> | null;
-  /** The beats whose end already brings a look. */
-  watched: WeakSet<Animation>;
-}
-const boards = new Map<Element, BoardBeats>();
-
-/** How long a look waits for a frame before it runs without one: a hidden tab draws none. */
-const FRAME_FALLBACK_MS = 100;
-
-/**
- * Looks at `root`'s beats in the next frame, before it is drawn, unless a look is already coming. Listing a
- * board's animations brings the page's style up to date first: there the frame's own style pass does that
- * work once, where a look in each socket message's or timer's own task made the page do it again, task after
- * task (a trigger burst: ~240 looks). A frame that never comes (a hidden tab) is waited for {@link FRAME_FALLBACK_MS}.
- */
-function lookSoon(root: Element, board: BoardBeats): void {
-  if (board.queued) return;
-  board.queued = true;
-  let frame: number | null = null;
-  const run = (): void => {
-    clearTimeout(fallback);
-    if (frame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
-    if (board.queued) look(root, board);
-  };
-  const fallback = setTimeout(run, FRAME_FALLBACK_MS);
-  if (typeof requestAnimationFrame === 'function') frame = requestAnimationFrame(run);
-}
-
-function look(root: Element, board: BoardBeats): void {
-  board.queued = false;
-  if (board.timer !== null) clearTimeout(board.timer);
-  board.timer = null;
-  const beats: BeatAt[] = [];
-  for (const anim of root.getAnimations({ subtree: true })) {
-    // The name first: the board runs endless animations (a pulse, a shimmer) that are no beat, and reading a timing is not free.
-    if (!isBeat(anim) || anim.playState === 'finished' || anim.playState === 'idle') continue;
-    const end = Number(anim.effect?.getComputedTiming().endTime ?? 0);
-    if (end === Infinity) continue;
-    beats.push({ anim, end, at: Number(anim.currentTime ?? 0), rate: Math.abs(anim.playbackRate) || 1 });
-  }
-  const holding = new Set<BeatAt>();
-  let soonest = Infinity;
-  for (const wait of [...board.waits]) {
-    const left = beats.filter((b) => untilThrough(b, wait.through) > 0);
-    if (left.length === 0) {
-      board.waits.delete(wait);
-      wait.settle();
-      continue;
-    }
-    for (const b of left) {
-      holding.add(b);
-      soonest = Math.min(soonest, untilThrough(b, wait.through));
-    }
-  }
-  waitingOn = [...holding].map((b) => b.anim);
-  if (board.waits.size === 0) {
-    boards.delete(root);
-    return;
-  }
-  // Looked at again as soon as one is far enough through, or one ends early (cancelled, its card gone).
-  board.timer = setTimeout(() => lookSoon(root, board), soonest);
-  for (const b of holding) {
-    if (board.watched.has(b.anim)) continue;
-    board.watched.add(b.anim);
-    void b.anim.finished.then(
-      () => lookSoon(root, board),
-      () => lookSoon(root, board),
-    );
-  }
-}
-
-/**
- * Settles once every finite BEAT running on `root` and inside it is `through` of the way through — over, or
- * {@link UNLOCK_AT} for the pacer — a ram, a crash, a crumble, a floating number — looking again as each
- * comes due, since one may start another. The beat plays on to its end either way. Anything else the board is
- * animating is not a beat and is not waited for: an endless one (a pulse, a shimmer), and a finite one that is
- * no beat (the turn's banner, the stack settling, a glide). Waiting on those held the next frame, and the decision behind it, until the pacer's
- * cap with nothing left to draw (the operator, 2026-10-23, of the holds that idled past their last beat: "fix
- * stray holds"). Every wait on one board shares its looks ({@link BoardBeats}).
- */
-export function animationsSettled(root: Element, through = 1): Promise<void> {
-  return new Promise((resolve) => {
-    if (typeof root.getAnimations !== 'function') return resolve();
-    let board = boards.get(root);
-    if (board === undefined) {
-      board = { waits: new Set(), queued: false, timer: null, watched: new WeakSet() };
-      boards.set(root, board);
-    }
-    board.waits.add({ through, settle: resolve });
-    lookSoon(root, board);
-  });
-}
-
-/** When the first hit on a player lands — a life total's sound waits for it. */
-let lifeImpact: { seq: number; at: number } | null = null;
-
-/** The view numbered `seq` drew a hit on a player that lands at `at` (epoch ms), its first. */
-export function noteLifeImpact(seq: number, at: number): void {
-  lifeImpact = { seq, at };
-}
-
-/** When the view numbered `seq`'s first hit on a player lands, or null when it drew none. */
-export function lifeImpactAt(seq: number): number | null {
-  return lifeImpact !== null && lifeImpact.seq === seq ? lifeImpact.at : null;
+export function noteBoardDrawing(over: Promise<unknown>, unlocks?: TrackOptions & { endsInMs: number }): void {
+  const finished = over.then(() => undefined, () => undefined);
+  defaultStage.track({ finished, cancel: () => undefined, endsInMs: unlocks?.endsInMs ?? Infinity }, unlocks);
 }
 
 /*
- * The same for the sounds of a creature's damage and of a permanent leaving: a bolt or a ram lands
- * first, a creature crumples first (the operator, 2026-10-16, of the rams: "be careful with sound
- * effects here").
+ * The board's stage as its readers know it: the frame rate's reports (`boardDrawing`, `live/frame-watch.ts`), a held
+ * frame's (`boardHold`), the result screen's wait (`whenBoardStill`), the pacer's (`whenBoardUnlocked`, `live/pace.ts`)
+ * and a view's wait on its beats (`animationsSettled`).
  */
-let cardImpact: { seq: number; at: number } | null = null;
-let exitBeat: { seq: number; at: number } | null = null;
+export type BoardHold = StageHold;
+export const boardDrawing = (): number => defaultStage.drawingCount;
+export const boardHold = (): BoardHold => defaultStage.held();
+export const whenBoardStill = (done: () => void): (() => void) => defaultStage.whenStill(done);
+export const whenBoardUnlocked = (done: () => void): (() => void) => defaultStage.whenUnlocked(done);
+export const animationsSettled = (root: Element, through = 1): Promise<void> => defaultStage.settled(root, through);
 
-/** The view numbered `seq` drew a hit on a card that lands at `at` (epoch ms), its first. */
-export function noteCardImpact(seq: number, at: number): void {
-  cardImpact = { seq, at };
-}
-
-/** When the view numbered `seq`'s first hit on a card lands, or null when it drew none. */
-export function cardImpactAt(seq: number): number | null {
-  return cardImpact !== null && cardImpact.seq === seq ? cardImpact.at : null;
-}
-
-/** The view numbered `seq` drew a permanent leaving whose exit starts at `at` (epoch ms), its first. */
-export function noteExitBeat(seq: number, at: number): void {
-  exitBeat = { seq, at };
-}
-
-/** When the view numbered `seq`'s first permanent starts leaving, or null when none left. */
-export function exitBeatAt(seq: number): number | null {
-  return exitBeat !== null && exitBeat.seq === seq ? exitBeat.at : null;
-}
-
-/** The mill sound waits the same way for the first card milled to leave its library (`live/mill.ts`). */
-let millBeat: { seq: number; at: number } | null = null;
-
-/** The view numbered `seq` drew cards milled, the first leaving its library at `at` (epoch ms). */
-export function noteMillBeat(seq: number, at: number): void {
-  millBeat = { seq, at };
-}
-
-/** When the view numbered `seq`'s first milled card leaves its library, or null when it milled none. */
-export function millBeatAt(seq: number): number | null {
-  return millBeat !== null && millBeat.seq === seq ? millBeat.at : null;
-}
+/**
+ * The moments a view's sounds wait for, as the board's cues (`defaultStage.cue(CUE.life, seq, at)`): a life
+ * total's, until its first hit on a player lands; a creature's damage, until its first hit on a card; a
+ * permanent leaving, until its first exit starts; a mill, until its first card leaves the library (the
+ * operator, 2026-10-16, of the rams: "be careful with sound effects here"). `sounds` carries the
+ * {@link BoardSound}s only the board's drawing knows the moment of.
+ */
+export const CUE = { life: 'life-impact', card: 'card-impact', exit: 'exit', mill: 'mill', sounds: 'sounds' } as const;
 
 /**
  * A sound only the board's own drawing knows to play: a ram's charge and blow, a spell's ball slamming in,
@@ -493,18 +182,6 @@ export interface BoardSound {
   readonly intensity: number;
   readonly mine: boolean;
   readonly colourCell?: string | null;
-}
-
-let boardSounds: { seq: number; sounds: readonly BoardSound[] } | null = null;
-
-/** The view numbered `seq` drew these sounds' moments. */
-export function noteBoardSounds(seq: number, sounds: readonly BoardSound[]): void {
-  boardSounds = { seq, sounds };
-}
-
-/** The sounds the view numbered `seq` drew the moments of; none for any other view. */
-export function boardSoundsAt(seq: number): readonly BoardSound[] {
-  return boardSounds !== null && boardSounds.seq === seq ? boardSounds.sounds : [];
 }
 
 /** When each resolved stack item's drawn effects end (epoch ms), so its spell fades after them. */

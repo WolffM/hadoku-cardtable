@@ -14,14 +14,14 @@
  * motion at all.
  */
 
-import { everyFrame } from '../frame-phases.ts';
+import { animate, standIn as kitStandIn, type Running } from '@hadoku/ui-shell/motion';
+
 import { BEAT_ANIMATION_ID } from '../motion.ts';
 import { shake } from './crash.ts';
 import { copyOfCard, LEAVING_GAP_ATTR } from './departures.ts';
 import type { CrackLook, EntryWeight } from './entries.ts';
 import { seedOf } from './projectile.ts';
 import { RAMMING_ATTR } from './ram.ts';
-import { quicken } from './tempo.ts';
 import './quake.css';
 
 /** On everything a quake draws: the key of the blow it belongs to. */
@@ -55,7 +55,7 @@ export function quake(
   self: Element | null = null,
   tempo = 1,
 ): { done: Promise<unknown>; cancel: () => void } {
-  const anims: Animation[] = [];
+  const anims: Running[] = [];
   const done: Promise<unknown>[] = [];
   const still = weight.shakePx > 0 ? shake(board, weight.shakePx, key, tempo) : () => undefined;
   if (weight.cracks !== null) done.push(crackle(board, at, weight.cracks, key, anims, tempo));
@@ -74,99 +74,32 @@ function drawn(el: HTMLElement): boolean {
   return !el.hasAttribute(RAMMING_ATTR) && !el.hasAttribute(LEAVING_GAP_ATTR) && !WAITING_MARKS.some((m) => el.hasAttribute(m)) && el.style.visibility !== 'hidden';
 }
 
-export interface Box {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
-export const rel = (r: DOMRect, to: DOMRect): Box => ({ left: r.left - to.left, top: r.top - to.top, width: r.width, height: r.height });
+export { rel, type Box } from '@hadoku/ui-shell/motion';
 
 /** What a row card wears while it waits for its arrival — `gestures/cast.ts`'s landing mark hides it, `numbers.ts`'s arrival mark fades it in — and its stand-in must not. */
 const WAITING_MARKS = ['data-cast-landing', 'data-arriving-from'];
 
-/**
- * A stand-in copy of `card`, in `overlay`, kept on its row card's box every frame until `stop`. Once
- * mounted it is lined up on the row card exactly — whatever the row does to the card's box (a turned
- * card is centred in its upright place by margins the copy does not have), the copy's own face is
- * moved onto the row card's face, so taking over from it and handing back to it never jumps.
- */
-export function standIn(overlay: HTMLElement, card: HTMLElement, cls: string): { wrap: HTMLElement; box: () => Box; card: () => HTMLElement; mount: () => void; stop: () => void } {
-  const wrap = document.createElement('div');
-  wrap.className = cls;
-  wrap.dataset.standIn = card.dataset.boardCard ?? '';
-  wrap.setAttribute('aria-hidden', 'true');
-  const piece = document.createElement('div');
-  piece.className = 'board-entry__piece';
-  const copy = copyOfCard(card);
-  // The row card may already be hidden for its arrival; its copy never is.
-  copy.style.visibility = '';
-  for (const mark of WAITING_MARKS) copy.removeAttribute(mark);
-  piece.append(copy);
-  wrap.append(piece);
-  let at: Box = rel(card.getBoundingClientRect(), overlay.getBoundingClientRect());
-  let fix = { x: 0, y: 0 };
-  let live = true;
+/** `@hadoku/ui-shell/motion`'s `standIn` for row card `card`: followed by its id when the row is drawn again, its copy wearing no waiting mark. */
+export function standIn(overlay: HTMLElement, card: HTMLElement, cls: string): ReturnType<typeof kitStandIn> {
   const id = card.dataset.boardCard;
   const root = card.closest('.board') ?? document;
-  /** The read: where the row card is drawn now. */
-  const measure = (): void => {
-    // React may draw the row card again (a row reordered): the card as it is drawn now, still hidden.
-    if (!card.isConnected) {
-      const now = root.querySelector<HTMLElement>(`[data-zone="battlefield"] [data-board-card="${id}"]`);
-      if (now !== null) {
-        card = now;
-        card.style.visibility = 'hidden';
-      }
-    }
-    if (card.isConnected) at = rel(card.getBoundingClientRect(), overlay.getBoundingClientRect());
-  };
-  /** The write: the copy over it. */
-  const draw = (): void => {
-    Object.assign(wrap.style, { left: `${at.left + fix.x}px`, top: `${at.top + fix.y}px`, width: `${at.width}px` });
-    wrap.style.setProperty('--card-w', `${at.width}px`);
-  };
-  const mount = (): void => {
-    measure();
-    draw();
-    overlay.append(wrap);
-    // Read with no motion on it yet: where the copy's card is drawn against where the row's is. One
-    // layout, which the row card's own box comes out of as well: it is not read a second time.
-    const want = card.getBoundingClientRect();
-    const got = copy.getBoundingClientRect();
-    fix = { x: want.left - got.left, y: want.top - got.top };
-    at = rel(want, overlay.getBoundingClientRect());
-    draw();
-    // Every frame after, with every other loop's reads and then its writes (`../frame-phases.ts`).
-    everyFrame(() => {
-      if (!live) return null;
-      measure();
-      return draw;
-    });
-  };
-  return { wrap, box: () => at, card: () => card, mount, stop: () => (live = false) };
+  return kitStandIn(overlay, card, {
+    cls,
+    pieceCls: 'board-entry__piece',
+    key: id ?? '',
+    copy: (el) => {
+      const copy = copyOfCard(el);
+      copy.style.visibility = ''; // the row card may already be hidden for its arrival; its copy never is
+      for (const mark of WAITING_MARKS) copy.removeAttribute(mark);
+      return copy;
+    },
+    find: () => root.querySelector<HTMLElement>(`[data-zone="battlefield"] [data-board-card="${id}"]`),
+  });
 }
 
 /** A card's shadow when it is `lift` px off the table. */
 export function shadow(lift: number): string {
   return `drop-shadow(0 ${(2 + lift * 0.5).toFixed(1)}px ${(3 + lift * 0.6).toFixed(1)}px rgb(0 0 0 / ${(0.25 + lift * 0.006).toFixed(2)}))`;
-}
-
-/**
- * `el.animate(frames, options)`, resolved when it finishes — or at once where the environment has
- * no Web Animations (a jsdom test; `crash.ts`/`ram.ts`/`projectile.ts`'s own guard, one place here).
- * Never throws, and never rejects: a cancelled animation ends a run the same as a finished one.
- * `into` keeps the animation, for a caller that may cancel it. It plays at `tempo` (`./tempo.ts`).
- */
-export function play(el: Element, frames: Keyframe[], options: KeyframeAnimationOptions, into: Animation[] | undefined, tempo: number): Promise<void> {
-  if (typeof (el as HTMLElement).animate !== 'function') return Promise.resolve();
-  const anim = quicken((el as HTMLElement).animate(frames, options), tempo);
-  into?.push(anim);
-  return anim.finished.then(
-    () => undefined,
-    () => undefined,
-  );
 }
 
 /** How fast a crack runs, in ms per px. */
@@ -251,7 +184,7 @@ function outline(c: Crack, scale: number): string {
  * cracks in table coordinates, clipped to itself, below everything it holds — the two sides meet
  * (`board.css`'s `.zone--battlefield` seam), so a crack runs straight over onto the other side.
  */
-function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, into: Animation[], tempo: number): Promise<void> {
+function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, into: Running[], tempo: number): Promise<void> {
   const c = { width: at.w, height: at.h };
   const reach = Math.max(c.width, c.height) * look.reach;
 
@@ -329,7 +262,11 @@ function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, i
   });
   const total = 400 + look.holdMs + 450;
   return Promise.all(
-    layers.map((layer) => play(layer, [{ opacity: 1 }, { opacity: 1, offset: (400 + look.holdMs) / total }, { opacity: 0 }], { id: BEAT_ANIMATION_ID, duration: total, easing: 'ease-in' }, into, tempo)),
+    layers.map((layer) => {
+      const fade = animate(layer, [{ opacity: 1 }, { opacity: 1, offset: (400 + look.holdMs) / total }, { opacity: 0 }], { id: BEAT_ANIMATION_ID, duration: total, easing: 'ease-in' }, { tempo });
+      into.push(fade);
+      return fade.finished;
+    }),
   ).then(() => layers.forEach((l) => l.remove()));
 }
 
@@ -340,7 +277,7 @@ function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, i
  * either seat's — is thrown hardest; from 12 power the ring beyond is knocked too, more gently and a
  * beat later, as the blow travels out.
  */
-async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self: Element | null, weight: EntryWeight, key: string, into: Animation[], tempo: number): Promise<void> {
+async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self: Element | null, weight: EntryWeight, key: string, into: Running[], tempo: number): Promise<void> {
   const t = { width: at.w, height: at.h };
   const tx = at.x;
   const ty = at.y;
@@ -373,7 +310,7 @@ async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self:
       s.wrap.setAttribute(QUAKE_ATTR, key);
       s.mount();
       el.style.visibility = 'hidden';
-      return play(
+      const knock = animate(
         s.wrap,
         [
           // Thrown out hard, hanging a moment, then home: each leg its own pace.
@@ -384,9 +321,10 @@ async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self:
         ],
         // The outer ring a beat after the inner: the blow travels out.
         { id: BEAT_ANIMATION_ID, duration: 860, delay: ring === 1 ? 0 : 70, easing: 'linear', fill: 'both' },
-        into,
-        tempo,
-      ).then(() => {
+        { tempo },
+      );
+      into.push(knock);
+      return knock.finished.then(() => {
         s.stop();
         s.wrap.remove();
         el.style.visibility = '';

@@ -12,7 +12,10 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { ATTACK_BEAT_MS, boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, damageSize, damagePower, GLIDE_MS, lifeImpactAt, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
+import { ATTACK_BEAT_MS, BOLT_STAGGER_MS, CUE, HIT_MS, damageSize, damagePower, defaultStage, GLIDE_MS, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill, type BoardSound } from '../motion.ts';
+
+const boardSoundsAt = (seq: number): readonly BoardSound[] => defaultStage.cueAt<readonly BoardSound[]>(CUE.sounds, seq) ?? [];
+const lifeImpactAt = (seq: number): number | null => defaultStage.cueAt(CUE.life, seq);
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { tempoOf } from './tempo.ts';
 import { entryWeight } from './entries.ts';

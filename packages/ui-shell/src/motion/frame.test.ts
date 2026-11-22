@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { everyFrame } from './frame-phases.ts';
+import { everyFrame } from './frame.ts';
 
 /** A requestAnimationFrame the test steps by hand: `tick()` runs the frame's callbacks. */
 function frames(): { tick: () => void; queued: () => number } {

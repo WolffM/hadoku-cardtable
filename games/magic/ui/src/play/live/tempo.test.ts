@@ -17,16 +17,13 @@ import {
   countInstance,
   instanceKey,
   itemKey,
-  markTempo,
   nextResolveTempo,
   nextTempo,
   noteResolutionsSent,
   noteResolvedTempo,
   noteTempoStack,
-  quicken,
   resolvedTempo,
   TEMPO_CAP,
-  TEMPO_PROPERTY,
   TEMPO_STEP,
   tempoCount,
   tempoOf,
@@ -197,15 +194,6 @@ describe('the board’s tempo, for the pacer and the stack layer', () => {
 });
 
 describe('the browser’s side of an instance’s clock', () => {
-  it('markTempo writes the property every beat sheet divides by; quicken plays an animation that much faster', () => {
-    const el = document.createElement('div');
-    markTempo(el, 2.25);
-    expect(el.style.getPropertyValue(TEMPO_PROPERTY)).toBe('2.25');
-    const anim = { playbackRate: 1 } as Animation;
-    expect(quicken(anim, 1.5).playbackRate).toBe(1.5);
-    expect(quicken({ playbackRate: 1 } as Animation, 1).playbackRate).toBe(1);
-  });
-
   it('every finite beat a beat sheet animates divides its length by --tempo', () => {
     const here = import.meta.dirname ?? 'games/magic/ui/src/play/live';
     const sheets = ['numbers.css', 'projectile.css', 'crash.css', 'departures.css', 'mill.css', 'pt-impact.css'];

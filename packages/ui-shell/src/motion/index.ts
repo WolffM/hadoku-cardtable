@@ -102,3 +102,8 @@ export function rememberMotion(key: string, choices: MotionChoices): void {
 }
 
 export { ambientPlayState, gateSelector, motionCss } from './css.ts';
+export { animate, animationsOf, homeEase, markTempo, quicken, runningOf, STILL, TEMPO_PROPERTY, weightEase, writeDurations, type AnimateContext, type Clip, type MotionContext, type Running } from './animate.ts';
+export { everyFrame, type FrameStep } from './frame.ts';
+export { claimParticles, PARTICLE_BUDGET, particlePool, particleShare, shared, type ParticlePool } from './particles.ts';
+export { animationName, Stage, type StageHold, type StageOptions, type TrackOptions } from './stage.ts';
+export { afterGlide, rel, standIn, type Box, type StandInOptions } from './stand-in.ts';

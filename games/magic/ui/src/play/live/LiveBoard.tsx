@@ -295,7 +295,7 @@ export { endingSentence, reasonLost, rematchOf } from './series/GameResultScreen
 import { hoverControl, playRole, playSoundEvents, takeUiTally } from '@hadoku/game-ui/sound/index.ts';
 import { isMuted, type DelayedSoundEvent } from '@hadoku/ui-shell/sound';
 import { useMatchMusic } from '../../sound/match-music.ts';
-import { boardDrawing, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, millBeatAt, whenBoardStill } from '../motion.ts';
+import { boardDrawing, CUE, defaultStage, whenBoardStill, type BoardSound } from '../motion.ts';
 import { motionState, prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { FAST_TEMPO, setGameTempo } from './tempo.ts';
 import {
@@ -1856,10 +1856,10 @@ const END_ROLES: ReadonlySet<string> = new Set(['g.win', 'g.lose']);
  */
 function afterTheHits(events: readonly DelayedSoundEvent[], seq: number): DelayedSoundEvent[] {
   const now = Date.now();
-  const life = lifeImpactAt(seq);
-  const card = cardImpactAt(seq);
-  const exit = exitBeatAt(seq);
-  const mill = millBeatAt(seq);
+  const life = defaultStage.cueAt(CUE.life, seq);
+  const card = defaultStage.cueAt(CUE.card, seq);
+  const exit = defaultStage.cueAt(CUE.exit, seq);
+  const mill = defaultStage.cueAt(CUE.mill, seq);
   return events.map((e) => {
     const until =
       e.role === 'g.damage-player' || e.role === 'g.lifegain'
@@ -1878,7 +1878,7 @@ function afterTheHits(events: readonly DelayedSoundEvent[], seq: number): Delaye
 /** The sounds only the board's drawing knows the moment of (a ram's charge and blow, a spell's hit, a creature cracking), each on its beat. */
 function fromTheBoard(seq: number): DelayedSoundEvent[] {
   const now = Date.now();
-  return boardSoundsAt(seq).map((s) => ({ role: s.role, seat: s.mine ? 'me' : 'opp', intensity: s.intensity, colourCell: s.colourCell ?? null, delayMs: Math.max(0, s.at - now) }));
+  return (defaultStage.cueAt<readonly BoardSound[]>(CUE.sounds, seq) ?? []).map((s) => ({ role: s.role, seat: s.mine ? 'me' : 'opp', intensity: s.intensity, colourCell: s.colourCell ?? null, delayMs: Math.max(0, s.at - now) }));
 }
 
 /**
