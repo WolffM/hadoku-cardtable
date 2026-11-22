@@ -4634,7 +4634,12 @@ public final class PlayBridge {
          * Gideon Blackblade's +1 activated with no click). {@code getAllPossibleAbilities} alone
          * is no substitute: its {@code canPlay} never checks mana, so a Colonnade read as a play.
          *
-         * Read on this seat's channel thread. No scan (an AI seat, a window with no full walk)
+         * Read on this seat's channel thread, which never evaluates a card in hand: a hand spell's
+         * {@code getAllPossibleAbilities} freezes the game's tracker and clears what it queued
+         * ({@code GameActionUtil.getAlternativeCosts}, CR 601.3e), and from here that raced the game
+         * thread casting a spell, whose stack item then never got its caster (cardtable AF664's
+         * Ice, held at priority as someone else's). The hand's tappers come from
+         * {@link SeatController#handTappers}, read where the game is parked. No scan (an AI seat, a window with no full walk)
          * or a failure omits both fields, which the server reads as "no such card" — the stop
          * it always made.
          */
@@ -4651,6 +4656,8 @@ public final class PlayBridge {
             for (final CardView p : scan.plays()) { plays.add(p.getId()); }
             final java.util.Set<Integer> animating = new java.util.HashSet<>();
             for (final CardView a : scan.animates()) { animating.add(a.getId()); }
+            final Object[] held = match.humanOf(mine) instanceof SeatController controller ? controller.handTappers() : new Object[] { null, null };
+            final java.util.Set<?> handTappers = held[0] != null && held[0] == myInput() ? (java.util.Set<?>) held[1] : java.util.Set.of();
             try {
                 final boolean costAhead = costAhead(game, mine);
                 final java.util.List<forge.game.card.Card> couldAttack = couldAttackBeforeAttacks(game, mine);
@@ -4669,22 +4676,25 @@ public final class PlayBridge {
                         manaOnly.add(ref("card", cv.getId()));
                         continue;
                     }
-                    final boolean inPlay = c.isInPlay() && c.getController() == mine;
-                    // A spell in hand that taps an attacker is a tapper too (Ice); the other two lists stay battlefield-only
-                    final boolean inHand = c.isInZone(ZoneType.Hand) && c.getOwner() == mine;
-                    if (!inPlay && !inHand) { continue; }
+                    // A spell in hand that taps an attacker is a tapper too (Ice), read off the scan's own
+                    // thread (handTappers); every list here is otherwise battlefield-only
+                    if (handTappers.contains(cv.getId())) {
+                        tappers.add(ref("card", cv.getId()));
+                        continue;
+                    }
+                    if (!c.isInPlay() || c.getController() != mine) { continue; }
                     boolean restricted = false;
                     boolean taps = false;
                     for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
                         if (sa.isManaAbility()) { continue; }
-                        if (inPlay && !restricted && ((sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) || (costAhead && fetchesLand(sa)))) {
+                        if (!restricted && ((sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) || (costAhead && fetchesLand(sa)))) {
                             restricted = true;
                         }
                         if (!taps && tapsOneOf(sa, couldAttack)) { taps = true; }
                     }
                     if (restricted) { phaseRestricted.add(ref("card", cv.getId())); }
                     if (taps) { tappers.add(ref("card", cv.getId())); }
-                    if (inPlay && animating.contains(cv.getId())) { animates.add(ref("card", cv.getId())); }
+                    if (animating.contains(cv.getId())) { animates.add(ref("card", cv.getId())); }
                 }
                 f.add("manaOnly", manaOnly);
                 f.add("phaseRestricted", phaseRestricted);
@@ -7166,7 +7176,10 @@ public final class PlayBridge {
                     Thread.currentThread().interrupt();
                 }
             }
-            if (!paymentMode) { unaffordable = new Object[] { shown, heldBackByCost() }; }
+            if (!paymentMode) {
+                unaffordable = new Object[] { shown, heldBackByCost() };
+                handTappers = new Object[] { shown, tappersInHand() };
+            }
             final List<CardView> actionable = super.getActionableCards(paymentMode, emphasized);
             if (shown != null) { lastActionable = new Object[] { shown, List.copyOf(actionable) }; }
             final Object after = liveInput();
@@ -7180,6 +7193,31 @@ public final class PlayBridge {
             }
             return actionable;
         }
+
+        /**
+         * The hand cards with a playable spell that taps a creature that could attack now, at another
+         * player's Beginning of Combat (Ice, Frost Breath), and the input they were read for: for
+         * {@code offerFacts}' {@code tappers}, read here for the reason {@link #heldBackByCost} is.
+         */
+        private java.util.Set<Integer> tappersInHand() {
+            final forge.game.player.Player me = getPlayer();
+            final java.util.List<forge.game.card.Card> couldAttack = SeatGui.couldAttackBeforeAttacks(me.getGame(), me);
+            if (couldAttack.isEmpty()) { return java.util.Set.of(); }
+            final java.util.Set<Integer> out = new java.util.HashSet<>();
+            try {
+                for (final forge.game.card.Card c : me.getCardsIn(ZoneType.Hand).threadSafeIterable()) {
+                    for (final SpellAbility sa : c.getAllPossibleAbilities(me, true)) {
+                        if (!sa.isManaAbility() && SeatGui.tapsOneOf(sa, couldAttack)) { out.add(c.getId()); break; }
+                    }
+                }
+            } catch (final RuntimeException e) {
+                System.err.println("[bridge] tappers: could not read the hand's spells (" + e + "); none named");
+                return java.util.Set.of();
+            }
+            return out;
+        }
+        private volatile Object[] handTappers = { null, java.util.Set.of() };
+        Object[] handTappers() { return handTappers; }
 
         private java.util.Set<Integer> heldBackByCost() {
             final forge.game.player.Player me = getPlayer();

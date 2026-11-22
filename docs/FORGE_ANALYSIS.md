@@ -431,6 +431,34 @@ them, and re-derivations by the Wave 7 manager are marked.
   walks in two games on the old pin, and none in three games on the new pin;
   `mana-click-race.jvm.test.ts` lost 3 of 6 games to the CME on the old jar and
   none of 18 on the new one.
+- **VERIFIED (2026-11-22, fork pin fd5eb2fb)** — a source clicked right after
+  another was refused. `InputPayMana.activateManaAbility` sets `locked` and plays
+  the ability (inline on the act's thread), and `locked` was cleared only by
+  `updateMessage`, the re-render `onStateChanged` queues on the EDT. The next
+  source's act runs as soon as the last one returns, usually before that
+  re-render, and `activateManaAbility` refused it ("Should wait till previous call
+  to playAbility finishes", `InputPayMana.java:226`) with the land left untapped;
+  a player who clicked each land once saw the payment stall. This predates the
+  views lock: `PaymentClickRaceTest` clicking each land once stalled on both the
+  stock pin and 44fb8556. The ability now unlocks in its own `finally` (and the
+  Auto button's after its run), and the re-render no longer touches `locked`,
+  so a late re-render cannot unlock a newer ability either. `PaymentClickRaceTest`:
+  a refusal and a stall on 14894abb, 0 refusals in 18 clicks ×3 on the fix.
+- **VERIFIED (2026-11-22)** — the game's `Tracker` is game-thread only, and a
+  hand spell's `Card.getAllPossibleAbilities` writes to it. For a spell not on
+  the battlefield `GameActionUtil.getAlternativeCosts` (and
+  `getOptionalCosts`) takes the CR 601.3e path: `freeze()`,
+  `checkStaticAbilities` on an LKI copy, `clearDelayed()`, `unfreeze()`
+  (`GameActionUtil.java:106–289`, `:428–531`). A property set on another thread
+  inside that window is queued (`TrackableObject.set`, `RespectsFreeze`, the
+  default) and then thrown away. The bridge asked this from its channel thread
+  for the offered hand cards (`offerFacts`, AF658's Ice tappers) while the game
+  thread cast a spell, so the new `StackItemView` never got `ActivatingPlayer`:
+  `GameLogFormatter` threw on "null activated" (`GameLogFormatter.java:89`) and
+  the server, unable to see the Ice was the seat's own, held priority over it.
+  Battlefield cards return before that path (`sa.isSpell() && source.isInPlay()`).
+  The hand is now read only in `getActionableCards`, where the game is parked
+  on the input.
 
 ### `ReplyPool`'s future is neither of the two things it looks like
 

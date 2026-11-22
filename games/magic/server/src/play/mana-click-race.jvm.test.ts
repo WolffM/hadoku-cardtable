@@ -6,7 +6,9 @@
  *
  * Here seat 0 casts Ice twelve times a game, each paid the same way: Tar Pit, its {U} chosen, and an Island
  * clicked 0–20 ms after that answer is sent, with the payment asked (the seat was in full control). The match
- * must never fail.
+ * must never fail, and the Island, clicked once, must never be refused while the Tar Pit's ability ends
+ * (AF664: "Should wait till previous call to playAbility finishes", and the payment stalled), and each Ice
+ * must reach the stack as seat 0's (the bridge reading the hand off the game thread once lost its caster).
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/mana-race \
  *   pnpm exec vitest run games/magic/server/src/play/mana-click-race.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
@@ -51,8 +53,6 @@ async function race(seed: number): Promise<{ s: Scenario; cast: number }> {
 	let cast = 0;
 	let stage: 'cast' | 'target' | 'pay' | 'resolving' = 'cast';
 	let answered = -1;
-	/** The Island clicked for this cast, and the frame count when that click went. */
-	let island: { id: number; at: number } | undefined;
 	const mine = (name: string, untapped: boolean): number | undefined =>
 		s.zone(0, 'Battlefield').find((c) => c.name === name && (!untapped || !c.tapped))?.id;
 	await waitUntil(
@@ -64,12 +64,8 @@ async function race(seed: number): Promise<{ s: Scenario; cast: number }> {
 				tarPitAnswered = false;
 				if (stage === 'pay') {
 					stage = 'resolving';
-					const id = mine('Island', true);
-					if (id !== undefined)
-						setTimeout(() => {
-							island = { id, at: s.sent.length };
-							s.select(0, id);
-						}, (seed * 7 + cast * 3) % 21);
+					const island = mine('Island', true);
+					if (island !== undefined) setTimeout(() => s.select(0, island), (seed * 7 + cast * 3) % 21);
 				}
 				return false;
 			}
@@ -83,15 +79,6 @@ async function race(seed: number): Promise<{ s: Scenario; cast: number }> {
 				answered = at;
 				stage = 'pay';
 				s.select(0, plains.id);
-				return false;
-			}
-			if (stage === 'resolving' && island !== undefined && at >= island.at && /Pay Mana Cost/i.test(msg)) {
-				// Forge drops a source clicked while the last one's ability is still being played ("Should wait
-				// till previous call to playAbility finishes"): the payment is shown again with that Island untapped,
-				// and the player clicks it again. The same Island, so a click that did go through costs nothing.
-				const still = s.zone(0, 'Battlefield').find((c) => c.id === island!.id && !c.tapped);
-				answered = at;
-				if (still !== undefined) s.select(0, still.id);
 				return false;
 			}
 			if (stage === 'pay' && /Pay Mana Cost/i.test(msg)) {
@@ -108,7 +95,6 @@ async function race(seed: number): Promise<{ s: Scenario; cast: number }> {
 			if (ice === undefined) return true;
 			answered = at;
 			stage = 'target';
-			island = undefined;
 			cast++;
 			s.select(0, ice.id);
 			return false;
@@ -128,6 +114,9 @@ describe.skipIf(!available.ok)(title, () => {
 				const { s, cast } = await race(31 + run);
 				try {
 					expect(failed(s)).toBeUndefined();
+					expect(s.stderr().match(/Should wait till previous call to playAbility finishes/g) ?? []).toEqual([]);
+					// Every Ice reaches the stack with its caster: read off the game thread, the hand's spells once lost it
+					expect(s.stderr().match(/null activated/g) ?? []).toEqual([]);
 					expect(cast).toBe(CASTS);
 					expect(s.zone(0, 'Graveyard').filter((c) => c.name.startsWith('Fire')).length).toBe(CASTS);
 				} catch (err) {
