@@ -60,6 +60,18 @@ it fights Forge's parked inputs, and what the turn had already done can outlive 
 the restored game's own snapshot equals the one it came from and the land is back in hand; and a
 decline leaves the game untouched. An e2e spec presses the button and allows from the other seat.
 
+### The random (2026-11-21)
+
+A restarted turn rolls on the game's own random as it stood when the turn began. Until then a
+restore built the match's random from its seed again, so the restored game's random matched the
+lost one's only at the game's first upkeep: from then on a shuffle in the replayed turn dealt
+differently (m-548a719f5326, turn 11: Land Tax's upkeep search shuffled before the draw, and the
+restart drew another card). `PlayBridge.MatchRandom` is `java.util.Random`'s generator with its
+48-bit state readable; each `snapshot` line carries it as `rng`, `restoredSpec` hands it on, and
+`TurnSnapshot` puts it back at the restored game's first upkeep, the event it was read at. The AI's
+own choices and thread timing still are not replayed, so a turn the AI takes part in can diverge.
+Proof: `restore.jvm.test.ts`, "a turn that shuffles before its draw draws the same card".
+
 ## Part 2: a snapshot that holds the whole game
 
 `GameState` is a puzzle-file format. What it cannot write (`match.ts`'s `restoredSpec` doc lists

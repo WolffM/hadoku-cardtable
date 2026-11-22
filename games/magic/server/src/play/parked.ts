@@ -205,7 +205,7 @@ export function openParkedStore(deps: ParkedStoreDeps): ParkedStore {
 				return { ai: spec.ai, owner: spec.ai ? null : owner, name: member?.name ?? match.seats[i]?.displayName ?? spec.name, deckName: deck };
 			};
 			// The opening a resume adds back (`restoredSpec`), and the board of the game this one was resumed from, go.
-			const { scenario: _scenario, skipOpening: _skipOpening, restore: _restore, ...spec } = forgeSpec;
+			const { scenario: _scenario, skipOpening: _skipOpening, restore: _restore, rng: _rng, ...spec } = forgeSpec;
 			const clockMs = match.clockLeft();
 			const format = match.spec.format ?? game.format;
 			const record: ParkedRecord = {

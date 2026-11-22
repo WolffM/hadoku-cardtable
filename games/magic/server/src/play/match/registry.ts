@@ -28,7 +28,8 @@ import type { SeatState } from './forge-session.js';
  * - triggers waiting to go on the stack as the upkeep begins (an untap step's "whenever … untaps");
  * - a seat's open asks, and its remembered trigger choices, which Forge holds by ability (its
  *   stops, auto-yields and full control come across);
- * - random-number state: the restored game draws fresh randomness from its new JVM.
+ * - random-number state only when the snapshot has no `rng` (one from before the bridge wrote it): with it,
+ *   the restored turn's shuffles and rolls are the lost turn's (`PlayBridge.MatchRandom`).
  * Card ids change: every seat resyncs onto the new epoch.
  *
  * Forge's own `GameAdapter.restoreSpec` (`match/hosted.ts`'s `HostedMatchDeps.restoreSpec`,
@@ -37,8 +38,8 @@ import type { SeatState } from './forge-session.js';
  * snapshot through as `restore.checkpoint` rather than calling this themselves.
  */
 export function restoredSpec(spec: ForgeMatchSpec, snapshot: TurnSnapshot): ForgeMatchSpec {
-	const { chooser: _chooser, ...rest } = spec;
-	return { ...rest, scenario: snapshot.state, skipOpening: true, restore: true };
+	const { chooser: _chooser, rng: _rng, ...rest } = spec;
+	return { ...rest, scenario: snapshot.state, skipOpening: true, restore: true, ...(snapshot.rng === undefined ? {} : { rng: snapshot.rng }) };
 }
 
 /** A resumed game's start: who holds each seat, the turn-start snapshot it opens on, and each seat's clock. */

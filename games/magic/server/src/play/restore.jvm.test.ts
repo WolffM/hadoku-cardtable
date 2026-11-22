@@ -121,7 +121,7 @@ function pidNow(s: Scenario): number {
 async function killAndRestore(s: Scenario, turn: number): Promise<{ from: Snapshot; again: Snapshot; restoreMs: number }> {
 	const from = snapshots(s).findLast((l) => l.turn === turn);
 	if (from === undefined) throw new Error(`no snapshot of turn ${turn}`);
-	expect(s.match.latestSnapshot).toEqual({ turn: from.turn, state: from.state });
+	expect(s.match.latestSnapshot).toEqual({ turn: from.turn, state: from.state, rng: from.rng });
 	const before = s.match;
 	const lines = s.lines.length;
 	process.kill(pidNow(s), 'SIGKILL');
@@ -135,6 +135,9 @@ async function killAndRestore(s: Scenario, turn: number): Promise<{ from: Snapsh
 	await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restored game's own snapshot", 120_000, s);
 	const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
 	const restoreMs = Date.now() - at;
+	// The random goes back where it was read, so the restored game's own snapshot carries the same state.
+	expect(typeof from.rng, 'the snapshot carries the random').toBe('number');
+	expect(again.rng).toBe(from.rng);
 	console.log(`[jvm] restore: turn ${from.turn}, snapshot ${Buffer.byteLength(from.state)} bytes taken in ${from.ms} ms; restored to its upkeep in ${restoreMs} ms`);
 	return { from, again, restoreMs };
 }
@@ -282,6 +285,44 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(s.zone(1, 'Battlefield').some((c) => c.name === 'Goblin Token')).toBe(true);
 
 				await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 8)), "seat 0's turn 8, its first main", 120_000);
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		"a turn that shuffles before its draw draws the same card when restored: the snapshot carries the game's random",
+		async () => {
+			if (!available.ok) return;
+			// 2026-11-21 (m-548a719f5326): a player restarted turn 11 and drew a different card. Land Tax's
+			// upkeep trigger searched and shuffled before the draw, and the restored game shuffled on a
+			// random started again from the match's seed, not the one the turn had.
+			const many = ['Savannah Lions', 'Serra Angel', 'Glorious Anthem', 'Wrath of God', 'Swords to Plowshares', 'White Knight', 'Pacifism', 'Disenchant', 'Wild Griffin', 'Suntail Hawk', 'Elite Vanguard', 'Ornithopter', 'Memnite', 'Juggernaut', 'Sol Ring', 'Grizzly Bears', 'Hill Giant', 'Lightning Bolt', 'Giant Growth', 'Shock', 'Llanowar Elves', 'Counterspell', 'Dark Ritual', 'Divination', 'Mind Rot', 'Plains', 'Plains', 'Plains'];
+			const scenario = [
+				'turn=4',
+				'activeplayer=ai',
+				'activephase=MAIN2',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Land Tax;Plains',
+				`humanlibrary=${many.join(';')}`,
+				'aibattlefield=Mountain;Mountain;Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const decks: [string, string] = [deck('Tax', ['40 Plains']), deck('Any B', ['40 Mountain'])];
+			const s = await startScenario(available.config, { seed: 11, decks, scenario, skipOpening: true });
+			try {
+				// Turn 7, not 5: turn 5 is this game's first upkeep, where a random started again from the seed is
+				// still the same random. Turn 5's own Land Tax shuffle is what moves it on.
+				const handInMain = async (): Promise<string[]> => {
+					await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 7)), "turn 7, seat 0's first main", 180_000);
+					return s.zone(0, 'Hand').map((c) => c.name).sort();
+				};
+				const first = await handInMain();
+				await killAndRestore(s, 7);
+				expect(await handInMain()).toEqual(first);
 			} finally {
 				await s.stop();
 			}

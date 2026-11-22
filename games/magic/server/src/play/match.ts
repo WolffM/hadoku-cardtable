@@ -481,7 +481,7 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 				// from its own `'checkpoint'` case, so a restore's `HostedMatch.restoreSpec` dispatch
 				// (`match/hosted.ts`) reaches Forge too. `latestSnapshot` stays Forge's own, strongly
 				// typed field (`restartState`/`restorable` read it directly); both now hold the same value.
-				const snapshot: TurnSnapshot = { turn: line.turn, state: line.state, ...(line.lossy === undefined || line.lossy.length === 0 ? {} : { lossy: line.lossy }) };
+				const snapshot: TurnSnapshot = { turn: line.turn, state: line.state, ...(line.rng === undefined ? {} : { rng: line.rng }), ...(line.lossy === undefined || line.lossy.length === 0 ? {} : { lossy: line.lossy }) };
 				this.latestSnapshot = snapshot;
 				this.deps.log({ evt: 'turn-snapshot', matchId: this.id, turn: line.turn, bytes: Buffer.byteLength(line.state), ms: line.ms });
 				if (line.lossy !== undefined && line.lossy.length > 0) this.deps.log({ evt: 'snapshot-lossy', matchId: this.id, turn: line.turn, kinds: line.lossy });

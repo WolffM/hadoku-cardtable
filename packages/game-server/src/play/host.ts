@@ -248,6 +248,8 @@ export function isLifecycle<L extends { t: string }>(line: L): line is L & HostL
 export interface TurnSnapshot {
 	turn: number;
 	state: string;
+	/** The engine's random as the turn began, so a restore replays the turn's shuffles and rolls; absent, the restore rolls afresh. */
+	rng?: number;
 	/** What the game held that {@link state} does not; absent or empty is the whole game. */
 	lossy?: readonly string[];
 }

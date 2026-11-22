@@ -495,6 +495,17 @@ public final class PlayBridge {
         final boolean restore;
 
         /**
+         * Optional, with {@link #restore}: the state of the match's random ({@link MatchRandom#state}) as the
+         * snapshot's turn began, put back at the restored game's own first upkeep ({@link TurnSnapshot}), the
+         * moment it was read. Without it the turn replays on a different random, and a shuffle in it (Land
+         * Tax's, before the draw) deals a different card.
+         */
+        final Long rng;
+
+        /** The match's own random, made by {@link #play}; {@link TurnSnapshot} reads and restores its state. */
+        volatile MatchRandom random;
+
+        /**
          * The room's hand smoothing setting: Forge's filtered hands, a rule of this game
          * ({@code GameRules.setFilteredHands}), which keeps the opening hand closer to the
          * deck's land ratio and weights each mulligan's redraw toward it
@@ -693,6 +704,7 @@ public final class PlayBridge {
             };
             skipOpening = root.has("skipOpening") && root.get("skipOpening").getAsBoolean();
             restore = root.has("restore") && root.get("restore").getAsBoolean();
+            rng = root.has("rng") && !root.get("rng").isJsonNull() ? root.get("rng").getAsLong() : null;
             chooser = root.has("chooser") && !root.get("chooser").isJsonNull() ? root.get("chooser").getAsInt() : null;
             final JsonObject headless = root.has("headless") && root.get("headless").isJsonObject() ? root.getAsJsonObject("headless") : null;
             headlessBestOf = headless == null ? 0 : headless.get("bestOf").getAsInt();
@@ -7905,16 +7917,24 @@ public final class PlayBridge {
             private static final String AT_UPKEEP = "activephase=UPKEEP\n";
             private final Game game;
             private final MatchContext match;
+            /** A restore's {@link MatchContext#rng}, until the restored game's first upkeep puts it back. */
+            private Long pendingRng;
 
             TurnSnapshot(final Game game, final MatchContext match) {
                 this.game = game;
                 this.match = match;
+                this.pendingRng = match.restore ? match.rng : null;
             }
 
             @Subscribe
             public void phase(final forge.game.event.GameEventTurnPhase ev) {
                 if (ev.phase() != PhaseType.UPKEEP || !ev.phaseDesc().isEmpty()) { return; }
                 final long at = System.nanoTime();
+                final MatchRandom random = match.random;
+                if (pendingRng != null) {
+                    random.restore(pendingRng);
+                    pendingRng = null;
+                }
                 final GameState state = new GameState();
                 state.initFromGame(game);
                 final String taken = state.toString();
@@ -7926,6 +7946,7 @@ public final class PlayBridge {
                 final JsonObject o = line("snapshot");
                 o.addProperty("turn", game.getPhaseHandler().getTurn());
                 o.addProperty("state", text);
+                o.addProperty("rng", random.state());
                 o.addProperty("ms", (System.nanoTime() - at) / 1_000_000.0);
                 final JsonArray lossy = new JsonArray();
                 for (final String kind : lossy()) { lossy.add(kind); }
@@ -9108,6 +9129,38 @@ public final class PlayBridge {
     }
 
     /**
+     * A match's own random: {@code java.util.Random}'s generator, draw for draw (the same seed deals the same
+     * game it always did), with its state readable and settable, which {@code Random} keeps private. A turn's
+     * snapshot carries that state ({@link TurnSnapshot}), so a restarted turn shuffles and rolls exactly as the
+     * turn it replaces did.
+     */
+    static final class MatchRandom extends Random {
+        private static final long serialVersionUID = 1L;
+        private static final long MULTIPLIER = 0x5DEECE66DL;
+        private static final long ADDEND = 0xBL;
+        private static final long MASK = (1L << 48) - 1;
+        private long state;
+
+        MatchRandom(final long seed) {
+            super(seed);   // Random's constructor calls the setSeed below for a subclass
+        }
+
+        @Override public synchronized void setSeed(final long seed) {
+            state = (seed ^ MULTIPLIER) & MASK;
+        }
+
+        @Override protected synchronized int next(final int bits) {
+            state = (state * MULTIPLIER + ADDEND) & MASK;
+            return (int) (state >>> (48 - bits));
+        }
+
+        /** The generator's 48-bit state: {@link #restore} with it and every later draw repeats. */
+        synchronized long state() { return state; }
+
+        synchronized void restore(final long s) { state = s & MASK; }
+    }
+
+    /**
      * Wave 71 §E. Names the seat Forge's coin toss hands the choice to, without
      * touching {@code forge/}.
      *
@@ -9233,7 +9286,8 @@ public final class PlayBridge {
         // The match's own random (forge.util.MyRandom): bound to this thread while it builds the
         // lobby's players and starts the match, so HostedMatch's Match adopts it and every thread
         // that works for the game draws from it. No other match in the JVM can touch it.
-        final Random seeded = match.seed == null ? new SecureRandom() : new Random(match.seed);
+        final MatchRandom seeded = new MatchRandom(match.seed == null ? new SecureRandom().nextLong() : match.seed);
+        match.random = seeded;
         final Random matchRandom = match.chooser == null ? seeded : new RiggedCoinToss(seeded, match.chooser);
         final forge.util.MyRandom.Scope matchRng = forge.util.MyRandom.bind(matchRandom);
         final List<Deck> decks = new ArrayList<>();

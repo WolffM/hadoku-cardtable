@@ -129,7 +129,7 @@ export type BridgeLine =
 	 * `ms` is how long the bridge took to write it. `lossy` names what the game held that the text
 	 * cannot (`docs/planning/restart-turn-plan.md` part 2); absent or empty is the whole game.
 	 */
-	| { t: 'snapshot'; turn: number; state: string; ms: number; lossy?: string[] }
+	| { t: 'snapshot'; turn: number; state: string; rng?: number; ms: number; lossy?: string[] }
 	/**
 	 * What the seat could take back changed (`SeatController.emitUndoState`): `can`, its priority prompt is open
 	 * with a step of its own to rewind to; `version`, the game's undo history count, which moves with every step

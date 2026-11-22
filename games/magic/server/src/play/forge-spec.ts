@@ -57,6 +57,11 @@ export interface ForgeSpecFields {
 	 */
 	restore?: boolean;
 	/**
+	 * With {@link restore}: the snapshot's `rng`, the state of the match's random as its turn began. The bridge
+	 * puts it back at the restored game's first upkeep, so the turn shuffles and rolls as it did the first time.
+	 */
+	rng?: number;
+	/**
 	 * Wave 71 §E — names the seat Forge asks to choose play or draw. Every game we
 	 * host is a fresh Forge `Match`, so Forge always treats it as the FIRST game of
 	 * that match and tosses a coin (`GameAction.determineFirstTurnPlayer`,
