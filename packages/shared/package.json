@@ -16,7 +16,7 @@
     "@hadoku/carddata": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
     "@hadoku/platform-wire": "workspace:*",
-    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.128",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.129",
     "zod": "4.5.4"
   }
 }
