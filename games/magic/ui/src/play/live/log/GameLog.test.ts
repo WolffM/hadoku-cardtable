@@ -5,9 +5,13 @@
  */
 import { createElement } from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { GameLogLine } from '@hadoku/forge-wire';
+import { parseServerFrame, type GameLogLine, type ServerFrame } from '@hadoku/forge-wire';
+
+import { createReplayPlayer } from '../../../replay/player.ts';
+import type { ReplayData, ReplayHeader } from '../../../replay/transport.ts';
+import { closeMatch } from '../match.ts';
 
 import type { Say } from '../match.ts';
 import { GameLog } from './GameLog.tsx';
@@ -83,5 +87,69 @@ describe('a turn opened in the log is scrolled into view', () => {
     fireEvent.click(head(container, 3));
     expect(head(container, 3).getAttribute('aria-expanded')).toBe('false');
     expect(scroll.scrollTop, 'up to the folded header').toBe(200);
+  });
+});
+
+/*
+ * The operator, 2026-11-21: *"replays show the old name — can we make it so replays keep track of
+ * player ids instead of hardcoding player names?"* Forge plays a seat by the name it had when the
+ * game began, and writes that name into its own words (a turn's header, a log line, a stack item).
+ * A replay names its people as they are now (`GET /api/replays/:id/people`), so those words do too.
+ */
+describe('a replay names its people as they are now, in Forge\'s own words too', () => {
+  const player = (id: number, name: string): Record<string, unknown> => ({
+    _type: 1, _id: id, Name: { t: 'str', v: name }, LobbyPlayerName: { t: 'str', v: name }, Life: { t: 'int', v: 20 },
+    MaxHandSize: { t: 'int', v: 7 }, MaxLandPlay: { t: 'int', v: 1 }, DraftNotes: { t: 'map', v: [] }, Mana: { t: 'map', v: [] },
+  });
+  const gameView = {
+    268435456: player(0, 'Player 8'),
+    268435457: player(1, 'Player 80583'),
+    536870919: { _type: 2, _id: 7, Description: { t: 'str', v: 'Ice - Tap Fyndhorn Elves. Player 80583 draws a card.' }, Key: { t: 'str', v: 'Ice (166): Tap target permanent.' }, ActivatingPlayer: { t: 'int', v: 1 } },
+    805306369: {
+      _type: 3, _id: 1, Players: { t: 'list', v: [{ t: 'int', v: 0 }, { t: 'int', v: 1 }] }, Stack: { t: 'list', v: [{ t: 'int', v: 7 }] },
+      GameType: { t: 'enum', c: 'forge.game.GameType', v: 'Constructed' }, Title: { t: 'str', v: 'Player 8 vs Player 80583 (0-0)' }, WinningTeam: { t: 'int', v: -1 }, NumGamesInMatch: { t: 'int', v: 1 }, PoisonCountersToLose: { t: 'int', v: 10 },
+    },
+  };
+  const header: ReplayHeader = { matchId: 'm-renamed', roomId: 'r-1', players: ['Player 8', 'Player 80583'], ai: [false, false], decks: [], art: [], startedAt: '2026-11-21T08:00:00.000Z' };
+  const env = (seq: number, frame: ServerFrame) => ({ at: seq * 100, env: { matchId: header.matchId, cursor: { epoch: 'e1', seq }, frame } });
+  const message = (message: string, log: Omit<GameLogLine, 'cards'>): ServerFrame => parseServerFrame({ kind: 'notify', method: 'message', message, title: '', log: { cards: [], ...log } }, 'message');
+  const data: ReplayData = {
+    header,
+    envs: [
+      env(1, parseServerFrame({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: -1 } }, 'setGameView')),
+      env(2, parseServerFrame({ kind: 'notify', method: 'openView', payload: { myPlayers: [0] } }, 'openView')),
+      env(3, message('Turn 14 (Player 80583)', { type: 'TURN', actor: 1, turn: 14, phase: 'UNTAP' })),
+      env(4, message('Ice - Tap Fyndhorn Elves. Player 80583 draws a card.', { type: 'STACK_RESOLVE', phase: 'MAIN1' })),
+      env(5, message('Player 8 played Island', { type: 'LAND', phase: 'MAIN1' })),
+    ],
+    presence: [],
+    relays: [],
+    end: {
+      endedAt: '2026-11-21T08:55:46.389Z',
+      winner: 0,
+      seats: [
+        { seat: 0, claimed: true, playerId: 0, avatarId: 'mage' },
+        { seat: 1, claimed: true, playerId: 1, avatarId: 'dreamer' },
+      ],
+    },
+    people: { 1: { name: 'coffeetraveler' } },
+  };
+
+  it('the log, its turn headers and the stack say the name a seat has now, never the one Forge was dealt', () => {
+    vi.useFakeTimers();
+    const { match, clock } = createReplayPlayer(data);
+    clock.play();
+    vi.advanceTimersByTime(1000);
+    const { container } = render(createElement(GameLog, { says: match.says, view: match.view }));
+    const text = container.textContent ?? '';
+    expect(text).toContain('coffeetraveler');
+    expect(text).toContain('Ice - Tap Fyndhorn Elves. coffeetraveler draws a card.');
+    expect(text, 'a seat nobody renamed keeps its name, and a name inside another is never touched').toContain('Player 8 played Island');
+    expect(text).not.toContain('80583');
+    const stack = match.view?.stack[0];
+    expect([stack?.description, stack?.controllerName]).toEqual(['Ice - Tap Fyndhorn Elves. coffeetraveler draws a card.', 'coffeetraveler']);
+    closeMatch(match);
+    clock.dispose();
+    vi.useRealTimers();
   });
 });
