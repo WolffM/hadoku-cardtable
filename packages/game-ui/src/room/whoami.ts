@@ -25,7 +25,8 @@ export interface Who {
   tier: WhoamiAnswer['userType'];
   /**
    * The tier exactly as the fleet named it: `member` stays `member`. A gate that means the fleet's
-   * own tier (a friends-only room, {@link atLeastFriend}) reads this, never `tier`.
+   * own tier (a friends-only room, {@link atLeastFriend}) reads this, never `tier`. So does the fleet's
+   * account panel: it labels the hadoku account, and only a guest or member may delete their own.
    */
   edgeTier: WhoamiAnswer['userType'];
   /** The viewer's display name. Null when the fleet has none for them. */
@@ -48,7 +49,7 @@ export const registerWhoamiTier = whoamiTier.set;
  * The viewer's tier as cardtable treats it: a member (a guest the operator has verified) IS a friend
  * here (the operator, 2026-11-05: *"for cardtable they will be equivalent"*); a guest is never
  * promoted. Read from the tier alone, never the fleet's `verified` flag. The server's `tierOf` makes
- * the same call for every gate; this is the tier the fleet chrome is handed to show.
+ * the same call for every gate. The fleet's account panel is handed `Who.edgeTier` instead.
  */
 export function tierOfWhoami(r: Pick<WhoamiAnswer, 'userType'>): Who['tier'] {
   return r.userType === 'member' ? 'friend' : r.userType;

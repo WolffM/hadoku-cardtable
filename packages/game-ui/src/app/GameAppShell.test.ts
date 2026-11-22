@@ -81,9 +81,15 @@ describe('GameAppShell', () => {
     expect(within(screen.getByTestId('tab-game')).queryByRole('radiogroup', { name: 'Chat sound' })).toBeNull();
   });
 
-  it('reads the tier as the fleet answered it, unless the game registers its own reading', async () => {
+  it('hands the account panel the fleet\'s own tier, while the game\'s reading of it drives the game', async () => {
     registerWhoamiTier(tierOfWhoami);
-    render(createElement(GameAppShell, { className: 'c', children: () => createElement(GameHeader, { title: 'Game' }) }));
-    await waitFor(() => expect(JSON.parse(screen.getByTestId('header').dataset.settings!)).toEqual({ userType: 'friend', name: 'Pat' }));
+    function Tier() {
+      const who = useWhoami();
+      return createElement('p', { 'data-testid': 'tier' }, who === 'pending' || who === null ? '' : who.tier);
+    }
+    render(createElement(GameAppShell, { className: 'c', children: () => createElement('div', null, createElement(GameHeader, { title: 'Game' }), createElement(Tier)) }));
+    await waitFor(() => expect(screen.getByTestId('tier').textContent).toBe('friend'));
+    // A member's account panel says Member and offers Delete account; a friend's does neither.
+    expect(JSON.parse(screen.getByTestId('header').dataset.settings!)).toEqual({ userType: 'member', name: 'Pat' });
   });
 });

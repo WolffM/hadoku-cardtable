@@ -89,7 +89,7 @@ export function GameHeader({ children, appTabs, ...props }: Omit<AppHeaderProps,
   return (
     <AppHeader
       {...props}
-      settingsProps={viewer === null ? undefined : { userType: viewer.tier, name: viewer.name }}
+      settingsProps={viewer === null ? undefined : { userType: viewer.edgeTier, name: viewer.name }}
       appTabs={soundTab ? appTabs!.map((t) => (t.id === SOUND_TAB_ID ? { ...t, render: () => <>{t.render()}{chatSound}</> } : t)) : appTabs}
       // Passed only when it holds something: any `children` at all draws an App tab.
       children={soundTab ? children : <>{children}{chatSound}</>}
