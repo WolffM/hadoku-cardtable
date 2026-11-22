@@ -22,7 +22,7 @@ import { forgeAvailability, startPlayStack } from '../../../../../../e2e/play/ha
 
 import { watchExit } from './exit-watch.ts';
 import { fetchDeckLibrary } from './deck-pool.ts';
-import { runPool } from './pool.ts';
+import { RUN_STACK_ENV, runPool } from './pool.ts';
 import { makeRng, seedArg, seedFrom } from './rng.ts';
 import { runMatch } from './run-match.ts';
 import { buildReport, stopReason, summaryText, type MatchResult } from './report.ts';
@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const stack = await startPlayStack({ jar: available.jar, res: available.res });
+  const stack = await startPlayStack({ jar: available.jar, res: available.res }, { env: { ...RUN_STACK_ENV } });
   console.log(`[monkey] play stack up at ${stack.origin} (work dir ${stack.workDir})`);
 
   const cookie = `${SESSION_COOKIE}=alice`;

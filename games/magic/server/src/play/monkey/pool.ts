@@ -4,6 +4,15 @@
  * spent — the matches already playing finish, and the rest are never started.
  */
 
+/**
+ * How long a finished game stays on its JVM, for the monkey's and the sweep's stacks alike. Play's
+ * own ten minutes is a returning player's window to see how the game ended; a run that finishes a
+ * match every few seconds and never looks back kept dozens of finished games live, a new JVM opened
+ * every 25 of them, and the job outgrew its runner: the sweep at hokon's 8 GB cap, the monkey at a
+ * claw's 6.2 GiB after 34 matches (2026-11-22, three JVMs of 0.8, 2.6 and 1.3 GB).
+ */
+export const RUN_STACK_ENV: Readonly<Record<string, string>> = { CARDTABLE_PLAY_OVER_GRACE_MS: '10000' };
+
 export interface PoolOutcome<T> {
   /** Every task that ran, in task order. */
   results: T[];

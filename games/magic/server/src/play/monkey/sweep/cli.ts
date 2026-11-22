@@ -20,7 +20,7 @@ import { PREFIX, SESSION_COOKIE } from '../../../../../../../e2e/identities.ts';
 import { forgeAvailability, startPlayStack } from '../../../../../../../e2e/play/harness.ts';
 
 import { watchExit } from '../exit-watch.ts';
-import { runPool } from '../pool.ts';
+import { RUN_STACK_ENV, runPool } from '../pool.ts';
 import { makeRng, seedFrom } from '../rng.ts';
 
 import { differences, differenceText, expectedOf, signatureOf, type Expected } from './expected.ts';
@@ -33,13 +33,6 @@ import { setCards, type SetCard } from './set-cards.ts';
 const REPLAYS = 3;
 /** The wall a match gets for each card past its first. */
 const EXTRA_CARD_MS = 30_000;
-/**
- * How long a swept match's finished game stays on its JVM. Play's own ten minutes is a returning
- * player's window to see how the game ended; the sweep reads the board before it concedes and
- * finishes a match every few seconds, so at ten minutes some 200 finished games stayed live, a
- * new JVM opened every 25 of them, and the runner's 8 GB memory cap killed the job (#82).
- */
-const OVER_GRACE_MS = 10_000;
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -78,7 +71,7 @@ async function main(): Promise<void> {
   const expectedFile = resolve(import.meta.dirname, 'expected', `${set}.json`);
   const recorded: Expected = existsSync(expectedFile) ? (JSON.parse(readFileSync(expectedFile, 'utf8')) as Expected) : {};
 
-  const stack = await startPlayStack({ jar: available.jar, res: available.res }, { env: { CARDTABLE_PLAY_OVER_GRACE_MS: String(OVER_GRACE_MS) } });
+  const stack = await startPlayStack({ jar: available.jar, res: available.res }, { env: { ...RUN_STACK_ENV } });
   console.log(`[sweep] play stack up at ${stack.origin} (work dir ${stack.workDir})`);
   const startedAt = new Date().toISOString();
   // The result that counts for each card and variant. Written after every match, so a run that is killed leaves what it had played.

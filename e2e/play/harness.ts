@@ -702,6 +702,10 @@ export async function startPlayStack(forge: { jar: string; res: string }, opts: 
         CARDTABLE_DRAFT_BOT_PICK_MS: process.env.CARDTABLE_DRAFT_BOT_PICK_MS ?? '100',
         // `promo/` films with the real sound library; a spec never sets it, so the stack stays silent.
         ...(process.env.CARDTABLE_SOUNDS_DIR === undefined ? {} : { CARDTABLE_SOUNDS_DIR: process.env.CARDTABLE_SOUNDS_DIR }),
+        // The JVMs' flags, for a caller that sizes them (the monkey and the sweep run a 1 GiB heap,
+        // forge-monkey.yml). Not passed, every match JVM ran at JVM_HEAP_MB's 2 GiB under a step that
+        // set 1 GiB, and the monkey outgrew a claw's 6.2 GiB unit in ten minutes (2026-11-22).
+        ...(process.env.CARDTABLE_PLAY_JVM_OPTS === undefined ? {} : { CARDTABLE_PLAY_JVM_OPTS: process.env.CARDTABLE_PLAY_JVM_OPTS }),
         ...opts.env,
       },
     });
