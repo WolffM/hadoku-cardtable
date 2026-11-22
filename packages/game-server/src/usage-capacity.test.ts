@@ -67,7 +67,7 @@ describe('POST /api/usage', () => {
 						entries: [{ kind: 'click', screen: 'lobby', target: 'room-card' }],
 					},
 					'8d0e4a7c-2b19-4f63-b8d5-1e9a6c3b7f02',
-					'friend',
+					'member',
 				)
 			).status,
 		).toBe(204);
@@ -76,14 +76,15 @@ describe('POST /api/usage', () => {
 		u.counter.flush();
 		u.counter.stop();
 
-		expect(u.events).toEqual([
+		// The edge's own tier: a member is reported as a member, never as the friend cardtable's gates read them as.
+		expect(u.events.filter(([e]) => e === 'usage')).toEqual([
 			[
 				'usage',
 				{
 					from: new Date(0).toISOString(),
 					minutes: 5,
 					users: 2,
-					tiers: { guest: 1, friend: 1 },
+					tiers: { guest: 1, member: 1 },
 					batches: 2,
 					dropped: 0,
 					views: 1,
@@ -91,6 +92,10 @@ describe('POST /api/usage', () => {
 					top: { 'click lobby room-card': 2, 'view lobby': 1 },
 				},
 			],
+		]);
+		expect(u.events.filter(([e]) => e === 'usage-user').map(([, c]) => [c.tier, c.trail])).toEqual([
+			['guest', ['00:00:00 view lobby', '00:00:00 click lobby room-card']],
+			['member', ['00:00:00 click lobby room-card']],
 		]);
 	});
 

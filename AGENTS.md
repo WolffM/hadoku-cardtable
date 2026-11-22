@@ -268,6 +268,11 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
   where key rotation writes it): reports in `~/.local/state/cardtable/telemetry/`
   (`latest.txt`), and an `ALERTS` line for every day it exited non-zero. Read
   `latest.txt` and `ALERTS` at the start of a session.
+- **One person's visit:** `node scripts/telemetry/player.ts --name "Player 80583"` (or
+  `--user <userId>`, `--hours`/`--since`/`--until`, `--all`) prints their edge requests, their
+  own screen-and-press trail and every server event naming them as one timeline, 4xx/5xx marked
+  `!`. Moves inside a match are per seat in the prod server log (`~/.pm2/logs/cardtable-out*.log`,
+  by `matchId`), not here.
 - **What the server reports** (`packages/game-server/src/telemetry.ts`, one post per
   event and caller a minute, the rest counted as `suppressed`):
   `caller-first-seen` (once per account, ever), `seal-refused` (the server's
@@ -276,7 +281,9 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
   A new expensive step goes through `perCallerLimit` and is covered.
   Every 5 min: `usage` (screens shown and controls pressed, counted by
   `data-testid` with ids stripped — `packages/game-ui/src/usage.ts`, so a control needs
-  a testid to be counted) and `capacity` (peak sockets, rooms, drafts, matches,
+  a testid to be counted), one `usage-user` per person active in the window (their userId,
+  name, the edge's own tier — a member reads `member` — and their ordered trail,
+  `06:41:02 click room pick`, `packages/service-kernel/src/relays/usage.ts`) and `capacity` (peak sockets, rooms, drafts, matches,
   JVMs, free Forge slots, request rate and p95, event-loop stall —
   `packages/game-server/src/capacity.ts`); `capacity-refused` when a start meets the
   server's match ceiling.

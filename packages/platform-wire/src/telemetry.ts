@@ -43,11 +43,20 @@ export const USAGE_BATCH_MAX = 200;
  */
 const UsageNameSchema = z.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9_.:/-]*$/);
 
+/** A page's own `Date.now()`: only ever read relative to the batch's `sentAt`. */
+const PageClockSchema = z.number().int().nonnegative();
+
 /**
  * What the browser reports about how the app is used: each screen it shows and each named control
- * pressed, batched. The server only counts them; nothing per click is stored.
+ * pressed, batched, each stamped with the page's clock (`at`) and the batch with when it left
+ * (`sentAt`). The server counts them for everyone and keeps each person's own ordered trail.
+ * `at`/`sentAt` are optional only for a tab opened before they existed.
  */
-const UsageEntrySchema = z.object({ kind: z.enum(['view', 'click']), screen: UsageNameSchema, target: UsageNameSchema.optional() }).strict();
-export const UsageBatchSchema = z.object({ entries: z.array(UsageEntrySchema).min(1).max(USAGE_BATCH_MAX) }).strict();
+const UsageEntrySchema = z
+  .object({ kind: z.enum(['view', 'click']), screen: UsageNameSchema, target: UsageNameSchema.optional(), at: PageClockSchema.optional() })
+  .strict();
+export const UsageBatchSchema = z
+  .object({ entries: z.array(UsageEntrySchema).min(1).max(USAGE_BATCH_MAX), sentAt: PageClockSchema.optional() })
+  .strict();
 
 export type UsageBatch = z.output<typeof UsageBatchSchema>;

@@ -2,8 +2,9 @@
 /*
  * The generic counting behaviour (targetName, batching, flush timing) is pinned where it now lives:
  * packages/ui-shell/src/usage/index.test.ts. What is left here is cardtable's own wiring: the
- * screen a route hash names, and that `startUsage()` posts to this app's own URL with this app's
- * own batch limit, in a batch the server schema accepts.
+ * screen an address names (its path, where the app's routes live, or its hash), and that
+ * `startUsage()` posts to this app's own URL with this app's own batch limit, in a batch the
+ * server schema accepts.
  */
 import { UsageBatchSchema, type UsageBatch } from '@hadoku/shared';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -11,11 +12,18 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { screenOf, startUsage } from '@hadoku/game-ui/usage.ts';
 
 describe('screenOf', () => {
+  const at = (pathname: string, hash = '') => screenOf({ pathname, hash }, '/cardtable/');
+
   it('names a screen by its route, and a room table apart from its room', () => {
-    expect(screenOf('')).toBe('lobby');
-    expect(screenOf('#/room/r-1a2b3c')).toBe('room');
-    expect(screenOf('#/room/r-1a2b3c/table/t-9')).toBe('room/table');
-    expect(screenOf('#/match/m-1')).toBe('match');
+    expect(at('/cardtable/')).toBe('lobby');
+    expect(at('/cardtable/', '#/room/r-1a2b3c')).toBe('room');
+    expect(at('/cardtable/', '#/room/r-1a2b3c/table/t-9')).toBe('room/table');
+    expect(at('/cardtable/', '#/match/m-1')).toBe('match');
+  });
+
+  it("names a room's page by its path, not as the lobby its empty hash would read as", () => {
+    expect(at('/cardtable/room/r-15bc7e47c9b1')).toBe('room');
+    expect(at('/cardtable/stats')).toBe('stats');
   });
 });
 
@@ -40,11 +48,12 @@ describe('startUsage', () => {
 
     expect(sent).toHaveLength(1);
     expect(sent[0]!.url.endsWith('/api/usage')).toBe(true);
-    expect(sent[0]!.batch.entries).toEqual([
-      { kind: 'view', screen: 'lobby' },
+    expect(sent[0]!.batch.entries.map(({ kind, screen, target }) => ({ kind, screen, target }))).toEqual([
+      { kind: 'view', screen: 'lobby', target: undefined },
       { kind: 'click', screen: 'lobby', target: 'seat' },
-      { kind: 'view', screen: 'room' },
+      { kind: 'view', screen: 'room', target: undefined },
     ]);
+    expect(sent[0]!.batch.entries.every((e) => typeof e.at === 'number' && e.at <= sent[0]!.batch.sentAt!)).toBe(true);
     expect(UsageBatchSchema.safeParse(sent[0]!.batch).success).toBe(true);
   });
 });

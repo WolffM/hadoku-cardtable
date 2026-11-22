@@ -187,6 +187,15 @@ export function tierOf(req: Request): string {
 	return tier === 'member' ? 'friend' : tier;
 }
 
+/**
+ * The caller's tier exactly as the edge named it — `member` stays `member`. For telemetry and
+ * anything else that reports who someone is; a gate reads `tierOf`.
+ */
+export function edgeTierOf(req: Request): string {
+	const t = req.headers['x-hadoku-tier'];
+	return typeof t === 'string' && t !== '' ? t : 'public';
+}
+
 /** The caller's userId as the edge stamped it; null when the edge named nobody. */
 export function callerIdOf(req: Request): string | null {
 	const u = req.headers['x-user-id'];

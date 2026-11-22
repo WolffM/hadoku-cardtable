@@ -69,8 +69,8 @@ export function watchApp(c: DevkitConfig): WatchApp {
 	return { name: c.appId, envPrefix: c.envPrefix, ...t };
 }
 
-const UA = 'Mozilla/5.0 hadoku-agent';
-const BASE = 'https://hadoku.me/health/api';
+export const UA = 'Mozilla/5.0 hadoku-agent';
+export const BASE = 'https://hadoku.me/health/api';
 /** What each page asks for. A listing may answer fewer (service-events stops at 500) and still say `hasMore`. */
 const PAGE = 1000;
 /** The Discord message's budget (Discord's own limit is 2000). */

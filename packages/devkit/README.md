@@ -23,6 +23,7 @@ as hooks the config names. MIT. Private until it joins the publish list.
    | `scripts/land.sh` | `src/lanes/land.sh` |
    | `scripts/telemetry/daily.sh` | `src/telemetry/daily.sh` |
    | `scripts/telemetry/watch.ts` | `main` of `src/telemetry/watch.ts` |
+   | `scripts/telemetry/player.ts` | `main` of `src/telemetry/player.ts` |
    | `scripts/release/collect.ts`, `credits.ts` | `main` of `src/release/*.ts` |
 
    ```sh

@@ -18,6 +18,7 @@ import {
 	assertFloor as kernelAssertFloor,
 	rankOf,
 	tierOf,
+	edgeTierOf,
 	callerIdOf,
 	userIdOf,
 	userKeyOf,
@@ -27,7 +28,7 @@ import {
 } from '@hadoku/service-kernel/auth';
 import { ENV_PREFIX, edgeAuth, gate } from './kernel.js';
 
-export { TIER_ORDER, rankOf, tierOf, callerIdOf, userIdOf, userKeyOf, accountIdOf, userNameOf, isAdmin };
+export { TIER_ORDER, rankOf, tierOf, edgeTierOf, callerIdOf, userIdOf, userKeyOf, accountIdOf, userNameOf, isAdmin };
 export type { Tier };
 
 /**
