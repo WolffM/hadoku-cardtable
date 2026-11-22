@@ -21,12 +21,19 @@
 
 .featured-match__title {
   display: flex;
+  white-space: nowrap;
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
   font-size: 0.8rem;
   flex: 0 0 auto;
   border-bottom: 1px solid var(--color-border);
+}
+
+.featured-match__tag,
+.featured-match__turn,
+.featured-match__watch {
+  flex: none;
 }
 
 .featured-match__tag {
@@ -48,6 +55,8 @@
 }
 
 .featured-match__turn {
+  min-width: 4.5em;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-secondary);
 }
 
