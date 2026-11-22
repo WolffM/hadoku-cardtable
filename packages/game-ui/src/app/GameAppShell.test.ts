@@ -75,7 +75,9 @@ describe('GameAppShell', () => {
     render(createElement(GameAppShell, { className: 'c', children: () => createElement(GameHeader, { title: 'Game', appTabs: tabs }) }));
     await waitFor(() => expect(screen.getByTestId('header').dataset.appTab).toBe('no'));
     expect(screen.getByTestId('tab-sound').querySelector('[data-testid="game-sound"]'), 'the game\'s own sound settings stay').not.toBeNull();
-    await waitFor(() => expect(within(screen.getByTestId('tab-sound')).getByRole('radiogroup', { name: 'Chat sound' })).toBeTruthy());
+    // The switch is a lazy chunk (`GameAppShell.tsx`'s `import('@wolffm/watchparty-ui/room-chrome')`):
+    // its load is not what this test is about, and on a loaded host it takes longer than waitFor's 1 s.
+    await waitFor(() => expect(within(screen.getByTestId('tab-sound')).getByRole('radiogroup', { name: 'Chat sound' })).toBeTruthy(), { timeout: 15_000 });
     expect(within(screen.getByTestId('tab-game')).queryByRole('radiogroup', { name: 'Chat sound' })).toBeNull();
   });
 

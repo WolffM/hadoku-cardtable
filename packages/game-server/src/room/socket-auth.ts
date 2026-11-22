@@ -12,7 +12,7 @@
 import type { Request } from 'express';
 import type { IncomingHttpHeaders } from 'node:http';
 
-import { tierOf } from '../edge-auth.js';
+import { edgeTierOf, tierOf } from '../edge-auth.js';
 
 export function handshakeTier(headers: IncomingHttpHeaders): string {
 	// `tierOf` reads exactly one header off `req.headers`, but it is typed for an
@@ -22,4 +22,9 @@ export function handshakeTier(headers: IncomingHttpHeaders): string {
 	// disagree about who is allowed in, which is the bug `edge-auth.ts`'s header
 	// is written about.
 	return tierOf({ headers } as unknown as Request);
+}
+
+/** `edgeTierOf` over the same handshake: the tier exactly as the edge named it (`./tier-floor.ts`'s room floors read this). */
+export function handshakeEdgeTier(headers: IncomingHttpHeaders): string {
+	return edgeTierOf({ headers } as unknown as Request);
 }

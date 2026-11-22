@@ -27,6 +27,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 import { magicGame, PAGE_EVENT_PATH, type ChallengeEvent } from '@hadoku/shared';
 
 import { apiUrl, sendJson } from '@hadoku/game-ui/http.ts';
+import { atLeastFriend, useWhoami } from '@hadoku/game-ui/room/whoami.ts';
 import { everyFrame } from '@hadoku/ui-shell/motion';
 import { usePageFrames } from './page-frames.ts';
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
@@ -145,10 +146,20 @@ function rowVars(family: string, state: string): NonNullable<RoomFrontRowExtras[
   };
 }
 
-/** Every external game cardtable may draw a room for, offered on the create form only with Experimental features on (the same gate Challenge uses) — an `e2eOnly` entry only on top of that, and only for the e2e harness. */
-function externalGameTypes(): readonly RoomFrontGameType[] {
+/**
+ * Every external game cardtable may draw a room for, offered on the create form only with
+ * Experimental features on (the same gate Challenge uses) — an `e2eOnly` entry only on top of that,
+ * and only for the e2e harness; a friends-only game (`minTier`) only to a friend or above, whom the
+ * server alone would let make one anyway.
+ */
+function externalGameTypes(friend: boolean): readonly RoomFrontGameType[] {
   const toyGames = e2eToyGamesEnabled();
-  return EXTERNAL_GAMES.filter((g) => g.e2eOnly !== true || toyGames).map((g) => ({ id: g.id, label: g.label }));
+  return EXTERNAL_GAMES.filter((g) => (g.e2eOnly !== true || toyGames) && (g.minTier === undefined || friend)).map((g) => ({ id: g.id, label: g.label }));
+}
+
+/** Whether every room of `gameType` is friends-only already, so the switch has nothing to choose. */
+function friendsOnlyGame(gameType: string): boolean {
+  return EXTERNAL_GAMES.some((g) => g.id === gameType && g.minTier !== undefined);
 }
 
 export function RoomList({ client: given, feed, onFeatured }: RoomListProps) {
@@ -198,7 +209,8 @@ export function RoomList({ client: given, feed, onFeatured }: RoomListProps) {
   );
 
   const experimental = usePrefs(getPlayPrefsClient()).prefs?.experimental ?? PLAY_PREFS_DEFAULTS.experimental;
-  const gameTypes: readonly RoomFrontGameType[] = experimental ? [...MAGIC_GAME_TYPES, ...externalGameTypes(), CHALLENGE_TYPE] : MAGIC_GAME_TYPES;
+  const friend = atLeastFriend(useWhoami());
+  const gameTypes: readonly RoomFrontGameType[] = experimental ? [...MAGIC_GAME_TYPES, ...externalGameTypes(friend), CHALLENGE_TYPE] : MAGIC_GAME_TYPES;
 
   /* ── Create room's own fields, and Challenge's wholly different creation ───────────────────── */
 
@@ -235,13 +247,14 @@ export function RoomList({ client: given, feed, onFeatured }: RoomListProps) {
           submit: () => client.createChallenge(choice) as unknown as Promise<RoomFrontCreateOutcome<never>>,
         };
       }
-      const value: RoomFieldValues = { ...fields, gameType: kind };
+      const offerFriendsOnly = friend && !friendsOnlyGame(kind);
+      const value: RoomFieldValues = { ...fields, gameType: kind, friendsOnly: offerFriendsOnly && fields.friendsOnly };
       return {
-        node: <RoomFields idPrefix="room-create" value={value} onChange={setFields} showType={false} />,
+        node: <RoomFields idPrefix="room-create" value={value} onChange={setFields} showType={false} offerFriendsOnly={offerFriendsOnly} />,
         body: roomRequest(value),
       };
     },
-    [events, choice, fields, client],
+    [events, choice, fields, client, friend],
   );
 
   /* ── the row's own icons and chips ──────────────────────────────────────────────────────────── */

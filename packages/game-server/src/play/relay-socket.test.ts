@@ -97,7 +97,12 @@ async function boot(rosters: Record<string, Roster>, options: Parameters<typeof 
 
 async function bootWith(
 	rosterFor: (matchId: string) => import('./relay-socket.ts').RelayRoster | undefined,
-	options: { joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } | null; gate?: Parameters<typeof socketMod.attachRelay>[1]['gate'] } = {},
+	options: {
+		joinRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } | null;
+		gate?: Parameters<typeof socketMod.attachRelay>[1]['gate'];
+		admits?: Parameters<typeof socketMod.attachRelay>[1]['admits'];
+		messageRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } | null;
+	} = {},
 ): Promise<Harness> {
 	const logs: Record<string, unknown>[] = [];
 	const ended: { matchId: string; outcome: unknown }[] = [];
@@ -106,9 +111,11 @@ async function bootWith(
 	const handle = socketMod.attachRelay(io, {
 		minTier: 'friend',
 		rosterOf: rosterFor,
+		admits: options.admits ?? (() => true),
 		onEnded: (matchId, outcome) => ended.push({ matchId, outcome }),
 		log: (e) => logs.push(e),
 		joinRateLimit: options.joinRateLimit,
+		...(options.messageRateLimit === undefined ? {} : { messageRateLimit: options.messageRateLimit }),
 		...(options.gate === undefined ? {} : { gate: options.gate }),
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
@@ -219,6 +226,20 @@ describe('relay:join', () => {
 		expect(ack).toEqual({ ok: false, error: 'not-joined' });
 	});
 
+	it("refuses seat and watcher alike when the room does not admit them (a friends-only room below friend), and asks with the edge's own tier", async () => {
+		const asked: { matchId: string; participantId: string; tier: string }[] = [];
+		const admits = (matchId: string, participantId: string, tier: string): boolean => {
+			asked.push({ matchId, participantId, tier });
+			return tier !== 'member';
+		};
+		const h = await boot({ m1: { seatCount: 2, seats: { 0: 'alice', 1: 'bob' }, watchers: ['carol'] } }, { admits });
+		expect(await (await connect(h.port, edgeHeaders('alice', 'member'))).join('m1')).toEqual({ ok: false, error: 'not-joined' });
+		expect(await (await connect(h.port, edgeHeaders('carol', 'member'))).join('m1')).toEqual({ ok: false, error: 'not-joined' });
+		expect(await (await connect(h.port, edgeHeaders('bob'))).join('m1')).toEqual({ ok: true, seat: 1 });
+		expect(asked.map((a) => a.tier)).toEqual(['member', 'member', 'friend']);
+		expect(asked[2]).toMatchObject({ matchId: 'm1', participantId: participantOf('bob') });
+	});
+
 	it('answers a seat with its own seat number, and a watcher with null', async () => {
 		const h = await boot({ m1: { seatCount: 2, seats: { 0: 'alice', 1: 'bob' }, watchers: ['carol'] } });
 		const aliceAck = await (await connect(h.port, edgeHeaders('alice'))).join('m1');
@@ -260,6 +281,20 @@ describe('relay:message', () => {
 		alice.send(3);
 		await waitUntil(() => bob.messages.length === 3, 'bob to hear all three');
 		expect(bob.messages).toEqual([1, 2, 3]);
+	});
+
+	it("drops a seat's messages past its rate limit, logs the refusal once per burst, and never touches the other seat's budget", async () => {
+		const h = await boot({ m1: { seatCount: 2, seats: { 0: 'alice', 1: 'bob' }, watchers: [] } }, { messageRateLimit: { capacity: 3, refillAmount: 1, refillIntervalMs: 60_000 } });
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.join('m1');
+		await bob.join('m1');
+		for (let i = 0; i < 5; i += 1) alice.send({ n: i });
+		bob.send({ from: 'bob' });
+		await waitUntil(() => alice.messages.length === 1, 'bob reaches alice');
+		await waitUntil(() => bob.messages.length === 3, "alice's first three reach bob");
+		expect(bob.messages).toEqual([{ n: 0 }, { n: 1 }, { n: 2 }]);
+		expect(h.logs.filter((e) => e.evt === 'relay-send-refused' && e.reason === 'rate-limited')).toHaveLength(1);
 	});
 
 	it("a watcher's send is refused: nothing is relayed, and the match keeps running", async () => {

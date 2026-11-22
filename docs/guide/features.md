@@ -212,9 +212,25 @@ draft is its whole field, open seats dashed.
 **How to use it.** Nothing to click; it happens automatically whenever a
 room link is shared.
 
-**What it does not do.** A room with a password, a testing room, and a room
-that does not exist all answer with the same plain 404 — the preview never
-shows more than the room's own members would see.
+**What it does not do.** A room with a password, a testing room, a
+friends-only room, and a room that does not exist all answer with the same
+plain 404 — the preview never shows more than the room's own members would
+see.
+
+## Friends-only rooms
+
+**What it does.** A room made friends-only exists only for the fleet's friend
+tier and above: anyone below it never sees it in the room list, and reading,
+joining, its chat and its game's relay all answer as if it did not exist. A
+verified member is not a friend here, though Card Table lets a member do
+everything else a friend does. A game can also be friends-only as a whole,
+in which case every room of it is.
+
+**How to use it.** On **Create room**, set **Friends only** to On. Only a
+friend or above is offered the switch.
+
+**What it does not do.** An event's room is never friends-only: events are
+public on the calendar and in Discord. _Tier: friend._
 
 ## Early builds
 

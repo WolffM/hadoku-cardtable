@@ -40,6 +40,8 @@ export interface PlatformRoomRecord<G, M extends PlatformMember = PlatformMember
 	testing: boolean;
 	/** When its event starts (`events.ts`). Absent for a room no event made. */
 	scheduledFor?: number;
+	/** The room's own tier floor above the app's (`tier-floor.ts`); absent for a room anyone at the app's floor may see. */
+	minTier?: string;
 	createdAt: number;
 	/** Last mutation, in ms. What the sweep ages a room out on. */
 	updatedAt: number;

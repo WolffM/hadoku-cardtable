@@ -189,6 +189,8 @@ export interface CreateRequest {
   password?: string;
   /** A constructed room's mode, chosen at create. Omitted: the leader chooses it in the room. */
   mode?: RoomMode;
+  /** Friends only: the room's own tier floor. Omitted: anyone at the app's floor. */
+  minTier?: 'friend';
 }
 
 /** A create's fields as the server takes them, name aside: an event's room sends the same (`../front/events.ts`). */
@@ -197,6 +199,7 @@ export function createRoomFields(req: Omit<CreateRequest, 'name'>): Record<strin
     gameType: req.gameType,
     clientMode: req.clientMode,
     ...(req.password !== undefined && req.password !== '' ? { password: req.password } : {}),
+    ...(req.minTier === undefined ? {} : { minTier: req.minTier }),
     ...req.mode,
   };
 }

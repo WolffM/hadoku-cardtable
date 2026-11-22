@@ -24,7 +24,8 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
-import { isAdmin } from '../edge-auth.js';
+import { edgeTierOf, isAdmin } from '../edge-auth.js';
+import { tierAdmits } from '../room/tier-floor.js';
 import { bodyErrors, callerOf, parseBody, perCallerLimit, type BodySchema } from './request.js';
 import { isWatchpartyRoomId, watchpartyRoomId } from '../room/watchparty-link.js';
 import { jsonLogger } from '../log.js';
@@ -38,6 +39,8 @@ export interface RoomViewCore {
 	leader: string;
 	members: readonly { id: string; ready: boolean }[];
 	testing?: boolean;
+	/** The room's own tier floor (`room/tier-floor.ts`); absent for none. */
+	minTier?: string;
 }
 
 /** The slice of `room/lobby.ts`'s `Lobby` this file calls, typed against `V` and `C` alone — never the real types. */
@@ -46,6 +49,8 @@ export interface LobbyCore<V extends RoomViewCore, C> {
 	offered(): V[];
 	isMember(roomId: string, callerId: string): boolean;
 	create(caller: CallerLike, body: C): { ok: true; room: V } | { ok: false };
+	/** The tier floor a room made from `body` would have (`room/lobby.ts`'s `minTierOf`). */
+	minTierOf(body: C): string | undefined;
 	join(roomId: string, caller: CallerLike, password?: string): { ok: true; room: V } | { ok: false; reason: 'no-match' | 'not-durable' };
 	setReady(roomId: string, callerId: string, ready: boolean): boolean;
 	touch(roomId: string, callerId: string): void;
@@ -237,11 +242,20 @@ function hasGameType(v: object): v is { gameType: string } {
 	return 'gameType' in v && typeof (v as { gameType?: unknown }).gameType === 'string';
 }
 
-/** A testing room, to a non-admin, is as if it did not exist — shared by this file's router and `rooms.ts`'s. */
-export function hideTestingRoomsParam<V extends RoomViewCore>(lobby: Pick<LobbyCore<V, never>, 'get'>): (req: Request, res: Response, next: NextFunction, id: string) => void {
+/**
+ * Whether `req`'s caller may know `room` exists at all: a testing room is an admin's, and a room
+ * with a tier floor (`room/tier-floor.ts`) is for that tier and above, by the edge's own name for it.
+ */
+export function roomVisibleTo(req: Request, room: RoomViewCore): boolean {
+	if (room.testing === true && !isAdmin(req)) return false;
+	return tierAdmits(room.minTier, edgeTierOf(req));
+}
+
+/** A room the caller may not see ({@link roomVisibleTo}) is as if it did not exist — shared by this file's router and `rooms.ts`'s. */
+export function hideRoomsParam<V extends RoomViewCore>(lobby: Pick<LobbyCore<V, never>, 'get'>): (req: Request, res: Response, next: NextFunction, id: string) => void {
 	return (req, res, next, id) => {
 		const room = lobby.get(id);
-		if (room !== undefined && room.testing && !isAdmin(req)) return noMatch(res);
+		if (room !== undefined && !roomVisibleTo(req, room)) return noMatch(res);
 		next();
 	};
 }
@@ -285,13 +299,12 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 
 	const rooms = Router();
 
-	rooms.param('id', hideTestingRoomsParam(lobby));
+	rooms.param('id', hideRoomsParam(lobby));
 
 	rooms.get('/', (req: Request, res: Response) => {
 		const me = callerOf(req).id;
-		const admin = isAdmin(req);
-		// A testing room is never offered to a non-admin.
-		const offered = lobby.offered().filter((room) => admin || !room.testing);
+		// A testing room is never offered to a non-admin, nor a friends-only room below friend.
+		const offered = lobby.offered().filter((room) => roomVisibleTo(req, room));
 		const pick = deps.featured?.(me) ?? null;
 		const featured = pick !== null && offered.some((room) => room.id === pick.roomId) ? pick : null;
 		res.json({ rooms: offered.map((room) => roomBody(room, me)), featured });
@@ -304,7 +317,12 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 	});
 	rooms.post('/', (req: Request, res: Response) => {
 		const body = parseBody(wire.createRoomBody, req, res);
-		if (body === null || !createLimit(req, res)) return;
+		if (body === null) return;
+		if (!tierAdmits(lobby.minTierOf(body), edgeTierOf(req))) {
+			log({ event: 'room-create-refused', reason: 'tier' });
+			return res.status(403).json({ error: 'this room needs a higher tier than yours' });
+		}
+		if (!createLimit(req, res)) return;
 		const caller = callerOf(req);
 		const result = lobby.create(caller, body);
 		if (!result.ok) return notDurable(res);
@@ -333,7 +351,7 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		const matchId = String(req.params.matchId);
 		const room = wire.roomIdRe.test(matchId) ? lobby.roomOfMatch(matchId) : undefined;
 		const me = callerOf(req).id;
-		if (room === undefined || !lobby.isMember(room.id, me)) return noMatch(res);
+		if (room === undefined || !lobby.isMember(room.id, me) || !roomVisibleTo(req, room)) return noMatch(res);
 		res.json(roomBody(room, me));
 	});
 

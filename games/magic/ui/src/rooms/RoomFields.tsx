@@ -19,9 +19,11 @@ export interface RoomFieldValues {
   /** Optional: a Constructed room created with none asks its leader first. */
   mode: ConstructedMode | null;
   password: string;
+  /** Friends only: the room's own tier floor (`minTier: 'friend'`). Offered only to a friend or above. */
+  friendsOnly: boolean;
 }
 
-export const NEW_ROOM_FIELDS: RoomFieldValues = { gameType: 'constructed-1v1', mode: null, password: '' };
+export const NEW_ROOM_FIELDS: RoomFieldValues = { gameType: 'constructed-1v1', mode: null, password: '', friendsOnly: false };
 
 /** The fields as a create request, name aside. */
 export function roomRequest(v: RoomFieldValues): Omit<CreateRequest, 'name'> {
@@ -30,14 +32,34 @@ export function roomRequest(v: RoomFieldValues): Omit<CreateRequest, 'name'> {
     clientMode: 'builtin',
     password: v.password,
     ...(v.gameType === 'constructed-1v1' && v.mode !== null ? { mode: freshRoomMode(v.mode) } : {}),
+    ...(v.friendsOnly ? { minTier: 'friend' as const } : {}),
   };
 }
+
+const ON_OFF: readonly RadioCard<'on' | 'off'>[] = [
+  { value: 'on', label: 'On' },
+  { value: 'off', label: 'Off' },
+];
 
 /**
  * `idPrefix` names every input and test id (`room-create` keeps Create room's own). `showType` false
  * leaves the game type to the caller, who draws its own row (Create room's adds Challenge).
+ * `offerFriendsOnly` draws the Friends only switch: the caller's to decide (a friend or above, on a
+ * form whose room may have a floor of its own — never an event's, which is public).
  */
-export function RoomFields({ idPrefix, value, onChange, showType = true }: { idPrefix: string; value: RoomFieldValues; onChange: (next: RoomFieldValues) => void; showType?: boolean }) {
+export function RoomFields({
+  idPrefix,
+  value,
+  onChange,
+  showType = true,
+  offerFriendsOnly = false,
+}: {
+  idPrefix: string;
+  value: RoomFieldValues;
+  onChange: (next: RoomFieldValues) => void;
+  showType?: boolean;
+  offerFriendsOnly?: boolean;
+}) {
   return (
     <>
       {showType && (
@@ -71,6 +93,20 @@ export function RoomFields({ idPrefix, value, onChange, showType = true }: { idP
         value={value.password}
         onChange={(e) => onChange({ ...value, password: e.target.value })}
       />
+
+      {offerFriendsOnly && (
+        <>
+          <span className="rooms__caption">Friends only</span>
+          <RadioCards
+            name={`${idPrefix}-friends-only`}
+            label="Friends only"
+            options={ON_OFF}
+            value={value.friendsOnly ? 'on' : 'off'}
+            onChange={(v) => onChange({ ...value, friendsOnly: v === 'on' })}
+            testId={`${idPrefix}-friends-only`}
+          />
+        </>
+      )}
     </>
   );
 }
@@ -128,10 +164,7 @@ const PACE_CARDS: readonly RadioCard<PickPace>[] = [
 ];
 const PACE: Readonly<Record<PickPace, PickTimer>> = { off: { on: false, speed: 1 }, normal: { on: true, speed: 1 }, fast: { on: true, speed: 2 } };
 const paceOf = (t: PickTimer): PickPace => (!t.on ? 'off' : t.speed >= 2 ? 'fast' : 'normal');
-const ON_OFF: readonly RadioCard<'on' | 'off'>[] = [
-  { value: 'on', label: 'On' },
-  { value: 'off', label: 'Off' },
-];
+
 
 /** A preset's value in the pool select, beside the cubes' bare ids. */
 const PRESET_VALUE = 'preset:';

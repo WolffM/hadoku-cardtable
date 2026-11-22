@@ -37,6 +37,7 @@ for (const game of EXTERNAL_GAMES) {
     id: game.id,
     runtime: game.runtime,
     seatRejoinGraceMs: game.seatRejoinGraceMs,
+    ...(game.minTier === undefined ? {} : { minTier: game.minTier }),
     seats: game.seats,
     ready: false,
     series: { length: 1 },

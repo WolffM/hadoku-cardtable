@@ -323,6 +323,25 @@ describe('attachServedRoom', () => {
 		}
 	});
 
+	it("a friends-only room admits no one the edge names below friend — not even a member of it; a friend outside it is admitted, since it has no password", async () => {
+		const h = await boot();
+		try {
+			const owner = { id: participantIdFor('owner'), name: 'owner', userId: null };
+			const made = h.lobby.create(owner, { name: 'friends', gameType: 'toy-game', minTier: 'friend' });
+			if (!made.ok) throw new Error('not made');
+			const key = `${APP_ID}-${made.room.id}`;
+			// Mia joined while she was a friend; the edge names her a member now.
+			h.lobby.join(made.room.id, { id: participantIdFor('mia'), name: 'mia', userId: null });
+			const mia = await joinRoom(h.port, edgeHeaders('mia', 'member'), key);
+			const fran = await joinRoom(h.port, edgeHeaders('fran'), key);
+			await vi.waitFor(() => expect(mia.errors[0]?.code).toBe('auth/forbidden'));
+			await vi.waitFor(() => expect(fran.snapshots).toBe(1));
+			expect(mia.snapshots).toBe(0);
+		} finally {
+			await h.close();
+		}
+	});
+
 	it('a below-floor tier never reaches connection at all — refused at the handshake, even as a member; a key for a room nobody has connects fine and is refused only at join', async () => {
 		const h = await boot();
 		try {

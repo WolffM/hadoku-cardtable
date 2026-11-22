@@ -43,6 +43,7 @@ import { attachRoomCore, badRequest, noMatch } from './http/room-core.js';
 import { callerOf } from './http/request.js';
 import { attachPeople, createPeople, type People } from './people.js';
 import { attachRelay } from './play/relay-socket.js';
+import { roomAdmits } from './room/tier-floor.js';
 import { relayMatches } from './play/runtimes/relay-match.js';
 import { configureParticipantIdDomain, identityFromHeaders } from './room/identity.js';
 import { RoomLobby, plainRoomType, type PlainRoomSize, type PlainRoomView, type PlatformRoomView, type RoomCreateInput, type RoomTypeHooks } from './room/lobby.js';
@@ -348,6 +349,7 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 				minTier: config.minTier,
 				gate: auth.gate,
 				rosterOf: (matchId) => relayMatches.get(matchId),
+				admits: (matchId, participantId, tier) => roomAdmits(lobby.get(matchId), lobby.isMember(matchId, participantId), tier),
 				log: relayLog,
 			});
 			// The room's own presence: its grace is not the relay seat's hold.

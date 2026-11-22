@@ -26,6 +26,7 @@ import { CONFIG } from '@hadoku/game-server/config';
 import { gateSocketIo } from '@hadoku/game-server/gate';
 import { attachRelay } from '@hadoku/game-server/play/relay-socket';
 import { relayMatches } from '@hadoku/game-server/play/runtimes/relay-match';
+import { roomAdmits } from '@hadoku/game-server/room/tier-floor';
 import { MAGIC_CONFIG } from '../config.js';
 import type { CardtablePlugin } from './state.js';
 
@@ -72,6 +73,7 @@ export const relayPlugin: CardtablePlugin = {
 		const relay = attachRelay(ctx.io, {
 			minTier: CONFIG.minTier,
 			rosterOf: (matchId) => relayMatches.get(matchId),
+			admits: (matchId, participantId, tier) => roomAdmits(lobby.get(matchId), lobby.isMember(matchId, participantId), tier),
 			log,
 			gate: { gateSocketIo },
 		});

@@ -119,7 +119,10 @@ function matchOf(view: RoomViewBase, myId: string): MatchInfo {
     // a character stays byte-identical to before this field existed, and a member who has one
     // now reaches the bundle and the match roster with it, never just the viewer's own (bm1-BR's
     // regression: rooms-protocol's `SeatInfo` had no field to carry it at all).
-    return [{ seat, userId: holder.name, name: holder.name, ...(holder.avatarId === undefined ? {} : { sprite: holder.avatarId }) }];
+    // `userId` is the member's id: stable, unique in the room, and never a session id. It was the
+    // display name once, so two players called the same thing were one handle to a bundle. The
+    // registry userId itself is not in the room view, and a bundle needs only a stable handle.
+    return [{ seat, userId: holder.id, name: holder.name, ...(holder.avatarId === undefined ? {} : { sprite: holder.avatarId }) }];
   });
   const seat = view.seats.indexOf(myId);
   return { id: view.id, seat: seat === -1 ? null : seat, seats };

@@ -74,6 +74,8 @@ export interface PreviewRoom {
   gameType: string;
   locked: boolean;
   testing: boolean;
+  /** A room with a tier floor of its own (friends-only) has no public preview. */
+  minTier?: string;
   leader: string;
   creator: string;
   /** Magic's part of the room, the fields of it the card draws: absent for a room of another game. */
@@ -554,7 +556,7 @@ export function previewHtml(title: string, description: string): string {
 function shown(deps: PreviewDeps, roomId: string): PreviewRoom | undefined {
   if (!ROOM_ID_RE.test(roomId)) return undefined;
   const room = deps.rooms.get(roomId);
-  if (room === undefined || room.locked || room.testing) return undefined;
+  if (room === undefined || room.locked || room.testing || room.minTier !== undefined) return undefined;
   return room;
 }
 

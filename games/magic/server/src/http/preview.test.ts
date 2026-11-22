@@ -223,6 +223,7 @@ describe("GET /preview/room/:id.{html,png}", () => {
     rooms.set("r-open", room());
     rooms.set("r-locked", room({ locked: true }));
     rooms.set("r-testing", room({ testing: true }));
+    rooms.set("r-friends", room({ minTier: "friend" }));
     rooms.set(
       "r-tournament",
       tournament([
@@ -407,11 +408,13 @@ describe("GET /preview/room/:id.{html,png}", () => {
     expect(found?.card.kind === "field" && found.card.faces).toHaveLength(FIELD_FACES - 1);
   });
 
-  it("is the same 404 for a room behind a password, a testing room, an unknown room and a bad path", async () => {
+  it("is the same 404 for a room behind a password, a testing room, a friends-only room, an unknown room and a bad path", async () => {
     for (const path of [
       "r-locked.html",
       "r-locked.png",
       "r-testing.png",
+      "r-friends.html",
+      "r-friends.png",
       "r-nope.html",
       "r-open.jpg",
       "R_BAD.png",

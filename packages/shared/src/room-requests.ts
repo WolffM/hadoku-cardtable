@@ -192,6 +192,8 @@ export const CreateRoomBodySchema = body({
   gameType: gameTypeField.default(DEFAULT_GAME_TYPE),
   clientMode: z.enum(CLIENT_MODES, { error: oneOf('clientMode', CLIENT_MODES) }).default(DEFAULT_CLIENT_MODE),
   password: passwordField,
+  /** Create room's friends-only switch: the room's own tier floor (`packages/game-server/src/room/tier-floor.ts`). */
+  minTier: z.enum(['friend'], { error: oneOf('minTier', ['friend']) }).optional(),
   mode: z.unknown().optional(),
   modeOptions: z.unknown().optional(),
 }).transform(({ mode, modeOptions, ...room }, ctx) => {

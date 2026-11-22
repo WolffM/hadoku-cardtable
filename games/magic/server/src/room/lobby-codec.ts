@@ -609,6 +609,7 @@ export function hostedRoomType<I extends RoomCreateInput>(gameType: string): Roo
 	});
 	return {
 		...plain,
+		...(spec.minTier === undefined ? {} : { minTier: spec.minTier }),
 		decode: (app, version, ctx) => plain.decode(app.seats === undefined ? { ...app, seats: (app.game as { podSeats?: unknown } | undefined)?.podSeats } : app, version, ctx),
 		writes: (app) => ({ ...app, game: { podSeats: app.seats } }),
 	};

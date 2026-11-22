@@ -138,6 +138,8 @@ export const roomBaseFields = {
   testing: z.boolean().catch(false),
   /** When the event this room was made for starts (`packages/game-server/src/room/events.ts`); null for a room no event made. */
   scheduledFor: z.string().nullable().catch(null),
+  /** The room's own tier floor (`packages/game-server/src/room/tier-floor.ts`): `'friend'` for a friends-only room, absent for none. */
+  minTier: z.string().optional().catch(undefined),
   /** A Challenge's open seat → the list its real player played, which whoever sits there plays. Absent elsewhere. */
   seatDecks: z.record(z.string(), z.string()).optional().catch(undefined),
 };

@@ -37,11 +37,12 @@
 
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
-import type { RateLimitConfig } from '@wolffm/rooms-server';
+import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { createEdgeAuth, rankOf, tierOf } from '@hadoku/service-kernel/auth';
 import { createGate, type Gate } from '@hadoku/service-kernel/http';
 
 import { identityFromHeaders } from '../room/identity.js';
+import { handshakeEdgeTier } from '../room/socket-auth.js';
 import { costlyActLimit } from '../http/request.js';
 import { type RelayMessage, type RelayOutcome, type RelaySession, type RelaySink } from './runtimes/relay.js';
 
@@ -53,6 +54,14 @@ export const RELAY_EVENTS = {
 	 *  the sender of `over` and every watcher included, so the room can show the result. */
 	ended: 'relay:ended',
 } as const;
+
+/** Messages per sender: four times bomberman's own host, which sends its state at 30 Hz, so no
+ *  game this relay was built for comes near it, and a bundle that floods its room does. */
+export const RELAY_MESSAGE_RATE_LIMIT: RateLimitConfig = {
+	capacity: 240,
+	refillAmount: 120,
+	refillIntervalMs: 1000,
+};
 
 /** Joins per caller: a burst of 10, then one every 10 s. A seat opens one
  *  relay connection per tab, so a burst covers a refresh storm without
@@ -118,10 +127,18 @@ export interface RelayDeps {
 	gate?: Pick<Gate, 'gateSocketIo'>;
 	/** This match's roster, or `undefined` for a matchId nothing is running — refused as `unknown-match`. */
 	rosterOf(matchId: string): RelayRoster | undefined;
+	/**
+	 * Whether the room holding `matchId` lets `participantId`, of edge tier `tier`, in at all — the
+	 * same question its chat socket asks (`room/tier-floor.ts`'s `roomAdmits`). Refused as
+	 * `not-joined`, seat or watcher alike: a watcher hears every seat's message.
+	 */
+	admits(matchId: string, participantId: string, tier: string): boolean;
 	/** The match ended: every seat left (`null`), or the leader's own bundle said `{ t: 'over', winners }`. */
 	onEnded?(matchId: string, outcome: RelayOutcome | null): void;
 	/** Overrides `RELAY_JOIN_RATE_LIMIT`; `null` is none. */
 	joinRateLimit?: RateLimitConfig | null;
+	/** Overrides `RELAY_MESSAGE_RATE_LIMIT`; `null` is none. */
+	messageRateLimit?: RateLimitConfig | null;
 	log?(entry: Record<string, unknown>): void;
 }
 
@@ -189,6 +206,11 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 		onRefused: () => log({ evt: 'relay-join-refused', reason: 'rate-limited' }),
 	});
 
+	const messageCfg = deps.messageRateLimit === undefined ? RELAY_MESSAGE_RATE_LIMIT : deps.messageRateLimit;
+	const messageLimit = messageCfg === null ? null : new MultiRateLimiter<string>(messageCfg);
+	/** Senders over their limit now: a refusal is logged once per burst, not once per dropped message. */
+	const throttled = new Set<string>();
+
 	function matchOf(matchId: string, roster: RelayRoster): LiveMatch {
 		const found = live.get(matchId);
 		if (found !== undefined) return found;
@@ -240,7 +262,7 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 				reply({ ok: false, error: 'unknown-match' });
 				return;
 			}
-			const role = roster.roleOf(participantId);
+			const role = deps.admits(matchId, participantId, handshakeEdgeTier(socket.request.headers)) ? roster.roleOf(participantId) : undefined;
 			if (role === undefined) {
 				reply({ ok: false, error: 'not-joined' });
 				return;
@@ -274,6 +296,12 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 				log({ evt: 'relay-send-refused', matchId: joined.matchId, reason: 'watcher' });
 				return;
 			}
+			if (messageLimit !== null && !messageLimit.allow(participantId)) {
+				if (!throttled.has(participantId)) log({ evt: 'relay-send-refused', matchId: joined.matchId, reason: 'rate-limited' });
+				throttled.add(participantId);
+				return;
+			}
+			throttled.delete(participantId);
 			match.session.fromSeat(joined.seat, msg);
 		});
 
@@ -301,6 +329,7 @@ export function attachRelay(io: SocketIOServer, deps: RelayDeps): RelayHandle {
 		close: () => {
 			for (const { session } of live.values()) session.ended('server-stopping');
 			live.clear();
+			messageLimit?.deregister();
 		},
 	};
 }

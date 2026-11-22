@@ -63,7 +63,8 @@ import type { Look } from '@hadoku/platform-wire/look';
 
 import { rankOf } from '../edge-auth.js';
 import { applyPerson, type People } from '../people.js';
-import { handshakeTier } from './socket-auth.js';
+import { handshakeEdgeTier, handshakeTier } from './socket-auth.js';
+import { roomAdmits } from './tier-floor.js';
 import { identityFromHeaders } from './identity.js';
 
 /** In memory per room, and the default/max page a `GET …/chat` page asks for. */
@@ -78,6 +79,8 @@ const CHAT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 export interface ServeRoomView {
 	id: string;
 	locked: boolean;
+	/** The room's own tier floor (`./tier-floor.ts`); absent for none. */
+	minTier?: string;
 	members: readonly { id: string; name: string; avatarId?: string }[];
 }
 
@@ -134,11 +137,10 @@ export function placeOfKey<V extends ServeRoomView>(
 	return isMatch(id) ? { served: id, roomId: null, kind: 'match' } : null;
 }
 
-/** Whether `participantId` may be in `place`: a room's (or its table's) members, or anyone while the room has no password; anyone at a match. */
-function mayJoin<V extends ServeRoomView>(lobby: Pick<ServeLobby<V>, 'get' | 'isMember'>, place: RoomPlace, participantId: string): boolean {
+/** Whether `participantId`, of edge tier `tier`, may be in `place`: as its room admits them (`./tier-floor.ts`'s `roomAdmits`); anyone at a match. */
+function mayJoin<V extends ServeRoomView>(lobby: Pick<ServeLobby<V>, 'get' | 'isMember'>, place: RoomPlace, participantId: string, tier: string): boolean {
 	if (place.roomId === null) return true;
-	if (lobby.isMember(place.roomId, participantId)) return true;
-	return lobby.get(place.roomId)?.locked === false;
+	return roomAdmits(lobby.get(place.roomId), lobby.isMember(place.roomId, participantId), tier);
 }
 
 function accountOfHeaders(headers: IncomingHttpHeaders): string | undefined {
@@ -238,7 +240,7 @@ export async function attachServedRoom<V extends ServeRoomView>(io: SocketIOServ
 			const place = placeOfKey(lobby, deps.isMatch, deps.appId, join.room_key, deps.roomIdRe);
 			if (place === null) return refuse('no-place');
 			const participantId = identityFromHeaders(headers, socket.id);
-			if (!mayJoin(lobby, place, participantId)) return refuse('not-member');
+			if (!mayJoin(lobby, place, participantId, handshakeEdgeTier(headers))) return refuse('not-member');
 			const roomId = place.roomId;
 			if (roomId !== null) lobbyRoomOf.set(socket, roomId);
 			const accountId = accountOfHeaders(headers);

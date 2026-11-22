@@ -76,6 +76,12 @@ export interface GameTypeSpec {
    * that drops is held for as long as the match lasts. Read only for `runtime: 'relay'`.
    */
   seatRejoinGraceMs?: number;
+  /**
+   * Every room of this type is restricted to this tier and above, whatever its creator chose
+   * (`packages/game-server/src/room/tier-floor.ts`): the server hides and refuses it below that, and
+   * Create room offers the type only to a viewer who holds it. Absent: the app's own floor.
+   */
+  minTier?: 'friend';
   /** Whether the room waits on a ready step before it may start (a countdown with none, say). */
   ready: boolean;
   bots?: BotFill;

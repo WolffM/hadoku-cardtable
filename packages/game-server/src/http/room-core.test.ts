@@ -42,8 +42,8 @@ beforeAll(async () => {
 	roomCoreMod = await import('./room-core.ts');
 });
 
-function edgeHeaders(userKey: string): Record<string, string> {
-	return { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': 'friend', 'x-user-id': `user-${userKey}`, 'x-user-key': `friend-key-${userKey}` };
+function edgeHeaders(userKey: string, tier = 'friend'): Record<string, string> {
+	return { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': tier, 'x-user-id': `user-${userKey}`, 'x-user-key': `friend-key-${userKey}` };
 }
 
 function participantIdFor(userKey: string): string {
@@ -78,6 +78,10 @@ const TOY_ROOM: RoomTypeHooks<ToyGame, RoomCreateInput> = {
 	},
 };
 
+/** The same toy, as a game type whose every room is friends-only (`GameTypeSpec.minTier`). */
+const TOY_FRIENDS = 'toy-friends';
+const TOY_FRIENDS_ROOM: RoomTypeHooks<ToyGame, RoomCreateInput> = { ...TOY_ROOM, minTier: 'friend' };
+
 function body<T>(check: (v: unknown) => v is T): RoomCoreWire<T, never>['createRoomBody'] {
 	return { safeParse: (v) => (check(v) ? { success: true, data: v } : { success: false, error: { issues: [{ code: 'invalid_type', path: [], message: 'bad body' }] } }) };
 }
@@ -104,6 +108,7 @@ function asLobbyCore(lobby: ToyLobby): import('./room-core.ts').LobbyCore<ToyVie
 		offered: lobby.offered.bind(lobby),
 		isMember: lobby.isMember.bind(lobby),
 		create: lobby.create.bind(lobby),
+		minTierOf: lobby.minTierOf.bind(lobby),
 		join: lobby.join.bind(lobby),
 		setReady: lobby.setReady.bind(lobby),
 		touch: lobby.touch.bind(lobby),
@@ -135,7 +140,7 @@ async function boot(opts: { seatRoutes?: boolean; away?: (memberId: string) => n
 		store: new FileRoomStore(dir),
 		now: () => Date.now(),
 		log: () => undefined,
-		typeOf: (t) => (t === TOY ? (TOY_ROOM as unknown as RoomTypeHooks<unknown, RoomCreateInput>) : undefined),
+		typeOf: (t) => (t === TOY ? (TOY_ROOM as unknown as RoomTypeHooks<unknown, RoomCreateInput>) : t === TOY_FRIENDS ? (TOY_FRIENDS_ROOM as unknown as RoomTypeHooks<unknown, RoomCreateInput>) : undefined),
 		watchpartyRoom: { name: 'wp', gameType: TOY },
 	});
 	await lobby.open();
@@ -168,6 +173,11 @@ async function boot(opts: { seatRoutes?: boolean; away?: (memberId: string) => n
 		lobby,
 		close: () => new Promise<void>((done) => http!.close(() => done())),
 	};
+}
+
+async function get(h: Harness, path: string, headers: Record<string, string>): Promise<{ status: number; json: Record<string, unknown> }> {
+	const res = await fetch(`http://127.0.0.1:${h.port}/api/rooms${path}`, { headers });
+	return { status: res.status, json: (await res.json()) as Record<string, unknown> };
 }
 
 async function post(h: Harness, path: string, headers: Record<string, string>, bodyJson: unknown): Promise<{ status: number; json: Record<string, unknown> }> {
@@ -371,6 +381,78 @@ describe('the opt-in seat routes (`seatRoutes`)', () => {
 			const off = await post(h, `/${id}/seats/bot-off`, edgeHeaders('alice'), { seat: 1 });
 			expect(off.status).toBe(200);
 			expect(off.json.seats).toEqual([alice, null, bob]);
+		} finally {
+			await h.close();
+		}
+	});
+});
+
+describe('a friends-only room (`minTier`)', () => {
+	const listed = async (h: Harness, headers: Record<string, string>): Promise<string[]> => ((await get(h, '/', headers)).json.rooms as { id: string }[]).map((r) => r.id);
+
+	it('is made only by a caller the edge names friend or above — a member is refused, though cardtable otherwise treats a member as a friend', async () => {
+		const h = await boot();
+		try {
+			const refused = await post(h, '/', edgeHeaders('mia', 'member'), { name: 'friends', gameType: TOY, minTier: 'friend' });
+			expect(refused.status).toBe(403);
+			expect(h.lobby.offered()).toEqual([]);
+			const made = await post(h, '/', edgeHeaders('fred'), { name: 'friends', gameType: TOY, minTier: 'friend' });
+			expect(made.status).toBe(201);
+			expect(made.json.minTier).toBe('friend');
+			const open = await post(h, '/', edgeHeaders('mia', 'member'), { name: 'open', gameType: TOY });
+			expect(open.status).toBe(201);
+			expect(open.json).not.toHaveProperty('minTier');
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('does not exist below friend: not listed, 404 to read or join; a friend and an admin see it and join', async () => {
+		const h = await boot();
+		try {
+			const made = await post(h, '/', edgeHeaders('fred'), { name: 'friends', gameType: TOY, minTier: 'friend' });
+			const id = made.json.id as string;
+			// The app's own floor here is friend, which a member passes (`tierOf` promotes them); the room's does not.
+			const mia = edgeHeaders('mia', 'member');
+			expect(await listed(h, mia)).toEqual([]);
+			expect((await get(h, `/${id}`, mia)).status).toBe(404);
+			expect((await post(h, `/${id}/join`, mia, {})).status).toBe(404);
+			expect(h.lobby.isMember(id, participantIdFor('mia'))).toBe(false);
+			expect(await listed(h, edgeHeaders('fran'))).toEqual([id]);
+			expect((await post(h, `/${id}/join`, edgeHeaders('fran'), {})).status).toBe(200);
+			expect((await post(h, `/${id}/join`, edgeHeaders('ada', 'admin'), {})).status).toBe(200);
+		} finally {
+			await h.close();
+		}
+	});
+
+	it("a game type's own floor makes every room of it friends-only, whatever the body says", async () => {
+		const h = await boot();
+		try {
+			expect((await post(h, '/', edgeHeaders('mia', 'member'), { name: 'x', gameType: TOY_FRIENDS })).status).toBe(403);
+			const made = await post(h, '/', edgeHeaders('fred'), { name: 'x', gameType: TOY_FRIENDS });
+			expect(made.status).toBe(201);
+			expect(made.json.minTier).toBe('friend');
+			expect(await listed(h, edgeHeaders('mia', 'member'))).toEqual([]);
+		} finally {
+			await h.close();
+		}
+	});
+
+	it('keeps its floor across a restart', async () => {
+		const h = await boot();
+		try {
+			const made = await post(h, '/', edgeHeaders('fred'), { name: 'friends', gameType: TOY, minTier: 'friend' });
+			const id = made.json.id as string;
+			const again = new lobbyMod.RoomLobby<ToyView, RoomCreateInput>({
+				store: new FileRoomStore(dirs.at(-1)!),
+				now: () => Date.now(),
+				log: () => undefined,
+				typeOf: (t) => (t === TOY ? (TOY_ROOM as unknown as RoomTypeHooks<unknown, RoomCreateInput>) : undefined),
+				watchpartyRoom: { name: 'wp', gameType: TOY },
+			});
+			await again.open();
+			expect(again.get(id)?.minTier).toBe('friend');
 		} finally {
 			await h.close();
 		}

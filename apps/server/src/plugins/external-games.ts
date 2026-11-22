@@ -37,6 +37,7 @@ function specOf(game: ExternalGameConfig): GameTypeSpec {
 		id: game.id,
 		runtime: game.runtime,
 		seatRejoinGraceMs: game.seatRejoinGraceMs,
+		...(game.minTier === undefined ? {} : { minTier: game.minTier }),
 		seats: game.seats,
 		// No ready step, one game, empty seats stay empty — true of every external game this
 		// server merely relays, not any one of them in particular.

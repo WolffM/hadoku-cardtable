@@ -38,6 +38,11 @@ export interface ExternalGameConfig {
   /** How long a dropped seat is held for its player to come back (`relay-match.ts`'s `seatRejoinGraceMs`). */
   seatRejoinGraceMs: number;
   /**
+   * Every room of this game is friends-only (`GameTypeSpec.minTier`): the server hides and refuses
+   * it below friend tier, as the edge names it, and Create room offers it only to a friend or above.
+   */
+  minTier?: 'friend';
+  /**
    * An entry that proves the GENERIC mechanism rather than any one real game (wave 120 §F:
    * "deleting the `bomberman` entry deletes nothing else" — `e2e/external-game-room.spec.ts` rides
    * on this one, never on `bomberman` by name). `apps/server/src/plugins/external-games.ts`'s

@@ -438,6 +438,8 @@ export interface Lobby
 	roomOfMatch(matchId: string): MagicRoomView | undefined;
 	/** Whether `matchId` is a game of a testing room seeded with `aiConcedes` (`CreateRoomInput.aiConcedes`'s doc). */
 	aiConcedesIn(matchId: string): boolean;
+	/** The tier floor a room made from `input` would have: its own, or its game type's when stricter (`RoomLobby.minTierOf`). */
+	minTierOf(input: Pick<CreateRoomInput, 'gameType' | 'minTier'>): string | undefined;
 	/** The core's `create`. A room of one of Magic's own types comes back as Magic's view. */
 	create(caller: Caller, input: CreateRoomInput & { gameType: MagicGameType }): CreateResult<MagicRoomView>;
 	create(caller: Caller, input: CreateRoomInput): CreateResult<RoomView>;

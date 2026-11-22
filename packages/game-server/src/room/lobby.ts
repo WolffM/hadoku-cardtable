@@ -59,6 +59,7 @@ import { makeSecret, mintRoomId, type Secret } from './provisioning.ts';
 import { AI_SEAT, CLOSED_SEAT, leaveGameSeat, memberSeats, setGameSeat, takeGameSeat, type GameSeats, type PlatformMember, type PlatformRoomRecord } from './record.ts';
 import { isOfferedRoom, isSweepableRoom, NO_BUSY_HOOK, sortRoomsByCreation, type RoomBusyHook } from './room-list.ts';
 import { lowerCapacity, replaceWithBot } from './seat-table-adapter.ts';
+import { stricterTier } from './tier-floor.ts';
 import { watchpartyRoomId } from './watchparty-link.ts';
 
 /** A member as the lobby keeps one: the platform's record plus what a view shows of them. */
@@ -89,6 +90,8 @@ export interface RoomCreateInput {
 	testing?: boolean;
 	/** When the room's event starts, in ms (`events.ts`). Set by the events route, never by a client body. */
 	scheduledFor?: number;
+	/** The room's own tier floor (`tier-floor.ts`): Create room's friends-only switch. The game type's own floor, if stricter, wins. */
+	minTier?: string;
 }
 
 /** A member as every room's view names them. */
@@ -116,6 +119,8 @@ export interface PlatformRoomView {
 	createdAt: string;
 	testing: boolean;
 	scheduledFor: string | null;
+	/** The room's own tier floor (`tier-floor.ts`); absent for a room anyone at the app's floor may see. */
+	minTier?: string;
 }
 
 /** The room-level `app` blob as the store keeps it: the platform's fields, the game seats, and the game's own part under `game`. */
@@ -128,6 +133,8 @@ export interface StoredRoomApp {
 	testing?: boolean;
 	/** Absent for a room no event made. */
 	scheduledFor?: number;
+	/** Absent for a room with no floor of its own. */
+	minTier?: string;
 	secret: Secret | null;
 	seats: GameSeats;
 	/** The game type's part as it stores it (`RoomTypeHooks.encode`/`decode`). */
@@ -220,6 +227,8 @@ export interface RoomTypeHooks<G, I extends RoomCreateInput = RoomCreateInput> {
 	ending?(room: LobbyRoom<G>, why: 'close' | 'sweep' | 'forget'): void;
 	/** A relay room's match seat count: set for a type whose room IS its match (`onRelayRoomOpened`). */
 	relaySeats?: number;
+	/** Every room of this type has at least this tier floor (`tier-floor.ts`), whatever its creator chose. */
+	minTier?: string;
 	/**
 	 * Whether `rest` names a sub-place inside this room that the type keeps track of beyond its game
 	 * seats (a table id, a match this room remembers) — `room/serve.ts`'s `placeOfKey`, matching a
@@ -347,6 +356,8 @@ function platformView(room: LobbyRoom, locked: boolean, seats: GameSeats): Platf
 		createdAt: new Date(room.createdAt).toISOString(),
 		testing: room.testing,
 		scheduledFor: room.scheduledFor === undefined ? null : new Date(room.scheduledFor).toISOString(),
+		// Spread: the key is ABSENT for a room with no floor, as `avatarId` is for a member with no character.
+		...(room.minTier === undefined ? {} : { minTier: room.minTier }),
 	};
 }
 
@@ -374,6 +385,7 @@ export function roomAppCodec(typeOf: (gameType: string) => Pick<RoomTypeHooks<un
 			if (hooks === undefined) throw new Error('app.gameType is not a known game type');
 			if (a.testing !== undefined && typeof a.testing !== 'boolean') throw new Error('app.testing is invalid');
 			if (a.scheduledFor !== undefined && typeof a.scheduledFor !== 'number') throw new Error('app.scheduledFor is invalid');
+			if (a.minTier !== undefined && typeof a.minTier !== 'string') throw new Error('app.minTier is invalid');
 			if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 			const { seats, game } = hooks.decode(a, version, { roomId: ctx.roomId });
 			return {
@@ -383,6 +395,7 @@ export function roomAppCodec(typeOf: (gameType: string) => Pick<RoomTypeHooks<un
 				gameType: a.gameType as string,
 				testing: a.testing === true,
 				...(a.scheduledFor === undefined ? {} : { scheduledFor: a.scheduledFor as number }),
+				...(a.minTier === undefined ? {} : { minTier: a.minTier as string }),
 				secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 				seats,
 				game,
@@ -496,6 +509,7 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 			gameType: room.gameType,
 			testing: room.testing,
 			...(room.scheduledFor === undefined ? {} : { scheduledFor: room.scheduledFor }),
+			...(room.minTier === undefined ? {} : { minTier: room.minTier }),
 			secret: this.#secrets.get(room.id) ?? null,
 			seats: [...room.seats],
 			game: hooks.encode(room),
@@ -700,6 +714,11 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		return { ok: true, room: this.view(room), ...cost };
 	}
 
+	/** The floor a room made from `input` would have: its own, or its game type's when that is stricter (`tier-floor.ts`). */
+	minTierOf(input: Pick<I, 'gameType' | 'minTier'>): string | undefined {
+		return stricterTier(input.minTier, this.#typeOf(input.gameType)?.minTier);
+	}
+
 	create(caller: Caller, input: I): CreateResult<V> {
 		if (!isDurableParticipantId(caller.id)) return { ok: false, reason: 'not-durable' };
 		let id = mintRoomId();
@@ -722,6 +741,7 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	#insert(id: string, caller: Caller, input: I): V {
 		const hooks = this.#typeOf(input.gameType);
 		if (hooks === undefined) throw new Error(`no room type ${input.gameType}`);
+		const minTier = this.minTierOf(input);
 		const now = Math.max(this.now(), this.#lastCreatedAt + 1);
 		this.#lastCreatedAt = now;
 		const ledger = createMembershipLedger();
@@ -734,6 +754,7 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 			gameType: input.gameType,
 			testing: input.testing === true,
 			...(input.scheduledFor === undefined ? {} : { scheduledFor: input.scheduledFor }),
+			...(minTier === undefined ? {} : { minTier }),
 			...hooks.newGame(input, id),
 			createdAt: now,
 			updatedAt: now,
@@ -1289,6 +1310,7 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 						gameType: app.gameType,
 						testing: app.testing === true,
 						...(app.scheduledFor === undefined ? {} : { scheduledFor: app.scheduledFor }),
+						...(app.minTier === undefined ? {} : { minTier: app.minTier }),
 						seats: app.seats,
 						game: game(members),
 						createdAt: decoded.createdAt,

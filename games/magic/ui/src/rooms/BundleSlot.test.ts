@@ -17,7 +17,7 @@ import { registerGameType } from '@hadoku/shared';
 
 import type { Who } from '@hadoku/game-ui/room/whoami.ts';
 
-let who: Who | null | 'pending' = { userId: 'u1', tier: 'friend', name: 'Ann' };
+let who: Who | null | 'pending' = { userId: 'u1', tier: 'friend', edgeTier: 'friend', name: 'Ann' };
 vi.mock('@hadoku/game-ui/room/whoami.ts', () => ({ useWhoami: () => who }));
 
 /** `relayChannelCalls`: every `openRelayChannel`/`close()` call, so a test can assert on the
@@ -100,7 +100,7 @@ function renderSlot(props: { view: RoomViewBase | null; me: { userId: string; is
 beforeEach(() => {
   fixture.calls.length = 0;
   relayChannelCalls.length = 0;
-  who = { userId: 'u1', tier: 'friend', name: 'Ann' };
+  who = { userId: 'u1', tier: 'friend', edgeTier: 'friend', name: 'Ann' };
 });
 
 afterEach(() => {
@@ -140,14 +140,14 @@ describe('BundleSlot', () => {
       id: 'room-a',
       seat: 0,
       seats: [
-        { seat: 0, userId: 'Ann', name: 'Ann', sprite: 'mage' },
-        { seat: 1, userId: 'Bob', name: 'Bob' },
+        { seat: 0, userId: 'u1', name: 'Ann', sprite: 'mage' },
+        { seat: 1, userId: 'u2', name: 'Bob' },
       ],
     });
   });
 
   it("tells a member the room seats nowhere that they watch: a third member of a two-seat room is no seat, and the seats are the room's", async () => {
-    who = { userId: 'u3', tier: 'friend', name: 'Cat' };
+    who = { userId: 'u3', tier: 'friend', edgeTier: 'friend', name: 'Cat' };
     const members = [{ id: 'u1', name: 'Ann' }, { id: 'u2', name: 'Bob' }, { id: 'u3', name: 'Cat' }];
     renderSlot({ view: aView(members, { seats: ['u1', 'u2'], you: { id: 'u3', leader: false } }), me: { userId: 'u3', isLeader: false } });
 
@@ -157,8 +157,8 @@ describe('BundleSlot', () => {
       id: 'room-a',
       seat: null,
       seats: [
-        { seat: 0, userId: 'Ann', name: 'Ann' },
-        { seat: 1, userId: 'Bob', name: 'Bob' },
+        { seat: 0, userId: 'u1', name: 'Ann' },
+        { seat: 1, userId: 'u2', name: 'Bob' },
       ],
     });
   });
@@ -172,7 +172,7 @@ describe('BundleSlot', () => {
     expect(mounted[1].match).toEqual({
       id: 'room-a',
       seat: 1,
-      seats: [{ seat: 1, userId: 'Ann', name: 'Ann' }],
+      seats: [{ seat: 1, userId: 'u1', name: 'Ann' }],
     });
   });
 

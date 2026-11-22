@@ -14,12 +14,20 @@
 import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from 'react';
 import { whoami as hadokuWhoami } from '@wolffm/prefs-client';
 
+// The kernel's own ladder, by a relative path: one tier order for the server's gates and this one.
+// `auth/index.ts` imports only types at runtime, so nothing of the server reaches the page.
+import { rankOf } from '../../../service-kernel/src/auth/index.ts';
 import { registered } from '../registered.ts';
 
 export interface Who {
   userId: string;
-  /** The fleet's own tier list, so a tier it adds (`member`) is not a type error here. */
+  /** The fleet's own tier list, so a tier it adds (`member`) is not a type error here. As the game treats it ({@link registerWhoamiTier}). */
   tier: WhoamiAnswer['userType'];
+  /**
+   * The tier exactly as the fleet named it: `member` stays `member`. A gate that means the fleet's
+   * own tier (a friends-only room, {@link atLeastFriend}) reads this, never `tier`.
+   */
+  edgeTier: WhoamiAnswer['userType'];
   /** The viewer's display name. Null when the fleet has none for them. */
   name: string | null;
 }
@@ -44,6 +52,11 @@ export const registerWhoamiTier = whoamiTier.set;
  */
 export function tierOfWhoami(r: Pick<WhoamiAnswer, 'userType'>): Who['tier'] {
   return r.userType === 'member' ? 'friend' : r.userType;
+}
+
+/** Whether the fleet names this viewer friend or above — the server's own friends-only floor (`packages/game-server/src/room/tier-floor.ts`). */
+export function atLeastFriend(who: WhoState): boolean {
+  return who !== null && who !== 'pending' && rankOf(who.edgeTier) >= rankOf('friend');
 }
 
 /** The page's one resolution, when an app shell above has made it (`../app/GameAppShell.tsx`). */
@@ -76,7 +89,7 @@ export function useResolvedWhoami(enabled = true): WhoState {
     hadokuWhoami({ whoamiUrl: `${globalThis.location.origin}/session/whoami` })
       .then((r) => {
         if (!live) return;
-        setWho({ userId: r.userId, tier: whoamiTier.get()(r), name: r.name ?? null });
+        setWho({ userId: r.userId, tier: whoamiTier.get()(r), edgeTier: r.userType, name: r.name ?? null });
       })
       .catch(() => {
         if (live) setWho(null);
