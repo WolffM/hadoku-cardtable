@@ -216,15 +216,21 @@ test(titled('the pointer over an open mana ring resizes nothing: no disc grows u
       await page.waitForTimeout(250);
     };
 
-    for (const [name, id, first, second, key, fx, fy] of [
-      ['Tundra', tundra, 'W', 'U', 'w', 0.35, 0.4],
-      ['City of Brass', brass, 'R', 'G', 'r', 0.6, 0.55],
+    // City of Brass's ring opens still (Tundra's closed under 3 s before) and with its card already
+    // dark: the tap darkens it until Forge answers, and on CI the board drew that before the ring's
+    // first layout twice (11-19, 11-20), when the ring held the LAST ring's card, Tundra, and Brass
+    // dropped as the pointer left it. Darkened here before the click, that order is every run's.
+    for (const [name, id, first, second, key, fx, fy, darkFirst] of [
+      ['Tundra', tundra, 'W', 'U', 'w', 0.35, 0.4, false],
+      ['City of Brass', brass, 'R', 'G', 'r', 0.6, 0.55, true],
     ] as const) {
       const on = await pressPoint(page, id, fx, fy);
       await page.mouse.move(on.x, on.y);
+      if (darkFirst) await page.evaluate((cardId) => document.querySelector(`[data-board-card="${cardId}"]`)?.removeAttribute('data-selectable'), id);
       await page.mouse.click(on.x, on.y);
       await expectRingOn(page, on, name);
       await expect(ring(page), `${name}: Forge's own ring is open`).toHaveAttribute('data-method', /./);
+      await expect(page.locator(`[data-board-card="${id}"]`), `${name}: the ring holds its own card's lift`).toHaveAttribute('data-ring-held');
       const a = await centreOf(ringOption(page, first));
       const b = await centreOf(ringOption(page, second));
       await page.waitForTimeout(250);

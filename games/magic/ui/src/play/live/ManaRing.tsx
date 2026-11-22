@@ -51,8 +51,10 @@ export interface ManaRingProps {
   readonly anchor?: PressPoint | null;
   /** Which question it answers now: a new one starts the pick over, in the same ring. */
   readonly question: string;
-  /** Told once, where its centre was placed. */
-  readonly onOpen?: (at: { readonly x: number; readonly y: number }) => void;
+  /** The board card it is about, when it names one: the card whose lift it holds. */
+  readonly card?: number | null;
+  /** Told once, where its centre was placed, and which board card it holds lifted (-1 for none). */
+  readonly onOpen?: (at: { readonly x: number; readonly y: number; readonly held: number }) => void;
 }
 
 function Marks({ option }: { option: RingOption }) {
@@ -98,15 +100,22 @@ let lastHeld: Element | null = null;
 /**
  * Keep the hover lift of the card the ring opened on (`card.css`'s `data-ring-held`) while the ring is open:
  * its hover lift otherwise dropped as the pointer left the card for a disc over it, and rose again as it
- * came back. Returns the release.
+ * came back. A ring that names its card holds THAT card, when the pointer is on it or the ring opens
+ * still where its tap's stood. It is never found by its hover lift's own `[data-selectable]`: the tap
+ * that opens the ring also darkens its card until Forge answers (`selectCard`'s `holdOffer`), and when
+ * the board drew that before the ring's first layout, the lookup found no card, and a still ring then
+ * held the LAST ring's card instead (mana-ring.spec's City of Brass dropping 3 px as the pointer left
+ * it, 11-19 and 11-20, with Tundra held). Returns the release, and the card held.
  */
-function holdCard(still: boolean): () => void {
-  const hovered = document.querySelector('[data-board-card][data-selectable] > .board-card__face:hover')?.closest('[data-board-card]') ?? null;
-  const card = hovered ?? (still ? lastHeld : null);
-  if (card === null || !card.isConnected) return () => undefined;
-  lastHeld = card;
-  card.setAttribute('data-ring-held', '');
-  return () => card.removeAttribute('data-ring-held');
+function holdCard(card: number | null, still: boolean): { readonly release: () => void; readonly held: number } {
+  const own = card === null ? null : document.querySelector(`[data-board-card="${card}"]`);
+  const target =
+    own !== null ? (still || own.querySelector(':scope > .board-card__face:hover') !== null ? own : null)
+    : (document.querySelector('[data-board-card][data-selectable] > .board-card__face:hover')?.closest('[data-board-card]') ?? (still ? lastHeld : null));
+  if (target === null || !target.isConnected) return { release: () => undefined, held: -1 };
+  lastHeld = target;
+  target.setAttribute('data-ring-held', '');
+  return { release: () => target.removeAttribute('data-ring-held'), held: Number(target.getAttribute('data-board-card')) };
 }
 
 /** The box every disc and chip stands in, round the ring's centre, with room for their marks. */
@@ -121,7 +130,7 @@ function extentOf(discs: readonly { dx: number; dy: number }[], chips: readonly 
   return { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` };
 }
 
-export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, still = false, anchor, question, onOpen }: ManaRingProps) {
+export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, still = false, anchor, question, card = null, onOpen }: ManaRingProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const [finger, setFinger] = useState(coarsePointer);
@@ -166,8 +175,15 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, still = fa
   };
 
   // Whether it opened still is the opening's: the echo's window lapsing later lets go of nothing.
+  // Its card is the opening's too: a question that takes the ring over keeps the hold it had.
   const [openedStill] = useState(still);
-  useLayoutEffect(() => holdCard(openedStill), [openedStill]);
+  const [openedOn] = useState(card);
+  const held = useRef(-1);
+  useLayoutEffect(() => {
+    const hold = holdCard(openedOn, openedStill);
+    held.current = hold.held;
+    return hold.release;
+  }, [openedOn, openedStill]);
 
   // Open at the press: centred on the pointer, or just above a finger; held whole on the board.
   useLayoutEffect(() => {
@@ -209,7 +225,7 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, still = fa
       if (!opened.current) {
         opened.current = true;
         const centre = el.getBoundingClientRect();
-        onOpen?.({ x: Math.round(centre.left), y: Math.round(centre.top) });
+        onOpen?.({ x: Math.round(centre.left), y: Math.round(centre.top), held: held.current });
       }
     };
     place();
@@ -474,10 +490,10 @@ export function ManaRings({ match, ask, promptColors, report }: { match: LiveMat
   if (shown === null || now === null) return null;
   const ring = now.takenOver ? inOrderOf(shown.ring, now.order) : shown.ring;
   const opened = now;
-  const onOpen = (at: { x: number; y: number }): void => {
+  const onOpen = (at: { x: number; y: number; held: number }): void => {
     const n = (opens.get(match) ?? 0) + 1;
     opens.set(match, n);
-    report({ what: 'mana-ring', open: n, by: opened.by, card: shown.card ?? -1, x: at.x, y: at.y, method: shown.ask?.method ?? '-' });
+    report({ what: 'mana-ring', open: n, by: opened.by, card: shown.card ?? -1, held: at.held, x: at.x, y: at.y, method: shown.ask?.method ?? '-' });
   };
   return (
     <ManaRing
@@ -490,6 +506,7 @@ export function ManaRings({ match, ask, promptColors, report }: { match: LiveMat
       onCancel={shown.onCancel}
       still={now.still}
       anchor={now.anchor}
+      card={shown.card}
       question={shown.question}
       onOpen={onOpen}
     />
