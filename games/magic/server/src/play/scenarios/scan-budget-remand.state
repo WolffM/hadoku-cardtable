@@ -1,0 +1,19 @@
+# #92 (2026-11-22, monkey m-c06d9701150a): Solar Flare's main phase on a loaded claw, Remand in hand on an
+# empty stack. Forge's highlight scan ran out of its 50 ms-a-card budget and offered every card it had not
+# reached, Remand among them, and Forge refused the click. Seat 0's own Main 1 with nothing on the stack:
+# four counterspells that have no target, an Island to play, and a Solar Flare battlefield of 20
+# permanents, Signets and dual lands, so the scan has as much to read as it had there.
+# Used by `scan-budget.jvm.test.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Remand;Mana Leak;Counterspell;Cancel;Island
+humanbattlefield=Island;Island;Island;Island;Plains;Plains;Plains;Swamp;Swamp;Azorius Signet;Dimir Signet;Orzhov Signet;Scrubland;Underground Sea;Tundra;Adarkar Wastes;Caves of Koilos;Nimbus Maze;Orzhov Basilica;Azorius Chancery
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

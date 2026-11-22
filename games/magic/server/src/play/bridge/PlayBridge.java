@@ -288,6 +288,18 @@ public final class PlayBridge {
     static final long UNDO_BUDGET_BYTES = Long.getLong("cardtable.undoBudgetMb", Runtime.getRuntime().maxMemory() / 7 / 25 >> 20) << 20;
 
     /**
+     * How long Forge's priority-time scan ({@code AvailableActions.scan}) may run, in ms. Forge's own budget is 50 ms a
+     * card, 1.5 s at most ({@code PlayerControllerHuman.computeAvailableActionsBudgetMs}), and a scan that runs out
+     * marks every card it has not reached as a play. Desktop Forge spends that budget to keep its own window
+     * responsive. Here the scan is what the seat is offered and what the auto-pass reads, and a click on a card is
+     * checked in full ({@code InputPassPriority.onCardSelected}, {@code AvailableActions.offered}) with no budget, so a
+     * card the cut-short scan offered is refused: Remand on an empty stack, a scan of 22 cards on a loaded claw (#92).
+     * So the scan is given the time to finish. This is a hang guard, not a budget; {@code -Dcardtable.scanBudgetMs}
+     * overrides it, which only a test does.
+     */
+    static final int SCAN_BUDGET_MS = Integer.getInteger("cardtable.scanBudgetMs", 10_000);
+
+    /**
      * Each match's game thread while its game runs, set by its start-game hook and cleared by its
      * end-game hook ({@link BridgeGui#hostMatch}): Forge's game threads are pooled and unnamed per
      * match, so this is how {@link CutoffWatch} knows whose game printed.
@@ -9124,6 +9136,7 @@ public final class PlayBridge {
             // deliberately left off: it only raises a card's WEIGHT inside the same set
             // (:1580-1589), and our board reads the set, not the weights.
             prefs.setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, true);
+            prefs.setPref(FPref.YIELD_AVAILABLE_ACTIONS_BUDGET_MS, String.valueOf(SCAN_BUDGET_MS));
             // Off for any game this JVM does not host itself; a hosted game's undo is set per game in the
             // start-game hook (UndoManager.setHostMode), where the bridge also gives it its share of the heap.
             prefs.setPref(FPref.UI_UNDO_MODE, ForgeConstants.UNDO_MODE_OFF);
@@ -9141,6 +9154,7 @@ public final class PlayBridge {
         // YieldController.getStringPref falls back to FModel for any pref a client did
         // not override (YieldController.java:90-96).
         FModel.getPreferences().setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, true);
+        FModel.getPreferences().setPref(FPref.YIELD_AVAILABLE_ACTIONS_BUDGET_MS, String.valueOf(SCAN_BUDGET_MS));
         // UPnP ASK opens a modal dialog inside startServer (docs/spikes/forge-server.md).
         FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.UPnP, "NEVER");
         // AFK auto-pass would have Forge act for a human who is thinking. The Node side
