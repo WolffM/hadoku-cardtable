@@ -7597,7 +7597,16 @@ public final class PlayBridge {
                 Thread.currentThread().setUncaughtExceptionHandler(null);
                 GAME_THREADS.remove(Thread.currentThread(), m);
             });
+            // Karn Liberated's restart runs this hook again on the same game: GameAction.playGame loops while
+            // the game is RestartedByKarn and calls startFirstTurn(first, startGameHook) each time. A second run
+            // put the room's scenario back over the restarted game (the operator, 2026-11-21: "put me back earlier
+            // in the game") and subscribed every listener below a second time, so each log line went out twice.
+            final boolean[] started = { false };
             hm.setStartGameHook(() -> {
+                if (started[0]) {
+                    return;
+                }
+                started[0] = true;
                 Thread.currentThread().setUncaughtExceptionHandler((t, e) -> m.fail("Forge's game thread failed", e));
                 GAME_THREADS.put(Thread.currentThread(), m);
                 if (AI_TIMEOUT_SEC >= 0) {
