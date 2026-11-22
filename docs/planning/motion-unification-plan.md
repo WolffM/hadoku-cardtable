@@ -144,6 +144,36 @@ everyFrame, claimParticles/particleShare, standIn(overlay, el, copy), Box/rel, w
    the CPU quota. A two-browser film of a wipe (Blasphemous Act) and a lethal combat, before and after, is
    shown to the operator as an artifact with no visible difference. `numbers.ts` is smaller.
 
+### What wave 124 left M3 (amended 2026-11-22, after the wave)
+
+Wave 124 landed C, A, B and an extra lane K on `origin/main` (`c17b5a965`…`6ba7a296a`). PPE serves
+`6ba7a296a`, from green CI run 45037209264. Its first e2e attempt hit the 23-minute timeout on a loaded claw,
+with every spec about 1.86× slower and none failing; the re-run took 10.5 min. The ratchet now reads
+`.animate(` **0** and `requestAnimationFrame(` **24**. Non-test diff: A −19, B −6, C −2, K 0. The wave
+totals −27, so **the programme still stands +45 over M1's +72, and M3 must delete at least that much**.
+Per-lane notes: `~/.cache/cardtable-manager/w124-closing.md`.
+
+M3 takes on, beyond steps 1–4 above:
+
+- **The `'beat'` id is still an e2e probe.** A kept `BEAT_ANIMATION_ID` beside `stage` in 21 lines
+  (crash, entries, projectile, quake, ram), and B kept it on the die. `e2e/motion-combos.spec.ts:100` finds the
+  shake by `a.id === 'beat'`, and `e2e/w80c-unlock-early.spec.ts:92` records `'beat'`-named animations.
+  Move those probes to the stage's own registration first, then delete the ids.
+- **`trackCss` is too wide for step 3.** `Stage.trackCss(el)` (`stage.ts:109–112`) registers every finite
+  animation in the subtree, which would add a card copy's `pt-glint-*`, `pt-roll-*` and `card-shimmer`, and a
+  `.placed`'s translate transition, to the pacer's wait. Step 3 first needs a `trackCss` limited to the element
+  itself or filtered by name. B's list of stylesheet beats:
+  - `data-exit-go` (`.board-departure`): `board-exit-{crumple,return,dissolve-sweep,dissolve-hold,dissolve-tint,dissolve-aura,speck,shard,crack,slash,slice-top,slice-bottom}`
+  - `data-placed-resolving` (`.placed__hover`): `placed-resolve`
+  - `data-placed-countered` (`.placed`, its tile/back and crack lines): `placed-countered-{fade,drain}`, `placed-crack-draw`
+- **`everyFrame` passes no frame time.** `rooms/scroll-watch.ts:134,142` times frames from the rAF timestamp,
+  so it stays on a raw rAF until the step receives the time.
+- **`everyFrame` has no test reset.** A test that switches to real timers while a fake frame is owed leaves
+  `frame` set, and no loop runs again in that file. K fixed only the double scheduling (`frame ??=`).
+- **The die's unit test no longer catches a missing stage**, because the `'beat'` name alone keeps it counted.
+  Make it check registration directly when the ids go.
+- **Not the wave's:** `e2e/w79a-arrival.spec.ts:317` flakes on the pre-wave base too (#94).
+
 ## Not in this programme
 
 - **A canvas or Bevy backend.** Bomberman's motion is simulation-coupled Rust; nothing calls for it.
