@@ -14,9 +14,8 @@
 import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from 'react';
 import { whoami as hadokuWhoami } from '@wolffm/prefs-client';
 
-// The kernel's own ladder, by a relative path: one tier order for the server's gates and this one.
-// `auth/index.ts` imports only types at runtime, so nothing of the server reaches the page.
-import { rankOf } from '../../../service-kernel/src/auth/index.ts';
+// The platform's one ladder, which the server's gates read too.
+import { rankOf } from '@hadoku/platform-wire/tiers';
 import { registered } from '../registered.ts';
 
 export interface Who {

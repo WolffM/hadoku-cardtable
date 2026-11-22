@@ -116,6 +116,14 @@ jobs:
       - name: Build
         run: node scripts/publish/build.ts "$DIR"
 
+      # Every dist/ path npmjs's newest version shipped is still built, or publishRemoved names it
+      # (game-ui 0.1.104 lost six modules and stayed green: bomberman#15). New, so it warns until
+      # its false-positive rate is known: set the repo variable PUBLISH_SHIPPED_GATE=block to make
+      # a lost path stop the publish.
+      - name: Ships everything ${{ matrix.package }} shipped before
+        continue-on-error: ${{ vars.PUBLISH_SHIPPED_GATE != 'block' }}
+        run: node scripts/publish/shipped.ts "$DIR"
+
       # Packed here, published by `github-packages` after npmjs has it. The
       # file is named by the leg's place in the matrix, which is PUBLISHED's
       # order, so that job publishes a sibling before its dependents.

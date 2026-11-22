@@ -6,6 +6,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import { plan, renameSiblings, repointDeclaration } from './build.ts';
 import { PUBLISHED, publishManifest, publishedName, siblingVersion, type Manifest } from './manifest.ts';
+import { lost } from './shipped.ts';
 
 const REPO = join(import.meta.dirname, '..', '..');
 const read = (name: string): Manifest => JSON.parse(readFileSync(join(REPO, 'packages', name, 'package.json'), 'utf8')) as Manifest;
@@ -197,5 +198,24 @@ describe('the published build', () => {
 	it('renames a published sibling\'s import and leaves every other @hadoku name', () => {
 		const text = "import { a } from '@hadoku/platform-wire/look';\nconst m = import(\"@hadoku/game-ui/http.ts\");\nimport '@hadoku/shared';\n// @hadoku/platform-wire in a comment";
 		expect(renameSiblings(text)).toBe("import { a } from '@wolffm/platform-wire/look';\nconst m = import(\"@wolffm/game-ui/http.ts\");\nimport '@hadoku/shared';\n// @hadoku/platform-wire in a comment");
+	});
+});
+
+describe('what a package ships', () => {
+	// A source the build leaves out for any reason but being a test is a decision, so publishLeaveOut
+	// names it. @hadoku/game-ui 0.1.104 lost six modules to one relative import into another
+	// package's src/, and only a printed line said so.
+	it.each(PUBLISHED.map((name) => [name]))('%s leaves out no source it does not name in publishLeaveOut', (name) => {
+		const leaveOut = (read(name).publishLeaveOut as string[] | undefined) ?? [];
+		const silent = plan(join(REPO, 'packages', name, 'src'), leaveOut).dropped.filter((d) => !/test|publishLeaveOut/.test(d.why));
+		expect(silent).toEqual([]);
+	});
+
+	it('loses a path the newest version shipped, unless publishRemoved names it or its directory', () => {
+		const before = ['dist/app/GameAppShell.js', 'dist/app/GameAppShell.d.ts', 'dist/room/whoami.js', 'dist/http.js'];
+		expect(lost(before, ['dist/http.js', 'dist/new.js'])).toEqual(['dist/app/GameAppShell.d.ts', 'dist/app/GameAppShell.js', 'dist/room/whoami.js']);
+		expect(lost(before, ['dist/http.js'], ['app/', 'room/whoami.js'])).toEqual([]);
+		expect(lost(before, ['dist/http.js'], ['app/GameAppShell.js'])).toEqual(['dist/app/GameAppShell.d.ts', 'dist/room/whoami.js']);
+		expect(lost(before, before)).toEqual([]);
 	});
 });

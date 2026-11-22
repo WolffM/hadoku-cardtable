@@ -463,6 +463,9 @@ importers:
 
   packages/service-kernel:
     dependencies:
+      '@hadoku/platform-wire':
+        specifier: workspace:*
+        version: link:../platform-wire
       express:
         specifier: ^5.1.0
         version: 5.2.1

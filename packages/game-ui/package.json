@@ -15,6 +15,11 @@
     "./seats/SpectatorRow": "./src/seats/SpectatorRow.tsx",
     "./*": "./src/*"
   },
+  "publishLeaveOut": [
+    "rooms/BundleSlot.tsx",
+    "rooms/external-games.tsx",
+    "rooms/relay-test-fixture.tsx"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

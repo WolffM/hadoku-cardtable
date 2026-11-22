@@ -9,6 +9,7 @@
     "./*": "./src/*.ts"
   },
   "publishLeaveOut": [
+    "announce.ts",
     "play/placement/",
     "play/remote/"
   ],

@@ -16,7 +16,8 @@
     "./events": "./src/events.ts",
     "./tables": "./src/tables.ts",
     "./envelope": "./src/envelope.ts",
-    "./seats": "./src/seats.ts"
+    "./seats": "./src/seats.ts",
+    "./tiers": "./src/tiers.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
