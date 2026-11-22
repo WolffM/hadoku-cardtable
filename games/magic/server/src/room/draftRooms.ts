@@ -190,7 +190,8 @@ import {
 
 import { participantHandle } from '@hadoku/game-server/room/identity';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { replaceIds } from '@hadoku/game-server/erase/anonymise';
+import { namesAny, renameIds } from '@hadoku/game-server/erase/anonymise';
+import type { MergedAccounts } from '@hadoku/game-server/erase/index';
 
 /** The hosting app's room state: one draft. */
 export interface DraftApp {
@@ -468,6 +469,14 @@ export interface DraftRooms {
 	 * id's handle (`pods`). Each pod changed is saved.
 	 */
 	erase(participantId: ParticipantId, ids: ReadonlySet<string>, to: string): { decks: number; pods: number };
+	/**
+	 * Account merge: in each pod that does not name the kept account, and whose room (`roomKept`)
+	 * has not stayed the merged-away account's, the seat, the drafted pool, the build and the deck
+	 * page edits move to the kept account (`decks`: builds moved; `pods`: pods changed). A pod that
+	 * names both is the kept account's: it is left, and the erase sweep removes the other's part
+	 * in it. Each pod changed is saved.
+	 */
+	merge(move: MergedAccounts, roomKeptByFrom: (draftId: string) => boolean): { decks: number; pods: number };
 	/**
 	 * A testing room's stand-in gave `to` its place in the room (`RoomLobby`'s hand-over): its seat in
 	 * this draft, with the pool it has drafted so far, is `to`'s too. Their next join names the seat.
@@ -930,6 +939,25 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			}
 			return { decks, pods };
 		},
+		merge(move, roomKeptByFrom) {
+			let decks = 0;
+			let pods = 0;
+			for (const room of registry.all()) {
+				const app = room.app;
+				// The draft and the seats, as `reseat` walks them; the builds are keyed by the same ids.
+				if (namesAny([room.seats, app.state, app.builtDecks, app.deckMeta, room.clientNames], move.into.ids)) continue;
+				if (roomKeptByFrom(room.roomId)) continue;
+				const from = move.from.participantId;
+				const hadDeck = from in app.builtDecks || from in app.deckMeta;
+				const renamed = reseatAs(room, move.renames) + renameIds([app.builtDecks, app.deckMeta, room.clientNames], move.renames);
+				if (renamed === 0) continue;
+				app.presence.forget(draftPresenceKey(room.roomId, from));
+				if (hadDeck) decks++;
+				pods++;
+				app.persist(room);
+			}
+			return { decks, pods };
+		},
 		handOver(draftId, from, to) {
 			const room = find(draftId);
 			if (room !== undefined && reseat(room, new Set([from]), to) > 0) room.app.persist(room);
@@ -950,12 +978,20 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
  * were replaced; the caller saves the pod.
  */
 function reseat(room: DraftRoom, ids: ReadonlySet<string>, to: string): number {
+	return reseatAs(room, new Map([...ids].map((id) => [id, to])));
+}
+
+/** `reseat`, each id to its own new id (`renames`: old → new), as an account merge moves a person. */
+function reseatAs(room: DraftRoom, renames: ReadonlyMap<string, string>): number {
 	const app = room.app;
-	const seats = app.state === null ? [] : humanSeatsOf(app.state).filter((s) => ids.has(s.participantId));
-	const replaced = replaceIds(room.seats, ids, to) + (app.state === null ? 0 : replaceIds(app.state, ids, to));
+	const seats = app.state === null ? [] : humanSeatsOf(app.state).flatMap((s) => {
+		const to = renames.get(s.participantId);
+		return to === undefined ? [] : [{ seat: s.seat, to }];
+	});
+	const replaced = renameIds(room.seats, renames) + (app.state === null ? 0 : renameIds(app.state, renames));
 	if (app.state !== null && seats.length > 0) {
 		const displayNames = { ...app.state.displayNames };
-		for (const { seat } of seats) displayNames[seat] = participantHandle(to as ParticipantId);
+		for (const { seat, to } of seats) displayNames[seat] = participantHandle(to as ParticipantId);
 		app.state = { ...app.state, displayNames };
 	}
 	return replaced;

@@ -57,7 +57,7 @@ import express, { type Express, type Request, type Response, type Router } from 
 import { Server as SocketIOServer } from 'socket.io';
 import { callerIdOf, tierOf, userIdOf, type EdgeAuth } from '../auth/index.ts';
 import { capacitySampler } from '../capacity/index.ts';
-import { createAccountErase, ERASE_PATH, type EraseStep } from '../erase/index.ts';
+import { createAccountErase, ERASE_PATH, MERGE_PATH, type EraseStep } from '../erase/index.ts';
 import { healthResponse, readCommit, serviceIdOf, type HealthExtra } from '../health/index.ts';
 import { checkBundle, isEmbedEntry, stampOrigin, type BasePathVerdict, type Gate } from '../http/index.ts';
 import { bootClock, busyHandler, closeConnections, sendThenFlush, type BusyRun } from '../lifecycle/index.ts';
@@ -249,6 +249,7 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 	);
 	// The edge's seal only, never a tier, and above first-seen so an erase does not record the person again.
 	app.post(ERASE_PATH, (req: Request, res: Response) => void accountErase.handle(req, res));
+	app.post(MERGE_PATH, (req: Request, res: Response) => void accountErase.handleMerge(req, res));
 	const sealed = express.Router();
 	app.use((req, res, next) => (config.edgeAuth.edgeSealed(req) ? sealed(req, res, next) : next()));
 
@@ -305,7 +306,14 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 	await runPhase('config');
 	seen = firstSeen({ file: config.firstSeen.file, userIdOf: callerIdOf, tierOf, log: config.firstSeen.log });
 	const callersSeen = seen;
-	accountErase.register({ what: 'callersSeen', erase: (p) => callersSeen.forget(p.userId) });
+	accountErase.register({
+		what: 'callersSeen',
+		erase: (p) => callersSeen.forget(p.userId),
+		// Nothing moves: first-seen is a fact about each account (its own `caller-first-seen`), not
+		// something the person owns. The kept account keeps its own; the merged-away one's entry goes
+		// in the erase sweep that follows the merge.
+		merge: () => 0,
+	});
 	verdict = await checkBundle(config.bundle.indexHtml, config.basePrefix);
 	await runPhase('bundle');
 	if (config.telemetry !== undefined) installTelemetry(config.telemetry());

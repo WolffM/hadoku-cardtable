@@ -232,3 +232,22 @@ describe('account erase in the presets', () => {
 		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:ffffffff')).toBe(0);
 	});
 });
+
+describe('account merge in the presets', () => {
+	it("makes the merged-away account's presets the kept account's, on disk too, and finds none the second time", async () => {
+		const path = await presetsPath();
+		const store = createPresetStore({ path });
+		await store.create('Hers', PLAN, 'fk:alice');
+		await store.create('Kept', PLAN, 'fk:kept');
+		await store.create('His', PLAN, 'fk:bob');
+		const renames = new Map([
+			['fk:alice', 'fk:kept'],
+			['uid-alice', 'uid-kept'],
+		]);
+
+		expect(await store.merge(renames)).toBe(1);
+		const onDisk = JSON.parse(await readFile(path, 'utf8')) as { presets: { name: string; createdBy: string }[] };
+		expect(Object.fromEntries(onDisk.presets.map((p) => [p.name, p.createdBy]))).toEqual({ Hers: 'fk:kept', Kept: 'fk:kept', His: 'fk:bob' });
+		expect(await store.merge(renames)).toBe(0);
+	});
+});

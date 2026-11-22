@@ -224,6 +224,40 @@ describe('the parked store', () => {
 		expect(s.forget('fk:aaaaaaaaaaaaaaaa')).toBe(0);
 	});
 
+	it("gives the kept account a parked game the merged-away account held a seat in, on disk too, on an account merge", () => {
+		const dir = tempDir();
+		const { s } = store(dir);
+		expect(s.park(running())).not.toBeNull();
+		const move = {
+			from: { participantId: 'fk:aaaaaaaaaaaaaaaa' },
+			into: { ids: new Set(['fk:dddddddddddddddd', 'uid-d']) },
+			renames: new Map([
+				['fk:aaaaaaaaaaaaaaaa', 'fk:dddddddddddddddd'],
+				['uid-a', 'uid-d'],
+			]),
+		};
+		expect(s.merge(move)).toBe(1);
+		expect(s.listFor('fk:aaaaaaaaaaaaaaaa')).toEqual([]);
+		expect(s.listFor('fk:dddddddddddddddd')).toHaveLength(1);
+		expect(store(dir).s.listFor('fk:dddddddddddddddd')).toHaveLength(1);
+		expect(JSON.stringify(store(dir).s.get(s.listFor('fk:dddddddddddddddd')[0]!.matchId))).not.toContain('fk:aaaaaaaaaaaaaaaa');
+		expect(s.merge(move)).toBe(0);
+	});
+
+	it('leaves a parked game between the two merged accounts, for the erase sweep to delete', () => {
+		const dir = tempDir();
+		const { s } = store(dir);
+		expect(s.park(running())).not.toBeNull();
+		const move = {
+			from: { participantId: 'fk:aaaaaaaaaaaaaaaa' },
+			into: { ids: new Set(['fk:bbbbbbbbbbbbbbbb']) },
+			renames: new Map([['fk:aaaaaaaaaaaaaaaa', 'fk:bbbbbbbbbbbbbbbb']]),
+		};
+		expect(s.merge(move)).toBe(0);
+		expect(s.listFor('fk:aaaaaaaaaaaaaaaa')).toHaveLength(1);
+		expect(s.forget('fk:aaaaaaaaaaaaaaaa')).toBe(1);
+	});
+
 	it('parks a running game: its room, seats, decks, snapshot, clock and pin, written atomically and listed for each player', () => {
 		const dir = tempDir();
 		const { s } = store(dir);

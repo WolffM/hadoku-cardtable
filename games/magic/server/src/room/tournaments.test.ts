@@ -151,3 +151,32 @@ describe('account erase in the tournaments', () => {
 		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:ffffffff')).toBe(0);
 	});
 });
+
+describe('account merge in the tournaments', () => {
+	const MERGE = {
+		from: { participantId: 'fk:alice', userId: 'uid-alice', ids: new Set(['fk:alice', 'uid-alice']) },
+		into: { participantId: 'fk:kept', userId: 'uid-kept', ids: new Set(['fk:kept', 'uid-kept']) },
+		renames: new Map([
+			['fk:alice', 'fk:kept'],
+			['uid-alice', 'uid-kept'],
+		]),
+	};
+
+	const row = (id: string, rank: number) => ({ id, matchPoints: 0, opponentMatchWinPct: 0, gameWinPct: 0, opponentGameWinPct: 0, medianGameMs: null, rank, decidedBy: null });
+
+	it('names the kept account wherever a tournament named only the merged-away one, under the name they played as, and leaves one naming both', async () => {
+		const file = await fileIn();
+		const store = await openTournaments(file, () => {});
+		store.record(t('pod', 1, { names: { 'fk:alice': 'Alice', 'fk:bob': 'Bob' }, standings: [row('fk:alice', 1), row('fk:bob', 2)] }));
+		// Both of her accounts played in this one: the kept account's place wins, and the erase sweep anonymises the other.
+		store.record(t('both', 2, { names: { 'fk:alice': 'Alice', 'fk:kept': 'Alice K' }, standings: [row('fk:kept', 1), row('fk:alice', 2)] }));
+
+		expect(await store.merge(MERGE)).toBe(1);
+		const saved = JSON.parse(await readFile(file, 'utf8')) as Tournament[];
+		const pod = saved.find((x) => x.id === 'pod')!;
+		expect(pod.names).toEqual({ 'fk:kept': 'Alice', 'fk:bob': 'Bob' });
+		expect(pod.standings.map((s) => s.id)).toEqual(['fk:kept', 'fk:bob']);
+		expect(saved.find((x) => x.id === 'both')!.names).toEqual({ 'fk:alice': 'Alice', 'fk:kept': 'Alice K' });
+		expect(await store.merge(MERGE)).toBe(0);
+	});
+});

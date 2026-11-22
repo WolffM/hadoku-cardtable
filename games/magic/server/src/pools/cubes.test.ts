@@ -627,3 +627,23 @@ describe('account erase in the imported cubes', () => {
 		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:ffffffff')).toBe(0);
 	});
 });
+
+describe('account merge in the imported cubes', () => {
+	it("makes a cube the merged-away account imported the kept account's, by id and by account, on disk too", async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const fixture = await readFixture();
+		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG, fetchJson: async () => fixture });
+		const summary = await store.importLink('https://cubecobra.com/cube/overview/lsv-cube-fixture', 'fk:alice', 'uid-alice');
+		const renames = new Map([
+			['fk:alice', 'fk:kept'],
+			['uid-alice', 'uid-kept'],
+		]);
+
+		expect(await store.merge(renames)).toBe(1);
+		expect(store.importerUser(summary.id)).toBe('uid-kept');
+		expect(store.list().find((c) => c.id === summary.id)?.importedBy).toBe('fk:kept');
+		const onDisk = JSON.parse(await readFile(join(importDir, `${summary.id}.json`), 'utf8')) as { importedBy: string; importedByUser: string };
+		expect(onDisk).toMatchObject({ importedBy: 'fk:kept', importedByUser: 'uid-kept' });
+		expect(await store.merge(renames)).toBe(0);
+	});
+});

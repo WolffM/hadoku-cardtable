@@ -49,7 +49,7 @@ import { seatsOpenAt } from '@hadoku/platform-wire/events';
 import { sameLook, type Look } from '@hadoku/platform-wire/look';
 import { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
 
-import { replaceIds } from '../erase/anonymise.ts';
+import { moveIds, namesAny, replaceIds, type IdMove } from '../erase/anonymise.ts';
 import { seatPersonas, type AiPersona } from './ai-faces.ts';
 import { avatarIdOf } from './avatar.ts';
 import type { Caller } from './caller.ts';
@@ -1173,6 +1173,28 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 			this.persist(room);
 		}
 		return changed;
+	}
+
+	/**
+	 * Account merge: every room that names the merged-away account names the kept one instead, by
+	 * `moveIds` — so a room that already names the kept account is a conflict it wins, left for the
+	 * erase sweep that follows (`erase/rooms.ts` has the person leave it first). Each room changed is
+	 * saved. Answers how many changed.
+	 */
+	merge(move: IdMove): number {
+		let changed = 0;
+		for (const room of this.#rooms.values()) {
+			if (moveIds(room, move) === 0) continue;
+			changed++;
+			this.persist(room);
+		}
+		return changed;
+	}
+
+	/** Does the room's record name any of `ids` anywhere (a member, a seat, a result)? False for no such room. */
+	names(roomId: string, ids: ReadonlySet<string>): boolean {
+		const room = this.#rooms.get(roomId);
+		return room !== undefined && namesAny(room, ids);
 	}
 
 	/** Move the start of the event a room was made for, and its seats' opening with it. False when there is no such room. */

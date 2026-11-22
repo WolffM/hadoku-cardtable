@@ -22,7 +22,7 @@ import { dirname } from 'node:path';
 
 import { rankedStandings } from '@hadoku/draft';
 import { TournamentSchema, type Tournament } from '@hadoku/shared';
-import { replaceIds } from '@hadoku/game-server/erase/anonymise';
+import { moveIds, replaceIds, type IdMove } from '@hadoku/game-server/erase/anonymise';
 
 export interface Tournaments {
 	/** Keeps the first record for an id: a pod archived when it finished is not overwritten by its room's close. */
@@ -35,6 +35,12 @@ export interface Tournaments {
 export interface AnonymisableTournaments extends Tournaments {
 	/** Every tournament naming one of `ids` names `to` instead, with no name. Answers how many changed, once saved. */
 	anonymise(ids: ReadonlySet<string>, to: string): Promise<number>;
+	/**
+	 * Account merge: every tournament naming the merged-away account, and not the kept one, names
+	 * the kept one (`moveIds`); its name for them stays as they played under it. One naming both is
+	 * left to the erase sweep. Answers how many changed, once saved.
+	 */
+	merge(move: IdMove): Promise<number>;
 }
 
 /** The most kept; the oldest go first. */
@@ -151,6 +157,15 @@ export async function openTournaments(file: string, log: (entry: Record<string, 
 					changed++;
 				}
 				if (changed > 0 && !(await save())) throw new Error('tournaments: the anonymised list was not saved');
+				return changed;
+			});
+		},
+		merge(move) {
+			return inTurn(async () => {
+				await fresh();
+				let changed = 0;
+				for (const t of all) if (moveIds(t, move) > 0) changed++;
+				if (changed > 0 && !(await save())) throw new Error('tournaments: the merged list was not saved');
 				return changed;
 			});
 		},

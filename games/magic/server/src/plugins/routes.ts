@@ -136,6 +136,16 @@ export const routesPlugin: CardtablePlugin = {
 		attachClientEvents(api);
 		attachUsage(api);
 		ctx.bootPhase('routes');
-		return { erase: [{ what: 'people', erase: (p) => people.forget(p.userId) }] };
+		return {
+			erase: [
+				{
+					what: 'people',
+					erase: (p) => people.forget(p.userId),
+					// Nothing moves: a minute's cache of prefs-api's answer for each account, not the person's
+					// data. The kept account's is its own; the merged-away one's goes in the erase sweep.
+					merge: () => 0,
+				},
+			],
+		};
 	},
 };

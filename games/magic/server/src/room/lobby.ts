@@ -417,7 +417,7 @@ export interface Lobby
 	extends Pick<
 		RoomLobby<RoomView, CreateRoomInput>,
 		| 'list' | 'offered' | 'touch' | 'get' | 'isMember' | 'playerState' | 'setPlayerState' | 'setReady' | 'setAvatar' | 'onAvatarChange'
-		| 'usersOf' | 'setLook' | 'onChange' | 'leave' | 'close' | 'anonymise' | 'removed' | 'reschedule' | 'seatsShutUntil' | 'gameSeatOf'
+		| 'usersOf' | 'setLook' | 'onChange' | 'leave' | 'close' | 'anonymise' | 'merge' | 'names' | 'removed' | 'reschedule' | 'seatsShutUntil' | 'gameSeatOf'
 		| 'bindWatchparty' | 'join' | 'rename' | 'sweep' | 'onRelayRoomOpened' | 'sitSeat' | 'standSeat' | 'aiSeat' | 'closeSeat'
 		| 'subPlaceOf' | 'roleOf' | 'removeFromSeat' | 'lowerSeatCapacity' | 'botReplacesHuman' | 'passLeader'
 	> {

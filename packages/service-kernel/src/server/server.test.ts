@@ -35,7 +35,7 @@ const scores: GamePlugin<FakeEvents, FakeState> = {
 		ctx.gauge('tables', () => 2);
 		ctx.busy(() => [{ id: 't1', kind: 'table', label: 'live' }]);
 		return {
-			erase: [{ what: 'scores', erase: (p) => (p.userId === 'u1' ? 2 : 0) }],
+			erase: [{ what: 'scores', erase: (p) => (p.userId === 'u1' ? 2 : 0), merge: (m) => (m.from.userId === 'u1' ? 3 : 0) }],
 			shutdown: () => {
 				ctx.state.stopped.push('scores');
 				return { scoresKept: 2 };
@@ -131,6 +131,14 @@ describe('createGameServer: a fake two-plugin game', () => {
 		expect((await fetch(`${base}/api/_account/erase`, { method: 'POST', headers: { 'x-user-id': 'u1' } })).status).toBe(401);
 		const erased = await fetch(`${base}/api/_account/erase`, { method: 'POST', headers: sealed });
 		expect(await erased.json()).toEqual({ erased: { callersSeen: 1, scores: 2 } });
+	});
+
+	it("runs every plugin's merge step behind the edge's seal", async () => {
+		const merge = (headers: Record<string, string>) => fetch(`${base}/api/_account/merge`, { method: 'POST', headers });
+		expect((await merge({ 'x-user-id': 'u1', 'x-merge-into': 'u2' })).status).toBe(401);
+		expect((await merge(sealed)).status).toBe(400);
+		const merged = await merge({ ...sealed, 'x-merge-into': 'u2' });
+		expect(await merged.json()).toEqual({ merged: { callersSeen: 0, scores: 3 } });
 	});
 
 	it('takes a socket, tells it the restart event, and shuts down in reverse order within the deadline', async () => {

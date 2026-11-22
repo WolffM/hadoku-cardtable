@@ -82,6 +82,11 @@ export interface CubeStore {
 	setVerdict(id: string, verdict: PoolVerdict): void;
 	/** Account erase: cubes imported by one of `ids` are credited to `to`. Answers how many, once saved. */
 	anonymise(ids: ReadonlySet<string>, to: string): Promise<number>;
+	/**
+	 * Account merge: cubes the merged-away account imported are the kept account's, by participant id
+	 * and by account (`renames`: old id → new). Answers how many, once saved.
+	 */
+	merge(renames: ReadonlyMap<string, string>): Promise<number>;
 }
 
 /** A typed refusal `remove`/`refresh`/`importLink`/`importList` throw — the HTTP status is already decided. */
@@ -534,6 +539,20 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 				await persistImport(entry);
 			}
 			return theirs.length;
+		},
+
+		async merge(renames: ReadonlyMap<string, string>): Promise<number> {
+			// An import is its importer's own record: nothing in it can name the kept account too, so nothing conflicts.
+			let moved = 0;
+			for (const entry of imported.values()) {
+				const importedBy = entry.summary.importedBy === null ? undefined : renames.get(entry.summary.importedBy);
+				if (importedBy === undefined) continue;
+				if (entry.user !== null) entry.user = renames.get(entry.user) ?? entry.user;
+				entry.summary = { ...entry.summary, importedBy };
+				await persistImport(entry);
+				moved++;
+			}
+			return moved;
 		},
 
 		importerUser(id: string): string | null {

@@ -42,6 +42,8 @@ export interface PresetStore {
 	remove(id: string, by: string): Promise<void>;
 	/** Account erase: presets created by one of `ids` are credited to `to`. Answers how many, once saved. */
 	anonymise(ids: ReadonlySet<string>, to: string): Promise<number>;
+	/** Account merge: presets the merged-away account created are the kept account's (`renames`: old id → new). Answers how many, once saved. */
+	merge(renames: ReadonlyMap<string, string>): Promise<number>;
 }
 
 /** A typed refusal `remove` throws — the HTTP status is already decided. */
@@ -157,6 +159,19 @@ export function createPresetStore(opts: CreatePresetStoreOpts): PresetStore {
 			for (const p of theirs) p.createdBy = to;
 			if (theirs.length > 0) await persist();
 			return theirs.length;
+		},
+
+		async merge(renames: ReadonlyMap<string, string>): Promise<number> {
+			// A preset is the creator's own record: nothing in it can name the kept account too, so nothing conflicts.
+			let moved = 0;
+			for (const p of presets) {
+				const to = renames.get(p.createdBy);
+				if (to === undefined) continue;
+				p.createdBy = to;
+				moved++;
+			}
+			if (moved > 0) await persist();
+			return moved;
 		},
 	};
 }

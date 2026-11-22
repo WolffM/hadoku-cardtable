@@ -25,6 +25,7 @@
 
 import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { moveIds, type IdMove } from '@hadoku/game-server/erase/anonymise';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { RoomMode, RoomSettings } from '@hadoku/shared';
 
@@ -115,6 +116,13 @@ export interface ParkedStore {
 	finished(matchId: string): void;
 	/** Account erase: every parked game `participantId` held a seat in is deleted. Answers how many. */
 	forget(participantId: string): number;
+	/**
+	 * Account merge: a parked game the merged-away account held a seat in is the kept account's to
+	 * pick up (`moveIds`, the whole record). A game between the two accounts is left, and the erase
+	 * sweep deletes it as it deletes any game an erased person sat in: one person cannot resume both
+	 * seats. Answers how many moved.
+	 */
+	merge(move: IdMove & { from: { participantId: string } }): number;
 }
 
 export interface ParkedStoreDeps {
@@ -256,6 +264,19 @@ export function openParkedStore(deps: ParkedStoreDeps): ParkedStore {
 			for (const s of theirs) remove(s.matchId);
 			if (theirs.length > 0) deps.log({ evt: 'parked-erased', matchIds: theirs.map((s) => s.matchId) });
 			return theirs.length;
+		},
+		merge(move) {
+			let moved = 0;
+			for (const s of [...index.values()]) {
+				if (!s.seats.some((seat) => seat.owner === move.from.participantId)) continue;
+				const record = get(s.matchId);
+				if (record === null || moveIds(record, move) === 0) continue;
+				write(record);
+				index.set(record.matchId, summaryOf(record));
+				moved++;
+			}
+			if (moved > 0) deps.log({ evt: 'parked-merged', moved });
+			return moved;
 		},
 		finished(matchId) {
 			const from = resumedFrom(matchId);

@@ -10,10 +10,25 @@
  *   placeholder instead (`Lobby.anonymise`).
  *
  * The steps run in that order, so a room is never anonymised while they still sit in it.
+ *
+ * ## Account merge
+ *
+ * - A live match the merged-away account holds a seat in ends as that seat's forfeit, as an erase
+ *   ends it. A live game binds its seats to the participant id inside the match (its sockets, the
+ *   seat owners its recovery record keeps), and nothing carries a seat to another identity
+ *   mid-game; leaving it running would only have the erase sweep that follows the merge forfeit it
+ *   a moment later, after the room had already been moved to the kept account under it. A person
+ *   merges by signing in to their real account, so their guest's game is one they just left.
+ * - Every other room names the kept account instead (`Lobby.merge`): its seat, its series, its
+ *   lead, the room itself when they were alone in it. Nothing is closed and nobody leaves.
+ * - A room that already names the kept account (both accounts sat in it) is the kept account's:
+ *   the merge leaves it, and the erase sweep closes, leaves and anonymises the merged-away
+ *   account's place in it exactly as above.
  */
 
 import type { ParticipantId } from '@wolffm/rooms-protocol';
-import type { ErasedPerson, EraseStep } from './index.js';
+import type { ErasedPerson, EraseStep, MergedAccounts } from './index.js';
+import type { IdMove } from './anonymise.js';
 
 export interface LiveMatch {
 	seatOf(participantId: ParticipantId): number | null;
@@ -35,6 +50,8 @@ interface RoomsLobby {
 	leave(roomId: string, memberId: string): RoomsLeaveResult;
 	close(roomId: string, callerId: string): RoomsCloseResult;
 	anonymise(ids: ReadonlySet<string>, to: string): number;
+	/** Account merge: every room naming the merged-away account, and not the kept one, names the kept one. */
+	merge(move: IdMove): number;
 	removed(): Promise<void>;
 }
 
@@ -52,18 +69,20 @@ export interface RoomsEraseDeps<M extends LiveMatch> {
 
 /** The steps, in the order the module header gives. */
 export function roomsEraseSteps<M extends LiveMatch>(deps: RoomsEraseDeps<M>): EraseStep[] {
+	const forfeitAll = (participantId: ParticipantId): number => {
+		let n = 0;
+		for (const match of deps.liveMatches()) {
+			if (match.seatOf(participantId) === null) continue;
+			deps.forfeit(match, participantId);
+			n++;
+		}
+		return n;
+	};
 	return [
 		{
 			what: 'matchesForfeited',
-			erase: ({ participantId }: ErasedPerson) => {
-				let n = 0;
-				for (const match of deps.liveMatches()) {
-					if (match.seatOf(participantId) === null) continue;
-					deps.forfeit(match, participantId);
-					n++;
-				}
-				return n;
-			},
+			erase: ({ participantId }: ErasedPerson) => forfeitAll(participantId),
+			merge: ({ from }: MergedAccounts) => forfeitAll(from.participantId),
 		},
 		{
 			what: 'roomsClosed',
@@ -80,6 +99,8 @@ export function roomsEraseSteps<M extends LiveMatch>(deps: RoomsEraseDeps<M>): E
 				await deps.lobby.removed();
 				return n;
 			},
+			// A merge closes nothing: a room they were alone in moves to the kept account whole (`roomsMoved`).
+			merge: () => ({}),
 		},
 		{
 			what: 'roomsLeft',
@@ -94,7 +115,14 @@ export function roomsEraseSteps<M extends LiveMatch>(deps: RoomsEraseDeps<M>): E
 				}
 				return n;
 			},
+			// A merge leaves nothing: their place moves to the kept account (`roomsMoved`), and a room the
+			// kept account is already in is left to the erase sweep, which leaves it for them.
+			merge: () => ({}),
 		},
-		{ what: 'roomsAnonymised', erase: ({ ids, placeholder }: ErasedPerson) => deps.lobby.anonymise(ids, placeholder) },
+		{
+			what: 'roomsAnonymised',
+			erase: ({ ids, placeholder }: ErasedPerson) => deps.lobby.anonymise(ids, placeholder),
+			merge: (accounts: MergedAccounts) => ({ roomsMoved: deps.lobby.merge(accounts) }),
+		},
 	];
 }

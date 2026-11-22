@@ -14,7 +14,7 @@ import { randomBytes } from 'node:crypto';
 
 import { z } from 'zod';
 
-import { replaceIds } from '../erase/anonymise.js';
+import { moveIds, replaceIds, type IdMove } from '../erase/anonymise.js';
 
 const EventRecordSchema = z.object({
 	id: z.string(),
@@ -80,6 +80,12 @@ export interface Events {
 	forgetForms(formIds: readonly string[]): void;
 	/** Account erase: an event they organised and a form they attached keep going under `to`, with no name. Answers how many changed, once saved. */
 	anonymise(ids: ReadonlySet<string>, to: string): Promise<{ events: number; forms: number }>;
+	/**
+	 * Account merge: an event they organised and a form they attached are the kept account's
+	 * (`moveIds`), under the name they gave; one that already names the kept account is left to the
+	 * erase sweep. Answers how many changed, once saved.
+	 */
+	merge(move: IdMove): Promise<{ events: number; forms: number }>;
 }
 
 const mintEventId = (): string => `e-${randomBytes(6).toString('hex')}`;
@@ -218,6 +224,12 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 			}
 			if (changedEvents + changedForms > 0 && !(await save())) throw new Error('events: the anonymised store was not saved');
 			return { events: changedEvents, forms: changedForms };
+		},
+		async merge(move) {
+			const movedEvents = events.filter((e) => moveIds(e, move) > 0).length;
+			const movedForms = forms.filter((f) => moveIds(f, move) > 0).length;
+			if (movedEvents + movedForms > 0 && !(await save())) throw new Error('events: the merged store was not saved');
+			return { events: movedEvents, forms: movedForms };
 		},
 	};
 }

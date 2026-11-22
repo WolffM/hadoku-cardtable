@@ -1263,3 +1263,62 @@ describe('account erase in the draft pods', () => {
 		}
 	});
 });
+
+describe('account merge in the draft pods', () => {
+	const KEPT = 'fk:dddddddddddddddd';
+	const merge = (into = KEPT) => ({
+		from: { participantId: ALICE, userId: 'uid-alice', ids: new Set([ALICE, 'uid-alice']) },
+		into: { participantId: into, userId: 'uid-kept', ids: new Set([into, 'uid-kept']) },
+		renames: new Map([
+			[ALICE, into],
+			['uid-alice', 'uid-kept'],
+		]),
+	});
+
+	it("moves the merged-away drafter's seat, pool, build and deck page edits to the kept account, and saves the pod", async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'cardtable-draftrooms-merge-'));
+		try {
+			const r = createDraftRooms({ presence: noGracePresence, ...singlePoolResolver(pool), now: () => 1_700_000_000_000, storeDir: dir });
+			r.setPodLookup(() => podDeal([{ participantId: ALICE, displayName: 'Alice', seat: 5 }, { participantId: BOB, displayName: 'Bob', seat: 2 }]));
+			const room = r.open('pod-merge');
+			saveBuiltDeck(room, ALICE, '[Main]\n1 Island');
+			setDeckMeta(room, ALICE, { name: 'Mine' });
+			saveBuiltDeck(room, BOB, '[Main]\n1 Mountain');
+
+			expect(r.merge(merge(), () => false)).toEqual({ decks: 1, pods: 1 });
+			expect(builtDeckOf(room, ALICE)).toBeNull();
+			expect(builtDeckOf(room, KEPT)).toBe('[Main]\n1 Island');
+			expect(room.app.deckMeta[KEPT]).toEqual({ name: 'Mine' });
+			expect(builtDeckOf(room, BOB)).toBe('[Main]\n1 Mountain');
+			const state = stateOf(room);
+			expect(JSON.stringify(state)).not.toContain(ALICE);
+			expect(viewForParticipant(room, KEPT).viewer).toMatchObject({ kind: 'seat', seatId: 5 });
+			expect(viewForParticipant(room, ALICE).viewer).toEqual({ kind: 'spectator' });
+			expect(state.displayNames[2]).toBe('Bob');
+			const saved = await Promise.all((await readdir(dir)).filter((f) => f.endsWith('.json')).map((f) => readFile(join(dir, f), 'utf8')));
+			expect(saved.join('')).not.toContain(ALICE);
+			expect(saved.join('')).toContain(KEPT);
+
+			expect(r.merge(merge(), () => false)).toEqual({ decks: 0, pods: 0 });
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('leaves a pod both accounts drafted in, and one whose room stayed the merged-away account\'s, for the erase sweep', () => {
+		const r = createDraftRooms({ presence: noGracePresence, ...singlePoolResolver(pool), now: () => 1_700_000_000_000, storeDir: null });
+		r.setPodLookup((draftId) => podDeal(draftId === 'pod-both' ? [{ participantId: ALICE, displayName: 'Alice', seat: 5 }, { participantId: BOB, displayName: 'Alice K', seat: 2 }] : [{ participantId: ALICE, displayName: 'Alice', seat: 5 }]));
+		const both = r.open('pod-both');
+		saveBuiltDeck(both, ALICE, '[Main]\n1 Island');
+		saveBuiltDeck(both, BOB, '[Main]\n1 Mountain');
+		const kept = r.open('pod-room-kept');
+		saveBuiltDeck(kept, ALICE, '[Main]\n1 Forest');
+
+		// BOB is the kept account here: the pod names it, so the kept account's build wins and hers stays for the sweep.
+		expect(r.merge(merge(BOB), (draftId) => draftId === 'pod-room-kept')).toEqual({ decks: 0, pods: 0 });
+		expect(builtDeckOf(both, BOB)).toBe('[Main]\n1 Mountain');
+		expect(builtDeckOf(both, ALICE)).toBe('[Main]\n1 Island');
+		expect(builtDeckOf(kept, ALICE)).toBe('[Main]\n1 Forest');
+		expect(r.erase(ALICE, new Set([ALICE, 'uid-alice']), 'erased:0a1b2c3d')).toEqual({ decks: 2, pods: 2 });
+	});
+});

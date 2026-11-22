@@ -41,6 +41,16 @@ export const statsPlugin: CardtablePlugin = {
 				log: statsLog,
 			}),
 		});
-		return { erase: [{ what: 'statsKeys', erase: (p) => state.statsKeys.forget(p.participantId) }] };
+		return {
+			erase: [
+				{
+					what: 'statsKeys',
+					erase: (p) => state.statsKeys.forget(p.participantId),
+					// Nothing moves: the key is the merged-away account's own credential, which the edge is
+					// closing. The kept account's stats post under its own key, learned on its next request.
+					merge: () => 0,
+				},
+			],
+		};
 	},
 };

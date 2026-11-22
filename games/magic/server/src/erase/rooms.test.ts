@@ -68,3 +68,60 @@ describe("account erase in the person's rooms and games", () => {
 		expect(await erase.erase(ALICE_USER)).toEqual({ matchesForfeited: 0, roomsClosed: 0, roomsLeft: 0, roomsAnonymised: 0 });
 	});
 });
+
+describe("account merge in the person's rooms and games", () => {
+	const KEPT_USER = '9d2e7f10-3c4b-4a5d-8e6f-7a8b9c0d1e2f';
+	const KEPT = { id: personOf(KEPT_USER).participantId, name: 'Alice (kept)', userId: KEPT_USER };
+
+	it("forfeits the guest's live game, moves every room to the kept account, and leaves a room both sat in to the erase sweep", async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'merge-rooms-'));
+		const lobby = await openLobby({ dir });
+		const room = (made: ReturnType<typeof lobby.create>): string => {
+			if (!made.ok) throw new Error(made.reason);
+			return made.room.id;
+		};
+		const alone = room(lobby.create(ALICE, { name: 'Alone', gameType: 'constructed-1v1', clientMode: 'builtin' }));
+		const theirs = room(lobby.create(ALICE, { name: 'Hers', gameType: 'constructed-1v1', clientMode: 'builtin' }));
+		expect(lobby.join(theirs, BOB).ok).toBe(true);
+		// Both of her accounts sat in this one: the kept account's place in it wins.
+		const both = room(lobby.create(ALICE, { name: 'Both', gameType: 'constructed-1v1', clientMode: 'builtin' }));
+		expect(lobby.join(both, KEPT).ok).toBe(true);
+
+		const seated: LiveMatch = { seatOf: (id) => (id === ALICE.id ? 0 : 1) };
+		const forfeits: [LiveMatch, ParticipantId][] = [];
+		const closed: string[] = [];
+		const erase = createAccountErase({ log: () => {}, edgeSealed, deriveParticipantId: fkOf });
+		for (const step of roomsEraseSteps({
+			lobby,
+			liveMatches: () => [seated].filter((m) => !forfeits.some(([f]) => f === m)),
+			forfeit: (match, loser) => forfeits.push([match, loser]),
+			closed: (roomId) => closed.push(roomId),
+			forfeited: () => {},
+		})) erase.register(step);
+
+		expect(await erase.merge(ALICE_USER, KEPT_USER)).toEqual({ matchesForfeited: 1, roomsMoved: 2 });
+		expect(forfeits).toEqual([[seated, ALICE.id]]);
+		// Nothing closed: the room she was alone in is the kept account's now, led by it.
+		expect(closed).toEqual([]);
+		expect(lobby.get(alone)?.members.map((m) => m.id)).toEqual([KEPT.id]);
+		expect(lobby.get(alone)?.leader).toBe(KEPT.id);
+		expect(lobby.get(theirs)?.members.map((m) => m.id)).toEqual([KEPT.id, BOB.id]);
+		expect(lobby.get(theirs)?.leader).toBe(KEPT.id);
+		expect(lobby.get(both)?.members.map((m) => m.id).sort()).toEqual([ALICE.id, KEPT.id].sort());
+		// The moved rooms are saved naming the kept account, by its userId too.
+		const restarted = await openLobby({ dir });
+		expect(restarted.usersOf(alone)).toEqual([{ memberId: KEPT.id, userId: KEPT_USER }]);
+		expect(restarted.usersOf(theirs)).toEqual([
+			{ memberId: KEPT.id, userId: KEPT_USER },
+			{ memberId: BOB.id, userId: BOB.userId },
+		]);
+
+		expect(await erase.merge(ALICE_USER, KEPT_USER)).toEqual({ matchesForfeited: 0, roomsMoved: 0 });
+
+		// The edge's erase sweep on the account that went away: she leaves the room both sat in.
+		expect(await erase.erase(ALICE_USER)).toEqual({ matchesForfeited: 0, roomsClosed: 0, roomsLeft: 1, roomsAnonymised: 1 });
+		expect(lobby.get(both)?.members.map((m) => m.id)).toEqual([KEPT.id]);
+		expect(lobby.get(both)?.leader).toBe(KEPT.id);
+		expect(await onDisk(dir)).not.toContain(ALICE.id);
+	});
+});

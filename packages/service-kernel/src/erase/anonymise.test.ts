@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { placeholderId, replaceIds } from './anonymise.ts';
+import { moveIds, namesAny, placeholderId, renameIds, replaceIds } from './anonymise.ts';
 
 describe('placeholderId', () => {
 	it('mints a fresh id each time, in the erased: namespace', () => {
@@ -56,5 +56,73 @@ describe('replaceIds', () => {
 		expect(replaceIds(obj, ids, 'erased:x')).toBe(0);
 		expect(obj.f).toBe(fn);
 		expect(obj.keep).toBe('nope');
+	});
+});
+
+describe('renameIds', () => {
+	const renames = new Map([
+		['u-1', 'u-2'],
+		['fk:u-1', 'fk:u-2'],
+	]);
+
+	it('renames each id to its own counterpart, as a value, an element, a key, a Map entry and a Set member', () => {
+		const value = {
+			by: 'u-1',
+			seats: ['fk:u-1', 'fk:bob'],
+			names: { 'fk:u-1': 'Alice' } as Record<string, string>,
+			map: new Map([['fk:u-1', 'u-1']]),
+			set: new Set(['u-1']),
+		};
+		expect(renameIds(value, renames)).toBe(6);
+		expect(value).toEqual({ by: 'u-2', seats: ['fk:u-2', 'fk:bob'], names: { 'fk:u-2': 'Alice' }, map: new Map([['fk:u-2', 'u-2']]), set: new Set(['u-2']) });
+		expect(renameIds(value, renames)).toBe(0);
+	});
+
+	it('keeps the entry already there when a renamed key meets it: the kept account is never overwritten', () => {
+		const decks: Record<string, string> = { 'fk:u-1': 'theirs', 'fk:u-2': 'kept' };
+		const map = new Map([
+			['fk:u-1', 'theirs'],
+			['fk:u-2', 'kept'],
+		]);
+		const set = new Set(['u-1', 'u-2']);
+		expect(renameIds({ decks, map, set }, renames)).toBe(3);
+		expect(decks).toEqual({ 'fk:u-2': 'kept' });
+		expect([...map]).toEqual([['fk:u-2', 'kept']]);
+		expect([...set]).toEqual(['u-2']);
+	});
+});
+
+describe('namesAny', () => {
+	it('finds an id as a value, a key, a Map key or value and a Set member, and writes nothing', () => {
+		const ids = new Set(['u-2']);
+		expect(namesAny({ a: [{ b: 'u-2' }] }, ids)).toBe(true);
+		expect(namesAny({ 'u-2': 1 }, ids)).toBe(true);
+		expect(namesAny(new Map([['k', 'u-2']]), ids)).toBe(true);
+		expect(namesAny(new Map([['u-2', 'v']]), ids)).toBe(true);
+		expect(namesAny(new Set(['u-2']), ids)).toBe(true);
+		expect(namesAny({ a: 'u-1', b: ['x'] }, ids)).toBe(false);
+		expect(namesAny('u-2', ids)).toBe(false);
+	});
+});
+
+describe('moveIds', () => {
+	const move = {
+		into: { ids: new Set(['u-2', 'fk:u-2']) },
+		renames: new Map([
+			['u-1', 'u-2'],
+			['fk:u-1', 'fk:u-2'],
+		]),
+	};
+
+	it("moves a record that names only the merged-away account to the kept one", () => {
+		const room = { leader: 'fk:u-1', members: [{ id: 'fk:u-1', userId: 'u-1' }, { id: 'fk:bob', userId: 'bob' }] };
+		expect(moveIds(room, move)).toBe(3);
+		expect(room).toEqual({ leader: 'fk:u-2', members: [{ id: 'fk:u-2', userId: 'u-2' }, { id: 'fk:bob', userId: 'bob' }] });
+	});
+
+	it('leaves a record that already names the kept account: the conflict is the kept account\'s', () => {
+		const match = { seats: ['fk:u-1', 'fk:u-2'] };
+		expect(moveIds(match, move)).toBe(0);
+		expect(match).toEqual({ seats: ['fk:u-1', 'fk:u-2'] });
 	});
 });

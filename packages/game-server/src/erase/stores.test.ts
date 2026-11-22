@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { openEvents } from '../room/events.ts';
 import { placeholderId, replaceIds } from './anonymise.ts';
-import { personOf } from './index.ts';
+import { mergedAccountsOf, personOf } from './index.ts';
 import { legacyIdsStep } from './legacy-ids.ts';
 import { recordingsStep } from './recordings.ts';
 import { UNNAMED } from '../room/constants.ts';
@@ -158,5 +158,80 @@ describe('account erase in the match recordings', () => {
 		const file = join(temp(), 'a-file');
 		writeFileSync(file, '');
 		await expect(recordingsStep(file).erase(personOf('uid-alice'))).rejects.toThrow(/ENOTDIR/);
+	});
+});
+
+describe('account merge in the events', () => {
+	const move = {
+		into: { ids: new Set(['fk:kept', 'uid-kept']) },
+		renames: new Map([
+			['fk:alice', 'fk:kept'],
+			['uid-alice', 'uid-kept'],
+		]),
+	};
+
+	it("makes an event and a form the merged-away account organised the kept account's, and saves before answering", async () => {
+		const file = join(temp(), 'events.json');
+		const now = Date.now();
+		const events = await openEvents(file, () => {}, () => now);
+		events.create({ roomId: 'r-1', startsAt: now + 60_000, organizerId: 'fk:alice', organizerUserId: 'uid-alice' }, now);
+		events.create({ roomId: 'r-2', startsAt: now + 60_000, organizerId: 'fk:bob', organizerUserId: 'uid-bob' }, now);
+		events.attachForm({ formId: 'f-1', attachedById: 'fk:alice', attachedByUserId: 'uid-alice' }, now);
+
+		expect(await events.merge(move)).toEqual({ events: 1, forms: 1 });
+		const parsed = JSON.parse(readFileSync(file, 'utf8')) as { events: { roomId: string; organizerId: string; organizerUserId: string }[]; forms: { attachedById: string; attachedByUserId: string }[] };
+		expect(parsed.events.find((e) => e.roomId === 'r-1')).toMatchObject({ organizerId: 'fk:kept', organizerUserId: 'uid-kept' });
+		expect(parsed.events.find((e) => e.roomId === 'r-2')).toMatchObject({ organizerId: 'fk:bob', organizerUserId: 'uid-bob' });
+		expect(parsed.forms).toEqual([expect.objectContaining({ attachedById: 'fk:kept', attachedByUserId: 'uid-kept' })]);
+		expect(await events.merge(move)).toEqual({ events: 0, forms: 0 });
+	});
+});
+
+describe('account merge in the R12 remap record', () => {
+	it("points the merged-away account's entries at the kept account, and is fine with no file", async () => {
+		const file = join(temp(), 'legacy-ids.done.json');
+		const step = legacyIdsStep(file);
+		const m = mergedAccountsOf('uid-alice', 'uid-kept');
+		expect(await step.merge(m)).toBe(0);
+		expect(existsSync(file)).toBe(false);
+
+		writeFileSync(file, JSON.stringify({ 'fk:old1': 'uid-alice', 'fk:old2': 'uid-bob', 'fk:old3': 'uid-kept' }));
+		expect(await step.merge(m)).toBe(1);
+		expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ 'fk:old1': 'uid-kept', 'fk:old2': 'uid-bob', 'fk:old3': 'uid-kept' });
+		expect(await step.merge(m)).toBe(0);
+	});
+});
+
+describe('account merge in the match recordings', () => {
+	const gz = (lines: unknown[]): Buffer => gzipSync(Buffer.from(lines.map((l) => JSON.stringify(l)).join('\n') + '\n'));
+	const read = (path: string): string => gunzipSync(readFileSync(path)).toString('utf8');
+
+	it("gives the kept account the merged-away account's seats, keeping the names played and each file's age, and leaves a match between the two", async () => {
+		const dir = temp();
+		const pub = join(dir, 'm-000000000011.public.jsonl.gz');
+		const act = join(dir, 'm-000000000011.actions.jsonl.gz');
+		writeFileSync(pub, gz([{ t: 'header', players: ['Alice', 'Bob'] }, { t: 'end', seats: [{ seat: 0, userId: 'uid-alice' }, { seat: 1, userId: 'uid-bob' }] }]));
+		writeFileSync(act, gz([{ t: 'header', spec: { seats: [{ name: 'Alice' }, { name: 'Bob' }] } }, { t: 'end', users: ['uid-alice', 'uid-bob'] }]));
+		// She played herself, from both accounts: the kept account's seat wins, and the erase sweep unnames hers.
+		const self = join(dir, 'm-000000000012.public.jsonl.gz');
+		writeFileSync(self, gz([{ t: 'header', players: ['Alice', 'Alice K'] }, { t: 'end', seats: [{ seat: 0, userId: 'uid-alice' }, { seat: 1, userId: 'uid-kept' }] }]));
+		const aged = new Date('2026-11-01T00:00:00Z');
+		for (const f of [pub, act, self]) utimesSync(f, aged, aged);
+
+		const step = recordingsStep(dir);
+		const m = mergedAccountsOf('uid-alice', 'uid-kept');
+		expect(await step.merge(m)).toBe(1);
+		for (const f of [pub, act]) {
+			expect(read(f)).not.toContain('uid-alice');
+			expect(read(f)).toContain('uid-kept');
+			expect(read(f)).toContain('Alice');
+			expect(statSync(f).mtime).toEqual(aged);
+		}
+		expect(read(self)).toContain('uid-alice');
+		expect(await step.merge(m)).toBe(0);
+
+		expect(await step.erase(personOf('uid-alice'))).toBe(1);
+		expect(read(self)).not.toContain('uid-alice');
+		expect(read(self)).toContain('uid-kept');
 	});
 });

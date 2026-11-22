@@ -63,6 +63,7 @@
     "PATCH /api/events/:id",
     "PATCH /api/rooms/:id",
     "POST /api/_account/erase",
+    "POST /api/_account/merge",
     "POST /api/client-events/",
     "POST /api/events",
     "POST /api/events/:id/signups/remove",

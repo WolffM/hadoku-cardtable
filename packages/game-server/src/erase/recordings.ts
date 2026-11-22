@@ -13,6 +13,8 @@
  * A recording from before seats kept their userId names nobody this can match, and is left to
  * its retention, as the ruling says.
  *
+ * An account merge moves the seat to the kept account instead (`recordingsStep`'s `merge`).
+ *
  * ## Off the event loop
  *
  * Every erase used to gunzip and parse every line of every recording, synchronously: 181–197 ms of
@@ -29,7 +31,7 @@ import { promisify } from 'node:util';
 import { gunzip as gunzipCb, gzip as gzipCb } from 'node:zlib';
 import { UNNAMED } from '../room/constants.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
-import { replaceIds } from './anonymise.js';
+import { renameIds, replaceIds } from './anonymise.js';
 import type { EraseStep } from './index.js';
 
 const gunzip = promisify(gunzipCb);
@@ -87,43 +89,79 @@ function seatNames(header: Line | undefined, seats: readonly number[]): string[]
 	return seats.flatMap((seat) => [players[seat], spec?.seats?.[seat]?.name].filter((n): n is string => typeof n === 'string' && n !== '' && n !== UNNAMED));
 }
 
+/** One recording: each of its files' path and parsed lines. */
+type Recording = { path: string; lines: Line[] }[];
+
+/**
+ * Visit every recording whose text holds `userId`, parsed; `change` edits it in place and answers
+ * whether it did, and a changed recording is written back. Answers how many changed.
+ */
+async function rewriteRecordings(dir: string, userId: string, change: (recording: Recording) => boolean): Promise<number> {
+	let files: string[];
+	try {
+		files = await readdir(dir);
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+		throw err;
+	}
+	const matchIds = new Set(files.flatMap((f) => (f.endsWith(PUBLIC_SUFFIX) ? [f.slice(0, -PUBLIC_SUFFIX.length)] : f.endsWith(ACTIONS_SUFFIX) ? [f.slice(0, -ACTIONS_SUFFIX.length)] : [])));
+	let changed = 0;
+	for (const matchId of matchIds) {
+		const texts: { path: string; text: string }[] = [];
+		for (const suffix of [PUBLIC_SUFFIX, ACTIONS_SUFFIX]) {
+			if (!files.includes(matchId + suffix)) continue;
+			const path = join(dir, matchId + suffix);
+			const text = await readText(path).catch((err: NodeJS.ErrnoException) => {
+				// Retention may age a file out between the listing and this read: it names no one now.
+				if (err.code === 'ENOENT') return null;
+				throw err;
+			});
+			if (text !== null) texts.push({ path, text });
+		}
+		if (!texts.some(({ text }) => text.includes(userId))) continue;
+		const recording = texts.map(({ path, text }) => ({ path, lines: parseLines(text) }));
+		if (!change(recording)) continue;
+		for (const { path, lines } of recording) await writeLines(path, lines);
+		changed++;
+	}
+	return changed;
+}
+
+/** Every end line in a recording: the last of each file. */
+const endsOf = (recording: Recording): Line[] =>
+	recording.flatMap(({ lines }) => {
+		const end = lines.findLast((l) => l.t === 'end');
+		return end === undefined ? [] : [end];
+	});
+
+/** Does an end line name `userId` in a seat? */
+function endNames(end: Line, userId: string): boolean {
+	return (Array.isArray(end.seats) && (end.seats as { userId?: string }[]).some((s) => s.userId === userId)) || (Array.isArray(end.users) && (end.users as unknown[]).includes(userId));
+}
+
 export function recordingsStep(dir: string): EraseStep {
 	return {
 		what: 'recordings',
-		erase: async ({ userId }) => {
-			let files: string[];
-			try {
-				files = await readdir(dir);
-			} catch (err) {
-				if ((err as NodeJS.ErrnoException).code === 'ENOENT') return 0;
-				throw err;
-			}
-			const matchIds = new Set(files.flatMap((f) => (f.endsWith(PUBLIC_SUFFIX) ? [f.slice(0, -PUBLIC_SUFFIX.length)] : f.endsWith(ACTIONS_SUFFIX) ? [f.slice(0, -ACTIONS_SUFFIX.length)] : [])));
-			let changed = 0;
-			for (const matchId of matchIds) {
-				const texts: { path: string; text: string }[] = [];
-				for (const suffix of [PUBLIC_SUFFIX, ACTIONS_SUFFIX]) {
-					if (!files.includes(matchId + suffix)) continue;
-					const path = join(dir, matchId + suffix);
-					const text = await readText(path).catch((err: NodeJS.ErrnoException) => {
-						// Retention may age a file out between the listing and this read: it names no one now.
-						if (err.code === 'ENOENT') return null;
-						throw err;
-					});
-					if (text !== null) texts.push({ path, text });
-				}
-				if (!texts.some(({ text }) => text.includes(userId))) continue;
-				const recording = texts.map(({ path, text }) => ({ path, lines: parseLines(text) }));
+		erase: ({ userId }) =>
+			rewriteRecordings(dir, userId, (recording) => {
 				const seats = recording.flatMap(({ lines }) => dropUser(lines.findLast((l) => l.t === 'end'), userId));
-				if (seats.length === 0) continue;
+				if (seats.length === 0) return false;
 				const names = new Set(recording.flatMap(({ lines }) => seatNames(lines.find((l) => l.t === 'header'), seats)));
-				for (const { path, lines } of recording) {
-					replaceIds(lines, names, UNNAMED);
-					await writeLines(path, lines);
-				}
-				changed++;
-			}
-			return changed;
-		},
+				for (const { lines } of recording) replaceIds(lines, names, UNNAMED);
+				return true;
+			}),
+		/**
+		 * The merged-away account's seats become the kept account's, so its replays draw the kept
+		 * account. The names stay as they were played. A match between the two accounts (an end line
+		 * naming both) is a conflict the kept account wins: it is left, and the erase sweep plays the
+		 * merged-away seat as unnamed, as for anyone erased.
+		 */
+		merge: ({ from, into }) =>
+			rewriteRecordings(dir, from.userId, (recording) => {
+				const ends = endsOf(recording);
+				if (ends.some((end) => endNames(end, into.userId))) return false;
+				const only = new Map([[from.userId, into.userId]]);
+				return ends.reduce((n, end) => n + renameIds([end.seats, end.users], only), 0) > 0;
+			}),
 	};
 }

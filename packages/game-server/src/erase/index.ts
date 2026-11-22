@@ -1,5 +1,6 @@
 /**
- * Cardtable's binding of `@hadoku/service-kernel/erase` — `POST /api/_account/erase`.
+ * Cardtable's binding of `@hadoku/service-kernel/erase` — `POST /api/_account/erase` and its
+ * merge counterpart, `POST /api/_account/merge` (same admission; the kernel's `erase.ts` has the contract).
  *
  * The edge calls it on the tunnel origin with `X-Edge-Auth` (its seal), `X-Hadoku-Tier: member`
  * and `X-User-Id`. Only the seal admits it (`createGameServer` passes `edgeAuth.edgeSealed`), never
@@ -13,20 +14,29 @@
  */
 import {
 	ERASE_PATH,
+	MERGE_PATH,
+	mergedAccountsOf as kernelMergedAccountsOf,
 	personOf as kernelPersonOf,
 	type AccountErase,
+	type AccountIds,
 	type EraseCounts,
 	type ErasedPerson,
 	type EraseStep,
+	type MergedAccounts,
 } from '@hadoku/service-kernel/erase';
 
 import { deriveParticipantId } from '../room/identity.js';
 
-export { ERASE_PATH };
-export type { AccountErase, EraseCounts, ErasedPerson, EraseStep };
+export { ERASE_PATH, MERGE_PATH };
+export type { AccountErase, AccountIds, EraseCounts, ErasedPerson, EraseStep, MergedAccounts };
 
 export const fkOf = (userId: string): string => deriveParticipantId({ accountId: userId, socketId: '' });
 
 export function personOf(userId: string): ErasedPerson {
 	return kernelPersonOf(userId, fkOf);
+}
+
+/** One merge of `fromUserId` into `intoUserId`, by cardtable's `fk:` ids too (`POST /api/_account/merge`). */
+export function mergedAccountsOf(fromUserId: string, intoUserId: string): MergedAccounts {
+	return kernelMergedAccountsOf(fromUserId, intoUserId, fkOf);
 }
