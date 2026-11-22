@@ -159,11 +159,17 @@ function installPlaced(...args: Parameters<typeof installLayer>): ReturnType<typ
   return handle;
 }
 
+/** Back to the real clock, the frames the fake one still owes run first: one left owed would hold the page's one frame loop (`everyFrame`) for every later test. */
+function realTimers(): void {
+  if (vi.isFakeTimers()) vi.runOnlyPendingTimers();
+  vi.useRealTimers();
+}
+
 afterEach(() => {
   for (const handle of installed.splice(0)) handle.dispose();
   document.body.innerHTML = '';
   forgetPlacements();
-  vi.useRealTimers();
+  realTimers();
 });
 
 /* ── placeSpell / gripStackItem / onSpellMoved ──────────── */
@@ -253,7 +259,7 @@ describe('the seam', () => {
     gripStackItem(7, 'you', { x: 0, y: 0 }, 'grab', 'you');
     gripStackItem(7, 'you', { x: 5, y: 0 }, 'drop', 'you');
     expect(told, 'unsubscribed').toHaveLength(1);
-    vi.useRealTimers();
+    realTimers();
   });
 
   describe('two hands on one stack item (the operator, 2026-11-02: "a funny interaction i dont want to kill")', () => {
@@ -306,7 +312,7 @@ describe('the seam', () => {
       for (let n = 1; n < steps.length; n++) if (Math.abs(steps[n]!) > 1 && Math.abs(steps[n - 1]!) > 1 && Math.sign(steps[n]!) !== Math.sign(steps[n - 1]!)) turns += 1;
       expect(turns, 'it never turns back while both pull').toBe(0);
       handle.dispose();
-      vi.useRealTimers();
+      realTimers();
     });
 
     it('tug, eased: coarse steps from this hand and late relays from theirs still never turn it back by 6 px (claw run 41571386507: 7 turns)', () => {
@@ -353,7 +359,7 @@ describe('the seam', () => {
       }
       expect(turns, `it never turns back while both pull: ${xs.map(Math.round).join(' ')}`).toBe(0);
       handle.dispose();
-      vi.useRealTimers();
+      realTimers();
     });
 
     it('the operator: "dragging opponents effect around is glitchy" — a watcher with no hand of her own on it tracks the dragging seat\'s real-time path, not a stale catch-up point', () => {
@@ -382,7 +388,7 @@ describe('the seam', () => {
       }
       expect(maxGap, `the drawn point never strays this far from the sender's real path while dragging (px)`).toBeLessThan(15);
       handle.dispose();
-      vi.useRealTimers();
+      realTimers();
     });
 
     it('their last let-go holds its point until it has glided there and stood DRAG_HOLD_MS: both screens show the same spot before it comes to rest', () => {
@@ -405,7 +411,7 @@ describe('the seam', () => {
       handle.notify(view([stackItem(9)]));
       expect(el.hasAttribute('data-placed-held'), 'then it comes to rest like any card').toBe(false);
       handle.dispose();
-      vi.useRealTimers();
+      realTimers();
     });
 
     it('a drag arms one timer to bring the item to rest, never one per paint (w69-perf on 8131301b5: 34 layouts a frame on the other screen)', () => {
@@ -423,7 +429,7 @@ describe('the seam', () => {
       }
       expect(vi.getTimerCount() - idle, 'timers pending after a second of dragging').toBeLessThanOrEqual(3);
       handle.dispose();
-      vi.useRealTimers();
+      realTimers();
     });
 
     it('tug, eased: when one hand lets go it moves on to the other over a moment, and both screens end where the last let go', () => {
@@ -449,7 +455,7 @@ describe('the seam', () => {
       handle.notify(view([stackItem(9)]));
       expect(drawnAt(canvas, 9), 'where the last hand let go').toMatchObject({ x: 420, y: 210 });
       handle.dispose();
-      vi.useRealTimers();
+      realTimers();
     });
 
     it('a hand the server no longer names is off the item (a seat whose socket went), and one it names that this screen never heard take hold is on it', () => {

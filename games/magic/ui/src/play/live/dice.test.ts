@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardPlayer, BoardView } from '../adapter.ts';
-import { whenBoardUnlocked } from '../motion.ts';
+import { defaultStage, whenBoardUnlocked } from '../motion.ts';
 import { diceOf, diePath, facesOf, installDice, nextFace, rollMs, shapeOf, TUMBLE_MS, tumbleFrames } from './dice.ts';
 import { shownRoll, type ShownRoll } from './shown.ts';
 
@@ -228,6 +228,27 @@ describe('what the roll decides waits for the die', () => {
       whenBoardUnlocked(() => (downWhenLetGo = 'dieDown' in die.dataset));
       await vi.advanceTimersByTimeAsync(rollMs(1) + lag + 500);
       expect(downWhenLetGo, 'let go, with the die down').toBe(true);
+    } finally {
+      dice.dispose();
+      restore();
+      vi.useRealTimers();
+    }
+  });
+
+  it('the die’s tumble, shadow, ring and pop are the board’s beats; its fade is not', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
+    const { anims, restore } = animateOnTheClock(0);
+    const dice = installDice(board(), { reducedMotion: () => false });
+    try {
+      dice.notify([roll()], view);
+      await vi.advanceTimersByTimeAsync(rollMs(1) + 2500);
+      expect(anims.map((a) => [a.id, defaultStage.isBeat(a)])).toEqual([
+        ['die-tumble', true],
+        ['die-shadow', true],
+        ['die-ring', true],
+        ['die-pop', true],
+        ['die-fade', false],
+      ]);
     } finally {
       dice.dispose();
       restore();

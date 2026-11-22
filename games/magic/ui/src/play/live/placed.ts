@@ -100,8 +100,8 @@ import { CardTile } from '../../components/CardTile.tsx';
 import { artistsReady } from '../../draft/artists.ts';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, handCardWidth, onCardWidthsChanged, sizeAsCard } from '../card-size.ts';
-import { GLIDE_MS, HOUSE_DURATIONS, noteBoardDrawing, PLACEMENT_WAIT_MS, takeResolutionEffects, writeDurations } from '../motion.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { defaultStage, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, takeResolutionEffects, writeDurations } from '../motion.ts';
+import { everyFrame, prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { AbilityChip } from './AbilityChip.tsx';
 import { resolvedTempo } from './tempo.ts';
 import { HiddenCard } from '../HiddenCard.tsx';
@@ -1061,6 +1061,20 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   // A chip's credit is the artist table, a lazy chunk: asked for now, so the first chip never waits on it.
   artistsReady(() => undefined);
   let live = true;
+  /** What runs next frame, on one `everyFrame` loop that runs while there is any: never armed from inside a frame. */
+  const nextFrame: (() => void)[] = [];
+  let looping = false;
+  function onNextFrame(fn: () => void): void {
+    nextFrame.push(fn);
+    if (looping) return;
+    looping = true;
+    everyFrame(() => {
+      const due = live ? nextFrame.splice(0) : [];
+      if (due.length > 0) return () => due.forEach((run) => run());
+      looping = false;
+      return null;
+    });
+  }
   let lastView: BoardView | null = null;
   let interaction: PlacedInteraction | undefined;
   /**
@@ -1532,7 +1546,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         resolvedOff.delete(cardId);
         const drawnNow = permanentOf(cardId);
         settle(drawnNow);
-        requestAnimationFrame(() => {
+        onNextFrame(() => {
           const kept = permanentOf(cardId);
           if (live && kept !== drawnNow) settle(kept);
         });
@@ -1630,13 +1644,13 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
 
   /**
    * A spell being countered is a beat of the board, until the countered spell has cracked and faded: what
-   * waits on the board's beats waits on it (`../motion.ts`'s `noteBoardDrawing`; the operator, 2026-10-29:
+   * waits on the board's beats waits on it (tracked on `../motion.ts`'s `defaultStage`; the operator, 2026-10-29:
    * *"my 90% rule was more about the more common animations like cards on the stack getting countered"*). On
    * its own clock, so a disposed layer still lets it go; and not before its animations, started a render late
    * on a loaded page, are 90% through themselves.
    */
   function countering(ms: number): void {
-    noteBoardDrawing(new Promise((over) => setTimeout(over, ms)), { endsInMs: ms, root: canvas });
+    defaultStage.track({ finished: new Promise((over) => setTimeout(over, ms)), cancel: () => undefined, endsInMs: ms }, { root: canvas });
   }
 
   /**
@@ -2026,7 +2040,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     // Hands on an item still easing draw again too, one frame at a time.
     if ((again || easing) && !frameDue) {
       frameDue = true;
-      requestAnimationFrame(() => {
+      onNextFrame(() => {
         frameDue = false;
         if (live) render();
       });

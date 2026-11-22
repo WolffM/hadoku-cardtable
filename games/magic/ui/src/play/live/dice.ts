@@ -26,7 +26,7 @@
  * `inTheAir`, timed off `TUMBLE_MS`, `DIE_STAGGER_MS` and `POP_MS`): what the other seat did next, and
  * the seat's own next frame and question too, in Fast Mode as well (the operator, 2026-10-28: "make sure
  * the dice roll completes before any action is triggered"). The tumble and its landing are also a beat
- * (`../motion.ts`'s `noteBoardDrawing`, the animations carrying `BEAT_ANIMATION_ID`), let go, as every beat
+ * (`../motion.ts`'s `defaultStage`: the roll tracked, its animations its beats), let go, as every beat
  * is, at `UNLOCK_AT` of the roll, and never before the last die is down, its pop playing. Reduced motion: the
  * die appears where it lands, showing its result, and nothing waits.
  *
@@ -34,8 +34,8 @@
  */
 
 import { viewerOf, type BoardView } from '../adapter.ts';
-import { BEAT_ANIMATION_ID, noteBoardDrawing } from '../motion.ts';
-import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
+import { defaultStage } from '../motion.ts';
+import { animate, everyFrame, prefersReducedMotion, type AnimateContext } from '@hadoku/ui-shell/motion';
 import { battlefieldCard, faceBox, overlayOf } from './board-dom.ts';
 import type { ShownRoll } from './shown.ts';
 
@@ -277,11 +277,9 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
   let live = true;
   const drawn = new Set<number>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
-  const frames = new Set<number>();
   const elements = new Set<Element>();
   /** The settle of each roll still landing: settled at once on dispose. */
   const landing = new Set<() => void>();
-  const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
 
   function schedule(fn: () => void, ms: number): void {
     const timer = setTimeout(() => {
@@ -302,29 +300,25 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
 
   /** Faces flicker, fast and slowing, for `ms`, then land on `result`. */
   function flicker(die: HTMLElement, faces: number, result: number, ms: number): Promise<void> {
+    const start = performance.now();
+    let last = start;
+    let n = nextFace(1, faces, Math.random());
+    showFace(die, n);
     return new Promise((done) => {
-      const start = performance.now();
-      let last = -Infinity;
-      let n = 1;
-      const tick = (now: number): void => {
-        if (!live) return done();
+      const stop = everyFrame(() => {
+        const now = performance.now();
         const t = (now - start) / ms;
-        if (t >= 1) {
-          showFace(die, result);
-          return done();
-        }
-        if (now - last > faceGapMs(t)) {
-          last = now;
-          n = nextFace(n, faces, Math.random());
-          showFace(die, n);
-        }
-        const id = requestAnimationFrame((next) => {
-          frames.delete(id);
-          tick(next);
-        });
-        frames.add(id);
-      };
-      tick(start);
+        if (!live || t >= 1)
+          return () => {
+            stop();
+            if (live) showFace(die, result);
+            done();
+          };
+        if (now - last <= faceGapMs(t)) return () => undefined;
+        last = now;
+        n = nextFace(n, faces, Math.random());
+        return () => showFace(die, n);
+      });
     });
   }
 
@@ -348,18 +342,12 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
   }
 
   /** The landed die: it stays a moment, then fades and goes. */
-  function linger(die: HTMLElement): void {
+  function linger(die: HTMLElement, reduced: boolean): void {
     die.dataset.dieLanded = '';
-    schedule(() => {
-      if (reduced() || typeof die.animate !== 'function') return remove(die);
-      die.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, fill: 'forwards', id: 'die-fade' }).finished.then(
-        () => remove(die),
-        () => remove(die),
-      );
-    }, LINGER_MS);
+    schedule(() => void animate(die, [{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, fill: 'forwards', id: 'die-fade' }, { reduced }).finished.then(() => remove(die)), LINGER_MS);
   }
 
-  function ring(root: HTMLElement, x: number, y: number, size: number, own: boolean): void {
+  function ring(root: HTMLElement, x: number, y: number, size: number, own: boolean, ctx: AnimateContext): void {
     const el = document.createElement('div');
     el.className = 'board-die-ring';
     el.dataset.dieRoller = own ? 'you' : 'them';
@@ -368,23 +356,20 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     el.style.width = el.style.height = `${size}px`;
     root.append(el);
     place(el);
-    el.animate([{ transform: 'scale(.6)', opacity: 0.9 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: RING_MS, easing: 'ease-out', id: BEAT_ANIMATION_ID }).finished.then(
-      () => remove(el),
-      () => remove(el),
-    );
+    void animate(el, [{ transform: 'scale(.6)', opacity: 0.9 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: RING_MS, easing: 'ease-out', id: 'die-ring' }, ctx).finished.then(() => remove(el));
   }
 
   /** One die, from `from` to beside it: its tumble, its shadow, its faces, its landing. Calls `down` once its tumble is over and its pop playing; settles when it has landed. */
-  async function throwDie(root: HTMLElement, roll: ShownRoll, die: Die, own: boolean, path: DiePath, down: () => void): Promise<void> {
+  async function throwDie(root: HTMLElement, roll: ShownRoll, die: Die, own: boolean, path: DiePath, ctx: AnimateContext, down: () => void): Promise<void> {
     const el = makeDie(roll, die, own, path.size);
     root.append(el);
     place(el);
-    if (reduced() || typeof el.animate !== 'function') {
+    if (ctx.reduced === true) {
       el.style.transform = `translate(${path.ex}px,${path.ey}px)`;
       showFace(el, die.result);
       if (die.ignored) el.dataset.dieIgnored = '';
       el.dataset.dieDown = '';
-      linger(el);
+      linger(el, true);
       return;
     }
     const shadow = document.createElement('div');
@@ -395,25 +380,21 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     place(shadow);
     const kf = tumbleFrames(path);
     const easing = 'cubic-bezier(.3,.6,.4,1)';
-    const tumble = el.animate(kf, { duration: TUMBLE_MS, easing, fill: 'forwards', id: BEAT_ANIMATION_ID });
-    shadow.animate(shadowFrames(path, kf), { duration: TUMBLE_MS, easing, fill: 'forwards', id: BEAT_ANIMATION_ID });
-    await Promise.all([tumble.finished.catch(() => undefined), flicker(el, facesOf(roll.sides, die.result), die.result, TUMBLE_MS * 0.92)]);
+    const tumble = animate(el, kf, { duration: TUMBLE_MS, easing, fill: 'forwards', id: 'die-tumble' }, ctx);
+    animate(shadow, shadowFrames(path, kf), { duration: TUMBLE_MS, easing, fill: 'forwards', id: 'die-shadow' }, ctx);
+    await Promise.all([tumble.finished, flicker(el, facesOf(roll.sides, die.result), die.result, TUMBLE_MS * 0.92)]);
     // Down: the tumble is over, the pop to come. What the roll decides may show from here (`./pace.ts`
     // lets go at `UNLOCK_AT` of the roll and once `down` is called), so this, not `data-die-landed` after the pop, is "landed".
     el.dataset.dieDown = '';
     remove(shadow);
     if (!live) return;
-    ring(root, path.ex + path.size / 2, path.ey + path.size / 2, path.size * 1.2, own);
+    ring(root, path.ex + path.size / 2, path.ey + path.size / 2, path.size * 1.2, own, ctx);
     const at = `translate(${path.ex}px,${path.ey}px) rotate(${path.dir * 720}deg)`;
-    const pop = el.animate([{ transform: `${at} scale(1)` }, { transform: `${at} scale(1.18)` }, { transform: `${at} scale(1)` }], {
-      duration: POP_MS,
-      fill: 'forwards',
-      id: BEAT_ANIMATION_ID,
-    });
+    const pop = animate(el, [{ transform: `${at} scale(1)` }, { transform: `${at} scale(1.18)` }, { transform: `${at} scale(1)` }], { duration: POP_MS, fill: 'forwards', id: 'die-pop' }, ctx);
     if (die.ignored) el.dataset.dieIgnored = '';
     down();
-    await pop.finished.catch(() => undefined);
-    linger(el);
+    await pop.finished;
+    linger(el, false);
   }
 
   function draw(roll: ShownRoll, view: BoardView): void {
@@ -425,7 +406,8 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     const card: Box = { left: r.left - box.left, top: r.top - box.top, width: r.width, height: r.height };
     const viewer = viewerOf(view)?.id ?? view.players[0]?.id;
     const own = roll.player === viewer;
-    const still = reduced();
+    const still = host.reducedMotion?.() ?? prefersReducedMotion();
+    const ctx: AnimateContext = { reduced: still, stage: defaultStage };
     const downs: Promise<void>[] = [];
     const thrown = diceOf(roll).map(
       (die, i) =>
@@ -438,7 +420,7 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
             resolve();
           };
           landing.add(settle);
-          const go = (): void => void throwDie(root, roll, die, own, diePath(card, box, own, i), down).then(settle, settle);
+          const go = (): void => void throwDie(root, roll, die, own, diePath(card, box, own, i), ctx, down).then(settle, settle);
           // Reduced motion: every die is simply there, at once.
           if (i === 0 || still) go();
           else schedule(go, i * DIE_STAGGER_MS);
@@ -446,7 +428,7 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
     );
     // The pacer lets go once the roll is `UNLOCK_AT` through and every die is down, the last pop still playing: a
     // tumble the page started a slow frame late is still in its last tenth when the roll's own 90% comes.
-    if (!still) noteBoardDrawing(Promise.all(thrown), { endsInMs: rollMs(thrown.length), root, after: Promise.all(downs) });
+    if (!still) defaultStage.track({ finished: Promise.all(thrown).then(() => undefined), cancel: () => undefined, endsInMs: rollMs(thrown.length) }, { root, after: Promise.all(downs) });
   }
 
   return {
@@ -465,8 +447,6 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
       live = false;
       for (const t of timers) clearTimeout(t);
       timers.clear();
-      for (const f of frames) cancelAnimationFrame(f);
-      frames.clear();
       for (const el of elements) el.remove();
       elements.clear();
       for (const settle of [...landing]) settle();
