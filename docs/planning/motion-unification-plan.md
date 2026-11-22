@@ -104,7 +104,7 @@ everyFrame, claimParticles/particleShare, standIn(overlay, el, copy), Box/rel, w
 | step | shape | what it makes true | why that shape |
 | --- | --- | --- | --- |
 | **M1** | single session | the kit exists in `ui-shell/motion`: the moves, `animate()`, `Running`, `Stage` (with a default instance so `motion.ts`'s 24 importers do not move), cues, and the ratchet test | one dependent root: every later lane imports it |
-| **w124** | 3 lanes | every `.animate()` and rAF in Magic goes through the kit, with **exported signatures unchanged** | three disjoint file sets (board blows / board beats / off-board screens) |
+| **w124** | 3 lanes, each net negative | every `.animate()` and rAF in Magic goes through the kit, with **exported signatures unchanged** | three disjoint file sets (board blows / board beats / off-board screens) |
 | **M3** | single session, long pole | `numbers.ts` sequenced with `seq`/`par`/`at`/`stagger`; effects return `Running`; old signatures, `BEAT_KEYFRAMES`, name-based `isBeat` and the default stage deleted | it rewires the one file every effect is called from; timing-critical |
 
 ### M1 — the kit (single session, before w124)
@@ -125,7 +125,9 @@ everyFrame, claimParticles/particleShare, standIn(overlay, el, copy), Box/rel, w
    `play` in `quake.ts`.
 6. **Done when:** `pnpm run check` is green, with the ratchet test present and failing when a
    `.animate(` is added to a Magic file. The layer ratchet is green (`ui-shell` stays platform). The
-   non-test diff is net ≤ 0 (`jscpd`/`knip` before and after, per the consolidation rule). A claw run of
+   non-test diff is recorded (`jscpd`/`knip` before and after). **Amended 2026-11-22:** M1 adds an API whose
+   duplicates wave 124 deletes, so the net gate binds each wave-124 lane and the programme as a whole, not M1.
+   M1 measured about +72 non-test lines (the ratchet script +48, the kit and Magic about +24). A claw run of
    `fx-effects`, `af413-weight`, `cp-lethal-blow`, `w69-attack-flash` and `mana-ring-once` is green, plus
    whatever a grep of `e2e/` for the moved symbols' attributes adds.
 
