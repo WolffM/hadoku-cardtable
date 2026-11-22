@@ -4276,15 +4276,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   } else if (frame.kind === 'notify' && frame.method === 'message') {
     // Display only — see the module header. Not an input frame, not an answer:
     // nothing below this line reads it back, on purpose.
-    if (frame.logCut !== undefined) {
-      // An undo took back what Forge logged since the moment it rewound to.
-      const cut = frame.logCut;
-      match.says = match.says.filter((said) => said.log?.n === undefined || said.log.n < cut);
-    }
-    if (frame.message !== '') {
-      match.says.push({ text: frame.message, log: frame.log ?? null });
-      if (match.says.length > SAYS_KEPT) match.says.shift();
-    }
+    foldSay(match, frame);
     if (frame.roll !== undefined) {
       match.rolls = [...match.rolls, shownRoll(frame.roll)].slice(-ROLLS_KEPT);
     }
@@ -4409,6 +4401,20 @@ function dropOpenInput(match: LiveMatch): void {
   match.coinToss = null;
 }
 
+type MessageFrame = Extract<ServerFrame, { kind: 'notify'; method: 'message' }>;
+
+/** A `message` frame's line onto the log, and an undo's cut of what Forge logged since the moment it rewound to. */
+function foldSay(match: LiveMatch, frame: MessageFrame): void {
+  if (frame.logCut !== undefined) {
+    const cut = frame.logCut;
+    match.says = match.says.filter((said) => said.log?.n === undefined || said.log.n < cut);
+  }
+  if (frame.message !== '') {
+    match.says.push({ text: frame.message, log: frame.log ?? null });
+    if (match.says.length > SAYS_KEPT) match.says.shift();
+  }
+}
+
 function discardLocal(match: LiveMatch): void {
   match.cursor = null;
   const { seq, ...empty } = foldPackets([]);
@@ -4528,6 +4534,9 @@ export function replayMatch(matchId: string, playerId: number, options: { pointe
         match.reveal = null;
         match.revealed = null;
         foldFrames(match, frames.map((f) => f.frame), 'history');
+        // The log as it stood: a live board is re-sent its kept lines after a snapshot, a replay has only its frames.
+        // Its dice and coins are not: they were shown when they happened, not where a seek lands.
+        for (const { frame } of frames) if (frame.kind === 'notify' && frame.method === 'message') foldSay(match, frame);
         for (const { frame } of frames) if (endsTheGame(frame)) applyFrame(match, frame);
         const reveal = openRevealOf(frames);
         if (reveal !== null && !match.finished) showReveal(match, reveal.frame, reveal.forceNotice === true);
