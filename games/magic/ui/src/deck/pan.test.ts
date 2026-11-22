@@ -99,6 +99,15 @@ describe('zoomAt', () => {
     expect(back.zoom).toBe(1);
   });
 
+  it('where the clamp binds it wins over the anchor: zoomed low on content that barely fills its view, the content stops at its edge', () => {
+    const e = { viewW: 100, viewH: 100, contentW: 100, contentH: 60 };
+    const v = zoomAt(IDENTITY_VIEW, 2, at(50, 90), { pool: e });
+    expect(v.pool.y).toBe(100 - 60 * 2);
+    expect((90 - v.pool.y) / v.zoom, 'the point under the pointer moved up the content').toBe(55);
+    const high = zoomAt(IDENTITY_VIEW, 2, at(50, 10), { pool: e });
+    expect((10 - high.pool.y) / high.zoom, 'an anchor the clamp leaves alone holds').toBe(10);
+  });
+
   it('clamps each surface it has an extent for', () => {
     const v = zoomAt(IDENTITY_VIEW, 2, ORIGIN, { pool: { viewW: 100, viewH: 100, contentW: 100, contentH: 100 } });
     expect(v.pool).toEqual({ x: 0, y: 0 });

@@ -115,3 +115,43 @@ export async function visibleCardIn(cards: Locator, viewportTestId: string): Pro
   }
   throw new Error(`${viewportTestId} draws none of the cards`);
 }
+
+/**
+ * A card, and the middle of the part of it a pile leaves drawn (a whole top card, or a lower card's
+ * strip), that a zoom to `zoom` about that point keeps under it: one the pan's clamp leaves alone.
+ * Where the clamp binds it wins over the anchor (`pan.ts`, "The zoom anchor"): a point low on a
+ * deck that barely fills its viewport is pulled up off the pointer, and the first pile's top card,
+ * the bottom of its pile, was that point in four CI reds of `w90e-editor-desktop.spec.ts`
+ * (11-20..22, each landing on the card beneath it). A pile's top card is always its lowest, so
+ * no top card may qualify; a strip higher up does. Names drawn twice (a basic land) are skipped,
+ * so landing on the wrong copy can never pass. The point is measured from the viewport's content
+ * box, where the surface's offset is.
+ */
+export async function anchorableCardIn(page: Page, viewportTestId: string, zoom: number): Promise<{ card: Locator; x: number; y: number }> {
+  const found = await page.getByTestId(viewportTestId).evaluate((el, z) => {
+    const surface = el.firstElementChild as HTMLElement;
+    const s = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    const origin = { x: r.left + el.clientLeft + parseFloat(s.paddingLeft), y: r.top + el.clientTop + parseFloat(s.paddingTop) };
+    const view = { w: el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight), h: el.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom) };
+    // Zoomed from 1 with no pan, the anchor `a` lands its surface at `a - a·z`, which the clamp keeps in `[view - content·z, 0]`.
+    const free = (a: number, viewLen: number, contentLen: number): boolean => a - a * z >= Math.min(0, viewLen - contentLen * z) + 1;
+    const cards = [...el.querySelectorAll('[data-testid="card"]')];
+    const names = cards.map((c) => c.getAttribute('aria-label'));
+    for (const [i, card] of cards.entries()) {
+      if (names.indexOf(names[i]!) !== names.lastIndexOf(names[i]!)) continue;
+      const b = card.getBoundingClientRect();
+      // A pile's next card covers this one from its own top down.
+      const slot = card.closest('.pile__stack > *');
+      const next = slot?.nextElementSibling?.getBoundingClientRect();
+      const bottom = next === undefined ? b.bottom : Math.min(b.bottom, next.top);
+      const p = { x: b.left + b.width / 2, y: (b.top + bottom) / 2 };
+      if (bottom - b.top < 8 || p.y > r.bottom - 4) continue;
+      if (document.elementFromPoint(p.x, p.y)?.closest('[data-testid="card"]') !== card) continue;
+      if (free(p.x - origin.x, view.w, surface.offsetWidth) && free(p.y - origin.y, view.h, surface.offsetHeight)) return { i, ...p };
+    }
+    return null;
+  }, zoom);
+  if (found === null) throw new Error(`${viewportTestId}: every drawn card is where a zoom to ${zoom} is clamped`);
+  return { card: page.getByTestId(viewportTestId).getByTestId('card').nth(found.i), x: found.x, y: found.y };
+}

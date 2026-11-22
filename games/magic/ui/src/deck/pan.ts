@@ -22,7 +22,11 @@
  * to a target while keeping one viewport point of each surface over the same
  * point of its content. A gesture anchors its own surface under the fingers
  * and the other at its top-left; a step anchors both at their centres. Every
- * pan and zoom is clamped (`clampOffset`) so content never leaves a gap.
+ * pan and zoom is clamped (`clampOffset`) so content never leaves a gap, and
+ * where the clamp binds it wins over the anchor: zooming in low on a surface
+ * whose content barely fills it pulls the content back down to its edge, so
+ * the point under the pointer moves up the content (CI's four "the zoom kept
+ * the card under the pointer" reds, 11-20..22, were that).
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -216,8 +220,13 @@ export function usePanZoom(): PanZoomHandle {
         let swallowClick = false;
 
         const rezoom = (targetZoom: number, cx: number, cy: number): void => {
+          // The surface's offset is from the viewport's content box (its padding is outside it), so
+          // the anchor is too: measured from the border box, a padded viewport drifted the content
+          // under the pointer by its padding times the zoom's change.
           const rect = el.getBoundingClientRect();
-          const anchors = { pool: { x: 0, y: 0 }, deck: { x: 0, y: 0 }, [surface]: { x: cx - rect.left, y: cy - rect.top } };
+          const s = getComputedStyle(el);
+          const at = { x: cx - rect.left - el.clientLeft - parseFloat(s.paddingLeft), y: cy - rect.top - el.clientTop - parseFloat(s.paddingTop) };
+          const anchors = { pool: { x: 0, y: 0 }, deck: { x: 0, y: 0 }, [surface]: at };
           const ex = extents();
           setView((v) => zoomAt(v, targetZoom, anchors, ex));
         };
