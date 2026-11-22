@@ -1,10 +1,6 @@
 {
 	".animate(": {
-		"games/magic/ui/src/play/live/crash.ts": 2,
-		"games/magic/ui/src/play/live/dice.ts": 5,
-		"games/magic/ui/src/play/live/projectile.ts": 4,
-		"games/magic/ui/src/play/live/ram.ts": 1,
-		"games/magic/ui/src/play/live/recoil.ts": 1
+		"games/magic/ui/src/play/live/dice.ts": 5
 	},
 	"requestAnimationFrame(": {
 		"games/magic/ui/src/components/PackView.tsx": 1,
