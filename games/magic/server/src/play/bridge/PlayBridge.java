@@ -4619,7 +4619,8 @@ public final class PlayBridge {
          * seat controls with a playable non-mana ability that taps a target creature
          * ({@code ApiType.Tap}, {@code TapOrUntap}) and can target one of that player's creatures
          * that could attack ({@code CombatUtil.canAttack}) — a Master Decoy before the attack it
-         * stops. Battlefield only, like the two above. Empty in every other window.</li>
+         * stops — and the offered cards in this seat's hand with such a spell (Ice, Frost Breath),
+         * since a play in hand is one the seat can cast now. Empty in every other window.</li>
          * <li>{@code attackers}: how many creatures attack in the game's current combat, 0
          * outside one — whether a combat step is one anybody attacked in. Read off the live
          * game in the same window, so it never trails the prompt the way a state delta can.</li>
@@ -4668,19 +4669,22 @@ public final class PlayBridge {
                         manaOnly.add(ref("card", cv.getId()));
                         continue;
                     }
-                    if (!c.isInPlay() || c.getController() != mine) { continue; }
+                    final boolean inPlay = c.isInPlay() && c.getController() == mine;
+                    // A spell in hand that taps an attacker is a tapper too (Ice); the other two lists stay battlefield-only
+                    final boolean inHand = c.isInZone(ZoneType.Hand) && c.getOwner() == mine;
+                    if (!inPlay && !inHand) { continue; }
                     boolean restricted = false;
                     boolean taps = false;
                     for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
                         if (sa.isManaAbility()) { continue; }
-                        if (!restricted && ((sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) || (costAhead && fetchesLand(sa)))) {
+                        if (inPlay && !restricted && ((sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) || (costAhead && fetchesLand(sa)))) {
                             restricted = true;
                         }
                         if (!taps && tapsOneOf(sa, couldAttack)) { taps = true; }
                     }
                     if (restricted) { phaseRestricted.add(ref("card", cv.getId())); }
                     if (taps) { tappers.add(ref("card", cv.getId())); }
-                    if (animating.contains(cv.getId())) { animates.add(ref("card", cv.getId())); }
+                    if (inPlay && animating.contains(cv.getId())) { animates.add(ref("card", cv.getId())); }
                 }
                 f.add("manaOnly", manaOnly);
                 f.add("phaseRestricted", phaseRestricted);

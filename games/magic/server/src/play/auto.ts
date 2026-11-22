@@ -378,8 +378,9 @@ export interface StopPolicy {
 	 */
 	readonly stopToAnimate: boolean;
 	/**
-	 * Another player's Beginning of Combat is NOT skipped when this seat controls a permanent
-	 * that can tap one of that player's would-be attackers now ({@link PromptFacts.tappers}).
+	 * Another player's Beginning of Combat is NOT skipped when this seat controls a permanent, or
+	 * holds a spell it can cast (Ice), that can tap one of that player's would-be attackers now
+	 * ({@link PromptFacts.tappers}).
 	 *
 	 * The operator, 2026-11-20: *"game should smartly keep priority for players if they have the
 	 * ability to tap a creature down before declare attacks. i just had a situation where it passed
@@ -917,7 +918,7 @@ export interface SeatNotes {
 	phaseRestrictedIds?: readonly number[];
 	/** The bridge's `setWeaklySelectable.animates`: this seat's offered permanents that can make themselves a creature that could attack. */
 	animatesIds?: readonly number[];
-	/** The bridge's `setWeaklySelectable.tappers`: this seat's offered permanents that can tap one of the turn player's would-be attackers. */
+	/** The bridge's `setWeaklySelectable.tappers`: this seat's offered permanents and castable cards in hand that can tap one of the turn player's would-be attackers. */
 	tappersIds?: readonly number[];
 	/** The bridge's `setWeaklySelectable.attackers`: creatures attacking in the current combat, 0 outside one. */
 	attackers?: number;
@@ -1028,8 +1029,8 @@ export interface PromptFacts {
 	 */
 	readonly animates: readonly number[];
 	/**
-	 * At another player's Beginning of Combat, this seat's permanents that can tap one of that
-	 * player's would-be attackers now (`SeatNotes.tappersIds`); empty when none, elsewhere, or
+	 * At another player's Beginning of Combat, this seat's permanents and castable cards in hand
+	 * that can tap one of that player's would-be attackers now (`SeatNotes.tappersIds`); empty when none, elsewhere, or
 	 * unknown. Read only by {@link StopPolicy.stopToTap}.
 	 */
 	readonly tappers: readonly number[];

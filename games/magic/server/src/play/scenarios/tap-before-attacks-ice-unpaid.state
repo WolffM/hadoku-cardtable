@@ -1,0 +1,15 @@
+# tap-before-attacks-ice.state's control: the same Fire // Ice with only an Island, so neither half
+# ({1}{U}, {1}{R}) can be cast. The AI's Beginning of Combat is passed exactly as before.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Fire // Ice
+humanbattlefield=Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Craw Wurm;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

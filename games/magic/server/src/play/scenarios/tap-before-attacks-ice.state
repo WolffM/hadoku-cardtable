@@ -1,0 +1,17 @@
+# AF658, Player 80583's report (m-b1bcfd5382d0): Fire // Ice in hand never stopped the other player's
+# Beginning of Combat, because the bridge's tappers were battlefield-only. Seat 1 (the Forge AI) is in
+# its Main 1 with Craw Wurm ready to attack; seat 0 holds Fire // Ice with an Island and a Mountain to
+# cast Ice ({1}{U}: tap target permanent, draw a card): the AI's Beginning of Combat must stop for it.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Fire // Ice
+humanbattlefield=Island;Mountain
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Craw Wurm;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
