@@ -92,7 +92,9 @@ const exactly =
     selectors.includes(s);
 
 /** One element's custom properties, each substituted where it is declared, over its parent's. */
-type Env = ReadonlyMap<string, string>;
+interface Env {
+  get(name: string): string | undefined;
+}
 
 function substitute(value: string, lookup: (name: string) => string | undefined): string {
   let out = '';
@@ -119,23 +121,37 @@ function substitute(value: string, lookup: (name: string) => string | undefined)
   return out;
 }
 
-/** An element: its parent's custom properties, then its own, each resolved on this element. */
+/**
+ * An element: its parent's custom properties, then its own, each resolved on this element the first
+ * time it is read. A property that is one math expression is kept as the number it computes to, so a
+ * child substitutes `63.2px` rather than the whole chain of `var()`s it was written as.
+ */
 function element(parent: Env, own: ReadonlyMap<string, string>): Env {
-  const resolved = new Map(parent);
-  const done = new Set<string>();
+  const resolved = new Map<string, string>();
   const doing = new Set<string>();
   const get = (name: string): string | undefined => {
     if (!own.has(name)) return parent.get(name);
-    if (!done.has(name)) {
+    let got = resolved.get(name);
+    if (got === undefined) {
       if (doing.has(name)) throw new Error(`${name} refers to itself`);
       doing.add(name);
-      resolved.set(name, substitute(own.get(name)!, get));
-      done.add(name);
+      got = fold(substitute(own.get(name)!, get));
+      resolved.set(name, got);
     }
-    return resolved.get(name);
+    return got;
   };
-  for (const name of own.keys()) if (name.startsWith('--')) get(name);
-  return resolved;
+  return { get };
+}
+
+/** A value as the number its math computes to, or as written when it is not one math expression (a list, a keyword, an angle). */
+function fold(text: string): string {
+  let v: Value;
+  try {
+    v = evaluate(text);
+  } catch {
+    return text;
+  }
+  return v.unit === 'len' ? px(v.n) : v.unit === 'num' ? String(v.n) : text;
 }
 
 const customs = (decls: ReadonlyMap<string, string>): Map<string, string> => new Map([...decls].filter(([k]) => k.startsWith('--')));
@@ -282,54 +298,64 @@ function grid(env: Env, decls: ReadonlyMap<string, string>, width: number, heigh
   return { cards, room: width, need: k * col + (k - 1) * GAP + 2 * pad, col, tall: rows * col * TALL + (rows - 1) * GAP, height: height - slack };
 }
 
+/** The battlefield element, its custom properties resolved once for every layout read from it. */
+const FIELD = element(BOARD, customs(BATTLEFIELD));
+/** The rules each element of a layout takes, by whether its zone carries an aspect band. */
+const ROWS = new Map([false, true].map((banded) => [banded, declared((s) => s === '.zone__rows' || s === '.seat > .zone--battlefield > .zone__rows' || (banded && s === '.seat > .zone--battlefield[data-zone-aspect] > .zone__rows'))]));
+const LANE = declared(exactly('.zone__row'));
+const EMPTY_LANE = declared(exactly('.zone__row[data-empty]'));
+const LANE_LIST = declared(exactly('.seat > .zone--battlefield .zone__row > .zone__cards'));
+const TIERS = customs(declared(exactly('.zone__tiers')));
+const TIER_LIST = declared(exactly('.seat > .zone--battlefield .zone__tiers > .zone__cards'));
+const HAND_LIST = new Map(
+  [false, true].map((banded) => [
+    banded,
+    declared((s) => s === '.zone--hand > :is(.zone__cards, .card-backs)' || s === '.seat[data-viewer] > .zone--hand > .zone__cards' || (banded && s === '.zone--hand[data-zone-aspect] > .zone__cards')),
+  ]),
+);
+
 /** The viewer's four lanes on a battlefield whose content box is `width`×`height`, `lanes` piles in each. */
 function layLanes(width: number, height: number, lanes: readonly number[]): Laid {
   const aspect = band(width, height);
-  const zone = element(element(BOARD, customs(BATTLEFIELD)), new Map([['--zone-w', px(width)], ['--zone-h', px(height)], ...bandOf(aspect)]));
-  const rowsDecls = declared(
-    (s) => s === '.zone__rows' || s === '.seat > .zone--battlefield > .zone__rows' || (aspect !== null && s === '.seat > .zone--battlefield[data-zone-aspect] > .zone__rows'),
-  );
+  const zone = element(FIELD, new Map([['--zone-w', px(width)], ['--zone-h', px(height)], ...bandOf(aspect)]));
+  const rowsDecls = ROWS.get(aspect !== null)!;
   const empty = lanes.filter((n) => n === 0).length;
   const total = lanes.reduce((a, b) => a + b, 0);
   // `:has()` counts the empty lanes; the model writes the count it would.
   const rowsEnv = element(zone, new Map([...customs(rowsDecls), ['--cols', String(total)], ...(rowsDecls.has('--lanes-empty') ? [['--lanes-empty', String(empty)] as const] : [])]));
   const rows = evaluate(rowsEnv.get('--rows')!).n;
 
-  const laneDecls = declared(exactly('.zone__row'));
-  const emptyDecls = declared(exactly('.zone__row[data-empty]'));
-  const listDecls = declared((s) => s === '.seat > .zone--battlefield .zone__row > .zone__cards');
   const groupGap = evaluate(zone.get('--group-gap')!).n;
-  const basis = (n: number): number => evaluate(substitute(n === 0 ? emptyDecls.get('flex')!.split(' ')[2]! : laneDecls.get('flex')!.split(' ')[2]!, (k) => rowsEnv.get(k))).n;
-  const grow = lanes.map((n) => (n === 0 ? 0 : num(element(rowsEnv, new Map([['--cols', String(n)]])), laneDecls, 'flex-grow')));
+  const basis = (n: number): number => evaluate(substitute(n === 0 ? EMPTY_LANE.get('flex')!.split(' ')[2]! : LANE.get('flex')!.split(' ')[2]!, (k) => rowsEnv.get(k))).n;
+  const grow = lanes.map((n) => (n === 0 ? 0 : num(element(rowsEnv, new Map([['--cols', String(n)]])), LANE, 'flex-grow')));
   const free = width - 3 * groupGap - lanes.reduce((a, n) => a + basis(n), 0);
   const growTotal = grow.reduce((a, b) => a + b, 0);
-  const rule = evaluate(substitute(laneDecls.get('border-left')!.split(' ')[0]!, (k) => rowsEnv.get(k))).n;
+  const rule = evaluate(substitute(LANE.get('border-left')!.split(' ')[0]!, (k) => rowsEnv.get(k))).n;
   return {
     rows,
     lanes: lanes.flatMap((n, i) => {
       if (n === 0) return [];
       const outer = basis(n) + (growTotal > 0 ? (free * grow[i]!) / growTotal : 0);
       const inner = outer - (i === 0 ? 0 : rule);
-      const lane = element(element(rowsEnv, customs(laneDecls)), new Map([['--zone-w', px(inner)], ['--zone-h', px(height)], ['--cols', String(n)]]));
-      const list = element(lane, customs(listDecls));
-      return [grid(list, listDecls, inner, height, Math.ceil(n / rows), rows, n)];
+      const lane = element(element(rowsEnv, customs(LANE)), new Map([['--zone-w', px(inner)], ['--zone-h', px(height)], ['--cols', String(n)]]));
+      const list = element(lane, customs(LANE_LIST));
+      return [grid(list, LANE_LIST, inner, height, Math.ceil(n / rows), rows, n)];
     }),
   };
 }
 
 /** The opponent's two tiers: lands behind, the rest in front, each list `--cols` of the busier one. */
 function layTiers(width: number, height: number, lands: number, rest: number): Laid {
-  const zone = element(element(BOARD, customs(BATTLEFIELD)), new Map([['--zone-w', px(width)], ['--zone-h', px(height)]]));
-  const tiers = element(zone, customs(declared(exactly('.zone__tiers'))));
-  const listDecls = declared(exactly('.seat > .zone--battlefield .zone__tiers > .zone__cards'));
+  const zone = element(FIELD, new Map([['--zone-w', px(width)], ['--zone-h', px(height)]]));
+  const tiers = element(zone, TIERS);
   const cols = Math.max(lands, rest);
-  const list = element(tiers, new Map([...customs(listDecls), ['--cols', String(cols)]]));
+  const list = element(tiers, new Map([...customs(TIER_LIST), ['--cols', String(cols)]]));
   // Each tier is one row of the two the zone's height is shared by.
   const tier = (height - GAP) / 2;
   return {
     rows: 2,
     lanes: [lands, rest].filter((n) => n > 0).map((n) => {
-      const laid = grid(list, listDecls, width, height, cols, 1, n);
+      const laid = grid(list, TIER_LIST, width, height, cols, 1, n);
       return { ...laid, height: tier };
     }),
   };
@@ -339,12 +365,7 @@ function layTiers(width: number, height: number, lands: number, rest: number): L
 function layHand(width: number, height: number, cards: number): Laid {
   const aspect = band(width, height);
   const zone = element(BOARD, new Map([['--zone-w', px(width)], ['--zone-h', px(height)], ...bandOf(aspect)]));
-  const listDecls = declared(
-    (s) =>
-      s === '.zone--hand > :is(.zone__cards, .card-backs)' ||
-      s === '.seat[data-viewer] > .zone--hand > .zone__cards' ||
-      (aspect !== null && s === '.zone--hand[data-zone-aspect] > .zone__cards'),
-  );
+  const listDecls = HAND_LIST.get(aspect !== null)!;
   const list = element(zone, new Map([...customs(listDecls), ['--cols', String(cards)]]));
   const rows = evaluate(list.get('--rows')!).n;
   return { rows, lanes: [grid(list, listDecls, width, height, Math.ceil(cards / rows), rows, cards)] };
@@ -387,11 +408,11 @@ describe('a crowded zone takes another row before its cards stop fitting (table-
     expect(layLanes(818 - GUTTER, 200, [5, 2, 4, 0]).rows).toBe(1);
   });
 
-  // Every width, every height, every count: 4.4 s on an idle host and 7.4 s at a load of 21
-  // (2026-10-23), so vitest's own 5 s was a timeout on any busy machine, never a fault in the layout.
-  it('never lays out a battlefield or a hand that does not fit, at every width from 800 to 1000 and 8 to 20 permanents', { timeout: 30_000 }, () => {
+  // Every width, every height, every count, 10px of width to a test: the whole sweep is some 30,000
+  // layouts, and one test of them all sat near its timeout on a loaded CI runner.
+  it.each(Array.from({ length: 20 }, (_, i) => [800 + 10 * i, i === 19 ? 1000 : 808 + 10 * i]))('never lays out a battlefield or a hand that does not fit, at every width from %i to %i and 8 to 20 permanents', (from, to) => {
     const bad: string[] = [];
-    for (let box = 800; box <= 1000; box += 2) {
+    for (let box = from!; box <= to!; box += 2) {
       for (const height of [180, 191, 200, 210]) {
         const width = box - GUTTER;
         for (let n = 8; n <= 20; n++) {
