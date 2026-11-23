@@ -1,5 +1,6 @@
 /*
- * The pure half of the deck editor: what a drafted deck is on the wire, and the land suggestion.
+ * The pure half of the deck editor: what a drafted or built deck is on the wire, the moves a deck
+ * built from nothing makes, and the land suggestion.
  *
  * ## No rules here
  *
@@ -15,18 +16,78 @@
  * checks the text against the CALLER's pool, with the text from `dckTextOf`.
  */
 
-import { basicLand, BASIC_LAND_OF, cardKey, cardRequestOf, DECK_COLORS, isBasicLand, setBasicLand, type Deck, type DeckColor } from '@hadoku/deck';
+import {
+  basicLand,
+  BASIC_LAND_OF,
+  cardKey,
+  cardRequestOf,
+  CONSTRUCTED_LIMITS,
+  DECK_COLORS,
+  isBasicLand,
+  mergeEntries,
+  setBasicLand,
+  type Deck,
+  type DeckColor,
+} from '@hadoku/deck';
+import { FREE_PICK } from '@hadoku/shared';
 import { cardRef } from '@hadoku/carddata/art';
 import { parseCardRequest, type DeckEntry } from '@hadoku/carddata/dck';
 
 import { dckTextOf } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
 import type { SeatChoice, DeckLine } from '../screens/tables.ts';
+import type { CardRequest } from '@hadoku/carddata/dck';
 import { libraryFace, type NamedCard } from '../screens/libraryPeek.ts';
 
 /** The drafted seat, in the gate's shape: this deck's text, checked against your own pool. */
 export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
   return { deck: { dck: dckTextOf(deck) }, rules: { kind: 'draft', draftId } };
+}
+
+/**
+ * A built deck's seat, in the gate's shape: an era's own rules (`standard`, the arm every
+ * constructed era uses). "Any card" has none to ask about: `POST /api/tables/check` takes only
+ * `standard` and `draft`, and Free pick's arm checks nothing but the `.dck` shape, which the room's
+ * gate checks at ready anyway. So it is null, and the editor asks nothing.
+ */
+export function builtSeat(format: string, deck: Deck): SeatChoice | null {
+  return format === FREE_PICK ? null : { deck: { dck: dckTextOf(deck) }, rules: { kind: 'standard', format } };
+}
+
+/** A deck built from nothing: no pool, no sideboard, as many copies as the format allows. */
+export function emptyBuild(name: string): Deck {
+  return { name, main: [], sideboard: [], basics: [] };
+}
+
+/** Copies of the card named `name` the main deck plays, every printing and the basics counter included. */
+export function copiesOf(deck: Deck, name: string): number {
+  let n = 0;
+  for (const e of [...deck.main, ...deck.basics]) if (e.card.name === name) n += e.count;
+  return n;
+}
+
+/**
+ * One more copy of `card` in a built deck. A basic land is a counter (`setBasicLand`), with no
+ * limit; any other card stops at the constructed copy limit, counted by name across printings, so
+ * a fifth press does nothing: the same structural rule the drafted editor gets from its pool, here
+ * from the format.
+ */
+export function addCopy(deck: Deck, card: CardRequest, limit: number = CONSTRUCTED_LIMITS.maxCopies): Deck {
+  if (isBasicLand(card)) {
+    const basic = basicLand(card.name);
+    const had = deck.basics.find((e) => cardKey(e.card) === cardKey(basic))?.count ?? 0;
+    return setBasicLand(deck, basic, had + 1);
+  }
+  if (copiesOf(deck, card.name) >= limit) return deck;
+  return { ...deck, main: mergeEntries([...deck.main, { count: 1, card }]) };
+}
+
+/** One fewer copy of `card` in a built deck; the last copy leaves it. */
+export function removeCopy(deck: Deck, card: CardRequest): Deck {
+  const key = cardKey(card);
+  const basic = deck.basics.find((e) => cardKey(e.card) === key);
+  if (basic !== undefined) return setBasicLand(deck, card, basic.count - 1);
+  return { ...deck, main: deck.main.flatMap((e) => (cardKey(e.card) !== key ? [e] : e.count > 1 ? [{ count: e.count - 1, card: e.card }] : [])) };
 }
 
 

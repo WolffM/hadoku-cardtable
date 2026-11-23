@@ -688,3 +688,99 @@
 .deck-screen > .deck-screen__error {
   flex: 0 0 auto;
 }
+
+/* ── `build`: a deck from nothing — results with their count, and the meter's verdict ── */
+
+.deck-editor__result {
+  position: relative;
+}
+
+.deck-editor__meter[data-verdict='legal'] {
+  border-color: var(--success);
+}
+
+.deck-editor__meter[data-verdict='illegal'] {
+  border-color: var(--danger);
+}
+
+.deck-editor__meter[data-verdict='illegal'] > .deck-editor__meter-fill {
+  background: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+/* ── `#/decks/new`, `#/decks/built:<id>`: the head, and the search over the results ── */
+
+.deck-built__head {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.deck-built__name,
+.deck-built__format,
+.deck-built__save,
+.deck-built__delete,
+.deck-built__search > input {
+  font: inherit;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-card);
+  color: var(--ink);
+  padding: 0 10px;
+}
+
+.deck-built__name {
+  flex: 1 1 160px;
+  min-width: 0;
+  max-width: 320px;
+  font-weight: 600;
+}
+
+.deck-built__format {
+  flex: 0 1 200px;
+  min-width: 0;
+}
+
+.deck-built__save {
+  font-weight: 700;
+  color: var(--on-success);
+  background: var(--success);
+  border-color: var(--success);
+  cursor: pointer;
+}
+
+.deck-built__save:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.deck-built__delete {
+  cursor: pointer;
+}
+
+.deck-built__delete[data-armed] {
+  color: var(--danger-ink);
+  border-color: var(--danger);
+}
+
+.deck-built__search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 220px;
+  min-width: 120px;
+}
+
+.deck-built__search > input {
+  width: 100%;
+  height: 28px;
+  padding-left: 28px;
+}
+
+.deck-built__search-glyph {
+  position: absolute;
+  left: 8px;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-dim);
+  pointer-events: none;
+}
