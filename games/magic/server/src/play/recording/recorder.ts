@@ -163,6 +163,8 @@ interface Session {
 	roomKnown: boolean;
 	/** Each seat's board, folded as it goes, for the end line's `boards`. */
 	positions: [SeatPosition, SeatPosition];
+	/** Puts the seats' art pins, written while the JVM booted (`art-pins.ts`), into both headers: run before either is written. */
+	carryArtPins(): void;
 }
 
 const finalBoards = (session: Session): [string, string] | undefined => {
@@ -268,22 +270,33 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 				const seeded: ForgeMatchSpec = spec.seed === undefined ? { ...spec, seed: randomSeed() } : spec;
 				const roomId = deps.roomOf(matchId);
 				const startedAt = new Date(now()).toISOString();
+				const recordedSpec = anonymousSpec(seeded);
+				const artIdsOf = () => createArtIds(deps.catalog ?? null, seeded.seats.map((seat) => seat.deck), seeded.seats);
+				// The pins land on the spec's own seats after this (`art-pins.ts`), and the headers are
+				// written only at the end: `carryArtPins` copies them into both then.
+				const art = artOf(seeded, artIdsOf());
 				const writer = createMatchRecordingWriter({
 					dir: deps.dir,
 					matchId,
-					actionsHeader: { matchId, roomId, pin: deps.identity.pin, bridge: deps.identity.bridge, server: deps.identity.server, startedAt, spec: anonymousSpec(seeded) },
+					actionsHeader: { matchId, roomId, pin: deps.identity.pin, bridge: deps.identity.bridge, server: deps.identity.server, startedAt, spec: recordedSpec },
 					publicHeader: {
 						matchId,
 						roomId,
 						players: [seeded.seats[0].name, seeded.seats[1].name],
 						ai: [seeded.seats[0].ai, seeded.seats[1].ai],
 						decks: [0, 1].map((seat) => seatDeckColors(seeded, seat, deps.deckCosts)),
-						art: artOf(seeded, createArtIds(deps.catalog ?? null, seeded.seats.map((seat) => seat.deck))),
+						art,
 						startedAt,
 					},
 					log,
 				});
-				const session: Session = { writer, startedAtMs: now(), lastPresence: null, heldBack: null, seats: null, seatsAt: 0, roomKnown: roomId !== null, positions: [createSeatPosition(0), createSeatPosition(1)] };
+				const carryArtPins = (): void => {
+					if (!seeded.seats.some((seat) => seat.artPins !== undefined)) return;
+					for (const [at, seat] of seeded.seats.entries()) if (seat.artPins !== undefined && recordedSpec.seats[at] !== undefined) recordedSpec.seats[at].artPins = seat.artPins;
+					// The writer holds this same array (its header is a shallow copy): the replay preloads the pinned art too.
+					for (const id of artOf(seeded, artIdsOf())) if (!art.includes(id)) art.push(id);
+				};
+				const session: Session = { writer, startedAtMs: now(), lastPresence: null, heldBack: null, seats: null, seatsAt: 0, roomKnown: roomId !== null, positions: [createSeatPosition(0), createSeatPosition(1)], carryArtPins: () => guarded(log, matchId, 'art-pins', carryArtPins) };
 				// Every ask's callId per seat, in the order Forge sent them: a reply's `ask` number.
 				const asks = new Map<number, string[]>();
 				sessions.set(matchId, session);
@@ -321,6 +334,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 							const endedAt = new Date(now()).toISOString();
 							const boards = finalBoards(session);
 							const ended = endSeats(matchId, session);
+							session.carryArtPins();
 							void writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: null, ...ended });
 						}
 						events.exit(reason);
@@ -405,6 +419,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			const endedAt = new Date(now()).toISOString();
 			const boards = finalBoards(session);
 			const ended = endSeats(match.id, session);
+			session.carryArtPins();
 			void session.writer.finish({ endedAt, reason: 'game-over', ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null, ...ended });
 		},
 	};

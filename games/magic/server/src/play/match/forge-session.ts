@@ -679,7 +679,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		this.now = deps.now ?? Date.now;
 		this.spec = spec;
 		this.shell = shell;
-		this.art = createArtIds(deps.catalog ?? null, spec.seats.map((s) => s.deck));
+		this.art = createArtIds(deps.catalog ?? null, spec.seats.map((s) => s.deck), spec.seats);
 		this.watcher = { projector: createProjector(EVERY_PLAYER, this.art), seq: 0, history: createStateHistory(), heldLog: [], heldLogTimer: null, openReveal: null };
 		this.seats = spec.seats.map((s, seat) => ({
 			seat,

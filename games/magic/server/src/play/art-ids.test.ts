@@ -65,6 +65,18 @@ describe('which Scryfall id a card is', () => {
 		expect(lookup.card('Plains')).not.toEqual(board.face({ name: 'Plains', set: 'ALA' }));
 	});
 
+	it("a seat's pins draw the cards that seat owns, its effects and emblems too, and never a token or the other seat's card", () => {
+		const PIN = 'aaaaaaaa-0000-4000-8000-000000000001';
+		const deck = '[main]\n4 Akrasan Squire|ALA|1|[1]\n';
+		const ids = createArtIds(CATALOG, [deck, deck], [{ artPins: { 'akrasan squire': PIN, 'phyrexian wurm token': PIN } }, {}]);
+		expect(ids.face({ name: 'Akrasan Squire', set: 'ALA', seat: 0 })).toEqual({ scryfallId: PIN });
+		expect(ids.face({ name: 'Akrasan Squire', set: 'ALA', seat: 1 })).toEqual({ scryfallId: SQUIRE_ALA_1 });
+		expect(ids.face({ name: "Akrasan Squire's Effect", set: 'ALA', imageKey: 'c:Akrasan Squire|ALA|1', seat: 0 })).toEqual({ scryfallId: PIN });
+		expect(ids.face({ name: 'Emblem — Akrasan Squire', set: 'ALA', seat: 0 })).toEqual({ scryfallId: PIN });
+		const script = 'c_3_3_a_phyrexian_wurm_lifelink';
+		expect(ids.face({ name: 'Phyrexian Wurm Token', set: '2XM', imageKey: `t:${script}|2XM|30|1`, seat: 0 })?.scryfallId).toBe(TABLE.ids[`t:${script}|2XM`]);
+	});
+
 	it('a card nobody knows, and a face with no name, have none', () => {
 		expect(createArtIds(CATALOG).face({ name: 'Not A Card Anyone Printed', set: 'XYZ' })).toBeUndefined();
 		expect(createArtIds(CATALOG).face({ name: '', set: 'ALA' })).toBeUndefined();
