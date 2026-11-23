@@ -187,6 +187,19 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## History programme: self-hosted game stats and room history (approved 2026-11-23)
+
+The operator: history leaves D1 for dataplatform's managed Postgres; bomberman moves too; prefs and settings stay in prefs-api.
+
+| item | owner | state | evidence |
+| --- | --- | --- | --- |
+| Managed Postgres as a tenant resource | hadoku-dataplatform-81 | building (operator go 2026-11-23) | request + reply `docs/requests/DATAPLATFORM_MANAGED_POSTGRES*.md` |
+| services/game-stats (same `_games` contract, mount /game-stats) + `prefs-client/rooms` | hadoku-site-75 | step 2 of 8 (service on PGlite) | reply cb086ded7; design hadoku_site 7c6c4471d; D1 2026-11-23: cardtable 292 matches/584 seats, bomberman 87/421, 45 ratings |
+| cardtable: declare `game-stats-report` in `.access-lists.json` | tracker | waits on site step 5 (dark deploy) | — |
+| cardtable: wire `recordRoomEvents` (open/join/role/leave/close) | next cardtable session | waits on site step 3 (rooms client published) | — |
+| cardtable: prefs-client bump at cutover | tracker | waits on site step 7 | — |
+| Retire D1 game tables | operator | after the count check is shown | — |
+
 ## Wave 91 (platform phase 1) — scaffolded 2026-11-06
 
 `docs/planning/wave91-2026-11-06.md`, branch `w91`, worktree `.claude/worktrees/w91-manager`. It has three lanes,
