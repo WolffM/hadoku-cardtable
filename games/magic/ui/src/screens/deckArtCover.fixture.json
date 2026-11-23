@@ -1,0 +1,1064 @@
+{
+  "note": "A real finished seat from prod (2026-11-23), a Hobbit (HOB) draft: its non-land picks, and the artist the Scryfall corpus gives each id — what GET /api/art/<id>/artist answers. None of these ids is in art-artists.json. Read by deckArtCover.test.ts.",
+  "pool": [
+    {
+      "cardId": "pod/p0",
+      "scryfallId": "d6a8d698-c454-42c4-ad4e-9a7625d5569f",
+      "name": "Sting, Bilbo's Sword",
+      "manaCost": [
+        "2"
+      ],
+      "manaValue": 2,
+      "colors": [],
+      "typeLine": "Legendary Artifact — Equipment",
+      "oracleText": "Flash\nWhen Sting enters, put a hone counter on Sting for each creature target opponent controls. Attach Sting to up to one target creature you control. (Each hone counter on an Equipment grants +1/+0 to equipped creature.)\nEquip {3}",
+      "setCode": "HOB",
+      "collectorNumber": "178",
+      "rarity": "rare",
+      "oracleId": "9779f32c-b1a2-42a3-8e78-14c28c3ad254"
+    },
+    {
+      "cardId": "pod/p1",
+      "scryfallId": "5b25e454-06bb-43ca-9a9f-57164f7a70c4",
+      "name": "Supper for Spiders",
+      "manaCost": [
+        "1",
+        "B"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Instant",
+      "oracleText": "Put onto the battlefield under your control all creature cards in your opponents' graveyards that were put there from the battlefield this turn. They are Food artifacts with \"{2}, {T}, Sacrifice this artifact: You gain 3 life.\" (They lose all other types and subtypes.)",
+      "setCode": "HOB",
+      "collectorNumber": "86",
+      "rarity": "rare",
+      "oracleId": "4d891515-39da-492e-ac19-1aa524245449"
+    },
+    {
+      "cardId": "pod/p2",
+      "scryfallId": "3b087bd4-bbb7-4963-bdb6-0a700ff19a04",
+      "name": "Gleaming Splendor",
+      "manaCost": [
+        "1",
+        "W"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Enchantment",
+      "oracleText": "Whenever an opponent draws their second card each turn, you create a Treasure token.\n{2}{W}: Two target players each draw a card.",
+      "setCode": "HOB",
+      "collectorNumber": "15",
+      "rarity": "mythic",
+      "oracleId": "c01aeaa5-1d3b-4493-9575-30175dcd780d"
+    },
+    {
+      "cardId": "pod/p3",
+      "scryfallId": "5ee45a5e-3650-47b3-8d31-6b1de9e27a14",
+      "name": "Rhovanion Rampager",
+      "manaCost": [
+        "2",
+        "B"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Wolf",
+      "oracleText": "Whenever this creature attacks, you may sacrifice another creature. If you do, put a number of +1/+1 counters on this creature equal to the sacrificed creature's power.\nWhen this creature dies, amass Goblins X, where X is this creature's power. (Put X +1/+1 counters on an Army you control. It's also a Goblin. If you don't control an Army, create a 0/0 black Goblin Army creature token first.)",
+      "power": "3",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "82",
+      "rarity": "rare",
+      "oracleId": "008a11c1-d283-49fe-abd7-ff4fe8b1fe79"
+    },
+    {
+      "cardId": "pod/p4",
+      "scryfallId": "42fbd61d-e1a6-465d-b1a3-f5ee0869d3af",
+      "name": "Celebrate the Mountain-king",
+      "manaCost": [
+        "3",
+        "W"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Enchantment",
+      "oracleText": "When this enchantment enters, for each opponent, exile up to one target nonland permanent that player controls until this enchantment leaves the battlefield.\nWhen this enchantment enters, recruit. (Draw a card, then discard a card. If you discarded a nonland card, create a 1/1 white Human Soldier creature token.)",
+      "setCode": "HOB",
+      "collectorNumber": "7",
+      "rarity": "uncommon",
+      "oracleId": "d51136fa-3c13-48a5-83fd-51fe00010a4b"
+    },
+    {
+      "cardId": "pod/p5",
+      "scryfallId": "88f0c189-c9ed-4ea3-ae62-3d8ac6c7fecf",
+      "name": "Belladonna Took",
+      "manaCost": [
+        "1",
+        "W"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Legendary Creature — Halfling Citizen",
+      "oracleText": "Whenever a token you control enters, you gain 1 life if this is the first time this ability has resolved this turn. If it's the second time, draw a card. If it's the third time, put a +1/+1 counter on each creature you control.",
+      "power": "2",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "4",
+      "rarity": "rare",
+      "oracleId": "011da9c5-aa8a-4fa0-b1f2-62b9f3760476"
+    },
+    {
+      "cardId": "pod/p6",
+      "scryfallId": "63c87009-ff1b-44b9-88b1-e26219094c67",
+      "name": "Desolation Prowler",
+      "manaCost": [
+        "1",
+        "B"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Wolf",
+      "oracleText": "Pay 2 life: This creature gets +2/+2 until end of turn. Activate only once each turn.",
+      "power": "2",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "64",
+      "rarity": "uncommon",
+      "oracleId": "ed9d4bb1-7335-45fd-b2ea-97b1f6491d7a"
+    },
+    {
+      "cardId": "pod/p7",
+      "scryfallId": "2ce066be-e5ad-4b93-8245-1b5018990d03",
+      "name": "Gathering of Darkness",
+      "manaCost": [
+        "3",
+        "B"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Sorcery",
+      "oracleText": "Return up to one target creature card from your graveyard to your hand.\nAmass Goblins 3. (Put three +1/+1 counters on an Army you control. It's also a Goblin. If you don't control an Army, create a 0/0 black Goblin Army creature token first.)",
+      "setCode": "HOB",
+      "collectorNumber": "68",
+      "rarity": "uncommon",
+      "oracleId": "85e1556d-c4da-4979-a5db-4ce3842c7797"
+    },
+    {
+      "cardId": "pod/p8",
+      "scryfallId": "3ffe34d4-72f4-4562-a948-8909b9321e59",
+      "name": "Head of the Hunt",
+      "manaCost": [
+        "2",
+        "B",
+        "B"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Wolf",
+      "oracleText": "Flash\nIf a creature an opponent controls would die, exile it instead. When you do, create a 2/2 green Wolf creature token.",
+      "power": "4",
+      "toughness": "3",
+      "setCode": "HOB",
+      "collectorNumber": "75",
+      "rarity": "rare",
+      "oracleId": "0523e271-5e0b-4e4b-9eac-86f915d18952"
+    },
+    {
+      "cardId": "pod/p9",
+      "scryfallId": "573f67b0-6ce8-4857-a703-4a5728640736",
+      "name": "Esgaroth Garrison",
+      "manaCost": [
+        "4",
+        "W"
+      ],
+      "manaValue": 5,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Creature — Human Soldier",
+      "oracleText": "Esgaroth Garrison's power is equal to the number of creatures you control.\nWhen this creature enters, recruit. (Draw a card, then discard a card. If you discarded a nonland card, create a 1/1 white Human Soldier creature token.)",
+      "power": "*",
+      "toughness": "5",
+      "setCode": "HOB",
+      "collectorNumber": "13",
+      "rarity": "common",
+      "oracleId": "84597236-2cfc-4654-b126-a8ee252f4d14"
+    },
+    {
+      "cardId": "pod/p10",
+      "scryfallId": "a56a88ba-fcfa-4b56-bdae-a080b297b871",
+      "name": "The Arkenstone // Seek the Heart",
+      "manaCost": [
+        "5",
+        "2",
+        "W"
+      ],
+      "manaValue": 5,
+      "colors": [],
+      "typeLine": "Legendary Artifact // Sorcery — Adventure",
+      "oracleText": "Creatures you control get +1/+1.\nAt the beginning of your end step, draw a card.",
+      "setCode": "HOB",
+      "collectorNumber": "170",
+      "rarity": "mythic",
+      "oracleId": "09f09d0a-6054-4545-b81e-0295773cc5f0",
+      "faces": [
+        {
+          "scryfallId": "a56a88ba-fcfa-4b56-bdae-a080b297b871",
+          "name": "Seek the Heart",
+          "manaCost": [
+            "2",
+            "W"
+          ],
+          "manaValue": 3,
+          "colors": [],
+          "typeLine": "Sorcery — Adventure",
+          "oracleText": "Search your library for a legendary creature card, reveal it, put it into your hand, then shuffle. (Then exile this card. You may cast the artifact later from exile.)",
+          "setCode": "HOB",
+          "collectorNumber": "170",
+          "rarity": "mythic"
+        }
+      ]
+    },
+    {
+      "cardId": "pod/p11",
+      "scryfallId": "ea7b5052-b343-466d-879e-2a211657ef0a",
+      "name": "Ravening Warg",
+      "manaCost": [
+        "1",
+        "B"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Wolf",
+      "oracleText": "Deathtouch\nFerocious — Whenever this creature attacks while you control a creature with power 4 or greater, you gain 2 life.",
+      "power": "2",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "80",
+      "rarity": "common",
+      "oracleId": "8060d231-7477-441d-b249-8e75aa1d7791"
+    },
+    {
+      "cardId": "pod/p12",
+      "scryfallId": "0b84e232-428c-424a-848c-ef95debc6e50",
+      "name": "Bard the Bowman",
+      "manaCost": [
+        "1",
+        "W",
+        "U"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "U",
+        "W"
+      ],
+      "typeLine": "Legendary Creature — Human Archer",
+      "oracleText": "Reach\nWhenever you draw your second card each turn, put a +1/+1 counter on target creature. It gains lifelink until end of turn.",
+      "power": "1",
+      "toughness": "3",
+      "setCode": "HOB",
+      "collectorNumber": "145",
+      "rarity": "uncommon",
+      "oracleId": "ec076f5b-b0e3-4b6f-9293-a8fc42f20bd8"
+    },
+    {
+      "cardId": "pod/p13",
+      "scryfallId": "a2e4099e-86bd-461f-87fa-7f7850ae7eec",
+      "name": "Roll-Roll-Roll-Roll",
+      "manaCost": [
+        "2",
+        "U"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "U"
+      ],
+      "typeLine": "Enchantment — Saga",
+      "oracleText": "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after IV.)\nI, II, III, IV — Exile up to one target creature or land you control. If you do, return it to the battlefield under its owner's control at the beginning of the next end step.",
+      "setCode": "HOB",
+      "collectorNumber": "54",
+      "rarity": "rare",
+      "oracleId": "aa913409-7a7a-4e74-82ff-7ff8195585ad"
+    },
+    {
+      "cardId": "pod/p14",
+      "scryfallId": "8a50858a-33b5-4c45-9c31-5956ae5a33a6",
+      "name": "Little Bear",
+      "manaCost": [
+        "2",
+        "G"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "G"
+      ],
+      "typeLine": "Creature — Bear",
+      "oracleText": "Flash\nWhen this creature enters, untap another target creature you control. If that creature is a Bear, put a +1/+1 counter on it.",
+      "power": "3",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "128",
+      "rarity": "common",
+      "oracleId": "53c6c6bf-0256-424d-b937-1cc7d9e2d574"
+    },
+    {
+      "cardId": "pod/p15",
+      "scryfallId": "c977fb5f-4436-41d0-af68-93b6d05897e5",
+      "name": "The Queen of Dale",
+      "manaCost": [
+        "1",
+        "W"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Legendary Creature — Human Noble",
+      "oracleText": "Whenever an opponent casts their first noncreature spell each turn, you recruit. (Draw a card, then discard a card. If you discarded a nonland card, create a 1/1 white Human Soldier creature token.)",
+      "power": "2",
+      "toughness": "1",
+      "setCode": "HOB",
+      "collectorNumber": "24",
+      "rarity": "mythic",
+      "oracleId": "a2ec1dd0-86c7-423d-b562-ed95b79bf8f7"
+    },
+    {
+      "cardId": "pod/p16",
+      "scryfallId": "6b8e6435-7de4-41d5-bc7d-8e24c11897d0",
+      "name": "Bofur, Reliable Guardian // Concerted Care",
+      "manaCost": [
+        "W",
+        "1",
+        "W"
+      ],
+      "manaValue": 1,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Legendary Creature — Dwarf Scout // Instant — Adventure",
+      "oracleText": "Lifelink",
+      "power": "1",
+      "toughness": "1",
+      "setCode": "HOB",
+      "collectorNumber": "6",
+      "rarity": "uncommon",
+      "oracleId": "8a0e35ac-6c03-4922-b3b4-e419419fe3d7",
+      "faces": [
+        {
+          "scryfallId": "6b8e6435-7de4-41d5-bc7d-8e24c11897d0",
+          "name": "Concerted Care",
+          "manaCost": [
+            "1",
+            "W"
+          ],
+          "manaValue": 2,
+          "colors": [],
+          "typeLine": "Instant — Adventure",
+          "oracleText": "Target artifact or creature you control gains hexproof and indestructible until end of turn. (Then exile this card. You may cast the creature later from exile.)",
+          "setCode": "HOB",
+          "collectorNumber": "6",
+          "rarity": "uncommon"
+        }
+      ]
+    },
+    {
+      "cardId": "pod/p17",
+      "scryfallId": "430c8916-1167-400b-9cad-d301f59d5e5d",
+      "name": "Magnificent End",
+      "manaCost": [
+        "4",
+        "W"
+      ],
+      "manaValue": 5,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Instant",
+      "oracleText": "This spell costs {3} less to cast if it targets a tapped creature.\nMagnificent End deals 5 damage to target creature.",
+      "setCode": "HOB",
+      "collectorNumber": "20",
+      "rarity": "common",
+      "oracleId": "82bdf9cb-61fe-4eaf-8762-c32002403d96"
+    },
+    {
+      "cardId": "pod/p18",
+      "scryfallId": "3696d65c-fffd-4685-bb2d-e8769bf476e3",
+      "name": "Along the Crooked Way",
+      "manaCost": [
+        "2",
+        "B"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Enchantment",
+      "oracleText": "When this enchantment enters, return target creature card from your graveyard to your hand.\nWhenever a creature card leaves your graveyard, amass Goblins 1.\n{1}{B}: Goblins and Orcs you control gain menace until end of turn.",
+      "setCode": "HOB",
+      "collectorNumber": "60",
+      "rarity": "rare",
+      "oracleId": "f4437cb3-85f7-49b5-bb41-6a948549d987"
+    },
+    {
+      "cardId": "pod/p19",
+      "scryfallId": "5cc0f994-5048-4898-926e-b56cbc97e0ca",
+      "name": "Velvetwing Butterflies // Gaze in Wonder",
+      "manaCost": [
+        "2",
+        "W",
+        "1",
+        "W"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Creature — Insect // Instant — Adventure",
+      "oracleText": "Flying",
+      "power": "2",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "30",
+      "rarity": "common",
+      "oracleId": "70a702fe-1dd6-4d7b-a85a-45744ecad741",
+      "faces": [
+        {
+          "scryfallId": "5cc0f994-5048-4898-926e-b56cbc97e0ca",
+          "name": "Gaze in Wonder",
+          "manaCost": [
+            "1",
+            "W"
+          ],
+          "manaValue": 2,
+          "colors": [],
+          "typeLine": "Instant — Adventure",
+          "oracleText": "Tap one or two target creatures. (Then exile this card. You may cast the creature later from exile.)",
+          "setCode": "HOB",
+          "collectorNumber": "30",
+          "rarity": "common"
+        }
+      ]
+    },
+    {
+      "cardId": "pod/p20",
+      "scryfallId": "42fbd61d-e1a6-465d-b1a3-f5ee0869d3af",
+      "name": "Celebrate the Mountain-king",
+      "manaCost": [
+        "3",
+        "W"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Enchantment",
+      "oracleText": "When this enchantment enters, for each opponent, exile up to one target nonland permanent that player controls until this enchantment leaves the battlefield.\nWhen this enchantment enters, recruit. (Draw a card, then discard a card. If you discarded a nonland card, create a 1/1 white Human Soldier creature token.)",
+      "setCode": "HOB",
+      "collectorNumber": "7",
+      "rarity": "uncommon",
+      "oracleId": "d51136fa-3c13-48a5-83fd-51fe00010a4b"
+    },
+    {
+      "cardId": "pod/p21",
+      "scryfallId": "36db4405-8589-481f-b627-f26087488337",
+      "name": "Dáin's Company",
+      "manaCost": [
+        "R",
+        "W"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "R",
+        "W"
+      ],
+      "typeLine": "Creature — Dwarf Warrior",
+      "oracleText": "This creature has lifelink as long as you control another Dwarf.\nWhen this creature enters, look at the top four cards of your library. You may reveal a Dwarf or Equipment card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.",
+      "power": "2",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "152",
+      "rarity": "rare",
+      "oracleId": "ae03782f-8f05-4ce2-a049-005b1b688faf"
+    },
+    {
+      "cardId": "pod/p22",
+      "scryfallId": "67d52db5-597e-46d5-af39-c3a2de107d30",
+      "name": "Dreaded Bat-Cloud",
+      "manaCost": [
+        "4",
+        "B"
+      ],
+      "manaValue": 5,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Bat",
+      "oracleText": "This spell costs {3} less to cast if a creature died this turn.\nFlying, deathtouch",
+      "power": "4",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "66",
+      "rarity": "uncommon",
+      "oracleId": "3cc64ce6-45e2-4dc3-9b28-d7206a131873"
+    },
+    {
+      "cardId": "pod/p23",
+      "scryfallId": "c5727af5-a487-4b16-8278-81c3c928c417",
+      "name": "Ori, Keeper of Songs",
+      "manaCost": [
+        "2",
+        "W"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Legendary Creature — Dwarf Bard",
+      "oracleText": "Storied (If you control three or more artifacts, legendaries, and/or Sagas, you have an enduring story for the rest of the game.)\nAs long as you have an enduring story, Ori gets +1/+0 and has vigilance.",
+      "power": "3",
+      "toughness": "3",
+      "setCode": "HOB",
+      "collectorNumber": "23",
+      "rarity": "common",
+      "oracleId": "69cc089a-abd3-4edb-bc79-f02daac70837"
+    },
+    {
+      "cardId": "pod/p24",
+      "scryfallId": "0b4b1c59-bcec-4779-9e27-0e6f9feb4e11",
+      "name": "Troop of Ponies",
+      "manaCost": [
+        "2"
+      ],
+      "manaValue": 2,
+      "colors": [],
+      "typeLine": "Creature — Horse",
+      "oracleText": "{2}, {T}, Sacrifice this creature: Search your library for up to two basic land cards, reveal them, put one onto the battlefield tapped and the other into your hand, then shuffle.",
+      "power": "2",
+      "toughness": "1",
+      "setCode": "HOB",
+      "collectorNumber": "3",
+      "rarity": "uncommon",
+      "oracleId": "bb52b3c3-09f0-4506-b7c0-250ab0b91866"
+    },
+    {
+      "cardId": "pod/p25",
+      "scryfallId": "b05adb48-980c-49a0-9ce6-7c7f3f20715d",
+      "name": "Nori, Teller of Tales",
+      "manaCost": [
+        "1",
+        "R/W"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "R",
+        "W"
+      ],
+      "typeLine": "Legendary Creature — Dwarf Bard",
+      "oracleText": "Whenever Nori attacks, target attacking creature gains first strike until end of turn.",
+      "power": "2",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "161",
+      "rarity": "common",
+      "oracleId": "03253076-9add-4efb-9227-b0a062c86534"
+    },
+    {
+      "cardId": "pod/p26",
+      "scryfallId": "a5cfbfde-783e-46ca-b3cf-11f16209d6cb",
+      "name": "Glamdring, Foe-hammer // Gleam of Death",
+      "manaCost": [
+        "2",
+        "3",
+        "U"
+      ],
+      "manaValue": 2,
+      "colors": [],
+      "typeLine": "Legendary Artifact — Equipment // Sorcery — Adventure",
+      "oracleText": "Instant and sorcery spells you cast cost {X} less to cast, where X is equipped creature's power.\nEquip {2}",
+      "setCode": "HOB",
+      "collectorNumber": "174",
+      "rarity": "rare",
+      "oracleId": "2802069f-201e-43a7-b5d3-43a95951a2ec",
+      "faces": [
+        {
+          "scryfallId": "a5cfbfde-783e-46ca-b3cf-11f16209d6cb",
+          "name": "Gleam of Death",
+          "manaCost": [
+            "3",
+            "U"
+          ],
+          "manaValue": 4,
+          "colors": [],
+          "typeLine": "Sorcery — Adventure",
+          "oracleText": "Mill six cards, then put all instant and sorcery cards from among them into your hand. (Then exile this card. You may cast the artifact later from exile.)",
+          "setCode": "HOB",
+          "collectorNumber": "174",
+          "rarity": "rare"
+        }
+      ]
+    },
+    {
+      "cardId": "pod/p27",
+      "scryfallId": "e4800508-8bb9-41bb-8712-b55fba7a80a5",
+      "name": "Patient Instructor",
+      "manaCost": [
+        "2",
+        "W/U"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "U",
+        "W"
+      ],
+      "typeLine": "Creature — Human Citizen",
+      "oracleText": "Vigilance\nWhen this creature enters, recruit. (Draw a card, then discard a card. If you discarded a nonland card, create a 1/1 white Human Soldier creature token.)",
+      "power": "2",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "162",
+      "rarity": "common",
+      "oracleId": "bddd7e99-ec74-4ca6-9137-155b85695a95"
+    },
+    {
+      "cardId": "pod/p28",
+      "scryfallId": "a56a88ba-fcfa-4b56-bdae-a080b297b871",
+      "name": "The Arkenstone // Seek the Heart",
+      "manaCost": [
+        "5",
+        "2",
+        "W"
+      ],
+      "manaValue": 5,
+      "colors": [],
+      "typeLine": "Legendary Artifact // Sorcery — Adventure",
+      "oracleText": "Creatures you control get +1/+1.\nAt the beginning of your end step, draw a card.",
+      "setCode": "HOB",
+      "collectorNumber": "170",
+      "rarity": "mythic",
+      "oracleId": "09f09d0a-6054-4545-b81e-0295773cc5f0",
+      "faces": [
+        {
+          "scryfallId": "a56a88ba-fcfa-4b56-bdae-a080b297b871",
+          "name": "Seek the Heart",
+          "manaCost": [
+            "2",
+            "W"
+          ],
+          "manaValue": 3,
+          "colors": [],
+          "typeLine": "Sorcery — Adventure",
+          "oracleText": "Search your library for a legendary creature card, reveal it, put it into your hand, then shuffle. (Then exile this card. You may cast the artifact later from exile.)",
+          "setCode": "HOB",
+          "collectorNumber": "170",
+          "rarity": "mythic"
+        }
+      ]
+    },
+    {
+      "cardId": "pod/p29",
+      "scryfallId": "659b687f-4068-496f-81b2-7b606bf07ec1",
+      "name": "Well-Worn Spatula",
+      "manaCost": [
+        "1"
+      ],
+      "manaValue": 1,
+      "colors": [],
+      "typeLine": "Artifact — Equipment",
+      "oracleText": "When this Equipment enters, you gain 2 life.\nEquipped creature gets +1/+1.\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)",
+      "setCode": "HOB",
+      "collectorNumber": "180",
+      "rarity": "common",
+      "oracleId": "3cc333a1-c854-4b7c-8002-910e48222371"
+    },
+    {
+      "cardId": "pod/p30",
+      "scryfallId": "c977fb5f-4436-41d0-af68-93b6d05897e5",
+      "name": "The Queen of Dale",
+      "manaCost": [
+        "1",
+        "W"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Legendary Creature — Human Noble",
+      "oracleText": "Whenever an opponent casts their first noncreature spell each turn, you recruit. (Draw a card, then discard a card. If you discarded a nonland card, create a 1/1 white Human Soldier creature token.)",
+      "power": "2",
+      "toughness": "1",
+      "setCode": "HOB",
+      "collectorNumber": "24",
+      "rarity": "mythic",
+      "oracleId": "a2ec1dd0-86c7-423d-b562-ed95b79bf8f7"
+    },
+    {
+      "cardId": "pod/p31",
+      "scryfallId": "d3cbe830-7e95-4019-89c4-cfb36bcf00f8",
+      "name": "Nighthowl Pursuer",
+      "manaCost": [
+        "B"
+      ],
+      "manaValue": 1,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Wolf",
+      "oracleText": "Menace (This creature can't be blocked except by two or more creatures.)\nFerocious — Whenever this creature attacks while you control a creature with power 4 or greater, this creature gets +2/+2 until end of turn.",
+      "power": "1",
+      "toughness": "1",
+      "setCode": "HOB",
+      "collectorNumber": "78",
+      "rarity": "uncommon",
+      "oracleId": "89aa97d0-1aef-4ed8-b29c-7943bb3d0e60"
+    },
+    {
+      "cardId": "pod/p32",
+      "scryfallId": "2ce066be-e5ad-4b93-8245-1b5018990d03",
+      "name": "Gathering of Darkness",
+      "manaCost": [
+        "3",
+        "B"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Sorcery",
+      "oracleText": "Return up to one target creature card from your graveyard to your hand.\nAmass Goblins 3. (Put three +1/+1 counters on an Army you control. It's also a Goblin. If you don't control an Army, create a 0/0 black Goblin Army creature token first.)",
+      "setCode": "HOB",
+      "collectorNumber": "68",
+      "rarity": "uncommon",
+      "oracleId": "85e1556d-c4da-4979-a5db-4ce3842c7797"
+    },
+    {
+      "cardId": "pod/p33",
+      "scryfallId": "3ffe34d4-72f4-4562-a948-8909b9321e59",
+      "name": "Head of the Hunt",
+      "manaCost": [
+        "2",
+        "B",
+        "B"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Wolf",
+      "oracleText": "Flash\nIf a creature an opponent controls would die, exile it instead. When you do, create a 2/2 green Wolf creature token.",
+      "power": "4",
+      "toughness": "3",
+      "setCode": "HOB",
+      "collectorNumber": "75",
+      "rarity": "rare",
+      "oracleId": "0523e271-5e0b-4e4b-9eac-86f915d18952"
+    },
+    {
+      "cardId": "pod/p34",
+      "scryfallId": "127367b6-9cfe-4516-9bfd-5b951468a25c",
+      "name": "Thorin's Last Stand",
+      "manaCost": [
+        "2",
+        "W",
+        "W"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Instant",
+      "oracleText": "Choose one —\n• Creatures you control get +2/+1 until end of turn.\n• Destroy target artifact or enchantment. You gain 2 life.",
+      "setCode": "HOB",
+      "collectorNumber": "28",
+      "rarity": "common",
+      "oracleId": "3c4da169-1e50-4790-abdc-214e7b8a2ad5"
+    },
+    {
+      "cardId": "pod/p35",
+      "scryfallId": "5d485d70-c7b9-40a4-9089-5e7f1c2b9213",
+      "name": "Gnashing of Teeth",
+      "manaCost": [
+        "1",
+        "B",
+        "B"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Sorcery",
+      "oracleText": "Choose one —\n• Target creature gets -5/-5 until end of turn. If that creature would die this turn, exile it instead.\n• Creatures target player controls get -1/-1 until end of turn.",
+      "setCode": "HOB",
+      "collectorNumber": "69",
+      "rarity": "uncommon",
+      "oracleId": "188a3f61-3f7c-450d-8ee7-e12ad13b86c6"
+    },
+    {
+      "cardId": "pod/p36",
+      "scryfallId": "fa8fd3c4-bd00-485d-80b1-2b67f5786fce",
+      "name": "Crude Bent Blade",
+      "manaCost": [
+        "2",
+        "B"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Artifact — Equipment",
+      "oracleText": "When this Equipment enters, target opponent sacrifices a creature of their choice.\nEquipped creature gets +2/+1.\nEquip {2} ({2}: Attach to target creature you control. Equip only as a sorcery.)",
+      "setCode": "HOB",
+      "collectorNumber": "63",
+      "rarity": "common",
+      "oracleId": "eec81460-899d-4b4c-b33c-ce2ca704df17"
+    },
+    {
+      "cardId": "pod/p37",
+      "scryfallId": "3788ada6-34a9-41af-a31c-2d090550e503",
+      "name": "The Master of Lake-town",
+      "manaCost": [
+        "1",
+        "B",
+        "B"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Legendary Creature — Human Advisor",
+      "oracleText": "Deathtouch\nWhenever a player loses life, that player mills that many cards. (Damage causes loss of life.)\nWhen The Master of Lake-town dies, draw a card for each graveyard with seven or more cards in it.",
+      "power": "3",
+      "toughness": "2",
+      "setCode": "HOB",
+      "collectorNumber": "77",
+      "rarity": "rare",
+      "oracleId": "89c3c81b-8960-4f79-b2ec-f13560058071"
+    },
+    {
+      "cardId": "pod/p38",
+      "scryfallId": "6cfaa182-3fec-4907-8814-b4d29c33cec3",
+      "name": "Gollum, Silent Slinker // Meager Meal",
+      "manaCost": [
+        "3",
+        "B",
+        "B"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Legendary Creature — Halfling Horror // Sorcery — Adventure",
+      "oracleText": "Menace (This creature can't be blocked except by two or more creatures.)",
+      "power": "4",
+      "toughness": "3",
+      "setCode": "HOB",
+      "collectorNumber": "71",
+      "rarity": "common",
+      "oracleId": "0296d57e-e5b9-456f-bb21-eb584adefb4c",
+      "faces": [
+        {
+          "scryfallId": "6cfaa182-3fec-4907-8814-b4d29c33cec3",
+          "name": "Meager Meal",
+          "manaCost": [
+            "B"
+          ],
+          "manaValue": 1,
+          "colors": [],
+          "typeLine": "Sorcery — Adventure",
+          "oracleText": "Put a +1/+1 counter on up to one target creature. Target player gains 2 life. (Then exile this card. You may cast the creature later from exile.)",
+          "setCode": "HOB",
+          "collectorNumber": "71",
+          "rarity": "common"
+        }
+      ]
+    },
+    {
+      "cardId": "pod/p39",
+      "scryfallId": "67304269-c595-4cf0-8dbf-fcb2e9e01fe2",
+      "name": "Lake-town Toymaker",
+      "manaCost": [
+        "3",
+        "W"
+      ],
+      "manaValue": 4,
+      "colors": [
+        "W"
+      ],
+      "typeLine": "Creature — Human Artificer",
+      "oracleText": "At the beginning of combat on your turn, if you've drawn two or more cards this turn, another target creature you control gets +3/+0 and gains first strike until end of turn.",
+      "power": "3",
+      "toughness": "4",
+      "setCode": "HOB",
+      "collectorNumber": "19",
+      "rarity": "uncommon",
+      "oracleId": "0f208cd3-7673-4380-9cb8-5b6f09966ebd"
+    },
+    {
+      "cardId": "pod/p40",
+      "scryfallId": "8651958c-3b94-47a9-a751-faf8f6236a42",
+      "name": "Rage into the Valley",
+      "manaCost": [
+        "2",
+        "B"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Sorcery",
+      "oracleText": "You draw a card and lose 1 life.\nAmass Goblins 2. (Put two +1/+1 counters on an Army you control. It's also a Goblin. If you don't control an Army, create a 0/0 black Goblin Army creature token first.)",
+      "setCode": "HOB",
+      "collectorNumber": "79",
+      "rarity": "common",
+      "oracleId": "8c7641b6-3a6c-4441-a98c-3b5d61d91f76"
+    },
+    {
+      "cardId": "pod/p41",
+      "scryfallId": "7b2d2a7f-88e0-45a9-8579-a6736bcd66eb",
+      "name": "Bolg of the North",
+      "manaCost": [
+        "3",
+        "B",
+        "R"
+      ],
+      "manaValue": 5,
+      "colors": [
+        "B",
+        "R"
+      ],
+      "typeLine": "Legendary Creature — Goblin Soldier",
+      "oracleText": "When Bolg enters, you may sacrifice another creature. When you do, Bolg deals damage equal to that creature's power to another target creature. If excess damage was dealt this way, amass Goblins X, where X is that excess damage. (Put X +1/+1 counters on an Army you control. It's also a Goblin. If you don't control an Army, create a 0/0 black Goblin Army creature token first.)",
+      "power": "5",
+      "toughness": "5",
+      "setCode": "HOB",
+      "collectorNumber": "148",
+      "rarity": "uncommon",
+      "oracleId": "88522a0f-5377-4522-97f4-4148bef954af"
+    },
+    {
+      "cardId": "pod/p42",
+      "scryfallId": "0b84e232-428c-424a-848c-ef95debc6e50",
+      "name": "Bard the Bowman",
+      "manaCost": [
+        "1",
+        "W",
+        "U"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "U",
+        "W"
+      ],
+      "typeLine": "Legendary Creature — Human Archer",
+      "oracleText": "Reach\nWhenever you draw your second card each turn, put a +1/+1 counter on target creature. It gains lifelink until end of turn.",
+      "power": "1",
+      "toughness": "3",
+      "setCode": "HOB",
+      "collectorNumber": "145",
+      "rarity": "uncommon",
+      "oracleId": "ec076f5b-b0e3-4b6f-9293-a8fc42f20bd8"
+    },
+    {
+      "cardId": "pod/p43",
+      "scryfallId": "211a9764-3c60-46ba-bb53-e6692640ec8f",
+      "name": "Tom, Bert, and William",
+      "manaCost": [
+        "3",
+        "B",
+        "G"
+      ],
+      "manaValue": 5,
+      "colors": [
+        "B",
+        "G"
+      ],
+      "typeLine": "Legendary Creature — Troll",
+      "oracleText": "{1}, Sacrifice another creature: Draw cards equal to the sacrificed creature's power, then discard a card.\nWhen Tom, Bert, and William die, if they were a creature, return them to the battlefield. They're an artifact. (They're no longer a creature.)",
+      "power": "5",
+      "toughness": "5",
+      "setCode": "HOB",
+      "collectorNumber": "169",
+      "rarity": "rare",
+      "oracleId": "0ea58cfe-b37c-49a6-a3be-7e60065b8238"
+    },
+    {
+      "cardId": "pod/p44",
+      "scryfallId": "3685c783-d837-4466-a960-ab3098db64c3",
+      "name": "Duskwatch Hunter",
+      "manaCost": [
+        "2",
+        "B/G"
+      ],
+      "manaValue": 3,
+      "colors": [
+        "B",
+        "G"
+      ],
+      "typeLine": "Creature — Wolf",
+      "oracleText": "This creature can't be blocked by tokens.\nWhen this creature enters, put a +1/+1 counter on target creature.",
+      "power": "3",
+      "toughness": "1",
+      "setCode": "HOB",
+      "collectorNumber": "153",
+      "rarity": "common",
+      "oracleId": "6283e5ca-9924-478b-89a5-36924accb9aa"
+    }
+  ],
+  "artists": {
+    "0b4b1c59-bcec-4779-9e27-0e6f9feb4e11": "Christina Kraus",
+    "0b84e232-428c-424a-848c-ef95debc6e50": "Miklós Ligeti",
+    "127367b6-9cfe-4516-9bfd-5b951468a25c": "John Di Giovanni",
+    "211a9764-3c60-46ba-bb53-e6692640ec8f": "Leonardo Borazio",
+    "2ce066be-e5ad-4b93-8245-1b5018990d03": "Pavel Kolomeyets",
+    "3685c783-d837-4466-a960-ab3098db64c3": "Samuele Bandini",
+    "3696d65c-fffd-4685-bb2d-e8769bf476e3": "Bruce Brenneise",
+    "36db4405-8589-481f-b627-f26087488337": "Erikas Perl",
+    "3788ada6-34a9-41af-a31c-2d090550e503": "Marius Bota",
+    "3b087bd4-bbb7-4963-bdb6-0a700ff19a04": "Kekai Kotaki",
+    "3ffe34d4-72f4-4562-a948-8909b9321e59": "Andrea Piparo",
+    "42fbd61d-e1a6-465d-b1a3-f5ee0869d3af": "Tomas Duchek",
+    "430c8916-1167-400b-9cad-d301f59d5e5d": "Yuhong Ding",
+    "573f67b0-6ce8-4857-a703-4a5728640736": "Leonardo Santanna",
+    "5b25e454-06bb-43ca-9a9f-57164f7a70c4": "Michele Giorgi",
+    "5cc0f994-5048-4898-926e-b56cbc97e0ca": "Xabi Gaztelua",
+    "5d485d70-c7b9-40a4-9089-5e7f1c2b9213": "Nereida",
+    "5ee45a5e-3650-47b3-8d31-6b1de9e27a14": "Kevin Sidharta",
+    "63c87009-ff1b-44b9-88b1-e26219094c67": "Harkalé Linaï",
+    "659b687f-4068-496f-81b2-7b606bf07ec1": "Gaboleps",
+    "67304269-c595-4cf0-8dbf-fcb2e9e01fe2": "Marina Ortega Lorente",
+    "67d52db5-597e-46d5-af39-c3a2de107d30": "Andreia Ugrai",
+    "6b8e6435-7de4-41d5-bc7d-8e24c11897d0": "Kieran Yanner",
+    "6cfaa182-3fec-4907-8814-b4d29c33cec3": "Miklós Ligeti",
+    "7b2d2a7f-88e0-45a9-8579-a6736bcd66eb": "Miklós Ligeti",
+    "8651958c-3b94-47a9-a751-faf8f6236a42": "Antonio José Manzanedo",
+    "88f0c189-c9ed-4ea3-ae62-3d8ac6c7fecf": "Xabi Gaztelua",
+    "8a50858a-33b5-4c45-9c31-5956ae5a33a6": "Tomas Duchek",
+    "a2e4099e-86bd-461f-87fa-7f7850ae7eec": "Rovina Cai",
+    "a56a88ba-fcfa-4b56-bdae-a080b297b871": "Gaboleps",
+    "a5cfbfde-783e-46ca-b3cf-11f16209d6cb": "Chris Cold",
+    "b05adb48-980c-49a0-9ce6-7c7f3f20715d": "Marco Teixeira",
+    "c5727af5-a487-4b16-8278-81c3c928c417": "Yigit Koroglu",
+    "c977fb5f-4436-41d0-af68-93b6d05897e5": "Magali Villeneuve",
+    "d3cbe830-7e95-4019-89c4-cfb36bcf00f8": "Tomas Duchek",
+    "d6a8d698-c454-42c4-ad4e-9a7625d5569f": "Tomas Duchek",
+    "e4800508-8bb9-41bb-8712-b55fba7a80a5": "Joshua Raphael",
+    "ea7b5052-b343-466d-879e-2a211657ef0a": "Adrián Rodríguez Pérez",
+    "fa8fd3c4-bd00-485d-80b1-2b67f5786fce": "Russell Dongjun Lu"
+  }
+}

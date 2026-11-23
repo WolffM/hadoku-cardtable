@@ -192,8 +192,8 @@ import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
 import { Avatar, faceOf, NO_FACE, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
 import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { mainDeckColors } from '../components/DeckView.tsx';
-import { assignDeckArt, libraryDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
-import { artCredit, useArtist } from '../draft/artists.ts';
+import { assignDeckArt, libraryDeckArt, rankDeckArt, traitsOfDraftCard, withCover, type DeckArtChoice } from './deckArt.ts';
+import { artCredit, useAnyArtist } from '../draft/artists.ts';
 import { artReady, cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
 import { browseNeighbours, poolNeighbours } from './deckNeighbours.ts';
 import { firstFaces, useDeckSwap } from './deckSwap.ts';
@@ -645,11 +645,13 @@ function PoolSets({ format }: { format: TableFormat | null }) {
  *
  * The slice drops the illustrator and copyright line printed at the card's
  * foot, so the band carries them itself (Scryfall's image guidelines for art
- * shown cropped), and shows no art it cannot credit.
+ * shown cropped), and shows no art it cannot credit. `useAnyArtist` finds the
+ * credit for any printing (the committed table, else the server's corpus), so
+ * that rule blanks a tile only for an id no printing has.
  */
 export function DeckArt({ artId }: { artId: string | undefined }) {
   const [broken, setBroken] = useState(false);
-  const artist = useArtist(artId ?? null);
+  const artist = useAnyArtist(artId ?? null);
   const url = artId === undefined ? null : cardImageUrl(artId);
   // A face already decoded draws on the tile's first render: no second pass over a grid of new tiles.
   const [decoded, setDecoded] = useState<string | null>(() => (url !== null && artReady(url, () => undefined) ? url : null));
@@ -678,8 +680,13 @@ export function DeckArt({ artId }: { artId: string | undefined }) {
  * A drafted deck as a chooser tile: its list, its colours and its art, all
  * from the pool it was drafted from — Free pick's "My decks" and the Decks
  * page draw drafted decks with this one fold.
+ *
+ * The cover, in order: the deck's best card, its next card when a deck above
+ * shows that one (`assignDeckArt`), then `coverArtId` — the cover of the cube or
+ * set it was drafted from (`MyDeck.coverArtId`) — and the empty band only when
+ * there is none of those.
  */
-export function draftedDeckOption(value: string, label: string, deck: Deck, pool: readonly DraftCard[]): DeckOption {
+export function draftedDeckOption(value: string, label: string, deck: Deck, pool: readonly DraftCard[], coverArtId?: string): DeckOption {
   // A drafted card carries its own id and its own mana value, so the art rule
   // needs no lookup table here — the pool IS the table.
   const byName = new Map(pool.map((card) => [card.name, card]));
@@ -698,20 +705,23 @@ export function draftedDeckOption(value: string, label: string, deck: Deck, pool
       sideboard: deck.sideboard.map(draftedLine),
     },
     colors: mainDeckColors(deck, cardIndex(pool)),
-    art: rankDeckArt(
-      deck.main.flatMap((entry) => {
-        const card = byName.get(entry.card.name);
-        if (card === undefined || card.manaCost.length === 0) return [];
-        return [
-          {
-            name: card.name,
-            count: entry.count,
-            manaValue: card.manaValue,
-            traits: traitsOfDraftCard(card.rarity, card.typeLine),
-            scryfallId: card.scryfallId,
-          },
-        ];
-      }),
+    art: withCover(
+      rankDeckArt(
+        deck.main.flatMap((entry) => {
+          const card = byName.get(entry.card.name);
+          if (card === undefined || card.manaCost.length === 0) return [];
+          return [
+            {
+              name: card.name,
+              count: entry.count,
+              manaValue: card.manaValue,
+              traits: traitsOfDraftCard(card.rarity, card.typeLine),
+              scryfallId: card.scryfallId,
+            },
+          ];
+        }),
+      ),
+      coverArtId,
     ),
   };
 }
