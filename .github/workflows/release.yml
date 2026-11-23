@@ -111,9 +111,17 @@ jobs:
           SHA: ${{ steps.gate.outputs.sha }}
         run: |
           set -euo pipefail
-          curl -fsS -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" \
+          # No -f: a refusal's body and headers (its reason, x-github-request-id) are printed, not dropped.
+          status=$(curl -sS -o tag-response.json -D tag-headers.txt -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/git/refs" \
-            -d "$(jq -n --arg ref "refs/tags/release/${VERSION}" --arg sha "${SHA}" '{ref:$ref, sha:$sha}')" > /dev/null
+            -d "$(jq -n --arg ref "refs/tags/release/${VERSION}" --arg sha "${SHA}" '{ref:$ref, sha:$sha}')")
+          if [ "$status" != 201 ]; then
+            echo "::error::tagging release/${VERSION} at ${SHA} returned HTTP ${status}"
+            cat tag-headers.txt
+            cat tag-response.json
+            exit 1
+          fi
           echo "tagged release/${VERSION} at ${SHA}"
 
       - name: Report the outcome so a silent failure can't hide
