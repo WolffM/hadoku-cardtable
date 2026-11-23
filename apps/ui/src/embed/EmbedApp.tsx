@@ -56,7 +56,7 @@ import { composeGame } from '../composition.tsx';
 import './embed.css';
 composeGame();
 
-const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'decks', 'play', 'sounds', 'sounds-sandbox', 'sounds-music', 'ui']);
+const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'decks', 'library', 'play', 'sounds', 'sounds-sandbox', 'sounds-music', 'ui']);
 
 const BIND = bindWatchpartyRoom();
 const toRoom = (roomId: string): void => navigate({ kind: 'room', roomId });

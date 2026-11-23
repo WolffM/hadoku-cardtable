@@ -111,8 +111,8 @@ test('shell: front page, lists, settings, errors, admin and embed screens', asyn
       ['#/profile', 'stats-profile', 'stats', 'your stats profile (no games yet)'],
       ['#/stats/e2e-bob', 'stats-other', 'stats', 'another player’s stats profile'],
       ['#/tournaments', 'tournaments', 'stats', 'past tournaments tab (empty)'],
-      ['#/decks', 'decks-empty', 'decks', 'your decks, none yet'],
-      ['#/inventory', 'inventory-friend', 'admin', 'imported cubes (as a friend)'],
+      ['#/library', 'decks-empty', 'decks', 'the Library’s Decks tab, none yet'],
+      ['#/library/cubes', 'inventory-friend', 'admin', 'the Library’s Cubes tab (as a friend)'],
       ['#/play', 'play', 'rooms', 'constructed #/play'],
       ['#/ui', 'ui-friend', 'admin', 'trim composer as a friend (admin only)'],
       ['#/sounds', 'sounds-friend', 'admin', 'sound builder as a friend (view only)'],
@@ -130,7 +130,7 @@ test('shell: front page, lists, settings, errors, admin and embed screens', asyn
       ['#/sounds/sandbox', 'sounds-sandbox', 'sound sandbox'],
       ['#/sounds/music', 'sounds-music', 'match-music review'],
       ['#/ui', 'ui', 'trim composer'],
-      ['#/inventory', 'inventory', 'imported cubes'],
+      ['#/library/cubes', 'inventory', 'the Library’s Cubes tab'],
     ] as const) {
       await attempt(`admin ${hash}`, async () => {
         await go(a, at(stack, hash), 2_500);
@@ -904,8 +904,8 @@ test('draft: nine-seat lobby, split, the draft, deck building, decks', async ({ 
       await p.waitForTimeout(2_000);
       await shotSizes(p, 'deck-editor', D('#/deck/<id>', 'deck building after the draft'), { small: true, landscape: true, full: true });
       const draftId = p.url().split('#/deck/')[1]!;
-      await go(p, at(stack, '#/decks'), 2_000);
-      await shotSizes(p, 'decks-list', D('#/decks', 'your decks, one drafted'), { small: true, full: true });
+      await go(p, at(stack, '#/library'), 2_000);
+      await shotSizes(p, 'decks-list', D('#/library', 'the Library’s Decks tab, one drafted'), { small: true, full: true });
       await go(p, at(stack, `#/decks/${draftId}`), 2_500);
       await shot(p, 'decks-edit', D('#/decks/<id>', 'that deck in the editor, outside any game'), { full: true });
       await go(p, at(stack, `#/room/${draftId}`), 2_500);

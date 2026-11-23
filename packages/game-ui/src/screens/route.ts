@@ -37,9 +37,13 @@
  *   `#/profile`          the stats page's Your profile: your rating, unfinished games, matches, decks, colours
  *   `#/stats/<name>`     another player's profile, by registry name
  *   `#/tournaments`      the stats page's Tournaments tab: every past pod's standings
- *   `#/decks`            your decks: every draft you finished
+ *   `#/library`          the Library's Decks tab: every deck you built or drafted (wave 125)
+ *   `#/library/cube/<name>`  the Decks tab, narrowed to the decks drafted from that cube
+ *   `#/library/cubes`    the Cubes tab: every cube, and the imported ones refreshed, deleted, imported (AF305 §B)
+ *   `#/library/cards`    the Cards tab
+ *   `#/decks`            LEGACY — the Library's Decks tab (`Screen.tsx` moves it)
  *   `#/decks/<draftId>`  that deck in the editor, outside any game
- *   `#/inventory`        imported cubes: refresh, delete, import (AF305 §B) — shortlist cubes aren't managed here
+ *   `#/inventory`        LEGACY — the Library's Cubes tab (`Screen.tsx` moves it)
  *   `#/embed/<catalogue>/<id>/<view>`  one Rally pick option's page, chromeless, for Rally's frame (`rally/RallyEmbed.tsx`, cardtable#24)
  *
  * An unrecognised hash is the lobby. That is deliberate: a mistyped invite link
@@ -78,6 +82,10 @@ import { createHashRouter } from './router.ts';
 const embedAddress = registered<(catalogue: string, view: string) => boolean>('embed address');
 export const registerEmbedAddress = embedAddress.set;
 
+/** The Library's tabs beside its Decks tab, which is the one with no name in the address. */
+export type LibraryTab = 'cubes' | 'cards';
+const LIBRARY_TABS: readonly string[] = ['cubes', 'cards'] satisfies readonly LibraryTab[];
+
 /** Where the app is. The single source of truth for what gets rendered. */
 export type Route =
   | { kind: 'lobby' }
@@ -101,9 +109,13 @@ export type Route =
   /** The stats page (`stats/StatsPage.tsx`): no `tab` is its Leaderboard; `player`, a registry name, is that player's profile. */
   | { kind: 'stats'; tab?: 'profile' | 'tournaments'; player?: never }
   | { kind: 'stats'; player: string; tab?: never }
-  /** `draftId` opens that deck in the editor; absent is the list. */
+  /** `draftId` opens that deck in the editor; absent is LEGACY, the Library's Decks tab. */
   | { kind: 'decks'; draftId?: string }
+  /** LEGACY: the Library's Cubes tab. */
   | { kind: 'inventory' }
+  /** The Library: no `tab` is its Decks tab, `cube` narrows that tab to the decks drafted from the cube of that name. */
+  | { kind: 'library'; tab?: LibraryTab; cube?: never }
+  | { kind: 'library'; cube: string; tab?: never }
   /** A Rally pick option's page in Rally's frame: no header, no room (cardtable#24). */
   | { kind: 'rally-embed'; catalogue: string; id: string; view: string };
 
@@ -128,8 +140,14 @@ export function parseRoute(hash: string): Route {
   if (path === 'tournaments') return { kind: 'stats', tab: 'tournaments' };
   if (path === 'decks') return { kind: 'decks' };
   if (path === 'inventory') return { kind: 'inventory' };
+  if (path === 'library') return { kind: 'library' };
 
   const parts = path.split('/');
+  if (parts[0] === 'library') {
+    if (parts.length === 2 && LIBRARY_TABS.includes(parts[1]!)) return { kind: 'library', tab: parts[1] as LibraryTab };
+    const cube = parts.length === 3 && parts[1] === 'cube' ? decodeSegment(parts[2]!) : '';
+    return cube === '' ? { kind: 'library' } : { kind: 'library', cube };
+  }
   if (parts.length === 4 && parts[0] === 'embed') {
     const [catalogue, view] = [parts[1]!, parts[3]!];
     const id = decodeSegment(parts[2]!);
@@ -211,6 +229,9 @@ export function routeHash(route: Route): string {
       return route.draftId === undefined ? '#/decks' : `#/decks/${encodeURIComponent(route.draftId)}`;
     case 'inventory':
       return '#/inventory';
+    case 'library':
+      if (route.cube !== undefined) return `#/library/cube/${encodeURIComponent(route.cube)}`;
+      return route.tab === undefined ? '#/library' : `#/library/${route.tab}`;
     case 'rally-embed':
       return `#/embed/${route.catalogue}/${encodeURIComponent(route.id)}/${route.view}`;
   }

@@ -9,7 +9,7 @@ import { Suspense, useEffect } from 'react';
 
 import { lazyComponent } from '@hadoku/game-ui/lazy.ts';
 import { warmMatchesFrom } from '@hadoku/magic-ui/play/live/matchStart.ts';
-import { navigate, useRoute } from '@hadoku/game-ui/screens/route.ts';
+import { navigate, useRoute, type Route } from '@hadoku/game-ui/screens/route.ts';
 import type { DraftTransport } from '@hadoku/magic-ui/draft/socket.ts';
 
 /*
@@ -23,8 +23,7 @@ import type { DraftTransport } from '@hadoku/magic-ui/draft/socket.ts';
  */
 const ConstructedScreen = lazyComponent(() => import('@hadoku/magic-ui/screens/ConstructedScreen.tsx').then((m) => m.ConstructedScreen));
 const DeckScreen = lazyComponent(() => import('@hadoku/magic-ui/screens/DeckScreen.tsx').then((m) => m.DeckScreen));
-const DecksScreen = lazyComponent(() => import('@hadoku/magic-ui/screens/DecksScreen.tsx').then((m) => m.DecksScreen));
-const InventoryScreen = lazyComponent(() => import('@hadoku/magic-ui/screens/InventoryScreen.tsx').then((m) => m.InventoryScreen));
+const LibraryScreen = lazyComponent(() => import('@hadoku/magic-ui/screens/LibraryScreen.tsx').then((m) => m.LibraryScreen));
 import { LobbyScreen } from './LobbyScreen.tsx';
 // The trophy beside the lobby's gear warms the stats page's chunk, so the page drawn here is the trophy's own.
 import { StatsPage } from '@hadoku/magic-ui/stats/StatsButton.tsx';
@@ -72,6 +71,19 @@ function LegacyDraftRedirect({ draftId }: { draftId: string }) {
   return null;
 }
 
+/**
+ * `#/decks` and `#/inventory`, the Library's tabs before it was one page (wave 125), moved to their
+ * tab in place: a back button never lands on the old address only to be sent forward again.
+ */
+function LibraryRedirect({ to }: { to: Route & { kind: 'library' } }) {
+  useEffect(() => {
+    navigate(to, { replace: true });
+  }, [to]);
+  return null;
+}
+const DECKS_TAB: Route & { kind: 'library' } = { kind: 'library' };
+const CUBES_TAB: Route & { kind: 'library' } = { kind: 'library', tab: 'cubes' };
+
 /** Nothing in the screen's place while its chunk loads: the chrome around it is already drawn. */
 export function Screen(props: ScreenProps) {
   return (
@@ -110,9 +122,11 @@ function RouteScreen({ transport }: ScreenProps) {
     case 'stats':
       return <StatsPage tab={route.tab} player={route.player} />;
     case 'decks':
-      return route.draftId === undefined ? <DecksScreen /> : <DeckScreen key={route.draftId} draftId={route.draftId} standalone />;
+      return route.draftId === undefined ? <LibraryRedirect to={DECKS_TAB} /> : <DeckScreen key={route.draftId} draftId={route.draftId} standalone />;
     case 'inventory':
-      return <InventoryScreen />;
+      return <LibraryRedirect to={CUBES_TAB} />;
+    case 'library':
+      return <LibraryScreen tab={route.tab} cube={route.cube} />;
     case 'rally-embed':
       return <RallyEmbed key={`${route.catalogue}/${route.id}/${route.view}`} catalogue={route.catalogue} id={route.id} view={route.view} />;
   }

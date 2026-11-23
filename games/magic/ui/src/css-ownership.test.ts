@@ -80,7 +80,6 @@ const GLOBAL_SHEETS = ['styles.css', `${UI_SHELL}chrome/chrome.css`, `${UI_SHELL
 /** Blocks more than one tree draws or styles by design, with why. */
 const SHARED: Record<string, string> = {
   button: 'the app’s one plain button, drawn wherever a screen has a press',
-  'ct-action': 'the small bordered action (`@game-ui/components/Button.css`): Reset and Close, a deck’s rename/delete, an inventory action, a pod seat’s own action, a table’s scorekeeping buttons — one hover/focus fill drawn wherever a screen has a secondary press',
   'ct-round-button': 'the chrome’s round icon button: the settings gear, and the stats and decks buttons beside it',
   'ct-panel': 'the trim hook: every panel that takes the decoration chosen in Settings → Trim (`@ui-shell/chrome/trim.css`)',
   'cardtable-chrome': 'the chrome root: the app and the embed mount the same one, and the embed adds its modifier',
@@ -377,7 +376,7 @@ describe('css ownership', () => {
     expect(find('play/live/gestures/install.ts')).toBe(find('play/live/LiveBoard.tsx'));
     expect(find('play/live/LiveBoard.tsx')).toBe(find('play/Board.tsx'));
     expect(find('play/prompts/PromptShell.tsx')).not.toBe(find('play/Board.tsx'));
-    expect(find('screens/DecksScreen.tsx')).not.toBe(find('screens/Screen.tsx'));
+    expect(find('screens/LibraryScreen.tsx')).not.toBe(find('screens/Screen.tsx'));
     expect(ownersOf('play/board.css')).toEqual(ownersOf('play/card.css'));
     expect(drawSites.get('seat__ident')?.length).toBeGreaterThan(0);
   });

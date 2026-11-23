@@ -489,6 +489,12 @@ export const MyDeckSchema = z.object({
   concluded: z.boolean(),
   /** The cover of the cube it was drafted from, for a tile none of whose cards has art. Absent when the cube has none. */
   coverArtId: z.string().min(1).optional(),
+  /** The caller made it theirs: renamed it, starred it, or played it after its tournament ended (`decks.ts`). */
+  touched: z.boolean(),
+  /** Its tournament still runs: not theirs yet, so no rename, delete or art rule. */
+  inTournament: z.boolean(),
+  /** When its tournament ended, epoch ms; null while it runs, or when no record kept the time. */
+  concludedAt: z.number().nullable(),
 });
 export type MyDeck = z.infer<typeof MyDeckSchema>;
 
