@@ -487,6 +487,8 @@ export const MyDeckSchema = z.object({
   deck: z.string().nullable(),
   /** The pod's tournament is over (or its room is gone): it may be renamed and deleted. */
   concluded: z.boolean(),
+  /** The cover of the cube it was drafted from, for a tile none of whose cards has art. Absent when the cube has none. */
+  coverArtId: z.string().min(1).optional(),
 });
 export type MyDeck = z.infer<typeof MyDeckSchema>;
 

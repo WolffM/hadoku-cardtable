@@ -19,11 +19,14 @@
  *
  * The caller is `identityFromHeaders`, the same id the draft socket seats
  * them by, so nobody can list or touch another drafter's deck.
+ *
+ * A deck drafted from a cube carries the cube's own cover (`coverArtId`, the id
+ * `CubeArt` draws), which its tile shows when none of its cards has art.
  */
 
 import express, { type Request, type Response, type Router } from 'express';
 
-import { RenameDeckBodySchema, type MyDeck, type PodView } from '@hadoku/shared';
+import { RenameDeckBodySchema, type DraftPlan, type MyDeck, type PodView } from '@hadoku/shared';
 import { builtDeckOf, setDeckMeta, stateOf, viewForParticipant, type DraftRoom, type DraftRooms } from '../room/draftRooms.js';
 import { bodyErrors, httpCaller } from '@hadoku/game-server/http/request';
 import { jsonLogger } from '@hadoku/service-kernel/log';
@@ -31,8 +34,10 @@ import { jsonLogger } from '@hadoku/service-kernel/log';
 export interface DecksDeps {
 	/** Null when the server has no draft rooms (no cube pool loaded). */
 	draftRooms: DraftRooms | null;
-	/** The lobby room a pod belongs to, by the same id — its name and pod; undefined once it is gone. */
-	room: (roomId: string) => { name: string; game?: { pod: PodView | null } } | undefined;
+	/** The lobby room a pod belongs to, by the same id — its name, pod and plan; undefined once it is gone. */
+	room: (roomId: string) => { name: string; game?: { pod: PodView | null; plan?: DraftPlan } } | undefined;
+	/** A cube's cover art id (`CubeSummary.artId`), or null when it has none. */
+	cubeCover?: (cubeId: string) => string | null;
 	log?: (entry: Record<string, unknown>) => void;
 }
 
@@ -45,6 +50,9 @@ function deckIn(room: DraftRoom, caller: string, deps: DecksDeps, draftRooms: Dr
 	if (meta?.deleted === true) return null;
 	const lobbyRoom = deps.room(room.roomId);
 	const cube = draftRooms.cubeMetaOf(room).name;
+	// Round 1's source, as `cubeMetaOf` names it.
+	const source = lobbyRoom?.game?.plan?.rounds[0];
+	const coverArtId = source?.kind === 'cube' ? (deps.cubeCover?.(source.cubeId) ?? null) : null;
 	return {
 		id: room.roomId,
 		name: meta?.name ?? lobbyRoom?.name ?? cube,
@@ -53,6 +61,7 @@ function deckIn(room: DraftRoom, caller: string, deps: DecksDeps, draftRooms: Dr
 		pool: view.viewer.pool,
 		deck: builtDeckOf(room, caller),
 		concluded: lobbyRoom === undefined || lobbyRoom.game?.pod?.phase === 'done',
+		...(coverArtId === null ? {} : { coverArtId }),
 	};
 }
 
