@@ -47,7 +47,7 @@ export const tablesPlugin: CardtablePlugin = {
 		// A drafter's own pool and the build saved against it.
 		attachDrafts(api, { draftRooms });
 		// Every finished draft as the drafter's deck.
-		attachDecks(api, { draftRooms, room: (id) => lobby.get(id) });
+		attachDecks(api, { draftRooms, room: (id) => lobby.get(id), cubeCover: (id) => state.cubeStore.list().find((c) => c.id === id)?.artId ?? null });
 		// The cube picker: the shortlist plus any import (a Cube Cobra link or a pasted list), re-verified
 		// fresh at import and at refresh with the same `checkCards` `room/plan.ts` runs.
 		attachCubeRoutes(api, {
