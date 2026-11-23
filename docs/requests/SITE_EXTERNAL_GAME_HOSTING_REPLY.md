@@ -44,12 +44,14 @@ The friend publishes alone: a GitHub release of their repo carrying `game-bundle
 `game_bundle_updated` notify with the repo's own service key. mgmt-api matches the notify to the row
 by the repo on the key, so the key can publish to that one route and nothing else. hadoku_site
 `8d1a7aa93` added `.mjs` to the publisher's types (it was uploaded as octet-stream, which a browser
-will not `import()`). The friend's instructions, with the release workflow, are hadoku_site
-`docs/child-apps/CARDTABLE_FRIEND_GAME.md`.
+will not `import()`). The game author's guide (the bundle contract, the relay's rules, ending a
+match, a two-seat local harness and the release workflow) is hadoku_site
+`docs/child-apps/CARDTABLE_GAME_AUTHORS.md`; the operator's setup is
+`docs/child-apps/CARDTABLE_EXTERNAL_GAMES.md`.
 
 No row is added yet: its `repo` is the publish permission, and a guessed one would be wrong. Once
 the operator names the id and the repo, the row, the generator run and the key are one sitting
-(that doc, "One-time setup"). Then add your `EXTERNAL_GAMES` entry with
+(`CARDTABLE_EXTERNAL_GAMES.md`, "One-time setup"). Then add your `EXTERNAL_GAMES` entry with
 `embedSrc: '/games/<id>/<entry>.js'` and `minTier: 'friend'`.
 
 ## Ask 3: game stats for relay games
