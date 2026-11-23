@@ -882,12 +882,15 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v7
         with:
-          pattern: forge-jvm-report-*-${{ github.run_attempt }}
+          # Every attempt's reports: a re-run of failed jobs keeps a shard that passed
+          # before, and that shard's report is the earlier attempt's.
+          pattern: forge-jvm-report-*
           path: ${{ runner.temp }}/jvm-reports
       - name: Every shard reported; the whole run judged against the pinned lists
         env:
           SHARDS: ${{ needs.changes.outputs.jvm_shards }}
           ATTEMPT: ${{ github.run_attempt }}
+          GH_TOKEN: ${{ github.token }}
           # A partial run (a selection, or a `jvm` override) judges only the
           # pinned tests it ran; the full run (every suite, at least every
           # night, no override) judges all of them. `inputs.jvm != ''` forces
@@ -898,8 +901,21 @@ jobs:
           dir="${{ runner.temp }}/jvm-reports"
           merged="${{ runner.temp }}/forge-jvm-report.json"
           reports=()
+          # A re-run of failed jobs keeps a shard that passed, and its report is from an
+          # earlier attempt (run 45073630597: shard 2 passed in attempt 1 and was not
+          # re-run, so attempt 2 had no report-2-2). A kept job is listed in this attempt
+          # with its old started_at, before this attempt's run_started_at; only a kept
+          # shard may fall back, so a shard that ran again and died is still a red.
+          since=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/$ATTEMPT" -q .run_started_at)
+          kept=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/$ATTEMPT/jobs" --paginate \
+            | jq -r --arg since "$since" '.jobs[] | select((.name | startswith("forge-jvm (")) and .started_at < $since) | .name | ltrimstr("forge-jvm (") | rtrimstr(")")')
           for i in $(jq -r '.[]' <<<"$SHARDS"); do
-            r="$dir/forge-jvm-report-$i-$ATTEMPT/forge-jvm-report.json"
+            a=$ATTEMPT
+            if grep -qx "$i" <<<"$kept"; then
+              while [ "$a" -gt 1 ] && [ ! -s "$dir/forge-jvm-report-$i-$a/forge-jvm-report.json" ]; do a=$((a - 1)); done
+              echo "shard $i kept from attempt $a"
+            fi
+            r="$dir/forge-jvm-report-$i-$a/forge-jvm-report.json"
             # download-artifact extracts a pattern that matched ONE artifact
             # straight into `path`, with no per-artifact directory, so a
             # one-shard run's report lands at the top (verify/w71-E, run
