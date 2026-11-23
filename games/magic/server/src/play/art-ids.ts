@@ -24,11 +24,26 @@
  *
  * A face's art is a {@link CardArt}, not a bare id, so another field decided by the same lookup is
  * stamped beside the id in the same place.
+ *
+ * ## Art pins (wave 125 §B)
+ *
+ * A seat's `artPins` (`forge-spec.ts`; resolved at match start by `art-pins.ts` from its player's
+ * hand picks and "always use oldest art") decide a card OWNED by that seat before anything above:
+ * a face says whose it is (`ArtFace.seat`, its owner's place in the game's players, which is its
+ * seat), and that seat's pin for the card's name is its art, its back as `<id>#back`. An opponent's
+ * pins never touch your cards, and a face nobody owns (or a lookup by name alone) never reads a pin.
+ * A drafted deck still in its tournament keeps its drafted printing because `art-pins.ts` gives
+ * that seat no pins at all, so the deck's own lines decide it as before. Tokens are not pinned.
+ *
+ * The pins are read off the seat specs themselves, so pins written while the JVM boots are seen;
+ * the first face stamped seals them ({@link artPinsSealed}), so a pin that arrives later is never
+ * half-applied to a board already drawn.
  */
 import { artIdIndex, artIdIndexFromTable, artIdKey, BACK_FACE, backFaceNames, mergeArtIdIndexes, tokenArtId, type ArtIdSource, type ArtIdTableFile } from '@hadoku/carddata/art';
 import { toScryfallSetCode } from '@hadoku/carddata/set-codes';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DraftCard } from '@hadoku/shared';
+import type { ArtPins } from './forge-spec.js';
 
 import pool from '../../../ui/src/draft/pool.json' with { type: 'json' };
 import table from './art-ids.json' with { type: 'json' };
@@ -52,6 +67,8 @@ export interface ArtFace {
 	set: string;
 	imageKey?: string | null;
 	front?: string | null;
+	/** Whose card it is: its owner's place in the game's players, which is the seat that owns it. Absent: no seat's pins apply. */
+	seat?: number | null;
 }
 
 export interface ArtIds {
@@ -101,9 +118,39 @@ function sameSet(a: string, b: string): boolean {
 
 const art = (scryfallId: string | undefined): CardArt | undefined => (scryfallId === undefined ? undefined : { scryfallId });
 
-/** The art resolver for a match whose seats play these `.dck` texts; `catalog` null answers from the table alone. */
-export function createArtIds(catalog: ArtCatalog | null, decks: readonly (string | null)[] = []): ArtIds {
+/** The seat specs whose pins a face has been drawn with: their pins are final (see the header). */
+const SEALED = new WeakSet<object>();
+
+/** Whether a face has been drawn from these seats' pins already, so a pin written now would come too late. */
+export function artPinsSealed(seats: object): boolean {
+	return SEALED.has(seats);
+}
+
+/**
+ * The key a pin is stored under: the card's catalog name (a two-faced card's whole name), normalised
+ * by `@hadoku/carddata`'s `normaliseName` rule (trimmed, lower case). Written out here, not imported:
+ * the package's barrel is the only path to it, and it would pull the Scryfall ingest into the UI's
+ * typecheck, which reads this file through `ui/src/play/art.testing.ts`.
+ */
+export function artPinKey(catalog: Pick<ArtCatalog, 'byName'> | null, name: string): string {
+	return (catalog?.byName(name)?.name ?? name).trim().toLowerCase();
+}
+
+/**
+ * The art resolver for a match whose seats play these `.dck` texts; `catalog` null answers from the
+ * table alone. `seats` are the match's seat specs, read for their `artPins` (see the header).
+ */
+export function createArtIds(catalog: ArtCatalog | null, decks: readonly (string | null)[] = [], seats: readonly { artPins?: ArtPins }[] = []): ArtIds {
 	const printings = deckPrintings(decks);
+	/** Each seat's pins as the first face drew them; null until then. */
+	let sealed: readonly (ArtPins | undefined)[] | null = null;
+	const pinsOf = (seat: number): ArtPins | undefined => (sealed ?? seats.map((s) => s.artPins))[seat];
+	/** `name`'s pin for the seat that owns it, if that seat pinned it. */
+	function pinned(name: string, seat: number | null | undefined): string | undefined {
+		if (seat == null) return undefined;
+		const pins = pinsOf(seat);
+		return pins === undefined ? undefined : pins[artPinKey(catalog, name)];
+	}
 
 	/**
 	 * The printing to draw `name` as, asked by `set`: the deck line naming it in that set, else the
@@ -131,8 +178,10 @@ export function createArtIds(catalog: ArtCatalog | null, decks: readonly (string
 		return printed ?? (scryfallSet === null ? null : catalog.byNameInSet(name, scryfallSet)) ?? catalog.byName(name);
 	}
 
-	function cardId(name: string, asked: string | null | undefined): string | undefined {
+	function cardId(name: string, asked: string | null | undefined, seat?: number | null): string | undefined {
 		if (name.trim() === '') return undefined;
+		const pin = pinned(name, seat);
+		if (pin !== undefined) return pin;
 		const { set, collector } = printingOf(name, asked);
 		const scryfallSet = toScryfallSetCode(set);
 		return (
@@ -152,31 +201,36 @@ export function createArtIds(catalog: ArtCatalog | null, decks: readonly (string
 	}
 
 	/** A face that is not its card's front: drawn from the front's own printing. */
-	function otherFaceId(name: string, front: string, set: string): string | undefined {
+	function otherFaceId(name: string, front: string, set: string, seat: number | null | undefined): string | undefined {
 		const back = backOf(name, front, set);
-		const id = back === undefined ? undefined : cardId(front, set);
+		const id = back === undefined ? undefined : cardId(front, set, seat);
 		return id === undefined ? undefined : back === true ? `${id}${BACK_FACE}` : id;
 	}
 
 	const ids: ArtIds = {
 		card: (name, set) => art(cardId(name, set)),
-		face({ name, set, imageKey, front }) {
+		face({ name, set, imageKey, front, seat }) {
+			if (sealed === null) {
+				sealed = seats.map((s) => s.artPins);
+				SEALED.add(seats);
+			}
 			const token = tokenArtId(TABLE, imageKey);
 			if (token !== undefined) return art(token);
-			const other = front == null || front === name || front.trim() === '' ? undefined : otherFaceId(name, front, set);
+			const other = front == null || front === name || front.trim() === '' ? undefined : otherFaceId(name, front, set, seat);
 			const keyed = CARD_KEY.exec(imageKey ?? '');
 			const emblem = EMBLEM_NAME.test(name) ? name.replace(EMBLEM_NAME, '') : undefined;
 			return art(
 				other ??
-					cardId(name, set) ??
-					(keyed === null ? undefined : cardId(keyed[1]!, keyed[2]!)) ??
-					(emblem === undefined ? undefined : cardId(emblem, set)),
+					cardId(name, set, seat) ??
+					(keyed === null ? undefined : cardId(keyed[1]!, keyed[2]!, seat)) ??
+					(emblem === undefined ? undefined : cardId(emblem, set, seat)),
 			);
 		},
 		images(name, set) {
-			const id = cardId(name, set);
-			if (id === undefined) return [];
-			return ids.backs(name, set).length > 0 && !id.endsWith(BACK_FACE) ? [id, `${id}${BACK_FACE}`] : [id];
+			const hasBack = ids.backs(name, set).length > 0;
+			// The default printing, and every seat's pin for the card: a preload warms whichever a face draws.
+			const found = [cardId(name, set), ...seats.map((_, seat) => pinned(name, seat))].filter((id): id is string => id !== undefined);
+			return [...new Set(found.flatMap((id) => (hasBack && !id.endsWith(BACK_FACE) ? [id, `${id}${BACK_FACE}`] : [id])))];
 		},
 		backs(name, set) {
 			const faces = catalogCard(name, set)?.faces?.filter((f) => f.scryfallId?.endsWith(BACK_FACE) === true).map((f) => f.name);

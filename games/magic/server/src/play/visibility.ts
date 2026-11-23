@@ -508,7 +508,9 @@ export function withArt(state: ReadonlyMap<string, WireObj>, face: WireObj, art:
 	const folded = state.get(deltaKey(DELTA_TYPE.cardState, face._id));
 	const name = strOf(folded, 'Name');
 	const front = strOf(state.get(cardStateKey(cardIdOfState(face._id), 0)), 'Name');
-	const found = name === null ? undefined : art.face({ name, set: strOf(folded, 'SetCode') ?? '', imageKey: strOf(folded, 'ImageKey'), front });
+	// Whose card it is, for its owner's art pins: Forge numbers a game's players from 0 in seat order (`Game.java`'s constructor), so the owner's id is the seat.
+	const seat = intOf(state.get(deltaKey(DELTA_TYPE.card, cardIdOfState(face._id))), 'Owner');
+	const found = name === null ? undefined : art.face({ name, set: strOf(folded, 'SetCode') ?? '', imageKey: strOf(folded, 'ImageKey'), front, seat });
 	const out: WireObj = { ...face };
 	for (const [field, prop] of Object.entries(ART_PROPS) as [keyof CardArt, string][]) {
 		const value = found?.[field];
