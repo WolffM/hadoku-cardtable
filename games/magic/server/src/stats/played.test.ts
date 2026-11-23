@@ -79,7 +79,8 @@ describe('the last-played stamp', () => {
 		stats.gameOver(match);
 		const none = createMatchStats({ keys: createKeyBook(), log: () => undefined, reporter: { report: async () => undefined } as never, startOf: () => null, played: { users, userOf: () => ALICE } });
 		none.gameOver(match);
-		await new Promise((r) => setTimeout(r, 50));
+		// A stamp is queued on gameOver; Alice's queue runs in order, so this read follows any stamp of hers.
+		await users.update(ALICE, () => undefined);
 		expect((await users.get(ALICE)).decks).toEqual({});
 	});
 
@@ -88,7 +89,8 @@ describe('the last-played stamp', () => {
 		const { users, stats } = setup(start, 1_000);
 		await users.update(ALICE, (d) => void (d.decks['draft:pod-1'] = { lastPlayedAt: 9_000 }));
 		stats.gameOver(match);
-		await new Promise((r) => setTimeout(r, 50));
+		// A stamp is queued on gameOver; Alice's queue runs in order, so this read follows any stamp of hers.
+		await users.update(ALICE, () => undefined);
 		expect((await users.get(ALICE)).decks['draft:pod-1']).toEqual({ lastPlayedAt: 9_000 });
 	});
 });
