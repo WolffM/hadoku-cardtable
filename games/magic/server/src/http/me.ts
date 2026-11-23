@@ -82,6 +82,12 @@ function builtIdOf(raw: string): string | null {
 
 export interface MeDeps {
 	users: MagicUserStore;
+	/**
+	 * A card's printings (`printingsOf(catalog, name)`), null for a card the catalog does not know.
+	 * A pick is kept only when its id is one of its card's printings: the picks are drawn for both
+	 * players, so an id for some other card (or one the catalog never heard of) is refused.
+	 */
+	printings: (name: string) => { printings: readonly { scryfallId: string }[] } | null;
 	/** Overrides {@link ME_WRITE_RATE_LIMIT}; `null` is none (`perCallerLimit`). */
 	rateLimit?: RateLimitConfig | null;
 	log?: (entry: Record<string, unknown>) => void;
@@ -226,7 +232,13 @@ export function attachMe(api: Router, deps: MeDeps): void {
 			const userId = callerOf(req, res);
 			if (userId === null) return;
 			const body = parseBody(ArtBodySchema, req, res);
-			if (body === null || !writeLimit(req, res)) return;
+			if (body === null) return;
+			const wrong = Object.entries(body.picks).find(([name, id]) => !(deps.printings(name)?.printings.some((p) => p.scryfallId === id) ?? false));
+			if (wrong !== undefined) {
+				res.status(400).json({ error: `${JSON.stringify(wrong[1])} is not a printing of ${JSON.stringify(wrong[0])}` });
+				return;
+			}
+			if (!writeLimit(req, res)) return;
 			const doc = await deps.users.update(userId, (d) => {
 				d.art = { oldest: body.oldest, picks: normalisePicks(body.picks) };
 			});

@@ -4,7 +4,7 @@
  *
  * For each: the import is the room's pick at once (no second press on its
  * tile), the cards Forge cannot play are named, "Draft without them" leaves a
- * pool that deals, and the cube is kept: `#/inventory` lists it afterwards.
+ * pool that deals, and the cube is kept: the Library's Cubes tab lists it afterwards.
  * Then the pasted list is drafted, and every card of the first pack is one of
  * its own.
  *
@@ -146,9 +146,9 @@ test(
       await expect(verdict, 'every line but the unknown card, whichever way it was spelled').toHaveText(`${String(LIST_SIZE)} cards`, { timeout: UI_TIMEOUT });
       await expect(verdict).toHaveAttribute('data-state', 'ready');
 
-      /* ── both are kept: the inventory lists them, the list with no refresh ── */
+      /* ── both are kept: the Library's Cubes tab lists them, the list with no refresh ── */
       const inventory = await alice.context.newPage();
-      await inventory.goto(`${origin}${PREFIX}/#/inventory`);
+      await inventory.goto(`${origin}${PREFIX}/#/library/cubes`);
       const kept = inventory.locator('[data-testid^="inventory-cube-"]');
       await expect(kept.filter({ hasText: COBRA_NAME }), 'the Cube Cobra import is kept').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(inventory.getByTestId(`inventory-refresh-cc-${COBRA_ID}`), 'a Cube Cobra cube can be read again').toBeVisible();

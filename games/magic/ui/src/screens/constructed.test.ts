@@ -2071,7 +2071,7 @@ describe('the table’s pool', () => {
   it('Free pick: My decks offers each drafted build that is a deck, and seats its saved text', async () => {
     const pool = (poolJson as { cards: DraftCard[] }).cards.slice(0, 45).map((card, i) => ({ ...card, cardId: `draft:pod-a/p${i}` }));
     const built = dckTextOf(draftedDeckOf('pod-a', pool));
-    const mine = (id: string, deck: string | null): MyDeck => ({ id, name: `Deck ${id}`, cube: 'Cube', createdAt: 1, pool, deck, concluded: true });
+    const mine = (id: string, deck: string | null): MyDeck => ({ id, name: `Deck ${id}`, cube: 'Cube', createdAt: 1, pool, deck, concluded: true, touched: false, inTournament: false, concludedAt: 1 });
     let answer!: (decks: MyDeck[]) => void;
     const server = await mountRoom({
       players: [opponent()],
@@ -2110,7 +2110,7 @@ describe('the table’s pool', () => {
       matchId: null,
       leader: false,
       format: 'free',
-      myDecks: [{ id: 'pod-s', name: 'Deck pod-s', cube: 'Cube', createdAt: 1, pool, deck: sideOnly, concluded: true }],
+      myDecks: [{ id: 'pod-s', name: 'Deck pod-s', cube: 'Cube', createdAt: 1, pool, deck: sideOnly, concluded: true, touched: false, inTournament: false, concludedAt: 1 }],
     });
     fireEvent.click(screen.getByTestId('browse-tab-mine'));
     await waitFor(() => expect(offered()).toEqual(['mine:pod-s']));
@@ -2129,7 +2129,7 @@ describe('the table’s pool', () => {
     const server = await mountRoom({
       players: [opponent()],
       matchId: null,
-      myDecks: [{ id: 'pod-a', name: 'Deck pod-a', cube: 'Cube', createdAt: 1, pool, deck: built, concluded: true }],
+      myDecks: [{ id: 'pod-a', name: 'Deck pod-a', cube: 'Cube', createdAt: 1, pool, deck: built, concluded: true, touched: false, inTournament: false, concludedAt: 1 }],
     });
     await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
     expect(screen.queryByTestId('format-tab-draft')).toBeNull();
@@ -2162,7 +2162,7 @@ describe('the table’s pool', () => {
       matchId: null,
       leader: false,
       format: 'free',
-      myDecks: [{ id: 'pod-a', name: 'Deck pod-a', cube: 'Cube', createdAt: 1, pool, deck: built, concluded: true }],
+      myDecks: [{ id: 'pod-a', name: 'Deck pod-a', cube: 'Cube', createdAt: 1, pool, deck: built, concluded: true, touched: false, inTournament: false, concludedAt: 1 }],
     });
     fireEvent.click(screen.getByTestId('browse-tab-mine'));
     await waitFor(() => expect(chosen()).toBe('mine:pod-a'));

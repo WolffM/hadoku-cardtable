@@ -1248,8 +1248,8 @@ test(
       await expect(alice.page.getByTestId('tournament').filter({ hasText: roomName }), 'her solo pod against the AI is not listed').toHaveCount(0);
       await alice.page.getByTestId('back-to-lobby').click();
 
-      /* ── the pool is her deck now, on the Decks page beside the trophy ── */
-      await alice.page.getByTestId('lobby-decks').click();
+      /* ── the pool is her deck now, in the Library beside the trophy ── */
+      await alice.page.getByTestId('lobby-library').click();
       // The 1v1 room's own deck tiles, drawn once their art has.
       const tile = alice.page.getByTestId('deck-option');
       await expect(tile, 'the finished draft is one deck').toHaveCount(1, { timeout: UI_TIMEOUT });

@@ -1,18 +1,21 @@
 // @vitest-environment jsdom
 /*
- * `#/inventory` (AF305 §B): the imported cubes, managed — refresh (any
- * friend), delete (the importer only), import — moved off the room's own
- * picker per the operator: "when i'm in a room i wouldn't want to mess with
- * the refresh state of the cube… i would prefer if there was an 'inventory'
- * button". Shortlist cubes are listed nowhere here.
+ * The Library's Cubes tab (`#/library/cubes`, `#/inventory` before wave 125): the imported cubes,
+ * managed — refresh (any friend), delete (the importer only), import — off the room's own picker
+ * per the operator (AF305 §B): "when i'm in a room i wouldn't want to mess with the refresh state
+ * of the cube… i would prefer if there was an 'inventory' button". Each cube says how many of your
+ * decks were drafted from it, which opens the Decks tab narrowed to them; a shortlist cube is
+ * listed only for that.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { CubeListing } from '@hadoku/shared';
 
-import { InventoryScreen } from './InventoryScreen.tsx';
+import { LibraryScreen } from './LibraryScreen.tsx';
 import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
+import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
+import type { FavouritesClient } from '../deck/favourites.ts';
 import type { PoolsClient } from '../rooms/api.ts';
 
 afterEach(() => {
@@ -68,26 +71,52 @@ function stubPools(over: Partial<PoolsClient> = {}): PoolsClient {
   };
 }
 
-describe('InventoryScreen', () => {
-  it('has a page heading — a label, not explanatory text', () => {
-    render(createElement(InventoryScreen, { pools: stubPools() }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Inventory' })).not.toBeNull();
+/** The Cubes tab over `pools`, the caller having drafted `decks`. */
+function cubesTab(pools: PoolsClient, decks: Partial<MyDeck>[] = []) {
+  const client: MyDecksClient = {
+    list: async () => decks.map((d, i) => ({ id: `p${i}`, name: 'd', cube: 'c', createdAt: 0, pool: [], deck: null, concluded: true, touched: false, inTournament: false, concludedAt: null, ...d })),
+    rename: () => Promise.reject(new Error('unused')),
+    remove: () => Promise.reject(new Error('unused')),
+  };
+  const library: FavouritesClient = { library: async () => ({ favourites: new Set(), lastPlayed: new Map(), built: [] }), setFavourite: async () => ({ ok: true }) };
+  return createElement(LibraryScreen, { tab: 'cubes', pools, decks: client, library, deckRecords: async () => new Map() });
+}
+
+describe('the Library’s Cubes tab', () => {
+  it('has a page heading — a label, not explanatory text — and marks its tab', () => {
+    render(cubesTab(stubPools()));
+    expect(screen.getByRole('heading', { level: 1, name: 'Library' })).not.toBeNull();
+    expect(screen.getByTestId('library-tab-cubes').getAttribute('aria-current')).toBe('page');
+    expect(screen.getByTestId('library-tab-decks').getAttribute('aria-current')).toBeNull();
   });
 
   it('its arrow goes home', () => {
-    globalThis.location.hash = '#/inventory';
-    render(createElement(InventoryScreen, { pools: stubPools() }));
+    globalThis.location.hash = '#/library/cubes';
+    render(cubesTab(stubPools()));
     fireEvent.click(screen.getByTestId('back-to-lobby'));
     expect(currentRoute()).toEqual({ kind: 'lobby' });
   });
 
-  it('lists imported cubes only — a shortlist cube is build-pool’s own output, never managed here', async () => {
+  it('lists a shortlist cube only for the decks drafted from it, with nothing to manage', async () => {
     const mine = cube();
-    const pools = stubPools({ listCubes: vi.fn().mockResolvedValue([mine, shortlistCube()]) });
+    const pools = stubPools({ listCubes: vi.fn().mockResolvedValue([mine, shortlistCube(), shortlistCube({ id: 'pauper', name: 'Pauper' })]) });
 
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools, [{ cube: 'A shortlist cube' }, { cube: 'A shortlist cube' }, { cube: 'My import' }]));
+    await waitFor(() => expect(screen.getByTestId('inventory-cube-vintage')).not.toBeNull());
+    expect(screen.queryByTestId('inventory-cube-pauper'), 'a shortlist cube nobody drafted from is not listed').toBeNull();
+    expect(screen.queryByTestId('inventory-refresh-vintage')).toBeNull();
+    expect(screen.queryByTestId('inventory-delete-vintage')).toBeNull();
+    const decks = screen.getByTestId('library-cube-decks-vintage');
+    expect(decks.textContent).toBe('2 decks');
+    expect(decks.getAttribute('href')).toBe('#/library/cube/A%20shortlist%20cube');
+    expect(screen.getByTestId(`library-cube-decks-${mine.id}`).textContent).toBe('1 deck');
+  });
+
+  it('offers no deck count on a cube nobody drafted from', async () => {
+    const mine = cube();
+    render(cubesTab(stubPools({ listCubes: vi.fn().mockResolvedValue([mine]) })));
     await waitFor(() => expect(screen.getByTestId(`inventory-cube-${mine.id}`)).not.toBeNull());
-    expect(screen.queryByTestId('inventory-cube-vintage'), 'the shortlist cube is not listed').toBeNull();
+    expect(screen.queryByTestId(`library-cube-decks-${mine.id}`)).toBeNull();
   });
 
   it('refresh is open to any friend; delete only shows for the importer', async () => {
@@ -95,7 +124,7 @@ describe('InventoryScreen', () => {
     const theirs = cube({ id: 'cc-theirs', importedBy: 'fk:bob', importerName: 'Bob', mine: false });
     const pools = stubPools({ listCubes: vi.fn().mockResolvedValue([mine, theirs]) });
 
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools));
     await waitFor(() => expect(screen.getByTestId(`inventory-refresh-${mine.id}`)).not.toBeNull());
 
     expect(screen.getByTestId(`inventory-refresh-${theirs.id}`), 'refresh: any friend').not.toBeNull();
@@ -108,7 +137,7 @@ describe('InventoryScreen', () => {
     const unnamed = cube({ id: 'cc-unnamed', importedBy: 'fk:1f7da5749ef6d295', importerName: null, mine: false });
     const pools = stubPools({ listCubes: vi.fn().mockResolvedValue([named, unnamed]) });
 
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools));
     await waitFor(() => expect(screen.getByTestId('inventory-meta-cc-named')).not.toBeNull());
     expect(screen.getByTestId('inventory-meta-cc-named').textContent).toBe('100 cards · Bob');
     expect(screen.getByTestId('inventory-meta-cc-unnamed').textContent).toBe('100 cards');
@@ -120,7 +149,7 @@ describe('InventoryScreen', () => {
     const listCubes = vi.fn().mockResolvedValue([mine]);
     const pools = stubPools({ listCubes, refreshCube });
 
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools));
     await waitFor(() => expect(screen.getByTestId(`inventory-refresh-${mine.id}`)).not.toBeNull());
 
     fireEvent.click(screen.getByTestId(`inventory-refresh-${mine.id}`));
@@ -134,7 +163,7 @@ describe('InventoryScreen', () => {
     const listCubes = vi.fn().mockResolvedValue([mine]);
     const pools = stubPools({ listCubes, deleteCube });
 
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools));
     await waitFor(() => expect(screen.getByTestId(`inventory-delete-${mine.id}`)).not.toBeNull());
 
     fireEvent.click(screen.getByTestId(`inventory-delete-${mine.id}`));
@@ -146,7 +175,7 @@ describe('InventoryScreen', () => {
     const mine = cube({ refreshedAt: new Date(Date.now() - 5 * 60_000).toISOString() });
     const pools = stubPools({ listCubes: vi.fn().mockResolvedValue([mine]) });
 
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools));
     const meta = await waitFor(() => screen.getByTestId(`inventory-meta-${mine.id}`));
     expect(meta.textContent).toContain('5m ago');
     expect(meta.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
@@ -167,7 +196,7 @@ describe('InventoryScreen', () => {
       server = [theirs];
       return { ok: true as const };
     });
-    render(createElement(InventoryScreen, { pools: stubPools({ listCubes, refreshCube, deleteCube }) }));
+    render(cubesTab(stubPools({ listCubes, refreshCube, deleteCube })));
     await waitFor(() => expect(screen.getByTestId(`inventory-delete-${mine.id}`)).not.toBeNull());
 
     fireEvent.click(screen.getByTestId(`inventory-refresh-${theirs.id}`));
@@ -183,7 +212,7 @@ describe('InventoryScreen', () => {
 
   it('draws the shared import card', async () => {
     const pools = stubPools();
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools));
     await waitFor(() => expect(screen.getByTestId('pool-picker-import-link')).not.toBeNull());
   });
 
@@ -193,7 +222,7 @@ describe('InventoryScreen', () => {
     const listCubes = vi.fn().mockResolvedValue([]);
     const pools = stubPools({ listCubes, importCube });
 
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools));
     await waitFor(() => expect(screen.getByTestId('pool-picker-import-link')).not.toBeNull());
 
     fireEvent.change(screen.getByTestId('pool-picker-import-link'), { target: { value: 'cubecobra.com/cube/x' } });
@@ -206,7 +235,7 @@ describe('InventoryScreen', () => {
     const importCube = vi.fn().mockResolvedValue({ ok: true, cube: cube() });
     const pools = stubPools({ listCubes: vi.fn().mockResolvedValue([]), importCube });
 
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools));
     await waitFor(() => expect(screen.getByTestId('pool-picker-import-link')).not.toBeNull());
     expect(screen.queryByTestId('pool-picker-import-name'), 'a link has a name of its own').toBeNull();
 
@@ -221,7 +250,7 @@ describe('InventoryScreen', () => {
     const pasted = cube({ id: 'list-1', origin: 'list', cubeCobraId: null });
     const pools = stubPools({ listCubes: vi.fn().mockResolvedValue([pasted]) });
 
-    render(createElement(InventoryScreen, { pools }));
+    render(cubesTab(pools));
     await waitFor(() => expect(screen.getByTestId('inventory-cube-list-1')).not.toBeNull());
     expect(screen.queryByTestId('inventory-refresh-list-1')).toBeNull();
     expect(screen.getByTestId('inventory-delete-list-1')).not.toBeNull();

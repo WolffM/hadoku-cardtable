@@ -7,7 +7,7 @@
  * markup, not an empty wrapper.
  *
  * Platform: knows no game's own banner, nav buttons or room list — `LobbyScreen.tsx` still
- * assembles those (`Banner`, `DecksButton`/`InventoryButton`/`StatsButton`, `RoomList`, the Fan
+ * assembles those (`Banner`, `DecksButton` (the Library)/`StatsButton`, `RoomList`, the Fan
  * Content Policy line) and hands them in as children/props. What stays here is what was already
  * game-agnostic: the shell chrome, the page-reveal gate (`./gate.ts`) and the trim-loaded settle.
  *

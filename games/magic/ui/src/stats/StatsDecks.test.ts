@@ -62,6 +62,9 @@ const MINE: MyDeck = {
   pool: [],
   deck: '[metadata]\nName=My cube deck\n[Main]\n17 Swamp\n',
   concluded: true,
+  touched: false,
+  inTournament: false,
+  concludedAt: 1,
 };
 
 function stub() {

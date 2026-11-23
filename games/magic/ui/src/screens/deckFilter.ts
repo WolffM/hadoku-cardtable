@@ -55,3 +55,80 @@ export function deckPasses(deck: FilterableDeck, filter: DeckFilter): boolean {
   const lines = deck.list === undefined ? [] : [...deck.list.main, ...deck.list.sideboard];
   return lines.some((line) => cardNameMatches(line.name, query));
 }
+
+/*
+ * ── The Library's Decks tab (wave 125) ───────────────────────────────────
+ *
+ * The operator, 2026-11-23: a deck is "yours" once touched — renamed, rebuilt after the draft,
+ * favourited, or played outside its tournament. Favourites sit above everything; your decks
+ * next; untouched draft decks sink to "From drafts". A drafted deck whose tournament still runs
+ * is not yours yet, so it is in "From drafts" unless starred. Each section is sorted by the
+ * chosen sort, last played by default.
+ */
+
+/** A deck as the Library sorts it: built or drafted, what the server and the person's document say of it. */
+export interface LibraryEntry {
+  kind: 'built' | 'drafted';
+  name: string;
+  favourite: boolean;
+  /** Renamed, rebuilt, favourited or played outside its tournament; a built deck always is. */
+  touched: boolean;
+  inTournament: boolean;
+  lastPlayedAt: number | null;
+  /** When it was drafted or built. */
+  createdAt: number;
+  games: number;
+  wins: number;
+}
+
+export type LibrarySection = 'favourites' | 'yours' | 'drafts';
+export const LIBRARY_SECTIONS: readonly LibrarySection[] = ['favourites', 'yours', 'drafts'];
+
+export type LibrarySort = 'played' | 'winrate' | 'name' | 'newest';
+export type LibrarySource = 'all' | 'built' | 'drafted' | 'live';
+
+export function sectionOf(deck: LibraryEntry): LibrarySection {
+  if (deck.favourite) return 'favourites';
+  return deck.touched && !deck.inTournament ? 'yours' : 'drafts';
+}
+
+export function sourcePasses(deck: LibraryEntry, source: LibrarySource): boolean {
+  switch (source) {
+    case 'all':
+      return true;
+    case 'built':
+      return deck.kind === 'built';
+    case 'drafted':
+      return deck.kind === 'drafted';
+    case 'live':
+      return deck.inTournament;
+  }
+}
+
+/** Never played sorts after every played deck, newest drafted or built first among them. */
+const byPlayed = (a: LibraryEntry, b: LibraryEntry): number => (b.lastPlayedAt ?? -1) - (a.lastPlayedAt ?? -1) || b.createdAt - a.createdAt;
+/** A deck with no games has no win rate: after every played one. */
+const rate = (d: LibraryEntry): number => (d.games === 0 ? -1 : d.wins / d.games);
+
+const COMPARE: Record<LibrarySort, (a: LibraryEntry, b: LibraryEntry) => number> = {
+  played: byPlayed,
+  winrate: (a, b) => rate(b) - rate(a) || b.games - a.games || byPlayed(a, b),
+  name: (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || byPlayed(a, b),
+  newest: (a, b) => b.createdAt - a.createdAt,
+};
+
+/** The decks in their sections, in order, each sorted; a section with none is left out. */
+export function librarySections<T extends LibraryEntry>(decks: readonly T[], sort: LibrarySort): { section: LibrarySection; decks: T[] }[] {
+  return LIBRARY_SECTIONS.flatMap((section) => {
+    const inIt = decks.filter((d) => sectionOf(d) === section).sort(COMPARE[sort]);
+    return inIt.length === 0 ? [] : [{ section, decks: inIt }];
+  });
+}
+
+const DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+
+/** The tile's when-line: "Last played Nov 19", or "Never played · drafted Oct 21". */
+export function playedLine(deck: Pick<LibraryEntry, 'kind' | 'lastPlayedAt' | 'createdAt'>): string {
+  if (deck.lastPlayedAt !== null) return `Last played ${DAY.format(deck.lastPlayedAt)}`;
+  return `Never played · ${deck.kind === 'built' ? 'built' : 'drafted'} ${DAY.format(deck.createdAt)}`;
+}

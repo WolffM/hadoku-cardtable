@@ -9,6 +9,7 @@ import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '@hadoku/game-server/config';
 import { MAGIC_CONFIG } from '../config.js';
 import { attachDecks } from '../http/decks.js';
+import { magicUserStore } from '../users/index.js';
 import { attachDrafts } from '../http/drafts.js';
 import { attachTables } from '../http/index.js';
 import { attachRally } from '../http/rally.js';
@@ -47,7 +48,7 @@ export const tablesPlugin: CardtablePlugin = {
 		// A drafter's own pool and the build saved against it.
 		attachDrafts(api, { draftRooms });
 		// Every finished draft as the drafter's deck.
-		attachDecks(api, { draftRooms, room: (id) => lobby.get(id), cubeCover: (id) => state.cubeStore.list().find((c) => c.id === id)?.artId ?? null });
+		attachDecks(api, { draftRooms, room: (id) => lobby.get(id), cubeCover: (id) => state.cubeStore.list().find((c) => c.id === id)?.artId ?? null, users: magicUserStore(), tournamentEnds: () => state.tournaments.list() });
 		// The cube picker: the shortlist plus any import (a Cube Cobra link or a pasted list), re-verified
 		// fresh at import and at refresh with the same `checkCards` `room/plan.ts` runs.
 		attachCubeRoutes(api, {
