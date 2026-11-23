@@ -14,6 +14,9 @@ import { attachClientEvents } from '@hadoku/game-server/http/client-events';
 import { attachDiscord } from '../http/discord.js';
 import { eventDiscordShape } from '../http/event-discord.js';
 import { attachEvents } from '../http/events.js';
+import { attachMe } from '../http/me.js';
+import { usersEraseStep } from '@hadoku/game-server/erase/users';
+import { magicUserStore } from '../users/index.js';
 import { createMusicReviewStore } from '../http/musicReviewStore.js';
 import { attachPage } from '@hadoku/game-server/http/page';
 import { attachPreview, previewFonts } from '../http/preview.js';
@@ -137,6 +140,8 @@ export const routesPlugin: CardtablePlugin = {
 		// Client telemetry from a screen with no match: the front page's scroll smoothness.
 		attachClientEvents(api);
 		attachUsage(api);
+		// The caller's own library: favourites, last played, built decks, art rules (`users/`).
+		attachMe(api, { users: magicUserStore(), ...(CONFIG.testNoRateLimits ? { rateLimit: null } : {}) });
 		ctx.bootPhase('routes');
 		return {
 			erase: [
@@ -147,6 +152,8 @@ export const routesPlugin: CardtablePlugin = {
 					// data. The kept account's is its own; the merged-away one's goes in the erase sweep.
 					merge: () => 0,
 				},
+				// Their document in the per-person store goes whole; a merge folds it into the kept account's.
+				usersEraseStep(magicUserStore()),
 			],
 		};
 	},
