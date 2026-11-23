@@ -138,6 +138,11 @@ export class RelayMatch extends HostedMatch<RelayLine, RelayCommand> implements 
 		return this.sessionRef?.started === true ? undefined : this.deps.previous;
 	}
 
+	/** Whether a round is being played: its first message relayed, and not yet over. A room's `LIVE` settings are locked while it is. */
+	get underWay(): boolean {
+		return this.status === 'running' && this.sessionRef?.started === true && !this.sessionRef.isEnded;
+	}
+
 	/** `RelayRoster.seatCount`. */
 	get seatCount(): number {
 		return this.seats.length;

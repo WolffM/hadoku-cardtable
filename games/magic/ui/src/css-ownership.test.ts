@@ -81,6 +81,7 @@ const GLOBAL_SHEETS = ['styles.css', `${UI_SHELL}chrome/chrome.css`, `${UI_SHELL
 const SHARED: Record<string, string> = {
   button: 'the app’s one plain button, drawn wherever a screen has a press',
   'ct-action': 'the small bordered action (`@game-ui/components/Button.css`): Reset and Close, a deck’s rename/delete, an inventory action, a pod seat’s own action, a table’s scorekeeping buttons — one hover/focus fill drawn wherever a screen has a secondary press',
+  'ct-toggle': 'the on-state fill (`styles.css`) of a pressed switch, a selected tab, a checked card — drawn by every screen with a toggle (the pool picker, the format tabs, the sound tools, the room settings)',
   'ct-round-button': 'the chrome’s round icon button: the settings gear, and the stats and decks buttons beside it',
   'ct-panel': 'the trim hook: every panel that takes the decoration chosen in Settings → Trim (`@ui-shell/chrome/trim.css`)',
   'cardtable-chrome': 'the chrome root: the app and the embed mount the same one, and the embed adds its modifier',

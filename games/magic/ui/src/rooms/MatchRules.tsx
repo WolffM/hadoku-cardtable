@@ -11,26 +11,20 @@
  * does not apply to the room is not drawn. The leader edits; everybody else opens the same popover
  * and reads it, disabled.
  *
- * ## The popover's own rows, label | switch (item 2, `screens.css`'s `.lobby__rules-list`)
+ * ## Built from the platform's panel (`@hadoku/game-ui/components/RoomSettings.tsx`)
  *
- * Each row is TWO direct children of the grid — a plain `<span>` naming the rule, then its switch —
- * never a wrapper `<div>` around the pair: a wrapper would be the grid's own item, one cell wide, and
- * every row's switch would sit wherever that row's OWN label happened to end rather than lining up
- * under the others. Two children per row, same two grid columns every time, is what makes
- * `.lobby__rules-list`'s `grid-template-columns: max-content 1fr` put every switch's left edge at the
- * same x — the widest label decides where that is, not each row for itself.
+ * The popover, its rows and its controls are the kit's, the same any game's settings get. The
+ * settings the declaration can draw (`ROOM_SETTINGS`: hand smoothing, the bots, the tournament's
+ * decks) are its `SettingControl`s; the rows it cannot are Magic's own, from the same pieces: Free
+ * pick and Lock decks (not settings at all), the clock (`auto` reads as a switch) and the pick timer
+ * (a switch with its speed beside it). Every switch keeps the app's own pressed fill (`.ct-toggle`).
  */
 
 import type { DraftBots, PickTimer, TournamentDecks } from '@hadoku/shared';
-import { TOURNAMENT_DECK_POLICIES } from '@hadoku/shared';
+import { ROOM_SETTINGS } from '@hadoku/shared';
 
-import type { ReactNode } from 'react';
-import { Icon } from '@wolffm/themes';
-
-import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
-import { Popover, usePopover } from '@hadoku/game-ui/components/Popover.tsx';
 import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
-import { uiLength } from '@hadoku/ui-shell/settings';
+import { RoomSettingsPopover, SettingControl, SettingRow, SettingToggle } from '@hadoku/game-ui/components/RoomSettings.tsx';
 import './CloseRoom.css';
 
 /** A rule that is on or off. */
@@ -41,9 +35,6 @@ export interface RuleSwitch {
   locked?: boolean;
 }
 
-const DECKS_LABEL: Readonly<Record<TournamentDecks, string>> = { locked: 'Locked for the event', 'per-round': 'Re-pick each round' };
-const DECKS_CARDS: readonly RadioCard<TournamentDecks>[] = TOURNAMENT_DECK_POLICIES.map((value) => ({ value, label: DECKS_LABEL[value] }));
-
 /** The draft rope's speed over MTR Appendix B's times. */
 type Speed = '0.5' | '1' | '2' | '4';
 const SPEEDS: readonly RadioCard<Speed>[] = [
@@ -53,27 +44,10 @@ const SPEEDS: readonly RadioCard<Speed>[] = [
   { value: '4', label: '4×' },
 ];
 
-/** What a draft's bots pick with: CubeCobra's model, the cube's pick order, or a split pod (model on the odd seats). */
-const BOTS: readonly RadioCard<DraftBots>[] = [
-  { value: 'model', label: 'Model' },
-  { value: 'pick-order', label: 'Pick order' },
-  { value: 'split', label: 'Split' },
-];
-
 /** A rule with a value of its own rather than on/off. */
 export interface RuleChoice<T> {
   value: T;
   onChange: (next: T) => void;
-}
-
-/** One row's two grid cells: the rule's name, then its switch (or its own group of cards). */
-function RuleRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <>
-      <span className="lobby__rules-label">{label}</span>
-      {children}
-    </>
-  );
 }
 
 export function MatchRules({
@@ -105,135 +79,77 @@ export function MatchRules({
   /** What a draft room's bots pick with (`settings.draftBots`). */
   draftBots?: RuleChoice<DraftBots>;
 }) {
-  const { trigger, toggle, close } = usePopover();
   const off = !leader || disabled;
   if ([handSmoothing, freePick, lockDecks, tournamentDecks, clock, pickTimer, draftBots].every((rule) => rule === undefined)) return null;
   const speed = pickTimer === undefined ? null : (SPEEDS.find((s) => Number(s.value) === pickTimer.value.speed)?.value ?? null);
+  const { fields } = ROOM_SETTINGS;
   return (
-    <>
-      <button type="button" className="room-close" aria-expanded={trigger !== null} data-testid="match-rules" onClick={(event) => toggle(event.currentTarget)}>
-        <Icon name="gear" size={uiLength('0.9rem')} />
-        Room settings
-      </button>
-      {trigger !== null && (
-        <Popover trigger={trigger} onClose={close} title="Room settings" testId="match-rules-popover" wide>
-          <div className="lobby__rules-list">
-            {handSmoothing !== undefined && (
-              // The opening hand nearer the deck's land ratio, each mulligan weighted toward it.
-              <RuleRow label="Hand smoothing">
-                <ActionButton
-                  action={handSmoothing.on ? 'hand-smoothing-off' : 'hand-smoothing-on'}
-                  className="lobby__free-pick lobby__rules-switch ct-toggle"
-                  aria-pressed={handSmoothing.on}
-                  data-testid="hand-smoothing"
-                  disabled={off || handSmoothing.locked === true}
-                  onPress={handSmoothing.onToggle}
-                >
-                  {handSmoothing.on ? 'On' : 'Off'}
-                </ActionButton>
-              </RuleRow>
-            )}
-            {freePick !== undefined && (
-              // On, the whole library is the pool and everyone browses it by format; off, the leader's tabs pick the era.
-              <RuleRow label="Free pick">
-                <ActionButton
-                  action={freePick.on ? 'free-pick-off' : 'free-pick-on'}
-                  className="lobby__free-pick lobby__rules-switch ct-toggle"
-                  aria-pressed={freePick.on}
-                  data-testid="free-pick"
-                  disabled={off || freePick.locked === true}
-                  onPress={freePick.onToggle}
-                >
-                  {freePick.on ? 'On' : 'Off'}
-                </ActionButton>
-              </RuleRow>
-            )}
-            {lockDecks !== undefined && (
-              <RuleRow label="Lock decks">
-                <ActionButton
-                  action={lockDecks.on ? 'random-unlock' : 'random-lock'}
-                  className="lobby__free-pick lobby__rules-switch ct-toggle"
-                  aria-pressed={lockDecks.on}
-                  data-testid="random-lock"
-                  disabled={off || lockDecks.locked === true}
-                  onPress={lockDecks.onToggle}
-                >
-                  {lockDecks.on ? 'On' : 'Off'}
-                </ActionButton>
-              </RuleRow>
-            )}
-            {clock !== undefined && (
-              <RuleRow label="Chess clock">
-                <ActionButton
-                  action={clock.on ? 'clock-off' : 'clock-on'}
-                  className="lobby__free-pick lobby__rules-switch ct-toggle"
-                  aria-pressed={clock.on}
-                  data-testid="chess-clock"
-                  disabled={off || clock.locked === true}
-                  onPress={clock.onToggle}
-                >
-                  {clock.on ? 'On' : 'Off'}
-                </ActionButton>
-              </RuleRow>
-            )}
-            {pickTimer !== undefined && (
-              <RuleRow label="Pick timer">
-                <div className="lobby__rules-switch lobby__rules-pair">
-                  <ActionButton
-                    action={pickTimer.value.on ? 'pick-timer-off' : 'pick-timer-on'}
-                    className="lobby__free-pick lobby__rules-switch ct-toggle"
-                    aria-pressed={pickTimer.value.on}
-                    data-testid="pick-timer"
-                    disabled={off}
-                    onPress={() => pickTimer.onChange({ ...pickTimer.value, on: !pickTimer.value.on })}
-                  >
-                    {pickTimer.value.on ? 'On' : 'Off'}
-                  </ActionButton>
-                  {pickTimer.value.on && (
-                    <RadioCards
-                      name="pick-timer-speed"
-                      label="Pick timer speed"
-                      options={SPEEDS}
-                      value={speed}
-                      disabled={off}
-                      onChange={(value) => pickTimer.onChange({ ...pickTimer.value, speed: Number(value) })}
-                      testId="pick-timer-speed"
-                    />
-                  )}
-                </div>
-              </RuleRow>
-            )}
-            {draftBots !== undefined && (
-              <RuleRow label="Bots">
-                <RadioCards
-                  name="draft-bots"
-                  label="Bots"
-                  options={BOTS}
-                  value={draftBots.value}
-                  disabled={off}
-                  onChange={draftBots.onChange}
-                  testId="draft-bots"
-                  className="lobby__rules-switch"
-                />
-              </RuleRow>
-            )}
-            {tournamentDecks !== undefined && (
-              <RuleRow label="Tournament decks">
-                <RadioCards
-                  name="tournament-decks"
-                  label="Tournament decks"
-                  options={DECKS_CARDS}
-                  value={tournamentDecks.value}
-                  disabled={off || tournamentDecks.locked}
-                  onChange={tournamentDecks.onChange}
-                  testId="tournament-decks"
-                  className="lobby__rules-switch"
-                />
-              </RuleRow>
+    <RoomSettingsPopover testId="match-rules" triggerClassName="room-close">
+      {handSmoothing !== undefined && (
+        // The opening hand nearer the deck's land ratio, each mulligan weighted toward it.
+        <SettingRow label={fields.handSmoothing.label}>
+          <SettingControl
+            field={fields.handSmoothing}
+            name="handSmoothing"
+            value={handSmoothing.on}
+            disabled={off || handSmoothing.locked === true}
+            onChange={handSmoothing.onToggle}
+            testId="hand-smoothing"
+            toggleClassName="ct-toggle"
+          />
+        </SettingRow>
+      )}
+      {freePick !== undefined && (
+        // On, the whole library is the pool and everyone browses it by format; off, the leader's tabs pick the era.
+        <SettingRow label="Free pick">
+          <SettingToggle on={freePick.on} onPress={freePick.onToggle} disabled={off || freePick.locked === true} testId="free-pick" className="ct-toggle" />
+        </SettingRow>
+      )}
+      {lockDecks !== undefined && (
+        <SettingRow label="Lock decks">
+          <SettingToggle on={lockDecks.on} onPress={lockDecks.onToggle} disabled={off || lockDecks.locked === true} testId="random-lock" className="ct-toggle" actions={{ on: 'random-lock', off: 'random-unlock' }} />
+        </SettingRow>
+      )}
+      {clock !== undefined && (
+        <SettingRow label={fields.clock.label}>
+          <SettingToggle on={clock.on} onPress={clock.onToggle} disabled={off || clock.locked === true} testId="chess-clock" className="ct-toggle" actions={{ on: 'clock-on', off: 'clock-off' }} />
+        </SettingRow>
+      )}
+      {pickTimer !== undefined && (
+        <SettingRow label={fields.pickTimer.label}>
+          <div className="room-settings__switch room-settings__pair">
+            <SettingToggle on={pickTimer.value.on} onPress={() => pickTimer.onChange({ ...pickTimer.value, on: !pickTimer.value.on })} disabled={off} testId="pick-timer" className="ct-toggle" />
+            {pickTimer.value.on && (
+              <RadioCards
+                name="pick-timer-speed"
+                label="Pick timer speed"
+                options={SPEEDS}
+                value={speed}
+                disabled={off}
+                onChange={(value) => pickTimer.onChange({ ...pickTimer.value, speed: Number(value) })}
+                testId="pick-timer-speed"
+              />
             )}
           </div>
-        </Popover>
+        </SettingRow>
       )}
-    </>
+      {draftBots !== undefined && (
+        <SettingRow label={fields.draftBots.label}>
+          <SettingControl field={fields.draftBots} name="draft-bots" value={draftBots.value} disabled={off} onChange={(v) => draftBots.onChange(v as DraftBots)} testId="draft-bots" />
+        </SettingRow>
+      )}
+      {tournamentDecks !== undefined && (
+        <SettingRow label={fields.tournamentDecks.label}>
+          <SettingControl
+            field={fields.tournamentDecks}
+            name="tournament-decks"
+            value={tournamentDecks.value}
+            disabled={off || tournamentDecks.locked}
+            onChange={(v) => tournamentDecks.onChange(v as TournamentDecks)}
+            testId="tournament-decks"
+          />
+        </SettingRow>
+      )}
+    </RoomSettingsPopover>
   );
 }

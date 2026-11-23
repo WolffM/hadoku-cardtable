@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import { AVATAR_ID_MAX } from '@hadoku/platform-wire/look';
+import { choice, custom, defineRoomSettings, toggle, type SettingsOf } from '@hadoku/platform-wire/room-settings';
 
 import { isRegisteredGameType } from './game-type-spec.ts';
 import { POD_MAX_SEATS } from './pod.ts';
@@ -34,11 +35,8 @@ export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
 
 /**
  * A room's match settings and the same-shaped per-room toggles that ride with
- * them. Most are booleans with a default; `tournamentDecks` is the one
- * exception (see below), which is why `SettingsPatchSchema` (this file) and
- * `isStoredSettings`/`storedSettings` (`room/lobby.ts`) read each field's OWN
- * schema off `RoomSettingsSchema.shape` rather than assuming every value is a
- * boolean.
+ * them, declared once as {@link ROOM_SETTINGS}: a PATCH, the room file and the
+ * panel each read a field's OWN kind, default and lock from there.
  *
  * `handSmoothing` (on by default): the opening hand is the closer of two to the
  * deck's land ratio, and each mulligan's redraw is weighted toward it —
@@ -96,23 +94,29 @@ export const DRAFT_BOTS = ['model', 'pick-order', 'split'] as const;
 export const DraftBotsSchema = z.enum(DRAFT_BOTS);
 export type DraftBots = z.infer<typeof DraftBotsSchema>;
 
-export const RoomSettingsSchema = z.strictObject({
-	handSmoothing: z.boolean(),
-	tournament: z.boolean(),
-	tournamentDecks: TournamentDecksSchema,
-	clock: ClockSettingSchema,
-	pickTimer: PickTimerSchema,
-	draftBots: DraftBotsSchema,
-});
-export type RoomSettings = z.infer<typeof RoomSettingsSchema>;
-export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({
-	handSmoothing: true,
-	tournament: false,
-	tournamentDecks: 'locked',
-	clock: 'auto',
-	pickTimer: Object.freeze({ on: false, speed: 1 }),
-	draftBots: 'model',
-});
+/**
+ * Magic's settings, declared the way any game declares its own (`@hadoku/platform-wire/room-settings`):
+ * the server stores, validates and locks them from this, and the panel draws its plain rows from it.
+ * `event`: frozen with what the room plays (a Ready or a game); `rules`: frozen while a game is in
+ * play (`room/lobby.ts`'s `roomLocks`). `matchLength` and `sideboarding` are retired: a room file
+ * that still holds them loads, and drops them.
+ */
+export const ROOM_SETTINGS = defineRoomSettings(
+	{
+		handSmoothing: toggle(true, { label: 'Hand smoothing', lock: 'rules' }),
+		tournament: toggle(false, { label: 'Tournament', lock: 'event' }),
+		tournamentDecks: choice(TOURNAMENT_DECK_POLICIES, 'locked', { label: 'Tournament decks', lock: 'event', labels: { locked: 'Locked for the event', 'per-round': 'Re-pick each round' } }),
+		clock: choice(CLOCK_SETTINGS, 'auto', { label: 'Chess clock', lock: 'rules' }),
+		pickTimer: custom(PickTimerSchema, { on: false, speed: 1 }, { label: 'Pick timer', lock: 'rules', must: `must be { on: boolean, speed: ${PICK_TIMER_SPEED_MIN}–${PICK_TIMER_SPEED_MAX} }` }),
+		draftBots: choice(DRAFT_BOTS, 'model', { label: 'Bots', lock: 'rules', labels: { model: 'Model', 'pick-order': 'Pick order', split: 'Split' } }),
+	},
+	{ retired: ['matchLength', 'sideboarding'] },
+);
+
+export const RoomSettingsSchema = ROOM_SETTINGS.schema;
+export type RoomSettings = SettingsOf<typeof ROOM_SETTINGS.fields>;
+const defaults = ROOM_SETTINGS.defaults();
+export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({ ...defaults, pickTimer: Object.freeze(defaults.pickTimer) });
 
 /** Whether a room's games run the chess clock: `'auto'` is on in a room that plays a pod (a tournament, or a draft). */
 export function clockOn(settings: Pick<RoomSettings, 'clock' | 'tournament'>, gameType: string): boolean {
@@ -232,35 +236,6 @@ export const PodAiBodySchema = body({ seat: seatField, on: z.boolean({ error: 'o
 export const PodCloseBodySchema = body({ seat: seatField, closed: z.boolean({ error: 'closed must be true or false' }) });
 
 /**
- * Each setting's own PATCH schema and refusal text, keyed by name so a PATCH
- * validates `tournamentDecks` as the enum it is rather than the boolean every
- * OTHER setting happens to be. Add a setting here, not as a one-off special
- * case below.
- */
-const SETTINGS_FIELD_SCHEMAS: { [K in keyof RoomSettings]: z.ZodType<RoomSettings[K]> } = {
-  handSmoothing: z.boolean({ error: 'settings.handSmoothing must be a boolean' }),
-  tournament: z.boolean({ error: 'settings.tournament must be a boolean' }),
-  tournamentDecks: z.enum(TOURNAMENT_DECK_POLICIES, { error: oneOf('settings.tournamentDecks', TOURNAMENT_DECK_POLICIES) }),
-  clock: z.enum(CLOCK_SETTINGS, { error: oneOf('settings.clock', CLOCK_SETTINGS) }),
-  pickTimer: z.custom<PickTimer>((v) => PickTimerSchema.safeParse(v).success, {
-    error: `settings.pickTimer must be { on: boolean, speed: ${PICK_TIMER_SPEED_MIN}–${PICK_TIMER_SPEED_MAX} }`,
-  }),
-  draftBots: z.enum(DRAFT_BOTS, { error: oneOf('settings.draftBots', DRAFT_BOTS) }),
-};
-
-/**
- * Some of the room's settings. An empty object is refused: a PATCH that
- * changes nothing is a client that meant something else.
- */
-const SettingsPatchSchema = z
-  .strictObject(
-    Object.fromEntries(Object.entries(SETTINGS_FIELD_SCHEMAS).map(([k, schema]) => [k, schema.optional()])),
-    { error: (iss) => (iss.code === 'unrecognized_keys' ? `unknown setting(s): ${iss.keys.join(', ')}` : 'settings must be an object') },
-  )
-  .refine((o) => Object.keys(o).length > 0, { error: 'settings names no setting' })
-  .transform((o) => o as Partial<RoomSettings>);
-
-/**
  * A format id is any non-blank string; whether it names a pool the server has
  * is the tables layer's answer (a 409 about the room, not a 400 about the body).
  * A drafted pool is refused at the door: a drafted deck is played on Free pick,
@@ -297,8 +272,8 @@ export const PatchRoomBodySchema = body({
       return mode.ok ? { mode: mode.value } : refuse(ctx, o.mode, mode.error);
     }
     if (o.settings !== undefined) {
-      const settings = SettingsPatchSchema.safeParse(o.settings);
-      return settings.success ? { settings: settings.data } : first(settings);
+      const settings = ROOM_SETTINGS.parsePatch(o.settings);
+      return settings.ok ? { settings: settings.patch } : refuse(ctx, o, settings.error);
     }
     if (o.format !== undefined) {
       const format = FormatFieldSchema.safeParse(o.format);

@@ -84,6 +84,7 @@ import {
 	ROOM_CREATE_RATE_LIMIT,
 	NO_MATCH,
 	type RoomCoreDeps,
+	type SettingsRefusal,
 	type RoomBody,
 } from '@hadoku/game-server/http/room-core';
 
@@ -176,6 +177,18 @@ export function resolveBoosterCard(catalog: RealisticCatalog, card: { name: stri
 /** `PatchRoomBody` minus the `{ gameType }` arm `room-core.ts` already answers itself — `onPatch`'s own body. */
 type MagicRoomPatch = Exclude<PatchRoomBody, { gameType: unknown }>;
 
+/**
+ * A Magic PATCH's refusal, by the lobby's reason: the same words for `format`, `settings` and `mode`.
+ * Every reason not named here (`not-leader`, and a historical room's `historical`) is answered as the
+ * leader's alone to change.
+ */
+function refusal(what: 'format' | 'settings' | 'mode', reason: string): SettingsRefusal {
+	if (reason === 'draft-started') return { status: 409, body: { error: `this room is drafting; the ${what} cannot change now` } };
+	if (reason === 'not-constructed') return { status: 409, body: { error: 'only a constructed room has a mode', reason } };
+	if (reason === 'mode-locked') return { status: 409, body: { error: `a game is under way or a seated player is ready; the ${what} cannot change now`, reason } };
+	return { status: 403, body: { error: `only the room leader can change the ${what}` } };
+}
+
 export function attachRooms(api: Router, deps: RoomsDeps): void {
 	const { lobby } = deps;
 	// The real schemas, injected into `room-core.ts`'s generic `wire` — it may not
@@ -192,7 +205,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	};
 
 	/**
-	 * `{ format }`/`{ settings }`/`{ mode }` — the one PATCH registration's
+	 * `{ format }`/`{ mode }` — the one PATCH registration's
 	 * Magic arm, called by `room-core.ts`'s own `PATCH /:id` (never a second
 	 * route: `route-table.json`, the frozen-route guard, admits each
 	 * method+path once). `core.roomBody` is referenced before `core` exists
@@ -201,23 +214,14 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 */
 	function onPatch(req: Request, res: Response, body: MagicRoomPatch, caller: ReturnType<typeof callerOf>, id: string): void {
 		const me = caller.id;
-		const what = 'format' in body ? 'format' : 'settings' in body ? 'settings' : 'mode';
-		const result = 'format' in body ? lobby.setFormat(id, me, body.format) : 'settings' in body ? lobby.setSettings(id, me, body.settings) : lobby.setMode(id, me, body.mode);
+		// room-core's own arm answers `{ settings }` before this hook is asked (`settings`, below).
+		if ('settings' in body) throw new Error('a { settings } PATCH reached onPatch');
+		const what = 'format' in body ? 'format' : 'mode';
+		const result = 'format' in body ? lobby.setFormat(id, me, body.format) : lobby.setMode(id, me, body.mode);
 		if (!result.ok) {
 			if (result.reason === 'no-room') return noMatch(res);
-			if (result.reason === 'draft-started') {
-				res.status(409).json({ error: `this room is drafting; the ${what} cannot change now` });
-				return;
-			}
-			if (result.reason === 'not-constructed') {
-				res.status(409).json({ error: 'only a constructed room has a mode', reason: result.reason });
-				return;
-			}
-			if (result.reason === 'mode-locked') {
-				res.status(409).json({ error: `a game is under way or a seated player is ready; the ${what} cannot change now`, reason: result.reason });
-				return;
-			}
-			res.status(403).json({ error: `only the room leader can change the ${what}` });
+			const refused = refusal(what, result.reason);
+			res.status(refused.status).json(refused.body);
 			return;
 		}
 		res.json(core.roomBody(result.room, me));
@@ -227,7 +231,8 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	// `GET /:id` — a bare `:id` would otherwise swallow it (see that file's header).
 	// This is the SAME router `room-core.ts` built (and already ran its own
 	// `.param('id', …)` guard on), not a second one at the same prefix.
-	const core = attachRoomCore(api, { ...deps, wire }, {
+	// `{ settings }` is room-core's generic arm, answered with Magic's own words for its locks.
+	const core = attachRoomCore(api, { ...deps, wire, settings: { refusal: (reason) => refusal('settings', reason) } }, {
 		beforeWildcard: (router) => {
 			// Challenge rooms (`room/challenge.ts`): the catalogued real events, and a room
 			// replaying one with the caller in the seat of the player they chose.

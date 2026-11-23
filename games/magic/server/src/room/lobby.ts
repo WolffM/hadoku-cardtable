@@ -22,6 +22,7 @@ import {
 	newestStandardEra,
 	POD_SEATS,
 	ROOM_ID_RE,
+	ROOM_SETTINGS,
 	type ClientMode,
 	type DraftPlan,
 	type GameType,
@@ -111,7 +112,6 @@ import {
 	hostedRoomType,
 	MAGIC_STORED,
 	magicRestoreRules,
-	SETTING_KEYS,
 	type MagicRoomGame,
 	type RoomRecord,
 	type StoredApp,
@@ -965,9 +965,6 @@ function roomLocks(room: RoomRecord): RoomLocks {
 	return { gameType: plays, mode: plays, event: plays, format: playing, rules: playing };
 }
 
-/** The settings that make the room's event, locked with what it plays (`roomLocks`'s `event`); the rest are its match rules. */
-const EVENT_SETTING_KEYS: readonly (keyof RoomSettings)[] = ['tournament', 'tournamentDecks'];
-
 /** A Gauntlet whose reveal has started, and that is not yet done — true if ANY of the room's tables is one. */
 /**
  * A Gauntlet as the room file keeps it: a member player's name left out (R12). The AI's is the
@@ -1161,6 +1158,19 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 				dropDesertedGauntlets(room);
 			},
 			view: (room) => magicRoomPart(room, this.#hooksFor(room.gameType), this.#viewParts.get(room.gameType)),
+			settings: {
+				spec: ROOM_SETTINGS,
+				read: (room) => room.game.settings,
+				write: (room, next) => {
+					// A room that starts or stops playing a pod (`tournament`) carries its players across.
+					const players = playersOf(room);
+					const podBefore = usesPod(room);
+					room.game.settings = next as RoomSettings;
+					if (usesPod(room) !== podBefore) this.#carryPlayers(room, players);
+				},
+				// The event's lock holds whenever the rules' does (a game in play froze both).
+				locked: (room, lock) => (lock === 'event' ? roomLocks(room).event : roomLocks(room).rules),
+			},
 			seatsView: gameSeatsOf,
 			players: playersOf,
 			autoSeat: (room, memberId) => {
@@ -2389,24 +2399,11 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		return { ok: true, room: this.#view(room) };
 	}
 
-	setSettings(roomId: string, callerId: string, settings: Partial<RoomSettings>): SetSettingsResult {
+	/** The platform's (`RoomLobby.setSettings`), on Magic's rooms only: `ROOM_SETTINGS`, locked by `roomLocks`. */
+	override setSettings(roomId: string, callerId: string, settings: Partial<RoomSettings>): SetSettingsResult {
 		const room = this.#room(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-		const next = { ...room.game.settings, ...settings };
-		const changed = SETTING_KEYS.filter((k) => next[k] !== room.game.settings[k]);
-		if (changed.length === 0) return { ok: true, room: this.#view(room) };
-		const locks = roomLocks(room);
-		// The event's lock holds whenever the rules' does (a game in play froze both), so it answers for a change to either.
-		const locked = changed.some((k) => EVENT_SETTING_KEYS.includes(k)) ? locks.event : locks.rules;
-		if (locked !== null) return { ok: false, reason: locked };
-		const players = playersOf(room);
-		const podBefore = usesPod(room);
-		room.game.settings = next;
-		if (usesPod(room) !== podBefore) this.#carryPlayers(room, players);
-		this.persist(room);
-		this.log({ event: 'room-settings', roomId, settings: next });
-		return { ok: true, room: this.#view(room) };
+		return this.changeSettings(room, callerId, settings) as SetSettingsResult;
 	}
 
 	/** A pod that finished a match goes to the tournaments: finished, or ended early by a close or the sweep. Never a testing room's. */

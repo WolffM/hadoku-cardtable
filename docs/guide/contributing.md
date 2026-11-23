@@ -79,6 +79,15 @@ flowchart LR
   `host-wire`/`platform-wire`/`room-ask` (the wire formats), `shared`
   (the draft envelope's own schema) and `devkit` (release tooling). None
   of it knows Magic exists; `games/magic/` is what plugs into it.
+- **A room's settings are a game's declaration, not code.** A game lists
+  its fields once with `defineRoomSettings` (`platform-wire/room-settings`:
+  a toggle, a choice, a bounded number, each with a default, a label and
+  maybe a lock such as `LIVE`, "lobby only"). The server stores them with
+  the room, sends them in every room body and lets the leader change them
+  with `PATCH /api/rooms/:id { settings }`; a relay game gets all of it by
+  passing the declaration to `startRelayGame({ settings })`. The page draws
+  them with `game-ui`'s `RoomSettingsPanel`. Magic's own six settings are
+  declared the same way (`shared`'s `ROOM_SETTINGS`).
 - **`cubes/`, `decks/` and `drafts/`** are the data the deck library and
   cube drafting draw on: `.dck` cube and preconstructed-deck lists (one
   era per `decks/` subdirectory, back to 1995) and their matching

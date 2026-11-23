@@ -378,6 +378,26 @@ describe('relay:message', () => {
 		expect(h.ended[1]).toEqual({ matchId: 'm1', outcome: { winners: [1] } });
 	});
 
+	it('a match is under way from its first message until its over, and the next one is not until it speaks (a room’s LIVE settings lock on this)', async () => {
+		const reg = createRelayMatchRegistry();
+		const roomSeats = [participantOf('alice'), participantOf('bob')];
+		reg.register('m1', 2, { log: () => {}, roomSeatOf: (p) => (roomSeats.includes(p) ? roomSeats.indexOf(p) : null), leaderSeat: () => 0 });
+		const h = await bootWith((matchId) => reg.get(matchId));
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		expect(reg.get('m1')!.underWay).toBe(false);
+		await alice.join('m1');
+		await bob.join('m1');
+		// Joined but silent: the lobby before a round, not a round.
+		expect(reg.get('m1')!.underWay).toBe(false);
+		alice.send({ t: 'start' });
+		await waitUntil(() => bob.messages.length === 1, 'bob to hear the start');
+		expect(reg.get('m1')!.underWay).toBe(true);
+		alice.send({ t: 'over', winners: [0] });
+		await waitUntil(() => h.ended.length === 1, 'the match to end');
+		expect(reg.get('m1')!.underWay).toBe(false);
+	});
+
 	it("the result on reload: a screen that joins after the end is answered with it, until the room's next match is under way", async () => {
 		const reg = createRelayMatchRegistry();
 		const roomSeats = [participantOf('alice'), participantOf('bob')];

@@ -1,7 +1,7 @@
 /*
  * The browser's client for game-server's generic room routes (`@hadoku/game-server/http/room-core`):
  * the room list, a room, create, join, leave, ready, close, reset, the seat ops (sit, stand, the
- * leader's close/open, bot in and out, remove, fewer seats, a new leader) and an embed's binding to
+ * leader's close/open, bot in and out, remove, fewer seats, a new leader), the room's settings and an embed's binding to
  * its host's room. One copy, so every game
  * reads the same refusals the same way; a game supplies only how its room body parses
  * (`parse`), and adds its own routes with `write`/`read`.
@@ -67,6 +67,8 @@ export interface RoomCoreClient<R> {
   makeLeader(roomId: string, memberId: string): Promise<RoomOutcome<R>>;
   /** The room a host's room (watchparty's game slot) plays in, made on first use and joined after: the server derives it from `hostRoom`. */
   bindWatchparty(hostRoom: string): Promise<RoomOutcome<R>>;
+  /** The leader changes some of the room's settings (`PATCH /:id { settings }`); a locked or bad one is refused in the server's words. */
+  setSettings(roomId: string, patch: Record<string, unknown>): Promise<RoomOutcome<R>>;
   /** Any other write that answers with the room, under `/api/rooms`: `path` starts with `/` or is `''`. */
   write(path: string, payload: unknown, whatFailed: string, method?: 'POST' | 'PATCH' | 'PUT'): Promise<RoomOutcome<R>>;
   /** Any other read of one room under `/api/rooms`, as `get` reads one. */
@@ -171,6 +173,7 @@ export function roomCoreClient<R>({ parse, fetch: fetchImpl = pageFetch, base = 
     lowerSeatCapacity: (roomId, count) => seat(roomId, 'seats/capacity', { count }),
     makeLeader: (roomId, memberId) => seat(roomId, 'leader', { memberId }),
     bindWatchparty: (hostRoom) => send('/watchparty', { room: hostRoom }, 'Could not open this room’s table'),
+    setSettings: (roomId, patch) => send(id(roomId), { settings: patch }, 'Could not change the settings', 'PATCH'),
 
     write: (path, payload, whatFailed, method = 'POST') => send(path, payload, whatFailed, method),
     read,

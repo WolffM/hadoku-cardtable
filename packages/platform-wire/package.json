@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "The wire any game speaks: room ids, telemetry, presence, events and tables, the Discord relay, looks, the restart notice, secure random and a generic server envelope. Knows no game; a game's own part rides as a type parameter. MIT; imports only zod.",
+  "description": "The wire any game speaks: room ids, telemetry, presence, events and tables, the Discord relay, looks, room settings, the restart notice, secure random and a generic server envelope. Knows no game; a game's own part rides as a type parameter. MIT; imports only zod.",
   "exports": {
     "./room-feed": "./src/room-feed.ts",
     "./telemetry": "./src/telemetry.ts",
@@ -17,7 +17,8 @@
     "./tables": "./src/tables.ts",
     "./envelope": "./src/envelope.ts",
     "./seats": "./src/seats.ts",
-    "./tiers": "./src/tiers.ts"
+    "./tiers": "./src/tiers.ts",
+    "./room-settings": "./src/room-settings.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

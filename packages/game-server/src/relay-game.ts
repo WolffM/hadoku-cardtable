@@ -15,6 +15,9 @@
  *   people         every member named and dressed from their account (`attachPeople`)
  *   rooms          `/api/rooms*` (room-core, with its seat routes) and `/:id/start`, the
  *                  countdown every page counts to (`room/starts.ts`)
+ *   settings       the game's declared settings (`RelayGameOptions.settings`): stored with the
+ *                  room, in every room body, the leader's to change by `PATCH /:id { settings }`,
+ *                  a `LIVE` field locked from a Start's countdown until its round is over
  *   page           the game's own static directories, then index.html for every client route
  *   /room          chat, roster and presence (`room/serve.ts`)
  *   relay + feed   the match socket, and the room list pushed to the front page
@@ -46,7 +49,8 @@ import { attachRelay } from './play/relay-socket.js';
 import { roomAdmits } from './room/tier-floor.js';
 import { relayMatches } from './play/runtimes/relay-match.js';
 import { configureParticipantIdDomain, identityFromHeaders } from './room/identity.js';
-import { RoomLobby, plainRoomType, type PlainRoomSize, type PlainRoomView, type PlatformRoomView, type RoomCreateInput, type RoomTypeHooks } from './room/lobby.js';
+import { LIVE, type AnyRoomSettings } from '@hadoku/platform-wire/room-settings';
+import { MATCH_LIVE, RoomLobby, plainRoomType, type PlainGame, type PlainRoomSize, type PlainRoomView, type PlatformRoomView, type RoomCreateInput, type RoomTypeHooks } from './room/lobby.js';
 import { attachServedRoom } from './room/serve.js';
 import { COUNTDOWN_MS, createStarts, type Starts } from './room/starts.js';
 import { attachRoomFeed } from './room/watching.js';
@@ -131,6 +135,12 @@ export interface RelayGameOptions {
 	/** The bundle's fixed-name embed entries; everything else it emits is hashed. */
 	embedEntries?: readonly string[];
 	statics?: readonly StaticDir[];
+	/**
+	 * The game's room settings (`@hadoku/platform-wire/room-settings`'s `defineRoomSettings`). A
+	 * field locked `LIVE` refuses a change (409, `reason: 'match-live'`) from a Start until the
+	 * round it began is over. Absent: the rooms have none, and a `{ settings }` PATCH is refused.
+	 */
+	settings?: AnyRoomSettings;
 	/** The countdown a Start counts down (ms). Default `COUNTDOWN_MS`. */
 	countdownMs?: number;
 	/**
@@ -176,8 +186,11 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 	const statics = (options.statics ?? []).map((s) => ({ ...s, built: existsSync(join(s.dir, s.index ?? 'index.html')) }));
 	const starts = createStarts({ countdownMs: options.countdownMs ?? COUNTDOWN_MS });
 
-	const base = plainRoomType<RoomCreateInput>({ ...options.seats, markedSeats: true, keepOneOpen: true });
-	const roomType: RoomTypeHooks<Record<string, never>, RoomCreateInput> = {
+	// A round is live from its Start's countdown until the round is over; a `LIVE` setting waits for the lobby.
+	const live = (roomId: string): boolean => starts.view(roomId) !== null || relayMatches.get(roomId)?.underWay === true;
+	const settings = options.settings === undefined ? undefined : { spec: options.settings, locked: (room: { id: string }, lock: string) => (lock === LIVE && live(room.id) ? MATCH_LIVE : null) };
+	const base = plainRoomType<RoomCreateInput>({ ...options.seats, markedSeats: true, keepOneOpen: true, ...(settings === undefined ? {} : { settings }) });
+	const roomType: RoomTypeHooks<PlainGame, RoomCreateInput> = {
 		...base,
 		/** A pending start rides on every room body: every page counts down to it. */
 		view: (room) => ({ ...base.view(room), start: starts.view(room.id) }),
@@ -263,8 +276,9 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 			const lobby = ctx.state.lobby;
 			const roomCore = attachRoomCore(ctx.api, {
 				lobby,
-				wire: relayWire(options.gameType, options.roomIdRe),
+				wire: relayWire(options.gameType, options.roomIdRe, options.settings),
 				seatRoutes: lobby,
+				...(options.settings === undefined ? {} : { settings: {} }),
 				here: (roomId) => roomHere(roomId),
 				arrived: (roomId, caller) => {
 					if (caller.userId !== null) arrived(roomId, caller.id, caller.userId);
@@ -434,9 +448,8 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 	return server;
 }
 
-/** The room routes' request bodies, for a game with one room type. */
-function relayWire(gameType: string, roomIdRe: RegExp) {
-	type Schema<T> = { safeParse(body: unknown): { success: true; data: T } | { success: false; error: { issues: { code: string; path: readonly PropertyKey[]; message: string }[] } } };
+/** The room routes' request bodies, for a game with one room type and, maybe, settings. */
+function relayWire(gameType: string, roomIdRe: RegExp, settings: AnyRoomSettings | undefined) {
 	const object = <T>(fields: Record<string, (v: unknown) => boolean>, required: readonly string[], message: string): Schema<T> => ({
 		safeParse(body) {
 			const ok =
@@ -446,7 +459,7 @@ function relayWire(gameType: string, roomIdRe: RegExp) {
 				Object.keys(body).every((k) => k in fields) &&
 				required.every((k) => k in body) &&
 				Object.entries(body).every(([k, v]) => fields[k]!(v));
-			return ok ? { success: true, data: body as T } : { success: false, error: { issues: [{ code: 'invalid_type', path: [], message }] } };
+			return ok ? { success: true, data: body as T } : refusal(message);
 		},
 	});
 	const text = (max: number, min = 0) => (v: unknown) => typeof v === 'string' && v.trim().length >= min && v.length <= max;
@@ -462,6 +475,25 @@ function relayWire(gameType: string, roomIdRe: RegExp) {
 		readyBody: object<{ ready: boolean }>({ ready: (v) => typeof v === 'boolean' }, ['ready'], 'expected { ready }'),
 		emptyBody: object<Record<string, never>>({}, [], 'expected an empty body'),
 		watchpartyBindBody: object<{ room: string }>({ room: text(100, 1) }, ['room'], 'expected { room }'),
-		patchRoomBody: object<{ gameType: string }>({ gameType: text(40, 1) }, ['gameType'], 'expected { gameType }'),
+		patchRoomBody: patchBody(object<{ gameType: string }>({ gameType: text(40, 1) }, ['gameType'], 'expected { gameType }'), settings),
 	};
+}
+
+/** `PATCH /:id`: `{ gameType }`, or, for a game that declares settings, `{ settings }` with the spec's own refusals. */
+function patchBody(gameType: Schema<{ gameType: string }>, settings: AnyRoomSettings | undefined): Schema<{ gameType: string } | { settings: Record<string, unknown> }> {
+	if (settings === undefined) return gameType;
+	return {
+		safeParse(body) {
+			if (typeof body !== 'object' || body === null || !('settings' in body)) return gameType.safeParse(body);
+			if (Object.keys(body).length > 1) return refusal('patch one field at a time: gameType or settings');
+			const parsed = settings.parsePatch((body as { settings: unknown }).settings);
+			return parsed.ok ? { success: true, data: { settings: parsed.patch } } : refusal(parsed.error);
+		},
+	};
+}
+
+type Schema<T> = { safeParse(body: unknown): { success: true; data: T } | { success: false; error: { issues: { code: string; path: readonly PropertyKey[]; message: string }[] } } };
+
+function refusal(message: string): { success: false; error: { issues: { code: string; path: readonly PropertyKey[]; message: string }[] } } {
+	return { success: false, error: { issues: [{ code: 'invalid_type', path: [], message }] } };
 }

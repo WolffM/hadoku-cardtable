@@ -382,8 +382,7 @@
   z-index: 1;
 }
 
-.lobby__format-tabs button,
-.lobby__free-pick {
+.lobby__format-tabs button {
   padding: 0.35rem 0.75rem;
   background: var(--color-bg-alt);
   color: var(--color-text-secondary);
@@ -402,46 +401,7 @@
   gap: 8px 12px;
 }
 
-/*
- * The popover's own rows (item 2), a label beside its switch rather than one button carrying
- * both: `MatchRules.tsx`'s `RuleRow` puts a row's label and its switch in as TWO direct children,
- * never a wrapper around the pair, which is what lets this grid — not each row for itself — decide
- * where column 2 starts. `max-content` on column 1 sizes it to the widest label there is, so every
- * switch's left edge sits at that one x, whatever its own row's label happens to be.
- */
-.lobby__rules-list {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  align-items: center;
-  column-gap: 16px;
-  row-gap: 10px;
-}
-
-.lobby__rules-label {
-  color: var(--color-text-secondary);
-}
-
-.lobby__rules-switch {
-  justify-self: start;
-}
-
-/* A switch with its own choices beside it (the pick timer's speed while it runs), in one cell. */
-.lobby__rules-pair {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-/* The on/off switches (never the tournament deck policy's own `radio-cards` pair, which is
-   already two pills wide): one width, so "on" and "off" are not two different sized buttons. */
-.lobby__rules-switch.ct-toggle {
-  min-width: 3rem;
-  justify-content: center;
-}
-
-.lobby__format-tabs button:disabled,
-.lobby__free-pick:disabled {
+.lobby__format-tabs button:disabled {
   cursor: default;
   opacity: 0.6;
 }

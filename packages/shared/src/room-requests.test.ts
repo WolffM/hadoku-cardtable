@@ -32,4 +32,20 @@ describe('the room settings', () => {
     expect(PatchRoomBodySchema.safeParse({ settings: { clock: 'on' } }).success).toBe(true);
     expect(PatchRoomBodySchema.safeParse({ settings: { pickTimer: { on: true, speed: 0.5 } } }).success).toBe(true);
   });
+
+  // The refusals a client has always been answered, word for word, now that the fields are declared through the platform's spec.
+  it.each([
+    [{ handSmoothing: 1 }, 'settings.handSmoothing must be a boolean'],
+    [{ tournamentDecks: 'never' }, 'settings.tournamentDecks must be one of: locked, per-round'],
+    [{ clock: 'sometimes' }, 'settings.clock must be one of: auto, on, off'],
+    [{ pickTimer: { on: true, speed: 9 } }, 'settings.pickTimer must be { on: boolean, speed: 0.25–4 }'],
+    [{ draftBots: 'random' }, 'settings.draftBots must be one of: model, pick-order, split'],
+    [{ matchLength: 3 }, 'unknown setting(s): matchLength'],
+    [{}, 'settings names no setting'],
+    ['on', 'settings must be an object'],
+  ])('a PATCH of settings %j is refused: %s', (settings, error) => {
+    const parsed = PatchRoomBodySchema.safeParse({ settings });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.message).toBe(error);
+  });
 });

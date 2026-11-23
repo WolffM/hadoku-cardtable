@@ -1,9 +1,9 @@
 /**
  * `/api/rooms`'s GENERIC surface: list, create, join, ready, leave, close, an
  * admin's testing-room reset, the watchparty bind, "the room that started this
- * match", and the `{ gameType }` arm of `PATCH /:id`. `rooms.ts` stays Magic:
- * formats, pods, drafts, tournaments, and the `{ format }`/`{ settings }`/
- * `{ mode }` arms of the same PATCH, mounted on this file's OWN router after it.
+ * match", and the `{ gameType }` and `{ settings }` arms of `PATCH /:id`. `rooms.ts`
+ * stays Magic: formats, pods, drafts, tournaments, and the `{ format }`/`{ mode }`
+ * arms of the same PATCH, mounted on this file's OWN router after it.
  *
  * This file imports no `Lobby`, no `RoomView`, no `@hadoku/shared` (the ratchet
  * resolves `@hadoku/shared` as one package, magic even through `/platform`) —
@@ -17,7 +17,7 @@
  *
  * ONE registration of `PATCH /:id` (the frozen `route-table.json` admits each
  * method+path once): this file parses the body with `deps.wire.patchRoomBody`
- * and answers `{ gameType }` itself; anything else goes to `opts.onPatch`, a
+ * and answers `{ gameType }` (and, opted in, `{ settings }`) itself; anything else goes to `opts.onPatch`, a
  * hook `rooms.ts` passes in — never a second route, never `res.locals`.
  */
 
@@ -71,6 +71,26 @@ export interface LobbyCore<V extends RoomViewCore, C> {
 	botReplacesHuman(roomId: string, callerId: string, seat: number): { ok: true; room: V; evicted: string | null } | { ok: false; reason: string };
 	/** The leader hands the room's leadership to another member (`room/lobby.ts`'s `passLeader`). */
 	passLeader(roomId: string, callerId: string, targetId: string): { ok: true; room: V } | { ok: false; reason: string };
+	/** The leader changes some of the room's settings (`room/lobby.ts`'s `setSettings`); called only when `RoomCoreDeps.settings` is set. */
+	setSettings?(roomId: string, callerId: string, patch: Record<string, unknown>): { ok: true; room: V } | { ok: false; reason: string };
+}
+
+/** A settings refusal as it is answered: its status and its JSON body. */
+export interface SettingsRefusal {
+	status: number;
+	body: { error: string; reason?: string };
+}
+
+/**
+ * `{ settings }`' refusals, by the lobby's reason: the leader's alone to change (403), and a lock
+ * that holds (409, with the lock's reason so a page can tell which). A game whose locks have
+ * reasons of their own names them in `RoomCoreDeps.settings.refusal`.
+ */
+export function settingsRefusal(reason: string): SettingsRefusal {
+	if (reason === 'not-leader') return { status: 403, body: { error: 'only the room leader can change the settings' } };
+	if (reason === 'no-settings') return { status: 409, body: { error: 'this room has no settings', reason } };
+	if (reason === 'match-live') return { status: 409, body: { error: 'a match is under way; the settings cannot change until it is over', reason } };
+	return { status: 409, body: { error: 'the settings cannot change now', reason } };
 }
 
 /** A `BodySchema<T>` with no dependency the way `RoomCoreWire`'s injected ones have — this file imports no zod, no `@hadoku/shared`. */
@@ -203,6 +223,13 @@ export interface RoomCoreDeps<V extends RoomViewCore, C, P extends object, G = n
 	joinRateLimit?: RateLimitConfig;
 	createRateLimit?: RateLimitConfig | null;
 	now?: () => number;
+	/**
+	 * Answer `PATCH /:id { settings }` here, through `lobby.setSettings`; `wire.patchRoomBody` has
+	 * already checked the patch against the game's declaration. `refusal` maps a reason the lobby
+	 * gave to its answer (default {@link settingsRefusal}). Absent: `{ settings }` goes to `onPatch`
+	 * like any other variant.
+	 */
+	settings?: { refusal?(reason: string): SettingsRefusal };
 }
 
 /** The room, as this caller is told it: `V` untouched plus their own row. */
@@ -242,6 +269,10 @@ function hasGameType(v: object): v is { gameType: string } {
 	return 'gameType' in v && typeof (v as { gameType?: unknown }).gameType === 'string';
 }
 
+function hasSettings(v: object): v is { settings: Record<string, unknown> } {
+	return 'settings' in v && typeof (v as { settings?: unknown }).settings === 'object' && (v as { settings?: unknown }).settings !== null;
+}
+
 /**
  * Whether `req`'s caller may know `room` exists at all: a testing room is an admin's, and a room
  * with a tier floor (`room/tier-floor.ts`) is for that tier and above, by the edge's own name for it.
@@ -272,7 +303,7 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 	deps: RoomCoreDeps<V, C, P, G>,
 	opts: {
 		beforeWildcard?(router: Router): void;
-		/** `{ format }`/`{ settings }`/`{ mode }` (Magic's three other PATCH variants) — method syntax for bivariance, like `LobbyCore`. */
+		/** Every other PATCH variant (Magic's `{ format }`/`{ mode }`) — method syntax for bivariance, like `LobbyCore`. */
 		onPatch?(req: Request, res: Response, body: P, caller: CallerLike, roomId: string): void;
 	} = {},
 ): RoomCoreHandle<V, G> {
@@ -535,9 +566,10 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 	});
 
 	/**
-	 * `{ gameType }` is this file's own: the game-type registry is platform.
-	 * Everything else `P` can be (Magic's `{ format }`/`{ settings }`/`{ mode }`)
-	 * goes to `opts.onPatch`. ONE registration either way — `route-table.json`
+	 * `{ gameType }` is this file's own: the game-type registry is platform. So is
+	 * `{ settings }` when `deps.settings` is set: the fields are the game's
+	 * declaration, the route and its refusals are everyone's. Everything else `P`
+	 * can be (Magic's `{ format }`/`{ mode }`) goes to `opts.onPatch`. ONE registration either way — `route-table.json`
 	 * admits `PATCH /:id` once.
 	 */
 	rooms.patch('/:id', (req: Request, res: Response, next: NextFunction) => {
@@ -545,6 +577,15 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		if (v === null) return;
 		const id = String(req.params.id);
 		if (!wire.roomIdRe.test(id)) return noMatch(res);
+		const settings = deps.settings;
+		if (settings !== undefined && lobby.setSettings !== undefined && hasSettings(v)) {
+			const me = callerOf(req).id;
+			const result = lobby.setSettings(id, me, v.settings);
+			if (result.ok) return void res.json(roomBody(result.room, me));
+			if (result.reason === 'no-room') return noMatch(res);
+			const refused = (settings.refusal ?? settingsRefusal)(result.reason);
+			return void res.status(refused.status).json(refused.body);
+		}
 		if (!hasGameType(v)) {
 			if (opts.onPatch === undefined) return next();
 			opts.onPatch(req, res, v, callerOf(req), id);

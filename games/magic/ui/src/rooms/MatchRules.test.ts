@@ -42,7 +42,7 @@ describe('MatchRules', () => {
   it('a row is its label beside its switch — direct siblings, so the popover’s own grid can line every switch up (item 2)', () => {
     render(createElement(MatchRules, props()));
     open();
-    const list = screen.getByTestId('match-rules-popover').querySelector('.lobby__rules-list');
+    const list = screen.getByTestId('match-rules-popover').querySelector('.room-settings__list');
     expect(list?.children.length, 'two cells per rule: a label, then its switch').toBe(4);
     expect(list?.children[0]?.textContent).toBe('Hand smoothing');
     expect(list?.children[1]).toBe(screen.getByTestId('hand-smoothing'));
@@ -112,7 +112,7 @@ describe('MatchRules', () => {
     it('draws its rules as rows of the one list, in the Room settings popover', () => {
       render(createElement(MatchRules, draft()));
       open();
-      const labels = [...screen.getByTestId('match-rules-popover').querySelectorAll('.lobby__rules-label')].map((el) => el.textContent);
+      const labels = [...screen.getByTestId('match-rules-popover').querySelectorAll('.room-settings__label')].map((el) => el.textContent);
       expect(labels).toEqual(['Hand smoothing', 'Chess clock', 'Pick timer', 'Bots']);
     });
 

@@ -16,7 +16,6 @@ import type { RoomCodec } from '@wolffm/rooms-server/store';
 import {
 	ClientModeSchema,
 	DEFAULT_CLIENT_MODE,
-	DEFAULT_ROOM_SETTINGS,
 	DRAFT_POOL_PREFIX,
 	DraftPlanSchema,
 	gameTypeSpec,
@@ -24,7 +23,7 @@ import {
 	MAGIC_ROOM_STORED_KEYS,
 	PoolVerdictSchema,
 	RoomModeSchema,
-	RoomSettingsSchema,
+	ROOM_SETTINGS,
 	SeriesPhaseSchema,
 	type ClientMode,
 	type ConstructedMode,
@@ -53,13 +52,8 @@ import {
 	type PodSplit,
 } from './pods.ts';
 import type { GameSeats, PlatformRoomRecord } from '@hadoku/game-server/room/record';
-import { plainRoomType, roomAppCodec, type LobbyMember, type RoomCreateInput, type RoomTypeHooks, type StoredRoomApp } from '@hadoku/game-server/room/lobby';
+import { plainRoomType, roomAppCodec, type LobbyMember, type PlainGame, type RoomCreateInput, type RoomTypeHooks, type StoredRoomApp } from '@hadoku/game-server/room/lobby';
 import type { FormatId } from './lobby.ts';
-
-/** Every setting has a default, so a room stored before a setting existed reads back on it without a migration. */
-export const SETTING_KEYS = Object.keys(DEFAULT_ROOM_SETTINGS) as (keyof RoomSettings)[];
-/** Settings a room stored before they were retired: read and dropped, so the room still parses. */
-const RETIRED_SETTING_KEYS = ['matchLength', 'sideboarding'];
 
 // ── the stored record ────────────────────────────────────────────────────────
 
@@ -310,29 +304,6 @@ function storedMode(a: Record<string, unknown>): Pick<StoredMagicGame, 'mode' | 
 	return parsed.data;
 }
 
-/**
- * Each setting is validated against its OWN schema (`RoomSettingsSchema.shape`,
- * not every setting is a boolean any more — `tournamentDecks` is an enum). A
- * retired one is accepted whatever it holds, and dropped by `storedSettings`.
- */
-function isStoredSettings(v: unknown): v is Partial<RoomSettings> {
-	if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
-	return Object.entries(v).every(([k, value]) => {
-		if (RETIRED_SETTING_KEYS.includes(k)) return true;
-		if (!(SETTING_KEYS as string[]).includes(k)) return false;
-		return RoomSettingsSchema.shape[k as keyof RoomSettings].safeParse(value).success;
-	});
-}
-
-function storedSettings(v: Partial<RoomSettings> | undefined): RoomSettings {
-	const settings = { ...DEFAULT_ROOM_SETTINGS } as Record<keyof RoomSettings, RoomSettings[keyof RoomSettings]>;
-	for (const k of SETTING_KEYS) {
-		const value = v?.[k];
-		if (value !== undefined) settings[k] = value;
-	}
-	return settings as RoomSettings;
-}
-
 function isStoredGame(v: unknown): v is SeriesGame {
 	if (typeof v !== 'object' || v === null) return false;
 	const g = v as Record<string, unknown>;
@@ -522,8 +493,10 @@ export function decodeMagicApp(raw: Record<string, unknown>, version: number, ct
 		const seatsRaw = a.seats !== undefined ? a.seats : g.podSeats;
 		// Absent is a room written before settings existed, and so is a single
 		// setting that is absent: each reads back on its default. A value of the
-		// wrong type, or a setting this build does not know, quarantines.
-		if (settingsRaw !== undefined && !isStoredSettings(settingsRaw)) throw new Error('app.settings is invalid');
+		// wrong type, or a setting this build does not know, quarantines; a
+		// retired one is dropped (`ROOM_SETTINGS`).
+		const settings = ROOM_SETTINGS.readStored(settingsRaw);
+		if (settings === null) throw new Error('app.settings is invalid');
 		if (a.matchId !== undefined && a.matchId !== null && typeof a.matchId !== 'string') throw new Error('app.matchId is invalid');
 		// Absent is a room written before the field, which remembers no match.
 		if (matchesRaw !== undefined && !(Array.isArray(matchesRaw) && matchesRaw.every((m) => typeof m === 'string'))) {
@@ -538,7 +511,6 @@ export function decodeMagicApp(raw: Record<string, unknown>, version: number, ct
 		// Absent is a room written before wave 72 §P, which has nobody seated.
 		if (seatsRaw !== undefined && !isStoredPodSeats(seatsRaw, gameType)) throw new Error('app.seats is invalid');
 		const { gauntlet, gauntlets, ...game } = decodeMagicGame(g, gameType);
-		const settings = storedSettings(settingsRaw as Partial<RoomSettings> | undefined);
 		const matchId = (a.matchId ?? null) as string | null;
 		// Migrated from the pre-wave-71 shape: one table, holding the room's old
 		// `matchId`, sized by `seriesFormatOf` from the `gameType` already read
@@ -599,7 +571,7 @@ export const MAGIC_STORED: Pick<RoomTypeHooks<MagicRoomGame>, 'decode' | 'writes
  * then holds its seats under `game.podSeats`, and one written now copies them there for a rollback.
  * **Both go at the dated drop, 2026-11-13, with `RollbackCopies`.** Undefined for a type nobody registered.
  */
-export function hostedRoomType<I extends RoomCreateInput>(gameType: string): RoomTypeHooks<Record<string, never>, I> | undefined {
+export function hostedRoomType<I extends RoomCreateInput>(gameType: string): RoomTypeHooks<PlainGame, I> | undefined {
 	const spec = gameTypeSpec(gameType);
 	if (spec === undefined) return undefined;
 	const plain = plainRoomType<I>({

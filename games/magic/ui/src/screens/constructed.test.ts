@@ -2433,7 +2433,7 @@ describe('a draft room', () => {
 
     openRules();
     const popover = screen.getByTestId('match-rules-popover');
-    const labels = [...popover.querySelectorAll('.lobby__rules-label')].map((el) => el.textContent);
+    const labels = [...popover.querySelectorAll('.room-settings__label')].map((el) => el.textContent);
     expect(labels).toEqual(['Hand smoothing', 'Chess clock', 'Pick timer', 'Bots']);
 
     fireEvent.click(within(popover).getByTestId('draft-bots-split'));

@@ -48,6 +48,7 @@ import { addMember, createMembershipLedger, setReady as ledgerSetReady } from '@
 import { seatsOpenAt } from '@hadoku/platform-wire/events';
 import { sameLook, type Look } from '@hadoku/platform-wire/look';
 import { ROOM_ID_RE } from '@hadoku/platform-wire/room-feed';
+import type { AnyRoomSettings } from '@hadoku/platform-wire/room-settings';
 
 import { moveIds, namesAny, replaceIds, type IdMove } from '../erase/anonymise.ts';
 import { seatPersonas, type AiPersona } from './ai-faces.ts';
@@ -236,7 +237,32 @@ export interface RoomTypeHooks<G, I extends RoomCreateInput = RoomCreateInput> {
 	 * `plainRoomType`'s).
 	 */
 	subPlaceOf?(room: LobbyRoom<G>, rest: string): boolean;
+	/** The room's settings, which its leader changes (`RoomLobby.setSettings`). Absent: the type has none. */
+	settings?: RoomTypeSettings<G>;
 }
+
+/**
+ * Where a room type keeps its settings and when they are locked. The fields themselves are the
+ * game's declaration (`@hadoku/platform-wire/room-settings`); the type only says where they live
+ * in its game part (it stores them, and its view shows them) and answers each lock by name.
+ */
+export interface RoomTypeSettings<G> {
+	spec: AnyRoomSettings;
+	read(room: LobbyRoom<G>): Record<string, unknown>;
+	/** Called only with a change that passed every lock, before the room is saved. */
+	write(room: LobbyRoom<G>, next: Record<string, unknown>): void;
+	/** Why the fields under `lock` cannot change now (the refusal's reason), or null when they can. */
+	locked(room: LobbyRoom<G>, lock: string): string | null;
+}
+
+/**
+ * `setSettings`' answer. `no-settings`: the room's type declares none. Any other refusal is a lock's
+ * reason, as the type's `locked` named it (`match-live` for the kit's `LIVE` lock).
+ */
+export type SetSettingsResult<V> = { ok: true; room: V } | { ok: false; reason: string };
+
+/** The reason a relay room refuses a `LIVE` setting while its match is live or counting down. */
+export const MATCH_LIVE = 'match-live';
 
 /**
  * A generic seat lineup the leader's atomic ops can read and write — `room.seats` itself (every
@@ -769,6 +795,31 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		const said = hooks.created?.(room) ?? {};
 		this.log({ event: 'room-created', roomId: id, gameType: room.gameType, ...said, locked: this.#secrets.has(id) });
 		return this.view(room);
+	}
+
+	/**
+	 * The leader changes some of the room's settings; the rest stay as they are. `patch` is already
+	 * valid (`RoomSettingsSpec.parsePatch`). A field whose value does not move is no change; one that
+	 * does is checked against its lock, and the first lock that holds refuses the whole patch.
+	 */
+	setSettings(roomId: string, callerId: string, patch: Record<string, unknown>): SetSettingsResult<V> {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		return this.changeSettings(room, callerId, patch);
+	}
+
+	/** `setSettings` on a room in hand. `write` stands in for the type's own (a game with more to move when a setting does). */
+	protected changeSettings(room: LobbyRoom, callerId: string, patch: Record<string, unknown>, write?: (room: LobbyRoom, next: Record<string, unknown>) => void): SetSettingsResult<V> {
+		const settings = this.hooksOf(room).settings;
+		if (settings === undefined) return { ok: false, reason: 'no-settings' };
+		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+		const result = settings.spec.apply(settings.read(room), patch, (lock) => settings.locked(room, lock));
+		if (!result.ok) return { ok: false, reason: result.reason };
+		if (result.changed.length === 0) return { ok: true, room: this.view(room) };
+		(write ?? settings.write)(room, result.next);
+		this.persist(room);
+		this.log({ event: 'room-settings', roomId: room.id, settings: result.next });
+		return { ok: true, room: this.view(room) };
 	}
 
 	/** Idempotent for an existing member, who needs no password again. */
@@ -1358,12 +1409,25 @@ export interface PlainRoomSize {
 	 * and a seat the leader closed is never reopened by it.
 	 */
 	keepOneOpen?: boolean;
+	/**
+	 * The game's settings (`@hadoku/platform-wire/room-settings`): kept in the room's game part
+	 * (`app.game.settings`), shown as the view's `settings`, changed by the leader. `locked` answers
+	 * each of the fields' locks by name; absent, nothing is ever locked.
+	 */
+	settings?: { spec: AnyRoomSettings; locked?(room: LobbyRoom<PlainGame>, lock: string): string | null };
 }
 
-/** What a plain room's view adds to the platform's: the AI at each seat, `seatPersonas`'s draw. */
+/** A plain room's game part: only its settings, when its game declares any. */
+export interface PlainGame {
+	settings?: Record<string, unknown>;
+}
+
+/** What a plain room's view adds to the platform's: the AI at each seat, `seatPersonas`'s draw, and its settings. */
 export interface PlainRoomView {
 	/** In seat order; null where no AI sits. */
 	aiSeats: (AiPersona | null)[];
+	/** Present when the game declares settings: every field, at its value now. */
+	settings?: Record<string, unknown>;
 }
 
 /**
@@ -1374,22 +1438,30 @@ export interface PlainRoomView {
  * A member who leaves the room gives up their seat (`leaving`): `RoomLobby.leave` drops only the
  * membership, so without it the departed id stayed in the seat for good.
  */
-export function plainRoomType<I extends RoomCreateInput>(size: PlainRoomSize): RoomTypeHooks<Record<string, never>, I> {
+export function plainRoomType<I extends RoomCreateInput>(size: PlainRoomSize): RoomTypeHooks<PlainGame, I> {
 	const open = (): GameSeats => new Array<string | null>(size.seats).fill(null);
+	const declared = size.settings;
+	/** A room's settings as the game part holds them; a room made before its game declared any reads the defaults. */
+	const settingsOf = (room: LobbyRoom<PlainGame>): Record<string, unknown> => room.game.settings ?? declared!.spec.defaults();
+	const game = (settings: Record<string, unknown> | undefined): PlainGame => (settings === undefined ? {} : { settings });
 	const full = (seats: GameSeats): boolean => !seats.some((s) => s === null || s === CLOSED_SEAT);
 	const trim = (room: { seats: GameSeats }): void => {
 		while (room.seats.length > size.seats && room.seats.at(-1) === null) room.seats = room.seats.slice(0, -1);
 		if (size.keepOneOpen === true && room.seats.length < size.max && full(room.seats)) room.seats = [...room.seats, null];
 	};
 	return {
-		newGame: () => ({ seats: open(), game: {} }),
-		encode: () => ({}),
+		newGame: () => ({ seats: open(), game: game(declared?.spec.defaults()) }),
+		encode: (room) => game(room.game.settings),
 		decode(app) {
 			if (app.seats !== undefined && !isStoredSeats(app.seats)) throw new Error('app.seats is invalid');
-			return { seats: app.seats === undefined ? open() : [...app.seats], game: {} };
+			const raw = typeof app.game === 'object' && app.game !== null ? (app.game as { settings?: unknown }).settings : undefined;
+			// A game that declares no settings ignores whatever a file holds; one that does refuses settings it never declared.
+			const settings = declared === undefined ? undefined : declared.spec.readStored(raw);
+			if (settings === null) throw new Error('app.game.settings is invalid');
+			return { seats: app.seats === undefined ? open() : [...app.seats], game: game(settings) };
 		},
-		restore: () => ({ dropHolds: false, game: () => ({}) }),
-		view: (room): PlainRoomView => ({ aiSeats: seatPersonas(room, AI_SEAT) }),
+		restore: (app) => ({ dropHolds: false, game: () => game((app.game as PlainGame).settings) }),
+		view: (room): PlainRoomView => ({ aiSeats: seatPersonas(room, AI_SEAT), ...(declared === undefined ? {} : { settings: structuredClone(settingsOf(room)) }) }),
 		busy: NO_BUSY_HOOK,
 		liveMatches: () => [],
 		usesSeats: () => true,
@@ -1405,7 +1477,19 @@ export function plainRoomType<I extends RoomCreateInput>(size: PlainRoomSize): R
 			room.seats = room.seats.map((s, i) => (i === seat ? null : s));
 			trim(room);
 		},
-		...(size.markedSeats === true ? { seatsView: (room: LobbyRoom<Record<string, never>>) => room.seats } : {}),
+		...(size.markedSeats === true ? { seatsView: (room: LobbyRoom<PlainGame>) => room.seats } : {}),
+		...(declared === undefined
+			? {}
+			: {
+					settings: {
+						spec: declared.spec,
+						read: settingsOf,
+						write(room: LobbyRoom<PlainGame>, next: Record<string, unknown>) {
+							room.game = { ...room.game, settings: next };
+						},
+						locked: (room: LobbyRoom<PlainGame>, lock: string) => declared.locked?.(room, lock) ?? null,
+					},
+				}),
 		...(size.relaySeats === undefined ? {} : { relaySeats: size.relaySeats }),
 	};
 }
