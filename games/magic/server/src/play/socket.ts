@@ -136,6 +136,7 @@ import { WATCHER_SEAT } from './match/forge-session.js';
 import { createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity, type SeatSpecWithIdentity } from './match.js';
 import type { EndedMatch, ResumeFrom } from './match/registry.js';
 import type { SpellCopy } from './spell-copiers.js';
+import { frames } from '@hadoku/game-server/frames';
 import { malformedFacts } from '@hadoku/game-server/http/client-events';
 import { costlyActLimit, httpCaller, perCallerLimit, readBody } from '@hadoku/game-server/http/request';
 import { jsonLogger } from '@hadoku/service-kernel/log';
@@ -1527,7 +1528,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			}
 			clientSent += 1;
 			if (clientSent > CLIENT_EVENT_MAX_PER_SECOND) return;
-			log({ evt: 'client', matchId: match.id, seat, participantId, kind: parsed.data.kind, ...parsed.data.data });
+			const line = { evt: 'client', matchId: match.id, seat, participantId, kind: parsed.data.kind, ...parsed.data.data };
+			log(line);
+			// The frame rate, rolled up into the 5-minute `frames` event (`@hadoku/game-server/frames`).
+			frames.note(line);
 		});
 
 		socket.on('disconnect', (reason: string) => {

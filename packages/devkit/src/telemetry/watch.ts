@@ -8,6 +8,9 @@
  *   resolution), every edge 5xx, and every gate breach.
  * - **Traffic**, aggregates per site (prod, ppe; `unknown` for events posted before the servers
  *   tagged their site): requests, accounts, anonymous callers, usage, capacity, 4xx.
+ * - **Frame rate**, per site: the servers' `frames` events over the window against the week before
+ *   it, with a `DEGRADED` line where the day is clearly worse (`./watch-frames.ts`). Advisory: it
+ *   never changes the exit code.
  *
  *   node scripts/telemetry/watch.ts [--hours 24] [--own-ip 187.15.91.*] [--json] [--post]   # cardtable's entry point
  *
@@ -47,6 +50,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { findRoot, loadConfig, type DevkitConfig } from '../config.ts';
+import { BASELINE_DAYS, frameLines, frameRate, type FrameRate } from './watch-frames.ts';
 
 /** Who the watch is for: the config's `telemetry` block, with the app's name and env prefix. */
 export interface WatchApp {
@@ -484,6 +488,7 @@ export function summarise(
 	backup: Backup | null = null,
 	unread: string[] = [],
 	runs: Runs = { runs: [], error: null },
+	frames: FrameRate = { sites: {}, error: null },
 ) {
 	const everyVisitor = rows.filter((r) => (app.tourUserId === undefined || r.user_id !== app.tourUserId) && r.ip_address !== ownIp);
 	// The edge answers an anonymous caller itself (backend 'auth': the sign-in page or a 401).
@@ -511,6 +516,7 @@ export function summarise(
 			unread,
 		},
 		backup,
+		frames,
 		battletest: {
 			runs: battletest.runs,
 			accounts: battletest.accounts.size,
@@ -580,6 +586,13 @@ export function render(s: Summary): string {
 		`Needs a look: ${levelsLine(s)} (each one, oldest first)`,
 		s.incidents.map((i) => `  ${stamp(i.at)}  ${i.site.padEnd(sw)}  ${i.level.padEnd(8)}  ${i.what}  ${i.detail}`),
 	);
+	section(
+		`Frame rate: the day against the ${BASELINE_DAYS} days before it (advisory)`,
+		[
+			...(s.frames.error === null ? [] : [`  baseline unreadable (${s.frames.error}): nothing compared`]),
+			...Object.entries(s.frames.sites).flatMap(([site, f]) => [`  ${site}`, ...frameLines(f)]),
+		],
+	);
 
 	for (const [site, a] of Object.entries(s.sites)) {
 		const c = a.capacity;
@@ -636,6 +649,13 @@ export function render(s: Summary): string {
 	return out.join('\n');
 }
 
+/** The digest's frame-rate piece for a site: the match surface's day, else the busiest surface's. */
+function frameText(f: FrameRate['sites'][string] | undefined): string | null {
+	if (f === undefined) return null;
+	const [name, d] = Object.entries(f.day).sort(([a, x], [b, y]) => (a === 'match' ? -1 : b === 'match' ? 1 : y.watchedMin - x.watchedMin))[0] ?? [];
+	return d === undefined ? null : `frames (${name}) ${d.stretchesPerHour} stretches/h, ${Math.round(d.slowShare * 100)}% dropped over ${d.watchedMin} min`;
+}
+
 /** The Discord message: what needs a look first, counted by level, then one line per site; the report rides along as a file. */
 export function digest(s: Summary): string {
 	const cut = (line: string, n: number) => (line.length <= n ? line : `${line.slice(0, n - 1)}…`);
@@ -665,6 +685,7 @@ export function digest(s: Summary): string {
 		`**Needs a look:** ${levelsLine(s)}`,
 		alert === null ? '✅ no gate breaches, no seal refusals, nothing critical' : `🚨 **${alert.replace('ALERT: ', '')}** — see the report`,
 		...s.alerts.unread.map((u) => `⚠️ **Incomplete:** ${u}`),
+		...Object.entries(s.frames.sites).flatMap(([site, f]) => f.degraded.map((d) => cut(`⚠️ **Frame rate degraded** (${site}) ${d}`, 150))),
 		...ranked
 			.slice(0, SHOWN)
 			.map(([key, g]) => cut(`· ${g.n} × ${key} — ${g.n > 1 ? 'last: ' : ''}${stamp(g.last.at).slice(5, 16)} ${g.last.detail}`, 150)),
@@ -686,6 +707,7 @@ export function digest(s: Summary): string {
 				c.windows === 0
 					? null
 					: `capacity busiest ${c.peakRequestsPerMin}/min, p95 ${c.worstP95Ms} ms, stall ${c.worstLoopMaxMs} ms${c.lowestForgeFree === null ? '' : `, Forge headroom ≥ ${c.lowestForgeFree}`}, ${c.errors5xx} 5xx`,
+				frameText(s.frames.sites[site]),
 				sum(a.costlyActs) === 0 ? null : `${sum(a.costlyActs)} costly acts`,
 				sum(a.errors4xx) === 0 ? null : `4xx ${top(a.errors4xx, 2)}`,
 			]
@@ -793,18 +815,25 @@ export async function main(argv: string[], root: string, deps: WatchDeps = realD
 		if (!res.ok) throw new HttpError(`${path}: HTTP ${res.status}`, res.status);
 		return (await res.json()) as Record<string, unknown>;
 	});
-	const [logs, events, mine, backup, battletest] = await Promise.all([
+	const baselineSince = new Date(Date.parse(since) - BASELINE_DAYS * 24 * 3_600_000).toISOString();
+	const [logs, events, mine, backup, battletest, frameHistory] = await Promise.all([
 		pages<Row>(get, `/logs/query?path=${app.path}&since=${since}`, 'logs'),
 		pages<Event>(get, `/service-events?service=${app.service}&since=${since}`, 'events'),
 		ownIp(deps, args['own-ip']),
 		latestBackup(get, deps.now(), app.backupJob),
 		battletestRuns(get, since, app.battletestJob),
+		pages<Event>(get, `/service-events?service=${app.service}&event=frames&since=${baselineSince}`, 'events'),
 	]);
 	const unread = [
 		...(logs.error === null ? [] : [`edge log: ${logs.error}`]),
 		...(events.error === null ? [] : [`server events: ${events.error}`]),
 	];
-	const summary = summarise(app, logs.rows, events.rows, mine, since, backup, unread, battletest);
+	const frames = frameRate(
+		frameHistory.rows.filter((e) => e.event === 'frames').map((e) => ({ timestamp: e.timestamp, site: siteOfEvent(app, e), context: ctx(e) })),
+		since,
+		frameHistory.error,
+	);
+	const summary = summarise(app, logs.rows, events.rows, mine, since, backup, unread, battletest, frames);
 	const { app: _app, ...plain } = summary;
 	const report = args.json ? JSON.stringify(plain, null, 2) : render(summary);
 	deps.print(report);

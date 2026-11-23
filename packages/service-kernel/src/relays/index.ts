@@ -11,3 +11,4 @@ export {
 	type UsageOptions,
 	type UsageSchema,
 } from './usage.ts';
+export { framesTally, FRAMES_WINDOW_MS, SLOW_P95_MS, WORST_TOP, type FramesTally, type FramesTallyOptions } from './frames.ts';

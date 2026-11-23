@@ -261,7 +261,7 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
 
 - **Watch it:** `node scripts/telemetry/watch.ts [--hours 24]` summarises both
   stores: new accounts, anonymous callers by agent and IP (our own egress
-  excluded), the busiest accounts, rate limits, errors. It exits 2 on a gate
+  excluded), the busiest accounts, rate limits, errors, the frame rate. It exits 2 on a gate
   breach (an anonymous caller cardtable itself answered) or a `seal-refused`.
   **It runs daily** (hadoku's crontab, 06:00 host time (Pacific), `scripts/telemetry/daily.sh`
   from the PPE tree, reading the caller key from `~/repos/hadoku-cardtable/.devvault.local.json`,
@@ -285,8 +285,13 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
   name, the edge's own tier — a member reads `member` — and their ordered trail,
   `06:41:02 click room pick`, `packages/service-kernel/src/relays/usage.ts`) and `capacity` (peak sockets, rooms, drafts, matches,
   JVMs, free Forge slots, request rate and p95, event-loop stall —
-  `packages/game-server/src/capacity.ts`); `capacity-refused` when a start meets the
-  server's match ceiling.
+  `packages/game-server/src/capacity.ts`) and `frames` (the browsers' frame rate, rolled up
+  from every `perf` client line per surface — `match`, `front`, `draft` — as bad stretches,
+  freezes and time in dropped motion per watched hour, with the window's worst sessions and
+  their machines: `packages/service-kernel/src/relays/frames.ts`); `capacity-refused` when a
+  start meets the server's match ceiling. The daily report sets each day's `frames` beside the
+  week before it and prints `DEGRADED` where the day is clearly worse
+  (`packages/devkit/src/telemetry/watch-frames.ts`); advisory, it never changes the exit code.
 - Events your code posts go to `service_events`: `POST /health/api/telemetry`
   with `context.service: "cardtable"`, read back with
   `GET /health/api/service-events?service=cardtable`. Not `console.log`.

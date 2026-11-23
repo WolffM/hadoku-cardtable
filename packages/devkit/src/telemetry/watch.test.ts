@@ -168,7 +168,7 @@ describe('summarise', () => {
 		const text = render(s);
 		const heads = text.split('\n').filter((l) => l.startsWith('## '));
 		expect(heads[0]).toBe('## Needs a look: 1 critical, 1 error, 1 warn, 1 resolved (each one, oldest first)');
-		expect(heads.slice(1).map((h) => h.split(':')[0])).toEqual(['## prod', '## ppe', '## unknown']);
+		expect(heads.slice(1).map((h) => h.split(':')[0])).toEqual(['## Frame rate', '## prod', '## ppe', '## unknown']);
 		expect(text).toContain('lowest Forge headroom (free match slots on eligible claws, at a window\'s peak) n/a: no claws');
 		expect(text.split('\n')[1]).toBe('ALERT: 0 gate breach(es), 1 seal-refused, 1 critical event(s)');
 	});
@@ -406,6 +406,7 @@ describe('another app', () => {
 			'/logs/query?path=/fakeapp&since=2026-11-04T00:00:00.000Z&limit=1000&offset=0',
 			'/service-events?service=fakeapp&since=2026-11-04T00:00:00.000Z&limit=1000&offset=0',
 			'/jobs?job_name=fakeapp%3Astate-backup&state=succeeded&since=2026-11-03T00:00:00.000Z&limit=1',
+			'/service-events?service=fakeapp&event=frames&since=2026-10-28T00:00:00.000Z&limit=1000&offset=0',
 		]);
 		expect(out.join('\n')).toContain('fakeapp telemetry since 2026-11-04T00:00:00.000Z: 1 edge rows, 0 server events');
 		expect(out.join('\n')).toContain('## prod: 1 requests');
