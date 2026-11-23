@@ -2,26 +2,32 @@
  * Decks built from nothing, from the browser's side: a client of the caller's own document on our
  * server (`games/magic/server/src/http/me.ts`, wave 125's contract):
  *
- *   `GET    /api/me/library`          → `{ favourites, decks, built }`; `built` is `{ [id]: entry }`
- *   `PUT    /api/me/built/:builtId`   `{ name, format, dck }` → the stored entry
- *   `DELETE /api/me/built/:builtId`
+ *   `GET    /api/me/library`          → `{ favourites, decks, built }`; `built` is every built deck,
+ *                                       `{ id, name, format, dck, createdAt, updatedAt }`
+ *   `PUT    /api/me/built/:builtId`   `{ name, format, dck }` → `{ built }`, the deck as stored
+ *   `DELETE /api/me/built/:builtId`   → 204
  *
  * A built deck's id is `built:<uuid>`, minted here on its first save, so it never collides with a
  * pod id in the Library's one grid or in the favourites keyed by deck id. `format` is the era id the
  * deck was built for (`TableFormat.id`), or `FREE_PICK` for "Any card".
+ *
+ * The builder's card search is here too (`cardSearch`, `GET /api/cards/search`): the screen asks it
+ * per keystroke, and once per card name when a saved deck opens (`facesForNames`).
  *
  * The answers are parsed with one Zod schema each, never trusted: a document the server wrote under
  * an older shape is a deck this screen skips, not a crash of the whole Library.
  */
 
 import { z } from 'zod';
+import { DraftCardSchema, type DraftCard } from '@hadoku/shared';
 
 import { apiBase, bodyOf, getJson, isRecord, pageFetch, sendJson, serverMessage, type Fetch } from '@hadoku/game-ui/http.ts';
 
 /** The prefix every built deck's id carries. */
 export const BUILT_PREFIX = 'built:';
 
-const BuiltEntrySchema = z.object({
+const BuiltDeckSchema = z.object({
+  id: z.string().refine(isBuiltDeckId),
   name: z.string(),
   format: z.string(),
   dck: z.string(),
@@ -65,14 +71,13 @@ export function newBuiltDeckId(): string {
   return `${BUILT_PREFIX}${crypto.randomUUID()}`;
 }
 
-/** The `built` map of a library answer as decks, newest change first. An entry that does not parse is left out. */
+/** The `built` list of a library answer, newest change first. An entry that does not parse is left out. */
 export function builtDecksOf(built: unknown): BuiltDeck[] {
-  if (!isRecord(built)) return [];
+  if (!Array.isArray(built)) return [];
   const out: BuiltDeck[] = [];
-  for (const [id, raw] of Object.entries(built)) {
-    if (!isBuiltDeckId(id)) continue;
-    const entry = BuiltEntrySchema.safeParse(raw);
-    if (entry.success) out.push({ id, ...entry.data });
+  for (const raw of built) {
+    const deck = BuiltDeckSchema.safeParse(raw);
+    if (deck.success) out.push(deck.data);
   }
   return out.sort((a, b) => b.updatedAt - a.updatedAt);
 }
@@ -104,9 +109,9 @@ export function builtDecksClient(fetchImpl: Fetch = pageFetch, base: string = ap
       }
       const body = await bodyOf(res);
       if (!res.ok) return { ok: false, message: serverMessage(body, res.status) };
-      const stored = BuiltEntrySchema.safeParse(isRecord(body) && 'deck' in body ? body.deck : body);
+      const stored = BuiltDeckSchema.safeParse(isRecord(body) ? body.built : null);
       if (!stored.success) return { ok: false, message: 'The server sent something this app cannot read as your deck.' };
-      return { ok: true, deck: { id, ...stored.data } };
+      return { ok: true, deck: stored.data };
     },
 
     async remove(id) {
@@ -135,4 +140,45 @@ export function saveBuiltDeck(deck: BuiltDeckDraft): Promise<BuiltSave> {
 
 export function deleteBuiltDeck(id: string): Promise<BuiltDelete> {
   return live().remove(id);
+}
+
+/* ── the builder's card search: `GET /api/cards/search` (`server/src/http/cards.ts`) ── */
+
+/** The most results one search shows. */
+export const SEARCH_LIMIT = 40;
+
+/** Cards by name, prefix matches first; `sets` narrows them to an era's sets (none: any card). */
+export type CardSearch = (q: string, sets: readonly string[], limit?: number) => Promise<DraftCard[]>;
+
+export function cardSearch(fetchImpl: Fetch = pageFetch, base: string = apiBase()): CardSearch {
+  return async (q, sets, limit = SEARCH_LIMIT) => {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    if (sets.length > 0) params.set('sets', sets.join(','));
+    let res: Response;
+    try {
+      res = await getJson(`${base}cards/search?${params.toString()}`, fetchImpl);
+    } catch {
+      throw new Error('Could not reach the server.');
+    }
+    const body = await bodyOf(res);
+    if (!res.ok) throw new Error(serverMessage(body, res.status));
+    const cards = z.object({ cards: z.array(DraftCardSchema) }).safeParse(body);
+    if (!cards.success) throw new Error('The server sent something this app cannot read as cards.');
+    return cards.data.cards;
+  };
+}
+
+/**
+ * The faces of a saved deck's cards, one search per name (`limit` small: the name itself is the
+ * prefix), the exact name's answer kept. A name the search cannot find stays unanswered, and the
+ * editor draws it by its name alone. Basics need none.
+ */
+export async function facesForNames(search: CardSearch, names: readonly string[], sets: readonly string[]): Promise<DraftCard[]> {
+  const out: DraftCard[] = [];
+  for (const name of new Set(names)) {
+    const found = await search(name, sets, 10).catch(() => [] as DraftCard[]);
+    const exact = found.find((c) => c.name.toLowerCase() === name.toLowerCase()) ?? (sets.length > 0 ? (await search(name, [], 10).catch(() => [] as DraftCard[])).find((c) => c.name.toLowerCase() === name.toLowerCase()) : undefined);
+    if (exact !== undefined) out.push(exact);
+  }
+  return out;
 }

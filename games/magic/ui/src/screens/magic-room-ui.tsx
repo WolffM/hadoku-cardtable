@@ -167,6 +167,7 @@ import {
 } from 'react';
 
 import {
+  CONSTRUCTED_LIMITS,
   deckColorsByName,
   LIMITED_MIN_MAIN_DECK_SIZE,
   mainDeckSize,
@@ -185,6 +186,7 @@ import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodVi
 
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
+import { listBuiltDecks, type BuiltDeck } from '../deck/builtDecks.ts';
 import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
@@ -1760,21 +1762,29 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   /**
    * Free pick's "My decks": every draft you finished whose build is a deck —
    * the operator, 2026-10-19: *"the only other time this deck can be selected
-   * to be played is if 'Free-Pick' is enabled"*. Asked for when Free pick is
-   * on and the deck card is drawn; null until it answers.
+   * to be played is if 'Free-Pick' is enabled"* — and every deck you built
+   * from nothing that reaches the constructed floor (wave 125,
+   * `deck/builtDecks.ts`). Asked for when Free pick is on and the deck card is
+   * drawn; null until both answer. A built deck is drawn by its card names
+   * alone (no pool to take faces from), and sent as its `.dck` like a drafted one.
    */
-  const [myDecks, setMyDecks] = useState<MyDeck[] | null>(null);
+  const [myDecks, setMyDecks] = useState<{ drafted: MyDeck[]; built: BuiltDeck[] } | null>(null);
   useEffect(() => {
     if (!picking || !freePick) return;
     let live = true;
+    const built = listBuiltDecks().catch((err: unknown) => {
+      console.warn('[cardtable] your built decks are unavailable; My decks shows your drafted ones', err);
+      return [];
+    });
     myDecksStore
       .list()
-      .then((decks) => {
-        if (live) setMyDecks(decks);
+      .then(async (decks) => {
+        const ownBuilt = await built;
+        if (live) setMyDecks({ drafted: decks, built: ownBuilt });
       })
       .catch((err: unknown) => {
         if (!live) return;
-        setMyDecks([]);
+        setMyDecks({ drafted: [], built: [] });
         setActionError(err instanceof Error ? err.message : String(err));
       });
     return () => {
@@ -1785,11 +1795,19 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   const namedArt = useNamedArt();
   const myDeckOptions = useMemo(
     () =>
-      myDecks?.flatMap((d) => {
-        if (d.deck === null) return [];
-        const deck = openDraftedDeck(d.deck, d.id, d.pool);
-        return mainDeckSize(deck) < LIMITED_MIN_MAIN_DECK_SIZE ? [] : [{ option: draftedDeckOption(`${MY_DECK}${d.id}`, d.name, deck, d.pool), dck: dckTextOf(deck) }];
-      }) ?? null,
+      myDecks === null
+        ? null
+        : [
+            ...myDecks.drafted.flatMap((d) => {
+              if (d.deck === null) return [];
+              const deck = openDraftedDeck(d.deck, d.id, d.pool);
+              return mainDeckSize(deck) < LIMITED_MIN_MAIN_DECK_SIZE ? [] : [{ option: draftedDeckOption(`${MY_DECK}${d.id}`, d.name, deck, d.pool), dck: dckTextOf(deck) }];
+            }),
+            ...myDecks.built.flatMap((b) => {
+              const deck = savedBuild(b.dck, true);
+              return deck === null || mainDeckSize(deck) < CONSTRUCTED_LIMITS.minMainDeckSize ? [] : [{ option: draftedDeckOption(`${MY_DECK}${b.id}`, b.name, deck, []), dck: b.dck }];
+            }),
+          ],
     [myDecks, namedArt],
   );
 
