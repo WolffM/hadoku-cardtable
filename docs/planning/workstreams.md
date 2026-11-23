@@ -4182,8 +4182,9 @@ EUaqBZnr7wQQa8V7vZeFR7. Rulings: `docs/planning/wave125-2026-11-23.md` "Settled"
 | row | what | status | owner | evidence |
 | --- | --- | --- | --- | --- |
 | L1 | Deck covers always draw | dispatched | w125-A | measured 103/174 prod draft seats rank an uncreditable card first → blank tile (snapshot 2026-11-23); target 0 |
-| L2 | Catalog `releasedAt`, printings + search endpoints, per-player art pins in the spec and replays | dispatched | w125-B | prefs-api service reads of `cardtable-*` rows/items exist (service.ts:48, :94, :204); no hadoku_site change |
-| L3 | Library screen: Decks/Cubes/Cards tabs, sections, favourites, last played | dispatched | w125-C | last played = prefs-api breakdown `last` (store.ts:495), no `rated` param counts bot games |
-| L4 | New deck in the existing builder, stored as `cardtable-decks` items | dispatched | w125-D | — |
+| L2 | Catalog `releasedAt`, printings + search endpoints, per-player art pins in the spec and replays | dispatched | w125-B | reads art prefs from C's self-hosted `UserStore` (operator 2026-11-23: nothing new on Cloudflare) |
+| L3 | Library screen: Decks/Cubes/Cards tabs, sections, favourites, last played | dispatched | w125-C | builds the self-hosted per-person store first; last played stamped at match end (bot games count: 216/292 matches are unrated), one-time backfill from prefs-api |
+| L4 | New deck in the existing builder, stored in the per-person store | dispatched | w125-D | — |
 | L5 | Cards tab, art picker, settings toggle | queued (w126) | — | waits on L2 + L3 on main |
-| L6 | Telemetry and state inventory; one source of truth for several servers | running (tracker research agent) | tracker | → `docs/planning/telemetry-and-state-inventory.md` + review artifact |
+| L6 | Telemetry and state inventory; one source of truth for several servers | done 6ca85a81b | tracker | doc + review artifact YGDHaJSjV7ViyxGeAowVrM. Operator 2026-11-23: no history in D1, everything self-hosted; room history wanted |
+| L7 | History programme: match history + a room-history record in a self-hosted SQL store | queued (after w125) | — | operator 2026-11-23; store choice is an open question to the operator |
