@@ -42,6 +42,28 @@
  * reload of their own and no restart. A fault (missing file, malformed
  * JSON) is logged and the OLD data keeps serving, same discipline as the
  * initial load.
+ *
+ * ## `printingsOf` and `search` (wave 125 §B)
+ *
+ * `printingsOf(name)` is a card's paper printings with art, oldest first, each
+ * with its own id, set, collector number, release date and artist: the art
+ * picker's choices, and `printings[0]` is what "always use oldest art" means.
+ * A printing is left out when it never was a paper card (`paper: false`), is
+ * in an Alchemy set, or has no Scryfall id (no image to draw). The date and
+ * the artist come from refs `build-catalog` writes since wave 125; a file
+ * built before then still answers, its printings undated (`releasedAt: null`,
+ * listed after every dated one, by set and number).
+ *
+ * `search(q, { sets, limit })` is the deck builder's card search: every card
+ * whose name starts with `q`, then every card whose name contains it, each
+ * group by name. Cards that are not deck cards (planes, schemes, vanguards,
+ * dungeons, stickers, conspiracies, tokens, heroes, emblems) are never
+ * answered. `sets` narrows it to cards printed in one of those sets (an era),
+ * each answered as the first listed set printed it.
+ *
+ * Both are functions of a loaded catalog (`printingsOf(catalog, name)`), not
+ * methods on `CardCatalog`: the many stand-in catalogs tests build stay the
+ * shape they are, and a stand-in simply has no printings and finds nothing.
  */
 
 import { readFileSync } from 'node:fs';
@@ -70,10 +92,31 @@ export interface CardCatalog {
 	swap(path?: string): boolean;
 }
 
+/** One printing a card can be drawn as (`printingsOf`). */
+export interface CardPrinting {
+	scryfallId: string;
+	/** Scryfall's set code, upper case. */
+	set: string;
+	collectorNumber: string;
+	/** `YYYY-MM-DD`; null in a catalog built before printings carried it. */
+	releasedAt: string | null;
+	/** Null in a catalog built before printings carried it. */
+	artist: string | null;
+}
+
+export interface CardPrintings {
+	/** The card's own name, as the catalog spells it. */
+	name: string;
+	printings: CardPrinting[];
+}
+
 interface PrintingRefFile {
 	key?: unknown;
 	scryfallId?: unknown;
 	rarity?: unknown;
+	releasedAt?: unknown;
+	artist?: unknown;
+	paper?: unknown;
 }
 
 interface PrintingRef {
@@ -81,6 +124,10 @@ interface PrintingRef {
 	scryfallId: string | undefined;
 	/** Absent on a ref from a file built before refs carried it: the canonical card's own rarity stands. */
 	rarity: Rarity | undefined;
+	releasedAt: string | undefined;
+	artist: string | undefined;
+	/** False only for a printing the file marks as never a paper card. */
+	paper: boolean;
 }
 
 interface CatalogFile {
@@ -103,11 +150,22 @@ interface CatalogState {
 	inSet: Map<string, string>;
 	/** Normalised names of Alchemy cards: the file's own `alchemy` list, and any card it printed only in an Alchemy set. */
 	alchemy: Set<string>;
+	/** Canonical key -> every printing key of that card, in file order. */
+	printingsByKey: Map<string, string[]>;
+	/** Every deck card, by name: what `search` scans. */
+	searchable: { key: string; name: string; norm: string }[];
 }
 
 const log = jsonLogger('cardtable-pools');
 
-const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map(), inSet: new Map(), alchemy: new Set() };
+const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map(), inSet: new Map(), alchemy: new Set(), printingsByKey: new Map(), searchable: [] };
+
+/** A type line's first word that says the card is no deck's card: a plane, a scheme, a vanguard, a sticker sheet, a token. */
+const NOT_A_DECK_CARD = /^(plane|phenomenon|scheme|ongoing|vanguard|dungeon|stickers|conspiracy|token|hero|card|emblem)\b/i;
+
+/** Most cards `search` answers at once, and its default. */
+export const SEARCH_MAX = 100;
+const SEARCH_DEFAULT = 40;
 
 /** Uppercase the set so a caller's case never misses; the file's own keys are already uppercase (`build-catalog.ts` upper-cases `setCode`). */
 function printingKey(setCode: string, collectorNumber: string): string {
@@ -174,6 +232,9 @@ function parseCatalogState(path: string): CatalogState | null {
 				key: ref.key,
 				scryfallId: typeof ref.scryfallId === 'string' ? ref.scryfallId : undefined,
 				rarity: rarity.success ? rarity.data : undefined,
+				releasedAt: typeof ref.releasedAt === 'string' ? ref.releasedAt : undefined,
+				artist: typeof ref.artist === 'string' ? ref.artist : undefined,
+				paper: ref.paper !== false,
 			});
 		}
 	}
@@ -186,9 +247,34 @@ function parseCatalogState(path: string): CatalogState | null {
 		if (held === undefined || number(key) < number(held) || (Number.isNaN(number(held)) && !Number.isNaN(number(key)))) inSet.set(at, key);
 	}
 
+	const printingsByKey = new Map<string, string[]>();
+	for (const [key, ref] of printings) {
+		const list = printingsByKey.get(ref.key);
+		if (list === undefined) printingsByKey.set(ref.key, [key]);
+		else list.push(key);
+	}
+
+	const searchable: CatalogState['searchable'] = [];
+	for (const [key, card] of cards) {
+		if (NOT_A_DECK_CARD.test(card.typeLine.trim())) continue;
+		searchable.push({ key, name: card.name, norm: normaliseName(card.name) });
+	}
+	searchable.sort((a, b) => a.name.localeCompare(b.name));
+
 	log({ evt: 'catalog-loaded', path, cards: cards.size, aliases: aliases.size, printings: printings.size, alchemy: alchemy.size, rejected, printingsRejected });
 
-	return { cards, aliases, printings, inSet, alchemy };
+	return { cards, aliases, printings, inSet, alchemy, printingsByKey, searchable };
+}
+
+/** Oldest first; an undated printing after every dated one; then by set, then by collector number as a number. */
+function oldestFirst(a: CardPrinting, b: CardPrinting): number {
+	if (a.releasedAt !== b.releasedAt) {
+		if (a.releasedAt === null) return 1;
+		if (b.releasedAt === null) return -1;
+		return a.releasedAt < b.releasedAt ? -1 : 1;
+	}
+	if (a.set !== b.set) return a.set < b.set ? -1 : 1;
+	return a.collectorNumber.localeCompare(b.collectorNumber, 'en', { numeric: true });
 }
 
 /**
@@ -260,5 +346,72 @@ export function loadCardCatalog(path: string): CardCatalog {
 			return true;
 		},
 	};
+	QUERIES.set(catalog, {
+		printingsOf(name: string): CardPrintings | null {
+			const key = keyOf(name);
+			const card = key === null ? undefined : state.cards.get(key);
+			if (key === null || card === undefined) return null;
+			const out: CardPrinting[] = [];
+			for (const at of state.printingsByKey.get(key) ?? []) {
+				const ref = state.printings.get(at)!;
+				if (!ref.paper || ref.scryfallId === undefined) continue;
+				const colon = at.indexOf(':');
+				out.push({ scryfallId: ref.scryfallId, set: at.slice(0, colon), collectorNumber: at.slice(colon + 1), releasedAt: ref.releasedAt ?? null, artist: ref.artist ?? null });
+			}
+			out.sort(oldestFirst);
+			return { name: card.name, printings: out };
+		},
+
+		search(query: string, options: CardSearch): DraftCard[] {
+			const q = normaliseName(query);
+			if (q === '') return [];
+			const limit = Math.max(1, Math.min(SEARCH_MAX, Math.floor(options.limit ?? SEARCH_DEFAULT)));
+			const sets = options.sets?.map((s) => s.trim().toUpperCase()).filter((s) => s !== '') ?? [];
+			/** The card as the era prints it: the first listed set with a printing of it, else null (not in the era). */
+			const inEra = (key: string, name: string): DraftCard | null => {
+				for (const set of sets) {
+					if (state.inSet.has(`${set}|${key}`)) return catalog.byNameInSet(name, set);
+				}
+				return null;
+			};
+			const prefix: DraftCard[] = [];
+			const inside: DraftCard[] = [];
+			for (const entry of state.searchable) {
+				if (prefix.length >= limit) break;
+				const at = entry.norm.indexOf(q);
+				if (at < 0) continue;
+				const group = at === 0 ? prefix : inside;
+				if (group === inside && prefix.length + inside.length >= limit) continue;
+				const card = sets.length === 0 ? (state.cards.get(entry.key) ?? null) : inEra(entry.key, entry.name);
+				if (card !== null) group.push(card);
+			}
+			return [...prefix, ...inside].slice(0, limit);
+		},
+	});
 	return catalog;
+}
+
+/** What a loaded catalog answers beyond `CardCatalog`, by the catalog object `loadCardCatalog` returned. */
+interface CatalogQueries {
+	printingsOf(name: string): CardPrintings | null;
+	search(query: string, options: CardSearch): DraftCard[];
+}
+
+const QUERIES = new WeakMap<CardCatalog, CatalogQueries>();
+
+export interface CardSearch {
+	/** Only cards printed in one of these sets (Scryfall codes): an era. Absent or empty: every card. */
+	sets?: readonly string[];
+	/** At most this many, capped at {@link SEARCH_MAX}. */
+	limit?: number;
+}
+
+/** `name`'s paper printings with art, oldest first (see the header). `null` for a name the catalog does not know. */
+export function printingsOf(catalog: CardCatalog, name: string): CardPrintings | null {
+	return QUERIES.get(catalog)?.printingsOf(name) ?? null;
+}
+
+/** The deck builder's search: by name prefix, then substring; `sets` narrows it to an era (see the header). */
+export function searchCatalog(catalog: CardCatalog, query: string, options: CardSearch = {}): DraftCard[] {
+	return QUERIES.get(catalog)?.search(query, options) ?? [];
 }

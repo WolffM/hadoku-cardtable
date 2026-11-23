@@ -82,6 +82,15 @@
  * A ref carries its printing's own `rarity` too: rarity is the printing's,
  * not the card's (Blazing Torch is ZEN's uncommon and ISD's common), and a
  * realistic pack's slots are counted by it.
+ *
+ * ## A printing's date, artist and paper flag (wave 125 §B)
+ *
+ * A ref also carries `releasedAt` (Scryfall's `released_at`), its `artist`, and
+ * `paper: false` when the printing exists only on a screen (`digital`, or a
+ * `games` list without `paper`). `catalog.ts`'s `printingsOf` lists a card's
+ * paper printings oldest first from these: the art picker's choices, and what
+ * "always use oldest art" means. `paper` is written only when false, so the
+ * common case costs nothing in the file.
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -108,6 +117,38 @@ export interface PrintingRef {
   scryfallId?: string;
   /** This printing's own rarity, `rarityOf`'s reading of it. */
   rarity: string;
+  /** Scryfall's `released_at` for this printing (`YYYY-MM-DD`). Absent only if Scryfall omits it. */
+  releasedAt?: string;
+  /** Who drew this printing's art: the card's own `artist`, else its front face's. */
+  artist?: string;
+  /** `false` for a printing with no paper card (digital-only); absent for a paper one. */
+  paper?: false;
+}
+
+/** Whether a printing was ever a paper card: not digital, and `games` (when Scryfall lists it) names paper. */
+function isPaper(raw: Record<string, unknown>): boolean {
+  if (raw.digital === true) return false;
+  return !Array.isArray(raw.games) || raw.games.includes('paper');
+}
+
+/** The artist of a printing: its own, else its front face's (a two-faced card names one per face). */
+function artistOf(raw: Record<string, unknown>): string | undefined {
+  if (typeof raw.artist === 'string') return raw.artist;
+  const front = Array.isArray(raw.card_faces) ? (raw.card_faces[0] as Record<string, unknown> | undefined) : undefined;
+  return typeof front?.artist === 'string' ? front.artist : undefined;
+}
+
+/** One printing's ref, from its raw Scryfall card. */
+function printingRef(key: string, raw: Record<string, unknown>): PrintingRef {
+  const artist = artistOf(raw);
+  return {
+    key,
+    ...(typeof raw.id === 'string' ? { scryfallId: raw.id } : {}),
+    rarity: rarityOf(raw.rarity),
+    ...(typeof raw.released_at === 'string' ? { releasedAt: raw.released_at } : {}),
+    ...(artist === undefined ? {} : { artist }),
+    ...(isPaper(raw) ? {} : { paper: false as const }),
+  };
 }
 
 export interface CatalogFile {
@@ -150,8 +191,7 @@ export function buildCatalog(index: CardIndex): CatalogFile {
         if (set === null || collector === null) continue;
         const printingKey = `${set.toUpperCase()}:${collector}`;
         if (printingKey in printings) continue; // first one wins; two cards sharing a set+collector number should not happen
-        const rarity = rarityOf(raw.rarity);
-        printings[printingKey] = typeof raw.id === 'string' ? { key, scryfallId: raw.id, rarity } : { key, rarity };
+        printings[printingKey] = printingRef(key, raw);
       }
     } else if (!(key in aliases)) {
       aliases[key] = canonicalKey;
