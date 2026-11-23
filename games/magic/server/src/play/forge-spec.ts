@@ -17,10 +17,21 @@
 
 import type { MatchSpec, SeatSpec } from '@hadoku/game-server/play/host';
 
-/** `host.ts`'s `SeatSpec`, with the one field only Forge ever sets or reads. */
+/** A seat's art pins: a card's canonical normalised name (`normaliseName` of the catalog's full name) → the Scryfall id to draw it as. */
+export type ArtPins = Readonly<Record<string, string>>;
+
+/** `host.ts`'s `SeatSpec`, with the fields only Forge ever sets or reads. */
 export interface ForgeSeatSpec extends SeatSpec {
 	/** `.dck` text, or null for a random Forge precon. */
 	deck: string | null;
+	/**
+	 * The printing each of this seat's cards is drawn as, resolved from its player's art rules once,
+	 * at match start (`play/art-pins.ts`), while the JVM boots. It rides the spec so the recording's
+	 * header carries it and a replay draws exactly what the match drew. Absent: every card its default
+	 * (an AI seat, a tournament-locked drafted deck, a player with no rules, a document not read in time).
+	 * Forge never reads it.
+	 */
+	artPins?: ArtPins;
 }
 
 /**

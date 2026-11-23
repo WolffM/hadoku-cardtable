@@ -107,7 +107,8 @@ export interface CardPrinting {
 export interface CardPrintings {
 	/** The card's own name, as the catalog spells it. */
 	name: string;
-	printings: CardPrinting[];
+	/** Shared between callers: never changed in place. */
+	printings: readonly Readonly<CardPrinting>[];
 }
 
 interface PrintingRefFile {
@@ -154,11 +155,13 @@ interface CatalogState {
 	printingsByKey: Map<string, string[]>;
 	/** Every deck card, by name: what `search` scans. */
 	searchable: { key: string; name: string; norm: string }[];
+	/** `printingsOf`'s answers so far, by canonical key: a basic land has hundreds of printings to sort, and a match start asks for every card of two decks. */
+	sortedPrintings: Map<string, readonly CardPrinting[]>;
 }
 
 const log = jsonLogger('cardtable-pools');
 
-const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map(), inSet: new Map(), alchemy: new Set(), printingsByKey: new Map(), searchable: [] };
+const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map(), inSet: new Map(), alchemy: new Set(), printingsByKey: new Map(), searchable: [], sortedPrintings: new Map() };
 
 /** A type line's first word that says the card is no deck's card: a plane, a scheme, a vanguard, a sticker sheet, a token. */
 const NOT_A_DECK_CARD = /^(plane|phenomenon|scheme|ongoing|vanguard|dungeon|stickers|conspiracy|token|hero|card|emblem)\b/i;
@@ -263,7 +266,7 @@ function parseCatalogState(path: string): CatalogState | null {
 
 	log({ evt: 'catalog-loaded', path, cards: cards.size, aliases: aliases.size, printings: printings.size, alchemy: alchemy.size, rejected, printingsRejected });
 
-	return { cards, aliases, printings, inSet, alchemy, printingsByKey, searchable };
+	return { cards, aliases, printings, inSet, alchemy, printingsByKey, searchable, sortedPrintings: new Map() };
 }
 
 /** Oldest first; an undated printing after every dated one; then by set, then by collector number as a number. */
@@ -351,6 +354,8 @@ export function loadCardCatalog(path: string): CardCatalog {
 			const key = keyOf(name);
 			const card = key === null ? undefined : state.cards.get(key);
 			if (key === null || card === undefined) return null;
+			const known = state.sortedPrintings.get(key);
+			if (known !== undefined) return { name: card.name, printings: known };
 			const out: CardPrinting[] = [];
 			for (const at of state.printingsByKey.get(key) ?? []) {
 				const ref = state.printings.get(at)!;
@@ -359,6 +364,7 @@ export function loadCardCatalog(path: string): CardCatalog {
 				out.push({ scryfallId: ref.scryfallId, set: at.slice(0, colon), collectorNumber: at.slice(colon + 1), releasedAt: ref.releasedAt ?? null, artist: ref.artist ?? null });
 			}
 			out.sort(oldestFirst);
+			state.sortedPrintings.set(key, out);
 			return { name: card.name, printings: out };
 		},
 
@@ -397,7 +403,10 @@ interface CatalogQueries {
 	search(query: string, options: CardSearch): DraftCard[];
 }
 
-const QUERIES = new WeakMap<CardCatalog, CatalogQueries>();
+/** Any catalog-shaped object: a stand-in that `loadCardCatalog` never made answers nothing. */
+export type CatalogLike = Pick<CardCatalog, 'byName'>;
+
+const QUERIES = new WeakMap<CatalogLike, CatalogQueries>();
 
 export interface CardSearch {
 	/** Only cards printed in one of these sets (Scryfall codes): an era. Absent or empty: every card. */
@@ -407,11 +416,11 @@ export interface CardSearch {
 }
 
 /** `name`'s paper printings with art, oldest first (see the header). `null` for a name the catalog does not know. */
-export function printingsOf(catalog: CardCatalog, name: string): CardPrintings | null {
+export function printingsOf(catalog: CatalogLike, name: string): CardPrintings | null {
 	return QUERIES.get(catalog)?.printingsOf(name) ?? null;
 }
 
 /** The deck builder's search: by name prefix, then substring; `sets` narrows it to an era (see the header). */
-export function searchCatalog(catalog: CardCatalog, query: string, options: CardSearch = {}): DraftCard[] {
+export function searchCatalog(catalog: CatalogLike, query: string, options: CardSearch = {}): DraftCard[] {
 	return QUERIES.get(catalog)?.search(query, options) ?? [];
 }

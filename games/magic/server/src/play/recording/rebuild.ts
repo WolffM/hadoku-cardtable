@@ -445,7 +445,8 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	const gameoverLine = raw.find((l): l is Extract<BridgeLine, { t: 'gameover' }> => l.t === 'gameover');
 	const winnerSeat = gameoverLine === undefined ? null : winnerSeatFromLosers(allSeats, gameoverLine.losers);
 
-	const art = createArtIds(deps.catalog ?? null, header.spec.seats.map((seat) => seat.deck));
+	// The pins the match drew with, from its header (`ForgeSeatSpec.artPins`): the replay draws what the match drew.
+	const art = createArtIds(deps.catalog ?? null, header.spec.seats.map((seat) => seat.deck), header.spec.seats);
 	const watcherFrames = watcherFramesFrom(matchId, timeline, 0, allSeats, art);
 	const envs: PublicEnvLine[] = watcherFrames.map(({ env, at }) => ({ t: 'env', at, env }));
 

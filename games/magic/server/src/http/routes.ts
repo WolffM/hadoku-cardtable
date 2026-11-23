@@ -193,6 +193,7 @@ import type { MatchSpec } from '@hadoku/game-server/play/host';
 import type { ForgeMatchSpec } from '../play/forge-spec.js';
 import type { GameOutcome } from '../play/match.js';
 import { AI_SEAT_OWNER } from '../play/match/forge-session.js';
+import type { ArtPinSeat } from '../play/art-pins.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
 import {
 	checkSeat,
@@ -293,6 +294,8 @@ export interface TablesRooms {
 	sit: Lobby['sit'];
 	/** Optional like `onAvatarChange`: a registry without it never shuts a seat. */
 	seatsShutUntil?: Lobby['seatsShutUntil'];
+	/** Each member's account, for the art pins a start resolves (`play/art-pins.ts`). Optional: without it no seat is pinned. */
+	usersOf?: Lobby['usersOf'];
 	stand: Lobby['stand'];
 	setSeatReady: Lobby['setSeatReady'];
 	setTableMatch: Lobby['setTableMatch'];
@@ -2323,6 +2326,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		if (scenario !== undefined) res.locals.trustedScenario = true;
 		// Everyone this start seats can read its place in the queue for a JVM (`GET /api/play/queue`).
 		res.locals.startedFor = players.map((p) => p.member.id);
+		// Who each seat is, for its player's art pins, resolved while the JVM boots (`play/art-pins.ts`,
+		// started by `play/socket.ts`). Server-side only: `res.locals` is never JSON, so no client can
+		// send pins of its own, nor lift a tournament's lock.
+		res.locals.artPinSeats = artPinSeatsOf(room.id, pool, vsBot ? [loaded[0]!, null] : loaded, vsBot ? botDeck : null);
 
 		// Play's own body. Each deck is the text its own player's rule checked. No
 		// avatars: a seat's face is read from this room for as long as the match
@@ -2359,6 +2366,21 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			...(scenario === undefined ? {} : { scenario }),
 		};
 		next();
+	}
+
+	/**
+	 * Each seat as its art pins are resolved: its player's account, its deck, and whether that deck is
+	 * a drafted one whose tournament still runs (its pod's room is gone-or-done otherwise, as
+	 * `http/decks.ts`'s `inTournament` reads it): such a deck keeps its drafted art. `null` is the AI.
+	 */
+	function artPinSeatsOf(roomId: string, pool: string, seated: readonly (LoadedPlayer | null)[], aiDeck: string | null): ArtPinSeat[] {
+		const users = new Map((rooms?.usersOf?.(roomId) ?? []).map((u) => [u.memberId, u.userId]));
+		return seated.map((p) => {
+			if (p === null) return { userId: null, deck: aiDeck, locked: false };
+			const drafted = draftedDeckId(pool, p.member.id, p.deck.text);
+			const pod = drafted === undefined || rooms === null ? undefined : magicView(rooms.get(drafted.slice('draft:'.length)));
+			return { userId: users.get(p.member.id) ?? null, deck: p.deck.text, locked: pod !== undefined && gameOf(pod).pod?.phase !== 'done' };
+		});
 	}
 
 	/** A library deck's id by its exact text — what a seat's deck was picked as, read back off the spec. */
