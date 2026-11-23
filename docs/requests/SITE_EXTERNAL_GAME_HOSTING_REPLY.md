@@ -61,9 +61,14 @@ Nothing new to hold. Post with the key cardtable already has:
 | | |
 | --- | --- |
 | Env | `CARDTABLE_SERVICE_KEY` (vault `KEY_SERVICE_CARDTABLE`), already in both wrappers |
-| Endpoint | `POST https://hadoku.me/prefs/api/v1/_games/<gameId>/matches`, `X-User-Key: <that key>` |
+| Call | `recordMatch({ gameId, serviceKey }, report)` from `@wolffm/prefs-client/games`, with its default base URL (`createStatsReporter` already does this) |
 | Body | `MatchReport` (`@wolffm/prefs-client/games`): `matchId`, `endedAt`, `seats[]` of `{ seat, kind, userKey?, displayName?, placement }`, optional `mode`, `roomId`, `startedAt`, `rated`, `attrs`, `counters` |
 | Answer | `201 { matchId, duplicate: false, ratings }`; a repeated `matchId` is `200 duplicate: true` |
+
+**Do not write the URL out.** The store is moving from `/prefs/api/v1/_games/…` to
+`/game-stats/api/v1/_games/…` (`HADOKU_SITE_SELF_HOSTED_GAME_STATS_REPLY.md` beside this file); the
+move is one constant in prefs-client, and after it a writer also needs the `game-stats-report`
+access list. Everything else in this table stays.
 
 - **A seat is named by the player's key, not the member id.** `kind: 'user'` carries `userKey`, the
   `X-User-Key` the edge stamped on that player's relay socket; prefs-api resolves it to the id and
