@@ -90,8 +90,15 @@ describe('builtDecks over /api/me', () => {
     expect((await client.list()).map((d) => d.name)).toEqual(['Burn 2']);
   });
 
-  it('lists newest change first', async () => {
-    const client = person();
+  it('lists newest change first, whatever order the server answers in', async () => {
+    // The library answered oldest first: the order is the client's to make, not the server's to give.
+    const userId = `user-${(people += 1)}`;
+    const client = builtDecksClient(async (input, init) => {
+      const res = await standIn(userId, input, init);
+      if ((init?.method ?? 'GET') !== 'GET') return res;
+      const body = (await res.json()) as { built: unknown[] };
+      return json(200, { ...body, built: [...body.built].reverse() });
+    }, base);
     const a = await client.save({ name: 'A', format: 'free', dck: DCK });
     await client.save({ name: 'B', format: 'free', dck: DCK });
     if (!a.ok) throw new Error(a.message);
