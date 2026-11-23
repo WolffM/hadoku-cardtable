@@ -11,8 +11,8 @@ features:
     summary: "Pick a cube and a pick timer, then let the pod's eight seats fill."
   - name: Playing a match
     summary: "Play a drafted or constructed deck against a friend or against Forge's own AI, at Normal, Fast or Instant speed, with each kind of motion switchable off."
-  - name: The deck library
-    summary: "Preconstructed decks spanning Magic's Standard, Modern and Legacy history."
+  - name: The Library
+    summary: "Your decks and drafted cubes on one page (star, sort, build a new deck from search, choose each card's art), beside preconstructed decks spanning Magic's Standard, Modern and Legacy history."
   - name: Match music
     summary: "Rate the music each mode plays; only friends may weigh in on a pick."
     tier: friend
