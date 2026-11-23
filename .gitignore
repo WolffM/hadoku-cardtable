@@ -70,3 +70,6 @@ __pycache__/
 
 # `pnpm dev` (scripts/dev.ts): logs, rooms, Forge run dirs and its own Scryfall copy.
 /.dev/
+
+# scripts/publish/surface.ts probes a package beside its node_modules and removes the probe after
+.surface-probe-*/

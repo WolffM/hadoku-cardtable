@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { plan, renameSiblings, repointDeclaration } from './build.ts';
 import { PUBLISHED, publishManifest, publishedName, siblingVersion, type Manifest } from './manifest.ts';
 import { lost } from './shipped.ts';
+import { breaks, isBreakingBump } from './surface.ts';
 
 const REPO = join(import.meta.dirname, '..', '..');
 const read = (name: string): Manifest => JSON.parse(readFileSync(join(REPO, 'packages', name, 'package.json'), 'utf8')) as Manifest;
@@ -217,5 +218,49 @@ describe('what a package ships', () => {
 		expect(lost(before, ['dist/http.js'], ['app/', 'room/whoami.js'])).toEqual([]);
 		expect(lost(before, ['dist/http.js'], ['app/GameAppShell.js'])).toEqual(['dist/app/GameAppShell.d.ts', 'dist/room/whoami.js']);
 		expect(lost(before, before)).toEqual([]);
+	});
+});
+
+// Each case builds three TypeScript programs over the DOM lib: seconds, not milliseconds, on a busy host.
+describe('what a consumer compiled against', { timeout: 60_000 }, () => {
+	// @hadoku/service-kernel 0.1.137 made EraseStep.merge required as a patch, and
+	// hadoku-watchparty failed its typecheck and crash-looped (cardtable#100).
+	const root = mkdtempSync(join(tmpdir(), 'surface-test-'));
+	afterAll(() => rmSync(root, { recursive: true, force: true }));
+	const unpacked = (name: string, dts: string): string => {
+		const dir = join(root, name);
+		mkdirSync(join(dir, 'dist'), { recursive: true });
+		writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: '@hadoku/x', version: '0.1.1', exports: { './erase': { types: './dist/erase.d.ts', import: './dist/erase.js' } } }));
+		writeFileSync(join(dir, 'dist', 'erase.d.ts'), dts);
+		writeFileSync(join(dir, 'dist', 'erase.js'), '');
+		return dir;
+	};
+	const before = unpacked(
+		'before',
+		'export interface EraseStep { what: string; erase(id: string): number }\nexport declare function register(step: EraseStep): void;\nexport declare function count(): number;\nexport declare const gone: number;\nexport interface Box<T> { value: T }\nexport declare class Lobby { #private; private store; protected seats: number; constructor(n: number); open(): void }\n',
+	);
+
+	it('names a type that gained a required member, a narrowed function, a removed export and a changed protected member', () => {
+		const after = unpacked(
+			'narrowed',
+			'export interface EraseStep { what: string; erase(id: string): number; merge(from: string): number }\nexport declare function register(step: EraseStep): void;\nexport declare function count(scope: string): number;\nexport interface Box<T> { value: T }\nexport declare class Lobby { #private; private store; protected seats: string; constructor(n: number); open(): void }\n',
+		);
+		// register's own text is unchanged, so it is not named: EraseStep, the type it takes, carries the break.
+		expect(breaks(before, after, root).map((b) => b.name).sort()).toEqual(['EraseStep', 'Lobby', 'count', 'gone']);
+	});
+
+	it('passes what only adds (an optional member, an optional parameter, a new export) and what is private', () => {
+		const after = unpacked(
+			'added',
+			'export interface EraseStep { what: string; erase(id: string): number; merge?(from: string): number }\nexport declare function register(step: EraseStep): void;\nexport declare function count(scope?: string): number;\nexport declare const gone: number;\nexport declare const added: string;\nexport interface Box<T> { value: T; label?: string }\nexport declare class Lobby { #private; private store; private other; protected seats: number; constructor(n: number); open(): void; close(): void }\n',
+		);
+		expect(breaks(before, after, root)).toEqual([]);
+	});
+
+	it('lets a break through only on the digit a caret holds still', () => {
+		expect(isBreakingBump('0.1.136', '0.1.137')).toBe(false);
+		expect(isBreakingBump('0.1.136', '0.2.0')).toBe(true);
+		expect(isBreakingBump('1.4.2', '1.5.0')).toBe(false);
+		expect(isBreakingBump('1.4.2', '2.0.0')).toBe(true);
 	});
 });

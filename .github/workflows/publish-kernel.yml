@@ -124,6 +124,15 @@ jobs:
         continue-on-error: ${{ vars.PUBLISH_SHIPPED_GATE != 'block' }}
         run: node scripts/publish/shipped.ts "$DIR"
 
+      # A patch breaks no consumer that compiled against npmjs's newest: every exported type and
+      # value is compared with the checker, and a narrowed one needs a minor bump (service-kernel
+      # 0.1.137 made EraseStep.merge required as a patch and watchparty crash-looped: #100). New,
+      # so it warns until its false-positive rate is known: set the repo variable
+      # PUBLISH_SURFACE_GATE=block to make a break stop the publish.
+      - name: Breaks nothing ${{ matrix.package }} consumers compiled against
+        continue-on-error: ${{ vars.PUBLISH_SURFACE_GATE != 'block' }}
+        run: node scripts/publish/surface.ts "$DIR"
+
       # Packed here, published by `github-packages` after npmjs has it. The
       # file is named by the leg's place in the matrix, which is PUBLISHED's
       # order, so that job publishes a sibling before its dependents.
