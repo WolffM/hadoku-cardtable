@@ -103,9 +103,9 @@ link (any of a cube's pages, or its id) or a pasted card list with a name:
 one card a line, with or without a count or a set, or a Cube Cobra export
 (plain text, CSV, MTGO or Forge). The import becomes the room's cube at
 once. Cards Forge cannot play are named, and **Draft without them** deals
-the rest. Every import is kept in **Inventory** for the next draft, under its
-importer's name, where a Cube Cobra cube can be refreshed and the importer
-can delete theirs.
+the rest. Every import is kept in the **Library**'s **Cubes** tab for the next
+draft, under its importer's name, where a Cube Cobra cube can be refreshed and
+the importer can delete theirs.
 
 **What it does not do.** Opening a pod, like creating any room, event or
 match, is rate-limited per caller — a member cannot spin up pods without
@@ -160,6 +160,34 @@ era's decks.
 **What it does not do.** Only catalogued eras reach the picker — a season or
 format nobody has catalogued yet is not browsable even if Forge's own
 archive has the cards for it.
+
+## The Library
+
+**What it does.** One page for everything a player owns: their decks and the
+cubes they have drafted, as tabs. Decks come in three rows: the ones they
+starred, the ones they made their own, and the ones a draft made that they
+have not touched yet, each with the one played last first. Every deck tile
+says when it was last played, or that it never was.
+
+**How to use it.** Press **Library** on the front page. Filter the Decks tab by
+built, drafted or still in a tournament, and sort by last played, win rate,
+name or newest; star a deck to keep it at the top. A cube on the Cubes tab
+says how many of the player's decks came from it and opens just those.
+**New deck** opens the deck builder on an empty deck: pick a format (any era a
+room offers, or Any card), search for cards and press them in, up to four of
+each, with basics from the land counters. A named deck saves itself as it is
+built, and once it reaches 60 cards it is offered under a room's **My decks**.
+
+**Art choices.** A player can pick which printing each card is drawn as, or
+turn on "always use oldest art". The choice is fixed when a match starts,
+drawn that way on both screens and in the replay, and never changes the
+opponent's cards. A drafted deck keeps its drafted art while its tournament
+runs. Every drafted deck shows cover art, including decks from sets and
+imported cubes.
+
+**What it does not do.** A drafted deck whose tournament is still running can't
+be renamed or deleted until it ends. A built deck has no sideboard. The old
+Decks and Inventory links still work and open the matching tab.
 
 ## Match music
 
