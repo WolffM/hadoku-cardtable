@@ -4170,3 +4170,20 @@ Done in s3: `configureParticipantIdDomain`, the RoomFront rename and the extensi
 
 Not verified: the live check on production (no second signed-in account; operator steps in `~/.cache/cardtable-manager/s3-closing.md`); match stats reaching monitoring-api (no production round played).
 Carried: bomberman concurrent double Start → two matches (client `beginMatch`); a server-side observable for a non-leader host's `over`; game-ui `avatarSquareUrl` hard-wires `/watchparty/media/`; closed seats render like open ones; toy relay host-over/double-start have no e2e (unit + mutation only); Magic TableSeats per-round pairing; config at boot; update-wolffm not firing on watchparty publishes. Incident: W's sub-agent ran one pattern `pkill -f` (nothing in production hit).
+
+## Library programme — scaffolded 2026-11-23 (w125 dispatched; w126 queued)
+
+Operator, 2026-11-23: one Library for decks, cubes and card art; covers on every deck; untouched
+draft decks sorted to the bottom by last played; favourites on top; per-card art picks and an
+"always use oldest art" toggle that follow the card's owner, locked while a draft deck's
+tournament runs; new decks built in the existing builder. Design: artifact
+EUaqBZnr7wQQa8V7vZeFR7. Rulings: `docs/planning/wave125-2026-11-23.md` "Settled".
+
+| row | what | status | owner | evidence |
+| --- | --- | --- | --- | --- |
+| L1 | Deck covers always draw | dispatched | w125-A | measured 103/174 prod draft seats rank an uncreditable card first → blank tile (snapshot 2026-11-23); target 0 |
+| L2 | Catalog `releasedAt`, printings + search endpoints, per-player art pins in the spec and replays | dispatched | w125-B | prefs-api service reads of `cardtable-*` rows/items exist (service.ts:48, :94, :204); no hadoku_site change |
+| L3 | Library screen: Decks/Cubes/Cards tabs, sections, favourites, last played | dispatched | w125-C | last played = prefs-api breakdown `last` (store.ts:495), no `rated` param counts bot games |
+| L4 | New deck in the existing builder, stored as `cardtable-decks` items | dispatched | w125-D | — |
+| L5 | Cards tab, art picker, settings toggle | queued (w126) | — | waits on L2 + L3 on main |
+| L6 | Telemetry and state inventory; one source of truth for several servers | running (tracker research agent) | tracker | → `docs/planning/telemetry-and-state-inventory.md` + review artifact |
