@@ -1,6 +1,7 @@
 /*
- * Build a deck out of a finished pool — the one deck editor, for a drafted
- * build (`limited`) and for the sideboard step between games (`sideboard`).
+ * Build a deck — the one deck editor, for a drafted build (`limited`), for
+ * the sideboard step between games (`sideboard`), and for a deck built from
+ * nothing (`build`).
  *
  * ## The layout (the operator's pick, 2026-10-17: "A · Arena-style")
  *
@@ -39,6 +40,20 @@
  * A constructed 75 has no counters: its basics are ordinary cards of the 75.
  * Either way the lands pile draws one card per land with a ×N badge, so
  * seventeen basics never make a seventeen-card pile.
+ *
+ * ## Built from nothing
+ *
+ * `build` has no pool. The top area is whatever the screen's card search
+ * answered (`pool`, under the screen's own search box, `poolHead`), and a
+ * press there ADDS a copy (`build.ts`'s `addCopy`: up to the format's copy
+ * limit, any number of a basic) where the other modes move one; a press on a
+ * deck card takes a copy out. Each result carries how many the deck plays.
+ * A card stays drawn in the deck after the search moves on: its face is kept
+ * from the result it was added from, or from `deckFaces`, the faces the
+ * screen found for a saved deck's cards. The meter counts to `minMain` (60)
+ * and stops there: a built deck has no way onward here, it is saved and then
+ * chosen in a room. The server's verdict on it under an era's rules
+ * (`seatOf`) colours the meter; "Any card" has none to ask for.
  *
  * ## The shared inspector
  *
@@ -88,12 +103,12 @@ import { uiPx } from '@hadoku/ui-shell/settings';
 import { transformOf, usePanZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './pan.ts';
 import { cardHeightOf, cssPx, gridAt, largestCard, pilesAt, useBox } from '../components/cardFit.ts';
 import { MV_CAP, MV_SPAN, groupCards, mvLabel, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
-import { cardIndex, draftedSeat, mainSummary, namedCardPool, withSuggestedBasics } from './build.ts';
+import { addCopy, cardIndex, copiesOf, draftedSeat, emptyBuild, mainSummary, namedCardPool, removeCopy, withSuggestedBasics } from './build.ts';
 import { useNamedArt } from '../screens/libraryPeek.ts';
-import type { TablesClient, Verdict } from '../screens/tables.ts';
+import type { SeatChoice, TablesClient, Verdict } from '../screens/tables.ts';
 import './deckEditor.css';
 
-export type DeckEditorMode = 'limited' | 'sideboard';
+export type DeckEditorMode = 'limited' | 'sideboard' | 'build';
 
 export type SaveOutcome = { ok: true } | { ok: false; issues: string[] };
 
@@ -121,12 +136,25 @@ export interface DeckEditorProps {
   allowBasics?: boolean;
   /** The main deck's floor: 40 for a drafted pool, the format's for a constructed 75. */
   minMain?: number;
+  /** The seat the server's check is asked about. Defaults to the drafted seat (`draftedSeat`); `build` passes its format's, null for none to ask about. */
+  seatOf?: (deck: Deck) => SeatChoice | null;
+  /** `build`: what heads the top area in place of its count, the screen's search. */
+  poolHead?: ReactNode;
+  /** `build`: faces for a saved deck's cards, which no search has answered yet. */
+  deckFaces?: readonly DraftCard[];
+  /** Every change to the deck, as it is made. */
+  onChange?: (deck: Deck) => void;
 }
+
+/** `build`: how many results the top area is sized for. More pan; fewer never resize the page. */
+const BUILD_GRID_SLOTS = 16;
 
 /** The largest a card is drawn here, at 100%. */
 const MAX_CARD_W = 150;
 
 const BASIC_NAMES = new Set(BASIC_LAND_NAMES);
+
+const NO_FACES: readonly DraftCard[] = [];
 
 /**
  * A card with no copy of its name in `pool` — a basic, or a stale save — drawn by its name, as a
@@ -179,10 +207,11 @@ function matchesFilter(card: DraftCard, f: PoolFilter): boolean {
   return true;
 }
 
-/** A limited build is the drafter's one build (`draftBuild`); a sideboard step opens on the 75 it was given. */
+/** A limited build is the drafter's one build (`draftBuild`); a sideboard step opens on the 75 it was given; a built deck on its save, or on nothing. */
 function openDeck(savedDeck: string | null | undefined, mode: DeckEditorMode, draftId: string, pool: readonly DraftCard[], allowBasics: boolean): Deck {
   const saved = savedBuild(savedDeck, allowBasics);
   if (mode === 'limited') return draftBuild(draftId, pool, saved);
+  if (mode === 'build') return saved ?? emptyBuild('');
   return saved ?? deckFromPool(draftId, pool);
 }
 
@@ -217,29 +246,43 @@ export function DeckEditor({
   onPlay,
   onReady,
   readyState = 'idle',
-  allowBasics = mode === 'limited',
+  allowBasics = mode !== 'sideboard',
   minMain = LIMITED_MIN_MAIN_DECK_SIZE,
+  seatOf,
+  poolHead,
+  deckFaces = NO_FACES,
+  onChange,
 }: DeckEditorProps) {
+  const build = mode === 'build';
   const [deck, setDeck] = useState<Deck>(() => openDeck(savedDeck, mode, draftId, pool, allowBasics));
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const opened = useRef(deck);
+  useEffect(() => {
+    if (deck !== opened.current) onChangeRef.current?.(deck);
+  }, [deck]);
+  /** `build`: the face each added card was added from, so it stays drawn once the search moves on. */
+  const [added, setAdded] = useState<readonly DraftCard[]>(NO_FACES);
   /** The card that last moved, and where to — its tiles there flash once. */
   const [landed, setLanded] = useState<{ key: string; to: Area; n: number } | null>(null);
 
-  const faces = useMemo(() => facesByKey(pool), [pool]);
+  /** Every face the deck's cards may be drawn from: the pool, or in `build` the results and every face known for the deck. */
+  const known = useMemo(() => (build ? [...added, ...deckFaces, ...pool] : pool), [build, added, deckFaces, pool]);
+  const faces = useMemo(() => facesByKey(known), [known]);
   // A face drawn by its name draws again once the server has said what its art is.
   const namedArt = useNamedArt();
   // A deck line naming a printing the pool does not (a library 75's faces are
   // by name alone) still draws that card's face, by its name.
   const facesByName = useMemo(() => {
     const byName = new Map<string, DraftCard>();
-    for (const card of pool) if (!byName.has(card.name)) byName.set(card.name, card);
+    for (const card of known) if (!byName.has(card.name)) byName.set(card.name, card);
     return byName;
-  }, [pool]);
-  const poolIndex = useMemo(() => cardIndex(pool), [pool]);
+  }, [known]);
 
   // ONE counter across both areas — see the header.
   const { mainTiles, sideTiles } = useMemo(() => {
     let n = 0;
-    const build = (entries: readonly DeckEntry[], basic: boolean): Tile[] => {
+    const tilesOf = (entries: readonly DeckEntry[], basic: boolean): Tile[] => {
       const out: Tile[] = [];
       for (const entry of entries) {
         const key = cardKey(entry.card);
@@ -251,17 +294,40 @@ export function DeckEditor({
       }
       return out;
     };
-    const main = build(deck.main, false);
-    const basics = build(deck.basics, true);
-    return { mainTiles: [...main, ...basics], sideTiles: build(deck.sideboard, false) };
-  }, [deck, faces, facesByName, namedArt]);
+    const main = tilesOf(deck.main, false);
+    const basics = tilesOf(deck.basics, true);
+    // `build`'s top area is the search's answer, one tile per card; it is never taken from.
+    const results = pool.map((face): Tile => {
+      const request = cardRequestOf(face);
+      return { key: cardKey(request), copy: 0, face: { ...face, cardId: `w${n++}` }, request, basic: false };
+    });
+    return { mainTiles: [...main, ...basics], sideTiles: build ? results : tilesOf(deck.sideboard, false) };
+  }, [deck, faces, facesByName, namedArt, build, pool]);
+  /**
+   * Cards by the key a deck entry carries, for the counts, the colours and Auto. A drafted deck's
+   * are its pool's; a built deck's are the faces its tiles are drawn with, so a saved line pinned to
+   * another printing still counts as the card it is.
+   */
+  const poolIndex = useMemo(() => {
+    if (!build) return cardIndex(pool);
+    const index = new Map<string, DraftCard>();
+    for (const t of mainTiles) if (!t.basic) index.set(t.key, t.face);
+    return index;
+  }, [build, pool, mainTiles]);
 
   /* ── moves ── */
   const toMain = (tile: Tile): void => {
-    setDeck((d) => moveToMain(d, tile.request));
+    if (build) {
+      if (!faces.has(tile.key)) setAdded((a) => [...a, tile.face]);
+      setDeck((d) => addCopy(d, tile.request));
+    } else setDeck((d) => moveToMain(d, tile.request));
     setLanded((l) => ({ key: tile.key, to: 'deck', n: (l?.n ?? 0) + 1 }));
   };
   const toSide = (tile: Tile): void => {
+    if (build) {
+      setDeck((d) => removeCopy(d, tile.request));
+      return;
+    }
     if (tile.basic) {
       const left = (deck.basics.find((e) => cardKey(e.card) === tile.key)?.count ?? 1) - 1;
       setDeck((d) => setBasicLand(d, tile.request, Math.max(0, left)));
@@ -355,13 +421,13 @@ export function DeckEditor({
     const gridGap = cssPx(gridEl, 'column-gap', 6);
     const pileGap = cssPx(pilesEl, 'column-gap', 8);
     const head = pileChrome(pilesEl);
-    const gridH = (w: number): number => Math.ceil(Math.max(gridAt(sideTiles.length, w, gridBox.width, gridGap).height, cardHeightOf(w)));
+    const gridH = (w: number): number => Math.ceil(Math.max(gridAt(build ? BUILD_GRID_SLOTS : sideTiles.length, w, gridBox.width, gridGap).height, cardHeightOf(w)));
     const deckH = (w: number): number => Math.max(pilesAt(counts, w, pilesBox.width, pileGap).height + head, stripH);
     // A phone's floor: under it the cards are not readable, so the fit never goes below it and the rest pans.
     const floor = cssPx(pilesEl, '--cw-floor', 0);
     const cardW = Math.max(floor, largestCard((w) => gridH(w) + deckH(w) <= total, uiPx(MAX_CARD_W, pilesEl)));
     return { cardW, gridH: gridH(cardW), cols: pilesAt(counts, cardW, pilesBox.width, pileGap).cols };
-  }, [gridBox, pilesBox, piles, landGroups, sideTiles.length]);
+  }, [gridBox, pilesBox, piles, landGroups, sideTiles.length, build]);
 
   const count = mainDeckSize(deck);
   const complete = count >= minMain;
@@ -372,10 +438,11 @@ export function DeckEditor({
   useEffect(() => {
     setVerdict(null);
     setCheckError(null);
-    if (mode !== 'limited' || client === undefined || !complete) return;
+    const seat = seatOf === undefined ? draftedSeat(draftId, deck) : seatOf(deck);
+    if (mode === 'sideboard' || client === undefined || !complete || seat === null) return;
     let live = true;
     const timer = setTimeout(() => {
-      client.check(draftedSeat(draftId, deck)).then(
+      client.check(seat).then(
         (v) => {
           if (live) setVerdict(v);
         },
@@ -388,7 +455,7 @@ export function DeckEditor({
       live = false;
       clearTimeout(timer);
     };
-  }, [mode, client, deck, draftId, checkDelayMs, complete]);
+  }, [mode, client, deck, draftId, checkDelayMs, complete, seatOf]);
 
   /* ── silent autosave: only a build that differs from the last one saved ── */
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -447,9 +514,13 @@ export function DeckEditor({
     >
       <DropArea area="pool" over={split.over} className="deck-editor__pool ct-panel" testid="pool-area">
         <div className="deck-editor__bar">
-          <span className="deck-editor__n" data-testid="side-count" title="pool">
-            {sideboardSize(deck)}
-          </span>
+          {build ? (
+            poolHead
+          ) : (
+            <span className="deck-editor__n" data-testid="side-count" title="pool">
+              {sideboardSize(deck)}
+            </span>
+          )}
           <div className="deck-editor__chips" role="group" aria-label="colour">
             {POOL_COLORS.map((c) => (
               <button key={c} type="button" className="deck-editor__chip" data-testid={`filter-${c}`} aria-pressed={filter.colors.has(c)} onClick={() => toggleColor(c)}>
@@ -510,9 +581,20 @@ export function DeckEditor({
         </div>
         <div className="deck-editor__grid" data-testid="side-grid" ref={setPoolViewport} style={fit === null ? undefined : { flexBasis: `${fit.gridH}px` }}>
           <div className="deck-editor__surface" style={{ transform: transformOf(panZoom.view.zoom, panZoom.view.pool) }}>
-            {shownPool.map((t) => (
-              <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="pool" onMove={toMain} flash={flash(t, 'pool') ? landed!.n : 0} />
-            ))}
+            {shownPool.map((t) =>
+              build ? (
+                <div key={t.key} className="deck-editor__result" data-testid="search-result" data-name={t.face.name}>
+                  <EditorCard tile={t} from="pool" onMove={toMain} flash={0} />
+                  {copiesOf(deck, t.face.name) > 0 && (
+                    <span className="deck-editor__badge" data-testid="result-count">
+                      ×{copiesOf(deck, t.face.name)}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="pool" onMove={toMain} flash={flash(t, 'pool') ? landed!.n : 0} />
+              ),
+            )}
           </div>
         </div>
       </DropArea>
@@ -546,7 +628,9 @@ export function DeckEditor({
             onAct={
               mode === 'limited'
                 ? onPlay && (() => onPlay(dckTextOf(deck)))
-                : () => onReady?.(deck)
+                : mode === 'sideboard'
+                  ? () => onReady?.(deck)
+                  : undefined
             }
           />
           <ZoomPill zoom={panZoom.view.zoom} onReset={panZoom.reset} onStep={panZoom.step} />
@@ -718,7 +802,15 @@ function Onward({
   if (count < min || onAct === undefined) {
     const complete = count >= min;
     return (
-      <span className="deck-editor__meter" role="meter" aria-valuenow={count} aria-valuemin={0} aria-valuemax={min} data-testid="deck-meter">
+      <span
+        className="deck-editor__meter"
+        role="meter"
+        aria-valuenow={count}
+        aria-valuemin={0}
+        aria-valuemax={min}
+        data-testid="deck-meter"
+        data-verdict={mode === 'build' && complete && verdict !== 'pending' ? verdict : undefined}
+      >
         <span className="deck-editor__meter-fill" style={{ width: `${Math.min(1, count / min) * 100}%` }} />
         <span className="deck-editor__meter-text" data-complete={complete ? 'true' : 'false'}>
           <strong data-testid="main-count">{count}</strong>
