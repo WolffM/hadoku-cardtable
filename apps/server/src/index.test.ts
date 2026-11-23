@@ -30,7 +30,7 @@
  */
 
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -452,7 +452,12 @@ describe('a server started from a path', () => {
 			const res = await fetch(`${base}/api/_account/erase`, { method: 'POST', headers });
 			answers.push({ status: res.status, body: await res.json() });
 		};
-		await boot(join(root, 'erase', 'apps', 'ui', 'dist'), { EDGE_AUTH_SECRET: SEAL, CARDTABLE_INSECURE_NO_EDGE_AUTH: '0' }, 30_000, undefined, async (base) => {
+		// The person has a document in the per-person store (`users/`), which the erase deletes.
+		const store = mkdtempSync(join(root, 'erase-store-'));
+		const doc = join(store, 'data', 'users', 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03.json');
+		mkdirSync(dirname(doc), { recursive: true });
+		writeFileSync(doc, JSON.stringify({ favourites: { 'draft:pod-1': 1 } }));
+		await boot(join(root, 'erase', 'apps', 'ui', 'dist'), { EDGE_AUTH_SECRET: SEAL, CARDTABLE_INSECURE_NO_EDGE_AUTH: '0', CARDTABLE_LOG_DIR: join(store, 'logs') }, 30_000, undefined, async (base) => {
 			const who = { 'x-hadoku-tier': 'member', 'x-user-id': 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03' };
 			await post(base, who);
 			await post(base, { ...who, 'x-edge-auth': SEAL });
@@ -479,9 +484,11 @@ describe('a server started from a path', () => {
 					presets: 0,
 					cubes: 0,
 					legacyIds: 0,
+					users: 1,
 				},
 			},
 		});
+		expect(existsSync(doc)).toBe(false);
 	}, 60_000);
 
 	it("answers the edge's account merge with every store's count, and refuses it without the seal or with no kept account", async () => {
@@ -515,6 +522,7 @@ describe('a server started from a path', () => {
 				presets: 0,
 				cubes: 0,
 				legacyIds: 0,
+				users: 0,
 			},
 		});
 	}, 60_000);
