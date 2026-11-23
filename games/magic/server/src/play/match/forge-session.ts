@@ -2969,6 +2969,15 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		if (buttons === null || buttons.method !== 'updateButtons') return;
 		if (!buttons.enable1 && !buttons.enable2) return;
 		const disabled = this.disabledBar(buttons);
+		if (buttons === s.pendingButtons) {
+			// Held for its prompt, so never shown: the press was made on the bar before it, and this one
+			// is still Forge's word on the window it opens. Recording the dead copy in its place had that
+			// window judged on Auto and Cancel both dead (the monkey's `ask-unclassified` payment, runs
+			// 45060204308 and 45131821243). The seat's screen goes dead all the same.
+			this.send(s, disabled);
+			this.checkWaitingOn();
+			return;
+		}
 		s.staleBar = buttons;
 		s.buttons = disabled;
 		this.send(s, disabled);
@@ -3010,6 +3019,11 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	 * whose bar's one live button is OK, with no selection and no payment open — see `maybeAutoPass`.
 	 * The turn is the projector's active player: `facts.myTurn` reads the `Priority:` line, which a
 	 * notice has none of.
+	 *
+	 * The prompt and the bar are one input's (the bridge's tag, {@link Match.inputOfFrame}): Forge
+	 * sends "Waiting for A..." the instant the block's OK lands and its dead bar after it, so for a
+	 * moment that prompt sat beside the block's live bar, and the yield pressed OK on a wait. That
+	 * stray press reaches whatever Forge opens next (run 45174848553: two notices for one block).
 	 */
 	private yieldsNotice(s: SeatState, facts: PromptFacts): boolean {
 		const active = s.projector.activePlayer();
@@ -3020,6 +3034,8 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			s.prompt !== null &&
 			s.prompt.method === 'showPromptMessage' &&
 			promptShape(s.prompt) === null &&
+			s.buttons !== null &&
+			this.inputOf(s.prompt) === this.inputOf(s.buttons) &&
 			s.selection === null &&
 			s.payment === null &&
 			s.playerId !== null &&
@@ -3109,6 +3125,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		// Forge clears the set as the input stops; drop ours with it so the next
 		// stop is judged on the next answer rather than on this one.
 		s.actionable = null;
+		const input = s.prompt === null ? null : this.inputOf(s.prompt);
 		this.deps.log({
 			evt: 'auto-passed',
 			matchId: this.id,
@@ -3116,6 +3133,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			phase,
 			rule: s.lastStop.rule,
 			...(yieldsNow ? { why: 'auto-yield' } : {}),
+			...(input === null ? {} : { input }),
 			// The frames ring keeps no notice (it has no `promptShape`): what was answered for the seat is here.
 			...(notice && s.prompt !== null && s.prompt.method === 'showPromptMessage' ? { message: s.prompt.message } : {}),
 		});

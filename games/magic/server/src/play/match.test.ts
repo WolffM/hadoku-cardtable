@@ -3991,6 +3991,26 @@ describe('hold-decide-forward', () => {
 				expect(notices(h)).toEqual([blocks]);
 			});
 
+			it('the wait Forge shows after the block’s OK is not a notice: its prompt comes before its dead bar, beside the block’s live one', () => {
+				// Run 45174848553, reproduced against real Forge: "Waiting for A..." (no input) arrived while
+				// the bar on record was still the block's (input 11, OK live), and the yield pressed OK on it.
+				const h = openedHarness();
+				closeDanglingBar(h, SEAT1_ID);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: activeFrame(5, 0) });
+				h.host.push(
+					{ t: 'frame', seat: SEAT1_ID, input: 11, frame: buttonsFrame(1, { label1: 'OK', label2: 'Cancel', enable1: true, enable2: false }) },
+					{ t: 'frame', seat: SEAT1_ID, input: 11, frame: promptFrame(1, blocks) },
+				);
+				const presses = okPresses(h);
+				h.match.setAutoYield(SEAT1_ID, true);
+				expect(okPresses(h), 'the block answered').toBe(presses + 1);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Waiting for Seat 0...') });
+				expect(okPresses(h), 'no press on the wait').toBe(presses + 1);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { enable1: false, enable2: false }) });
+				expect(okPresses(h)).toBe(presses + 1);
+				expect(h.logs.filter((l) => l.evt === 'auto-passed' && l.phase === 'notice').map((l) => l.input)).toEqual([11]);
+			});
+
 			it('not a notice, or not theirs to yield: a Yes/No, a pick, the seat’s own turn, and no yield at all are all asked', () => {
 				const asked = (setup: (h: Harness) => void, push: (h: Harness) => void, yieldOn = true) => {
 					const h = openedHarness();

@@ -2777,6 +2777,23 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		expect(frames(h, 1).filter((f) => f.method === 'flashIncorrectAction')).toEqual([]);
 	});
 
+	it('a press while the payment’s bar is still held is judged on that bar, not on a dead copy of it', () => {
+		// The monkey, runs 45060204308 and 45131821243 (`ask-unclassified method=payment`): Forge's payment
+		// input sends its bar first and its prompt after. The seat pressed Cancel on the window before it
+		// in between, and the dead copy that press made of the HELD bar is what the payment was judged on:
+		// Auto dead and Cancel dead, which no rule answers.
+		const h = harness();
+		const me = playerOf(h, 0);
+		push(h, 0, prompt('Waiting for B...', me));
+		push(h, 0, parseServerFrame({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'OK', label2: 'Cancel', enable1: false, enable2: true, focus1: false }));
+		push(h, 0, autoBar(false, me), 58);
+		expect(h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' }))).toEqual({ ok: true });
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 26 }] }, 58);
+		push(h, 0, prompt('Mana Leak (94) - Counter Lotus Petal (35) unless its controller pays {3}.\n\nPay Mana Cost: {3}', me, 94), 58);
+		expect(h.logs.filter((l) => l.evt === 'ask-unclassified')).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([{ evt: 'auto-cancelled', matchId: h.match.id, seat: 0, cost: '{3}', own: false }]);
+	});
+
 	it('never cancels a payment the seat is paying, when Forge re-sends it with its cost not yet lowered', () => {
 		// Run 40545910222 (w68-pay): alice clicks Izzet Signet inside Divination's payment. The Signet's {1}
 		// opens a payment of its own; when it closes Forge re-sends Divination's prompt once at {2}{U} with
