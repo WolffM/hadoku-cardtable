@@ -173,6 +173,20 @@ describe('buildCatalog printings', () => {
     expect(catalog.printings['MB2:9']?.key).toBe('lightning bolt');
   });
 
+  it("each printing's ref carries its own release date and artist, and a digital-only one says it is not paper", () => {
+    const digital = { ...M19_BOLT, id: 'cccccccc-0000-4000-8000-000000000003', set: 'prm', collector_number: '1', digital: true, released_at: '2013-01-11', artist: 'Someone Else' } as unknown as GameplayCard;
+    const arenaOnly = { ...M19_BOLT, id: 'eeeeeeee-0000-4000-8000-000000000005', set: 'ha1', collector_number: '2', games: ['arena'] } as unknown as GameplayCard;
+    const catalog = buildCatalog(buildCardIndex([{ ...LEA_BOLT, artist: 'Christopher Rush', games: ['paper'] } as unknown as GameplayCard, digital, arenaOnly]));
+    expect(catalog.printings['LEA:161']).toEqual({ key: 'lightning bolt', scryfallId: LEA_BOLT.id, rarity: 'common', releasedAt: '1993-08-05', artist: 'Christopher Rush' });
+    expect(catalog.printings['PRM:1']).toMatchObject({ releasedAt: '2013-01-11', artist: 'Someone Else', paper: false });
+    expect(catalog.printings['HA1:2']?.paper).toBe(false);
+  });
+
+  it("a two-faced printing's artist is its front face's when the card names none", () => {
+    const scholar = { id: 'ffffffff-0000-4000-8000-000000000006', name: 'Civilized Scholar // Homicidal Brute', lang: 'en', set: 'isd', collector_number: '47', released_at: '2011-09-30', layout: 'transform', card_faces: [{ name: 'Civilized Scholar', type_line: 'Creature', artist: 'Michael C. Hayes' }, { name: 'Homicidal Brute', type_line: 'Creature', artist: 'Michael C. Hayes' }] } as unknown as GameplayCard;
+    expect(buildCatalog(buildCardIndex([scholar])).printings['ISD:47']?.artist).toBe('Michael C. Hayes');
+  });
+
   it('does not index a printing missing a set or collector number', () => {
     const noSet = { ...M19_BOLT, id: 'dddddddd-0000-4000-8000-000000000004', set: undefined } as unknown as GameplayCard;
     const index = buildCardIndex([LEA_BOLT, noSet]);

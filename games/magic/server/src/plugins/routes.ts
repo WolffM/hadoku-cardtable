@@ -9,6 +9,7 @@ import { CONFIG, indexHtml } from '@hadoku/game-server/config';
 import { MAGIC_CONFIG } from '../config.js';
 import { serveCover } from '../cover.js';
 import { attachCardArt } from '../http/card-art.js';
+import { attachCards } from '../http/cards.js';
 import { attachClientEvents } from '@hadoku/game-server/http/client-events';
 import { attachDiscord } from '../http/discord.js';
 import { eventDiscordShape } from '../http/event-discord.js';
@@ -100,6 +101,7 @@ export const routesPlugin: CardtablePlugin = {
 		});
 		attachTournaments(api, { tournaments: state.tournaments, people });
 		attachCardArt(api, { art: createArtIds(state.catalog), keys: state.artKeys });
+		attachCards(api, { catalog: state.catalog, ...(CONFIG.testNoRateLimits ? { rateLimit: null } : {}) });
 		// Every event also in the Discord server's Events tab, through ArchiveBot (prod only: it holds the secret).
 		// The lobby restored its rooms in `stores`, so the boot sweep sees every event's room.
 		const discordCalendar = discordEvents({

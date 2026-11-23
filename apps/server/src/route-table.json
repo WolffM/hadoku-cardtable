@@ -12,6 +12,8 @@
     "GET /api/art/:id/back",
     "GET /api/art/:id/back/artist",
     "GET /api/cards/art",
+    "GET /api/cards/printings",
+    "GET /api/cards/search",
     "GET /api/decks/",
     "GET /api/discord/recent",
     "GET /api/drafts/:podId/mine",
