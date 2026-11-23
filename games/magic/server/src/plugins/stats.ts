@@ -9,6 +9,7 @@ import { CONFIG } from '@hadoku/game-server/config';
 import { tierOf, userIdOf } from '@hadoku/game-server/edge-auth';
 import { createStatsReporter } from '@hadoku/game-server/stats/reporter';
 import { createKeyBook, createMatchStats } from '../stats/index.js';
+import { magicUserStore } from '../users/index.js';
 import type { CardtablePlugin } from './state.js';
 
 export const statsPlugin: CardtablePlugin = {
@@ -33,6 +34,8 @@ export const statsPlugin: CardtablePlugin = {
 			keys: state.statsKeys,
 			log: statsLog,
 			startOf: (match) => state.tables.matchStart(match),
+			// "Last played", in each player's own document (`users/`), by the userId the room keeps for the seat.
+			played: { users: magicUserStore(), userOf: (roomId, memberId) => state.lobby.usersOf(roomId).find((u) => u.memberId === memberId)?.userId ?? null },
 			reporter: createStatsReporter({
 				gameId: 'cardtable',
 				serviceKey: CONFIG.serviceKey,

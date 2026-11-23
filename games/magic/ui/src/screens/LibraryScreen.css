@@ -1,0 +1,319 @@
+/* `#/library` (wave 125): the tabs, the Decks tab's sections and tile marks, the Cubes tab's gallery, and a deck's name and actions over its editor (`DeckManage.tsx`). The deck grid itself is the room's (`.lobby__decks`, `.deckpick`, screens.css). */
+
+.decks__manage {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.decks__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decks__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.decks__rename {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+}
+
+.decks__rename input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+/* Colour/hover are `.ct-action` (imported below); this is the size only. */
+.decks__icon,
+.decks__confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border-radius: var(--hdk-radius);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* At rest only — `.ct-action--danger` covers hover and focus. */
+.decks__confirm {
+  border-color: var(--danger);
+  color: var(--danger-ink);
+}
+
+.decks__tile-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+/* The actions are the cell's own child, beside the tile they act on. */
+:hover > .decks__tile-actions,
+.decks__tile-actions:focus-within,
+.decks__tile-actions[data-asking] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .decks__tile-actions {
+    opacity: 1;
+  }
+}
+
+.inventory__gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.inventory__card {
+  display: flex;
+  flex-direction: column;
+  min-height: 72px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+}
+
+.inventory__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+}
+
+.inventory__name {
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.inventory__meta {
+  color: var(--color-text-secondary);
+  font-size: 0.82em;
+}
+
+.inventory__actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+/* Colour/hover are `.ct-action` (imported in `InventoryScreen.tsx`); this is the size only. */
+.inventory__action {
+  padding: 0.2rem 0.6rem;
+  font: inherit;
+  font-size: 0.85em;
+  line-height: 1.2;
+  border-radius: var(--hdk-radius);
+}
+
+@media (max-width: 480px) {
+  .inventory__gallery {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The tabs: the stats page's own look (`stats.css`'s `.ct-stats__tabs`). */
+.library__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-alt);
+}
+
+.library__tab,
+.library__tab:visited {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--hdk-radius-sm);
+  color: var(--ink-dim);
+  text-decoration: none;
+}
+
+.library__tab:hover {
+  color: var(--ink);
+}
+
+.library__tab[aria-current='page'] {
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+.library__tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.library__count {
+  color: var(--ink-dim);
+  font-size: 0.8em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.library__toolbar {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.library__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.library__cube {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.library__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--ink-dim);
+  font-size: 0.85em;
+}
+
+.library__sort select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  padding: 4px 6px;
+}
+
+.library__new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--hdk-radius);
+  font: inherit;
+  font-weight: 600;
+}
+
+.library__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.library__section + .library__section {
+  margin-top: 12px;
+}
+
+.library__section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* Made by a draft and never touched: muted, so your own decks lead the eye. */
+.library__section--drafts > .library__grid {
+  filter: saturate(0.55) brightness(0.88);
+}
+
+/* The star and the tournament chip, over the tile's art band at its left. */
+.library__marks {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.library__star {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-raised) 70%, transparent);
+  color: var(--ink);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.library__star[aria-pressed='true'] {
+  color: var(--warn);
+  opacity: 1;
+}
+
+.library__star[aria-pressed='true'] svg {
+  fill: currentColor;
+}
+
+:hover > .library__marks .library__star,
+.library__star:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .library__star {
+    opacity: 1;
+  }
+}
+
+.library__locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: var(--hdk-radius-sm);
+  border: 1px solid var(--warn);
+  background: var(--bg-raised);
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.library__cards {
+  min-height: 160px;
+}

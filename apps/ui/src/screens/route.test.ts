@@ -38,6 +38,16 @@ describe('parseRoute', () => {
     expect(parseRoute('#/decks')).toEqual({ kind: 'decks' });
     expect(parseRoute('#/decks/r-friday')).toEqual({ kind: 'decks', draftId: 'r-friday' });
     expect(parseRoute('#/inventory')).toEqual({ kind: 'inventory' });
+    expect(parseRoute('#/library')).toEqual({ kind: 'library' });
+    expect(parseRoute('#/library/cubes')).toEqual({ kind: 'library', tab: 'cubes' });
+    expect(parseRoute('#/library/cards/')).toEqual({ kind: 'library', tab: 'cards' });
+    expect(parseRoute('#/library/cube/Vintage%20Cube')).toEqual({ kind: 'library', cube: 'Vintage Cube' });
+  });
+
+  it("is the Library's Decks tab for a tab or a cube it does not know", () => {
+    for (const hash of ['#/library/nonsense', '#/library/cube', '#/library/cube/', '#/library/cube/a/b', '#/library/decks']) {
+      expect(parseRoute(hash), hash).toEqual({ kind: 'library' });
+    }
   });
 
   it('is the lobby for an empty, missing or unrecognised hash', () => {
@@ -94,6 +104,10 @@ describe('parseRoute', () => {
       { kind: 'decks' },
       { kind: 'decks', draftId: 'r-friday' },
       { kind: 'inventory' },
+      { kind: 'library' },
+      { kind: 'library', tab: 'cubes' },
+      { kind: 'library', tab: 'cards' },
+      { kind: 'library', cube: 'Pauper Cube/2026 #1' },
       { kind: 'rally-embed', catalogue: 'cube', id: 'the-pauper-cube-2026-02', view: 'pack' },
       { kind: 'rally-embed', catalogue: 'draft-preset', id: '0b6c2d5e-6f1a-4c8e-9d3b-2a7e5f4c1b9a', view: 'cards' },
       { kind: 'rally-embed', catalogue: 'set', id: 'ALA', view: 'cards' },

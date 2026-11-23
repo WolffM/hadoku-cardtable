@@ -4,19 +4,48 @@
  */
 
 import express from 'express';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { RateLimitConfig } from '@wolffm/rooms-server';
+import { buildCardIndex, buildCatalog, type GameplayCard } from '@hadoku/carddata';
+import { loadCardCatalog, printingsOf, type CardCatalog } from '../pools/catalog.ts';
 import { createMagicUserStore, BUILT_DECKS_MAX, type MagicUserStore } from '../users/index.ts';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const ALICE = 'a11ce000-7b3d-4a8e-9c56-2f0d1b8e6a03';
 const BOB = 'b0b00000-2a4f-4e6b-8c9d-0f1e2d3c4b5a';
 const BOLT_LEA = 'e8b7e2a3-6c1f-4f0e-9b1a-0d2c3b4a5f60';
+const BOLT_M10 = 'e8b7e2a3-6c1f-4f0e-9b1a-0d2c3b4a5f61';
+const SHOCK_M10 = '5c0c4000-6c1f-4f0e-9b1a-0d2c3b4a5f62';
+
+/** A Scryfall card as `cards.jsonl` holds it, cut to what the catalog reads (`cards.test.ts`'s shape). */
+const scryfall = (id: string, name: string, set: string, collector: string): GameplayCard =>
+	({
+		id,
+		name,
+		lang: 'en',
+		layout: 'normal',
+		set,
+		set_name: set.toUpperCase(),
+		set_type: 'expansion',
+		collector_number: collector,
+		released_at: '2009-07-17',
+		type_line: 'Instant',
+		oracle_text: '',
+		mana_cost: '{R}',
+		cmc: 1,
+		colors: ['R'],
+		rarity: 'common',
+		games: ['paper'],
+		artist: 'Someone',
+	}) as GameplayCard;
+
+/** A real catalog file, built by the nightly refresh's own code and loaded as the server loads it. */
+let catalog: CardCatalog;
 
 let meMod: typeof import('./me.ts');
 let edgeMod: typeof import('@hadoku/game-server/edge-auth');
@@ -26,6 +55,11 @@ beforeAll(async () => {
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	meMod = await import('./me.ts');
+	const dir = await mkdtemp(join(tmpdir(), 'cardtable-me-catalog-'));
+	dirs.push(dir);
+	const cards = [scryfall(BOLT_LEA, 'Lightning Bolt', 'lea', '161'), scryfall(BOLT_M10, 'Lightning Bolt', 'm10', '146'), scryfall(SHOCK_M10, 'Shock', 'm10', '158')];
+	await writeFile(join(dir, 'cards.json'), `${JSON.stringify(buildCatalog(buildCardIndex(cards)))}\n`);
+	catalog = loadCardCatalog(join(dir, 'cards.json'));
 	edgeMod = await import('@hadoku/game-server/edge-auth');
 });
 
@@ -44,7 +78,7 @@ async function openApp(opts: { rateLimit?: RateLimitConfig | null; now?: () => n
 	app.use(edgeMod.edgeProvenance);
 	app.use(edgeMod.requireMinTier);
 	const api = express.Router();
-	meMod.attachMe(api, { users, rateLimit: opts.rateLimit === undefined ? null : opts.rateLimit, log: () => undefined, ...(opts.now ? { now: opts.now } : {}) });
+	meMod.attachMe(api, { users, printings: (name) => printingsOf(catalog, name), rateLimit: opts.rateLimit === undefined ? null : opts.rateLimit, log: () => undefined, ...(opts.now ? { now: opts.now } : {}) });
 	app.use('/api', api);
 	const server = createServer(app);
 	await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
@@ -140,6 +174,17 @@ describe('/api/me', () => {
 		expect((await call(base, 'GET', '/api/me/art')).json).toEqual({ oldest: true, picks: { 'lightning bolt': BOLT_LEA } });
 		expect((await call(base, 'GET', '/api/me/art', BOB)).json).toEqual({ oldest: false, picks: {} });
 		expect((await call(base, 'PUT', '/api/me/art', ALICE, { oldest: true, picks: { Bolt: 'not-an-id' } })).status).toBe(400);
+	});
+
+	it('refuses a pick that is not a printing of its card, and keeps the rules it had', async () => {
+		const { base } = await openApp();
+		expect((await call(base, 'PUT', '/api/me/art', ALICE, { oldest: false, picks: { 'Lightning Bolt': BOLT_M10 } })).status).toBe(200);
+		// Another card's printing, a card the catalog does not know, an id no card has.
+		for (const picks of [{ 'Lightning Bolt': SHOCK_M10 }, { 'Not A Card': BOLT_LEA }, { 'Lightning Bolt': '00000000-0000-4000-8000-000000000000' }]) {
+			const refused = await call(base, 'PUT', '/api/me/art', ALICE, { oldest: true, picks: { Shock: SHOCK_M10, ...picks } });
+			expect(refused.status, JSON.stringify(picks)).toBe(400);
+		}
+		expect((await call(base, 'GET', '/api/me/art', ALICE)).json).toEqual({ oldest: false, picks: { 'lightning bolt': BOLT_M10 } });
 	});
 
 	it('limits writes per caller, never reads', async () => {

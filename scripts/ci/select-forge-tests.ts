@@ -200,7 +200,7 @@ export const GUARDS: Guard[] = [
     // Reset/Close, a deck's rename/delete, an inventory action, a pod seat's own action, a table's
     // scorekeeping buttons — because those trees do not otherwise import each other (`ct-action` is
     // in `css-ownership.test.ts`'s `SHARED`, like `button`).
-    paths: /^(games\/magic\/ui\/src\/(styles|screens\/(screens|DecksScreen|SoundBuilder)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)|packages\/(ui-shell\/src\/chrome\/(chrome|trim)|game-ui\/src\/components\/Button))\.css$/,
+    paths: /^(games\/magic\/ui\/src\/(styles|screens\/(screens|LibraryScreen|SoundBuilder)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)|packages\/(ui-shell\/src\/chrome\/(chrome|trim)|game-ui\/src\/components\/Button))\.css$/,
     specs: ['table-fit.spec.ts'],
     jvm: [],
   },

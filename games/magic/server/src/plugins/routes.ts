@@ -15,6 +15,7 @@ import { attachDiscord } from '../http/discord.js';
 import { eventDiscordShape } from '../http/event-discord.js';
 import { attachEvents } from '../http/events.js';
 import { attachMe } from '../http/me.js';
+import { printingsOf } from '../pools/catalog.js';
 import { usersEraseStep } from '@hadoku/game-server/erase/users';
 import { magicUserStore } from '../users/index.js';
 import { createMusicReviewStore } from '../http/musicReviewStore.js';
@@ -141,7 +142,7 @@ export const routesPlugin: CardtablePlugin = {
 		attachClientEvents(api);
 		attachUsage(api);
 		// The caller's own library: favourites, last played, built decks, art rules (`users/`).
-		attachMe(api, { users: magicUserStore(), ...(CONFIG.testNoRateLimits ? { rateLimit: null } : {}) });
+		attachMe(api, { users: magicUserStore(), printings: (name) => printingsOf(state.catalog, name), ...(CONFIG.testNoRateLimits ? { rateLimit: null } : {}) });
 		ctx.bootPhase('routes');
 		return {
 			erase: [

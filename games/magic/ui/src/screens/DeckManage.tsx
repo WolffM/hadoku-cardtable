@@ -3,7 +3,7 @@
  * The head of the Decks page's editor (`DeckScreen`, standalone): the tiles are
  * the room's own deck chooser, and a tile is one button, so its actions live
  * where the deck is opened (the operator, 2026-10-19). The delete is also each
- * finished deck's tile's own (`DecksScreen`): one `DeleteConfirm` for both.
+ * finished deck's tile's own (`LibraryScreen`): one `DeleteConfirm` for both.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -11,7 +11,7 @@ import { Icon } from '@wolffm/themes';
 import { DECK_NAME_MAX } from '@hadoku/shared';
 
 import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
-import './DecksScreen.css';
+import './LibraryScreen.css';
 import '@hadoku/game-ui/components/Button.css';
 import { uiLength } from '@hadoku/ui-shell/settings';
 

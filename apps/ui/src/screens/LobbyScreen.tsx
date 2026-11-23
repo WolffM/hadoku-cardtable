@@ -55,7 +55,6 @@ import { SettingsGear } from '@hadoku/game-ui/settings/Settings.tsx';
 import { StatsButton } from '@hadoku/magic-ui/stats/StatsButton.tsx';
 import type { StatsSource } from '@hadoku/magic-ui/stats/source.ts';
 import { DecksButton } from '@hadoku/magic-ui/screens/DecksButton.tsx';
-import { InventoryButton } from '@hadoku/magic-ui/screens/InventoryButton.tsx';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
@@ -79,7 +78,6 @@ export function LobbyScreen({ rooms, feed, statsSource }: LobbyScreenProps) {
       navTools={
         <>
           <DecksButton />
-          <InventoryButton />
           <StatsButton source={statsSource} />
           <SettingsGear />
         </>
