@@ -171,31 +171,36 @@ describe('isPodAi — one predicate for both AI sentinels', () => {
   });
 });
 
-describe('splitPods — pods of at most 8, as even as possible, never two odd pods while even ones would do', () => {
+describe('splitPods — the fewest pods of at most 8, no two more than one apart, so the bots spread evenly', () => {
   it.each([
     [0, []],
     [1, [1]],
     [8, [8]],
     [9, [5, 4]],
-    [10, [6, 4]],
+    [10, [5, 5]],
     [13, [7, 6]],
-    [14, [8, 6]],
+    [14, [7, 7]],
     [16, [8, 8]],
-    [21, [8, 7, 6]],
-    [22, [8, 8, 6]],
+    [17, [6, 6, 5]],
+    [20, [7, 7, 6]],
+    [21, [7, 7, 7]],
+    [22, [8, 7, 7]],
+    [24, [8, 8, 8]],
+    [25, [7, 6, 6, 6]],
     [40, [8, 8, 8, 8, 8]],
     [64, [8, 8, 8, 8, 8, 8, 8, 8]],
   ])('%i entrants → %j', (n, sizes) => {
     expect(splitPods(n)).toEqual(sizes);
   });
 
-  it('covers every count up to the room cap with pods of at most 8, at most one odd, summing to the field', () => {
+  it('covers every count up to the room cap with pods of at most 8, none more than one apart, largest first, summing to the field', () => {
     for (let n = 1; n <= POD_MAX_SEATS; n++) {
       const sizes = splitPods(n);
       expect(sizes.reduce((a, b) => a + b, 0)).toBe(n);
       expect(sizes).toHaveLength(Math.ceil(n / POD_SEATS));
       expect(sizes.every((s) => s >= 1 && s <= POD_SEATS)).toBe(true);
-      expect(sizes.filter((s) => s % 2 === 1).length).toBe(n % 2);
+      expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+      expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
     }
   });
 });

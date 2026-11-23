@@ -95,6 +95,53 @@ describe('pairRound round 1 (across the table)', () => {
   });
 });
 
+describe('pairRound round 1 of several pods: each pod across its own table (the operator, 2026-11-23)', () => {
+  /** `sizes[k]` drafters in pod k, ids `k.seat`, seated as `pods.ts`'s `podPlayers` seats them. */
+  function field(sizes: number[]): PodPlayer[] {
+    return sizes.flatMap((size, pod) => Array.from({ length: size }, (_, seat): PodPlayer => ({ id: `${pod}.${seat}`, podSeat: pod * 8 + seat, pod })));
+  }
+  const podOfId = (id: string): string => id.split('.')[0] as string;
+
+  it('7 + 7: each pod pairs across its table, and the two middle seats play each other', () => {
+    const { tables, bye } = pairRound({ players: field([7, 7]), results: [], round: 1 });
+    expect(tables).toEqual([
+      ['0.0', '0.4'],
+      ['0.1', '0.5'],
+      ['0.2', '0.6'],
+      ['1.0', '1.4'],
+      ['1.1', '1.5'],
+      ['1.2', '1.6'],
+      ['0.3', '1.3'],
+    ]);
+    expect(bye).toBeNull();
+  });
+
+  it('8 + 8 + 8: no table crosses a pod', () => {
+    const { tables, bye } = pairRound({ players: field([8, 8, 8]), results: [], round: 1 });
+    expect(tables).toHaveLength(12);
+    expect(tables.every(([a, b]) => podOfId(a) === podOfId(b))).toBe(true);
+    expect(bye).toBeNull();
+  });
+
+  it('7 + 7 + 7: two pods’ leftovers play each other and the last pod’s has the bye', () => {
+    const { tables, bye } = pairRound({ players: field([7, 7, 7]), results: [], round: 1 });
+    expect(tables.filter(([a, b]) => podOfId(a) !== podOfId(b))).toEqual([['0.3', '1.3']]);
+    expect(bye).toBe('2.3');
+  });
+
+  for (const sizes of [[5, 4], [7, 6], [7, 7], [6, 6, 5], [7, 7, 6], [8, 8, 7], [7, 6, 6, 6]]) {
+    it(`${sizes.join(' + ')}: everyone once, at most one table per pair of odd pods crosses a pod`, () => {
+      const players = field(sizes);
+      const { tables, bye } = pairRound({ players, results: [], round: 1 });
+      const seen = [...tables.flat(), ...(bye === null ? [] : [bye])].sort();
+      expect(seen).toEqual(players.map((p) => p.id).sort());
+      const odd = sizes.filter((n) => n % 2 === 1).length;
+      expect(tables.filter(([a, b]) => podOfId(a) !== podOfId(b))).toHaveLength(Math.floor(odd / 2));
+      expect(bye === null).toBe(odd % 2 === 0);
+    });
+  }
+});
+
 describe('pairRound: humans first (the operator, 2026-11-16 — amends the full Swiss)', () => {
   /**
    * `PodPlayer`s in seat order the way a real pod's table seats them

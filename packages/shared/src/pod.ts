@@ -43,28 +43,16 @@ export const POD_SEATS = 8;
 export const POD_MAX_SEATS = 64;
 
 /**
- * How a field of `n` drafters splits into pods (the operator, 2026-10-31: *"pods as close to 8 as possible,
- * preferring even sizes (13 → 7 + 6)"*): the fewest pods of at most 8, never two odd pods while even ones
- * would do (14 → 8 + 6, not 7 + 7), and otherwise as even as possible (21 → 8 + 7 + 6). Largest first.
+ * How a field of `n` drafters splits into pods: the fewest pods of at most 8, their sizes as even as
+ * possible (none more than one apart), largest first — so the bots that fill each pod to a table of 8 are
+ * spread across the pods (the operator, 2026-11-23: *"14 players should split 7+7. we spread the ai bots
+ * out equally"*, superseding 2026-10-31's preference for even pods: 14 → 8 + 6). 13 → 7 + 6, 21 → 7 + 7 + 7.
  */
 export function splitPods(n: number): number[] {
   if (n <= 0) return [];
   const pods = Math.ceil(n / POD_SEATS);
-  if (pods === 1) return [n];
-  // The one odd pod an odd field needs, tried at every odd size; the rest split into even pods.
-  const odd = n % 2 === 1 ? [7, 5, 3, 1] : [0];
-  let best: number[] | null = null;
-  for (const o of odd) {
-    const evenPods = o === 0 ? pods : pods - 1;
-    const pairs = (n - o) / 2;
-    if (pairs > evenPods * (POD_SEATS / 2) || (evenPods > 0 && pairs < evenPods)) continue;
-    const base = Math.floor(pairs / evenPods);
-    const sizes = Array.from({ length: evenPods }, (_, i) => 2 * (base + (i < pairs % evenPods ? 1 : 0)));
-    const all = (o === 0 ? sizes : [...sizes, o]).sort((a, b) => b - a);
-    if (best === null || all[0]! - all[all.length - 1]! < best[0]! - best[best.length - 1]!) best = all;
-  }
-  if (best === null) throw new Error(`splitPods: no split for ${n}`);
-  return best;
+  const base = Math.floor(n / pods);
+  return Array.from({ length: pods }, (_, i) => base + (i < n % pods ? 1 : 0));
 }
 
 /** One pod seat in the lobby phase: who is sitting there, or nobody. */

@@ -154,7 +154,12 @@ A draft room runs in phases: **lobby → drafting → building → rounds → do
   - **Round 1: across the table.** Entrants are ordered by pod seat, and entrant
     *i* plays entrant *i + ⌈N/2⌉*. With an odd *N*, the one that formula leaves
     unpaired (position ⌈N/2⌉, the middle seat) gets the bye
-    (`games/magic/packages/draft/src/pairing.ts`).
+    (`games/magic/packages/draft/src/pairing.ts`). **A room of several pods**
+    (2026-11-23, the operator: *"it does need to do that. once drafts are done we
+    combine the player pools again"*): each pod pairs across its own draft table,
+    the odd pods' leftover players play each other in pod order, and an odd count
+    of them gives the last one the bye. From round 2 the whole field pairs by
+    score, equal scores alternating pods (`pods.ts`'s `podPlayers`).
   - **Later rounds: by score.** Match points (win 3, draw 1), and no repeat
     pairing while another is possible.
   - **A bye** goes to the lowest-ranked player who has not had one, bot or
@@ -192,6 +197,21 @@ There is no constructed deck editing or card search (ruling 5).
    step, a forced Rematch, the bo3 score. Delete the dead `SideboardPrompt` path.
 3. **Tables and pods.** Multi-table rooms, the 8-seat pod lobby, pairings and
    rounds, byes, standings, the board strip, chat keyed to the room.
+
+## 2026-11-23 rulings — a field past one pod
+
+The operator, verbatim, after a 24-drafter simulation (`games/magic/server/src/room/tournament-sim.test.ts`):
+
+> 1. 14 players should split 7+7. we spread the ai bots out equally
+> 2. 'Round 1 doesn't pair you with someone across your draft table' - it does need to do that. once
+>    drafts are done we combine the player pools again.
+> 3. there needs to be a setting for this. in the real tournament i want bots to be automatically
+>    turned into a bye. we will not have any bot games there. but i do still want the option to play
+>    tournaments with bots in other places so it needs to be a room setting.
+
+1 supersedes 2026-10-31's "preferring even sizes": `splitPods` is now the fewest pods of at most 8, none
+more than one apart (14 → 7 + 7, 10 → 5 + 5, 20 → 7 + 7 + 6). 2 is "Round 1" above. 3 is a room
+setting (`botsPlay`), landed after the room-settings migration.
 
 ## 2026-10-19 ruling — the Decks page
 

@@ -246,9 +246,19 @@ describe('a room of 13 drafts as 7 + 6 and plays one Swiss of 3 rounds into one 
 		let view = lobby.get(id)!;
 		expect(view.game!.pod?.phase).toBe('rounds');
 		expect(view.game!.pod?.rounds).toBe(3);
-		// Round 1 pairs the whole field by seat, whatever pod each drafted in: seat i plays seat i + 7, seat 6 has the bye.
-		expect(view.game!.pod?.pairings.map((p) => p.players)).toEqual(Array.from({ length: 6 }, (_, i) => [humans[i], humans[i + 7]]));
-		expect(view.game!.pod?.bye).toBe(humans[6]);
+		// Round 1 pairs each pod across its own draft table: the 7 as seats 0-4, 1-5, 2-6 with seat 3 left over, the 6 as
+		// 0-3, 1-4, 2-5. One pod's leftover and no other: the bye.
+		const pods = view.game!.pod!.pods!;
+		const [seven, six] = [pods[0]!, pods[1]!];
+		expect(view.game!.pod?.pairings.map((p) => p.players)).toEqual([
+			[seven[0], seven[4]],
+			[seven[1], seven[5]],
+			[seven[2], seven[6]],
+			[six[0], six[3]],
+			[six[1], six[4]],
+			[six[2], six[5]],
+		]);
+		expect(view.game!.pod?.bye).toBe(seven[3]);
 
 		for (let round = 1; round <= 3; round++) {
 			view = lobby.get(id)!;

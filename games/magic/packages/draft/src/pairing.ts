@@ -37,6 +37,12 @@ export interface PodPlayer {
    * first" rule (`swissRound`, below) reads it.
    */
   isBot?: boolean;
+  /**
+   * Which pod this entrant drafted in, for a room that drafts as several pods (`podSeat` then orders
+   * each pod's drafters by their seat in its draft). Absent for a field that drafted as one table.
+   * Round 1 pairs each pod across its own table (`round1`).
+   */
+  pod?: number;
 }
 
 /**
@@ -126,7 +132,7 @@ function pairDown(ranked: PodPlayer[], played: ReadonlySet<string>): [string, st
 }
 
 /**
- * Round 1, across the table: players ordered by `podSeat`, player `i` (1-based
+ * Round 1 of one table, across it: players ordered by `podSeat`, player `i` (1-based
  * position in that order) plays player `i + ceil(H/2)`.
  *
  * Decision (the brief flags this as ambiguous): with an odd `H`, that formula
@@ -134,7 +140,7 @@ function pairDown(ranked: PodPlayer[], played: ReadonlySet<string>): [string, st
  * position `ceil(H/2)` — the last seat of the top half — unpaired. That seat
  * gets the bye. (E.g. H=5: seats 1-4 and 2-5 play; seat 3 sits out.)
  */
-function round1(players: PodPlayer[]): PairRoundResult {
+function acrossTable(players: PodPlayer[]): PairRoundResult {
   const sorted = [...players].sort((a, b) => a.podSeat - b.podSeat);
   const half = Math.ceil(sorted.length / 2);
   const pairedCount = sorted.length - half;
@@ -144,6 +150,25 @@ function round1(players: PodPlayer[]): PairRoundResult {
   }
   const bye = sorted.length % 2 === 1 ? (sorted[half - 1] as PodPlayer).id : null;
   return { tables, bye };
+}
+
+/**
+ * Round 1: each pod across its own draft table (the operator, 2026-11-23: *"it does need to do that.
+ * once drafts are done we combine the player pools again"*). A pod with an odd count leaves one player
+ * (`acrossTable`'s middle seat); those players, in pod order, play each other, and with an odd count of
+ * them the last one has the bye. A field that drafted as one table is that table alone.
+ */
+function round1(players: PodPlayer[]): PairRoundResult {
+  const pods = [...new Set(players.map((p) => p.pod ?? 0))].sort((a, b) => a - b);
+  const tables: [string, string][] = [];
+  const left: string[] = [];
+  for (const pod of pods) {
+    const one = acrossTable(players.filter((p) => (p.pod ?? 0) === pod));
+    tables.push(...one.tables);
+    if (one.bye !== null) left.push(one.bye);
+  }
+  for (let i = 0; i + 1 < left.length; i += 2) tables.push([left[i] as string, left[i + 1] as string]);
+  return { tables, bye: left.length % 2 === 1 ? (left.at(-1) as string) : null };
 }
 
 /**

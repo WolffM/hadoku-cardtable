@@ -403,7 +403,10 @@ function tournamentTable(room: RoomRecord): TournamentPlace[] {
  * TOURNAMENT pod's `entrants` are `podEntrants`'s own list, read against the
  * SAME compaction (`tournamentTable`) that produced it, so an id's `podSeat`
  * here is always the one it was minted with — an empty seat is no seat at
- * all, never a numbering gap. Each row's `isBot` is the place's own
+ * all, never a numbering gap. A room that drafted as several pods
+ * (`podDrafts`) seats each drafter at their place in their own pod's draft,
+ * with that pod (`PodPlayer.pod`), so round 1 pairs each pod across its own
+ * table. Each row's `isBot` is the place's own
  * `kind !== 'human'` — `pairing.ts`'s `pairRound` reads it to pair humans
  * before bots (the operator, 2026-11-16).
  */
@@ -414,6 +417,13 @@ export function podPlayers(room: RoomRecord, entrants: readonly string[]): PodPl
 			const id = place.kind === 'human' ? place.id : aiEntrantId(podSeat);
 			return entrants.includes(id) ? [{ id, podSeat, isBot: place.kind !== 'human' }] : [];
 		});
+	}
+	// Several pods: each drafter at their seat in their own pod's draft (`#podDeal` seats a pod's drafters first, in order).
+	// The seats interleave the pods (every pod's seat 0, then every pod's seat 1, …): round 1 reads only the order within
+	// a pod, and a later round's equal scores, broken by seat, then alternate pods instead of keeping each pod together.
+	const podDrafts = room.game.podDrafts;
+	if (podDrafts !== null && podDrafts.length > 1) {
+		return podDrafts.flatMap((drafters, pod) => drafters.flatMap((id, seat) => (entrants.includes(id) ? [{ id, podSeat: seat * podDrafts.length + pod, pod }] : [])));
 	}
 	return podTable(room).flatMap((place, podSeat) => {
 		const id = place.kind === 'human' ? place.id : aiEntrantId(podSeat);
