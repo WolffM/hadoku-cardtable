@@ -7,14 +7,29 @@ Status: **design only. Nothing is built, installed or granted** until the tracke
 operator's approval. File:line references are to hadoku-dataplatform `main` at `839f54c`
 unless another repo is named.
 
+## Operator answers (2026-11-23, to the dataplatform session directly) — folded in below
+
+1. Credentials fetched with a service key: fine. (Clarified: it is each TENANT's own key that
+   fetches its own credentials, not dataplatform's key; the operator's point stands either way.)
+2. Recovery: a loss window of up to 48 h is acceptable, so nightly verified dumps, no PITR. Plus a
+   **nightly alert when a tenant's volume changes significantly** (§4).
+3. **Size limits are required**: dataplatform filling up is a big problem. §5 is now hard caps,
+   at two levels, and no longer a soft quota.
+4. **No new Tailscale Service.** Use what exists. §2 now uses the existing tailnet name behind
+   the existing data endpoint, and one value in hadoku_site for the endpoint's address.
+
 ## Short version
 
 Postgres becomes a second **resource on an existing data namespace**, not a new tenant system.
 The grant the operator already ratifies (userId → namespace) gains a `postgres` resource. The
-tenant keeps holding exactly one URL and its own vault key. It asks the data endpoint for
-credentials, and the answer carries the name to connect to. Nightly logical dumps are restored
-on a scratch instance and their row counts compared before the data-store backup that carries
-them off-host may count them. No point-in-time recovery to start with (reasons below).
+tenant keeps holding exactly one URL (moved into the vault, where housemodel already reads it)
+and its own vault key. It asks the data endpoint for credentials, and the answer carries the
+name to connect to. Size is capped hard twice: the whole cluster lives on its own fixed-size
+filesystem, so Postgres can never fill a dataplatform disk, and each tenant loses write access
+at its own quota. Nightly logical dumps are restored on a scratch instance and their row counts
+compared before the data-store backup carries them off-host. A night-over-night volume check
+flags a database that shrank or swelled. No point-in-time recovery (the operator accepts up to
+48 h).
 
 ## What was measured before writing this
 
@@ -23,7 +38,8 @@ them off-host may count them. No point-in-time recovery to start with (reasons b
 | Postgres is **not installed** on hokon. Debian 13 offers `postgresql` 17 (`17+278+deb13u1`) | `apt-cache policy postgresql`, 2026-11-23 |
 | hokon runs tailscale 1.105.374. Docker is present, but the fleet runs services under PM2, so this design doesn't use it | `tailscale version`, `which docker` |
 | Disk: walrus (data_root) 533 GB free (72% used); black 272 GB free (85%); root 258 GB free (86%) | `df -h` |
-| **Today's tenants hold a raw IP for the data endpoint.** wiki, events and a third app have `HADOKU_DATA_URL: "http://100.99.82.75:9002"` | hadoku_site `scripts/child-apps.json:215`, `:615`, `:675` |
+| **Three tenants hard-code a raw IP for the data endpoint** (pygmalion, wiki, events: `"http://100.99.82.75:9002"`). A fourth, housemodel, already reads it from the vault | hadoku_site `scripts/child-apps.json:215`, `:615`, `:675`; vault-fed at `:521` |
+| **walrus, the data_root disk, is `ntfs3`.** Root is btrfs (LUKS + LVM); black is ext4 | `findmnt`, 2026-11-23 |
 | The tenant model: `whoami` → tier `service` + userId → one namespace | `data/server.py:318-357` (`_authorise`) |
 | A userId holds at most one namespace; the binding is the userId, never the key or the name | `data/grants.py:18-27`, `:124-144` |
 | An unbound caller leaves a pending request that Command Station shows under "Asking" | `data/server.py:337-348`, `data/grants.py:187-232` |
@@ -34,9 +50,11 @@ them off-host may count them. No point-in-time recovery to start with (reasons b
 | Server failures forward to monitoring's `service_events` | `data/server.py:276`, `:591` |
 | `/tmp` is a 16 GB tmpfs the CI dispatcher needs; scratch databases go to `~/.cache/dataplatform/scratch/` | root `AGENTS.md`, "Catalog snapshots" |
 
-The fourth row matters for requirement 2. The data endpoint itself isn't location-free today, so
-moving dataplatform would already mean redeploying three tenants. The naming lane below fixes
-both resources at once.
+Two rows change the plan. The raw-IP tenants mean the data endpoint isn't location-free today
+(§2). And **Postgres's live cluster can't go on walrus**: initdb wants a 0700 directory its user
+owns, and an NTFS driver's permission and fsync behaviour is not something to bet a database on.
+§5 puts the cluster on its own fixed-size ext4 filesystem, which is also the hard size cap the
+operator asked for.
 
 ## 1. Tenant model: one namespace, two resources
 
@@ -86,46 +104,43 @@ namespaces.json  (data/grants.py:7)
 - **Schema is the tenant's.** It runs its own migrations as the app role. Dataplatform owns
   the server, the major version, the extension set, limits and quotas.
 
-## 2. Location-free naming
+## 2. Location-free naming: the existing tailnet, one address held in one place
 
-**The tenant holds one thing: `HADOKU_DATA_URL`, and it becomes a name, not an IP.** The Postgres
-address is never configured anywhere in the tenant. It arrives in every credentials answer:
+**No new Tailscale Service, and nothing new on the tailnet** (operator, point 4). Postgres
+listens on the same host and tailnet interface as the data endpoint, and the tenant never
+configures a Postgres address at all. **The address comes back in every credentials answer:**
 
 ```json
 POST /pg/<ns>/credentials  →
-{"host": "dataplatform.taild6f30f.ts.net", "port": 5432, "database": "ns_cardtable_stats",
+{"host": "hokon.taild6f30f.ts.net", "port": 5432, "database": "ns_cardtable_stats",
  "user": "ns_cardtable_stats_app", "password": "…", "rotates_at": "2026-11-24T04:00:00Z",
  "quota": {"used_mb": 41, "limit_mb": 2048, "state": "ok"}, "conn_limit": 20}
 ```
 
-The name is a **Tailscale Service, `svc:dataplatform`**, carrying 9002 and 5432. It is a
-tailnet-wide virtual IP plus a MagicDNS name, and whichever host advertises the service
-receives its traffic. Moving dataplatform means advertising it from the new host. No tenant
-config changes, and today's three IP-holding tenants move to the name once (one
-`child-apps.json` edit each, a hadoku_site lane).
+`host` is the existing MagicDNS name of whichever machine serves Postgres. The value comes from
+dataplatform's config (`pg_public_host`), never a tenant's. A move changes the config, and every
+tenant gets the new name the next time it fetches credentials.
 
-**Two things are unverified and get measured first (lane 0), not assumed:**
+**So the only address a tenant holds is `HADOKU_DATA_URL`, and that should live in one place.**
+The vault already holds it as a secret: housemodel reads `HADOKU_DATA_URL` through its
+`vaultKeys` (hadoku_site `scripts/child-apps.json:521`). Three tenants instead hard-code
+`http://100.99.82.75:9002` in `env`: pygmalion (`:215`), wiki (`:615`) and events (`:675`).
+**The fix is to move those three onto the vault entry housemodel already uses, with the value
+`http://hokon.taild6f30f.ts.net:9002`.** Moving dataplatform is then one vault set plus a wrapper
+restart per tenant. There's no code change and no deploy, and nobody edits a config file per
+tenant. That is a hadoku_site lane, and it fixes the data endpoint and Postgres together.
 
-- **Does the backend see the client's real tailnet address?** The peer allowlist
-  (`server.py:248`) and pg_hba both key on it. If `tailscale serve` proxies the service so
-  the backend sees `127.0.0.1`, admission moves to the tailnet policy's grant for
-  `svc:dataplatform` (`tag:claw` + the PM2 hosts). That has to keep the fleet-manager
-  contract, "admitted ⇒ 401, refused ⇒ 403" (data `AGENTS.md`, "Who may connect").
-  Otherwise we use the fallback below.
-- **Can hokon reach its own service VIP?** The done-when connects from hokon as well as a
-  claw.
+What this does NOT give, said plainly: a move restarts each tenant once to pick up the new
+`HADOKU_DATA_URL`, because the wrapper injects it when the service starts. A restart-free move
+would need a name that follows the service rather than a machine. Tailscale can provide one, but
+it is the extra moving part the operator didn't want. Revisit it only if restarts during a move
+ever matter.
 
-**Fallback if either fails:** a split-DNS name the tailnet resolves (`data.hadoku.internal` →
-the current host's tailnet IP) served by MagicDNS. It preserves source addresses, and a move is
-one DNS edit. Either way the name comes from the credentials answer, so switching mechanisms
-later costs tenants nothing. The tailnet policy belongs to the operator / fleet-manager, so that
-lane asks them and edits nothing there.
-
-**Admission for Postgres matches 9002.** A small generator renders `pg_hba.conf` from the same
-`PeerSet` (`peers.py:96`) the listener uses, and runs `pg_reload_conf()` when the set changes. A
-node tagged `tag:claw` can reach Postgres within 30 s, exactly as it reaches the data endpoint.
-Postgres listens on the tailnet address only, never `0.0.0.0` (the same "Never" as data
-`AGENTS.md`).
+**Admission is unchanged and has the same source as 9002.** A small generator renders
+`pg_hba.conf` from the `PeerSet` the listener already uses (`peers.py:96`), and runs
+`pg_reload_conf()` when the set changes. The source address arrives untouched on the existing
+tailnet, so a node tagged `tag:claw` can reach Postgres within 30 s, as it reaches 9002. Postgres
+listens on the tailnet address only, never `0.0.0.0`.
 
 ## 3. Credentials: fetched with the tenant's own service key
 
@@ -182,43 +197,88 @@ tonight's verified dumps ride tonight's snapshot:
    `dataplatform pg backups` prints each stamp's per-table counts, which is the done-when's
    "row counts shown."
 
-The live cluster directory is `$DATA_ROOT/pg/17/` on walrus, added to backup-sync's excludes
-beside `data-backups/` (`daily_pipeline.py:610`). rsync of a live cluster directory is not a
-backup.
+6. **Volume check, night over night** (operator, point 2). Tonight's `counts.json` is compared
+   with the last verified one, per tenant database. It flags:
+   - a table that disappeared;
+   - a table that lost at least 10% of its rows and at least 100 rows;
+   - a database whose size moved by half or more, either way, once it is past 50 MB, so a tiny
+     database's noise stays quiet.
 
-**Why no PITR yet.** The fleet's standing bound for the data store is a day ("nightly is fine,"
-operator 2026-10-28, data `AGENTS.md` "Backups"), and data `AGENTS.md` says not to add a second
-schedule without the operator asking. A process crash or reboot loses nothing: Postgres fsyncs
-its WAL. Only losing the disk or a bad write loses up to a day. For game stats that is tens of
-matches. **If the operator wants a shorter window**, the cost is small and stated:
-`archive_mode=on`, `archive_timeout=300` and `archive_command` copying WAL segments to
-`/mnt/black/dataplatform/pg-wal/` (verified), plus a nightly `pg_basebackup`. That gives a
-5-minute window, and a restore test then replays WAL to a target time. It's one extra lane;
-asking for it is the operator's call.
+   It names the database, the table and both numbers:
+   `[pg-backup] volume ns=cardtable-stats table=game_matches rows=330->12`.
+   Per the house rule for new checks, **it ships as a warning**: the step goes amber, not red,
+   and it shows in Command Station. After two weeks without a false positive it becomes a
+   forwarded alert (`event=dataplatform.pg.volume_change`). The dump is still kept either way. A
+   tenant that deleted its data on purpose and one that lost it look the same here, so the
+   check reports and never blocks.
 
-## 5. Quotas: a tenant at quota is told
+The live cluster isn't under data_root at all (§5), so backup-sync never meets it.
+`$DATA_ROOT/pg-dumps/` joins backup-sync's excludes beside `data-backups/`
+(`daily_pipeline.py:610`), because data-backup already carries the dumps, verified.
 
-Postgres has no per-database size cap short of a separate filesystem per tenant. So: soft limits
-that are announced, hard limits where Postgres has them.
+**Recovery window: nightly, no PITR** (operator, point 2: up to 48 h of loss is acceptable). A
+process crash or reboot loses nothing, because Postgres fsyncs its WAL. Losing the disk, or a
+bad write, loses at most the day since the last dump. Retention is the data store's: 30 verified
+nights per remote, and never fewer than 7 (`backup.py:341-357`). That reaches well past 48 h. If
+a shorter window is ever wanted, WAL archiving to `/mnt/black` plus a nightly `pg_basebackup`
+gives about 5 minutes for one extra lane.
 
-- **Hard, native:** `CONNECTION LIMIT` (login role and database), `temp_file_limit`, a default
-  `statement_timeout` (the tenant may lower it, not raise it past the role ceiling).
-- **Size, measured** every 5 minutes by the data listener's monitor thread
-  (`pg_database_size`):
-  - **80%:** `quota.state = "warn"` in every credentials answer, a once-a-day
-    `event=dataplatform.pg.quota_warn` to `service_events` (`server.py:591`), and an amber
-    row in Command Station.
-  - **100%:** `state = "over"`. The login role gets `default_transaction_read_only = on`, so
-    new sessions start read-only, and the event fires at failure level. The tenant learns it
-    from the credentials answer (`quota.state`) and from `SHOW default_transaction_read_only`.
-    The helper surfaces it as a typed `QuotaExceeded`, never as a bare "read-only
-    transaction" error. Raising the quota is one CLI flag and lifts it on the next tick.
-  - **The honest limit:** an owner role can still `SET` its transaction to read-write. This
-    quota tells the tenant; it doesn't fence a hostile tenant. That's adequate for our own
-    services. A real fence is a tablespace per tenant on a size-capped XFS project quota,
-    which can be added later without changing any tenant.
-- **Box guard:** if walrus falls under 10% free, every tenant goes read-only and the step goes
-  red. One tenant can't fill the disk the archive lives on.
+## 5. Size limits: hard, at two levels
+
+Operator, point 3: "if dataplatform gets full, we have big problems." So no soft quota. Two
+fences, and the outer one doesn't depend on the inner one working.
+
+**Outer: the whole cluster lives on its own fixed-size filesystem.**
+
+- A fallocated image file on the root disk (btrfs, `chattr +C` so it isn't copy-on-write),
+  formatted ext4 and loop-mounted at `/srv/dataplatform-pg` through fstab. **32 GB to start**;
+  the first tenant's data is kilobytes. Data, WAL and temp files all live inside it.
+- **Postgres can never take more than that from any disk.** When it is full, writes fail with
+  "no space left on device" and reads keep working. Nothing else on the machine notices. Growing
+  it is an online `resize2fs` run by the operator.
+- **Why not walrus:** it is `ntfs3` (measured above). Postgres's data directory needs Unix
+  ownership and modes and a filesystem whose fsync it can trust.
+- **Why not black:** black holds the mirror. A primary there puts the live data and its copy on
+  one disk.
+- The result is three physical disks plus one machine away: the primary on root, dumps on
+  walrus, copies on black and claw-5.
+- **The one step that needs root** is creating and mounting the image. It is a script in the
+  repo, run once by the operator with sudo, and it is shown first as a dry run (house rule for a
+  machine-level change).
+
+**Inner: each tenant loses write access at its quota, by privilege, which a tenant can't
+undo.**
+
+- The login role `ns_<ns>_app` can write only because it belongs to the owner role `ns_<ns>`.
+- A monitor checks every tenant's size every 60 s (`pg_database_size`, about a millisecond
+  each). So the overshoot is at most a minute of writes, and the outer cap bounds even that.
+- **At 80%:** `quota.state = "warn"` in every credentials answer, an amber Command Station row,
+  and a once-a-day `event=dataplatform.pg.quota_warn`.
+- **At 100%:**
+  - membership in the owner role is revoked;
+  - the login role is moved to `ns_<ns>_reader`, which can SELECT, DELETE and TRUNCATE, so the
+    tenant can read and free space but cannot INSERT, UPDATE or create anything;
+  - its open sessions are ended, so the pool reconnects under the new rights.
+
+  The tenant is told three ways:
+  - `quota.state = "over"` in the credentials answer;
+  - the helper throws a typed `QuotaExceeded` instead of a bare permission error;
+  - a failure-level `event=dataplatform.pg.quota_over`.
+
+  There is no `SET` that gets around it, unlike the read-only setting the first draft used.
+- **Back under 95%:** write access returns on the next tick. A DELETE frees space for reuse but
+  doesn't shrink the files, so `dataplatform pg compact <ns>` runs `VACUUM FULL` through
+  Postgres 17's `pg_maintain` role, which is granted to `dataplatform_admin`. Raising the quota
+  is one CLI flag.
+- **No oversubscription:** the grant CLI refuses a quota that would push the sum of all tenant
+  quotas past the cluster cap minus WAL and temp headroom (`max_wal_size` + 2 GB). So a tenant
+  always hits its own fence before the cluster's.
+
+**Also hard, and native:**
+
+- `CONNECTION LIMIT` on the login role and the database;
+- `temp_file_limit` on the role, which a tenant can't raise;
+- a role-level `statement_timeout` ceiling.
 
 ## 6. Operability
 
@@ -254,7 +314,7 @@ Inside it:
 - It builds `new pg.Pool({host, port, database, user, password: async () => cached.password,
   ...})`. node-postgres calls `password` per new connection, so a rotation needs no new pool.
 - `query` retries once on `28P01` after refetching. It throws `QuotaExceeded` when the last
-  answer's `quota.state === 'over'` and the error is `25006`.
+  answer's `quota.state === 'over'` and the error is `42501` (permission denied).
 - `host` comes from the answer, never from the tenant's config. That's what makes §2 hold.
 
 Migrations: any runner that takes a `pg.Pool` or `pg.Client` (node-pg-migrate, a hand-rolled
@@ -271,17 +331,18 @@ must stay (data `AGENTS.md` "Never").
 2. Freeze writes on the old primary: `ALTER DATABASE … CONNECTION LIMIT 0` + terminate backends.
    A few seconds of refused logins; the helper retries.
 3. Final sync (dump/restore of the delta, or let a streaming copy catch up and promote it).
-4. Advertise `svc:dataplatform` from the new host and stop advertising it on the old one.
-   The data listener moves the same way, since it is one name for both.
-5. Pools reconnect to the name and fetch credentials again. Done.
+4. Point `pg_public_host` at the new host and set the vault's `HADOKU_DATA_URL` to the data
+   listener's new name. Restart each tenant's wrapper so it picks that up; there is no code
+   change and no deploy.
+5. Pools fetch credentials again and connect to the new host. Done.
 
-What else moves with it: the PM2 placement (`host` in hadoku_site `child-apps.json`), the data
-root path in `config.toml`, and the backup remotes, which must not end up on the new host's own
-disk.
+What else moves with it: the PM2 placement (`host` in hadoku_site `child-apps.json`), the
+capped filesystem (§5), recreated at the same size on the new host, the data root path in
+`config.toml`, and the backup remotes, which must not end up on the new host's own disk.
 
 **Failover (later, single primary for now, as the operator asked).** It would take: a streaming
 standby on a claw (`primary_conninfo`, a replication slot), a manual `pg_promote()` on the
-standby, and moving the service name to it. One standby with a manual promote needs no Patroni
+standby, and pointing `pg_public_host` at it. One standby with a manual promote needs no Patroni
 or etcd. Automating it would reuse the data store's lease fencing (`/lease/`, data `AGENTS.md`
 "Leases are fences"), so a stalled old primary can't keep taking writes. Not built now.
 
@@ -289,26 +350,23 @@ or etcd. Automating it would reuse the data store's lease fencing (`/lease/`, da
 
 | lane | what | repo | needs |
 | --- | --- | --- | --- |
-| **L0 Name** | Measure Tailscale Services on the tailnet: whether the source address survives, whether hokon reaches its own VIP, and whether the 401/403 probe still holds through it. Decide `svc:` or the split-DNS fallback. Ask the operator / fleet-manager for the tailnet-policy change. Move the three `HADOKU_DATA_URL` IPs (`child-apps.json:215/615/675`) to the name. | dataplatform (measure), hadoku_site (env), fleet-manager / operator (policy) | — |
-| **L1 Server** | Install PG17 on hokon. Cluster at `$DATA_ROOT/pg/17`. PM2 app `dataplatform-pg` (its own process, like `dataplatform-data`, so an API deploy never touches it). Tailnet-only `listen_addresses`. pg_hba generated from `PeerSet`. `dataplatform_admin` over the unix socket. backup-sync exclude. Config keys `pg_port`, `pg_data`. | dataplatform, hadoku_site (`child-apps.json` entry) | — |
+| **L0 Address** | Set the vault's `HADOKU_DATA_URL` to `http://hokon.taild6f30f.ts.net:9002`, and move pygmalion, wiki and events (`child-apps.json:215/615/675`) from the hard-coded IP to the `vaultKeys` entry housemodel already uses (`:521`). Each tenant restarts once; verify each one's data calls afterwards. Nothing changes on the tailnet. | hadoku_site (operator sets the vault value) | — |
+| **L1 Server** | The capped filesystem script (dry run, then the operator runs it once with sudo). Install PG17 on hokon. Cluster at `/srv/dataplatform-pg`. PM2 app `dataplatform-pg` (its own process, like `dataplatform-data`, so an API deploy never touches it). Tailnet-only `listen_addresses`. pg_hba generated from `PeerSet`. `dataplatform_admin` over the unix socket, with `pg_maintain`. Config keys `pg_port`, `pg_data`, `pg_public_host`, `pg_cap_gb`. | dataplatform, hadoku_site (`child-apps.json` entry) | — |
 | **L2 Tenancy** | `resources.postgres` in `grants.py`, a resource on pending rows, `data grant --postgres`, provisioning (db/roles/limits), `POST /pg/<ns>/credentials` + `GET /pg/health` in `server.py` behind the unchanged `_authorise`, nightly rotation, revoke and drop. Command Station Data bindings shows and approves the resource. | dataplatform, hadoku_site (mgmt-api `data-bindings.ts`, the UI) | L1 |
-| **L3 Backups** | `pg-backup` step: snapshot-consistent counts, dump, scratch restore, compare, then `pg/` in the data snapshot; `dataplatform pg backups`. Tests restore a real cluster and fail on a planted mismatch. | dataplatform | L1 |
-| **L4 Ops** | Monitor thread: size, connections, quota states and read-only flip; `pg_stat_statements` + `pg slow`; `[pg]` grep contract; `service_events` tags; columns in `data namespaces` / `bindings --json`. | dataplatform (+ the Command Station columns in hadoku_site) | L2 |
+| **L3 Backups** | `pg-backup` step: snapshot-consistent counts, dump, scratch restore, compare, then `pg/` in the data snapshot; the night-over-night volume check (as a warning); `dataplatform pg backups`. Tests restore a real cluster and fail on a planted mismatch; a planted 90% row loss turns the step amber. | dataplatform | L1 |
+| **L4 Ops + quota** | Monitor thread: size and connections every 60 s, the 80% warning, the write-access revoke at 100% and its restore under 95%, `pg compact`, the oversubscription refusal at grant time. Tests fill a real tenant past its quota and check that INSERT is refused while SELECT and DELETE work; also `pg_stat_statements` + `pg slow`, `pg_stat_statements` + `pg slow`; `[pg]` grep contract; `service_events` tags; columns in `data namespaces` / `bindings --json`. | dataplatform (+ the Command Station columns in hadoku_site) | L2 |
 | **L5 Clients** | `clients/ts/hadoku-pg.ts` + its test against a real local cluster (no mocks); `DataClient.pg_credentials()` in `client.py`; the recipe in data `AGENTS.md`. | dataplatform | L2 |
-| **L6 Accept + guide** | The done-when, run for real: a grant through Command Station, connect from claw-4 and from hokon by the name, create a table, see the other tenant refused at hba, at CONNECT and at the credentials route; one backup restored on scratch with its counts printed. `docs/guide/` gains the resource as a product a tenant requests (`features.md` + a `wiki.yml` feature entry), checked with hadoku-wiki's `verify-guide.mts`. | dataplatform | L0–L5 |
+| **L6 Accept + guide** | The done-when, run for real: a grant through Command Station, connect from claw-4 and from hokon using the host from the credentials answer, create a table, see the other tenant refused at hba, at CONNECT and at the credentials route; one backup restored on scratch with its counts printed. `docs/guide/` gains the resource as a product a tenant requests (`features.md` + a `wiki.yml` feature entry), checked with hadoku-wiki's `verify-guide.mts`. | dataplatform | L0–L5 |
 
-L0 and L1 run in parallel. L2 and L3 run in parallel once L1 lands. L4 and L5 follow L2. hadoku_site's
+L0 and L1 run in parallel; L0 is worth doing on its own merits, since the data endpoint's tenants have the same problem today. L2 and L3 run in parallel once L1 lands. L4 and L5 follow L2. hadoku_site's
 game-stats service (`HADOKU_SITE_SELF_HOSTED_GAME_STATS.md`) can start against a local Postgres
 now, and needs only L2 + L5 to point at ours. Its erase hook stays its own: dataplatform holds the
 database, but the rows and what they mean are the tenant's.
 
-## What I need back
+## Decisions taken, and what is left
 
-The operator's approval of, or changes to:
+All four questions are answered (top of this file). The design above already reflects them.
+What's left is the go-ahead to build. Lanes L0 (a hadoku_site and vault change) and L1 (one
+sudo step on hokon) touch things outside this repo, and each is shown as a dry run first.
 
-1. credentials fetched with the service key, rotated nightly (§3);
-2. no PITR at launch, a one-day window like the data store (§4);
-3. a soft size quota that announces itself rather than fencing a hostile tenant (§5);
-4. a Tailscale Service name as the target, measured first, with split DNS as the fallback (§2).
-
-Nothing moves until that arrives through the tracker.
+Nothing is built until the tracker relays that go-ahead.
