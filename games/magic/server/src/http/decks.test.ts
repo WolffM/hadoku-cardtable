@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { DraftCard, PodView } from '@hadoku/shared';
+import { MyDecksSchema, type DraftCard, type DraftPlan, type PodView } from '@hadoku/shared';
 
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 
@@ -60,15 +60,15 @@ afterAll(async () => {
 	for (const dir of dirs) await rm(dir, { recursive: true, force: true });
 });
 
-type Lobby = Map<string, { name: string; game: { pod: PodView | null } }>;
+type Lobby = Map<string, { name: string; game: { pod: PodView | null; plan?: DraftPlan } }>;
 
-async function openApp(draftRooms: DraftRooms, lobby: Lobby): Promise<string> {
+async function openApp(draftRooms: DraftRooms, lobby: Lobby, cubeCover?: (cubeId: string) => string | null): Promise<string> {
 	const app = express();
 	app.use(edgeMod.edgeProvenance);
 	app.use(edgeMod.requireMinTier);
 	const api = express.Router();
 	draftsMod.attachDrafts(api, { draftRooms, log: () => undefined });
-	decksMod.attachDecks(api, { draftRooms, room: (id) => lobby.get(id), log: () => undefined });
+	decksMod.attachDecks(api, { draftRooms, room: (id) => lobby.get(id), ...(cubeCover === undefined ? {} : { cubeCover }), log: () => undefined });
 	app.use('/api', api);
 	const server = createServer(app);
 	await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
@@ -152,6 +152,24 @@ describe('/api/decks', () => {
 		const restarted = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir });
 		const again = await openApp(restarted, lobby);
 		expect(decksOf((await call(again, 'GET', '/api/decks')).json).map((d) => [d.id, d.name, d.concluded])).toEqual([['pod-a', 'Blue tempo', true]]);
+	});
+
+	it('sends the cover of the cube a deck was drafted from, and none for a set or a cube without one', async () => {
+		const storeDir = await mkdtemp(join(tmpdir(), 'cardtable-decks-test-'));
+		dirs.push(storeDir);
+		const draftRooms = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir });
+		const cubeRounds = (cubeId: string): DraftPlan => ({ rounds: [0, 1, 2].map(() => ({ kind: 'cube', cubeId })) as DraftPlan['rounds'] });
+		const lobby: Lobby = new Map([
+			['pod-cube', { name: 'Covered', game: { pod: pod('done'), plan: cubeRounds('vintage') } }],
+			['pod-bare', { name: 'Bare', game: { pod: pod('done'), plan: cubeRounds('pasted') } }],
+			['pod-set', { name: 'Set', game: { pod: pod('done'), plan: { rounds: [0, 1, 2].map(() => ({ kind: 'set', code: 'HOB', style: 'realistic' })) as DraftPlan['rounds'] } } }],
+		]);
+		for (const id of lobby.keys()) seatIn(draftRooms, id, 'alice', true);
+		const base = await openApp(draftRooms, lobby, (cubeId) => (cubeId === 'vintage' ? 'cover-of-vintage' : null));
+
+		const listed = await call(base, 'GET', '/api/decks');
+		const covers = Object.fromEntries(MyDecksSchema.parse(listed.json).decks.map((d) => [d.id, d.coverArtId]));
+		expect(covers).toEqual({ 'pod-cube': 'cover-of-vintage', 'pod-bare': undefined, 'pod-set': undefined });
 	});
 
 	it('answers a malformed JSON body without echoing it', async () => {

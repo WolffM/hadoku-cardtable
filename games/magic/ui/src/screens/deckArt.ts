@@ -103,10 +103,22 @@ export function traitsOfDraftCard(rarity: string, typeLine: string): string {
   );
 }
 
+/** The name a deck's cover goes by among its cards: no card is called this, so it never displaces one. */
+const COVER = '\u0000cover';
+
+/**
+ * A deck's choices with the cover of the cube or set it came from last: shown
+ * only when the deck has no card with art, or every one is on a deck above.
+ */
+export function withCover(choices: readonly DeckArtChoice[], coverArtId: string | undefined): DeckArtChoice[] {
+  return coverArtId === undefined ? [...choices] : [...choices, { name: COVER, artId: coverArtId }];
+}
+
 /**
  * One art id per deck, for decks shown together in this order: each takes its
- * best card that no deck above it has taken. A deck whose every card is taken
- * keeps its own first choice — a repeat is better than a blank tile.
+ * best card that no deck above it has taken, then its cover (`withCover`). A
+ * deck with nothing left untaken keeps its own first choice — a repeat is
+ * better than a blank tile.
  */
 export function assignDeckArt(rankings: readonly (readonly DeckArtChoice[])[]): (string | undefined)[] {
   const taken = new Set<string>();
