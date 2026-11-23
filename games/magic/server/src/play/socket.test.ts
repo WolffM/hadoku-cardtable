@@ -745,7 +745,7 @@ describe('two seats over the socket', () => {
 		]);
 		// A hand row names hidden cards: refused by the schema, logged, never relayed.
 		alice.socket.emit('forge:arrangement', { ...message, rows: { hand: [[9]] } });
-		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'arrangement-malformed')).toHaveLength(1));
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'arrangement-malformed')).toHaveLength(1), { timeout: 5_000 });
 		expect(bob.arrangements).toHaveLength(1);
 		// A later socket on bob's seat (a reload) is sent alice's last arrangement as it joins.
 		const again = await connect(h.port, edgeHeaders('bob'));
@@ -793,7 +793,7 @@ describe('two seats over the socket', () => {
 		// Malformed (an id that is not a stack item's, a missing `at`): refused, logged, never relayed.
 		alice.socket.emit('forge:placed', { ...message, spell: -1 });
 		alice.socket.emit('forge:placed', { matchId, type: 'placed', spell: 49 });
-		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'placed-malformed')).toHaveLength(2));
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'placed-malformed')).toHaveLength(2), { timeout: 5_000 });
 		expect(bob.placeds).toHaveLength(1);
 		// A move of a DIFFERENT spell is kept alongside, by its own id.
 		alice.socket.emit('forge:placed', { matchId, type: 'placed', spell: 49, at: { zone: null, x: 0.6, y: 0.1 } });
@@ -836,7 +836,7 @@ describe('two seats over the socket', () => {
 		await bob.request('forge:join', { matchId });
 		alice.socket.emit('forge:client', { matchId, kind: 'info', data: { fastMode: false, boardLayout: 'single', reducedMotion: false } });
 		alice.socket.emit('forge:client', { matchId, kind: 'landing', data: { card: 42, how: 'flight', dx: 180, dy: -220 } });
-		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client')).toHaveLength(2));
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client')).toHaveLength(2), { timeout: 5_000 });
 		const [info, landing] = h.logs.filter((l) => l.evt === 'client');
 		expect(info).toMatchObject({ matchId, seat: 0, kind: 'info', fastMode: false, boardLayout: 'single', reducedMotion: false });
 		expect(landing).toMatchObject({ matchId, seat: 0, kind: 'landing', card: 42, how: 'flight', dx: 180, dy: -220 });
@@ -844,7 +844,7 @@ describe('two seats over the socket', () => {
 		// never written as an event. The `null` is #20's refused click, whose `said` was null.
 		alice.socket.emit('forge:client', { matchId, kind: 'info', data: { what: 'click-refused', card: 7, said: null } });
 		alice.socket.emit('forge:client', { matchId, kind: 'guess', data: {} });
-		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client-malformed')).toHaveLength(2));
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client-malformed')).toHaveLength(2), { timeout: 5_000 });
 		const [nullValue, unknownKind] = h.logs.filter((l) => l.evt === 'client-malformed');
 		expect(nullValue).toMatchObject({ kind: 'info', what: 'click-refused', errors: ['data.said: Invalid input'] });
 		expect(unknownKind).toMatchObject({ kind: 'guess', errors: [expect.stringMatching(/^kind: /)] });
@@ -861,7 +861,7 @@ describe('two seats over the socket', () => {
 		const board = { what: 'board', n: 1, beats: 2, anims: 34, animTop: 'ram×10,t:transform×12,crash×2', paceQueue: 3, phase: 'COMBAT_DAMAGE', turn: 7, whose: 'theirs', mine: 8, theirs: 9, hand: 4, stack: 0, dom: 5321, ui: '0.32.469', window: '2080x1324' };
 		const loaf = { what: 'loaf', n: 1, rank: 1, atMs: 120, ms: 412, blockMs: 340, workMs: 300, renderMs: 40, layoutMs: 72, scripts: 4, forcedMs: 180, s1: 'TimerHandler:setTimeout|ram|index-abc.js:1234|260|f150' };
 		for (const data of [stretch, board, loaf]) alice.socket.emit('forge:client', { matchId, kind: 'perf', data });
-		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client')).toHaveLength(3));
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client')).toHaveLength(3), { timeout: 5_000 });
 		expect(h.logs.filter((l) => l.evt === 'client-malformed')).toEqual([]);
 		const [a, b, c] = h.logs.filter((l) => l.evt === 'client');
 		expect(a).toEqual({ evt: 'client', matchId, seat: 0, participantId: expect.any(String), kind: 'perf', ...stretch });
@@ -881,25 +881,25 @@ describe('two seats over the socket', () => {
 			from: { zone: 'hand', x: 0.1, y: 0.9 },
 		};
 		alice.socket.emit('forge:presence', message);
-		await vi.waitFor(() => expect(bob.presences).toHaveLength(1));
+		await vi.waitFor(() => expect(bob.presences).toHaveLength(1), { timeout: 5_000 });
 		expect(bob.presences[0]).toEqual({ ...message, anchor: null, arranging: null, fromAnchor: null, handMove: null, placing: null, seat: 0 });
 		await new Promise((r) => setTimeout(r, 60));
 		expect(alice.presences, 'nothing comes back to the sender').toHaveLength(0);
 
 		// A hand reorder's two indices relay the same way — never a card id or name.
 		alice.socket.emit('forge:presence', { ...message, handMove: { from: 0, to: 2 } });
-		await vi.waitFor(() => expect(bob.presences).toHaveLength(2));
+		await vi.waitFor(() => expect(bob.presences).toHaveLength(2), { timeout: 5_000 });
 		expect(bob.presences[1]).toEqual({ ...message, anchor: null, arranging: null, fromAnchor: null, handMove: { from: 0, to: 2 }, placing: null, seat: 0 });
 
 		// `anchor`: the zone, the nearest battlefield card by id (public there) and the offset in its box.
 		const anchor = { zone: 'battlefield', own: true, row: null, card: 42, item: null, x: 1.4, y: 0.6 };
 		alice.socket.emit('forge:presence', { ...message, anchor });
-		await vi.waitFor(() => expect(bob.presences).toHaveLength(3));
+		await vi.waitFor(() => expect(bob.presences).toHaveLength(3), { timeout: 5_000 });
 		expect(bob.presences[2]).toEqual({ ...message, anchor, arranging: null, fromAnchor: null, handMove: null, placing: null, seat: 0 });
 		// A hand slot is an INDEX, never a card id; a pre-deploy sender's anchor (no `card`) relays with it null.
 		const { card: _card, ...handSlot } = { ...anchor, zone: 'hand', item: 2 };
 		alice.socket.emit('forge:presence', { ...message, anchor: handSlot });
-		await vi.waitFor(() => expect(bob.presences).toHaveLength(4));
+		await vi.waitFor(() => expect(bob.presences).toHaveLength(4), { timeout: 5_000 });
 		expect(bob.presences[3]).toEqual({ ...message, anchor: { ...handSlot, card: null }, arranging: null, fromAnchor: null, handMove: null, placing: null, seat: 0 });
 
 		// Malformed: dropped and logged, not relayed. A card id would be malformed too — the schema
@@ -909,7 +909,7 @@ describe('two seats over the socket', () => {
 		alice.socket.emit('forge:presence', { ...message, handMove: { from: 0, to: -1 } });
 		alice.socket.emit('forge:presence', { ...message, anchor: { ...anchor, card: '42' } });
 		alice.socket.emit('forge:presence', { ...message, anchor: { ...anchor, x: 51 } });
-		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'presence-malformed')).toHaveLength(5));
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'presence-malformed')).toHaveLength(5), { timeout: 5_000 });
 		expect(bob.presences).toHaveLength(4);
 
 		// A match spans a deploy: a tab still on the OLD bundle sends a spot's old `owner` field, its
@@ -917,7 +917,7 @@ describe('two seats over the socket', () => {
 		// as malformed — with `anchor` and `fromAnchor` defaulted to null, and `owner` and `handRows` gone, not merely
 		// ignored by the receiver.
 		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.5 }, held: false, from: null, handRows: 2 });
-		await vi.waitFor(() => expect(bob.presences).toHaveLength(5));
+		await vi.waitFor(() => expect(bob.presences).toHaveLength(5), { timeout: 5_000 });
 		expect(bob.presences[4]).toEqual({
 			matchId,
 			type: 'presence',

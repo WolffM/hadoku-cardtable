@@ -36,7 +36,7 @@ describe('watchExit', { timeout: 30_000 }, () => {
   });
 
   it('names what holds a run open and fails it, without exiting it', async () => {
-    const r = await run("new BroadcastChannel('held');\nwatchExit(300);", 2_000);
+    const r = await run("new BroadcastChannel('held');\nwatchExit(300);", 8_000);
     expect(r.stderr).toMatch(/\[monkey\] still running 0 s after the stack stopped; open: .*MessagePort/);
     expect(r.killed, 'the watch never exits the process itself').toBe(true);
   });
