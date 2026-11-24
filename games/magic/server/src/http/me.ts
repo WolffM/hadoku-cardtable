@@ -1,8 +1,9 @@
 /**
  * `/api/me` — the caller's own document in the per-person store (`users/`), and nobody else's.
  *
- *   GET    /api/me/library              → 200 { favourites, decks, built }
+ *   GET    /api/me/library              → 200 { favourites, decks, built, poolFavourites }
  *   PUT    /api/me/favourites/:deckId   { on } → 200 { favourites }
+ *   PUT    /api/me/pool-favourites/:poolKey { on } → 200 { poolFavourites } | 400 | 409 (at the limit)
  *   PUT    /api/me/built/:builtId       { name, format, dck } → 200 { built } | 400 | 409 (at the limit)
  *   DELETE /api/me/built/:builtId       → 204 | 404
  *   GET    /api/me/art                  → 200 { oldest, picks }
@@ -10,7 +11,9 @@
  *
  * `favourites` is deck id → when it was starred; `decks` is deck id → `{ lastPlayedAt }`, which the
  * server stamps at match end (`stats/index.ts`); `built` is the caller's built decks, each with its
- * `built:<uuid>` id, newest change first. A `:builtId` is that id or its bare uuid.
+ * `built:<uuid>` id, newest change first. A `:builtId` is that id or its bare uuid. `poolFavourites`
+is the cubes and sets they starred, pool key (`cube:<cubeId>`, `set:<code>`) → when; a key is not
+checked against the lists, as a deck id is not, and the same cap bounds it.
  *
  * The caller is the edge's `X-User-Id`, the key the document is stored under: a request the edge
  * named nobody on is refused, since there is no document it could be. Every write is a costly act
@@ -24,6 +27,7 @@ import { accountIdOf } from '@hadoku/game-server/edge-auth';
 import { bodyErrors, parseBody, perCallerLimit } from '@hadoku/game-server/http/request';
 import { isStorableUserId } from '@hadoku/game-server/users/store';
 import { jsonLogger } from '@hadoku/service-kernel/log';
+import { POOL_KEY_PATTERN } from '@hadoku/shared';
 import {
 	ArtRulesSchema,
 	BUILT_DCK_MAX_BYTES,
@@ -37,7 +41,7 @@ import {
 
 /** Writes a person may make: a burst of 60, then one every 2 s. Starring a row of decks is a burst. */
 export const ME_WRITE_RATE_LIMIT: RateLimitConfig = { capacity: 60, refillAmount: 1, refillIntervalMs: 2_000 };
-/** Favourites one person may keep. */
+/** Favourites one person may keep: decks, and separately cubes and sets. */
 export const FAVOURITES_MAX = 1000;
 /** Hand-picked arts one person may keep. */
 export const ART_PICKS_MAX = 5000;
@@ -127,36 +131,42 @@ export function attachMe(api: Router, deps: MeDeps): void {
 			const userId = callerOf(req, res);
 			if (userId === null) return;
 			const doc = await deps.users.get(userId);
-			res.json({ favourites: doc.favourites, decks: doc.decks, built: builtDecksOf(doc) });
+			res.json({ favourites: doc.favourites, decks: doc.decks, built: builtDecksOf(doc), poolFavourites: doc.poolFavourites });
 		}),
 	);
 
-	me.put(
-		'/favourites/:deckId',
-		handle(async (req, res) => {
-			const userId = callerOf(req, res);
-			if (userId === null) return;
-			const deckId = String(req.params.deckId);
-			if (!DECK_ID.test(deckId)) {
-				res.status(400).json({ error: 'not a deck id' });
-				return;
-			}
-			const body = parseBody(FavouriteBodySchema, req, res);
-			if (body === null || !writeLimit(req, res)) return;
-			let full = false;
-			const doc = await deps.users.update(userId, (d) => {
-				if (!body.on) delete d.favourites[deckId];
-				else if (d.favourites[deckId] !== undefined) return;
-				else if (Object.keys(d.favourites).length >= FAVOURITES_MAX) full = true;
-				else d.favourites[deckId] = now();
-			});
-			if (full) {
-				res.status(409).json({ error: `at most ${FAVOURITES_MAX} favourites` });
-				return;
-			}
-			res.json({ favourites: doc.favourites });
-		}),
-	);
+	/** A star: `PUT /<path>/:<param>` sets `field[<param>]` when first starred, `FAVOURITES_MAX` at most. */
+	const starRoute = (path: string, param: string, field: 'favourites' | 'poolFavourites', key: RegExp, notOne: string): void => {
+		me.put(
+			`/${path}/:${param}`,
+			handle(async (req, res) => {
+				const userId = callerOf(req, res);
+				if (userId === null) return;
+				const id = String(req.params[param]);
+				if (!key.test(id)) {
+					res.status(400).json({ error: notOne });
+					return;
+				}
+				const body = parseBody(FavouriteBodySchema, req, res);
+				if (body === null || !writeLimit(req, res)) return;
+				let full = false;
+				const doc = await deps.users.update(userId, (d) => {
+					const stars = d[field];
+					if (!body.on) delete stars[id];
+					else if (stars[id] !== undefined) return;
+					else if (Object.keys(stars).length >= FAVOURITES_MAX) full = true;
+					else stars[id] = now();
+				});
+				if (full) {
+					res.status(409).json({ error: `at most ${FAVOURITES_MAX} favourites` });
+					return;
+				}
+				res.json({ [field]: doc[field] });
+			}),
+		);
+	};
+	starRoute('favourites', 'deckId', 'favourites', DECK_ID, 'not a deck id');
+	starRoute('pool-favourites', 'poolKey', 'poolFavourites', POOL_KEY_PATTERN, 'not a cube or set');
 
 	me.put(
 		'/built/:builtId',

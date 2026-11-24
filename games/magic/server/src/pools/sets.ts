@@ -3,7 +3,7 @@
  * Forge has a draft booster template for (ruling 8), searchable, newest
  * first, each with the set-cube size and a cached playability verdict.
  *
- *   GET /api/pools/sets → 200 SetSummary[]
+ *   GET /api/pools/sets → 200 SetSummary[], each with its `usage` (`usage.ts`)
  *
  * This is the whole of the route; `verdict` is read from THIS module's own
  * cache and never triggers a check — "`verdict` comes from cache only;
@@ -49,10 +49,11 @@
  */
 
 import { isAlchemySet } from '@hadoku/carddata';
-import type { DraftCard, PoolVerdict, SetSummary } from '@hadoku/shared';
+import { setPoolKey, type DraftCard, type PoolVerdict, type SetSummary } from '@hadoku/shared';
 import express, { type Request, type Response, type Router } from 'express';
 import type { BoosterCard, SetSummary as ForgeSetSummary } from './forge.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
+import { joinUsage, type PoolUsageSource } from './usage.js';
 
 /** The slice of D's `ForgePools` this module consumes — structural, like `room/plan.ts`'s own `ForgeChecker`. */
 export interface SetsForge {
@@ -306,6 +307,8 @@ export async function warmSetsStore(store: Pick<SetsStore, 'list'>, warn: (entry
 
 export interface AttachSetRoutesDeps {
 	store: SetsStore;
+	/** Drafts and matches played from each set, joined onto the listing. Absent: the listing carries no `usage`. */
+	usage?: PoolUsageSource;
 	log?: (entry: Record<string, unknown>) => void;
 }
 
@@ -315,9 +318,8 @@ export function attachSetRoutes(api: Router, deps: AttachSetRoutesDeps): void {
 	const sets = express.Router();
 
 	sets.get('/', (_req: Request, res: Response) => {
-		deps.store
-			.list()
-			.then((list) => res.json(list))
+		Promise.all([deps.store.list(), deps.usage?.usage() ?? null])
+			.then(([list, usage]) => res.json(usage === null ? list : joinUsage(list, (s) => setPoolKey(s.code), usage)))
 			.catch((err: unknown) => {
 				warn({ evt: 'sets-list-failed', detail: (err as Error).message });
 				res.status(503).json({ error: 'the pool service is not available to list sets' });

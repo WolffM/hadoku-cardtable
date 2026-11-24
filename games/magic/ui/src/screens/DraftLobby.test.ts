@@ -58,6 +58,8 @@ beforeEach(() => {
     listPresets: vi.fn().mockResolvedValue([]),
     savePreset: vi.fn(),
     deletePreset: vi.fn(),
+    poolFavourites: vi.fn().mockResolvedValue(new Set()),
+    setPoolFavourite: vi.fn(),
   };
   // A default resolved outcome, so a test that picks something without caring
   // what the server answers (most of the Set/Custom/preset tests below) does

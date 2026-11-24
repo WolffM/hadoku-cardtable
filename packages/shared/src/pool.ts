@@ -45,6 +45,21 @@ export const PoolVerdictSchema = z.discriminatedUnion('ok', [
 ]);
 export type PoolVerdict = z.infer<typeof PoolVerdictSchema>;
 
+/**
+ * How much a cube or a set is played: drafts recorded from it (the server's own draft record) and
+ * matches played from it (game-stats, counted per match, never per seat), and when it was last
+ * either. `lastPlayedAt` is ms since epoch, null when it never was.
+ */
+export const PoolUsageSchema = z.strictObject({ drafts: z.number().int(), matches: z.number().int(), lastPlayedAt: z.number().nullable() });
+export type PoolUsage = z.infer<typeof PoolUsageSchema>;
+
+/** One pool's key wherever a pool is counted or starred: `cube:<cubeId>` or `set:<code>`. */
+export type PoolKey = `cube:${string}` | `set:${string}`;
+export const cubePoolKey = (cubeId: string): PoolKey => `cube:${cubeId}`;
+export const setPoolKey = (code: string): PoolKey => `set:${code}`;
+/** A well-formed pool key, as `PUT /api/me/pool-favourites/:poolKey` takes it. */
+export const POOL_KEY_PATTERN = /^(?:cube:[^\s/]{1,200}|set:[A-Za-z0-9_-]{1,32})$/;
+
 export const CubeSummarySchema = z.strictObject({
   id: z.string(),                       // shortlist: file stem; Cube Cobra: 'cc-' + its short id; a pasted list: 'list-' + random
   name: z.string(),
@@ -60,6 +75,7 @@ export const CubeSummarySchema = z.strictObject({
   // against the cube's own cards. Cube Cobra: `cubeJSON`'s top-level
   // `image.id` (never `image.uri`). `null` when none resolved.
   artId: z.string().uuid().nullable(),
+  usage: PoolUsageSchema.optional(),    // the listing's own join (`pools/usage.ts`); absent from a single cube's answer
 });
 export type CubeSummary = z.infer<typeof CubeSummarySchema>;
 
@@ -97,6 +113,7 @@ export const SetSummarySchema = z.strictObject({
   code: z.string(), name: z.string(), date: z.string(), type: z.string(),
   cards: z.number().int().nonnegative(),          // non-basic singletons (set-cube size)
   verdict: PoolVerdictSchema.nullable(),          // null = not yet checked at this Forge pin
+  usage: PoolUsageSchema.optional(),              // the listing's own join (`pools/usage.ts`)
 });
 export type SetSummary = z.infer<typeof SetSummarySchema>;
 

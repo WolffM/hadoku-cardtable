@@ -20,6 +20,8 @@ import { attachCubeRoutes } from '../pools/cubes.js';
 import { attachPresetRoutes, createPresetStore } from '../pools/presets.js';
 import { createCatalogRefresh } from '../pools/refresh.js';
 import { attachSetRoutes } from '../pools/sets.js';
+import { createPoolUsage, gameStatsMatchPages } from '../pools/usage.js';
+import { draftRecordStore } from '../history/index.js';
 import { checkCards } from '../room/plan.js';
 import type { CardtablePlugin } from './state.js';
 
@@ -51,14 +53,17 @@ export const tablesPlugin: CardtablePlugin = {
 		attachDecks(api, { draftRooms, room: (id) => lobby.get(id), cubeCover: (id) => state.cubeStore.list().find((c) => c.id === id)?.artId ?? null, users: magicUserStore(), tournamentEnds: () => state.tournaments.list() });
 		// The cube picker: the shortlist plus any import (a Cube Cobra link or a pasted list), re-verified
 		// fresh at import and at refresh with the same `checkCards` `room/plan.ts` runs.
+		// Drafts from the draft record, matches from game-stats (none without a service key), joined onto both listings.
+		const usage = createPoolUsage({ drafts: draftRecordStore(), stats: gameStatsMatchPages({ serviceKey: CONFIG.serviceKey, baseUrl: CONFIG.statsBaseUrl }), log: jsonLogger('cardtable-pools') });
 		attachCubeRoutes(api, {
 			store: state.cubeStore,
+			usage,
 			people: state.people,
 			check: (cards) => checkCards(cards, state.forgePools, { uncheckedWithoutJar: MAGIC_CONFIG.testUncheckedPools }),
 			...(CONFIG.testNoRateLimits ? { importRateLimit: null } : {}),
 		});
 		// Every set Forge can draft, newest first, each with its set-cube size and a cache-only verdict.
-		attachSetRoutes(api, { store: state.setsStore });
+		attachSetRoutes(api, { store: state.setsStore, usage });
 		// Named custom plans, shared with the group, in `data/presets.json`.
 		state.presetStore = createPresetStore({ path: join(CONFIG.dataDir, 'presets.json') });
 		attachPresetRoutes(api, { store: state.presetStore });

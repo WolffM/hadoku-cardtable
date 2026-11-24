@@ -122,6 +122,7 @@
     "PUT /api/me/art",
     "PUT /api/me/built/:builtId",
     "PUT /api/me/favourites/:deckId",
+    "PUT /api/me/pool-favourites/:poolKey",
     "PUT /api/rooms/:id/pod/plan",
     "PUT /api/sounds/assignments/:cell",
     "PUT /api/sounds/marks",

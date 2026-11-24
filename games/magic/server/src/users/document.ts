@@ -5,6 +5,7 @@
  *   decks       per deck id, when they last played it (stamped by the server at match end)
  *   built       the decks they built from nothing, by `built:<uuid>`
  *   art         their art rules: "always use oldest art", and a hand pick per card name
+ *   poolFavourites  the cubes and sets they starred, by pool key (`cube:<id>`, `set:<code>`), with when
  *
  * A deck id is the one the match stats already use: `draft:<podId>` for a drafted deck,
  * `built:<uuid>` for a built one, a library deck's catalog id otherwise. The Library screen keys
@@ -46,11 +47,12 @@ export const MagicUserDocSchema = z.object({
 	decks: z.record(z.string(), z.object({ lastPlayedAt: z.number() })).default({}),
 	built: z.record(z.string(), BuiltDeckDocSchema).default({}),
 	art: ArtRulesSchema.default({ oldest: false, picks: {} }),
+	poolFavourites: z.record(z.string(), z.number()).default({}),
 });
 export type MagicUserDoc = z.infer<typeof MagicUserDocSchema>;
 
 export function emptyMagicUserDoc(): MagicUserDoc {
-	return { favourites: {}, decks: {}, built: {}, art: { oldest: false, picks: {} } };
+	return { favourites: {}, decks: {}, built: {}, art: { oldest: false, picks: {} }, poolFavourites: {} };
 }
 
 /** Art picks keyed the way every reader looks them up. */
@@ -63,7 +65,7 @@ const under = <V>(a: Record<string, V>, b: Record<string, V>): Record<string, V>
 
 /**
  * An account merge. The kept account (`into`) wins every conflict: its favourites, built decks and
- * picks stay, the merged-away account's are added beside them. A deck both played keeps the later
+ * picks stay, the merged-away account's are added beside them (starred cubes and sets likewise). A deck both played keeps the later
  * stamp, since "last played" is a fact about either. "Always oldest" stays the kept account's.
  */
 export function mergeMagicUserDocs(from: MagicUserDoc, into: MagicUserDoc): MagicUserDoc {
@@ -77,6 +79,7 @@ export function mergeMagicUserDocs(from: MagicUserDoc, into: MagicUserDoc): Magi
 		decks,
 		built: under(into.built, from.built),
 		art: { oldest: into.art.oldest, picks: under(into.art.picks, from.art.picks) },
+		poolFavourites: under(into.poolFavourites, from.poolFavourites),
 	};
 }
 

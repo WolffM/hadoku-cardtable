@@ -102,7 +102,7 @@ async function call(base: string, method: string, path: string, as: string | nul
 describe('/api/me', () => {
 	it("answers an empty library for someone with no document, and writes nothing", async () => {
 		const { base, dir } = await openApp();
-		expect(await call(base, 'GET', '/api/me/library')).toEqual({ status: 200, json: { favourites: {}, decks: {}, built: [] } });
+		expect(await call(base, 'GET', '/api/me/library')).toEqual({ status: 200, json: { favourites: {}, decks: {}, built: [], poolFavourites: {} } });
 		await expect(readdir(dir)).rejects.toThrow(/ENOENT/);
 	});
 
@@ -123,6 +123,34 @@ describe('/api/me', () => {
 		expect((await call(base, 'GET', '/api/me/library')).json.favourites).toEqual({ 'draft:pod-1': 1_000, 'built:abc': 2_000 });
 		expect((await call(base, 'GET', '/api/me/library', BOB)).json.favourites).toEqual({});
 		expect((await call(base, 'PUT', '/api/me/favourites/draft:pod-1', ALICE, { on: false })).json).toEqual({ favourites: { 'built:abc': 2_000 } });
+	});
+
+	it("stars and unstars a cube or a set, only in the caller's own document, apart from the decks", async () => {
+		let t = 1_000;
+		const { base } = await openApp({ now: () => t });
+		expect(await call(base, 'PUT', '/api/me/pool-favourites/cube:cc-2plnt', ALICE, { on: true })).toEqual({ status: 200, json: { poolFavourites: { 'cube:cc-2plnt': 1_000 } } });
+		t = 2_000;
+		await call(base, 'PUT', '/api/me/pool-favourites/cube:cc-2plnt', ALICE, { on: true });
+		await call(base, 'PUT', '/api/me/pool-favourites/set:ISD', ALICE, { on: true });
+		const library = (await call(base, 'GET', '/api/me/library')).json;
+		expect(library.poolFavourites).toEqual({ 'cube:cc-2plnt': 1_000, 'set:ISD': 2_000 });
+		expect(library.favourites).toEqual({});
+		expect((await call(base, 'GET', '/api/me/library', BOB)).json.poolFavourites).toEqual({});
+		expect((await call(base, 'PUT', '/api/me/pool-favourites/set:ISD', ALICE, { on: false })).json).toEqual({ poolFavourites: { 'cube:cc-2plnt': 1_000 } });
+		expect((await call(base, 'PUT', '/api/me/pool-favourites/cube:x', null, { on: true })).status).toBe(401);
+	});
+
+	it('refuses a pool key that is not a cube or a set, and a star past the cap', async () => {
+		const { base, users } = await openApp();
+		for (const key of ['deck:abc', 'cube:', 'set:IS D', 'cube']) expect((await call(base, 'PUT', `/api/me/pool-favourites/${encodeURIComponent(key)}`, ALICE, { on: true })).status).toBe(400);
+		expect((await call(base, 'PUT', '/api/me/pool-favourites/set:ISD', ALICE, { on: 'yes' })).status).toBe(400);
+		await users.update(ALICE, (d) => {
+			for (let i = 0; i < meMod.FAVOURITES_MAX; i++) d.poolFavourites[`cube:c${i}`] = i;
+		});
+		expect(await call(base, 'PUT', '/api/me/pool-favourites/set:ISD', ALICE, { on: true })).toEqual({ status: 409, json: { error: `at most ${meMod.FAVOURITES_MAX} favourites` } });
+		// At the cap, a star already kept and an unstar still answer.
+		expect((await call(base, 'PUT', '/api/me/pool-favourites/cube:c0', ALICE, { on: true })).status).toBe(200);
+		expect((await call(base, 'PUT', '/api/me/pool-favourites/cube:c0', ALICE, { on: false })).status).toBe(200);
 	});
 
 	it('refuses a malformed favourite', async () => {
@@ -149,7 +177,7 @@ describe('/api/me', () => {
 		expect((await call(base, 'DELETE', '/api/me/built/0f9c2d6e-1111-4222-8333-944455556666')).status).toBe(204);
 		const after = (await call(base, 'GET', '/api/me/library')).json;
 		// Its star goes with it.
-		expect(after).toEqual({ favourites: {}, decks: {}, built: [] });
+		expect(after).toEqual({ favourites: {}, decks: {}, built: [], poolFavourites: {} });
 		expect((await call(base, 'DELETE', '/api/me/built/0f9c2d6e-1111-4222-8333-944455556666')).status).toBe(404);
 	});
 
@@ -194,5 +222,8 @@ describe('/api/me', () => {
 		expect((await call(base, 'PUT', '/api/me/favourites/d3', ALICE, { on: true })).status).toBe(429);
 		expect((await call(base, 'PUT', '/api/me/favourites/d3', BOB, { on: true })).status).toBe(200);
 		expect((await call(base, 'GET', '/api/me/library')).status).toBe(200);
+		// A cube's star draws on the same budget.
+		expect((await call(base, 'PUT', '/api/me/pool-favourites/set:ISD', ALICE, { on: true })).status).toBe(429);
+		expect((await call(base, 'PUT', '/api/me/pool-favourites/set:ISD', BOB, { on: true })).status).toBe(200);
 	});
 });

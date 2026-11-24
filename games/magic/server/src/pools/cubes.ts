@@ -3,7 +3,7 @@
  * 8-cube shortlist `build-pool` generates (read-only) plus any cube a member
  * has imported: from Cube Cobra, or as a pasted card list (`cube-list.ts`).
  *
- *   GET    /api/pools/cubes            → 200 CubeListing[] (imported newest-first, then the shortlist)
+ *   GET    /api/pools/cubes            → 200 CubeListing[] (imported newest-first, then the shortlist), each with its `usage` (`usage.ts`)
  *   GET    /api/pools/cubes/:id/cards  → 200 DraftCard[] | 404 { error } — lane B's art preload reads a plan's cube from here, before the deal
  *   GET    /api/pools/cubes/:id/arts   [?n=3] → 200 { arts } | 404 { error } — a few of its cards' art ids, at random: the lobby's spotlight
  *   POST   /api/pools/cubes/import     { link } | { name, list } → 201 CubeSummary | 400 { error } | 429
@@ -55,7 +55,7 @@ import { mkdir, open, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import express, { type Request, type Response, type Router } from 'express';
 
-import { CUBE_ARTS_MAX, DraftCardSchema, ImportCubeBodySchema, sampleArt, type CubeListing, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
+import { CUBE_ARTS_MAX, cubePoolKey, DraftCardSchema, ImportCubeBodySchema, sampleArt, type CubeListing, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
 import { accountIdOf } from '@hadoku/game-server/edge-auth';
 import type { People } from '@hadoku/game-server/people';
 import type { RateLimitConfig } from '@wolffm/rooms-server';
@@ -64,6 +64,7 @@ import { bodyErrors, httpCaller, perCallerLimit } from '@hadoku/game-server/http
 import type { CardCatalog } from './catalog.ts';
 import { parseCubeList } from './cube-list.ts';
 import { fetchCubeCobraCube, parseCubeCobraLink, type CubeCobraCard, type CubeCobraCube, type FetchJson } from './cubecobra.ts';
+import { joinUsage, type PoolUsageSource } from './usage.ts';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 
 export interface CubeStore {
@@ -594,6 +595,8 @@ export interface AttachCubeRoutesDeps {
 	/** Names an importer from their account, as it is now. */
 	people: Pick<People, 'resolve'>;
 	check: (cards: readonly DraftCard[]) => Promise<PoolVerdict>;
+	/** Drafts and matches played from each cube, joined onto the listing. Absent: the listing carries no `usage`. */
+	usage?: PoolUsageSource;
 	log?: (entry: Record<string, unknown>) => void;
 	/** Overrides {@link CUBE_IMPORT_RATE_LIMIT}; `null` is none (`perCallerLimit`). */
 	importRateLimit?: RateLimitConfig | null;
@@ -646,7 +649,10 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 	};
 
 	cubes.get('/', (req: Request, res: Response, next) => {
-		shown(req, store.list()).then((list) => res.json(list), next);
+		Promise.all([shown(req, store.list()), deps.usage?.usage() ?? null]).then(
+			([list, usage]) => res.json(usage === null ? list : joinUsage(list, (c) => cubePoolKey(c.id), usage)),
+			next,
+		);
 	});
 
 	// A cube's card list (the vintage cube's is 244 KB) is serialized once per version of it. Keyed by

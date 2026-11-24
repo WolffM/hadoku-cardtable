@@ -67,6 +67,8 @@ function stubPools(over: Partial<PoolsClient> = {}): PoolsClient {
     listPresets: vi.fn().mockResolvedValue([]),
     savePreset: vi.fn(),
     deletePreset: vi.fn(),
+    poolFavourites: vi.fn().mockResolvedValue(new Set()),
+    setPoolFavourite: vi.fn(),
     ...over,
   };
 }

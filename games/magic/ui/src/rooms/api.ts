@@ -50,6 +50,7 @@ import {
   type DraftPlan,
   type DraftPreset,
   type GameType,
+  type PoolKey,
   type PoolVerdict,
   type RoomBody,
   type RoomMode,
@@ -462,7 +463,14 @@ export interface PoolsClient {
   savePreset(name: string, plan: DraftPlan): Promise<{ ok: true; preset: DraftPreset } | { ok: false; message: string }>;
   /** `DELETE /api/pools/presets/:id` → 204, or a refusal — 403 unless the caller is the preset's own creator (same rule as a cube import, ruling 4/the plan's "Presets" ruling). */
   deletePreset(id: string): Promise<{ ok: true } | { ok: false; message: string }>;
+  /** The cubes and sets the caller starred, by pool key (`cubePoolKey`, `setPoolKey`): `GET /api/me/library`'s `poolFavourites`. Throws when the server cannot answer. */
+  poolFavourites(): Promise<Set<string>>;
+  /** `PUT /api/me/pool-favourites/:poolKey` → the caller's stars as they now are, or a refusal (409 at the cap). */
+  setPoolFavourite(poolKey: PoolKey, on: boolean): Promise<{ ok: true; poolFavourites: Set<string> } | { ok: false; message: string }>;
 }
+
+/** A `poolFavourites` answer's keys (pool key → when starred); an entry without a time is left out. */
+const starredOf = (raw: unknown): Set<string> => new Set(isRecord(raw) ? Object.entries(raw).flatMap(([key, at]) => (typeof at === 'number' ? [key] : [])) : []);
 
 export function poolsClient(fetchImpl: Fetch = pageFetch, base: string = apiBase()): PoolsClient {
   const url = (path: string): string => `${base}pools/cubes${path}`;
@@ -609,6 +617,30 @@ export function poolsClient(fetchImpl: Fetch = pageFetch, base: string = apiBase
       if (res.ok) return { ok: true };
       const body = await bodyOf(res);
       return { ok: false, message: `Could not delete that preset: ${serverMessage(body, res.status)}.` };
+    },
+
+    async poolFavourites() {
+      let res: Response;
+      try {
+        res = await getJson(`${base}me/library`, fetchImpl);
+      } catch {
+        throw new Error('Could not reach the server.');
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) throw new Error(`Could not load your favourites: ${serverMessage(body, res.status)}.`);
+      return starredOf(isRecord(body) ? body.poolFavourites : null);
+    },
+
+    async setPoolFavourite(poolKey, on) {
+      let res: Response;
+      try {
+        res = await sendJson(`${base}me/pool-favourites/${encodeURIComponent(poolKey)}`, 'PUT', { on }, fetchImpl);
+      } catch {
+        return { ok: false, message: 'Could not reach the server.' };
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) return { ok: false, message: serverMessage(body, res.status) };
+      return { ok: true, poolFavourites: starredOf(isRecord(body) ? body.poolFavourites : null) };
     },
   };
 }
