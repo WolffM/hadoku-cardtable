@@ -45,9 +45,9 @@ The friend publishes alone: a GitHub release of their repo carrying `game-bundle
 by the repo on the key, so the key can publish to that one route and nothing else. hadoku_site
 `8d1a7aa93` added `.mjs` to the publisher's types (it was uploaded as octet-stream, which a browser
 will not `import()`). The game author's guide (the bundle contract, the relay's rules, ending a
-match, a two-seat local harness and the release workflow) is hadoku_site
-`docs/child-apps/CARDTABLE_GAME_AUTHORS.md`; the operator's setup is
-`docs/child-apps/CARDTABLE_EXTERNAL_GAMES.md`.
+match, a two-seat local harness and the release workflow) is this repo's
+[`docs/GAME_AUTHORS.md`](../GAME_AUTHORS.md), public so the author can read it; the operator's setup
+is hadoku_site `docs/child-apps/CARDTABLE_EXTERNAL_GAMES.md`.
 
 No row is added yet: its `repo` is the publish permission, and a guessed one would be wrong. Once
 the operator names the id and the repo, the row, the generator run and the key are one sitting

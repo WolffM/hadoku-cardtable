@@ -124,6 +124,14 @@ the exact steps. The one exception is the shared layer above: a change
 to the header, settings or themes reaches production with hadoku.me's own
 deploy, with no release here.
 
+## Bring your own game
+
+A room can run a game that isn't cardtable's: one ES module, built and
+released from its author's own repo, served from `hadoku.me/games/<id>/`.
+cardtable seats the players and relays their messages; the game does the
+rest. [`docs/GAME_AUTHORS.md`](../GAME_AUTHORS.md) is the whole contract
+for an author, with a two-seat local harness and the release workflow.
+
 ## Trivia
 
 A Forge source file's method-counting `grep` once miscounted the net
