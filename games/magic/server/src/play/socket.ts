@@ -142,6 +142,8 @@ import { costlyActLimit, httpCaller, perCallerLimit, readBody } from '@hadoku/ga
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { callerContext, report } from '@hadoku/game-server/telemetry';
 import type { SessionHandle } from '@hadoku/game-server/room/session';
+import { magicUserStore } from '../users/index.js';
+import { artRulesOf, pinArtAtStart, type ArtPinSeat } from './art-pins.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
 
@@ -297,8 +299,9 @@ export interface PlayHandle {
 	 * Start a match the way `POST /play/matches` does — refused while draining, without Forge or at the
 	 * ceiling, then waited for until Forge has opened the game, and stopped if it never does. `from`: a
 	 * resumed game ({@link MatchRegistry.create}). `startedFor` can read its place in the queue.
+	 * `artPinSeats`: who each seat is, for its player's art pins (`art-pins.ts`), resolved while the JVM boots.
 	 */
-	start(req: Request, spec: ForgeMatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom): Promise<StartOutcome>;
+	start(req: Request, spec: ForgeMatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom, artPinSeats?: readonly ArtPinSeat[]): Promise<StartOutcome>;
 	/**
 	 * Settles once every match an earlier server left running has been adopted (or refused). The
 	 * host finds them asynchronously — a JVM may run on another machine — so anything that judges
@@ -736,10 +739,16 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		// (`http/routes.ts`'s `startFromRoom`), whose own asks join this one.
 		const startedFor: unknown = res.locals.startedFor;
 		// A board room's own board opens on the board itself: no coin toss, no mulligan (`ForgeMatchSpec.skipOpening`).
-		const started = await start(req, res.locals.trustedScenario === true ? { ...parsed.spec, skipOpening: true } : parsed.spec, [
-			httpCaller(req),
-			...(Array.isArray(startedFor) ? (startedFor as ParticipantId[]) : []),
-		]);
+		// A room start's seats, for their art pins (`http/routes.ts`'s `startFromRoom`): from `res.locals`,
+		// never the body, so no client sends pins of its own or lifts a tournament's lock.
+		const artPinSeats: unknown = res.locals.artPinSeats;
+		const started = await start(
+			req,
+			res.locals.trustedScenario === true ? { ...parsed.spec, skipOpening: true } : parsed.spec,
+			[httpCaller(req), ...(Array.isArray(startedFor) ? (startedFor as ParticipantId[]) : [])],
+			undefined,
+			Array.isArray(artPinSeats) ? (artPinSeats as ArtPinSeat[]) : undefined,
+		);
 		if (!started.ok) {
 			res.status(started.status).json({ ...(started.matchId === undefined ? {} : { matchId: started.matchId }), error: started.error });
 			return;
@@ -752,7 +761,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		});
 	});
 
-	async function start(req: Request, spec: ForgeMatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom): Promise<StartOutcome> {
+	async function start(req: Request, spec: ForgeMatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom, artPinSeats?: readonly ArtPinSeat[]): Promise<StartOutcome> {
 		// A match started now would be handed a JVM this process is about to stop
 		// watching, and its seats would never be told. Refused in words instead.
 		if (draining !== null) return { ok: false, status: 503, error: draining };
@@ -767,6 +776,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		const match = matches.create(spec, from);
 		roomFor(match);
 		log({ evt: 'match-created', matchId: match.id, opponent: spec.seats[1].ai ? 'ai' : 'human', ...(from === undefined ? {} : { resumedAt: from.snapshot.turn }) });
+		// Each seat's art pins, read off local disk while the JVM boots; never awaited (`art-pins.ts`).
+		if (artPinSeats !== undefined && deps.catalog != null) void pinArtAtStart(match.id, match.spec as ForgeMatchSpec, artPinSeats, { read: artRulesOf(magicUserStore()), catalog: deps.catalog, log });
 		waitingOn.set(match, new Set(startedFor));
 		const running = await match.whenRunning(deps.startTimeoutMs ?? 60_000);
 		waitingOn.delete(match);
