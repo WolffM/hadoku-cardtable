@@ -100,3 +100,9 @@ identity (declared in its `.access-lists.json`, at step 5), wire room events wit
   service gets its credentials from `HADOKU_DATA_URL` with its own key through the vendored
   hadoku-pg client. Both migrations applied on the tenant (hadoku_site 6320dfb68). Asked
   dataplatform for the cross-tenant isolation check. Next: wired dark, then the D1 copy.
+- 2026-11-24: running dark on the hub (hadoku_site f853d344f, d257c85f1, b91b55d23,
+  dd1118917): the edge mount `hadoku.me/game-stats`, erase and merge beside prefs-api's, and
+  D1 copied into the tenant with every count equal (380 matches, 1015 seats, 45 ratings).
+  `compare-surfaces.mjs` agrees on every read without a name lookup. Waiting on the operator to
+  add `game-stats` to `identity-resolve` and `prefs-avatar-resolve`; then the comparison must
+  come back empty before the switch.
