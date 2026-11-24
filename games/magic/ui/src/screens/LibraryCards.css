@@ -1,0 +1,144 @@
+/* The Library's Cards tab (`LibraryCards.tsx`): the results grid, and a card's printings beside it. The box is the Library's own (`.deckfilter`), the tiles `CardTile`'s, the preview a deck tile's art (`.deckpick__art`). */
+
+.library-cards__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.library-cards__grid {
+  --card-w: 150px;
+  --card-h: calc(var(--card-w) / (var(--card-ratio)));
+
+  display: grid;
+  flex: 999 1 480px;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.library-cards__result {
+  position: relative;
+}
+
+.library-cards__result[data-open] .card {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.library-cards__mark,
+.library-cards__marks {
+  display: flex;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.library-cards__mark {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg-raised);
+}
+
+.library-cards__picker {
+  display: flex;
+  flex: 1 1 340px;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 460px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-card);
+}
+
+.library-cards__name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+}
+
+.library-cards__preview {
+  display: grid;
+  height: 180px;
+  overflow: hidden;
+  border-radius: var(--hdk-radius);
+}
+
+.library-cards__strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.library-cards__printing {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  cursor: pointer;
+}
+
+.library-cards__printing:hover:not(:disabled),
+.library-cards__printing:focus-visible {
+  border-color: var(--accent);
+}
+
+.library-cards__printing[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.library-cards__printing img {
+  display: block;
+  width: 100%;
+  aspect-ratio: var(--card-ratio);
+  object-fit: cover;
+}
+
+.library-cards__printing .library-cards__marks {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+}
+
+.library-cards__printing .library-cards__marks:not(:empty) {
+  padding: 2px 3px;
+  border-radius: var(--hdk-radius-sm);
+  background: var(--bg-raised);
+  color: var(--accent);
+}
+
+.library-cards__set {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 3px 6px;
+  font-size: 11px;
+}
+
+.library-cards__set > :first-child {
+  font-weight: 600;
+}
+
+.library-cards__set > :last-child:not(:first-child) {
+  color: var(--ink-dim);
+}
+
+.library-cards__reset {
+  align-self: flex-start;
+}

@@ -14,6 +14,9 @@
  *     not this (`@hadoku/game-ui/settings/Settings.tsx`).
  *   - **"Say my mistakes"** (approved 2026-10-26) — default on. Client-only: the board draws the
  *     seat's own mistake bubble (`../play/live/MistakeBubble.tsx`).
+ *   - **Always use oldest art** (wave 126) — default off. Not a preference: an art rule, kept on our
+ *     server beside the art picks (`GET`/`PUT /api/me/art`, `../deck/artRules.ts`) and resolved at
+ *     match start. A refused write draws the toggle as it was.
  *   - **Experimental features** (2026-11-10) — default off. Shows what is not ready for everyone:
  *     today Create room's Challenge (`../rooms/RoomList.tsx`). A Challenge room already made is
  *     listed and joinable either way.
@@ -24,9 +27,11 @@
  * explanatory text (operator, twice): one plain control each.
  */
 
+import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@wolffm/themes';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
+import { artClient, changeArt, type ArtClient } from '../deck/artRules.ts';
 import type { BoardLayout } from '../play/Board.tsx';
 import { GAME_SPEEDS, getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type GameSpeed, type PlayPrefs } from '../play/live/prefs.ts';
 import { useLiveMatchSettings } from './liveMatchSettings.ts';
@@ -106,8 +111,31 @@ export function GameSettings() {
         label="Say my mistakes"
         onChange={(on) => persist({ mistakeBubbles: on })}
       />
+      <OldestArtToggle />
     </fieldset>
   );
+}
+
+/** "Always use oldest art": read from the server, written back whole (`changeArt`); off and still until it has answered. */
+export function OldestArtToggle({ client: given }: { client?: ArtClient }) {
+  const client = useMemo(() => given ?? artClient(), [given]);
+  const [oldest, setOldest] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    client.getArt().then(
+      (rules) => live && setOldest(rules.oldest),
+      (err: unknown) => console.warn('[cardtable] art rules are unavailable', err),
+    );
+    return () => {
+      live = false;
+    };
+  }, [client]);
+  const change = (on: boolean): void => {
+    const before = oldest;
+    setOldest(on);
+    void changeArt(client, (rules) => ({ ...rules, oldest: on })).then((r) => setOldest(r.ok ? r.rules.oldest : before));
+  };
+  return <Toggle testId="settings-art-oldest" checked={oldest ?? false} disabled={oldest === null} label="Always use oldest art" onChange={change} />;
 }
 
 /** Off by default: what is not ready for everyone stays out of sight until a player asks for it. */

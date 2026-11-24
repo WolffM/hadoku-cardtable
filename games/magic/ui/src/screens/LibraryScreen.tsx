@@ -28,7 +28,8 @@
  *
  * ## Cards
  *
- * A shell: wave 126 fills it (the art picker).
+ * Which printing each of your cards is drawn as (`LibraryCards.tsx`): search a card, open its
+ * printings, pick one or reset it to the default. The picks are the server's (`GET`/`PUT /api/me/art`).
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -68,6 +69,7 @@ import {
   type LibrarySort,
 } from './deckFilter.ts';
 import { HomeHead } from './HomeHead.tsx';
+import { LibraryCards } from './LibraryCards.tsx';
 import { libraryPeekList, useNamedArt } from './libraryPeek.ts';
 import './LibraryScreen.css';
 import '@hadoku/game-ui/components/Button.css';
@@ -261,7 +263,7 @@ export function LibraryScreen({ tab, cube, decks: givenDecks, deckRecords = fetc
           />
         )}
         {tab === 'cubes' && <CubesTab pools={pools} decks={decks} />}
-        {tab === 'cards' && <section className="lobby__card library__cards" data-testid="library-cards" />}
+        {tab === 'cards' && <LibraryCards />}
       </main>
     </div>
   );

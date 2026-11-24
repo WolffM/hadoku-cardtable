@@ -163,8 +163,8 @@ archive has the cards for it.
 
 ## The Library
 
-**What it does.** One page for everything a player owns: their decks and the
-cubes they have drafted, as tabs. Decks come in three rows: the ones they
+**What it does.** One page for everything a player owns: their decks, the
+cubes they have drafted and their card art, as tabs. Decks come in three rows: the ones they
 starred, the ones they made their own, and the ones a draft made that they
 have not touched yet, each with the one played last first. Every deck tile
 says when it was last played, or that it never was.
@@ -179,8 +179,12 @@ room offers, or Any card), search for cards and press them in, up to four of
 each, with basics from the land counters. A named deck saves itself as it is
 built, and once it reaches 60 cards it is offered under a room's **My decks**.
 
-**Art choices.** A player can pick which printing each card is drawn as, or
-turn on "always use oldest art". The choice is fixed when a match starts,
+**Art choices.** The Library's **Cards** tab picks which printing each card
+is drawn as. Search a card and open it: its printings line up oldest first,
+each with its set and year, the oldest and the default marked. Press one to
+pick it, or **Reset to default**. With the box empty, the tab shows the cards
+already picked. **Always use oldest art**, in Settings, draws every other card
+as its oldest printing; a hand pick still wins. The choice is fixed when a match starts,
 drawn that way on both screens and in the replay, and never changes the
 opponent's cards. A drafted deck keeps its drafted art while its tournament
 runs. Every drafted deck shows cover art, including decks from sets and
