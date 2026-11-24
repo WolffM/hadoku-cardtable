@@ -215,6 +215,17 @@ setting, "Bots play" (`settings.botsPlay`, on by default, fixed once the draft s
 draft pairs its humans alone (`draftEntrants`), so its bots only draft and an odd human out takes the bye.
 A field past one pod pairs its humans alone either way. The Draft Major turns it off.
 
+## 2026-11-24 rulings — Bots play's default, and a disqualified bye
+
+The operator, verbatim:
+
+> 1. by default they should play in a tournmanet room. in the draft major room they should not play.
+> 2. yes keep the 2-0 win on a bye, they will lose on other tiebreakers
+
+1: Bots play stays on by default; Cardtable Draft Major #1 (`r-f7a9fa976da4`) has it off, set by its
+leader once the release carrying it is on prod (it is fixed once the draft starts). 2: a player
+disqualified in a round where they hold the bye keeps that bye's 2-0; nothing revokes it.
+
 ## 2026-10-19 ruling — the Decks page
 
 The operator, verbatim: *"it would be nice if the deck editor was reachable outside of games also. whenever a draft is finished, we can consider the pool a new deck. if the player actually builds the deck and adds basic lands and what not and then presses save, it updates the deck. regardless of how the deck was updated/saved it should always be reachable by the player's deck view. Let's add a new button next to leaderboard on the first page. for that we'll need a new 'deck' view that displays all the users decks. by default most people will have none, but if you created a draft deck it would show here. Draft decks can be edited here, but cards cannot be added or removed from the pool. The draft deck should be eternally linked to the unique draft-pool that it was created from. the only other time this deck can be selected to be played is if 'Free-Pick' is enabled. under freepick we should have a filter option for 'My Decks' where this should show up."*
