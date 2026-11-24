@@ -97,7 +97,7 @@ on:
   # green; and every night whatever changed, with the `[nightly]`
   # tests, so a pinned test that stopped failing, or vanished, is caught by the
   # strict full-run judge. The nightly cron string is matched by the `changes`
-  # job — keep them equal.
+  # job and the `concurrency` group — keep all three equal.
   schedule:
     - cron: '17 */2 * * *'
     - cron: '0 10 * * *'
@@ -115,13 +115,20 @@ on:
 # A manual dispatch is somebody's proof run (a verify branch, the fleet's
 # canary): it never queues behind a push's full run, nor the push behind it —
 # each dispatch is its own group.
-# A scheduled run is its own group too. GitHub delivers the crons hours late, and
-# in the push group a late one waits behind a running push run until the next
-# push replaces it: the 11-06 nightly arrived at 17:03Z and was cancelled at
-# 17:10 with no job run (42258029026), so no nightly monkey ran after 11-05.
-# The `changes` job already keeps two scheduled runs off one sha.
+# A scheduled run has its own group too, one per cron, outside the push group.
+# GitHub delivers the crons hours late, and in the push group a late one waits
+# behind a running push run until the next push replaces it: the 11-06 nightly
+# arrived at 17:03Z and was cancelled at 17:10 with no job run (42258029026),
+# so no nightly monkey ran after 11-05. Per cron, not per run: with a group per
+# run_id, two-hourly runs on different shas ran their full sets side by side.
+# On 2026-11-24 the 00:38Z and 02:27Z runs (ten jdk21 jobs each, plus a push's)
+# held every jdk21 claw, and their jobs waited up to 75 min for one
+# (ci:queue-health paged twice). Now a two-hourly run waits for the one before
+# it, and only the newest waiting one is kept, which still covers main's head.
+# The nightly keeps a group of its own, so a two-hourly can never replace it.
+# The `changes` job still keeps two scheduled runs off one sha.
 concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && format('forge-dispatch-{0}', github.run_id) || github.event_name == 'schedule' && format('forge-schedule-{0}', github.run_id) || format('forge-{0}', github.ref) }}
+  group: ${{ github.event_name == 'workflow_dispatch' && format('forge-dispatch-{0}', github.run_id) || github.event_name == 'schedule' && (github.event.schedule == '0 10 * * *' && 'forge-schedule-nightly' || 'forge-schedule-two-hourly') || format('forge-{0}', github.ref) }}
   cancel-in-progress: false
 
 permissions:
