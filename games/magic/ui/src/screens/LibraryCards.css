@@ -14,7 +14,7 @@
   display: grid;
   flex: 999 1 480px;
   min-width: 0;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+  grid-template-columns: repeat(auto-fill, var(--card-w));
   gap: 10px;
   align-items: start;
 }
@@ -37,6 +37,7 @@
 
 .library-cards__mark {
   position: absolute;
+  z-index: 1;
   top: 6px;
   right: 6px;
   padding: 3px;
@@ -67,16 +68,24 @@
 }
 
 .library-cards__preview {
-  display: grid;
+  display: flex;
   height: 180px;
   overflow: hidden;
   border-radius: var(--hdk-radius);
+}
+
+.library-cards__preview > .deckpick__art {
+  flex: 1;
+  border-bottom: 0;
 }
 
 .library-cards__strip {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
   gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .library-cards__printing {
@@ -141,4 +150,16 @@
 
 .library-cards__reset {
   align-self: flex-start;
+}
+
+/* A phone: two cards a row, and an open card's printings above the results. */
+@media (max-width: 600px) {
+  .library-cards__grid {
+    --card-w: 136px;
+  }
+
+  .library-cards__picker {
+    order: -1;
+    max-width: none;
+  }
 }
