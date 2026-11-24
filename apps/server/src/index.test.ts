@@ -484,6 +484,7 @@ describe('a server started from a path', () => {
 					presets: 0,
 					cubes: 0,
 					legacyIds: 0,
+					drafts: 0,
 					users: 1,
 				},
 			},
@@ -522,6 +523,7 @@ describe('a server started from a path', () => {
 				presets: 0,
 				cubes: 0,
 				legacyIds: 0,
+				drafts: 0,
 				users: 0,
 			},
 		});

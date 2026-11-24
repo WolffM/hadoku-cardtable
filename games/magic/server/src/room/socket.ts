@@ -189,6 +189,7 @@ import { handshakeTier } from '@hadoku/game-server/room/socket-auth';
 import type { SessionHandle } from '@hadoku/game-server/room/session';
 import type { Lobby } from './lobby.js';
 import { magicView } from './magic-view.js';
+import { recordDraftDone } from '../history/index.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 
 /**
@@ -389,6 +390,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const stepped = (room: DraftRoom): void => {
 		emitPickStep(io, room, policy);
 		if (stateOf(room).status === 'complete') deps.lobby.podDraftDone(room.roomId);
+		recordDraftDone(room, deps);
 	};
 	const limiter = new MultiRateLimiter<ParticipantId>(deps.rateLimit ?? PICK_RATE_LIMIT);
 	const leanLimiter = new MultiRateLimiter<ParticipantId>(LEAN_RATE_LIMIT);

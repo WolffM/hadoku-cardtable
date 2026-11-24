@@ -10,6 +10,7 @@ import { podPickNumber } from '@hadoku/draft';
 import { CONFIG } from '@hadoku/game-server/config';
 import { MAGIC_CONFIG } from '../config.js';
 import { restoreRooms } from '../boot.js';
+import { recordDraftsAbandoned } from '../history/index.js';
 import { busyReport } from '@hadoku/game-server/busy';
 import { endForfeitedGame } from '../http/table-actions.js';
 import { DEFAULT_PLAN, stateOf, type PoolSourceResolver, type DraftRooms } from '../room/draftRooms.js';
@@ -135,6 +136,7 @@ export const roomsPlugin: CardtablePlugin = {
 		};
 		state.roomClosed = (roomId, matches) => {
 			for (const id of matches) state.play?.matches.get(id)?.stop();
+			recordDraftsAbandoned(roomId, draftRooms);
 			// An unfinished draft has no deck to keep; a finished one stays on its drafters' Decks page.
 			const draft = draftRooms?.find(roomId);
 			if (draft !== undefined && stateOf(draft).status !== 'complete') draftRooms?.delete(roomId);

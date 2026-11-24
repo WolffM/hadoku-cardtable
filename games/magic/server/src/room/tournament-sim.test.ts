@@ -55,6 +55,11 @@ beforeAll(async () => {
 	lobbyMod = await import('./lobby.ts');
 	podsMod = await import('./pods.ts');
 	botDeckMod = await import('./botDeck.ts');
+	// A draft finished here is recorded (`history/`): in this file's own dir, never the checkout's state dir.
+	const historyDir = await mkdtemp(join(tmpdir(), 'cardtable-tournament-sim-history-'));
+	dirs.push(historyDir);
+	const history = await import('../history/index.ts');
+	history.useDraftRecordStore(history.createDraftRecordStore(historyDir, () => {}));
 	const load = (await import('./pool.ts')).loadPool(POOL_FILE);
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 	pool = load.pool;

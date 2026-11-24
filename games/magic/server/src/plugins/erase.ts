@@ -14,9 +14,11 @@ import { CONFIG } from '@hadoku/game-server/config';
 import { legacyIdsStep } from '@hadoku/game-server/erase/legacy-ids';
 import { recordingsStep } from '@hadoku/game-server/erase/recordings';
 import { roomsEraseSteps } from '@hadoku/game-server/erase/rooms';
+import { draftsEraseStep } from '@hadoku/game-server/erase/drafts';
 import { MAGIC_CONFIG } from '../config.js';
 import { endForfeitedGame } from '../http/table-actions.js';
 import { podOfDraftId } from '../room/pods.js';
+import { draftRecordStore } from '../history/index.js';
 import type { Match } from '../play/match.js';
 import type { CardtablePlugin } from './state.js';
 
@@ -45,6 +47,8 @@ export const erasePlugin: CardtablePlugin = {
 				{ what: 'presets', erase: (p) => state.presetStore.anonymise(p.ids, p.placeholder), merge: (m) => state.presetStore.merge(m.renames) },
 				{ what: 'cubes', erase: (p) => state.cubeStore.anonymise(p.ids, p.placeholder), merge: (m) => state.cubeStore.merge(m.renames) },
 				legacyIdsStep(join(CONFIG.dataDir, 'legacy-ids.done.json')),
+				// A finished draft's record keeps the person's seat, anonymised; a merge moves it to the kept account.
+				draftsEraseStep(draftRecordStore()),
 			],
 		};
 	},

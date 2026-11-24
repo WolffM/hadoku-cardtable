@@ -104,6 +104,11 @@ beforeAll(async () => {
 	socketMod = await import('./socket.ts');
 	roomsMod = await import('./draftRooms.ts');
 	lobbyMod = await import('./lobby.ts');
+	// A draft finished here is recorded (`history/`): in this file's own dir, never the checkout's state dir.
+	const historyDir = await mkdtemp(join(tmpdir(), 'cardtable-socket-test-history-'));
+	dirs.push(historyDir);
+	const history = await import('../history/index.ts');
+	history.useDraftRecordStore(history.createDraftRecordStore(historyDir, () => {}));
 	const poolMod = await import('./pool.ts');
 	const load = poolMod.loadPool(BUNDLED_POOL_FIXTURE);
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
