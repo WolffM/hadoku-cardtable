@@ -52,11 +52,18 @@ export interface SeatDriverResult {
 
 const now = (): string => new Date().toISOString();
 
-/** A compact signature of what is currently asked/offered — unchanged means no progress. */
-function signatureOf(match: LiveMatch): string {
+/**
+ * A compact signature of what is currently asked/offered, and of how far Forge's game has got: unchanged
+ * means no progress. The bar alone is not enough: through the opponent's turn the server auto-passes this
+ * seat's priority step after step, and the seat reads one unchanging "Waiting for …" all along while the
+ * game moves on. Forge's view seq moves with every change it sends, so a long opponent turn is progress
+ * and only a game that has stopped moving is stuck.
+ */
+export function signatureOf(match: LiveMatch): string {
   const ask = currentAsk(match);
   if (ask !== null) return `ask:${ask.callId}`;
-  return `bar:${match.prompt ?? ''}:${match.buttons?.label1 ?? ''}:${match.buttons?.enable1 ?? ''}:${match.selectables?.cards.size ?? -1}`;
+  const game = `${match.forgeSeq}:${match.view?.turn ?? ''}:${match.view?.phase ?? ''}`;
+  return `bar:${game}:${match.prompt ?? ''}:${match.buttons?.label1 ?? ''}:${match.buttons?.enable1 ?? ''}:${match.selectables?.cards.size ?? -1}`;
 }
 
 /**

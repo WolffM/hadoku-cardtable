@@ -11,7 +11,13 @@
  * "Waiting for opponent..." with alice deciding).
  *
  * `-Dcardtable.fault=slow-view` holds each such update 400 ms on the seat's thread before it starts,
- * as a loaded host does. The wait must come after the update, naming the player who won the toss.
+ * as a loaded host does. Every wait the toss's loser composes must name the player who won it.
+ *
+ * Whether that wait comes before or after the loser's first full update is the host's timing, not
+ * the seat's: Forge sends the await notice without syncing the view first (`ProtocolGuiGame.awaitNextInput`,
+ * "send, not syncAndSend"), so on a loaded host the update can leave the host after the wait came
+ * due. The wait then reads the whole view the opening `setGameView`s gave it, which is still between
+ * updates (every call runs on the seat's one thread), and names the winner all the same.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=~/.cache/… \
  *   pnpm exec vitest run games/magic/server/src/play/wait-names.jvm.test.ts
@@ -24,7 +30,7 @@ import { available, deck, startScenario, waitUntil } from './scenario.js';
 const title = (t: string): string => (available.ok ? t : `${t} — SKIPPED: ${available.reason}`);
 
 describe.skipIf(!available.ok)(title('a seat’s wait reads its view between updates, against real Forge'), () => {
-	it('the coin toss loser’s wait comes after its first full update and names the winner', async () => {
+	it('every wait the coin toss loser composes names the winner', async () => {
 		if (!available.ok) throw new Error('unreachable');
 		const config = { ...available.config, jvmOpts: [...available.config.jvmOpts, '-Dcardtable.fault=slow-view'] };
 		const names: [string, string] = ['Alice', 'Bob'];
@@ -35,18 +41,26 @@ describe.skipIf(!available.ok)(title('a seat’s wait reads its view between upd
 		});
 		try {
 			const winner = (): number => [0, 1].find((seat) => /won the coin toss/.test(s.prompt(seat))) ?? -1;
-			await waitUntil(() => winner() >= 0 && /^Waiting for /.test(s.prompt(1 - winner())), 'the toss and the loser’s wait', 60_000, s);
-			const loser = 1 - winner();
-			const frames = s.sent.filter((x) => x.seat === loser).map((x) => x.envelope.frame as unknown as Record<string, unknown>);
-			const firstFull = frames.findIndex((f) => {
+			const loserFrames = (): Record<string, unknown>[] =>
+				s.sent.filter((x) => x.seat === 1 - winner()).map((x) => x.envelope.frame as unknown as Record<string, unknown>);
+			const isFull = (f: Record<string, unknown>): boolean => {
 				const packet = (f.payload as { packet?: { newObjects?: Record<string, unknown> } } | undefined)?.packet;
 				return f.method === 'applyDelta' && Object.keys(packet?.newObjects ?? {}).length > 0;
-			});
-			const firstWait = frames.findIndex((f) => f.method === 'showPromptMessage' && /^Waiting for /.test(String(f.message)));
-			console.log(`[wait-names] loser ${String(loser)}: first full update #${String(firstFull)}, first wait #${String(firstWait)} ${JSON.stringify(frames[firstWait]?.message)}`);
-			expect(firstFull, 'the loser was sent a full update').toBeGreaterThanOrEqual(0);
-			expect(firstWait, 'the wait is composed after the update the seat was applying, not in the middle of it').toBeGreaterThan(firstFull);
-			expect(frames[firstWait]?.message).toBe(`Waiting for ${names[1 - loser]!}...`);
+			};
+			const isWait = (f: Record<string, unknown>): boolean => f.method === 'showPromptMessage' && /^Waiting for /.test(String(f.message));
+			await waitUntil(
+				() => winner() >= 0 && /^Waiting for /.test(s.prompt(1 - winner())) && loserFrames().some(isFull),
+				'the toss, the loser’s wait and its first full update',
+				60_000,
+				s,
+			);
+			const loser = 1 - winner();
+			const frames = loserFrames();
+			const firstFull = frames.findIndex(isFull);
+			const waits = frames.filter(isWait).map((f) => String(f.message));
+			console.log(`[wait-names] loser ${String(loser)}: first full update #${String(firstFull)}, first wait #${String(frames.findIndex(isWait))}, waits ${JSON.stringify(waits)}`);
+			expect(waits.length, 'the loser composed a wait').toBeGreaterThan(0);
+			expect(waits, 'every wait the loser composed names the winner').toEqual(waits.map(() => `Waiting for ${names[1 - loser]!}...`));
 		} finally {
 			await s.stop();
 		}

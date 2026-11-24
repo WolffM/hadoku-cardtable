@@ -15,7 +15,9 @@ import { describe, expect, it } from 'vitest';
 // file directly — it is `export`ed there precisely to be a shared fixture.
 import { SERVER_FRAME_EXAMPLES } from '../../../../packages/forge-wire/src/examples.ts';
 
-import { clearDeclineStreak, declineStreak, hasNoLegalAnswer, type DeclinedStreaks } from './seat-driver.ts';
+import type { LiveMatch } from '../../../../ui/src/play/live/match.ts';
+
+import { clearDeclineStreak, declineStreak, hasNoLegalAnswer, signatureOf, type DeclinedStreaks } from './seat-driver.ts';
 import type { LiveAsk } from './random-answer.ts';
 import { isRefusal, logEnd, makeLogTail, serverFlagsOf } from './run-match.ts';
 import { seedArg, seedFrom } from './rng.ts';
@@ -48,6 +50,29 @@ describe('hasNoLegalAnswer — flag (a)', () => {
   it('flags chooseEntitiesForEffect asking for more than it offered', () => {
     const ask = { ...(SERVER_FRAME_EXAMPLES.chooseEntitiesForEffect as object), optionList: [], min: 1 } as unknown as LiveAsk;
     expect(hasNoLegalAnswer(ask)).toMatch(/chooseEntitiesForEffect wants at least 1 of 0 offered/);
+  });
+});
+
+describe('signatureOf — what flag (b), stuck, counts as progress', () => {
+  // The shape of every `stuck` in monkey run 45348742559: the seat reads one dead "Waiting for Forge AI..."
+  // while the server auto-passes its priority through the AI's turn, and Forge's view keeps moving.
+  const waiting = (forgeSeq: number, phase: string): LiveMatch =>
+    ({
+      asks: [],
+      forgeSeq,
+      view: { turn: 12, phase },
+      prompt: 'Waiting for Forge AI...',
+      buttons: { label1: 'OK', label2: 'Cancel', enable1: false, enable2: false },
+      selectables: null,
+    }) as unknown as LiveMatch;
+
+  it('moves when Forge’s game moves under an unchanged wait, within a phase or across one', () => {
+    expect(signatureOf(waiting(201, 'MAIN1'))).not.toBe(signatureOf(waiting(202, 'MAIN1')));
+    expect(signatureOf(waiting(201, 'MAIN1'))).not.toBe(signatureOf(waiting(201, 'COMBAT_BEGIN')));
+  });
+
+  it('holds still when nothing at all changes, so a game that stopped is still flagged', () => {
+    expect(signatureOf(waiting(201, 'MAIN1'))).toBe(signatureOf(waiting(201, 'MAIN1')));
   });
 });
 
