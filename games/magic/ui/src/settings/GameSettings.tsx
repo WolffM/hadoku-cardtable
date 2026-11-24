@@ -89,8 +89,14 @@ export function GameSettings() {
         label="Stop at their end step when I can act"
         onChange={(on) => persist({ endStepStop: on })}
       />
+      <Toggle
+        testId="live-settings-mistake-bubbles"
+        checked={prefs?.mistakeBubbles ?? PLAY_PREFS_DEFAULTS.mistakeBubbles}
+        label="Say my mistakes"
+        onChange={(on) => persist({ mistakeBubbles: on })}
+      />
       <div className="ct-settings__choices ct-settings__choices--row" role="radiogroup" aria-label="Game speed" data-testid="live-settings-speed">
-        <span className="ct-settings__choices-label">Game speed</span>
+        <span>Game speed</span>
         {GAME_SPEEDS.map((speed) => (
           <label key={speed} className="ct-settings__option">
             <input
@@ -105,12 +111,6 @@ export function GameSettings() {
           </label>
         ))}
       </div>
-      <Toggle
-        testId="live-settings-mistake-bubbles"
-        checked={prefs?.mistakeBubbles ?? PLAY_PREFS_DEFAULTS.mistakeBubbles}
-        label="Say my mistakes"
-        onChange={(on) => persist({ mistakeBubbles: on })}
-      />
       <OldestArtToggle />
     </fieldset>
   );

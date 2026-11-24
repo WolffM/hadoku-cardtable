@@ -91,15 +91,11 @@
   gap: 4px;
 }
 
-/* One line of choices after its name: Game speed's three. */
+/* Choices on the same line as their name (Game speed's three), wrapping only when the line is too narrow. */
 .ct-settings__choices--row {
   flex-flow: row wrap;
   align-items: center;
   column-gap: 12px;
-}
-
-.ct-settings__choices-label {
-  flex-basis: 100%;
 }
 
 .ct-settings__level {
