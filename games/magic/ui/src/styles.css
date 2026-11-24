@@ -254,6 +254,42 @@ button {
 
 /* ── controls ──────────────────────────────────────────────────────── */
 
+/*
+ * Every <select> on the site, one rule (operator, 2026-11-23: "there is not a consistent buffer on
+ * the right as there is on the left"). The browser's own arrow sits wherever its platform puts it,
+ * flush against the border, so it is replaced: `appearance: none` and a chevron drawn by two
+ * gradients in `currentColor`, its right edge at the same inset as the text's left edge. A screen
+ * sets a select's size or block height; its frame, colours and insets are this rule's.
+ */
+select {
+  --select-inset: 0.6rem;
+  --select-chevron: 10px;
+  appearance: none;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding-block: 0.45rem;
+  padding-inline: var(--select-inset) calc(var(--select-inset) + var(--select-chevron) + var(--select-inset));
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background-color: var(--color-bg-alt);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - var(--select-inset) - var(--select-chevron) / 2) 50%,
+    calc(100% - var(--select-inset)) 50%;
+  background-size: calc(var(--select-chevron) / 2) calc(var(--select-chevron) / 2);
+  background-repeat: no-repeat;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+select:disabled {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
 /* A toggle that is on — a pressed button, a selected tab, a checked radio card — in the primary fill. */
 .ct-toggle:is([aria-pressed='true'], [aria-selected='true'], :has(> input:checked)) {
   background: var(--color-primary);

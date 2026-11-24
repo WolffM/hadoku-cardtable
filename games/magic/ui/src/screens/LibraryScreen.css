@@ -195,9 +195,9 @@
   margin-left: auto;
 }
 
-/* The toolbar's controls stand one height, the room bar's (`--lobby-control-h`, screens.css); the select
-   by two classes, since `.lobby__card select`'s padding comes later in the cascade at one. */
-.library__toolbar .library__sort select,
+/* The toolbar's controls stand one height, the room bar's (`--lobby-control-h`, screens.css). The select's
+   frame and insets are the site's one `select` rule (styles.css). */
+.library__toolbar select,
 .library__toolbar .deckfilter__search,
 .library__new {
   box-sizing: border-box;
