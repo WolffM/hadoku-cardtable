@@ -169,10 +169,11 @@ starred, the ones they made their own, and the ones a draft made that they
 have not touched yet, each with the one played last first. Every deck tile
 says when it was last played, or that it never was.
 
-**How to use it.** Press **Library** on the front page. Filter the Decks tab by
-built, drafted or still in a tournament, and sort by last played, win rate,
-name or newest; star a deck to keep it at the top. A cube on the Cubes tab
-says how many of the player's decks came from it and opens just those.
+**How to use it.** Press **Library** on the front page. The Decks tab's one
+text box finds a deck by its name, a card in it, or the cube or set it was
+drafted from; sort by last played, win rate, name or newest, and star a deck to
+keep it at the top. A cube on the Cubes tab says how many of the player's decks
+came from it and opens the Decks tab with that cube's name in the box.
 **New deck** opens the deck builder on an empty deck: pick a format (any era a
 room offers, or Any card), search for cards and press them in, up to four of
 each, with basics from the land counters. A named deck saves itself as it is

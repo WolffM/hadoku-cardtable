@@ -187,43 +187,32 @@
   gap: 8px;
 }
 
-.library__sources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.library__cube {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  text-decoration: none;
-  color: var(--ink);
-}
-
+/* The sort's name is a field's (`.lobby__field`); its select is the lobby card's own (`.lobby__card select`, screens.css). */
 .library__sort {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-left: auto;
-  color: var(--ink-dim);
-  font-size: 0.85em;
 }
 
-.library__sort select {
-  font: inherit;
-  color: var(--ink);
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius);
-  padding: 4px 6px;
+/* The toolbar's controls stand one height, the room bar's (`--lobby-control-h`, screens.css); the select
+   by two classes, since `.lobby__card select`'s padding comes later in the cascade at one. */
+.library__toolbar .library__sort select,
+.library__toolbar .deckfilter__search,
+.library__new {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  block-size: var(--lobby-control-h);
+  padding-block: 0;
+  line-height: 1;
 }
 
 .library__new {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding-inline: 12px;
   border-radius: var(--hdk-radius);
   font: inherit;
   font-weight: 600;
