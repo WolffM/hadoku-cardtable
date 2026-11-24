@@ -596,8 +596,8 @@ describe('Lobby.setSettings', () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error(made.reason);
-		expect(made.room.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' });
-		expect(lobby.list().map((r) => r.settings)).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' }]);
+		expect(made.room.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true });
+		expect(lobby.list().map((r) => r.settings)).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true }]);
 	});
 
 	it('lets only the leader change it, and leaves every readiness flag and deck hold alone', async () => {
@@ -608,7 +608,7 @@ describe('Lobby.setSettings', () => {
 		expect(magicView(lobby.get(id))?.settings.handSmoothing).toBe(true);
 
 		const off = lobby.setSettings(id, ALICE.id, { handSmoothing: false });
-		expect(off.ok && off.room.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' });
+		expect(off.ok && off.room.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true });
 		// A setting is not a deck question: nobody is stood down by it.
 		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
 		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, ready: true });
@@ -654,7 +654,7 @@ describe('Lobby.setSettings', () => {
 		if (!made.ok) throw new Error(made.reason);
 		expect(first.setSettings(made.room.id, ALICE.id, { handSmoothing: false }).ok).toBe(true);
 		const second = await openLobby({ dir });
-		expect(magicView(second.get(made.room.id))?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' });
+		expect(magicView(second.get(made.room.id))?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true });
 	});
 
 	it('reads a record written before settings existed back on the defaults', async () => {
@@ -662,7 +662,7 @@ describe('Lobby.setSettings', () => {
 		writeFixtureRoom(dir, 'r-presettings01', legacyApp());
 		expect(Object.keys(legacyApp())).not.toContain('settings');
 		const lobby = await openLobby({ dir });
-		expect(magicView(lobby.get('r-presettings01'))?.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' });
+		expect(magicView(lobby.get('r-presettings01'))?.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true });
 	});
 
 	it('quarantines a record whose settings hold a value this build does not understand', async () => {
@@ -2081,7 +2081,7 @@ describe('a room stored with the old match-length settings', () => {
 		const dir = await tempDir();
 		writeFixtureRoom(dir, 'r-oldsettings1', legacyApp({ settings: { handSmoothing: false, matchLength: 'bo3', sideboarding: true } }));
 		const lobby = await openLobby({ dir });
-		expect(magicView(lobby.get('r-oldsettings1'))?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' });
+		expect(magicView(lobby.get('r-oldsettings1'))?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true });
 		expect(magicView(lobby.get('r-oldsettings1'))?.tables[0]?.series).toMatchObject({ length: 1, phase: 'seating' });
 	});
 });
@@ -3129,6 +3129,31 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		// names it too (`podPersonas`'s own doc).
 		const seats = lobby.get(id)!.game!.pod!;
 		expect(Object.keys(seats.personas).sort()).toEqual(['ai:3', 'ai:4']);
+	});
+
+	it('with Bots play off, the same pod pairs its three humans alone: the bots only drafted, and a human takes the bye', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		for (const m of [BOB, CAROL]) expect(lobby.join(id, m).ok).toBe(true);
+		for (const [seat, m] of [ALICE, BOB, CAROL].entries()) expect(lobby.sitSeat(id, m.id, seat).ok).toBe(true);
+		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		for (const seat of [3, 4]) expect(lobby.aiSeat(id, ALICE.id, seat, true).ok).toBe(true);
+		closeOpenSeats(lobby, id, ALICE.id);
+		expect(lobby.setSettings(id, ALICE.id, { botsPlay: false }).ok).toBe(true);
+		approvePlan(lobby, id);
+		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+		// The operator, 2026-11-23: "in the real tournament i want bots to be automatically turned into a bye."
+		expect(lobby.setSettings(id, ALICE.id, { botsPlay: true }).ok, 'fixed once the draft is under way').toBe(false);
+		wireChecks(lobby, fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+		const started = playAll(lobby, id, [ALICE, BOB, CAROL]);
+		expect(started.ok).toBe(true);
+		if (!started.ok) return;
+		expect(started.room.game!.pod).toMatchObject({ round: 1, rounds: 2, bye: BOB.id });
+		expect(started.room.game!.pod?.drafters).toEqual([ALICE.id, BOB.id, CAROL.id]);
+		expect(started.room.game!.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, CAROL.id]]);
+		expect(started.room.game!.pod?.results).toEqual([{ round: 1, playerA: BOB.id, playerB: null, gamesA: 2, gamesB: 0 }]);
 	});
 
 	it('names a bot entrant by its own seat’s character, even with a closed seat before it', async () => {

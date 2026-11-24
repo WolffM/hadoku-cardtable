@@ -21,7 +21,7 @@ const FIXTURE_VIEW = {
   gameType: 'draft',
   // Magic's blob: the only place the server sends its fields.
   game: { format: 'cube-2026', clientMode: 'builtin', draftStartedAt: null, pod: null },
-  settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' },
+  settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true },
   locks: { gameType: 'draft-started', mode: null, event: null, format: null, rules: null },
   locked: true,
   members: [
@@ -47,7 +47,7 @@ const FIXTURE_BODY = { ...FIXTURE_VIEW, you: { id: 'alice-id', leader: true, rea
 const EXPECTED_VIEW = {
   id: 'r-abc123', name: 'Cube night', creator: 'alice-id', leader: 'alice-id', gameType: 'draft',
   game: { format: 'cube-2026', clientMode: 'builtin', draftStartedAt: null, pod: null, mode: null, modeOptions: null },
-  settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' },
+  settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true },
   locks: { gameType: 'draft-started', mode: null, event: null, format: null, rules: null },
   locked: true,
   members: [

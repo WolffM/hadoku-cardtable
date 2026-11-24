@@ -211,7 +211,9 @@ The operator, verbatim, after a 24-drafter simulation (`games/magic/server/src/r
 
 1 supersedes 2026-10-31's "preferring even sizes": `splitPods` is now the fewest pods of at most 8, none
 more than one apart (14 → 7 + 7, 10 → 5 + 5, 20 → 7 + 7 + 6). 2 is "Round 1" above. 3 is a room
-setting (`botsPlay`), landed after the room-settings migration.
+setting, "Bots play" (`settings.botsPlay`, on by default, fixed once the draft starts): off, a one-pod
+draft pairs its humans alone (`draftEntrants`), so its bots only draft and an odd human out takes the bye.
+A field past one pod pairs its humans alone either way. The Draft Major turns it off.
 
 ## 2026-10-19 ruling — the Decks page
 

@@ -1559,6 +1559,8 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   const modeLocked = locks.mode !== null || underway;
   /** Tournament and its decks. */
   const eventLocked = locks.event !== null || underway;
+  /** A draft room's bots play its Swiss beside the humans (`settings.botsPlay`), or only draft. */
+  const botsPlay = view?.settings.botsPlay ?? DEFAULT_ROOM_SETTINGS.botsPlay;
   /** The pool, and the match rules: frozen by a game or a dealt pod. */
   const formatLocked = locks.format !== null || underway;
   const rulesLocked = locks.rules !== null || underway;
@@ -2946,6 +2948,7 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
               clock={{ on: clock, onToggle: toggleClock }}
               pickTimer={{ value: view?.settings.pickTimer ?? DEFAULT_ROOM_SETTINGS.pickTimer, onChange: (pickTimer) => writeRoom(() => rooms.setSettings(roomId, { pickTimer })) }}
               draftBots={{ value: view?.settings.draftBots ?? DEFAULT_ROOM_SETTINGS.draftBots, onChange: (draftBots) => writeRoom(() => rooms.setSettings(roomId, { draftBots })) }}
+              botsPlay={{ on: botsPlay, locked: eventLocked, onToggle: () => writeRoom(() => rooms.setSettings(roomId, { botsPlay: !botsPlay })) }}
             />
           )}
           {!streamed && resolved && !draftRoom && table !== null && mode !== null && (

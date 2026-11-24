@@ -27,7 +27,7 @@ const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clien
     creator: 'm1',
     leader: 'm1',
     gameType: 'constructed-1v1',
-    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true },
     locks: { ...OPEN_ROOM_LOCKS },
     locked: false,
     members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],

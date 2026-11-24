@@ -454,10 +454,12 @@ export function podEntrants(room: RoomRecord): string[] {
  * however many bots were put into seats." So a pod of one human and N bots is an (N+1)-entrant Swiss,
  * with the rounds, pairings, byes and standings a pod of that many humans would have. Two bots paired
  * together play a bot game (`GameHooks.playBotGame`). A room that drafts as several pods (`podDrafts`) pairs its
- * humans alone: each pod's bots filled a table of their own, not a seat anyone put them in.
+ * humans alone: each pod's bots filled a table of their own, not a seat anyone put them in. So does a room
+ * whose `settings.botsPlay` is off (the operator, 2026-11-23): its bots only draft, and an odd human out
+ * takes the bye.
  */
 export function draftEntrants(room: RoomRecord, humans: string[]): string[] {
-	if (room.game.podDrafts !== null) return humans;
+	if (room.game.podDrafts !== null || !room.game.settings.botsPlay) return humans;
 	return podTable(room).map((place, seat) => (place.kind === 'human' ? place.id : aiEntrantId(seat)));
 }
 

@@ -37,7 +37,7 @@ const EVENT = {
     gameType: 'constructed-1v1',
     mode: 'classic',
     format: 'free',
-    settings: { handSmoothing: false, tournament: true, tournamentDecks: 'per-round', clock: 'on', pickTimer: { on: false, speed: 1 }, draftBots: 'model' },
+    settings: { handSmoothing: false, tournament: true, tournamentDecks: 'per-round', clock: 'on', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true },
     pool: null,
     locked: false,
     phase: 'lobby',

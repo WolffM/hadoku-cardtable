@@ -11,7 +11,13 @@ describe('the room settings', () => {
       clock: 'auto',
       pickTimer: { on: false, speed: 1 },
       draftBots: 'model',
+      botsPlay: true,
     });
+  });
+
+  it('a PATCH turns the bots out of the Swiss, and refuses anything but a boolean', () => {
+    expect(PatchRoomBodySchema.safeParse({ settings: { botsPlay: false } }).success).toBe(true);
+    expect(PatchRoomBodySchema.safeParse({ settings: { botsPlay: 'no' } }).success).toBe(false);
   });
 
   it('a PATCH sets the draft bots to split or pick order, and refuses any other value', () => {

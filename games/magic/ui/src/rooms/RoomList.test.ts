@@ -74,7 +74,7 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   creator: 'http-a',
   leader: 'http-a',
   gameType: 'constructed-1v1',
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
+  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true },
   locks: { ...OPEN_ROOM_LOCKS },
   you: { id: 'http-a', leader: true, ready: false },
   locked: false,

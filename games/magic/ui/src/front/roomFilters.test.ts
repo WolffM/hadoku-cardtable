@@ -51,7 +51,7 @@ const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clien
     creator: '',
     leader: '',
     gameType: 'constructed-1v1',
-    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true },
     locks: { ...OPEN_ROOM_LOCKS },
     locked: false,
     members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],
@@ -102,7 +102,7 @@ describe('matchesRoomFilters', () => {
   });
 
   it('the kind pair: tournament matches only tournaments, duel only non-tournaments', () => {
-    const tourney = room({ settings: { handSmoothing: true, tournament: true, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const } });
+    const tourney = room({ settings: { handSmoothing: true, tournament: true, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true } });
     const duel = room();
     const tourneyFilter: RoomFilters = { ...DEFAULT_ROOM_FILTERS, kind: 'tournament' };
     const duelFilter: RoomFilters = { ...DEFAULT_ROOM_FILTERS, kind: 'duel' };

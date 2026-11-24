@@ -44,7 +44,7 @@ const room = ({ format = '2026-01-01', mode = 'classic', modeOptions = {}, clien
     creator: '',
     leader: '',
     gameType: 'constructed-1v1',
-    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true },
     locks: { ...OPEN_ROOM_LOCKS },
     locked: false,
     members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],
@@ -103,7 +103,7 @@ describe('roomCardView — a room made for an event', () => {
 describe('roomCardView — tournament and seats', () => {
   it('is a tournament for every draft, and for a constructed room with settings.tournament on', () => {
     expect(roomCardView(room({ gameType: 'draft', pod: pod({ phase: 'lobby' }) }), false).tournament).toBe(true);
-    expect(roomCardView(room({ settings: { handSmoothing: true, tournament: true, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const }, pod: pod({ phase: 'lobby' }) }), false).tournament).toBe(true);
+    expect(roomCardView(room({ settings: { handSmoothing: true, tournament: true, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true }, pod: pod({ phase: 'lobby' }) }), false).tournament).toBe(true);
     expect(roomCardView(room(), false).tournament).toBe(false);
   });
 
@@ -270,7 +270,7 @@ describe('roomCardView — the seats it draws', () => {
       leader: 'm1',
       gameType: 'constructed-1v1',
       game: { format: '2026-01-01', mode: 'classic', modeOptions: {}, clientMode: 'builtin', draftStartedAt: null, pod: null, ...(ai.game === true ? { ai: { name: 'Cleric', avatarId: 'cleric' } } : {}) },
-      settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' },
+      settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true },
       locks: { ...OPEN_ROOM_LOCKS },
       locked: false,
       members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],

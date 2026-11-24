@@ -22,7 +22,8 @@
         "on": false,
         "speed": 1
       },
-      "draftBots": "model"
+      "draftBots": "model",
+      "botsPlay": true
     },
     "locks": {
       "gameType": null,
@@ -148,7 +149,8 @@
         "on": false,
         "speed": 1
       },
-      "draftBots": "model"
+      "draftBots": "model",
+      "botsPlay": true
     },
     "locks": {
       "gameType": null,

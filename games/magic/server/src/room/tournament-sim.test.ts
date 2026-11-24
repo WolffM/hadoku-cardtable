@@ -161,7 +161,7 @@ function simHooks(rooms: DraftRooms, playBotGame: GameHooks['playBotGame']): Gam
 	};
 }
 
-async function boot(opts: { n: number; draftBots: DraftBots; seed: number; pickTimer?: { on: boolean; speed: number } }): Promise<Sim> {
+async function boot(opts: { n: number; draftBots: DraftBots; seed: number; pickTimer?: { on: boolean; speed: number }; botsPlay?: boolean }): Promise<Sim> {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-tourney-sim-'));
 	dirs.push(dir);
 	const events: Record<string, unknown>[] = [];
@@ -184,7 +184,7 @@ async function boot(opts: { n: number; draftBots: DraftBots; seed: number; pickT
 	const made = lobby.create({ id: owner.id, name: owner.name, userId: owner.userId }, { name: 'Cardtable Draft Major (sim)', gameType: 'draft', clientMode: 'builtin' });
 	if (!made.ok) throw new Error(`create: ${made.reason}`);
 	const roomId = made.room.id;
-	expect(lobby.setSettings(roomId, owner.id, { draftBots: opts.draftBots, ...(opts.pickTimer === undefined ? {} : { pickTimer: opts.pickTimer }) }).ok).toBe(true);
+	expect(lobby.setSettings(roomId, owner.id, { draftBots: opts.draftBots, ...(opts.pickTimer === undefined ? {} : { pickTimer: opts.pickTimer }), ...(opts.botsPlay === undefined ? {} : { botsPlay: opts.botsPlay }) }).ok).toBe(true);
 	for (const p of people.slice(1)) expect(lobby.join(roomId, { id: p.id, name: p.name, userId: p.userId }).ok, `${p.name} joins`).toBe(true);
 	for (const p of people) expect(lobby.sitSeat(roomId, p.id).ok, `${p.name} sits`).toBe(true);
 	// Under a pod's eight, the open seats are bots, as the leader's AI button makes them.
@@ -453,6 +453,25 @@ describe('a draft tournament past one pod, simulated end to end over real socket
 			console.log(JSON.stringify({ n: 6, rounds: played.rounds, standings: played.standings }));
 			expect(played.problems).toEqual([]);
 			expect(played.standings).toBe(8);
+		} finally {
+			await sim.close();
+		}
+	}, 60_000);
+
+	// The Draft Major's own setting (the operator, 2026-11-23: "in the real tournament i want bots to be automatically turned into a bye").
+	it('one pod of 7 and a bot with Bots play off: the bot only drafts, a different person takes the bye each round, and the Swiss is 7', async () => {
+		const sim = await boot({ n: 7, draftBots: 'model', seed: 7, botsPlay: false });
+		try {
+			const pods = await draft(sim, 7);
+			build(sim);
+			const played = await playRounds(sim, 77, pods);
+			console.log(JSON.stringify({ n: 7, botsPlay: false, rounds: played.rounds, standings: played.standings }));
+			expect(played.problems).toEqual([]);
+			expect(played.rounds).toHaveLength(3);
+			expect(played.rounds.every((r) => r.botGames === 0 && r.tables === 3 && r.byes.length === 1)).toBe(true);
+			expect(played.rounds.flatMap((r) => r.byes).every((id) => !podsMod.isAiEntrant(id))).toBe(true);
+			expect(played.standings).toBe(7);
+			expect(pod(sim).standings.some((row) => podsMod.isAiEntrant(row.id))).toBe(false);
 		} finally {
 			await sim.close();
 		}

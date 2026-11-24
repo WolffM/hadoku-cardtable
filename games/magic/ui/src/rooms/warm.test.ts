@@ -19,7 +19,7 @@ const view = (gameType: string): RoomView => ({
   creator: '',
   leader: '',
   gameType,
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model' },
+  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 }, draftBots: 'model', botsPlay: true },
   locks: { ...OPEN_ROOM_LOCKS },
   locked: false,
   members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }],

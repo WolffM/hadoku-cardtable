@@ -60,6 +60,7 @@ export function MatchRules({
   clock,
   pickTimer,
   draftBots,
+  botsPlay,
 }: {
   /** Only the leader moves a rule; everybody else reads them. */
   leader: boolean;
@@ -78,9 +79,11 @@ export function MatchRules({
   pickTimer?: RuleChoice<PickTimer>;
   /** What a draft room's bots pick with (`settings.draftBots`). */
   draftBots?: RuleChoice<DraftBots>;
+  /** Whether a draft room's bots play its Swiss, or only draft and leave an odd human the bye (`settings.botsPlay`). */
+  botsPlay?: RuleSwitch;
 }) {
   const off = !leader || disabled;
-  if ([handSmoothing, freePick, lockDecks, tournamentDecks, clock, pickTimer, draftBots].every((rule) => rule === undefined)) return null;
+  if ([handSmoothing, freePick, lockDecks, tournamentDecks, clock, pickTimer, draftBots, botsPlay].every((rule) => rule === undefined)) return null;
   const speed = pickTimer === undefined ? null : (SPEEDS.find((s) => Number(s.value) === pickTimer.value.speed)?.value ?? null);
   const { fields } = ROOM_SETTINGS;
   return (
@@ -136,6 +139,19 @@ export function MatchRules({
       {draftBots !== undefined && (
         <SettingRow label={fields.draftBots.label}>
           <SettingControl field={fields.draftBots} name="draft-bots" value={draftBots.value} disabled={off} onChange={(v) => draftBots.onChange(v as DraftBots)} testId="draft-bots" />
+        </SettingRow>
+      )}
+      {botsPlay !== undefined && (
+        <SettingRow label={fields.botsPlay.label}>
+          <SettingControl
+            field={fields.botsPlay}
+            name="bots-play"
+            value={botsPlay.on}
+            disabled={off || botsPlay.locked === true}
+            onChange={botsPlay.onToggle}
+            testId="bots-play"
+            toggleClassName="ct-toggle"
+          />
         </SettingRow>
       )}
       {tournamentDecks !== undefined && (

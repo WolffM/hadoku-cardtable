@@ -57,7 +57,7 @@ const room = ({ format = '2011-02-13', mode = null, modeOptions = null, clientMo
     // The table's pool, and what the caller is in this room (w25). Both are
     // always on the wire; `parseRoomView`'s defaults for a body that lost them
     // are asserted in "the pool and the caller" below.
-    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true },
     locks: { ...OPEN_ROOM_LOCKS },
     you: { id: 'http-a', leader: true, ready: false },
     locked: false,
@@ -533,10 +533,10 @@ describe('the room writes', () => {
   });
 
   it('changes a room setting with the same PATCH, carrying `settings` and nothing else', async () => {
-    const moved = room({ id: 'r-open', name: 'Friday night', settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const } });
+    const moved = room({ id: 'r-open', name: 'Friday night', settings: { handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true } });
     const { calls, client } = writes(() => json(200, moved));
     const outcome = await client.setSettings('r-open', { handSmoothing: false });
-    expect(outcome.ok && outcome.room.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const });
+    expect(outcome.ok && outcome.room.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true });
     expect(calls).toEqual([{ url: '/cardtable/api/rooms/r-open', method: 'PATCH', body: { settings: { handSmoothing: false } } }]);
   });
 
@@ -570,7 +570,7 @@ describe('the room settings', () => {
   });
 
   it('reads no match length: a body still carrying the retired settings reads as hand smoothing alone', () => {
-    expect(parseRoomView({ ...OPEN, settings: { handSmoothing: false, matchLength: 'bo3', sideboarding: true } })?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const });
+    expect(parseRoomView({ ...OPEN, settings: { handSmoothing: false, matchLength: 'bo3', sideboarding: true } })?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true });
   });
 });
 

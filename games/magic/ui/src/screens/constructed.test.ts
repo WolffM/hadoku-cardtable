@@ -414,7 +414,7 @@ function stubServer(table: Table) {
     leader: 'p-alice',
     gameType: gameType(),
     format: table.format,
-    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, ...table.settings },
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true, ...table.settings },
     locks: locksOf(),
     ...(table.mode === undefined ? { mode: 'classic', modeOptions: {} } : table.mode === null ? { mode: null, modeOptions: null } : table.mode),
     // Caller-scoped, as `http/rooms.ts` serialises it: whether the leader is
@@ -1338,7 +1338,7 @@ describe('a room’s table', () => {
                   leader: 'p-alice',
                   gameType: 'constructed-1v1' as const,
                   format: '2010-07-16',
-                  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' as const, clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
+                  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' as const, clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, botsPlay: true },
                   locks: { ...OPEN_ROOM_LOCKS },
                   mode: null,
                   modeOptions: null,
@@ -2429,17 +2429,21 @@ describe('a draft room', () => {
   it('keeps its rules in Room settings, as a constructed room does, and a rule moved there is written to the room', async () => {
     const server = await mountDraft();
     const lobby = await screen.findByTestId('draft-lobby');
-    for (const id of ['pick-timer', 'chess-clock', 'draft-bots', 'hand-smoothing']) expect(within(lobby).queryByTestId(id), `${id} is not drawn in the lobby`).toBeNull();
+    for (const id of ['pick-timer', 'chess-clock', 'draft-bots', 'bots-play', 'hand-smoothing']) expect(within(lobby).queryByTestId(id), `${id} is not drawn in the lobby`).toBeNull();
 
     openRules();
     const popover = screen.getByTestId('match-rules-popover');
     const labels = [...popover.querySelectorAll('.room-settings__label')].map((el) => el.textContent);
-    expect(labels).toEqual(['Hand smoothing', 'Chess clock', 'Pick timer', 'Bots']);
+    expect(labels).toEqual(['Hand smoothing', 'Chess clock', 'Pick timer', 'Bots', 'Bots play']);
 
     fireEvent.click(within(popover).getByTestId('draft-bots-split'));
     await waitFor(() => expect((within(popover).getByTestId('draft-bots-split') as HTMLInputElement).checked).toBe(true));
     const writes = server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body);
     expect(writes).toContainEqual({ settings: { draftBots: 'split' } });
+
+    // Bots play, on by default: off, the bots only draft and an odd human takes the bye.
+    fireEvent.click(within(popover).getByTestId('bots-play'));
+    await waitFor(() => expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toContainEqual({ settings: { botsPlay: false } }));
   });
 
   it('readies YOU through the room’s route, and says so in the list', async () => {

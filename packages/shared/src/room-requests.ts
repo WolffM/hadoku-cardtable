@@ -69,6 +69,12 @@ export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
  * order the even ones, so one pod compares the two. The draft lobby's leader
  * sets it.
  *
+ * `botsPlay` (on by default): whether a one-pod draft's bots play its Swiss
+ * beside the humans. Off, only the humans are paired and an odd one out takes
+ * the bye (the operator, 2026-11-23: *"in the real tournament i want bots to be
+ * automatically turned into a bye … it needs to be a room setting"*). A room of
+ * several pods pairs its humans alone either way.
+ *
  * How long a series runs is not a setting: it is the room's game type, mode
  * and `tournament` flag (`room/series.ts`'s `seriesFormatOf`).
  */
@@ -109,6 +115,7 @@ export const ROOM_SETTINGS = defineRoomSettings(
 		clock: choice(CLOCK_SETTINGS, 'auto', { label: 'Chess clock', lock: 'rules' }),
 		pickTimer: custom(PickTimerSchema, { on: false, speed: 1 }, { label: 'Pick timer', lock: 'rules', must: `must be { on: boolean, speed: ${PICK_TIMER_SPEED_MIN}–${PICK_TIMER_SPEED_MAX} }` }),
 		draftBots: choice(DRAFT_BOTS, 'model', { label: 'Bots', lock: 'rules', labels: { model: 'Model', 'pick-order': 'Pick order', split: 'Split' } }),
+		botsPlay: toggle(true, { label: 'Bots play', lock: 'event' }),
 	},
 	{ retired: ['matchLength', 'sideboarding'] },
 );
