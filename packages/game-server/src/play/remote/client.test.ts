@@ -43,6 +43,20 @@ describe('AgentClient link clock', () => {
 		expect(k.lost).toEqual(['agent heartbeat lost for 11 s (window 10 s)']);
 	});
 
+	it('reports only the silence it was awake to hear, while its own stall is not yet ticked (hokon, 2026-11-24 00:31Z)', () => {
+		const k = client();
+		k.tick(2000);
+		// Another claw's loss ran first after the resume and asked every claw's silence before this
+		// claw's tick did: its heartbeats are still unread, so 19 s of "silence" is mostly our own
+		// stall. What counts is the 2 s it heard before it froze.
+		k.clock.t += 17_000;
+		expect(k.c.silentMs()).toBe(2000);
+		k.c.watch();
+		expect(k.c.silentMs()).toBe(0);
+		k.clock.t += 2000;
+		expect(k.c.silentMs()).toBe(2000);
+	});
+
 	it('a late tick inside the stall threshold is not a stall', () => {
 		const k = client();
 		k.tick(8000);

@@ -204,9 +204,17 @@ export class AgentClient {
 		for (const l of this.lostListeners) l(reason);
 	}
 
-	/** How long since the agent's last heartbeat. */
+	/**
+	 * How long the agent has been silent, counting only time this process was awake to hear it.
+	 * Past `WATCH_STALL_MS` since the last tick, this process is the one that stalled and the
+	 * heartbeats since are unread (`watch`): asked then, by a lost claw's handling that ran first
+	 * after the resume, `now - lastHb` said "no heartbeat for 18 s" of healthy claws and promoted
+	 * the backstop (2026-11-24 00:31Z).
+	 */
 	silentMs(): number {
-		return this.now() - this.lastHb;
+		const t = this.now();
+		if (this.lastWatch !== null && t - this.lastWatch > WATCH_STALL_MS) return Math.max(0, this.lastWatch - this.lastHb);
+		return t - this.lastHb;
 	}
 
 	/**
