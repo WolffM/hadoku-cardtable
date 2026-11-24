@@ -223,6 +223,87 @@ describe('rebuild: a rewind in the log', () => {
 	});
 });
 
+describe('rebuild: where it settles', () => {
+	it('a log with no commands waits for the rebuilt game to draw its first board, however long the JVM takes to boot, before it settles', async () => {
+		const dir = join(recordingsDir, 'no-commands');
+		mkdirSync(dir, { recursive: true });
+		const matchId = 'no-commands-1';
+		// The match ended before anyone acted: its board is the one Forge drew at the start.
+		const board = (seat: number): BridgeLine => ({ t: 'frame', seat, frame: { kind: 'notify', method: 'setGameView', payload: { gameView: { 'card:1': { _type: 1, _id: 1, Name: 'Lightning Bolt' } }, sequenceNumber: 0 } } });
+		const writer = createMatchRecordingWriter({
+			dir,
+			matchId,
+			actionsHeader: { matchId, roomId: 'r', pin: 'p', bridge: 'b', server: 'test', startedAt: new Date().toISOString(), spec: { seed: 1, seats: [{ name: 'A', ai: false, deck: null }, { name: 'B', ai: false, deck: null }] } },
+			publicHeader: { matchId, roomId: 'r', players: ['A', 'B'], ai: [false, false], decks: [null, null], art: [], startedAt: new Date().toISOString() },
+			log: () => {},
+		});
+		const boards: [string, string] = [boardDigest([board(0)], 0), boardDigest([board(1)], 1)];
+		await writer.finish({ endedAt: new Date().toISOString(), reason: 'test', boards }, { endedAt: new Date().toISOString(), winner: null });
+		rmSync(publicStreamPath(dir, matchId));
+
+		// A cold JVM: nothing for longer than the quiet window the rebuild settles on (1.5 s).
+		const host = (_id: string, _spec: MatchSpec, events: { line(l: BridgeLine): void }) => {
+			setTimeout(() => {
+				events.line(board(0));
+				events.line(board(1));
+			}, 2_000);
+			return { send: () => {}, stop: () => {} };
+		};
+		const r = await rebuild(matchId, { recordingsDir: dir, host, log: () => {}, deckCosts, positionBudgetMs: 10_000, running: { pin: 'p', bridge: 'b' } });
+		expect(r.ok, r.ok ? '' : r.reason).toBe(true);
+	}, 20_000);
+
+	it.each([
+		{ live: 'never showed', liveGameOver: false, sends: 0 },
+		{ live: 'showed', liveGameOver: true, sends: 1 },
+	])('a trailing concede the live board $live is sent $sends time(s): stopping a match concedes, then ends the JVM', async ({ liveGameOver, sends }) => {
+		const dir = join(recordingsDir, `teardown-concede-${sends}`);
+		mkdirSync(dir, { recursive: true });
+		const matchId = `teardown-concede-${sends}`;
+		const view = (seat: number, gameOver: boolean): BridgeLine => ({
+			t: 'frame',
+			seat,
+			frame: { kind: 'notify', method: 'setGameView', payload: { gameView: { 'card:1': { _type: 1, _id: 1, Name: 'Lightning Bolt' }, ...(gameOver ? { 'game:1': { _type: 3, _id: 1, GameOver: { t: 'bool', v: true } } } : {}) }, sequenceNumber: 0 } },
+		});
+		const writer = createMatchRecordingWriter({
+			dir,
+			matchId,
+			actionsHeader: { matchId, roomId: 'r', pin: 'p', bridge: 'b', server: 'test', startedAt: new Date().toISOString(), spec: { seed: 1, seats: [{ name: 'A', ai: false, deck: null }, { name: 'B', ai: false, deck: null }] } },
+			publicHeader: { matchId, roomId: 'r', players: ['A', 'B'], ai: [false, false], decks: [null, null], art: [], startedAt: new Date().toISOString() },
+			log: () => {},
+		});
+		// Forge applied the stop's concede, and the log kept it; the board it led to reached the live run, or the JVM ended first.
+		writer.actionCmd({ seat: 0, cmd: { t: 'act', seat: 0, frame: { kind: 'act', method: 'concede' } } });
+		const boards: [string, string] = [boardDigest([view(0, liveGameOver)], 0), boardDigest([view(1, liveGameOver)], 1)];
+		await writer.finish({ endedAt: new Date().toISOString(), reason: 'stopped', boards }, { endedAt: new Date().toISOString(), winner: null });
+		rmSync(publicStreamPath(dir, matchId));
+
+		const sent: BridgeCommand[] = [];
+		const host = (_id: string, _spec: MatchSpec, events: { line(l: BridgeLine): void }) => {
+			setTimeout(() => {
+				events.line(view(0, false));
+				events.line(view(1, false));
+				events.line({ t: 'input', seat: 0, open: true, input: 'i1' });
+			}, 5);
+			return {
+				send: (c: BridgeCommand) => {
+					sent.push(c);
+					if (c.t !== 'act') return;
+					setTimeout(() => {
+						events.line({ t: 'applied', seat: 0, seq: 0, input: 'i1', act: c.frame as never });
+						events.line(view(0, true));
+						events.line(view(1, true));
+					}, 5);
+				},
+				stop: () => {},
+			};
+		};
+		const r = await rebuild(matchId, { recordingsDir: dir, host, log: () => {}, deckCosts, positionBudgetMs: 10_000, running: { pin: 'p', bridge: 'b' } });
+		expect(r.ok, r.ok ? '' : r.reason).toBe(true);
+		expect(sent).toHaveLength(sends);
+	}, 20_000);
+});
+
 /* ── a real match, rebuilt on a second JVM ──────────────────────────────────────────────────── */
 
 describe.skipIf(!available.ok || !nightly)(title, () => {

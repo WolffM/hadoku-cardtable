@@ -26,6 +26,8 @@
 
 import { createHash } from 'node:crypto';
 
+import { DELTA_TYPE, deltaKeyType } from '@hadoku/forge-wire';
+
 import type { BridgeLine } from '../bridge-protocol.js';
 import { foldFrame, foldFrames, type StateFrame, type WireObj } from '../visibility.js';
 
@@ -48,10 +50,23 @@ function isDefault(x: unknown): boolean {
 	return v === undefined || v === null || v === false || v === 0 || v === '' || v === '0' || (Array.isArray(v) && v.length === 0);
 }
 
-/** `state`, with every default-valued property dropped and both levels sorted — a stable string for the same board. */
+/**
+ * A player's name is who sat there, not the game: the action log keeps each human as `Player N` (R12,
+ * `recorder.ts`'s `anonymousSpec`), so a game rebuilt from it names its players differently from the live
+ * one on the very same board. Every property that spells a player's name is left out before anything is
+ * compared: a player's own two, and the game's title ("A vs B (0-0)") and winner.
+ */
+const NAMES_BY_TYPE: ReadonlyMap<number, ReadonlySet<string>> = new Map([
+	[DELTA_TYPE.player, new Set(['Name', 'LobbyPlayerName'])],
+	[DELTA_TYPE.game, new Set(['Title', 'WinningPlayerName'])],
+]);
+
+const kept = (key: string, prop: string, x: unknown): boolean => !isDefault(x) && NAMES_BY_TYPE.get(deltaKeyType(Number(key)))?.has(prop) !== true;
+
+/** `state`, with every default-valued property and every player's name dropped and both levels sorted — a stable string for the same board. */
 function normalise(state: ReadonlyMap<string, WireObj>): string {
 	const normal = [...state.entries()].map(
-		([k, o]) => [k, Object.fromEntries(Object.entries(o).filter(([, x]) => !isDefault(x)).sort(([a], [b]) => a.localeCompare(b)))] as const,
+		([k, o]) => [k, Object.fromEntries(Object.entries(o).filter(([p, x]) => kept(k, p, x)).sort(([a], [b]) => a.localeCompare(b)))] as const,
 	);
 	return JSON.stringify(normal.sort(([a], [b]) => a.localeCompare(b)));
 }
