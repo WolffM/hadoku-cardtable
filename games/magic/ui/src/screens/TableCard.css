@@ -251,7 +251,6 @@
   padding: 0 14px;
   border-radius: var(--radius);
   background: transparent;
-  font: inherit;
 }
 
 /* At rest only — `.ct-action--danger` covers hover and focus. */

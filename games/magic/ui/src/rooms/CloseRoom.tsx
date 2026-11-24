@@ -42,11 +42,11 @@ export function CloseRoom({
       <>
         {resettable && (
           <button type="button" className="room-close ct-action" data-testid="room-reset" onClick={() => setAsking('reset')}>
-            Reset
+            <span className="ct-action__label">Reset</span>
           </button>
         )}
         <button type="button" className="room-close ct-action" data-testid="room-close" onClick={() => setAsking('close')}>
-          Close
+          <span className="ct-action__label">Close</span>
         </button>
       </>
     );
@@ -84,10 +84,10 @@ export function CloseRoom({
           setError(null);
         }}
       >
-        Cancel
+        <span className="ct-action__label">Cancel</span>
       </button>
       <button type="button" className="room-close room-close--danger ct-action ct-action--danger" data-testid={`room-${asking}-yes`} disabled={busy} onClick={confirm}>
-        {asking === 'reset' ? 'Reset room' : 'Close room'}
+        <span className="ct-action__label">{asking === 'reset' ? 'Reset room' : 'Close room'}</span>
       </button>
       {error !== null && (
         <span className="ct-error" role="alert" data-testid={`room-${asking}-error`}>

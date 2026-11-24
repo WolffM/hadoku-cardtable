@@ -106,7 +106,7 @@ export function DeleteConfirm({ deck, client, onDeleted, testId, className, chil
       {asking ? (
         <>
           <button type="button" className="decks__confirm ct-action ct-action--danger" data-testid={`${testId}-confirm`} disabled={busy} onClick={confirm}>
-            Delete
+            <span className="ct-action__label">Delete</span>
           </button>
           <button type="button" className="decks__icon ct-action" aria-label="Keep" data-testid={`${testId}-cancel`} disabled={busy} onClick={() => setAsking(false)}>
             <Icon name="close" size={uiLength('0.9rem')} />

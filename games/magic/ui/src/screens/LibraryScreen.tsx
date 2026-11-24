@@ -370,7 +370,7 @@ function DecksTab({
         </label>
         <button type="button" className="ct-action library__new" data-testid="library-new-deck" onClick={() => navigate({ kind: 'decks', draftId: 'new' })}>
           <Icon name="plus" size={uiLength('0.9rem')} />
-          New deck
+          <span className="ct-action__label">New deck</span>
         </button>
       </div>
       <span className="lobby__field lobby__field--hidden" id="deck-mine-label">
@@ -430,17 +430,17 @@ function CubeCard({ cube, decks, busy, onRefresh, onDelete }: { cube: CubeListin
         <span className="inventory__actions">
           {decks !== undefined && decks > 0 && (
             <a className="inventory__action ct-action" href={routeHash({ kind: 'library', cube: cube.name })} data-testid={`library-cube-decks-${cube.id}`}>
-              {decks === 1 ? '1 deck' : `${decks} decks`}
+              <span className="ct-action__label">{decks === 1 ? '1 deck' : `${decks} decks`}</span>
             </a>
           )}
           {cube.origin === 'cubecobra' && (
             <button type="button" className="inventory__action ct-action" data-testid={`inventory-refresh-${cube.id}`} disabled={busy} onClick={() => onRefresh(cube.id)}>
-              Refresh
+              <span className="ct-action__label">Refresh</span>
             </button>
           )}
           {cube.mine && (
             <button type="button" className="inventory__action ct-action" data-testid={`inventory-delete-${cube.id}`} disabled={busy} onClick={() => onDelete(cube.id)}>
-              Delete
+              <span className="ct-action__label">Delete</span>
             </button>
           )}
         </span>
