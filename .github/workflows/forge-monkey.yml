@@ -20,10 +20,10 @@ name: Forge monkey
 # walk over the backstop, so this lands on a claw without any placement rule.
 # Nothing GUARANTEES it: a claw-full night still overflows to hokon.
 #
-# Why not a third cron in `forge.yml`: its `changes` job decides each two-hourly
-# run from "the newest scheduled run on this sha that ran anything". A run that
-# ran only the monkey would read as covering the sha, so a green or still-running
-# monkey would skip the e2e and jvm sets it never ran.
+# Why not a second cron in `forge.yml`: its `changes` job runs every scheduled
+# run as the full nightly set, so a monkey-only schedule there would need its
+# own branch in that job and its own concurrency group; a workflow of its own
+# is simpler.
 #
 # Gates nothing, and reports to no fleet alert: a flagged run shows red on the
 # Actions tab and in this workflow's own history. That alerting policy is for the

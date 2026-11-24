@@ -4,8 +4,8 @@
  * `forge.yml`'s `changes` job feeds this the files a push (or a dispatch's
  * branch) changed, and the jobs after it run only what it picks, with one
  * printed reason per decision. On a push to main (`--defer-full`) it never
- * picks the full set: the schedule runs that, so whatever a push skipped is
- * still run within the schedule's window.
+ * picks the full set: the nightly runs that (or a `full` dispatch), so
+ * whatever a push skipped is run within a day.
  *
  *   node scripts/ci/select-forge-tests.ts <changes.json> [--defer-full] [--github-output <file>]
  *
@@ -1008,7 +1008,7 @@ export function usersOf(repo: Repo, importers: Map<string, string[]>, file: stri
 }
 
 export interface Options {
-  /** A push to main: never the full set, and tier 2 only up to `PUSH_BUDGET` (the schedule runs the rest). */
+  /** A push to main: never the full set, and tier 2 only up to `PUSH_BUDGET` (the nightly runs the rest). */
   deferFull?: boolean;
   fullShare?: number;
   /** The hot-path table; `GUARDS` unless a test brings its own. */
@@ -1311,7 +1311,7 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     allSpecs = `${specs.size} of ${all.specs.length} specs selected, past ${fullShare * 100}% — running all`;
   }
   // A push to main never runs the full set: tiers 0 and 1, then the best of tier 2 up to
-  // `PUSH_BUDGET`; the next batched full run (`forge.yml`'s schedule) covers the rest.
+  // `PUSH_BUDGET`; the next full run (`forge.yml`'s nightly) covers the rest.
   let deferred = false;
   if (deferFull && allSpecs !== null && allSpecsImported !== null) {
     reasons.push(`every spec runs on this push: ${allSpecsImported}`);
