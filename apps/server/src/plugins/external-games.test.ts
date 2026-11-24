@@ -14,6 +14,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { EXTERNAL_GAMES as EXTERNAL_GAMES_CONFIG } from '@hadoku/game-ui/rooms/external-games-config.ts';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 
@@ -25,6 +26,8 @@ let EXTERNAL_GAME_TYPE: string;
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	process.env.CARDTABLE_EXPERIMENTAL_GAMES = '1';
+	// Production's floor, so a friends-only game's own floor is what refuses a guest or member, not the app's.
+	process.env.CARDTABLE_MIN_TIER = 'guest';
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	roomsMod = await import('@hadoku/magic-server/http/rooms');
@@ -44,6 +47,7 @@ beforeAll(async () => {
 
 afterAll(() => {
 	delete process.env.CARDTABLE_EXPERIMENTAL_GAMES;
+	delete process.env.CARDTABLE_MIN_TIER;
 });
 
 const dirs: string[] = [];
@@ -213,6 +217,37 @@ describe('an external game is a registered game type', () => {
 		expect(patch.json()).toEqual({ error: 'gameType must be one of: constructed-1v1, draft' });
 		const reread = await call(h, 'GET', `/api/rooms/${constructed.id}`, { as: 'alice' });
 		expect((reread.json() as { gameType: string }).gameType).toBe('constructed-1v1');
+	});
+});
+
+describe("an entry with minTier: 'friend' is friends-only, whatever the app's floor", () => {
+	const friendsOnly = (): string => {
+		const game = EXTERNAL_GAMES_CONFIG.find((g) => g.minTier === 'friend' && g.e2eOnly !== true);
+		if (game === undefined) throw new Error('external-games-config.ts has no friends-only entry to test against');
+		return game.id;
+	};
+
+	it.each(['guest', 'member'])('a %s cannot create one', async (tier) => {
+		const h = await openApp(await tempDir());
+		const res = await call(h, 'POST', '/api/rooms', { as: 'gus', headers: { 'x-hadoku-tier': tier }, body: { name: 'Cards', gameType: friendsOnly() } });
+		expect(res.status, res.text).toBe(403);
+		expect((await call(h, 'GET', '/api/rooms', { as: 'gus', headers: { 'x-hadoku-tier': tier } })).status).toBe(200);
+	});
+
+	it.each(['guest', 'member'])("a %s can neither see nor join a friend's room of it", async (tier) => {
+		const h = await openApp(await tempDir());
+		const created = await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cards', gameType: friendsOnly() } });
+		expect(created.status, created.text).toBe(201);
+		const room = created.json() as { id: string; minTier?: string };
+		expect(room.minTier).toBe('friend');
+		const asLower = { as: 'gus', headers: { 'x-hadoku-tier': tier } };
+		const listed = (await call(h, 'GET', '/api/rooms', asLower)).json() as Array<{ id: string }> | { rooms: Array<{ id: string }> };
+		const ids = (Array.isArray(listed) ? listed : listed.rooms).map((r) => r.id);
+		expect(ids).not.toContain(room.id);
+		const joined = await call(h, 'POST', `/api/rooms/${room.id}/join`, asLower);
+		expect(joined.status, joined.text).toBe(404);
+		// A friend still joins it.
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' })).status).toBe(200);
 	});
 });
 

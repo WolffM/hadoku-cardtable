@@ -79,9 +79,10 @@ ctx.channel.send({ t: 'over', winners: [0] }); // the seat numbers that won
 ```
 
 `winners` is an array of seat numbers: one seat for a single winner, several for a shared win, all
-of them for a draw. Every other seat lost. cardtable shows the result in the room; recording it to
-the site's game stats, per player, is being wired up on cardtable's side from this same message, so
-nothing more is needed from you. An `over` from any seat but the leader's is dropped, not relayed.
+of them for a draw. Every other seat lost. cardtable shows the result in the room and records it to
+the site's game stats from this same message, under your game's id: each seated player by their own
+account, placement 1 for a winner and 2 for everyone else. A match with fewer than two seated
+players is not recorded. Nothing more is needed from you. An `over` from any seat but the leader's is dropped, not relayed.
 Do not use `t: 'over'` for anything else.
 
 ## What the page around you allows
@@ -204,7 +205,11 @@ it sends a message, shows what it receives and ends the match.
    - a repo on the operator's GitHub account with you as a collaborator (private is fine, and the
      publishing key is set up on the repo for you), or
    - a **public** repo on your own account. The operator then hands you a key once, which you save
-     as a repository secret.
+     as a repository secret, or
+   - a **private** repo on your own account. As above, plus a read-only token you make for it: a
+     fine-grained token on your account with access to that one repository and only **Contents:
+     Read-only** (Metadata is added for you). The operator sends you a link that fills in the form.
+     The site reads your releases with it, nothing else; renew it before it expires.
 
 The operator sets up the route and the key (a few minutes) and tells you the secret's name,
 `KEY_SERVICE_<ID>`: your id upper-cased, with `-` turned into `_`.

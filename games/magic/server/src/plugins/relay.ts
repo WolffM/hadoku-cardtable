@@ -20,13 +20,22 @@
  * one e2e stack that opts into dev diagnostics —
  * the same gate `MatchSpec.scenario` already uses for the same reason
  * (`host.ts`'s own doc on that field).
+ *
+ * A relay match the leader ends (`{ t: 'over', winners }`) is reported to the game-stats store under
+ * the ROOM's game type (Bomberman's rooms post as `bomberman`, an outside game's as its own id), with
+ * this server's service key and each seat's key from the stats key book (`relayOutcomeReport`). A
+ * testing room's match, a match every seat walked out of, and a lone player's are not reported.
  */
+import { randomUUID } from 'node:crypto';
 import { gameTypeSpec, registerGameType } from '@hadoku/shared';
+import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '@hadoku/game-server/config';
 import { gateSocketIo } from '@hadoku/game-server/gate';
 import { attachRelay } from '@hadoku/game-server/play/relay-socket';
 import { relayMatches } from '@hadoku/game-server/play/runtimes/relay-match';
 import { roomAdmits } from '@hadoku/game-server/room/tier-floor';
+import { relayOutcomeReport } from '@hadoku/game-server/stats/relay-results';
+import { createStatsReporter, type StatsReporter } from '@hadoku/game-server/stats/reporter';
 import { MAGIC_CONFIG } from '../config.js';
 import type { CardtablePlugin } from './state.js';
 
@@ -70,16 +79,46 @@ export const relayPlugin: CardtablePlugin = {
 		// one (never reads any ONE app's env var, bomberman's included), so cardtable's own
 		// bare-local hatch (`CARDTABLE_INSECURE_NO_EDGE_AUTH`) needs this app's OWN gate — the
 		// same binding (`../gate.ts`) every other socket on this server already uses.
+		const statsLog = jsonLogger('cardtable-relay-stats');
+		const reporters = new Map<string, StatsReporter>();
+		const reporterFor = (gameId: string): StatsReporter => {
+			let reporter = reporters.get(gameId);
+			if (reporter === undefined) {
+				reporter = createStatsReporter({ gameId, serviceKey: CONFIG.serviceKey, serviceKeyEnvVar: 'CARDTABLE_SERVICE_KEY', baseUrl: CONFIG.statsBaseUrl, log: statsLog });
+				reporters.set(gameId, reporter);
+			}
+			return reporter;
+		};
+		const { statsKeys } = ctx.state;
 		const relay = attachRelay(ctx.io, {
 			minTier: CONFIG.minTier,
 			rosterOf: (matchId) => relayMatches.get(matchId),
 			admits: (matchId, participantId, tier) => roomAdmits(lobby.get(matchId), lobby.isMember(matchId, participantId), tier),
+			onEnded: (roomId, outcome) => {
+				const room = lobby.get(roomId);
+				if (outcome === null || room === undefined || room.testing) return;
+				const report = relayOutcomeReport({
+					room,
+					userKeys: { get: (participantId) => statsKeys.keyOf(participantId) ?? undefined },
+					winners: outcome.winners,
+					// The relay match lives under the room's id, round after round: each report needs its own.
+					matchId: randomUUID(),
+					roomId,
+					endedAt: Date.now(),
+				});
+				if (report === null) {
+					statsLog({ evt: 'stats-skipped', roomId, gameType: room.gameType, reason: 'fewer-than-two-seated' });
+					return;
+				}
+				reporterFor(room.gameType).report(report);
+			},
 			log,
 			gate: { gateSocketIo },
 		});
 		return {
 			shutdown: () => {
 				relay.close();
+				for (const reporter of reporters.values()) void reporter.idle();
 			},
 		};
 	},

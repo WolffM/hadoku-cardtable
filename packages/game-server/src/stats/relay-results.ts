@@ -60,7 +60,7 @@ export interface ResultRoom {
  */
 export function buildFrozenSeats(
 	room: Pick<ResultRoom, 'seats' | 'members' | 'aiSeats'>,
-	userKeys: ReadonlyMap<string, string>,
+	userKeys: Pick<ReadonlyMap<string, string>, 'get'>,
 	botClientId: (seat: number) => string = (seat) => `ai:${seat}`,
 ): FrozenSeat[] {
 	const seats: FrozenSeat[] = [];
@@ -123,4 +123,41 @@ export function attachResultRoute(api: Router, deps: ResultRouteDeps): void {
 		deps.stats.report(built.report);
 		res.json({ ok: true });
 	});
+}
+
+/**
+ * A room match the relay itself saw end, as the store's report — no host POST involved. A cardtable
+ * room's relay seats each player at their ROOM seat (`gameSeatOf`), so the leader's
+ * `{ t: 'over', winners }` names room seats, and the report keeps those numbers: placement 1 for a
+ * winner, 2 for every other seat, and 1 for everyone when `winners` names nobody seated (a draw).
+ *
+ * Identity is the server's own, as on the result route: who holds each seat now, by key or as a
+ * guest (`buildFrozenSeats`), never anything the bundle sent. Null for fewer than two seated
+ * players — a leader alone in the lobby "winning" is not a match.
+ */
+export function relayOutcomeReport(input: {
+	room: Pick<ResultRoom, 'seats' | 'members' | 'aiSeats'>;
+	userKeys: Pick<ReadonlyMap<string, string>, 'get'>;
+	winners: readonly number[];
+	matchId: string;
+	roomId: string;
+	endedAt: number;
+}): MatchReport | null {
+	const frozen = buildFrozenSeats(input.room, input.userKeys);
+	if (frozen.length < 2) return null;
+	// The room seats buildFrozenSeats kept, in its order: frozen[i] sits at occupied[i].
+	const occupied = input.room.seats.flatMap((holder, seat) => (holder === null || holder === CLOSED_SEAT ? [] : [seat]));
+	const won = new Set(input.winners.filter((w) => occupied.includes(w)));
+	return {
+		matchId: input.matchId,
+		roomId: input.roomId,
+		endedAt: input.endedAt,
+		seats: frozen.map((f, i) => {
+			const seat = occupied[i] as number;
+			const placement = won.size === 0 || won.has(seat) ? 1 : 2;
+			return f.kind === 'user'
+				? { seat, kind: 'user', userKey: f.userKey, displayName: f.name, placement }
+				: { seat, kind: f.kind, displayName: f.name, placement };
+		}),
+	};
 }

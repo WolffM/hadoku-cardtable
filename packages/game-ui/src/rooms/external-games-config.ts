@@ -73,6 +73,18 @@ export const EXTERNAL_GAMES: readonly ExternalGameConfig[] = [
     embedSrc: '/bomberman/embed/bomberman-embed.js',
     seatRejoinGraceMs: 120_000,
   },
+  // An outside author's game (Cozmiverse/crossover-cards), served friends-only from
+  // `/games/crossover-cards/` by hadoku_site's game-bundles.json row. Its rooms are friends-only
+  // too, whatever the app's floor: it carries other publishers' card data.
+  {
+    id: 'crossover-cards',
+    label: 'Crossover Cards',
+    seats: { min: 2, max: 4 },
+    runtime: 'relay',
+    embedSrc: '/games/crossover-cards/embed.js',
+    seatRejoinGraceMs: 120_000,
+    minTier: 'friend',
+  },
   {
     id: 'e2e-toy-relay',
     label: 'Toy Relay Game',

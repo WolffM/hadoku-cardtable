@@ -11,7 +11,7 @@ import { GameStatsError, type MatchReport, type RecordMatchOptions } from '@wolf
 
 import { identityFromHeaders } from '../room/identity.ts';
 import { createStatsReporter } from './reporter.ts';
-import { attachResultRoute, buildFrozenSeats, type ReportOutcome, type ResultRoom, type RoundContext } from './relay-results.ts';
+import { attachResultRoute, buildFrozenSeats, relayOutcomeReport, type ReportOutcome, type ResultRoom, type RoundContext } from './relay-results.ts';
 
 const REPORT: MatchReport = {
 	matchId: 'm-round-0001',
@@ -114,6 +114,47 @@ describe('buildFrozenSeats', () => {
 			// No persona from the server (an older one): counted, never left nameless.
 			{ playerId: 3, clientId: 'ai:5', kind: 'bot', name: 'Bot 2' },
 		]);
+	});
+});
+
+describe('relayOutcomeReport', () => {
+	const room = {
+		seats: ['p-ada', null, 'closed', 'p-bo', 'p-cy'],
+		members: [
+			{ id: 'p-ada', name: 'Ada' },
+			{ id: 'p-bo', name: 'Bo' },
+			{ id: 'p-cy', name: 'Cy' },
+		],
+	};
+	const base = { room, userKeys: new Map([['p-bo', 'bo-key']]), matchId: 'm-relay-0001', roomId: 'r1', endedAt: 5 };
+
+	it('names every seated player at their ROOM seat, the winners first, by key or as a guest', () => {
+		expect(relayOutcomeReport({ ...base, winners: [3] })).toEqual({
+			matchId: 'm-relay-0001',
+			roomId: 'r1',
+			endedAt: 5,
+			seats: [
+				{ seat: 0, kind: 'guest', displayName: 'Ada', placement: 2 },
+				{ seat: 3, kind: 'user', userKey: 'bo-key', displayName: 'Bo', placement: 1 },
+				{ seat: 4, kind: 'guest', displayName: 'Cy', placement: 2 },
+			],
+		});
+	});
+
+	it('a shared win places every winner first', () => {
+		const report = relayOutcomeReport({ ...base, winners: [0, 4] });
+		expect(report?.seats.map((s) => [s.seat, s.placement])).toEqual([[0, 1], [3, 2], [4, 1]]);
+	});
+
+	it('winners naming no seated player is a draw, never a loss for everyone', () => {
+		for (const winners of [[], [1], [9]]) {
+			expect(relayOutcomeReport({ ...base, winners })?.seats.map((s) => s.placement)).toEqual([1, 1, 1]);
+		}
+	});
+
+	it('a lone seated player is not a match', () => {
+		const alone = { ...room, seats: ['p-ada', null, null] };
+		expect(relayOutcomeReport({ ...base, room: alone, winners: [0] })).toBeNull();
 	});
 });
 
