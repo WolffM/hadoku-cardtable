@@ -194,7 +194,7 @@ The operator: history leaves D1 for dataplatform's managed Postgres; bomberman m
 | item | owner | state | evidence |
 | --- | --- | --- | --- |
 | Managed Postgres as a tenant resource | hadoku-dataplatform-81 | building (operator go 2026-11-23) | request + reply `docs/requests/DATAPLATFORM_MANAGED_POSTGRES*.md` |
-| services/game-stats (same `_games` contract, mount /game-stats) + `prefs-client/rooms` | hadoku-site-75 | step 2 of 8 (service on PGlite) | reply cb086ded7; design hadoku_site 7c6c4471d; D1 2026-11-23: cardtable 292 matches/584 seats, bomberman 87/421, 45 ratings |
+| services/game-stats (same `_games` contract, mount /game-stats) + `prefs-client/rooms` | hadoku-site-75 | step 2 done: service on hadoku_site main 933517dd0, not deployed; D1 rehearsal into scratch PG17 379 matches/1005 seats/45 ratings, 237 counts equal; 42 reads x 3 viewers identical; prefs-client 1.2.0 `./rooms` publishing. Next: deploy dark once dataplatform L2+L5 land | reply cb086ded7; design hadoku_site 7c6c4471d; D1 2026-11-23: cardtable 292 matches/584 seats, bomberman 87/421, 45 ratings |
 | cardtable: declare `game-stats-report` in `.access-lists.json` | tracker | waits on site step 5 (dark deploy) | — |
 | cardtable: wire `recordRoomEvents` (open/join/role/leave/close) | next cardtable session | waits on site step 3 (rooms client published) | — |
 | cardtable: prefs-client bump at cutover | tracker | waits on site step 7 | — |
