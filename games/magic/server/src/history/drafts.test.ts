@@ -178,7 +178,8 @@ describe('a draft completed through the socket', () => {
 		}
 
 		const dir = join(stateDir, 'history');
-		await waitUntil(async () => (await recordLines(dir)).length > 0, 'the record to be written');
+		// The store counts a record only after its line is synced, so wait on the count, not the file.
+		await waitUntil(() => history.draftRecordStore().countBySource().get(`cube:${CUBE_ID}`) !== undefined, 'the record to be counted');
 		const records = await recordLines(dir);
 		expect(records).toHaveLength(1);
 		const [record] = records as [DraftRecord];
@@ -230,7 +231,11 @@ describe('the draft record store', () => {
 		const dir = await freshDir();
 		const log: Record<string, unknown>[] = [];
 		const store = history.createDraftRecordStore(dir, (e) => log.push(e));
-		await store.append(record({ draftId: 'r-a', endedAt: 5_000 }));
+		// A count taken while an append is still writing must not freeze a stale map.
+		const writing = store.append(record({ draftId: 'r-a', endedAt: 5_000 }));
+		expect(store.countBySource().size).toBe(0);
+		await writing;
+		expect(store.countBySource().get(`cube:${CUBE_ID}`)).toEqual({ drafts: 1, lastAt: 5_000 });
 		await store.append(record({ draftId: 'r-b', endedAt: 9_000, rounds: [{ kind: 'set', code: 'BLB', style: 'realistic' }, { kind: 'set', code: 'BLB', style: 'set-cube' }, { kind: 'cube', cubeId: CUBE_ID, name: CUBE_NAME, origin: 'shortlist' }] }));
 		await store.append(record({ draftId: 'r-c', endedAt: 20_000, outcome: 'abandoned' }));
 		const expected = new Map([
