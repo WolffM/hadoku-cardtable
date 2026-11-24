@@ -96,3 +96,7 @@ identity (declared in its `.access-lists.json`, at step 5), wire room events wit
   42 reads × 3 viewers; live D1 copied into a scratch Postgres 17 with all 237 counts equal;
   30 simultaneous matches rated correctly on real Postgres. `@wolffm/prefs-client` 1.2.0
   (`./rooms`) publishing. A user seat's name is now always looked up, never stored (R12).
+- 2026-11-24: on dataplatform's managed Postgres (namespace `game-stats`, granted 05:32Z). The
+  service gets its credentials from `HADOKU_DATA_URL` with its own key through the vendored
+  hadoku-pg client. Both migrations applied on the tenant (hadoku_site 6320dfb68). Asked
+  dataplatform for the cross-tenant isolation check. Next: wired dark, then the D1 copy.
