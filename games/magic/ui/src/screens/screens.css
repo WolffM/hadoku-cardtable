@@ -499,16 +499,6 @@
   align-self: flex-start;
 }
 
-.lobby__card select {
-  padding: 0.45rem 0.6rem;
-  background: var(--color-bg-alt);
-  color: var(--color-text);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
-  font: inherit;
-  max-width: 100%;
-}
-
 /* The locked-room prompt. A direct link to a room you have the password for
    is a valid way in — the screen asks rather than sending you to the list. */
 .lobby__locked {

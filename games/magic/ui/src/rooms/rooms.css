@@ -27,8 +27,7 @@
   letter-spacing: 0.06em;
 }
 
-.event-create input,
-.event-create select {
+.event-create input {
   min-width: 0;
   background: var(--color-bg);
   color: var(--color-text);
