@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { librarySections, playedLine, sectionOf, sourcePasses, type LibraryEntry } from './deckFilter.ts';
+import { NO_DECK_FILTER, libraryDeckPasses, librarySections, playedLine, sectionOf, type LibraryEntry } from './deckFilter.ts';
 
 const at = (month: number, day: number): number => Date.UTC(2026, month - 1, day, 12);
 const deck = (name: string, over: Partial<LibraryEntry> = {}): LibraryEntry => ({
@@ -78,15 +78,37 @@ describe('librarySections', () => {
   });
 });
 
-describe('the source filter', () => {
-  it('keeps built, drafted, or decks in a running tournament', () => {
-    const built = deck('b', { kind: 'built', touched: true });
-    const live = deck('l', { inTournament: true });
-    const done = deck('d');
-    expect([built, live, done].filter((d) => sourcePasses(d, 'all'))).toHaveLength(3);
-    expect([built, live, done].filter((d) => sourcePasses(d, 'built'))).toEqual([built]);
-    expect([built, live, done].filter((d) => sourcePasses(d, 'drafted'))).toEqual([live, done]);
-    expect([built, live, done].filter((d) => sourcePasses(d, 'live'))).toEqual([live]);
+describe('the Library’s text box', () => {
+  const tile = {
+    name: 'Blue tempo',
+    cube: 'Vintage Cube',
+    colors: ['U' as const],
+    list: { main: [{ name: 'Delver of Secrets // Insectile Aberration' }, { name: 'Counterspell' }], sideboard: [{ name: 'Pyroblast' }] },
+  };
+  const passes = (text: string, over: Partial<typeof tile> = {}) => libraryDeckPasses({ ...tile, ...over }, { ...NO_DECK_FILTER, text });
+
+  it('matches the deck’s name, whatever its case or accents', () => {
+    expect(passes('TEMPO')).toBe(true);
+    expect(passes('témpo')).toBe(true);
+  });
+
+  it('matches any card in the deck, a back face or the sideboard too', () => {
+    expect(passes('counterspell')).toBe(true);
+    expect(passes('insectile')).toBe(true);
+    expect(passes('pyroblast')).toBe(true);
+  });
+
+  it('matches the cube or set the deck was drafted from', () => {
+    expect(passes('vintage')).toBe(true);
+    expect(passes('Bloomburrow', { cube: 'Bloomburrow' })).toBe(true);
+  });
+
+  it('lets nothing else through, and a built deck has no cube to match', () => {
+    expect(passes('goblin')).toBe(false);
+    expect(passes('vintage', { cube: undefined })).toBe(false);
+    expect(passes('')).toBe(true);
+    // The colour chips still narrow beside the text.
+    expect(libraryDeckPasses(tile, { ...NO_DECK_FILTER, colors: new Set(['R']), text: 'tempo' })).toBe(false);
   });
 });
 

@@ -4,7 +4,6 @@
   Your decks come in three rows: the ones you starred, the ones you made your own, and the ones a draft made that you have not touched yet, each with the one you played last first.
 - Star any deck to keep it at the top.
 - Every deck tile says when you last played it, or that you never have.
-- Filter your decks by built, drafted or still in a tournament, and sort them by last played, win rate, name or newest.
 - Each cube says how many of your decks were drafted from it, and opens just those.
 
 ## Changed
