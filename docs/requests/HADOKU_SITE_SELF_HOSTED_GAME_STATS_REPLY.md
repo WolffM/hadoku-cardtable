@@ -92,3 +92,7 @@ identity (declared in its `.access-lists.json`, at step 5), wire room events wit
 ## Milestones
 
 - 2026-11-23: design written; D1 measured (table above).
+- 2026-11-23: service on hadoku_site main (933517dd0), not deployed. Parity with D1 on
+  42 reads × 3 viewers; live D1 copied into a scratch Postgres 17 with all 237 counts equal;
+  30 simultaneous matches rated correctly on real Postgres. `@wolffm/prefs-client` 1.2.0
+  (`./rooms`) publishing. A user seat's name is now always looked up, never stored (R12).
