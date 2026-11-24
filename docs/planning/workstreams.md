@@ -193,13 +193,13 @@ The operator: history leaves D1 for dataplatform's managed Postgres; bomberman m
 
 | item | owner | state | evidence |
 | --- | --- | --- | --- |
-| Managed Postgres as a tenant resource | hadoku-dataplatform-81 | building (operator go 2026-11-23) | request + reply `docs/requests/DATAPLATFORM_MANAGED_POSTGRES*.md` |
-| services/game-stats (same `_games` contract, mount /game-stats) + `prefs-client/rooms` | hadoku-site-75 | step 2 done: service on hadoku_site main 933517dd0, not deployed; D1 rehearsal into scratch PG17 379 matches/1005 seats/45 ratings, 237 counts equal; 42 reads x 3 viewers identical; prefs-client 1.2.0 `./rooms` publishing. Next: deploy dark once dataplatform L2+L5 land | reply cb086ded7; design hadoku_site 7c6c4471d; D1 2026-11-23: cardtable 292 matches/584 seats, bomberman 87/421, 45 ratings |
+| Managed Postgres as a tenant resource | hadoku-dataplatform-81 | **done** ad26587+9e11ee2, `dataplatform-pg` online :5432 (tracker checked); live cross-tenant isolation passed both ways; backup restored 0 mismatches. OPEN (operator): fstab line, monitoring/watchdog entry | request + reply `docs/requests/DATAPLATFORM_MANAGED_POSTGRES*.md` |
+| services/game-stats (same `_games` contract, mount /game-stats) + `prefs-client/rooms` | hadoku-site-75 | game-stats tenant onboarded 05:32Z 2026-11-24 (operator approved), 7 tables migrated, hadoku_site 6320dfb68; next: wire dark, D1 copy + count check. Earlier: step 2 done 933517dd0; D1 rehearsal into scratch PG17 379 matches/1005 seats/45 ratings, 237 counts equal; 42 reads x 3 viewers identical; prefs-client 1.2.0 `./rooms` publishing. Next: deploy dark once dataplatform L2+L5 land | reply cb086ded7; design hadoku_site 7c6c4471d; D1 2026-11-23: cardtable 292 matches/584 seats, bomberman 87/421, 45 ratings |
 | cardtable: declare `game-stats-report` in `.access-lists.json` | tracker | waits on site step 5 (dark deploy) | — |
 | cardtable: wire `recordRoomEvents` (open/join/role/leave/close) | next cardtable session | waits on site step 3 (rooms client published) | — |
 | cardtable: prefs-client bump at cutover | tracker | waits on site step 7 | — |
 | Retire D1 game tables | operator | after the count check is shown | — |
-| cardtable w127: draft record (stateDir JSONL, becomes a room-history event later), match attrs `source`/`cube`/`set`/`draftId`/`event`, cube+set usage and favourites, the sort/filter bar | tracker | **queued; dispatch after w125 is on main** (nothing of w125 landed: `50c317fbb`); Q1–Q3 in the wave file await the operator | `docs/planning/wave127-2026-11-23.md`; measured 2026-11-23: no draft record exists (`room/socket.ts:391`), match `pool` names no cube (`http/routes.ts:2497`), 22 complete drafts on prod to backfill |
+| cardtable w127: draft record (stateDir JSONL, becomes a room-history event later), match attrs `source`/`cube`/`set`/`draftId`/`event`, cube+set usage and favourites, the sort/filter bar | tracker | **ready: w125 is on main (dfa395328)**; Q1–Q3 in the wave file await the operator | `docs/planning/wave127-2026-11-23.md`; measured 2026-11-23: no draft record exists (`room/socket.ts:391`), match `pool` names no cube (`http/routes.ts:2497`), 22 complete drafts on prod to backfill |
 
 ## Wave 91 (platform phase 1) — scaffolded 2026-11-06
 
@@ -4171,7 +4171,7 @@ Done in s3: `configureParticipantIdDomain`, the RoomFront rename and the extensi
 Not verified: the live check on production (no second signed-in account; operator steps in `~/.cache/cardtable-manager/s3-closing.md`); match stats reaching monitoring-api (no production round played).
 Carried: bomberman concurrent double Start → two matches (client `beginMatch`); a server-side observable for a non-leader host's `over`; game-ui `avatarSquareUrl` hard-wires `/watchparty/media/`; closed seats render like open ones; toy relay host-over/double-start have no e2e (unit + mutation only); Magic TableSeats per-round pairing; config at boot; update-wolffm not firing on watchparty publishes. Incident: W's sub-agent ran one pattern `pkill -f` (nothing in production hit).
 
-## Library programme — scaffolded 2026-11-23 (w125 dispatched; w126 queued)
+## Library programme — w125 landed 2026-11-24 (w126 queued)
 
 Operator, 2026-11-23: one Library for decks, cubes and card art; covers on every deck; untouched
 draft decks sorted to the bottom by last played; favourites on top; per-card art picks and an
@@ -4181,10 +4181,12 @@ EUaqBZnr7wQQa8V7vZeFR7. Rulings: `docs/planning/wave125-2026-11-23.md` "Settled"
 
 | row | what | status | owner | evidence |
 | --- | --- | --- | --- | --- |
-| L1 | Deck covers always draw | dispatched | w125-A | measured 103/174 prod draft seats rank an uncreditable card first → blank tile (snapshot 2026-11-23); target 0 |
-| L2 | Catalog `releasedAt`, printings + search endpoints, per-player art pins in the spec and replays | dispatched | w125-B | reads art prefs from C's self-hosted `UserStore` (operator 2026-11-23: nothing new on Cloudflare) |
-| L3 | Library screen: Decks/Cubes/Cards tabs, sections, favourites, last played | dispatched | w125-C | builds the self-hosted per-person store first; last played stamped at match end (bot games count: 216/292 matches are unrated), one-time backfill from prefs-api |
-| L4 | New deck in the existing builder, stored in the per-person store | dispatched | w125-D | — |
+| L1 | Deck covers always draw | **landed** d9abd7874, PPE ✓ 138f6007d | w125-A | measured 103/174 prod draft seats rank an uncreditable card first → blank tile (snapshot 2026-11-23); target 0 |
+| L2 | Catalog `releasedAt`, printings + search endpoints, per-player art pins in the spec and replays | **landed** d9abd7874 + socket 5936e3a61 (in dfa395328); catalog swapped, PPE printings serve releasedAt (Lightning Bolt 67, LEA 1993-08-05 first); claw 45294042618 ✓. OPEN: prod's old refresh strips releasedAt from the shared catalog until prod gets the release | w125-B | reads art prefs from C's self-hosted `UserStore` (operator 2026-11-23: nothing new on Cloudflare) |
+| L3 | Library screen: Decks/Cubes/Cards tabs, sections, favourites, last played | **landed** dfa395328 (operator: "buttons look good, ship it"), PPE ✓ dfa395328; backfill wrote 154 decks / 11 files on prod; claws 45301664789, 45306380294, 45331892674 ✓ | w125-C | builds the self-hosted per-person store first; last played stamped at match end (bot games count: 216/292 matches are unrated), one-time backfill from prefs-api |
+| L4 | New deck in the existing builder, stored in the per-person store | **landed** d9abd7874 (operator: "looks good") | w125-D | — |
 | L5 | Cards tab, art picker, settings toggle | queued (w126) | — | waits on L2 + L3 on main |
 | L6 | Telemetry and state inventory; one source of truth for several servers | done 6ca85a81b | tracker | doc + review artifact YGDHaJSjV7ViyxGeAowVrM. Operator 2026-11-23: no history in D1, everything self-hosted; room history wanted |
+| L8 | Members-lookup flake (w72-pod, draft-pools, pt-toolbar, draftActions.ts): reads /api/rooms members right after draft-lobby shows | unverified | — | w72-pod red once on 45306380294, passed on re-run; no server log on green runs |
+| L9 | Site-wide button unification (`.button`, `.ct-action`, sound-builder__btn, room-filters__btn, ct-round-button, per-screen buttons) into one; net-negative | queued (operator ask 2026-11-23) | — | `.ct-action` centring landed dfa395328 |
 | L7 | History programme: match history + a room-history record in a self-hosted SQL store | queued (after w125) | — | operator 2026-11-23; store choice is an open question to the operator |
