@@ -464,10 +464,15 @@ describe('a draft tournament past one pod, simulated end to end over real socket
 			const pods = await draft(sim, 2402);
 			build(sim);
 			const leaver = sim.drafters[5]!.id;
-			const cheat = sim.drafters[17]!.id;
+			const leader = sim.drafters[0]!.id;
+			// Disqualified mid-match: someone seated at a round-3 table, never that round's bye (a bye has no opponent to win it).
+			let cheat = '';
 			const played = await playRounds(sim, 99, pods, (round) => {
 				if (round === 2) expect(sim.lobby.leave(sim.roomId, leaver).ok).toBe(true);
-				if (round === 3) expect(sim.lobby.dqPlayer(sim.roomId, sim.drafters[0]!.id, cheat).ok).toBe(true);
+				if (round === 3) {
+					cheat = pod(sim).pairings.flatMap((p) => p.players).find((id) => id !== leader) ?? '';
+					expect(sim.lobby.dqPlayer(sim.roomId, leader, cheat).ok).toBe(true);
+				}
 			});
 			console.log(JSON.stringify({ n: 24, dropped: pod(sim).dropped, rounds: played.rounds, standings: played.standings }));
 			expect(pod(sim).dropped).toEqual([leaver, cheat]);
