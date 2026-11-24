@@ -648,8 +648,7 @@
   text-transform: var(--room-front-create-label-case, uppercase);
 }
 
-.room-front-create input,
-.room-front-create select {
+.room-front-create input {
   min-width: 0;
   padding: var(--room-front-create-input-padding, 9px 10px);
   border: 1px solid var(--color-border);

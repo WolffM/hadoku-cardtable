@@ -75,7 +75,11 @@
   align-items: center;
 }
 
-.sound-sandbox__controls select,
+/* The sandbox's selects are the site's (`select`, styles.css), at the tools' smaller size. */
+.sound-sandbox__controls select {
+  font-size: 12.5px;
+}
+
 .sound-builder__filter input[type='search'] {
   background: var(--color-bg-alt);
   color: var(--color-text);
