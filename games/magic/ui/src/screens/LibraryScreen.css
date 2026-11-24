@@ -42,14 +42,10 @@
 /* Colour/hover are `.ct-action` (imported below); this is the size only. */
 .decks__icon,
 .decks__confirm {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   height: 28px;
   min-width: 28px;
   padding: 0 6px;
   border-radius: var(--hdk-radius);
-  font: inherit;
   font-size: 13px;
 }
 
@@ -126,9 +122,7 @@
 /* Colour/hover are `.ct-action` (imported in `InventoryScreen.tsx`); this is the size only. */
 .inventory__action {
   padding: 0.2rem 0.6rem;
-  font: inherit;
   font-size: 0.85em;
-  line-height: 1.2;
   border-radius: var(--hdk-radius);
 }
 
@@ -209,12 +203,8 @@
 }
 
 .library__new {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   padding-inline: 12px;
   border-radius: var(--hdk-radius);
-  font: inherit;
   font-weight: 600;
 }
 

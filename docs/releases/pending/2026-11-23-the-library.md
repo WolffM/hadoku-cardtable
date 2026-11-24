@@ -10,3 +10,7 @@
 
 - Decks and Inventory are now the Library's Decks and Cubes tabs; old links to either still work.
 - A drafted deck whose tournament is still running wears an "In tournament" chip and can't be renamed or deleted until it ends.
+
+## Fixed
+
+- Button labels such as "New deck", "Reset" and "Close" sit in the middle of their buttons instead of a little high.

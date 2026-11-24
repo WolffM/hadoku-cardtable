@@ -5,17 +5,13 @@
  * that one x.
  */
 
-/* The button's size; its colour and hover are `.ct-action` (`Button.css`) unless a game passes its own. */
+/* The button's size; its layout, colour and hover are `.ct-action` (`Button.css`) unless a game passes its own. */
 .room-settings__trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
   flex: none;
   align-self: flex-start;
   padding: 0.2rem 0.6rem;
   font: inherit;
   font-size: 0.85em;
-  line-height: 1.2;
   border-radius: var(--hdk-radius);
 }
 

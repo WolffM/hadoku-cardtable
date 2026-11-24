@@ -111,11 +111,11 @@ export function SeatList({ slots, iLead, shut = false, readiness = true, fieldFi
               {!fieldFixed && iLead && (
                 <span className="pod-seats__actions">
                   <ActionButton action="ai" className="pod-seats__action ct-action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} disabled={shut} onPress={() => onBotOn?.(seat)}>
-                    AI
+                    <span className="ct-action__label">AI</span>
                   </ActionButton>
                   {seat < realSeatCount && (
                     <ActionButton action="close" className="pod-seats__action ct-action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onPress={() => onCloseSeat?.(seat)}>
-                      Close
+                      <span className="ct-action__label">Close</span>
                     </ActionButton>
                   )}
                 </span>
@@ -133,7 +133,7 @@ export function SeatList({ slots, iLead, shut = false, readiness = true, fieldFi
               {iLead && (
                 <span className="pod-seats__actions">
                   <ActionButton action="open" className="pod-seats__action ct-action" data-testid="pod-seat-open" data-seat={seat} aria-label={`Open seat ${seat + 1}`} onPress={() => onOpenSeat?.(seat)}>
-                    Open
+                    <span className="ct-action__label">Open</span>
                   </ActionButton>
                 </span>
               )}
@@ -151,7 +151,7 @@ export function SeatList({ slots, iLead, shut = false, readiness = true, fieldFi
               {!fieldFixed && iLead && (
                 <span className="pod-seats__actions">
                   <ActionButton action="ai-remove" className="pod-seats__action ct-action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onPress={() => onBotOff?.(seat)}>
-                    Remove
+                    <span className="ct-action__label">Remove</span>
                   </ActionButton>
                 </span>
               )}
@@ -179,12 +179,12 @@ export function SeatList({ slots, iLead, shut = false, readiness = true, fieldFi
               <span className="pod-seats__actions">
                 {onRemoveMember !== undefined && (
                   <ActionButton action="remove" className="pod-seats__action ct-action" data-testid="pod-seat-remove" data-seat={seat} aria-label={`Remove ${name} from the table`} onPress={() => onRemoveMember(seat, id)}>
-                    Remove
+                    <span className="ct-action__label">Remove</span>
                   </ActionButton>
                 )}
                 {onBotReplace !== undefined && (
                   <ActionButton action="bot-replace" className="pod-seats__action ct-action" data-testid="pod-seat-bot-replace" data-seat={seat} aria-label={`Put the bot in ${name}'s seat`} onPress={() => onBotReplace(seat, id)}>
-                    Bot
+                    <span className="ct-action__label">Bot</span>
                   </ActionButton>
                 )}
                 {onMakeLeader !== undefined && (

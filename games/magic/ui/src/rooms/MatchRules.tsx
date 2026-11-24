@@ -87,7 +87,7 @@ export function MatchRules({
   const speed = pickTimer === undefined ? null : (SPEEDS.find((s) => Number(s.value) === pickTimer.value.speed)?.value ?? null);
   const { fields } = ROOM_SETTINGS;
   return (
-    <RoomSettingsPopover testId="match-rules" triggerClassName="room-close">
+    <RoomSettingsPopover testId="match-rules" triggerClassName="room-close ct-action">
       {handSmoothing !== undefined && (
         // The opening hand nearer the deck's land ratio, each mulligan weighted toward it.
         <SettingRow label={fields.handSmoothing.label}>

@@ -4,13 +4,41 @@
  * table's scorekeeping buttons. `.ct-action` is the colour and hover/focus fill; `.ct-action--danger`
  * fills the theme's danger instead. No size here — that differs per site, and gets duplicated
  * either way (`css-ownership.test.ts` forbids one block split across sheets); SHARED there, like `.button`.
+ *
+ * What is here is how its contents sit, because that is the same at every size: icon and label on
+ * one row, centred on the box. A flex row centres each item's box, and a bare label's box is its
+ * line, which in this font sits about a quarter of an em below the capitals: "New deck" drew 3.5 px
+ * high in a 30 px button. So a label is a `.ct-action__label`, trimmed to its capitals and baseline
+ * and padded back to one line, so the box keeps its height and the box's centre is the ink's.
  */
 
+/* The space between icon and label; a site's own rule may set it, since this one weighs nothing. */
+:where(.ct-action) {
+  --ct-action-gap: 0.4em;
+}
+
 .ct-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ct-action-gap);
+  line-height: 1.2;
   color: var(--color-text);
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   cursor: pointer;
+}
+
+.ct-action > svg {
+  display: block;
+  flex: none;
+}
+
+@supports (text-box: trim-both cap alphabetic) {
+  .ct-action__label {
+    text-box: trim-both cap alphabetic;
+    padding-block: calc((1lh - 1cap) / 2);
+  }
 }
 
 .ct-action:hover,

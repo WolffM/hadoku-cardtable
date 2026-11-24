@@ -51,7 +51,7 @@ export function RoomSettingsPopover({
     <>
       <button type="button" className={triggerClassName} aria-expanded={trigger !== null} data-testid={testId} onClick={(event) => toggle(event.currentTarget)}>
         <Icon name="gear" size={uiLength('0.9rem')} />
-        {title}
+        <span className="ct-action__label">{title}</span>
       </button>
       {trigger !== null && (
         <Popover trigger={trigger} onClose={close} title={title} testId={`${testId}-popover`} wide>

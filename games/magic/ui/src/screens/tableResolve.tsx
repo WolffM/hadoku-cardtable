@@ -114,7 +114,7 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
         setConfirming(r);
       }}
     >
-      {label[r].offer}
+      <span className="ct-action__label">{label[r].offer}</span>
     </button>
   ));
   const shown = open || confirming !== null || error !== null;
@@ -139,7 +139,7 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
             <strong>{after[confirming]}</strong>
           </span>
           <button type="button" className="table-card__resolve ct-action" data-testid={`${testId}-${confirming}-keep`} onClick={() => setConfirming(null)}>
-            {confirming === 'reset' || confirming === 'dq0' || confirming === 'dq1' ? 'Cancel' : 'Keep playing'}
+            <span className="ct-action__label">{confirming === 'reset' || confirming === 'dq0' || confirming === 'dq1' ? 'Cancel' : 'Keep playing'}</span>
           </button>
           <button
             type="button"
@@ -152,7 +152,7 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
               });
             }}
           >
-            {label[confirming].confirm}
+            <span className="ct-action__label">{label[confirming].confirm}</span>
           </button>
         </div>
       )}
