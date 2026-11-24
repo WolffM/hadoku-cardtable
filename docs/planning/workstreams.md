@@ -199,6 +199,7 @@ The operator: history leaves D1 for dataplatform's managed Postgres; bomberman m
 | cardtable: wire `recordRoomEvents` (open/join/role/leave/close) | next cardtable session | waits on site step 3 (rooms client published) | — |
 | cardtable: prefs-client bump at cutover | tracker | waits on site step 7 | — |
 | Retire D1 game tables | operator | after the count check is shown | — |
+| cardtable w127: draft record (stateDir JSONL, becomes a room-history event later), match attrs `source`/`cube`/`set`/`draftId`/`event`, cube+set usage and favourites, the sort/filter bar | tracker | **queued; dispatch after w125 is on main** (nothing of w125 landed: `50c317fbb`); Q1–Q3 in the wave file await the operator | `docs/planning/wave127-2026-11-23.md`; measured 2026-11-23: no draft record exists (`room/socket.ts:391`), match `pool` names no cube (`http/routes.ts:2497`), 22 complete drafts on prod to backfill |
 
 ## Wave 91 (platform phase 1) — scaffolded 2026-11-06
 
