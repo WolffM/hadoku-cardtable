@@ -37,7 +37,7 @@ import { Icon } from '@wolffm/themes';
 import { parseDck } from '@hadoku/carddata/dck';
 import { deckColorsByName } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
-import type { CubeListing, ImportCubeBody } from '@hadoku/shared';
+import { cubePoolKey, type CubeListing, type ImportCubeBody } from '@hadoku/shared';
 import { navigate, routeHash, type LibraryTab } from '@hadoku/game-ui/screens/route.ts';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import { uiLength } from '@hadoku/ui-shell/settings';
@@ -50,6 +50,9 @@ import { useArtistLookup } from '../draft/artists.ts';
 import { cardsCount } from '../draft/PoolPicker.tsx';
 import { CubeArt } from '../draft/CubeArt.tsx';
 import { ImportCube } from '../draft/ImportCube.tsx';
+import { usePoolFavourites, type PoolFavourites } from '../draft/poolFavourites.ts';
+import { DEFAULT_POOL_SORT, sortPools, type PoolSort } from '../draft/poolSort.ts';
+import { PoolSortBar, PoolStar } from '../draft/PoolSortBar.tsx';
 import { poolsClient, type PoolsClient } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
 import type { DeckRecords } from '../stats/deckOrder.ts';
@@ -418,9 +421,24 @@ function relativeTime(iso: string | null, now: number = Date.now()): string {
   return `${days}d ago`;
 }
 
-function CubeCard({ cube, decks, busy, onRefresh, onDelete }: { cube: CubeListing; decks: number | undefined; busy: boolean; onRefresh: (id: string) => void; onDelete: (id: string) => void }) {
+function CubeCard({
+  cube,
+  decks,
+  busy,
+  stars,
+  onRefresh,
+  onDelete,
+}: {
+  cube: CubeListing;
+  decks: number | undefined;
+  busy: boolean;
+  stars: PoolFavourites;
+  onRefresh: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const key = cubePoolKey(cube.id);
   return (
-    <div className="inventory__card" data-testid={`inventory-cube-${cube.id}`}>
+    <div className="inventory__card poolsort__card" data-testid={`inventory-cube-${cube.id}`}>
       <CubeArt artId={cube.artId} name={cube.name} />
       <div className="inventory__body">
         <span className="inventory__name">{cube.name}</span>
@@ -447,18 +465,23 @@ function CubeCard({ cube, decks, busy, onRefresh, onDelete }: { cube: CubeListin
           )}
         </span>
       </div>
+      <PoolStar name={cube.name} on={stars.favourites.has(key)} onToggle={() => stars.toggle(key)} />
     </div>
   );
 }
 
 /**
  * Every cube: the shortlist's (read-only, here only for the decks you drafted from them) and the
- * imported ones, managed.
+ * imported ones, managed. The room picker's bar is over them (`PoolSortBar`, wave 127 §D): one
+ * search box and one Sort select, the caller's starred cubes first; Newest keeps the server's order.
  */
 function CubesTab({ pools, decks }: { pools: PoolsClient; decks: MyDeck[] | null }) {
   const [cubes, setCubes] = useState<CubeListing[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const stars = usePoolFavourites(pools);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<PoolSort>(DEFAULT_POOL_SORT);
 
   /** The list's reads, latest-wins (`../rooms/latest.ts`): every write is followed by a fresh read, so a read is kept or dropped. */
   const [reads] = useState(latestReads);
@@ -487,15 +510,18 @@ function CubesTab({ pools, decks }: { pools: PoolsClient; decks: MyDeck[] | null
   };
   const deckCount = (name: string): number | undefined => decks?.filter((d) => d.cube === name).length;
   // A shortlist cube has nothing to manage: it is listed only for the decks drafted from it.
-  const shown = cubes?.filter((c) => c.origin !== 'shortlist' || (deckCount(c.name) ?? 0) > 0);
+  const listed = cubes?.filter((c) => c.origin !== 'shortlist' || (deckCount(c.name) ?? 0) > 0);
+  const shown = listed === undefined ? undefined : sortPools(listed, (c) => cubePoolKey(c.id), { sort, query, favourites: stars.favourites });
+  const fault = error ?? stars.error;
 
   return (
     <section className="lobby__card" data-testid="inventory">
-      {error !== null && (
+      {fault !== null && (
         <p className="ct-error" role="alert" data-testid="inventory-error">
-          {error}
+          {fault}
         </p>
       )}
+      <PoolSortBar testId="library-cubes" query={query} onQuery={setQuery} sort={sort} onSort={setSort} search={{ placeholder: 'Search cubes', ariaLabel: 'Search cubes' }} />
       <div className="inventory__gallery">
         {shown?.map((cube) => (
           <CubeCard
@@ -503,6 +529,7 @@ function CubesTab({ pools, decks }: { pools: PoolsClient; decks: MyDeck[] | null
             cube={cube}
             decks={deckCount(cube.name)}
             busy={busy}
+            stars={stars}
             onRefresh={(id) => withWrite(() => pools.refreshCube(id))}
             onDelete={(id) => withWrite(() => pools.deleteCube(id))}
           />

@@ -173,7 +173,10 @@ says when it was last played, or that it never was.
 text box finds a deck by its name, a card in it, or the cube or set it was
 drafted from; sort by last played, win rate, name or newest, and star a deck to
 keep it at the top. A cube on the Cubes tab says how many of the player's decks
-came from it and opens the Decks tab with that cube's name in the box.
+came from it and opens the Decks tab with that cube's name in the box. The Cubes
+tab, and a draft room's Cube and Set tabs, have one search box and one sort:
+newest (the default), most drafted, most played or name. A star on a cube or
+set keeps it first in every sort, in the Library and in every room.
 **New deck** opens the deck builder on an empty deck: pick a format (any era a
 room offers, or Any card), search for cards and press them in, up to four of
 each, with basics from the land counters. A named deck saves itself as it is

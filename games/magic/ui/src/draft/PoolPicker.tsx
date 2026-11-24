@@ -32,9 +32,14 @@
  * written anything yet — the same ephemeral, local-only pattern `attempt`
  * already uses for a refused cube pick).
  *
- * Imported cubes are pinned above the shortlist, newest first — the same
- * order `GET /api/pools/cubes` already answers in, kept rather than re-sorted.
- * Any friend may import or refresh; only the importer deletes (ruling 4).
+ * Every gallery (Cube, Set, and Custom's active pack) has the bar above it
+ * (`PoolSortBar.tsx`, wave 127 §D): one search box and one Sort select. The
+ * person's starred cubes and sets come first, then the chosen order
+ * (`poolSort.ts`); Newest, the default, is the order `GET /api/pools/cubes` and
+ * `GET /api/pools/sets` answer in, kept, so nothing moves until someone picks
+ * another sort. Every card has a star (`PoolStar`), the person's own, so it is
+ * live for everyone, the leader or not. Any friend may import or refresh; only
+ * the importer deletes (ruling 4).
  *
  * The leader edits; everyone else sees the same gallery, read-only and live —
  * the picker draws straight off the room's own feed (`pod.plan`), so a
@@ -68,7 +73,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 
-import type { CubeSummary, DraftPreset, ImportCubeBody, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
+import { cubePoolKey, setPoolKey, type CubeSummary, type DraftPreset, type ImportCubeBody, type PoolSource, type PoolVerdict, type SetSummary } from '@hadoku/shared';
 
 import { SetSymbol } from '../components/ManaPip.tsx';
 import { Modal } from '@hadoku/game-ui/components/Modal.tsx';
@@ -76,6 +81,9 @@ import { Popover, usePopover } from '@hadoku/game-ui/components/Popover.tsx';
 import { RadioCards, type RadioCard } from '@hadoku/game-ui/components/RadioCards.tsx';
 import { CubeArt } from './CubeArt.tsx';
 import { ImportCube } from './ImportCube.tsx';
+import { usePoolFavourites, type PoolFavourites } from './poolFavourites.ts';
+import { DEFAULT_POOL_SORT, sortPools, type PoolSort } from './poolSort.ts';
+import { PoolSortBar, PoolStar } from './PoolSortBar.tsx';
 import './PoolPicker.css';
 
 /** "1 card", "540 cards" — every card-count label in this file and `InventoryScreen.tsx` goes through this, never a bare `${n} cards`. */
@@ -190,9 +198,24 @@ function sourceSummary(source: PoolSource | null, known: string | null, cubes: r
  * which is where cube MANAGEMENT lives now; a room card is a choice, not a
  * management panel.
  */
-function CubeRow({ cube, input, checked, verdictState, repeats }: { cube: CubeSummary; input: ReactNode; checked: boolean; verdictState: VerdictState | undefined; repeats: number }) {
+function CubeRow({
+  cube,
+  input,
+  checked,
+  verdictState,
+  repeats,
+  stars,
+}: {
+  cube: CubeSummary;
+  input: ReactNode;
+  checked: boolean;
+  verdictState: VerdictState | undefined;
+  repeats: number;
+  stars: PoolFavourites;
+}) {
+  const key = cubePoolKey(cube.id);
   return (
-    <label key={cube.id} className="radio-cards__card pool-picker__card" data-verdict={checked ? verdictState : undefined}>
+    <label key={cube.id} className="radio-cards__card pool-picker__card poolsort__card" data-verdict={checked ? verdictState : undefined}>
       <CubeArt artId={cube.artId} name={cube.name} />
       {input}
       <span className="pool-picker__body">
@@ -202,6 +225,7 @@ function CubeRow({ cube, input, checked, verdictState, repeats }: { cube: CubeSu
           {repeats > 0 && <RepeatNote size={cube.size} repeats={repeats} />}
         </span>
       </span>
+      <PoolStar name={cube.name} on={stars.favourites.has(key)} onToggle={() => stars.toggle(key)} />
     </label>
   );
 }
@@ -244,11 +268,22 @@ function RepeatNote({ size, repeats }: { size: number; repeats: number }) {
   );
 }
 
-/** The cube gallery, reused by the Cube tab and by Custom's active picker — one implementation, per the file header. */
+/** The bar's own state: the query and the sort, each gallery its own. */
+function usePoolSort(): { query: string; setQuery: (q: string) => void; sort: PoolSort; setSort: (s: PoolSort) => void } {
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<PoolSort>(DEFAULT_POOL_SORT);
+  return { query, setQuery, sort, setSort };
+}
+
+const CUBE_SEARCH = { placeholder: 'Search cubes', ariaLabel: 'Search cubes' } as const;
+const SET_SEARCH = { placeholder: 'Search sets', ariaLabel: 'Search sets' } as const;
+
+/** The cube gallery under its bar, reused by the Cube tab and by Custom's active picker — one implementation, per the file header. */
 function CubeList({
   name,
   testId,
   cubes,
+  stars,
   value,
   disabled,
   verdictState,
@@ -259,6 +294,7 @@ function CubeList({
   name: string;
   testId: string;
   cubes: readonly CubeSummary[];
+  stars: PoolFavourites;
   value: string | null;
   disabled: boolean;
   /** Flips the CHOSEN card's border/fill to the danger token while refused. Only the Cube tab passes this (its one source gates the shared verdict); a Custom round shows its own cached verdict underneath instead. */
@@ -269,37 +305,49 @@ function CubeList({
   after?: ReactNode;
   onChange: (cubeId: string) => void;
 }) {
-  // Imported first (the server's own order), then the shortlist — never re-sorted here.
-  const imported = cubes.filter((c) => c.origin !== 'shortlist');
-  const shortlist = cubes.filter((c) => c.origin === 'shortlist');
-  const ordered = [...imported, ...shortlist];
+  const { query, setQuery, sort, setSort } = usePoolSort();
+  const ordered = sortPools(cubes, (c) => cubePoolKey(c.id), { sort, query, favourites: stars.favourites });
   const byId = new Map(ordered.map((c) => [c.id, c]));
 
   return (
-    <div className="pool-picker__gallery">
-      <RadioCards
-        name={name}
-        label="Cube"
-        testId={testId}
-        options={ordered.map((c) => ({ value: c.id, label: c.name }))}
-        value={value}
-        disabled={disabled}
-        onChange={onChange}
-        renderRow={(option, input) => {
-          const cube = byId.get(option.value)!;
-          return <CubeRow key={cube.id} cube={cube} input={input} checked={option.value === value} verdictState={verdictState} repeats={seats === undefined ? 0 : cubeRepeats(cube.size, seats)} />;
-        }}
-      />
-      {after}
-    </div>
+    <>
+      <PoolSortBar testId={testId} query={query} onQuery={setQuery} sort={sort} onSort={setSort} search={CUBE_SEARCH} />
+      <div className="pool-picker__gallery">
+        <RadioCards
+          name={name}
+          label="Cube"
+          testId={testId}
+          options={ordered.map((c) => ({ value: c.id, label: c.name }))}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+          renderRow={(option, input) => {
+            const cube = byId.get(option.value)!;
+            return (
+              <CubeRow
+                key={cube.id}
+                cube={cube}
+                input={input}
+                checked={option.value === value}
+                verdictState={verdictState}
+                repeats={seats === undefined ? 0 : cubeRepeats(cube.size, seats)}
+                stars={stars}
+              />
+            );
+          }}
+        />
+        {after}
+      </div>
+    </>
   );
 }
 
-/** The set gallery (searchable, newest first) plus the Realistic/Set-cube style toggle — reused by the Set tab and Custom's active picker. */
+/** The set gallery under its bar, the Realistic/Set-cube style toggle in the bar's row — reused by the Set tab and Custom's active picker. */
 function SetList({
   namePrefix,
   testId,
   sets,
+  stars,
   code,
   style,
   disabled,
@@ -309,34 +357,21 @@ function SetList({
   namePrefix: string;
   testId: string;
   sets: readonly SetSummary[];
+  stars: PoolFavourites;
   code: string | null;
   style: SourceStyle | null;
   disabled: boolean;
   verdictState?: VerdictState;
   onPick: (code: string, style: SourceStyle) => void;
 }) {
-  const [search, setSearch] = useState('');
-  const q = search.trim().toLowerCase();
-  const filtered = q === '' ? sets : sets.filter((s) => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q));
+  const { query, setQuery, sort, setSort } = usePoolSort();
+  const ordered = sortPools(sets, (s) => setPoolKey(s.code), { sort, query, favourites: stars.favourites });
+  const byCode = new Map(ordered.map((s) => [s.code, s]));
 
   return (
     <div className="pool-picker__set-list">
       {/* The style sits above the list, never under a long gallery (the operator, 2026-10-22). */}
-      <div className="pool-picker__set-head">
-        <label className="pool-picker__search">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
-          <input
-            type="search"
-            data-testid={`${testId}-search`}
-            placeholder="Search sets"
-            aria-label="Search sets"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </label>
+      <PoolSortBar testId={testId} query={query} onQuery={setQuery} sort={sort} onSort={setSort} search={SET_SEARCH}>
         <RadioCards
           name={`${namePrefix}-style`}
           label="Style"
@@ -348,26 +383,28 @@ function SetList({
             if (code !== null) onPick(code, picked);
           }}
         />
-      </div>
+      </PoolSortBar>
       <div className="pool-picker__gallery">
         <RadioCards
           name={`${namePrefix}-set`}
           label="Set"
           testId={testId}
-          options={filtered.map((s) => ({ value: s.code, label: s.name }))}
+          options={ordered.map((s) => ({ value: s.code, label: s.name }))}
           value={code}
           disabled={disabled}
           onChange={(picked) => onPick(picked, style ?? 'realistic')}
           renderRow={(option, input) => {
-            const set = filtered.find((s) => s.code === option.value)!;
+            const set = byCode.get(option.value)!;
+            const key = setPoolKey(set.code);
             return (
-              <label key={set.code} className="radio-cards__card pool-picker__card" data-verdict={option.value === code ? verdictState : undefined}>
+              <label key={set.code} className="radio-cards__card pool-picker__card poolsort__card" data-verdict={option.value === code ? verdictState : undefined}>
                 {input}
                 <span className="pool-picker__body">
                   <SetSymbol code={set.code} />
                   <span className="pool-picker__name">{set.name}</span>
                   <span className="pool-picker__size">{set.date.slice(0, 4)} · {cardsCount(set.cards)}</span>
                 </span>
+                <PoolStar name={set.name} on={stars.favourites.has(key)} onToggle={() => stars.toggle(key)} />
               </label>
             );
           }}
@@ -396,6 +433,7 @@ function CustomActivePicker({
   type,
   cubes,
   sets,
+  stars,
   disabled,
   onTypeChange,
   onPick,
@@ -405,6 +443,7 @@ function CustomActivePicker({
   type: 'cube' | 'set';
   cubes: readonly CubeSummary[];
   sets: readonly SetSummary[];
+  stars: PoolFavourites;
   disabled: boolean;
   onTypeChange: (round: 0 | 1 | 2, type: 'cube' | 'set') => void;
   onPick: (round: 0 | 1 | 2, source: PoolSource) => void;
@@ -430,6 +469,7 @@ function CustomActivePicker({
           name={`${testId}-cube`}
           testId={`${testId}-cubes`}
           cubes={cubes}
+          stars={stars}
           value={source?.kind === 'cube' ? source.cubeId : null}
           disabled={disabled}
           onChange={(cubeId) => onPick(round, { kind: 'cube', cubeId })}
@@ -439,6 +479,7 @@ function CustomActivePicker({
           namePrefix={testId}
           testId={`${testId}-sets`}
           sets={sets}
+          stars={stars}
           code={source?.kind === 'set' ? source.code : null}
           style={source?.kind === 'set' ? source.style : null}
           disabled={disabled}
@@ -527,6 +568,7 @@ export function PoolPicker({
   onDraftWithout,
 }: PoolPickerProps) {
   const [presetName, setPresetName] = useState('');
+  const stars = usePoolFavourites();
   const disabled = !leader || busy;
   const verdictState: VerdictState = checking ? 'checking' : refusal !== null ? 'refused' : 'ready';
   /**
@@ -598,6 +640,7 @@ export function PoolPicker({
             name="pool-picker-cube"
             testId="pool-picker-cubes"
             cubes={cubes}
+            stars={stars}
             value={selected?.kind === 'cube' ? selected.cubeId : null}
             disabled={disabled}
             verdictState={verdictState}
@@ -619,6 +662,7 @@ export function PoolPicker({
             namePrefix="pool-picker-set"
             testId="pool-picker-sets"
             sets={sets}
+            stars={stars}
             code={selected?.kind === 'set' ? selected.code : null}
             style={selected?.kind === 'set' ? selected.style : null}
             disabled={disabled}
@@ -713,11 +757,18 @@ export function PoolPicker({
             type={typeOf(activeRound)}
             cubes={cubes}
             sets={sets}
+            stars={stars}
             disabled={disabled}
             onTypeChange={setRoundType}
             onPick={onPickCustomRound}
           />
         </>
+      )}
+
+      {stars.error !== null && (
+        <p className="lobby__error" role="alert" data-testid="pool-star-error">
+          {stars.error}
+        </p>
       )}
 
       <p className="pool-picker__verdict" data-testid="pool-picker-verdict" data-state={verdictState}>

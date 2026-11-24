@@ -53,7 +53,7 @@ export interface FilterSearch {
 }
 
 /** Sets of toggle chips (an empty set draws nothing), then a search box. */
-export function ChipFilterBar({ testId, sets, search }: { testId: string; sets: readonly (readonly FilterChip[])[]; search: FilterSearch }) {
+export function ChipFilterBar({ testId, sets, search, label = 'Filter decks' }: { testId: string; sets: readonly (readonly FilterChip[])[]; search: FilterSearch; /** The group's accessible name: what the bar filters. */ label?: string }) {
   const input = (
     <input
       type="search"
@@ -66,7 +66,7 @@ export function ChipFilterBar({ testId, sets, search }: { testId: string; sets: 
     />
   );
   return (
-    <div className="deckfilter" role="group" aria-label="Filter decks" data-testid={testId}>
+    <div className="deckfilter" role="group" aria-label={label} data-testid={testId}>
       {sets.map(
         (chips, i) =>
           chips.length > 0 && (

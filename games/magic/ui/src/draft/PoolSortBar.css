@@ -1,0 +1,18 @@
+/*
+ * `PoolSortBar.tsx`: where a cube or set card's star sits. Its look is the Library deck tile's star
+ * (`.library__star`, LibraryScreen.css), and the bar is the Library's own toolbar; this sheet only
+ * places the star, at the card's foot on the right, clear of the chosen card's check badge.
+ */
+.poolsort__card {
+  position: relative;
+}
+
+.poolsort__mark {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+}
+
+:hover > .poolsort__mark .library__star {
+  opacity: 1;
+}

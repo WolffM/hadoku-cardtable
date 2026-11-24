@@ -110,44 +110,12 @@
   font-size: 0.85em;
 }
 
-/* ── the Set tab's search field ──────────────────────────────────────── */
+/* ── the Set tab: its bar (`PoolSortBar.tsx`) over its gallery ─────────── */
 
 .pool-picker__set-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.pool-picker__set-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-}
-
-.pool-picker__search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  max-width: 320px;
-  width: 100%;
-  padding: 0 10px;
-  color: var(--color-text-secondary);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius);
-}
-
-.pool-picker__search input {
-  flex: 1;
-  min-width: 0;
-  font: inherit;
-  color: var(--color-text);
-  background: transparent;
-  border: 0;
-  min-height: 32px;
-  outline: none;
 }
 
 /* ── Custom: pack slots + the one active picker ──────────────────────── */
