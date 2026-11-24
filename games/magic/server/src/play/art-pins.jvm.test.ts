@@ -33,6 +33,7 @@ import type { BridgeCommand, BridgeLine } from './bridge-protocol.js';
 import type { ForgeMatchSpec } from './forge-spec.js';
 import { createMatchRegistry } from './match.js';
 import { WATCHER_SEAT } from './match/forge-session.js';
+import { normalisedBoard } from './recording/position.js';
 import { bridgeDigest, createRecorder, forgePin } from './recording/recorder.js';
 import { publicStreamPath, rebuild } from './recording/rebuild.js';
 import { available, deck } from './scenario.js';
@@ -101,6 +102,26 @@ function boltsByOwner(envelopes: readonly unknown[]): Record<number, string[]> {
 
 const hasArt = (env: ServerEnvelope): boolean => JSON.stringify(env.frame).includes('"ScryfallId"');
 
+/** What differs between two `normalisedBoard`s: each object only one side has, and each property whose value differs. */
+function boardDiff(live: string, rebuilt: string): string {
+	const objects = (board: string) => new Map(JSON.parse(board) as [string, Record<string, unknown>][]);
+	const a = objects(live);
+	const b = objects(rebuilt);
+	const out: string[] = [];
+	for (const key of new Set([...a.keys(), ...b.keys()])) {
+		const x = a.get(key);
+		const y = b.get(key);
+		if (x === undefined || y === undefined) {
+			out.push(`${key} only ${x === undefined ? 'rebuilt' : 'live'}`);
+			continue;
+		}
+		for (const prop of new Set([...Object.keys(x), ...Object.keys(y)])) {
+			if (JSON.stringify(x[prop]) !== JSON.stringify(y[prop])) out.push(`${key}.${prop}: live ${JSON.stringify(x[prop])} rebuilt ${JSON.stringify(y[prop])}`);
+		}
+	}
+	return out.length === 0 ? 'same' : out.slice(0, 20).join('; ') + (out.length > 20 ? `; …${out.length - 20} more` : '');
+}
+
 function linesOf(path: string): { t: string; [k: string]: unknown }[] {
 	return gunzipSync(readFileSync(path))
 		.toString('utf8')
@@ -143,8 +164,18 @@ describe.skipIf(!available.ok)(title, () => {
 				const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
 				const seen = new Map<number, unknown[]>([[0, []], [1, []], [WATCHER_SEAT, []]]);
 				let firstArtAt: number | null = null;
+				// The live run's raw lines, so a refused rebuild can be diffed against what the match itself folded.
+				const raw: BridgeLine[] = [];
+				const hosted = recorder.host(jvm);
 				const registry = createMatchRegistry({
-					host: recorder.host(jvm),
+					host: (id, s, events) =>
+						hosted(id, s, {
+							...events,
+							line: (l) => {
+								raw.push(l);
+								events.line(l);
+							},
+						}),
 					catalog,
 					log: () => {},
 					overGraceMs: 60_000,
@@ -202,10 +233,14 @@ describe.skipIf(!available.ok)(title, () => {
 				// The public stream expires: the replay is rebuilt from the action log alone, on its own JVM.
 				rmSync(publicStreamPath(recordingsDir, match.id));
 				const rebuildJvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
-				const rebuilt = await rebuild(match.id, { recordingsDir, host: rebuildJvm, log: () => {}, deckCosts: () => LIBRARY_CARD_COSTS, catalog, positionBudgetMs: 180_000, running: { pin: identity.pin, bridge: identity.bridge } });
+				const rebuildLog: Record<string, unknown>[] = [];
+				const rebuilt = await rebuild(match.id, { recordingsDir, host: rebuildJvm, log: (e) => rebuildLog.push(e), deckCosts: () => LIBRARY_CARD_COSTS, catalog, positionBudgetMs: 180_000, running: { pin: identity.pin, bridge: identity.bridge } });
 				rebuildJvm.close();
 				jvm.close();
-				expect(rebuilt.ok, rebuilt.ok ? '' : rebuilt.reason).toBe(true);
+				const refusal = rebuilt.ok
+					? ''
+					: [rebuilt.reason, ...(rebuilt.rebuiltBoards ?? []).map((board, seat) => `seat ${seat}: ${boardDiff(normalisedBoard(raw, seat), board)}`), `rebuild log: ${JSON.stringify(rebuildLog)}`].join('\n');
+				expect(rebuilt.ok, refusal).toBe(true);
 				if (!rebuilt.ok) return;
 				const replayed = rebuilt.lines.filter((l): l is { t: 'env'; at: number; env: ServerEnvelope } => l.t === 'env').map((l) => l.env);
 				expect(boltsByOwner(replayed), 'the replay draws what the match drew').toEqual(live);

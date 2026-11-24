@@ -69,7 +69,7 @@ import { createProjector, EVERY_PLAYER, type StateFrame } from '../visibility.js
 import { createArtIds, type ArtCatalog, type ArtIds } from '../art-ids.js';
 import { bridgeDigest, forgePin } from './recorder.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '@hadoku/game-server/play/recording/retention';
-import { boardDigest, isStateLine } from './position.js';
+import { boardDigest, createSeatPosition, isStateLine, normalisedBoard } from './position.js';
 import { PUBLIC_VERSION, type ActionsCmdLine, type ActionsEndLine, type ActionsHeader, type PublicEndLine, type PublicEnvLine, type PublicHeader } from '@hadoku/game-server/play/recording/writer';
 import { BRIDGE_SOURCE } from '../../root.js';
 
@@ -168,7 +168,7 @@ export interface RebuildDeps {
 
 export type RebuildOutcome =
 	| { ok: true; header: PublicHeader; lines: PublicStreamLine[]; perSeatBoard: [string, string] }
-	| { ok: false; reason: string };
+	| { ok: false; reason: string; rebuiltBoards?: [string, string] };
 
 export const commandSeat = (c: BridgeCommand): number | null => ('seat' in c ? c.seat : null);
 
@@ -326,7 +326,8 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	// rebuilt run's own history (its `version` is the live run's), once the seat can take an action back.
 	const undoAt: [{ can: boolean; version: number } | null, { can: boolean; version: number } | null] = [null, null];
 	const rewound: [number, number] = [0, 0];
-	let lastLineAt = Date.now();
+	// Each seat's rebuilt board as it goes, the same fold the recorder kept of the live one (`createSeatPosition`).
+	const positions = [createSeatPosition(0), createSeatPosition(1)] as const;
 	let exited: string | null = null;
 	const t0 = Date.now();
 
@@ -340,7 +341,8 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 				if (l.t === 'input') seatOpen[l.seat] = l.open;
 				if (l.t === 'undo') undoAt[l.seat] = { can: l.can, version: l.version };
 				if (l.t === 'rewind' && l.ok) rewound[l.seat]!++;
-				lastLineAt = Date.now();
+				positions[0].push(l);
+				positions[1].push(l);
 			},
 			exit: (reason) => {
 				exited = reason;
@@ -352,6 +354,14 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	}
 
 	const budget = deps.positionBudgetMs ?? 30_000;
+	// The live run's own final boards (the end line's), which the rebuild must arrive at.
+	const recorded = lines.find((l): l is Extract<typeof l, { t: 'end' }> => l.t === 'end')?.boards;
+	const reachedRecorded = () => recorded !== undefined && positions[0].digest() === recorded[0] && positions[1].digest() === recorded[1];
+	// Stopping a match concedes for its seats (`match.ts`'s `concedeCommand`) and then ends the JVM: Forge can
+	// apply that concede, and the log keep it, while the board it led to never reached the live run before the
+	// end. Such a trailing concede is the live run's teardown, not its game: once the rebuild already stands on the
+	// live final board it is not sent. Every command before it is, and a concede the live board shows is too.
+	const trailingConcede = (from: number) => cmds.slice(from).every(({ cmd: x }) => x.t === 'act' && (x.frame as { method?: string }).method === 'concede');
 	let diverged: string | null = null;
 	let i = 0;
 	while (i < cmds.length) {
@@ -370,6 +380,11 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 					? `the rebuild's JVM exited before seat ${seat} ever had an open input for act #${k} (command ${i}): ${exited}`
 					: `command ${i}: seat ${seat} never had an open input within the budget (its game controller never wired, or nothing ever opened for it)`;
 				break;
+			}
+			if (trailingConcede(i)) {
+				const boardDeadline = Date.now() + Math.min(budget, 5_000);
+				while (exited === null && Date.now() < boardDeadline && !reachedRecorded()) await sleep(10);
+				if (reachedRecorded()) break;
 			}
 			host.send(cmd);
 			// Then wait for THIS act's own applied echo — never the next command blind. An act
@@ -428,10 +443,17 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 		i++;
 	}
 
-	if (diverged === null) {
-		const settleDeadline = Date.now() + 30_000;
-		while (exited === null && Date.now() - lastLineAt < 1500 && Date.now() < settleDeadline) await sleep(50);
+	// Every command is in: Forge still has to play out the last of them. Settle on the live run's own final
+	// boards, not on a quiet spell: a quiet spell is a wall-clock guess that a cold or loaded JVM breaks (a log
+	// with no commands at all settled inside the JVM's boot and was refused as an empty board, found on a claw).
+	// A rebuild that never reaches them within the budget is refused below with what it did reach.
+	if (diverged === null && recorded !== undefined) {
+		const settleDeadline = Date.now() + budget;
+		while (exited === null && Date.now() < settleDeadline && !reachedRecorded()) await sleep(50);
 	}
+	// The run as it stood when it settled: anything Forge sends while it is stopped is not the live game's.
+	const settledLines = raw.length;
+	const settledTimeline = timeline.length;
 
 	const endedAt = new Date().toISOString();
 	host.stop();
@@ -447,7 +469,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 
 	// The pins the match drew with, from its header (`ForgeSeatSpec.artPins`): the replay draws what the match drew.
 	const art = createArtIds(deps.catalog ?? null, header.spec.seats.map((seat) => seat.deck), header.spec.seats);
-	const watcherFrames = watcherFramesFrom(matchId, timeline, 0, allSeats, art);
+	const watcherFrames = watcherFramesFrom(matchId, timeline.slice(0, settledTimeline), 0, allSeats, art);
 	const envs: PublicEnvLine[] = watcherFrames.map(({ env, at }) => ({ t: 'env', at, env }));
 
 	const publicHeader: PublicHeader = {
@@ -466,15 +488,20 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	const outLines: PublicStreamLine[] = [publicHeader, ...envs, publicEnd];
 	// Once, over the finished rebuild's own raw lines — never per command polled, unlike `v:1`'s
 	// gating use of the same fold (see `position.ts`'s own doc on why that distinction matters).
-	const perSeatBoard: [string, string] = [boardDigest(raw, 0), boardDigest(raw, 1)];
+	const settled = raw.slice(0, settledLines);
+	const perSeatBoard: [string, string] = [boardDigest(settled, 0), boardDigest(settled, 1)];
 	// The log does not yet reproduce every game (plan, "Wave 78 results": a claw rebuild finished
 	// clean and still differed). A rebuild that misses the live run's own final boards is refused,
 	// never written or served; a log without them (older) cannot be checked, so it is refused too.
-	const recorded = lines.find((l): l is Extract<typeof l, { t: 'end' }> => l.t === 'end')?.boards;
 	if (recorded === undefined || recorded[0] !== perSeatBoard[0] || recorded[1] !== perSeatBoard[1]) {
-		const reason = recorded === undefined ? 'the log records no final boards to check a rebuild against' : 'the rebuilt game ended on a different board than the live one';
+		const differing = [0, 1].filter((seat) => recorded?.[seat] !== perSeatBoard[seat]);
+		const reason =
+			recorded === undefined
+				? 'the log records no final boards to check a rebuild against'
+				: `the rebuilt game ended on a different board than the live one (seat ${differing.join(' and ')}: recorded ${differing.map((s) => recorded[s]!.slice(0, 12)).join('/')}, rebuilt ${differing.map((s) => perSeatBoard[s]!.slice(0, 12)).join('/')})`;
 		deps.log({ evt: 'rebuild-mismatch', matchId, recorded: recorded ?? null, rebuilt: perSeatBoard });
-		return { ok: false, reason };
+		// The boards themselves, not their digests, so a caller holding the live run's lines can say what differed (`normalisedBoard`).
+		return { ok: false, reason, rebuiltBoards: [normalisedBoard(settled, 0), normalisedBoard(settled, 1)] };
 	}
 	writePublicStream(deps.recordingsDir, matchId, outLines);
 	deps.log({ evt: 'rebuild-ok', matchId, commands: cmds.length, envelopes: envs.length, perSeatBoard });
