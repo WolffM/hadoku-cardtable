@@ -39,6 +39,12 @@ export interface MatchStart {
 	mode: string;
 	roomId?: string;
 	startedAt: number;
+	/**
+	 * The match's own attrs. Besides `format`, `pool`, `opponent`, `mode` and `bestOf`, what it was
+	 * played from (`http/routes.ts`'s `sourceOf`): `source` (`cube` | `set` | `custom` |
+	 * `constructed`), `cube` or `set` when every round drafted that one, and `draftId` and `event`
+	 * (the tournament's id, `<roomId>-<draftStartedAt>`) when it came from one. Each absent when unknown.
+	 */
 	attrs: StatAttrs;
 	seats: SeatStart[];
 }
@@ -132,7 +138,8 @@ function seatCounters(start: SeatStart | undefined, facts: SeatFacts): StatCount
  */
 export function buildMatchReport(facts: MatchFacts, start: MatchStart): MatchReport | null {
 	if (!MATCH_ID_PATTERN.test(facts.matchId)) return null;
-	const attrs: StatAttrs = { ...start.attrs };
+	// Every string clipped as the store keeps one: a cube's id, for one, is whatever its import named it.
+	const attrs: StatAttrs = Object.fromEntries(Object.entries(start.attrs).map(([k, v]) => [k, typeof v === 'string' ? clip(v) : v]));
 	if (facts.endReason !== null) attrs.endReason = facts.endReason;
 	const counters: StatCounters = { durationMs: Math.max(0, facts.endedAt - start.startedAt) };
 	if (facts.turns !== null) counters.turns = facts.turns;

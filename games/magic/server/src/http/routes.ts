@@ -2463,6 +2463,36 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return room === undefined ? undefined : `draft:${room.roomId}`;
 	};
 
+	/**
+	 * What a match was played from, as its report's attrs (`stats/report.ts`'s `MatchStart.attrs`),
+	 * read off the room: a draft room's three rounds are its pod's plan, so all three on one cube
+	 * (or one set, in either style) name it, and rounds that mix are `custom`. A room that drafts
+	 * nothing is `constructed`, a Free pick table with a drafted deck included. `draftId` is the pod
+	 * the match's pool was drafted in; `event` is the tournament the room is playing, the id its
+	 * standings are kept under (`room/pods.ts`'s `tournamentId`), once its field is dealt.
+	 */
+	const sourceOf = (room: RoomViewLike, pool: string): Record<string, string> => {
+		const game = gameOf(room) as NonNullable<RoomViewLike['game']> & {
+			draftStartedAt?: string | null;
+			pod: { plan?: { rounds: readonly PoolSource[] } | null } | null;
+		};
+		const rounds = room.gameType === 'draft' ? (game.pod?.plan?.rounds ?? []) : [];
+		const [first] = rounds;
+		const attrs: Record<string, string> = { source: 'constructed' };
+		if (first?.kind === 'cube') {
+			const one = rounds.every((r) => r.kind === 'cube' && r.cubeId === first.cubeId);
+			Object.assign(attrs, one ? { source: 'cube', cube: first.cubeId } : { source: 'custom' });
+		} else if (first?.kind === 'set') {
+			const one = rounds.every((r) => r.kind === 'set' && r.code === first.code);
+			Object.assign(attrs, one ? { source: 'set', set: first.code } : { source: 'custom' });
+		}
+		const draftId = draftIdOfPool(pool);
+		if (draftId !== null) attrs.draftId = draftId;
+		const dealt = game.pod === null ? NaN : Date.parse(game.draftStartedAt ?? '');
+		if (Number.isFinite(dealt)) attrs.event = `${room.id}-${String(dealt)}`;
+		return attrs;
+	};
+
 	return {
 		library,
 		seriesEnded: restoreSeriesDecks,
@@ -2512,6 +2542,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					deck: drafted === undefined ? deckOf(s.deck) : deckOf(s.deck, drafted),
 				};
 			});
+			// What it was played from, logged as well as reported: a stack with no stats key reports nothing.
+			const source = sourceOf(room, pool);
+			log({ evt: 'match-source', matchId: match.id, roomId: room.id, ...source });
 			return {
 				mode: 'constructed',
 				roomId: room.id,
@@ -2522,6 +2555,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					opponent: spec.seats.some((s) => s.ai) ? 'bot' : 'human',
 					mode: statsModeOf({ gameType: room.gameType, mode: gameOf(room).mode }),
 					...(bestOf === undefined ? {} : { bestOf }),
+					...source,
 				},
 				seats,
 			};

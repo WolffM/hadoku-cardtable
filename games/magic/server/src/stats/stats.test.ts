@@ -7,14 +7,16 @@
  */
 
 
-import type { NextFunction, Request, Response } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { ClientFrame } from '@hadoku/forge-wire';
-import type { MatchReport } from '@wolffm/prefs-client/games';
+import { STAT_LIMITS, type MatchReport } from '@wolffm/prefs-client/games';
 
 import { DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
-import { loadTablesLibrary } from '../http/library.js';
+import { loadTablesLibrary, type TablesLibrary } from '../http/library.js';
+import { attachTables, type RoomViewLike, type StartedMatch, type TablesRooms } from '../http/routes.js';
+import type { ForgeMatchSpec } from '../play/forge-spec.js';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import type { BridgeLine } from '../play/bridge-protocol.js';
 import { createMatchRegistry, type Match } from '../play/match.js';
@@ -23,6 +25,7 @@ import { matchFacts } from './facts.js';
 import { createStatsReporter } from '@hadoku/game-server/stats/reporter';
 import { createKeyBook, createMatchStats, summarizeDeck, type MatchStart } from './index.js';
 import { buildMatchReport } from './report.js';
+import type { PoolSource } from '@hadoku/shared';
 import { REPO_ROOT } from '../root.js';
 
 const TRANSCRIPT = loadTranscript();
@@ -472,5 +475,101 @@ describe('a series result', () => {
 			['Alice', 1, 1],
 			['Bob', 1, 1],
 		]);
+	});
+});
+
+describe('where a match was played from', () => {
+	const ROOM = 'r-source1';
+	const DEALT = Date.UTC(2026, 10, 23, 20, 0, 0);
+	const cube = (cubeId: string): PoolSource => ({ kind: 'cube', cubeId });
+	const set = (code: string, style: 'realistic' | 'set-cube' = 'realistic'): PoolSource => ({ kind: 'set', code, style });
+	/** No era and no deck: every pool here is a drafted one or a constructed room's, and the source is the room's. */
+	const NO_LIBRARY: TablesLibrary = { formats: [], decks: [], faults: [], format: () => undefined, deck: () => undefined };
+
+	/** A room as `roomOfMatch` hands it over: the lobby's view, its pod carrying the plan a draft room drafted. */
+	function roomView(over: { gameType: string; rounds?: PoolSource[] | null; dealt?: number | null; tournament?: boolean }): RoomViewLike {
+		const drafting = over.gameType === 'draft' || over.tournament === true;
+		return {
+			id: ROOM,
+			name: 'Source room',
+			gameType: over.gameType,
+			leader: 'm-alice',
+			members: [{ id: 'm-alice', name: 'Alice' }],
+			tables: [],
+			settings: { handSmoothing: true, tournament: over.tournament ?? false },
+			game: {
+				format: '2016-07-22',
+				draftStartedAt: over.dealt === undefined || over.dealt === null ? null : new Date(over.dealt).toISOString(),
+				pod: drafting ? { phase: 'rounds', results: [], plan: over.rounds === undefined || over.rounds === null ? null : { rounds: over.rounds } } : null,
+			} as RoomViewLike['game'],
+		};
+	}
+
+	/** Every line the table routes logged, last `startIn` only. */
+	let logged: Record<string, unknown>[] = [];
+
+	/** `tables.matchStart` for one match in `room`, dealt in `pool`: the half of the report the room answers. */
+	function startIn(room: RoomViewLike, pool: string) {
+		const rooms = { roomOfMatch: () => room, get: () => room, list: () => [room] } as unknown as TablesRooms;
+		logged = [];
+		const tables = attachTables(express.Router(), { draftRooms: null, library: NO_LIBRARY, rooms, log: (e) => logged.push(e) });
+		const spec = { format: pool, seats: [{ name: 'Alice', ai: false, deck: null }, { name: 'Forge', ai: true, deck: null }] } as unknown as ForgeMatchSpec;
+		const match: StartedMatch = { id: 'm-source00001', spec, startedAt: 0, seats: [{ owner: 'm-alice', displayName: 'Alice' }, { owner: null }] };
+		const start = tables.matchStart(match);
+		expect(start).not.toBeNull();
+		return start!;
+	}
+
+	/** The report a finished match sends, built from the room's answer. */
+	function reported(room: RoomViewLike, pool: string) {
+		const h = harness();
+		playOut(h);
+		h.host.push({ t: 'gameover', winner: 'Seat 1' });
+		return buildMatchReport(matchFacts(h.match)!, { ...START, attrs: startIn(room, pool).attrs })!;
+	}
+
+	it('a draft room on one cube names the cube, the draft and its tournament, and keeps the pool it was dealt in', () => {
+		const report = reported(roomView({ gameType: 'draft', rounds: [cube('cc-2plnt'), cube('cc-2plnt'), cube('cc-2plnt')], dealt: DEALT }), `draft:${ROOM}`);
+		expect(report.attrs).toMatchObject({ source: 'cube', cube: 'cc-2plnt', draftId: ROOM, event: `${ROOM}-${String(DEALT)}`, pool: `draft:${ROOM}`, format: 'draft' });
+		expect(report.attrs).not.toHaveProperty('set');
+		// The server log says the same, for a stack with no stats key (every e2e one).
+		expect(logged.filter((e) => e.evt === 'match-source')).toEqual([
+			{ evt: 'match-source', matchId: 'm-source00001', roomId: ROOM, source: 'cube', cube: 'cc-2plnt', draftId: ROOM, event: `${ROOM}-${String(DEALT)}` },
+		]);
+	});
+
+	it('a set draft names the set, whatever style each pack was dealt in', () => {
+		const attrs = startIn(roomView({ gameType: 'draft', rounds: [set('ISD'), set('ISD', 'set-cube'), set('ISD')], dealt: DEALT }), `draft:${ROOM}`).attrs;
+		expect(attrs).toMatchObject({ source: 'set', set: 'ISD', draftId: ROOM });
+		expect(attrs).not.toHaveProperty('cube');
+	});
+
+	it('a Custom draft whose rounds mix sources is custom, and names no cube or set', () => {
+		for (const rounds of [
+			[set('ALA'), set('ALA'), set('ARB')],
+			[cube('vintage'), set('ISD'), cube('vintage')],
+		]) {
+			const attrs = startIn(roomView({ gameType: 'draft', rounds, dealt: DEALT }), `draft:${ROOM}`).attrs;
+			expect(attrs).toMatchObject({ source: 'custom', draftId: ROOM });
+			expect(attrs).not.toHaveProperty('cube');
+			expect(attrs).not.toHaveProperty('set');
+		}
+	});
+
+	it('a constructed room is constructed, from no draft and no event; its tournament names its event', () => {
+		const casual = startIn(roomView({ gameType: 'constructed-1v1' }), '2016-07-22').attrs;
+		expect(casual).toMatchObject({ source: 'constructed', pool: '2016-07-22' });
+		for (const key of ['cube', 'set', 'draftId', 'event']) expect(casual).not.toHaveProperty(key);
+
+		const tournament = startIn(roomView({ gameType: 'constructed-1v1', tournament: true, rounds: null, dealt: DEALT }), '2016-07-22').attrs;
+		expect(tournament).toMatchObject({ source: 'constructed', event: `${ROOM}-${String(DEALT)}` });
+		expect(tournament).not.toHaveProperty('draftId');
+	});
+
+	it('clips every string the report carries to what the store keeps', () => {
+		const long = `cc-${'x'.repeat(STAT_LIMITS.stringLength + 50)}`;
+		const attrs = reported(roomView({ gameType: 'draft', rounds: [cube(long), cube(long), cube(long)], dealt: DEALT }), `draft:${ROOM}`).attrs ?? {};
+		expect(attrs.cube).toBe(long.slice(0, STAT_LIMITS.stringLength));
+		for (const value of Object.values(attrs)) if (typeof value === 'string') expect(value.length).toBeLessThanOrEqual(STAT_LIMITS.stringLength);
 	});
 });
