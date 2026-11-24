@@ -9,34 +9,18 @@
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one the test SKIPS
  * and its title says why.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
 import { openFriend } from './play/browser.ts';
-import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
-import { turnNumber } from './play/turn.ts';
+import { pressIntoTurnOne } from './play/turn.ts';
 
 const forge = forgeAvailability();
 /** A one-mana creature in the fixture catalog (`e2e/fixtures/sets-catalog.json`). */
 const CARD = 'Goblin Mountaineer';
 const DECK_NAME = `w125 goblins ${Date.now()}`;
-
-/** Play, keep: whatever the opening asks, until the turn counter reads a real turn. */
-async function pressIntoTurnOne(page: Page): Promise<void> {
-  await expect
-    .poll(
-      async () => {
-        const playOrDraw = page.getByTestId('live-play-or-draw-play');
-        if ((await playOrDraw.count()) > 0) await playOrDraw.click({ timeout: 2_000 }).catch(() => undefined);
-        else if (await confirmOpen(page)) await answerConfirm(page, 'yes');
-        return turnNumber(await page.getByTestId('live-turn-n').textContent());
-      },
-      { message: 'the match reaches turn 1', timeout: 90_000, intervals: [250] },
-    )
-    .toBeGreaterThanOrEqual(1);
-}
 
 test(forge.ok ? 'a deck built from search is saved, offered under My decks, and played against the AI to turn 1' : `SKIPPED: ${forge.reason}`, async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
