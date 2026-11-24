@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
 import { loadTranscript } from '../fixtures/transcript.js';
 import type { BridgeLine } from '../bridge-protocol.js';
@@ -34,6 +35,22 @@ describe('STATE_METHODS / isStateLine', () => {
 });
 
 describe('normalisedBoard / boardDigest', () => {
+	it("leaves a player's name out, never a card's: the action log names its humans Player N", () => {
+		const player = deltaKey(DELTA_TYPE.player, 0);
+		const card = deltaKey(DELTA_TYPE.card, 81);
+		const live = [setGameView(0, { [player]: { _type: 1, _id: 0, Name: { t: 'str', v: 'Ada' }, LobbyPlayerName: { t: 'str', v: 'Ada' }, Life: { t: 'int', v: 20 } } })];
+		const rebuilt = [setGameView(0, { [player]: { _type: 1, _id: 0, Name: { t: 'str', v: 'Player 1' }, LobbyPlayerName: { t: 'str', v: 'Player 1' }, Life: { t: 'int', v: 20 } } })];
+		expect(boardDigest(rebuilt, 0)).toBe(boardDigest(live, 0));
+		const game = deltaKey(DELTA_TYPE.game, 1);
+		const titled = (title: string, winner: string) => [setGameView(0, { [game]: { _type: 3, _id: 1, Title: { t: 'str', v: title }, WinningPlayerName: { t: 'str', v: winner }, Turn: { t: 'int', v: 1 } } })];
+		expect(boardDigest(titled('Player 1 vs Player 2 (0-0)', 'Player 2'), 0)).toBe(boardDigest(titled('Ada vs Bo (0-0)', 'Bo'), 0));
+		const lifeLost = [setGameView(0, { [player]: { _type: 1, _id: 0, Name: { t: 'str', v: 'Ada' }, Life: { t: 'int', v: 17 } } })];
+		expect(boardDigest(lifeLost, 0)).not.toBe(boardDigest(live, 0));
+		const bolt = [setGameView(0, { [card]: { _type: 0, _id: 81, Name: { t: 'str', v: 'Lightning Bolt' } } })];
+		const shock = [setGameView(0, { [card]: { _type: 0, _id: 81, Name: { t: 'str', v: 'Shock' } } })];
+		expect(boardDigest(shock, 0)).not.toBe(boardDigest(bolt, 0));
+	});
+
 	it('drops a property at its default value, so a batched-empty send matches an omitted one', () => {
 		const withEmpty = [setGameView(0, { 'card:1': { _type: 1, _id: 1, Mana: { t: 'list', v: [] } } })];
 		const withoutIt = [setGameView(0, { 'card:1': { _type: 1, _id: 1 } })];
