@@ -188,30 +188,38 @@ describe('the Library’s Decks tab', () => {
     expect((await screen.findByTestId('library-error')).textContent).toBe('too many changes');
   });
 
-  it('narrows to built, drafted or still-running decks, and sorts by name', async () => {
-    const { client } = stub([deck('zed', { name: 'Zed' }), deck('run', { ...live, name: 'Mid' })]);
-    const { client: library } = doc({ built: [built('b', { name: 'alpha' })] });
-    render(decksTab(client, records([]), library));
-    await waitFor(() => expect(screen.getAllByTestId('deck-option')).toHaveLength(3));
-    const all = (): string[] => screen.queryAllByTestId('deck-option').map((t) => t.dataset['deckId']!);
-    fireEvent.click(screen.getByTestId('library-source-built'));
-    expect(all()).toEqual(['built:b']);
-    fireEvent.click(screen.getByTestId('library-source-drafted'));
-    expect(all().sort()).toEqual(['run', 'zed']);
-    fireEvent.click(screen.getByTestId('library-source-live'));
-    expect(all()).toEqual(['run']);
-    expect(screen.getByTestId('library-source-live').getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(screen.getByTestId('library-source-all'));
+  it('sorts every section by name when asked', async () => {
+    const { client } = stub([deck('zed', { name: 'Zed' }), deck('mid', { name: 'Mid' })]);
+    render(decksTab(client));
+    await waitFor(() => expect(screen.getAllByTestId('deck-option')).toHaveLength(2));
+    expect(screen.queryAllByTestId(/^library-source-/)).toEqual([]);
     fireEvent.change(screen.getByTestId('library-sort'), { target: { value: 'name' } });
-    expect(shownIn('drafts')).toEqual(['run', 'zed']);
+    expect(shownIn('drafts')).toEqual(['mid', 'zed']);
   });
 
-  it('narrows to one cube’s decks from the Cubes tab, and the chip takes it off', async () => {
+  it('finds decks by their name, a card in them, or the cube they came from, in its one text box', async () => {
+    const { client } = stub([deck('a', { name: 'Blue tempo', cube: 'Vintage' }), deck('b', { name: 'Red', cube: 'Pauper' })]);
+    render(decksTab(client, records([]), doc({ built: [built('x', { name: 'Mono-red' })] }).client));
+    await waitFor(() => expect(screen.getAllByTestId('deck-option')).toHaveLength(3));
+    const shown = (): string[] => screen.queryAllByTestId('deck-option').map((t) => t.dataset['deckId']!).sort();
+    const box = screen.getByTestId('deck-filter-text');
+    expect(box.getAttribute('placeholder')).toBe('Deck, card or cube');
+    fireEvent.change(box, { target: { value: 'tempo' } });
+    expect(shown()).toEqual(['a']);
+    fireEvent.change(box, { target: { value: 'pauper' } });
+    expect(shown()).toEqual(['b']);
+    fireEvent.change(box, { target: { value: 'lightning bolt' } });
+    expect(shown()).toEqual(['built:x']);
+  });
+
+  it('opens from the Cubes tab with that cube’s name in the box, and nothing else to take off', async () => {
     const { client } = stub([deck('a', { cube: 'Vintage' }), deck('b', { cube: 'Pauper' })]);
-    const { client: library } = doc({ built: [built('x')] });
-    render(decksTab(client, records([]), library, 'Vintage'));
+    render(decksTab(client, records([]), doc({ built: [built('x')] }).client, 'Vintage'));
     await waitFor(() => expect(screen.getAllByTestId('deck-option').map((t) => t.dataset['deckId'])).toEqual(['a']));
-    expect(screen.getByTestId('library-cube-filter').getAttribute('href')).toBe('#/library');
+    expect((screen.getByTestId('deck-filter-text') as HTMLInputElement).value).toBe('Vintage');
+    expect(screen.queryByTestId('library-cube-filter')).toBeNull();
+    fireEvent.change(screen.getByTestId('deck-filter-text'), { target: { value: '' } });
+    expect(screen.getAllByTestId('deck-option')).toHaveLength(3);
   });
 
   it('opens a drafted deck, a built deck, or a new one in the editor', async () => {

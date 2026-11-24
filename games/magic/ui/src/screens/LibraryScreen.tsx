@@ -10,7 +10,7 @@
  * tournament), then From drafts (untouched, muted), each sorted by last played unless another sort
  * is picked. A drafted deck whose tournament still runs is not yours yet: it wears the "In
  * tournament" chip and offers no delete. Every tile has a star (`favourites.ts`). The filter row
- * is the room's (colours, a card's name), with the deck's source and the sort beside it.
+ * is the room's colours and one text box (a deck's name, a card in it, or its cube or set), with the sort beside it.
  * "Last played" is the server's own stamp (`games/magic/server/src/stats/index.ts`), read from the
  * person's document with their favourites and built decks (`GET /api/me/library`): nothing on this
  * page reads Cloudflare for it. The W–L on each tile is the stats store's, as it always was.
@@ -22,7 +22,7 @@
  * ## Cubes
  *
  * Every cube (`#/inventory` before), each with how many of your decks were drafted from it, which
- * opens the Decks tab narrowed to them. An imported cube is refreshed, deleted (its importer only)
+ * opens the Decks tab with the cube's name in its text box. An imported cube is refreshed, deleted (its importer only)
  * and imported here, never in a room (AF305 §B, the operator 2026-10-22: "when i'm in a room i
  * wouldn't want to mess with the refresh state of the cube").
  *
@@ -59,15 +59,13 @@ import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { DeleteConfirm } from './DeckManage.tsx';
 import {
   NO_DECK_FILTER,
-  deckPasses,
+  libraryDeckPasses,
   librarySections,
   playedLine,
-  sourcePasses,
   type DeckFilter,
   type LibraryEntry,
   type LibrarySection,
   type LibrarySort,
-  type LibrarySource,
 } from './deckFilter.ts';
 import { HomeHead } from './HomeHead.tsx';
 import { libraryPeekList, useNamedArt } from './libraryPeek.ts';
@@ -77,7 +75,7 @@ import '@hadoku/game-ui/components/Button.css';
 export interface LibraryScreenProps {
   /** The route's tab; absent, Decks. */
   tab?: LibraryTab | undefined;
-  /** Decks narrowed to the ones drafted from the cube of this name. */
+  /** A cube's name, which the Decks tab's text box starts with (the Cubes tab's "N decks" link). */
   cube?: string | undefined;
   /** Tests pass stubs. Production passes nothing. */
   decks?: MyDecksClient;
@@ -96,12 +94,9 @@ const TABS: readonly { tab: LibraryTab | undefined; id: string; label: string }[
 ];
 
 const SECTION_TITLE: Record<LibrarySection, string> = { favourites: 'Favourites', yours: 'Your decks', drafts: 'From drafts' };
-const SOURCES: readonly { source: LibrarySource; label: string }[] = [
-  { source: 'all', label: 'All' },
-  { source: 'built', label: 'Built' },
-  { source: 'drafted', label: 'Drafted' },
-  { source: 'live', label: 'In a tournament' },
-];
+/** The box names everything it matches. */
+const LIBRARY_SEARCH = { placeholder: 'Deck, card or cube', ariaLabel: 'Deck name, card or cube' } as const;
+
 const SORTS: readonly { sort: LibrarySort; label: string }[] = [
   { sort: 'played', label: 'Last played' },
   { sort: 'winrate', label: 'Win rate' },
@@ -302,18 +297,21 @@ function DecksTab({
   const drawable = useArtDrawable(useMemo(() => tiles?.map((t) => t.option.artId) ?? null, [tiles]));
   const ready = drawable && tiles !== null;
 
-  const [filter, setFilter] = useState<DeckFilter>(NO_DECK_FILTER);
-  const [source, setSource] = useState<LibrarySource>('all');
+  // A cube's "N decks" link (`#/library/cube/<name>`) opens this tab with its name in the box.
+  const [filter, setFilter] = useState<DeckFilter>(() => ({ ...NO_DECK_FILTER, text: cube ?? '' }));
+  useEffect(() => {
+    if (cube !== undefined) setFilter((held) => ({ ...held, text: cube }));
+  }, [cube]);
   const [sort, setSort] = useState<LibrarySort>('played');
   const sections = useMemo(
     () =>
       ready
         ? librarySections(
-            tiles.filter((t) => (cube === undefined || t.cube === cube) && sourcePasses(t, source) && deckPasses(t.option, filter)),
+            tiles.filter((t) => libraryDeckPasses({ ...t.option, name: t.name, cube: t.cube }, filter)),
             sort,
           )
         : [],
-    [ready, tiles, cube, source, filter, sort],
+    [ready, tiles, filter, sort],
   );
 
   const star = (t: LibraryTile): void => {
@@ -359,29 +357,9 @@ function DecksTab({
   return (
     <section className="lobby__card lobby__decks library__decks">
       <div className="lobby__setsrow library__toolbar">
-        <DeckFilterBar filter={filter} onChange={setFilter} styles={[]} />
-        <span className="library__sources" role="group" aria-label="Source">
-          {SOURCES.map((s) => (
-            <button
-              key={s.source}
-              type="button"
-              className="deckfilter__chip"
-              aria-pressed={source === s.source}
-              data-testid={`library-source-${s.source}`}
-              onClick={() => setSource(s.source)}
-            >
-              {s.label}
-            </button>
-          ))}
-        </span>
-        {cube !== undefined && (
-          <a className="deckfilter__chip library__cube" href={routeHash({ kind: 'library' })} aria-label={`${cube}: show every deck`} data-testid="library-cube-filter">
-            {cube}
-            <Icon name="close" size={uiLength('0.8rem')} />
-          </a>
-        )}
+        <DeckFilterBar filter={filter} onChange={setFilter} styles={[]} search={LIBRARY_SEARCH} />
         <label className="library__sort">
-          Sort
+          <span className="lobby__field">Sort</span>
           <select value={sort} onChange={(e) => setSort(e.target.value as LibrarySort)} data-testid="library-sort">
             {SORTS.map((s) => (
               <option key={s.sort} value={s.sort}>

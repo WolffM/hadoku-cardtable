@@ -104,11 +104,14 @@ export function DeckFilterBar({
   filter,
   onChange,
   styles = DECK_STYLE_ORDER,
+  search = { placeholder: 'Card', ariaLabel: 'Card name' },
 }: {
   filter: DeckFilter;
   onChange: (next: DeckFilter) => void;
   /** The play styles offered as chips, in order. */
   styles?: readonly DeckStyle[];
+  /** What the text box is called: a card's name, unless the screen matches more (the Library). */
+  search?: { placeholder: string; ariaLabel: string };
 }) {
   return (
     <ChipFilterBar
@@ -129,7 +132,7 @@ export function DeckFilterBar({
           color: true,
         })),
       ]}
-      search={{ testId: 'deck-filter-text', placeholder: 'Card', ariaLabel: 'Card name', value: filter.text, onChange: (text) => onChange({ ...filter, text }) }}
+      search={{ testId: 'deck-filter-text', ...search, value: filter.text, onChange: (text) => onChange({ ...filter, text }) }}
     />
   );
 }

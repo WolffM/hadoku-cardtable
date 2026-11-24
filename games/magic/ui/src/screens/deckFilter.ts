@@ -85,24 +85,21 @@ export type LibrarySection = 'favourites' | 'yours' | 'drafts';
 export const LIBRARY_SECTIONS: readonly LibrarySection[] = ['favourites', 'yours', 'drafts'];
 
 export type LibrarySort = 'played' | 'winrate' | 'name' | 'newest';
-export type LibrarySource = 'all' | 'built' | 'drafted' | 'live';
+
+/**
+ * The Library's one text box: a deck passes when its name, any card in it, or the cube or set it
+ * was drafted from holds the text. The colour chips beside it narrow as the room's do.
+ */
+export function libraryDeckPasses(deck: FilterableDeck & { name: string; cube?: string | undefined }, filter: DeckFilter): boolean {
+  if (!deckPasses(deck, { ...filter, text: '' })) return false;
+  const query = foldForSearch(filter.text.trim());
+  if (query === '') return true;
+  return foldForSearch(deck.name).includes(query) || foldForSearch(deck.cube ?? '').includes(query) || deckPasses(deck, { ...NO_DECK_FILTER, text: filter.text });
+}
 
 export function sectionOf(deck: LibraryEntry): LibrarySection {
   if (deck.favourite) return 'favourites';
   return deck.touched && !deck.inTournament ? 'yours' : 'drafts';
-}
-
-export function sourcePasses(deck: LibraryEntry, source: LibrarySource): boolean {
-  switch (source) {
-    case 'all':
-      return true;
-    case 'built':
-      return deck.kind === 'built';
-    case 'drafted':
-      return deck.kind === 'drafted';
-    case 'live':
-      return deck.inTournament;
-  }
 }
 
 /** Never played sorts after every played deck, newest drafted or built first among them. */
