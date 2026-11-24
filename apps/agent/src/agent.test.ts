@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 import { pushDraftbot, pushRuntime, type PackedRuntime } from '@hadoku/game-server/play/remote/artifacts';
-import { AgentClient } from '@hadoku/game-server/play/remote/client';
+import { AgentClient, WATCH_STALL_MS } from '@hadoku/game-server/play/remote/client';
 import { RemoteJvmLauncher } from '@hadoku/game-server/play/remote/launcher';
 import type { JvmTransport } from '@hadoku/game-server/play/jvm-transport';
 import { DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, RELAY_PROTOCOL, sha256Hex, signRequest, type DraftbotHealth } from '@hadoku/host-wire';
@@ -393,9 +393,13 @@ describe('host agent', () => {
 		const t = collect(launcher.launch('h1', { xmxMb: 1000 }));
 		await until('warm', () => t.lines.length === 1);
 		agent.close(); // the agent goes silent
-		clock.t += 10_001;
-		client.watch();
-		expect(await t.exit).toMatch(/^agent heartbeat lost for 10 s/);
+		// The silence goes by the way a live server sees it, a watch tick at a time: one jump past
+		// WATCH_STALL_MS reads as this process stalling, which restarts the window instead of losing the claw.
+		for (let silent = 0; silent <= 10_000; silent += WATCH_STALL_MS - 1) {
+			clock.t += WATCH_STALL_MS - 1;
+			client.watch();
+		}
+		expect(await t.exit).toMatch(/^agent heartbeat lost for 1[0-2] s/);
 		expect(client.lost).not.toBeNull();
 	});
 

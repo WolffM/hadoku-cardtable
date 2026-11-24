@@ -3635,6 +3635,8 @@ describe('End Turn goes straight to the other turn', () => {
         | undefined;
     await waitFor(() => expect(endTurnLine()?.data.phases, 'the log says how many phases End Turn passed').toBe(2));
     s.send(phaseDelta(m, 'UPKEEP', them.id));
+    // The settle starts when the pacer releases the phase, which a loaded host delays: time the sound from there.
+    await untilMatch(m, () => expect(m.view!.phase).toBe('UPKEEP'));
     await waitFor(() => expect(soundCalls.map((e) => e.role)).toContain('g.phase'), { timeout: PHASE_SETTLE_MS + 1000 });
   });
 });
