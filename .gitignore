@@ -73,3 +73,6 @@ __pycache__/
 
 # scripts/publish/surface.ts probes a package beside its node_modules and removes the probe after
 .surface-probe-*/
+
+# Test reports (vitest, node:test) that CI posts to the fleet test store
+reports/

@@ -125,6 +125,13 @@ CI runs the e2e suite nightly and on demand (a `forge.yml` dispatch), not
 on every push: a push gets lint, typecheck, unit tests and the image
 boundary, and a red nightly is fixed by whoever landed the change.
 
+Every CI job that runs tests posts every test, red runs included, to the
+fleet's test store through `WolffM/hadoku-actions/report-tests`: each unit
+shard (vitest writes `reports/vitest.json`, set in `vitest.config.ts`), each
+`forge-jvm` shard, each `forge-e2e` shard and `e2e-nightly` (Playwright JSON
+plus the e2e checker's node:test JUnit, `e2e/reports/node-test.xml`). It is
+advisory: a refused post is a warning, never a red job.
+
 ## Deploy
 
 Every green `check` on `main` redeploys PPE automatically — a

@@ -518,6 +518,22 @@ jobs:
               && echo "reported flaky: $test" || echo "::warning::could not report the flaky test $test"
           done < "$f"
 
+      # Every test this shard ran, red runs too, into the fleet test store (hadoku_site
+      # docs/planning/unified-test-reporting-2026-11-23.md): the first pass's Playwright report
+      # (the re-run's own reports are not added: the same tests twice would count twice) and the
+      # checker's node:test JUnit (`e2e/package.json` `test`). One suite per shard: the store
+      # keeps one document per (repo, suite, run, attempt). Advisory: it never fails the job.
+      - name: Report the tests
+        if: always()
+        uses: WolffM/hadoku-actions/report-tests@v1
+        with:
+          suite: forge-e2e-${{ matrix.shard }}
+          kind: e2e
+          reports: |
+            playwright ${{ runner.temp }}/forge-e2e-report.json
+            node-test e2e/reports/node-test.xml
+          key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+
       # The evidence a red needs, kept past the job. Playwright's per-test
       # error context and the harness's per-stack server logs live under
       # `e2e/.run/`, which the NEXT run wipes — on 2026-10-03 two reds
@@ -678,12 +694,35 @@ jobs:
       # until 2026-11-25. The two that need Forge (`play.spec.ts`'s match,
       # `table-fit.spec.ts`) self-skip here, as they did there: no jar on this
       # runner; `forge-e2e` runs them.
+      # Each pass also writes a Playwright JSON report (`PW_TEST_REPORTER` adds a reporter
+      # beside the config's `list`; see forge-e2e), which the report step below posts.
       - name: E2E — two friends draft one pod
+        env:
+          PW_TEST_REPORTER: json
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/e2e-nightly-draft.json
         run: pnpm --filter @hadoku/e2e test --grep-invert '\[nightly\]'
       # `--pass-with-no-tests` is not passed: zero `[nightly]` tests means the tag
       # was renamed or dropped, and that should be red, not a quiet green.
       - name: E2E — the [nightly] tests
+        env:
+          PW_TEST_REPORTER: json
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/e2e-nightly-tagged.json
         run: pnpm --filter @hadoku/e2e test --grep '\[nightly\]'
+      # Both passes and the checker's node:test JUnit (`e2e/package.json` `test`; the second
+      # pass rewrites it with the same tests), red runs too, into the fleet test store (hadoku_site
+      # docs/planning/unified-test-reporting-2026-11-23.md). A pass that never ran (the first went
+      # red) is a missing report, a warning. Advisory: it never fails the job.
+      - name: Report the tests
+        if: always()
+        uses: WolffM/hadoku-actions/report-tests@v1
+        with:
+          suite: e2e-nightly
+          kind: e2e
+          reports: |
+            playwright ${{ runner.temp }}/e2e-nightly-draft.json
+            playwright ${{ runner.temp }}/e2e-nightly-tagged.json
+            node-test e2e/reports/node-test.xml
+          key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
       # The same evidence, and the same paths, as forge-e2e's and ci.yml's e2e:
       # a failing test's screenshots (`e2e/playwright.config.ts`) and the harness logs.
       - name: E2E evidence (on failure)
@@ -808,6 +847,18 @@ jobs:
           # Whether the `[nightly]` tests ran: the same test as CARDTABLE_JVM_NIGHTLY above.
           NIGHTLY: ${{ needs.changes.outputs.nightly == 'true' }}
         run: scripts/ci/judge-jvm-report.sh "${{ runner.temp }}/forge-jvm-report.json"
+
+      # Every suite this shard ran, red runs too, into the fleet test store (hadoku_site
+      # docs/planning/unified-test-reporting-2026-11-23.md), from the same JSON report the judge
+      # reads. One suite per shard. Advisory: it never fails the job.
+      - name: Report the tests
+        if: always()
+        uses: WolffM/hadoku-actions/report-tests@v1
+        with:
+          suite: forge-jvm-${{ matrix.shard }}
+          kind: unit
+          reports: vitest ${{ runner.temp }}/forge-jvm-report.json
+          key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
 
       - name: Keep this shard's report for the whole-run judge
         if: always()

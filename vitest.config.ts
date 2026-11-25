@@ -25,6 +25,11 @@ export default defineConfig({
     include: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'games/*/packages/*/src/**/*.test.ts', 'games/*/server/src/**/*.test.ts', 'games/*/ui/src/**/*.test.ts', 'scripts/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', 'forge/**', '.claude/**'],
     passWithNoTests: true,
+    // Every run also writes vitest's JSON report, which ci.yml's `unit` posts to the fleet test
+    // store (WolffM/hadoku-actions/report-tests). A CLI `--reporter` replaces these, as
+    // forge.yml's `forge-jvm` does for its own report file.
+    reporters: ['default', 'json'],
+    outputFile: { json: 'reports/vitest.json' },
     // On a CI runner, `check` shares the node with three forge-e2e shards, forge-jvm
     // and every wave's proof dispatches; a unit file that takes 60 s here took
     // 231 s there, and two frame-timing cases reddened the DEPLOY GATE twice on

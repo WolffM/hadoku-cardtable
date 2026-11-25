@@ -223,8 +223,22 @@ jobs:
           echo "TMPDIR=$HOME/runner-tmp" >> "$GITHUB_ENV"
           echo "TMPDIR=$HOME/runner-tmp (was ${TMPDIR:-unset})"
 
+      # vitest also writes `reports/vitest.json` (the root `vitest.config.ts` reporters).
       - name: Test
         run: pnpm exec vitest run --passWithNoTests --shard=${{ matrix.shard }}/2
+
+      # Every test, red runs too, into the fleet test store (hadoku_site
+      # docs/planning/unified-test-reporting-2026-11-23.md). One suite per shard: the
+      # store keeps one document per (repo, suite, run, attempt). Advisory: it never
+      # fails the job.
+      - name: Report the tests
+        if: always()
+        uses: WolffM/hadoku-actions/report-tests@v1
+        with:
+          suite: unit-${{ matrix.shard }}
+          kind: unit
+          reports: vitest reports/vitest.json
+          key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
 
   # The built app: the draft e2e against the built server, and the image
   # boundary on the built bundle.
