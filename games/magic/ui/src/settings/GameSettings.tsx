@@ -2,7 +2,7 @@
  * The game's sections of cardtable's settings (`./Settings.tsx`): how a match plays for this
  * player, and the live match's own remembered triggers.
  *
- *   - **Board layout** — single (default) or type-separated. Mine only: the opponent's board keeps
+ *   - **Board layout** — single (default) or by type (lands, artifacts, creatures, other). Mine only: the opponent's board keeps
  *     its own (*"my board preference should not change the opponent's board"*).
  *   - **End step** — default on: the opponent's End step holds this seat's priority when it has a
  *     real play there. **Always** (default off, 2026-11-05) holds it whatever the seat has; it
@@ -38,8 +38,8 @@ import { useLiveMatchSettings } from './liveMatchSettings.ts';
 import { uiLength } from '@hadoku/ui-shell/settings';
 
 const BOARD_LAYOUT_OPTIONS: readonly { value: BoardLayout; label: string }[] = [
-  { value: 'single', label: 'Single board' },
-  { value: 'type-separated', label: 'Type-separated (lands, artifacts, creatures, other)' },
+  { value: 'single', label: 'Single' },
+  { value: 'type-separated', label: 'By type' },
 ];
 
 const SPEED_LABELS: Readonly<Record<GameSpeed, string>> = { normal: 'Normal', fast: 'Fast', instant: 'Instant' };
@@ -62,7 +62,8 @@ export function GameSettings() {
   return (
     <fieldset className="ct-settings__section" data-testid="settings-game">
       <legend>Gameplay</legend>
-      <div className="ct-settings__choices" role="radiogroup" aria-label="Board layout">
+      <div className="ct-settings__choices ct-settings__choices--row" role="radiogroup" aria-label="Board layout">
+        <span>Board</span>
         {BOARD_LAYOUT_OPTIONS.map((opt) => (
           <label key={opt.value} className="ct-settings__option">
             <input
@@ -73,6 +74,22 @@ export function GameSettings() {
               onChange={() => persist({ boardLayout: opt.value })}
             />
             {opt.label}
+          </label>
+        ))}
+      </div>
+      <div className="ct-settings__choices ct-settings__choices--row" role="radiogroup" aria-label="Game speed" data-testid="live-settings-speed">
+        <span>Game speed</span>
+        {GAME_SPEEDS.map((speed) => (
+          <label key={speed} className="ct-settings__option">
+            <input
+              type="radio"
+              name="game-speed"
+              value={speed}
+              data-testid={`live-settings-speed-${speed}`}
+              checked={gameSpeed === speed}
+              onChange={() => persist({ gameSpeed: speed })}
+            />
+            {SPEED_LABELS[speed]}
           </label>
         ))}
       </div>
@@ -95,22 +112,6 @@ export function GameSettings() {
         label="Say my mistakes"
         onChange={(on) => persist({ mistakeBubbles: on })}
       />
-      <div className="ct-settings__choices ct-settings__choices--row" role="radiogroup" aria-label="Game speed" data-testid="live-settings-speed">
-        <span>Game speed</span>
-        {GAME_SPEEDS.map((speed) => (
-          <label key={speed} className="ct-settings__option">
-            <input
-              type="radio"
-              name="game-speed"
-              value={speed}
-              data-testid={`live-settings-speed-${speed}`}
-              checked={gameSpeed === speed}
-              onChange={() => persist({ gameSpeed: speed })}
-            />
-            {SPEED_LABELS[speed]}
-          </label>
-        ))}
-      </div>
       <OldestArtToggle />
     </fieldset>
   );
