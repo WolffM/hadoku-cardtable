@@ -29,7 +29,7 @@
   "dependencies": {
     "@hadoku/platform-wire": "workspace:*",
     "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.2.1",
-    "@wolffm/themes": "npm:@hadoku/themes@5.14.17",
+    "@wolffm/themes": "npm:@hadoku/themes@5.14.18",
     "zod": "4.5.4"
   },
   "devDependencies": {
