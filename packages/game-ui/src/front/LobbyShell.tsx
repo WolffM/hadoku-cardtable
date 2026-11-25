@@ -23,7 +23,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 
-import { FrontGateContext, useFrontGateState } from './gate.ts';
+import { FRONT_PARTS, FrontGateContext, HOLD_MS, useFrontGateState, type FrontPart } from './gate.ts';
 import { useSiteTrim } from '../settings/siteTrim.ts';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import './LobbyShell.css';
@@ -37,11 +37,17 @@ export interface LobbyShellProps {
   children: ReactNode;
   /** A footer line under the page's own scroll (a licensing disclaimer, today) — omitted draws none. */
   disclaimer?: ReactNode;
+  /**
+   * The parts this page draws, which the page waits on before it shows itself (`./gate.ts`). Every
+   * part by default, as cardtable's page has. A page without the live slot, the calendar or the
+   * wildcard names only what it has, so it does not sit out the whole hold for parts it never draws.
+   */
+  parts?: readonly FrontPart[];
 }
 
-export function LobbyShell({ navTools, banner, children, disclaimer }: LobbyShellProps) {
+export function LobbyShell({ navTools, banner, children, disclaimer, parts = FRONT_PARTS }: LobbyShellProps) {
   const shellRef = useChromeShell('fit');
-  const gate = useFrontGateState();
+  const gate = useFrontGateState(HOLD_MS, parts);
   const trimLoaded = useSiteTrim().loaded;
   const { settle } = gate;
   useEffect(() => {

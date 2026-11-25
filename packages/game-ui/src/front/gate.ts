@@ -22,7 +22,12 @@ import { FIRST_VISIT, loadFrontShape, saveFrontShape, type FrontShape } from './
  */
 export type FrontPart = 'rooms' | 'live' | 'upcoming' | 'wildcard' | 'trim';
 
-const PARTS: readonly FrontPart[] = ['rooms', 'live', 'upcoming', 'wildcard', 'trim'];
+/**
+ * Every part a front page can have: cardtable's, which draws them all. A page with fewer (bomberman's
+ * has the room list and the trim) declares its own (`LobbyShell`'s `parts`), or it would wait out
+ * the whole `HOLD_MS` on parts it never draws.
+ */
+export const FRONT_PARTS: readonly FrontPart[] = ['rooms', 'live', 'upcoming', 'wildcard', 'trim'];
 
 /** The longest the page waits on a slow part before showing the rest. The wildcard's own wait is 2 s. */
 export const HOLD_MS = 2_500;
@@ -42,9 +47,12 @@ const UNGATED: FrontGate = { revealed: true, settle: () => undefined, shape: FIR
 
 export const FrontGateContext = createContext<FrontGate>(UNGATED);
 
-/** The gate itself, held by the front page: revealed once every part has settled, or `HOLD_MS` has passed. */
-export function useFrontGateState(holdMs: number = HOLD_MS): FrontGate {
-  const [waiting, setWaiting] = useState<ReadonlySet<FrontPart>>(() => new Set(PARTS));
+/**
+ * The gate itself, held by the front page: revealed once every one of `parts` has settled, or
+ * `HOLD_MS` has passed. `parts` is the page's for its life: read once, on the first draw.
+ */
+export function useFrontGateState(holdMs: number = HOLD_MS, parts: readonly FrontPart[] = FRONT_PARTS): FrontGate {
+  const [waiting, setWaiting] = useState<ReadonlySet<FrontPart>>(() => new Set(parts));
   const [held, setHeld] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setHeld(true), holdMs);
