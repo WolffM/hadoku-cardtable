@@ -232,7 +232,7 @@ import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '@hadoku/game-ui/components/StatusPill.tsx';
 import { useLeaderAsk } from './leader/LeaderAsk.tsx';
-import { entrantLookup, heldFor, myCurrentTable, passRoomLeader, relayedPodSource, type HeldAt } from './pod/client.ts';
+import { entrantLookup, heldFor, leavingDrops, myCurrentTable, passRoomLeader, relayedPodSource, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { doorGo, seatAt, tableDoor } from './tableDoor.ts';
@@ -2925,6 +2925,8 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
       roomTitle={roomTitle}
       titleAside={!streamed && view?.scheduledFor != null && <RoomSignups roomId={roomId} members={view.members.length} />}
       settled={settled}
+      // Not while leaving would drop me from a running event: its own Drop does that, asked for.
+      leave={leavingDrops(pod, view?.you.id ?? null) ? undefined : () => rooms.leave(roomId)}
       streamed={streamed}
       resolved={resolved}
       pending={pending}

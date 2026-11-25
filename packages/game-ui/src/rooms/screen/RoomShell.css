@@ -1,0 +1,9 @@
+/* Leave, first in the room's head row, the same size as Close and Room settings beside it
+   (`.room-close`, Magic's own sheet). Colour and hover are `.ct-action`'s. */
+.room-leave {
+  flex: none;
+  align-self: flex-start;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.85em;
+  border-radius: var(--hdk-radius);
+}

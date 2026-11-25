@@ -30,6 +30,9 @@
  * - **NOT `close()`.** Leaving a match goes back to this room's table, never
  *   out of the slot. Watchparty's `close()` is heavier than "leave": for its
  *   leader it stops the game for everyone. That is watchparty's own control.
+ *   For the same reason this host supplies no `RoomHomeProvider`: the table is
+ *   watchparty's room's, so the room shell draws no Leave here
+ *   (`@hadoku/game-ui/rooms/screen/room-exit.tsx`).
  *
  * ## Routes
  *

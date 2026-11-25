@@ -336,6 +336,18 @@ export function heldFor<T>(held: HeldAt<T> | null, tableId: string | undefined):
  * My table in the CURRENT round: among the pod's live pairings, never by
  * membership alone, since an earlier round's table is still mine, and finished.
  */
+/**
+ * Would leaving the room drop me from its event? The server drops an entrant who leaves while the pod
+ * is under way (`lobby.ts`'s `leaving`: drafting, building or the rounds, unless already dropped), and
+ * the room's page is a tournament's hub, so a press on the top bar there must not quietly do that. A
+ * running event has its own Drop; the room's Leave is offered only once leaving costs nothing.
+ */
+export function leavingDrops(pod: PodView | null, memberId: string | null): boolean {
+  if (pod === null || memberId === null) return false;
+  if (pod.phase === 'lobby' || pod.phase === 'done') return false;
+  return !(pod.dropped ?? []).includes(memberId);
+}
+
 export function myCurrentTable(pod: PodView | null, tables: readonly RoomTable[], memberId: string | null): RoomTable | undefined {
   if (pod === null || memberId === null) return undefined;
   const current = new Set(pod.pairings.map((p) => p.tableId));

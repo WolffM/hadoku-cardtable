@@ -234,6 +234,19 @@ Its seats open 30 minutes before the start.
 Discord. Clicking "Interested" on the Discord event does not sign you up on
 Card Table.
 
+## Leaving a room
+
+**What it does.** **Leave**, at the start of a room's top row, takes you out
+of the room: you stop being one of its members and land on the front page.
+Clicking **Card Table** in the top bar from a room's page does the same. If
+the leader leaves, the room passes to whoever has been in it longest.
+
+**How to use it.** Press **Leave**, or click **Card Table** at the top.
+
+**What it does not do.** Inside a watchparty room the table belongs to
+watchparty, so there is no Leave there; watchparty's own controls end it.
+Mid-tournament, leaving drops you from the event, as it always has.
+
 ## Room link previews
 
 **What it does.** Pasting a room's link into Discord, or any app that

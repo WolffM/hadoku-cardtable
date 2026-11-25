@@ -10,7 +10,11 @@
  * streamed — a streamed room draws `streamedBody` instead, and neither draws until the room record
  * has answered.
  */
-import type { ReactNode, RefCallback } from 'react';
+import { useState, type ReactNode, type RefCallback } from 'react';
+
+import { leaveRoomThen, useRoomHome, useRoomLeave, type LeaveRoom } from './room-exit.tsx';
+import '../../components/Button.css';
+import './RoomShell.css';
 
 export interface RoomShellProps {
   shellRef: RefCallback<HTMLElement>;
@@ -23,6 +27,11 @@ export interface RoomShellProps {
   /** The room answered with a refusal rather than useful data: nothing more to wait for, so the
    * title falls back to "Room" instead of staying a skeleton. */
   settled: boolean;
+  /**
+   * The game's `/leave` for this room. Given, and the host has a way home (`RoomHomeProvider`), the
+   * head row draws Leave, and the page's top bar leaves through it too (`room-exit.tsx`).
+   */
+  leave?: LeaveRoom;
   /** Close, Settings, and whatever the game type's own settings panel wants beside them. */
   headerTools: ReactNode;
   streamed: boolean;
@@ -52,6 +61,7 @@ export function RoomShell({
   roomTitle,
   titleAside,
   settled,
+  leave,
   headerTools,
   streamed,
   streamedSubLine,
@@ -66,6 +76,9 @@ export function RoomShell({
   roomMissingMessage,
   children,
 }: RoomShellProps) {
+  useRoomLeave(leave ?? null);
+  const home = useRoomHome();
+  const [leaving, setLeaving] = useState(false);
   return (
     <div ref={shellRef} className="shell shell--fit" data-testid="constructed" data-members={dataMembers}>
       <header className="shell__head">
@@ -81,7 +94,23 @@ export function RoomShell({
           <span className="skeleton skeleton--title" />
         )}
         {roomTitle !== undefined && titleAside}
-        <div className="shell__tools">{headerTools}</div>
+        <div className="shell__tools">
+          {leave !== undefined && home !== null && (
+            <button
+              type="button"
+              className="room-leave ct-action"
+              data-testid="room-leave"
+              disabled={leaving}
+              onClick={() => {
+                setLeaving(true);
+                void leaveRoomThen(home);
+              }}
+            >
+              <span className="ct-action__label">Leave</span>
+            </button>
+          )}
+          {headerTools}
+        </div>
         {resolved && streamed && streamedSubLine}
       </header>
 

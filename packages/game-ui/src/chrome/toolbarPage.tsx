@@ -20,6 +20,7 @@ import { useLayoutEffect, useSyncExternalStore, type ReactNode } from 'react';
 import type { RoomChromeToolbar } from '@wolffm/watchparty-ui/room-chrome';
 
 import { navigate, type Route } from '../screens/route.ts';
+import { leaveRoomThen } from '../rooms/screen/room-exit.tsx';
 import { CardtableSettings } from '../settings/Settings.tsx';
 import { PAGE_LINKS } from './HeaderLinks.tsx';
 
@@ -88,7 +89,8 @@ export function TopBar({ children }: { children: ReactNode }) {
 
 /** What the chat toolbar carries for the page: the top bar's own Home, settings and links. */
 export const PAGE_TOOLBAR: RoomChromeToolbar = {
-  onHome: () => navigate({ kind: 'lobby' }),
+  // Leaves the room drawn, if any, as the top bar's own Home does (`rooms/screen/room-exit.tsx`).
+  onHome: () => void leaveRoomThen(() => navigate({ kind: 'lobby' })),
   settings: { section: <CardtableSettings /> },
   extra: PAGE_LINKS,
 };

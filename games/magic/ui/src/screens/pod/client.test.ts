@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { parseRoomView, type RoomView } from '../../rooms/api.ts';
-import { fetchPodContext, heldFor, nextGameStarts, playPod, relayedPodSource, sitPod, standPod, startTableMatch } from './client.ts';
+import { fetchPodContext, heldFor, leavingDrops, nextGameStarts, playPod, relayedPodSource, sitPod, standPod, startTableMatch } from './client.ts';
 import { POD_SEATS, type PodView } from './wire.ts';
 import { withMagicGame } from '../../rooms/room-body.testing.ts';
 
@@ -230,5 +230,17 @@ describe('heldFor', () => {
     expect(heldFor(held, 't-round2')).toBeNull();
     expect(heldFor(held, undefined)).toBeNull();
     expect(heldFor(null, 't-round1')).toBeNull();
+  });
+});
+
+describe('leavingDrops', () => {
+  it('is true only while the event is under way and I am still in it', () => {
+    const at = (phase: PodView['phase'], dropped?: string[]): PodView => ({ ...podFixture(), phase, ...(dropped === undefined ? {} : { dropped }) });
+    expect(leavingDrops(null, 'u-alice')).toBe(false);
+    expect(leavingDrops(at('rounds'), null)).toBe(false);
+    expect(leavingDrops(at('lobby'), 'u-alice')).toBe(false);
+    expect(leavingDrops(at('done'), 'u-alice')).toBe(false);
+    for (const phase of ['drafting', 'building', 'rounds'] as const) expect(leavingDrops(at(phase), 'u-alice'), phase).toBe(true);
+    expect(leavingDrops(at('rounds', ['u-alice']), 'u-alice')).toBe(false);
   });
 });

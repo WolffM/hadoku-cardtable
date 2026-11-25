@@ -33,9 +33,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { RouteLink } from '@hadoku/magic-ui/screens/BackLink.tsx';
 import { Screen, type ScreenProps } from './screens/Screen.tsx';
-import { useRoute } from '@hadoku/game-ui/screens/route.ts';
+import { navigate, routeHash, useRoute, type Route } from '@hadoku/game-ui/screens/route.ts';
+import { RoomHomeLink, RoomHomeProvider } from '@hadoku/game-ui/rooms/screen/room-exit.tsx';
 import { setScreenMusic } from '@hadoku/game-ui/sound/index.ts';
 import { AppChrome } from '@hadoku/ui-shell/chrome';
 import { HeaderLinks } from '@hadoku/game-ui/chrome/HeaderLinks.tsx';
@@ -166,6 +166,10 @@ export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoom: string 
 /** Standalone, the stylesheet's tokens resolve on the document's root. */
 const documentRoot = (): HTMLElement => document.documentElement;
 
+/** Standalone, home is the front page: where the top bar's title and a room's Leave both go. */
+const HOME: Route = { kind: 'lobby' };
+const goHome = (): void => navigate(HOME);
+
 export function App({ transport }: AppProps) {
   const route = useRoute();
   useUiScale(documentRoot);
@@ -194,7 +198,12 @@ export function App({ transport }: AppProps) {
       // The title is the way HOME. The operator, 2026-09-26: *"'Card Table' at
       // the top should be clickable and bring you back to the entry page."*
       //
-      // A real `<a href="#/">` (`RouteLink`), not an onClick on a heading: an anchor is
+      // On a room's page it LEAVES the room first, as the room's own Leave does (the operator,
+      // 2026-11-24: *"make sure clicking the top bar works as well. I'd expect both to work."*);
+      // before that it only navigated, and the player stayed a member of the room they walked
+      // out of. `room-exit.tsx` has the mechanism.
+      //
+      // A real `<a href="#/">`, not an onClick on a heading: an anchor is
       // keyboard-reachable, announces itself as a link, and middle-clicks.
       // `AppHeader`'s `title` takes a NODE for exactly this — its own docs call
       // it "a node for custom markup (e.g. a clickable title button)" — and the
@@ -203,9 +212,9 @@ export function App({ transport }: AppProps) {
       // in a <button>"). The name is still `__HADOKU_APP_NAME__`, so the audit's
       // `header-name` rule still reads it as derived rather than hard-coded.
       title={
-        <RouteLink className="cardtable-chrome__home" to={{ kind: 'lobby' }} data-testid="chrome-home">
+        <RoomHomeLink className="cardtable-chrome__home" href={routeHash(HOME)} data-testid="chrome-home">
           <h1 className="cardtable-chrome__home-name">{__HADOKU_APP_NAME__}</h1>
-        </RouteLink>
+        </RoomHomeLink>
       }
       // NO name in `status`. The viewer's name used to render here, and that was a
       // deliberate break with the fleet's convention — identity lives in the
@@ -273,17 +282,20 @@ export function App({ transport }: AppProps) {
       </AppChrome>
     );
   }
+  // Home is the front page, for the top bar's title and a room's Leave alike (`room-exit.tsx`).
   return (
-    <AppChrome header={<TopBar>{header}</TopBar>}>
-      {/* The operator, 2026-10-10: *"theres really no reason to close the chat
-          in the lobby screen"*. A room's lobby keeps it open; the draft, deck
-          and match screens still let a viewer hide it. */}
-      <HostDrawsSettingsProvider value>
-        <RoomShell roomId={gatedPlace} collapsible={route.kind !== 'room'} inert={blocked} toolbar={PAGE_TOOLBAR} pending={matchPending}>
-          {matchPending || blocked ? null : <Screen transport={transport} />}
-        </RoomShell>
-      </HostDrawsSettingsProvider>
-      <SessionPrompt state={session.state} take={session.take} />
-    </AppChrome>
+    <RoomHomeProvider value={goHome}>
+      <AppChrome header={<TopBar>{header}</TopBar>}>
+        {/* The operator, 2026-10-10: *"theres really no reason to close the chat
+            in the lobby screen"*. A room's lobby keeps it open; the draft, deck
+            and match screens still let a viewer hide it. */}
+        <HostDrawsSettingsProvider value>
+          <RoomShell roomId={gatedPlace} collapsible={route.kind !== 'room'} inert={blocked} toolbar={PAGE_TOOLBAR} pending={matchPending}>
+            {matchPending || blocked ? null : <Screen transport={transport} />}
+          </RoomShell>
+        </HostDrawsSettingsProvider>
+        <SessionPrompt state={session.state} take={session.take} />
+      </AppChrome>
+    </RoomHomeProvider>
   );
 }
