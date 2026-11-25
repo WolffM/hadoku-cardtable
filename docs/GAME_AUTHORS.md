@@ -4,7 +4,7 @@ For anyone building a game that runs inside a [cardtable](https://hadoku.me/card
 write the game; cardtable seats the players, passes messages between them and shows the result.
 You never run a server, and you ship a new build yourself by pushing a git tag.
 
-The operator handles the rest (the route, the key, cardtable's entry for your game) on their side.
+The operator handles the rest (the route, your service grant, cardtable's entry for your game) on their side.
 Nothing in this page needs access to anything private.
 
 ## What you build
@@ -201,24 +201,23 @@ it sends a message, shows what it receives and ends the match.
    stats name, so pick one you will keep.
 2. **A label** for the create-room form, and the **seat range** (minimum and maximum players).
 3. **The entry file's name** inside `dist/` (`embed.js` above).
-4. **Where the repo lives**, one of:
-   - a repo on the operator's GitHub account with you as a collaborator (private is fine, and the
-     publishing key is set up on the repo for you), or
-   - a **public** repo on your own account. The operator then hands you a key once, which you save
-     as a repository secret, or
-   - a **private** repo on your own account. As above, plus a read-only token you make for it: a
-     fine-grained token on your account with access to that one repository and only **Contents:
-     Read-only** (Metadata is added for you). The operator sends you a link that fills in the form.
-     The site reads your releases with it, nothing else; renew it before it expires.
-
-The operator sets up the route and the key (a few minutes) and tells you the secret's name,
-`KEY_SERVICE_<ID>`: your id upper-cased, with `-` turned into `_`.
+4. **Where the repo lives.** Private on your own account is fine. You make the site a
+   read-only token for it: a fine-grained token on your account with access to that one repository
+   and only **Contents: Read-only** (Metadata is added for you). The site reads your releases with
+   it and nothing else. A public repo needs no token.
+5. **Your hadoku.me name** (the account you sign in with), so the operator can give you a
+   **service grant** for the game. That grant is what lets you publish.
 
 ## Publishing a build
 
 A build is a GitHub **release** of your repo with one asset, `game-bundle.tar.gz`, whose top level
-is the contents of `dist/`. One workflow, `release.yml` in your repo's `.github/workflows`, makes
-the release and tells the site:
+is the contents of `dist/`. Publishing is two steps: your tag makes the release, and then you tell
+the site it is there, from your own machine, with your own credential. Nothing of hadoku's is stored
+in your repo.
+
+### 1. The release: a workflow in your repo
+
+`.github/workflows/release.yml`. It needs no secret beyond the `github.token` every workflow has:
 
 ```yaml
 name: release
@@ -229,8 +228,7 @@ permissions:
   contents: write
 jobs:
   release:
-    # On the operator's account this is ${{ fromJSON(vars.CI_RUNNER) }}; on your own, your runner.
-    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - run: npm ci && npm run build
@@ -238,23 +236,62 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" game-bundle.tar.gz --latest --title "$GITHUB_REF_NAME"
-      - uses: WolffM/hadoku-actions/repo-action@v1
-        with:
-          verb: notify
-          body: '{"event_type":"game_bundle_updated","client_payload":{}}'
-          service-key: ${{ secrets.KEY_SERVICE_<ID> }}
 ```
 
-Then, for every build:
+### 2. Telling the site: your credential and one script
+
+**Your credential.** From your repo's folder:
 
 ```sh
-git tag v0.1.0 && git push origin v0.1.0
+npx @hadoku/dev-vault login
 ```
 
-A few minutes later `https://hadoku.me/games/<id>/embed.js` serves it, and the next room that
-opens loads it. The site switches to a release only once all its files are uploaded, so a player
-never gets half a build. Every release is kept: if one is broken, ask the operator to switch back to
-an earlier tag, or tag a fixed one.
+It prints a code and a hadoku.me link. Open the link signed in to hadoku.me, set up an authenticator
+app the first time (a QR code), then approve with your passkey and a code from the app. It writes
+`.devvault.local.json` in the repo's folder. **Add that file to `.gitignore`**: it is your
+credential. It lasts 7 days; run `login` again when it runs out.
+
+**The script.** Save as `scripts/notify-hadoku.mjs`:
+
+```js
+// Tell hadoku.me that this repo's latest release is ready to serve.
+import { readFileSync } from 'node:fs';
+
+const file = new URL('../.devvault.local.json', import.meta.url);
+const { key, expiresAt } = JSON.parse(readFileSync(file, 'utf8'));
+if (!key) throw new Error('no credential: run `npx @hadoku/dev-vault login` first');
+if (expiresAt !== undefined && expiresAt < Date.now()) {
+  throw new Error('credential expired: run `npx @hadoku/dev-vault login` again');
+}
+const res = await fetch('https://hadoku.me/mgmt/api/repo/notify', {
+  method: 'POST',
+  headers: {
+    'X-User-Key': key,
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0 game-release',
+  },
+  body: JSON.stringify({ event_type: 'game_bundle_updated', client_payload: {} }),
+});
+console.log(res.status, await res.text());
+if (!res.ok) process.exit(1);
+```
+
+`200` with `"success":true` means the site is fetching your latest release.
+
+### Every build
+
+```sh
+git tag v0.1.1 && git push origin v0.1.1
+gh run watch "$(gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+node scripts/notify-hadoku.mjs
+```
+
+Wait for the release workflow to finish before you notify: the site takes your **latest** release,
+and one that does not exist yet is nothing to take. A few minutes after the notify,
+`https://hadoku.me/games/<id>/embed.js` serves it and the next room that opens loads it. The site
+switches to a release only once all its files are uploaded, so a player never gets half a build.
+Every release is kept: if one is broken, ask the operator to switch back to an earlier tag, or tag
+a fixed one.
 
 ## Checklist
 
@@ -262,5 +299,6 @@ an earlier tag, or tag a fixed one.
 - [ ] It draws inside a shadow root and loads every asset by relative URL from its own folder.
 - [ ] It works in the two-seat harness, including a seat reloading mid-game.
 - [ ] Only the leader sends `{ t: 'over', winners }`, once, at the end.
-- [ ] The operator has the id, label, seat range, entry name and repo.
-- [ ] `release.yml` is in the repo and the key secret is saved.
+- [ ] The operator has the id, label, seat range, entry name, repo and your hadoku.me name.
+- [ ] `release.yml` and `scripts/notify-hadoku.mjs` are in the repo, and `.devvault.local.json` is in
+      `.gitignore`.
