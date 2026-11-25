@@ -21,6 +21,7 @@ const EDGE_SECRET = 'test-edge-auth-secret';
 let roomsMod: typeof import('@hadoku/magic-server/http/rooms');
 let lobbyMod: typeof import('@hadoku/magic-server/room/lobby');
 let edgeMod: typeof import('@hadoku/game-server/edge-auth');
+let sharedMod: typeof import('@hadoku/shared');
 let EXTERNAL_GAME_TYPE: string;
 
 beforeAll(async () => {
@@ -33,6 +34,7 @@ beforeAll(async () => {
 	roomsMod = await import('@hadoku/magic-server/http/rooms');
 	lobbyMod = await import('@hadoku/magic-server/room/lobby');
 	edgeMod = await import('@hadoku/game-server/edge-auth');
+	sharedMod = await import('@hadoku/shared');
 	// `external-games.ts` imported fresh, in the SAME `resetModules` graph as the above: a module
 	// imported before `resetModules` (a static top-level import) would register into a
 	// `@hadoku/shared` instance `rooms.ts`'s own import of it never sees, and every create would
@@ -217,6 +219,19 @@ describe('an external game is a registered game type', () => {
 		expect(patch.json()).toEqual({ error: 'gameType must be one of: constructed-1v1, draft' });
 		const reread = await call(h, 'GET', `/api/rooms/${constructed.id}`, { as: 'alice' });
 		expect((reread.json() as { gameType: string }).gameType).toBe('constructed-1v1');
+	});
+});
+
+describe("a registered type starts with exactly its config's seats.min seated", () => {
+	it.each(EXTERNAL_GAMES_CONFIG.filter((g) => g.e2eOnly !== true).map((g) => [g.id, g.seats.min] as const))('%s starts at %i seated, not one fewer', (id, min) => {
+		const spec = sharedMod.gameTypeSpec(id);
+		expect(spec, `${id} is not registered`).toBeDefined();
+		expect(spec!.canStart(min)).toEqual({ ok: true });
+		if (min > 1) expect(spec!.canStart(min - 1)).toEqual({ ok: false, reason: 'not-enough-players' });
+	});
+
+	it('crossover-cards starts with its leader alone, for a game against its own in-bundle bots', () => {
+		expect(sharedMod.gameTypeSpec('crossover-cards')!.canStart(1)).toEqual({ ok: true });
 	});
 });
 

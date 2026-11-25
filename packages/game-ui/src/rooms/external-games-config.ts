@@ -79,7 +79,7 @@ export const EXTERNAL_GAMES: readonly ExternalGameConfig[] = [
   {
     id: 'crossover-cards',
     label: 'Crossover Cards',
-    seats: { min: 2, max: 4 },
+    seats: { min: 1, max: 4 },
     runtime: 'relay',
     embedSrc: '/games/crossover-cards/embed.js',
     seatRejoinGraceMs: 120_000,
