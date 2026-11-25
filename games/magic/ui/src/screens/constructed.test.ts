@@ -1310,6 +1310,7 @@ describe('a room’s table', () => {
         get: async (): Promise<RoomView | null> => null,
         create: async () => ({ ok: false as const, message: 'not used' }),
         challenges: async () => [],
+        externalGames: async () => [],
         createChallenge: async () => ({ ok: false as const, message: 'not used' }),
         ready: async () => ({ ok: false as const, message: 'not used' }),
         start: async () => ({ ok: false as const, message: 'not used' }),

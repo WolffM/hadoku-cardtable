@@ -13,7 +13,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { HadokuThemeProvider, type HadokuThemeValue } from '@wolffm/themes';
-import { registerGameType } from '@hadoku/shared';
 
 import type { Who } from '@hadoku/game-ui/room/whoami.ts';
 
@@ -54,14 +53,6 @@ import type { RoomViewBase } from '@hadoku/game-ui/rooms/game-setup.ts';
 import { calls as fixtureCalls } from '@hadoku/game-ui/rooms/bundle-slot.fixture.ts';
 import type { GameBundleContext } from '@wolffm/rooms-protocol';
 
-registerGameType({
-  id: 'relay-room-test',
-  runtime: 'relay',
-  seats: { min: 2, max: 2 },
-  ready: false,
-  series: { length: 1 },
-  canStart: (seated) => (seated >= 2 ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
-});
 
 // `BundleSlot` resolves `src` by dynamic `import()` relative to ITS OWN file, the directory its
 // fixture lives in (`@hadoku/game-ui/rooms/`) — so a bare relative specifier is what `BundleSlot` receives:
@@ -88,7 +79,7 @@ function aView(members: RoomViewBase['members'], overrides: Partial<RoomViewBase
   return { id: 'room-a', name: 'Test room', gameType: 'plain-bundle-test', members, seats: members.map((m) => m.id), you: { id: 'u1', leader: false }, ...overrides };
 }
 
-function renderSlot(props: { view: RoomViewBase | null; me: { userId: string; isLeader: boolean } }) {
+function renderSlot(props: { view: RoomViewBase | null; me: { userId: string; isLeader: boolean }; relay?: boolean }) {
   return render(
     createElement(HadokuThemeProvider, {
       value: themeValue('dark'),
@@ -234,7 +225,7 @@ describe('BundleSlot', () => {
 describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
   it("opens a relay channel for the room and hands it to the bundle as ctx.channel, once attached", async () => {
     const members = [{ id: 'u1', name: 'u1' }, { id: 'u2', name: 'u2' }];
-    renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true } });
+    renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true }, relay: true });
 
     await waitFor(() => expect(relayChannelCalls).toMatchObject([{ matchId: 'room-relay', closed: false }]));
     // Whichever call carries it first: `mountGameBundle` applies any `update()` that lands while
@@ -248,7 +239,7 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
 
   it("shows the host's result under the game, naming the winners by the bundle's own seat numbers", async () => {
     const members = [{ id: 'u1', name: 'Ann' }, { id: 'u2', name: 'Bob' }];
-    renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true } });
+    renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true }, relay: true });
     await waitFor(() => expect(relayChannelCalls[0]?.result.size).toBe(1));
     expect(screen.queryByTestId('room-bundle-result')).toBeNull();
 
@@ -268,7 +259,7 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
 
   it('mounts the bundle afresh, on the same channel, for the next match once one ends', async () => {
     const members = [{ id: 'u1', name: 'Ann' }, { id: 'u2', name: 'Bob' }];
-    renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true } });
+    renderSlot({ view: aView(members, { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: true }, relay: true });
     await waitFor(() => expect(relayChannelCalls[0]?.ended.size).toBe(1));
     await waitFor(() => expect(fixture.calls.filter((c) => c[0] === 'mount')).toHaveLength(1));
 
@@ -286,7 +277,7 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
   });
 
   it('closes the channel on unmount', async () => {
-    const { unmount } = renderSlot({ view: aView([{ id: 'u1', name: 'u1' }], { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: false } });
+    const { unmount } = renderSlot({ view: aView([{ id: 'u1', name: 'u1' }], { id: 'room-relay', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: false }, relay: true });
     await waitFor(() => expect(relayChannelCalls).toHaveLength(1));
 
     unmount();
@@ -304,7 +295,7 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
   });
 
   it("at most one channel is ever live: moving to a different relay room closes the first BEFORE the second opens, never both at once", async () => {
-    const { rerender } = renderSlot({ view: aView([{ id: 'u1', name: 'u1' }], { id: 'room-relay-1', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: false } });
+    const { rerender } = renderSlot({ view: aView([{ id: 'u1', name: 'u1' }], { id: 'room-relay-1', gameType: 'relay-room-test' }), me: { userId: 'u1', isLeader: false }, relay: true });
     await waitFor(() => expect(relayChannelCalls).toHaveLength(1));
     expect(relayChannelCalls[0]).toMatchObject({ matchId: 'room-relay-1', closed: false });
 
@@ -315,6 +306,7 @@ describe("BundleSlot's ctx.channel (a runtime: 'relay' room)", () => {
           src: BUNDLE_SRC,
           view: aView([{ id: 'u1', name: 'u1' }], { id: 'room-relay-2', gameType: 'relay-room-test' }),
           me: { userId: 'u1', isLeader: false },
+          relay: true,
         }),
       }),
     );

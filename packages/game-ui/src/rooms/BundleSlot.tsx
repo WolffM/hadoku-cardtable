@@ -29,12 +29,12 @@
  *
  * ## `ctx.channel`
  *
- * A room whose game type says `runtime: 'relay'` (`packages/shared/src/game-type-spec.ts`) gets a
+ * A slot told `relay` (its game type's `runtime: 'relay'`, which the registering code knows) gets a
  * `MatchChannel` built from a relay socket (`./relay-channel.ts`), the host's own transport for a
  * game with no server of its own — never both a channel AND the game's own server (bomberman is
  * one). The channel is opened once per room (`view.id`), not rebuilt on every `ctx` change, and
- * disposed the moment this slot stops needing it — a room that is no longer relay-typed, or
- * unmounts.
+ * disposed the moment this slot stops needing it — a different room, `relay` turned off, or an
+ * unmount.
  *
  * ## The result
  *
@@ -57,16 +57,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useGameBundle } from '@wolffm/rooms-client/react';
 import type { GameBundleContext, MatchInfo, SeatInfo } from '@wolffm/rooms-protocol';
 import { useHadokuTheme } from '@wolffm/themes';
-// A relative cross-package import, not `@hadoku/shared`'s own barrel: the layer ratchet
-// (`scripts/layers/scan.ts`) resolves a bare `@hadoku/shared` specifier to the PACKAGE's overall
-// layer, which is `magic` (most of its files are) — a platform file importing `@hadoku/shared`
-// at all is a `platform→magic` violation regardless of which symbol it names. `game-type-spec.ts`
-// is explicitly carved out as `platform` in `layers.json`, and a relative path resolves to that
-// ONE file's own classification instead — the same technique `games/magic/ui/src/play/art.testing.ts`
-// already uses to reach `games/magic/server/src/http/card-art.ts`. Still one module and one registry:
-// `@hadoku/shared`'s package.json exports only `.` → `./src/index.ts`, which re-exports this same
-// file, so Vite and vitest resolve both paths to the identical module.
-import { gameTypeSpec } from '../../../../packages/shared/src/game-type-spec.ts';
 
 import { useWhoami } from '../room/whoami.ts';
 import type { RoomViewBase } from './game-setup.ts';
@@ -82,6 +72,8 @@ export interface BundleSlotProps {
   src: string;
   view: RoomViewBase | null;
   me: { userId: string; isLeader: boolean };
+  /** The game plays over the host's relay, so the bundle gets `ctx.channel` (see "`ctx.channel`" above). */
+  relay?: boolean;
   /**
    * Called when the bundle asks to close. There is no default — whether "close" means leaving
    * the room, or something lighter, is the caller's to decide; omitted, close is a no-op.
@@ -128,12 +120,12 @@ function matchOf(view: RoomViewBase, myId: string): MatchInfo {
   return { id: view.id, seat: seat === -1 ? null : seat, seats };
 }
 
-export function BundleSlot({ src, view, me, onClose }: BundleSlotProps) {
+export function BundleSlot({ src, view, me, relay = false, onClose }: BundleSlotProps) {
   const [error, setError] = useState<string | null>(null);
   const { theme } = useHadokuTheme();
   const who = useWhoami();
 
-  const isRelay = view !== null && gameTypeSpec(view.gameType)?.runtime === 'relay';
+  const isRelay = relay && view !== null;
   const [channel, setChannel] = useState<RelayChannel | null>(null);
   /** The room's last result (`RelayChannel.onResult`); null while none is shown. */
   const [winners, setWinners] = useState<readonly number[] | null>(null);

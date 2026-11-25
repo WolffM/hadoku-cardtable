@@ -134,6 +134,8 @@ function server(rooms: RoomView[], opts: { password?: string; listStatus?: numbe
       return opts.listStatus !== undefined ? json(opts.listStatus, { error: 'boom' }) : json(200, { rooms });
     }
     if (method === 'GET' && path === 'rooms/challenges') return json(200, { challenges: CHALLENGES });
+    // What the server hosts for this caller, each named by its own manifest.
+    if (method === 'GET' && path === 'external-games') return json(200, { games: [{ id: 'bomberman', label: 'Bomberman Arena' }] });
     if (method === 'POST' && path === 'rooms/challenge') return json(201, room({ id: 'r-challenge', name: 'Legacy Challenge 32 Top 8, 2026-02-07', gameType: 'constructed-1v1' }));
     if (method === 'POST' && path === 'rooms') {
       const b = body ?? {};
@@ -858,7 +860,12 @@ describe('creating a room', () => {
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Boom room' } });
     // A mode picked for Constructed is not sent for bomberman either: it has no mode at all.
     fireEvent.click(screen.getByTestId('room-create-constructed-mode-classic'));
-    fireEvent.click(screen.getByTestId('room-create-type-bomberman'));
+    // Offered as the server lists it (`GET /api/external-games`), by the label the game's own
+    // manifest gives; a game the server does not list for this caller is not offered at all.
+    const radio = await screen.findByTestId('room-create-type-bomberman');
+    expect(radio.closest('label')?.textContent).toContain('Bomberman Arena');
+    expect(screen.queryByTestId('room-create-type-crossover-cards')).toBeNull();
+    fireEvent.click(radio);
     expect((screen.getByTestId('room-create-type-bomberman') as HTMLInputElement).checked).toBe(true);
     expect(screen.queryByTestId('room-create-constructed-mode')).toBeNull();
     await act(async () => {

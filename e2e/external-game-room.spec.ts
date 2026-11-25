@@ -60,19 +60,6 @@ async function stubExternalGameEmbed(context: BrowserContext): Promise<void> {
   );
 }
 
-/**
- * The one client-side escape for this entry (`RoomList.tsx`'s own `e2eToyGamesEnabled`): without
- * it, Create room's radio never offers `e2e-toy-relay` in a real browser, Experimental features on
- * or not — a per-member preference is not a flag this spec, or anyone else, should be able to flip
- * in prod. Set before the page's own scripts run, so the module-scope read sees it from the first
- * render.
- */
-async function enableE2eToyGames(context: BrowserContext): Promise<void> {
-  await context.addInitScript(() => {
-    (window as unknown as { __cardtableE2eToyGames?: boolean }).__cardtableE2eToyGames = true;
-  });
-}
-
 const fixturePanel = (page: Page) => page.getByTestId('external-game-fixture');
 const messages = (page: Page) => page.getByTestId('external-game-fixture-received').getByTestId('external-game-fixture-message');
 
@@ -91,8 +78,6 @@ test(titled('a configured external-game room, made through Create room with Expe
     const bob = await openFriend(browser, 'bob');
     await stubExternalGameEmbed(alice.context);
     await stubExternalGameEmbed(bob.context);
-    await enableE2eToyGames(alice.context);
-    await enableE2eToyGames(bob.context);
 
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await openCreateRoom(alice.page);
@@ -215,8 +200,6 @@ test(titled('a seat that reconnects AFTER its own relay hold already expired is 
     const bob = await openFriend(browser, 'bob');
     await stubExternalGameEmbed(alice.context);
     await stubExternalGameEmbed(bob.context);
-    await enableE2eToyGames(alice.context);
-    await enableE2eToyGames(bob.context);
 
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await openCreateRoom(alice.page);

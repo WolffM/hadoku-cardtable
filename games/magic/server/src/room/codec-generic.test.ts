@@ -12,26 +12,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { decodeSnapshot, FileRoomStore, type RoomSnapshot } from '@wolffm/rooms-server/store';
-import { registerGameType, type GameTypeSpec } from '@hadoku/shared';
+import { externalGameSpec, registerGameType } from '@hadoku/shared';
 import { EXTERNAL_GAMES } from '@hadoku/game-ui/rooms/external-games-config.ts';
 
 /**
- * The one entry `EXTERNAL_GAMES` has today (wave 119 §U) — read off that config, not a literal
- * re-typed here. `packages/shared/src/bomberman-game-type.ts`'s old `BOMBERMAN_GAME_TYPE_SPEC`
- * is gone; this is the same shape, built from the one config both the server plugin
- * (`apps/server/src/plugins/external-games.ts`) and the client reads.
+ * Bomberman's room type, built the way the site builds every external game (`externalGameSpec`):
+ * the host's half from `EXTERNAL_GAMES`, and a manifest as bomberman publishes it.
  */
 const bomberman = EXTERNAL_GAMES.find((g) => g.id === 'bomberman')!;
-const BOMBERMAN_GAME_TYPE_SPEC: GameTypeSpec = {
-	id: bomberman.id,
-	runtime: bomberman.runtime,
-	seatRejoinGraceMs: bomberman.seatRejoinGraceMs,
-	seats: bomberman.seats,
-	ready: false,
-	series: { length: 1 },
-	canStart: (seated) => (seated >= bomberman.seats.min ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
-	gameCodec: { storedKeys: [], decode: () => ({}) },
-};
+const BOMBERMAN_GAME_TYPE_SPEC = externalGameSpec(bomberman, { label: 'Bomberman', seats: { min: 2, max: 10 }, seatRejoinGraceMs: 120_000 });
 
 import { openLobby } from './lobby.ts';
 import { roomCodec, type StoredApp } from './lobby-codec.ts';

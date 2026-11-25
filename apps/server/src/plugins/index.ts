@@ -4,7 +4,7 @@
  */
 import { fleetPlugin, stateDirPlugin } from '@hadoku/magic-server/plugins/boot';
 import { archivebotPlugin } from './archivebot.js';
-import { externalGamesPlugin } from './external-games.js';
+import { externalGamesPlugin, externalGamesRoutesPlugin } from './external-games.js';
 import { erasePlugin } from '@hadoku/magic-server/plugins/erase';
 import { libraryPlugin } from '@hadoku/magic-server/plugins/library';
 import { listenPlugin, warmPlugin } from '@hadoku/magic-server/plugins/listen';
@@ -33,6 +33,7 @@ export const PLUGINS: CardtablePlugin[] = [
 	roomsPlugin,
 	streamRoutesPlugin,
 	routesPlugin,
+	externalGamesRoutesPlugin,
 	tablesPlugin,
 	recordingsPlugin,
 	playPlugin,

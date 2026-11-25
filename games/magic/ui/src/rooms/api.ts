@@ -234,6 +234,11 @@ export interface RoomsClient {
   create(req: CreateRequest): Promise<CreateOutcome>;
   /** The catalogued Challenges (`GET /api/rooms/challenges`). Throws a sentence when they cannot be read. */
   challenges(): Promise<ChallengeEvent[]>;
+  /**
+   * The external games this caller may make a room of (`GET /api/external-games`), named as each
+   * game's own manifest names it. Throws a sentence when they cannot be read.
+   */
+  externalGames(): Promise<Array<{ id: string; label: string }>>;
   /** A new Challenge room, the caller in `player`'s seat. */
   createChallenge(req: ChallengeCreateBody): Promise<CreateOutcome>;
   join(roomId: string, password?: string): Promise<JoinOutcome>;
@@ -374,6 +379,22 @@ export function roomsClient(
       if (!res.ok) throw new Error(`Could not load the Challenges: ${serverMessage(body, res.status)}.`);
       if (!isRecord(body) || !Array.isArray(body.challenges)) throw new Error('Could not load the Challenges: the server sent something that is not a list.');
       return body.challenges as ChallengeEvent[];
+    },
+
+    async externalGames() {
+      let res: Response;
+      try {
+        res = await getJson(`${base}external-games`, fetchImpl);
+      } catch {
+        throw new Error('Could not reach the server.');
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) throw new Error(`Could not load the games: ${serverMessage(body, res.status)}.`);
+      const games = isRecord(body) && Array.isArray(body.games) ? body.games : null;
+      if (games === null || !games.every((g) => isRecord(g) && typeof g.id === 'string' && typeof g.label === 'string')) {
+        throw new Error('Could not load the games: the server sent something that is not a list of games.');
+      }
+      return games.map((g) => ({ id: g.id as string, label: g.label as string }));
     },
 
     async createChallenge(req) {

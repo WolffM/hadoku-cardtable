@@ -13,6 +13,7 @@
     "packages/shared/src/room-view.ts",
     "packages/shared/src/room-feed.ts",
     "packages/shared/src/game-type-spec.ts",
+    "packages/shared/src/external-game-spec.ts",
     "packages/shared/src/platform.ts"
   ],
   "magic": [

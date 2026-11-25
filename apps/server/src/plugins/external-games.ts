@@ -6,58 +6,146 @@
  * game's own same-origin bundle (`packages/game-ui/src/rooms/external-games.tsx` registers that
  * half).
  *
- * The config itself — id, label, seat range, runtime, embed URL, seat-rejoin grace — is the ONE
- * `EXTERNAL_GAMES` array in `packages/game-ui/src/rooms/external-games-config.ts` (pure data, no
- * React, no import beyond its own types). Both this file (the site, which may import anything)
- * and the client (`packages/game-ui/src/rooms/external-games.tsx`, platform) read that same
- * array — no duplicate literal on either side any more.
+ * Each game's room type is two halves. The host's — id, relay runtime, embed path, tier floor — is
+ * `EXTERNAL_GAMES` in `packages/game-ui/src/rooms/external-games-config.ts`. The game's — its name,
+ * seat range and seat hold — is the `manifest.json` it publishes beside its embed entry, read here
+ * through the edge with the server's service key (`@hadoku/game-server/external-game-manifests`),
+ * at boot and every ten minutes after, so a game changes its own seats by releasing, not by a
+ * cardtable commit. The last good manifest is kept under the data dir and stands in when the edge
+ * or a release fails, since a type that does not register at boot quarantines its saved rooms.
  *
  * Gated on `CARDTABLE_EXPERIMENTAL_GAMES=1`, read here rather than `config.ts` because the whole
  * feature is itself optional configuration, not a platform setting every deployment reads: unset
  * (or anything else), nothing below registers, and cardtable plays no external game at all —
  * creating or joining one then refuses the same way any unregistered game type always has
- * (`isRegisteredGameType`). Deleting one entry from `EXTERNAL_GAMES` removes that one external
- * game from cardtable; deleting the whole array (or leaving the flag unset) removes every one,
- * bomberman included.
+ * (`isRegisteredGameType`).
  *
  * `e2eOnly` entries (`external-games-config.ts`'s `e2e-toy-relay`, wave 120 §F's proof fixture)
- * are filtered OUT of the registration loop below unless `CARDTABLE_E2E_TOY_GAMES=1`, a SECOND,
- * dedicated gate on top of `CARDTABLE_EXPERIMENTAL_GAMES` — so prod never lists the toy even if
- * it someday turns experimental games on, and only the e2e stack that explicitly asks for it (by
- * setting this var on `startPlayStack`'s own env) ever sees it.
+ * are filtered OUT unless `CARDTABLE_E2E_TOY_GAMES=1`, a SECOND, dedicated gate on top of
+ * `CARDTABLE_EXPERIMENTAL_GAMES` — so prod never lists the toy, and only the e2e stack that
+ * explicitly asks for it (by setting this var on `startPlayStack`'s own env) ever sees it. Its
+ * manifest is inline in the config, since nothing publishes one.
+ *
+ * `GET /api/external-games` lists the registered games the caller's tier may play, by id and the
+ * label their manifest gives: the create form's radio.
  */
-import { registerGameType, type GameTypeSpec } from '@hadoku/shared';
+import { join } from 'node:path';
+import { externalGameSpec, registerGameType } from '@hadoku/shared';
+import { edgeTierOf } from '@hadoku/game-server/edge-auth';
+import { jsonLogger, type JsonLog } from '@hadoku/service-kernel/log';
+import { CONFIG } from '@hadoku/game-server/config';
+import { manifestReader, type ReadManifest } from '@hadoku/game-server/external-game-manifests';
+import { tierAdmits } from '@hadoku/game-server/room/tier-floor';
+import { reportingAlerts } from '@hadoku/game-server/telemetry';
 import type { CardtablePlugin } from '@hadoku/magic-server/plugins/state';
 import { EXTERNAL_GAMES, type ExternalGameConfig } from '@hadoku/game-ui/rooms/external-games-config.ts';
 
 export { EXTERNAL_GAMES, type ExternalGameConfig } from '@hadoku/game-ui/rooms/external-games-config.ts';
 
-function specOf(game: ExternalGameConfig): GameTypeSpec {
-	return {
-		id: game.id,
-		runtime: game.runtime,
-		seatRejoinGraceMs: game.seatRejoinGraceMs,
-		...(game.minTier === undefined ? {} : { minTier: game.minTier }),
-		seats: game.seats,
-		// No ready step, one game, empty seats stay empty — true of every external game this
-		// server merely relays, not any one of them in particular.
-		ready: false,
-		series: { length: 1 },
-		canStart: (seated) => (seated >= game.seats.min ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
-		// Nothing of an external game's own is kept under a saved room's `game` key.
-		gameCodec: { storedKeys: [], decode: () => ({}) },
-	};
+const REFRESH_MS = 10 * 60_000;
+
+export interface ExternalGamesOptions {
+	games?: readonly ExternalGameConfig[];
+	/** Where the embed paths are served: `CARDTABLE_EXTERNAL_GAMES_ORIGIN`, else `https://hadoku.me`. */
+	origin?: string;
+	/** `CARDTABLE_SERVICE_KEY` by default: the edge gates every bundle route. */
+	serviceKey?: string;
+	/** `<data dir>/external-games` by default. */
+	cacheDir?: string;
+	refreshMs?: number;
+	fetch?: typeof fetch;
+	/** `cardtable-external-games`, its alerts reported, by default. */
+	log?: JsonLog;
 }
 
-export const externalGamesPlugin: CardtablePlugin = {
-	name: 'external-games',
-	phase: 'config',
-	setup() {
-		if (process.env.CARDTABLE_EXPERIMENTAL_GAMES !== '1') return;
-		const e2eToyGames = process.env.CARDTABLE_E2E_TOY_GAMES === '1';
-		for (const game of EXTERNAL_GAMES) {
-			if (game.e2eOnly === true && !e2eToyGames) continue;
-			registerGameType(specOf(game));
-		}
-	},
-};
+/** One registered game, as the create form lists it. */
+interface Offered {
+	label: string;
+	minTier?: 'friend';
+}
+
+/** The two plugins (`config`: read and register; `routes`: the list) and a refresh a test can await. */
+export function externalGames(opts: ExternalGamesOptions = {}): { configPlugin: CardtablePlugin; routesPlugin: CardtablePlugin; refresh: () => Promise<void> } {
+	const offered = new Map<string, Offered>();
+	const current = new Map<string, string>();
+	let hosted: readonly ExternalGameConfig[] = [];
+	let read: ((game: ExternalGameConfig) => Promise<ReadManifest | null>) | null = null;
+	let refreshing: Promise<void> | null = null;
+	const log = opts.log ?? reportingAlerts(jsonLogger('cardtable-external-games'));
+
+	const register = (game: ExternalGameConfig, got: ReadManifest): void => {
+		registerGameType(externalGameSpec(game, got.manifest));
+		offered.set(game.id, { label: got.manifest.label, ...(game.minTier === undefined ? {} : { minTier: game.minTier }) });
+		current.set(game.id, JSON.stringify(got.manifest));
+		log({ evt: 'external-game-registered', gameType: game.id, source: got.source, label: got.manifest.label, seats: got.manifest.seats, seatRejoinGraceMs: got.manifest.seatRejoinGraceMs });
+	};
+
+	const refresh = (): Promise<void> => {
+		const reader = read;
+		if (reader === null) return Promise.resolve();
+		refreshing ??= Promise.all(
+			hosted
+				.filter((game) => game.manifest === undefined)
+				.map(async (game) => {
+					const got = await reader(game);
+					if (got !== null && current.get(game.id) !== JSON.stringify(got.manifest)) register(game, got);
+				}),
+		).then(
+			() => {
+				refreshing = null;
+			},
+			(err: unknown) => {
+				refreshing = null;
+				log({ evt: 'alert', key: 'external-game-refresh-failed', text: `external game manifests could not be refreshed: ${err instanceof Error ? err.message : String(err)}` });
+			},
+		);
+		return refreshing;
+	};
+
+	const configPlugin: CardtablePlugin = {
+		name: 'external-games',
+		phase: 'config',
+		async setup() {
+			if (process.env.CARDTABLE_EXPERIMENTAL_GAMES !== '1') return;
+			const e2eToyGames = process.env.CARDTABLE_E2E_TOY_GAMES === '1';
+			hosted = (opts.games ?? EXTERNAL_GAMES).filter((game) => game.e2eOnly !== true || e2eToyGames);
+			const serviceKey = opts.serviceKey ?? process.env.CARDTABLE_SERVICE_KEY;
+			read = manifestReader({
+				origin: opts.origin ?? process.env.CARDTABLE_EXTERNAL_GAMES_ORIGIN ?? 'https://hadoku.me',
+				...(serviceKey === undefined ? {} : { serviceKey }),
+				cacheDir: opts.cacheDir ?? join(CONFIG.dataDir, 'external-games'),
+				log,
+				...(opts.fetch === undefined ? {} : { fetch: opts.fetch }),
+			});
+			const reader = read;
+			await Promise.all(
+				hosted.map(async (game) => {
+					const got = await reader(game);
+					if (got !== null) register(game, got);
+					else log({ evt: 'alert', key: `external-game-unavailable:${game.id}`, text: `${game.id} has no manifest and no saved copy: it is not a room type, and its saved rooms are quarantined` });
+				}),
+			);
+			const timer = setInterval(() => void refresh(), opts.refreshMs ?? REFRESH_MS);
+			timer.unref();
+			return { shutdown: () => clearInterval(timer) };
+		},
+	};
+
+	const routesPlugin: CardtablePlugin = {
+		name: 'external-games-routes',
+		phase: 'routes',
+		setup({ api }) {
+			api.get('/external-games', (req, res) => {
+				const tier = edgeTierOf(req);
+				const games = [...offered].filter(([, game]) => tierAdmits(game.minTier, tier)).map(([id, game]) => ({ id, label: game.label }));
+				res.json({ games });
+			});
+		},
+	};
+
+	return { configPlugin, routesPlugin, refresh };
+}
+
+const hostedGames = externalGames();
+export const externalGamesPlugin = hostedGames.configPlugin;
+export const externalGamesRoutesPlugin = hostedGames.routesPlugin;

@@ -10,6 +10,7 @@
 import express from 'express';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type Server as HttpServer } from 'node:http';
+import { mkdtempSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,14 +18,46 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { EXTERNAL_GAMES as EXTERNAL_GAMES_CONFIG } from '@hadoku/game-ui/rooms/external-games-config.ts';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
+const SERVICE_KEY = 'test-service-key';
+
+/**
+ * The edge, as far as manifests go: each real game's `manifest.json` beside its embed entry, only
+ * to a caller with the service key. A test changes `MANIFESTS` to release a new one.
+ */
+const MANIFESTS = new Map<string, unknown>([
+	['/bomberman/embed/manifest.json', { label: 'Bomberman', seats: { min: 2, max: 10 } }],
+	['/games/crossover-cards/manifest.json', { label: 'Crossover Cards', seats: { min: 1, max: 4 } }],
+]);
+const manifestEdge = createServer((req, res) => {
+	const body = req.headers['x-user-key'] === SERVICE_KEY ? MANIFESTS.get(req.url ?? '') : undefined;
+	if (body === undefined) return void res.writeHead(req.headers['x-user-key'] === SERVICE_KEY ? 404 : 401).end();
+	res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+});
+let manifestOrigin: string;
+const cacheDir = (): string => {
+	const dir = mkdtempSync(join(tmpdir(), 'cardtable-external-game-manifests-'));
+	dirs.push(dir);
+	return dir;
+};
+
+/** Boots a fresh `external-games.ts` against the stand-in edge, as `index.ts` boots the real one. */
+async function boot(mod: typeof import('./external-games.ts'), opts: import('./external-games.ts').ExternalGamesOptions = {}) {
+	const hosted = mod.externalGames({ origin: manifestOrigin, serviceKey: SERVICE_KEY, cacheDir: cacheDir(), log: () => {}, ...opts });
+	await hosted.configPlugin.setup({} as never);
+	return hosted;
+}
 
 let roomsMod: typeof import('@hadoku/magic-server/http/rooms');
 let lobbyMod: typeof import('@hadoku/magic-server/room/lobby');
 let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 let sharedMod: typeof import('@hadoku/shared');
 let EXTERNAL_GAME_TYPE: string;
+let externalGamesMod: typeof import('./external-games.ts');
+let hostedGames: Awaited<ReturnType<typeof boot>>;
 
 beforeAll(async () => {
+	await new Promise<void>((resolve) => manifestEdge.listen(0, '127.0.0.1', resolve));
+	manifestOrigin = `http://127.0.0.1:${(manifestEdge.address() as AddressInfo).port}`;
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
 	process.env.CARDTABLE_EXPERIMENTAL_GAMES = '1';
 	// Production's floor, so a friends-only game's own floor is what refuses a guest or member, not the app's.
@@ -40,11 +73,11 @@ beforeAll(async () => {
 	// `@hadoku/shared` instance `rooms.ts`'s own import of it never sees, and every create would
 	// read back "not a registered game type" — the registry is a plain module-level `Map`, one
 	// per graph.
-	const externalGamesMod = await import('./external-games.ts');
+	externalGamesMod = await import('./external-games.ts');
 	EXTERNAL_GAME_TYPE = externalGamesMod.EXTERNAL_GAMES[0]!.id;
 	// What the plugin's own `setup` does at boot — called directly, since this
 	// harness never runs the kernel's boot sequence.
-	await externalGamesMod.externalGamesPlugin.setup({} as never);
+	hostedGames = await boot(externalGamesMod);
 });
 
 afterAll(() => {
@@ -77,6 +110,7 @@ async function openApp(dir: string): Promise<Harness> {
 	const api = express.Router();
 	api.use(express.json({ limit: '1mb' }));
 	roomsMod.attachRooms(api, { lobby, log, checkPlan: async (plan) => ({ ok: true, cards: plan.rounds.length * 10 }) });
+	await hostedGames.routesPlugin.setup({ api } as never);
 	app.use('/api', api);
 
 	const server = createServer(app);
@@ -120,6 +154,7 @@ afterEach(() => {
 });
 
 afterAll(async () => {
+	await new Promise<void>((resolve) => manifestEdge.close(() => resolve()));
 	for (const server of servers) await new Promise<void>((resolve) => server.close(() => resolve()));
 	for (const dir of dirs) await rm(dir, { recursive: true, force: true });
 });
@@ -222,8 +257,11 @@ describe('an external game is a registered game type', () => {
 	});
 });
 
-describe("a registered type starts with exactly its config's seats.min seated", () => {
-	it.each(EXTERNAL_GAMES_CONFIG.filter((g) => g.e2eOnly !== true).map((g) => [g.id, g.seats.min] as const))('%s starts at %i seated, not one fewer', (id, min) => {
+describe("each game's own manifest.json decides its seats, its hold and its name", () => {
+	it.each([
+		['bomberman', 2],
+		['crossover-cards', 1],
+	])('%s starts at its manifest\'s seats.min (%i) seated, not one fewer', (id, min) => {
 		const spec = sharedMod.gameTypeSpec(id);
 		expect(spec, `${id} is not registered`).toBeDefined();
 		expect(spec!.canStart(min)).toEqual({ ok: true });
@@ -232,6 +270,50 @@ describe("a registered type starts with exactly its config's seats.min seated", 
 
 	it('crossover-cards starts with its leader alone, for a game against its own in-bundle bots', () => {
 		expect(sharedMod.gameTypeSpec('crossover-cards')!.canStart(1)).toEqual({ ok: true });
+		expect(sharedMod.gameTypeSpec('crossover-cards')!.seats).toEqual({ min: 1, max: 4 });
+	});
+
+	it("lists the games a caller may play, named by their manifests, and a friends-only one only to a friend", async () => {
+		const h = await openApp(await tempDir());
+		const asFriend = (await call(h, 'GET', '/api/external-games', { as: 'alice' })).json();
+		expect(asFriend).toEqual({ games: [{ id: 'bomberman', label: 'Bomberman' }, { id: 'crossover-cards', label: 'Crossover Cards' }] });
+		const asMember = (await call(h, 'GET', '/api/external-games', { as: 'gus', headers: { 'x-hadoku-tier': 'member' } })).json();
+		expect(asMember).toEqual({ games: [{ id: 'bomberman', label: 'Bomberman' }] });
+	});
+
+	it('takes a new release\'s manifest on the next refresh, with no change on our side', async () => {
+		MANIFESTS.set('/games/crossover-cards/manifest.json', { label: 'Crossover Cards', seats: { min: 1, max: 6 }, seatRejoinGraceMs: 30_000 });
+		try {
+			await hostedGames.refresh();
+			expect(sharedMod.gameTypeSpec('crossover-cards')).toMatchObject({ seats: { min: 1, max: 6 }, seatRejoinGraceMs: 30_000 });
+		} finally {
+			MANIFESTS.set('/games/crossover-cards/manifest.json', { label: 'Crossover Cards', seats: { min: 1, max: 4 } });
+			await hostedGames.refresh();
+		}
+		expect(sharedMod.gameTypeSpec('crossover-cards')!.seats).toEqual({ min: 1, max: 4 });
+	});
+
+	it('keeps a game registered from its saved copy when the edge cannot be reached, and alerts on one never read', async () => {
+		const dir = cacheDir();
+		await boot(externalGamesMod, { cacheDir: dir });
+		const entries: Record<string, unknown>[] = [];
+		vi.resetModules();
+		const shared = await import('@hadoku/shared');
+		const fresh = await import('./external-games.ts');
+		await boot(fresh, { cacheDir: dir, origin: 'http://127.0.0.1:1', log: (e) => entries.push(e) });
+		expect(shared.gameTypeSpec('crossover-cards')!.seats).toEqual({ min: 1, max: 4 });
+		expect(entries.filter((e) => e.evt === 'external-game-registered').map((e) => [e.gameType, e.source])).toEqual([
+			['bomberman', 'cached'],
+			['crossover-cards', 'cached'],
+		]);
+
+		vi.resetModules();
+		const shared2 = await import('@hadoku/shared');
+		const never = await import('./external-games.ts');
+		const alerts: Record<string, unknown>[] = [];
+		await boot(never, { origin: 'http://127.0.0.1:1', log: (e) => alerts.push(e) });
+		expect(shared2.isRegisteredGameType('crossover-cards')).toBe(false);
+		expect(alerts.filter((e) => e.evt === 'alert').map((e) => e.key)).toEqual(['external-game-unavailable:bomberman', 'external-game-unavailable:crossover-cards']);
 	});
 });
 
@@ -276,7 +358,7 @@ describe('CARDTABLE_EXPERIMENTAL_GAMES unset: no external game registers at all'
 		const externalGamesMod = await import('./external-games.ts');
 		// The plugin's own gate, not called this time: the flag is unset, so `setup()` registers
 		// nothing — proving the gate rather than merely not calling `setup`.
-		await externalGamesMod.externalGamesPlugin.setup({} as never);
+		await boot(externalGamesMod);
 
 		const dir = await tempDir();
 		const log = (entry: Record<string, unknown>): void => {
@@ -306,7 +388,7 @@ describe('CARDTABLE_EXPERIMENTAL_GAMES unset: no external game registers at all'
 		lobbyMod = await import('@hadoku/magic-server/room/lobby');
 		edgeMod = await import('@hadoku/game-server/edge-auth');
 		const reregistered = await import('./external-games.ts');
-		await reregistered.externalGamesPlugin.setup({} as never);
+		hostedGames = await boot(reregistered);
 	});
 });
 
@@ -324,7 +406,7 @@ describe('an e2eOnly entry needs its own second gate (w120 §K)', () => {
 		expect(e2eEntry, 'external-games-config.ts still has an e2eOnly entry to test against').toBeDefined();
 		const nonE2eEntry = externalGamesMod.EXTERNAL_GAMES.find((g) => g.e2eOnly !== true);
 		expect(nonE2eEntry, 'and at least one entry without the flag, to prove the filter is selective').toBeDefined();
-		await externalGamesMod.externalGamesPlugin.setup({} as never);
+		await boot(externalGamesMod);
 		expect(shared.isRegisteredGameType(e2eEntry!.id)).toBe(false);
 		// The ordinary gate alone still works: a non-`e2eOnly` entry registers as it always did.
 		expect(shared.isRegisteredGameType(nonE2eEntry!.id)).toBe(true);
@@ -336,7 +418,7 @@ describe('an e2eOnly entry needs its own second gate (w120 §K)', () => {
 		const shared = await import('@hadoku/shared');
 		const externalGamesMod = await import('./external-games.ts');
 		const e2eEntry = externalGamesMod.EXTERNAL_GAMES.find((g) => g.e2eOnly === true)!;
-		await externalGamesMod.externalGamesPlugin.setup({} as never);
+		await boot(externalGamesMod);
 		expect(shared.isRegisteredGameType(e2eEntry.id)).toBe(true);
 	});
 
@@ -348,7 +430,7 @@ describe('an e2eOnly entry needs its own second gate (w120 §K)', () => {
 		const shared = await import('@hadoku/shared');
 		const externalGamesMod = await import('./external-games.ts');
 		const e2eEntry = externalGamesMod.EXTERNAL_GAMES.find((g) => g.e2eOnly === true)!;
-		await externalGamesMod.externalGamesPlugin.setup({} as never);
+		await boot(externalGamesMod);
 		expect(shared.isRegisteredGameType(e2eEntry.id)).toBe(false);
 		if (saved !== undefined) process.env.CARDTABLE_EXPERIMENTAL_GAMES = saved;
 	});

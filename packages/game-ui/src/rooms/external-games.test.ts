@@ -1,13 +1,13 @@
 /**
  * The client half of cardtable's external-game room types — the wiring only. What `<BundleSlot>`
  * itself does with what it is handed is `BundleSlot.test.ts`'s own proof; this file proves
- * `rooms/external-games.tsx` registers each `EXTERNAL_GAMES` entry's spec and room UI
- * under its own id, forwarding the right props, with no `setup`. Ported from the old
+ * `rooms/external-games.tsx` registers each `EXTERNAL_GAMES` entry's room UI under its own id,
+ * forwarding the right props, with no `setup`, and no client spec (the server reads the seats). Ported from the old
  * `bomberman.test.ts`, proved generically (wave 119 §U) rather than by bomberman's name alone.
  */
 import { isValidElement } from 'react';
 import { describe, expect, it } from 'vitest';
-import { gameTypeSpec } from '@hadoku/shared';
+import { gameTypeSpec } from '../../../../packages/shared/src/game-type-spec.ts';
 
 import { BundleSlot } from './BundleSlot.tsx';
 import { gameRoomUiFor } from './game-setup.ts';
@@ -21,8 +21,8 @@ describe('rooms/external-games.tsx', () => {
 
   for (const game of EXTERNAL_GAMES) {
     describe(`"${game.id}"`, () => {
-      it("registers its spec on the client too, relay runtime and all, so its room gets a channel", () => {
-        expect(gameTypeSpec(game.id)).toMatchObject({ runtime: 'relay', seatRejoinGraceMs: game.seatRejoinGraceMs, seats: game.seats });
+      it('registers no spec on the client: its seat range is the server\'s, from the game\'s own manifest', () => {
+        expect(gameTypeSpec(game.id)).toBeUndefined();
       });
 
       it('registers with no setup (nothing above the seats) and a game that is a BundleSlot at the embed path', () => {
@@ -39,7 +39,7 @@ describe('rooms/external-games.tsx', () => {
         expect(isValidElement(node)).toBe(true);
         if (!isValidElement(node)) throw new Error('not an element');
         expect(node.type).toBe(BundleSlot);
-        expect(node.props).toEqual({ src: game.embedSrc, view: props.view, me: props.me });
+        expect(node.props).toEqual({ src: game.embedSrc, view: props.view, me: props.me, relay: true });
       });
     });
   }

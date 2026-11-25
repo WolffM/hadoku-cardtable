@@ -64,8 +64,12 @@ const quietFeed: RoomFeed = {
   },
 };
 
+/** What `GET /api/external-games` answers: the games the server hosts for this caller, or a failure. */
+let externalGames: { status: number; body: unknown } = { status: 200, body: { games: [] } };
+
 function client() {
-  const fetchImpl: Fetch = async () => new Response(JSON.stringify({ rooms: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  const reply = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  const fetchImpl: Fetch = async (url) => (String(url).endsWith('/external-games') ? reply(externalGames.status, externalGames.body) : reply(200, { rooms: [] }));
   return roomsClient(fetchImpl, '/cardtable/api/');
 }
 
@@ -91,26 +95,36 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
 
 const mount = () => render(createElement(RoomList, { client: client(), feed: quietFeed }));
 
-describe('the e2e-only external-game entry, with Experimental features on', () => {
-  it('is never offered without the client-side e2e flag', async () => {
+describe('the external games on Create room, with Experimental features on', () => {
+  afterEach(() => {
+    externalGames = { status: 200, body: { games: [] } };
+  });
+
+  it('offers exactly the games the server lists for this caller, by the labels their manifests give', async () => {
     savedPrefs.current = { experimental: true };
+    externalGames = { status: 200, body: { games: [{ id: 'e2e-toy-relay', label: 'Toy Relay Game' }] } };
+    mount();
+    await screen.findByTestId('rooms-empty');
+    fireEvent.click(screen.getByTestId('room-create-open'));
+    const toy = await screen.findByTestId('room-create-type-e2e-toy-relay');
+    expect(toy.closest('label')?.textContent).toContain('Toy Relay Game');
+    // Bomberman is in cardtable's config, but the server did not list it: not offered.
+    expect(screen.queryByTestId('room-create-type-bomberman')).toBeNull();
+    expect(screen.getByTestId('room-create-type-challenge')).toBeTruthy();
+  });
+
+  it("offers Magic's own kinds and Challenge, and no external game, when the list cannot be loaded", async () => {
+    savedPrefs.current = { experimental: true };
+    externalGames = { status: 500, body: { error: 'boom' } };
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     mount();
     await screen.findByTestId('rooms-empty');
     fireEvent.click(screen.getByTestId('room-create-open'));
     await screen.findByTestId('room-create-type');
-    expect(screen.queryByTestId('room-create-type-e2e-toy-relay')).toBeNull();
-    // The real external game and Challenge are still offered — this is not the experimental gate itself.
-    expect(screen.getByTestId('room-create-type-bomberman')).toBeTruthy();
+    await waitFor(() => expect(warned).toHaveBeenCalledWith('[rooms] external games not loaded:', 'Could not load the games: boom.'));
     expect(screen.getByTestId('room-create-type-challenge')).toBeTruthy();
-  });
-
-  it('is offered once the e2e harness sets the flag', async () => {
-    savedPrefs.current = { experimental: true };
-    (globalThis as { __cardtableE2eToyGames?: boolean }).__cardtableE2eToyGames = true;
-    mount();
-    await screen.findByTestId('rooms-empty');
-    fireEvent.click(screen.getByTestId('room-create-open'));
-    await waitFor(() => expect(screen.getByTestId('room-create-type-e2e-toy-relay')).toBeTruthy());
+    expect(screen.getByTestId('room-create-type-constructed-1v1')).toBeTruthy();
+    expect(screen.queryByTestId('room-create-type-bomberman')).toBeNull();
   });
 });
 

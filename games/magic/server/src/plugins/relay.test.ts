@@ -70,21 +70,12 @@ describe('relayPlugin', () => {
 
 	it("a relay room's match gets its game type's own seat rejoin grace: bomberman's seat hold reaches the match", async () => {
 		const { relayMatches } = await import('@hadoku/game-server/play/runtimes/relay-match');
-		const { registerGameType } = await import('@hadoku/shared');
-		// The one entry `EXTERNAL_GAMES` has today (wave 119 §U) — read off that config, not a
-		// literal re-typed here.
+		const { externalGameSpec, registerGameType } = await import('@hadoku/shared');
+		// Built the way the site builds every external game (`externalGameSpec`), from the host's
+		// half in `EXTERNAL_GAMES` and a manifest as bomberman publishes it.
 		const { EXTERNAL_GAMES } = await import('@hadoku/game-ui/rooms/external-games-config.ts');
 		const bomberman = EXTERNAL_GAMES.find((g) => g.id === 'bomberman')!;
-		registerGameType({
-			id: bomberman.id,
-			runtime: bomberman.runtime,
-			seatRejoinGraceMs: bomberman.seatRejoinGraceMs,
-			seats: bomberman.seats,
-			ready: false,
-			series: { length: 1 },
-			canStart: (seated) => (seated >= bomberman.seats.min ? { ok: true } : { ok: false, reason: 'not-enough-players' }),
-			gameCodec: { storedKeys: [], decode: () => ({}) },
-		});
+		registerGameType(externalGameSpec(bomberman, { label: 'Bomberman', seats: { min: 2, max: 10 }, seatRejoinGraceMs: 120_000 }));
 		const ctx = fakeCtx();
 		const logged: Record<string, unknown>[] = [];
 		(ctx.state as unknown as { roomsLog: (e: Record<string, unknown>) => void }).roomsLog = (e) => logged.push(e);

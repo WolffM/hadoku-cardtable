@@ -22,7 +22,7 @@
  * shown again. A friend's new room shows up without a reload.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePrefs } from '@wolffm/prefs-client/react';
 import { magicGame, PAGE_EVENT_PATH, type ChallengeEvent } from '@hadoku/shared';
 
@@ -106,19 +106,6 @@ function toFrontRoom(room: RoomView): FrontRoom {
 const MAGIC_GAME_TYPES: readonly RoomFrontGameType[] = GAME_TYPES.map((g) => ({ id: g.value, label: g.label }));
 const CHALLENGE_TYPE: RoomFrontGameType = { id: 'challenge', label: 'Challenge' };
 
-/**
- * `EXTERNAL_GAMES`' own `e2eOnly` entries (`e2e-toy-relay`) are never offered by the create
- * dialog's radio in a real browser: Experimental features is a per-MEMBER preference, so "gated
- * on `CARDTABLE_EXPERIMENTAL_GAMES` server-side" alone still lets any member who turns it on see
- * a fake game type in prod. `window.__cardtableE2eToyGames` is the one escape, set by
- * `e2e/external-game-room.spec.ts`'s own `context.addInitScript` before the page loads — read
- * fresh here, at render time, never cached at module load, so a real browser's answer is always
- * `false`.
- */
-function e2eToyGamesEnabled(): boolean {
-  return (globalThis as { __cardtableE2eToyGames?: boolean }).__cardtableE2eToyGames === true;
-}
-
 /** A card's wash, by its format family: the colour-pie hues (`styles.css`), the same in every theme. */
 const FAMILY_TINT: Readonly<Record<string, string>> = {
   standard: 'var(--c-blue)',
@@ -144,17 +131,6 @@ function rowVars(family: string, state: string): NonNullable<RoomFrontRowExtras[
     ...(dot === undefined ? {} : { '--room-front-dot': dot }),
     ...(state === 'done' ? { '--room-front-state-ink': 'var(--color-text-secondary)' } : {}),
   };
-}
-
-/**
- * Every external game cardtable may draw a room for, offered on the create form only with
- * Experimental features on (the same gate Challenge uses) — an `e2eOnly` entry only on top of that,
- * and only for the e2e harness; a friends-only game (`minTier`) only to a friend or above, whom the
- * server alone would let make one anyway.
- */
-function externalGameTypes(friend: boolean): readonly RoomFrontGameType[] {
-  const toyGames = e2eToyGamesEnabled();
-  return EXTERNAL_GAMES.filter((g) => (g.e2eOnly !== true || toyGames) && (g.minTier === undefined || friend)).map((g) => ({ id: g.id, label: g.label }));
 }
 
 /** Whether every room of `gameType` is friends-only already, so the switch has nothing to choose. */
@@ -210,7 +186,27 @@ export function RoomList({ client: given, feed, onFeatured }: RoomListProps) {
 
   const experimental = usePrefs(getPlayPrefsClient()).prefs?.experimental ?? PLAY_PREFS_DEFAULTS.experimental;
   const friend = atLeastFriend(useWhoami());
-  const gameTypes: readonly RoomFrontGameType[] = experimental ? [...MAGIC_GAME_TYPES, ...externalGameTypes(friend), CHALLENGE_TYPE] : MAGIC_GAME_TYPES;
+  // The external games the server hosts and this caller may play, named by each game's manifest,
+  // offered only with Experimental features on (the same gate Challenge uses).
+  const [externalTypes, setExternalTypes] = useState<readonly RoomFrontGameType[]>([]);
+  useEffect(() => {
+    if (!experimental) return;
+    let live = true;
+    client.externalGames().then(
+      (games) => {
+        if (live) setExternalTypes(games);
+      },
+      (err: unknown) => {
+        // The radio offers Magic's own kinds and Challenge either way; no external game is offered.
+        console.warn('[rooms] external games not loaded:', err instanceof Error ? err.message : err);
+        if (live) setExternalTypes([]);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [experimental, client]);
+  const gameTypes: readonly RoomFrontGameType[] = experimental ? [...MAGIC_GAME_TYPES, ...externalTypes, CHALLENGE_TYPE] : MAGIC_GAME_TYPES;
 
   /* ── Create room's own fields, and Challenge's wholly different creation ───────────────────── */
 

@@ -20,6 +20,7 @@
     "GET /api/drafts/:podId/mine",
     "GET /api/events",
     "GET /api/events/forms",
+    "GET /api/external-games",
     "GET /api/me/art",
     "GET /api/me/library",
     "GET /api/play/hosts",

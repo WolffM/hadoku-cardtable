@@ -522,6 +522,7 @@ export {
   type BotFill,
   type GameCodec,
 } from './game-type-spec.ts';
+export { externalGameSpec, type HostedGame } from './external-game-spec.ts';
 export {
   AVATAR_ID_MAX,
   CLIENT_MODES,
