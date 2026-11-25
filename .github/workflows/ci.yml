@@ -30,15 +30,16 @@ on:
   workflow_dispatch:
 
 # `check` is what `redeploy.yml` deploys on, what `release.yml` gates on, and
-# the required status: since 2026-10-23 a job that only collects the four jobs
-# that do the work in parallel (`static`, two `unit` shards, `e2e`). Serially
-# they took about 14 minutes (unit 6, the draft e2e 6), and a land waited for
-# the run ahead of it as well; in parallel the longest is about 6. The
-# Forge jobs (`forge-e2e`, `forge-jvm`) run beside it in `forge.yml`, on the
-# same push, and gate nothing — the operator: "let the deploys go through
-# faster and have the tests run in parallel and then look at the tests and fix
-# them later. that would let me iterate so much faster." A red Forge run is a
-# work item, not a held deploy.
+# the required status: a job that only collects the jobs that do the work in
+# parallel (`static`, which also builds the bundle and holds the image
+# boundary, and two `unit` shards). Every browser e2e runs nightly in
+# `forge.yml` (the draft e2e in `e2e-nightly`, the Forge specs in
+# `forge-e2e`), off every push since 2026-11-25 (operator: heavy e2e off the
+# mainline; the draft e2e was ~15 runner-minutes on every push and the
+# longest job in `check`). They gate nothing: a red nightly is a work item for
+# whoever landed it, not a held deploy (the operator: "let the deploys go
+# through faster and have the tests run in parallel and then look at the
+# tests and fix them later").
 #
 # Queue, never cancel: GitHub keeps at most one PENDING run per group, so a
 # burst of pushes collapses to the newest and the one in progress finishes.
@@ -143,6 +144,49 @@ jobs:
       - name: Lint CSS
         run: pnpm run lint:css
 
+      # ── The image boundary: D13 as amended by D15 ────────────────────────
+      #
+      # NOT "no images". D13's "never host card images" clause was repealed by
+      # the operator on 2026-09-15 (`docs/DECISIONS.md` D15): card art is hosted
+      # on `cdn.hadoku.me`. What survived — and what this gate asserts — is that
+      # **the app's own origin serves no image bytes.** We serve the app;
+      # something else serves the pictures.
+      #
+      # The body lives in `scripts/d13-gate.sh` rather than inline here, on
+      # purpose, and the reason is not theoretical. The inline version could
+      # only be exercised by running the workflow, and it was wrong in TWO ways
+      # that both survived review:
+      #
+      #   1. it treated a bare content-addressed CDN key as a forbidden
+      #      relative URL, so it would have red-failed every build once a key
+      #      landed in the art manifest;
+      #   2. it anchored on DOUBLE QUOTES, and Vite's minifier emits these
+      #      strings as template literals — `key:`<sha>.jpg`` — so it was blind
+      #      to the artifact it guarded. A same-origin URL in backticks passed.
+      #
+      # Extraction is now delimiter-agnostic and every fixture is generated in
+      # five spellings (double, single, backtick, bare CSS `url(...)`, bare
+      # HTML attribute), because a fixture set that shares an assumption with
+      # the extractor proves nothing about that assumption.
+      #
+      # `cards.scryfall.io` and `cdn.hadoku.me` appearing in the bundle are
+      # CORRECT and expected: they are the two origins a card image may come
+      # from. The script has the full arm-by-arm rationale.
+      - name: Build the bundle
+        run: pnpm --filter @hadoku/ui build
+
+      # Runs FIRST, and deliberately. A green gate is a claim; this is the
+      # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
+      # asserted in both directions and every reference case in all five
+      # spellings, so "the check passed" cannot mean "the check did nothing".
+      # Three separate controls in this repo have passed while doing nothing,
+      # including two versions of this very check.
+      - name: Image boundary — prove the gate bites
+        run: bash scripts/d13-gate.sh --self-test
+
+      - name: Image boundary (D13/D15) — the CDN hosts, we do not
+        run: bash scripts/d13-gate.sh apps/ui/dist
+
   # The unit suites, split by file across two runners (vitest `--shard`). One
   # runner took about 6 minutes; the slowest suites are the JVM-free server
   # ones, and they spread across both shards.
@@ -184,134 +228,6 @@ jobs:
 
   # The built app: the draft e2e against the built server, and the image
   # boundary on the built bundle.
-  e2e:
-    name: e2e
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-ci"]') || fromJSON(vars.CI_RUNNER) }}
-    # 23, not 15: run 43108363941's attempt 1 was CANCELLED at 15 min25s (22:23:41Z..22:39:06Z) on a
-    # loaded runner with nothing red, and its re-run (attempt 2) passed in 12m16s — the job itself was
-    # fine, the cap was too tight. Measured over the 30 green runs before this change (p50 745s, p95
-    # 883s, p99 896s, max 898s): p99 × 1.5 = 1344s = 22.4 min, so 23 clears it with headroom while
-    # still failing a real hang well under the job's own budget.
-    timeout-minutes: 23
-    steps:
-      - uses: actions/checkout@v6
-      # As in `static`: setup-pnpm asserts the registry credential, and the token
-      # goes on the Install step's env only.
-      - uses: WolffM/hadoku-actions/setup-pnpm@v1
-        id: pnpm
-        with:
-          node-version: '24'
-          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
-          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
-      - name: Install
-        run: pnpm install --frozen-lockfile
-        env:
-          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
-
-      - name: A dot-free, on-disk temp root (see `unit`)
-        run: |
-          mkdir -p "$HOME/runner-tmp"
-          echo "TMPDIR=$HOME/runner-tmp" >> "$GITHUB_ENV"
-
-      # ── The image boundary: D13 as amended by D15 ────────────────────────
-      #
-      # NOT "no images". D13's "never host card images" clause was repealed by
-      # the operator on 2026-09-15 (`docs/DECISIONS.md` D15): card art is hosted
-      # on `cdn.hadoku.me`. What survived — and what this gate asserts — is that
-      # **the app's own origin serves no image bytes.** We serve the app;
-      # something else serves the pictures.
-      #
-      # The body lives in `scripts/d13-gate.sh` rather than inline here, on
-      # purpose, and the reason is not theoretical. The inline version could
-      # only be exercised by running the workflow, and it was wrong in TWO ways
-      # that both survived review:
-      #
-      #   1. it treated a bare content-addressed CDN key as a forbidden
-      #      relative URL, so it would have red-failed every build once a key
-      #      landed in the art manifest;
-      #   2. it anchored on DOUBLE QUOTES, and Vite's minifier emits these
-      #      strings as template literals — `key:`<sha>.jpg`` — so it was blind
-      #      to the artifact it guarded. A same-origin URL in backticks passed.
-      #
-      # Extraction is now delimiter-agnostic and every fixture is generated in
-      # five spellings (double, single, backtick, bare CSS `url(...)`, bare
-      # HTML attribute), because a fixture set that shares an assumption with
-      # the extractor proves nothing about that assumption.
-      #
-      # `cards.scryfall.io` and `cdn.hadoku.me` appearing in the bundle are
-      # CORRECT and expected: they are the two origins a card image may come
-      # from. The script has the full arm-by-arm rationale.
-      - name: Build the bundle
-        run: pnpm --filter @hadoku/ui build
-
-      # Two browser contexts draft one pod against the built server (e2e/).
-      # Idempotent browser install of exactly the browsers `e2e/playwright.config.ts`'s
-      # projects name: a warm ~/.cache/ms-playwright makes it a no-op. No --with-deps (D14).
-      - name: Build the server
-        run: pnpm --filter @hadoku/server build
-
-      - name: E2E — browser
-        run: pnpm --filter @hadoku/e2e run install-browsers
-
-      # Four free loopback ports for this job: `scripts/ci/pick-e2e-ports.mjs` says why.
-      - name: E2E — pick this run's own ports
-        run: node scripts/ci/pick-e2e-ports.mjs | tee -a "$GITHUB_ENV"
-
-      # Every spec runs here, and the two that need Forge — `play.spec.ts`'s
-      # match and `table-fit.spec.ts` — SELF-SKIP, on purpose: this job runs on
-      # the fleet claws (`vars.CI_RUNNER`), and no claw has a Forge jar. Those
-      # two are covered by the `forge-e2e` job below, on the one runner that
-      # does. The draft e2e stays here, because it is part of the required
-      # check and needs nothing but the built server.
-      #
-      # Wave 17 briefly set the jar variables on THIS step, assuming the job ran
-      # on the host that has the jar. It does not — its runners are
-      # `jit-claw-*` / `warm-claw-*` — so the "Forge is present, or fail" guard
-      # did exactly its job and failed, and the image-boundary steps after it
-      # were skipped. A guard that reds is the guard working; the premise was
-      # what was wrong.
-      # A test titled `[nightly]` is too slow for every push and runs in
-      # `forge.yml`'s `e2e-nightly` instead. A failing test keeps a screenshot
-      # (`e2e/playwright.config.ts`), uploaded by the evidence step at the end
-      # of this job.
-      - name: E2E — two friends draft one pod
-        run: pnpm --filter @hadoku/e2e test --grep-invert '\[nightly\]'
-
-      # Runs FIRST, and deliberately. A green gate is a claim; this is the
-      # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
-      # asserted in both directions and every reference case in all five
-      # spellings, so "the check passed" cannot mean "the check did nothing".
-      # Three separate controls in this repo have passed while doing nothing,
-      # including two versions of this very check.
-      - name: Image boundary — prove the gate bites
-        run: bash scripts/d13-gate.sh --self-test
-
-      - name: Image boundary (D13/D15) — the CDN hosts, we do not
-        run: bash scripts/d13-gate.sh apps/ui/dist
-
-      # The evidence a red needs, kept past the job, as `forge.yml`'s forge-e2e
-      # keeps its own: the failing test's trace and error context, and the
-      # harness's server logs. `e2e/.run/` is a dot-directory, which the action
-      # skips by default.
-      # Its own cap, well under the job's: a hung upload (seen as the retry action's
-      # own "trying once more in 30 s" step in forge.yml's runs) must fail fast
-      # rather than eat the rest of the job's budget.
-      - name: E2E evidence (on failure)
-        if: failure() || cancelled()
-        timeout-minutes: 5
-        uses: actions/upload-artifact@v6
-        with:
-          name: e2e-evidence-${{ github.run_attempt }}
-          retention-days: 14
-          if-no-files-found: warn
-          include-hidden-files: true
-          path: |
-            e2e/.run/test-results/**
-            e2e/.run/*.jsonl
-            e2e/.run/*.json
-            e2e/.run/*.log
-
   # The required status, and the one `redeploy.yml` and `release.yml` read: green
   # only when every job above is. `always()` so a red job still reports `check`
   # red, rather than skipped, which a branch rule would wait on forever. The fork
@@ -319,7 +235,7 @@ jobs:
   # this.
   check:
     name: check
-    needs: [static, unit, e2e]
+    needs: [static, unit]
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-ci"]') || fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 2
@@ -328,5 +244,5 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs.*.result) }}
         run: |
-          echo "static, unit, e2e: ${RESULTS}"
+          echo "static, unit: ${RESULTS}"
           [ "$(echo "${RESULTS}" | jq -r 'map(select(. != "success")) | length')" = 0 ]

@@ -121,6 +121,10 @@ and match against a real Forge build through Playwright. It needs the
 Forge jar and a JDK 21, which a plain clone does not have until `pnpm
 dev` has built one.
 
+CI runs the e2e suite nightly and on demand (a `forge.yml` dispatch), not
+on every push: a push gets lint, typecheck, unit tests and the image
+boundary, and a red nightly is fixed by whoever landed the change.
+
 ## Deploy
 
 Every green `check` on `main` redeploys PPE automatically — a

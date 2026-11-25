@@ -11,13 +11,12 @@ name: Forge
 # runs nothing and names the green run: see the `changes` job.
 #
 # What runs is picked from the changed paths (`scripts/ci/select-forge-tests.ts`,
-# see the `changes` job). A push to main runs a short run: what changed itself
-# (a spec, a suite, a scenario), the smoke set, the guard family of any hot-path
-# module it touches, every spec that imports a module it touches (through e2e
-# helpers, at any depth), and the most relevant of the specs it maps to. The
-# FULL set runs nightly, with the `[nightly]` tests, or on demand
-# (`workflow_dispatch` with `full: true`). The trade: a regression outside what
-# a push ran turns red up to a day late, against a range of that day's lands.
+# see the `changes` job). A push to main runs the jvm suites its change selects
+# and NO browser e2e: since 2026-11-25 every e2e (`forge-e2e` and the draft
+# e2e, which left `ci.yml` the same day) runs nightly, with the `[nightly]`
+# tests, or on demand (`workflow_dispatch`; a dispatch still picks Forge specs
+# from its changes). Operator: heavy e2e off the mainline. The trade: an e2e
+# regression turns red up to a day late, against a range of that day's lands.
 # A two-hourly full run existed until 2026-11-24 and was dropped (operator):
 # over 11-20..24 it was 371 of Forge's 457 runner-hours (pushes 24, dispatches
 # 61), and its runs held every jdk21 claw while push and dispatch jobs queued
@@ -308,7 +307,8 @@ jobs:
     # On a dispatch, `only: jvm` turns this job off.
     # Fork PRs never reach here (`changes` is skipped for them); the guard is
     # repeated so this job stays safe if its `needs` ever changes.
-    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.e2e == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'e2e')
+    # Never on a push: every e2e is nightly or on demand (see the header).
+    if: github.event_name != 'push' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.e2e == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'e2e')
     runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21","lane-forge"]') }}
     # The suite is serial by design (`e2e/playwright.config.ts`: one worker, one
     # stack at a time), so a full run is ~30 min on one claw however idle the
@@ -642,7 +642,9 @@ jobs:
     needs: changes
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.nightly == 'true'
     runs-on: ${{ contains(vars.CI_RUNNER, 'self-hosted') && fromJSON('["self-hosted","hadoku-builder","lane-forge"]') || fromJSON(vars.CI_RUNNER) }}
-    timeout-minutes: 20
+    # The draft e2e took 13-19 min as its own job in `ci.yml` (2026-11-24, 11
+    # push runs) and the `[nightly]` tests fit the 20 this job had alone.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       # As in `ci.yml`'s `static`: setup-pnpm asserts the registry credential,
@@ -671,6 +673,13 @@ jobs:
       # already used", run 40471255011).
       - name: E2E — pick this run's own ports
         run: node scripts/ci/pick-e2e-ports.mjs | tee -a "$GITHUB_ENV"
+      # Every spec but the `[nightly]` ones: the draft e2e, two friends drafting
+      # one pod against the built server, which ran in `ci.yml` on every push
+      # until 2026-11-25. The two that need Forge (`play.spec.ts`'s match,
+      # `table-fit.spec.ts`) self-skip here, as they did there: no jar on this
+      # runner; `forge-e2e` runs them.
+      - name: E2E — two friends draft one pod
+        run: pnpm --filter @hadoku/e2e test --grep-invert '\[nightly\]'
       # `--pass-with-no-tests` is not passed: zero `[nightly]` tests means the tag
       # was renamed or dropped, and that should be red, not a quiet green.
       - name: E2E — the [nightly] tests
