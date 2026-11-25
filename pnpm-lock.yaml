@@ -503,6 +503,9 @@ importers:
 
   packages/ui-shell:
     dependencies:
+      '@hadoku/platform-wire':
+        specifier: workspace:*
+        version: link:../platform-wire
       '@wolffm/prefs-client':
         specifier: npm:@hadoku/prefs-client@1.2.0
         version: '@hadoku/prefs-client@1.2.0(react@19.2.8)(zod@4.5.4)'

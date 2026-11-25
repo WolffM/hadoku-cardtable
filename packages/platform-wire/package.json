@@ -18,7 +18,8 @@
     "./envelope": "./src/envelope.ts",
     "./seats": "./src/seats.ts",
     "./tiers": "./src/tiers.ts",
-    "./room-settings": "./src/room-settings.ts"
+    "./room-settings": "./src/room-settings.ts",
+    "./external-game-manifest": "./src/external-game-manifest.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

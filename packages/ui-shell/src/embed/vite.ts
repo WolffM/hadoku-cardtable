@@ -24,7 +24,16 @@
  *   mount stamps the theme on the host (`mountEmbed`'s `hostTheme`). Without it the host painted the
  *   light background under every theme, a white flash between the sheet's adoption and React's first
  *   commit. Cardtable's.
+ * - **`manifest`: what the game says about itself to a host** (`@hadoku/platform-wire/external-game-manifest`:
+ *   its name, its seat range, its seat hold), written as `dist/embed/manifest.json` beside the entry
+ *   and served `no-cache` like it. Checked against the host's own schema here, so a manifest a host
+ *   would refuse fails this build instead.
  */
+import {
+  EXTERNAL_GAME_MANIFEST_FILE,
+  externalGameManifest,
+  type ExternalGameManifestInput,
+} from '@hadoku/platform-wire/external-game-manifest';
 
 /** `:root` / `html` / `body` as a compound's type or pseudo-class → `:host`. */
 export function toShadowSelector(selector: string): string {
@@ -59,8 +68,26 @@ export function shadowRootSelectors({ hostTheme = false }: { hostTheme?: boolean
 }
 
 /** The fixed names the bundle is served under. */
-export function embedFiles(app: string): { entry: string; stylesheet: string } {
-  return { entry: `embed/${app}-embed.js`, stylesheet: `embed/${app}-embed.css` };
+export function embedFiles(app: string): { entry: string; stylesheet: string; manifest: string } {
+  return { entry: `embed/${app}-embed.js`, stylesheet: `embed/${app}-embed.css`, manifest: `embed/${EXTERNAL_GAME_MANIFEST_FILE}` };
+}
+
+export interface EmbedManifestPlugin {
+  name: string;
+  generateBundle(this: { emitFile(file: { type: 'asset'; fileName: string; source: string }): string }): void;
+}
+
+/** Writes the game's manifest beside the entry, after checking it is one a host would read. */
+export function emitManifest(fileName: string, manifest: ExternalGameManifestInput): EmbedManifestPlugin {
+  const checked = externalGameManifest.safeParse(manifest);
+  if (!checked.success) throw new Error(`the embed manifest is not one a host would read: ${checked.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')}`);
+  const source = `${JSON.stringify(checked.data, null, 2)}\n`;
+  return {
+    name: 'embed-manifest',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName, source });
+    },
+  };
 }
 
 export interface OneStylesheetPlugin {
@@ -98,6 +125,8 @@ export interface EmbedBuildOptions<Warn, Output extends object, Post> {
   onwarn?: Warn;
   /** More of the bundler's output options (cardtable's chunk groups); the file names are the preset's. */
   output?: Output;
+  /** What a host reads to make this game a room type; written as `embed/manifest.json`. Absent, no manifest is written. */
+  manifest?: ExternalGameManifestInput;
 }
 
 /**
@@ -115,11 +144,13 @@ export function embedBuild<Warn = never, Output extends object = Record<never, n
   chunkSizeWarningLimit,
   onwarn,
   output,
+  manifest,
 }: EmbedBuildOptions<Warn, Output, Post>) {
-  const { entry, stylesheet } = embedFiles(app);
+  const files = embedFiles(app);
+  const { entry, stylesheet } = files;
   return {
     base,
-    plugins: [requireOneStylesheet(stylesheet)],
+    plugins: [requireOneStylesheet(stylesheet), ...(manifest === undefined ? [] : [emitManifest(files.manifest, manifest)])],
     css: { postcss: { plugins: [shadowRootSelectors({ hostTheme }), ...postcssPlugins] } },
     build: {
       outDir: 'dist',

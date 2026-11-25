@@ -103,4 +103,10 @@ describe('isEmbedEntry: generic over the app-supplied embed filenames', () => {
 		expect(isEmbedEntry(join('dist', 'embed', 'cardtable-embed.js'), entries)).toBe(false);
 		expect(isEmbedEntry(join('dist', 'assets', 'bomberman-embed.js'), entries)).toBe(false);
 	});
+
+	it('always matches the embed manifest, which keeps its name across releases', () => {
+		expect(isEmbedEntry(join('dist', 'embed', 'manifest.json'), [])).toBe(true);
+		expect(isEmbedEntry(join('dist', 'embed', 'assets', 'manifest.json'), [])).toBe(false);
+		expect(isEmbedEntry(join('dist', 'manifest.json'), [])).toBe(false);
+	});
 });

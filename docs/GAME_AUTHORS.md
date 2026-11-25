@@ -79,7 +79,8 @@ ctx.channel.send({ t: 'over', winners: [0] }); // the seat numbers that won
 ```
 
 `winners` is an array of seat numbers: one seat for a single winner, several for a shared win, all
-of them for a draw. Every other seat lost. cardtable shows the result in the room and records it to
+of them for a draw. Every other seat lost. An empty list, or one that names only seats nobody sits
+in (your own bots, say), is a draw too: every seated player gets placement 1. cardtable shows the result in the room and records it to
 the site's game stats from this same message, under your game's id: each seated player by their own
 account, placement 1 for a winner and 2 for everyone else. A match with fewer than two seated
 players is not recorded. Nothing more is needed from you. An `over` from any seat but the leader's is dropped, not relayed.
@@ -119,6 +120,34 @@ export default {
 ```
 
 `dist/` is exactly what gets served: `dist/embed.js` becomes `/games/<id>/embed.js`.
+
+## Describing your game: `manifest.json`
+
+cardtable reads what it needs to know about your game from a `manifest.json` in the same folder as
+your entry, so `dist/manifest.json`, served as `/games/<id>/manifest.json`:
+
+```json
+{
+  "label": "Crossover Cards",
+  "seats": { "min": 1, "max": 4 },
+  "seatRejoinGraceMs": 120000
+}
+```
+
+| Field               | What it is                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `label`             | Your game's name on the create-room form, 1 to 40 characters.                                                    |
+| `seats.min`         | The fewest seated players a match starts with. `1` lets the leader play alone, against bots your bundle runs.   |
+| `seats.max`         | The most seats a room of your game opens, at most 16.                                                            |
+| `seatRejoinGraceMs` | Optional. How long a dropped player keeps their seat, in milliseconds, at most ten minutes. Default two minutes. |
+
+These are yours to change: ship a new release with a different manifest and cardtable picks it up
+within ten minutes, with no change on cardtable's side. A manifest cardtable cannot read (a missing
+field, `min` above `max`) is ignored and the last good one stays in use, so check the server's
+answer after a release that changes it. Whether your game is hosted, who may play it and where it
+is served from are the operator's, and nothing in the manifest changes them.
+
+With Vite, put it in `public/` (copied into `dist/` as is), or write it from your build script.
 
 ## Testing two seats locally
 
@@ -199,13 +228,13 @@ it sends a message, shows what it receives and ends the match.
 1. **An id** for the game: lowercase letters, digits and `-`, starting with a letter, at most 32
    characters (`^[a-z][a-z0-9-]{0,31}$`). It becomes the room type, the URL `/games/<id>/` and the
    stats name, so pick one you will keep.
-2. **A label** for the create-room form, and the **seat range** (minimum and maximum players).
-3. **The entry file's name** inside `dist/` (`embed.js` above).
-4. **Where the repo lives.** Private on your own account is fine. You make the site a
+2. **The entry file's name** inside `dist/` (`embed.js` above). Your label and seat range go in
+   [`manifest.json`](#describing-your-game-manifestjson), not to the operator.
+3. **Where the repo lives.** Private on your own account is fine. You make the site a
    read-only token for it: a fine-grained token on your account with access to that one repository
    and only **Contents: Read-only** (Metadata is added for you). The site reads your releases with
    it and nothing else. A public repo needs no token.
-5. **Your hadoku.me name** (the account you sign in with), so the operator can give you a
+4. **Your hadoku.me name** (the account you sign in with), so the operator can give you a
    **service grant** for the game. That grant is what lets you publish.
 
 ## Publishing a build
@@ -299,6 +328,7 @@ a fixed one.
 - [ ] It draws inside a shadow root and loads every asset by relative URL from its own folder.
 - [ ] It works in the two-seat harness, including a seat reloading mid-game.
 - [ ] Only the leader sends `{ t: 'over', winners }`, once, at the end.
-- [ ] The operator has the id, label, seat range, entry name, repo and your hadoku.me name.
+- [ ] `dist/manifest.json` names your label and seat range.
+- [ ] The operator has the id, entry name, repo and your hadoku.me name.
 - [ ] `release.yml` and `scripts/notify-hadoku.mjs` are in the repo, and `.devvault.local.json` is in
       `.gitignore`.

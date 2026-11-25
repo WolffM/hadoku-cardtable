@@ -12,6 +12,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { basename, dirname, sep } from 'node:path';
 import express from 'express';
+import { EXTERNAL_GAME_MANIFEST_FILE } from '@hadoku/platform-wire/external-game-manifest';
 import type { NextFunction, Request, Response } from 'express';
 import type { Server as SocketIOServer } from 'socket.io';
 
@@ -198,8 +199,13 @@ export function checkBasePath(indexHtmlPath: string, basePrefix: string): BasePa
 	return { ok: true, reason: 'ok', offenders: [], detail: `base path "${wanted}" verified` };
 }
 
+/**
+ * Whether a file under the web dir keeps its name across builds, and so is served `no-cache`: the
+ * app's own embed entries, and the embed's `manifest.json` (`@hadoku/platform-wire/external-game-manifest`),
+ * which every embed may carry and a host re-reads after each release.
+ */
 export function isEmbedEntry(filePath: string, embedEntries: readonly string[]): boolean {
-	return embedEntries.some((name) => filePath.endsWith(`${sep}embed${sep}${name}`));
+	return [...embedEntries, EXTERNAL_GAME_MANIFEST_FILE].some((name) => filePath.endsWith(`${sep}embed${sep}${name}`));
 }
 
 /**

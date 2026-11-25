@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { embedBuild, requireOneStylesheet, shadowRootSelectors, toShadowSelector, withHostTheme } from './vite.ts';
+import { embedBuild, emitManifest, requireOneStylesheet, shadowRootSelectors, toShadowSelector, withHostTheme } from './vite.ts';
 
 describe('the embed stylesheet’s selectors', () => {
   it('turns the document roots into the shadow host and leaves look-alikes alone', () => {
@@ -68,5 +68,30 @@ describe('embedBuild', () => {
     expect(errors).toEqual([]);
     expect(() => plugin.writeBundle.call(ctx, {}, { 'embed/g-embed.css': {}, 'embed/assets/x.css': {} })).toThrow(/exactly embed\/g-embed.css/);
     expect(() => plugin.writeBundle.call(ctx, {}, {})).toThrow(/no stylesheet/);
+  });
+});
+
+describe('the embed manifest', () => {
+  const emitted = (plugin: ReturnType<typeof emitManifest>): Array<{ fileName: string; source: string }> => {
+    const files: Array<{ fileName: string; source: string }> = [];
+    plugin.generateBundle.call({ emitFile: (f) => (files.push(f), f.fileName) });
+    return files;
+  };
+
+  it('is written beside the entry as the host reads it, the default hold filled in', () => {
+    const config = embedBuild({ app: 'g', base: '/g/', manifest: { label: 'G', seats: { min: 1, max: 4 } } });
+    const plugin = config.plugins.find((p) => p.name === 'embed-manifest') as ReturnType<typeof emitManifest>;
+    const [file, ...more] = emitted(plugin);
+    expect(more).toEqual([]);
+    expect(file!.fileName).toBe('embed/manifest.json');
+    expect(JSON.parse(file!.source)).toEqual({ label: 'G', seats: { min: 1, max: 4 }, seatRejoinGraceMs: 120_000 });
+  });
+
+  it('is not written when the game names none', () => {
+    expect(embedBuild({ app: 'g', base: '/g/' }).plugins.map((p) => p.name)).toEqual(['embed-one-stylesheet']);
+  });
+
+  it('fails the build when a host would refuse it', () => {
+    expect(() => embedBuild({ app: 'g', base: '/g/', manifest: { label: 'G', seats: { min: 3, max: 2 } } })).toThrow(/seats: seats.min is more than seats.max/);
   });
 });

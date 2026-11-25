@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "The parts of a game's UI any game keeps: chrome, trim, room shell, embed mount, theme and settings frame, UI scale, usage counting, the sound mixer, motion and generic components. One appId parameterizes its storage keys, events and chat prefix. MIT; imports only react, react-dom and @wolffm/*.",
+  "description": "The parts of a game's UI any game keeps: chrome, trim, room shell, embed mount, theme and settings frame, UI scale, usage counting, the sound mixer, motion and generic components. One appId parameterizes its storage keys, events and chat prefix. MIT; imports only react, react-dom, platform-wire and @wolffm/*.",
   "exports": {
     "./app-id": "./src/app-id/index.ts",
     "./chrome": "./src/chrome/index.ts",
@@ -27,6 +27,7 @@
     "react-dom": "19.2.8"
   },
   "dependencies": {
+    "@hadoku/platform-wire": "workspace:*",
     "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.2.0",
     "@wolffm/themes": "npm:@hadoku/themes@5.14.16",
     "zod": "4.5.4"
