@@ -41,6 +41,7 @@
 import { expect, test, type Browser, type Page, type TestInfo, type WebSocket } from '@playwright/test';
 
 import type { DraftCard, PodView } from '../packages/shared/src/index.ts';
+import { splitPods } from '../packages/shared/src/index.ts';
 
 import { PREFIX } from './identities.ts';
 import { lifeOf, makeTitled, resizeWindow, roomIdFromAddress, serverLog } from './play/board.ts';
@@ -118,6 +119,8 @@ interface Player {
   trail: string[];
   hands: Hands | null;
   handsFor: string;
+  /** This page's draft socket, frame by frame (`draftLine`), for a refused pick's evidence. */
+  wire: string[];
 }
 
 interface Run {
@@ -163,10 +166,36 @@ async function roomOf(p: Player, run: Pick<Run, 'stack' | 'roomId'>): Promise<Ro
 }
 
 /** The draft socket's own pack for this seat, newest frame wins. Attached before the page opens a socket. */
-function capturePack(page: Page): () => readonly WireCard[] | null {
+/** One draft socket frame, short: when, which way, its kind, and the seat's pack as it stood. */
+function draftLine(dir: string, payload: string): string | null {
+  if (!payload.startsWith('42') || !payload.includes('"draft:')) return null;
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(payload.slice(payload.indexOf('[')));
+  } catch {
+    return null;
+  }
+  const body = (decoded as [string, Record<string, unknown>])[1] ?? {};
+  const view = body.view as { seq?: number; viewer?: { kind?: string; pack?: { cardId: string }[]; packNumber?: number; pickNumber?: number } } | undefined;
+  const pack = view?.viewer?.pack;
+  const packText = Array.isArray(pack) ? `pack ${pack.length} [${pack.slice(0, 3).map((c) => c.cardId).join(' ')}${pack.length > 3 ? ' …' : ''}]` : '';
+  const rest = Object.entries(body)
+    .filter(([k]) => k !== 'view')
+    .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v).slice(0, 60) : String(v)}`)
+    .join(' ');
+  return `${new Date().toISOString().slice(11, 23)} ${dir} ${rest} ${view?.seq === undefined ? '' : `seq ${view.seq}`} ${packText}`.trim();
+}
+
+function capturePack(page: Page, wire: string[]): () => readonly WireCard[] | null {
   let latest: readonly WireCard[] | null = null;
   page.on('websocket', (ws: WebSocket) => {
+    ws.on('framesent', (frame) => {
+      const line = typeof frame.payload === 'string' ? draftLine('→', frame.payload) : null;
+      if (line !== null) wire.push(line);
+    });
     ws.on('framereceived', (frame) => {
+      const line = typeof frame.payload === 'string' ? draftLine('←', frame.payload) : null;
+      if (line !== null) wire.push(line);
       if (typeof frame.payload !== 'string' || !frame.payload.startsWith('42') || !frame.payload.includes('"draft:s2c"')) return;
       let decoded: unknown;
       try {
@@ -183,7 +212,8 @@ function capturePack(page: Page): () => readonly WireCard[] | null {
 
 async function openPlayer(browser: Browser, name: string): Promise<Player> {
   const f = await openFriend(browser, name);
-  const p: Player = { f, name, id: '', pack: capturePack(f.page), picks: [], results: new Map(), last: '', lastAt: Date.now(), errors: [], trail: [], hands: null, handsFor: '' };
+  const wire: string[] = [];
+  const p: Player = { f, name, id: '', wire, pack: capturePack(f.page, wire), picks: [], results: new Map(), last: '', lastAt: Date.now(), errors: [], trail: [], hands: null, handsFor: '' };
   f.page.on('framenavigated', (frame) => {
     if (frame !== f.page.mainFrame()) return;
     const hash = new URL(frame.url()).hash;
@@ -236,7 +266,8 @@ async function draft(p: Player): Promise<void> {
   const enabled = '[data-testid="pack"] button[data-testid="card"]:not([disabled])';
   for (;;) {
     const next = await page.waitForFunction(
-      (sel) => (window.location.hash.startsWith('#/deck/') || /\/room\/[^/]+$/.test(window.location.hash) ? 'done' : document.querySelector(sel) !== null ? 'pick' : null),
+      // Done: the builder, or the draft screen gone (a field that ends at the draft stays in the room).
+      (sel) => (window.location.hash.startsWith('#/deck/') || document.querySelector('[role="group"][aria-label="Pack layout"]') === null ? 'done' : document.querySelector(sel) !== null ? 'pick' : null),
       enabled,
       { timeout: 3 * 60_000, polling: 100 },
     );
@@ -290,7 +321,8 @@ async function buildOnce(p: Player, run: Run, podId: string, pool: readonly Wire
       () => true,
       () => false,
     );
-    if (!moved) await tile.dispatchEvent('click');
+    // A click can move the card and still time out waiting on the tile it moved: count before pressing again.
+    if (!moved && Number(await mainCount.textContent()) === before && (await tile.count()) > 0) await tile.dispatchEvent('click', undefined, { timeout: 3_000 });
     await expect(mainCount, `${p.name}: ${card.name} goes to the sideboard`).toHaveText(String(before - 1), { timeout: 5_000 });
   }
   await stamp('sideboarded');
@@ -332,6 +364,8 @@ async function build(p: Player, run: Run): Promise<void> {
 
 interface Look {
   hash: string;
+  /** On the room page itself: its path, with no table in the hash. */
+  onRoom: boolean;
   board: boolean;
   result: string | null;
   /** The result screen's own words on how the game ended. */
@@ -359,6 +393,8 @@ async function look(page: Page): Promise<Look | null> {
       };
       return {
         hash: window.location.hash,
+        // A room is its PATH, `room/<id>` (`packages/game-ui/src/screens/route.ts`); its tables are the hash.
+        onRoom: /\/room\/[^/]+\/?$/.test(window.location.pathname) && window.location.hash.length <= 2,
         board: q('[aria-label="Game board"]') !== null,
         result: q('[data-testid="game-result"]')?.getAttribute('data-result') ?? (q('[data-testid="game-result"]') !== null ? '?' : null),
         ending: (q('[data-testid="game-result"] .live__result-ending')?.textContent ?? q('[data-testid="game-result"] h2')?.textContent ?? '').trim(),
@@ -504,9 +540,9 @@ async function playTournament(p: Player, run: Run): Promise<void> {
       acted = false;
     }
     if (acted) idleSince = Date.now();
-    else if (Date.now() - idleSince > 3 * 60_000 && !/\/room\/[^/#]+$/.test(s.hash)) {
+    else if (Date.now() - idleSince > 3 * 60_000 && !s.onRoom) {
       // A person left on a screen with nothing to press goes back to the room.
-      finding(run, `${p.name} stranded 3 min at ${s.hash} (board ${s.board}, result ${s.result}, door ${s.door}, says "${s.says.slice(0, 80)}"); how it got there:\n    ${p.trail.slice(-8).join('\n    ')}`);
+      finding(run, `${p.name} stranded 3 min at ${s.hash === "" ? "(no hash)" : s.hash} (board ${s.board}, result ${s.result}, door ${s.door}, says "${s.says.slice(0, 80)}"); how it got there:\n    ${p.trail.slice(-8).join('\n    ')}`);
       await page.goto(run.roomUrl).catch(() => undefined);
       idleSince = Date.now();
     }
@@ -602,7 +638,13 @@ function serverFindings(run: Run): void {
   // A pick the page offered and the server refused: the passed pack still drawn, pickable, while the next one comes.
   const refused = new Map<string, string[]>();
   for (const row of rows) if (row.evt === 'pick-rejected') refused.set(String(row.participantId), [...(refused.get(String(row.participantId)) ?? []), String(row.reason)]);
-  for (const [id, reasons] of refused) finding(run, `${run.players.find((p) => p.id === id)?.name ?? id}: ${reasons.length} pick(s) the page offered were refused (${[...new Set(reasons)].join(', ')})`);
+  for (const [id, reasons] of refused) {
+    const p = run.players.find((x) => x.id === id);
+    finding(run, `${p?.name ?? id}: ${reasons.length} pick(s) the page offered were refused (${[...new Set(reasons)].join(', ')})`);
+    // The socket around the first refusals: what the page had been sent when it offered the card.
+    const at = (p?.wire ?? []).flatMap((line, i) => (/reject|error|reason=/i.test(line) ? [i] : [])).slice(0, 3);
+    for (const i of at) say(`${p?.name}: the draft socket before refusal:\n  ${p!.wire.slice(Math.max(0, i - 6), i + 2).join('\n  ')}`);
+  }
 }
 
 /* ── one scenario ────────────────────────────────────────────────────── */
@@ -686,7 +728,8 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
       await expect(leader.f.page.getByTestId('pod-split-pods')).toBeVisible({ timeout: UI_TIMEOUT });
       const pods = (await roomOf(leader, run)).game.pod?.pods ?? [];
       say(`pods: ${pods.map((pod) => `[${pod.map((id) => (isAi(id) ? 'AI' : (players.find((p) => p.id === id)?.name ?? id))).join(' ')}]`).join(' ')}`);
-      expect(pods.map((pod) => pod.length).sort(), 'two pods of eight').toEqual([8, 8]);
+      // The people split as evenly as they go and the bots are spread across the pods (`splitPods`, the operator 2026-11-23).
+      expect(pods.map((pod) => pod.length), 'the people split evenly').toEqual(splitPods(scenario.humans));
       await leader.f.page.getByTestId('pod-split-start').click();
     }
 
@@ -734,8 +777,13 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
   expect(run.findings, `${scenario.key}: findings`).toEqual([]);
 }
 
+/*
+ * `@no-retry`: forge.yml's one re-run of a red (`scripts/ci/e2e-rerun.ts`) names a test by its file and
+ * line, and every scenario is this one line, so it re-ran all five; and a 40-minute tournament has no
+ * second pass inside the job's 45 anyway.
+ */
 for (const scenario of SCENARIOS) {
-  test(titled(`BLB set-cube tournament, ${scenario.key}: ${scenario.humans} people, ${scenario.bots} bots, bots ${scenario.botsPlay ? 'play' : 'only draft'}`), async ({ browser }, info) => {
+  test(titled(`BLB set-cube tournament, ${scenario.key}: ${scenario.humans} people, ${scenario.bots} bots, bots ${scenario.botsPlay ? 'play' : 'only draft'}`), { tag: '@no-retry' }, async ({ browser }, info) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
     test.setTimeout(scenario.minutes * 60_000);
