@@ -55,9 +55,9 @@ export const FRIENDS: Readonly<Record<string, Friend>> = {
     name: 'e2e-admin',
     tier: 'admin',
   },
-  // wave 84 §w84b only: a room of more than 8 drafters, seven of whom join, sit and ready over HTTP alone.
+  // Rooms past one pod: w84b's nine drafters (seven join over HTTP alone), and tourney-blb's fields of up to fourteen.
   ...Object.fromEntries(
-    Array.from({ length: 7 }, (_, i) => [`drafter${i + 3}`, { key: `e2e-friend-key-drafter-${i + 3}`, userId: `e2e-drafter${i + 3}-id`, name: `e2e-drafter${i + 3}` }]),
+    Array.from({ length: 14 }, (_, i) => [`drafter${i + 3}`, { key: `e2e-friend-key-drafter-${i + 3}`, userId: `e2e-drafter${i + 3}-id`, name: `e2e-drafter${i + 3}` }]),
   ),
   // `promo/` only: gamer tags for trailer footage, so no real friend's name is ever on screen.
   ashgrove: { key: 'e2e-friend-key-ashgrove-5b1e', userId: 'e2e-ashgrove-id', name: 'Ashgrove' },

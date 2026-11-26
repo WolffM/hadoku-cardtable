@@ -78,6 +78,8 @@ interface Look {
   confirmYes: boolean;
   /** This seat's own battlefield and hand, as the board counts them — evidence for whether a play landed. */
   counts: { battlefield: number; hand: number };
+  /** The phase rail's turn (`data-turn`): the declare-attackers message names none. */
+  turn: string;
 }
 
 async function look(f: Friend): Promise<Look | null> {
@@ -105,6 +107,7 @@ async function look(f: Friend): Promise<Look | null> {
           battlefield: Number(document.querySelector('[data-zone="battlefield"][data-owner="you"]')?.getAttribute('data-count') ?? -1),
           hand: Number(document.querySelector('[data-zone="hand"][data-owner="you"]')?.getAttribute('data-count') ?? -1),
         },
+        turn: document.querySelector('[data-testid="live-phases"]')?.getAttribute('data-turn') ?? '?',
       };
     }, [BUTTON_ONE, BUTTON_TWO] as const);
   } catch {
@@ -113,7 +116,17 @@ async function look(f: Friend): Promise<Look | null> {
   }
 }
 
-export async function connectHands(f: Friend, seat: number): Promise<Hands> {
+export interface HandsOptions {
+  /**
+   * Attack with everything at each of this seat's own declare-attackers windows: "All"
+   * (`live-attack-all`, the same macro a player presses), then Done. Off, the seat never
+   * attacks, which is what a spec about one card wants; on, a game between two of these
+   * ends on its own, as a played-out tournament game must.
+   */
+  attack?: boolean;
+}
+
+export async function connectHands(f: Friend, seat: number, opts: HandsOptions = {}): Promise<Hands> {
   const log: string[] = [];
   const tried = new Set<string>();
   const picked = new Map<string, number[]>();
@@ -228,6 +241,16 @@ export async function connectHands(f: Friend, seat: number): Promise<Hands> {
     // own header: this bot keeps whatever hand it is dealt).
     if (s.confirmYes) {
       await act('Confirm: yes (default)', s, () => f.page.getByTestId('prompt-confirm-yes').click({ timeout: 2_000 }));
+      return;
+    }
+    if (opts.attack === true && /^Select creatures to attack/i.test(msg)) {
+      // "All" once a turn, then Done: a click on a creature here would take one attacker back out.
+      if (!tried.has(`${s.turn}:attack`)) {
+        tried.add(`${s.turn}:attack`);
+        const all = f.page.getByTestId('live-attack-all');
+        if ((await all.count()) > 0 && (await act('attack with everything', s, () => all.click({ timeout: 2_000 })))) return;
+      }
+      if (s.ok) await act('attackers done', s, press('ok'));
       return;
     }
     if (s.me !== '' && msg.startsWith(`Priority: ${s.me}`)) {

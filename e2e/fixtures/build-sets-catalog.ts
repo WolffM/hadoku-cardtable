@@ -2,7 +2,8 @@
  * Builds the e2e stack's own card catalog fixture — a small, committed
  * subset of the real catalog (`games/magic/server/src/pools/catalog.ts`'s own
  * `{cards, aliases, printings}` shape), covering exactly the sets
- * `draft-sets.spec.ts` deals: ISD, ALA, ARB.
+ * `draft-sets.spec.ts` deals (ISD, ALA, ARB) and Bloomburrow, which
+ * `tourney-blb.spec.ts` drafts as a set cube.
  *
  * ## Why this exists
  *
@@ -22,7 +23,7 @@
  * ## What it keeps
  *
  * - Every `printings` entry whose own `setCode` is one of `--sets` (default
- *   `ISD,ALA,ARB`), and that printing's canonical card (`cards` + any
+ *   `ISD,ALA,ARB,BLB`), and that printing's canonical card (`cards` + any
  *   `aliases` pointing at it). This alone covers a round's own basic land
  *   too: Alara Reborn's booster (`forge-gui/res/editions/Alara
  *   Reborn.txt`: "1 BasicLand ALA") deals it from ALA's own set, and ALA
@@ -44,7 +45,7 @@
  * generation.
  *
  * Usage: `node e2e/fixtures/build-sets-catalog.ts [--catalog=<path>]
- * [--sets=ISD,ALA,ARB] [--out=<path>]`. The source catalog is READ ONLY —
+ * [--sets=ISD,ALA,ARB,BLB] [--out=<path>]`. The source catalog is READ ONLY —
  * this never writes back to it.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -132,7 +133,7 @@ function sortedObject<T>(entries: Iterable<[string, T]>): Record<string, T> {
 
 function main(): void {
   const catalogPath = argValue('catalog', resolve(homedir(), '.local/share/cardtable/catalog/cards.json'));
-  const sets = argValue('sets', 'ISD,ALA,ARB')
+  const sets = argValue('sets', 'ISD,ALA,ARB,BLB')
     .split(',')
     .map((s) => s.trim().toUpperCase())
     .filter((s) => s !== '');
