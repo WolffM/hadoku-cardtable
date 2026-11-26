@@ -262,8 +262,12 @@ async function buildOnce(p: Player, run: Run, podId: string, pool: readonly Wire
   for (const card of pool) {
     if (keep.has(card.cardId)) continue;
     const before = Number(await mainCount.textContent());
-    const tile = page.locator(`[data-testid="main-grid"] button[data-testid="card"][data-card-id="${card.cardId}"]`);
-    if ((await tile.count()) === 0) continue;
+    // The editor numbers its own tiles (`w0`, `w1`, …): a card is found by its name, any copy of it.
+    const tile = page.locator(`[data-testid="main-grid"] .deck-editor__card[data-name="${card.name.replace(/"/g, '\\"')}"] button[data-testid="card"]`).first();
+    if ((await tile.count()) === 0) {
+      trail.push(`no tile for ${card.name} in the deck`);
+      continue;
+    }
     // A pile overlaps its cards: the top strip of each one is what shows.
     const moved = await tile.click({ position: { x: 20, y: 8 }, timeout: 3_000 }).then(
       () => true,
@@ -293,7 +297,7 @@ async function build(p: Player, run: Run): Promise<void> {
   expect(mine.status(), `${p.name}: my pool`).toBe(200);
   const pool = ((await mine.json()) as { pool: WireCard[] }).pool;
   let built = await buildOnce(p, run, podId, pool);
-  if (built.main !== 40 || built.basics === 0 || built.remounted) {
+  if (built.main !== 40 || built.basics < 15 || built.remounted) {
     finding(run, `${p.name}: the builder lost a finished build (main ${built.main}, basics ${built.basics}, remounted ${built.remounted}):\n    ${built.trail.join('\n    ')}`);
     // A person whose build vanished builds it again.
     built = await buildOnce(p, run, podId, pool);
@@ -313,6 +317,8 @@ interface Look {
   hash: string;
   board: boolean;
   result: string | null;
+  /** The result screen's own words on how the game ended. */
+  ending: string;
   enter: boolean;
   next: boolean;
   room: boolean;
@@ -338,6 +344,7 @@ async function look(page: Page): Promise<Look | null> {
         hash: window.location.hash,
         board: q('[aria-label="Game board"]') !== null,
         result: q('[data-testid="game-result"]')?.getAttribute('data-result') ?? (q('[data-testid="game-result"]') !== null ? '?' : null),
+        ending: (q('[data-testid="game-result"] .live__result-ending')?.textContent ?? q('[data-testid="game-result"] h2')?.textContent ?? '').trim(),
         enter: usable('[data-testid="game-result-enter"]'),
         next: usable('[data-testid="game-result-next"]'),
         room: usable('[data-testid="game-result-room"]'),
@@ -420,13 +427,14 @@ async function playTournament(p: Player, run: Run): Promise<void> {
       note(p, `game ${played + 1} at ${seat?.tableId ?? '?'} vs ${seat?.opponent ?? '?'} (${game.real ? 'played out' : 'conceded'}) ${s.hash}`);
     }
     if (s.result !== null) {
+      if (p.hands !== null && game !== null && !game.recorded) say(`${p.name}: the hands' last acts in ${game.hash}:\n  ${p.hands.log.slice(-8).join('\n  ')}`);
       await stopHands(p);
       if (game !== null && !game.recorded && game.seat !== null) {
         game.recorded = true;
         const mine = p.results.get(game.seat.tableId) ?? [];
         mine.push(s.result === 'victory' ? 'victory' : s.result === 'defeat' ? 'defeat' : 'draw');
         p.results.set(game.seat.tableId, mine);
-        note(p, `result ${s.result} at ${game.seat.tableId} after ${Math.round((Date.now() - game.since) / 1000)} s (${mine.join(',')})`);
+        note(p, `result ${s.result} at ${game.seat.tableId} after ${Math.round((Date.now() - game.since) / 1000)} s, "${s.ending}" (${mine.join(',')})`);
       }
       if (s.enter) await page.getByTestId('game-result-enter').click({ timeout: 3_000 }).catch(() => undefined);
       else if (s.sideboardReady) await page.getByTestId('sideboard-ready').click({ timeout: 3_000 }).catch(() => undefined);
@@ -487,6 +495,8 @@ function checkRounds(run: Run, pod: PodView, humans: ReadonlySet<string>): void 
   const rounds = new Map<number, typeof pod.results>();
   for (const r of pod.results) rounds.set(r.round, [...(rounds.get(r.round) ?? []), r]);
   for (const [round, results] of rounds) {
+    // Only a finished round: one still playing has results for its finished tables alone.
+    if (pod.phase !== 'done' && round >= pod.round) continue;
     const playing = new Map<string, number>();
     for (const r of results) {
       for (const id of [r.playerA, r.playerB]) if (id !== null) playing.set(id, (playing.get(id) ?? 0) + 1);
