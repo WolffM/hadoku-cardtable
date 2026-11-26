@@ -550,12 +550,13 @@ describe('a draft tournament past one pod, simulated end to end over real socket
 				if (p === theirs) continue;
 				for (const g of [0, 1]) sim.lobby.recordGameResult(sim.roomId, p.tableId, { matchId: `m-${p.tableId}-${g}`, winner: 0 });
 			}
-			expect(pod(sim).round, 'the round waits on the one table').toBe(1);
 			if (theirs !== undefined) {
+				expect(pod(sim).round, 'the round waits on the one table').toBe(1);
 				expect(sim.lobby.dqPlayer(sim.roomId, sim.drafters[0]!.id, afk).ok).toBe(true);
 				expect(pod(sim).round, 'the DQ settles their table and the round moves on').toBe(2);
 			} else {
 				expect(view.bye).toBe(afk);
+				expect(pod(sim).round, 'a bye holds no table, so the round moves on').toBe(2);
 			}
 		} finally {
 			await sim.close();
