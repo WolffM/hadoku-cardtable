@@ -160,12 +160,21 @@ function hash32(text: string): number {
 }
 
 async function roomOf(p: Player, run: Pick<Run, 'stack' | 'roomId'>): Promise<RoomBody> {
-  const res = await p.f.context.request.get(`${run.stack.origin}${PREFIX}/api/rooms/${run.roomId}`);
-  if (!res.ok()) throw new Error(`${p.name}: GET room ${res.status()}`);
-  return (await res.json()) as RoomBody;
+  // A connection the edge drops (ECONNRESET under a full table's load) is asked again, as a browser would; an answer is final.
+  for (let attempt = 1; ; attempt++) {
+    const res = await p.f.context.request.get(`${run.stack.origin}${PREFIX}/api/rooms/${run.roomId}`).catch((err: unknown) => {
+      if (attempt >= 3) throw err;
+      return null;
+    });
+    if (res === null) {
+      await sleep(500);
+      continue;
+    }
+    if (!res.ok()) throw new Error(`${p.name}: GET room ${res.status()}`);
+    return (await res.json()) as RoomBody;
+  }
 }
 
-/** The draft socket's own pack for this seat, newest frame wins. Attached before the page opens a socket. */
 /** One draft socket frame, short: when, which way, its kind, and the seat's pack as it stood. */
 function draftLine(dir: string, payload: string): string | null {
   if (!payload.startsWith('42') || !payload.includes('"draft:')) return null;
@@ -186,6 +195,7 @@ function draftLine(dir: string, payload: string): string | null {
   return `${new Date().toISOString().slice(11, 23)} ${dir} ${rest} ${view?.seq === undefined ? '' : `seq ${view.seq}`} ${packText}`.trim();
 }
 
+/** The draft socket's own pack for this seat, newest frame wins, and every frame into `wire`. Attached before the page opens a socket. */
 function capturePack(page: Page, wire: string[]): () => readonly WireCard[] | null {
   let latest: readonly WireCard[] | null = null;
   page.on('websocket', (ws: WebSocket) => {
