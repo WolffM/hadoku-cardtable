@@ -63,11 +63,16 @@ export function idsForName(events: Event[], name: string): string[] {
 	return [...ids];
 }
 
-/** The trail's `HH:MM:SS` on the window's own date (`from`), rolled a day on when it wraps past midnight. */
+/**
+ * The trail's `HH:MM:SS` on whichever day (the window's `from` date, or one either side) puts it
+ * nearest the window. A press is placed by the page's clock, so it can sit a few seconds before
+ * `from`; only a clock far behind `from` has wrapped past midnight.
+ */
 function trailTime(from: string, clock: string): string {
-	const day = from.slice(0, 10);
-	const at = `${day}T${clock}.000Z`;
-	return at < from.slice(0, 19) ? new Date(Date.parse(at) + 86_400_000).toISOString() : at;
+	const start = Date.parse(from);
+	const base = Date.parse(`${from.slice(0, 10)}T${clock}.000Z`);
+	const nearest = [base - 86_400_000, base, base + 86_400_000].reduce((a, b) => (Math.abs(b - start) < Math.abs(a - start) ? b : a));
+	return new Date(nearest).toISOString();
 }
 
 export function visit(userId: string, rows: Row[], events: Event[], all: boolean): Visit {

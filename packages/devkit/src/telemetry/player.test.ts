@@ -80,6 +80,16 @@ describe('player', () => {
 		expect(v.lines.map((l) => l.at)).toEqual(['2026-11-21T23:59:00.000Z', '2026-11-22T00:01:00.000Z']);
 	});
 
+	it('keeps a press stamped just before the window on the window\'s day', () => {
+		const v = visit(ALICE, [], [event('2026-11-25T23:49:54.000Z', 'usage-user', { from: '2026-11-25T23:44:54.054Z', userId: ALICE, trail: ['23:44:52 click lobby settings-game', '23:45:56 view lobby'] })], true);
+		expect(v.lines.map((l) => l.at)).toEqual(['2026-11-25T23:44:52.000Z', '2026-11-25T23:45:56.000Z']);
+	});
+
+	it('keeps a press stamped just before a window that opens after midnight on the previous day', () => {
+		const v = visit(ALICE, [], [event('2026-11-26T00:05:00.000Z', 'usage-user', { from: '2026-11-26T00:00:01.000Z', userId: ALICE, trail: ['23:59:58 view lobby', '00:00:30 view room'] })], true);
+		expect(v.lines.map((l) => l.at)).toEqual(['2026-11-25T23:59:58.000Z', '2026-11-26T00:00:30.000Z']);
+	});
+
 	it('fold leaves distinct neighbours alone', () => {
 		const l = (text: string) => ({ at: '2026-11-21T00:00:00.000Z', source: 'ui' as const, text, bad: false });
 		expect(fold([l('a'), l('b'), l('a')]).map((x) => x.text)).toEqual(['a', 'b', 'a']);
