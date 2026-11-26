@@ -17,7 +17,8 @@
     "./usage": "./src/usage/index.ts",
     "./sound": "./src/sound/index.ts",
     "./motion": "./src/motion/index.ts",
-    "./components": "./src/components/index.ts"
+    "./components": "./src/components/index.ts",
+    "./prefs/testing": "./src/prefs/fake-prefs.testing.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

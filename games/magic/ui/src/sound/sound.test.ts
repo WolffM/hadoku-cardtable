@@ -44,52 +44,11 @@ import {
   setTrackNames,
   takeUiTally,
 } from '@hadoku/game-ui/sound/index.ts';
+import { fakePrefs as prefs } from '@hadoku/ui-shell/prefs/testing';
 
-/**
- * The fleet's preference service, one row per app id, in memory. Every save is recorded with its
- * scope, and `push` is a save from somewhere else — another tab, or another host on the page.
- */
-const prefs = vi.hoisted(() => {
-  type Row = Record<string, unknown>;
-  const rows = new Map<string, Row>();
-  const saves: { appId: string; patch: Row; scope: string }[] = [];
-  const subscribers = new Map<string, Set<(row: Row) => void>>();
-  const listenersOf = (appId: string): Set<(row: Row) => void> => {
-    let set = subscribers.get(appId);
-    if (set === undefined) subscribers.set(appId, (set = new Set()));
-    return set;
-  };
-  return {
-    rows,
-    saves,
-    reset(): void {
-      rows.clear();
-      saves.length = 0;
-      subscribers.clear();
-    },
-    push(appId: string, patch: Row): void {
-      const row = { ...rows.get(appId), ...patch };
-      rows.set(appId, row);
-      for (const fn of listenersOf(appId)) fn(row);
-    },
-    client(appId: string) {
-      return {
-        appId,
-        read: () => Promise.resolve({ ...rows.get(appId) }),
-        save(patch: Row, opts?: { scope?: string }) {
-          saves.push({ appId, patch, scope: opts?.scope ?? 'user' });
-          rows.set(appId, { ...rows.get(appId), ...patch });
-          return Promise.resolve();
-        },
-        subscribe(fn: (row: Row) => void) {
-          listenersOf(appId).add(fn);
-          return () => void listenersOf(appId).delete(fn);
-        },
-      };
-    },
-  };
-});
-vi.mock('@wolffm/prefs-client', () => ({ createPrefsClient: ({ appId }: { appId: string }) => prefs.client(appId) }));
+vi.mock('@wolffm/prefs-client', async () => ({
+  createPrefsClient: (await import('@hadoku/ui-shell/prefs/testing')).fakePrefs.createPrefsClient,
+}));
 
 /** A player that records instead of sounding. The whole testing strategy. */
 function recorder() {

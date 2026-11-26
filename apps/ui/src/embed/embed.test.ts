@@ -19,10 +19,10 @@ import { EmbedApp } from './EmbedApp.tsx';
 globalThis.Element.prototype.scrollTo ??= function scrollTo() {};
 
 // The fleet's identity, as the edge answers it, for whatever below asks.
-vi.mock('@wolffm/prefs-client', () => ({
+vi.mock('@wolffm/prefs-client', async () => ({
   whoami: () => Promise.resolve({ userId: 'u-test', userType: 'friend' as const, name: 'Test Friend' }),
   // A client with nothing saved: the embed reads the UI scale from it on mount.
-  createPrefsClient: () => ({ read: () => Promise.resolve({}), subscribe: () => () => undefined, save: () => Promise.resolve() }),
+  createPrefsClient: (await import('@hadoku/ui-shell/prefs/testing')).createFakePrefs().createPrefsClient,
 }));
 
 const ROOM = { id: 'wp-0123456789abcdef0123' };

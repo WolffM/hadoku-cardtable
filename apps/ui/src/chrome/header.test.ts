@@ -31,11 +31,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-vi.mock('@wolffm/prefs-client', () => ({
+vi.mock('@wolffm/prefs-client', async () => ({
   whoami: () =>
     Promise.resolve({ userId: 'u-test', userType: 'friend' as const, name: 'Test Friend' }),
   // A client with nothing saved: the app connects its sound settings to it on mount.
-  createPrefsClient: () => ({ read: () => Promise.resolve({}), subscribe: () => () => undefined, save: () => Promise.resolve() }),
+  createPrefsClient: (await import('@hadoku/ui-shell/prefs/testing')).createFakePrefs().createPrefsClient,
 }));
 // The gear's game section reads the saved preferences; nothing here is about them.
 vi.mock('@wolffm/prefs-client/react', () => ({

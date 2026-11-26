@@ -8,35 +8,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { configureShell } from '../app-id/index.ts';
+import { fakePrefs as prefs } from '../prefs/fake-prefs.testing.ts';
 
-const prefs = vi.hoisted(() => {
-  type Row = Record<string, unknown>;
-  const rows = new Map<string, Row>();
-  const saves: { appId: string; patch: Row; scope: string }[] = [];
-  return {
-    rows,
-    saves,
-    reset(): void {
-      rows.clear();
-      saves.length = 0;
-    },
-    client(appId: string) {
-      return {
-        appId,
-        read: () => Promise.resolve({ ...rows.get(appId) }),
-        save(patch: Row, opts?: { scope?: string }) {
-          saves.push({ appId, patch, scope: opts?.scope ?? 'user' });
-          rows.set(appId, { ...rows.get(appId), ...patch });
-          return Promise.resolve();
-        },
-        subscribe() {
-          return () => undefined;
-        },
-      };
-    },
-  };
-});
-vi.mock('@wolffm/prefs-client', () => ({ createPrefsClient: ({ appId }: { appId: string }) => prefs.client(appId) }));
+vi.mock('@wolffm/prefs-client', async () => ({
+  createPrefsClient: (await import('../prefs/fake-prefs.testing.ts')).fakePrefs.createPrefsClient,
+}));
 
 beforeEach(() => {
   prefs.reset();
