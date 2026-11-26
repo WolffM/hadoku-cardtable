@@ -453,12 +453,22 @@ function concedes(p: Player, seat: Seat, mine: readonly string[]): boolean {
   return twoOne ? won > lost : won < lost;
 }
 
-async function concede(p: Player, why: string): Promise<boolean> {
+async function concede(p: Player, run: Run, why: string): Promise<boolean> {
   const { page } = p.f;
   note(p, `concedes: ${why}`);
   try {
     await page.getByTestId('live-concede').click({ timeout: 3_000 });
     await page.getByTestId('live-concede-yes').click({ timeout: 3_000 });
+    // Concede closes its own sheet as it sends (`LiveBoard`'s `ConcedeAsk`): one still open was not sent.
+    const open = await page.getByTestId('live-concede-ask').waitFor({ state: 'hidden', timeout: 2_000 }).then(
+      () => false,
+      () => true,
+    );
+    if (open) {
+      finding(run, `${p.name}: the Concede sheet stayed open after Concede was pressed (${page.url()})`);
+      await page.getByTestId('live-concede-no').click({ timeout: 2_000 }).catch(() => undefined);
+      return false;
+    }
     return true;
   } catch (err) {
     note(p, `concede did not land: ${String(err).split('\n')[0]}`);
@@ -474,7 +484,7 @@ async function stopHands(p: Player): Promise<void> {
 
 async function playTournament(p: Player, run: Run): Promise<void> {
   const { page } = p.f;
-  let game: { hash: string; seat: Seat | null; since: number; real: boolean; conceded: boolean; recorded: boolean } | null = null;
+  let game: { hash: string; seat: Seat | null; since: number; concededAt: number | null; real: boolean; conceded: boolean; recorded: boolean } | null = null;
   let idleSince = Date.now();
   while (!run.done) {
     const s = await look(page);
@@ -487,7 +497,7 @@ async function playTournament(p: Player, run: Run): Promise<void> {
     if (match !== null && (game === null || game.hash !== s.hash)) {
       const seat = await mySeat(p, run).catch(() => null);
       const played = seat === null ? 0 : (p.results.get(seat.tableId) ?? []).length;
-      game = { hash: s.hash, seat, since: Date.now(), real: played < run.scenario.realGames && seat !== null && playsOut(run, seat), conceded: false, recorded: false };
+      game = { hash: s.hash, seat, since: Date.now(), concededAt: null, real: played < run.scenario.realGames && seat !== null && playsOut(run, seat), conceded: false, recorded: false };
       note(p, `game ${played + 1} at ${seat?.tableId ?? '?'} vs ${seat?.opponent ?? '?'} (${game.real ? 'played out' : 'conceded'}) ${s.hash}`);
     }
     if (s.result !== null) {
@@ -514,15 +524,27 @@ async function playTournament(p: Player, run: Run): Promise<void> {
       }
       await answerPrompt(page).catch(() => null);
       const age = Date.now() - game.since;
+      // A concede the page took that never ended the game: say so, with when, and give up again.
+      if (game.conceded && game.concededAt !== null && s.result === null && Date.now() - game.concededAt > 20_000) {
+        finding(run, `${p.name}: conceded at ${new Date(game.concededAt).toISOString().slice(11, 23)} in ${game.hash} and the game went on 20 s`);
+        game.conceded = false;
+        game.concededAt = null;
+      }
       if (!game.conceded && s.concede && game.seat !== null && s.says !== '') {
         const mine = p.results.get(game.seat.tableId) ?? [];
         if (!game.real) {
-          if (age > 4_000 && concedes(p, game.seat, mine)) game.conceded = await concede(p, 'a conceded game');
+          if (age > 4_000 && concedes(p, game.seat, mine)) {
+            game.conceded = await concede(p, run, 'a conceded game');
+            if (game.conceded) game.concededAt = Date.now();
+          }
         } else if (age > GAME_CAP_MS) {
           const me = Number(await lifeOf(page, 'me').textContent({ timeout: 1_000 }).catch(() => 'NaN'));
           const opp = Number(await lifeOf(page, 'opp').textContent({ timeout: 1_000 }).catch(() => 'NaN'));
           const behind = me < opp || (me === opp && concedes(p, game.seat, mine)) || (isAi(game.seat.opponent) && age > 2 * GAME_CAP_MS);
-          if (behind) game.conceded = await concede(p, `the cap: life ${me} to ${opp} on "${s.says.slice(0, 60)}"`);
+          if (behind) {
+            game.conceded = await concede(p, run, `the cap: life ${me} to ${opp} on "${s.says.slice(0, 60)}"`);
+            if (game.conceded) game.concededAt = Date.now();
+          }
         }
       }
     } else if (/\/sideboard$/.test(s.hash)) {
