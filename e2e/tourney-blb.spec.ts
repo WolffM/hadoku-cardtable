@@ -466,6 +466,8 @@ function concedes(p: Player, seat: Seat, mine: readonly string[]): boolean {
 async function concede(p: Player, run: Run, why: string): Promise<boolean> {
   const { page } = p.f;
   note(p, `concedes: ${why}`);
+  // The hands share this page's one mouse: a card they lift between this press and its release takes the click.
+  await p.hands?.pause();
   try {
     await page.getByTestId('live-concede').click({ timeout: 3_000 });
     await page.getByTestId('live-concede-yes').click({ timeout: 3_000 });
@@ -483,6 +485,8 @@ async function concede(p: Player, run: Run, why: string): Promise<boolean> {
   } catch (err) {
     note(p, `concede did not land: ${String(err).split('\n')[0]}`);
     return false;
+  } finally {
+    p.hands?.resume();
   }
 }
 
