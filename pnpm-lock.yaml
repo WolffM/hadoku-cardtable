@@ -116,10 +116,10 @@ importers:
         version: link:../../packages/ui-shell
       '@wolffm/game-stats-ui':
         specifier: npm:@hadoku/game-stats-ui@0.1.17
-        version: '@hadoku/game-stats-ui@0.1.17(@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.18(react@19.2.8))(react@19.2.8)'
+        version: '@hadoku/game-stats-ui@0.1.17(@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.18(react@19.2.8))(react@19.2.8)'
       '@wolffm/prefs-client':
-        specifier: npm:@hadoku/prefs-client@1.2.1
-        version: '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)'
+        specifier: npm:@hadoku/prefs-client@1.2.2
+        version: '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.139
         version: '@hadoku/rooms-protocol@0.45.139'
@@ -242,8 +242,8 @@ importers:
         specifier: ^2.6.2
         version: 2.6.2
       '@wolffm/prefs-client':
-        specifier: npm:@hadoku/prefs-client@1.2.1
-        version: '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)'
+        specifier: npm:@hadoku/prefs-client@1.2.2
+        version: '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.139
         version: '@hadoku/rooms-protocol@0.45.139'
@@ -295,10 +295,10 @@ importers:
         version: link:../../../packages/ui-shell
       '@wolffm/game-stats-ui':
         specifier: npm:@hadoku/game-stats-ui@0.1.17
-        version: '@hadoku/game-stats-ui@0.1.17(@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.18(react@19.2.8))(react@19.2.8)'
+        version: '@hadoku/game-stats-ui@0.1.17(@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.18(react@19.2.8))(react@19.2.8)'
       '@wolffm/prefs-client':
-        specifier: npm:@hadoku/prefs-client@1.2.1
-        version: '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)'
+        specifier: npm:@hadoku/prefs-client@1.2.2
+        version: '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-client':
         specifier: npm:@hadoku/rooms-client@0.45.139
         version: '@hadoku/rooms-client@0.45.139(react@19.2.8)(socket.io-client@4.8.3)'
@@ -361,8 +361,8 @@ importers:
         specifier: workspace:*
         version: link:../service-kernel
       '@wolffm/prefs-client':
-        specifier: npm:@hadoku/prefs-client@1.2.1
-        version: '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)'
+        specifier: npm:@hadoku/prefs-client@1.2.2
+        version: '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol':
         specifier: npm:@hadoku/rooms-protocol@0.45.139
         version: '@hadoku/rooms-protocol@0.45.139'
@@ -395,8 +395,8 @@ importers:
         specifier: workspace:*
         version: link:../ui-shell
       '@wolffm/prefs-client':
-        specifier: npm:@hadoku/prefs-client@1.2.1
-        version: '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)'
+        specifier: npm:@hadoku/prefs-client@1.2.2
+        version: '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-client':
         specifier: npm:@hadoku/rooms-client@0.45.139
         version: '@hadoku/rooms-client@0.45.139(react@19.2.8)(socket.io-client@4.8.3)'
@@ -507,8 +507,8 @@ importers:
         specifier: workspace:*
         version: link:../platform-wire
       '@wolffm/prefs-client':
-        specifier: npm:@hadoku/prefs-client@1.2.1
-        version: '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)'
+        specifier: npm:@hadoku/prefs-client@1.2.2
+        version: '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)'
       '@wolffm/themes':
         specifier: npm:@hadoku/themes@5.14.18
         version: '@hadoku/themes@5.14.18(react@19.2.8)'
@@ -827,8 +827,8 @@ packages:
       '@wolffm/themes': ^5.8.0
       react: ^18.0.0 || ^19.0.0
 
-  '@hadoku/prefs-client@1.2.1':
-    resolution: {integrity: sha512-YZOC+TiT59/gNAsnyMgbgiLXEP/8wQ3a+Cket1xMrzOdAVCZv+pOk2tGdNFz5785jvpodiyvvS6kI5VvVICYIg==}
+  '@hadoku/prefs-client@1.2.2':
+    resolution: {integrity: sha512-DmLSGtxhw6O0a7zgSgZEpeDW1s8Rz40Jxdy6uj3KWdTCoc0b6NyQ3OfuQWJuuKW+QAEjj87g8Wivf/YpnIweYQ==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -2724,13 +2724,13 @@ snapshots:
     optionalDependencies:
       react: 19.2.8
 
-  '@hadoku/game-stats-ui@0.1.17(@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.18(react@19.2.8))(react@19.2.8)':
+  '@hadoku/game-stats-ui@0.1.17(@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4))(@hadoku/themes@5.14.18(react@19.2.8))(react@19.2.8)':
     dependencies:
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)'
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)'
       '@wolffm/themes': '@hadoku/themes@5.14.18(react@19.2.8)'
       react: 19.2.8
 
-  '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)':
+  '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)':
     dependencies:
       zod: 4.5.4
     optionalDependencies:
@@ -2762,7 +2762,7 @@ snapshots:
 
   '@hadoku/themes@5.14.18(react@19.2.8)':
     dependencies:
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)'
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)'
       zod: 4.5.4
     optionalDependencies:
       react: 19.2.8
@@ -2770,7 +2770,7 @@ snapshots:
   '@hadoku/watchparty-ui@0.45.139(@hadoku/task-ui-components@4.23.48(@hadoku/themes@5.14.18(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@wolffm/cdn-client': '@hadoku/cdn-client@2.1.2(react@19.2.8)'
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.1(react@19.2.8)(zod@4.5.4)'
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.2(react@19.2.8)(zod@4.5.4)'
       '@wolffm/rooms-protocol': '@hadoku/rooms-protocol@0.45.139'
       '@wolffm/themes': '@hadoku/themes@5.14.18(react@19.2.8)'
       react: 19.2.8

@@ -30,7 +30,7 @@
   "dependencies": {
     "@hadoku/platform-wire": "workspace:*",
     "@hadoku/ui-shell": "workspace:*",
-    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.2.1",
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.2.2",
     "@wolffm/rooms-client": "npm:@hadoku/rooms-client@0.45.139",
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.139",
     "@wolffm/task-ui-components": "npm:@hadoku/task-ui-components@4.23.48",

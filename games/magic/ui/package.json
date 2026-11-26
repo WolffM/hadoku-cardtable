@@ -19,7 +19,7 @@
     "@hadoku/shared": "workspace:*",
     "@hadoku/ui-shell": "workspace:*",
     "@wolffm/game-stats-ui": "npm:@hadoku/game-stats-ui@0.1.17",
-    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.2.1",
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.2.2",
     "@wolffm/rooms-client": "npm:@hadoku/rooms-client@0.45.139",
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.139",
     "@wolffm/themes": "npm:@hadoku/themes@5.14.18",
