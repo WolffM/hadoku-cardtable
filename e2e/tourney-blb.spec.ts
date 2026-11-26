@@ -22,7 +22,8 @@
  * "Played out" is a real game of drafted Bloomburrow cards: each seat plays a land, casts what
  * Forge offers, attacks with everything, and answers every question the board asks
  * (`play/hands.ts` with `attack`, `play/prompts.ts`). The first `realGames` of each series are
- * played out; a game still going at `GAME_CAP_MS` is conceded by the seat behind on life. The rest
+ * played out, at no more than `realTables` tables a round (a claw job's memory holds about four
+ * live boards); a game still going at `GAME_CAP_MS` is conceded by the seat behind on life. The rest
  * of a series ends by concede, in a fixed pattern per table (2–0 or 2–1), so every series length
  * and the sideboard step between its games are walked.
  *
@@ -67,6 +68,12 @@ interface Scenario {
   botsPlay: boolean;
   /** How many games of each series are played out; the rest end by concede. */
   realGames: number;
+  /**
+   * How many tables a round play their games out; the rest concede. A played-out game keeps two
+   * live boards open for minutes, and a claw job's memory ceiling (6.2 GB) holds the server, a
+   * Forge JVM and about four of them: seven people at three played-out tables were OOM-killed.
+   */
+  realTables: number;
   minutes: number;
   /**
    * The play stack's own env. Fourteen browsers and seven tables a round fill a claw's memory
@@ -76,11 +83,11 @@ interface Scenario {
 }
 
 const SCENARIOS: readonly Scenario[] = [
-  { key: '7p+1bot bye', humans: 7, bots: 1, botsPlay: false, realGames: 1, minutes: 42 },
-  { key: '14p+2bots', humans: 14, bots: 2, botsPlay: true, realGames: 0, minutes: 42, env: { CARDTABLE_PLAY_OVER_GRACE_MS: '30000' } },
-  { key: '8p', humans: 8, bots: 0, botsPlay: true, realGames: 1, minutes: 42 },
-  { key: '1p+7bots', humans: 1, bots: 7, botsPlay: true, realGames: 3, minutes: 42 },
-  { key: '1p+7bots bye', humans: 1, bots: 7, botsPlay: false, realGames: 0, minutes: 20 },
+  { key: '7p+1bot bye', humans: 7, bots: 1, botsPlay: false, realGames: 1, realTables: 1, minutes: 42 },
+  { key: '14p+2bots', humans: 14, bots: 2, botsPlay: true, realGames: 0, realTables: 0, minutes: 42, env: { CARDTABLE_PLAY_OVER_GRACE_MS: '30000' } },
+  { key: '8p', humans: 8, bots: 0, botsPlay: true, realGames: 1, realTables: 1, minutes: 42 },
+  { key: '1p+7bots', humans: 1, bots: 7, botsPlay: true, realGames: 3, realTables: 1, minutes: 42 },
+  { key: '1p+7bots bye', humans: 1, bots: 7, botsPlay: false, realGames: 0, realTables: 0, minutes: 20 },
 ];
 
 const NAMES = ['alice', 'bob', 'carol', ...Array.from({ length: 14 }, (_, i) => `drafter${i + 3}`)];
@@ -107,6 +114,8 @@ interface Player {
   last: string;
   lastAt: number;
   errors: string[];
+  /** Every place the page went, with the time and what this agent did just before. */
+  trail: string[];
   hands: Hands | null;
   handsFor: string;
 }
@@ -118,6 +127,8 @@ interface Run {
   roomUrl: string;
   players: Player[];
   findings: string[];
+  /** The tables that play their games out, by round: at most `realTables` a round, first come. */
+  realTables: Map<number, Set<string>>;
   done: boolean;
   info: TestInfo;
 }
@@ -172,7 +183,13 @@ function capturePack(page: Page): () => readonly WireCard[] | null {
 
 async function openPlayer(browser: Browser, name: string): Promise<Player> {
   const f = await openFriend(browser, name);
-  const p: Player = { f, name, id: '', pack: capturePack(f.page), picks: [], results: new Map(), last: '', lastAt: Date.now(), errors: [], hands: null, handsFor: '' };
+  const p: Player = { f, name, id: '', pack: capturePack(f.page), picks: [], results: new Map(), last: '', lastAt: Date.now(), errors: [], trail: [], hands: null, handsFor: '' };
+  f.page.on('framenavigated', (frame) => {
+    if (frame !== f.page.mainFrame()) return;
+    const hash = new URL(frame.url()).hash;
+    p.trail.push(`${new Date().toISOString().slice(11, 19)} ${hash === '' ? '(no hash)' : hash} after "${p.last.slice(0, 60)}"`);
+    if (p.trail.length > 30) p.trail.shift();
+  });
   f.page.on('pageerror', (err) => p.errors.push(`pageerror ${String(err).slice(0, 300)}`));
   f.page.on('console', (m) => {
     if (m.type() !== 'error') return;
@@ -365,13 +382,24 @@ async function look(page: Page): Promise<Look | null> {
 interface Seat {
   tableId: string;
   opponent: string;
+  round: number;
+}
+
+/** Whether this table plays its games out: it already does, or its round has a place left. */
+function playsOut(run: Run, seat: Seat): boolean {
+  const tables = run.realTables.get(seat.round) ?? new Set<string>();
+  run.realTables.set(seat.round, tables);
+  if (tables.has(seat.tableId)) return true;
+  if (tables.size >= run.scenario.realTables) return false;
+  tables.add(seat.tableId);
+  return true;
 }
 
 async function mySeat(p: Player, run: Run): Promise<Seat | null> {
   const body = await roomOf(p, run);
   const pairing = body.game.pod?.pairings.find((x) => x.players.includes(p.id));
   if (pairing === undefined) return null;
-  return { tableId: pairing.tableId, opponent: pairing.players.find((x) => x !== p.id) ?? '' };
+  return { tableId: pairing.tableId, opponent: pairing.players.find((x) => x !== p.id) ?? '', round: body.game.pod?.round ?? 0 };
 }
 
 /**
@@ -423,7 +451,7 @@ async function playTournament(p: Player, run: Run): Promise<void> {
     if (match !== null && (game === null || game.hash !== s.hash)) {
       const seat = await mySeat(p, run).catch(() => null);
       const played = seat === null ? 0 : (p.results.get(seat.tableId) ?? []).length;
-      game = { hash: s.hash, seat, since: Date.now(), real: played < run.scenario.realGames, conceded: false, recorded: false };
+      game = { hash: s.hash, seat, since: Date.now(), real: played < run.scenario.realGames && seat !== null && playsOut(run, seat), conceded: false, recorded: false };
       note(p, `game ${played + 1} at ${seat?.tableId ?? '?'} vs ${seat?.opponent ?? '?'} (${game.real ? 'played out' : 'conceded'}) ${s.hash}`);
     }
     if (s.result !== null) {
@@ -478,7 +506,7 @@ async function playTournament(p: Player, run: Run): Promise<void> {
     if (acted) idleSince = Date.now();
     else if (Date.now() - idleSince > 3 * 60_000 && !/\/room\/[^/#]+$/.test(s.hash)) {
       // A person left on a screen with nothing to press goes back to the room.
-      finding(run, `${p.name} stranded 3 min at ${s.hash} (board ${s.board}, result ${s.result}, door ${s.door}, says "${s.says.slice(0, 80)}")`);
+      finding(run, `${p.name} stranded 3 min at ${s.hash} (board ${s.board}, result ${s.result}, door ${s.door}, says "${s.says.slice(0, 80)}"); how it got there:\n    ${p.trail.slice(-8).join('\n    ')}`);
       await page.goto(run.roomUrl).catch(() => undefined);
       idleSince = Date.now();
     }
@@ -546,7 +574,7 @@ async function watchRoom(run: Run, humans: ReadonlySet<string>, deadline: number
     }
     if (pod.phase === 'done') return pod;
     if (Date.now() - changedAt > STALL_MS) {
-      for (const p of run.players) say(`stall: ${p.name} last "${p.last}" ${Math.round((Date.now() - p.lastAt) / 1000)} s ago\n${describePage(p.f)}${p.hands === null ? '' : `\n  hands: ${p.hands.log.slice(-6).join('\n  ')}`}`);
+      for (const p of run.players) say(`stall: ${p.name} last "${p.last}" ${Math.round((Date.now() - p.lastAt) / 1000)} s ago\n${describePage(p.f)}${p.hands === null ? '' : `\n  hands: ${p.hands.log.slice(-25).join('\n  ')}`}`);
       await screenshotAll(run, 'stall');
       throw new Error(`the tournament stalled ${STALL_MS / 60_000} min at round ${pod.round}: ${sig}`);
     }
@@ -582,7 +610,7 @@ function serverFindings(run: Run): void {
 async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo): Promise<void> {
   const started = Date.now();
   const stack = await startPlayStack(forge as { jar: string; res: string }, { env: scenario.env ?? {} });
-  const run: Run = { scenario, stack, roomId: '', roomUrl: '', players: [], findings: [], done: false, info };
+  const run: Run = { scenario, stack, roomId: '', roomUrl: '', players: [], findings: [], realTables: new Map(), done: false, info };
   try {
     const players = await Promise.all(NAMES.slice(0, scenario.humans).map((n) => openPlayer(browser, n)));
     run.players = players;

@@ -59,6 +59,12 @@ interface Look {
   anywhere: { id: number }[];
   /** The opponent, when Forge is asking for a player. */
   opponentSelectable: boolean;
+  /**
+   * The selection sheet's tiles not yet picked (`SelectionPrompt`, `prompt-cards`): the one place
+   * a person answers a selection whose candidate the board cannot draw a click for, such as a
+   * token folded into a stack of its copies (BLB's Offspring).
+   */
+  sheet: number[];
   ask: boolean;
   /**
    * Wave 35 R2: the coin toss / play-draw question, in its own decision area
@@ -100,6 +106,9 @@ async function look(f: Friend): Promise<Look | null> {
         hand: cardsIn(document, '[data-zone="hand"][data-owner="you"] [data-board-card][data-selectable]'),
         anywhere: cardsIn(document, '[data-board-card][data-selectable]').map((c) => ({ id: c.id })),
         opponentSelectable: document.querySelector('[data-testid="player"]:not([data-viewer])[data-selectable] .seat__select') !== null,
+        sheet: Array.from(document.querySelectorAll('[data-testid="prompt-cards"] input[data-testid="prompt-choice"]:not(:checked):not(:disabled)')).map((el) =>
+          Number(el.getAttribute('data-card-id')),
+        ),
         ask: document.querySelector('[data-testid="live-prompt"]') !== null,
         playOrDraw: document.querySelector('[data-testid="live-play-or-draw-play"]') !== null,
         confirmYes: document.querySelector('[data-testid="prompt-confirm-yes"]') !== null,
@@ -129,6 +138,7 @@ export interface HandsOptions {
 export async function connectHands(f: Friend, seat: number, opts: HandsOptions = {}): Promise<Hands> {
   const log: string[] = [];
   const tried = new Set<string>();
+  const sheetTried = new Set<string>();
   const picked = new Map<string, number[]>();
   let signature = '';
   let idleSince = Date.now();
@@ -355,7 +365,15 @@ export async function connectHands(f: Friend, seat: number, opts: HandsOptions =
         // actually pay for, a target it cannot choose). Move on rather than wait.
         if (Date.now() - idleSince > IDLE_MS) {
           idleSince = Date.now();
-          if (s.ok) await act('idle → OK', s, press('ok'));
+          // The board offered nothing it could click (a token folded into a stack of its copies,
+          // BLB's Offspring): answer from the selection sheet, as a person does, each tile once.
+          const fromSheet = s.sheet.find((id) => !sheetTried.has(`${s.says}:${id}`));
+          if (fromSheet !== undefined) {
+            sheetTried.add(`${s.says}:${fromSheet}`);
+            await act(`idle → pick ${fromSheet} from the sheet`, s, () =>
+              f.page.locator(`[data-testid="prompt-cards"] li[data-card-id="${fromSheet}"] label`).first().click({ timeout: 2_000 }),
+            );
+          } else if (s.ok) await act('idle → OK', s, press('ok'));
           else if (s.cancel) await act('idle → Cancel', s, press('cancel'));
         }
         return;
