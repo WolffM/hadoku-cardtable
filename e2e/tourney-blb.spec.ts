@@ -219,7 +219,7 @@ async function draft(p: Player): Promise<void> {
   const enabled = '[data-testid="pack"] button[data-testid="card"]:not([disabled])';
   for (;;) {
     const next = await page.waitForFunction(
-      (sel) => (window.location.hash.startsWith('#/deck/') ? 'done' : document.querySelector(sel) !== null ? 'pick' : null),
+      (sel) => (window.location.hash.startsWith('#/deck/') || /\/room\/[^/]+$/.test(window.location.hash) ? 'done' : document.querySelector(sel) !== null ? 'pick' : null),
       enabled,
       { timeout: 3 * 60_000, polling: 100 },
     );
@@ -241,22 +241,26 @@ async function draft(p: Player): Promise<void> {
 
 /* ── building: 23 spells in two colours, Auto for the lands ──────────── */
 
-async function build(p: Player, run: Run): Promise<void> {
+/** One pass of a person's build; returns what the builder showed after it settled. */
+async function buildOnce(p: Player, run: Run, podId: string, pool: readonly WireCard[]): Promise<{ main: number; basics: number; remounted: boolean; trail: string[] }> {
   const { page } = p.f;
-  await expect(page.getByTestId('deck-editor'), `${p.name}: the finished draft opens the builder`).toBeVisible({ timeout: UI_TIMEOUT });
-  const podId = /^#\/deck\/([^/?]+)/.exec(new URL(page.url()).hash)?.[1];
-  if (podId === undefined) throw new Error(`${p.name}: the builder's address names no pod: ${page.url()}`);
-  const mine = await p.f.context.request.get(`${run.stack.origin}${PREFIX}/api/drafts/${podId}/mine`);
-  expect(mine.status(), `${p.name}: my pool`).toBe(200);
-  const pool = ((await mine.json()) as { pool: WireCard[] }).pool;
   const pair = topColours(pool);
   const spells = pool.filter((c) => !/\bLand\b/.test(c.typeLine));
   const rank = (c: WireCard): number =>
     (c.colors.length > 0 && c.colors.every((x) => pair.includes(x)) ? 0 : c.colors.length === 0 ? 1 : 2) * 100 + (/\bCreature\b/.test(c.typeLine) ? 0 : 10) + c.manaValue;
   const keep = new Set([...spells].sort((a, b) => rank(a) - rank(b)).slice(0, 23).map((c) => c.cardId));
-  const out = pool.filter((c) => !keep.has(c.cardId));
   const mainCount = page.getByTestId('main-count');
-  for (const card of out) {
+  const editor = page.getByTestId('deck-editor');
+  // A mark on the editor's own node: a remount drops it.
+  await editor.evaluate((el) => el.setAttribute('data-tourney-mark', '1'));
+  const t0 = Date.now();
+  const trail: string[] = [];
+  const stamp = async (what: string): Promise<void> => {
+    trail.push(`+${Date.now() - t0}ms ${what}: main ${await mainCount.textContent().catch(() => '?')} mark ${(await page.locator('[data-tourney-mark]').count()) > 0} save ${await editor.getAttribute('data-save').catch(() => '?')} at ${new URL(page.url()).hash}`);
+  };
+  await stamp('open');
+  for (const card of pool) {
+    if (keep.has(card.cardId)) continue;
     const before = Number(await mainCount.textContent());
     const tile = page.locator(`[data-testid="main-grid"] button[data-testid="card"][data-card-id="${card.cardId}"]`);
     if ((await tile.count()) === 0) continue;
@@ -268,23 +272,39 @@ async function build(p: Player, run: Run): Promise<void> {
     if (!moved) await tile.dispatchEvent('click');
     await expect(mainCount, `${p.name}: ${card.name} goes to the sideboard`).toHaveText(String(before - 1), { timeout: 5_000 });
   }
+  await stamp('sideboarded');
   await page.getByTestId('basics-auto').click();
-  await expect.poll(async () => Number(await mainCount.textContent()), { timeout: 10_000, message: `${p.name}: Auto fills the deck to forty` }).toBeGreaterThanOrEqual(40);
-  // The pod saves each move itself (`useDraftBuild`); the editor's own autosave reads `idle` once its deck is the one saved.
-  await expect(page.getByTestId('deck-editor'), `${p.name}: nothing is still saving`).toHaveAttribute('data-save', /^(idle|saved)$/, { timeout: UI_TIMEOUT });
-  await expect
-    .poll(
-      async () => {
-        const res = await p.f.context.request.get(`${run.stack.origin}${PREFIX}/api/drafts/${podId}/mine`);
-        const dck = ((await res.json()) as { deck: string | null }).deck ?? '';
-        return [...dck.matchAll(/^(\d+)\s+(Plains|Island|Swamp|Mountain|Forest)\b/gm)].reduce((n, m) => n + Number(m[1]), 0);
-      },
-      { timeout: UI_TIMEOUT, message: `${p.name}: the server holds the build with its basics` },
-    )
-    .toBeGreaterThan(0);
-  note(p, `built ${await mainCount.textContent()} in ${pair.join('')} (${keep.size} spells)`);
+  await stamp('auto');
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(500);
+    await stamp(`settle ${i}`);
+  }
+  const basics = await page.locator('[data-testid^="basic-"][data-testid$="-count"]').evaluateAll((els) => els.reduce((n, e) => n + Number(e.textContent ?? 0), 0));
+  return { main: Number(await mainCount.textContent()), basics, remounted: (await page.locator('[data-tourney-mark]').count()) === 0, trail };
+}
+
+/** 23 spells in two colours and Auto for the lands, as a person builds; then Play. */
+async function build(p: Player, run: Run): Promise<void> {
+  const { page } = p.f;
+  await expect(page.getByTestId('deck-editor'), `${p.name}: the finished draft opens the builder`).toBeVisible({ timeout: UI_TIMEOUT });
+  const podId = /^#\/deck\/([^/?]+)/.exec(new URL(page.url()).hash)?.[1];
+  if (podId === undefined) throw new Error(`${p.name}: the builder's address names no pod: ${page.url()}`);
+  const mine = await p.f.context.request.get(`${run.stack.origin}${PREFIX}/api/drafts/${podId}/mine`);
+  expect(mine.status(), `${p.name}: my pool`).toBe(200);
+  const pool = ((await mine.json()) as { pool: WireCard[] }).pool;
+  let built = await buildOnce(p, run, podId, pool);
+  if (built.main !== 40 || built.basics === 0 || built.remounted) {
+    finding(run, `${p.name}: the builder lost a finished build (main ${built.main}, basics ${built.basics}, remounted ${built.remounted}):\n    ${built.trail.join('\n    ')}`);
+    // A person whose build vanished builds it again.
+    built = await buildOnce(p, run, podId, pool);
+    if (built.main !== 40 || built.basics === 0) finding(run, `${p.name}: the second build was lost too (main ${built.main}, basics ${built.basics}):\n    ${built.trail.join('\n    ')}`);
+  }
+  note(p, `built ${built.main} (${built.basics} basics) in ${topColours(pool).join('')}`);
   await page.getByTestId('play-deck').click();
   await page.waitForURL(/\/room\/[^/#]+$/, { timeout: UI_TIMEOUT });
+  const dck = ((await (await p.f.context.request.get(`${run.stack.origin}${PREFIX}/api/drafts/${podId}/mine`)).json()) as { deck: string | null }).deck ?? '';
+  const lands = [...dck.matchAll(/^(\d+)\s+(Plains|Island|Swamp|Mountain|Forest)\b/gm)].reduce((n, m) => n + Number(m[1]), 0);
+  if (lands === 0) finding(run, `${p.name}: Play seated a build with no basics; the server holds:\n${dck.slice(0, 600)}`);
 }
 
 /* ── the tournament: a person on their own page ──────────────────────── */
@@ -297,6 +317,8 @@ interface Look {
   next: boolean;
   room: boolean;
   sideboardReady: boolean;
+  /** The sideboard step is up: Ready pressed, it waits for the other seat. */
+  sideboardStep: boolean;
   concede: boolean;
   tablePage: boolean;
   door: string | null;
@@ -320,6 +342,7 @@ async function look(page: Page): Promise<Look | null> {
         next: usable('[data-testid="game-result-next"]'),
         room: usable('[data-testid="game-result-room"]'),
         sideboardReady: usable('[data-testid="sideboard-ready"]'),
+        sideboardStep: q('[data-testid="sideboard-step"]') !== null,
         concede: usable('[data-testid="live-concede"]'),
         tablePage: q('[data-testid="table-page"]') !== null,
         door: q('a[data-door]')?.getAttribute('data-door') ?? null,
@@ -408,6 +431,7 @@ async function playTournament(p: Player, run: Run): Promise<void> {
       if (s.enter) await page.getByTestId('game-result-enter').click({ timeout: 3_000 }).catch(() => undefined);
       else if (s.sideboardReady) await page.getByTestId('sideboard-ready').click({ timeout: 3_000 }).catch(() => undefined);
       else if (s.next) await page.getByTestId('game-result-next').click({ timeout: 3_000 }).catch(() => undefined);
+      else if (s.sideboardStep) acted = false;
       else if (s.room) await page.getByTestId('game-result-room').click({ timeout: 3_000 }).catch(() => undefined);
       else acted = false;
     } else if (s.board && game !== null) {
@@ -585,7 +609,17 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
       await p.f.page.reload();
       await resizeWindow(p.f.page, { width: 1280, height: 800 });
     }
-    for (const p of players) await expect(p.f.page.locator('[data-testid^="pod-seat-"][data-mine]'), `${p.name}: seated on entering`).toHaveCount(1, { timeout: UI_TIMEOUT });
+    // Entering seats a person up to eight; past that they arrive among the spectators and press Sit on the seat their page adds.
+    for (const p of players) {
+      const mine = p.f.page.locator('[data-testid^="pod-seat-"][data-mine]');
+      await expect(mine.or(p.f.page.locator('[data-testid="room-spectator"][data-mine]')), `${p.name}: in the room, seated or watching`).toHaveCount(1, { timeout: UI_TIMEOUT });
+      if ((await mine.count()) > 0) continue;
+      const sit = p.f.page.locator('[data-testid="pod-seat-sit"]:not([disabled])').first();
+      await expect(sit, `${p.name}: a seat to sit in`).toBeVisible({ timeout: UI_TIMEOUT });
+      await sit.click();
+      await expect(mine, `${p.name}: seated by Sit`).toHaveCount(1, { timeout: UI_TIMEOUT });
+      note(p, 'sat down from the spectators');
+    }
 
     /* the leader's bots, one press each */
     const botCount = async (): Promise<number> => ((await roomOf(leader, run)).game.pod?.seats ?? []).filter((x) => x !== null && isAi(x.memberId)).length;
