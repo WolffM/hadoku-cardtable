@@ -666,6 +666,7 @@ function serverFindings(run: Run): void {
     // The socket around the first refusals: what the page had been sent when it offered the card.
     const at = (p?.wire ?? []).flatMap((line, i) => (/reject|error|reason=/i.test(line) ? [i] : [])).slice(0, 3);
     for (const i of at) say(`${p?.name}: the draft socket before refusal:\n  ${p!.wire.slice(Math.max(0, i - 6), i + 2).join('\n  ')}`);
+    if (at.length === 0) say(`${p?.name}: no refusal on the draft socket's ${p?.wire.length ?? 0} frame(s); its last:\n  ${(p?.wire ?? []).slice(-6).join('\n  ')}`);
   }
 }
 
