@@ -283,7 +283,7 @@ import { reportStackDrags, setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import { boardFacts, watchFrames, type FrameWatch } from './frame-watch.ts';
-import { BAR_STUCK_MS, barStuck } from './bar-hold.ts';
+import { BAR_STUCK_MS, barStuck, type BarSurfaces } from './bar-hold.ts';
 import { deriveSoundEvents, thrownSoundEvents } from './sound-events.ts';
 import { phaseSoundGate } from './phase-sound.ts';
 import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-cue.ts';
@@ -1947,18 +1947,34 @@ export interface LiveBoardProps {
 /**
  * `bar-stuck` (`./bar-hold.ts`): reported once the screen has offered nothing to press under a
  * live server bar for `BAR_STUCK_MS`, and again when that ends, each with what held it.
+ * `surfaces` is what this render draws, `null` for a window that answers nothing.
+ *
+ * The clock judges the bar the server has sent by the time it runs out, against what is drawn: a
+ * frame can reach the match ahead of the redraw it causes, and a page drawing a few frames a second
+ * ran the clock out on a press whose dead bar was already in (three CI matches at the mulligan,
+ * 2026-11-24). A bar that is no longer live there starts the clock again.
  */
-function useBarStuckReport(match: LiveMatch, stuck: boolean, detail: () => ClientEvent['data']): void {
+function useBarStuckReport(match: LiveMatch, surfaces: BarSurfaces | null, detail: () => ClientEvent['data']): void {
+  const stuckNow = (): boolean => surfaces !== null && barStuck(match.buttons, YIELDING.test(match.prompt ?? ''), surfaces);
+  const stuck = stuckNow();
+  const stuckNowRef = useRef(stuckNow);
+  stuckNowRef.current = stuckNow;
   const detailRef = useRef(detail);
   detailRef.current = detail;
   useEffect(() => {
     if (!stuck) return undefined;
-    const from = Date.now();
+    let from = Date.now();
     let reported = false;
-    const timer = setTimeout(() => {
-      reported = true;
-      reportClient(match.transport, match.matchId, 'bar-stuck', { phase: 'held', ms: Date.now() - from, ...detailRef.current() });
-    }, BAR_STUCK_MS);
+    const check = (): void => {
+      if (stuckNowRef.current()) {
+        reported = true;
+        reportClient(match.transport, match.matchId, 'bar-stuck', { phase: 'held', ms: Date.now() - from, ...detailRef.current() });
+        return;
+      }
+      from = Date.now();
+      timer = setTimeout(check, BAR_STUCK_MS);
+    };
+    let timer = setTimeout(check, BAR_STUCK_MS);
     return () => {
       clearTimeout(timer);
       if (reported) reportClient(match.transport, match.matchId, 'bar-stuck', { phase: 'cleared', ms: Date.now() - from, ...detailRef.current() });
@@ -2759,33 +2775,35 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * button that reads `End Turn`, gated on it being pressable at all.
    */
   const highlightEndTurn = endTurnEnabled && nothingToDecide(match);
-  const stuck =
-    !spectator &&
-    status === 'live' &&
-    barStuck(match.buttons, yielding, {
-      endTurn: endTurnEnabled,
-      decisionOk,
-      decisionCancel,
-      ask: askOpen,
-      payment: paying,
-      selection: selectionPopup,
-      confirm: confirmPrompt,
-      playOrDraw,
-      mulliganPick,
-      pregame: pregameWait,
-      combat: declaringCombat(match),
-    });
-  useBarStuckReport(match, stuck, () => ({
-    route,
-    hold: match.barHold?.reason ?? '',
-    label1: match.buttons?.label1 ?? '',
-    enable1: match.buttons?.enable1 ?? false,
-    label2: match.buttons?.label2 ?? '',
-    enable2: match.buttons?.enable2 ?? false,
-    asks: match.asks.length,
-    prompt: (match.prompt ?? '').split('\n').slice(0, 3).join(' / ').slice(0, 80),
-    turn: match.view?.turn ?? -1,
-  }));
+  useBarStuckReport(
+    match,
+    !spectator && status === 'live'
+      ? {
+          endTurn: endTurnEnabled,
+          decisionOk,
+          decisionCancel,
+          ask: askOpen,
+          payment: paying,
+          selection: selectionPopup,
+          confirm: confirmPrompt,
+          playOrDraw,
+          mulliganPick,
+          pregame: pregameWait,
+          combat: declaringCombat(match),
+        }
+      : null,
+    () => ({
+      route,
+      hold: match.barHold?.reason ?? '',
+      label1: match.buttons?.label1 ?? '',
+      enable1: match.buttons?.enable1 ?? false,
+      label2: match.buttons?.label2 ?? '',
+      enable2: match.buttons?.enable2 ?? false,
+      asks: match.asks.length,
+      prompt: (match.prompt ?? '').split('\n').slice(0, 3).join(' / ').slice(0, 80),
+      turn: match.view?.turn ?? -1,
+    }),
+  );
   /*
    * On the other seat's turn the same slot reads Auto Yield / Cancel Yield.
    * Pressable the instant that turn starts, before Forge has shown anything
