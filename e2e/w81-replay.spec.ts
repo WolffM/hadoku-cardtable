@@ -204,6 +204,56 @@ async function parkAway(page: Page): Promise<void> {
   await page.waitForTimeout(3_000);
 }
 
+/** A recorded pointer line's message, as far as this spec reads it (`@hadoku/shared`'s `PresenceSchema`). */
+interface RecordedPresence {
+  held: boolean;
+  /** Fraction down the sender's whole board, their own side at the bottom; null when it left the board. */
+  pointer: { x: number; y: number } | null;
+  /** The zone it is over: `own` is the sender's own, which every board draws on the sender's side. */
+  anchor: { own: boolean } | null;
+}
+
+/**
+ * Which side of the table a recorded pointer is on, as its sender drew it: `own` or `theirs`, or null
+ * when it says neither clearly — an unanchored point (over no zone) within a tenth of the board of the
+ * middle, which a board of another size may draw just across it.
+ */
+function sideOf(p: RecordedPresence): 'own' | 'theirs' | null {
+  if (p.pointer === null) return null;
+  const anchor = p.anchor ?? null;
+  if (anchor !== null) return anchor.own ? 'own' : 'theirs';
+  if (Math.abs(p.pointer.y - 0.5) < 0.1) return null;
+  return p.pointer.y > 0.5 ? 'own' : 'theirs';
+}
+
+/** Where a replay draws its cursor: below the board's middle or not, its name tag, and the active seat. */
+interface CursorDrawn {
+  bottom: boolean;
+  name: string;
+  activeName: string;
+  activeAtBottom: boolean;
+}
+
+/**
+ * The cursor on the board a seek drew afresh — null while the board from before the seek (its seats
+ * marked `data-w81-before-seek`) is still up, or the cursor is not drawn yet or still sliding.
+ */
+const cursorOnFreshBoard = (page: Page): Promise<CursorDrawn | null> =>
+  page.evaluate(() => {
+    if (document.querySelector('.seat[data-w81-before-seek]') !== null) return null;
+    const cursor = document.querySelector<HTMLElement>('.presence');
+    const overlay = document.querySelector('[data-board-overlay]');
+    if (cursor === null || overlay === null || cursor.getAnimations().some((a) => a.playState === 'running')) return null;
+    const c = cursor.getBoundingClientRect();
+    const o = overlay.getBoundingClientRect();
+    return {
+      bottom: c.top > (o.top + o.bottom) / 2,
+      name: cursor.querySelector('.presence__name')?.textContent ?? '',
+      activeName: document.querySelector('.seat[data-active] .seat__name')?.textContent ?? '',
+      activeAtBottom: document.querySelector('.seat[data-viewer][data-active]') !== null,
+    };
+  });
+
 /** Who each recorded `PlayerTurn` names, from when: the recording's own turn changes. */
 function turnsOf(envs: { at: number; env: unknown }[]): { at: number; player: number }[] {
   const out: { at: number; player: number }[] = [];
@@ -317,7 +367,7 @@ test(
       const api = alice.context.request;
       let startedAt = 0;
       let durationMs = 0;
-      let recorded: { envs: { at: number; env: unknown }[]; presence: { at: number; seat: number; playerId: number; presence: { held: boolean } }[] } = { envs: [], presence: [] };
+      let recorded: { envs: { at: number; env: unknown }[]; presence: { at: number; seat: number; playerId: number; presence: RecordedPresence }[] } = { envs: [], presence: [] };
       await expect
         .poll(
           async () => {
@@ -326,7 +376,7 @@ test(
             const body = (await res.json()) as {
               header: { startedAt: string };
               envs: { at: number; env: unknown }[];
-              presence: { at: number; seat: number; playerId: number; presence: { held: boolean } }[];
+              presence: { at: number; seat: number; playerId: number; presence: RecordedPresence }[];
             };
             recorded = body;
             startedAt = Date.parse(body.header.startedAt);
@@ -370,10 +420,34 @@ test(
       }
       await expectArtDecoded(carol.page, 'the end, seeked');
 
-      // Played back, the active player's cursor is drawn on their own side. The replay screen is watched
-      // like a live match (the operator, 2026-11-01): seat 0 stays at the bottom, so that side is the
-      // bottom on their turns and the top on the other player's.
-      const cursorSeen: { y: number; boardTop: number; boardBottom: number; name: string; activeName: string; activeAtBottom: boolean }[] = [];
+      // The recorded cursor drawn where its player had it. The replay screen is watched like a live match
+      // (the operator, 2026-11-01): seat 0 stays at the bottom, so a pointer on its player's own side is at
+      // the bottom on their turns and at the top on the other player's. Judged at fixed points of the
+      // match, never by sampling a replay as it plays: paused, seeked to each recorded pointer line, on the
+      // board drawn afresh for that seek (a seek remounts the board; `ReplayBoard.tsx`'s key).
+      const judged = recorded.presence.filter((p, i, all) => sideOf(p.presence) !== null && all[i + 1]?.at !== p.at);
+      const drawnAt: { at: number; seat: number; side: string; drawn: string; name: string; activeName: string; activeAtBottom: boolean }[] = [];
+      for (const p of judged) {
+        await carol.page.evaluate(() => document.querySelectorAll('.seat').forEach((el) => el.setAttribute('data-w81-before-seek', '')));
+        await seek(carol.page, p.at);
+        let drawn = null as CursorDrawn | null;
+        await expect
+          .poll(async () => (drawn = await cursorOnFreshBoard(carol.page)) !== null, { timeout: 10_000, intervals: [50], message: `the cursor is drawn on the board seeked to ${p.at} ms` })
+          .toBe(true);
+        if (drawn === null) throw new Error(`no cursor on the board seeked to ${p.at} ms`);
+        // Seat 0 is drawn at the bottom: its own side is the bottom, seat 1's the top.
+        const ownSide = drawn.bottom === (p.seat === 0);
+        drawnAt.push({ at: p.at, seat: p.seat, side: sideOf(p.presence)!, drawn: ownSide ? 'own' : 'theirs', ...drawn });
+      }
+      console.log(`[w81] cursor at ${drawnAt.length} recorded pointer lines: ${drawnAt.map((d) => `${d.at}:s${d.seat}:${d.side}${d.drawn === d.side ? '' : `!${d.drawn}`}`).join(' ')}`);
+      expect(drawnAt.filter((d) => d.seat === 0).length, 'the bottom player’s pointer is judged').toBeGreaterThan(0);
+      expect(drawnAt.filter((d) => d.seat === 1).length, 'the top player’s pointer is judged').toBeGreaterThan(0);
+      expect(drawnAt.filter((d) => d.drawn !== d.side), 'every recorded pointer is drawn on the side of the table its player had it on').toEqual([]);
+      expect(drawnAt.filter((d) => d.activeAtBottom !== (d.seat === 0)), 'the pointer’s player is the active one, seat 0 at the bottom').toEqual([]);
+      expect(drawnAt.filter((d) => d.name === '' || d.name !== d.activeName), 'the cursor is tagged with the acting player’s name, at the bottom and the top').toEqual([]);
+
+      // Played back, the cursor moves.
+      const cursorSeen: number[] = [];
       for (const speed of [1, 2, 4] as const) {
         await seek(carol.page, 0);
         await carol.page.getByTestId(`replay-bar-speed-${speed}`).click();
@@ -383,30 +457,16 @@ test(
           await expect
             .poll(
               async () => {
-                const seen = await carol.page.evaluate(() => {
-                  const cursor = document.querySelector('.presence');
-                  const overlay = document.querySelector('[data-board-overlay]');
-                  if (cursor === null || overlay === null) return null;
-                  const c = cursor.getBoundingClientRect();
-                  const o = overlay.getBoundingClientRect();
-                  const activeAtBottom = document.querySelector('.seat[data-viewer][data-active]') !== null;
-                  const activeName = document.querySelector('.seat[data-active] .seat__name')?.textContent ?? '';
-                  return { y: c.top, boardTop: o.top, boardBottom: o.bottom, name: cursor.querySelector('.presence__name')?.textContent ?? '', activeName, activeAtBottom };
-                });
+                const seen = await carol.page.evaluate(() => document.querySelector('.presence')?.getBoundingClientRect().top ?? null);
                 // Distinct places only: a cursor standing still is one sample, however long it stands.
-                if (seen !== null && cursorSeen.at(-1)?.y !== seen.y) cursorSeen.push(seen);
+                if (seen !== null && cursorSeen.at(-1) !== seen) cursorSeen.push(seen);
                 return (await carol.page.getByTestId('replay-bar-play').textContent()) === '↺';
               },
               { timeout: durationMs + 30_000, intervals: [50], message: 'the replay plays to its end' },
             )
             .toBe(true);
-          console.log(`[w81] cursor places: ${JSON.stringify(cursorSeen.map((c) => Math.round(c.y)))}`);
+          console.log(`[w81] cursor places: ${JSON.stringify(cursorSeen.map(Math.round))}`);
           expect(cursorSeen.length, 'the recorded cursor moves while the replay plays').toBeGreaterThanOrEqual(10);
-          const ownSide = cursorSeen.filter((c) => c.y > (c.boardTop + c.boardBottom) / 2 === c.activeAtBottom).length;
-          console.log(`[w81] cursor on the replay: ${ownSide}/${cursorSeen.length} samples on the active player's side; first ${JSON.stringify(cursorSeen[0])}`);
-          expect(ownSide / cursorSeen.length, 'the active player’s cursor is on their own side').toBeGreaterThanOrEqual(0.8);
-          expect(cursorSeen.filter((c) => c.activeAtBottom).length, 'the bottom player’s own pointer is sampled').toBeGreaterThan(0);
-          expect(cursorSeen.filter((c) => c.name === '' || c.name !== c.activeName), 'the cursor is tagged with the acting player’s name, at the bottom and the top').toEqual([]);
         }
         await expect(carol.page.getByTestId('replay-bar-play'), `${speed}× plays to the end`).toHaveText('↺', { timeout: durationMs / speed + 30_000 });
         console.log(`[w81] ${speed}×: played ${durationMs} ms of game in ${Date.now() - started} ms`);
