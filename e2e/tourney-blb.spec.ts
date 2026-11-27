@@ -94,11 +94,12 @@ function botsPlayIn(scenario: Scenario): boolean {
 }
 
 /*
- * The fields a claw's forge-e2e job runs: the two whose browsers and live boards fit its memory ceiling.
- * The rest (eight to fourteen browsers, or three played-out games a series) were OOM-killed there and run
- * on a bigger host with CARDTABLE_E2E_BIG_FIELDS=1. Left out, not skipped: forge-e2e fails a skip.
+ * The fields a claw's forge-e2e job runs: the one whose browsers and live boards fit its memory ceiling.
+ * The rest (seven to fourteen browsers, or three played-out games a series) were OOM-killed there (seven
+ * people's Forge JVM at the end of its third round) and run on a bigger host with
+ * CARDTABLE_E2E_BIG_FIELDS=1. Left out, not skipped: forge-e2e fails a skip.
  */
-const CLAW_FIELDS: ReadonlySet<string> = new Set(['7p+1bot bye', '1p+7bots bye']);
+const CLAW_FIELDS: ReadonlySet<string> = new Set(['1p+7bots bye']);
 
 const ALL_SCENARIOS: readonly Scenario[] = [
   { key: '7p+1bot bye', humans: 7, bots: 1, botsPlay: false, realGames: 1, realTables: 1, minutes: 42 },
