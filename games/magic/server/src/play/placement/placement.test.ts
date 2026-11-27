@@ -148,6 +148,7 @@ function fakeClaw(node: string, running: string[] = []): FakeClaw {
 			link.health = { at: 0, jvms: [], slice: SLICE, draftbot: null };
 		},
 	};
+	launcher.unavailable = () => link.lost;
 	return { node, jvms, launcher, link };
 }
 

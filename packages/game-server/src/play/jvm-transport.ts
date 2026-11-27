@@ -21,4 +21,10 @@ export interface JvmLauncher {
 	running(): Promise<string[]>;
 	/** Take one back. Lines it printed while nobody was attached are replayed first, in order. */
 	attach(hostId: string): JvmTransport;
+	/**
+	 * Why nothing can be launched here now (a claw whose link is lost), or null. A pool asks before it
+	 * stages a launch: staging is sync disk writes, and on hokon's contended disk a relaunch onto a lost
+	 * claw held the event loop past every other claw's fencing window.
+	 */
+	unavailable?(): string | null;
 }

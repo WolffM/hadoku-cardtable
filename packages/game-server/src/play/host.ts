@@ -755,6 +755,8 @@ export function jvmHostFactory<L extends { t: string }, C extends { t: string }>
 
 	/** Boot a new JVM. Throws what the launcher throws. */
 	function launch(): Jvm<L, C> {
+		const down = launcher.unavailable?.() ?? null;
+		if (down !== null) throw new Error(`no JVM can be launched here: ${down}`);
 		const hostId = `h-${randomBytes(6).toString('hex')}`;
 		const transport = launcher.launch(hostId, { xmxMb: config.xmxMb ?? JVM_HEAP_MB });
 		const dir = join(config.workDir, hostId);
@@ -976,6 +978,8 @@ export function jvmHostFactory<L extends { t: string }, C extends { t: string }>
 	function replenish(): void {
 		if (!warmWanted || closed || retry !== null || bootFailures >= WARM_MAX_FAILURES) return;
 		if (liveJvms().some((j) => hasRoom(j) || !j.warm) || jvms.size >= maxJvms()) return;
+		// Gone, not failing: what follows a lost link is its pool's abandonment, never a boot.
+		if ((launcher.unavailable?.() ?? null) !== null) return;
 		try {
 			launch();
 		} catch (err) {

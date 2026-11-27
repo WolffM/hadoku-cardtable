@@ -98,8 +98,9 @@ export class RemoteJvmLauncher implements JvmLauncher {
 		this.runtime.then(
 			(runtime) => {
 				if (t.finished) return;
-				if (this.client.lost !== null) {
-					t.exit(`agent unavailable: ${this.client.lost}`);
+				const down = this.unavailable();
+				if (down !== null) {
+					t.exit(`agent unavailable: ${down}`);
 					return;
 				}
 				this.client.send({
@@ -115,6 +116,10 @@ export class RemoteJvmLauncher implements JvmLauncher {
 			(err: unknown) => t.exit(`the agent could not be given this server's runtime: ${(err as Error).message}`),
 		);
 		return t;
+	}
+
+	unavailable(): string | null {
+		return this.client.lost;
 	}
 
 	running(): Promise<string[]> {
