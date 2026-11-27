@@ -8,9 +8,17 @@
  * Plays the AI's turn (`fly-jump`: it casts a creature and attacks with a Serra Angel) while alice's
  * flyers are drawn, and records on her screen, every animation frame: each flyer's art centre against
  * its own face, which carries the loop and nothing else (the face itself rises when the card may
- * attack); the loop moves it under 0.1 px a frame, so a step over 2 px is a jump. And every
+ * attack), with the loop animation's own `currentTime` and the document timeline's. And every
  * `<li>` added or removed, every `data-flying` change and every new fly animation, with when. Every
  * finding prints one `[flyjump]` line.
+ *
+ * Judged in the loop's own time, never by how far the art moved between two frames of wall clock: a
+ * host that drops frames for half a second lets the art travel 2 px between two honest frames
+ * (the path's fastest stretch is about 0.004 px a millisecond). So each recorded frame is replayed
+ * at judge time — every loop on that `.card` seeked to the `currentTime` it had then — and a frame
+ * whose recorded move differs from the loop's own move between the same two times by over 2 px is a
+ * jump. And the loop itself must never restart: the same animation every frame, its `currentTime`
+ * advancing exactly as the document timeline does.
  *
  * Runs in Firefox (`playwright.config.ts`): the operator's browser, where the loop jumped on a 1.4 s grid
  * (2.6 px, then 7.9 px) with no remount, move or new animation, while Chromium drew it smoothly.
@@ -49,10 +57,17 @@ interface Event {
   detail?: string;
 }
 
+/**
+ * One recorded frame of a flyer: [t, dx, dy, ct, tl, loop] — the art's centre against its face, the
+ * `fly-figure` animation's `currentTime`, the document timeline's, and which animation object it was
+ * (a serial, so a replaced loop shows).
+ */
+type PathFrame = [number, number, number, number, number, number];
+
 interface Watch {
   events: Event[];
-  /** Per card id, its face's offset against its `<li>` each frame: [t, dx, dy]. */
-  path: Record<string, [number, number, number][]>;
+  /** Per card id, each frame it was sampled. */
+  path: Record<string, PathFrame[]>;
   /**
    * Per ATTACKING flyer's id, each frame it was sampled: [t, the outline `::before`'s own
    * live `translate`, the art's own]. The claim is that these two strings are the SAME on every
@@ -68,13 +83,19 @@ async function watch(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = {
       events: [] as { t: number; what: string; id: string; detail?: string }[],
-      path: {} as Record<string, [number, number, number][]>,
+      path: {} as Record<string, PathFrame[]>,
       outline: {} as Record<string, [number, string, string][]>,
     };
     (window as unknown as { __flyjump: typeof w }).__flyjump = w;
     const now = (): number => Math.round(performance.now());
     const idOf = (n: Node): string | null => (n instanceof HTMLElement ? n.getAttribute('data-board-card') : null);
     const seen = new WeakSet<Animation>();
+    const serials = new WeakMap<Animation, number>();
+    let nextSerial = 0;
+    const serialOf = (a: Animation): number => {
+      if (!serials.has(a)) serials.set(a, nextSerial++);
+      return serials.get(a)!;
+    };
     new MutationObserver((records) => {
       for (const r of records) {
         if (r.type === 'attributes') {
@@ -100,9 +121,13 @@ async function watch(page: Page): Promise<void> {
         const face = li.querySelector<HTMLElement>(':scope > .board-card__face');
         const card = face?.querySelector<HTMLElement>(':scope > .card') ?? null;
         if (face == null || card === null) continue;
+        const loop = card.getAnimations().find((a) => a instanceof CSSAnimation && a.animationName === 'fly-figure');
+        const ct = loop?.currentTime ?? null;
+        const tl = document.timeline.currentTime;
+        if (loop === undefined || ct === null || tl === null) continue;
         const l = face.getBoundingClientRect();
         const c = card.getBoundingClientRect();
-        (w.path[id] ??= []).push([now(), c.left + c.width / 2 - (l.left + l.width / 2), c.top + c.height / 2 - (l.top + l.height / 2)]);
+        (w.path[id] ??= []).push([now(), c.left + c.width / 2 - (l.left + l.width / 2), c.top + c.height / 2 - (l.top + l.height / 2), Number(ct), Number(tl), serialOf(loop)]);
         // While this flyer is attacking, the outline's own `::before` should be animating the
         // SAME `translate` the art does — both driven by the identical `--fly-path`/`--fly-start`.
         if (li.hasAttribute('data-attacking')) {
@@ -124,30 +149,69 @@ async function watch(page: Page): Promise<void> {
 }
 
 /**
- * Prints what was recorded on `page` and fails on any frame a flyer stepped more than 2 px (the loop
- * moves it under 0.1 px a frame), or on any frame an attacking flyer's outline read a different
- * `translate` than its own art. Returns how many outline frames were sampled, so a caller
- * that put a flyer into combat can assert the check actually ran rather than passing vacuously.
+ * Prints what was recorded on `page` and fails on any frame a flyer's art moved more than 2 px away
+ * from where its own loop puts it, on any frame its loop restarted, or on any frame an attacking
+ * flyer's outline read a different `translate` than its own art. Returns how many outline frames
+ * were sampled, so a caller that put a flyer into combat can assert the check actually ran rather
+ * than passing vacuously.
  */
 async function judge(page: Page, when: string): Promise<{ outlineSamples: number }> {
-  // Taken and emptied in one go, so each call judges only what happened since the last.
+  // Taken and emptied in one go, so each call judges only what happened since the last; and, in the
+  // same task (no frame can run between), each frame replayed: every infinite loop on the card's
+  // `.card` seeked to where it was at that frame's `currentTime`, the offset read, the loops put back.
   const w = await page.evaluate(() => {
     const held = (window as unknown as { __flyjump: Watch }).__flyjump;
-    const out = { events: held.events.splice(0), path: { ...held.path }, outline: { ...held.outline } };
+    const out = { events: held.events.splice(0), path: { ...held.path }, outline: { ...held.outline }, replay: {} as Record<string, [number, number][]> };
     for (const id of Object.keys(held.path)) held.path[id] = held.path[id]!.slice(-1);
     for (const id of Object.keys(held.outline)) held.outline[id] = [];
+    for (const [id, path] of Object.entries(out.path)) {
+      const face = document.querySelector<HTMLElement>(`[data-board-card="${id}"][data-flying] > .board-card__face`);
+      const card = face?.querySelector<HTMLElement>(':scope > .card') ?? null;
+      const loops = card?.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations === Infinity && a.currentTime !== null) ?? [];
+      const figure = loops.find((a) => a instanceof CSSAnimation && a.animationName === 'fly-figure');
+      if (face == null || card === null || figure === undefined) continue;
+      const saved = loops.map((a) => Number(a.currentTime));
+      const at = Number(figure.currentTime);
+      out.replay[id] = path.map(([, , , ct]) => {
+        loops.forEach((a, i) => void (a.currentTime = ct + saved[i]! - at));
+        const l = face.getBoundingClientRect();
+        const c = card.getBoundingClientRect();
+        return [c.left + c.width / 2 - (l.left + l.width / 2), c.top + c.height / 2 - (l.top + l.height / 2)];
+      });
+      loops.forEach((a, i) => void (a.currentTime = saved[i]!));
+    }
     return out;
   });
   const names = await page.evaluate(() =>
     Object.fromEntries([...document.querySelectorAll('[data-board-card]')].map((e) => [e.getAttribute('data-board-card'), e.querySelector('.card__name')?.textContent?.trim() ?? ''])),
   );
-  const jumps: { id: string; name: string; t: number; step: number }[] = [];
+  // A jump: between two frames of the same loop, the art moved more than 2 px differently from how the
+  // loop itself moves between those two `currentTime`s — however long the host took between them.
+  // A restart: the loop replaced, or its time not advancing with the document timeline's.
+  const jumps: { id: string; name: string; t: number; off: number }[] = [];
+  const restarts: { id: string; name: string; t: number; loopMs: number; timelineMs: number; replaced: boolean }[] = [];
+  let unreplayed = 0;
   for (const [id, path] of Object.entries(w.path)) {
+    const replay = w.replay[id];
+    const current = path.at(-1)![5];
     for (let i = 1; i < path.length; i++) {
-      const [t, x, y] = path[i]!;
-      const [, px, py] = path[i - 1]!;
-      const step = Math.hypot(x - px, y - py);
-      if (step > 2) jumps.push({ id, name: names[id] ?? '?', t, step: Math.round(step * 10) / 10 });
+      const [t, x, y, ct, tl, serial] = path[i]!;
+      const [, px, py, pct, ptl, pserial] = path[i - 1]!;
+      const loopMs = ct - pct;
+      const timelineMs = tl - ptl;
+      // A millisecond of clock rounding each side (Firefox coarsens both); a restart moves the loop by seconds.
+      if (serial !== pserial || Math.abs(loopMs - timelineMs) > 2) {
+        restarts.push({ id, name: names[id] ?? '?', t, loopMs: Math.round(loopMs), timelineMs: Math.round(timelineMs), replaced: serial !== pserial });
+        continue;
+      }
+      if (replay === undefined || serial !== current) {
+        unreplayed++;
+        continue;
+      }
+      const [rx, ry] = replay[i]!;
+      const [prx, pry] = replay[i - 1]!;
+      const off = Math.hypot(x - px - (rx - prx), y - py - (ry - pry));
+      if (off > 2) jumps.push({ id, name: names[id] ?? '?', t, off: Math.round(off * 10) / 10 });
     }
   }
   // Every sampled frame of an attacking flyer whose outline did not read the same `translate` as its art.
@@ -160,14 +224,17 @@ async function judge(page: Page, when: string): Promise<{ outlineSamples: number
     }
   }
   log(`${when}: frames`, Object.fromEntries(Object.entries(w.path).map(([id, p]) => [`${names[id] ?? '?'} ${id}`, p.length])));
+  log(`${when}: frames left by the board before they could be replayed`, unreplayed);
   log(`${when}: jumps`, jumps);
+  log(`${when}: restarts`, restarts);
   // What happened to a card in the 100 ms before each of its jumps.
   for (const j of jumps) log(`${when}: before jump`, { ...j, events: w.events.filter((e) => e.id === j.id && e.t <= j.t && e.t > j.t - 100) });
   log(`${when}: events`, w.events);
   log(`${when}: outline samples`, outlineSamples);
   log(`${when}: outline mismatches`, outlineMismatches.slice(0, 5));
   expect(Object.keys(w.path).length, `${when}: flyers were sampled`).toBeGreaterThan(0);
-  expect.soft(jumps, `${when}: no flyer steps more than 2 px in a frame`).toEqual([]);
+  expect.soft(jumps, `${when}: no flyer's art moves more than 2 px off its own loop between two frames`).toEqual([]);
+  expect.soft(restarts, `${when}: no flyer's loop restarts`).toEqual([]);
   expect.soft(outlineMismatches, `${when}: an attacking flyer's outline reads the same translate as its art, every frame`).toEqual([]);
   return { outlineSamples };
 }
