@@ -85,6 +85,15 @@ async function served(url: string): Promise<Served> {
 }
 
 /**
+ * How long a boot may take to listen, and a case to finish: a stall guard, never a proof. What a
+ * case proves about the boot path it proves from the order the server printed things in, because a
+ * loaded host (load 168 on 2026-11-27, when a 15 s budget reddened a land and the first boot here took
+ * 31 s) stretches an honest boot past any budget short enough to tell it from a slow one.
+ */
+const BOOT_MS = 90_000;
+const TEST_MS = 180_000;
+
+/**
  * A Forge install whose pool JVM never answers: a `javac` that "compiles" the
  * bridge (an empty class file where `bridgeLaunch` looks for one) and a `java`
  * that reads its stdin and says nothing until the server hangs up on it. Every
@@ -117,7 +126,9 @@ function silentForge(): NodeJS.ProcessEnv {
 /**
  * A preload (`node --import`) that makes every read of an era's frozen pool (`decks/pools/*.json`)
  * take `ms` longer, and says so on stderr as it starts: the slowest step of a boot, slowed the way a
- * loaded claw slowed it, with nothing in the server itself knowing about the test.
+ * loaded claw slowed it, with nothing in the server itself knowing about the test. The read blocks
+ * the thread as a slow synchronous read does, asleep (`Atomics.wait`): a spin would burn a core for
+ * the whole wait, on the hosts whose load is what makes a boot slow.
  */
 function slowPoolReads(ms: number): NodeJS.ProcessEnv {
 	const file = join(root, 'slow-pool-reads.mjs');
@@ -129,8 +140,7 @@ const read = fs.readFileSync;
 fs.readFileSync = function (path, ...rest) {
 	if (typeof path === 'string' && /[\\/]decks[\\/]pools[\\/][^\\/]+\\.json$/.test(path)) {
 		process.stderr.write('slow-pool-read ' + path + '\\n');
-		const until = Date.now() + ${ms};
-		while (Date.now() < until);
+		Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${ms});
 	}
 	return read.call(this, path, ...rest);
 };
@@ -194,12 +204,13 @@ syncBuiltinESMExports();
 }
 
 /**
- * A preload that makes every fsync before the server says it is listening take `ms` longer: a slow
- * disk on the boot path, the way a loaded claw's was, with nothing in the server itself knowing about
- * the test. Each room write is one (`room-store`'s `saveSync`).
+ * A preload that marks every fsync made before the server says it is listening (`boot-fsync` on
+ * stderr), with nothing in the server itself knowing about the test. Each room write is one
+ * (`room-store`'s `saveSync`), so a boot that seeds the testing rooms before it listens marks one per
+ * room; an honest boot marks none (measured: 0).
  */
-function slowBootWrites(ms: number): NodeJS.ProcessEnv {
-	const file = join(root, 'slow-boot-writes.mjs');
+function bootFsyncs(): NodeJS.ProcessEnv {
+	const file = join(root, 'boot-fsyncs.mjs');
 	writeFileSync(
 		file,
 		`import fs from 'node:fs';
@@ -212,10 +223,7 @@ process.stdout.write = (chunk, ...rest) => {
 };
 const fsync = fs.fsyncSync;
 fs.fsyncSync = function (fd) {
-	if (!listening) {
-		const until = Date.now() + ${ms};
-		while (Date.now() < until);
-	}
+	if (!listening) process.stderr.write('boot-fsync\\n');
 	return fsync.call(this, fd);
 };
 syncBuiltinESMExports();
@@ -233,7 +241,7 @@ syncBuiltinESMExports();
 async function boot(
 	webDir: string,
 	forgeEnv: NodeJS.ProcessEnv = {},
-	listenWithinMs = 30_000,
+	listenWithinMs = BOOT_MS,
 	until?: string,
 	first?: (base: string, output: () => string) => Promise<void>,
 ): Promise<Booted> {
@@ -322,9 +330,11 @@ function printed(child: ChildProcess, output: () => string, text: string, within
 			if (!output().includes(text)) return;
 			clearTimeout(timer);
 			child.stdout?.off('data', watch);
+			child.stderr?.off('data', watch);
 			resolveSeen();
 		};
 		child.stdout?.on('data', watch);
+		child.stderr?.on('data', watch);
 		watch();
 	});
 }
@@ -339,7 +349,7 @@ function bootLines(output: string): Record<string, unknown>[] {
 
 describe('a server started from a path', () => {
 	it('outside any dot-directory is healthy and serves the page, then reads every era\'s pool', async () => {
-		const { health, page, output, origin } = await boot(join(root, 'plain', 'apps', 'ui', 'dist'), {}, 30_000, '"evt":"library-warmed"');
+		const { health, page, output, origin } = await boot(join(root, 'plain', 'apps', 'ui', 'dist'), {}, BOOT_MS, '"evt":"library-warmed"');
 		expect(health.status).toBe(200);
 		expect(health.body).toMatchObject({ status: 'ok', bundle: 'ok' });
 		// hadoku health v1: which instance, and the HEAD of the checkout it runs from.
@@ -357,32 +367,35 @@ describe('a server started from a path', () => {
 		// The pools come after: every catalogued era, none of them faulted.
 		const warmed = lines.find((l) => l.evt === 'library-warmed');
 		expect(warmed).toMatchObject({ formats: new Set(LIBRARY.map((c) => formatIdOf(c))).size, faults: [] });
-	}, 60_000);
+	}, TEST_MS);
 
 	it('listens, healthy, while every era\'s pool is slow to read — the pools are never on the boot path', async () => {
-		// 67 eras at 400 ms each is 27 s of pool reads: a boot that waits for them never listens in 15.
-		const { health, page, output } = await boot(join(root, 'slow-pools', 'apps', 'ui', 'dist'), slowPoolReads(400), 15_000);
+		// The order the server printed them in is the proof, never how long it took: a loaded host
+		// stretches an honest boot past any budget short enough to tell it from one that waits for
+		// 67 eras at 400 ms each (a 15 s budget reddened a land at load 168).
+		const { health, page, output } = await boot(join(root, 'slow-pools', 'apps', 'ui', 'dist'), slowPoolReads(400), BOOT_MS, 'slow-pool-read ');
 		expect(health.status).toBe(200);
 		expect(health.body).toMatchObject({ status: 'ok', bundle: 'ok' });
 		expect(page.status).toBe(200);
 		const listened = output.indexOf('listening on 127.0.0.1:');
-		const firstPoolRead = output.indexOf('slow-pool-read ');
 		expect(listened).toBeGreaterThanOrEqual(0);
-		if (firstPoolRead >= 0) expect(firstPoolRead).toBeGreaterThan(listened);
-	}, 60_000);
+		expect(output.indexOf('slow-pool-read ')).toBeGreaterThan(listened);
+	}, TEST_MS);
 
-	it('listens, healthy, while every write to disk is slow — the testing rooms are never on the boot path', async () => {
-		// A first boot seeds the testing rooms, 85 room writes: at 400 ms each, a boot that makes them before it listens never listens in 15.
-		const { health, page } = await boot(join(root, 'slow-disk', 'apps', 'ui', 'dist'), slowBootWrites(400), 15_000);
+	it('listens before it syncs a single write to disk — the testing rooms are never on the boot path', async () => {
+		// A first boot seeds the testing rooms, 85 room writes: a boot that makes them before it listens
+		// marks an fsync for each before "listening" (`bootFsyncs`). Counted, never timed.
+		const { health, page, output } = await boot(join(root, 'slow-disk', 'apps', 'ui', 'dist'), bootFsyncs());
+		expect(output.slice(0, output.indexOf('listening on 127.0.0.1:'))).not.toContain('boot-fsync');
 		expect(health.status).toBe(200);
 		expect(health.body).toMatchObject({ status: 'ok', bundle: 'ok' });
 		expect(page.status).toBe(200);
-	}, 60_000);
+	}, TEST_MS);
 
 	it('answers a request on an era nobody has read yet in full, the moment it listens', async () => {
 		const eras = [...new Set(LIBRARY.map((c) => formatIdOf(c)))];
 		const last = eras.at(-1)!;
-		await boot(join(root, 'cold-pools', 'apps', 'ui', 'dist'), slowPoolReads(50), 30_000, undefined, async (base, output) => {
+		await boot(join(root, 'cold-pools', 'apps', 'ui', 'dist'), slowPoolReads(50), BOOT_MS, undefined, async (base, output) => {
 			// The newest era is the warm-up's last read: it is cold here, so this request reads it.
 			const legal = await fetch(`${base}/api/tables/legal/${last}`);
 			expect(output()).not.toContain('"evt":"library-warmed"');
@@ -398,7 +411,7 @@ describe('a server started from a path', () => {
 				expect(f.cardCount).toBeGreaterThan(0);
 			}
 		});
-	}, 60_000);
+	}, TEST_MS);
 
 	it('answers exactly the methods, paths and socket namespaces in route-table.json', async () => {
 		const out = join(root, 'route-table.json');
@@ -411,12 +424,12 @@ describe('a server started from a path', () => {
 		expect({ routes: [...table.routes].sort(), namespaces: table.namespaces }).toEqual(JSON.parse(readFileSync(expected, 'utf8')));
 		// Order matters in one place: the SPA fallback answers every GET, so it is the last route.
 		expect(table.routes.at(-1)).toBe('GET /.*/');
-	}, 60_000);
+	}, TEST_MS);
 
 	it('tells every socket it is restarting before a SIGTERM closes them', async () => {
 		const seen: string[] = [];
 		let client: Socket | undefined;
-		await boot(join(root, 'restart', 'apps', 'ui', 'dist'), {}, 30_000, undefined, async (base) => {
+		await boot(join(root, 'restart', 'apps', 'ui', 'dist'), {}, BOOT_MS, undefined, async (base) => {
 			client = ioClient(base, { transports: ['websocket'], reconnection: false });
 			client.on(SERVER_RESTARTING_EVENT, () => seen.push('restarting'));
 			client.on('disconnect', (reason) => seen.push(`disconnect:${reason}`));
@@ -425,7 +438,7 @@ describe('a server started from a path', () => {
 		client?.close();
 		expect(seen[0]).toBe('restarting');
 		expect(seen[1]).toMatch(/^disconnect:/);
-	}, 60_000);
+	}, TEST_MS);
 
 	it('serves the embed entry as revalidated JS, its chunks immutable, and a missing file as a 404', async () => {
 		const { embed } = await boot(join(root, 'embed', 'apps', 'ui', 'dist'));
@@ -436,14 +449,19 @@ describe('a server started from a path', () => {
 		expect(embed.chunk.cache).toContain('immutable');
 		expect(embed.missing.status).toBe(404);
 		expect(embed.missing.type).not.toMatch(/html/);
-	}, 60_000);
+	}, TEST_MS);
 
 	it('listens, healthy, while the pool JVM has not answered a single call — warming the sets is never on the boot path', async () => {
-		const { health, page } = await boot(join(root, 'silent', 'apps', 'ui', 'dist'), silentForge(), 10_000);
+		// The warm-up asked the JVM (`pool-spawned`) and the server listened before it heard back: a
+		// boot that awaited it would print the 30 s call timeout's `sets-warm-failed` first.
+		const { health, page, output } = await boot(join(root, 'silent', 'apps', 'ui', 'dist'), silentForge(), BOOT_MS, '"evt":"pool-spawned"');
+		const listened = output.indexOf('listening on 127.0.0.1:');
+		expect(listened).toBeGreaterThanOrEqual(0);
+		expect(output.slice(0, listened)).not.toContain('"evt":"sets-warm');
 		expect(health.status).toBe(200);
 		expect(health.body).toMatchObject({ status: 'ok', bundle: 'ok' });
 		expect(page.status).toBe(200);
-	}, 60_000);
+	}, TEST_MS);
 
 	it("answers the edge's account erase with every store's count, and refuses it without the seal", async () => {
 		const SEAL = 'edge-seal-for-the-boot-test';
@@ -457,7 +475,7 @@ describe('a server started from a path', () => {
 		const doc = join(store, 'data', 'users', 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03.json');
 		mkdirSync(dirname(doc), { recursive: true });
 		writeFileSync(doc, JSON.stringify({ favourites: { 'draft:pod-1': 1 } }));
-		await boot(join(root, 'erase', 'apps', 'ui', 'dist'), { EDGE_AUTH_SECRET: SEAL, CARDTABLE_INSECURE_NO_EDGE_AUTH: '0', CARDTABLE_LOG_DIR: join(store, 'logs') }, 30_000, undefined, async (base) => {
+		await boot(join(root, 'erase', 'apps', 'ui', 'dist'), { EDGE_AUTH_SECRET: SEAL, CARDTABLE_INSECURE_NO_EDGE_AUTH: '0', CARDTABLE_LOG_DIR: join(store, 'logs') }, BOOT_MS, undefined, async (base) => {
 			const who = { 'x-hadoku-tier': 'member', 'x-user-id': 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03' };
 			await post(base, who);
 			await post(base, { ...who, 'x-edge-auth': SEAL });
@@ -490,7 +508,7 @@ describe('a server started from a path', () => {
 			},
 		});
 		expect(existsSync(doc)).toBe(false);
-	}, 60_000);
+	}, TEST_MS);
 
 	it("answers the edge's account merge with every store's count, and refuses it without the seal or with no kept account", async () => {
 		const SEAL = 'edge-seal-for-the-boot-test';
@@ -499,7 +517,7 @@ describe('a server started from a path', () => {
 			const res = await fetch(`${base}/api/_account/merge`, { method: 'POST', headers });
 			answers.push({ status: res.status, body: await res.json() });
 		};
-		await boot(join(root, 'merge', 'apps', 'ui', 'dist'), { EDGE_AUTH_SECRET: SEAL, CARDTABLE_INSECURE_NO_EDGE_AUTH: '0' }, 30_000, undefined, async (base) => {
+		await boot(join(root, 'merge', 'apps', 'ui', 'dist'), { EDGE_AUTH_SECRET: SEAL, CARDTABLE_INSECURE_NO_EDGE_AUTH: '0' }, BOOT_MS, undefined, async (base) => {
 			const who = { 'x-hadoku-tier': 'member', 'x-user-id': 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03', 'x-merge-into': '5b0e3c1d-2a4f-4e6b-8c9d-0f1e2d3c4b5a' };
 			await post(base, who);
 			await post(base, { ...who, 'x-edge-auth': SEAL, 'x-merge-into': '' });
@@ -527,7 +545,7 @@ describe('a server started from a path', () => {
 				users: 0,
 			},
 		});
-	}, 60_000);
+	}, TEST_MS);
 
 	it('under a dot-directory (an agent worktree) is healthy and serves the page', async () => {
 		const { health, page } = await boot(join(root, 'repo', '.claude', 'worktrees', 'w', 'apps', 'ui', 'dist'));
@@ -539,5 +557,5 @@ describe('a server started from a path', () => {
 		expect(health.body).toMatchObject({ status: 'ok', service: 'cardtable', bundle: 'ok' });
 		expect(page.status).toBe(200);
 		expect(page.body).toContain('fixture');
-	}, 60_000);
+	}, TEST_MS);
 });
