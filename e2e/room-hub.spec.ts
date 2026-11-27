@@ -27,6 +27,7 @@ import { door, enterFromTablePage, litCard, makeTitled, pressIntoGame2, ROOM_PAG
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { pickRadio } from './click-trail.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -110,8 +111,7 @@ test(
       for (const p of [alice, bob, carol]) await routeRealIdentity(p, roomId);
 
       // A controlled radio: click, then wait for the room to say so.
-      await alice.page.getByTestId('room-event-tournament').click();
-      await expect(alice.page.getByTestId('room-event-tournament')).toBeChecked();
+      await pickRadio(alice.page, 'room-event-tournament', 'the app took the choice');
       for (const p of [alice, bob]) await expect(p.page.getByTestId('tournament-lobby'), `${p.name}: the pod lobby`).toBeVisible({ timeout: UI_TIMEOUT });
       await sitPickReady(alice, 0);
       await sitPickReady(bob, 1);

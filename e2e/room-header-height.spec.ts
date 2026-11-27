@@ -13,6 +13,7 @@ import { PREFIX } from './identities.ts';
 import { resizeWindow } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { pickRadio } from './click-trail.ts';
 
 interface Bar {
   header: number;
@@ -85,15 +86,13 @@ for (const size of [
           await expect(page.getByTestId('deck-mine')).toBeVisible();
           bars['classic seated'] = await measure(page, `classic seated at ${size.width}`);
         }
-        await page.getByTestId('room-event-tournament').click();
-        await expect(page.getByTestId('room-event-tournament')).toBeChecked();
+        await pickRadio(page, 'room-event-tournament', 'the app took the choice');
         await expect(page.getByTestId('tournament-lobby')).toBeVisible();
         bars[`${mode} tournament`] = await measure(
           page,
           `${mode} tournament at ${size.width}`,
         );
-        await page.getByTestId('room-event-single').click();
-        await expect(page.getByTestId('room-event-single')).toBeChecked();
+        await pickRadio(page, 'room-event-single', 'the app took the choice');
       }
       await page.getByTestId('room-game-type-draft').click();
       await expect(page.getByTestId('draft-lobby')).toBeVisible();

@@ -21,6 +21,7 @@ import { resolve } from 'node:path';
 
 import { expect, type Page } from '@playwright/test';
 
+import { pickRadio } from './click-trail.ts';
 import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
 import { resizeWindow, roomIdFromAddress } from './play/board.ts';
@@ -112,7 +113,9 @@ export async function dealPod(alice: Player, bob: Player, origin: string): Promi
   }
 
   await expect(alice.page.getByTestId(`pool-picker-cubes-${CUBE_ID}`), 'the seeded cube is listed').toBeVisible({ timeout: UI_TIMEOUT });
-  await alice.page.getByTestId('pool-picker-cubes').locator('label', { hasText: CUBE_NAME }).locator('input[type="radio"]').click();
+  // The picker is the room's plan, so checked means the server stored it. The verdict alone proves nothing:
+  // the default cube already reads ready (CI, 11-22..11-24: four pods dealt on the default cube, no plan PUT).
+  await pickRadio(alice.page, `pool-picker-cubes-${CUBE_ID}`, 'the room’s plan is the seeded cube', UI_TIMEOUT);
   await expect(alice.page.getByTestId('pool-picker-verdict'), 'Forge plays every card in it').toHaveAttribute('data-state', 'ready', { timeout: UI_TIMEOUT });
 
   await sitPodAt(alice.page, 0);

@@ -17,6 +17,7 @@ import { FRIENDS, PREFIX } from './identities.ts';
 import { roomIdFromAddress } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { openCreateRoom } from './play/rooms.ts';
+import { pickRadio } from './click-trail.ts';
 
 /**
  * A browser signed in as `name`, its fleet whoami answering with that identity's own tier: the e2e
@@ -40,8 +41,7 @@ async function makeRoom(page: Page, name: string, friendsOnly: boolean): Promise
   await page.getByTestId('room-create-name').fill(name);
   await page.getByTestId('room-create-type-constructed-1v1').check();
   await page.getByTestId('room-create-constructed-mode-classic').check();
-  await page.getByTestId(`room-create-friends-only-${friendsOnly ? 'on' : 'off'}`).click();
-  await expect(page.getByTestId(`room-create-friends-only-${friendsOnly ? 'on' : 'off'}`)).toBeChecked();
+  await pickRadio(page, `room-create-friends-only-${friendsOnly ? 'on' : 'off'}`, 'the app took the choice');
   await page.getByTestId('room-create-submit').click();
   return roomIdFromAddress(page);
 }

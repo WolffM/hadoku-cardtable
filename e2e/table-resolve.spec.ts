@@ -21,6 +21,7 @@ import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { pickRadio } from './click-trail.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -109,8 +110,7 @@ test(titled('Drop match: a tournament match dropped from the hub card is the oth
     await bob.page.goto(roomUrl);
     await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: UI_TIMEOUT });
     for (const p of [alice, bob]) await routeRealIdentity(p, roomId);
-    await alice.page.getByTestId('room-event-tournament').click();
-    await expect(alice.page.getByTestId('room-event-tournament')).toBeChecked();
+    await pickRadio(alice.page, 'room-event-tournament', 'the app took the choice');
     await sitPickReady(alice.page, 'alice', 0);
     await sitPickReady(bob.page, 'bob', 1);
     await enterMyGames([alice.page, bob.page], MATCH_URL, UI_TIMEOUT);

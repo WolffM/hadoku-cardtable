@@ -12,6 +12,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
+import { pickRadio } from './click-trail.ts';
 
 interface Listed {
   id: string;
@@ -55,8 +56,7 @@ async function startTournament(page: Page, title: string): Promise<void> {
 }
 
 async function pick(page: Page, testId: string): Promise<void> {
-  await page.getByTestId(testId).click();
-  await expect(page.getByTestId(testId)).toBeChecked();
+  await pickRadio(page, testId, 'the app took the choice');
 }
 
 test('a draft tournament opens its room with the pick timer and clock the form chose, and the calendar reads the room live', async ({ browser }) => {

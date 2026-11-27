@@ -8,7 +8,7 @@ import { sitPodAt } from '../podSeats.ts';
 import { PREFIX } from '../identities.ts';
 import { resizeWindow, roomIdFromAddress } from './board.ts';
 import { openFriend, type Friend } from './browser.ts';
-import { traceControl } from '../click-trail.ts';
+import { pickRadio } from '../click-trail.ts';
 import { submitCreateRoom } from './rooms.ts';
 
 const UI_TIMEOUT = 30_000;
@@ -42,23 +42,12 @@ export async function openRoomWithLeader(browser: Browser, origin: string, roomN
 
 /** Turns Tournament on and sets Decks — the leader's own two controls, both read live on every browser. */
 export async function enableTournament(alice: Friend, bob: Friend, decks: 'locked' | 'per-round'): Promise<void> {
-  // A controlled radio: click, then wait for the room to say so (`toBeChecked`). Three CI clicks never
-  // reached the room (11-20 twice, 11-22: no settings write in the stack's log); the trail says what
-  // the page did with the click, and is read only when the radio stays unchecked.
-  const trail = await traceControl(alice.page, 'room-event-tournament');
-  await alice.page.getByTestId('room-event-tournament').click();
-  try {
-    await expect(alice.page.getByTestId('room-event-tournament')).toBeChecked();
-  } catch (err) {
-    throw new Error(`${err instanceof Error ? err.message : String(err)}\n${await trail.read()}`, { cause: err });
-  }
-  await trail.read();
+  await pickRadio(alice.page, 'room-event-tournament', 'the room says Tournament');
   for (const p of [alice, bob]) await expect(p.page.getByTestId('tournament-lobby'), `${p.name}: the pod lobby replaces the 1v1 seats`).toBeVisible({ timeout: UI_TIMEOUT });
   if (decks === 'per-round') {
     // Decks is a Match rule: open them, choose, close.
     await alice.page.getByTestId('match-rules').click();
-    await alice.page.getByTestId('tournament-decks-per-round').click();
-    await expect(alice.page.getByTestId('tournament-decks-per-round')).toBeChecked();
+    await pickRadio(alice.page, 'tournament-decks-per-round', 'the app took the choice');
     await alice.page.getByTestId('match-rules-popover-close').click();
   }
 }

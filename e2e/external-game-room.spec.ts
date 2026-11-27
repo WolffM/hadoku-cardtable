@@ -37,6 +37,7 @@ import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
 import { closeSettings, openSettings } from './play/w32.ts';
+import { pickRadio } from './click-trail.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -92,8 +93,7 @@ test(titled('a configured external-game room, made through Create room with Expe
 
     await openCreateRoom(alice.page);
     await alice.page.getByTestId('room-create-name').fill(`e2e external game ${Date.now()}`);
-    await alice.page.getByTestId(`room-create-type-${EXTERNAL_GAME_TYPE}`).click();
-    await expect(alice.page.getByTestId(`room-create-type-${EXTERNAL_GAME_TYPE}`)).toBeChecked();
+    await pickRadio(alice.page, `room-create-type-${EXTERNAL_GAME_TYPE}`, 'the app took the choice');
     // This game type has no mode of its own: the Constructed mode row is not offered for it.
     await expect(alice.page.getByTestId('room-create-constructed-mode')).toHaveCount(0);
     await alice.page.getByTestId('room-create-submit').click();

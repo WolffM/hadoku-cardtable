@@ -10,7 +10,7 @@
  * input read `checked=false` at document capture means the browser never pre-activated it. The window
  * listeners, the button and `:disabled` are here to say why the next time.
  */
-import type { Page, Request } from '@playwright/test';
+import { expect, type Page, type Request } from '@playwright/test';
 
 interface TrailWindow {
   __clickTrail?: { lines: string[]; stop: () => void };
@@ -109,4 +109,20 @@ export async function traceControl(page: Page, testId: string): Promise<{ read: 
       return [`what the page saw of ${testId}:`, ...lines, `the page's writes: ${writes.length === 0 ? 'none' : writes.join('; ')}`, ...errors].join('\n');
     },
   };
+}
+
+/**
+ * Picks a controlled radio (`RadioCards`) by its test id: one click (never `check()`, which re-checks
+ * a box the app has not yet reflected), then the input reads checked — which for a radio the app
+ * controls means the app took the choice. When it never does, the error carries the trail.
+ */
+export async function pickRadio(page: Page, testId: string, why: string, timeout = 15_000): Promise<void> {
+  const trail = await traceControl(page, testId);
+  await page.getByTestId(testId).click();
+  try {
+    await expect(page.getByTestId(testId), why).toBeChecked({ timeout });
+  } catch (err) {
+    throw new Error(`${err instanceof Error ? err.message : String(err)}\n${await trail.read()}`, { cause: err });
+  }
+  await trail.read();
 }
