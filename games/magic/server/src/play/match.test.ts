@@ -5322,7 +5322,7 @@ describe('activity', () => {
 });
 
 describe('the chess clock (MatchSpec.clockMs)', () => {
-	function clocked(clockMs: [number, number]): Harness & { told: SeatIdentity[][] } {
+	function clocked(clockMs: [number, number], now?: () => number): Harness & { told: SeatIdentity[][] } {
 		const { factory, hosts } = replayFactory();
 		const sent: Harness['sent'] = [];
 		const logs: Record<string, unknown>[] = [];
@@ -5336,6 +5336,7 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 			// The replay host answers no press: seat 1's coin-toss press would otherwise have its
 			// window re-sent after `ACT_SILENCE_MS`, live again, and its clock running.
 			actSilenceMs: 10 * 60_000,
+			...(now ? { now } : {}),
 		});
 		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], clockMs });
 		return { match, host: hosts[0] as ReplayHost, sent, logs, told };
@@ -5403,6 +5404,29 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 		expect(h.match.clockLeft()![0], 'the timer fired with a millisecond still on the clock').toBe(1);
 		vi.advanceTimersByTime(5_000);
 		expect(h.logs.find((l) => l.evt === 'clock-flag'), 'the seat still flags').toMatchObject({ seat: 0 });
+	});
+
+	it('flags at zero when the wall clock reaches zero between the timer reading it and the clock settling', () => {
+		vi.useFakeTimers();
+		// The timer fires a millisecond early, so its first read sees 1 ms left; the very next read, a
+		// moment later in the same callback, sees none. Nothing in between is allowed to lose the flag.
+		let fireAt = Number.POSITIVE_INFINITY;
+		let early = true;
+		const now = (): number => {
+			const t = Date.now();
+			if (t !== fireAt || !early) return t;
+			early = false;
+			return t - 1;
+		};
+		const h = clocked([20_000, 60_000], now);
+		vi.advanceTimersByTime(NEW_GAME_CLOCK_GRACE_MS);
+		waitingOnSeat0(h);
+		expect(h.match.seatIdentities()[0]!.clock?.running).toBe(true);
+		fireAt = Date.now() + 20_000;
+		vi.advanceTimersByTime(25_000);
+		expect(early, 'the timer read the clock a millisecond early').toBe(false);
+		expect(h.logs.find((l) => l.evt === 'clock-flag'), 'the seat still flags').toMatchObject({ seat: 0 });
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'concede')).toHaveLength(1);
 	});
 
 	it("keeps running for a seat that disconnected: being away answers nothing", () => {
