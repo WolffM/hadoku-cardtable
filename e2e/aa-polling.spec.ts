@@ -53,6 +53,46 @@ function countRoomReads(page: Page): string[] {
   return seen;
 }
 
+/**
+ * Whether `page`'s room feed has been heard and the read that answers it is over. The feed's watch is
+ * acked by the server, and the ack is one more read on purpose (`@wolffm/rooms-client`'s
+ * `createFeedPings`, `'heard'`): nothing that changed before it could have been said. An idle window
+ * opened before that read counts it as a poll (CI 11-22, load ~42: bob's two "idle" reads were his own
+ * heard read, after his screen had drawn). Ordered by the page's own events, not by a wait.
+ */
+function feedSettled(page: Page): () => boolean {
+  let sent = 0;
+  let acked = 0;
+  let readAfterAck = false;
+  let inFlight = 0;
+  page.on('websocket', (ws) => {
+    const asked = new Set<string>();
+    ws.on('framesent', (f) => {
+      const m = /^42(\d+)\["room-feed:watch"/.exec(String(f.payload));
+      if (m === null) return;
+      asked.add(m[1]!);
+      sent += 1;
+    });
+    ws.on('framereceived', (f) => {
+      const m = /^43(\d+)/.exec(String(f.payload));
+      if (m === null || !asked.delete(m[1]!)) return;
+      acked += 1;
+      readAfterAck = false;
+    });
+  });
+  page.on('request', (req) => {
+    if (!isRoomRead(req)) return;
+    inFlight += 1;
+    if (acked > 0) readAfterAck = true;
+  });
+  const done = (req: Request) => {
+    if (isRoomRead(req)) inFlight -= 1;
+  };
+  page.on('requestfinished', done);
+  page.on('requestfailed', done);
+  return () => sent > 0 && acked === sent && readAfterAck && inFlight === 0;
+}
+
 /** Requests in `log` after index `from`, as one line. */
 const since = (log: string[], from: number): string => `${log.length - from} [${log.slice(from).join(', ')}]`;
 
@@ -126,6 +166,7 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
     // Bob walks into alice's room: her open screen shows it without a poll.
     const roomBefore = roomLog.length;
     const bobInRoom = await bob.newPage();
+    const bobHeard = feedSettled(bobInRoom);
     const joined = bobInRoom.waitForResponse((r) => r.request().method() === 'POST' && /\/api\/rooms\/[^/]+\/join$/.test(r.url()));
     await bobInRoom.goto(roomUrl);
     await joined;
@@ -141,6 +182,7 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
     const current = await poolValue(room);
     const other = (await poolEras(room)).find((v) => v !== current);
     if (other === undefined) throw new Error(`the year slider offers nothing but ${current}`);
+    await expect.poll(bobHeard, { timeout: 30_000, message: "bob's room feed is heard and its read is over" }).toBe(true);
     const bobLog = countRoomReads(bobInRoom);
     await bobInRoom.waitForTimeout(3_000);
     const bobIdle = bobLog.length;
