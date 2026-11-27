@@ -18,6 +18,7 @@ import {
   initialState,
   isAwaitingConfirmation,
   isDraftComplete,
+  nextTable,
   pick,
   pickBlockedBy,
   useBlockedBy,
@@ -315,5 +316,46 @@ describe('a finished draft', () => {
     const spectator = loadFixtures().find((v) => v.viewer.kind === 'spectator');
     if (!spectator) throw new Error('expected a spectator fixture');
     expect(isDraftComplete(initialState(spectator))).toBe(false);
+  });
+});
+
+describe('a pick in flight across a newer payload (nextTable)', () => {
+  const picked = () => {
+    const before = opening();
+    const card = visiblePack(before)[3];
+    const result = pick(before, card.cardId);
+    if (!result.ok) throw new Error('a legal pick was rejected');
+    return { state: result.state, card };
+  };
+
+  it('stays in flight while the newer payload still shows its card in the pack: the server answered someone else first', () => {
+    const { state, card } = picked();
+    const other = { ...structuredClone(state.view), seq: state.view.seq + 1 };
+    const next = nextTable(state, other);
+    expect(next.view.seq).toBe(other.seq);
+    expect(next.pending?.cardId).toBe(card.cardId);
+    expect(visiblePack(next)).toEqual([]);
+    expect(pickBlockedBy(next)).toEqual({ reason: 'already-picked', cardId: card.cardId });
+  });
+
+  it('ends once the payload no longer shows the card in the pack, the pick taken', () => {
+    const { state, card } = picked();
+    const taken = structuredClone(state.view);
+    const seat = viewerSeat(taken)!;
+    seat.pack = seat.pack.filter((c) => c.cardId !== card.cardId);
+    seat.pool = [...seat.pool, card];
+    const next = nextTable(state, { ...taken, seq: taken.seq + 1 });
+    expect(next.pending).toBeNull();
+    expect(visiblePool(next).map((c) => c.cardId)).toEqual([card.cardId]);
+  });
+
+  it('ends on another draft or a new incarnation, and with no pick in flight is the payload itself', () => {
+    const { state } = picked();
+    expect(nextTable(state, { ...structuredClone(state.view), epoch: 'fx-reborn', seq: 1 }).pending).toBeNull();
+    const other = loadFixtures().find((v) => v.draftId === 'draft:fx-mid')!;
+    expect(nextTable(state, other).pending).toBeNull();
+    const [, second] = openingStream();
+    expect(nextTable(null, second)).toEqual(initialState(second));
+    expect(nextTable(opening(), second)).toEqual(initialState(second));
   });
 });

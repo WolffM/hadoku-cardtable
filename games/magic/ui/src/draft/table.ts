@@ -62,6 +62,18 @@ export function initialState(view: DraftView): TableState {
   return { view, pending: null };
 }
 
+/**
+ * The table after a newer payload. A pick in flight stays in flight while that payload still shows its
+ * card in this seat's pack: the server answered something else first (a neighbour's pick, a bot's), not
+ * this pick, and dropping it would put the card back in the pack for a second press the server refuses.
+ */
+export function nextTable(prev: TableState | null, view: DraftView): TableState {
+  const pending = prev?.pending ?? null;
+  if (prev === null || pending === null || prev.view.draftId !== view.draftId || prev.view.epoch !== view.epoch) return initialState(view);
+  if (!(viewerSeat(view)?.pack.some((c) => c.cardId === pending.cardId) ?? false)) return initialState(view);
+  return prev.pendingExtra === undefined ? { view, pending } : { view, pending, pendingExtra: prev.pendingExtra };
+}
+
 /** The seat a watcher is looking over the shoulder of, or null for anyone else. */
 export function watchedSeat(view: DraftView): Extract<DraftView['viewer'], { kind: 'watcher' }> | null {
   return view.viewer.kind === 'watcher' ? view.viewer : null;

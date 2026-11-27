@@ -72,7 +72,7 @@ import {
   type DraftTransport,
   type SocketDraft,
 } from '../draft/socket.ts';
-import { initialState, type TableState } from '../draft/table.ts';
+import { initialState, nextTable, type TableState } from '../draft/table.ts';
 import { DraftScreen, DraftSkeleton, PackTools } from '../components/DraftScreen.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { navigate, routeHash } from '@hadoku/game-ui/screens/route.ts';
@@ -134,6 +134,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
     // rebuilding the table on those would throw away the pending pick the
     // screen is showing.
     let shown = '';
+    let refused = 0;
     setTable(null);
     const live = startDraft({
       draftId,
@@ -146,10 +147,16 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           return;
         }
         // The watched seat too: a watcher switching seats is the same moment of the draft.
+        // A refused pick is not in flight any more: its card is back to press.
+        if (d.stats.rejected !== refused) {
+          refused = d.stats.rejected;
+          setTable((t) => (t === null ? t : initialState(t.view)));
+        }
         const stamp = `${d.view.epoch}:${d.view.seq}:${d.view.viewer.kind === 'watcher' ? d.view.viewer.seatId : ''}`;
         if (stamp === shown) return;
         shown = stamp;
-        setTable(initialState(d.view));
+        const view = d.view;
+        setTable((t) => nextTable(t, view));
       },
     });
     setDraft(live);
