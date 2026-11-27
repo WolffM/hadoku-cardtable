@@ -44,7 +44,7 @@
  *   death sends no hold, and the agents fence at the window.
  */
 
-import { existsSync, renameSync } from 'node:fs';
+import { rename } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 
@@ -395,6 +395,8 @@ export function placement<L extends { t: string }, C extends { t: string }>(opts
 	/** Set while a restore runs: the factory never places onto the host being failed. */
 	let exceptHost: Host<L, C> | null = null;
 	const fencedBatches = new Map<Host<L, C>, Moved[]>();
+	/** A failed claw's records on their way aside (`setAside`), by claw. */
+	const settingAside = new Map<string, Promise<void>>();
 	const timers: NodeJS.Timeout[] = [];
 	const draftbots = opts.draftbots({ alerts, now, log });
 
@@ -869,15 +871,26 @@ export function placement<L extends { t: string }, C extends { t: string }>(opts
 		const pool = host.pool;
 		host.pool = null;
 		pool?.abandon(cause);
-		const dir = join(clawsDir, host.name);
-		if (existsSync(dir)) {
-			try {
-				renameSync(dir, `${dir}.failed-${now()}`);
-			} catch (err) {
-				log({ evt: 'claw-records-kept', host: host.name, error: (err as Error).message });
-			}
-		}
+		setAside(host);
 		if (host.link !== null && host.link.client.lost !== null) host.link = null;
+	}
+
+	/**
+	 * Move a failed claw's records aside, off the event loop: a sync rename on hokon's contended
+	 * btrfs held the loop up to 1.6 s in the middle of a claw's loss. Its next pool writes where they
+	 * were, so it is not made until the move is done (`connectClaw`, `recover`).
+	 */
+	function setAside(host: Host<L, C>): void {
+		const dir = join(clawsDir, host.name);
+		const moved = (settingAside.get(host.name) ?? Promise.resolve())
+			.then(() => rename(dir, `${dir}.failed-${now()}`))
+			.catch((err: unknown) => {
+				if ((err as NodeJS.ErrnoException).code !== 'ENOENT') log({ evt: 'claw-records-kept', host: host.name, error: (err as Error).message });
+			})
+			.finally(() => {
+				if (settingAside.get(host.name) === moved) settingAside.delete(host.name);
+			});
+		settingAside.set(host.name, moved);
 	}
 
 	function plannedMove(p: Placed<L, C>): void {
@@ -937,6 +950,7 @@ export function placement<L extends { t: string }, C extends { t: string }>(opts
 	async function connectClaw(host: Host<L, C>): Promise<void> {
 		host.connecting = true;
 		try {
+			await settingAside.get(host.name);
 			const conn = await opts.connect(host.name);
 			if (closing) {
 				conn.client.close();
@@ -1020,8 +1034,13 @@ export function placement<L extends { t: string }, C extends { t: string }>(opts
 		// Healthy since the failure, by a status read after it.
 		if (fleetReadAt === null || fleetReadAt <= q.at || f === null || !f.reachable || f.hosting?.state !== 'guaranteed') return;
 		if (host.link === null || host.link.client.lost !== null) return;
-		host.pool ??= makePool(host, host.link.launcher, join(clawsDir, host.name), true);
 		q.canaryRunning = true;
+		await settingAside.get(host.name);
+		if (host.quarantine !== q || host.link === null || host.link.client.lost !== null) {
+			q.canaryRunning = false;
+			return;
+		}
+		host.pool ??= makePool(host, host.link.launcher, join(clawsDir, host.name), true);
 		const why = await canary(host.name, host.pool).catch((err: unknown) => `threw: ${(err as Error).message}`);
 		q.canaryRunning = false;
 		if (host.quarantine !== q) return;
