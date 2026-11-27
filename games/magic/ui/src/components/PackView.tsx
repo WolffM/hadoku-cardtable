@@ -181,6 +181,11 @@ const PHONE_FAN_WIDTH_FRAC = 0.74;
 const PHONE_FAN_PAD_V = 20;
 /** The least the row under the pack keeps, at 100%. More when the pod's column beside the picks needs more at its smallest fit (`fitToWindow`). */
 export const POOL_MIN_H = 250;
+/**
+ * The least the pack's row keeps, at 100%, however tall the pod's column beside the picks wants to be:
+ * past it the column scrolls (`draft.css`). A fan card of 180 px, or a grid row of whole cards.
+ */
+export const PACK_ROW_MIN = PACK_ROW_BASE;
 
 /**
  * The pack row's height in a draft body `height` CSS px tall, `unit` the UI scale: the fan's and the
@@ -192,10 +197,13 @@ export const POOL_MIN_H = 250;
  * cards get bigger/smaller"*). A row fixed in CSS px follows zoom fully, but is the same row on a
  * laptop and on a wide screen. The geometric mean of the two follows both: zoom in and the row
  * grows on screen by √zoom, and a taller window still gets a taller fan. Never taller than the
- * largest card needs, and never so tall the picks' row has less than `keep`.
+ * largest card needs, and never so tall the picks' row has less than `keep`, but never shorter than
+ * `least` either (a whole card of a question open over the pack, `fitToWindow`) unless the picks' row
+ * would then have less than its own floor.
  */
-export function packRowHeight(height: number, unit = 1, keep = POOL_MIN_H * unit): number {
-  return Math.max(0, Math.min(Math.sqrt(PACK_ROW_BASE * unit * height), (MAX_CARD_H + LIFT + BOTTOM) * unit, height - keep));
+export function packRowHeight(height: number, unit = 1, keep = POOL_MIN_H * unit, least = PACK_ROW_MIN * unit): number {
+  const row = Math.min(Math.sqrt(PACK_ROW_BASE * unit * height), (MAX_CARD_H + LIFT + BOTTOM) * unit, height - keep);
+  return Math.max(0, row, Math.min(least, height - POOL_MIN_H * unit));
 }
 
 export interface FanGeometry {

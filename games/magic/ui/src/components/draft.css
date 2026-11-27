@@ -254,13 +254,19 @@
 }
 
 /* Beside the picks, under the pack, and what it holds draws at the scale that fits it (`.fit-scale`):
-   with eight seats, the room's bar and the draft's, it is taller than the picks' row. */
+   with eight seats, the room's bar and the draft's, it is taller than the picks' row. Still taller at
+   its smallest fit (every seat's long list of cards drafted face up), it scrolls: the pack's row keeps
+   a whole card (`fitToWindow`). */
 .draft__aside {
   grid-area: seats;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+}
+
+.draft__aside.fit-scale {
+  overflow: hidden auto;
 }
 
 /* The pod's ring is a square as wide as its box (`.podcircle`), which no fit scale shrinks: here it is

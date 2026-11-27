@@ -33,7 +33,7 @@
 /*
  * A column that fits its box (`components/cardFit.ts`'s `useFitScale`, which writes `--fit`):
  * inside it the units are the UI scale times `--fit`, so every length it holds shrinks together
- * until its content fits, and it never scrolls. Under `MIN_FIT` it clips.
+ * until its content fits, and it never scrolls. Under `MIN_FIT` it clips, or scrolls where its own rule says (the draft's column).
  */
 .fit-scale {
   --ui-px: calc(1px * var(--ui-scale) * var(--fit, 1));

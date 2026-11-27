@@ -91,6 +91,7 @@ import {
   fanX,
   MAX_CARD_H,
   packFitStyle,
+  PACK_ROW_MIN,
   packRowHeight,
   PackView,
   phoneFanGeometry,
@@ -181,11 +182,31 @@ function scrollBoxOf(el: HTMLElement): HTMLElement | null {
 }
 
 /**
+ * How tall the pack's row must be for the open question over it (`.draft__ask`) to show its first
+ * card whole, its words above it: 0 when none is open. A question with no cards needs all of itself.
+ */
+function askNeed(body: HTMLElement): number {
+  const ask = body.querySelector<HTMLElement>(":scope > .draft__main > .draft__ask");
+  if (ask === null) return 0;
+  const style = getComputedStyle(ask);
+  const card = ask.querySelector(".draft__ask-choices > .card");
+  if (card === null) return ask.scrollHeight;
+  return (
+    card.getBoundingClientRect().bottom -
+    ask.getBoundingClientRect().top +
+    ask.scrollTop +
+    (parseFloat(style.paddingBottom) || 0) +
+    (parseFloat(style.borderBottomWidth) || 0)
+  );
+}
+
+/**
  * The draft body's ref: exactly as tall as the window below it, so the two
  * rows fill the screen and the page itself never scrolls (`draft.css`,
  * layout), and the pack's row out of that height (`packRowHeight`), fan or
  * grid, leaving the picks' row at least what the pod's column beside them
- * needs at its smallest fit. The pod's skeleton (`PodScreen.tsx`) wears it
+ * needs at its smallest fit, but never less than a whole card above it (a
+ * question's, when one is open): past that the column scrolls. The pod's skeleton (`PodScreen.tsx`) wears it
  * too, so the draft lands on the same lines.
  */
 export function fitToWindow(
@@ -229,7 +250,12 @@ export function fitToWindow(
       POOL_MIN_H * unit,
       rows && aside !== null ? smallestFitHeight(aside) : 0,
     );
-    const packRow = packRowHeight(inner, unit, keep);
+    const packRow = packRowHeight(
+      inner,
+      unit,
+      keep,
+      Math.max(PACK_ROW_MIN * unit, rows ? askNeed(el) : 0),
+    );
     el.style.setProperty("--pack-row", `${packRow.toFixed(1)}px`);
     el.style.setProperty("--picks-row", `${(inner - packRow).toFixed(1)}px`);
   };
@@ -253,10 +279,18 @@ export function fitToWindow(
           });
         });
   for (const part of aside?.children ?? []) parts?.observe(part);
+  // A question opening over the pack, or answered: its row is measured for it.
+  const main = el.querySelector(":scope > .draft__main");
+  const asks =
+    main === null || typeof MutationObserver === "undefined"
+      ? null
+      : new MutationObserver(fit);
+  if (main !== null) asks?.observe(main, { childList: true });
   return () => {
     window.removeEventListener("resize", fit);
     observer?.disconnect();
     parts?.disconnect();
+    asks?.disconnect();
     stop?.();
   };
 }

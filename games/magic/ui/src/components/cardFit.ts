@@ -169,10 +169,10 @@ export function fitScale(content: number, fit: number, available: number): numbe
   return next > fit && next - fit < 2 * FIT_STEP - 1e-9 ? fit : next;
 }
 
-/** How tall `el`'s children reach inside its content box, whatever the box's own height. */
+/** How tall `el`'s children reach inside its content box, whatever the box's own height and however far it is scrolled. */
 function contentHeight(el: HTMLElement): number {
   const style = getComputedStyle(el);
-  const top = el.getBoundingClientRect().top + (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.paddingTop) || 0);
+  const top = el.getBoundingClientRect().top - el.scrollTop + (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.paddingTop) || 0);
   let bottom = top;
   for (const child of el.children) bottom = Math.max(bottom, child.getBoundingClientRect().bottom + cssPx(child, 'margin-bottom', 0));
   return bottom - top;
