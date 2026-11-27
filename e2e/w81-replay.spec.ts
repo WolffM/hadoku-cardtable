@@ -226,9 +226,17 @@ function sideOf(p: RecordedPresence): 'own' | 'theirs' | null {
   return p.pointer.y > 0.5 ? 'own' : 'theirs';
 }
 
-/** Where a replay draws its cursor: below the board's middle or not, its name tag, and the active seat. */
+/**
+ * Where a replay draws its cursor: on which seat's half of the board its tip is, its name tag, and the
+ * active seat. The halves meet at the seam between the seats, and a tip on the seam is on both: an anchored
+ * pointer is drawn inside the twin of its zone, held to that zone's box (`presence.ts`'s `placeAnchor`),
+ * and an offset that points out of the zone leaves the tip on the zone's edge: on the seam, for a
+ * battlefield, from a pointer near the middle of its sender's screen (an OK pressed on the decision
+ * sheet across it). Judged by the board's middle instead, a fraction of a pixel decided such a tip's side.
+ */
 interface CursorDrawn {
-  bottom: boolean;
+  atTop: boolean;
+  atBottom: boolean;
   name: string;
   activeName: string;
   activeAtBottom: boolean;
@@ -242,12 +250,14 @@ const cursorOnFreshBoard = (page: Page): Promise<CursorDrawn | null> =>
   page.evaluate(() => {
     if (document.querySelector('.seat[data-w81-before-seek]') !== null) return null;
     const cursor = document.querySelector<HTMLElement>('.presence');
-    const overlay = document.querySelector('[data-board-overlay]');
-    if (cursor === null || overlay === null || cursor.getAnimations().some((a) => a.playState === 'running')) return null;
-    const c = cursor.getBoundingClientRect();
-    const o = overlay.getBoundingClientRect();
+    const bottom = document.querySelector('.seat[data-viewer]');
+    if (cursor === null || bottom === null || cursor.getAnimations().some((a) => a.playState === 'running')) return null;
+    const tip = cursor.getBoundingClientRect().top;
+    const seam = bottom.getBoundingClientRect().top;
+    // Within a pixel: the tip's `top` is laid out in the engine's own fraction of a pixel, not the zone edge's exact value.
     return {
-      bottom: c.top > (o.top + o.bottom) / 2,
+      atTop: tip <= seam + 1,
+      atBottom: tip >= seam - 1,
       name: cursor.querySelector('.presence__name')?.textContent ?? '',
       activeName: document.querySelector('.seat[data-active] .seat__name')?.textContent ?? '',
       activeAtBottom: document.querySelector('.seat[data-viewer][data-active]') !== null,
@@ -436,8 +446,11 @@ test(
           .toBe(true);
         if (drawn === null) throw new Error(`no cursor on the board seeked to ${p.at} ms`);
         // Seat 0 is drawn at the bottom: its own side is the bottom, seat 1's the top.
-        const ownSide = drawn.bottom === (p.seat === 0);
-        drawnAt.push({ at: p.at, seat: p.seat, side: sideOf(p.presence)!, drawn: ownSide ? 'own' : 'theirs', ...drawn });
+        const side = sideOf(p.presence)!;
+        const onOwn = p.seat === 0 ? drawn.atBottom : drawn.atTop;
+        const onTheirs = p.seat === 0 ? drawn.atTop : drawn.atBottom;
+        const onSide = side === 'own' ? onOwn : onTheirs;
+        drawnAt.push({ at: p.at, seat: p.seat, side, drawn: onSide ? side : side === 'own' ? 'theirs' : 'own', ...drawn });
       }
       console.log(`[w81] cursor at ${drawnAt.length} recorded pointer lines: ${drawnAt.map((d) => `${d.at}:s${d.seat}:${d.side}${d.drawn === d.side ? '' : `!${d.drawn}`}`).join(' ')}`);
       expect(drawnAt.filter((d) => d.seat === 0).length, 'the bottom player’s pointer is judged').toBeGreaterThan(0);
