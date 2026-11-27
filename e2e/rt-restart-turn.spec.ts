@@ -12,7 +12,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickHandCard, handCardNamed, makeTitled, nextPhaseLive } from './play/board.ts';
+import { clickHandCard, handCardNamed, makeTitled, nextPhaseLive, offeredCard } from './play/board.ts';
 import { railAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -56,9 +56,10 @@ async function passTo(owner: Page, other: Page, turn: number): Promise<void> {
 
 /** Play the hand's land of this name and wait for it on both screens. */
 async function playLand(page: Page, other: Page, name: string): Promise<void> {
-  const id = await handCardNamed(page, name);
-  expect(id, `the hand holds a ${name}`).toBeDefined();
-  await clickHandCard(page, id!);
+  // Offered, not only held: after a restart the hand is drawn before Forge's window offers the land
+  // (CI, 11-22 and 11-24: the click came 57 ms early and was refused as nothing offered).
+  const id = await offeredCard(page, name, { zone: 'hand', message: `the hand's ${name} is offered` });
+  await clickHandCard(page, id);
   await expect(lands(page, 'mine'), `${name} on its owner's battlefield`).toHaveCount(1, { timeout: 15_000 });
   await expect(lands(other, 'theirs'), `${name} on the other screen`).toHaveCount(1, { timeout: 15_000 });
 }

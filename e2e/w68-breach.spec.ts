@@ -61,6 +61,9 @@ test(titled('Through the Breach is offered when only Izzet Signet’s mana makes
     }
     expect(await isTapped(a, mine), 'the Mine tapped on a click').toBe(true);
     await expect.poll(() => poolTotal(a), { timeout: 10_000, message: 'the Mine added {C}' }).toBe(1);
+    // The pool reads 1 before Forge's next window offers the tapped Mine back (CI, 11-24: the click came
+    // 36 ms early and was refused as nothing offered).
+    await expect.poll(() => isOffered(a, mine), { timeout: 10_000, message: 'the tapped Mine is offered back' }).toBe(true);
     await card(a, mine).locator('button').first().click();
     const back = await expect.poll(() => isTapped(a, mine), { timeout: 8_000 }).toBe(false).then(() => true, () => false);
     console.log(`[w68-breach] Urza's Mine alone, tapped then clicked: ${back ? 'untapped' : 'STILL TAPPED'}, pool ${await poolTotal(a)}`);
