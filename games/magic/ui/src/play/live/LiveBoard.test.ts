@@ -68,6 +68,7 @@ import {
   boardInteraction,
   closeMatch,
   currentAsk,
+  ingest,
   nothingToDecide,
   pressButton,
   selectCard,
@@ -82,6 +83,7 @@ import { Stage } from '@hadoku/ui-shell/motion';
 import type { PlayPrefs } from './prefs.ts';
 import { CardtableSettings, HostDrawsSettingsProvider } from '@hadoku/game-ui/settings/Settings.tsx';
 import { confirmAsk, fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from './replay-server.ts';
+import { BAR_STUCK_MS } from './bar-hold.ts';
 import { HOLD_MAX_MS } from './timed-hold.ts';
 import { parseMatchAck } from './transport.ts';
 import { PHASE_SETTLE_MS } from './phase-sound.ts';
@@ -5685,6 +5687,56 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     await waitFor(() => getByTestId('live-confirm-host'));
     expect(getByTestId('prompt-confirm-yes').textContent).toBe('Keep');
     expect(getByTestId('prompt-confirm-no').textContent).toBe('Mulligan');
+  });
+
+  /*
+   * The bar-stuck clock judges the bar the server has sent, not the one last drawn. Three CI matches
+   * at the mulligan (2026-11-24, every page drawing a few frames a second): the seat pressed Keep, the
+   * server took the bar off within milliseconds, and the press's 2 s clock ran out with that dead bar
+   * already on the match but not yet drawn. `held` was reported with Keep and Mulligan both off — a
+   * seat that had already answered, failing every spec's dead-bar check.
+   */
+  describe('bar-stuck after a press', () => {
+    const stuckReports = (emit: { mock: { calls: unknown[][] } }) =>
+      emit.mock.calls.filter(([, payload]) => (payload as { kind?: string }).kind === 'bar-stuck').map(([, payload]) => (payload as { data: { phase: string } }).data);
+    const keepOff = parseServerFrame({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'Keep', label2: 'Mulligan', enable1: false, enable2: false, focus1: false });
+
+    async function pressedKeep() {
+      vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const board = await liveBoard();
+      for (const f of buttonFrames('Alice, you are going first!\n\nDo you want to keep your hand?', 'Keep', 'Mulligan')) board.s.send(f);
+      const keep = await waitFor(() => board.getByTestId('prompt-confirm-yes'));
+      const emit = vi.spyOn(board.m.transport, 'emit');
+      fireEvent.click(keep);
+      return { ...board, emit };
+    }
+
+    it('the server’s dead bar reached the match before the board drew it: not stuck, nothing reported', async () => {
+      const { m, emit } = await pressedKeep();
+      setTimeout(() => ingest(m, { matchId: m.matchId, cursor: { ...m.cursor!, seq: m.cursor!.seq + 1 }, frame: keepOff }), BAR_STUCK_MS - 100);
+      act(() => {
+        vi.advanceTimersByTime(BAR_STUCK_MS + 100);
+      });
+      act(() => {
+        vi.advanceTimersByTime(2 * BAR_STUCK_MS);
+      });
+      expect(m.buttons?.enable1).toBe(false);
+      expect(stuckReports(emit)).toEqual([]);
+    });
+
+    it('a press the server never answers is still reported, and cleared when the bar comes', async () => {
+      const { s, m, emit } = await pressedKeep();
+      act(() => {
+        vi.advanceTimersByTime(BAR_STUCK_MS + 100);
+      });
+      expect(stuckReports(emit).map((r) => r.phase)).toEqual(['held']);
+      s.send(keepOff);
+      await untilMatch(m, () => expect(m.buttons?.enable1).toBe(false));
+      await waitFor(() => expect(stuckReports(emit).map((r) => r.phase)).toEqual(['held', 'cleared']));
+    });
   });
 
   it('an ordinary priority pass (OK/End Turn) with nothing on the stack is the pass pop-up, never the yes/no one', async () => {
