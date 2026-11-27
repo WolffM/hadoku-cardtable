@@ -456,10 +456,11 @@ export function podEntrants(room: RoomRecord): string[] {
  * together play a bot game (`GameHooks.playBotGame`). A room that drafts as several pods (`podDrafts`) pairs its
  * humans alone: each pod's bots filled a table of their own, not a seat anyone put them in. So does a room
  * whose `settings.botsPlay` is off (the operator, 2026-11-23): its bots only draft, and an odd human out
- * takes the bye.
+ * takes the bye. Unless it has one human: alone they would have no one to play and the event would end
+ * at the draft, so that pod's bots play whatever the setting says.
  */
 export function draftEntrants(room: RoomRecord, humans: string[]): string[] {
-	if (room.game.podDrafts !== null || !room.game.settings.botsPlay) return humans;
+	if (room.game.podDrafts !== null || (!room.game.settings.botsPlay && humans.length > 1)) return humans;
 	return podTable(room).map((place, seat) => (place.kind === 'human' ? place.id : aiEntrantId(seat)));
 }
 

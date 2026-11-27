@@ -482,6 +482,21 @@ describe('a draft tournament past one pod, simulated end to end over real socket
 		}
 	}, 60_000);
 
+	// With one person there is no one to pair them with, so the bots play: Bots play off would end the event at the draft.
+	it('one person and 7 bots with Bots play off: the bots still play, and the Swiss is 8', async () => {
+		const sim = await boot({ n: 1, draftBots: 'model', seed: 1, botsPlay: false });
+		try {
+			const pods = await draft(sim, 1);
+			build(sim);
+			const played = await playRounds(sim, 11, pods);
+			expect(played.problems).toEqual([]);
+			expect(played.rounds).toHaveLength(3);
+			expect(played.standings).toBe(8);
+		} finally {
+			await sim.close();
+		}
+	}, 60_000);
+
 	it('24 drafters, one leaves the room in round 2 and one is disqualified in round 3: their opponents take byes and the Swiss stays whole', async () => {
 		const sim = await boot({ n: 24, draftBots: 'model', seed: 2402 });
 		try {
