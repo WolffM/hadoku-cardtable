@@ -117,6 +117,11 @@ export async function openFriend(browser: Browser, name: string): Promise<Friend
     if (m.type() === 'error' || m.type() === 'warning') traced(trace, `console.${m.type()} ${m.text().slice(0, 200)}`);
   });
   page.on('pageerror', (err) => traced(trace, `pageerror ${String(err).slice(0, 200)}`));
+  // Which request a server error answered: Chromium's own console line names none (CI 11-27, a match
+  // page whose board never drew said only "the server responded with a status of 502").
+  page.on('response', (res) => {
+    if (res.status() >= 500) traced(trace, `${res.status()} ${res.request().method()} ${short(res.url())}`);
+  });
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) traced(trace, `navigated ${short(frame.url())}`);
   });
