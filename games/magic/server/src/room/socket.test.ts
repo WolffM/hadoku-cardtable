@@ -1393,7 +1393,7 @@ describe('a seat with nobody connected to it, for the window', () => {
 		expect(live().lines).toContainEqual({ evt: 'seat-released-disconnected', participantId: memberId, roomId: constructedRoomId, tableId });
 	});
 
-	it('keeps the seat when a reload reconnects inside the window — the timer still runs, but finds them connected again', async () => {
+	it('keeps the seat when a reload reconnects inside the window', async () => {
 		await harness?.close();
 		const timers: Array<() => void> = [];
 		harness = await boot({ schedule: (fn) => timers.push(fn) });
@@ -1404,9 +1404,7 @@ describe('a seat with nobody connected to it, for the window', () => {
 		await waitUntil(() => timers.length > 0, 'the release timer to be scheduled');
 
 		// A reload: the SAME participant id (the edge headers mint it, never the
-		// socket), a brand new connection, well inside the window — and the timer
-		// scheduled on the first disconnect is never cancelled, it is just a no-op
-		// once it runs (the module header's own point).
+		// socket), a brand new connection, well inside the window, which cancels it.
 		const reloaded = await connectCounted('alice');
 		timers.shift()!();
 		expect(live().lobby.seats(constructedRoomId, tableId).map((s) => s.memberId)).toContain(memberId);

@@ -132,10 +132,10 @@
  * from under them (the e2e of 2026-11-05). A reload inside the window
  * reconnects under the SAME participant id (the edge headers mint it, never
  * the socket), which the tracker reports as `online: { returned: true }` and
- * the pending mark is dropped — the seat is never touched. The grace timer
- * itself is not cancelled (the package does not expose that to a caller
- * using its own `setTimer`); it is a no-op once it fires, the same way a
- * stale Gauntlet AI timer is a no-op (`http/gauntlet.ts`'s own `wake`).
+ * the pending mark is dropped — the seat is never touched. The reconnect also
+ * cancels that window's timer (`SeatTimerHandle`): left running, it fired 30 s
+ * after the first reload into the middle of a second one, when the person was
+ * offline again, and released the seat at once (CI, 2026-11-22).
  *
  * No heartbeat is wired up (socket.io's own ping/pong already decides when a
  * transport is dead and fires `disconnect`, which is all this module ever
@@ -281,12 +281,10 @@ export const SEAT_RELEASE_MS = 30_000;
 const NO_HEARTBEAT_IDLE_MS = 24 * 60 * 60 * 1000;
 
 /**
- * A grace timer's handle, tagged so `clearSeatTimer` below knows whether it
- * owns a real `setTimeout` to cancel or merely called the test's own
- * `schedule` (which, like the old `liveConnections` timer it replaces, offers
- * no way to cancel — see the module header's "no-op once it fires").
+ * A grace timer's handle. `schedule` (a test's own clock) offers no way to cancel, so every timer
+ * runs through `cancelled`: a reconnect clears its window, and that window's run is then nothing.
  */
-type SeatTimerHandle = { kind: 'real'; handle: ReturnType<typeof setTimeout> } | { kind: 'scheduled' };
+type SeatTimerHandle = { cancelled: boolean; timer: ReturnType<typeof setTimeout> | null };
 
 /**
  * The step after a pick, to everyone in the room, one payload per recipient.
@@ -363,13 +361,17 @@ export function createSeatPresence(opts: SeatPresenceOptions): PresenceTracker<s
 			return draft !== null ? opts.draftGraceOf(draft.draftRoomId) : opts.seatReleaseMs;
 		},
 		setTimer: (fn, ms): SeatTimerHandle => {
+			const h: SeatTimerHandle = { cancelled: false, timer: null };
+			const run = (): void => {
+				if (!h.cancelled) fn();
+			};
 			if (ms === opts.seatReleaseMs) {
-				schedule(fn, ms);
-				return { kind: 'scheduled' };
+				schedule(run, ms);
+			} else {
+				h.timer = setTimeout(run, ms);
+				h.timer.unref?.();
 			}
-			const handle = setTimeout(fn, ms);
-			handle.unref?.();
-			return { kind: 'real', handle };
+			return h;
 		},
 		clearTimer: (handle) => {
 			// `undefined` while nobody is mid-grace (e.g. `dispose()`'s own
@@ -378,7 +380,8 @@ export function createSeatPresence(opts: SeatPresenceOptions): PresenceTracker<s
 			// must check first since it reads a tagged handle, not a timer id.
 			if (handle === undefined) return;
 			const h = handle as SeatTimerHandle;
-			if (h.kind === 'real') clearTimeout(h.handle);
+			h.cancelled = true;
+			if (h.timer !== null) clearTimeout(h.timer);
 		},
 	});
 }
