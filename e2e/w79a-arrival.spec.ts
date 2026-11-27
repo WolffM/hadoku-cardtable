@@ -178,12 +178,15 @@ function judge(fs: Frame[], released: number, kinds: readonly Drawn['kind'][]): 
   const v: Verdict = { offered: [], landings: 0, rose: [], jumps: [], handover: null, moved: [], doubled: [] };
   for (const f of fs.slice(released)) for (const d of f.drawn) if (d.offer !== null && standIn(d)) v.offered.push(`${f.t}ms ${d.kind} ${d.offer}`);
   const trip = fs.slice(Math.max(0, from - 1), restAt + 1);
-  // The farthest the stand-in gets from its slot: the hang, or where it started. From there it only falls.
+  // The drop starts where the card stops being lifted: the last frame it is drawn at its largest, since it
+  // shrinks to its slot's size only as it falls. From there it only falls. Not the frame farthest from the
+  // slot: a rise out of the graveyard swings past the slot on its way up to the hang (CI, 11-22: within
+  // 55 px, then hanging at 62-64), and from there the hang's own wobble read as a rise.
+  const widths = trip.map((f) => f.drawn.find(standIn)?.box.w ?? -1);
+  const lifted = Math.max(...widths);
   let peak = -1;
-  let far = -1;
-  trip.forEach((f, i) => {
-    const d = f.drawn.find(standIn);
-    if (d !== undefined && centreDist(d.box, rest) >= far) [peak, far] = [i, centreDist(d.box, rest)];
+  widths.forEach((w, i) => {
+    if (w >= 0 && w >= lifted - 1) peak = i;
   });
   let best = Infinity;
   let landed = false;
