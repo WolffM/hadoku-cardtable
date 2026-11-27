@@ -99,14 +99,26 @@ export async function dealPod(alice: Player, bob: Player, origin: string): Promi
   await bob.page.goto(`${origin}${PREFIX}/#/room/${roomId}`);
   for (const p of players) await expect(p.page.getByTestId('draft-lobby'), `${p.name}: joined the room`).toBeVisible({ timeout: UI_TIMEOUT });
 
-  // Which seat is whose reads the room's own member ids (`draft-pools.spec.ts`'s own note).
-  const roomBody = (await alice.page.evaluate(
-    (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
-    roomId,
-  )) as { members: { id: string; name: string }[] };
+  // Which seat is whose reads the room's own member ids (`draft-pools.spec.ts`'s own note), once both
+  // are members: a page draws the room's lobby before its own join is written (CI 11-27: bob's lobby
+  // was up and the room still listed alice alone).
+  const readRoom = async () =>
+    (await alice.page.evaluate(
+      (id) => fetch(`${window.location.pathname.replace(/(\/room\/[^/]+)?\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+      roomId,
+    )) as { members: { id: string; name: string }[] };
+  let roomBody: Awaited<ReturnType<typeof readRoom>> = { members: [] };
+  await expect
+    .poll(
+      async () => {
+        roomBody = await readRoom();
+        return players.every((p) => roomBody.members.some((m) => m.name === `e2e-${p.name}`));
+      },
+      { timeout: UI_TIMEOUT, message: 'both players are the room’s members' },
+    )
+    .toBe(true);
   for (const p of players) {
-    const me = roomBody.members.find((m) => m.name === `e2e-${p.name}`);
-    if (me === undefined) throw new Error(`${p.name}: not found among the room’s own members`);
+    const me = roomBody.members.find((m) => m.name === `e2e-${p.name}`)!;
     await p.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'guest', name: `e2e-${p.name}` } }));
     await p.page.reload();
     await resizeWindow(p.page, { width: 1280, height: 800 });
