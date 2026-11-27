@@ -61,12 +61,6 @@ test.describe.configure({ mode: 'serial' });
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-/**
- * Forge's own sleep at a phase it is not set up to skip (`FControlGamePlayback.phasesDelay`):
- * exactly 200 ms, taken on the game thread between one phase and the next.
- */
-const FORGE_SLEEP_MS = 200;
-
 /* ── what a page shows ───────────────────────────────────────────────── */
 
 /**
@@ -161,6 +155,7 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
     await expect(first.page.getByTestId('live-turn-n'), 'turn 1 has a number').toHaveText(/^\d+$/);
 
     // ── End Turn: every phase the seat is not stopped at passes without Forge's pause.
+    const endTurnOn = Number(await first.page.getByTestId('live-turn-n').innerText());
     const clicked = await mark(first.page);
     await first.page.getByTestId('live-button-end-turn').click();
     await expect
@@ -174,11 +169,17 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
       `[w32 q5] End Turn: ${own.map((e) => e.phase).join(' > ')}; gaps ${endTurnGaps.join(', ')} ms = ${frames.join(', ')} frame(s) at p50 ${frameRate.p50} ms/frame; click to first ${Math.round((own[0]?.t ?? clicked) - clicked)} ms`,
     );
     expect(endTurnGaps.length, 'an End Turn passes through several phases to measure').toBeGreaterThanOrEqual(3);
-    // "At once": Forge's sleep is a floor under EVERY gap it is taken in, and load only adds to a
-    // gap, so a paced End Turn has no gap under FORGE_SLEEP_MS on any runner. One gap under it
-    // proves the sleep was skipped; a loaded CI runner can stretch some skipped gaps past 200 ms (146 to
-    // 314 ms seen), but not every one. No absolute bound on the longest gap: that measured the CI runner.
-    expect(Math.min(...endTurnGaps), `End Turn: the phases pass without Forge's own ${FORGE_SLEEP_MS} ms sleep (gaps ${endTurnGaps.join(', ')} ms)`).toBeLessThan(FORGE_SLEEP_MS);
+    // "At once", without a clock: the End Turn seat's game thread READ the skip on that turn (the
+    // bridge's `pace-read`, from the very pref Forge's auto-pass sleep branch reads). The gaps are
+    // logged only: "one gap under Forge's 200 ms sleep" measured the runner, and lost on two loaded
+    // ones whose every skipped gap was stretched past it (CI 11-22: 252, 330, 471 and 239, 205, 240 ms).
+    const firstSeat = first === alice ? 0 : 1;
+    await expect
+      .poll(
+        () => serverLog(stack).some((l) => l.evt === 'bridge-pace-read' && l.seat === firstSeat && l.skipPhaseDelay === true && l.turn === endTurnOn),
+        { timeout: 10_000, message: `End Turn: seat ${firstSeat}'s game thread read the phase-delay skip on turn ${endTurnOn}` },
+      )
+      .toBe(true);
 
     // ── A pass that is NOT an End Turn: the other seat, on its own turn, presses OK at
     // its main phase; the phases it passes through keep Forge's pace. T6: `board.ts`'s own
@@ -205,7 +206,6 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
       .poll(() => serverLog(stack).filter((l) => l.evt === 'bridge-pace').length, { timeout: 10_000, message: 'the bridge reported the preference flips' })
       .toBeGreaterThanOrEqual(2);
     const pace = serverLog(stack).filter((l) => l.evt === 'bridge-pace').map((l) => `${String(l.seat)}:${String(l.skipPhaseDelay)}`);
-    const firstSeat = first === alice ? 0 : 1;
     expect(pace, 'on at the End Turn click for that seat only, then off; nothing for the ordinary pass').toEqual([`${firstSeat}:true`, `${firstSeat}:false`]);
   } finally {
     await stack.stop();
