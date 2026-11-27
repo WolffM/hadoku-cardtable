@@ -13,6 +13,9 @@
  * - **The route** — in memory (`routeInMemory`); watchparty owns the URL.
  * - **Lookups and hit tests** — `setDocumentScope` points the app's
  *   document-wide queries at the shadow root (`../dom.ts`).
+ * - **The session watch** — a lost session stops the table's sockets and
+ *   requests and reloads the host page through the edge's sign-in wall
+ *   (`../session-watch.ts`).
  * - **Hash links** — an `<a href="#/…">` inside the table would rewrite
  *   watchparty's own address bar; a click on one is routed in memory instead.
  *
@@ -39,6 +42,7 @@ import { navigate, parseRoute, routeInMemory } from '@hadoku/game-ui/screens/rou
 import { preloadLikelyScreens } from '../screens/Screen.tsx';
 import { EmbedApp } from './EmbedApp.tsx';
 import { mountEmbed } from '@hadoku/ui-shell/embed';
+import { watchSession } from '../session-watch.ts';
 import type { GameBundleModule } from './contract.ts';
 
 // The same tiers, in the same order, as `main.tsx` — minus the header's two
@@ -69,6 +73,8 @@ export const mount: GameBundleModule['mount'] = mountEmbed({
   followHashLink: (href) => navigate(parseRoute(href)),
   setup: ({ shadow, cleanup }) => {
     cleanup(setDocumentScope(shadow));
+    const session = watchSession();
+    cleanup(() => session.stop());
     cleanup(routeInMemory({ kind: 'lobby' }));
   },
   render: (ctx) => createElement(EmbedApp, { ctx }),

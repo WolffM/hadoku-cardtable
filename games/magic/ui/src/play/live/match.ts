@@ -257,10 +257,9 @@ import {
   strOf,
 } from '@hadoku/forge-wire';
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
-import { io } from 'socket.io-client';
 import { watchRestart } from '@hadoku/game-ui/restart-notice.ts';
 
-import { defaultSocketPath, socketOptions } from '@hadoku/game-ui/room/socket-options.ts';
+import { defaultSocketPath, openSocket, socketOptions } from '@hadoku/game-ui/room/socket-options.ts';
 import { normalizeAvatarId } from '@hadoku/game-ui/room/avatar.ts';
 import { attackLockedIn, drawsFaceUp, hasKeyword, keepUnchangedCards, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
@@ -403,7 +402,7 @@ function receivedAt(raw: unknown): number | null {
 export function socketIoMatchTransport(options: SocketIoMatchOptions = {}): MatchTransport {
   const path = options.path ?? defaultSocketPath();
   const settings = options.transports === undefined ? socketOptions(path) : { path, transports: options.transports };
-  const socket = options.url === undefined ? io(settings) : io(options.url, settings);
+  const socket = openSocket(settings, options.url);
   const timeoutMs = options.ackTimeoutMs ?? DEFAULT_ACK_TIMEOUT_MS;
 
   // Same reasoning as the draft's transport: our events are declared and

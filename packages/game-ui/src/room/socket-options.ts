@@ -1,10 +1,12 @@
 /*
- * How every socket on the page connects: its path under the bundle's base, and its transports and
- * reconnect pacing. Not any one game's: the draft, the match, the room feed and the room's session
- * claim all connect this way.
+ * How every socket on the page connects: its path under the bundle's base, its transports and
+ * reconnect pacing, and the page's session watch. Not any one game's: the draft, the match, the room
+ * feed, the room's session claim and a relay room all connect this way.
  */
 
 import { roomSocketOptions, type RoomSocketOptions } from '@wolffm/rooms-client';
+import { watchSocket } from '@hadoku/ui-shell/session';
+import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client';
 
 /**
  * `/cardtable/` → `/cardtable/socket.io/`.
@@ -31,4 +33,15 @@ export function defaultSocketPath(): string {
  */
 export function socketOptions(path: string = defaultSocketPath()): RoomSocketOptions {
   return roomSocketOptions(path);
+}
+
+/**
+ * Every socket the page opens: socket.io's `io`, handed to the page's session watch
+ * (`@hadoku/ui-shell/session`), so a socket whose handshake the edge refuses because the session is
+ * gone stops reconnecting instead of trying every second forever. `url` omitted: same origin.
+ */
+export function openSocket(settings: Partial<ManagerOptions & SocketOptions> = socketOptions(), url?: string): Socket {
+  const socket = url === undefined ? io(settings) : io(url, settings);
+  watchSocket(socket);
+  return socket;
 }

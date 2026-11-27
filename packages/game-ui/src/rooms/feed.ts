@@ -20,11 +20,10 @@
  * A hidden tab reads nothing. The server keeps the room offered meanwhile: the watch is presence.
  */
 
-import { io } from 'socket.io-client';
 import { ROOM_FEED_CHANNEL, parseRoomChanged } from '@wolffm/rooms-protocol';
 import { createFeedPings, type FeedSocket, type FeedTarget, type PingSource } from '@wolffm/rooms-client';
 
-import { socketOptions } from '../room/socket-options.ts';
+import { openSocket } from '../room/socket-options.ts';
 import { documentVisibility, rereadWhileVisible, type RereadDeps } from '../visible.ts';
 
 export type { FeedTarget, PingReason, PingSource } from '@wolffm/rooms-client';
@@ -63,7 +62,7 @@ let shared: RoomFeed | undefined;
 function roomPings(): PingSource {
   sharedPings ??= createFeedPings({
     wire: { channel: ROOM_FEED_CHANNEL, parseChanged: parseRoomChanged },
-    connect: () => io(socketOptions()) as unknown as FeedSocket,
+    connect: () => openSocket() as unknown as FeedSocket,
   });
   return sharedPings;
 }

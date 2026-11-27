@@ -74,9 +74,8 @@ import {
   type WireError,
 } from '@hadoku/shared';
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
-import { io } from 'socket.io-client';
 
-import { defaultSocketPath, socketOptions } from '@hadoku/game-ui/room/socket-options.ts';
+import { defaultSocketPath, openSocket, socketOptions } from '@hadoku/game-ui/room/socket-options.ts';
 import { withSettledTabId } from '@hadoku/game-ui/room/tab-id.ts';
 import type { ConnectionFacts } from './connection.ts';
 
@@ -177,7 +176,7 @@ export interface SocketDraftOptions {
  * headers carried by hand.
  */
 function socketIoTransport(path: string = defaultSocketPath()): DraftTransport {
-  const socket = io(socketOptions(path));
+  const socket = openSocket(socketOptions(path));
 
   // socket.io's event map is typed for apps that declare their events to it.
   // Ours are declared in `@hadoku/shared` and validated with Zod on arrival, so

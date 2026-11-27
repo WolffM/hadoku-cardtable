@@ -1,9 +1,10 @@
 /*
  * The mount, the stylesheet order, and nothing else.
  *
- * No app logic lives here on purpose (the four exceptions are putting a stray
+ * No app logic lives here on purpose (the five exceptions are putting a stray
  * path back into the hash before the first render reads the route, taking
- * Rally's return trip off the query, `rooms/event-forms.ts`, starting the usage counter, `usage.ts`, and
+ * Rally's return trip off the query, `rooms/event-forms.ts`, starting the usage counter, `usage.ts`,
+ * starting the session watch, `session-watch.ts`, and
  * warming the screens a player opens next once the page is idle, `lazy.ts`): `App.tsx` routes and
  * `chrome/AppChrome.tsx` frames, and that file's header states the boundary a
  * replacement wrapper lands on. The one app-specific value on this path is the
@@ -71,8 +72,11 @@ import { finishRallyReturn } from '@hadoku/magic-ui/rooms/event-forms.ts';
 import { canonicalizeAddress } from '@hadoku/game-ui/screens/route.ts';
 import { preloadLikelyScreens } from './screens/Screen.tsx';
 import { startUsage } from '@hadoku/game-ui/usage.ts';
+import { watchSession } from './session-watch.ts';
 
 configureShell({ appId: APP_ID });
+// Before any socket opens or request goes out: a lost session stops them all (`session-watch.ts`).
+watchSession();
 canonicalizeAddress();
 // The fleet's cosmetics sheet (faces' overlays, names' effects), before anything is drawn: added by the
 // first face instead, it restyled the whole document inside that screen's first render.

@@ -16,10 +16,10 @@
  * whether this socket holds a seat.
  */
 
-import { io, type Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import type { MatchChannel } from '@wolffm/rooms-protocol';
 
-import { defaultSocketPath, socketOptions } from '../room/socket-options.ts';
+import { defaultSocketPath, openSocket, socketOptions } from '../room/socket-options.ts';
 
 /**
  * Mirrors `packages/game-server/src/play/relay-socket.ts`'s own `RELAY_EVENTS`. The client has no package
@@ -66,7 +66,7 @@ export interface RelayChannelOptions {
 export function openRelayChannel(matchId: string, options: RelayChannelOptions = {}): RelayChannel {
   const path = options.path ?? defaultSocketPath();
   const settings = socketOptions(path);
-  const socket: Socket = options.url === undefined ? io(settings) : io(options.url, settings);
+  const socket: Socket = openSocket(settings, options.url);
   const handlers = new Set<(msg: unknown) => void>();
   const endedHandlers = new Set<(winners: readonly number[] | null) => void>();
   const resultHandlers = new Set<(winners: readonly number[] | null) => void>();

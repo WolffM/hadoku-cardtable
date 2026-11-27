@@ -20,10 +20,9 @@
  * A server-side close does not reconnect, so a taken tab never loops back into the room by itself.
  */
 
-import { io } from 'socket.io-client';
 import { SESSION_EVENTS, parseSessionAnswer, parseSessionTaken, type SessionClaimRequest, type SessionClaimStatus } from '@wolffm/rooms-protocol';
 
-import { socketOptions } from './socket-options.ts';
+import { openSocket } from './socket-options.ts';
 import { settledTabId } from './tab-id.ts';
 
 /** `pending` until the first answer; `taken` once another tab of this account took the room. */
@@ -87,7 +86,7 @@ export function roomSession(room: string, deps: RoomSessionDeps = {}): RoomSessi
   const open = (id: string): void => {
     if (closed) return;
     tabId = id;
-    const s = (deps.connect ?? (() => io(socketOptions()) as unknown as SessionSocket))();
+    const s = (deps.connect ?? (() => openSocket() as unknown as SessionSocket))();
     socket = s;
     s.on('connect', claim);
     s.on(SESSION_EVENTS.beat, (...args) => {
