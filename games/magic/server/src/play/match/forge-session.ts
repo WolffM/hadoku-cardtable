@@ -532,7 +532,8 @@ export interface SeatState extends ShellSeat {
 	 * `PlayerControllerHuman.willPutCardOnTop`) a packet before it asks, and the browser draws a
 	 * known library top on the table until an open decision names the card (`adapter.ts`'s
 	 * `knownTop`). Sent as it arrived, the scried card sat on the board for the render between the
-	 * two. See {@link Match.send}.
+	 * two. The decision is an ask or an input's own prompt, never Forge's await prompt. See
+	 * {@link Match.send}.
 	 */
 	lookHold: { frames: WireSend[]; timer: NodeJS.Timeout } | null;
 	/**
@@ -1617,7 +1618,10 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			return;
 		}
 		hold.frames.push({ frame, mark, ...(extra === undefined ? {} : { extra }) });
-		if (frame.kind === 'ask' || frame.method === 'showPromptMessage') this.releaseLookHold(s);
+		// Only an input's own prompt is the decision: Forge's await prompt ("Waiting for Bob...",
+		// `AbstractGuiGame.updatePromptForAwait`) runs on a timer, belongs to no input, and can land
+		// between the look and the question.
+		if (frame.kind === 'ask' || (frame.method === 'showPromptMessage' && this.inputOfFrame.has(frame))) this.releaseLookHold(s);
 	}
 
 	private emit(s: SeatState, { frame, mark, extra }: WireSend, chained = false): void {

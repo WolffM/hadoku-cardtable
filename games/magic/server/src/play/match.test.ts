@@ -3247,10 +3247,10 @@ describe('hold-decide-forward', () => {
 			const before = envelopesFor(h, SEAT1_ID).length;
 			h.host.push(
 				{ t: 'frame', seat: SEAT1_ID, frame: lookAt(top, [SEAT1_ID]) },
-				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Top', label2: 'Bottom', enable2: true }) },
+				{ t: 'frame', seat: SEAT1_ID, input: 8, frame: buttonsFrame(1, { label1: 'Top', label2: 'Bottom', enable2: true }) },
 			);
 			expect(marks(h, before)).toEqual([]);
-			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Put it on the top or bottom of your library?', top) });
+			h.host.push({ t: 'frame', seat: SEAT1_ID, input: 8, frame: promptFrame(1, 'Put it on the top or bottom of your library?', top) });
 			expect(marks(h, before)).toEqual([
 				['applyDelta', true],
 				['updateButtons', true],
