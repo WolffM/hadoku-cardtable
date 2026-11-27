@@ -13,8 +13,11 @@
  *  4. Notion Rain: both surveilled cards dragged into her graveyard (a surveil).
  *
  * Every step is measured on BOTH screens from the page itself (a recorder on `[data-mill]` copies): how many
- * copies flew, whether each one's art had decoded when it was drawn, and how long the run took from its first
- * copy to its last landing. `[wmill]` lines are the evidence. Each seat wears a watchparty character
+ * copies flew, whether each one's art had decoded when it was drawn, and how long the run is planned to take:
+ * the run's own plan as the page reports it (`mill.ts`'s `totalMs`, which its timers are scheduled from —
+ * `mill.test.ts` pins that schedule on fake timers), and each copy's flight as its animation plans it
+ * (`endTime / playbackRate`). How long the copies stood on screen is the host's (a loaded claw drew a
+ * planned 680 ms run in 1148 ms) and is logged only. `[wmill]` lines are the evidence. Each seat wears a watchparty character
  * (`forge:seats`'s `avatarId`, which a match no room started does not carry), so the film shows real faces.
  */
 import { expect, test, type Page, type Route } from '@playwright/test';
@@ -30,10 +33,9 @@ import { ART_ROUTE } from './art.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-/** `mill.ts`'s `MILL_MAX_MS` and `MILL_MAX_FLYERS`; the slack is a busy claw's timers. */
+/** `mill.ts`'s `MILL_MAX_MS` and `MILL_MAX_FLYERS`. */
 const MILL_MAX_MS = 1000;
 const MAX_FLYERS = 12;
-const SLACK_MS = 400;
 
 const SPRITES = ['sage', 'knight'] as const;
 
@@ -42,20 +44,29 @@ interface Flight {
   added: number;
   removed: number | null;
   art: boolean;
+  /** Its flight as its own animations plan it, read as it is added: `endTime / playbackRate`, ms. */
+  planned: number;
 }
 
 /** Before the page opens: Fast Mode off, every `[data-mill]` copy recorded, and each seat's watchparty face. */
 async function prepare(page: Page): Promise<void> {
   await setPlayFastModeDefault(page.context(), false);
   await page.addInitScript(() => {
-    const flights: { id: string; added: number; removed: number | null; art: boolean }[] = [];
+    const flights: { id: string; added: number; removed: number | null; art: boolean; planned: number }[] = [];
     (window as unknown as { __mill: typeof flights }).__mill = flights;
     new MutationObserver((records) => {
       for (const r of records) {
         for (const n of r.addedNodes) {
           if (!(n instanceof HTMLElement) || !n.hasAttribute('data-mill')) continue;
           const img = n.querySelector('img');
-          flights.push({ id: n.getAttribute('data-mill')!, added: performance.now(), removed: null, art: img !== null && img.complete && img.naturalWidth > 0 });
+          const planned = n.getAnimations({ subtree: true }).map((a) => Number(a.effect?.getComputedTiming().endTime ?? 0) / (a.playbackRate || 1));
+          flights.push({
+            id: n.getAttribute('data-mill')!,
+            added: performance.now(),
+            removed: null,
+            art: img !== null && img.complete && img.naturalWidth > 0,
+            planned: Math.round(Math.max(0, ...planned.filter(Number.isFinite))),
+          });
         }
         for (const n of r.removedNodes) {
           if (!(n instanceof HTMLElement) || !n.hasAttribute('data-mill')) continue;
@@ -159,19 +170,23 @@ test(titled('cards milled fly from their library to their graveyard on both scre
     let logFrom = 0;
     async function drewMill(label: string, count: number, maxMs: number): Promise<void> {
       await expect.poll(async () => (await Promise.all(pages.map(hiddenOnPiles))).every((n) => n === 0), { timeout: 10_000, message: `${label}: every milled card is shown on its pile` }).toBe(true);
-      // Each screen's own account of its runs (`mill.ts`'s report): how many cards, how many flew, what was not found.
-      const log = serverLog(stack);
-      for (const r of log.slice(logFrom)) if (r.evt === 'client' && r.what === 'mill') console.log(`[wmill] ${label} report seat ${String(r.seat)}: ${JSON.stringify(r)}`);
-      logFrom = log.length;
+      // Each screen's own account of its runs (`mill.ts`'s report): how many cards, how many flew, what was not
+      // found, and the run's planned length.
+      const reports = (): Record<string, unknown>[] => serverLog(stack).slice(logFrom).filter((r) => r.evt === 'client' && r.what === 'mill');
+      await expect.poll(() => new Set(reports().map((r) => r.seat)).size, { timeout: 10_000, message: `${label}: both screens reported their run` }).toBe(2);
+      const runs = reports();
+      for (const r of runs) console.log(`[wmill] ${label} report seat ${String(r.seat)}: ${JSON.stringify(r)}`);
+      logFrom = serverLog(stack).length;
+      for (const r of runs) expect.soft(Number(r.totalMs), `${label} seat ${String(r.seat)}: the run is planned to land inside its time`).toBeLessThanOrEqual(maxMs);
       for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
         const run = await flights(page);
         const spanMs = run.length === 0 ? 0 : Math.max(...run.map((f) => f.removed ?? Infinity)) - Math.min(...run.map((f) => f.added));
         const first = Math.min(...run.map((f) => f.added));
         const starts = run.map((f) => Math.round(f.added - first)).join(',');
-        console.log(`[wmill] ${label} on ${who}: ${run.length} copies for ${count} cards, art ${run.filter((f) => f.art).length}/${run.length}, ${Math.round(spanMs)} ms, starts ${starts}`);
+        console.log(`[wmill] ${label} on ${who}: ${run.length} copies for ${count} cards, art ${run.filter((f) => f.art).length}/${run.length}, on screen ${Math.round(spanMs)} ms, flights planned ${run.map((f) => f.planned).join(',')}, starts ${starts}`);
         expect.soft(run.length, `${label} on ${who}: one copy per card, at most a riffle`).toBe(Math.min(count, MAX_FLYERS));
         expect.soft(run.every((f) => f.art), `${label} on ${who}: every copy drawn with its art decoded`).toBe(true);
-        expect.soft(spanMs, `${label} on ${who}: the run's time`).toBeLessThanOrEqual(maxMs + SLACK_MS);
+        expect.soft(run.filter((f) => !(f.planned > 0 && f.planned <= maxMs)).map((f) => f.planned), `${label} on ${who}: every copy is planned to fly, inside the run's time`).toEqual([]);
       }
     }
 
