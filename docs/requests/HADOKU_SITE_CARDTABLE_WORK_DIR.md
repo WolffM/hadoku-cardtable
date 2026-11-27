@@ -3,8 +3,11 @@
 **From:** hadoku-cardtable
 **To:** hadoku_site (`services/pm2/cardtable-wrapper.mjs`, `ecosystem.config.cjs`, the pm2 unit's drop-ins)
 **Date:** 2026-11-26
-**Status:** a write-up. Nothing on your side was changed. It is not a blocker: cardtable's own fix
-(below) already removes the stall we saw most often.
+**Status:** §3.1 and §3.2 done 2026-11-26 (hadoku_site `cardtable: pin its play work dir and
+TMPDIR to tmpfs`): prod's wrapper sets `CARDTABLE_PLAY_WORK_DIR=/tmp/cardtable-play` and
+`TMPDIR=/tmp`. Cardtable's own fix (§4) had not been enough: the per-placement `jvm.json` write
+still froze the loop 10 s at 2026-11-27 01:18Z and 03:00Z and fenced claw-8, 9 and 10. PPE still
+runs on `~/.cache` (btrfs); §3.3 is still open.
 
 ## 1. What happened
 
