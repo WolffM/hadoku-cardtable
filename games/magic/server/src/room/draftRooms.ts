@@ -139,7 +139,7 @@
  * over here.
  */
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
 	clientByParticipant,
@@ -190,6 +190,7 @@ import {
 
 import { participantHandle } from '@hadoku/game-server/room/identity';
 import { jsonLogger } from '@hadoku/service-kernel/log';
+import { snapshotWriter, type SnapshotWriter } from '@hadoku/game-server/persist/snapshot-writer';
 import { namesAny, renameIds } from '@hadoku/game-server/erase/anonymise';
 import type { MergedAccounts } from '@hadoku/game-server/erase/index';
 
@@ -381,6 +382,8 @@ interface DraftRoomsOptions {
 	 * tests use.
 	 */
 	storeDir?: string | null;
+	/** Where snapshots are written, off the event loop. Default: the process's one writer. */
+	writer?: SnapshotWriter;
 	/**
 	 * The one server-wide presence tracker (`socket.ts`'s
 	 * `createSeatPresence`), built by `plugins/rooms.ts` BEFORE this factory
@@ -426,6 +429,8 @@ export interface DraftRooms {
 	 * arrives as a caller rather than as a second cleanup.
 	 */
 	delete(draftId: string): void;
+	/** Resolves once every snapshot written or deleted so far is on disk. */
+	flushed(): Promise<void>;
 	/**
 	 * The members a pod was dealt to, with their names — `joinDraftRoom`'s say in
 	 * who sits and what their seat is called. Empty for a draft nobody sat in,
@@ -466,17 +471,17 @@ export interface DraftRooms {
 	/**
 	 * Account erase: the drafter's own build and deck page edits go (`decks`); their seat in each
 	 * pod, which the other drafters' pairings and pools hang on, names `to` instead, under that
-	 * id's handle (`pods`). Each pod changed is saved.
+	 * id's handle (`pods`). Each pod changed is saved, and on disk before the answer.
 	 */
-	erase(participantId: ParticipantId, ids: ReadonlySet<string>, to: string): { decks: number; pods: number };
+	erase(participantId: ParticipantId, ids: ReadonlySet<string>, to: string): Promise<{ decks: number; pods: number }>;
 	/**
 	 * Account merge: in each pod that does not name the kept account, and whose room (`roomKept`)
 	 * has not stayed the merged-away account's, the seat, the drafted pool, the build and the deck
 	 * page edits move to the kept account (`decks`: builds moved; `pods`: pods changed). A pod that
 	 * names both is the kept account's: it is left, and the erase sweep removes the other's part
-	 * in it. Each pod changed is saved.
+	 * in it. Each pod changed is saved, and on disk before the answer.
 	 */
-	merge(move: MergedAccounts, roomKeptByFrom: (draftId: string) => boolean): { decks: number; pods: number };
+	merge(move: MergedAccounts, roomKeptByFrom: (draftId: string) => boolean): Promise<{ decks: number; pods: number }>;
 	/**
 	 * A testing room's stand-in gave `to` its place in the room (`RoomLobby`'s hand-over): its seat in
 	 * this draft, with the pool it has drafted so far, is `to`'s too. Their next join names the seat.
@@ -521,9 +526,11 @@ export interface PodDeal {
  * (`snapshotRoom`/`decodeSnapshot`/`applySnapshot`) come from
  * `@wolffm/rooms-server/store`, but the bytes move over `node:fs`'s synchronous calls,
  * mirroring `FileRoomStore`'s own safety properties (base64url filenames so a
- * `draftId` cannot escape the directory; a temp-file-and-rename write so a
- * reader never sees a half-written snapshot) without being able to reuse that
- * class, which has no synchronous `load`.
+ * `draftId` cannot escape the directory) without being able to reuse that
+ * class, which has no synchronous `load`. Writes go through the process's
+ * `SnapshotWriter` (temp file, fsync, rename, off the event loop: a stalled disk
+ * must never stop the server), so `persist` queues and returns; reads happen at
+ * boot only, which is what makes that safe.
  *
  * Restoring is therefore EAGER, at the end of this function, not lazy on first
  * `open`/`find`: a pod nobody has touched since the restart still has to answer
@@ -556,15 +563,6 @@ function snapshotPath(dir: string, draftId: string): string {
 	return join(dir, `${snapshotKey(draftId)}${SNAPSHOT_SUFFIX}`);
 }
 
-/** Atomic: temp file, then rename over the target. See `fileStore.ts`'s header for why. */
-function writeSnapshotSync(dir: string, snapshot: RoomSnapshot): void {
-	mkdirSync(dir, { recursive: true });
-	const target = snapshotPath(dir, snapshot.roomId);
-	const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
-	writeFileSync(tmp, JSON.stringify(snapshot));
-	renameSync(tmp, target);
-}
-
 function readSnapshotSync(dir: string, draftId: string): RoomSnapshot | null {
 	const path = snapshotPath(dir, draftId);
 	if (!existsSync(path)) return null;
@@ -577,10 +575,6 @@ function listSnapshotIdsSync(dir: string): string[] {
 	return readdirSync(dir)
 		.filter((name) => name.endsWith(SNAPSHOT_SUFFIX) && !name.includes('.tmp'))
 		.map((name) => Buffer.from(name.slice(0, -SNAPSHOT_SUFFIX.length), 'base64url').toString('utf8'));
-}
-
-function rmSnapshotSync(dir: string, draftId: string): void {
-	rmSync(snapshotPath(dir, draftId), { force: true });
 }
 
 /** Set a record this build could not decode aside, intact — §4.5, by hand. */
@@ -664,6 +658,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	const now = options.now ?? Date.now;
 	const onDeferredChange = options.onDeferredChange ?? (() => undefined);
 	const storeDir = options.storeDir ?? null;
+	const writer = options.writer ?? snapshotWriter();
 	let podLookup: (draftId: string) => PodDeal | null = () => null;
 	/** `cacheRealisticRound`'s own stash — see `DraftRooms.cacheRealisticRound`'s doc. */
 	const realisticByDraft = new Map<string, Map<number, readonly (readonly DraftCard[])[]>>();
@@ -671,7 +666,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	/** Write-through. A no-op while persistence is off or before `open()` has dealt the draft. */
 	function persistRoom(room: DraftRoom): void {
 		if (storeDir === null || room.app.state === null) return;
-		writeSnapshotSync(storeDir, snapshotRoom(room, codec));
+		writer.write(snapshotPath(storeDir, room.roomId), JSON.stringify(snapshotRoom(room, codec)));
 	}
 
 	/**
@@ -894,8 +889,11 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// `delete` is unreachable in production today (this module's header,
 			// "No GC") — this exists so the on-disk half is not left behind the
 			// one time something does call it. §4.6: both halves, always together.
-			if (storeDir !== null) rmSnapshotSync(storeDir, draftId);
+			if (storeDir !== null) void writer.remove(snapshotPath(storeDir, draftId)).catch(() => {
+				// Logged by the writer (`snapshot-remove-failed`): `delete` is synchronous, with nobody to tell.
+			});
 		},
+		flushed: () => writer.idle(),
 		drafters(draftId) {
 			return podLookup(draftId)?.humans ?? [];
 		},
@@ -920,7 +918,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		nameOf(src) {
 			return options.resolver.name(src);
 		},
-		erase(participantId, ids, to) {
+		async erase(participantId, ids, to) {
 			let decks = 0;
 			let pods = 0;
 			for (const room of registry.all()) {
@@ -937,9 +935,10 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 				pods++;
 				app.persist(room);
 			}
+			await writer.idle();
 			return { decks, pods };
 		},
-		merge(move, roomKeptByFrom) {
+		async merge(move, roomKeptByFrom) {
 			let decks = 0;
 			let pods = 0;
 			for (const room of registry.all()) {
@@ -956,6 +955,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 				pods++;
 				app.persist(room);
 			}
+			await writer.idle();
 			return { decks, pods };
 		},
 		handOver(draftId, from, to) {

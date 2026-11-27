@@ -101,6 +101,7 @@ describe('a registered game type Magic never wrote', () => {
 		const made = lobby.create(ALICE, { name: 'Unknown game', gameType: BOMBERMAN.id, clientMode: 'builtin' });
 		if (!made.ok) throw new Error(made.reason);
 		// The file as a build that had a type this one never registered wrote it.
+		await lobby.flushed();
 		const store = new FileRoomStore(dir);
 		const snapshot = (await store.load(made.room.id))!;
 		store.saveSync({ ...snapshot, app: { ...(snapshot.app as object), gameType: 'some-game-nobody-registered' } });

@@ -308,6 +308,7 @@ describe('a finished pod survives leave, hold-expiry and a restart', () => {
 
 		// The store restarts: a brand new `DraftRooms` over the SAME directory,
 		// never told about `pod-e` except by what it finds on disk.
+		await draftRoomsA.flushed();
 		const draftRoomsB = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir: dir });
 		expect(draftRoomsB.find('pod-e')).toBeDefined();
 		expect(draftRoomsB.find('pod-e')).not.toBe(roomA);
@@ -366,6 +367,7 @@ describe('a finished pod survives leave, hold-expiry and a restart', () => {
 		const draftRoomsA = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir: dir });
 		finishPodFor(draftRoomsA, 'pod-f', 'alice', 'sock-a');
 
+		await draftRoomsA.flushed();
 		const draftRoomsB = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir: dir });
 		const h = await openApp(draftRoomsB);
 		const res = await call(h, 'GET', '/api/drafts/pod-f/mine', { as: 'bob' });
@@ -422,6 +424,7 @@ describe('the pick that completes a pod is persisted by itself', () => {
 		// Nothing else touches `pod-g` after the completing pick: no
 		// `releaseSeat`, no `saveBuiltDeck` — persistence has to come from the
 		// `state` assignment above, or not at all.
+		await draftRoomsA.flushed();
 		const draftRoomsB = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir: dir });
 		const h = await openApp(draftRoomsB);
 		const mine = await call(h, 'GET', '/api/drafts/pod-g/mine', { as: 'alice' });

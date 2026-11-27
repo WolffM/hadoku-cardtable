@@ -16,6 +16,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { snapshotWriter } from '@hadoku/game-server/persist/snapshot-writer';
 
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { openLobby, type Lobby } from '../room/lobby.js';
@@ -48,6 +49,7 @@ const open: Stack[] = [];
 const dirs: string[] = [];
 afterEach(async () => {
 	for (const s of open.splice(0)) await s.close();
+	await snapshotWriter().idle();
 	for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
 
@@ -249,6 +251,7 @@ describe('a room stored before the lobby held its seats', () => {
 		await s.call('alice', 'PUT', '/deck', DECK);
 		await s.call('bob', 'PUT', '/deck', OTHER);
 		await s.close();
+		await snapshotWriter().idle();
 		open.splice(open.indexOf(s), 1);
 		const [file] = await readdir(s.dir);
 		const path = join(s.dir, file!);

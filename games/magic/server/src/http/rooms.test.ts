@@ -25,6 +25,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { snapshotWriter } from '@hadoku/game-server/persist/snapshot-writer';
 import { isPodAi, magicGame, planDisplayName, RoomBodySchema, type DraftCard, type DraftPlan, type PoolSource, type PoolVerdict } from '@hadoku/shared';
 
 import { loadTablesLibrary } from './library.ts';
@@ -262,7 +263,8 @@ async function approvePlan(h: Harness, roomId: string, as = 'alice'): Promise<vo
 }
 
 /** The stored salt and hash of the one locked room in `dir`, read the way a human would. */
-function storedSecret(dir: string): { salt: string; hash: string } {
+async function storedSecret(dir: string): Promise<{ salt: string; hash: string }> {
+	await snapshotWriter().idle();
 	const secrets = readdirSync(dir)
 		.filter((f) => f.endsWith('.json'))
 		.map(
@@ -524,7 +526,7 @@ describe('GET /api/rooms', () => {
 		expect(rooms.map((r) => r.name)).toEqual(['Locked', 'Open']);
 		expect(rooms.map((r) => r.locked)).toEqual([true, false]);
 		// The listing says WHETHER a room is locked and nothing more.
-		const secret = storedSecret(dir);
+		const secret = await storedSecret(dir);
 		expect(res.text).not.toContain(PASSWORD);
 		expect(res.text).not.toContain(secret.hash);
 		expect(res.text).not.toContain(secret.salt);
@@ -1368,7 +1370,7 @@ describe('the password', () => {
 		const second = await openApp(dir);
 		record(await call(second, 'GET', '/api/rooms', { as: 'bob' }));
 
-		const secret = storedSecret(dir);
+		const secret = await storedSecret(dir);
 		const consoleText = Object.values(spies)
 			.flatMap((spy) => spy.mock.calls)
 			.map((args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '))
@@ -1464,7 +1466,7 @@ describe('the lobby', () => {
 		const dir = await tempDir();
 		const h = await openApp(dir);
 		await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Doomed', password: PASSWORD } });
-		const secret = storedSecret(dir);
+		const secret = await storedSecret(dir);
 		const file = readdirSync(dir).filter((f) => f.endsWith('.json'))[0];
 		const { writeFileSync } = await import('node:fs');
 		// Truncated mid-write, inside the stored hash: it parses as far as looking
@@ -2010,6 +2012,7 @@ describe('POST /api/rooms/:id/start', () => {
 				expect(dealt[2]!.every((pack) => pack.every((c) => c.name.startsWith('ISD-')))).toBe(true);
 
 				// The restore: a SECOND DraftRooms on the SAME storeDir, same spy.
+				await draftRooms.flushed();
 				const restored = createDraftRooms({ presence: testPresence, resolver: mixedResolver(), defaultPlan: DEFAULT_PLAN, storeDir: draftDir, now: () => 1_700_000_000_001 });
 				const restoredRoom = restored.open(room.id);
 				expect(JSON.stringify(stateOf(restoredRoom).rounds)).toBe(JSON.stringify(dealt));

@@ -159,5 +159,12 @@ export const roomsPlugin: CardtablePlugin = {
 						})),
 				}).runs,
 		);
+		// Every room and draft write still on its way to disk lands before the process exits.
+		return {
+			drain: async () => {
+				await lobby.flushed();
+				await draftRooms?.flushed();
+			},
+		};
 	},
 };

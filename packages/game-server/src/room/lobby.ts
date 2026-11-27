@@ -7,9 +7,10 @@
  *
  * ## Persistence: write-through, through `@wolffm/rooms-server/store`
  *
- * A deploy restarts the server several times a day, so every mutation writes that room's snapshot
- * synchronously (`FileRoomStore`'s atomic temp-file-and-rename) before the call returns: no debounce
- * window for a deploy to fall into, no flush-on-SIGTERM to get right. Rooms are stored in the store's
+ * A deploy restarts the server several times a day, so every mutation queues that room's snapshot
+ * before the call returns (`FileRoomStore`'s atomic temp-file-fsync-rename, which production's
+ * `OffLoopRoomStore` runs off the event loop: a stalled disk must never stop the server). No
+ * debounce: the write starts at once, and the kernel's shutdown drain awaits it (`flushed`). Rooms are stored in the store's
  * own snapshot format (`STORE_VERSION`) and read back through `decodeSnapshot`, so an unreadable or
  * future-format record is QUARANTINED (moved aside intact), never half-applied or silently dropped.
  *
@@ -43,6 +44,7 @@ import {
 	type RoomSnapshot,
 	type SerializedMember,
 } from '@wolffm/rooms-server/store';
+import { OffLoopRoomStore } from './off-loop-store.js';
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { addMember, createMembershipLedger, setReady as ledgerSetReady } from '@wolffm/rooms-server';
 import { seatsOpenAt } from '@hadoku/platform-wire/events';
@@ -1239,6 +1241,12 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		await Promise.all([...this.#removing]);
 	}
 
+	/** Resolves once every room written or forgotten so far is on disk (`OffLoopRoomStore`); at once for a store that writes in the call. */
+	async flushed(): Promise<void> {
+		await this.removed();
+		if (this.store instanceof OffLoopRoomStore) await this.store.flushed();
+	}
+
 	/**
 	 * Account erase: every room that still names one of `ids` names `to` instead, and is saved. Answers
 	 * how many rooms changed. The person leaves first (`leave`), so leadership has passed on.
@@ -1326,6 +1334,8 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	async open(): Promise<number> {
 		const store = this.store;
 		const codec = this.#codec;
+		// What this process has already written to the directory is read back, not the bytes before it.
+		await this.flushed();
 		for (const roomId of await store.list()) {
 			const quarantine = async (reason: string): Promise<void> => {
 				await store.quarantine(roomId, reason);

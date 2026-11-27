@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { snapshotWriter } from '@hadoku/game-server/persist/snapshot-writer';
 import { MyDecksSchema, type DraftCard, type DraftPlan, type PodView } from '@hadoku/shared';
 
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
@@ -58,6 +59,7 @@ const servers: HttpServer[] = [];
 
 afterAll(async () => {
 	for (const server of servers) await new Promise<void>((done) => server.close(() => done()));
+	await snapshotWriter().idle();
 	for (const dir of dirs) await rm(dir, { recursive: true, force: true });
 });
 
@@ -152,6 +154,7 @@ describe('/api/decks', () => {
 		// A pod whose room is gone has concluded too.
 		expect((await call(base, 'DELETE', '/api/decks/pod-gone')).status).toBe(204);
 
+		await snapshotWriter().idle();
 		const restarted = createDraftRooms({ presence: testPresence, ...singlePoolResolver(cube), storeDir });
 		const again = await openApp(restarted, lobby);
 		expect(decksOf((await call(again, 'GET', '/api/decks')).json).map((d) => [d.id, d.name, d.concluded])).toEqual([['pod-a', 'Blue tempo', true]]);

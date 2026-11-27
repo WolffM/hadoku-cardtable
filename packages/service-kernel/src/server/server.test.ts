@@ -40,6 +40,11 @@ const scores: GamePlugin<FakeEvents, FakeState> = {
 				ctx.state.stopped.push('scores');
 				return { scoresKept: 2 };
 			},
+			// A write still on its way to disk: it lands after the server closed and before the exit.
+			drain: async () => {
+				await new Promise<void>((done) => setImmediate(done));
+				ctx.state.stopped.push('scores drained');
+			},
 			onListen: () => ctx.state.heard.push('scores onListen'),
 		};
 	},
@@ -64,7 +69,7 @@ let dir: string;
 let server: GameServer<FakeEvents, FakeState>;
 let base: string;
 const lines: Array<Record<string, unknown>> = [];
-const exit = vi.fn();
+const exit = vi.fn(() => void server.state.stopped.push('exit'));
 
 beforeAll(async () => {
 	dir = mkdtempSync(join(tmpdir(), 'kernel-server-'));
@@ -153,11 +158,11 @@ describe('createGameServer: a fake two-plugin game', () => {
 		const why = await server.shutdown('SIGTERM');
 		expect(await notice).toContain(`42["${RESTART}"]`);
 		expect(why).toBe('closed');
-		expect(server.state.stopped).toEqual(['lobby', 'scores']);
+		expect(server.state.stopped).toEqual(['lobby', 'scores', 'scores drained', 'exit']);
 		expect(server.state.heard.at(-1)).toBe('shutdown 1300');
 		expect(exit).toHaveBeenCalledWith(0);
 		const done = lines.find((l) => l.evt === 'shutdown-done');
-		expect(done).toMatchObject({ signal: 'SIGTERM', why: 'closed', scoresKept: 2 });
+		expect(done).toMatchObject({ signal: 'SIGTERM', why: 'closed', drained: 'drained', scoresKept: 2 });
 		expect(done?.ms).toBeLessThan(1_300);
 		expect(lines.filter((l) => typeof l.evt === 'string' && l.evt.startsWith('shutdown-')).map((l) => l.evt)).toEqual(['shutdown-begin', 'shutdown-done']);
 	});

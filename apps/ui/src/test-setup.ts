@@ -44,6 +44,15 @@ configure({ asyncUtilTimeout: process.env.CI ? 5_000 : 1_000 });
 // 2026-10-12). `node:timers` is the real setImmediate, not a test's fake one.
 afterEach(() => new Promise<void>((resolve) => setImmediate(resolve)));
 
+// A server test's room and draft writes land off the event loop, through the process's one
+// writer (`packages/game-server/src/persist/snapshot-writer.ts`, which keeps it under this key):
+// every test ends with them landed, so a file's `afterAll` never deletes a directory mid-write.
+// Read by its key, not imported: a UI test loads no server code.
+const SNAPSHOT_WRITER = Symbol.for('hadoku.game-server.snapshotWriter');
+afterEach(async () => {
+  await (globalThis as { [SNAPSHOT_WRITER]?: { idle(): Promise<void> } })[SNAPSHOT_WRITER]?.idle();
+});
+
 // Every test starts on the app's own page. A room's page is a PATH (`screens/route.ts`), which a
 // test's `location.hash = ''` would not reset, so one test's room would be the next one's start.
 beforeEach(() => {

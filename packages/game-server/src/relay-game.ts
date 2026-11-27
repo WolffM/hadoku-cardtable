@@ -31,7 +31,7 @@ import { join } from 'node:path';
 
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { PresenceTracker } from '@wolffm/rooms-server';
-import { FileRoomStore } from '@wolffm/rooms-server/store';
+import { OffLoopRoomStore } from './room/off-loop-store.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { diagnosticPage, sendIndex } from '@hadoku/service-kernel/http';
 import { createGameServer, type GamePlugin, type GameServer, type GameServerConfig as KernelConfig } from '@hadoku/service-kernel/server';
@@ -204,7 +204,7 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 		async setup(ctx) {
 			const lobby = new RelayLobby(
 				{
-					store: new FileRoomStore(config.roomsDir),
+					store: new OffLoopRoomStore(config.roomsDir),
 					now: Date.now,
 					log: roomsLog,
 					typeOf: (gameType) => (gameType === options.gameType ? (roomType as RoomTypeHooks<unknown, RoomCreateInput>) : undefined),
@@ -257,6 +257,7 @@ export async function startRelayGame(options: RelayGameOptions): Promise<GameSer
 					accounts.stop();
 					void lobby.removed();
 				},
+				drain: () => lobby.flushed(),
 				erase: roomsEraseSteps({ lobby, liveMatches: () => [], forfeit: () => {}, closed: () => {}, forfeited: () => {} }),
 			};
 		},

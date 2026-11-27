@@ -8,7 +8,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { FileRoomStore } from '@wolffm/rooms-server/store';
+import type { FileRoomStore } from '@wolffm/rooms-server/store';
 import { clearReady } from '@wolffm/rooms-server';
 import {
 	DEFAULT_CLIENT_MODE,
@@ -55,6 +55,7 @@ import type { Caller } from '@hadoku/game-server/room/caller';
 import type { Person } from '@hadoku/game-server/people';
 import { UNNAMED } from '@hadoku/game-server/room/constants';
 import { mintTableId } from '@hadoku/game-server/room/provisioning';
+import { OffLoopRoomStore } from '@hadoku/game-server/room/off-loop-store';
 import { RoomLobby, type CreateResult, type LobbyLog, type LobbyMember, type LobbyRoom, type PlatformRoomView, type RoomCreateInput, type RoomTypeHooks } from '@hadoku/game-server/room/lobby';
 import type { RoomBusyHook } from '@hadoku/game-server/room/room-list';
 import { isMemberReady } from '@hadoku/game-server/room/membership';
@@ -423,7 +424,7 @@ export interface Lobby
 	extends Pick<
 		RoomLobby<RoomView, CreateRoomInput>,
 		| 'list' | 'offered' | 'touch' | 'get' | 'isMember' | 'playerState' | 'setPlayerState' | 'setReady' | 'setAvatar' | 'onAvatarChange'
-		| 'usersOf' | 'setLook' | 'onChange' | 'leave' | 'close' | 'anonymise' | 'merge' | 'names' | 'removed' | 'reschedule' | 'seatsShutUntil' | 'gameSeatOf'
+		| 'usersOf' | 'setLook' | 'onChange' | 'leave' | 'close' | 'anonymise' | 'merge' | 'names' | 'removed' | 'flushed' | 'reschedule' | 'seatsShutUntil' | 'gameSeatOf'
 		| 'bindWatchparty' | 'join' | 'rename' | 'sweep' | 'onRelayRoomOpened' | 'sitSeat' | 'standSeat' | 'aiSeat' | 'closeSeat'
 		| 'subPlaceOf' | 'roleOf' | 'removeFromSeat' | 'lowerSeatCapacity' | 'botReplacesHuman' | 'passLeader'
 	> {
@@ -1091,7 +1092,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 
 	/** A lobby over `opts.dir`, every room file in it read back. */
 	static async open(opts: OpenLobbyOptions): Promise<FileLobby> {
-		const lobby = new FileLobby(opts, new FileRoomStore(opts.dir), {});
+		const lobby = new FileLobby(opts, new OffLoopRoomStore(opts.dir), {});
 		const rooms = await lobby.open();
 		lobby.log({ event: 'lobby-open', rooms, newRoomFormat: opts.defaultFormat ?? 'random' });
 		return lobby;

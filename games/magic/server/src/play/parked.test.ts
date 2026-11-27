@@ -21,6 +21,7 @@ import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/trans
 import { createMatchRegistry, type Match } from './match.js';
 import { ENDED_KEPT, restoredSpec } from './match/registry.js';
 import { openParkedStore, type ParkedStore, type ParkedStoreDeps } from './parked.js';
+import { snapshotWriter } from '@hadoku/game-server/persist/snapshot-writer';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import type { Lobby } from '../room/lobby.js';
 import { magicView } from '../room/magic-view.js';
@@ -64,7 +65,10 @@ afterEach(async () => {
 
 function tempDir(): string {
 	const dir = mkdtempSync(join(tmpdir(), 'cardtable-parked-'));
-	cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+	cleanups.push(async () => {
+		await snapshotWriter().idle();
+		rmSync(dir, { recursive: true, force: true });
+	});
 	return dir;
 }
 

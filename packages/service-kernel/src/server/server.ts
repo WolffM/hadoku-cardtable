@@ -37,8 +37,9 @@
  * plugin's `shutdown` in REVERSE setup order (the last thing built goes first), then tells
  * every socket the game's restart event, closes socket.io and the HTTP server, and lets
  * in-flight requests finish within `requestGraceMs`. It exits on the close or at
- * `deadlineMs`, whichever comes first, logging `shutdown-done` with the fields the plugins'
- * shutdowns returned.
+ * `deadlineMs`, whichever comes first. Before it exits it awaits every plugin's `drain` (what is
+ * still on its way to disk), for at most `drainMs`, and logs `shutdown-done` with the fields the
+ * plugins' shutdowns returned.
  *
  * ## A socket handed over
  *
@@ -115,7 +116,7 @@ export interface GameServerConfig {
 	origin?: string;
 	/** Stamp each kernel phase on the boot clock (default true). */
 	stampPhases?: boolean;
-	shutdown?: { deadlineMs?: number; requestGraceMs?: number; restartFlushMs?: number };
+	shutdown?: { deadlineMs?: number; requestGraceMs?: number; restartFlushMs?: number; drainMs?: number };
 	/**
 	 * A listening socket to serve instead of binding `port`, and the pipe to say so on: the deploy
 	 * handover (module header). Defaults to `HADOKU_LISTEN_FD` / `HADOKU_READY_FD`; null binds.
@@ -154,6 +155,8 @@ export interface GameContext<E extends EventMap, S> {
 export interface PluginHooks {
 	/** Runs at shutdown, in reverse setup order; what it returns is added to `shutdown-done`. */
 	shutdown?: () => Record<string, unknown> | void;
+	/** Awaited once the server has closed, before the process exits: writes still on their way to disk. */
+	drain?: () => Promise<void>;
 	/** Registered on the erase route in setup order. */
 	erase?: EraseStep[];
 	/** Runs once the server listens, in setup order, before the `listen` phase. */
@@ -183,7 +186,7 @@ export interface GameServerOptions<E extends EventMap, S> {
 	plugins: readonly GamePlugin<E, S>[];
 }
 
-const DEFAULT_SHUTDOWN = { deadlineMs: 1_300, requestGraceMs: 300, restartFlushMs: 500 };
+const DEFAULT_SHUTDOWN = { deadlineMs: 1_300, requestGraceMs: 300, restartFlushMs: 500, drainMs: 2_000 };
 
 export async function createGameServer<E extends EventMap, S>({ id, config, state, plugins }: GameServerOptions<E, S>): Promise<GameServer<E, S>> {
 	const { log } = config;
@@ -291,12 +294,14 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 	};
 
 	const stoppers: Array<{ name: string; stop: () => Record<string, unknown> | void }> = [];
+	const drains: Array<() => Promise<void>> = [];
 	const listeners: Array<() => void> = [];
 	const runPhase = async (phase: Phase): Promise<void> => {
 		for (const plugin of plugins) {
 			if (plugin.phase !== phase) continue;
 			const hooks = (await plugin.setup(ctx)) ?? {};
 			if (hooks.shutdown !== undefined) stoppers.push({ name: plugin.name, stop: hooks.shutdown });
+			if (hooks.drain !== undefined) drains.push(hooks.drain);
 			for (const step of hooks.erase ?? []) accountErase.register(step);
 			if (hooks.onListen !== undefined) listeners.push(hooks.onListen);
 		}
@@ -342,9 +347,17 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 			const finish = (why: string): void => {
 				if (finished) return;
 				finished = true;
-				log({ evt: 'shutdown-done', signal, why, ms: Date.now() - startedAt, ...fields });
-				done(why);
-				exit(0);
+				// Requests finishing in the grace above may still have written; they land before the exit.
+				let cap: NodeJS.Timeout | undefined;
+				void Promise.race([
+					Promise.allSettled(drains.map((drain) => drain())).then(() => 'drained'),
+					new Promise<string>((resolve) => (cap = setTimeout(() => resolve('timeout'), timing.drainMs))),
+				]).then((drained) => {
+					clearTimeout(cap);
+					log({ evt: 'shutdown-done', signal, why, drained, ms: Date.now() - startedAt, ...fields });
+					done(why);
+					exit(0);
+				});
 			};
 			// Referenced on purpose: it holds the process up for the closes below, and ends it if one never returns.
 			const deadline = setTimeout(() => finish('deadline'), timing.deadlineMs);

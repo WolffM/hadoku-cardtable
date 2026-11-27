@@ -48,6 +48,7 @@ import {
 import { pick as enginePick } from '@hadoku/draft';
 import { safeParseServerMessage, stateMessage, type DraftCard, type DraftPlan, type PoolSource } from '@hadoku/shared';
 
+import { snapshotWriter } from '@hadoku/game-server/persist/snapshot-writer';
 import { participantHandle } from '@hadoku/game-server/room/identity';
 import {
 	builtDeckOf,
@@ -1108,11 +1109,13 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 			// `createDraftRooms` runs before this function even returns, so the
 			// pod is already live — `open` below is idempotent-into-the-restore,
 			// not a fresh deal.
+			await first.flushed();
 			const restored = createDraftRooms({ presence: noGracePresence, resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_001, storeDir: dir });
 			const room = restored.open('pod-restore');
 			expect(JSON.stringify(stateOf(room).rounds)).toBe(JSON.stringify(dealt));
 			expect(JSON.stringify(withoutId(stateOf(room).rounds[0]!))).toBe(JSON.stringify(withoutId(originalPacks)));
 		} finally {
+			await snapshotWriter().idle();
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
@@ -1127,12 +1130,14 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 			stateOf(before).roundCards[2] = 4;
 			before.app.persist(before);
 
+			await first.flushed();
 			const restored = createDraftRooms({ ...options, now: () => 1_700_000_000_001 });
 			const state = stateOf(restored.open('pod-notes'));
 			expect(state.notes[2]).toEqual({ 'Lurking Automaton': ['3', '7'], 'Aether Searcher': ['Shock'] });
 			expect(state.notes[0]).toEqual({});
 			expect(state.roundCards[2]).toBe(4);
 		} finally {
+			await snapshotWriter().idle();
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
@@ -1245,7 +1250,7 @@ describe('account erase in the draft pods', () => {
 			saveBuiltDeck(room, BOB, '[Main]\n1 Mountain');
 			const to = 'erased:0a1b2c3d';
 
-			expect(r.erase(ALICE, new Set([ALICE, 'uid-alice']), to)).toEqual({ decks: 1, pods: 1 });
+			expect(await r.erase(ALICE, new Set([ALICE, 'uid-alice']), to)).toEqual({ decks: 1, pods: 1 });
 			expect(builtDeckOf(room, ALICE)).toBeNull();
 			expect(room.app.deckMeta[ALICE]).toBeUndefined();
 			expect(builtDeckOf(room, BOB)).toBe('[Main]\n1 Mountain');
@@ -1257,8 +1262,9 @@ describe('account erase in the draft pods', () => {
 			expect(saved.join('')).not.toContain(ALICE);
 			expect(saved.join('')).toContain(to);
 
-			expect(r.erase(ALICE, new Set([ALICE, 'uid-alice']), 'erased:ffffffff')).toEqual({ decks: 0, pods: 0 });
+			expect(await r.erase(ALICE, new Set([ALICE, 'uid-alice']), 'erased:ffffffff')).toEqual({ decks: 0, pods: 0 });
 		} finally {
+			await snapshotWriter().idle();
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
@@ -1285,7 +1291,7 @@ describe('account merge in the draft pods', () => {
 			setDeckMeta(room, ALICE, { name: 'Mine' });
 			saveBuiltDeck(room, BOB, '[Main]\n1 Mountain');
 
-			expect(r.merge(merge(), () => false)).toEqual({ decks: 1, pods: 1 });
+			expect(await r.merge(merge(), () => false)).toEqual({ decks: 1, pods: 1 });
 			expect(builtDeckOf(room, ALICE)).toBeNull();
 			expect(builtDeckOf(room, KEPT)).toBe('[Main]\n1 Island');
 			expect(room.app.deckMeta[KEPT]).toEqual({ name: 'Mine' });
@@ -1299,13 +1305,14 @@ describe('account merge in the draft pods', () => {
 			expect(saved.join('')).not.toContain(ALICE);
 			expect(saved.join('')).toContain(KEPT);
 
-			expect(r.merge(merge(), () => false)).toEqual({ decks: 0, pods: 0 });
+			expect(await r.merge(merge(), () => false)).toEqual({ decks: 0, pods: 0 });
 		} finally {
+			await snapshotWriter().idle();
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
 
-	it('leaves a pod both accounts drafted in, and one whose room stayed the merged-away account\'s, for the erase sweep', () => {
+	it('leaves a pod both accounts drafted in, and one whose room stayed the merged-away account\'s, for the erase sweep', async () => {
 		const r = createDraftRooms({ presence: noGracePresence, ...singlePoolResolver(pool), now: () => 1_700_000_000_000, storeDir: null });
 		r.setPodLookup((draftId) => podDeal(draftId === 'pod-both' ? [{ participantId: ALICE, displayName: 'Alice', seat: 5 }, { participantId: BOB, displayName: 'Alice K', seat: 2 }] : [{ participantId: ALICE, displayName: 'Alice', seat: 5 }]));
 		const both = r.open('pod-both');
@@ -1315,10 +1322,10 @@ describe('account merge in the draft pods', () => {
 		saveBuiltDeck(kept, ALICE, '[Main]\n1 Forest');
 
 		// BOB is the kept account here: the pod names it, so the kept account's build wins and hers stays for the sweep.
-		expect(r.merge(merge(BOB), (draftId) => draftId === 'pod-room-kept')).toEqual({ decks: 0, pods: 0 });
+		expect(await r.merge(merge(BOB), (draftId) => draftId === 'pod-room-kept')).toEqual({ decks: 0, pods: 0 });
 		expect(builtDeckOf(both, BOB)).toBe('[Main]\n1 Mountain');
 		expect(builtDeckOf(both, ALICE)).toBe('[Main]\n1 Island');
 		expect(builtDeckOf(kept, ALICE)).toBe('[Main]\n1 Forest');
-		expect(r.erase(ALICE, new Set([ALICE, 'uid-alice']), 'erased:0a1b2c3d')).toEqual({ decks: 2, pods: 2 });
+		expect(await r.erase(ALICE, new Set([ALICE, 'uid-alice']), 'erased:0a1b2c3d')).toEqual({ decks: 2, pods: 2 });
 	});
 });

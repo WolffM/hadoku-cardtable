@@ -52,7 +52,8 @@ interface RoomsLobby {
 	anonymise(ids: ReadonlySet<string>, to: string): number;
 	/** Account merge: every room naming the merged-away account, and not the kept one, names the kept one. */
 	merge(move: IdMove): number;
-	removed(): Promise<void>;
+	/** Every room written or deleted so far is on disk: a step answers only once what it changed is. */
+	flushed(): Promise<void>;
 }
 
 export interface RoomsEraseDeps<M extends LiveMatch> {
@@ -96,7 +97,7 @@ export function roomsEraseSteps<M extends LiveMatch>(deps: RoomsEraseDeps<M>): E
 					n++;
 				}
 				// A closed room's file names them until it is deleted: answer only once it is.
-				await deps.lobby.removed();
+				await deps.lobby.flushed();
 				return n;
 			},
 			// A merge closes nothing: a room they were alone in moves to the kept account whole (`roomsMoved`).
@@ -104,7 +105,7 @@ export function roomsEraseSteps<M extends LiveMatch>(deps: RoomsEraseDeps<M>): E
 		},
 		{
 			what: 'roomsLeft',
-			erase: ({ participantId }: ErasedPerson) => {
+			erase: async ({ participantId }: ErasedPerson) => {
 				let n = 0;
 				for (const room of deps.lobby.list()) {
 					if (!room.members.some((m) => m.id === participantId)) continue;
@@ -113,6 +114,7 @@ export function roomsEraseSteps<M extends LiveMatch>(deps: RoomsEraseDeps<M>): E
 					if (left.forfeited !== undefined) deps.forfeited(room.id, left.forfeited.tableId, participantId, left.forfeited.matchIds);
 					n++;
 				}
+				await deps.lobby.flushed();
 				return n;
 			},
 			// A merge leaves nothing: their place moves to the kept account (`roomsMoved`), and a room the
@@ -121,8 +123,16 @@ export function roomsEraseSteps<M extends LiveMatch>(deps: RoomsEraseDeps<M>): E
 		},
 		{
 			what: 'roomsAnonymised',
-			erase: ({ ids, placeholder }: ErasedPerson) => deps.lobby.anonymise(ids, placeholder),
-			merge: (accounts: MergedAccounts) => ({ roomsMoved: deps.lobby.merge(accounts) }),
+			erase: async ({ ids, placeholder }: ErasedPerson) => {
+				const n = deps.lobby.anonymise(ids, placeholder);
+				await deps.lobby.flushed();
+				return n;
+			},
+			merge: async (accounts: MergedAccounts) => {
+				const roomsMoved = deps.lobby.merge(accounts);
+				await deps.lobby.flushed();
+				return { roomsMoved };
+			},
 		},
 	];
 }

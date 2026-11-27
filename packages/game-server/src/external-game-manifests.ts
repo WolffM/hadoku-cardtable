@@ -8,7 +8,7 @@
  * that cannot be fetched or read never unregisters a game that was read once: the copy on disk
  * stands in, and the reason is logged. Only a game never read anywhere has no manifest.
  */
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { JsonLog } from '@hadoku/service-kernel/log';
@@ -75,10 +75,11 @@ export function manifestReader(opts: ManifestReaderOptions): (game: ManifestedGa
 		return parsed(await res.json());
 	};
 
-	const readCache = (id: string): ExternalGameManifest | null => {
+	// Both off the event loop: a refresh every few minutes must never wait on the disk with the server held.
+	const readCache = async (id: string): Promise<ExternalGameManifest | null> => {
 		let text: string;
 		try {
-			text = readFileSync(cacheFile(id), 'utf8');
+			text = await readFile(cacheFile(id), 'utf8');
 		} catch (err) {
 			if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
 			throw err;
@@ -86,11 +87,11 @@ export function manifestReader(opts: ManifestReaderOptions): (game: ManifestedGa
 		return parsed(JSON.parse(text));
 	};
 
-	const writeCache = (id: string, manifest: ExternalGameManifest): void => {
-		mkdirSync(opts.cacheDir, { recursive: true });
+	const writeCache = async (id: string, manifest: ExternalGameManifest): Promise<void> => {
+		await mkdir(opts.cacheDir, { recursive: true });
 		const tmp = `${cacheFile(id)}.tmp`;
-		writeFileSync(tmp, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-		renameSync(tmp, cacheFile(id));
+		await writeFile(tmp, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+		await rename(tmp, cacheFile(id));
 	};
 
 	return async (game) => {
@@ -98,13 +99,13 @@ export function manifestReader(opts: ManifestReaderOptions): (game: ManifestedGa
 		let cached: ExternalGameManifest | null = null;
 		let cacheProblem: string | null = null;
 		try {
-			cached = readCache(game.id);
+			cached = await readCache(game.id);
 		} catch (err) {
 			cacheProblem = describe(err);
 		}
 		try {
 			const manifest = await fetchOne(game);
-			if (JSON.stringify(manifest) !== JSON.stringify(cached)) writeCache(game.id, manifest);
+			if (JSON.stringify(manifest) !== JSON.stringify(cached)) await writeCache(game.id, manifest);
 			return { manifest, source: 'fetched' };
 		} catch (err) {
 			const reason = describe(err);

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 
 import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
+import { snapshotWriter } from '@hadoku/game-server/persist/snapshot-writer';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 
 import { openLobby, type Lobby } from '../room/lobby.js';
@@ -101,6 +102,7 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 	await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
 	cleanups.push(async () => {
 		await new Promise<void>((done) => server.close(() => done()));
+		await snapshotWriter().idle();
 		await rm(dir, { recursive: true, force: true });
 	});
 	return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, lobby, roomId, tableId, acts, stopped, ended };

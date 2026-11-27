@@ -1406,6 +1406,7 @@ describe('a member\'s avatar', () => {
 		// Alice's next request names her; the next save still writes no name, and keeps her userId.
 		lobby.rename({ id: ALICE.id, name: ALICE.name });
 		expect(lobby.get('r-restored')?.members[0]?.name).toBe(ALICE.name);
+		await lobby.flushed();
 		const saved = (await new FileRoomStore(dir).load('r-restored'))!;
 		expect(saved.members[0]).toEqual({ participantId: ALICE.id, accountId: ALICE.userId, joinedAt: 1, lastSeen: 1, app: null });
 		expect(JSON.stringify(saved)).not.toContain(`"${ALICE.name}"`);
@@ -1882,6 +1883,7 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			expect(lobby.releaseAbandonedSeats(ALICE.id), 'a Gauntlet both still play holds its seats').toEqual([]);
 
 			// What a build before this one saved when Bob left: Bob gone, the Gauntlet still holding the table.
+			await lobby.flushed();
 			const store = new FileRoomStore(dir);
 			const saved = (await store.load(id))!;
 			const app = saved.app as { tables: { seats: (string | null)[] }[]; seats?: unknown; game: { gauntlets: Record<string, unknown>; tables?: unknown; settings?: unknown; matches?: unknown } };
