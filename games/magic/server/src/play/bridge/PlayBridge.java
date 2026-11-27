@@ -267,6 +267,8 @@ public final class PlayBridge {
      * host does, so the input is open in Forge well before any of its frames reach the seat.
      * {@code slow-apply}: the same update is sent to Node first and then held 2 s before the seat's
      * client applies it, so what Node does with a card it was just shown meets a view without it.
+     * {@code life-throw}: every read of {@link SeatGui#lifePaying} throws, as one did when the game thread
+     * took a mind-control controller off a player between Forge's own isEmpty and lastEntry.
      */
     static final String FAULT = System.getProperty("cardtable.fault", "");
 
@@ -2890,6 +2892,9 @@ public final class PlayBridge {
          * carrying {@code packet}'s objects ({@code null} for no packet); see {@link #lifeHeld}.
          */
         synchronized JsonArray lifePaying(final DeltaPacket packet) {
+            if ("life-throw".equals(FAULT)) {
+                throw new IllegalStateException("cardtable.fault=life-throw: a test-only failure reading the life being paid");
+            }
             final Game game = liveGame();
             final JsonArray out = new JsonArray();
             if (game == null) { lifeHeld.clear(); return out; }
