@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { dealPod, PACK_TIMEOUT, packCards, packOfSize, pickNamed, seedCube, UI_TIMEOUT } from './draftActions.ts';
+import { dealPod, PACK_TIMEOUT, packCards, packNames, packOfSize, pickNamed, seedCube, UI_TIMEOUT } from './draftActions.ts';
 import { makeTitled } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -32,6 +32,36 @@ const COPIES = 45;
 const SEARCH = 6;
 
 const poolCount = (page: Page) => page.getByTestId('pool-count');
+
+/**
+ * `page`'s drafter picks along, never a card named `not`, until `stop()`: the packs they hold reach the
+ * next seat. Without it a test that drafts past seven picks waits on the human beside it for good
+ * (CI, 11-23 and 11-24: a random pick drafted a second Archdemon, so alice needed an eighth pack, bob's).
+ * Paced as `podSeats.ts`'s `draftUntilDone` is, under the server's pick rate limit.
+ */
+function draftAlong(page: Page, not: string): { stop: () => Promise<void> } {
+  let on = true;
+  const run = (async () => {
+    let picks = 0;
+    while (on) {
+      const pick = (await packNames(page)).find((n) => n !== not);
+      if (pick === undefined) {
+        await page.waitForTimeout(200);
+        continue;
+      }
+      await pickNamed(page, pick);
+      picks += 1;
+      await expect(poolCount(page), `drafting along: pick ${picks}`).toHaveText(String(picks), { timeout: UI_TIMEOUT });
+      await page.waitForTimeout(400);
+    }
+  })();
+  return {
+    stop: async () => {
+      on = false;
+      await run;
+    },
+  };
+}
 
 /** How many cards named `name` lie face up in front of seat 0, off the table's own list. */
 async function faceUpAtSeat0(page: Page, name: string): Promise<number> {
@@ -65,6 +95,7 @@ test(
 
     seedCube(ARCHDEMON, 0, COPIES);
 
+    let bobDrafts: ReturnType<typeof draftAlong> | undefined;
     const stack = await startPlayStack(forge);
     try {
       const alice: Player = await openFriend(browser, 'alice');
@@ -77,6 +108,8 @@ test(
       let picks = await draftByName(alice.page, ARCHDEMON);
       for (const p of players) await expect(p.page.getByTestId('face-up-0'), `${p.name}: sees alice's Archdemon face up`).toContainText(ARCHDEMON, { timeout: UI_TIMEOUT });
       await expect(bob.page.getByTestId('draft-blind-pick'), 'bob still sees his packs').toHaveCount(0);
+
+      bobDrafts = draftAlong(bob.page, ARCHDEMON);
 
       /* ── every pack after it is a count and one button; a press is one card in her pool ── */
       // What each face-up Archdemon still demands: the one she named owes three,
@@ -112,6 +145,7 @@ test(
       await packCards(alice.page).first().click();
       await expect(poolCount(alice.page), 'she names a card again').toHaveText(String(picks + 1), { timeout: UI_TIMEOUT });
     } finally {
+      await bobDrafts?.stop();
       await stack.stop();
     }
   },
