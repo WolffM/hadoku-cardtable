@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, packRowHeight, POOL_MIN_H, type FanGeometry } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, PACK_ROW_MIN, packRowHeight, POOL_MIN_H, type FanGeometry } from './PackView.tsx';
 
 // The operator's window, a laptop, a wide screen, and the narrowest a fan is drawn at.
 const BOXES = [
@@ -128,6 +128,28 @@ describe('the fan row follows the browser zoom', () => {
     expect(packRowHeight(600, 1, 300)).toBe(300);
     expect(packRowHeight(600)).toBe(600 - POOL_MIN_H);
     expect(packRowHeight(3000, 1, 300)).toBe(packRowHeight(3000));
+  });
+
+  /*
+   * A pod of bots that each drafted a long run of cards face up: at 1280×800 in a room the body's rows
+   * share 728 px, and the pod's column, every list in it, wants 1400 at its smallest fit. A question
+   * open over the pack (a pool to choose from) is 240 px down to its first card's bottom.
+   */
+  const INNER = 728;
+  const FULL_COLUMN = 1400;
+  const ASK_CARD = 240;
+
+  it("a question open over the pack keeps a whole card of it, however tall the pod's column wants to be", () => {
+    expect(packRowHeight(INNER, 1, FULL_COLUMN, ASK_CARD)).toBeGreaterThanOrEqual(ASK_CARD);
+  });
+
+  it("the pack keeps its least row, however tall the pod's column wants to be: the column scrolls instead", () => {
+    expect(packRowHeight(INNER, 1, FULL_COLUMN)).toBeGreaterThanOrEqual(PACK_ROW_MIN);
+    expect(packRowHeight(INNER * 1.25, 1.25, FULL_COLUMN * 1.25)).toBeCloseTo(PACK_ROW_MIN * 1.25);
+  });
+
+  it("the picks' own floor still comes first: a short window gives the question what is left", () => {
+    expect(400 - packRowHeight(400, 1, FULL_COLUMN, ASK_CARD)).toBeGreaterThanOrEqual(POOL_MIN_H);
   });
 
   it('follows the UI scale as it follows zoom: the same row, in the scale\'s units', () => {
