@@ -3,7 +3,7 @@
  * claws (no JVM), fake agent links, a fake fleet and a fake clock.
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -168,6 +168,8 @@ function fleetNode(node: string, extra: Partial<FleetNode> = {}): FleetNode {
 
 interface Rig {
 	p: Placement<BridgeLine, BridgeCommand>;
+	/** The claws' records are under `${workDir}-claws`. */
+	workDir: string;
 	clock: { t: number };
 	claws: Map<string, FakeClaw>;
 	nodes: FleetNode[];
@@ -276,7 +278,7 @@ async function rig(
 		for (const c of claws.values()) for (const j of c.jvms) if (!j.dead) j.say({ t: 'warm', bootMs: 1, match: j.hostId });
 	};
 	warmAll();
-	return { p, clock, claws, nodes, fleetDown, demands, converger, posted, logs, backstopJvms: backstop.jvms, canary, warmAll, order, restored, restorer };
+	return { p, workDir: cfg.workDir, clock, claws, nodes, fleetDown, demands, converger, posted, logs, backstopJvms: backstop.jvms, canary, warmAll, order, restored, restorer };
 }
 
 interface Rec extends HostEvents<BridgeLine, BridgeCommand> {
@@ -1251,6 +1253,23 @@ describe('failover', () => {
 		const after = r.logs.slice(from).filter((l) => l.host === 'claw-9');
 		expect(claw.jvms.length).toBe(before);
 		expect(after.filter((l) => l.evt === 'jvm-launched' || l.evt === 'jvm-boot-failed' || l.evt === 'jvm-launch-failed')).toEqual([]);
+	});
+
+	it("a lost claw's records are set aside off the event loop, and its next pool waits for that before it writes", async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		const claws = `${r.workDir}-claws`;
+		const [old] = readdirSync(join(claws, 'claw-9'));
+		r.claws.get('claw-9')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
+		// Not renamed in the loss's own turn: on hokon's btrfs that rename alone held the loop 1.6 s.
+		expect(readdirSync(join(claws, 'claw-9'))).toEqual([old]);
+		r.claws.set('claw-9', fakeClaw('claw-9'));
+		r.clock.t += 1000;
+		await r.p.poll();
+		await vi.waitFor(() => expect(readdirSync(join(claws, 'claw-9')).length).toBe(1));
+		const [fresh] = readdirSync(join(claws, 'claw-9'));
+		expect(fresh).not.toBe(old);
+		const aside = readdirSync(claws).filter((d) => d.startsWith('claw-9.failed-'));
+		expect(aside.map((d) => readdirSync(join(claws, d)))).toEqual([[old]]);
 	});
 
 	it('an agent silent past the window with no match on it: a heartbeat-lost alert and quarantine, then back after a healthy status and a canary', async () => {
