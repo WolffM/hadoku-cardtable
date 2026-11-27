@@ -14,6 +14,7 @@ import { getMusicTrack, playRole, subscribeMusicTrack } from '@hadoku/game-ui/so
 import { LEVEL_DEFAULTS, getLevel, isMuted, setLevel, setMusicPick, setMuted, subscribeSound, type LevelName } from '@hadoku/ui-shell/sound';
 import { trackName } from '../sound/match-music.ts';
 import { uiLength } from '@hadoku/ui-shell/settings';
+import { choiceInput } from '@hadoku/game-ui/components/choice.ts';
 
 function MusicTrackPicker({ disabled }: { disabled: boolean }) {
   const now = useSyncExternalStore(subscribeMusicTrack, getMusicTrack, () => null);
@@ -74,12 +75,12 @@ export function SoundSettings() {
           type="checkbox"
           data-testid="settings-sound-on"
           checked={!muted}
-          onChange={(event) => {
-            const on = event.currentTarget.checked;
+          {...choiceInput(() => {
+            const on = muted;
             setMuted(!on);
             // Unmuting makes a noise, so the state you hear is the state you are in.
             if (on) playRole('ui.select');
-          }}
+          })}
         />
         <Icon name={muted ? 'volume-mute' : 'volume-high'} size={uiLength('1rem')} />
         Sound on

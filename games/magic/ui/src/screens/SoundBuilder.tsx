@@ -70,6 +70,7 @@ import { useSoundAssignments } from '../sound/useSoundAssignments.ts';
 import { GainSlider, createMixer, type Mixer } from '@hadoku/ui-shell/sound';
 import { SoundQueue } from './SoundQueue.tsx';
 import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
+import { choiceInput } from '@hadoku/game-ui/components/choice.ts';
 import './SoundBuilder.css';
 
 export interface SoundBuilderProps {
@@ -375,7 +376,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
               onChange={(e) => setQuery(e.target.value)}
             />
             <label>
-              <input type="checkbox" checked={unplacedOnly} onChange={(e) => setUnplacedOnly(e.target.checked)} />
+              <input type="checkbox" checked={unplacedOnly} {...choiceInput(() => setUnplacedOnly(!unplacedOnly))} />
               Unplaced
             </label>
           </div>

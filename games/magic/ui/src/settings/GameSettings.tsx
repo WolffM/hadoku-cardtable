@@ -30,6 +30,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@wolffm/themes';
 import { usePrefs } from '@wolffm/prefs-client/react';
+import { choiceInput } from '@hadoku/game-ui/components/choice.ts';
 
 import { artClient, changeArt, type ArtClient } from '../deck/artRules.ts';
 import type { BoardLayout } from '../play/Board.tsx';
@@ -47,7 +48,7 @@ const SPEED_LABELS: Readonly<Record<GameSpeed, string>> = { normal: 'Normal', fa
 function Toggle({ testId, checked, label, onChange, disabled = false }: { testId: string; checked: boolean; label: string; onChange: (on: boolean) => void; disabled?: boolean }) {
   return (
     <label className="ct-settings__option">
-      <input type="checkbox" data-testid={testId} checked={checked} disabled={disabled} onChange={(event) => onChange(event.currentTarget.checked)} />
+      <input type="checkbox" data-testid={testId} checked={checked} disabled={disabled} {...choiceInput(() => onChange(!checked))} />
       {label}
     </label>
   );
@@ -71,7 +72,9 @@ export function GameSettings() {
               name="board-layout"
               value={opt.value}
               checked={boardLayout === opt.value}
-              onChange={() => persist({ boardLayout: opt.value })}
+              {...choiceInput(() => {
+                if (boardLayout !== opt.value) persist({ boardLayout: opt.value });
+              })}
             />
             {opt.label}
           </label>
@@ -87,7 +90,9 @@ export function GameSettings() {
               value={speed}
               data-testid={`live-settings-speed-${speed}`}
               checked={gameSpeed === speed}
-              onChange={() => persist({ gameSpeed: speed })}
+              {...choiceInput(() => {
+                if (gameSpeed !== speed) persist({ gameSpeed: speed });
+              })}
             />
             {SPEED_LABELS[speed]}
           </label>

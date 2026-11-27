@@ -661,7 +661,11 @@ describe('presets (wave 74 §G routes, §F UI)', () => {
     // Round 1 and 2: select each slot first — its picker is not mounted otherwise (AF305 §B).
     for (const round of [1, 2]) {
       fireEvent.click(screen.getByTestId(`pool-picker-custom-round-${round}`));
-      fireEvent.click(screen.getByTestId(`pool-picker-custom-round-${round}-cubes-good-cube`));
+      // Pressable first: the picker is disabled while the previous pick's plan write is in flight, and
+      // only jsdom let a click on a disabled radio through to a change (a browser never does).
+      const cube = screen.getByTestId(`pool-picker-custom-round-${round}-cubes-good-cube`) as HTMLInputElement;
+      await waitFor(() => expect(cube.disabled).toBe(false));
+      fireEvent.click(cube);
     }
     // The third round's pick fires the real (mocked) `setPlan` round trip —
     // wait for it to settle (Save is disabled, same as Ready, while busy)

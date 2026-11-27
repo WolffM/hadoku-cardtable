@@ -2,7 +2,8 @@
  * A choice of one, drawn as a row of cards: the room's type and mode in the
  * create form, the mode in the room, and each mode's own options.
  *
- * Native radio inputs, one per card, laid over the whole card and transparent:
+ * Native radio inputs, one per card, laid over the whole card and transparent, choosing on
+ * their click (`./choice.ts` has why, not their change):
  * the keyboard (Tab to the group, arrows between cards), `disabled` and
  * `checked` are the browser's own, and a press anywhere on a card lands on its
  * input. The checked card wears the format tabs' look (`.lobby__format-tabs`),
@@ -19,7 +20,7 @@
  * `renderRow`, wave 73 §B's cube picker: a row that needs more than a label —
  * a size, an importer, its own refresh/delete buttons beside the radio, not
  * inside it. `input` is the SAME wired element every other card gets (name,
- * value, checked, disabled, onChange, test id); `renderRow` only chooses what
+ * value, checked, disabled, its click, test id); `renderRow` only chooses what
  * markup it sits in, so the input's own behaviour is never duplicated.
  * Every other caller leaves it unset and gets the plain card exactly as
  * before — this is additive, not a second way to draw the same thing.
@@ -27,6 +28,7 @@
 
 import { Fragment, type ReactNode } from 'react';
 
+import { choiceInput } from './choice.ts';
 import './RadioCards.css';
 
 export interface RadioCard<T extends string> {
@@ -88,7 +90,9 @@ export function RadioCards<T extends string>({
             data-testid={`${testId}-${option.value}`}
             checked={value === option.value}
             disabled={disabled || option.disabled === true}
-            onChange={() => onChange(option.value)}
+            {...choiceInput(() => {
+              if (value !== option.value) onChange(option.value);
+            })}
           />
         );
         if (renderRow !== undefined) return <Fragment key={option.value}>{renderRow(option, input)}</Fragment>;

@@ -25,6 +25,7 @@ import './prompts.css';
 import { plainRulesText, type PromptLookup } from './lookup.ts';
 import { RulesText } from './RulesText.tsx';
 import type { PromptMethod } from './types.ts';
+import { choiceInput } from '@hadoku/game-ui/components/choice.ts';
 
 export interface PromptShellProps {
   /** `data-prompt`: the ask's method, or `selection` for Forge's `setSelectables` sheet. */
@@ -525,8 +526,9 @@ export function usePicks<T>(
  *
  * A click on a picked row unpicks it, a radio's too (the operator, 2026-10-22: *"i don't need a
  * 'clear choice' button to appear when choosing things. just clicking on the selected choice
- * should 'unselect' it"*): a browser fires no `change` for a radio that is already checked, so
- * that click is `onPick` here, the same toggle a checkbox's change is.
+ * should 'unselect' it"*): every click is `onPick`, the one toggle, made on the click itself and never
+ * on a change (`@hadoku/game-ui/components/choice.ts` has why: a browser fires no `change` for a radio
+ * that is already checked, and a render during the click can swallow the one it does fire).
  *
  * A double click is `onConfirm`. Its first click ticks the row as any click
  * does; the second click of the pair is not a second toggle (it would untick
@@ -565,8 +567,7 @@ export function PickChoice({
         {...data}
         checked={checked}
         disabled={disabled}
-        onChange={onPick}
-        onClick={type === 'radio' && checked ? (e) => e.detail <= 1 && onPick() : undefined}
+        {...choiceInput(onPick)}
       />
       {children}
     </label>

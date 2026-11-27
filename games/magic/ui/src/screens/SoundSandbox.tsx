@@ -26,6 +26,7 @@ import { soundsClient, type SoundsClient } from '../sound/builderClient.ts';
 import { useSoundAssignments } from '../sound/useSoundAssignments.ts';
 import { GainSlider, DEFAULT_MIX, createMixer, type Mixer, type MixSettings, type PlanResult } from '@hadoku/ui-shell/sound';
 import { beatEvent, SCENARIOS, type Beat, type Identities, type Scenario } from '../sound/scenarios.ts';
+import { choiceInput } from '@hadoku/game-ui/components/choice.ts';
 import './SoundBuilder.css';
 
 export interface SoundSandboxProps {
@@ -158,13 +159,13 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
             {playing ? 'Stop' : 'Play'}
           </button>
           <label>
-            <input type="checkbox" checked={loop} onChange={(e) => setLoop(e.target.checked)} /> Loop
+            <input type="checkbox" checked={loop} {...choiceInput(() => setLoop(!loop))} /> Loop
           </label>
           <label>
-            <input type="checkbox" checked={fast} onChange={(e) => setFast(e.target.checked)} /> Fast Mode
+            <input type="checkbox" checked={fast} {...choiceInput(() => setFast(!fast))} /> Fast Mode
           </label>
           <label>
-            <input type="checkbox" checked={music} onChange={(e) => setMusic(e.target.checked)} /> Music
+            <input type="checkbox" checked={music} {...choiceInput(() => setMusic(!music))} /> Music
           </label>
           <label>
             Speed
