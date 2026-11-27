@@ -1,0 +1,14 @@
+# Baleful Mastery in hand with four Swamps: both its {3}{B} and its {1}{B} cost are payable.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Baleful Mastery
+humanbattlefield=Swamp;Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

@@ -617,10 +617,11 @@ export const ManaMarksSchema = ManaFactsSchema.pick({ life: true, damage: true, 
  * carries no `SpellAbilityView` objects at all — Tier C's object types are
  * 0–4, and a spell ability is none of them (`games/magic/ui/src/play/prompts/
  * lookup.ts`'s header records the finding). The label closes that: the bridge
- * sends `SpellAbilityView.toString()`, which is Forge's "cost then
- * description" (`SpellAbilityView.java:42-55` → `toUnsuppressedString`) —
- * `{1}, Sacrifice Pyrite Spellbomb: Draw a card.` — and the picker shows it
- * instead of a number. The braces stay Forge's notation on the wire; the UI
+ * sends `SpellAbilityView.toString()` (`SpellAbilityView.java:42-55` →
+ * `toUnsuppressedString`), and the picker shows it instead of a number. For an
+ * activated ability that is "cost then description" — `{1}, Sacrifice Pyrite
+ * Spellbomb: Draw a card.` — but for a spell it is the description alone, so a
+ * spell's cost rides beside it in `cost`. The braces stay Forge's notation on the wire; the UI
  * already says them in words (`lookup.ts` `plainRulesText`, because `{T}` is
  * a WotC mark).
  *
@@ -642,6 +643,14 @@ export const OfferedAbilitySchema = z.strictObject({
   face: z.string().optional(),
   /** Ours, never Forge's: this ability plays its card as a land (`PlayBridge.java`'s `landFacts`). */
   playsLand: z.literal(true).optional(),
+  /**
+   * Ours, never Forge's: what this SPELL costs to cast this way, in Forge's notation (`{3}{B}`,
+   * `Pay 1 life, Exile a blue card from your hand`) — `PlayBridge.java`'s `spellCosts`. A spell's
+   * label is its description alone, so two ways to cast one card (Baleful Mastery's {3}{B} and
+   * {1}{B}) read alike without it. Absent on an ability that is not a spell: its label starts with
+   * its cost already.
+   */
+  cost: z.string().min(1).optional(),
   mana: ManaFactsSchema.optional(),
 });
 

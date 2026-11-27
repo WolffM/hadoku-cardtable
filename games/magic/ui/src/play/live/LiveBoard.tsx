@@ -267,7 +267,7 @@ import { ActionButton } from '@hadoku/game-ui/components/ActionButton.tsx';
 import { NO_FACE, type Face } from '@hadoku/game-ui/components/Avatar.tsx';
 import { opponentOf, PHASE_LABEL, viewerOf, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
-import { lookupFromState, plainRulesText, promptLines, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
+import { lookupFromState, offeredAbilityLabel, plainRulesText, promptLines, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
 import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
@@ -1000,8 +1000,8 @@ function LivePrompt({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
     <PromptFor
       ask={ask as AskOf<PromptMethod>}
       // `getAbilityToPlay` is the one ask whose options carry their own label
-      // (the bridge sends Forge's "cost then description"; the state channel
-      // has no SpellAbilityView to read). Layered over the fold so an
+      // (the bridge sends Forge's description, and a spell's cost beside it:
+      // `offeredAbilityLabel`; the state channel has no SpellAbilityView to read). Layered over the fold so an
       // unlabelled offer still draws its "ability #id" fallback.
       lookup={withAbilityLabels(lookupFromState(match.state), abilityLabelsOf(ask))}
       onAnswer={(reply) => answerAsk(match, ask.callId, ask.method, reply)}
@@ -1014,7 +1014,10 @@ function LivePrompt({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
 function abilityLabelsOf(ask: LiveAsk): Record<number, string> {
   if (ask.method !== 'getAbilityToPlay') return {};
   const out: Record<number, string> = {};
-  for (const ab of ask.abilities) if (ab.label !== undefined) out[ab.id] = ab.label;
+  for (const ab of ask.abilities) {
+    const label = offeredAbilityLabel(ab);
+    if (label !== undefined) out[ab.id] = label;
+  }
   return out;
 }
 
@@ -3717,6 +3720,9 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
             context={lines.context}
             source={match.promptCard}
             cards={[...match.selectables.cards]}
+            players={match.selectables.cards.size === 0 ? [...offered.selectablePlayers] : []}
+            pickedPlayers={match.highlightedPlayers ?? EMPTY_CARD_IDS}
+            onPickPlayer={(id) => selectPlayer(match, id)}
             lookup={lookupFromState(match.state)}
             picked={match.highlighted ?? EMPTY_CARD_IDS}
             onPick={(id) => selectCard(match, id)}

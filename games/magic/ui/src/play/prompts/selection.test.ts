@@ -33,9 +33,14 @@ describe('classifySelection', () => {
     expect(classifySelection(null, new Set())).toBe('none');
   });
 
-  it('is none when the selection names no cards (a player-only selection)', () => {
-    const sel: SelectionLike = { cards: [], min: 0, max: 1 };
-    expect(classifySelection(sel, new Set([BOARD_CARD]))).toBe('none');
+  it('is none when the selection names no cards and no players', () => {
+    expect(classifySelection({ cards: [], min: 0, max: 1 }, new Set([BOARD_CARD]))).toBe('none');
+    expect(classifySelection({ cards: [], min: 0, max: 1, players: null }, new Set([BOARD_CARD]))).toBe('none');
+  });
+
+  it('is on-board when the selection names no cards but offers players — True-Name Nemesis’s “choose a player”', () => {
+    const sel: SelectionLike = { cards: [], min: 1, max: 1, players: new Set([0, 1]) };
+    expect(classifySelection(sel, new Set([BOARD_CARD]))).toBe('on-board');
   });
 
   it('is off-board when any named card is not on the board — W18’s soft-lock shape', () => {
@@ -117,6 +122,27 @@ describe('SelectionPrompt', () => {
       }),
     );
     expect(getAllByText('card #12345')).toHaveLength(1);
+  });
+
+  it('a players-only selection lists each player by name, and a pick sends that player — True-Name Nemesis’s “choose a player”', () => {
+    const picked: number[] = [];
+    const lookup = { ...EMPTY_LOOKUP, player: (id: number) => ({ name: id === 0 ? 'Alice' : 'Bob', life: 20 }) };
+    const { container, getAllByTestId } = render(
+      createElement(SelectionPrompt, {
+        message: 'Choose a player',
+        cards: [],
+        players: [0, 1],
+        onPickPlayer: (id) => picked.push(id),
+        lookup,
+        picked: new Set<number>(),
+        onPick: () => {},
+      }),
+    );
+    expect(container.querySelector('[data-testid="prompt-cards"]')).toBeNull();
+    const rows = getAllByTestId('prompt-choice');
+    expect(rows.map((r) => r.closest('label')?.textContent)).toEqual(['Aliceplayer', 'Bobplayer']);
+    fireEvent.click(rows[1]!);
+    expect(picked).toEqual([1]);
   });
 
   it('clicking a tile calls onPick with its id — a selection click answers immediately, it does not stage', () => {

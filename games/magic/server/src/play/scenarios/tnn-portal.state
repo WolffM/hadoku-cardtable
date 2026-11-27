@@ -1,0 +1,15 @@
+# Portal to Phyrexia's upkeep trigger returns True-Name Nemesis from bob's graveyard under alice's
+# control; TNN's "as it enters, choose a player" is then alice's to answer.
+turn=1
+activeplayer=ai
+activephase=END_OF_TURN
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Portal to Phyrexia;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=True-Name Nemesis

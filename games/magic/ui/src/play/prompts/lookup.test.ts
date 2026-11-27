@@ -5,7 +5,7 @@ import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import { withServerArt } from '../art.testing.ts';
 import type { WireObject } from '../wire.ts';
 import { promptTileFor } from './PromptShell.tsx';
-import { isZoneDividerLabel, lookupFromState, plainRulesText, promptLines, promptText, selectionText, translateTargetWords, type PromptParts } from './lookup.ts';
+import { isZoneDividerLabel, lookupFromState, offeredAbilityLabel, plainRulesText, promptLines, promptText, selectionText, translateTargetWords, type PromptParts } from './lookup.ts';
 
 const card = (id: number): [string, WireObject] => [deltaKey(DELTA_TYPE.card, id), { _type: DELTA_TYPE.card, _id: id }];
 const face = (id: number, name: string, setCode: string): [string, WireObject] => [
@@ -301,5 +301,18 @@ describe('promptLines', () => {
   });
   it('a prompt the bridge did not split is its own question', () => {
     expect(promptLines('Priority: Alice\nTurn: 1 (Alice)', null, false)).toEqual({ question: 'Priority: Alice\nTurn: 1 (Alice)', context: null });
+  });
+});
+
+describe('offeredAbilityLabel — a spell says what it costs', () => {
+  it('puts a spell’s cost in front of its description, the way an activated ability’s label already starts', () => {
+    const description = 'If the {1}{B} cost was paid, an opponent draws a card. Exile target creature or planeswalker. ';
+    expect(offeredAbilityLabel({ label: description, cost: '{3}{B}' })).toBe('{3}{B}: If the {1}{B} cost was paid, an opponent draws a card. Exile target creature or planeswalker.');
+    expect(offeredAbilityLabel({ label: description, cost: '{1}{B}' })).toMatch(/^\{1\}\{B\}: If the/);
+  });
+
+  it('leaves an ability with no cost of its own as Forge labelled it', () => {
+    expect(offeredAbilityLabel({ label: '{1}, Sacrifice Pyrite Spellbomb: Draw a card.' })).toBe('{1}, Sacrifice Pyrite Spellbomb: Draw a card.');
+    expect(offeredAbilityLabel({})).toBeUndefined();
   });
 });

@@ -5892,6 +5892,7 @@ public final class PlayBridge {
             faceAbilities(hostCard, offered);
             landFacts(hostCard, abilities, f, offered);
             manaFacts(abilities, offered);
+            spellCosts(abilities, offered);
             f.add("abilities", offered);
             f.add("triggerEvent", JsonNull.INSTANCE);
             pickedManaMarks = null;
@@ -6081,6 +6082,35 @@ public final class PlayBridge {
             final List<SpellAbility> sas = new ArrayList<>();
             for (final SpellAbilityView v : abilities) { sas.add(cache.get(v)); }
             manaFactsOf(sas, offered);
+        }
+
+        /**
+         * What each offered SPELL costs to cast that way ({@code cost}), in Forge's own notation
+         * ({@code Cost.toSimpleString}). Forge's label for a spell is its description alone
+         * ({@code SpellAbility.toUnsuppressedString}): an activated ability's label starts with its
+         * cost, a spell's never does, so the ways to cast one card read alike. Baleful Mastery's two
+         * (CoffeeTraveler, 2026-11-27: "doesn't allow you to cast it for 4") were both "If the {1}{B}
+         * cost was paid, an opponent draws a card. Exile target creature or planeswalker." and the
+         * {3}{B} cast said its cost nowhere. Abilities that are not spells carry their cost in the
+         * label already and get nothing here.
+         */
+        private void spellCosts(final List<SpellAbilityView> abilities, final JsonArray offered) {
+            final Game game = liveGame();
+            if (game == null) { return; }
+            final Map<SpellAbilityView, SpellAbility> cache;
+            try {
+                cache = offerCache(game, abilities);
+            } catch (final ReflectiveOperationException | RuntimeException ex) {
+                System.err.println("[bridge] spellCosts: could not read the offer (" + ex + ")");
+                return;
+            }
+            if (cache == null) { return; }
+            for (int i = 0; i < abilities.size(); i++) {
+                final SpellAbility sa = cache.get(abilities.get(i));
+                if (sa == null || !sa.isSpell() || sa.getPayCosts() == null) { continue; }
+                final String cost = sa.getPayCosts().toSimpleString();
+                if (!cost.isEmpty()) { offered.get(i).getAsJsonObject().addProperty("cost", cost); }
+            }
         }
 
         /** {@link #manaFacts} for abilities already in hand: {@code offered.get(i)} is {@code sas.get(i)}'s ref. */

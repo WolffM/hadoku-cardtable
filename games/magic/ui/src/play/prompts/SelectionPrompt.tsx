@@ -52,6 +52,17 @@
  *    artifact, enchantment, or land. […]") on its own line under it, as the
  *    bridge splits Forge's one string (`promptLines`) — the same shape every
  *    other decision already has.
+ *  - **players only** (True-Name Nemesis, returned by Portal to Phyrexia in
+ *    match m-cb6c12da244a). *"As True-Name Nemesis enters, choose a player"*
+ *    (`ChoosePlayer`, `Choices$ Player`) reaches the wire as
+ *    `setSelectables({cards: [], players: [both]}, min:1, max:1)` with both of
+ *    Forge's buttons off (measured against the real jar). Nothing drew a
+ *    question for it, so the player clicked cards for a minute and the game
+ *    sat on the choice. A selection that names no card but offers players is
+ *    `'on-board'` (their faces are on the board and take the click), and this
+ *    sheet lists those players, so the question and its answers are in one
+ *    place. A selection that names cards lists the cards alone, as before:
+ *    its players stay the faces on the board.
  *
  * ## No yes/no kind
  *
@@ -67,13 +78,15 @@ import { CardTile } from '../../components/CardTile.tsx';
 
 import { PromptCheckBox, type PromptCheck } from './ConfirmPrompt.tsx';
 import { PickChoice, PromptShell, promptThumb, promptTileFor } from './PromptShell.tsx';
-import { promptText, type PromptLookup } from './lookup.ts';
+import { promptText, refName, type PromptLookup } from './lookup.ts';
 
 /** `LiveSelectables`'s shape, read structurally so this file does not import lane L's `../live/match.ts`. */
 export interface SelectionLike {
   cards: ReadonlySet<number> | readonly number[];
   min: number;
   max: number;
+  /** The players the selection accepts, when the bridge could tell (`LiveSelectables.players`). */
+  players?: ReadonlySet<number> | null;
 }
 
 export type SelectionKind = 'none' | 'off-board' | 'on-board';
@@ -87,7 +100,7 @@ export type SelectionKind = 'none' | 'off-board' | 'on-board';
 export function classifySelection(selection: SelectionLike | null, boardCardIds: ReadonlySet<number>): SelectionKind {
   if (selection === null) return 'none';
   const ids = [...selection.cards];
-  if (ids.length === 0) return 'none';
+  if (ids.length === 0) return (selection.players?.size ?? 0) > 0 ? 'on-board' : 'none';
   return ids.some((id) => !boardCardIds.has(id)) ? 'off-board' : 'on-board';
 }
 
@@ -114,6 +127,12 @@ export interface SelectionPromptProps {
   source?: number | null;
   /** `selection.cards`, in Forge's own order. */
   cards: readonly number[];
+  /** The players to list, for a selection that names no card (the file header's "players only"). */
+  players?: readonly number[];
+  /** The players Forge has marked as picked so far (`setHighlighted`). */
+  pickedPlayers?: ReadonlySet<number>;
+  /** A listed player picked: the same `selectPlayer` a click on their face sends. */
+  onPickPlayer?: (id: number) => void;
   lookup: PromptLookup;
   /**
    * Already registered this round — `setHighlighted`'s marks (`../live/match.ts`
@@ -143,7 +162,21 @@ export interface SelectionPromptProps {
  * area owns a question once one is open) — never drawn when Forge has not
  * enabled them.
  */
-export function SelectionPrompt({ message: rawMessage, context = null, source = null, cards, lookup, picked, onPick, done, cancel, check }: SelectionPromptProps) {
+export function SelectionPrompt({
+  message: rawMessage,
+  context = null,
+  source = null,
+  cards,
+  players = [],
+  pickedPlayers,
+  onPickPlayer,
+  lookup,
+  picked,
+  onPick,
+  done,
+  cancel,
+  check,
+}: SelectionPromptProps) {
   const message = promptText(rawMessage);
   /*
    * A double click (`PickChoice`): pick the card and press Done. The picks are
@@ -197,21 +230,35 @@ export function SelectionPrompt({ message: rawMessage, context = null, source = 
       ]}
       aside={check === undefined ? undefined : <PromptCheckBox check={check} />}
     >
-      <ul className="prompt__cards" data-testid="prompt-cards">
-        {cards.map((id) => {
-          // `promptTileFor` already falls back to `card #<id>` as the
-          // tile's own name when the lookup knows nothing — a second,
-          // separate "unknown card" tag would say the same fact twice.
-          const tile = promptTileFor(lookup, id);
-          return (
-            <li key={id} data-card-id={id}>
-              <PickChoice type="checkbox" data={{ 'data-card-id': id }} checked={picked.has(id)} onPick={() => pick(id)} onConfirm={() => confirm(id)}>
-                <CardTile card={tile} />
+      {cards.length > 0 && (
+        <ul className="prompt__cards" data-testid="prompt-cards">
+          {cards.map((id) => {
+            // `promptTileFor` already falls back to `card #<id>` as the
+            // tile's own name when the lookup knows nothing — a second,
+            // separate "unknown card" tag would say the same fact twice.
+            const tile = promptTileFor(lookup, id);
+            return (
+              <li key={id} data-card-id={id}>
+                <PickChoice type="checkbox" data={{ 'data-card-id': id }} checked={picked.has(id)} onPick={() => pick(id)} onConfirm={() => confirm(id)}>
+                  <CardTile card={tile} />
+                </PickChoice>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {players.length > 0 && (
+        <ul className="prompt__list">
+          {players.map((id) => (
+            <li key={id}>
+              <PickChoice type="checkbox" data={{ 'data-ref': `player:${id}` }} checked={pickedPlayers?.has(id) ?? false} onPick={() => onPickPlayer?.(id)} onConfirm={() => onPickPlayer?.(id)}>
+                {refName(lookup, { kind: 'player', id })}
+                <span className="prompt__tag">player</span>
               </PickChoice>
             </li>
-          );
-        })}
-      </ul>
+          ))}
+        </ul>
+      )}
     </PromptShell>
   );
 }

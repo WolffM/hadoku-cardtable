@@ -90,6 +90,16 @@ export function lookupFromState(state: WireState): PromptLookup {
   };
 }
 
+/**
+ * The words an offered ability draws as: Forge's label, with a spell's own cost in front of it the
+ * way an activated ability's label already starts with its cost (`OfferedAbility.cost`), so two
+ * ways to cast one card say what each one costs — Baleful Mastery's `{3}{B}` and `{1}{B}`.
+ */
+export function offeredAbilityLabel(ability: { label?: string; cost?: string }): string | undefined {
+  if (ability.label === undefined) return ability.cost;
+  return ability.cost === undefined ? ability.label : `${ability.cost}: ${ability.label.trim()}`;
+}
+
 /** Layer ability labels over a lookup — the bridge's job once it sends them. */
 export function withAbilityLabels(base: PromptLookup, labels: Readonly<Record<number, string>>): PromptLookup {
   return { ...base, ability: (id) => labels[id] ?? base.ability(id) };
