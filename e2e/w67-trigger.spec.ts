@@ -8,12 +8,14 @@
  * around. also the visual lag is only see from the opponents view." Alice drags the chip, then
  * rearranges one of her battlefield cards, with the same real pointer path (`page.mouse`, a step every
  * ~16 ms). Bob's screen records, every animation frame, where it draws each one and whether the
- * chip's own contents were rebuilt or shown as a back: never rebuilt, never a back, gliding between
- * messages like the card (frames moved, against the card's own), never a jump past the card's. The
- * card's own glide is read from its plan (each new point starts its `FOLLOW_MS` transition), never
- * from how far it moved between two frames: under load (45238039067, load 24.7) bob's frames came
- * 183 ms apart and her messages 233 ms, and a healthy glide stepped 21 px.
- * How long either stood still is printed — a hold in milliseconds is the CI runner's as much as the chip's.
+ * chip's own contents were rebuilt or shown as a back: never rebuilt, never a back. The card's glide
+ * is read from its plan (each new point starts its `FOLLOW_MS` transition), never from how far it
+ * moved between two frames: under load (45238039067, load 24.7) bob's frames came 183 ms apart and
+ * her messages 233 ms, and a healthy glide stepped 21 px. The chip eases in script on the wall clock
+ * (`placed.ts`'s `handAt`), with no plan to read, so how smoothly it follows is pinned on fake timers
+ * by `placed.test.ts` (a watcher tracks the dragging seat's path), not here. How far each moved
+ * between frames and how long it stood still are printed only: those are the runner's as much as the
+ * chip's.
  *
  * Scenario `w67-trigger`: Eternal Witness's trigger goes on the stack while bob (Full Control)
  * holds priority, so it stays there to be dragged.
@@ -78,7 +80,7 @@ test(titled('a trigger on the stack is the ability chip on both screens, and its
     );
     expect(chipTrace.moves, 'bob saw the chip move at all').toBeGreaterThan(5);
     expect(cardTrace.moves, 'bob saw the card move at all').toBeGreaterThan(5);
-    // The card's own mirror is the baseline, so it must be healthy itself before the chip is compared with it.
+    // The card's own mirror: one element, gliding to each point.
     expect(cardTrace.rebuilds, 'the lifted card is never rebuilt while it is moved').toBe(0);
     // It glides to every point her messages bring, never steps: each one starts the tile's own
     // `left`/`top` transition, planned at FOLLOW_MS. How far it gets between two frames is the host's.
@@ -88,9 +90,6 @@ test(titled('a trigger on the stack is the ability chip on both screens, and its
     expect(chipTrace.rebuilds, 'the chip is never rebuilt while it is moved').toBe(0);
     expect(chipTrace.blankFrames, 'the chip is never blank or a back while it is moved').toBe(0);
     expect(chipTrace.faceFlips, 'the chip never turns from its face to a back and over again').toBe(0);
-    expect(chipTrace.maxJumpPx, `the chip never jumps further in a frame than the card does (${cardTrace.maxJumpPx} px)`).toBeLessThanOrEqual(Math.max(cardTrace.maxJumpPx * 1.5, 20));
-    // Gliding, not stepping: about as many frames moved as the card's, which glides between the same messages.
-    expect(chipTrace.moves, `the chip glides between their messages like the card does (${cardTrace.moves} frames moved), never a step per message`).toBeGreaterThanOrEqual(Math.floor(cardTrace.moves * 0.6));
   } finally {
     await stack.stop();
   }
