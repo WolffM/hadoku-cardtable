@@ -18,7 +18,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BridgeLine } from './bridge-protocol.js';
-import { available, deck, inOwnMain, landPayer, passUntil, promptBar, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, inOwnMain, landPayer, passUntil, pidNow, promptBar, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok ? 'restore from a turn-start snapshot, against real Forge' : `restore from a turn-start snapshot, against real Forge — SKIPPED: ${available.reason}`;
 
@@ -106,12 +106,6 @@ function life(s: Scenario, seat: number): number {
 	const playerId = s.match.seats[seat]?.playerId ?? -1;
 	const obj = [...s.state(seat).values()].find((o) => o._type === 1 && o._id === playerId);
 	return ((obj?.Life as { v?: number } | undefined)?.v) ?? -1;
-}
-
-/** The JVM the match runs on now: the last one spawned. */
-function pidNow(s: Scenario): number {
-	const spawned = s.logs.filter((l) => l.evt === 'jvm-spawned');
-	return spawned[spawned.length - 1]?.pid as number;
 }
 
 /**

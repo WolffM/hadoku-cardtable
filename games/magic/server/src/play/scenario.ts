@@ -797,6 +797,12 @@ export function cleanupDiscard(s: Scenario, seat: number, discarding: Set<number
 	if (card !== undefined) s.select(seat, card.id);
 }
 
+/** The JVM the match runs on now: the last one spawned, the one a test kills to make it fail. */
+export function pidNow(s: Scenario): number {
+	const spawned = s.logs.filter((l) => l.evt === 'jvm-spawned');
+	return spawned[spawned.length - 1]?.pid as number;
+}
+
 /** Press OK once on every NEW stop of either seat, until `done`. */
 export async function passUntil(s: Scenario, done: () => boolean, label: string, ms = 60_000): Promise<void> {
 	const discarding = new Set<number>();

@@ -19,7 +19,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, inOwnMain, passUntil, pidNow, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'Karn Liberated’s ultimate restarts the game once, without the scenario, against real Forge'
@@ -169,9 +169,9 @@ describe.skipIf(!available.ok)(exiledTitle, () => {
 				aiOpponent: true,
 				skipOpening: true,
 				scenario: [
-					'turn=3',
-					'activeplayer=human',
-					'activephase=MAIN1',
+					'turn=2',
+					'activeplayer=ai',
+					'activephase=MAIN2',
 					'humanlife=7',
 					'ailife=9',
 					'humanhand=',
@@ -202,6 +202,84 @@ describe.skipIf(!available.ok)(exiledTitle, () => {
 			}
 		},
 		240_000,
+	);
+
+	it.each([
+		{ room: 'a scenario room', restored: false },
+		// m-8032ceb08b5b: a match restored from its turn snapshot re-applied that snapshot over the restarted game
+		// and advanced it to the upkeep with the two enter triggers still on the stack (Phase.nextPhase() threw).
+		{ room: 'a match restored from its turn snapshot', restored: true },
+	])(
+		'$room: the creatures Karn exiled come back with targeted enter triggers, both are answered, and the restarted game plays on to its turn 3',
+		async ({ restored }) => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, {
+				seed: 1124,
+				decks: [deck('Plains A', ['40 Plains']), deck('Plains B', ['40 Plains'])],
+				aiOpponent: true,
+				skipOpening: true,
+				scenario: [
+					'turn=2',
+					'activeplayer=ai',
+					'activephase=MAIN2',
+					'humanlife=7',
+					'ailife=9',
+					'humanhand=',
+					`humanlibrary=${PLAINS}`,
+					'humanbattlefield=Karn Liberated|Id:9001|Counters:LOYALTY=14;Plains;Plains',
+					'humangraveyard=',
+					'aihand=',
+					`ailibrary=${PLAINS}`,
+					'aibattlefield=Grizzly Bears;Plains',
+					'aiexile=Vendilion Clique|ExiledWith:9001;Skyclave Apparition|ExiledWith:9001',
+					'aigraveyard=',
+				].join('\n'),
+				reply: pickWanted,
+			});
+			try {
+				let karn = await toMain(s, 3);
+				if (restored) {
+					await waitUntil(() => s.match.latestSnapshot?.turn === 3, 'the turn-3 snapshot', 30_000, s);
+					const before = s.match;
+					process.kill(pidNow(s), 'SIGKILL');
+					await waitUntil(() => before.status === 'failed', 'the killed match to fail', 20_000, s);
+					expect(s.restore().from).toBe('snapshot');
+					karn = await toMain(s, 3);
+				}
+				expect(both(s, 'Exile').sort(), 'the links to Karn hold').toEqual(['Skyclave Apparition', 'Vendilion Clique']);
+				want = ULTIMATE;
+				const since = s.sent.length;
+				const targeted = new Set<number>();
+				s.select(0, karn);
+				// Each enter trigger's target is a fresh selection window on seat 0: name the AI for Vendilion Clique,
+				// and confirm Skyclave Apparition's "up to one" with nothing the AI controls left to take.
+				await passUntil(
+					s,
+					() => {
+						if (inOwnMain(s, 0, 1) && life(s, 'me') === 20 && names(s, 0, 'Battlefield').length === 2) return true;
+						s.sent.forEach((x, i) => {
+							if (i < since || x.seat !== 0 || targeted.has(i) || (x.envelope.frame as { method?: string }).method !== 'setSelectables') return;
+							targeted.add(i);
+							s.match.fromClient(0, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: aiId(s) }, triggerEvent: null } as never);
+						});
+						if (/target/i.test(s.prompt(0)) && s.buttons(0)?.enable1 === true) s.ok(0);
+						return false;
+					},
+					'the restarted game’s turn 1 with both creatures back',
+					120_000,
+				);
+				expect(names(s, 0, 'Battlefield').sort(), 'Karn’s exiled creatures, under seat 0').toEqual(['Skyclave Apparition', 'Vendilion Clique']);
+				expect(names(s, 0, 'Battlefield', 1), 'the scenario’s Grizzly Bears are not put back').not.toContain('Grizzly Bears');
+				expect(life(s, 'ai'), 'the AI is at 20, not the scenario’s 9').toBe(20);
+				expect(targeted.size, 'an enter trigger asked seat 0 for its target').toBeGreaterThan(0);
+
+				await passUntil(s, () => inOwnMain(s, 0, 3), 'the restarted game’s turn 3', 120_000);
+				expect(s.match.status, 'the game plays on past the triggers').toBe('running');
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
 	);
 
 	it(
