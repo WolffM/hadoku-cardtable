@@ -99,6 +99,28 @@ async function startedRoom(n: number, dir?: string): Promise<{ lobby: Lobby; id:
 	return { lobby, id, humans, pods: lobby.get(id)!.game!.pod?.pods ?? [humans] };
 }
 
+describe('Joining past 8: every room auto-sits a newcomer, so the ninth person in is a drafter, not a watcher', () => {
+	it('grows the room a seat for each newcomer past 8, up to the ceiling', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), now: () => T0 });
+		const people = Array.from({ length: 12 }, (_, i) => member(i));
+		const made = lobby.create(people[0]!, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		for (const m of people.slice(1)) expect(lobby.join(made.room.id, m).ok).toBe(true);
+		expect(lobby.get(made.room.id)!.game!.pod!.seats.map((s) => s?.memberId)).toEqual(people.map((m) => m.id));
+	});
+
+	it('someone back in after leaving keeps the seat they left in, and is never given a second', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), now: () => T0 });
+		const people = Array.from({ length: 9 }, (_, i) => member(i));
+		const made = lobby.create(people[0]!, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		for (const m of people.slice(1)) expect(lobby.join(made.room.id, m).ok).toBe(true);
+		expect(lobby.leave(made.room.id, people[3]!.id).ok).toBe(true);
+		expect(lobby.join(made.room.id, people[3]!).ok).toBe(true);
+		expect(lobby.get(made.room.id)!.game!.pod!.seats.map((s) => s?.memberId)).toEqual(people.map((m) => m.id));
+	});
+});
+
 describe('Split & randomize: past 8 drafters, the leader splits the ready room into random pods before the draft', () => {
 	it('is refused until every seated drafter is ready, to anyone but the leader, and in a room of 8 or fewer', async () => {
 		const small = await readyRoom(8);
@@ -284,7 +306,9 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
 		for (const m of people.slice(1)) lobby.join(id, m);
-		for (const m of people.slice(0, 8)) expect(lobby.sitSeat(id, m.id).ok).toBe(true);
+		// Joining seated all nine (the room grew one); the ninth stands to watch, and the room shrinks back.
+		expect(lobby.get(id)!.game!.pod!.seats).toHaveLength(9);
+		expect(lobby.standSeat(id, people[8]!.id).ok).toBe(true);
 		expect(lobby.get(id)!.game!.pod!.seats).toHaveLength(8);
 		expect(lobby.sitSeat(id, people[8]!.id).ok).toBe(true);
 		expect(lobby.get(id)!.game!.pod!.seats).toHaveLength(9);

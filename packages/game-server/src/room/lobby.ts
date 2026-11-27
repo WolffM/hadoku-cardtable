@@ -673,8 +673,15 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		const hooks = this.hooksOf(room);
 		const how = hooks.autoSeat?.(room, memberId) ?? 'game-seat';
 		if (how !== 'game-seat') return;
-		const open = room.seats.indexOf(null);
-		if (open === -1) return;
+		// A member back in still holds the seat they left in: never a second one.
+		if (room.seats.includes(memberId)) return;
+		// None open: grow the room by one past the last, as a Sit press does (`sitSeat`), up to the type's ceiling.
+		let open = room.seats.indexOf(null);
+		if (open === -1) {
+			if (room.seats.length >= hooks.seatCeiling(room)) return;
+			open = room.seats.length;
+			hooks.growSeats(room, open);
+		}
 		setGameSeat(room, open, memberId);
 		// As every other seat op does: a type that keeps a seat open (`plainRoomType`'s `keepOneOpen`) grows here.
 		hooks.trimSeats(room);

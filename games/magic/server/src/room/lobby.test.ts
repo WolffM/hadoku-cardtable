@@ -2750,11 +2750,14 @@ describe('Lobby.sitPod / standPod', () => {
 
 		// Omitting `seat` takes the first free one.
 		const members = Array.from({ length: 7 }, (_, i) => ({ id: `fk:seat-filler-${String(i)}`, name: `filler${String(i)}`, userId: null }));
-		for (const m of members) expect(lobby.join(draft.room.id, m).ok).toBe(true);
+		for (const m of members.slice(0, 6)) expect(lobby.join(draft.room.id, m).ok).toBe(true);
 		for (const m of members.slice(0, 6)) expect(lobby.sitSeat(draft.room.id, m.id).ok).toBe(true);
 		// Seats taken so far: 1 (BOB), 2 (ALICE), and the first free one six times — 0,3,4,5,6,7. Every seat is full.
 		expect(lobby.get(draft.room.id)?.game!.pod?.seats.filter((s) => s !== null)).toHaveLength(8);
 		// Every seat full: the next sit grows the room by one seat and takes it (multi-pod rooms, one list).
+		// The seventh comes in watching (Stand), as joining would otherwise seat them in a grown seat itself.
+		expect(lobby.join(draft.room.id, members[6]!).ok).toBe(true);
+		expect(lobby.standSeat(draft.room.id, members[6]!.id).ok).toBe(true);
 		const grown = lobby.sitSeat(draft.room.id, members[6]!.id);
 		expect(grown.ok).toBe(true);
 		if (grown.ok) expect(grown.room.game!.pod?.seats.map((s) => s?.memberId ?? null).slice(8)).toEqual([members[6]!.id]);
