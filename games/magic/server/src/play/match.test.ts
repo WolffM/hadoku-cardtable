@@ -3259,6 +3259,33 @@ describe('hold-decide-forward', () => {
 			expect(envelopesFor(h, SEAT1_ID).slice(before).map((e) => e.cursor.seq)).toEqual([1, 2, 3].map((i) => envelopesFor(h, SEAT1_ID)[before - 1]!.cursor.seq + i));
 		});
 
+		/**
+		 * Forge's await prompt ("Waiting for Bob...", `AbstractGuiGame.updatePromptForAwait`) runs on its own
+		 * timer and can land between the look and the question. It belongs to no input, so it is not the
+		 * question that shows the card: released on it, the look went out alone and the browser drew the
+		 * card on the library (w70-scry-one, runs 44976076432 and 45459187080, both seq 36-40).
+		 */
+		it('keeps holding through Forge’s await prompt and its dead bar until the input’s own question', () => {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const top = libraryTop();
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: lookAt(top, [SEAT1_ID]) },
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Waiting for Seat 2...') },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { enable1: false, enable2: false }) },
+				{ t: 'frame', seat: SEAT1_ID, input: 8, frame: buttonsFrame(1, { label1: 'Top', label2: 'Bottom', enable2: true }) },
+			);
+			expect(marks(h, before)).toEqual([]);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, input: 8, frame: promptFrame(1, 'Put it on the top or bottom of your library?', top) });
+			const sent = envelopesFor(h, SEAT1_ID).slice(before);
+			expect(sent.at(0)?.frame.method).toBe('applyDelta');
+			expect(sent.at(-1)?.frame).toMatchObject({ method: 'showPromptMessage', card: { id: top } });
+			expect(sent.slice(0, -1).every((e) => e.pairsWithNext === true)).toBe(true);
+			expect(sent.at(-1)?.pairsWithNext).toBeUndefined();
+		});
+
 		it('a look nothing asks about goes out on its own after the hold, and a delta with no look is never held', () => {
 			vi.useFakeTimers();
 			const h = openedHarness();
