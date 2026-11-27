@@ -41,12 +41,16 @@ export class ChessClock {
 		}
 	}
 
-	/** Which seats the game is waiting on from `now`. True when that changed which seats run. */
+	/**
+	 * Which seats the game is waiting on from `now`. True when that changed which seats run. A seat with
+	 * nothing left still runs while it is waited on: that is what {@link flagged} and {@link nextFlag}
+	 * look for, and a seat stopped at zero would sit at 0:00 and never lose.
+	 */
 	set(running: readonly [boolean, boolean], now: number): boolean {
 		this.#settle(now);
 		let moved = false;
 		for (const seat of [0, 1] as const) {
-			const on = running[seat] && this.#left[seat] > 0;
+			const on = running[seat];
 			if (on === (this.#since[seat] !== null)) continue;
 			this.#since[seat] = on ? now : null;
 			moved = true;

@@ -53,9 +53,23 @@ describe('ChessClock', () => {
 		expect(clock.flagged(19_999)).toBeNull();
 		expect(clock.flagged(20_000)).toBe(0);
 		expect(clock.left(90_000)).toEqual([0, MIN]);
-		// A seat with nothing left does not start again.
-		clock.stop(90_000);
-		expect(clock.set([true, false], 91_000)).toBe(false);
+	});
+
+	it('keeps a seat with nothing left running while it is waited on, so it is always flagged', () => {
+		const clock = new ChessClock([20_000, MIN]);
+		clock.set([true, false], 0);
+		expect(clock.flagged(19_999)).toBeNull();
+		// The clock settles at zero while the seat is still waited on: it keeps running.
+		expect(clock.set([true, false], 20_000)).toBe(false);
+		expect(clock.flagged(20_000)).toBe(0);
+		expect(clock.nextFlag(20_000)).toEqual({ seat: 0, inMs: 0 });
+		// A seat that answered with its last millisecond is flagged the next time it is waited on.
+		const last = new ChessClock([20_000, MIN]);
+		last.set([true, false], 0);
+		last.set([false, true], 20_000);
+		expect(last.flagged(20_000)).toBeNull();
+		expect(last.set([true, false], 30_000)).toBe(true);
+		expect(last.flagged(30_000)).toBe(0);
 	});
 
 	it('has no flag to wait for while nobody runs', () => {

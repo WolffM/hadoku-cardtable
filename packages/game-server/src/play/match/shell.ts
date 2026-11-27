@@ -300,7 +300,9 @@ export abstract class MatchShell<Line extends { t: string }, Cmd extends { t: st
 	 * still on that seat's clock, it is armed again for what is left. Node fires a timer by the event
 	 * loop's own clock, cut to the millisecond, and `now` reads the wall clock, so a timer armed for the
 	 * 20 000 ms left can fire when the wall clock has moved 19 999: that seat then has 1 ms left, nothing
-	 * about who runs has changed, and without the re-arm the seat sat at 0:00 and never lost.
+	 * about who runs has changed, and without the re-arm the seat sat at 0:00 and never lost. The wall
+	 * clock can reach zero between this timer's read and the settle after it; the clock keeps a seat
+	 * with nothing left running ({@link ChessClock.set}), so the re-arm finds it at 0 ms.
 	 */
 	private armFlag(now: number): void {
 		if (this.flagTimer !== null) clearTimeout(this.flagTimer);
