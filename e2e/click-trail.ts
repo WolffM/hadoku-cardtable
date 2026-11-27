@@ -4,6 +4,11 @@
  * play stack's log shows no settings PATCH at all after the click, and nothing on the client said
  * whether the click reached the input, the input was disabled or replaced under it, or the write was
  * dropped before it left. This records each of those, quietly: a passing run never reads it.
+ *
+ * The trails of 11-23 (twice) settled the first three: the click reached the enabled, connected input,
+ * and no `input` or `change` followed. A radio's click is checked before any listener sees it, so the
+ * input read `checked=false` at document capture means the browser never pre-activated it. The window
+ * listeners, the button and `:disabled` are here to say why the next time.
  */
 import type { Page, Request } from '@playwright/test';
 
@@ -19,6 +24,7 @@ export async function traceControl(page: Page, testId: string): Promise<{ read: 
     if (r.method() !== 'GET') writes.push(`+${Date.now() - t0}ms ${r.method()} ${new URL(r.url()).pathname}`);
   };
   const onFailed = (r: Request): void => {
+    if (r.method() === 'GET') return;
     writes.push(`+${Date.now() - t0}ms FAILED ${r.method()} ${new URL(r.url()).pathname}: ${r.failure()?.errorText ?? '?'}`);
   };
   const errors: string[] = [];
@@ -42,17 +48,28 @@ export async function traceControl(page: Page, testId: string): Promise<{ read: 
       return `#${nodes.get(el)}`;
     };
     const control = (): HTMLInputElement | null => document.querySelector(`[data-testid="${id}"]`);
-    const state = (el: HTMLInputElement | null): string => (el === null ? 'absent' : `${nodeOf(el)} disabled=${el.disabled} checked=${el.checked} connected=${el.isConnected}`);
+    const state = (el: HTMLInputElement | null): string =>
+      el === null ? 'absent' : `${nodeOf(el)} disabled=${el.disabled} :disabled=${el.matches(':disabled')} checked=${el.checked} connected=${el.isConnected}`;
     lines.push(`${at()} start ${state(control())}`);
-    const onEvent = (e: Event): void => {
+    const describe = (e: Event, where: string): string => {
       const target = e.target instanceof Element ? e.target : null;
       const own = target !== null && target.closest(`[data-testid="${id}"]`) !== null;
       const what = target === null ? '?' : (target.closest('[data-testid]')?.getAttribute('data-testid') ?? target.tagName.toLowerCase());
-      const point = e instanceof MouseEvent ? ` at ${e.clientX},${e.clientY}` : '';
-      lines.push(`${at()} ${e.type} on ${own ? 'the control' : what}${point}; control ${state(control())}`);
+      const mouse = e instanceof MouseEvent ? ` at ${e.clientX},${e.clientY} button=${e.button} buttons=${e.buttons} detail=${e.detail}` : '';
+      return `${at()} ${e.type} (${where}${e.isTrusted ? '' : ', untrusted'}${e.defaultPrevented ? ', prevented' : ''}) on ${own ? 'the control' : what}${mouse}; control ${state(control())}`;
+    };
+    const onEvent = (e: Event): void => {
+      lines.push(describe(e, 'document capture'));
+    };
+    // The earliest a page script sees a click (window, capture) and the last (window, bubble): whether the
+    // radio was checked before any page listener ran, and whether anything prevented the click by its end.
+    const onWindow = (e: Event): void => {
+      lines.push(describe(e, e.eventPhase === Event.CAPTURING_PHASE ? 'window capture' : 'window bubble'));
     };
     const types = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'input', 'change'];
     for (const type of types) document.addEventListener(type, onEvent, true);
+    window.addEventListener('click', onWindow, true);
+    window.addEventListener('click', onWindow, false);
     let last = control();
     const observer = new MutationObserver(() => {
       const now = control();
@@ -70,6 +87,8 @@ export async function traceControl(page: Page, testId: string): Promise<{ read: 
       lines,
       stop: () => {
         for (const type of types) document.removeEventListener(type, onEvent, true);
+        window.removeEventListener('click', onWindow, true);
+        window.removeEventListener('click', onWindow, false);
         observer.disconnect();
         flips.disconnect();
       },
