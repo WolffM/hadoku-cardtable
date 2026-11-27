@@ -2419,6 +2419,17 @@ describe('a draft room', () => {
     expect(server.calls.filter((c) => c.url.endsWith('/play/matches'))).toHaveLength(0);
   });
 
+  it('offers no Bots play past one pod’s eight seats: several pods’ bots only draft, whatever it says', async () => {
+    const nine = Array.from({ length: 9 }, (_, i) => (i === 0 ? 'p-alice' : `p-${String(i)}`));
+    const pod = seatedPod(...nine);
+    await mountDraft({ members: members(...nine.map(() => false)), pod: { ...pod, seats: nine.map((id) => ({ memberId: id, name: id })) } });
+    await screen.findByTestId('draft-lobby');
+    openRules();
+    const popover = screen.getByTestId('match-rules-popover');
+    expect(within(popover).getByTestId('draft-bots')).toBeTruthy();
+    expect(within(popover).queryByTestId('bots-play')).toBeNull();
+  });
+
   it('has no prose explaining the rule', async () => {
     await mountDraft();
     await screen.findByTestId('draft-lobby');

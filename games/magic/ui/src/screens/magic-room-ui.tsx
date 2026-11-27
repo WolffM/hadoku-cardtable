@@ -181,7 +181,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
-import { DEFAULT_ROOM_SETTINGS, isMagicGameType, magicGame, OPEN_ROOM_LOCKS, roomAiOf } from '@hadoku/shared';
+import { DEFAULT_ROOM_SETTINGS, isMagicGameType, magicGame, OPEN_ROOM_LOCKS, POD_SEATS, roomAiOf } from '@hadoku/shared';
 import { clockOn, FREE_PICK, type ConstructedMode, type GauntletView, type PodView, type RoomMode, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
 import { navigate } from '@hadoku/game-ui/screens/route.ts';
@@ -1561,6 +1561,8 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   const eventLocked = locks.event !== null || underway;
   /** A draft room's bots play its Swiss beside the humans (`settings.botsPlay`), or only draft. */
   const botsPlay = view?.settings.botsPlay ?? DEFAULT_ROOM_SETTINGS.botsPlay;
+  /** A room past one pod's seats drafts as several, whose bots never play (`draftEntrants`): Bots play has nothing to switch. */
+  const severalPods = (game?.pod?.seats.length ?? 0) > POD_SEATS;
   /** The pool, and the match rules: frozen by a game or a dealt pod. */
   const formatLocked = locks.format !== null || underway;
   const rulesLocked = locks.rules !== null || underway;
@@ -2950,7 +2952,7 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
               clock={{ on: clock, onToggle: toggleClock }}
               pickTimer={{ value: view?.settings.pickTimer ?? DEFAULT_ROOM_SETTINGS.pickTimer, onChange: (pickTimer) => writeRoom(() => rooms.setSettings(roomId, { pickTimer })) }}
               draftBots={{ value: view?.settings.draftBots ?? DEFAULT_ROOM_SETTINGS.draftBots, onChange: (draftBots) => writeRoom(() => rooms.setSettings(roomId, { draftBots })) }}
-              botsPlay={{ on: botsPlay, locked: eventLocked, onToggle: () => writeRoom(() => rooms.setSettings(roomId, { botsPlay: !botsPlay })) }}
+              botsPlay={severalPods ? undefined : { on: botsPlay, locked: eventLocked, onToggle: () => writeRoom(() => rooms.setSettings(roomId, { botsPlay: !botsPlay })) }}
             />
           )}
           {!streamed && resolved && !draftRoom && table !== null && mode !== null && (
