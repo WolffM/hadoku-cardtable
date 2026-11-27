@@ -16,6 +16,7 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { FOLLOW_MS } from '../games/magic/ui/src/play/motion.ts';
 import { makeTitled, offeredNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -56,9 +57,10 @@ test(titled('the other seat’s rearranged card is one tile, off its one home ca
       expect(t.anchorIds, `card ${i}: one home card throughout`).toBe(1);
       expect(t.anchorGone, `card ${i}: the home card never left the document under the tile`).toBe(0);
       expect(t.rebuilds, `card ${i}: the tile is never rebuilt while it is moved`).toBe(0);
-      // Her pointer steps 6 px every ~16 ms and bob's tile glides 90 ms between messages 60 ms
-      // apart: a frame's step is a few px; 20 allows a stalled frame or two.
-      expect(t.maxJumpPx, `card ${i}: the tile never jumps further in a frame than a couple of pointer steps`).toBeLessThanOrEqual(20);
+      // It glides to every point her messages bring, never steps: each one starts the tile's own
+      // `left`/`top` transition, planned at FOLLOW_MS. How far it gets between two frames is the host's.
+      expect(t.glides.length, `card ${i}: bob’s tile was sent new points while she moved it`).toBeGreaterThan(5);
+      expect(t.glides.filter((ms) => ms !== FOLLOW_MS), `card ${i}: the tile glides to every new point over FOLLOW_MS (${FOLLOW_MS} ms), never steps`).toEqual([]);
       await expect(bob.page.locator(TILE), `card ${i}: the tile is gone once she lets go`).toHaveCount(0);
       await expect(bob.page.locator(HOME), `card ${i}: and her card is no longer dimmed`).toHaveCount(0);
     }
