@@ -2855,12 +2855,15 @@ public final class PlayBridge {
          * The damage and deaths since this seat's last state frame, added to {@code payload} as
          * {@code damage}, {@code deaths} and {@code faceDamage} when there are any. A new game's first
          * {@code setGameView} passes {@code false}: it skips past them, since nothing before it is news.
+         * Returns the journal's head, which the caller marks as sent ({@code effectsFrom}) only once the
+         * frame has gone: a frame that throws on its way leaves its hits for the next one, instead of
+         * taking them with it.
          */
-        void effectsSince(final JsonObject payload, final boolean send) {
+        long effectsSince(final JsonObject payload, final boolean send) {
             final BridgeGui.EffectJournal journal = match.effects;
             final long head = journal.head();
             if (send && head > effectsFrom) { journal.since(effectsFrom, payload); }
-            effectsFrom = head;
+            return head;
         }
 
         /**
@@ -2884,8 +2887,11 @@ public final class PlayBridge {
          * while it taps, so for those frames the player has no human queue to look in.
          */
         private final Map<Integer, Object[]> lifeHeld = new HashMap<>();
-        /** What this seat was last told {@link #lifePaying} is, so a press tells it only on a change. */
-        private String lifeTold = "[]";
+        /**
+         * What this seat was last told {@link #lifePaying} is, so a press tells it only on a change, and
+         * what a frame carries again when the read throws.
+         */
+        private JsonArray lifeTold = new JsonArray();
 
         /**
          * {@code [playerId, life]} for every player paying a cost with life right now, as of a frame
@@ -2946,11 +2952,17 @@ public final class PlayBridge {
          * Send a state frame with {@link #lifePaying} added to its payload, and remember it as told.
          * Under this seat's lock, so a press told from another seat's thread
          * ({@link #tellLifePaying}) can never overtake a frame that carries an older amount.
+         *
+         * <p>The read walks every player's controller while the game thread swaps them, and Forge's own
+         * {@code Player.getController} can throw mid-swap (it checks {@code controlledBy} is not empty,
+         * then reads its last entry). Then the frame carries what was last told: losing the frame lost
+         * the packet and its hits, and Forge resynced the seat with a view that carries none.
          */
         synchronized void sendState(final JsonObject frame, final JsonObject payload, final DeltaPacket packet) {
-            final JsonArray paying = lifePaying(packet);
+            final JsonArray read = orNull("lifePaying", () -> lifePaying(packet));
+            final JsonArray paying = read != null ? read : lifeTold.deepCopy();
             payload.add("lifePaying", paying);
-            lifeTold = paying.toString();
+            lifeTold = paying;
             frame.add("payload", payload);
             frame(frame);
         }
@@ -2961,7 +2973,8 @@ public final class PlayBridge {
          * frame, as {@link #broadcastIfWaiting} says waiting triggers.
          */
         synchronized void tellLifePaying() {
-            if (lifePaying(null).toString().equals(lifeTold)) { return; }
+            final JsonArray now = orNull("lifePaying", () -> lifePaying(null));
+            if (now == null || now.equals(lifeTold)) { return; }
             final JsonObject payload = new JsonObject();
             payload.add("packet", packetJson(liveGame(), new DeltaPacket(-1L, null, null, 0, null)));
             addStackFacts(liveGame(), payload);
@@ -3218,9 +3231,10 @@ public final class PlayBridge {
             // Forge sends a whole view mid-game too, and the damage it shows may have come in no delta
             // before it: the hits ride it, or the life drops with no attacker drawn charging.
             final Game game = liveGame();
-            effectsSince(payload, game != null && game == drawn);
-            drawn = game;
+            final long effects = effectsSince(payload, game != null && game == drawn);
             sendState(f, payload, full);
+            effectsFrom = effects;
+            drawn = game;
         }
 
         @Override
@@ -3260,9 +3274,11 @@ public final class PlayBridge {
                 final JsonObject payload = new JsonObject();
                 payload.add("packet", packetJson(liveGame(), packet));
                 addStackFacts(liveGame(), payload);
-                effectsSince(payload, true);
-                drawn = liveGame();
+                final Game game = liveGame();
+                final long effects = effectsSince(payload, true);
                 sendState(f, payload, packet);
+                effectsFrom = effects;
+                drawn = game;
             }
             if ("slow-apply".equals(FAULT) && packet != null && !packet.getNewObjects().isEmpty()) {
                 try {
