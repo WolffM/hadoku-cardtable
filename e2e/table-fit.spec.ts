@@ -895,18 +895,27 @@ test(TITLE, async ({ browser }) => {
         const key = `${f.name}\n${says}`;
         const attempt = attempts.get(key) ?? 0;
         attempts.set(key, attempt + 1);
-        const selectable = f.page.locator('[aria-label="Game board"] li[data-selectable] button');
+        // Pinned by id once read: a positional `nth` is re-resolved at the click, and a pick that moved on in
+        // between made the click wait out 20 s on whatever card now sat at that index (CI, 11-24).
+        const selectableIds = await f.page
+          .locator('[aria-label="Game board"] li[data-selectable][data-board-card]')
+          .evaluateAll((els) => els.map((e) => e.getAttribute('data-board-card')!));
         const cancel = enabledCancel(f.page).first();
         const options = [];
         if ((await enabledOk(f).count()) > 0) options.push(enabledOk(f));
         // Wave 36 T4: a stuck yes/no confirm (the same shape as the old
         // stuck-OK case, now in its own pop-up) defaults to yes.
         if ((await confirmYes(f.page).count()) > 0) options.push(confirmYes(f.page));
-        const choices = await selectable.count();
-        if (choices > 0) options.push(selectable.nth(Math.floor(attempt / 2) % choices));
+        const choices = selectableIds.length;
+        if (choices > 0) {
+          const id = selectableIds[Math.floor(attempt / 2) % choices]!;
+          options.push(f.page.locator(`[aria-label="Game board"] li[data-selectable][data-board-card="${id}"] button`).first());
+        }
         if ((await cancel.count()) > 0) options.push(cancel);
         if (options.length === 0) continue;
         const press = options[attempt % options.length];
+        // Offered a moment ago and gone now: the window moved on, which is what this loop waits for.
+        if ((await press.count()) === 0) continue;
         const pressed = (await press.getAttribute('data-testid')) ?? (await press.getAttribute('aria-label')) ?? '?';
         await press.click();
         unstuck.push({ who: f.name, says, pressed });
