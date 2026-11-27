@@ -10,8 +10,11 @@ const DISCORD = 'https://cdn.discordapp.com/avatars/1/abc.png';
 function prefsApi(table: Record<string, unknown>) {
 	const asked: string[][] = [];
 	let down = false;
+	let held: Promise<void> | undefined;
+	let release = (): void => undefined;
 	const fetch: typeof globalThis.fetch = async (_url, init) => {
 		if (down) throw new Error('connect ECONNREFUSED');
+		await held;
 		const { userIds } = JSON.parse(String(init?.body)) as { userIds: string[] };
 		asked.push(userIds);
 		const avatars = Object.fromEntries(userIds.map((id) => [id, table[id] ?? { source: 'sprite', name: null }]));
@@ -23,6 +26,11 @@ function prefsApi(table: Record<string, unknown>) {
 		goDown: () => {
 			down = true;
 		},
+		/** Hold every answer until `release`. */
+		hang: () => {
+			held = new Promise<void>((r) => (release = r));
+		},
+		release: () => release(),
 	};
 }
 
@@ -79,6 +87,24 @@ describe('createPeople', () => {
 		expect((await people.resolve(['u1'])).size).toBe(0);
 		expect(logged).toEqual([expect.objectContaining({ evt: 'people-resolve-failed', ids: 1 })]);
 		expect(people.peek('u1')).toBeUndefined();
+	});
+
+	it('waits at most `within`, answers with the cache, and the lookup still fills it', async () => {
+		let now = 0;
+		const logged: Record<string, unknown>[] = [];
+		const api = prefsApi({ u1: { source: 'sprite', name: 'Ari' }, u2: { source: 'sprite', name: 'Bo' } });
+		const people = createPeople({ baseUrl: 'https://prefs.test', serviceKey: 'k', log: (e) => logged.push(e), fetch: api.fetch, now: () => now });
+		await people.resolve(['u1']);
+		now = 30_000;
+		api.hang();
+		const started = performance.now();
+		const early = await people.resolve(['u1', 'u2'], { within: 50 });
+		expect(performance.now() - started).toBeLessThan(1000);
+		expect([...early].map(([id, p]) => [id, p.name])).toEqual([['u1', 'Ari']]);
+		expect(logged).toEqual([{ evt: 'people-shown-early', ids: 2, waitedMs: 50 }]);
+		api.release();
+		await vi.waitFor(() => expect(people.peek('u2')?.name).toBe('Bo'));
+		expect((await people.resolve(['u1', 'u2'], { within: 50 })).size).toBe(2);
 	});
 
 	it('without a key it calls nothing', async () => {

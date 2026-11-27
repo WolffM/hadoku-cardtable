@@ -29,6 +29,7 @@ let constantsMod: typeof import('@hadoku/game-server/room/constants');
 let edgeMod: typeof import('@hadoku/game-server/edge-auth');
 let discordMod: typeof import('@hadoku/game-server/room/discord-events');
 let eventDiscordMod: typeof import('./event-discord.ts');
+let peopleMod: typeof import('@hadoku/game-server/people');
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
@@ -41,6 +42,7 @@ beforeAll(async () => {
 	edgeMod = await import('@hadoku/game-server/edge-auth');
 	discordMod = await import('@hadoku/game-server/room/discord-events');
 	eventDiscordMod = await import('./event-discord.ts');
+	peopleMod = await import('@hadoku/game-server/people');
 });
 
 const dirs: string[] = [];
@@ -67,12 +69,12 @@ function rallyForm(id: string, over: Record<string, unknown> = {}): RallyRow {
 	};
 }
 
-async function openApp(clock: { now: number }, rally: Record<string, RallyRow> = {}, opts: { people?: Record<string, string>; events?: unknown; archivebot?: StandInArchivebot } = {}) {
+async function openApp(clock: { now: number }, rally: Record<string, RallyRow> = {}, opts: { people?: Record<string, string>; lookup?: import('@hadoku/game-server/people').People; events?: unknown; archivebot?: StandInArchivebot } = {}) {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-events-test-'));
 	dirs.push(dir);
 	if (opts.events !== undefined) await writeFile(join(dir, 'events.json'), JSON.stringify(opts.events));
 	const names = opts.people ?? {};
-	const people = {
+	const people = opts.lookup ?? {
 		resolve: async (ids: readonly string[]) => new Map(ids.flatMap((id) => (names[id] === undefined ? [] : [[id, { name: names[id]!, sprite: null, look: undefined }] as const]))),
 		peek: () => undefined,
 	};
@@ -575,6 +577,30 @@ describe('Rally links', () => {
 });
 
 describe('who organized an event, and who attached a form (R12)', () => {
+	it('a list whose name lookup hangs answers within a screen’s wait, naming whom the cache knows', async () => {
+		const clock = { now: Date.UTC(2026, 10, 26, 12) };
+		let hang = false;
+		// prefs-api's _avatar/resolve, answering until it hangs as the people lookups that timed out did.
+		const fetch: typeof globalThis.fetch = async (_url, init) => {
+			if (hang) return new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal!.reason as Error)));
+			const { userIds } = JSON.parse(String(init?.body)) as { userIds: string[] };
+			return Response.json({ avatars: Object.fromEntries(userIds.map((id) => [id, { source: 'sprite', name: id === 'user-alice' ? 'Alice Now' : 'Cy Now' }])) });
+		};
+		const lookup = peopleMod.createPeople({ baseUrl: 'https://prefs.test', serviceKey: 'k', log: () => undefined, fetch, now: () => clock.now });
+		const { base } = await openApp(clock, {}, { lookup });
+		const startsAt = new Date(clock.now + DAY).toISOString();
+		expect((await call(base, 'alice', 'POST', '/events', tournament('Cube', startsAt))).status).toBe(201);
+		hang = true;
+		expect((await call(base, 'cy', 'POST', '/events', tournament('Draft', startsAt))).status).toBe(201);
+		const started = Date.now();
+		const listed = await call(base, 'bob', 'GET', '/events');
+		expect(Date.now() - started).toBeLessThan(peopleMod.SCREEN_WAIT_MS + 1000);
+		expect(EventListSchema.parse(listed.body).events.map((e) => [e.title, e.organizer]).sort()).toEqual([
+			['Cube', 'Alice Now'],
+			['Draft', constantsMod.UNNAMED],
+		]);
+	});
+
 	it('is kept by userId and never by name, and named as they are now when shown', async () => {
 		const clock = { now: Date.UTC(2026, 9, 28, 12) };
 		const { base, file } = await openApp(clock, { abc123: rallyForm('abc123') }, { people: { 'user-alice': 'Alice Now' } });
