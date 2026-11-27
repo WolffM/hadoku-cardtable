@@ -15,6 +15,7 @@
     "./theme": "./src/theme/index.ts",
     "./settings": "./src/settings/index.ts",
     "./usage": "./src/usage/index.ts",
+    "./session": "./src/session/index.ts",
     "./sound": "./src/sound/index.ts",
     "./motion": "./src/motion/index.ts",
     "./components": "./src/components/index.ts",

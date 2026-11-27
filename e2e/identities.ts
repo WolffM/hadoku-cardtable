@@ -12,6 +12,14 @@ import { EDGE_PORT } from './ports.ts';
 
 export const SESSION_COOKIE = 'cardtable_e2e_session';
 
+/**
+ * A browser carrying this stands behind the real edge's own gate (`edge.ts`, `edgeGate`): with no
+ * session, a request under the prefix is the edge's 401 and a page load is its sign-in wall, which
+ * makes the browser a new guest. Without it, as every other spec runs, a caller with no session
+ * reaches the server unstamped, so the server's own floor is what a spec sees refuse it.
+ */
+export const EDGE_GATE_COOKIE = 'cardtable_e2e_edge_gate';
+
 export interface Friend {
   /** `X-User-Key` — the friend key. Must be ≥ 5 chars to mint an `fk:` id. */
   key: string;

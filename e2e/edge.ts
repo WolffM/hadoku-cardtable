@@ -13,9 +13,16 @@
  *
  * Anything identity-shaped the BROWSER sent is deleted first, so a context
  * cannot talk its way in by setting a header; only the session cookie counts,
- * and only for a name in `FRIENDS`. A caller with no session gets no stamp at
- * all, and the server's own floor is what refuses it — that is the second seal
- * `edge-auth.ts` is written about, and the spec checks it bites.
+ * and only for a name in `FRIENDS` (or a guest the wall made, below). A caller
+ * with no session gets no stamp at all, and the server's own floor is what
+ * refuses it — that is the second seal `edge-auth.ts` is written about, and the
+ * spec checks it bites.
+ *
+ * A browser that carries `EDGE_GATE_COOKIE` gets the real edge's own gate
+ * instead (`edgeGate`): with no session, 401 for a request or a socket under the
+ * prefix, and for a page load the sign-in wall, which signs a visitor up as a
+ * new guest and sends them on. `POST /__e2e/drop-gated-sockets` ends every
+ * socket such a browser has open, as a deploy's restart does.
  */
 
 import { readFileSync } from 'node:fs';
@@ -23,9 +30,10 @@ import { fileURLToPath } from 'node:url';
 import { standInVendor } from '@wolffm/shared-vendor/harness';
 import { createServer, request, type IncomingHttpHeaders, type Server } from 'node:http';
 import { connect } from 'node:net';
+import type { Duplex } from 'node:stream';
 
 import type { PrefsRowsStandIn } from '../games/magic/server/src/http/prefsRowsStandIn.ts';
-import { FRIENDS, PREFIX, SESSION_COOKIE } from './identities.ts';
+import { EDGE_GATE_COOKIE, FRIENDS, PREFIX, SESSION_COOKIE, type Friend } from './identities.ts';
 
 /** Where `embed-host.html` is served: a watchparty-shaped path, outside `/cardtable/`. */
 export const EMBED_HOST_PATH = '/watchparty/embed-host.html';
@@ -49,15 +57,55 @@ export const PREFS_MOUNT = '/prefs';
 
 const STRIPPED = /^(x-edge-auth|x-hadoku-.*|x-user-.*)$/i;
 
-function sessionOf(headers: IncomingHttpHeaders): string | null {
+function cookieOf(headers: IncomingHttpHeaders, name: string): string | null {
   const raw = headers.cookie;
   if (typeof raw !== 'string') return null;
   for (const part of raw.split(';')) {
     const [k, ...v] = part.trim().split('=');
-    if (k === SESSION_COOKIE) return v.join('=');
+    if (k === name) return v.join('=');
   }
   return null;
 }
+
+function sessionOf(headers: IncomingHttpHeaders): string | null {
+  return cookieOf(headers, SESSION_COOKIE);
+}
+
+/** The guests the sign-in wall has made this run, by session. */
+const guests = new Map<string, Friend>();
+
+/** Who a session is: a named identity, or a guest the wall made. */
+function identityOf(headers: IncomingHttpHeaders): Friend | undefined {
+  const session = sessionOf(headers) ?? '';
+  return FRIENDS[session] ?? guests.get(session);
+}
+
+/** The real edge's answer for a caller behind its gate with no session, or null to pass it on. */
+export type GateAnswer = { kind: 'wall'; session: string } | { kind: 'refused' };
+
+/** Ungated under the prefix, as on the real edge: a room's link preview. */
+const PUBLIC_PATH = /^\/preview\//;
+
+/**
+ * What the real edge does with a caller it has no session for (hadoku_site's `authGate.ts`): a page
+ * load (`Accept: text/html`, not an `/api/` path) is the sign-in wall, which makes the visitor a guest
+ * ("Player NNNNN") and sends them on; anything else is a 401. Only for a browser carrying
+ * `EDGE_GATE_COOKIE`; null for everyone else, and for anyone with a session.
+ */
+export function edgeGate(headers: IncomingHttpHeaders, path: string): GateAnswer | null {
+  if (cookieOf(headers, EDGE_GATE_COOKIE) === null || identityOf(headers) !== undefined || PUBLIC_PATH.test(path)) return null;
+  const isApi = /(?:^|\/)api(?:\/|$)/.test(path);
+  const accept = headers.accept ?? '';
+  if (isApi || !accept.includes('text/html')) return { kind: 'refused' };
+  const n = 10_000 + guests.size;
+  const session = `guest-${n}`;
+  guests.set(session, { key: `e2e-guest-key-${n}`, userId: `e2e-guest-${n}-id`, name: `Player ${n}` });
+  return { kind: 'wall', session };
+}
+
+/** Every socket open for a browser behind the gate, for `/__e2e/drop-gated-sockets`. */
+const gatedSockets = new Set<Duplex>();
+const DROP_GATED_SOCKETS = '/__e2e/drop-gated-sockets';
 
 /** The headers the app server will see. */
 export function edgeHeaders(
@@ -70,7 +118,7 @@ export function edgeHeaders(
     if (!STRIPPED.test(k)) out[k] = v;
   }
   out.host = `127.0.0.1:${upstreamPort}`;
-  const friend = FRIENDS[sessionOf(inbound) ?? ''];
+  const friend = identityOf(inbound);
   if (friend !== undefined) {
     out['x-edge-auth'] = secret;
     // A player is a guest, as every visitor's account on hadoku.me is; an identity names a higher tier itself.
@@ -124,15 +172,31 @@ export async function startEdge(opts: EdgeOptions): Promise<Server> {
         // same way `edgeHeaders` resolves `/cardtable/*`'s caller — from the session cookie, never trusted
         // off an inbound header a page could set, since this mount (unlike `/cardtable/*`) never strips one.
         const inboundKey = typeof req.headers['x-user-key'] === 'string' ? req.headers['x-user-key'] : null;
-        const key = inboundKey ?? FRIENDS[sessionOf(req.headers) ?? '']?.key ?? null;
+        const key = inboundKey ?? identityOf(req.headers)?.key ?? null;
         const out = prefs.handle(req.method ?? 'GET', prefsPath, { key }, body) ?? { status: 404, json: { error: 'Not Found' } };
         res.writeHead(out.status, { 'content-type': 'application/json' }).end(JSON.stringify(out.json));
       });
       return;
     }
+    if (req.method === 'POST' && req.url === DROP_GATED_SOCKETS) {
+      const dropped = gatedSockets.size;
+      for (const s of gatedSockets) s.destroy();
+      gatedSockets.clear();
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ dropped }));
+      return;
+    }
     const path = stripPrefix(req.url ?? '/');
     if (path === null) {
       res.writeHead(404, { 'content-type': 'text/plain' }).end('not an edge route');
+      return;
+    }
+    const gate = edgeGate(req.headers, path);
+    if (gate?.kind === 'refused') {
+      res.writeHead(401, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'unauthorized', required: 'guest' }));
+      return;
+    }
+    if (gate?.kind === 'wall') {
+      res.writeHead(302, { location: req.url ?? `${PREFIX}/`, 'set-cookie': `${SESSION_COOKIE}=${gate.session}; Path=/; HttpOnly; SameSite=Strict`, 'cache-control': 'no-store' }).end();
       return;
     }
     const upstream = request(
@@ -168,6 +232,14 @@ export async function startEdge(opts: EdgeOptions): Promise<Server> {
     if (path === null) {
       socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
       return;
+    }
+    if (edgeGate(req.headers, path) !== null) {
+      socket.end('HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n');
+      return;
+    }
+    if (cookieOf(req.headers, EDGE_GATE_COOKIE) !== null) {
+      gatedSockets.add(socket);
+      socket.on('close', () => gatedSockets.delete(socket));
     }
     const headers = edgeHeaders(req.headers, opts.secret, opts.upstreamPort);
     const up = connect(opts.upstreamPort, '127.0.0.1', () => {
