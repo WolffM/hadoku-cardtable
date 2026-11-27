@@ -1240,6 +1240,18 @@ describe('failover', () => {
 		expect(r.posted.filter((t) => t.startsWith('🚨') || t.startsWith('🔺'))).toEqual([]);
 	});
 
+	it('a lost link launches nothing more onto its claw: the warm JVM it lost is not replaced there', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		const claw = r.claws.get('claw-9')!;
+		const before = claw.jvms.length;
+		expect(before).toBeGreaterThan(0);
+		const from = r.logs.length;
+		claw.link.lose('agent heartbeat lost for 11 s (window 10 s)');
+		const after = r.logs.slice(from).filter((l) => l.host === 'claw-9');
+		expect(claw.jvms.length).toBe(before);
+		expect(after.filter((l) => l.evt === 'jvm-launched' || l.evt === 'jvm-boot-failed' || l.evt === 'jvm-launch-failed')).toEqual([]);
+	});
+
 	it('an agent silent past the window with no match on it: a heartbeat-lost alert and quarantine, then back after a healthy status and a canary', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		r.claws.get('claw-9')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
