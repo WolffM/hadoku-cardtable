@@ -1414,6 +1414,30 @@ describe('a seat with nobody connected to it, for the window', () => {
 		reloaded.socket.disconnect();
 	});
 
+	// CI's table-door-walk, 2026-11-22: a reload at 16:28:20 and another at 16:28:50 — the first
+	// reload's window ran out 48 ms into the second one and took the pod seat, so no Enter game.
+	it('a reconnect cancels its window: an earlier reload’s timer never releases the seat mid a later reload', async () => {
+		await harness?.close();
+		const timers: Array<() => void> = [];
+		harness = await boot({ schedule: (fn) => timers.push(fn) });
+		const { tableId, memberId } = await seatedAt('alice');
+
+		const first = await connectCounted('alice');
+		first.socket.disconnect();
+		await waitUntil(() => timers.length === 1, 'the first reload’s window');
+		const second = await connectCounted('alice');
+		second.socket.disconnect();
+		await waitUntil(() => timers.length === 2, 'the second reload’s window');
+
+		// The first window runs out while the second reload is still in flight.
+		timers.shift()!();
+		expect(live().lobby.seats(constructedRoomId, tableId).map((s) => s.memberId)).toContain(memberId);
+		expect(live().lines.filter((l) => l.evt === 'seat-released-disconnected')).toEqual([]);
+		// The second window is the one that counts.
+		timers.shift()!();
+		expect(live().lobby.seats(constructedRoomId, tableId).map((s) => s.memberId)).not.toContain(memberId);
+	});
+
 	// The e2e run of 2026-11-05: an earlier page's window ran out 4 ms after a room was made and sat
 	// in over HTTP, before the new page's socket was up, and took that seat with it.
 	it('keeps a seat taken inside the window, before any new connection — only what was held as the last one went is released', async () => {
