@@ -35,7 +35,7 @@ import type { JsonLog } from '@hadoku/service-kernel/log';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '@hadoku/game-server/play/recording/retention';
 import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine, type PublicRelayLine } from '@hadoku/game-server/play/recording/writer';
 import { REPLAY_BODY_VERSION, type PersonFace } from '@hadoku/shared';
-import { faceOfPerson, type People, type Person } from '@hadoku/game-server/people';
+import { faceOfPerson, SCREEN_WAIT_MS, type People, type Person } from '@hadoku/game-server/people';
 import type { ArtIds } from '../play/art-ids.js';
 import { restampWatcherFrame, type StateFrame, type WireObj } from '../play/visibility.js';
 
@@ -282,7 +282,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 	/** Each of these people's display name now (R12); one the lookup cannot name is absent, and keeps the name it was recorded with. */
 	const namesNow = async (userIds: readonly string[]): Promise<Map<string, string>> => {
 		if (deps.people === undefined || userIds.length === 0) return new Map();
-		const found = await deps.people.resolve([...new Set(userIds)]);
+		const found = await deps.people.resolve([...new Set(userIds)], { within: SCREEN_WAIT_MS });
 		return new Map([...found].flatMap(([id, person]) => (person.name === null ? [] : [[id, person.name] as const])));
 	};
 
@@ -397,7 +397,10 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 				return;
 			}
 			const seats = row.hasPublic ? publicUsers(parseJson<PublicEndLine>(read?.last ?? '')) : actionUsers(parseJson<ActionsEndLine>(read?.last ?? ''));
-			const found = deps.people === undefined || seats.length === 0 ? new Map<string, Person>() : await deps.people.resolve(seats.map((s) => s.userId));
+			const found = deps.people === undefined || seats.length === 0 ? new Map<string, Person>() : await deps.people.resolve(
+							seats.map((s) => s.userId),
+							{ within: SCREEN_WAIT_MS },
+						);
 			const people: Record<string, { name?: string } & PersonFace> = {};
 			for (const { seat, userId } of seats) {
 				const person = found.get(userId);

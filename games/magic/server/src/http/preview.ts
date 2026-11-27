@@ -38,7 +38,7 @@ import type { RateLimitConfig } from "@wolffm/rooms-server";
 import type { Request, Response, Router } from "express";
 import { planDisplayName, ROOM_ID_RE, type DraftPlan, type RoomMember } from "@hadoku/shared";
 
-import type { People, Person } from "@hadoku/game-server/people";
+import { SCREEN_WAIT_MS, type People, type Person } from "@hadoku/game-server/people";
 import { magicView } from "../room/magic-view.js";
 import { POD_AI, POD_CLOSED } from "../room/pods.js";
 import { ASSETS_DIR } from "../root.js";
@@ -317,7 +317,7 @@ export async function cardOf(
   // A saved room keeps no names (R12): a member a restart left unnamed is named from their account.
   let people = new Map<string, Person>();
   try {
-    people = await deps.people.resolve(wanted);
+    people = await deps.people.resolve(wanted, { within: SCREEN_WAIT_MS });
   } catch {
     people = new Map();
   }

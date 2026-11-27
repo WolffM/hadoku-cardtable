@@ -57,7 +57,7 @@ import express, { type Request, type Response, type Router } from 'express';
 
 import { CUBE_ARTS_MAX, cubePoolKey, DraftCardSchema, ImportCubeBodySchema, sampleArt, type CubeListing, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
 import { accountIdOf } from '@hadoku/game-server/edge-auth';
-import type { People } from '@hadoku/game-server/people';
+import { SCREEN_WAIT_MS, type People } from '@hadoku/game-server/people';
 import type { RateLimitConfig } from '@wolffm/rooms-server';
 import { prepareJson, sendPrepared, type PreparedJson } from '@hadoku/game-server/http/prepared';
 import { bodyErrors, httpCaller, perCallerLimit } from '@hadoku/game-server/http/request';
@@ -641,7 +641,7 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 		const account = accountIdOf(req);
 		for (const s of summaries) if (account !== null && s.importedBy === caller) store.claim(s.id, account);
 		const users = summaries.flatMap((s) => store.importerUser(s.id) ?? []);
-		const found = users.length === 0 ? new Map<string, { name: string | null }>() : await people.resolve(users).catch(() => new Map<string, { name: string | null }>());
+		const found = users.length === 0 ? new Map<string, { name: string | null }>() : await people.resolve(users, { within: SCREEN_WAIT_MS }).catch(() => new Map<string, { name: string | null }>());
 		return summaries.map((s) => {
 			const user = store.importerUser(s.id);
 			return { ...s, importerName: (user === null ? undefined : found.get(user)?.name) ?? null, mine: s.importedBy === caller };

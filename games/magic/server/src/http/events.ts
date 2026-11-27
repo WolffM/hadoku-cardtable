@@ -61,7 +61,7 @@ import type { DiscordEvents } from '@hadoku/game-server/room/discord-events';
 import type { EventRecord, Events, FormRecord } from '@hadoku/game-server/room/events';
 import { callerOf, httpCaller, parseBody, perCallerLimit } from '@hadoku/game-server/http/request';
 import { deriveParticipantId } from '@hadoku/game-server/room/identity';
-import { faceOfPerson, type People, type Person } from '@hadoku/game-server/people';
+import { faceOfPerson, SCREEN_WAIT_MS, type People, type Person } from '@hadoku/game-server/people';
 import { type Lobby, type MagicRoomView } from '../room/lobby.js';
 import { magicView } from '../room/magic-view.js';
 import { UNNAMED } from '@hadoku/game-server/room/constants';
@@ -261,10 +261,10 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 	const now = deps.now ?? Date.now;
 	const summary = rallySummaries(deps.rally, now, deps.log);
 
-	/** Each person as they are now, by userId (R4: a name is looked up, never kept). */
+	/** Each person as they are now, by userId (R4: a name is looked up, never kept), as far as a screen waits for them. */
 	const peopleOf = async (userIds: readonly (string | null | undefined)[]): Promise<Map<string, Person>> => {
 		const ids = [...new Set(userIds.filter((id): id is string => typeof id === 'string'))];
-		return deps.people === undefined || ids.length === 0 ? new Map<string, Person>() : deps.people.resolve(ids);
+		return deps.people === undefined || ids.length === 0 ? new Map<string, Person>() : deps.people.resolve(ids, { within: SCREEN_WAIT_MS });
 	};
 
 	/**

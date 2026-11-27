@@ -10,7 +10,8 @@
  *
  * Resolved with this server's own service key, through prefs-client's shared
  * people lookup (`createPeopleLookup`). A failure answers nobody and is logged,
- * never thrown: a missing look costs a face its dressing, not a join. Cached a
+ * never thrown: a missing look costs a face its dressing, not a join. The failure's line says how
+ * far the request got (`fetch-trace.ts`). Cached a
  * minute, so a room's joins share one lookup; a person who has
  * just changed theirs is read `fresh` (the served room's `account`, `room/serve.ts`).
  * The picture URL is relayed, never fetched: the browser loads it from
@@ -21,6 +22,8 @@ import type { ResolvedPerson } from '@wolffm/prefs-client/avatar';
 import { createPeopleLookup } from '@wolffm/prefs-client/people';
 import { cleanWorn } from '@wolffm/prefs-client/cosmetics';
 import { AVATAR_ID_MAX, LOOK_PICTURE_MAX, lookOrNone, type Look, type PersonFace } from '@hadoku/platform-wire/look';
+
+import { phasesOf, tracedFetch } from './fetch-trace.js';
 
 /** One person, as a screen shows them. */
 export interface Person {
@@ -34,9 +37,20 @@ export interface Person {
 	look: Look | undefined;
 }
 
+export interface ResolveOptions {
+	/** Skip the cache: the person has just changed theirs. */
+	fresh?: boolean;
+	/**
+	 * Wait at most this long, then answer with what is cached now. A screen passes `SCREEN_WAIT_MS`:
+	 * it shows a name it does not have yet as it would an unreachable one, and the lookup carries on
+	 * and fills the cache for the next read.
+	 */
+	within?: number;
+}
+
 export interface People {
 	/** Every id in the answer; one the lookup could not reach is absent, not a default. */
-	resolve(userIds: readonly string[], opts?: { fresh?: boolean }): Promise<Map<string, Person>>;
+	resolve(userIds: readonly string[], opts?: ResolveOptions): Promise<Map<string, Person>>;
 	/** The cached answer for one id, or undefined when there is none fresh. */
 	peek(userId: string): Person | undefined;
 }
@@ -59,6 +73,11 @@ export interface PeopleOptions {
 
 const CACHE_TTL_MS = 60_000;
 const LOOKUP_TIMEOUT_MS = 5000;
+/**
+ * How long a request a person is waiting on waits for names (`ResolveOptions.within`). prefs-api's
+ * answers to this server, 2026-11-24..26: p50 561 ms, p99 1004 ms, p99.5 1105 ms.
+ */
+export const SCREEN_WAIT_MS = 1200;
 
 /** What one resolved entry means here. Exported for its test. */
 export function personOf(r: ResolvedPerson | undefined): Person {
@@ -85,8 +104,8 @@ export function createPeople(opts: PeopleOptions): ForgetfulPeople {
 		userAgent: 'hadoku-cardtable-people/1',
 		ttlMs: CACHE_TTL_MS,
 		timeoutMs: LOOKUP_TIMEOUT_MS,
-		onError: (err, ids) => opts.log({ evt: 'people-resolve-failed', ids: ids.length, error: (err as Error).message }),
-		...(opts.fetch === undefined ? {} : { fetch: opts.fetch }),
+		onError: (err, ids) => opts.log({ evt: 'people-resolve-failed', ids: ids.length, error: (err as Error).message, ...phasesOf(err) }),
+		fetch: tracedFetch(opts.fetch),
 		...(opts.now === undefined ? {} : { now: opts.now }),
 	});
 	const peek = (userId: string): Person | undefined => {
@@ -96,9 +115,22 @@ export function createPeople(opts: PeopleOptions): ForgetfulPeople {
 	return {
 		peek,
 		forget: (userId) => lookup.forget(userId),
-		async resolve(userIds, options = {}) {
+		async resolve(userIds, { within, ...options } = {}) {
+			const answer = lookup.resolve(userIds, options);
+			let late: ReturnType<typeof setTimeout> | undefined;
+			const found = await (within === undefined
+				? answer
+				: Promise.race([answer, new Promise<undefined>((r) => (late = setTimeout(() => r(undefined), within)))]).finally(() => clearTimeout(late)));
 			const out = new Map<string, Person>();
-			for (const [id, answer] of await lookup.resolve(userIds, options)) out.set(id, personOf(answer ?? undefined));
+			if (found === undefined) {
+				opts.log({ evt: 'people-shown-early', ids: userIds.length, waitedMs: within });
+				for (const id of new Set(userIds)) {
+					const person = peek(id);
+					if (person !== undefined) out.set(id, person);
+				}
+				return out;
+			}
+			for (const [id, a] of found) out.set(id, personOf(a ?? undefined));
 			return out;
 		},
 	};

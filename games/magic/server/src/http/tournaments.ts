@@ -14,7 +14,7 @@
 import type { Request, Response, Router } from 'express';
 import type { FeaturedTournament, Tournament } from '@hadoku/shared';
 
-import { faceOfPerson, type People, type Person } from '@hadoku/game-server/people';
+import { faceOfPerson, SCREEN_WAIT_MS, type People, type Person } from '@hadoku/game-server/people';
 import { featuredTournament, playedByPeople } from '../room/featured-tournament.js';
 import type { Tournaments } from '../room/tournaments.js';
 import { UNNAMED } from '@hadoku/game-server/room/constants';
@@ -35,7 +35,10 @@ function shown({ users = {}, ...t }: Tournament, found: ReadonlyMap<string, Pers
 export function attachTournaments(api: Router, deps: { tournaments: Tournaments; people: People; now?: () => number }): void {
 	const now = deps.now ?? Date.now;
 	const serve = async (list: readonly Tournament[]): Promise<Tournament[]> => {
-		const found = await deps.people.resolve(list.flatMap((t) => Object.values(t.users ?? {})));
+		const found = await deps.people.resolve(
+			list.flatMap((t) => Object.values(t.users ?? {})),
+			{ within: SCREEN_WAIT_MS },
+		);
 		return list.map((t) => shown(t, found));
 	};
 	api.get('/tournaments', async (_req: Request, res: Response) => {
