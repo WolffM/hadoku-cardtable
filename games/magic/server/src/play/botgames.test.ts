@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOT_GAME_S, botGameSpec, runBotGame, type BotGameInput } from './botgames.ts';
+import { BOT_GAME_S, botGameSpec, playUntilResult, runBotGame, type BotGameInput, type BotGameOutcome } from './botgames.ts';
 import type { HostEvents, MatchHostFactory, MatchSpec } from '@hadoku/game-server/play/host';
 import type { BridgeCommand, BridgeLine } from './bridge-protocol.ts';
 
@@ -57,12 +57,12 @@ describe('runBotGame', () => {
 		expect(await result).toEqual({ ok: true, wins: [1, 1], gameMs: [240_000, 30_000, 30_000] });
 	});
 
-	it('a JVM lost before the match is decided is no result, never a partial one', async () => {
+	it('a host lost before the match is decided is no result, never a partial one, and says the host went', async () => {
 		const f = fakeHost();
 		const result = runBotGame(f.host, 'b-3', INPUT, { timeoutMs: 60_000, log: () => {} });
 		f.say(over(0, 30_000));
-		f.exit('jvm-lost');
-		expect(await result).toEqual({ ok: false, why: 'failed', error: 'jvm-lost after 1 of 3 games' });
+		f.exit('the match was lost: fenced: no word from the coordinator for 10 s (window 10 s), and it could not be restored');
+		expect(await result).toEqual({ ok: false, why: 'lost', error: 'the match was lost: fenced: no word from the coordinator for 10 s (window 10 s), and it could not be restored after 1 of 3 games' });
 	});
 
 	it('Forge’s own failure is the reason given', async () => {
@@ -85,5 +85,45 @@ describe('runBotGame', () => {
 			throw new Error('no Forge host is configured');
 		}) as unknown as MatchHostFactory<BridgeLine, BridgeCommand>;
 		expect(await runBotGame(host, 'b-6', INPUT, { timeoutMs: 60_000, log: () => {} })).toEqual({ ok: false, why: 'failed', error: 'no Forge host is configured' });
+	});
+});
+
+describe('playUntilResult', () => {
+	const won: BotGameOutcome = { ok: true, wins: [2, 0], gameMs: [1, 2] };
+	const lost: BotGameOutcome = { ok: false, why: 'lost', error: 'fenced' };
+	const full: BotGameOutcome = { ok: false, why: 'capacity', error: 'full' };
+	const broke: BotGameOutcome = { ok: false, why: 'failed', error: 'boom' };
+
+	function scripted(outcomes: BotGameOutcome[]): { play: (remainingMs: number) => Promise<BotGameOutcome>; asked: number[]; opts: { timeoutMs: number; retryMs: number; now: () => number; wait: (ms: number) => Promise<void> } } {
+		let clock = 0;
+		const asked: number[] = [];
+		return {
+			asked,
+			play: (remainingMs) => {
+				asked.push(remainingMs);
+				clock += 1000;
+				return Promise.resolve(outcomes.shift()!);
+			},
+			opts: { timeoutMs: 60_000, retryMs: 5000, now: () => clock, wait: (ms) => Promise.resolve(void (clock += ms)) },
+		};
+	}
+
+	it('plays a pairing again when its host went away mid-game, as it waits out a full server', async () => {
+		const s = scripted([lost, full, won]);
+		expect(await playUntilResult(s.play, s.opts)).toEqual(won);
+		expect(s.asked).toEqual([60_000, 54_000, 48_000]);
+	});
+
+	it('gives up on a failure of its own at once', async () => {
+		const s = scripted([broke, won]);
+		expect(await playUntilResult(s.play, s.opts)).toEqual(broke);
+		expect(s.asked).toHaveLength(1);
+	});
+
+	it('gives up once another try could not finish inside its clock', async () => {
+		const s = scripted([lost, lost, lost]);
+		const opts = { ...s.opts, timeoutMs: 12_000 };
+		expect(await playUntilResult(s.play, opts)).toEqual(lost);
+		expect(s.asked).toEqual([12_000, 6000]);
 	});
 });
