@@ -31,7 +31,8 @@ export interface BotGameInput {
 
 export type BotGameOutcome =
 	| { ok: true; wins: [number, number]; gameMs: number[] }
-	| { ok: false; why: 'capacity' | 'failed' | 'timeout'; error: string };
+	/** `lost`: its host went away mid-game (a fence, a failover), which says nothing about the game: it is played again. */
+	| { ok: false; why: 'capacity' | 'lost' | 'failed' | 'timeout'; error: string };
 
 /**
  * The bridge's `start` for a bot game. Forge tells its players apart by name (`LobbyPlayer.equals`),
@@ -93,7 +94,7 @@ export function runBotGame(host: MatchHostFactory<BridgeLine, BridgeCommand>, ma
 					// Played out: a side won the majority, or every game was played (draws can leave neither).
 					const over = Math.max(...wins) > input.bestOf / 2 || gameMs.length >= input.bestOf;
 					if (fatal !== null) finish({ ok: false, why: 'failed', error: fatal });
-					else if (!over) finish({ ok: false, why: 'failed', error: `${reason} after ${gameMs.length} of ${input.bestOf} games` });
+					else if (!over) finish({ ok: false, why: 'lost', error: `${reason} after ${gameMs.length} of ${input.bestOf} games` });
 					else finish({ ok: true, wins: [...wins], gameMs: [...gameMs] });
 				},
 				log,
@@ -102,4 +103,26 @@ export function runBotGame(host: MatchHostFactory<BridgeLine, BridgeCommand>, ma
 			finish({ ok: false, why: 'failed', error: (err as Error).message });
 		}
 	});
+}
+
+/** No result, but nothing about the pairing: no room in the ceiling yet, or its host went away mid-game. */
+const ASKED_AGAIN: ReadonlySet<string> = new Set(['capacity', 'lost']);
+
+/**
+ * Ask `play` for a pairing's result until it gives one, asking again after `retryMs` while the answer
+ * is {@link ASKED_AGAIN}'s, inside `timeoutMs` in all (each ask is told what is left of it). Answers
+ * the result, or the last outcome without one.
+ */
+export async function playUntilResult(
+	play: (remainingMs: number) => Promise<BotGameOutcome>,
+	opts: { timeoutMs: number; retryMs: number; now?: () => number; wait?: (ms: number) => Promise<void> },
+): Promise<BotGameOutcome> {
+	const now = opts.now ?? Date.now;
+	const wait = opts.wait ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms).unref()));
+	const deadline = now() + opts.timeoutMs;
+	for (;;) {
+		const outcome = await play(deadline - now());
+		if (outcome.ok || !ASKED_AGAIN.has(outcome.why) || now() + opts.retryMs >= deadline) return outcome;
+		await wait(opts.retryMs);
+	}
 }

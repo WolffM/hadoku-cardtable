@@ -185,7 +185,7 @@ import { isAdmin } from '@hadoku/game-server/edge-auth';
 import { draftIdOfPool, draftPoolId, type Lobby } from '../room/lobby.js';
 import { magicView } from '../room/magic-view.js';
 import { aiEntrantSeat, isAiEntrant, SEATS_SHUT, type BotDeckSource, type GameHooks } from '../room/pods.js';
-import type { BotGameInput, BotGameOutcome } from '../play/botgames.js';
+import { playUntilResult, type BotGameInput, type BotGameOutcome } from '../play/botgames.js';
 import { roundNamesOf } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
 import { statsModeOf } from '../room/series.js';
@@ -374,7 +374,7 @@ export interface TablesMatches {
  * settles the pairing without its result. A best of 3 is at most three of `BOT_GAME_S`.
  */
 export const BOT_GAME_TIMEOUT_MS = 12 * 60_000;
-/** A bot game refused for want of room in the ceiling asks again after this. */
+/** A bot game refused for want of room in the ceiling, or whose host went away mid-game, asks again after this. */
 export const BOT_GAME_RETRY_MS = 30_000;
 
 export interface TablesDeps {
@@ -1078,8 +1078,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			rooms.setPlayerState(roomId, entrant, locked === null ? { v: 1, deck: null, seriesDeck: null, ...ai } : { v: 1, deck: locked, seriesDeck: null, ...ai });
 		},
 		// Two AI entrants paired together play it out on play's registry, which exists only after this runs
-		// (`deps.matches`), so each game asks for it when it plays. A full server is waited on, a turn at a
-		// time, until the game's clock runs out; anything else without a result is the room's to settle.
+		// (`deps.matches`), so each game asks for it when it plays. A full server, or a host that went away
+		// mid-game, is asked again until the game's clock runs out (`playUntilResult`); anything else
+		// without a result is the room's to settle.
 		// Absent when `deps.matches` is undefined: `GameHooks.playBotGame`'s own doc, two AI entrants
 		// paired together settle at once instead.
 		...(deps.matches === undefined
@@ -1091,22 +1092,19 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 							log({ evt: 'bot-game-no-deck', room: ask.roomId, round: ask.round, players: ask.players, missing: ask.players.filter((_, i) => decks[i] === null) });
 							return null;
 						}
-						const deadline = Date.now() + BOT_GAME_TIMEOUT_MS;
-						for (;;) {
-							const registry = deps.matches?.() ?? null;
-							const outcome: BotGameOutcome =
-								registry === null
-									? { ok: false, why: 'capacity', error: 'play is not attached yet' }
-									: registry.botGame === undefined
-										? { ok: false, why: 'failed', error: 'this registry plays no bot game' }
-										: await registry.botGame({ names: ask.names, decks: [decks[0], decks[1]], bestOf: ask.bestOf }, deadline - Date.now());
-							if (outcome.ok) return { wins: outcome.wins, gameMs: outcome.gameMs };
-							if (outcome.why !== 'capacity' || Date.now() + BOT_GAME_RETRY_MS >= deadline) {
-								log({ evt: 'bot-game-no-result', room: ask.roomId, round: ask.round, players: ask.players, why: outcome.why, error: outcome.error });
-								return null;
-							}
-							await new Promise((wait) => setTimeout(wait, BOT_GAME_RETRY_MS).unref());
-						}
+						const pair: [string, string] = [decks[0], decks[1]];
+						const outcome = await playUntilResult(
+							(remainingMs): Promise<BotGameOutcome> => {
+								const registry = deps.matches?.() ?? null;
+								if (registry === null) return Promise.resolve({ ok: false, why: 'capacity', error: 'play is not attached yet' });
+								if (registry.botGame === undefined) return Promise.resolve({ ok: false, why: 'failed', error: 'this registry plays no bot game' });
+								return registry.botGame({ names: ask.names, decks: pair, bestOf: ask.bestOf }, remainingMs);
+							},
+							{ timeoutMs: BOT_GAME_TIMEOUT_MS, retryMs: BOT_GAME_RETRY_MS },
+						);
+						if (outcome.ok) return { wins: outcome.wins, gameMs: outcome.gameMs };
+						log({ evt: 'bot-game-no-result', room: ask.roomId, round: ask.round, players: ask.players, why: outcome.why, error: outcome.error });
+						return null;
 					},
 				}),
 	};
