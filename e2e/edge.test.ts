@@ -16,8 +16,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { PREFS_MOUNT, startEdge } from './edge.ts';
-import { PREFIX } from './identities.ts';
+import { edgeGate, edgeHeaders, PREFS_MOUNT, startEdge } from './edge.ts';
+import { EDGE_GATE_COOKIE, FRIENDS, PREFIX, SESSION_COOKIE } from './identities.ts';
 
 const portOf = (server: Server): number => (server.address() as AddressInfo).port;
 
@@ -166,4 +166,23 @@ test('a page through the edge carries the shared import map, and the files it na
       }
     },
   );
+});
+
+test('behind the gate cookie, a caller with no session meets the real edge: 401 for a request, the wall for a page, which makes a guest the next request is', () => {
+  const gated = { cookie: `${EDGE_GATE_COOKIE}=1` };
+  assert.deepEqual(edgeGate({ ...gated, accept: 'application/json' }, '/api/rooms'), { kind: 'refused' });
+  assert.deepEqual(edgeGate({ ...gated, accept: 'text/html' }, '/api/rooms'), { kind: 'refused' }, 'an /api path is never a page');
+  assert.deepEqual(edgeGate(gated, '/socket.io/'), { kind: 'refused' });
+  assert.equal(edgeGate(gated, '/preview/room/r-1.png'), null, 'a room preview is public');
+  assert.equal(edgeGate({ cookie: `${EDGE_GATE_COOKIE}=1; ${SESSION_COOKIE}=alice` }, '/api/rooms'), null, 'a session passes');
+  assert.equal(edgeGate({ accept: 'application/json' }, '/api/rooms'), null, 'without the gate cookie the server’s own floor decides');
+
+  const wall = edgeGate({ ...gated, accept: 'text/html,application/xhtml+xml' }, '/');
+  assert.equal(wall?.kind, 'wall');
+  const session = wall?.kind === 'wall' ? wall.session : '';
+  const stamped = edgeHeaders({ cookie: `${EDGE_GATE_COOKIE}=1; ${SESSION_COOKIE}=${session}` }, 's', 1);
+  assert.equal(stamped['x-hadoku-tier'], 'guest');
+  assert.match(String(stamped['x-user-id']), /^e2e-guest-\d+-id$/);
+  assert.match(String(stamped['x-user-name']), /^Player \d+$/);
+  assert.equal(edgeHeaders({ cookie: `${SESSION_COOKIE}=alice` }, 's', 1)['x-user-id'], FRIENDS.alice.userId);
 });

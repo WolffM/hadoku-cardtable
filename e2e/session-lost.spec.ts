@@ -56,8 +56,8 @@ async function loseTheSession(context: BrowserContext): Promise<number> {
   return Date.now();
 }
 
-/** Milliseconds since the page last sent anything under the prefix. */
-const quietFor = (sent: Sent[]): number => Date.now() - (sent.at(-1)?.at ?? 0);
+/** The probe the session watch asks to confirm a suspicion. */
+const PROBE = `GET ${PREFIX}/api/whoami`;
 
 test('a lost session that this tab already reloaded for: every socket and request stops, and nothing more leaves the page', async ({ browser }) => {
   test.setTimeout(2 * 60_000);
@@ -67,13 +67,16 @@ test('a lost session that this tab already reloaded for: every socket and reques
     await page.evaluate((key) => sessionStorage.setItem(key, String(Date.now())), RELOADED_KEY);
     let loads = 0;
     page.on('load', () => (loads += 1));
-    const from = sent.length;
     const t0 = await loseTheSession(context);
-    await expect.poll(() => quietFor(sent), { message: 'nothing leaves the page for 8 s', timeout: 45_000, intervals: [500] }).toBeGreaterThanOrEqual(8_000);
-    const after = sent.slice(from);
-    console.log(`[session-lost] after the loss, ${after.length} sent in ${Date.now() - t0} ms: ${after.map((s) => `+${s.at - t0} ${s.what}`).join(', ')}`);
-    expect(after.map((s) => s.what), 'one probe confirmed it').toContain(`GET ${PREFIX}/api/whoami`);
-    expect(after.length, 'a handful of reconnects before the probe answered, not a retry loop').toBeLessThanOrEqual(12);
+    const after = (): Sent[] => sent.filter((s) => s.at >= t0);
+    await expect.poll(() => after().filter((s) => s.what === PROBE).length, { message: 'a probe asks whether the session is gone', timeout: 30_000 }).toBeGreaterThan(0);
+    const probed = Date.now();
+    // Quiet for 10 s from the probe on: before the watch, the sockets never let 6 s pass (2026-11-26, 5.0 s at most).
+    const quiet = (): number => Date.now() - Math.max(probed, after().at(-1)?.at ?? 0);
+    await expect.poll(quiet, { message: 'nothing leaves the page for 10 s', timeout: 45_000, intervals: [500] }).toBeGreaterThanOrEqual(10_000);
+    console.log(`[session-lost] after the loss, ${after().length} sent in ${Date.now() - t0} ms: ${after().map((s) => `+${s.at - t0} ${s.what}`).join(', ')}`);
+    expect(after().filter((s) => s.what === PROBE), 'one probe confirmed it').toHaveLength(1);
+    expect(after().filter((s) => s.what.includes('/socket.io/')).length, 'a reconnect or two before the probe answered, not a retry loop').toBeLessThanOrEqual(6);
     expect(loads, 'no reload inside the guard').toBe(0);
   } finally {
     await context.close();
