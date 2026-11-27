@@ -1122,14 +1122,29 @@ describe('installNumbers: combat damage', () => {
  * avatar, away from its attacker, on the blow's own frame, as hard as the blow.
  */
 describe('installNumbers: a charge on a player', () => {
-  type Played = { el: Element; frames: Keyframe[]; options: KeyframeAnimationOptions };
+  /** `task`: which timer callback played it (0 for none), as the browser may paint between any two. */
+  type Played = { el: Element; frames: Keyframe[]; options: KeyframeAnimationOptions; task: number };
   /** Attackers 50, 51, … charge player 0 for `amounts`; the clock stops `at` ms in (default: just past the first blow). */
   function charge(amounts: number[], at = RAM_STAGGER_MS + contactMs('charge') + 50): { played: Played[]; canvas: HTMLElement; dispose: () => void } {
     vi.useFakeTimers();
     const played: Played[] = [];
+    let tasks = 0;
+    let task = 0;
+    const setTimer = globalThis.setTimeout;
+    const timers = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) => {
+      const mine = ++tasks;
+      return setTimer(() => {
+        task = mine;
+        try {
+          fn();
+        } finally {
+          task = 0;
+        }
+      }, ms);
+    }) as typeof setTimeout);
     // jsdom has no Web Animations: a stand-in that records what is played and never finishes.
     Element.prototype.animate = function (this: Element, frames: Keyframe[] | PropertyIndexedKeyframes | null, options?: number | KeyframeAnimationOptions) {
-      played.push({ el: this, frames: frames as Keyframe[], options: options as KeyframeAnimationOptions });
+      played.push({ el: this, frames: frames as Keyframe[], options: options as KeyframeAnimationOptions, task });
       return { finished: new Promise(() => undefined), cancel: () => undefined, effect: null } as unknown as Animation;
     };
     const { canvas } = board();
@@ -1154,6 +1169,7 @@ describe('installNumbers: a charge on a player', () => {
       dispose: () => {
         handle.dispose();
         delete (Element.prototype as Partial<Element>).animate;
+        timers.mockRestore();
         vi.useRealTimers();
       },
     };
@@ -1201,6 +1217,16 @@ describe('installNumbers: a charge on a player', () => {
     expect(recoils(blow(0) - 1), 'nothing before the first blow').toEqual([]);
     expect(recoils(blow(0)), 'the 1 at its blow').toEqual(['recoil:crash:51']);
     expect(recoils(blow(3)), 'all four, in turn').toEqual(['recoil:crash:51', 'recoil:crash:53', 'recoil:crash:50', 'recoil:crash:52']);
+  });
+
+  it('the avatar recoils in the callback that lands the blow, so no frame can fall between them', () => {
+    const { played, dispose } = charge([9]);
+    dispose();
+    const rocks = played.filter((p) => p.el.closest('.effect-crash[data-crash="crash:50"]') !== null);
+    const recoils = played.filter((p) => p.options.id === 'recoil:crash:50');
+    expect(rocks.length, 'the blow landed').toBeGreaterThan(0);
+    expect(recoils, 'one recoil').toHaveLength(1);
+    expect(recoils[0]!.task, 'in the blow’s own callback').toBe(rocks[0]!.task);
   });
 });
 
