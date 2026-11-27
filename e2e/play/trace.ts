@@ -61,6 +61,13 @@ export interface Trace {
   maxFrameMs: number;
   /** The longest gap between two new targets (`left`/`top` set by the page), in ms, from the first move. */
   maxTargetGapMs: number;
+  /**
+   * Every new `left`/`top` the page set on the element after its first: the planned length, in ms
+   * (`getComputedTiming().duration / playbackRate`), of the `left`/`top` transition that set started —
+   * 0 when it stepped there. Read as the page sets it, so it is the element's own plan, whatever the
+   * host's frames do afterwards.
+   */
+  glides: number[];
   /** The drawn centres around the biggest jump, with the selector's count and the anchor's centre. */
   around: string;
   /** Last drawn box, w×h. */
@@ -71,11 +78,34 @@ export interface Trace {
 export async function recordTrace(page: Page, selector: string, anchorSelector: string | null = null): Promise<void> {
   await page.evaluate(
     ({ sel, anchorSel }) => {
-      const w = window as unknown as { __trace: Frame[]; __traceToken: number; __traceRebuilds: number };
+      const w = window as unknown as { __trace: Frame[]; __traceToken: number; __traceRebuilds: number; __traceGlides: number[] };
       const token = (w.__traceToken ?? 0) + 1;
       w.__traceToken = token;
       w.__trace = [];
       w.__traceRebuilds = 0;
+      w.__traceGlides = [];
+      // Each new target, as the page sets it: the transition it starts (reading the animations
+      // flushes style, so the set's own transition exists by then), never a frame later.
+      const placedAt = new WeakMap<Element, string>();
+      const targets = new MutationObserver((records) => {
+        if (w.__traceToken !== token) {
+          targets.disconnect();
+          return;
+        }
+        for (const r of records) {
+          const el = r.target;
+          if (!(el instanceof HTMLElement) || !el.matches(sel)) continue;
+          const at = `${el.style.left},${el.style.top}`;
+          const was = placedAt.get(el);
+          placedAt.set(el, at);
+          if (was === undefined || was === at) continue;
+          const legs = el
+            .getAnimations()
+            .filter((a) => a instanceof CSSTransition && (a.transitionProperty === 'left' || a.transitionProperty === 'top') && a.playState !== 'finished');
+          w.__traceGlides.push(Math.round(Math.max(0, ...legs.map((a) => Number(a.effect?.getComputedTiming().duration ?? 0) / (a.playbackRate || 1)))));
+        }
+      });
+      targets.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['style'] });
       const seen = new WeakSet<Element>();
       const ids = new WeakMap<Element, number>();
       let nextId = 1;
@@ -125,7 +155,7 @@ export async function recordTrace(page: Page, selector: string, anchorSelector: 
 /** Stop the recording on `page` and sum it up. */
 export async function stopTrace(page: Page): Promise<Trace> {
   return page.evaluate(() => {
-    const w = window as unknown as { __trace: Frame[]; __traceToken: number; __traceRebuilds: number };
+    const w = window as unknown as { __trace: Frame[]; __traceToken: number; __traceRebuilds: number; __traceGlides: number[] };
     w.__traceToken += 1;
     const frames = w.__trace;
     const placed = frames.filter((f) => f.x !== null) as (Frame & { x: number; y: number })[];
@@ -187,6 +217,7 @@ export async function stopTrace(page: Page): Promise<Trace> {
       anchorGone: frames.filter((f) => f.n > 0 && !f.anchorConnected).length,
       maxFrameMs: Math.round(maxFrame),
       maxTargetGapMs: Math.round(maxTargetGap),
+      glides: w.__traceGlides,
       around,
       box: { w: Math.round(lastPlaced?.w ?? 0), h: Math.round(lastPlaced?.h ?? 0) },
     };
@@ -195,7 +226,7 @@ export async function stopTrace(page: Page): Promise<Trace> {
 
 /** One evidence line. */
 export const traceLine = (t: Trace): string =>
-  `frames=${t.frames} moves=${t.moves} maxHoldMs=${t.maxHoldMs} holdAtMs=${t.holdAtMs} maxJumpPx=${t.maxJumpPx} blankFrames=${t.blankFrames} faceFlips=${t.faceFlips} rebuilds=${t.rebuilds} maxCount=${t.maxCount} maxAnchors=${t.maxAnchors} anchorIds=${t.anchorIds} anchorGone=${t.anchorGone} maxFrameMs=${t.maxFrameMs} maxTargetGapMs=${t.maxTargetGapMs} box=${t.box.w}x${t.box.h} aroundJump=[${t.around}]`;
+  `frames=${t.frames} moves=${t.moves} maxHoldMs=${t.maxHoldMs} holdAtMs=${t.holdAtMs} maxJumpPx=${t.maxJumpPx} blankFrames=${t.blankFrames} faceFlips=${t.faceFlips} rebuilds=${t.rebuilds} maxCount=${t.maxCount} maxAnchors=${t.maxAnchors} anchorIds=${t.anchorIds} anchorGone=${t.anchorGone} maxFrameMs=${t.maxFrameMs} maxTargetGapMs=${t.maxTargetGapMs} glides=${t.glides.length}:${[...new Set(t.glides)].join('/')} box=${t.box.w}x${t.box.h} aroundJump=[${t.around}]`;
 
 /** Press at `from`, then the same path every time: 40 steps of 6 px left and 1 px down, one every ~16 ms. */
 export async function dragPath(page: Page, from: { x: number; y: number }): Promise<void> {

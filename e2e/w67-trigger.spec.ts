@@ -9,7 +9,10 @@
  * rearranges one of her battlefield cards, with the same real pointer path (`page.mouse`, a step every
  * ~16 ms). Bob's screen records, every animation frame, where it draws each one and whether the
  * chip's own contents were rebuilt or shown as a back: never rebuilt, never a back, gliding between
- * messages like the card (frames moved, against the card's own), never a jump past the card's.
+ * messages like the card (frames moved, against the card's own), never a jump past the card's. The
+ * card's own glide is read from its plan (each new point starts its `FOLLOW_MS` transition), never
+ * from how far it moved between two frames: under load (45238039067, load 24.7) bob's frames came
+ * 183 ms apart and her messages 233 ms, and a healthy glide stepped 21 px.
  * How long either stood still is printed — a hold in milliseconds is the CI runner's as much as the chip's.
  *
  * Scenario `w67-trigger`: Eternal Witness's trigger goes on the stack while bob (Full Control)
@@ -17,6 +20,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
+import { FOLLOW_MS } from '../games/magic/ui/src/play/motion.ts';
 import { makeTitled } from './play/board.ts';
 import { chipOf, triggerOnStack } from './play/chip.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -76,7 +80,10 @@ test(titled('a trigger on the stack is the ability chip on both screens, and its
     expect(cardTrace.moves, 'bob saw the card move at all').toBeGreaterThan(5);
     // The card's own mirror is the baseline, so it must be healthy itself before the chip is compared with it.
     expect(cardTrace.rebuilds, 'the lifted card is never rebuilt while it is moved').toBe(0);
-    expect(cardTrace.maxJumpPx, 'the lifted card never jumps further in a frame than a couple of pointer steps').toBeLessThanOrEqual(20);
+    // It glides to every point her messages bring, never steps: each one starts the tile's own
+    // `left`/`top` transition, planned at FOLLOW_MS. How far it gets between two frames is the host's.
+    expect(cardTrace.glides.length, 'bob’s tile was sent new points while she moved it').toBeGreaterThan(5);
+    expect(cardTrace.glides.filter((ms) => ms !== FOLLOW_MS), `the lifted card glides to every new point over FOLLOW_MS (${FOLLOW_MS} ms), never steps`).toEqual([]);
     // The chip itself: one element, its own face throughout — never rebuilt, never turned to a back and over again.
     expect(chipTrace.rebuilds, 'the chip is never rebuilt while it is moved').toBe(0);
     expect(chipTrace.blankFrames, 'the chip is never blank or a back while it is moved').toBe(0);
