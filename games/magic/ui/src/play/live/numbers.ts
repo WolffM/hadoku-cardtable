@@ -1478,13 +1478,19 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const strike = strikeOffset(from, to, plan.kind);
         const hitPoint = plan.kind === 'charge' ? to : { x: (from.x + strike.x + to.x) / 2, y: (from.y + strike.y + to.y) / 2 };
         const point = plan.kind === 'meet' ? { x: from.x + strike.x, y: from.y + strike.y } : hitPoint;
-        play(at(plan.delayMs + contactMs(plan.kind), moment(() => bang(target, `crash:${plan.sourceId}`, plan.amount, tempo, point, crashShare, plan.kind === 'charge' ? { w: from.w, h: from.h } : null))));
-        // The struck player's avatar recoils from the blow, away from where the charge set off (`recoil.ts`).
-        if (plan.kind === 'charge' && 'playerId' in plan.target) {
-          const spot = fanned.get(plan.sourceId) ?? { x: 0, y: 0 };
-          const launch = { x: from.x + spot.x, y: from.y + spot.y };
-          play(at(plan.delayMs + contactMs(plan.kind), moment(() => shakes.add(recoil(target, launch, to, plan.amount, `crash:${plan.sourceId}`, tempo)))));
-        }
+        // The struck player's avatar recoils from the blow, away from where the charge set off (`recoil.ts`),
+        // in the blow's own callback: from two timers the browser can paint the crash a frame before the recoil.
+        const spot = fanned.get(plan.sourceId) ?? { x: 0, y: 0 };
+        const launch = plan.kind === 'charge' && 'playerId' in plan.target ? { x: from.x + spot.x, y: from.y + spot.y } : null;
+        play(
+          at(
+            plan.delayMs + contactMs(plan.kind),
+            moment(() => {
+              bang(target, `crash:${plan.sourceId}`, plan.amount, tempo, point, crashShare, plan.kind === 'charge' ? { w: from.w, h: from.h } : null);
+              if (launch !== null) shakes.add(recoil(target, launch, to, plan.amount, `crash:${plan.sourceId}`, tempo));
+            }),
+          ),
+        );
         const contact = plan.delayMs + contactMs(plan.kind);
         const mine = viewers(plan.sourceId);
         // On a player the blow is as big as its damage, and a crowd cheers from 5 (`impactRole`, `cheerRole`).
