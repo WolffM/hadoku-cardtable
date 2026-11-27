@@ -178,13 +178,14 @@ function hash32(text: string): number {
 }
 
 async function roomOf(p: Player, run: Pick<Run, 'stack' | 'roomId'>): Promise<RoomBody> {
-  // A connection the edge drops (ECONNRESET under a full table's load) is asked again, as a browser would; an answer is final.
+  // A connection the edge drops (ECONNRESET under a full table's load) or a gateway answer from it (502–504: the
+  // server behind it did not answer in time) is asked again, as a browser would; any other answer is final.
   for (let attempt = 1; ; attempt++) {
     const res = await p.f.context.request.get(`${run.stack.origin}${PREFIX}/api/rooms/${run.roomId}`).catch((err: unknown) => {
       if (attempt >= 3) throw err;
       return null;
     });
-    if (res === null) {
+    if (res === null || (res.status() >= 502 && res.status() <= 504 && attempt < 3)) {
       await sleep(500);
       continue;
     }
@@ -240,6 +241,8 @@ function capturePack(page: Page, wire: string[]): () => readonly WireCard[] | nu
 
 async function openPlayer(browser: Browser, name: string): Promise<Player> {
   const f = await openFriend(browser, name);
+  // Up to fifteen pages on one host: a load past a hundred can hold a page's first load past the config's twenty seconds.
+  f.page.setDefaultNavigationTimeout(90_000);
   const wire: string[] = [];
   const p: Player = { f, name, id: '', wire, pack: capturePack(f.page, wire), picks: [], results: new Map(), last: '', lastAt: Date.now(), errors: [], trail: [], hands: null, handsFor: '' };
   f.page.on('framenavigated', (frame) => {
@@ -489,8 +492,9 @@ async function concede(p: Player, run: Run, why: string): Promise<boolean> {
   try {
     await page.getByTestId('live-concede').click({ timeout: 3_000 });
     await page.getByTestId('live-concede-yes').click({ timeout: 3_000 });
-    // Concede closes its own sheet as it sends (`LiveBoard`'s `ConcedeAsk`): one still open was not sent.
-    const open = await page.getByTestId('live-concede-ask').waitFor({ state: 'hidden', timeout: 2_000 }).then(
+    // Concede closes its own sheet as it sends (`LiveBoard`'s `ConcedeAsk`): one still open was not sent. Ten
+    // seconds, not two: at a load of 160 a page can take longer than two to draw the press, its concede long sent.
+    const open = await page.getByTestId('live-concede-ask').waitFor({ state: 'hidden', timeout: 10_000 }).then(
       () => false,
       () => true,
     );
