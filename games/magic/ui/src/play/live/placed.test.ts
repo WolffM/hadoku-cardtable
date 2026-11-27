@@ -369,6 +369,58 @@ describe('the seam', () => {
       realTimers();
     });
 
+    it.each([33, 45])('tug on a slow host: points 60–174 ms apart on both hands, frames every %i ms, still never zigzag (stack-drag-shared.spec.ts: 20.6–24.1 px/s, run 45356113202)', (frameMs) => {
+      // The claw's own measure of that run's tug: 20 pointer moves over 1.9 s, at most 174 ms apart
+      // on this hand and 168 ms between their relays (the server log's `drag` reports). Eases sized
+      // for a 35 ms pointer and a 60 ms relay end long before the next point, so each hand moves in
+      // bursts and stands still, and two hands pulling opposite ways take turns.
+      vi.useFakeTimers();
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => false });
+      handle.notify(view([stackItem(9)]));
+      gripStackItem(9, 'you', { x: 600, y: 200 }, 'grab', 'you');
+      gripStackItem(9, 'seat:1', { x: 600, y: 200 }, 'grab', 'you');
+      const mineGaps = [95, 80, 120, 70, 174, 90, 100, 85, 110, 75];
+      const theirGaps = [100, 168, 60, 90, 130, 70, 95, 140, 80, 105];
+      let mine = 600;
+      let theirs = 600;
+      let nextMine = 40;
+      let nextTheirs = 90;
+      let gm = 0;
+      let gt = 0;
+      const xs: number[] = [];
+      for (let ms = 0; ms <= 1900; ms += 1) {
+        vi.advanceTimersByTime(1);
+        if (ms === nextMine) {
+          // The spec's pull, 10 px a move; theirs is the other seat's 10 px on a smaller board, drawn on this larger one.
+          mine += 10;
+          gripStackItem(9, 'you', { x: mine, y: 200 }, 'move', 'you');
+          nextMine += mineGaps[gm++ % mineGaps.length]!;
+        }
+        if (ms === nextTheirs) {
+          theirs -= 12.8;
+          gripStackItem(9, 'seat:1', { x: theirs, y: 200 }, 'move', 'you', ['seat:1', 'you']);
+          nextTheirs += theirGaps[gt++ % theirGaps.length]!;
+        }
+        if (ms % frameMs === 0) {
+          handle.notify(view([stackItem(9)]));
+          xs.push(drawnAt(canvas, 9).x);
+        }
+      }
+      // The spec's own measure (`stopTrack`): at every frame that turns against the one before, the smaller step, summed, per second.
+      let back = 0;
+      let last = 0;
+      for (let n = 1; n < xs.length; n++) {
+        const step = xs[n]! - xs[n - 1]!;
+        if (step === 0) continue;
+        if (last !== 0 && Math.sign(step) !== Math.sign(last)) back += Math.min(Math.abs(step), Math.abs(last));
+        last = step;
+      }
+      expect(back / 1.9, `back and forth while both pull (px/s): ${xs.map(Math.round).join(' ')}`).toBeLessThan(10);
+      handle.dispose();
+      realTimers();
+    });
+
     it('the operator: "dragging opponents effect around is glitchy" — a watcher with no hand of her own on it tracks the dragging seat\'s real-time path, not a stale catch-up point', () => {
       // alice holds no hand on item 9 at all here (bob drags it alone) — the exact shape of
       // stack-drag-shared.spec.ts's step 1, which measured 25-50px of disagreement on the old flat
