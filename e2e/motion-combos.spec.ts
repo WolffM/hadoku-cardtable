@@ -74,19 +74,24 @@ async function expectRootAttrs(page: Page, combo: Board, where: string): Promise
 
 /*
  * The sampler: one rAF loop for the page's life, reset per cast. It keeps the first few breaches of each
- * kind, the most shake animations seen at once, and each bolt's ball (`.effect-hit`, not its trail or burst) time on screen.
+ * kind and the most shake animations seen at once. Each bolt's ball (`.effect-hit`, not its trail or burst)
+ * is read as it is added: its flight as planned, its own animation's length on the wall's clock (the
+ * `wtempo-tempo` way). Its time on screen is how busy the host was, so it is only logged.
  */
 interface Sample {
   frames: number;
   breaches: string[];
   shakeMax: number;
+  /** Each bolt's flight as its animation plans it, in wall ms. */
   bolts: number[];
+  /** Each bolt's time on screen, in wall ms: the host's, logged only. */
+  shown: number[];
 }
 async function installSampler(page: Page): Promise<void> {
   await page.evaluate(() => {
     type W = { __mc?: Sample & { open: Map<Element, number> } };
     const w = window as unknown as W;
-    const fresh = (): W['__mc'] => ({ frames: 0, breaches: [], shakeMax: 0, bolts: [], open: new Map() });
+    const fresh = (): W['__mc'] => ({ frames: 0, breaches: [], shakeMax: 0, bolts: [], shown: [], open: new Map() });
     w.__mc = fresh();
     (window as unknown as { __mcReset: () => void }).__mcReset = () => void (w.__mc = fresh());
     const breach = (s: NonNullable<W['__mc']>, what: string): void => void (s.breaches.length < 12 && s.breaches.push(what));
@@ -100,21 +105,32 @@ async function installSampler(page: Page): Promise<void> {
       // The table shaking: an added jolt on the board itself (`crash.ts`'s `shake`), not an avatar's recoil.
       const shaking = document.getAnimations().filter((a) => a.playState === 'running' && (a.effect as KeyframeEffect | null)?.composite === 'add' && (a.effect as KeyframeEffect | null)?.target?.matches('.board') === true).length;
       s.shakeMax = Math.max(s.shakeMax, shaking);
-      const now = performance.now();
-      const seen = new Set(document.querySelectorAll('.effect-hit[data-projectile="bolt"]'));
-      for (const el of seen) if (!s.open.has(el)) s.open.set(el, now);
-      for (const [el, at] of s.open) if (!seen.has(el)) {
-        s.bolts.push(Math.round(now - at));
-        s.open.delete(el);
-      }
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
+    const BOLT = '.effect-hit[data-projectile="bolt"]';
+    new MutationObserver((muts) => {
+      const s = w.__mc!;
+      for (const m of muts) {
+        for (const n of m.addedNodes) {
+          if (!(n instanceof HTMLElement) || !n.matches(BOLT)) continue;
+          const planned = n.getAnimations().map((a) => Number(a.effect?.getComputedTiming().endTime ?? 0) / (a.playbackRate || 1));
+          s.bolts.push(Math.round(Math.max(0, ...planned.filter(Number.isFinite))));
+          s.open.set(n, performance.now());
+        }
+        for (const n of m.removedNodes) {
+          const at = s.open.get(n as Element);
+          if (at === undefined) continue;
+          s.shown.push(Math.round(performance.now() - at));
+          s.open.delete(n as Element);
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
   });
 }
 const sample = (page: Page): Promise<Sample> => page.evaluate(() => {
   const s = (window as unknown as { __mc: Sample }).__mc;
-  return { frames: s.frames, breaches: s.breaches, shakeMax: s.shakeMax, bolts: s.bolts };
+  return { frames: s.frames, breaches: s.breaches, shakeMax: s.shakeMax, bolts: s.bolts, shown: s.shown };
 });
 
 /** The endless loops on the viewer's flyer and hexproof creature: how many, and how many run. */
@@ -169,15 +185,14 @@ for (const speed of SPEEDS) {
         await page.waitForTimeout(2_500);
 
         const seen = await sample(page);
-        console.log(`[motion-combos] ${where}: ${seen.frames} frames, shake ${seen.shakeMax}, bolts ${JSON.stringify(seen.bolts)}, breaches ${seen.breaches.length}`);
+        console.log(`[motion-combos] ${where}: ${seen.frames} frames, shake ${seen.shakeMax}, bolts planned ${JSON.stringify(seen.bolts)} shown ${JSON.stringify(seen.shown)}, breaches ${seen.breaches.length}`);
         expect(seen.breaches, `${where}: the table never scrolls and its buttons stay in the window`).toEqual([]);
         expect(seen.shakeMax > 0, `${where}: the table ${combo.cardMotion && combo.screenShake ? 'shakes' : 'stays still'}`).toBe(combo.cardMotion && combo.screenShake);
         expect(seen.bolts.length > 0, `${where}: the bolt ${combo.cardMotion ? 'flies' : 'is not thrown'}`).toBe(combo.cardMotion);
         if (combo.cardMotion) {
           const expected = HIT_MS / tempoOf(i + 1, speed);
           const flight = seen.bolts[0]!;
-          expect(flight, `${where}: the ${i + 1}th bolt's flight (${flight} ms) at its tempo's ${Math.round(expected)} ms`).toBeGreaterThan(expected * 0.6);
-          expect(flight, `${where}: the ${i + 1}th bolt's flight (${flight} ms) at its tempo's ${Math.round(expected)} ms`).toBeLessThan(expected * 1.6 + 100);
+          expect(Math.abs(flight - expected), `${where}: the ${i + 1}th bolt's flight (${flight} ms planned) at its tempo's ${Math.round(expected)} ms`).toBeLessThanOrEqual(1);
         }
       }
     } finally {
