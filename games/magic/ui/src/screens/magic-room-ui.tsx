@@ -1630,8 +1630,16 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
   const streamed = modeRef.current === 'streamed';
   /** The room's name as soon as either read has it; the id is never a title. */
   const roomTitle = streamed ? view?.name : (table?.room.name ?? view?.name);
+  /**
+   * The table read's refusal, while it still means anything. Once the room's own read says Magic
+   * does not play it, the table route's 404 is that fact, not a missing room: a refusal that landed
+   * before the type did (the table read races the room read, and its join's re-read can 404 first)
+   * must not stay up as "no such room" over the game it plays. Joining such a room is the generic
+   * read's job, and `genericJoinError` says when that fails.
+   */
+  const tableRefusal = isKnownNonMagicRoom ? null : tableError;
   /** The room answered with a refusal rather than a table: there is nothing more to wait for. */
-  const settled = locked !== null || tableError !== null || genericJoinError !== null;
+  const settled = locked !== null || tableRefusal !== null || genericJoinError !== null;
   /** The empty seats Forge's AI is offered on: every one, while nobody but me is seated, as a pod offers it on every open seat. */
   const botSeats = players.every((p) => p.you) ? [0, 1].filter((seat) => !players.some((p) => p.seat === seat)) : [];
   /**
@@ -2980,7 +2988,7 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
         setTableError(null);
         setAttempt((n) => n + 1);
       }}
-      roomMissingMessage={locked === null && table === null && (tableError ?? genericJoinError) !== null ? (tableError ?? genericJoinError) : null}
+      roomMissingMessage={locked === null && table === null ? (tableRefusal ?? genericJoinError) : null}
     >
       {/* The game type's own UI, through the registry: what it draws before the room is
           underway (`setup`), and what it draws once it is (`game`). `gameUiProps` is built
