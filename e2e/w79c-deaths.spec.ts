@@ -12,7 +12,10 @@
  * A sampler in each page records, on every animation frame, how each creature is drawn: in its row (`R`),
  * as the gap its row keeps (`G`), as its stand-in waiting (`S`) or playing its exit (`X`), with a hit in
  * flight at it (`P`) or its hit's flash on it (`F`), and whether the stand-in is drawn where the card was.
- * Each change is printed as a `[w79c]` line. Per creature, on each screen:
+ * Each change is printed as a `[w79c]` line. When a hit lands is not sampled: its flash can be shorter
+ * than one of a loaded host's frames (`HIT_FLASH_MS` / a wipe's tempo, 144 ms by the twelfth hit), so the
+ * sampler hears it from the page itself — the moment `data-hit-flash` is set on a card or its stand-in.
+ * Per creature, on each screen:
  *
  *  - 11a: from the frame it leaves its row to the frame its exit starts, its stand-in is drawn where it was;
  *  - 11b: its exit starts no earlier than its hit lands;
@@ -62,10 +65,29 @@ async function creatures(page: Page): Promise<{ id: number; name: string; flying
 /** Records every frame's look of each card in `ids` until `window.__w79cStop`; a card's sample is kept only when it changed. */
 async function startSampler(page: Page, ids: readonly number[]): Promise<void> {
   await page.evaluate((ids) => {
-    const w = window as unknown as { __w79c: Sample[]; __w79cStop: boolean; __w79cRows: { at: number; rows: string }[] };
+    const w = window as unknown as { __w79c: Sample[]; __w79cStop: boolean; __w79cRows: { at: number; rows: string }[]; __w79cHits: { at: number; id: number }[] };
     w.__w79c = [];
     w.__w79cRows = [];
+    w.__w79cHits = [];
     w.__w79cStop = false;
+    const watched = new Set(ids);
+    // Each hit's flash, as it is set: on the card in its row, or on its stand-in's piece.
+    const hits = new MutationObserver((records) => {
+      if (w.__w79cStop) {
+        hits.disconnect();
+        return;
+      }
+      const at = performance.timeOrigin + performance.now();
+      for (const r of records) {
+        const el = r.target instanceof HTMLElement ? r.target : null;
+        if (el === null || !el.hasAttribute('data-hit-flash')) continue;
+        const id = Number(
+          el.closest('[data-departure]')?.getAttribute('data-departure') ?? el.closest('[data-leaving-gap]')?.getAttribute('data-leaving-gap') ?? el.closest('[data-board-card]')?.getAttribute('data-board-card'),
+        );
+        if (watched.has(id)) w.__w79cHits.push({ at, id });
+      }
+    });
+    hits.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-hit-flash'] });
     let lastRows = '';
     const last = new Map<number, string>();
     const was = new Map<number, { x: number; y: number }>();
@@ -111,20 +133,27 @@ async function startSampler(page: Page, ids: readonly number[]): Promise<void> {
   }, ids);
 }
 
-async function stopSampler(page: Page): Promise<{ samples: Sample[]; rows: { at: number; rows: string }[] }> {
+interface Sampled {
+  samples: Sample[];
+  rows: { at: number; rows: string }[];
+  /** Every flash set on a watched card, when. */
+  hits: { at: number; id: number }[];
+}
+
+async function stopSampler(page: Page): Promise<Sampled> {
   return page.evaluate(() => {
-    const w = window as unknown as { __w79c: Sample[]; __w79cStop: boolean; __w79cRows: { at: number; rows: string }[] };
+    const w = window as unknown as { __w79c: Sample[]; __w79cStop: boolean; __w79cRows: { at: number; rows: string }[]; __w79cHits: { at: number; id: number }[] };
     w.__w79cStop = true;
-    return { samples: w.__w79c, rows: w.__w79cRows };
+    return { samples: w.__w79c, rows: w.__w79cRows, hits: w.__w79cHits };
   });
 }
 
 /** What the samples say of one creature: when it left its row, was hit, started and ended its exit, and what went wrong. */
-function judge(samples: readonly Sample[], id: number, t0: number): { line: string; faults: string[] } {
+function judge({ samples, hits }: Sampled, id: number, t0: number): { line: string; faults: string[] } {
   const mine = samples.filter((s) => s.id === id);
-  const ms = (s: Sample | undefined): number | null => (s === undefined ? null : Math.round(s.at - t0));
+  const ms = (s: { at: number } | undefined): number | null => (s === undefined ? null : Math.round(s.at - t0));
   const leftRow = mine.find((s) => s.look.how !== 'R');
-  const hit = mine.find((s) => s.look.flash);
+  const hit = hits.find((h) => h.id === id);
   const go = mine.find((s) => s.look.how === 'X');
   const goIdx = go === undefined ? -1 : mine.indexOf(go);
   const end = goIdx < 0 ? undefined : mine.slice(goIdx).find((s) => s.look.how !== 'X');
@@ -182,10 +211,10 @@ test(titled('Blasphemous Act into twelve creatures: each one, flyer or not, dies
 
     const faults: string[] = [];
     for (const [who, page] of [['alice', pages[0]], ['bob', pages[1]]] as const) {
-      const { samples, rows } = await stopSampler(page);
-      for (const r of rows) console.log(`[w79c] ${who} rows ${Math.round(r.at - t0)}ms ${r.rows}`);
+      const sampled = await stopSampler(page);
+      for (const r of sampled.rows) console.log(`[w79c] ${who} rows ${Math.round(r.at - t0)}ms ${r.rows}`);
       for (const c of board) {
-        const { line, faults: f } = judge(samples, c.id, t0);
+        const { line, faults: f } = judge(sampled, c.id, t0);
         console.log(`[w79c] ${who} ${c.name}${c.flying ? ' (flying)' : ''} #${c.id}: ${f.length === 0 ? 'ok' : f.join('; ')} :: ${line}`);
         for (const fault of f) faults.push(`${who} ${c.name}: ${fault}`);
       }
