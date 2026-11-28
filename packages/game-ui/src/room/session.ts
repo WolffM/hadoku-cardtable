@@ -8,7 +8,8 @@
  *
  *   - one socket per room screen, opened when the screen has a room, which sends `session:claim`
  *     with this tab's settled id (`./tab-id.ts`) on every connect;
- *   - its answer is the state: `granted` and `watcher` play on, `held` asks, and `refused` (a request
+ *   - its answer is the state: `granted` and `watcher` play on, `held` asks (and claims again every
+ *     `HELD_RECLAIM_MS` while unanswered, so a holder that has gone stale is replaced), and `refused` (a request
  *     the server could not read) plays on as before rather than lock a player out;
  *   - `taken` (told, or closed by the server, which is how a take ends a tab's sockets) stops the
  *     screen and offers to take it back; that and the ask's yes are the same claim with `take`;
@@ -24,6 +25,14 @@ import { SESSION_EVENTS, parseSessionAnswer, parseSessionTaken, type SessionClai
 
 import { openSocket } from './socket-options.ts';
 import { settledTabId } from './tab-id.ts';
+
+/**
+ * While asked (`held`), how often the tab claims again by itself. The server replaces a holder that has
+ * answered nothing for its `IDLE_MS` (15 s) without asking, but only when asked: a holder that is a socket
+ * a reload or a server restart left behind goes quiet, and this lets the question go away once it has.
+ * The server's beat interval, so a stale holder is noticed within one beat of going stale.
+ */
+export const HELD_RECLAIM_MS = 5_000;
 
 /** `pending` until the first answer; `taken` once another tab of this account took the room. */
 export type SessionState = 'pending' | SessionClaimStatus | 'taken';
@@ -60,6 +69,7 @@ export function roomSession(room: string, deps: RoomSessionDeps = {}): RoomSessi
   let wantTake = false;
   let socket: SessionSocket | null = null;
   let tabId: string | null = null;
+  let again: ReturnType<typeof setTimeout> | null = null;
 
   const set = (next: SessionState): void => {
     if (closed || next === state) return;
@@ -80,7 +90,17 @@ export function roomSession(room: string, deps: RoomSessionDeps = {}): RoomSessi
       }
       if (take && answer.status !== 'held') wantTake = false;
       set(answer.status);
+      if (answer.status === 'held') askAgain();
     });
+  };
+
+  /** Held: claim again in a while, unless something else has answered for this tab by then. */
+  const askAgain = (): void => {
+    if (again !== null) clearTimeout(again);
+    again = setTimeout(() => {
+      again = null;
+      if (state === 'held') claim();
+    }, HELD_RECLAIM_MS);
   };
 
   const open = (id: string): void => {
@@ -124,6 +144,7 @@ export function roomSession(room: string, deps: RoomSessionDeps = {}): RoomSessi
     },
     close() {
       closed = true;
+      if (again !== null) clearTimeout(again);
       socket?.close();
       listeners.clear();
     },
