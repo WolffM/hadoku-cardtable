@@ -57,6 +57,8 @@ export interface TableActionsDeps {
 	restore(matchId: string): { from: 'snapshot'; turn: number } | { from: 'spec' } | null;
 	/** The series ended here: its seats go back to their registered decks (`TablesHandle.seriesEnded`). */
 	seriesEnded(roomId: string, tableId: string): void;
+	/** The recordings a match's earlier epochs left, each served as a replay under its id (`earlierEpochs`). */
+	epochsOf?: (matchId: string) => string[];
 	/** A game recorded as `winner`'s with no game to end (`TablesHandle.awardGame`). */
 	awardGame(roomId: string, tableId: string, winner: 0 | 1): boolean;
 	callerOf?: (req: Request) => ParticipantId;
@@ -365,6 +367,7 @@ export function attachTableActions(api: Router, deps: TableActionsDeps): void {
 					series: { phase: t.series.phase, wins: t.series.wins, games: t.series.games.length, length: t.series.length },
 					matchId: t.matchId,
 					match: match?.inspect() ?? null,
+					epochs: t.matchId === null ? [] : (deps.epochsOf?.(t.matchId) ?? []),
 				};
 			});
 		res.json({ now, round: room.game?.pod?.round ?? null, tables });
@@ -381,6 +384,8 @@ export interface LiveTable {
 	series: { phase: string; wins: readonly number[]; games: number; length: number };
 	matchId: string | null;
 	match: MatchInspection | null;
+	/** The game before each restore of its match, as replay ids (`#/replay/<id>`). */
+	epochs: string[];
 }
 
 /** A body of exactly one field, `key`: its value, or undefined for any other shape. */

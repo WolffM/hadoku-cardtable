@@ -8,6 +8,7 @@ import { corpusDir } from '@hadoku/carddata';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import { CONFIG } from '@hadoku/game-server/config';
 import { MAGIC_CONFIG } from '../config.js';
+import { earlierEpochs } from '@hadoku/game-server/play/recording/writer';
 import { attachDecks } from '../http/decks.js';
 import { magicUserStore } from '../users/index.js';
 import { attachDrafts } from '../http/drafts.js';
@@ -38,6 +39,7 @@ export const tablesPlugin: CardtablePlugin = {
 			restore: (id) => state.play?.matches.restore(id) ?? null,
 			seriesEnded: (roomId, tableId) => state.tables.seriesEnded(roomId, tableId),
 			awardGame: (roomId, tableId, winner) => state.tables.awardGame(roomId, tableId, winner),
+			epochsOf: (matchId) => earlierEpochs(MAGIC_CONFIG.recordingsDir, matchId),
 		});
 
 		// The front page's featured match. Built before play, whose `liveChanged` re-picks it; its

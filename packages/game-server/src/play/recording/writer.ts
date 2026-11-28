@@ -18,7 +18,7 @@
  * into `log`; `finish` resolves even when the disk write failed.
  */
 
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync } from 'node:fs';
 import { rename, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
@@ -226,6 +226,49 @@ async function flush(path: string, lines: readonly unknown[], log: JsonLog, whic
 	}
 }
 
+/**
+ * A match restored on a new JVM (`MatchRegistry.restore`: a lost JVM, an agreed restart, an operator's
+ * restore) keeps its id, so each of its epochs finishes onto the same two files. The one already there
+ * is an earlier epoch: it moves aside to the first free `<matchId>-e<N>` before the new one is written,
+ * the latest staying under the match's own id. A recording like any other under that name — retention
+ * ages it, an erase rewrites it, and `/replays/<matchId>-e<N>` serves it — so the game as it was before
+ * the restore survives for a dispute.
+ */
+function keepEarlierEpoch(dir: string, matchId: string, log: JsonLog): void {
+	const paths = (id: string) => [join(dir, `${id}${ACTIONS_SUFFIX}`), join(dir, `${id}${PUBLIC_SUFFIX}`)];
+	const current = paths(matchId);
+	if (!current.some((p) => existsSync(p))) return;
+	let n = 1;
+	while (paths(`${matchId}-e${String(n)}`).some((p) => existsSync(p))) n += 1;
+	const aside = paths(`${matchId}-e${String(n)}`);
+	try {
+		current.forEach((p, i) => {
+			if (existsSync(p)) renameSync(p, aside[i]!);
+		});
+		log({ evt: 'recording-epoch-kept', matchId, epoch: n });
+	} catch (err) {
+		log({ evt: 'recording-epoch-keep-failed', matchId, epoch: n, error: (err as Error).message });
+	}
+}
+
+/** The recordings a match's earlier epochs left (`keepEarlierEpoch`), oldest first, by the id each is served under. */
+export function earlierEpochs(dir: string, matchId: string): string[] {
+	let names: string[];
+	try {
+		names = readdirSync(dir);
+	} catch {
+		return [];
+	}
+	const epoch = new RegExp(`^${matchId.replace(/[^A-Za-z0-9_-]/g, '')}-e(\\d+)${PUBLIC_SUFFIX.replace(/\./g, '\\.')}$`);
+	return names
+		.flatMap((n) => {
+			const m = epoch.exec(n);
+			return m === null ? [] : [Number(m[1])];
+		})
+		.sort((a, b) => a - b)
+		.map((n) => `${matchId}-e${String(n)}`);
+}
+
 export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): MatchRecordingWriter {
 	const log = deps.log ?? (() => undefined);
 	try {
@@ -258,6 +301,7 @@ export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): Matc
 		async finish(actionsEnd, publicEnd) {
 			actionLines.push({ t: 'end', ...actionsEnd });
 			publicLines.push({ t: 'end', ...publicEnd });
+			keepEarlierEpoch(deps.dir, deps.matchId, log);
 			await Promise.all([
 				flush(join(deps.dir, `${deps.matchId}${ACTIONS_SUFFIX}`), actionLines, log, 'actions'),
 				flush(join(deps.dir, `${deps.matchId}${PUBLIC_SUFFIX}`), publicLines, log, 'public'),

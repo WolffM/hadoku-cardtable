@@ -4907,7 +4907,7 @@ describe('Leader tools: DQ a player, reset a game', () => {
 		expect(lobby.setTableMatch(id, bobs, 'm-b1')).toBe(true);
 		lobby.recordGameResult(id, bobs, { matchId: 'm-b1', winner: 0 });
 		expect(lobby.setTableMatch(id, bobs, 'm-b2')).toBe(true);
-		const seatOfDave = lobby.get(id)!.tables.find((t) => t.id === bobs)!.players.findIndex((p) => p.memberId === DAVE.id) as 0 | 1;
+		const seatOfDave = magicView(lobby.get(id))!.tables.find((t) => t.id === bobs)!.players.findIndex((p) => p.memberId === DAVE.id) as 0 | 1;
 		const awarded = lobby.awardMatch(id, 'fk:0000000000000099', bobs, seatOfDave, true);
 		expect(awarded).toMatchObject({ ok: true, matchId: 'm-b2' });
 		const resultOf = (who: string) => lobby.get(id)!.game!.pod!.results.filter((r) => r.round === 1 && (r.playerA === who || r.playerB === who));

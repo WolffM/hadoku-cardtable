@@ -95,6 +95,7 @@ async function open(opts: { refuse?: string; pod?: boolean; starting?: boolean }
 		report: (event, context) => void events.push({ event, ...context }),
 		restore: (id) => (id === MATCH && !stopped.includes(MATCH) ? (restored.push(id), { from: 'snapshot', turn: 7 }) : null),
 		awardGame: (_room, table, winner) => (awarded.push({ table, winner }), true),
+		epochsOf: (id) => [`${id}-e1`],
 		match: (id) => {
 			if (id !== MATCH) return undefined;
 			const fromClient = (seat: number, frame: { kind: 'act'; method: 'concede' }) => {
@@ -405,6 +406,7 @@ describe('GET /api/rooms/:roomId/admin/live', () => {
 				series: { phase: 'playing', wins: [0, 0], games: 0, length: 3 },
 				matchId: MATCH,
 				match: { status: 'running', startedAt: 0, turn: 7, active: 1, life: [20, 3], restoreTurn: 7, lastActivityAt: 0, seats: [] },
+				epochs: [`${MATCH}-e1`],
 			},
 		]);
 	});

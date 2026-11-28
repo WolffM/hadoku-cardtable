@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createMatchRecordingWriter } from './writer.js';
+import { createMatchRecordingWriter, earlierEpochs } from './writer.js';
 
 let dir: string;
 
@@ -79,5 +79,30 @@ describe('createMatchRecordingWriter', () => {
 		expect(errors.some((e) => e.evt === 'recording-dir-failed')).toBe(true);
 		expect(errors.some((e) => e.evt === 'recording-write-failed')).toBe(true);
 		expect(existsSync(join(blocked, 'm-3.actions.jsonl.gz'))).toBe(false);
+	});
+
+	it('a match restored on a new JVM keeps every earlier epoch beside it: `<id>-e1`, `-e2`, … and the latest under its own id', async () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recordings-'));
+		const epoch = async (startedAt: string, at: number) => {
+			const writer = createMatchRecordingWriter({
+				dir,
+				matchId: 'm-4',
+				actionsHeader: { matchId: 'm-4', roomId: 'r-1', pin: null, bridge: 'def', server: '0.0.0', startedAt, spec: {} },
+				publicHeader: { matchId: 'm-4', roomId: 'r-1', players: ['A', 'B'], ai: [false, false], decks: [null, null], art: [], startedAt },
+			});
+			writer.publicEnv({ at, env: {} });
+			await writer.finish({ endedAt: startedAt, reason: 'stopped' }, { endedAt: startedAt, winner: null });
+		};
+		await epoch('2026-11-29T20:00:00.000Z', 1);
+		await epoch('2026-11-29T20:30:00.000Z', 2);
+		await epoch('2026-11-29T20:40:00.000Z', 3);
+		const startOf = (path: string) => (linesOf(path)[0] as { startedAt: string }).startedAt;
+		expect(startOf(join(dir, 'm-4-e1.public.jsonl.gz'))).toBe('2026-11-29T20:00:00.000Z');
+		expect(startOf(join(dir, 'm-4-e2.public.jsonl.gz'))).toBe('2026-11-29T20:30:00.000Z');
+		expect(startOf(join(dir, 'm-4.public.jsonl.gz'))).toBe('2026-11-29T20:40:00.000Z');
+		expect(startOf(join(dir, 'm-4-e1.actions.jsonl.gz'))).toBe('2026-11-29T20:00:00.000Z');
+		expect(startOf(join(dir, 'm-4.actions.jsonl.gz'))).toBe('2026-11-29T20:40:00.000Z');
+		expect(earlierEpochs(dir, 'm-4')).toEqual(['m-4-e1', 'm-4-e2']);
+		expect(earlierEpochs(dir, 'm-5')).toEqual([]);
 	});
 });
