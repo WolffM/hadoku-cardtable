@@ -20,7 +20,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { PodView, Tournament } from '@hadoku/shared';
+import { POD_SEATS, type PodView, type Tournament } from '@hadoku/shared';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { attachPeople, type People, type Person as Account } from '@hadoku/game-server/people';
@@ -107,6 +107,9 @@ const FIELDS: readonly Field[] = [
 	{ name: '5 humans (a bye)', humans: 5, ai: 0 },
 	{ name: '2 humans + 6 AI', humans: 2, ai: 6 },
 	{ name: '1 human + 7 AI', humans: 1, ai: 7 },
+	// Past eight the room drafts as several pods and its humans alone play the Swiss.
+	{ name: '9 humans (two pods, a bye)', humans: 9, ai: 0 },
+	{ name: '16 humans (two full pods)', humans: 16, ai: 0 },
 ];
 
 interface Pod {
@@ -139,19 +142,23 @@ async function lobbyPod(field: Field, dir?: string): Promise<Pod> {
 	for (const p of [...players.slice(1), watcher]) expect(lobby.join(id, p).ok).toBe(true);
 	await settle();
 	// The watcher was auto-seated like everyone; they stand to watch.
-	lobby.standSeat(id, watcher.id);
-	players.forEach((p, seat) => expect(lobby.sitSeat(id, p.id, seat).ok, `${p.name} sits`).toBe(true));
-	for (let seat = field.humans; seat < 8; seat++) {
-		const occupant = lobby.get(id)?.game!.pod?.seats[seat] ?? null;
-		if (occupant !== null && occupant.memberId === watcher.id) lobby.standSeat(id, watcher.id);
-		const r = seat < field.humans + field.ai ? lobby.aiSeat(id, leader.id, seat, true) : lobby.closeSeat(id, leader.id, seat, true);
-		expect(r.ok, `seat ${seat}`).toBe(true);
+	expect(lobby.standSeat(id, watcher.id).ok).toBe(true);
+	if (field.humans > POD_SEATS) {
+		// Past one pod every joiner is auto-seated, a seat grown for each (`multi-pod.test.ts`).
+		expect(lobby.get(id)!.game!.pod!.seats.filter((x) => x !== null && !isAiEntrant(x.memberId)).length).toBe(field.humans);
+	} else {
+		players.forEach((p, seat) => expect(lobby.sitSeat(id, p.id, seat).ok, `${p.name} sits`).toBe(true));
+		for (let seat = field.humans; seat < POD_SEATS; seat++) {
+			const r = seat < field.humans + field.ai ? lobby.aiSeat(id, leader.id, seat, true) : lobby.closeSeat(id, leader.id, seat, true);
+			expect(r.ok, `seat ${seat}`).toBe(true);
+		}
 	}
 	const s = side();
 	lobby.useGameType('draft', s.hooks);
 	lobby.useGameType('constructed-1v1', s.hooks);
 	expect(lobby.setPodPlan(id, leader.id, lobby.get(id)!.game!.pod!.plan!, { ok: true, cards: 1 }).ok).toBe(true);
 	for (const p of players) expect(lobby.setReady(id, p.id, true)).toBe(true);
+	if (field.humans > POD_SEATS) expect(lobby.splitPod(id, leader.id).ok, 'the leader splits the room into pods').toBe(true);
 	return { lobby, dir: where, id, side: s, players, watcher, leader, archived, entrants: null, seq: 0 };
 }
 
