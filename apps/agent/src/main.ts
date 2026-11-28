@@ -8,7 +8,7 @@
  *
  *   CARDTABLE_AGENT_PORT       the port (fleet-manager sets it: 7621)
  *   CARDTABLE_AGENT_HOME       where everything lives; default the working directory (fleet-manager's home)
- *   CARDTABLE_AGENT_FENCE_MS   the fencing window; default `FENCE_MS` (10 s)
+ *   CARDTABLE_AGENT_FENCE_MS   the fencing window; default `AGENT_FENCE_MS` (90 s)
  *   CARDTABLE_AGENT_NO_CGROUPS `1` on a dev box: no delegation, JVMs stay in the agent's cgroup
  *   CARDTABLE_AGENT_MEMORY_MB  the memory bound when there is no slice to read it from (dev box)
  *   CARDTABLE_AGENT_LISTEN     the address to listen on; default every interface

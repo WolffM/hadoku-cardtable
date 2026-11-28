@@ -196,6 +196,8 @@ export interface BackstopInput {
 	eligible: number;
 	/** The operator's force is in effect. */
 	forced: boolean;
+	/** Every linked claw is silent together (`LinkGroup`): this host stalled, not the claws. Hold. */
+	shared: boolean;
 }
 
 export const BACKSTOP_IDLE: BackstopState = { promoted: false, why: 'the claws are serving' };
@@ -208,6 +210,7 @@ export function backstopStep(state: BackstopState, input: BackstopInput): { stat
 	});
 	if (input.forced) return next({ promoted: true, why: 'forced by the operator' });
 	if (!input.fresh) return { state, change: null };
+	if (input.eligible === 0 && input.shared && !state.promoted) return { state, change: null };
 	if (input.eligible === 0) return next({ promoted: true, why: 'no claw can take a match' });
 	if (!state.promoted) return { state, change: null };
 	return next({ promoted: false, why: `${input.eligible} ${input.eligible === 1 ? 'claw' : 'claws'} can take matches again` });

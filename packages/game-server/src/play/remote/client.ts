@@ -2,13 +2,14 @@
  * The coordinator's end of one host agent (`apps/agent`): signed requests, the
  * signed relay, heartbeats both ways, and the link's own failover clock.
  *
- * The link is lost for good when no heartbeat has arrived for the fencing
- * window (`FENCE_MS`, the same window the agent fences on): every JVM on the
- * claw is then gone as far as this coordinator is concerned, and the agent will
- * have killed them by the time anything could reach them again. A drop shorter
- * than the window is repaired underneath: the relay reconnects, every
- * transport re-attaches from the last line it took, and messages sent in the
- * gap go out in order once it is back.
+ * The link is lost for good when no heartbeat has arrived for the failover
+ * window (`FENCE_MS`): every JVM on the claw is then gone as far as this
+ * coordinator is concerned. A drop shorter than the window is repaired
+ * underneath: the relay reconnects, every transport re-attaches from the last
+ * line it took, and messages sent in the gap go out in order once it is back.
+ * A silence every claw of its `LinkGroup` shares is this host's, not the
+ * claws' (`SHARED_HOLD_MS`): it is waited out the same way, since the agents
+ * keep their JVMs for `AGENT_FENCE_MS`.
  */
 
 import { createReadStream } from 'node:fs';
@@ -16,7 +17,7 @@ import { request, type IncomingMessage } from 'node:http';
 import type { Socket } from 'node:net';
 import type { KeyObject } from 'node:crypto';
 
-import { EMPTY_SHA, FENCE_MS, HEARTBEAT_MS, RELAY_PROTOCOL, sha256Hex, signFrame, signRequest, type DraftbotHealth, type FromAgent, type JvmHealth, type SliceHealth, type ToAgent } from '@hadoku/host-wire';
+import { EMPTY_SHA, FENCE_MS, HEARTBEAT_MS, RELAY_PROTOCOL, SHARED_HOLD_MS, SHARED_SILENT_MS, sha256Hex, signFrame, signRequest, type DraftbotHealth, type FromAgent, type JvmHealth, type SliceHealth, type ToAgent } from '@hadoku/host-wire';
 
 export interface AgentClientOptions {
 	/** `http://<claw>:7621` */
@@ -26,6 +27,78 @@ export interface AgentClientOptions {
 	heartbeatMs?: number;
 	now?: () => number;
 	log?: (entry: Record<string, unknown>) => void;
+	/** This coordinator's other links, for a silence they all share. */
+	group?: LinkGroup;
+}
+
+/** A stall of this host, as its links saw it: its own loop (`loop`), or every claw silent at once (`network`). */
+export interface HostStall {
+	kind: 'loop' | 'network';
+	phase: 'began' | 'ended';
+	/** Live links when it was seen. */
+	claws: number;
+	/** The loop's gap; a network stall's silence so far (began) or in all (ended). */
+	silentMs: number;
+}
+
+type Member = Pick<AgentClient, 'lost' | 'silentMs'>;
+
+/** The links of one coordinator, so each can ask whether its claw's silence is everyone's. */
+export class LinkGroup {
+	private readonly links = new Set<Member>();
+	/** The links holding a shared silence now. */
+	private readonly held = new Set<Member>();
+	/** The most links that held this episode's silence at once. */
+	private peak = 0;
+	/** When the first of them went quiet. */
+	private quietSince = Infinity;
+	private lastLoopStall = -Infinity;
+
+	/** `onStall` hears each stall once, however many links saw it. */
+	constructor(private readonly onStall: (s: HostStall) => void = () => {}) {}
+
+	add(link: Member): void {
+		this.links.add(link);
+	}
+
+	private live(): number {
+		return [...this.links].filter((l) => l.lost === null).length;
+	}
+
+	/** `link` saw this process stall for `gapMs` at `t`. */
+	loopStalled(t: number, gapMs: number): void {
+		if (t - this.lastLoopStall < WATCH_STALL_MS) return;
+		this.lastLoopStall = t;
+		this.onStall({ kind: 'loop', phase: 'began', claws: this.live(), silentMs: gapMs });
+	}
+
+	/** `link`, quiet since `since`, holds a silence the others share. */
+	hold(link: Member, since: number, t: number): void {
+		if (this.held.size === 0) this.onStall({ kind: 'network', phase: 'began', claws: this.live(), silentMs: t - since });
+		this.held.add(link);
+		this.peak = Math.max(this.peak, this.held.size);
+		this.quietSince = Math.min(this.quietSince, since);
+	}
+
+	/** `link` was heard, or lost: once no link holds the silence, it is over. */
+	release(link: Member, t: number): void {
+		if (!this.held.has(link)) return;
+		this.held.delete(link);
+		if (this.held.size > 0) return;
+		this.onStall({ kind: 'network', phase: 'ended', claws: this.peak, silentMs: t - this.quietSince });
+		this.peak = 0;
+		this.quietSince = Infinity;
+	}
+
+	/** Whether every other live link has missed two heartbeats too. With no other link, nobody shares it. */
+	shares(link: Pick<AgentClient, 'lost' | 'silentMs'>): boolean {
+		return allSilent([...this.links].filter((l) => l !== link && l.lost === null).map((l) => l.silentMs()));
+	}
+}
+
+/** Some links, every one past two missed heartbeats. */
+export function allSilent(silentMs: number[]): boolean {
+	return silentMs.length > 0 && silentMs.every((ms) => ms >= SHARED_SILENT_MS);
 }
 
 /** What receives one JVM's frames. */
@@ -54,6 +127,11 @@ export class AgentClient {
 	/** When `watch` last ran: a gap far past its interval means this process, not the claw, went quiet. */
 	private lastWatch: number | null = null;
 	private reconnecting = false;
+	private readonly group: LinkGroup | null;
+	/** When this link's silence was first seen shared by every other claw; null when it is not held. */
+	private sharedSince: number | null = null;
+	/** Held until here: one failover window past the last tick the silence was still shared. */
+	private sharedUntil = 0;
 	private timers: NodeJS.Timeout[] = [];
 	private readonly sinks = new Map<string, FrameSink>();
 	private readonly waiting = new Map<number, (hostIds: string[]) => void>();
@@ -71,6 +149,8 @@ export class AgentClient {
 		this.now = opts.now ?? Date.now;
 		this.log = opts.log ?? (() => {});
 		this.lastHb = this.now();
+		this.group = opts.group ?? null;
+		this.group?.add(this);
 	}
 
 	/* ── Requests ── */
@@ -186,11 +266,37 @@ export class AgentClient {
 		this.lastWatch = t;
 		if (gap > WATCH_STALL_MS) {
 			this.log({ evt: 'agent-watch-stalled', agent: this.url.host, gapMs: gap, silentMs: t - this.lastHb });
+			this.group?.loopStalled(t, gap);
 			this.lastHb = t;
 			return;
 		}
 		const silent = t - this.lastHb;
-		if (silent > this.fenceMs) this.lose(`agent heartbeat lost for ${Math.round(silent / 1000)} s (window ${this.fenceMs / 1000} s)`);
+		if (silent <= this.fenceMs) return;
+		if (silent <= SHARED_HOLD_MS) {
+			if (this.group?.shares(this) === true) {
+				if (this.sharedSince === null) {
+					this.sharedSince = this.lastHb;
+					this.log({ evt: 'agent-silence-shared', agent: this.url.host, silentMs: silent, note: 'every claw is silent: this host, not the claw; held, not failed over' });
+					this.group?.hold(this, this.lastHb, t);
+				}
+				this.sharedUntil = t + this.fenceMs;
+				return;
+			}
+			if (t <= this.sharedUntil) return;
+		}
+		const shared = this.sharedSince === null ? '' : ', shared by every claw';
+		this.group?.release(this, t);
+		this.lose(`agent heartbeat lost for ${Math.round(silent / 1000)} s (window ${this.fenceMs / 1000} s${shared})`);
+	}
+
+	/** A heartbeat: a held silence is over, and the matches go on where they were. */
+	private heardAgain(): void {
+		if (this.sharedSince !== null) {
+			this.log({ evt: 'agent-silence-ended', agent: this.url.host, silentMs: this.now() - this.sharedSince });
+			this.group?.release(this, this.now());
+		}
+		this.sharedSince = null;
+		this.sharedUntil = 0;
 	}
 
 	private lose(reason: string): void {
@@ -256,10 +362,12 @@ export class AgentClient {
 	private receive(f: FromAgent): void {
 		switch (f.t) {
 			case 'hb':
+				this.heardAgain();
 				this.lastHb = this.now();
 				this.health = { at: f.at, jvms: f.jvms, slice: f.slice, draftbot: f.draftbot ?? null };
 				return;
 			case 'hello':
+				this.heardAgain();
 				this.lastHb = this.now();
 				this.log({ evt: 'agent-hello', agent: this.url.host, version: f.version, pid: f.agentPid, running: f.running, fenceMs: f.fenceMs });
 				return;

@@ -10,6 +10,10 @@
  */
 
 import type { JvmHostConfig } from '../host.js';
+import { hostPressureFile, readHostPressure } from '@hadoku/service-kernel/capacity';
+
+import { report } from '../../telemetry.js';
+import { LinkGroup } from '../remote/client.js';
 import { connectRemoteHost } from '../remote/index.js';
 import { Alerts, discordSink } from './alerts.js';
 import { placement, type Placement, type PlacementOptions } from './coordinator.js';
@@ -33,10 +37,18 @@ export interface ClawPlacementOptions {
 
 /** The production wiring: fleet-manager's CLI, the agents on the claws, Discord. */
 export function clawPlacement<L extends { t: string }, C extends { t: string }>(config: JvmHostConfig, opts: ClawPlacementOptions): Placement<L, C> {
+	// One group for every claw's link: a silence they all share is this host's (`LinkGroup`). Each
+	// stall is named once, quietly, with what fleet-manager says of the host's pressure.
+	const pressureFile = hostPressureFile();
+	const links = new LinkGroup((stall) => {
+		const hostPressure = readHostPressure(pressureFile, Date.now());
+		opts.log({ evt: 'host-stall', ...stall, hostPressure });
+		report('host-stall', { ...stall, hostPressure: { ...hostPressure } }, 'info');
+	});
 	return placement<L, C>({
 		config,
 		fleet: opts.fleet ?? fleetCli({ log: opts.log }),
-		connect: (node) => connectRemoteHost(node, config),
+		connect: (node) => connectRemoteHost(node, config, process.env, { group: links }),
 		alerts: new Alerts({ sink: opts.webhook === '' ? null : discordSink(opts.webhook), log: opts.log }),
 		forceFile: opts.forceFile,
 		restartGraceMs: opts.restartGraceMs,

@@ -16,8 +16,11 @@
  *                  JVMs (no second copy) and the claw comes back only after its canary.
  *  - `agent-stall` the agent holding the match SIGSTOPped 15 s (its link silent, its JVM running).
  *                  PASS: as `agent-kill`; once it runs again it ends the JVM it kept (no second copy).
- *  - `coord-stall` the coordinator SIGSTOPped 13 s (prod's "no word from the coordinator" fence).
- *                  PASS: the agents fence, every match is restored from its latest turn snapshot.
+ *  - `coord-stall`, `coord-stall-30`, `coord-stall-60` the coordinator SIGSTOPped 13, 30 or 60 s
+ *                  (hokon's own loop stalling, 3–17 s on 2026-11-27). PASS: as `coord-restart`: the
+ *                  agents keep their JVMs (`AGENT_FENCE_MS`), nothing is restored or failed over.
+ *  - `agents-stall-30` every agent SIGSTOPped 30 s at once, the coordinator awake (hokon's network
+ *                  stalling, the four all-claw drops). PASS: as `coord-restart` (`SHARED_HOLD_MS`).
  *  - `jvm-kill`    the match's JVM SIGKILLed on its claw. PASS: as `agent-kill` (ruling 4: a claw
  *                  that dropped a match fails over).
  *  - `disk-full`   the match's claw's disk filled mid-match. PASS: the match goes on, or is restored
@@ -43,7 +46,7 @@ import { makeTitled } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { mountTmpfs, startClaws } from './play/claws.ts';
 import { enterMatch } from './play/enter.ts';
-import { RESTORING, fire, hostOf, lostMatches, latestTurn, mark, marked, promptMethod, rows, say, sleep, turnShown, until, type Fault } from './play/failover.ts';
+import { REATTACHING, RESTORING, fire, hostOf, lostMatches, latestTurn, mark, marked, promptMethod, rows, say, sleep, turnShown, until, type Fault } from './play/failover.ts';
 import { connectHands, type Hands } from './play/hands.ts';
 import { PLAY_WORK_ROOT, forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -131,13 +134,16 @@ test(titled(`claw failover, one 1v1 match: ${FAULT}${ASK_OPEN ? ' with an ask op
         return typeof h === 'string' ? h : null;
       });
       say('moved', { from: host, to: now });
-      if (FAULT !== 'coord-stall') expect(now, 'never back on the claw that dropped it').not.toBe(host);
+      expect(now, 'never back on the claw that dropped it').not.toBe(host);
     } else {
       await sleep(5_000);
       const after = rows(stack).slice(beforeRows);
       const restored = after.filter((r) => r.evt === 'match-restored' && r.matchId === matchId);
       say('after', { restored: restored.length, failed: after.filter((r) => r.evt === 'claw-failed-over' || r.evt === 'fenced-over').map((r) => r.evt) });
-      if (FAULT === 'coord-restart' || FAULT === 'coord-kill') expect(restored, 'a restart re-attaches, it does not restore').toHaveLength(0);
+      if (REATTACHING.has(FAULT)) {
+        expect(restored, 'the coordinator side re-attaches, it does not restore').toHaveLength(0);
+        expect(after.filter((r) => r.evt === 'claw-failed-over' || r.evt === 'fenced-over' || r.evt === 'claw-quarantined'), 'nothing failed over').toEqual([]);
+      }
       // A full coordinator disk may cost the re-attach record: then the match must still come back, from its snapshot.
       if (FAULT === 'coord-disk-full') expect(restored.every((r) => r.from === 'snapshot'), 'never a new game').toBe(true);
     }

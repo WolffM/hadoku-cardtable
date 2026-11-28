@@ -65,7 +65,7 @@ import {
 } from '../host.js';
 import { MATCHES_PER_JVM, JVM_HEAP_MB } from '../local-jvm.js';
 import type { JvmLauncher } from '../jvm-transport.js';
-import type { AgentClient } from '../remote/client.js';
+import { allSilent, type AgentClient } from '../remote/client.js';
 import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '@hadoku/host-wire';
 import type { Alerts } from './alerts.js';
 import { SECTION, contractViolations, type Violation } from './audit.js';
@@ -1062,10 +1062,12 @@ export function placement<L extends { t: string }, C extends { t: string }>(opts
 	 * once whenever a claw stops taking matches or a start finds no host.
 	 */
 	function stepBackstop(fresh = true): void {
+		const linked = claws().filter((h) => h.link !== null && h.link.client.lost === null);
 		const step = backstopStep(backstop, {
 			fresh: fresh && fleetReadAt !== null,
 			eligible: claws().filter((h) => eligible(barsOf(h))).length,
 			forced: opts.forceFile === undefined ? false : readForce(opts.forceFile, now()) !== null,
+			shared: linked.length >= 2 && allSilent(linked.map((h) => h.link!.client.silentMs())),
 		});
 		backstop = step.state;
 		if (step.change === 'promote') {

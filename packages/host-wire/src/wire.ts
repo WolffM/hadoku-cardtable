@@ -42,12 +42,27 @@ export const SKEW_MS = 30_000;
 /** The agent heartbeats this often; the coordinator pings back as often. */
 export const HEARTBEAT_MS = 2000;
 /**
- * The fencing window: an agent that has heard nothing from the coordinator for
- * this long kills every JVM it runs, and a coordinator that has heard no
- * heartbeat for this long fails the claw over. Five missed heartbeats, from the
- * 48 h link probe (`docs/planning/forge-hosting-plan.md` §4.1).
+ * The failover window: a coordinator that has heard no heartbeat from one claw for this long,
+ * while the others are heard, fails that claw over. Five missed heartbeats, from the 48 h link
+ * probe (`docs/planning/forge-hosting-plan.md` §4.1).
  */
 export const FENCE_MS = 10_000;
+/** Two missed heartbeats: every other claw this quiet as well puts a claw's silence on the coordinator's side. */
+export const SHARED_SILENT_MS = 2 * HEARTBEAT_MS;
+/**
+ * How long the coordinator waits out a silence every claw shares (its host's network stalled:
+ * 2026-11-27 04:09Z, 05:32Z, 06:39Z, 2026-11-28 09:33Z) before it fails them over as usual. The
+ * JVMs are still there when it ends, so the matches go on where they were, with nothing restored.
+ */
+export const SHARED_HOLD_MS = 75_000;
+/**
+ * The agent's fencing window: an agent that has heard nothing from the coordinator for this long
+ * kills every JVM it runs. Longer than the coordinator's shared hold plus a failover window, so
+ * a coordinator that stalled (hokon's own loop, 3–17 s on 2026-11-27) or lost its network finds
+ * every match still running when it is back. A claw that was failed over meanwhile runs a copy
+ * nobody hears: the coordinator drops its lines, and kills it when the claw is connected again.
+ */
+export const AGENT_FENCE_MS = 90_000;
 /**
  * The longest a coordinator going down may ask an agent to hold its JVMs past the fencing window
  * (`{op:'hold'}`). A deploy's restart re-attaches in seconds; the cap keeps a coordinator that

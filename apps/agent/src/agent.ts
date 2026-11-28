@@ -28,7 +28,7 @@ import {
 	DRAFTBOT_PATH,
 	EMPTY_SHA,
 	AGENT_RESERVE_MB,
-	FENCE_MS,
+	AGENT_FENCE_MS,
 	HEARTBEAT_MS,
 	HOLD_MAX_MS,
 	HOST_ID,
@@ -117,7 +117,7 @@ export class Agent {
 	constructor(private readonly opts: AgentOptions) {
 		this.now = opts.now ?? Date.now;
 		this.log = opts.log ?? ((what, data = {}) => console.log(JSON.stringify({ at: new Date(this.now()).toISOString(), what, ...data })));
-		this.fenceMs = opts.fenceMs ?? FENCE_MS;
+		this.fenceMs = opts.fenceMs ?? AGENT_FENCE_MS;
 		this.guard = new ReplayGuard(this.now);
 		this.store = new Store(opts.home, this.now);
 		this.cgroups = new Cgroups(opts.cgroupRoot, opts.ownCgroupFile, this.log);

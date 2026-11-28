@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 import type { JvmHostConfig } from '../host.js';
 import { packDraftbot, packRuntime, pushDraftbot, pushRuntime } from './artifacts.js';
-import { AgentClient } from './client.js';
+import { AgentClient, type LinkGroup } from './client.js';
 import { RemoteJvmLauncher, type RemoteRuntime } from './launcher.js';
 import { AGENT_PORT, privateKeyFrom } from '@hadoku/host-wire';
 
@@ -56,12 +56,12 @@ export async function connectRemoteHost(
 	node: string,
 	config: JvmHostConfig,
 	env: NodeJS.ProcessEnv = process.env,
-	opts: { port?: number; fenceMs?: number; log?: (entry: Record<string, unknown>) => void } = {},
+	opts: { port?: number; fenceMs?: number; log?: (entry: Record<string, unknown>) => void; group?: LinkGroup } = {},
 ): Promise<RemoteHost> {
 	const keyText = env[AGENT_KEY_ENV] ?? '';
 	if (keyText === '') throw new Error(`${AGENT_KEY_ENV} is not set`);
 	const log = opts.log ?? jsonLogger('remote');
-	const client = new AgentClient({ url: `http://${node}:${opts.port ?? AGENT_PORT}`, key: privateKeyFrom(keyText), fenceMs: opts.fenceMs, log });
+	const client = new AgentClient({ url: `http://${node}:${opts.port ?? AGENT_PORT}`, key: privateKeyFrom(keyText), fenceMs: opts.fenceMs, log, ...(opts.group === undefined ? {} : { group: opts.group }) });
 	const cache = join(config.bridgeCache, '..');
 	const runtime = packRuntime(config, join(cache, 'agent-artifacts'), log)
 		.then((packed) => pushRuntime(client, packed, log))

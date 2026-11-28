@@ -11,10 +11,30 @@ import { fillDisk, type Claws } from './claws.ts';
 import type { PlayStack } from './harness.ts';
 
 export type Row = Record<string, unknown>;
-export const FAULTS = ['agent-kill', 'agent-stall', 'coord-stall', 'jvm-kill', 'disk-full', 'coord-disk-full', 'coord-restart', 'coord-kill'] as const;
+export const FAULTS = [
+  'agent-kill',
+  'agent-stall',
+  'agents-stall-30',
+  'coord-stall',
+  'coord-stall-30',
+  'coord-stall-60',
+  'jvm-kill',
+  'disk-full',
+  'coord-disk-full',
+  'coord-restart',
+  'coord-kill',
+] as const;
 export type Fault = (typeof FAULTS)[number];
 /** Faults whose matches are restored from a turn snapshot; the rest are re-attached or go on. */
-export const RESTORING: ReadonlySet<Fault> = new Set(['agent-kill', 'agent-stall', 'jvm-kill', 'coord-stall']);
+export const RESTORING: ReadonlySet<Fault> = new Set(['agent-kill', 'agent-stall', 'jvm-kill']);
+/**
+ * Faults on the coordinator's side, which every match rides out on the JVM it had: a restart, the
+ * coordinator stopped (hokon's loop stalling, inside the agents' `AGENT_FENCE_MS`), and every claw
+ * silent at once (hokon's network stalling, inside `SHARED_HOLD_MS`). Nothing is restored.
+ */
+export const REATTACHING: ReadonlySet<Fault> = new Set(['coord-restart', 'coord-kill', 'coord-stall', 'coord-stall-30', 'coord-stall-60', 'agents-stall-30']);
+/** How long each stall fault holds its processes stopped. */
+const STALL_MS: Partial<Record<Fault, number>> = { 'coord-stall': 13_000, 'coord-stall-30': 30_000, 'coord-stall-60': 60_000, 'agents-stall-30': 30_000 };
 
 export const say = (what: string, data: Row = {}): void => console.log(`[failover] ${JSON.stringify({ at: new Date().toISOString(), what, ...data })}`);
 export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -104,12 +124,21 @@ export async function fire(fault: Fault, stack: PlayStack, claws: Claws, host: s
     case 'disk-full':
       agent.fillDisk();
       return { at, detail: { filled: host } };
-    case 'coord-stall': {
+    case 'coord-stall':
+    case 'coord-stall-30':
+    case 'coord-stall-60': {
       const pid = serverPid(stack);
       process.kill(pid, 'SIGSTOP');
-      await sleep(13_000);
+      await sleep(STALL_MS[fault]!);
       process.kill(pid, 'SIGCONT');
       return { at, detail: { stalledMs: Date.now() - at, pid } };
+    }
+    case 'agents-stall-30': {
+      // Every claw silent at once with the coordinator awake: what hokon's network stalling looks like from both ends.
+      for (const a of claws.agents) a.kill('SIGSTOP');
+      await sleep(STALL_MS[fault]!);
+      for (const a of claws.agents) a.kill('SIGCONT');
+      return { at, detail: { stalledMs: Date.now() - at, agents: claws.agents.map((a) => a.node) } };
     }
     case 'coord-disk-full': {
       // The coordinator's own disk (prod: hokon's /tmp, where each claw match's records and frames are

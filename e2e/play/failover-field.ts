@@ -3,9 +3,9 @@
  * match: once `minMatches` of the round's matches are past `minTurn`, `fault` is fired at the claw
  * holding the most of them (the coordinator's faults hit every match), and for each match it touched:
  *
- *  - restored (agent-kill, jvm-kill, coord-stall): from its latest turn snapshot, never from its spec, on a
- *    claw that is not the one that dropped it (a fence's claw stays in service, so it may come back there);
- *    re-attached (coord-restart, coord-kill): nothing restored;
+ *  - restored (`RESTORING`): from its latest turn snapshot, never from its spec, on a claw that is not
+ *    the one that dropped it; re-attached (`REATTACHING`, the coordinator's side): nothing restored, no
+ *    claw failed over or quarantined;
  *  - both seats' pages: the same document as before the fault (no page load), the board drawn, no
  *    reconnect notice left, and, after a restore, the restored turn shown;
  *  - the game moves on within 3 min of the fault.
@@ -16,7 +16,7 @@
 import type { Page } from '@playwright/test';
 
 import type { Claws } from './claws.ts';
-import { RESTORING, fire, hostOf, lostMatches, latestTurn, mark, marked, promptMethod, rows, say, sleep, turnShown, until, type Fault, type Row } from './failover.ts';
+import { REATTACHING, RESTORING, fire, hostOf, lostMatches, latestTurn, mark, marked, promptMethod, rows, say, sleep, turnShown, until, type Fault, type Row } from './failover.ts';
 import type { PlayStack } from './harness.ts';
 
 const MATCH = /#\/match\/(m-[0-9a-f]{12})$/;
@@ -61,7 +61,7 @@ export async function failoverRound(opts: {
   const counts = new Map<string, number>();
   for (const h of hosts.values()) counts.set(h, (counts.get(h) ?? 0) + 1);
   const target = [...counts].sort((a, b) => b[1] - a[1])[0]![0];
-  const coordinator = fault === 'coord-stall' || fault === 'coord-restart' || fault === 'coord-kill';
+  const coordinator = REATTACHING.has(fault);
   const touched = live.filter(([id]) => coordinator || hosts.get(id) === target);
   for (const [, seats] of touched) for (const s of seats) await mark(s.page);
   const asks: Row = {};
@@ -113,27 +113,30 @@ export async function failoverRound(opts: {
             const held = latestTurn(rows(stack).filter((r) => String(r.t) < String(restored.t)), id);
             if (restored.turn !== held || held < turn) findings.push(`failover ${fault}: ${id} restored to turn ${String(restored.turn)}, its latest snapshot was turn ${held} (turn ${turn} at the fault)`);
           }
-          if (fault !== 'coord-stall' && now === target) findings.push(`failover ${fault}: ${id} went back to ${target}, the claw that dropped it`);
-        } else if (fault === 'coord-restart' || fault === 'coord-kill') {
+          if (now === target) findings.push(`failover ${fault}: ${id} went back to ${target}, the claw that dropped it`);
+        } else if (REATTACHING.has(fault)) {
           await sleep(5_000);
           const restored = rows(stack).slice(from).filter((r) => r.evt === 'match-restored' && r.matchId === id);
-          if (restored.length > 0) findings.push(`failover ${fault}: ${id} was restored (${String(restored[0]!.from)}) where a restart re-attaches`);
+          if (restored.length > 0) findings.push(`failover ${fault}: ${id} was restored (${String(restored[0]!.from)}) where the coordinator's side re-attaches`);
         }
-        for (const s of seats) {
+        // Each seat at once, so `clearMs` is when that player's screen was live again, not when the check reached it.
+        await Promise.all(seats.map(async (s) => {
           const board = await s.page.locator('[aria-label="Game board"]').waitFor({ state: 'visible', timeout: 90_000 }).then(() => true, () => false);
           const notice = await until(`${s.name}: no reconnect notice`, 90_000, async () => ((await s.page.getByTestId('live-status').count()) === 0 ? true : null)).catch(() => false);
+          const clearMs = Date.now() - at;
           const same = await marked(s.page);
           const shown = await turnShown(s.page);
-          say('field-screen', { id, who: s.name, board, notice: !notice, same, shown, prompt: await promptMethod(s.page) });
+          say('field-screen', { id, who: s.name, board, notice: !notice, clearMs, same, shown, was: turn, outcome: RESTORING.has(fault) ? 'restored' : 'kept', prompt: await promptMethod(s.page) });
           if (!same) findings.push(`failover ${fault}: ${s.name}'s page on ${id} was loaded again`);
           if (!board) findings.push(`failover ${fault}: ${s.name} has no board on ${id} 90 s after the fault`);
           if (!notice) findings.push(`failover ${fault}: ${s.name} still shows a reconnect notice on ${id} 90 s after the fault`);
           if (RESTORING.has(fault) && board && shown !== String(turn) && Number(shown) < turn) findings.push(`failover ${fault}: ${s.name} shows turn ${shown} on ${id}, restored to ${turn}`);
-        }
+        }));
         const moved = await until(`${id} moves on`, 180_000, () => {
           const after = rows(stack).slice(from).filter((r) => r.matchId === id && (r.evt === 'turn-snapshot' || r.evt === 'game-over'));
           return after.some((r) => r.evt === 'game-over' || Number(r.turn) > turn) ? true : null;
         }).catch(() => false);
+        say('field-moved-on', { id, moved, sinceFaultMs: Date.now() - at });
         if (!moved) findings.push(`failover ${fault}: ${id} did not move on in 3 min after the fault (was turn ${turn}, asks ${JSON.stringify(seats.map((s) => asks[`${id}:${s.name}`]))})`);
       } catch (err) {
         findings.push(`failover ${fault}: ${id}: ${(err as Error).message}`);
@@ -143,6 +146,11 @@ export async function failoverRound(opts: {
   sampling = false;
   await sampler;
   say('field-seen', Object.fromEntries(seen));
+  if (REATTACHING.has(fault)) {
+    for (const r of rows(stack).slice(from)) {
+      if (r.evt === 'claw-failed-over' || r.evt === 'fenced-over' || r.evt === 'claw-quarantined' || r.evt === 'backstop-promoted') findings.push(`failover ${fault}: ${String(r.evt)} ${String(r.host ?? '')} where the coordinator's side re-attaches`);
+    }
+  }
   const lost = lostMatches(rows(stack).slice(from));
   for (const r of lost) findings.push(`failover ${fault}: lost ${JSON.stringify(r).slice(0, 300)}`);
   say('field-done', { fault, findings: findings.length });

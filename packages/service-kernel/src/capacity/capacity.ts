@@ -18,6 +18,7 @@ import { monitorEventLoopDelay } from 'node:perf_hooks';
 import type { NextFunction, Request, Response } from 'express';
 
 import { report as defaultReport, type Report } from '../telemetry/telemetry.ts';
+import { PressureWindow, type HostPressure } from './host-pressure.ts';
 
 export const CAPACITY_WINDOW_MS = 5 * 60_000;
 export const SAMPLE_MS = 15_000;
@@ -38,6 +39,8 @@ export interface CapacityDeps {
 	uncountedPath?: (path: string) => boolean;
 	/** The capacity event's field for `uncountedPath`'s count. Default: `'uncounted'`. */
 	uncountedField?: string;
+	/** The host's pressure, read each sample (`host-pressure.ts`). Default: not read. */
+	pressure?: () => HostPressure;
 }
 
 export interface CapacitySampler {
@@ -69,6 +72,7 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 	let errors = 0;
 	/** Requests matching `uncountedPath`: counted, never timed. */
 	let uncounted = 0;
+	const pressure = new PressureWindow();
 
 	const sample = (): void => {
 		samples += 1;
@@ -84,6 +88,12 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 		};
 		for (const [k, v] of Object.entries(reading)) peaks[k] = Math.max(peaks[k] ?? v, v);
 		last = reading;
+		if (deps.pressure !== undefined) {
+			const p = deps.pressure();
+			const from = pressure.add(p);
+			// Quiet on purpose: a telemetry event to read beside a stall, never a page, until its false-positive rate is known.
+			if (from !== null) report('host-pressure', { level: p.level, from, why: p.why, since: p.since, reasons: p.reasons, psi: p.psi }, 'info');
+		}
 	};
 
 	const flush = (): void => {
@@ -109,6 +119,8 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 			loopMaxMs: Math.round(loop.max / 1e6),
 		};
 		context[uncountedField] = uncounted;
+		const hostPressure = pressure.take();
+		if (hostPressure !== null) (context as Record<string, unknown>).hostPressure = hostPressure;
 		Object.assign(context, deps.counts?.());
 		report('capacity', context as unknown as Parameters<Report>[1]);
 		peaks = {};

@@ -57,7 +57,7 @@ import type { AddressInfo } from 'node:net';
 import express, { type Express, type Request, type Response, type Router } from 'express';
 import { Server as SocketIOServer } from 'socket.io';
 import { callerIdOf, tierOf, userIdOf, type EdgeAuth } from '../auth/index.ts';
-import { capacitySampler } from '../capacity/index.ts';
+import { capacitySampler, hostPressureFile, readHostPressure } from '../capacity/index.ts';
 import { createAccountErase, ERASE_PATH, MERGE_PATH, type EraseStep } from '../erase/index.ts';
 import { healthResponse, readCommit, serviceIdOf, type HealthExtra } from '../health/index.ts';
 import { checkBundle, isEmbedEntry, stampOrigin, type BasePathVerdict, type Gate } from '../http/index.ts';
@@ -207,9 +207,11 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 
 	const gauges: Record<string, () => number> = { sockets: () => io.engine.clientsCount };
 	const countReaders: Array<() => Record<string, unknown>> = [];
+	const pressureFile = hostPressureFile();
 	const capacity = capacitySampler({
 		gauges,
 		counts: () => Object.assign({}, ...countReaders.map((read) => read())),
+		pressure: () => readHostPressure(pressureFile, Date.now()),
 		...(config.uncounted === undefined ? {} : { uncountedPath: config.uncounted.path, uncountedField: config.uncounted.field }),
 	});
 	const quiet = config.uncounted?.path ?? (() => false);
