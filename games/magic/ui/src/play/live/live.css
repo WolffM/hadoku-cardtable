@@ -1999,6 +1999,13 @@
   border-top: 1px solid var(--line-soft);
 }
 
+/* The bar is its own stacking context, so the ⋯ sheet's z-index counts only inside it. While the sheet is
+   open the bar rises over a docked decision (`dock.css`, the popover layer, its controls one above), or the
+   decision covers every row of the sheet but its top one; the modal layer stays above it. */
+:root[data-layout='portrait'] .action-bar:has(.action-bar__sheet[data-open]) {
+  z-index: calc(var(--z-popover, 40) + 2);
+}
+
 :root[data-layout='portrait'] .action-bar button {
   box-sizing: border-box;
   display: flex;
