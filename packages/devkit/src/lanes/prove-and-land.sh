@@ -22,15 +22,26 @@
 # Exit 0 landed, 1 proof red, 2 rebase refused (conflicts listed), 3 dispatch or watch
 # failed, 4 land refused (its log is printed).
 set -euo pipefail
+
+usage() { sed -n '4,6p' "$0" | sed 's/^# *//' >&2; exit 3; }
+DRY=''; PLAN=0
+case ${1:-} in --dry-run) DRY=--dry-run; shift ;; --plan) PLAN=1; shift ;; esac
+W=${1:-}; shift || true
+# Everything after the worktree goes to `gh workflow run`, after the rebase and the verify push, so
+# its shape is checked first: -f/-F key=value pairs and nothing else (a flag there is refused here).
+case $W in ''|-*) usage ;; esac
+fields=("$@")
+for ((i = 0; i < ${#fields[@]}; i += 2)); do
+  case ${fields[i]} in -f|-F) ;; *) usage ;; esac
+  [[ ${fields[i + 1]:-} == ?*=* ]] || usage
+done
+
 # shellcheck source=../lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"; devkit_load
 
 R=$(dk_env REPO); R=${R:-$DK_REPO}
-DRY=''; PLAN=0
-case ${1:-} in --dry-run) DRY=--dry-run; shift ;; --plan) PLAN=1; shift ;; esac
-W=${1:-}; shift || true
 # A proof needs its inputs; without a proof workflow there are none to give.
-{ [ -d "$W" ] && { [ $# -ge 2 ] || [ -z "$DK_PROOF_WORKFLOW" ] || [ $PLAN = 1 ]; }; } || { sed -n '4,6p' "$0" | sed 's/^# *//' >&2; exit 3; }
+{ [ -d "$W" ] && { [ $# -ge 2 ] || [ -z "$DK_PROOF_WORKFLOW" ] || [ $PLAN = 1 ]; }; } || usage
 W=$(cd "$W" && pwd)
 MAIN=$(dirname "$(git -C "$W" rev-parse --path-format=absolute --git-common-dir)")
 HERE=$(cd "$(dirname "$0")" && pwd)
