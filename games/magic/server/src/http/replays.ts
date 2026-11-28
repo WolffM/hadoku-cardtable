@@ -22,7 +22,7 @@
  * (`Lobby.stillPlaying`): a Bo3's game 1 is a hidden hand in games 2 and 3.
  */
 
-import { createReadStream, readdirSync } from 'node:fs';
+import { createReadStream, readdirSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { createGunzip } from 'node:zlib';
@@ -272,6 +272,52 @@ async function recordedArt(
 	return withRecordedArt(header, envs, artIds(specDecks(read === null ? null : parseJson<ActionsHeaderLine>(read.first))));
 }
 
+type Summary = { header: PublicHeaderLine; seatsKnown: boolean; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none'; pace: ReplayPace | null; users: { seat: number; userId: string }[] };
+/** A list row as read from disk; a rebuildable one keeps its header, since whether it can rebuild is asked on every list. */
+type Read = { kind: 'stream'; summary: Summary } | { kind: 'actions'; summary: Omit<Summary, 'source'>; actionsHeader: ActionsHeaderLine };
+
+/** A recording's files as a stat sees them (size, mtime, inode): any write or rename-over changes it. */
+function stamp(dir: string, row: Row): string {
+	const one = (suffix: string): string => {
+		const st = statSync(join(dir, `${row.matchId}${suffix}`));
+		return `${st.size}:${st.mtimeMs}:${st.ino}`;
+	};
+	return `${row.hasPublic ? one(PUBLIC_SUFFIX) : '-'}|${row.hasActions ? one(ACTIONS_SUFFIX) : '-'}`;
+}
+
+async function readRow(dir: string, row: Row): Promise<Read | null> {
+	if (row.hasPublic) {
+		const read = await firstAndLastLine(join(dir, `${row.matchId}${PUBLIC_SUFFIX}`));
+		const header = read === null ? null : parseJson<PublicHeaderLine>(read.first);
+		// An older stream draws no hand: it is no replay, but its action log may still rebuild one.
+		if (header !== null && header.v === PUBLIC_VERSION) {
+			const end = read === null ? null : parseJson<PublicEndLine>(read.last);
+			return { kind: 'stream', summary: { header, seatsKnown: true, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream', pace: read === null ? null : read.pace, users: publicUsers(end) } };
+		}
+	}
+	if (!row.hasActions) return null;
+	const read = await firstAndLastLine(join(dir, `${row.matchId}${ACTIONS_SUFFIX}`));
+	const actionsHeader = read === null ? null : parseJson<ActionsHeaderLine>(read.first);
+	if (actionsHeader === null) return null;
+	// A rebuildable row's players/ai are not otherwise known without rebuilding it; the
+	// list still names it from what the action log's own spec carries, decks withheld
+	// (the action log's `spec` holds the raw `.dck` text, which this route never reads out).
+	const spec = actionsHeader.spec as { seats?: { name: string; ai: boolean }[] } | undefined;
+	const seats = Array.isArray(spec?.seats) && spec.seats.length === 2 ? spec.seats : null;
+	const header: PublicHeaderLine = {
+		t: 'header',
+		v: PUBLIC_VERSION,
+		matchId: actionsHeader.matchId,
+		roomId: actionsHeader.roomId,
+		players: seats === null ? ['', ''] : [seats[0]!.name, seats[1]!.name],
+		ai: seats === null ? [false, false] : [seats[0]!.ai, seats[1]!.ai],
+		decks: [null, null],
+		startedAt: actionsHeader.startedAt,
+	};
+	const end = read === null ? null : parseJson<ActionsEndLine>(read.last);
+	return { kind: 'actions', summary: { header, seatsKnown: seats !== null, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, pace: null, users: actionUsers(end) }, actionsHeader };
+}
+
 export function attachReplays(api: Router, deps: ReplaysDeps): void {
 	const log = deps.log ?? (() => undefined);
 	const replays = makeRouter();
@@ -286,47 +332,33 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 		return new Map([...found].flatMap(([id, person]) => (person.name === null ? [] : [[id, person.name] as const])));
 	};
 
+	/**
+	 * What each recording's list row was read as, by match, and the stat it was read at: a finished
+	 * recording never changes, so a list opens only the new ones and the ones still being written
+	 * (PPE 2026-11-28: every page load gunzipped all 300, p95 2.5 s).
+	 */
+	const listCache = new Map<string, { at: string; read: Read | null }>();
+
 	replays.get('/', async (req: Request, res: Response) => {
 		const limitParam = Number(req.query.limit ?? DEFAULT_LIST_LIMIT);
 		const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(Math.floor(limitParam), MAX_LIST_LIMIT) : DEFAULT_LIST_LIMIT;
 		const humansOnly = req.query.humans === 'only';
 
 		const rows = rowsOf(deps.dir);
-		const summaries: { header: PublicHeaderLine; seatsKnown: boolean; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none'; pace: ReplayPace | null; users: { seat: number; userId: string }[] }[] = [];
+		const summaries: Summary[] = [];
+		for (const id of [...listCache.keys()]) if (!rows.some((r) => r.matchId === id)) listCache.delete(id);
 		for (const row of rows) {
 			try {
-				if (row.hasPublic) {
-					const read = await firstAndLastLine(join(deps.dir, `${row.matchId}${PUBLIC_SUFFIX}`));
-					const header = read === null ? null : parseJson<PublicHeaderLine>(read.first);
-					// An older stream draws no hand: it is no replay, but its action log may still rebuild one.
-					if (header !== null && header.v === PUBLIC_VERSION) {
-						const end = read === null ? null : parseJson<PublicEndLine>(read.last);
-						summaries.push({ header, seatsKnown: true, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream', pace: read === null ? null : read.pace, users: publicUsers(end) });
-						continue;
-					}
+				const at = stamp(deps.dir, row);
+				const cached = listCache.get(row.matchId);
+				let read: Read | null;
+				if (cached !== undefined && cached.at === at) read = cached.read;
+				else {
+					read = await readRow(deps.dir, row);
+					listCache.set(row.matchId, { at, read });
 				}
-				if (!row.hasActions) continue;
-				const read = await firstAndLastLine(join(deps.dir, `${row.matchId}${ACTIONS_SUFFIX}`));
-				const actionsHeader = read === null ? null : parseJson<ActionsHeaderLine>(read.first);
-				if (actionsHeader === null) continue;
-				// A rebuildable row's players/ai are not otherwise known without rebuilding it; the
-				// list still names it from what the action log's own spec carries, decks withheld
-				// (the action log's `spec` holds the raw `.dck` text, which this route never reads out).
-				const spec = actionsHeader.spec as { seats?: { name: string; ai: boolean }[] } | undefined;
-				const seats = Array.isArray(spec?.seats) && spec.seats.length === 2 ? spec.seats : null;
-				const header: PublicHeaderLine = {
-					t: 'header',
-					v: PUBLIC_VERSION,
-					matchId: actionsHeader.matchId,
-					roomId: actionsHeader.roomId,
-					players: seats === null ? ['', ''] : [seats[0]!.name, seats[1]!.name],
-					ai: seats === null ? [false, false] : [seats[0]!.ai, seats[1]!.ai],
-					decks: [null, null],
-					startedAt: actionsHeader.startedAt,
-				};
-				const end = read === null ? null : parseJson<ActionsEndLine>(read.last);
-				const canRebuild = deps.canRebuild?.(actionsHeader) ?? false;
-				summaries.push({ header, seatsKnown: seats !== null, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, source: canRebuild ? 'rebuild' : 'none', pace: null, users: actionUsers(end) });
+				if (read === null) continue;
+				summaries.push(read.kind === 'stream' ? read.summary : { ...read.summary, source: (deps.canRebuild?.(read.actionsHeader) ?? false) ? 'rebuild' : 'none' });
 			} catch (err) {
 				log({ evt: 'replay-list-read-failed', matchId: row.matchId, error: (err as Error).message });
 			}

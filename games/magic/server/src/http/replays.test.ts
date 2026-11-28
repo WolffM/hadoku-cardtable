@@ -8,7 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { writeFileSync } from 'node:fs';
+import { statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import express from 'express';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -182,6 +182,49 @@ describe('GET /api/replays', () => {
 		expect((await call(base, '/api/replays')).json.replays).toEqual([]);
 		const asAdmin = await call(base, '/api/replays', 'admin');
 		expect((asAdmin.json.replays as { matchId: string }[]).map((r) => r.matchId)).toEqual(['m-t']);
+	});
+});
+
+describe('GET /api/replays reads a recording once, not on every list', () => {
+	// PPE 2026-11-28: every page load's list gunzipped all 300 recordings one after another (p50
+	// 823 ms, p95 2.5 s, max 3 s), and the list grows with every game played.
+	it('lists an unchanged recording from what it read the first time, and reads one again once it has changed', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-done', { winner: 1, startedAt: '2026-01-01T00:00:00.000Z' });
+		writePublic(dir, 'm-live', { winner: null, startedAt: '2026-01-02T00:00:00.000Z' });
+		// A whole-second mtime, which utimes can put back exactly.
+		const done = join(dir, 'm-done.public.jsonl.gz');
+		const mtime = new Date('2026-01-01T00:10:00.000Z');
+		utimesSync(done, mtime, mtime);
+		const base = await openApp(dir);
+		const first = (await call(base, '/api/replays')).json.replays as { matchId: string; winner: 0 | 1 | null }[];
+		expect(first.map((r) => [r.matchId, r.winner])).toEqual([
+			['m-live', null],
+			['m-done', 1],
+		]);
+
+		// The same bytes on disk as far as a stat can tell (its size and mtime), and unreadable if opened.
+		const { size } = statSync(done);
+		writeFileSync(done, Buffer.alloc(size, 0x20), { flag: 'r+' });
+		utimesSync(done, mtime, mtime);
+		// A recording that changed: the game ended with seat 0 winning.
+		writePublic(dir, 'm-live', { winner: 0, startedAt: '2026-01-02T00:00:00.000Z', envs: [{ t: 'env', at: 0, env: { frame: { kind: 'notify' } } }, { t: 'env', at: 1, env: { frame: { kind: 'notify' } } }] });
+
+		const second = (await call(base, '/api/replays')).json.replays as { matchId: string; winner: 0 | 1 | null }[];
+		expect(second.map((r) => [r.matchId, r.winner])).toEqual([
+			['m-live', 0],
+			['m-done', 1],
+		]);
+		expect(logged.filter((l) => l.evt === 'replay-list-read-failed')).toEqual([]);
+	});
+
+	it('forgets a recording once its file is gone', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-gone');
+		const base = await openApp(dir);
+		expect(((await call(base, '/api/replays')).json.replays as unknown[]).length).toBe(1);
+		unlinkSync(join(dir, 'm-gone.public.jsonl.gz'));
+		expect((await call(base, '/api/replays')).json.replays).toEqual([]);
 	});
 });
 
