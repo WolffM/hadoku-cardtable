@@ -1,0 +1,18 @@
+# e2e/hw-hideaway.spec.ts — CoffeeTraveler, 2026-11-27: "Mosswort Bridge doesn't know when it has no card
+# under it". Alice (seat 0) has a Mosswort Bridge with a face-down Grizzly Bears exiled with it, and Karn
+# Liberated at 1 loyalty, in her main phase. The Bears is drawn under its bridge on both screens, and a
+# click on Karn opens the picker with +4 and his −3 and −14 greyed.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Mosswort Bridge|Id:301;Karn Liberated|Counters:LOYALTY=1;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+humanexile=Grizzly Bears|ExiledWith:301|FaceDown
+aihand=
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
