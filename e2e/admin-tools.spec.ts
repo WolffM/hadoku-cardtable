@@ -25,6 +25,8 @@ const forge = forgeAvailability();
 const titled = (t: string) => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}`);
 const PREFIX = '/cardtable';
 const UI_TIMEOUT = 30_000;
+// A match start, the server's own bound (`play/socket.ts` `startTimeoutMs`): a restored game boots a fresh JVM, cold on a busy claw.
+const START_TIMEOUT = 60_000;
 const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
 
 interface RoomBody {
@@ -129,14 +131,14 @@ test(titled('an operator who neither leads nor plays replaces a no-show, restart
     await admin.page.goto(`${origin}${PREFIX}/#/room/${roomId}`);
     await expect(card(admin.page, carols.id)).toBeVisible({ timeout: UI_TIMEOUT });
     const live = async () => (await call<Live>(admin, origin, 'GET', `/rooms/${roomId}/admin/live`)).body.tables;
-    await expect.poll(async () => (await live()).find((t) => t.tableId === carols.id)?.match?.status, { timeout: UI_TIMEOUT }).toBe('running');
+    await expect.poll(async () => (await live()).find((t) => t.tableId === carols.id)?.match?.status, { timeout: START_TIMEOUT }).toBe('running');
     console.log(`[admin] live before restore: ${JSON.stringify((await live()).find((t) => t.tableId === carols.id))}`);
     await confirmOnCard(admin.page, carols.id, /^Restart turn$/);
     // The same match on a new JVM, and the game as it was before kept as its own recording.
     await expect
       .poll(async () => (await live()).find((t) => t.tableId === carols.id)?.epochs, { timeout: UI_TIMEOUT, message: 'the earlier epoch is kept' })
       .toEqual([`${carolGame}-e1`]);
-    await expect.poll(async () => (await live()).find((t) => t.tableId === carols.id)?.match?.status, { timeout: UI_TIMEOUT }).toBe('running');
+    await expect.poll(async () => (await live()).find((t) => t.tableId === carols.id)?.match?.status, { timeout: START_TIMEOUT }).toBe('running');
     r = await room();
     expect(r.tables.find((t) => t.id === carols.id)!.matchId, 'the same match').toBe(carolGame);
     await expect(carol.page.locator('[aria-label="Game board"]'), 'carol: still in her game').toBeVisible({ timeout: UI_TIMEOUT });

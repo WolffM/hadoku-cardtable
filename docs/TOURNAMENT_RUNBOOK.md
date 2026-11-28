@@ -15,6 +15,16 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
 An operator who is not in the room joins it first (open the link). **In the lobby, entering seats
 you: press Stand** before anyone readies, or you lock in as an entrant.
 
+## Before the pod
+
+- **A few minutes before Start draft, open the pod room's settings and choose its pool** (or choose it
+  again). That runs the pool's card check in the pool JVM, which pages it back in. On prod that JVM
+  has had over a gigabyte swapped out (measured 2026-11-28), and the first call it serves can take
+  longer than its 30 s bound. Start draft is that first call otherwise: it deals every round's
+  boosters.
+- **Start draft answers "could not deal the realistic round(s)…"**: press it again. The pool JVM is
+  paged in by then, and nothing was dealt.
+
 ## Read a match first: softlock or slow player?
 
 ⋯ on the match opens on how it stands: **Turn N**, one row a seat (the seat whose turn it is bold;
@@ -33,7 +43,7 @@ table last moved.
 | Emergency | Fix |
 | --- | --- |
 | **A player's screen shows nothing to do, but the game doesn't move** (seen after a server restart: Forge waits on a question the screen never got) | ⋯ → **Re-send asks**: Forge sends every question it is waiting on again, and the server sends each seat everything it holds for it. Nothing in the game changes. Open ⋯ again: a question Forge waited on that the seat had never been shown is named on that seat's row in the danger colour, so you can see that was the cause. Still stuck: **Restart turn** below. |
-| **Softlock** (a game will not move) | ⋯ → **Restart turn**: the game goes back to the start of the current turn on a new JVM, same match, nobody's clock rewound. Refused when that turn cannot be restored exactly (it names what, e.g. `token`): then **Reset game** (the same game again from its start, the series score stands) or, if the players agree who would have won, **Game to ‹player›**. The game before a restart is kept as its own replay, linked under the state rows (`#/replay/<matchId>-e1`). |
+| **Softlock** (a game will not move) | ⋯ → **Restart turn**: the game goes back to the start of the current turn on a new JVM, same match, nobody's clock rewound. The board is back once that JVM has booted: about 10 s, up to a minute on a busy host (the server's own bound on a start). Refused when that turn cannot be restored exactly (it names what, e.g. `token`): then **Reset game** (the same game again from its start, the series score stands) or, if the players agree who would have won, **Game to ‹player›**. The game before a restart is kept as its own replay, linked under the state rows (`#/replay/<matchId>-e1`). |
 | **No-show before the lock** (sat down, never readies, so the field never locks) | The seat chip's **Bot** (the AI takes the seat; the field is fixed once everyone left is ready) or **Remove** (seat freed for someone else). An empty seat: **Close** it. |
 | **A drafter stops picking mid-draft** (closed the tab; the pod waits on them) | Someone who **leaves the room** is picked for by the draft bot at once. Still in the room but gone: from the console below, `api('draft/pick-for', { memberId: ID })`: the draft bot picks for their seat now and at every pick until they reconnect to the draft (or `{ memberId: ID, on: false }`). Or turn the pick timer on for everyone: `api('draft/timer', { on: true, speed: 1 })` (speed 0.25–4; higher is faster), and a gone seat's pick falls to the bot when its time runs out. |
 | **No-show after the lock** | ⋯ → **Match to ‹opponent›** (this match only; they are paired again next round), or **DQ ‹player›** (this match lost and every later pairing of theirs a bye for its opponent; they stay in the standings, marked). |
@@ -42,7 +52,7 @@ table last moved.
 | **Wrong result, round already paired past** | Refused in the room ("that round is over"). After the event: `npx tsx games/magic/server/src/cli/tournaments.ts show <id> --site prod`, then `set …` without `--write` (dry run), check it, then again with `--write`. Never hand-edit `tournaments.json`. |
 | **A match crashed** (board says the game ended, the table still says playing) | ⋯ → **Restart turn** (failover from the turn's snapshot); no snapshot: it restarts the game. Nothing in play: **Reset game** and the players re-enter from the table page. |
 | **The leader left** | An operator's seat chip **Make leader** on someone in the room; until then an operator has every leader tool anyway. |
-| **Server restart** (pm2 restart, a deploy) | **Deploy or restart cardtable only between rounds.** A restart mid-round freezes every board until the new server has taken back every match, finished games still in their 10-minute grace included; no player is back before the last one. It grows with what has been played, about 1 s per 5,000 logged lines across all matches: measured on PPE 2026-11-28, about 6–7 s for 6 games at turn ~15, 12.5 s for 20 matches, 31.7 s for 36. Then each game resumes exactly where it was; rooms and brackets persist. A game that could not be adopted lets its table go with no result: the players reopen the table link and the same game starts again, the score standing. Prod changes only through `release.yml`; do not cut a release mid-event. |
+| **Server restart** (pm2 restart, a deploy) | **Deploy or restart cardtable only between rounds.** A restart mid-round freezes every board until the new server has taken back every match, finished games still in their 10-minute grace included; no player is back before the last one. About 5–6 s for a Sunday round of 6–8 tables; longer the more has been played and the more finished games are in their grace (measured on PPE 2026-11-28 with the open-ask fix live: 18 matches, ~38k lines, all back by 8.3 s; 42 matches under soak load, ~114k lines, 26.3 s). Then each game resumes exactly where it was; rooms and brackets persist. A game that could not be adopted lets its table go with no result: the players reopen the table link and the same game starts again, the score standing. Prod changes only through `release.yml`; do not cut a release mid-event. |
 | **Whole room wrong** (not a tournament yet) | The leader's **Reset** beside Close in the room (an operator: `api('tables/reset', {})` below). A tournament under way can only be closed. |
 
 ## A claw fails mid-match (failover)
